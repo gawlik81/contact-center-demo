@@ -61,7 +61,19 @@
       "Bash(cmd /c \"netstat -ano | findstr \\\\\":8080 \\\\|:8081 \\\\\"\" 2>&1 || echo \"No output\")",
       "Bash(cmd /c \"tasklist | findstr /i java\" 2>&1)",
       "Bash(cmd /c \"netstat -ano | findstr LISTEN\" 2>&1 | head -30)",
-      "Bash(cmd /c \"docker ps\" 2>&1)"
+      "Bash(cmd /c \"docker ps\" 2>&1)",
+      "mcp__angular-mcp__list_projects",
+      "Bash(node --version && npm --version && npx @angular/cli version 2>/dev/null || echo \"CLI not installed globally\")",
+      "Bash(cd D:/CloudeAI/contact-center-demo && ng new contact-center-frontend --directory frontend --routing true --style scss --standalone true --skip-tests false --package-manager npm 2>&1)",
+      "Bash(cd D:/CloudeAI/contact-center-demo/frontend && ng add @angular-eslint/schematics --skip-confirmation 2>&1)",
+      "Bash(cd D:/CloudeAI/contact-center-demo/frontend && npm install --save-dev prettier eslint-config-prettier prettier-eslint 2>&1)",
+      "Bash(cd D:/CloudeAI/contact-center-demo/frontend && npm install --save-dev husky lint-staged 2>&1)",
+      "Bash(cd D:/CloudeAI/contact-center-demo/frontend && npx husky init 2>&1)",
+      "Bash(cd D:/CloudeAI/contact-center-demo && npm init -y 2>&1 | head -5 && npx --yes husky init 2>&1)",
+      "Bash(cd D:/CloudeAI/contact-center-demo && npx --yes husky init 2>&1)",
+      "Bash(cd D:/CloudeAI/contact-center-demo/frontend && ng build 2>&1)",
+      "Bash(cd D:/CloudeAI/contact-center-demo/frontend && ng test --watch=false 2>&1)",
+      "Bash(cd D:/CloudeAI/contact-center-demo/frontend && ng lint 2>&1)"
     ]
   }
 }

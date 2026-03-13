@@ -1,0 +1,22 @@
+{
+  "name": "contact-center-demo",
+  "version": "1.0.0",
+  "description": "Multi-tenant Contact Center platform in SaaS model. Supports inbound and outbound contacts across voice (VoIP), email, and social media channels. Built with Java/Spring Boot backend, Angular frontend, and PostgreSQL database with strict row-level tenant isolation.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gawlik81/contact-center-demo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/gawlik81/contact-center-demo/issues"
+  },
+  "homepage": "https://github.com/gawlik81/contact-center-demo#readme"
+}

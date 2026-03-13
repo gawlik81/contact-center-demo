@@ -73,7 +73,13 @@
       "Bash(cd D:/CloudeAI/contact-center-demo && npx --yes husky init 2>&1)",
       "Bash(cd D:/CloudeAI/contact-center-demo/frontend && ng build 2>&1)",
       "Bash(cd D:/CloudeAI/contact-center-demo/frontend && ng test --watch=false 2>&1)",
-      "Bash(cd D:/CloudeAI/contact-center-demo/frontend && ng lint 2>&1)"
+      "Bash(cd D:/CloudeAI/contact-center-demo/frontend && ng lint 2>&1)",
+      "mcp__angular-mcp__get_best_practices",
+      "Bash(cd E:/ClaudAI/contact-center-demo/frontend && npx tsc --noEmit 2>&1)",
+      "Bash(cd E:/ClaudAI/contact-center-demo/frontend && node_modules/.bin/tsc --noEmit 2>&1)",
+      "Bash(ls E:/ClaudAI/contact-center-demo/frontend/node_modules/.bin/tsc* 2>&1 || echo \"NOT FOUND\")",
+      "Bash(cd E:/ClaudAI/contact-center-demo/frontend && npm install 2>&1 | tail -5)",
+      "Bash(cd E:/ClaudAI/contact-center-demo/frontend && node_modules/.bin/ng build --configuration=production 2>&1)"
     ]
   }
 }

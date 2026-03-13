@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-13 (aktualizacja po FE-001)
+**Ostatnia aktualizacja:** 2026-03-13 (aktualizacja po FE-004)
 
 ---
 
@@ -92,9 +92,9 @@
 | ID | Nazwa | Status | Uwagi |
 |----|-------|--------|-------|
 | FE-001 | Inicjalizacja projektu Angular i konfiguracja workspace | ✅ | Angular 21.2.x, standalone components, SCSS, Vitest. ESLint (angular-eslint) + Prettier + Husky/lint-staged. Struktura: core/, shared/, features/, environments/. Proxy /api/* → localhost:8080, WebSocket /ws. ng build i ng test PASS. |
-| FE-002 | Konfiguracja routingu, lazy loading i guard AuthGuard | ⬜ | |
-| FE-003 | HTTP Interceptor: JWT, refresh token, obsługa błędów 401/403 | ⬜ | |
-| FE-004 | Moduł uwierzytelniania: ekran logowania i MFA | ⬜ | |
+| FE-002 | Konfiguracja routingu, lazy loading i guard AuthGuard | ✅ | Standalone functional guards (AuthGuard, RoleGuard, RoleRedirectGuard), lazy loading 12 chunków, TokenService (localStorage/sessionStorage), AuthService (sygnały), authInterceptor z silent refresh kolejkującym żądania, routing dla /auth/**, /admin/**, /supervisor/**, /agent/** |
+| FE-003 | HTTP Interceptor: JWT, refresh token, obsługa błędów 401/403 | ✅ | errorHandlerInterceptor (403→toast "Brak uprawnień", 5xx→toast "Błąd serwera", status 0→"Brak połączenia"), NotificationService (signal-based, auto-dismiss 4-6s), ToastContainerComponent (WCAG AA, aria-live), oba interceptory zarejestrowane w app.config.ts |
+| FE-004 | Moduł uwierzytelniania: ekran logowania i MFA | ✅ | LoginComponent (dwustanowy: credentials→MFA, reactive form, walidacja, spinner, błąd 401 inline), MFA krok TOTP (6 cyfr, pattern validator), ChangePasswordComponent (cross-field validator, wskaźnik siły hasła), AUTH_ROUTES, dropdown tenanta w formularzu logowania. Naprawiony proxy.conf.json (usunięty pathRewrite). Naprawiony hash BCrypt w V999__dev_seed.sql. |
 | FE-005 | Shell aplikacji: top navbar, sidenav, breadcrumbs, notyfikacje | ⬜ | |
 | FE-006 | Lista tenantów i formularz tworzenia tenanta | ⬜ | |
 | FE-007 | Dashboard techniczny administratora (metryki tenantów RT) | ⬜ | |
@@ -124,8 +124,8 @@
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
 | Backend (BE) | 3/31 | 0 | 28 | 31 |
-| Frontend (FE) | 1/24 | 0 | 23 | 24 |
-| **RAZEM** | **23/74** | **0** | **51** | **74** |
+| Frontend (FE) | 4/24 | 0 | 20 | 24 |
+| **RAZEM** | **26/74** | **0** | **48** | **74** |
 
 ---
 
@@ -140,3 +140,6 @@
 | 2026-03-13 | application-dev.yml | Flyway: resolved migrations not applied (V015-V017) | Dodano clean-on-validation-error: true |
 | 2026-03-13 | application-dev.yml | Flyway: cleanDisabled blokuje clean() | Dodano clean-disabled: false |
 | 2026-03-13 | V016__contact_referential_integrity.sql L255 | SQL 42703: column "tablename" does not exist | Zmieniono tablename→relname, indexname→indexrelname (pg_stat_user_indexes) |
+| 2026-03-13 | proxy.conf.json | pathRewrite usuwał prefiks /api → backend dostawał /auth/login zamiast /api/auth/login | Usunięto blok pathRewrite, proxy przekazuje ścieżki 1:1 |
+| 2026-03-13 | V999__dev_seed.sql | Hash BCrypt nie pasował do hasła Test@12345 (wszystkie 8 kont) | Wygenerowano nowy poprawny hash $2a$12$b7S/mPXPbip0cNDfN5oFB.UCLXFqGaAO97oXynzYjMFlBuA.zLjt6 |
+| 2026-03-13 | app.html | Domyślny scaffold Angular zasłaniał router-outlet | Zastąpiono zawartością: &lt;cc-toast-container /&gt; + &lt;router-outlet /&gt; |

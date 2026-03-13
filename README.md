@@ -175,14 +175,33 @@ contact-center-demo/
 
 ---
 
+## Dev Credentials
+
+After `docker compose up -d` + backend start, use any of the following accounts (all share the same password):
+
+**Password:** `Test@12345`
+
+| Role | Email | Tenant |
+|------|-------|--------|
+| ADMIN | `admin@contactcenter.dev` | Acme Corporation |
+| SUPERVISOR | `supervisor1@acme.dev` | Acme Corporation |
+| SUPERVISOR | `supervisor1@beta.dev` | Beta Telecom |
+| AGENT | `agent1@acme.dev` | Acme Corporation |
+| AGENT | `agent2@acme.dev` | Acme Corporation |
+| AGENT | `agent3@acme.dev` | Acme Corporation |
+
+> The login form requires selecting the tenant from a dropdown. If you reset the database (`docker compose down -v`), the seed runs automatically on next backend start.
+
+---
+
 ## Progress
 
 | Area | Done | Total |
 |------|------|-------|
 | Database (DB) | 19 | 19 |
 | Backend (BE) | 3 | 31 |
-| Frontend (FE) | 1 | 24 |
-| **Total** | **23** | **74** |
+| Frontend (FE) | 4 | 24 |
+| **Total** | **26** | **74** |
 
 See [PROGRESS.md](PROGRESS.md) for full task status.
 

@@ -14,11 +14,18 @@ export const routes: Routes = [
       import('./features/auth/login/login.component').then((m) => m.LoginComponent),
   },
 
-  // Auth – public
+  // Auth feature (login + change-password)
+  {
+    path: 'auth',
+    loadChildren: () =>
+      import('./features/auth/auth.routes').then((m) => m.AUTH_ROUTES),
+  },
+
+  // Legacy /login redirect → /auth/login
   {
     path: 'login',
-    loadChildren: () =>
-      import('./features/auth/login/login.routes').then((m) => m.LOGIN_ROUTES),
+    redirectTo: '/auth/login',
+    pathMatch: 'full',
   },
 
   // Forbidden – public

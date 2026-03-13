@@ -1,158 +1,115 @@
-import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  inject,
+  signal,
+  computed,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { AuthService } from '../../../core/services/auth.service';
+import { AuthService, LoginResponse } from '../../../core/services/auth.service';
+
+type LoginStep = 'credentials' | 'mfa';
 
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule],
-  template: `
-    <div class="login-container">
-      <div class="login-card">
-        <h1>Contact Center</h1>
-        <h2>Logowanie</h2>
-
-        @if (errorMessage()) {
-          <div class="error-banner" role="alert">{{ errorMessage() }}</div>
-        }
-
-        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-          <div class="form-field">
-            <label for="email">Adres e-mail</label>
-            <input
-              id="email"
-              type="email"
-              formControlName="email"
-              autocomplete="email"
-              [class.invalid]="emailInvalid()"
-              aria-describedby="email-error"
-            />
-            @if (emailInvalid()) {
-              <span id="email-error" class="field-error">Podaj prawidłowy adres e-mail.</span>
-            }
-          </div>
-
-          <div class="form-field">
-            <label for="password">Hasło</label>
-            <input
-              id="password"
-              type="password"
-              formControlName="password"
-              autocomplete="current-password"
-              [class.invalid]="passwordInvalid()"
-              aria-describedby="password-error"
-            />
-            @if (passwordInvalid()) {
-              <span id="password-error" class="field-error">Hasło jest wymagane.</span>
-            }
-          </div>
-
-          <button type="submit" [disabled]="loading() || loginForm.invalid">
-            @if (loading()) {
-              Logowanie...
-            } @else {
-              Zaloguj się
-            }
-          </button>
-        </form>
-      </div>
-    </div>
-  `,
-  styles: `
-    .login-container {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      background: #f5f5f5;
-    }
-    .login-card {
-      background: #fff;
-      padding: 2rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      width: 100%;
-      max-width: 400px;
-    }
-    h1 { margin: 0 0 0.25rem; font-size: 1.25rem; color: #1565c0; }
-    h2 { margin: 0 0 1.5rem; font-size: 1rem; font-weight: 400; color: #555; }
-    .form-field { display: flex; flex-direction: column; margin-bottom: 1rem; }
-    label { font-size: 0.875rem; margin-bottom: 0.25rem; color: #333; }
-    input {
-      padding: 0.5rem 0.75rem;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 1rem;
-      outline: none;
-    }
-    input:focus { border-color: #1565c0; box-shadow: 0 0 0 2px rgba(21,101,192,0.2); }
-    input.invalid { border-color: #d32f2f; }
-    .field-error { font-size: 0.75rem; color: #d32f2f; margin-top: 0.25rem; }
-    .error-banner {
-      background: #ffebee;
-      color: #c62828;
-      padding: 0.75rem;
-      border-radius: 4px;
-      margin-bottom: 1rem;
-      font-size: 0.875rem;
-    }
-    button {
-      width: 100%;
-      padding: 0.75rem;
-      background: #1565c0;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      font-size: 1rem;
-      cursor: pointer;
-      margin-top: 0.5rem;
-    }
-    button:disabled { background: #90caf9; cursor: not-allowed; }
-    button:hover:not(:disabled) { background: #0d47a1; }
-  `,
+  templateUrl: './login.component.html',
+  styleUrl: './login.component.scss',
 })
 export class LoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
+  readonly step = signal<LoginStep>('credentials');
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
+  readonly isMfaStep = computed(() => this.step() === 'mfa');
 
-  readonly loginForm = this.fb.group({
+  /** Stored after successful login when MFA is required */
+  private mfaToken = '';
+
+  readonly credentialsForm = this.fb.group({
+    tenantId: ['', [Validators.required]],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', Validators.required],
+    password: ['', [Validators.required, Validators.minLength(8)]],
   });
 
-  readonly emailInvalid = signal(false);
-  readonly passwordInvalid = signal(false);
+  readonly mfaForm = this.fb.group({
+    code: [
+      '',
+      [Validators.required, Validators.pattern(/^\d{6}$/)],
+    ],
+  });
 
-  onSubmit(): void {
-    const emailCtrl = this.loginForm.get('email')!;
-    const passwordCtrl = this.loginForm.get('password')!;
+  // ── Computed validation helpers ──────────────────────────────────────────
 
-    this.emailInvalid.set(emailCtrl.invalid && (emailCtrl.dirty || emailCtrl.touched));
-    this.passwordInvalid.set(passwordCtrl.invalid && (passwordCtrl.dirty || passwordCtrl.touched));
+  readonly tenantIdControl = computed(() => this.credentialsForm.get('tenantId')!);
+  readonly emailControl = computed(() => this.credentialsForm.get('email')!);
+  readonly passwordControl = computed(() => this.credentialsForm.get('password')!);
+  readonly codeControl = computed(() => this.mfaForm.get('code')!);
 
-    if (this.loginForm.invalid) {
-      this.loginForm.markAllAsTouched();
-      return;
-    }
+  readonly tenantIdInvalid = computed(() => {
+    const ctrl = this.tenantIdControl();
+    return ctrl.invalid && (ctrl.dirty || ctrl.touched);
+  });
+
+  readonly emailInvalid = computed(() => {
+    const ctrl = this.emailControl();
+    return ctrl.invalid && (ctrl.dirty || ctrl.touched);
+  });
+
+  readonly passwordInvalid = computed(() => {
+    const ctrl = this.passwordControl();
+    return ctrl.invalid && (ctrl.dirty || ctrl.touched);
+  });
+
+  readonly codeInvalid = computed(() => {
+    const ctrl = this.codeControl();
+    return ctrl.invalid && (ctrl.dirty || ctrl.touched);
+  });
+
+  readonly emailErrorMessage = computed(() => {
+    const ctrl = this.emailControl();
+    if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
+    if (ctrl.hasError('required')) return 'Adres e-mail jest wymagany.';
+    if (ctrl.hasError('email')) return 'Podaj prawidłowy adres e-mail.';
+    return null;
+  });
+
+  readonly passwordErrorMessage = computed(() => {
+    const ctrl = this.passwordControl();
+    if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
+    if (ctrl.hasError('required')) return 'Hasło jest wymagane.';
+    if (ctrl.hasError('minlength')) return 'Hasło musi mieć co najmniej 8 znaków.';
+    return null;
+  });
+
+  readonly codeErrorMessage = computed(() => {
+    const ctrl = this.codeControl();
+    if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
+    if (ctrl.hasError('required')) return 'Kod weryfikacyjny jest wymagany.';
+    if (ctrl.hasError('pattern')) return 'Kod musi składać się z 6 cyfr.';
+    return null;
+  });
+
+  // ── Submit handlers ──────────────────────────────────────────────────────
+
+  onSubmitCredentials(): void {
+    this.credentialsForm.markAllAsTouched();
+    if (this.credentialsForm.invalid) return;
 
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    const { email, password } = this.loginForm.getRawValue();
-    this.authService.login({ email: email!, password: password! }).subscribe({
-      next: () => {
+    const { tenantId, email, password } = this.credentialsForm.getRawValue();
+
+    this.authService.login({ tenantId: tenantId!, email: email!, password: password! }).subscribe({
+      next: (response: LoginResponse) => {
         this.loading.set(false);
-        const role = this.authService.getUserRole();
-        if (role) {
-          this.router.navigate([this.authService.getRoleDefaultRoute(role)]);
-        } else {
-          this.router.navigate(['/forbidden']);
-        }
+        this.handleLoginResponse(response);
       },
       error: (err) => {
         this.loading.set(false);
@@ -160,9 +117,77 @@ export class LoginComponent {
         if (status === 401) {
           this.errorMessage.set('Nieprawidłowy e-mail lub hasło.');
         } else {
-          this.errorMessage.set('Wystąpił błąd. Spróbuj ponownie.');
+          this.errorMessage.set('Wystąpił błąd serwera. Spróbuj ponownie.');
         }
       },
     });
+  }
+
+  onSubmitMfa(): void {
+    this.mfaForm.markAllAsTouched();
+    if (this.mfaForm.invalid) return;
+
+    this.loading.set(true);
+    this.errorMessage.set(null);
+
+    const code = this.mfaForm.getRawValue().code!;
+
+    this.authService.verifyMfa(this.mfaToken, code).subscribe({
+      next: (tokens) => {
+        this.loading.set(false);
+        this.authService.handleLoginSuccess(tokens);
+        this.navigateToDashboard();
+      },
+      error: (err) => {
+        this.loading.set(false);
+        const status = err?.status;
+        if (status === 401) {
+          this.errorMessage.set('Nieprawidłowy kod weryfikacyjny.');
+        } else {
+          this.errorMessage.set('Weryfikacja nie powiodła się. Spróbuj ponownie.');
+        }
+      },
+    });
+  }
+
+  backToCredentials(): void {
+    this.mfaToken = '';
+    this.mfaForm.reset();
+    this.errorMessage.set(null);
+    this.step.set('credentials');
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────────
+
+  private handleLoginResponse(response: LoginResponse): void {
+    if (response.passwordResetRequired) {
+      // Store the temporary access token so the change-password request can be authorized
+      this.authService.handleLoginSuccess({
+        accessToken: response.accessToken,
+        refreshToken: '',
+      });
+      this.router.navigate(['/auth/change-password']);
+      return;
+    }
+
+    if (response.requiresMfa && response.mfaToken) {
+      this.mfaToken = response.mfaToken;
+      this.step.set('mfa');
+      return;
+    }
+
+    // Direct login success (no MFA, no reset) – should not normally happen
+    // but handle gracefully: backend returned accessToken without refreshToken.
+    // Guard will redirect appropriately.
+    this.navigateToDashboard();
+  }
+
+  private navigateToDashboard(): void {
+    const role = this.authService.getUserRole();
+    if (role) {
+      this.router.navigate([this.authService.getRoleDefaultRoute(role)]);
+    } else {
+      this.router.navigate(['/forbidden']);
+    }
   }
 }

@@ -3,10 +3,7 @@
     "target": "http://localhost:8080",
     "secure": false,
     "changeOrigin": true,
-    "logLevel": "info",
-    "pathRewrite": {
-      "^/api": ""
-    }
+    "logLevel": "info"
   },
   "/ws": {
     "target": "ws://localhost:8080",

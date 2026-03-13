@@ -41,7 +41,12 @@ function addToken(req: HttpRequest<unknown>, token: string): HttpRequest<unknown
 }
 
 function isAuthEndpoint(url: string): boolean {
-  return url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/logout');
+  return (
+    url.includes('/auth/login') ||
+    url.includes('/auth/refresh') ||
+    url.includes('/auth/logout') ||
+    url.includes('/auth/mfa/verify')
+  );
 }
 
 function handle401(

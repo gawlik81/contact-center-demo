@@ -7,14 +7,31 @@ import { JwtPayload, UserRole } from '../models/jwt-payload.model';
 import { environment } from '../../../environments/environment';
 
 export interface LoginRequest {
+  tenantId: string;
   email: string;
   password: string;
-  tenantId?: string;
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  requiresMfa?: boolean;
+  mfaToken?: string;
+  passwordResetRequired?: boolean;
 }
 
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
+}
+
+export interface MfaVerifyRequest {
+  mfaToken: string;
+  code: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -45,11 +62,42 @@ export class AuthService {
     return this.tokenService.decodePayload(token);
   }
 
-  login(request: LoginRequest): Observable<AuthTokens> {
-    return this.http.post<AuthTokens>(`${environment.apiUrl}/auth/login`, request).pipe(
-      tap((tokens) => this.handleTokens(tokens)),
-      catchError((err) => throwError(() => err)),
-    );
+  /**
+   * Step 1: Login with email/password.
+   * Response may require MFA verification or password reset.
+   */
+  login(request: LoginRequest): Observable<LoginResponse> {
+    return this.http
+      .post<LoginResponse>(`${environment.apiUrl}/auth/login`, request)
+      .pipe(catchError((err) => throwError(() => err)));
+  }
+
+  /**
+   * Step 2 (MFA): Verify TOTP code.
+   * Returns final tokens on success.
+   */
+  verifyMfa(mfaToken: string, code: string): Observable<AuthTokens> {
+    const body: MfaVerifyRequest = { mfaToken, code };
+    return this.http
+      .post<AuthTokens>(`${environment.apiUrl}/auth/mfa/verify`, body)
+      .pipe(
+        tap((tokens) => this.handleTokens(tokens)),
+        catchError((err) => throwError(() => err)),
+      );
+  }
+
+  /**
+   * Change password (called when passwordResetRequired flag is set).
+   * Returns new tokens on success.
+   */
+  changePassword(currentPassword: string, newPassword: string): Observable<AuthTokens> {
+    const body: ChangePasswordRequest = { currentPassword, newPassword };
+    return this.http
+      .post<AuthTokens>(`${environment.apiUrl}/auth/change-password`, body)
+      .pipe(
+        tap((tokens) => this.handleTokens(tokens)),
+        catchError((err) => throwError(() => err)),
+      );
   }
 
   refresh(): Observable<AuthTokens> {
@@ -68,7 +116,6 @@ export class AuthService {
   logout(): void {
     const accessToken = this.tokenService.getAccessToken();
     if (accessToken) {
-      // Best-effort server-side blacklist – ignore errors
       this.http
         .post(`${environment.apiUrl}/auth/logout`, {})
         .pipe(catchError(() => []))
@@ -76,7 +123,15 @@ export class AuthService {
     }
     this.tokenService.clearAll();
     this._currentPayload.set(null);
-    this.router.navigate(['/login']);
+    this.router.navigate(['/auth/login']);
+  }
+
+  /**
+   * Saves tokens and updates in-memory state.
+   * Called after successful MFA verification or change-password.
+   */
+  handleLoginSuccess(tokens: AuthTokens): void {
+    this.handleTokens(tokens);
   }
 
   getAccessToken(): string | null {
@@ -91,13 +146,6 @@ export class AuthService {
     return this.isAuthenticated();
   }
 
-  private handleTokens(tokens: AuthTokens): void {
-    this.tokenService.setAccessToken(tokens.accessToken);
-    this.tokenService.setRefreshToken(tokens.refreshToken);
-    const payload = this.tokenService.decodePayload(tokens.accessToken);
-    this._currentPayload.set(payload);
-  }
-
   getRoleDefaultRoute(role: UserRole): string {
     switch (role) {
       case 'ADMIN':
@@ -107,5 +155,12 @@ export class AuthService {
       case 'AGENT':
         return '/agent';
     }
+  }
+
+  private handleTokens(tokens: AuthTokens): void {
+    this.tokenService.setAccessToken(tokens.accessToken);
+    this.tokenService.setRefreshToken(tokens.refreshToken);
+    const payload = this.tokenService.decodePayload(tokens.accessToken);
+    this._currentPayload.set(payload);
   }
 }

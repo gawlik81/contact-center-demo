@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-13 (aktualizacja po BE-003)
+**Ostatnia aktualizacja:** 2026-03-13 (aktualizacja po FE-001)
 
 ---
 
@@ -91,7 +91,7 @@
 
 | ID | Nazwa | Status | Uwagi |
 |----|-------|--------|-------|
-| FE-001 | Inicjalizacja projektu Angular i konfiguracja workspace | ⬜ | |
+| FE-001 | Inicjalizacja projektu Angular i konfiguracja workspace | ✅ | Angular 21.2.x, standalone components, SCSS, Vitest. ESLint (angular-eslint) + Prettier + Husky/lint-staged. Struktura: core/, shared/, features/, environments/. Proxy /api/* → localhost:8080, WebSocket /ws. ng build i ng test PASS. |
 | FE-002 | Konfiguracja routingu, lazy loading i guard AuthGuard | ⬜ | |
 | FE-003 | HTTP Interceptor: JWT, refresh token, obsługa błędów 401/403 | ⬜ | |
 | FE-004 | Moduł uwierzytelniania: ekran logowania i MFA | ⬜ | |
@@ -124,8 +124,8 @@
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
 | Backend (BE) | 3/31 | 0 | 28 | 31 |
-| Frontend (FE) | 0/24 | 0 | 24 | 24 |
-| **RAZEM** | **22/74** | **0** | **52** | **74** |
+| Frontend (FE) | 1/24 | 0 | 23 | 24 |
+| **RAZEM** | **23/74** | **0** | **51** | **74** |
 
 ---
 

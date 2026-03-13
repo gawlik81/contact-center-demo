@@ -14,7 +14,7 @@ Three user personas:
 Three delivery layers:
 - **Database** – PostgreSQL with Flyway migrations, RLS, multi-tenancy
 - **Backend** – Java 21 / Spring Boot 3.3.5 REST API
-- **Frontend** – Angular SPA (planned)
+- **Frontend** – Angular 21 SPA (standalone components, RxJS, Angular Material)
 
 ---
 
@@ -23,7 +23,7 @@ Three delivery layers:
 | Layer | Technology |
 |-------|------------|
 | Backend | Java 21, Spring Boot 3.3.5 |
-| Frontend | Angular |
+| Frontend | Angular 21, TypeScript, RxJS, SCSS |
 | Automation | Python (Voicebot / NLU) |
 | Database | PostgreSQL 16 |
 | Cache | Redis 7 |
@@ -64,26 +64,41 @@ cd backend && mvn spring-boot:run -pl app -Dspring-boot.run.profiles=dev
 - API: `http://localhost:8080`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 
-### 3. Build
+### 3. Run Frontend
 
 ```bash
-cd backend && mvn package -pl app -DskipTests
+cd frontend
+npm install
+npm start
 ```
 
-### 4. Run Tests
+- App: `http://localhost:4200`
+- Dev server proxies `/api/*` to `http://localhost:8080`
+
+### 4. Build
 
 ```bash
-# All tests
+# Backend
+cd backend && mvn package -pl app -DskipTests
+
+# Frontend (production)
+cd frontend && npm run build:prod
+```
+
+### 5. Run Tests
+
+```bash
+# Backend – all tests
 cd backend && mvn test -pl app
 
-# Single test class
+# Backend – single test class
 cd backend && mvn test -pl app -Dtest=JwtServiceTest
 
-# Single test method
-cd backend && mvn test -pl app -Dtest=JwtServiceTest#shouldGenerateValidToken
+# Frontend
+cd frontend && npm test
 ```
 
-### 5. Reset Database
+### 6. Reset Database
 
 ```bash
 docker compose down -v   # wipes all data
@@ -112,6 +127,20 @@ contact-center-demo/
 │   └── db/
 │       ├── migration/                   # Flyway V001–V018 (shared)
 │       └── seed/                        # V999__dev_seed.sql (dev only)
+├── frontend/
+│   ├── src/app/
+│   │   ├── core/                        # Guards, interceptors, singleton services
+│   │   ├── shared/                      # Reusable components, pipes, directives
+│   │   ├── features/                    # Lazy-loaded feature modules
+│   │   │   ├── auth/                    # Login, MFA
+│   │   │   ├── admin/                   # Tenant management (ADMIN role)
+│   │   │   ├── supervisor/              # Supervisor dashboard
+│   │   │   ├── agent/                   # Agent Desktop
+│   │   │   ├── customers/               # Customer database
+│   │   │   ├── reports/                 # Historical reports
+│   │   │   └── campaigns/               # Outbound campaigns
+│   │   └── environments/                # Environment configs
+│   └── proxy.conf.json                  # Dev proxy → localhost:8080
 ├── dw/migrations/                       # ClickHouse DDL (manual versioning)
 ├── docker-compose.yml
 ├── PRD.md
@@ -152,8 +181,8 @@ contact-center-demo/
 |------|------|-------|
 | Database (DB) | 19 | 19 |
 | Backend (BE) | 3 | 31 |
-| Frontend (FE) | 0 | 24 |
-| **Total** | **22** | **74** |
+| Frontend (FE) | 1 | 24 |
+| **Total** | **23** | **74** |
 
 See [PROGRESS.md](PROGRESS.md) for full task status.
 

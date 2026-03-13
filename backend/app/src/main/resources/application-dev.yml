@@ -1,0 +1,153 @@
+# =============================================================================
+# application-dev.yml – Profil DEV (lokalne środowisko)
+# Contact Center SaaS – Spring Boot 3.3.x
+#
+# Przeznaczenie: lokalne środowisko deweloperskie
+# Baza danych: lokalna instancja PostgreSQL (Docker Compose)
+# Dane wrażliwe: wartości domyślne do lokalnego developmentu (nie prod!)
+# =============================================================================
+
+spring:
+
+  # ---------------------------------------------------------------------------
+  # DataSource – lokalna baza PostgreSQL
+  # Domyślnie: postgres://localhost:5432/contact_center_dev
+  # Nadpisywalne przez zmienne ENV (przydatne w CI)
+  # ---------------------------------------------------------------------------
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/contact_center_dev}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    # HikariCP – connection pool
+    hikari:
+      pool-name: ContactCenter-HikariPool-Dev
+      # Maksymalna liczba połączeń w puli
+      maximum-pool-size: 10
+      # Minimalna liczba połączeń w puli
+      minimum-idle: 2
+      # Timeout oczekiwania na połączenie z puli (ms)
+      connection-timeout: 30000
+      # Czas bezczynności przed zamknięciem połączenia (ms)
+      idle-timeout: 600000
+      # Maksymalny czas życia połączenia w puli (ms)
+      max-lifetime: 1800000
+      # Walidacja połączenia
+      connection-test-query: SELECT 1
+      # Rejestracja MBeans (monitoring JMX)
+      register-mbeans: true
+
+  # ---------------------------------------------------------------------------
+  # Flyway – migracje (profil DEV: włączone + seed danych testowych)
+  # ---------------------------------------------------------------------------
+  flyway:
+    enabled: true
+    # W dev dodatkowo ładujemy seed z katalogu db/seed
+    locations:
+      - classpath:db/migration
+      - classpath:db/seed
+    # Umożliwia powtórzenie migracji repeatable (R__) – przydatne w dev
+    out-of-order: false
+    # DEV ONLY: przy błędzie walidacji (np. nowe migracje nie zastosowane na istniejącej DB)
+    # Flyway wyczyści schemat i zastosuje wszystkie migracje od nowa.
+    # NIGDY nie ustawiać na true w profilu prod!
+    clean-on-validation-error: true
+    # DEV ONLY: Flyway 9+ domyślnie blokuje operację clean (cleanDisabled=true).
+    # Musi być false, aby clean-on-validation-error mogło działać.
+    # NIGDY nie ustawiać na false w profilu prod!
+    clean-disabled: false
+    # Placeholder dla seed: aktywny tylko w dev
+    placeholders:
+      seed_enabled: "true"
+
+  # ---------------------------------------------------------------------------
+  # JPA / Hibernate – tryb dev: show SQL, statystyki
+  # ---------------------------------------------------------------------------
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        generate_statistics: false
+    # W dev możemy używać open-in-view (wygoda, nie w prod)
+    open-in-view: false
+
+  # ---------------------------------------------------------------------------
+  # Redis – lokalny Redis
+  # ---------------------------------------------------------------------------
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      # Timeout połączenia (ms)
+      connect-timeout: 2000
+      # Timeout odczytu (ms)
+      timeout: 2000
+      lettuce:
+        pool:
+          # Maksymalna liczba połączeń w puli
+          max-active: 8
+          # Maksymalna liczba bezczynnych połączeń
+          max-idle: 8
+          # Minimalna liczba bezczynnych połączeń
+          min-idle: 2
+          # Timeout oczekiwania na połączenie z puli (ms)
+          max-wait: 1000
+
+  # ---------------------------------------------------------------------------
+  # RabbitMQ – lokalna instancja
+  # ---------------------------------------------------------------------------
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    # Potwierdzenia wydawcy (publisher confirms)
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        # Acks tryb manual – ręczne potwierdzanie przetworzonych wiadomości
+        acknowledge-mode: manual
+        # Ponowne próby przy błędzie
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+          multiplier: 2.0
+
+# =============================================================================
+# Actuator – w dev szczegóły health widoczne bez autoryzacji
+# =============================================================================
+management:
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+
+# =============================================================================
+# Logowanie – tryb dev: DEBUG dla kodu aplikacji
+# =============================================================================
+logging:
+  level:
+    com.contactcenter: DEBUG
+    org.springframework.security: DEBUG
+    org.flywaydb: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.springframework.amqp: DEBUG
+    io.lettuce.core: DEBUG
+
+server:
+  port: 8080
+
+# =============================================================================
+# Spring DevTools – wyłączamy auto-restart (powoduje "port already in use"
+# gdy Tomcat nie zdąży zwolnić portu przed ponownym startem kontekstu)
+# =============================================================================
+spring.devtools:
+  restart:
+    enabled: false

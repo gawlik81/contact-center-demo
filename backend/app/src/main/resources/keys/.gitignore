@@ -1,0 +1,7 @@
+# Klucze DEV/TEST są commitowane (wygenerowane – nie zawierają danych produkcyjnych)
+# W PROD klucze są dostarczane przez ENV vars (JWT_PUBLIC_KEY_VALUE, JWT_PRIVATE_KEY_VALUE)
+# Poniższe reguły chronią przed przypadkowym commitowaniem kluczy prod:
+*-prod.pem
+*-production.pem
+*.p12
+*.jks

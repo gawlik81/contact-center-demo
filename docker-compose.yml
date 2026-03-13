@@ -1,0 +1,112 @@
+# =============================================================================
+# docker-compose.yml – Lokalne środowisko DEV dla Contact Center SaaS
+#
+# Uruchomienie: docker compose up -d
+# Zatrzymanie: docker compose down
+# Reset bazy: docker compose down -v
+#
+# Serwisy:
+#   - PostgreSQL 16  → localhost:5432
+#   - Redis 7        → localhost:6379
+#   - RabbitMQ 3.13  → localhost:5672 (AMQP), localhost:15672 (Management UI)
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 – główna baza danych aplikacji
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: cc-postgres
+    environment:
+      POSTGRES_DB: contact_center_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # Timezone bazy danych – UTC (wymagane dla TIMESTAMPTZ)
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Init skrypt – włączenie rozszerzeń (Flyway V001 robi to samo, ale lepiej wcześniej)
+      - ./backend/src/main/resources/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d contact_center_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - cc-network
+
+  # ---------------------------------------------------------------------------
+  # Redis 7 – cache, JWT blacklista, agent presence
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: cc-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cc-network
+
+  # ---------------------------------------------------------------------------
+  # RabbitMQ 3.13 – broker wiadomości (ADR-03: RabbitMQ zamiast Kafka)
+  # Management UI: http://localhost:15672 (guest/guest)
+  # ---------------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: cc-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"    # AMQP protocol
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - cc-network
+
+# =============================================================================
+# Volumes – persystencja danych między restartami
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+
+# =============================================================================
+# Sieci
+# =============================================================================
+networks:
+  cc-network:
+    driver: bridge
+    name: contact-center-network

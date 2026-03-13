@@ -1,0 +1,35 @@
+# Maven
+target/
+*.jar
+*.war
+.mvn/
+!.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# IDE
+.idea/
+*.iml
+*.iws
+.classpath
+.project
+.settings/
+.factorypath
+
+# Lombok
+lombok.config
+
+# Spring Boot
+spring-shell.log
+
+# Lokalne pliki środowiskowe – NIE commituj!
+.env
+.env.local
+application-local.yml
+
+# Logi
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

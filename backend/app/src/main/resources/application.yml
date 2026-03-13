@@ -1,0 +1,187 @@
+# =============================================================================
+# application.yml – Wspólna konfiguracja dla wszystkich profili
+# Contact Center SaaS – Spring Boot 3.3.x
+#
+# Hierarchia: application.yml (base) → application-{profile}.yml (override)
+# Profile: dev (lokalny), prod (produkcja z ENV vars)
+# =============================================================================
+
+spring:
+  application:
+    name: contact-center-backend
+
+  # ---------------------------------------------------------------------------
+  # Profile – domyślny profil to 'dev'; nadpisywany przez SPRING_PROFILES_ACTIVE
+  # ---------------------------------------------------------------------------
+  profiles:
+    default: dev
+
+  # ---------------------------------------------------------------------------
+  # Spring Data JPA / Hibernate
+  # ---------------------------------------------------------------------------
+  jpa:
+    # Hibernate nie zarządza schematem – Flyway jest jedynym źródłem migracji
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # Formatowanie SQL w logach (nadpisywane per profil)
+        format_sql: false
+        # Typy PostgreSQL-specific (JSONB, UUID)
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        # Statystyki wydajności (wyłączone w prod, włączone w dev)
+        generate_statistics: false
+    open-in-view: false
+
+  # ---------------------------------------------------------------------------
+  # Flyway – automatyczne migracje bazy danych
+  # Konfiguracja per profil w application-{profile}.yml
+  # ---------------------------------------------------------------------------
+  flyway:
+    # Lokalizacja migracji (classpath: db/migration)
+    locations:
+      - classpath:db/migration
+    # Flyway tworzy tabelę flyway_schema_history automatycznie
+    baseline-on-migrate: false
+    # Walidacja sumy kontrolnej migracji przy każdym starcie
+    validate-on-migrate: true
+    # Kodowanie plików SQL
+    encoding: UTF-8
+    # Domyślny schemat
+    default-schema: public
+    # Tabela historii migracji
+    table: flyway_schema_history
+
+  # ---------------------------------------------------------------------------
+  # Jackson – serializacja JSON
+  # ---------------------------------------------------------------------------
+  jackson:
+    # Daty jako ISO-8601 (nie jako timestamp UNIX)
+    serialization:
+      write-dates-as-timestamps: false
+      write-durations-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+
+  # ---------------------------------------------------------------------------
+  # Spring Security – konfiguracja bazy; szczegóły w SecurityConfig.java
+  # ---------------------------------------------------------------------------
+  security:
+    user:
+      # Wyłączamy domyślnego usera Spring Security (używamy własnej autentykacji)
+      name: ${SECURITY_DEFAULT_USER:disabled}
+      password: ${SECURITY_DEFAULT_PASSWORD:disabled}
+
+# =============================================================================
+# Actuator – health checks i metryki
+# =============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        # Eksponujemy: health, info, metrics, flyway, liquibase (nie używamy)
+        include: health,info,metrics,flyway,loggers,env
+      base-path: /actuator
+  endpoint:
+    health:
+      # Szczegółowy status: pokazuje DB, Redis, RabbitMQ
+      show-details: when_authorized
+      show-components: when_authorized
+      # Health groups dla liveness i readiness probe (Kubernetes)
+      group:
+        liveness:
+          include: ping
+        readiness:
+          include: db,redis,rabbit
+  health:
+    # Włączamy sprawdzanie RabbitMQ
+    rabbit:
+      enabled: true
+    # Włączamy sprawdzanie Redis
+    redis:
+      enabled: true
+    # Włączamy sprawdzanie datasource (PostgreSQL)
+    db:
+      enabled: true
+    # Wyłączamy sprawdzanie dysku
+    diskspace:
+      enabled: false
+  # Micrometer / Prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: false
+    tags:
+      application: ${spring.application.name}
+  info:
+    env:
+      enabled: true
+
+# =============================================================================
+# Informacje o aplikacji (dostępne przez /actuator/info)
+# =============================================================================
+info:
+  app:
+    name: Contact Center SaaS Backend
+    version: 1.0.0-SNAPSHOT
+    description: Multi-tenant contact center platform
+    java-version: ${java.version}
+
+# =============================================================================
+# SpringDoc OpenAPI 3.0 – Swagger UI
+# =============================================================================
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    # Grupowanie endpointów per moduł
+    tags-sorter: alpha
+    operations-sorter: alpha
+  # Pokazuj endpointy Actuator w OpenAPI (opcjonalne, wyłączone)
+  show-actuator: false
+  # Pakiety skanowane przez springdoc
+  packages-to-scan: com.contactcenter.api
+
+# =============================================================================
+# JWT – konfiguracja tokenów RS256 (BE-002 / BE-003)
+# Klucze RSA: plik PEM w dev, ENV vars w prod
+# =============================================================================
+jwt:
+  # Issuer weryfikowany w claim 'iss' – musi być zgodny przy wystawianiu tokenu
+  issuer: ${JWT_ISSUER:contact-center}
+
+  # Klucz publiczny RSA do weryfikacji podpisu (używany przez TenantFilter)
+  # DEV: ścieżka do pliku PEM w classpath (generowanie: patrz docs/dev-setup.md)
+  # PROD: JWT_PUBLIC_KEY_VALUE (zawartość PEM jako string w ENV var)
+  public-key-location: ${JWT_PUBLIC_KEY_LOCATION:classpath:keys/public.pem}
+  public-key-value: ${JWT_PUBLIC_KEY_VALUE:}
+
+  # Klucz prywatny RSA do podpisywania tokenów (używany przez AuthService w BE-003)
+  # PROD: JWT_PRIVATE_KEY_VALUE (zawartość PEM jako string w ENV var)
+  private-key-location: ${JWT_PRIVATE_KEY_LOCATION:classpath:keys/private.pem}
+  private-key-value: ${JWT_PRIVATE_KEY_VALUE:}
+
+  # TTL access tokenu: 15 minut (900s) – wymóg PRD
+  access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL:900}
+  # TTL refresh tokenu: 7 dni (604800s) – wymóg PRD
+  refresh-token-ttl-seconds: ${JWT_REFRESH_TOKEN_TTL:604800}
+
+# =============================================================================
+# Logowanie – wspólna konfiguracja bazowa
+# =============================================================================
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{tenantId}] [%X{requestId}] %logger{36} - %msg%n"
+  level:
+    root: INFO
+    com.contactcenter: INFO
+    org.springframework.security: WARN
+    org.flywaydb: INFO

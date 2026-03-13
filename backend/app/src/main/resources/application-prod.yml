@@ -1,0 +1,155 @@
+# =============================================================================
+# application-prod.yml – Profil PROD (środowisko produkcyjne)
+# Contact Center SaaS – Spring Boot 3.3.x
+#
+# Przeznaczenie: środowisko produkcyjne / staging
+# Dane wrażliwe: WYŁĄCZNIE z zmiennych środowiskowych (ENV vars)
+# Nigdy nie commituj haseł do repozytorium!
+#
+# Wymagane zmienne środowiskowe:
+#   DB_URL          – jdbc:postgresql://host:5432/contact_center
+#   DB_USERNAME     – użytkownik bazy danych
+#   DB_PASSWORD     – hasło bazy danych
+#   REDIS_HOST      – host Redis
+#   REDIS_PORT      – port Redis (default: 6379)
+#   REDIS_PASSWORD  – hasło Redis
+#   RABBITMQ_HOST   – host RabbitMQ
+#   RABBITMQ_PORT   – port AMQP (default: 5672)
+#   RABBITMQ_USERNAME – użytkownik RabbitMQ
+#   RABBITMQ_PASSWORD – hasło RabbitMQ
+#   RABBITMQ_VHOST  – virtual host (default: /)
+# =============================================================================
+
+spring:
+
+  # ---------------------------------------------------------------------------
+  # DataSource – połączenie z produkcyjną bazą PostgreSQL
+  # Wszystkie wartości MUSZĄ pochodzić z ENV vars
+  # ---------------------------------------------------------------------------
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    # HikariCP – connection pool (wymiarowanie dla 100 agentów per tenant)
+    hikari:
+      pool-name: ContactCenter-HikariPool-Prod
+      # Prod: wyższe limity puli (docelowo 50 tenantów × ruch)
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:30}
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      # Timeout oczekiwania na połączenie (ms) – 30s
+      connection-timeout: 30000
+      # Czas bezczynności przed zamknięciem połączenia (ms) – 10 min
+      idle-timeout: 600000
+      # Maksymalny czas życia połączenia (ms) – 30 min
+      max-lifetime: 1800000
+      # Walidacja połączenia po wyjęciu z puli
+      connection-test-query: SELECT 1
+      # Rejestracja metryk HikariCP przez Micrometer
+      register-mbeans: false
+      # Leak detection – wykrywanie niezamkniętych połączeń (60s)
+      leak-detection-threshold: 60000
+
+  # ---------------------------------------------------------------------------
+  # Flyway – migracje (profil PROD: tylko produkcyjne migracje, BEZ seed)
+  # ---------------------------------------------------------------------------
+  flyway:
+    enabled: true
+    locations:
+      - classpath:db/migration
+    # W prod nie akceptujemy migracji poza kolejnością
+    out-of-order: false
+    # Walidacja sumy kontrolnej – nie pozwala na modyfikację aplikowanych migracji
+    validate-on-migrate: true
+    # Flaga bezpieczeństwa: nie czyść bazy przy starcie (tylko dla testów!)
+    clean-disabled: true
+
+  # ---------------------------------------------------------------------------
+  # JPA / Hibernate – prod: brak show-sql, brak statystyk
+  # ---------------------------------------------------------------------------
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        generate_statistics: false
+    open-in-view: false
+
+  # ---------------------------------------------------------------------------
+  # Redis – produkcja
+  # ---------------------------------------------------------------------------
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      database: ${REDIS_DATABASE:0}
+      # TLS dla produkcji
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      connect-timeout: 3000
+      timeout: 3000
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:16}
+          max-idle: ${REDIS_POOL_MAX_IDLE:16}
+          min-idle: ${REDIS_POOL_MIN_IDLE:4}
+          max-wait: 2000
+
+  # ---------------------------------------------------------------------------
+  # RabbitMQ – produkcja
+  # ---------------------------------------------------------------------------
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    # TLS dla produkcji
+    ssl:
+      enabled: ${RABBITMQ_SSL_ENABLED:false}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        # Prod: więcej prób przed dead-letter
+        retry:
+          enabled: true
+          initial-interval: 2000
+          max-attempts: 5
+          multiplier: 2.0
+          max-interval: 30000
+
+# =============================================================================
+# Actuator – prod: health szczegóły tylko dla autoryzowanych
+# =============================================================================
+management:
+  endpoint:
+    health:
+      show-details: when_authorized
+      show-components: when_authorized
+  endpoints:
+    web:
+      exposure:
+        # W prod eksponujemy minimum (health, info) + metrics dla Prometheus
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: ${PROMETHEUS_ENABLED:false}
+
+# =============================================================================
+# Logowanie – prod: INFO (bez SQL dump, bez debug security)
+# =============================================================================
+logging:
+  level:
+    root: WARN
+    com.contactcenter: INFO
+    org.springframework.security: WARN
+    org.flywaydb: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.amqp: WARN
+  # W prod logujemy do pliku (lub stdout dla kontenerów / log aggregator)
+  file:
+    name: ${LOG_FILE:/var/log/contact-center/app.log}

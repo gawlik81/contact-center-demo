@@ -54,6 +54,13 @@ function handle401(
     isRefreshing = true;
     refreshTokenSubject.next(null);
 
+    // If there is no refresh token (e.g. session storage cleared), bail out immediately
+    if (!tokenService.getRefreshToken()) {
+      isRefreshing = false;
+      authService.logout();
+      return throwError(() => new Error('No refresh token available'));
+    }
+
     return authService.refresh().pipe(
       switchMap((tokens) => {
         isRefreshing = false;
@@ -62,6 +69,7 @@ function handle401(
       }),
       catchError((err) => {
         isRefreshing = false;
+        refreshTokenSubject.next(null);
         authService.logout();
         return throwError(() => err);
       }),

@@ -79,7 +79,8 @@
       "Bash(cd E:/ClaudAI/contact-center-demo/frontend && node_modules/.bin/tsc --noEmit 2>&1)",
       "Bash(ls E:/ClaudAI/contact-center-demo/frontend/node_modules/.bin/tsc* 2>&1 || echo \"NOT FOUND\")",
       "Bash(cd E:/ClaudAI/contact-center-demo/frontend && npm install 2>&1 | tail -5)",
-      "Bash(cd E:/ClaudAI/contact-center-demo/frontend && node_modules/.bin/ng build --configuration=production 2>&1)"
+      "Bash(cd E:/ClaudAI/contact-center-demo/frontend && node_modules/.bin/ng build --configuration=production 2>&1)",
+      "Bash(cd \"E:/ClaudAI/contact-center-demo/frontend\" && npx ng build --configuration development 2>&1)"
     ]
   }
 }

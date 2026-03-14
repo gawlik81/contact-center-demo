@@ -9,13 +9,14 @@ import com.contactcenter.security.*;
 import com.contactcenter.security.JwtParser.JwtClaims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +54,8 @@ public class AuthService {
     private final MfaService mfaService;
     private final AppUserRepository appUserRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final LoginRateLimiter loginRateLimiter;
 
     // =========================================================================
     // Login
@@ -61,16 +64,29 @@ public class AuthService {
     /**
      * Loguje użytkownika: weryfikuje hasło i wystawia parę access+refresh tokenów.
      *
-     * <p>Dla użytkowników z MFA: wystawiany jest tymczasowy access token z {@code mfaVerified=false}.
-     * Klient musi następnie wywołać {@code POST /api/auth/mfa/verify} z kodem TOTP.
+     * <p>Przepływ:
+     * <ol>
+     *   <li>Rate limiting: sprawdza liczbę prób logowania z danego IP (max 5/15 min)</li>
+     *   <li>Autentykacja przez AuthenticationManager (bcrypt weryfikacja hasła)</li>
+     *   <li>Sprawdzenie flagi {@code passwordResetRequired} – jeśli true, zwraca
+     *       {@link LoginResponse#passwordResetRequired} (klient musi zmienić hasło)</li>
+     *   <li>Dla użytkowników z MFA: tymczasowy token z {@code mfaVerified=false}</li>
+     *   <li>Po udanym logowaniu resetuje licznik rate limit dla IP</li>
+     * </ol>
      *
      * @param request dane logowania (tenantId, email, password)
-     * @return para tokenów; pole {@code mfaRequired=true} gdy wymagana weryfikacja TOTP
+     * @param ip      adres IP klienta (do rate limiting)
+     * @return para tokenów; pole {@code mfaRequired=true} lub {@code passwordResetRequired=true}
+     *         gdy wymagane dodatkowe akcje
+     * @throws com.contactcenter.domain.exception.RateLimitExceededException gdy przekroczono limit prób
      * @throws BadCredentialsException gdy hasło nieprawidłowe
      * @throws DisabledException       gdy konto nieaktywne
      */
     @Transactional
-    public LoginResponse login(LoginRequest request) {
+    public LoginResponse login(LoginRequest request, String ip) {
+        // Rate limiting: sprawdź i inkrementuj licznik dla IP
+        loginRateLimiter.checkAndIncrement(ip);
+
         UUID tenantId;
         try {
             tenantId = UUID.fromString(request.tenantId());
@@ -98,22 +114,31 @@ public class AuthService {
 
         AppUserDetails userDetails = (AppUserDetails) authentication.getPrincipal();
 
-        // Pobierz pełną encję (potrzebujemy mfaEnabled, id do refresh tokenu)
+        // Pobierz pełną encję (potrzebujemy mfaEnabled, passwordResetRequired, id do refresh tokenu)
         AppUser user = appUserRepository.findById(userDetails.getUserId())
                 .orElseThrow(() -> new BadCredentialsException("Nieprawidłowe dane logowania"));
 
-        boolean mfaRequired = user.isMfaEnabled();
-        // access token z mfaVerified=false gdy MFA wymagane, true gdy MFA nieaktywne
-        String accessToken = jwtService.issueAccessToken(user, !mfaRequired);
-        String refreshTokenValue = createRefreshToken(user);
+        // Po udanym uwierzytelnieniu: zresetuj licznik rate limit
+        loginRateLimiter.reset(ip);
 
-        if (mfaRequired) {
+        String accessToken = jwtService.issueAccessToken(user, !user.isMfaEnabled());
+        String refreshTokenValue = createRefreshToken(user);
+        long ttl = jwtService.getAccessTokenTtlSeconds();
+
+        // Priorytet: zmiana hasła wymagana przed weryfikacją MFA
+        if (user.isPasswordResetRequired()) {
+            log.info("[Auth] Logowanie z wymaganą zmianą hasła: userId={}, tenantId={}",
+                    user.getId(), user.getTenantId());
+            return LoginResponse.passwordResetRequired(accessToken, refreshTokenValue, ttl);
+        }
+
+        if (user.isMfaEnabled()) {
             log.info("[Auth] Logowanie z MFA: userId={}, tenantId={}", user.getId(), user.getTenantId());
-            return LoginResponse.mfaRequired(accessToken, refreshTokenValue, jwtService.getAccessTokenTtlSeconds());
+            return LoginResponse.mfaRequired(accessToken, refreshTokenValue, ttl);
         }
 
         log.info("[Auth] Logowanie bez MFA: userId={}, tenantId={}", user.getId(), user.getTenantId());
-        return LoginResponse.of(accessToken, refreshTokenValue, jwtService.getAccessTokenTtlSeconds());
+        return LoginResponse.of(accessToken, refreshTokenValue, ttl);
     }
 
     // =========================================================================
@@ -295,6 +320,112 @@ public class AuthService {
     }
 
     // =========================================================================
+    // Change Password
+    // =========================================================================
+
+    /**
+     * Zmienia hasło użytkownika i wystawia nową parę tokenów.
+     *
+     * <p>Przepływ:
+     * <ol>
+     *   <li>Weryfikacja aktualnego hasła przez bcrypt</li>
+     *   <li>Walidacja siły nowego hasła (min 8 znaków, 1 cyfra, 1 wielka litera)</li>
+     *   <li>Zapisanie nowego hasła i wyczyszczenie flagi {@code passwordResetRequired}</li>
+     *   <li>Unieważnienie starego access tokenu (blacklista Redis)</li>
+     *   <li>Unieważnienie wszystkich refresh tokenów użytkownika</li>
+     *   <li>Wystawienie nowych tokenów</li>
+     * </ol>
+     *
+     * @param userId         UUID zalogowanego użytkownika (z JWT)
+     * @param tenantId       UUID tenanta (z JWT, do pobrania encji)
+     * @param request        request z aktualnym i nowym hasłem
+     * @param oldAccessToken stary access token do blacklisty
+     * @return nowa para tokenów
+     * @throws BadCredentialsException  gdy aktualne hasło jest nieprawidłowe
+     * @throws IllegalArgumentException gdy nowe hasło nie spełnia wymagań siły
+     */
+    @Transactional
+    public LoginResponse changePassword(UUID userId, UUID tenantId,
+                                        ChangePasswordRequest request, String oldAccessToken) {
+        AppUser user = appUserRepository.findById(userId)
+                .orElseThrow(() -> new BadCredentialsException("Użytkownik nie istnieje"));
+
+        // Weryfikacja aktualnego hasła
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            log.warn("[Auth] Zmiana hasła – nieprawidłowe aktualne hasło: userId={}", userId);
+            throw new BadCredentialsException("Nieprawidłowe aktualne hasło");
+        }
+
+        // Walidacja siły nowego hasła: min 1 cyfra, min 1 wielka litera
+        validatePasswordStrength(request.newPassword());
+
+        // Zakoduj nowe hasło i zapisz
+        String newHash = passwordEncoder.encode(request.newPassword());
+        appUserRepository.updatePasswordAndClearReset(userId, newHash);
+
+        // Unieważnij stary access token (blacklista Redis)
+        blacklistAccessToken(oldAccessToken);
+
+        // Unieważnij wszystkie refresh tokeny użytkownika (wymuszamy re-login na innych urządzeniach)
+        int revokedCount = refreshTokenRepository.revokeAllByUserId(userId);
+        log.debug("[Auth] Zmiana hasła: unieważniono {} refresh tokenów dla userId={}", revokedCount, userId);
+
+        // Zaktualizuj lokalny stan encji (do wystawienia tokenu)
+        user.setPasswordHash(newHash);
+        user.setPasswordResetRequired(false);
+
+        // Wystaw nowe tokeny
+        String newAccessToken = jwtService.issueAccessToken(user, !user.isMfaEnabled());
+        String newRefreshTokenValue = createRefreshToken(user);
+
+        log.info("[Auth] Hasło zmienione pomyślnie: userId={}, tenantId={}", userId, tenantId);
+        return LoginResponse.of(newAccessToken, newRefreshTokenValue, jwtService.getAccessTokenTtlSeconds());
+    }
+
+    // =========================================================================
+    // Force Password Reset (Admin / Supervisor)
+    // =========================================================================
+
+    /**
+     * Wymusza zmianę hasła przy następnym logowaniu docelowego użytkownika.
+     *
+     * <p>Uprawnienia:
+     * <ul>
+     *   <li>ADMIN – może resetować dowolnego użytkownika (cross-tenant)</li>
+     *   <li>SUPERVISOR – może resetować tylko użytkowników własnego tenanta</li>
+     * </ul>
+     *
+     * <p>Skutki: ustawia {@code passwordResetRequired=true} i unieważnia
+     * wszystkie aktywne refresh tokeny (wymusza wylogowanie ze wszystkich urządzeń).
+     *
+     * @param targetUserId  UUID użytkownika do zresetowania
+     * @param callerTenantId UUID tenanta wywołującego (z JWT)
+     * @param callerRole    rola wywołującego ("ADMIN" lub "SUPERVISOR")
+     * @throws IllegalArgumentException gdy użytkownik nie istnieje
+     * @throws AccessDeniedException    gdy SUPERVISOR próbuje resetować użytkownika innego tenanta
+     */
+    @Transactional
+    public void forcePasswordReset(UUID targetUserId, UUID callerTenantId, String callerRole) {
+        AppUser target = appUserRepository.findById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Użytkownik nie istnieje"));
+
+        // SUPERVISOR może resetować tylko użytkowników swojego tenanta
+        if ("SUPERVISOR".equals(callerRole) && !target.getTenantId().equals(callerTenantId)) {
+            log.warn("[Auth] SUPERVISOR próbuje force-reset użytkownika innego tenanta: " +
+                     "callerTenant={}, targetUserId={}, targetTenant={}",
+                     callerTenantId, targetUserId, target.getTenantId());
+            throw new AccessDeniedException("Supervisor może resetować hasła tylko agentów własnego tenanta");
+        }
+
+        target.setPasswordResetRequired(true);
+        appUserRepository.save(target);
+
+        int revokedCount = refreshTokenRepository.revokeAllByUserId(targetUserId);
+        log.info("[Auth] Force password reset: targetUserId={}, by role={}, unieważniono {} tokenów",
+                targetUserId, callerRole, revokedCount);
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 
@@ -337,6 +468,24 @@ public class AuthService {
             }
         } catch (Exception e) {
             log.warn("[Auth] Nie udało się dodać tokenu do blacklisty: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Waliduje siłę hasła: min 8 znaków (sprawdzane przez Bean Validation),
+     * min 1 cyfra, min 1 wielka litera.
+     *
+     * @param password hasło w plain text
+     * @throws IllegalArgumentException gdy hasło nie spełnia wymagań
+     */
+    private void validatePasswordStrength(String password) {
+        boolean hasDigit = password.chars().anyMatch(Character::isDigit);
+        boolean hasUppercase = password.chars().anyMatch(Character::isUpperCase);
+
+        if (!hasDigit || !hasUppercase) {
+            throw new IllegalArgumentException(
+                    "Nowe hasło nie spełnia wymagań: musi zawierać min. 1 cyfrę i min. 1 wielką literę"
+            );
         }
     }
 

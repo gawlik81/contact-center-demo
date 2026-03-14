@@ -11,25 +11,28 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Kontroler REST obsługujący autentykację i zarządzanie tokenami.
  *
  * <p>Endpointy:
  * <ul>
- *   <li>{@code POST /api/auth/login}        – logowanie (publiczny)</li>
- *   <li>{@code POST /api/auth/refresh}       – odświeżenie tokenów (publiczny)</li>
- *   <li>{@code POST /api/auth/logout}        – wylogowanie (wymaga JWT)</li>
- *   <li>{@code POST /api/auth/logout-all}    – wylogowanie ze wszystkich urządzeń</li>
- *   <li>{@code GET  /api/auth/mfa/setup}     – generowanie TOTP secret + QR code</li>
- *   <li>{@code POST /api/auth/mfa/verify}    – weryfikacja kodu TOTP</li>
+ *   <li>{@code POST /api/auth/login}              – logowanie (publiczny)</li>
+ *   <li>{@code POST /api/auth/refresh}             – odświeżenie tokenów (publiczny)</li>
+ *   <li>{@code POST /api/auth/logout}              – wylogowanie (wymaga JWT)</li>
+ *   <li>{@code POST /api/auth/logout-all}          – wylogowanie ze wszystkich urządzeń</li>
+ *   <li>{@code GET  /api/auth/mfa/setup}           – generowanie TOTP secret + QR code</li>
+ *   <li>{@code POST /api/auth/mfa/verify}          – weryfikacja kodu TOTP</li>
+ *   <li>{@code POST /api/auth/change-password}     – zmiana hasła (wymaga JWT)</li>
+ *   <li>{@code POST /api/auth/force-reset/{userId}} – wymuszenie zmiany hasła (ADMIN/SUPERVISOR)</li>
  * </ul>
  */
 @Slf4j
@@ -51,15 +54,22 @@ public class AuthController {
     @Operation(
         summary = "Logowanie użytkownika",
         description = "Weryfikuje dane logowania i zwraca parę access/refresh tokenów. " +
-                      "Gdy użytkownik ma aktywne MFA, pole mfaRequired=true – wymagana weryfikacja TOTP.",
+                      "Gdy użytkownik ma aktywne MFA, pole mfaRequired=true – wymagana weryfikacja TOTP. " +
+                      "Gdy wymagana zmiana hasła, pole passwordResetRequired=true – klient musi wywołać " +
+                      "POST /api/auth/change-password. Rate limit: 5 prób / 15 min / IP.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Zalogowano pomyślnie"),
             @ApiResponse(responseCode = "400", description = "Nieprawidłowe dane wejściowe"),
-            @ApiResponse(responseCode = "401", description = "Nieprawidłowe dane logowania")
+            @ApiResponse(responseCode = "401", description = "Nieprawidłowe dane logowania"),
+            @ApiResponse(responseCode = "429", description = "Zbyt wiele prób logowania")
         }
     )
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        LoginResponse response = authService.login(request);
+    public ResponseEntity<LoginResponse> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        String ip = httpRequest.getRemoteAddr();
+        LoginResponse response = authService.login(request, ip);
         return ResponseEntity.ok(response);
     }
 
@@ -178,6 +188,70 @@ public class AuthController {
                 "accessToken", newAccessToken,
                 "tokenType", "Bearer"
         ));
+    }
+
+    // =========================================================================
+    // Change Password
+    // =========================================================================
+
+    @PostMapping("/change-password")
+    @SecurityRequirement(name = "Bearer Authentication")
+    @Operation(
+        summary = "Zmiana hasła",
+        description = "Zmienia hasło użytkownika. Wymagane: aktualne hasło (weryfikacja) i nowe hasło " +
+                      "(min 8 znaków, min 1 cyfra, min 1 wielka litera). " +
+                      "Po zmianie stary access token jest unieważniany – odpowiedź zawiera nowe tokeny. " +
+                      "Wymagany jest ważny JWT (Bearer token).",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Hasło zmienione, nowe tokeny"),
+            @ApiResponse(responseCode = "401", description = "Nieprawidłowe aktualne hasło lub brak JWT"),
+            @ApiResponse(responseCode = "422", description = "Walidacja lub zbyt słabe nowe hasło")
+        }
+    )
+    public ResponseEntity<LoginResponse> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal AppUserDetails userDetails,
+            HttpServletRequest httpRequest
+    ) {
+        String oldAccessToken = extractBearerToken(httpRequest);
+        LoginResponse response = authService.changePassword(
+                userDetails.getUserId(),
+                userDetails.getTenantId(),
+                request,
+                oldAccessToken
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Force Password Reset (Admin / Supervisor)
+    // =========================================================================
+
+    @PostMapping("/force-reset/{userId}")
+    @SecurityRequirement(name = "Bearer Authentication")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @Operation(
+        summary = "Wymuś zmianę hasła użytkownika",
+        description = "Ustawia flagę passwordResetRequired=true i unieważnia wszystkie sesje docelowego " +
+                      "użytkownika. Przy następnym logowaniu użytkownik będzie zmuszony do zmiany hasła. " +
+                      "ADMIN może resetować dowolnego użytkownika. SUPERVISOR – tylko użytkowników " +
+                      "własnego tenanta.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Flaga ustawiona, sesje unieważnione"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień lub cross-tenant"),
+            @ApiResponse(responseCode = "422", description = "Użytkownik nie istnieje")
+        }
+    )
+    public ResponseEntity<Void> forcePasswordReset(
+            @PathVariable UUID userId,
+            @AuthenticationPrincipal AppUserDetails userDetails
+    ) {
+        authService.forcePasswordReset(
+                userId,
+                userDetails.getTenantId(),
+                userDetails.getRole()
+        );
+        return ResponseEntity.noContent().build();
     }
 
     // =========================================================================

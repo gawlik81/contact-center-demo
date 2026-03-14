@@ -29,6 +29,8 @@ public class AppUserDetails implements UserDetails {
     private final boolean active;
     private final boolean mfaEnabled;
     private final String mfaSecret;
+    /** Nazwa roli domenowej (np. "ADMIN", "SUPERVISOR", "AGENT") – bez prefiksu ROLE_. */
+    private final String role;
     private final Collection<? extends GrantedAuthority> authorities;
 
     public AppUserDetails(AppUser user) {
@@ -39,6 +41,7 @@ public class AppUserDetails implements UserDetails {
         this.active       = user.isActive();
         this.mfaEnabled   = user.isMfaEnabled();
         this.mfaSecret    = user.getMfaSecret();
+        this.role         = user.getRole() != null ? user.getRole().name() : null;
         // Spring Security convention: role = ROLE_{ROLE_NAME}
         this.authorities  = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
     }

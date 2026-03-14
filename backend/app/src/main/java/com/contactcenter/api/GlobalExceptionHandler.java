@@ -1,6 +1,7 @@
 package com.contactcenter.api;
 
 import com.contactcenter.domain.exception.CrossTenantAccessException;
+import com.contactcenter.domain.exception.RateLimitExceededException;
 import com.contactcenter.domain.service.AuthService;
 import com.contactcenter.security.MfaService;
 import lombok.extern.slf4j.Slf4j;
@@ -182,6 +183,49 @@ public class GlobalExceptionHandler {
 
         log.error("[API][MFA] Błąd MFA: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
+    }
+
+    /**
+     * Przekroczono limit prób logowania – HTTP 429 Too Many Requests.
+     *
+     * <p>Nagłówek {@code Retry-After} informuje klienta ile sekund musi czekać
+     * (zgodnie z RFC 6585). Wartość 900 = 15 minut (okno rate limitu).
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> handleRateLimitExceededException(
+            RateLimitExceededException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.TOO_MANY_REQUESTS);
+        problem.setType(URI.create(ERROR_BASE_URI + "rate-limit-exceeded"));
+        problem.setTitle("Zbyt wiele prób logowania");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+        problem.setProperty("retryAfterSeconds", 900);
+
+        log.warn("[API][RateLimit] Przekroczono limit prób logowania: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", "900")
+                .body(problem);
+    }
+
+    /**
+     * Nieprawidłowe argumenty (np. zbyt słabe hasło) – HTTP 422.
+     *
+     * <p>Obsługuje {@link IllegalArgumentException} rzucany przez walidację siły hasła
+     * w {@code AuthService} i inne walidacje biznesowe.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ProblemDetail> handleIllegalArgumentException(
+            IllegalArgumentException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
+        problem.setType(URI.create(ERROR_BASE_URI + "invalid-argument"));
+        problem.setTitle("Nieprawidłowe dane");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.debug("[API] Nieprawidłowy argument: {}", ex.getMessage());
+        return ResponseEntity.unprocessableEntity().body(problem);
     }
 
     /**

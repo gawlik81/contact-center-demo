@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-14 (aktualizacja po FE-005)
+**Ostatnia aktualizacja:** 2026-03-14 (dodano mapę procesów)
 
 ---
 
@@ -56,7 +56,7 @@
 | BE-001 | Inicjalizacja projektu Spring Boot i struktura modułów | ✅ | Multi-module Maven, profile dev/prod, Flyway, HikariCP, Redis, RabbitMQ |
 | BE-002 | Konfiguracja multi-tenancy: TenantContext i filtr tenant_id | ✅ | TenantContext, TenantFilter, JwtParser, JwtProperties, SecurityConfig, TenantAwareRepository, CrossTenantAccessException, CrossTenantAspect, GlobalExceptionHandler. 85 testów PASS |
 | BE-003 | Konfiguracja bezpieczeństwa: Spring Security, JWT, MFA | ✅ | JwtService (RS256), JwtAuthFilter, TokenBlacklistService (Redis SHA-256), MfaService (TOTP RFC 6238 ±30s), AppUser/RefreshToken encje, AuthService, AuthController + DTO. 132 testy PASS |
-| BE-004 | Auth API: login, logout, refresh, zmiana hasła | ⬜ | |
+| BE-004 | Auth API: login, logout, refresh, zmiana hasła | ✅ | Rate limiting login (5/15 min/IP, Redis INCR+EXPIRE, HTTP 429+Retry-After), passwordResetRequired w LoginResponse, POST /api/auth/change-password (weryfikacja hasła, walidacja siły, nowe tokeny), POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR). 14 nowych testów PASS (LoginRateLimiterTest x6, AuthServiceChangePasswordTest x6+2). Łącznie 146 testów PASS. |
 | BE-005 | Audit Log: zapis działań użytkowników | ⬜ | |
 | BE-006 | Tenant CRUD API i limity zasobów | ⬜ | |
 | BE-007 | Admin metrics API: metryki RT tenantów | ⬜ | |
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 3/31 | 0 | 28 | 31 |
+| Backend (BE) | 4/31 | 0 | 27 | 31 |
 | Frontend (FE) | 5/24 | 0 | 19 | 24 |
-| **RAZEM** | **27/74** | **0** | **47** | **74** |
+| **RAZEM** | **28/74** | **0** | **46** | **74** |
 
 ---
 
@@ -145,3 +145,348 @@
 | 2026-03-13 | app.html | Domyślny scaffold Angular zasłaniał router-outlet | Zastąpiono zawartością: &lt;cc-toast-container /&gt; + &lt;router-outlet /&gt; |
 | 2026-03-14 | features/auth/login/login.component.ts | Po logowaniu bez MFA wyświetlał się ForbiddenComponent – `handleLoginResponse()` w ścieżce "direct login" nie wywoływała `handleLoginSuccess()`, token nie był zapisywany, `getUserRole()` zwracało null, `navigateToDashboard()` kierowało na /forbidden | Dodano wywołanie `authService.handleLoginSuccess({ accessToken, refreshToken })` przed `navigateToDashboard()` w ścieżce direct login |
 | 2026-03-14 | core/services/auth.service.ts | Interfejs `LoginResponse` nie zawierał pola `refreshToken` – backend zwracający refreshToken przy bezpośrednim logowaniu był ignorowany | Dodano `refreshToken?: string` do interfejsu `LoginResponse` |
+
+---
+
+## Mapa procesów i kolejność realizacji zadań
+
+**Stan na:** DB: 19/19 ✅ | BE: 3/31 (BE-001..BE-003 ✅) | FE: 5/24 (FE-001..FE-005 ✅)
+
+---
+
+## 1. Status aktualny
+
+### Warstwa Database – w pełni ukończona
+
+| Zakres | Zadania | Status |
+|--------|---------|--------|
+| Schemat bazowy, Flyway | DB-001 | ✅ |
+| Tabele TENANT, USER, AUDIT_LOG | DB-002..DB-005 | ✅ |
+| Tabele CONTACT, RECORDING, CUSTOMER | DB-006, DB-012 | ✅ |
+| Tabele EMAIL, SOCIAL, IVR, QUEUE | DB-007..DB-010 | ✅ |
+| Tabele CAMPAIGN, CAMPAIGN_CONTACT | DB-011 | ✅ |
+| Indeksy, RLS, RODO, pg_cron, DW | DB-013..DB-019 | ✅ |
+
+Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm), funkcje RODO i schemat ClickHouse DW są zaimplementowane. BE i FE mogą budować na stabilnej bazie.
+
+### Warstwa Backend – fundament gotowy, funkcje do realizacji
+
+| ID | Nazwa | Status |
+|----|-------|--------|
+| BE-001 | Inicjalizacja Spring Boot, Flyway, Redis, RabbitMQ | ✅ |
+| BE-002 | Multi-tenancy: TenantContext, TenantFilter, RLS | ✅ |
+| BE-003 | Spring Security, JWT RS256, MFA TOTP, Blacklista Redis | ✅ |
+| BE-004 | Auth API: rate limiting, change-password, force-reset | ✅ |
+| BE-005..BE-031 | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
+
+### Warstwa Frontend – fundament gotowy, widoki do realizacji
+
+| ID | Nazwa | Status |
+|----|-------|--------|
+| FE-001 | Inicjalizacja Angular, workspace, proxy | ✅ |
+| FE-002 | Routing, lazy loading, AuthGuard, RoleGuard | ✅ |
+| FE-003 | HTTP Interceptor, JWT refresh, toast błędów | ✅ |
+| FE-004 | Ekran logowania + MFA + zmiana hasła | ✅ |
+| FE-005 | Shell: navbar, sidenav, breadcrumbs, notyfikacje | ✅ |
+| FE-006..FE-024 | Wszystkie widoki funkcjonalne | ⬜ |
+
+---
+
+## 2. Zależności między zadaniami
+
+### 2.1 Zależności wewnątrz warstwy Backend (BE → BE)
+
+Wszystkie ścieżki startują od BE-001..BE-003, które są już ukończone.
+
+| Zadanie | Blokuje (wymaga ukończenia) | Uwagi |
+|---------|-----------------------------|-------|
+| BE-003 ✅ | BE-004 | Auth API wymaga gotowej infrastruktury JWT/MFA |
+| BE-002 ✅ | BE-005, BE-006, BE-008, BE-012, BE-015, BE-017, BE-020, BE-022, BE-025, BE-027 | TenantContext wymagany przez wszystkie repozytoria biznesowe |
+| BE-001 ✅ | BE-009, BE-015 | Adaptery kanałowe wymagają infrastruktury Spring |
+| BE-004 ✅ | – | Nie blokuje innych BE (można realizować równolegle) |
+| BE-006 | BE-007 | Metryki adminowe wymagają CRUD tenantów |
+| BE-008 | BE-019 | Routing engine wymaga zarządzania agentami i ich statusami |
+| BE-009 | BE-010, BE-011, BE-013 | Adapter VoIP jest podstawą nagrywania, CLI lookup i IVR Engine |
+| BE-009 + BE-003 | BE-012 | WebSocket hub wymaga adaptera VoIP i JWT do autentykacji WS |
+| BE-013 | BE-014 | Voicebot Python wymaga działającego IVR Engine |
+| BE-015 | BE-016 | Szablony email wymagają działającego adaptera email |
+| BE-017 | BE-018 | Adapter social media wymaga OAuth flow |
+| BE-019 | BE-021 | Wait time estimation wymaga działającego routing engine |
+| BE-022 | BE-023, BE-024 | Import CSV i Dialer wymagają CRUD kampanii |
+| BE-009 + BE-022 | BE-024 | Progressive Dialer wymaga adaptera VoIP ORAZ kampanii |
+| BE-025 | BE-026, BE-031 | Import klientów i RODO wymagają Customer CRUD API |
+| BE-027 | BE-028, BE-029 | Raporty historyczne i RT metrics wymagają Contact API |
+| BE-012 + BE-019 | BE-029 | RT Metrics WebSocket wymaga WebSocket hub i routing engine |
+| BE-027 | BE-030 | ETL DW wymaga Contact API jako źródła danych |
+| BE-011 | BE-025 | CLI lookup zależy od Customer API (poszukiwanie po telefonie) |
+
+### 2.2 Zależności wewnątrz warstwy Frontend (FE → FE)
+
+Wszystkie ścieżki startują od FE-001..FE-005, które są już ukończone.
+
+| Zadanie | Blokuje (wymaga ukończenia) | Uwagi |
+|---------|-----------------------------|-------|
+| FE-005 ✅ | FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024 | Shell aplikacji jest prerekviztem wszystkich widoków feature |
+| FE-009 | FE-010, FE-011, FE-012, FE-013, FE-017 | Agent Desktop jest prerekviztem wszystkich komponentów obsługi kontaktu |
+| FE-015 | FE-016 | Import kontaktów kampanii wymaga widoku zarządzania kampaniami |
+| FE-018 | FE-019, FE-020 | Profil klienta i import klientów wymagają widoku listy klientów |
+
+Pełna ścieżka fundament (ukończona):
+```
+FE-001 → FE-002 → FE-004 → FE-005
+          FE-001 → FE-003 ↗
+```
+
+Ścieżki funkcjonalne (do realizacji):
+```
+FE-005 → FE-006, FE-007                          (Admin)
+FE-005 → FE-008, FE-024                          (Supervisor)
+FE-005 → FE-009 → FE-010, FE-011, FE-012, FE-013, FE-017  (Agent Desktop)
+FE-005 → FE-014                                  (IVR – niezależny od Agent Desktop)
+FE-005 → FE-015 → FE-016                         (Kampanie)
+FE-005 → FE-018 → FE-019, FE-020                 (Klienci)
+FE-005 → FE-021, FE-022                          (Raporty)
+FE-005 → FE-023                                  (Integracje social media)
+```
+
+### 2.3 Zależności cross-layer (FE czeka na BE)
+
+| Zadanie FE | Czeka na BE | Opis zależności | MSW możliwe? |
+|------------|-------------|-----------------|--------------|
+| FE-004 | BE-004 | Ekran logowania: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`. Aktualnie działa z seed data, ale BE-004 musi być gotowe przed środowiskiem produkcyjnym | 🔵 Aktualnie mock przez seed |
+| FE-006 | BE-006 | Lista tenantów i formularz tworzenia: cały CRUD `/api/tenants` | 🔵 Tak – MSW mock |
+| FE-007 | BE-007 | Dashboard admina: `GET /api/admin/metrics` | 🔵 Tak – MSW mock |
+| FE-008 | BE-008 | Zarządzanie agentami: CRUD `/api/users`, endpoint skills | 🔵 Tak – MSW mock |
+| FE-009 | BE-012 | Agent Desktop: WebSocket hub dla statusów i kontaktów RT | 🔵 Tak – MSW/WS mock |
+| FE-010 | BE-009, BE-012 | Softphone WebRTC: adapter VoIP + WebSocket sygnalizacja | 🔴 Trudne do zamockowania end-to-end |
+| FE-011 | BE-025, BE-011 | Panel klienta podczas kontaktu: CLI lookup + Customer API | 🔵 Tak – MSW mock |
+| FE-012 | BE-015, BE-016 | Obsługa emaila: adapter IMAP/SMTP + szablony | 🔵 Tak – MSW mock |
+| FE-013 | BE-018 | Obsługa social media: webhooks i wysyłka | 🔵 Tak – MSW mock |
+| FE-014 | BE-020, BE-013 | Edytor IVR: Queue API + IVR Engine (zapis JSONB) | 🔵 Tak – MSW mock |
+| FE-015 | BE-022 | Zarządzanie kampaniami: CRUD + akcje start/pause/stop | 🔵 Tak – MSW mock |
+| FE-016 | BE-023 | Import CSV kampanii: async job + polling statusu | 🔵 Tak – MSW mock |
+| FE-017 | BE-027 | Disposition codes: `PATCH /api/contacts/{id}/disposition` | 🔵 Tak – MSW mock |
+| FE-018 | BE-025 | Lista klientów: fuzzy search + paginacja `/api/customers` | 🔵 Tak – MSW mock |
+| FE-019 | BE-025, BE-027 | Profil klienta: dane + historia kontaktów | 🔵 Tak – MSW mock |
+| FE-020 | BE-026 | Import klientów CSV: async job + polling | 🔵 Tak – MSW mock |
+| FE-021 | BE-029 | Dashboard RT supervisora: WebSocket metrics feed | 🔵 Tak – MSW/WS mock |
+| FE-022 | BE-028 | Raporty historyczne: agregacje + eksport CSV/XLSX | 🔵 Tak – MSW mock |
+| FE-023 | BE-017 | Panel integracji social media: OAuth flow callback | 🔴 OAuth wymaga prawdziwego backendu |
+| FE-024 | BE-020 | Konfiguracja kolejek: CRUD + stats `/api/queues` | 🔵 Tak – MSW mock |
+
+---
+
+## 3. Kolejność realizacji – ścieżki krytyczne
+
+### 3.1 Ścieżka krytyczna – MVP (pierwsze 4 tygodnie)
+
+Poniższa kolejność maksymalizuje odblokowanie kolejnych zadań. Zadania oznaczone 🟢 można realizować równolegle.
+
+**Faza 1 – Odblokowanie Auth i podstawowych API (tydzień 1)**
+
+| Krok | Zadanie | Warstwa | Uzasadnienie |
+|------|---------|---------|--------------|
+| 1 | BE-004 | BE | 🔴 Auth API – odblokuje FE-004 produkcyjnie i jest prerekviztem dla bezpiecznego testowania wszystkich dalszych endpointów |
+| 2 | 🟢 BE-005 | BE | Audit Log – nie blokuje FE, ale jest wymagany przez RODO i powinien być gotowy przed operacjami na danych |
+| 3 | 🟢 BE-006 | BE | Tenant CRUD – odblokuje FE-006 i BE-007 |
+| 4 | 🟢 BE-008 | BE | User/Agent CRUD – odblokuje FE-008 i BE-019 |
+
+**Faza 2 – Core Business (tygodnie 2-3)**
+
+| Krok | Zadanie | Warstwa | Uzasadnienie |
+|------|---------|---------|--------------|
+| 5 | 🟢 BE-007 | BE | Admin metrics – odblokuje FE-007 |
+| 6 | 🟢 BE-025 | BE | Customer API – odblokuje FE-018, FE-019, FE-011 i BE-011 |
+| 7 | 🟢 BE-027 | BE | Contact API – odblokuje FE-017, FE-019, FE-022, BE-028, BE-029 |
+| 8 | 🟢 BE-020 | BE | Queue API – odblokuje FE-024 i BE-019 |
+| 9 | 🟢 FE-006 | FE | Lista tenantów (czeka na BE-006) |
+| 10 | 🟢 FE-008 | FE | Zarządzanie agentami (czeka na BE-008) |
+| 11 | 🟢 FE-018 | FE | Lista klientów (czeka na BE-025) |
+| 12 | 🟢 FE-024 | FE | Konfiguracja kolejek (czeka na BE-020) |
+
+**Faza 3 – Agent Desktop i Real-time (tydzień 3-4)**
+
+| Krok | Zadanie | Warstwa | Uzasadnienie |
+|------|---------|---------|--------------|
+| 13 | BE-009 | BE | 🔴 Adapter VoIP – blokuje softphone, nagrywanie, CLI lookup, IVR, dialer |
+| 14 | 🟢 BE-012 | BE | WebSocket hub – odblokuje FE-009 (Agent Desktop) i FE-021 |
+| 15 | 🟢 BE-019 | BE | Routing Engine (czeka na BE-008 + BE-020) |
+| 16 | FE-009 | FE | Agent Desktop layout (czeka na BE-012) |
+| 17 | 🟢 FE-007 | FE | Dashboard admina (czeka na BE-007) |
+| 18 | 🟢 FE-017 | FE | Disposition codes (czeka na FE-009 + BE-027) |
+| 19 | 🟢 FE-019 | FE | Profil klienta (czeka na FE-018 + BE-025, BE-027) |
+| 20 | 🟢 FE-020 | FE | Import klientów (czeka na FE-018 + BE-026) |
+
+---
+
+### 3.2 Ścieżka – Admin (EPIC-01, EPIC-02)
+
+```
+BE-004 (Auth API)
+    |
+    ├── BE-006 (Tenant CRUD) → FE-006 (Lista tenantów)
+    |       |
+    |       └── BE-007 (Admin Metrics) → FE-007 (Dashboard admina)
+    |
+    └── BE-008 (User CRUD) → FE-008 (Zarządzanie agentami)
+```
+
+| Kolejność | Zadanie | Status | Warunek |
+|-----------|---------|--------|---------|
+| 1 | BE-004 | ⬜ | Prerekvizyt dla wszystkich chronionych endpointów |
+| 2 | 🟢 BE-006 | ⬜ | Wymaga BE-002 ✅ + DB-005 ✅ |
+| 3 | 🟢 BE-008 | ⬜ | Wymaga BE-002 ✅ + DB-003 ✅ |
+| 4 | BE-007 | ⬜ | Wymaga BE-006 |
+| 5 | 🟢 FE-006 | ⬜ | Wymaga BE-006 (lub MSW) |
+| 6 | 🟢 FE-008 | ⬜ | Wymaga BE-008 (lub MSW) |
+| 7 | FE-007 | ⬜ | Wymaga BE-007 (lub MSW) |
+
+---
+
+### 3.3 Ścieżka – Agent Desktop (EPIC-03, EPIC-05, EPIC-06)
+
+```
+BE-009 (VoIP Adapter) ────────┐
+    |                         |
+    ├── BE-010 (Nagrywanie)   |
+    ├── BE-011 (CLI lookup)   └──> BE-012 (WebSocket hub) → FE-009 (Agent Desktop layout)
+    └── BE-013 (IVR Engine)                                      |
+                                                    ┌────────────┼────────────┐
+                                                    |            |            |
+                                               FE-010       FE-011       FE-012
+                                             (Softphone)  (Profil)     (Email)
+                                                    |
+                                               FE-013 (Social)
+                                               FE-017 (Disposition)
+```
+
+| Kolejność | Zadanie | Status | Warunek |
+|-----------|---------|--------|---------|
+| 1 | BE-009 | ⬜ | 🔴 Bloker krytyczny dla całego kanału telefonicznego |
+| 2 | 🟢 BE-010 | ⬜ | Wymaga BE-009 |
+| 3 | 🟢 BE-011 | ⬜ | Wymaga BE-009 + BE-025 |
+| 4 | 🟢 BE-012 | ⬜ | Wymaga BE-009 + BE-003 ✅ |
+| 5 | 🟢 BE-015 | ⬜ | Kanał email – niezależny od BE-009 |
+| 6 | 🟢 BE-017 | ⬜ | OAuth social – niezależny od BE-009 |
+| 7 | FE-009 | ⬜ | 🔴 Bloker dla FE-010..FE-013, FE-017. Wymaga BE-012 |
+| 8 | 🟢 FE-010 | ⬜ | Wymaga FE-009 + BE-009, BE-012 |
+| 9 | 🟢 FE-011 | ⬜ | Wymaga FE-009 + BE-025, BE-011 (lub MSW) |
+| 10 | 🟢 FE-012 | ⬜ | Wymaga FE-009 + BE-015, BE-016 (lub MSW) |
+| 11 | 🟢 FE-013 | ⬜ | Wymaga FE-009 + BE-018 (lub MSW) |
+| 12 | 🟢 FE-017 | ⬜ | Wymaga FE-009 + BE-027 (lub MSW) |
+
+---
+
+### 3.4 Ścieżka – Kampanie Outbound (EPIC-08)
+
+```
+BE-022 (Campaign CRUD) ──┬──> BE-023 (Import CSV async)
+                         |
+BE-009 (VoIP Adapter) ───┴──> BE-024 (Progressive Dialer)
+```
+
+| Kolejność | Zadanie | Status | Warunek |
+|-----------|---------|--------|---------|
+| 1 | BE-022 | ⬜ | Wymaga BE-002 ✅ + DB-011 ✅ |
+| 2 | 🟢 BE-023 | ⬜ | Wymaga BE-022 + DB-011 ✅ |
+| 3 | 🟢 FE-015 | ⬜ | Wymaga BE-022 (lub MSW) |
+| 4 | BE-024 | ⬜ | Wymaga BE-009 + BE-022 (bloker: BE-009 musi być gotowe) |
+| 5 | FE-016 | ⬜ | Wymaga FE-015 + BE-023 (lub MSW) |
+
+---
+
+### 3.5 Ścieżka – Baza Klientów (EPIC-09)
+
+```
+BE-025 (Customer CRUD) ──┬──> BE-026 (Import CSV async)
+                         |
+                         └──> BE-031 (RODO export/anonymize)
+```
+
+| Kolejność | Zadanie | Status | Warunek |
+|-----------|---------|--------|---------|
+| 1 | BE-025 | ⬜ | Wymaga BE-002 ✅ + DB-012 ✅. Indeks pg_trgm gotowy |
+| 2 | 🟢 BE-026 | ⬜ | Wymaga BE-025 |
+| 3 | 🟢 BE-031 | ⬜ | Wymaga BE-025 + BE-027 |
+| 4 | FE-018 | ⬜ | Wymaga BE-025 (lub MSW) |
+| 5 | 🟢 FE-019 | ⬜ | Wymaga FE-018 + BE-025, BE-027 (lub MSW) |
+| 6 | 🟢 FE-020 | ⬜ | Wymaga FE-018 + BE-026 (lub MSW) |
+
+---
+
+### 3.6 Ścieżka – Raportowanie (EPIC-10)
+
+```
+BE-027 (Contact API) ──┬──> BE-028 (Raporty historyczne) ──> FE-022
+                       |
+BE-012 (WebSocket) ────┴──> BE-029 (RT Metrics WS) ──> FE-021
+BE-019 (Routing Engine) ──┘
+                       |
+BE-027 ────────────────┴──> BE-030 (ETL → ClickHouse)
+```
+
+| Kolejność | Zadanie | Status | Warunek |
+|-----------|---------|--------|---------|
+| 1 | BE-027 | ⬜ | Wymaga BE-002 ✅ + DB-006 ✅ |
+| 2 | 🟢 BE-028 | ⬜ | Wymaga BE-027 + DB-013 ✅ |
+| 3 | 🟢 BE-029 | ⬜ | Wymaga BE-012 + BE-019 |
+| 4 | 🟢 BE-030 | ⬜ | Wymaga BE-027 + DB-013 ✅ + DB-014 ✅ (schemat DW gotowy) |
+| 5 | 🟢 FE-021 | ⬜ | Wymaga BE-029 (lub MSW WebSocket mock) |
+| 6 | 🟢 FE-022 | ⬜ | Wymaga BE-028 (lub MSW) |
+
+---
+
+## 4. Rekomendacje
+
+### 4.1 Zadania BE do realizacji jako pierwsze (odblokują najwięcej FE)
+
+Poniższa kolejność realizacji BE maksymalizuje liczbę odblokowanych zadań FE przy minimalnej pracy:
+
+| Priorytet | Zadanie BE | Odblokuje zadań FE | Uwagi |
+|-----------|------------|-------------------|-------|
+| 🔴 1 | BE-004 (Auth API) | FE-004 produkcyjnie | Niezbędne do działania wszystkich chronionych endpointów w środowisku staging/prod |
+| 🔴 2 | BE-025 (Customer API) | FE-018, FE-019, FE-011 | pg_trgm gotowy, koszt implementacji niski, wartość wysoka |
+| 🔴 3 | BE-027 (Contact API) | FE-017, FE-019, FE-022 | Fundament raportowania i disposition codes |
+| 🟡 4 | BE-006 (Tenant CRUD) | FE-006 | Odblokuje FE-006, a następnie BE-007 → FE-007 |
+| 🟡 5 | BE-008 (User CRUD) | FE-008 | Odblokuje FE-008 i BE-019 (Routing Engine) |
+| 🟡 6 | BE-020 (Queue API) | FE-024 | Krótkie zadanie (M), odblokuje konfigurację routingu |
+| 🟡 7 | BE-022 (Campaign CRUD) | FE-015, FE-016 | Odblokuje cały moduł kampanii |
+| 🔴 8 | BE-009 (VoIP Adapter) | FE-010 (Softphone) | Krytyczny bloker dla Agent Desktop – najtrudniejsze zadanie (XL), zacząć wcześnie |
+| 🟡 9 | BE-012 (WebSocket hub) | FE-009 (Agent Desktop) | Wymaga BE-009, odblokuje core Agent Desktop |
+
+### 4.2 Strategia MSW (Mock Service Worker)
+
+Zadania FE **mogą i powinny być realizowane z MSW** zanim odpowiedni BE jest gotowy. Priorytetyzacja:
+
+- **Zalecane do MSW mock:** FE-006, FE-007, FE-008, FE-009, FE-011, FE-012, FE-013, FE-015, FE-016, FE-017, FE-018, FE-019, FE-020, FE-021, FE-022, FE-024
+- **Trudne lub niemożliwe z samym MSW:**
+  - FE-010 (Softphone WebRTC) – wymaga prawdziwego sygnalizowania SIP przez BE-009
+  - FE-023 (OAuth flow social media) – redirect OAuth musi trafić na prawdziwy callback BE-017
+
+Kontrakt OpenAPI dla MSW: wszystkie endpointy powinny być opisane w Swagger UI (`localhost:8080/swagger-ui.html`) przed implementacją FE, nawet jeśli endpoint nie jest jeszcze zaimplementowany (stub 501).
+
+### 4.3 Zadania możliwe do równoległej realizacji przez różne zespoły
+
+Poniższe grupy zadań są od siebie niezależne i mogą być realizowane przez różne osoby lub pary:
+
+| Zespół A (BE) | Zespół B (BE) | Zespół C (FE) | Zespół D (FE) |
+|---------------|---------------|---------------|---------------|
+| BE-004 + BE-006 + BE-007 | BE-008 + BE-025 + BE-027 | FE-006 + FE-007 (z MSW) | FE-018 + FE-019 (z MSW) |
+| BE-009 + BE-010 + BE-011 | BE-022 + BE-023 | FE-009 + FE-017 (z MSW) | FE-015 + FE-016 (z MSW) |
+| BE-012 + BE-015 + BE-017 | BE-019 + BE-020 | FE-010 (czeka na BE-009) | FE-021 + FE-022 (z MSW) |
+
+### 4.4 Blokery krytyczne – podsumowanie
+
+| Bloker | Zadanie | Dlaczego krytyczne |
+|--------|---------|-------------------|
+| 🔴 Najwyższy | BE-009 (VoIP Adapter) | Blokuje: softphone, nagrywanie, CLI lookup, IVR, dialer – cały kanał telefoniczny |
+| 🔴 Wysoki | BE-004 (Auth API) | Bez tego żadne środowisko poza dev z seedem nie jest użyteczne |
+| 🔴 Wysoki | BE-012 (WebSocket hub) | Blokuje Agent Desktop (FE-009) i RT metrics (FE-021) |
+| 🔴 Wysoki | FE-009 (Agent Desktop) | Blokuje 5 komponentów obsługi kontaktu (FE-010..FE-013, FE-017) |
+| 🟡 Średni | BE-019 (Routing Engine) | Blokuje BE-029 (RT metrics) i BE-021 (wait time) |
+| 🟡 Średni | BE-025 (Customer API) | Blokuje CLI lookup (BE-011), RODO (BE-031) i 3 widoki FE |
+
+---
+
+*Dokument generowany na podstawie TASKS-BACKEND.md, TASKS-FRONTEND.md i PROGRESS.md.*
+*Aktualizować przy każdej zmianie statusu zadań w PROGRESS.md.*

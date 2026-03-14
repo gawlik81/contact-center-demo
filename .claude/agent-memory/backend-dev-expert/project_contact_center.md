@@ -68,6 +68,7 @@ AI serwis: Python 3.12 + FastAPI (osobny runtime).
 - BE-001: UKOŃCZONE – struktura Maven, konfiguracja Spring Boot, profile dev/prod
 - BE-002: UKOŃCZONE – TenantContext, TenantFilter, JwtParser, TenantAwareRepository, CrossTenantAspect, SecurityConfig, GlobalExceptionHandler; 85 testów jednostkowych zielonych
 - BE-003: UKOŃCZONE – JwtService (sign RS256), JwtAuthFilter (SecurityContext), TokenBlacklistService (Redis), MfaService (TOTP RFC 6238), AuthService, AuthController, AppUser+RefreshToken encje; 132 testy zielone
+- BE-004: UKOŃCZONE – LoginRateLimiter (Redis INCR+EXPIRE, 5 prób/15 min/IP, HTTP 429), passwordResetRequired w LoginResponse, POST /api/auth/change-password, POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR @PreAuthorize); 146 testów zielonych (+14 nowych)
 
 ## Nowe migracje Flyway
 - Kolejne migracje: od V019+ (V018 dodaje is_active do app_user)
@@ -93,6 +94,15 @@ Rozwiązanie (już wdrożone w ContactCenterApplication.java):
 - MfaService: dev.samstevens.totp 1.7.1, DefaultSecretGenerator(32) = 32 znaki Base32, okno ±1 krok
 - AuthService: login (bcrypt+AuthenticationManager), refresh (token rotation), logout (blacklista+revoke), MFA setup/verify
 - UserDetailsServiceImpl: username = "{tenantId}:{email}" (separator ":")
-- AppUserDetails: opakowuje AppUser, rola = "ROLE_{ROLE_NAME}"
+- AppUserDetails: opakowuje AppUser, rola = "ROLE_{ROLE_NAME}", dodano pole `role` (String bez prefiksu ROLE_)
 - SecurityConfig zaktualizowany: JwtAuthFilter + DaoAuthenticationProvider + AuthenticationManager bean + CORS
 - GlobalExceptionHandler rozszerzony: BadCredentialsException, DisabledException, InvalidTokenException, MfaException, IllegalStateException
+
+## BE-004 – szczegóły implementacji
+- LoginRateLimiter: Redis INCR+EXPIRE atomowe, klucz rate:login:{ip}, TTL 900s, max 5 prób; reset() po udanym login
+- AuthService.login() rozszerzony: parametr ip (przekazywany z HttpServletRequest.getRemoteAddr()), rate limiting PRZED autentykacją, reset PRZED zwróceniem odpowiedzi, priorytet: passwordResetRequired > mfaRequired
+- LoginResponse rozszerzony: nowe pole `passwordResetRequired` (Boolean, @JsonInclude NON_NULL), factory method passwordResetRequired()
+- AuthService.changePassword(): weryfikacja bcrypt, walidacja siły (cyfra+wielka litera), updatePasswordAndClearReset(), blacklista stary token, revoke wszystkich refresh tokenów, nowe tokeny
+- AuthService.forcePasswordReset(): SUPERVISOR może resetować tylko własny tenant (cross-tenant → AccessDeniedException), unieważnia sesje
+- GlobalExceptionHandler rozszerzony: RateLimitExceededException → 429 + Retry-After: 900, IllegalArgumentException → 422
+- Testy: LoginRateLimiterTest (6 testów, mock StringRedisTemplate), AuthServiceChangePasswordTest (6+2 testów)

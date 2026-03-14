@@ -51,4 +51,30 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     @Modifying
     @Query("UPDATE AppUser u SET u.mfaEnabled = true WHERE u.id = :userId")
     void enableMfa(@Param("userId") UUID userId);
+
+    /**
+     * Zmień hasło i wyczyść flagę wymaganej zmiany hasła.
+     *
+     * <p>Używane przez endpoint /auth/change-password. Operacja atomowa – hash
+     * i flaga aktualizowane w jednym UPDATE.
+     *
+     * @param userId UUID użytkownika
+     * @param hash   nowy hash bcrypt (cost=12)
+     */
+    @Modifying
+    @Query("UPDATE AppUser u SET u.passwordHash = :hash, u.passwordResetRequired = false WHERE u.id = :userId")
+    void updatePasswordAndClearReset(@Param("userId") UUID userId, @Param("hash") String hash);
+
+    /**
+     * Ustaw flagę wymaganej zmiany hasła (force reset przez admina/supervisora).
+     *
+     * <p>Sprawdza tenant_id aby uniemożliwić cross-tenant reset.
+     *
+     * @param userId   UUID docelowego użytkownika
+     * @param tenantId UUID tenanta (izolacja danych)
+     * @return liczba zaktualizowanych wierszy (0 jeśli użytkownik nie istnieje lub inny tenant)
+     */
+    @Modifying
+    @Query("UPDATE AppUser u SET u.passwordResetRequired = true WHERE u.id = :userId AND u.tenantId = :tenantId")
+    int setPasswordResetRequired(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId);
 }

@@ -1,9 +1,10 @@
 package com.contactcenter.domain.model;
 
-import com.contactcenter.infrastructure.persistence.JsonMapConverter;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -41,7 +42,7 @@ public class Tenant {
     private String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, length = 50)
     @Builder.Default
     private TenantStatus status = TenantStatus.ACTIVE;
 
@@ -50,7 +51,7 @@ public class Tenant {
      * Wymagane klucze: max_agents, max_queues, max_campaigns.
      * Opcjonalne: recording_retention_days, timezone.
      */
-    @Convert(converter = JsonMapConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "config", nullable = false, columnDefinition = "jsonb")
     @Builder.Default
     private Map<String, Object> config = defaultConfig();

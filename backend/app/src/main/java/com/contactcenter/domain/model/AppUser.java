@@ -47,7 +47,7 @@ public class AppUser {
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false)
+    @Column(name = "role", nullable = false, length = 50)
     private UserRole role;
 
     /**
@@ -72,7 +72,7 @@ public class AppUser {
     private boolean passwordResetRequired;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, length = 50)
     private UserStatus status;
 
     /** Wyliczona rola Spring Security – alias dla pola role. */

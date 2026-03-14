@@ -2,8 +2,10 @@ package com.contactcenter.api;
 
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.RateLimitExceededException;
+import com.contactcenter.domain.exception.ResourceLimitExceededException;
 import com.contactcenter.domain.service.AuthService;
 import com.contactcenter.security.MfaService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -206,6 +208,51 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", "900")
                 .body(problem);
+    }
+
+    /**
+     * Przekroczono limit zasobu tenanta (agents/queues/campaigns) – HTTP 422.
+     *
+     * <p>Zwraca szczegółowe informacje o typie zasobu, limicie i aktualnej liczbie.
+     * Używany przez {@code TenantResourceLimitService} (BE-006).
+     */
+    @ExceptionHandler(ResourceLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> handleResourceLimitExceededException(
+            ResourceLimitExceededException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
+        problem.setType(URI.create(ERROR_BASE_URI + "resource-limit-exceeded"));
+        problem.setTitle("Przekroczono limit zasobów");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+        problem.setProperty("error", "RESOURCE_LIMIT_EXCEEDED");
+        problem.setProperty("resourceType", ex.getResourceType());
+        problem.setProperty("limit", ex.getLimit());
+        problem.setProperty("current", ex.getCurrent());
+
+        log.warn("[API][TenantLimit] Przekroczono limit zasobu '{}': limit={}, current={}",
+                ex.getResourceType(), ex.getLimit(), ex.getCurrent());
+        return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * Zasób nie istnieje – HTTP 422 Unprocessable Entity.
+     *
+     * <p>Obsługuje {@link EntityNotFoundException} rzucany przez serwisy domenowe
+     * gdy encja o podanym ID nie istnieje.
+     */
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleEntityNotFoundException(
+            EntityNotFoundException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
+        problem.setType(URI.create(ERROR_BASE_URI + "entity-not-found"));
+        problem.setTitle("Zasób nie istnieje");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.debug("[API] Zasób nie istnieje: {}", ex.getMessage());
+        return ResponseEntity.unprocessableEntity().body(problem);
     }
 
     /**

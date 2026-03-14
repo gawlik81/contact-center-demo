@@ -102,6 +102,8 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/**").authenticated()
                 // Endpointy ADMIN – tylko rola ADMIN
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // Tenant management – tylko ADMIN (BE-006)
+                .requestMatchers("/api/tenants/**").hasRole("ADMIN")
                 // Wszystkie pozostałe endpointy – wymagają autentykacji
                 .anyRequest().authenticated()
             )

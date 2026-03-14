@@ -69,6 +69,7 @@ AI serwis: Python 3.12 + FastAPI (osobny runtime).
 - BE-002: UKOŃCZONE – TenantContext, TenantFilter, JwtParser, TenantAwareRepository, CrossTenantAspect, SecurityConfig, GlobalExceptionHandler; 85 testów jednostkowych zielonych
 - BE-003: UKOŃCZONE – JwtService (sign RS256), JwtAuthFilter (SecurityContext), TokenBlacklistService (Redis), MfaService (TOTP RFC 6238), AuthService, AuthController, AppUser+RefreshToken encje; 132 testy zielone
 - BE-004: UKOŃCZONE – LoginRateLimiter (Redis INCR+EXPIRE, 5 prób/15 min/IP, HTTP 429), passwordResetRequired w LoginResponse, POST /api/auth/change-password, POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR @PreAuthorize); 146 testów zielonych (+14 nowych)
+- BE-006: UKOŃCZONE – Tenant.java (encja JPA, JSONB config przez JsonMapConverter), TenantRepository (JPA bez RLS), TenantService (CRUD+deactivate), TenantResourceLimitService (checkAgentLimit/checkQueueLimit/checkCampaignLimit+LimitCheckResult), TenantController (6 endpointów), ResourceLimitExceededException (HTTP 422 z resourceType/limit/current), GlobalExceptionHandler rozszerzony o ResourceLimitExceededException + EntityNotFoundException; 173 testów PASS (+27 nowych)
 
 ## Nowe migracje Flyway
 - Kolejne migracje: od V019+ (V018 dodaje is_active do app_user)
@@ -106,3 +107,17 @@ Rozwiązanie (już wdrożone w ContactCenterApplication.java):
 - AuthService.forcePasswordReset(): SUPERVISOR może resetować tylko własny tenant (cross-tenant → AccessDeniedException), unieważnia sesje
 - GlobalExceptionHandler rozszerzony: RateLimitExceededException → 429 + Retry-After: 900, IllegalArgumentException → 422
 - Testy: LoginRateLimiterTest (6 testów, mock StringRedisTemplate), AuthServiceChangePasswordTest (6+2 testów)
+
+## BE-006 – szczegóły implementacji
+- Tenant.java: encja mapująca tabelę `tenant` (PK: tenant_id, status: TenantStatus enum, config: JSONB)
+- JsonMapConverter: JPA AttributeConverter<Map<String,Object>, String> – serializacja JSONB bez hypersistence-utils
+- TenantRepository: JPA (NIE rozszerza TenantAwareRepository – tabela `tenant` nie ma RLS per-tenant)
+  - countActiveAgentsByTenantId: native query na app_user (role='AGENT', is_deleted=false)
+  - countActiveQueuesByTenantId: native query na queue (is_active=true, bez is_deleted – tabela queue nie ma tej kolumny)
+  - countActiveCampaignsByTenantId: native query na campaign (status NOT IN STOPPED/COMPLETED, bez is_deleted)
+- TenantService.deactivateTenant(): ustawia status=INACTIVE + appUserRepository.findAll() z filter po tenantId → setActive(false)
+- TenantResourceLimitService: LimitCheckResult record (isExceeded(), available()) do użycia w dashboardach
+- ResourceLimitExceededException: pola resourceType/limit/current; GlobalExceptionHandler → 422 z property "error"="RESOURCE_LIMIT_EXCEEDED"
+- SecurityConfig: dodano requestMatchers("/api/tenants/**").hasRole("ADMIN")
+- Endpointy: POST /api/tenants, GET /api/tenants, GET /api/tenants/{id}, PATCH /api/tenants/{id}, POST /api/tenants/{id}/deactivate, GET /api/tenants/check-name, GET /api/tenants/{id}/check-name
+- @PreAuthorize("hasRole('ADMIN')") na poziomie klasy TenantController

@@ -6,3 +6,4 @@
 - [HTTP interceptors and notification infrastructure (FE-003)](./project_fe003_interceptors.md) – ErrorHandlerInterceptor, NotificationService (signals), ToastContainerComponent (custom CSS, no Angular Material)
 - [Auth UI – Login and Change Password (FE-004)](./project_fe004_auth_ui.md) – LoginComponent with MFA step, ChangePasswordComponent, AuthService extensions, routing under /auth
 - [App Shell infrastructure (FE-005)](./project_fe005_shell.md) – AppShellComponent, TopNavbar, Sidenav (role-aware nav), Breadcrumbs, BreadcrumbService, responsive breakpoints, WCAG skip-link
+- [Tenant management UI (FE-006)](./project_fe006_tenants.md) – TenantListComponent (paged table, filters, badges, skeleton), TenantFormComponent (async validator), TenantDeactivateModal (native dialog), TenantService, TENANT_ROUTES

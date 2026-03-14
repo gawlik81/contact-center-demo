@@ -1,0 +1,41 @@
+<!-- Native <dialog> element for WCAG-compliant modal -->
+<dialog
+  #dialogEl
+  class="deactivate-dialog"
+  aria-labelledby="deactivate-title"
+  aria-describedby="deactivate-desc"
+  (click)="$event.target === dialogEl ? onCancel() : null"
+>
+  <div class="deactivate-dialog__content" role="document">
+    <div class="deactivate-dialog__header">
+      <h2 id="deactivate-title" class="deactivate-dialog__title">Dezaktywacja tenanta</h2>
+    </div>
+
+    <div class="deactivate-dialog__body">
+      <p id="deactivate-desc" class="deactivate-dialog__message">
+        Czy na pewno chcesz dezaktywowac tenanta
+        <strong>{{ tenant().name }}</strong>?
+        Uzytkownicy nie beda mogli sie zalogowac.
+      </p>
+    </div>
+
+    <div class="deactivate-dialog__footer">
+      <button
+        class="btn btn-cancel"
+        type="button"
+        (click)="onCancel()"
+        autofocus
+      >
+        Anuluj
+      </button>
+      <button
+        class="btn btn-deactivate"
+        type="button"
+        (click)="onConfirm()"
+        [attr.aria-label]="'Potwierdz dezaktywacje tenanta ' + tenant().name"
+      >
+        Dezaktywuj
+      </button>
+    </div>
+  </div>
+</dialog>

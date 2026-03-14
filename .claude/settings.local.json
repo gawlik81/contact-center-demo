@@ -91,7 +91,8 @@
       "Bash(cd \"E:/ClaudAI/contact-center-demo/backend\" && mvn test -pl app 2>&1 | tail -30)",
       "Bash(cd \"E:/ClaudAI/contact-center-demo/backend\" && mvn test -pl app 2>&1 | grep \"Tests run:\" | grep -v \"INFO\\\\|WARN\" | head -5)",
       "Bash(cd \"E:/ClaudAI/contact-center-demo/backend\" && mvn test -pl app 2>&1 | grep \"LoginRateLimiter\\\\|AuthServiceChange\")",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(curl:*)"
     ]
   }
 }

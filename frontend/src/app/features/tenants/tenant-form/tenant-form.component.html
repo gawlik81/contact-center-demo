@@ -1,0 +1,144 @@
+<div class="tenant-form-page">
+  <div class="form-card">
+    <div class="form-card__header">
+      <h1 class="form-card__title">Nowy tenant</h1>
+      <p class="form-card__subtitle">Uzupelnij dane nowego tenanta platformy.</p>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <!-- Name field -->
+      <div class="form-field">
+        <label class="form-label" for="tenant-name">
+          Nazwa
+          <span class="form-label__required" aria-hidden="true">*</span>
+        </label>
+        <div class="input-wrapper">
+          <input
+            id="tenant-name"
+            type="text"
+            class="form-input"
+            [class.form-input--invalid]="nameCtrl.invalid && (nameCtrl.dirty || nameCtrl.touched)"
+            [class.form-input--valid]="nameCtrl.valid && nameCtrl.dirty"
+            formControlName="name"
+            placeholder="np. Firma Przykladowa Sp. z o.o."
+            autocomplete="off"
+            aria-required="true"
+            [attr.aria-invalid]="nameCtrl.invalid && (nameCtrl.dirty || nameCtrl.touched)"
+            [attr.aria-describedby]="nameError ? 'name-error' : null"
+          />
+          @if (nameCtrl.pending) {
+            <span class="input-spinner" aria-label="Sprawdzanie dostepnosci nazwy..." role="status">
+              <span class="spinner spinner--dark"></span>
+            </span>
+          }
+        </div>
+        @if (nameError) {
+          <p id="name-error" class="field-error" role="alert">{{ nameError }}</p>
+        }
+      </div>
+
+      <!-- Resource limits section -->
+      <fieldset class="limits-fieldset">
+        <legend class="limits-legend">Limity zasobow</legend>
+
+        <!-- Max agents -->
+        <div class="form-field">
+          <label class="form-label" for="max-agents">
+            Max agentow
+            <span class="form-label__required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="max-agents"
+            type="number"
+            class="form-input form-input--narrow"
+            [class.form-input--invalid]="maxAgentsCtrl.invalid && (maxAgentsCtrl.dirty || maxAgentsCtrl.touched)"
+            formControlName="maxAgents"
+            min="1"
+            max="500"
+            aria-required="true"
+            [attr.aria-invalid]="maxAgentsCtrl.invalid && (maxAgentsCtrl.dirty || maxAgentsCtrl.touched)"
+            [attr.aria-describedby]="maxAgentsError ? 'max-agents-error' : null"
+          />
+          <span class="form-hint">zakres: 1&ndash;500</span>
+          @if (maxAgentsError) {
+            <p id="max-agents-error" class="field-error" role="alert">{{ maxAgentsError }}</p>
+          }
+        </div>
+
+        <!-- Max queues -->
+        <div class="form-field">
+          <label class="form-label" for="max-queues">
+            Max kolejek
+            <span class="form-label__required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="max-queues"
+            type="number"
+            class="form-input form-input--narrow"
+            [class.form-input--invalid]="maxQueuesCtrl.invalid && (maxQueuesCtrl.dirty || maxQueuesCtrl.touched)"
+            formControlName="maxQueues"
+            min="1"
+            max="100"
+            aria-required="true"
+            [attr.aria-invalid]="maxQueuesCtrl.invalid && (maxQueuesCtrl.dirty || maxQueuesCtrl.touched)"
+            [attr.aria-describedby]="maxQueuesError ? 'max-queues-error' : null"
+          />
+          <span class="form-hint">zakres: 1&ndash;100</span>
+          @if (maxQueuesError) {
+            <p id="max-queues-error" class="field-error" role="alert">{{ maxQueuesError }}</p>
+          }
+        </div>
+
+        <!-- Max campaigns -->
+        <div class="form-field">
+          <label class="form-label" for="max-campaigns">
+            Max kampanii
+            <span class="form-label__required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="max-campaigns"
+            type="number"
+            class="form-input form-input--narrow"
+            [class.form-input--invalid]="maxCampaignsCtrl.invalid && (maxCampaignsCtrl.dirty || maxCampaignsCtrl.touched)"
+            formControlName="maxCampaigns"
+            min="1"
+            max="100"
+            aria-required="true"
+            [attr.aria-invalid]="maxCampaignsCtrl.invalid && (maxCampaignsCtrl.dirty || maxCampaignsCtrl.touched)"
+            [attr.aria-describedby]="maxCampaignsError ? 'max-campaigns-error' : null"
+          />
+          <span class="form-hint">zakres: 1&ndash;100</span>
+          @if (maxCampaignsError) {
+            <p id="max-campaigns-error" class="field-error" role="alert">{{ maxCampaignsError }}</p>
+          }
+        </div>
+      </fieldset>
+
+      <!-- Form actions -->
+      <div class="form-actions">
+        <button
+          type="button"
+          class="btn btn-cancel"
+          (click)="onCancel()"
+          [disabled]="submitting()"
+        >
+          Anuluj
+        </button>
+        <button
+          type="submit"
+          class="btn btn-save"
+          [disabled]="isSaveDisabled"
+          [attr.aria-busy]="submitting()"
+          aria-label="Zapisz tenanta"
+        >
+          @if (submitting()) {
+            <span class="spinner" aria-hidden="true"></span>
+            Zapisywanie...
+          } @else {
+            Zapisz
+          }
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

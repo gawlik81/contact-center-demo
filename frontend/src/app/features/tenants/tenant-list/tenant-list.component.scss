@@ -1,0 +1,358 @@
+// ── Variables ─────────────────────────────────────────────────────────────────
+$brand-blue: #1565c0;
+$brand-blue-dark: #0d47a1;
+$text-primary: #212121;
+$text-secondary: #616161;
+$border-color: #e2e8f0;
+$bg-white: #ffffff;
+$bg-row-hover: #f8fafc;
+$danger: #c62828;
+$danger-bg: #ffebee;
+$danger-border: #ef9a9a;
+$success-bg: #e8f5e9;
+$success-text: #2e7d32;
+$warning-bg: #fff8e1;
+$warning-text: #f57f17;
+$inactive-bg: #f5f5f5;
+$inactive-text: #757575;
+$radius: 6px;
+
+// ── Page layout ────────────────────────────────────────────────────────────────
+.tenant-list {
+  max-width: 1200px;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0;
+  }
+
+  &__filters {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+}
+
+// ── Filter fields ─────────────────────────────────────────────────────────────
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 180px;
+  flex: 1;
+  max-width: 300px;
+}
+
+.filter-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: $text-secondary;
+}
+
+.filter-input,
+.filter-select {
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid $border-color;
+  border-radius: $radius;
+  font-size: 0.9375rem;
+  color: $text-primary;
+  background: $bg-white;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:focus {
+    border-color: $brand-blue;
+    box-shadow: 0 0 0 3px rgba($brand-blue, 0.12);
+  }
+}
+
+.filter-select {
+  cursor: pointer;
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: $radius;
+  border: 1px solid $border-color;
+  background: $bg-white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.tenant-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+
+  thead tr {
+    background: #f8fafc;
+    border-bottom: 1px solid $border-color;
+  }
+
+  th {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.875rem 1rem;
+    color: $text-primary;
+    border-bottom: 1px solid $border-color;
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.tenant-row {
+  transition: background 0.12s ease;
+
+  &:hover {
+    background: $bg-row-hover;
+  }
+}
+
+.tenant-name {
+  font-weight: 500;
+}
+
+.tenant-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+// ── Status badges ─────────────────────────────────────────────────────────────
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &--active {
+    background: $success-bg;
+    color: $success-text;
+  }
+
+  &--inactive {
+    background: $inactive-bg;
+    color: $inactive-text;
+  }
+
+  &--suspended {
+    background: $warning-bg;
+    color: $warning-text;
+  }
+}
+
+// ── Buttons ───────────────────────────────────────────────────────────────────
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: none;
+  border-radius: $radius;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  text-decoration: none;
+  line-height: 1;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  &__icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+}
+
+.btn-primary {
+  padding: 0.625rem 1.125rem;
+  background: $brand-blue;
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: $brand-blue-dark;
+  }
+}
+
+.btn-outline {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: $brand-blue;
+  border: 1.5px solid $brand-blue;
+
+  &:hover:not(:disabled) {
+    background: rgba($brand-blue, 0.06);
+  }
+}
+
+.btn-danger-outline {
+  padding: 0.375rem 0.75rem;
+  background: transparent;
+  color: $danger;
+  border: 1.5px solid $danger-border;
+  border-radius: $radius;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: $danger-bg;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $danger;
+    outline-offset: 2px;
+  }
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────────
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+
+  &__info {
+    font-size: 0.875rem;
+    color: $text-secondary;
+  }
+
+  &__controls {
+    display: flex;
+    gap: 0.5rem;
+  }
+}
+
+// ── Skeleton loading ───────────────────────────────────────────────────────────
+.skeleton-wrapper {
+  border: 1px solid $border-color;
+  border-radius: $radius;
+  background: $bg-white;
+  overflow: hidden;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid $border-color;
+  align-items: center;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.skeleton-cell {
+  height: 16px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+
+  &--wide {
+    flex: 3;
+  }
+
+  &--badge {
+    width: 72px;
+    flex-shrink: 0;
+  }
+
+  &--narrow {
+    flex: 1;
+  }
+
+  &--action {
+    width: 80px;
+    flex-shrink: 0;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+// ── Empty state ────────────────────────────────────────────────────────────────
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 1rem;
+  text-align: center;
+  background: $bg-white;
+  border: 1px solid $border-color;
+  border-radius: $radius;
+
+  &__icon {
+    width: 48px;
+    height: 48px;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+  }
+
+  &__message {
+    font-size: 1rem;
+    font-weight: 500;
+    color: $text-primary;
+    margin: 0 0 0.25rem;
+  }
+
+  &__hint {
+    font-size: 0.875rem;
+    color: $text-secondary;
+    margin: 0;
+  }
+}
+
+// ── Accessibility ─────────────────────────────────────────────────────────────
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

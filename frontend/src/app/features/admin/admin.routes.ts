@@ -20,9 +20,9 @@ export const ADMIN_ROUTES: Routes = [
       },
       {
         path: 'tenants',
-        data: { breadcrumb: 'Tenants' },
-        loadComponent: () =>
-          import('./admin-dashboard.component').then((m) => m.AdminDashboardComponent),
+        data: { breadcrumb: 'Tenanci' },
+        loadChildren: () =>
+          import('../tenants/tenants.routes').then((m) => m.TENANT_ROUTES),
       },
       {
         path: 'users',

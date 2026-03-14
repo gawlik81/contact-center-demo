@@ -28,6 +28,7 @@
 **Zlozonosc:** M
 **Zależności:** DB-001
 **Status:** ✅ Ukończone
+**Blokuje:** BE-002, BE-005, BE-009, BE-015
 **Odniesienie PRD:** przekrojowe
 
 **Opis:**
@@ -48,6 +49,7 @@ Inicjalizacja projektu Spring Boot 3.x (Maven/Gradle multi-module). Konfiguracja
 **Zlozonosc:** M
 **Zależności:** BE-001, DB-002
 **Status:** ✅ Ukończone
+**Blokuje:** BE-003, BE-005, BE-006, BE-008, BE-012, BE-015, BE-017, BE-020, BE-022, BE-025, BE-027
 **Odniesienie PRD:** US-01-01, wymagania bezpieczenstwa (izolacja)
 
 **Opis:**
@@ -68,6 +70,7 @@ Implementacja `TenantContext` (ThreadLocal) ładowanego z JWT claims przy każdy
 **Zlozonosc:** L
 **Zależności:** BE-001, DB-003
 **Status:** ✅ Ukończone
+**Blokuje:** BE-004, BE-012
 **Odniesienie PRD:** wymagania bezpieczenstwa (TLS, JWT, MFA, bcrypt 12)
 
 **Opis:**
@@ -88,6 +91,8 @@ Konfiguracja Spring Security: JWT access token (15 min TTL) + refresh token (7 d
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-003
+**Status:** ✅ Ukończone
+**Blokuje:** FE-004
 **Odniesienie PRD:** US-02-04, wymagania bezpieczenstwa
 
 **Opis:**
@@ -108,6 +113,8 @@ Endpointy REST: `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-004
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
 **Odniesienie PRD:** RODO (rejestr przetwarzania), przekrojowe
 
 **Opis:**
@@ -129,6 +136,8 @@ Serwis `AuditLogService` zapisujący do tabeli `AUDIT_LOG` każdą operację CRU
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-005
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-007, FE-006
 **Odniesienie PRD:** US-01-01, US-01-02, US-01-03, EPIC-01
 
 **Opis:**
@@ -148,6 +157,8 @@ Endpointy: `POST /api/tenants`, `GET /api/tenants`, `GET /api/tenants/{id}`, `PA
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-006, BE-002
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-007
 **Odniesienie PRD:** US-01-04, US-10-04, EPIC-01
 
 **Opis:**
@@ -169,6 +180,8 @@ Endpoint `GET /api/admin/metrics` zwracający: liczba aktywnych tenantów, suma 
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-003
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-019, FE-008
 **Odniesienie PRD:** US-02-01, US-02-02, US-02-03, EPIC-02
 
 **Opis:**
@@ -190,6 +203,8 @@ Endpointy: `POST /api/users`, `GET /api/users`, `GET /api/users/{id}`, `PATCH /a
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** BE-001, DB-006
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-010, BE-011, BE-012, BE-013, BE-024
 **Odniesienie PRD:** US-03-01, US-03-03, US-03-04, EPIC-03
 
 **Opis:**
@@ -209,6 +224,8 @@ Implementacja interfejsu `TelephonyAdapter` z metodami: initiateCall, answerCall
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-009, DB-006
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
 **Odniesienie PRD:** US-03-05, wymagania RODO (retencja nagrań)
 
 **Opis:**
@@ -229,6 +246,8 @@ Serwis `RecordingService`: odbiera strumień audio z TelephonyAdapter, konwertuj
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależności:** BE-009, BE-025
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
 **Odniesienie PRD:** US-03-02, EPIC-03
 
 **Opis:**
@@ -248,6 +267,8 @@ Przy zdarzeniu CALL_INCOMING: lookup klienta po numerze telefonu (tabela CUSTOME
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-001, BE-003
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-009, FE-021
 **Odniesienie PRD:** US-03-01, US-07-05, EPIC-03
 
 **Opis:**
@@ -269,6 +290,8 @@ Implementacja WebSocket server (Spring WebSocket + STOMP) lub Server-Sent Events
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** BE-009, DB-009
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-014, FE-014
 **Odniesienie PRD:** US-04-01, US-04-03, US-04-04, EPIC-04
 
 **Opis:**
@@ -289,6 +312,8 @@ Silnik IVR interpretujący JSONB definicję drzewa (`IVR_TREE.definition`). Prze
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** BE-013, DB-009
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
 **Odniesienie PRD:** US-04-02, EPIC-04
 
 **Opis:**
@@ -310,6 +335,8 @@ Serwis Python (FastAPI) integrujący ASR (Google Speech-to-Text lub Whisper) i p
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-001, DB-007
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-016, FE-012
 **Odniesienie PRD:** US-05-01, US-05-02, US-05-04, EPIC-05
 
 **Opis:**
@@ -330,6 +357,8 @@ Serwis emailowy: polling IMAP co 60s (konfiguracja per tenant: host, port, login
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależności:** BE-002, DB-007
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-012
 **Odniesienie PRD:** US-05-03, EPIC-05
 
 **Opis:**
@@ -350,6 +379,8 @@ Tabela `EMAIL_TEMPLATE` (template_id, tenant_id, name, subject_template, body_ht
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-008
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-018, FE-023
 **Odniesienie PRD:** US-06-02, EPIC-06
 
 **Opis:**
@@ -369,6 +400,8 @@ Endpointy OAuth 2.0 callback dla: Facebook Messenger API, Instagram API, WhatsAp
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** BE-017, DB-008
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-013
 **Odniesienie PRD:** US-06-01, US-06-03, US-06-04, EPIC-06
 
 **Opis:**
@@ -390,6 +423,8 @@ Implementacja interfejsu `SocialMediaAdapter` z metodami: receiveMessage, sendMe
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** BE-008, DB-010
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-021, BE-029
 **Odniesienie PRD:** US-07-01, US-07-02, US-07-03, US-07-05, EPIC-07
 
 **Opis:**
@@ -410,6 +445,8 @@ Serwis `RoutingEngine` konsumujący eventy z RabbitMQ (CONTACT_QUEUED). Algorytm
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-010
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-024
 **Odniesienie PRD:** US-07-01, US-07-03, EPIC-07
 
 **Opis:**
@@ -429,6 +466,8 @@ Endpointy: `POST /api/queues`, `GET /api/queues`, `GET /api/queues/{id}`, `PATCH
 **Priorytet:** Should Have
 **Zlozonosc:** M
 **Zależności:** BE-019, BE-020
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
 **Odniesienie PRD:** US-07-04, EPIC-07
 
 **Opis:**
@@ -449,6 +488,8 @@ Serwis kalkulujący szacowany czas oczekiwania w kolejce na podstawie: liczby oc
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-002, DB-011
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-023, BE-024, FE-015
 **Odniesienie PRD:** US-08-02, US-08-06, EPIC-08
 
 **Opis:**
@@ -468,6 +509,8 @@ Endpointy: `POST /api/campaigns`, `GET /api/campaigns`, `PATCH /api/campaigns/{i
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-022, DB-011
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-016
 **Odniesienie PRD:** US-08-01, EPIC-08
 
 **Opis:**
@@ -487,6 +530,8 @@ Endpoint `POST /api/campaigns/{id}/contacts/import` przyjmuje plik CSV multipart
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** BE-009, BE-022, DB-011
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
 **Odniesienie PRD:** US-08-03, US-08-05, EPIC-08
 
 **Opis:**
@@ -509,6 +554,8 @@ Serwis `ProgressiveDialer`: po zmianie statusu agenta na AVAILABLE (event Rabbit
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-002, DB-012
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-026, BE-031, FE-018, FE-019, FE-011
 **Odniesienie PRD:** US-09-01, US-09-02, US-09-03, US-09-04, EPIC-09
 
 **Opis:**
@@ -528,6 +575,8 @@ Endpointy: `POST /api/customers`, `GET /api/customers` (search, paginacja), `GET
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-025, DB-012
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-020
 **Odniesienie PRD:** US-09-05, EPIC-09
 
 **Opis:**
@@ -549,6 +598,8 @@ Analogiczny do BE-023. Endpoint `POST /api/customers/import` – CSV z kolumnami
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-006
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-028, BE-029, BE-030, BE-031, FE-017, FE-019, FE-022
 **Odniesienie PRD:** US-09-02, US-10-02, EPIC-09, EPIC-10
 
 **Opis:**
@@ -568,6 +619,8 @@ Endpointy: `GET /api/contacts` (filtry: customer_id, agent_id, channel, status, 
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-027, DB-013
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-022
 **Odniesienie PRD:** US-10-02, US-10-03, US-10-05, EPIC-10
 
 **Opis:**
@@ -587,6 +640,8 @@ Endpointy raportów: `GET /api/reports/agents` (metryki: avg_handle_time, contac
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-012, BE-019
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-021
 **Odniesienie PRD:** US-10-01, EPIC-10
 
 **Opis:**
@@ -606,6 +661,8 @@ WebSocket topic `/tenant/{tenantId}/supervisor/metrics` z payloadem: {agents: [{
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** BE-027, DB-013, DB-014
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
 **Odniesienie PRD:** US-10-06, EPIC-10
 
 **Opis:**
@@ -627,6 +684,8 @@ Pipeline replikacji danych: PostgreSQL CDC przez Debezium (logical replication) 
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-025, BE-027, DB-012
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
 **Odniesienie PRD:** US-09-06, wymagania RODO
 
 **Opis:**

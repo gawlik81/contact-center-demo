@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-14 (dodano mapę procesów)
+**Ostatnia aktualizacja:** 2026-03-14 (aktualizacja po BE-004)
 
 ---
 
@@ -56,7 +56,7 @@
 | BE-001 | Inicjalizacja projektu Spring Boot i struktura modułów | ✅ | Multi-module Maven, profile dev/prod, Flyway, HikariCP, Redis, RabbitMQ |
 | BE-002 | Konfiguracja multi-tenancy: TenantContext i filtr tenant_id | ✅ | TenantContext, TenantFilter, JwtParser, JwtProperties, SecurityConfig, TenantAwareRepository, CrossTenantAccessException, CrossTenantAspect, GlobalExceptionHandler. 85 testów PASS |
 | BE-003 | Konfiguracja bezpieczeństwa: Spring Security, JWT, MFA | ✅ | JwtService (RS256), JwtAuthFilter, TokenBlacklistService (Redis SHA-256), MfaService (TOTP RFC 6238 ±30s), AppUser/RefreshToken encje, AuthService, AuthController + DTO. 132 testy PASS |
-| BE-004 | Auth API: login, logout, refresh, zmiana hasła | ✅ | Rate limiting login (5/15 min/IP, Redis INCR+EXPIRE, HTTP 429+Retry-After), passwordResetRequired w LoginResponse, POST /api/auth/change-password (weryfikacja hasła, walidacja siły, nowe tokeny), POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR). 14 nowych testów PASS (LoginRateLimiterTest x6, AuthServiceChangePasswordTest x6+2). Łącznie 146 testów PASS. |
+| BE-004 | Auth API: login, logout, refresh, zmiana hasła | ✅ | Rate limiting Redis (5/15min/IP→429), POST /api/auth/change-password (walidacja siły hasła), POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR), passwordResetRequired w LoginResponse, LoginRateLimiter.java |
 | BE-005 | Audit Log: zapis działań użytkowników | ⬜ | |
 | BE-006 | Tenant CRUD API i limity zasobów | ⬜ | |
 | BE-007 | Admin metrics API: metryki RT tenantów | ⬜ | |
@@ -150,7 +150,7 @@
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 3/31 (BE-001..BE-003 ✅) | FE: 5/24 (FE-001..FE-005 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 4/31 (BE-001..BE-004 ✅) | FE: 5/24 (FE-001..FE-005 ✅)
 
 ---
 

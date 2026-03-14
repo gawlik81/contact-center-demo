@@ -31,14 +31,20 @@ Projekt to wielokanałowa platforma Contact Center w modelu SaaS (multi-tenant),
 
 **Aktualny postęp (stan na 2026-03-14):**
 - DB: 19/19 ukończone (cały schemat, RLS, indeksy, RODO, ClickHouse DW)
-- BE: 3/31 ukończone (BE-001 Spring Boot, BE-002 multi-tenancy, BE-003 JWT/MFA/Security)
+- BE: 4/31 ukończone (BE-001 Spring Boot, BE-002 multi-tenancy, BE-003 JWT/MFA/Security, BE-004 Auth API z rate limitingiem Redis)
 - FE: 5/24 ukończone (FE-001 init, FE-002 routing/guards, FE-003 interceptory, FE-004 login/MFA, FE-005 shell)
 
-**Kluczowe blokery krytyczne (zidentyfikowane w PROCESSES.md):**
-- BE-004 (Auth API) – bez tego żadne środowisko poza dev z seedem nie działa produkcyjnie
+**Kluczowe blokery krytyczne (zidentyfikowane w PROGRESS.md):**
+- BE-004 (Auth API) – ukończone; odblokowany FE-004 produkcyjnie
 - BE-009 (VoIP Adapter) – blokuje cały kanał telefoniczny (softphone, nagrywanie, CLI, IVR, dialer)
 - BE-012 (WebSocket hub) – blokuje Agent Desktop i RT metrics dashboard
 - FE-009 (Agent Desktop layout) – blokuje 5 komponentów obsługi kontaktu
+
+**Konwencje pól w plikach zadań (TASKS-*.md) – ustalone 2026-03-14:**
+- Każde zadanie ma metadane: Typ, Priorytet, Zlozonosc, Zależności, Status, Blokuje (BE) / Czeka na BE (FE), Odniesienie PRD
+- Status: ✅ Ukończone / ⬜ Nie rozpoczęte
+- Pole Blokuje (TASKS-BACKEND.md): lista zadań BE/FE odblokowanych po ukończeniu danego zadania
+- Pole Czeka na BE (TASKS-FRONTEND.md): lista wymaganych BE z adnotacją "(lub MSW)" gdzie mocking jest realny; "(trudne do zamockowania)" dla WebRTC/VoIP; "(OAuth wymaga prawdziwego BE)" dla FE-023
 
 **Kluczowe wymagania niefunkcjonalne:**
 - API CRUD < 200ms (p95)

@@ -1,0 +1,1 @@
+@"product-requirements-deconstructor (agent)" zaktualizuj plik PROGRESS.md, w plikach @TASKS-BACKEND.md @TASKS-FRONTEND.md @TASKS-DATABASE.md zaktualizuj czy task jest zrealizowany i przy tasku dodaj zalezności od innych tasków.

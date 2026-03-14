@@ -136,7 +136,7 @@ Serwis `AuditLogService` zapisujący do tabeli `AUDIT_LOG` każdą operację CRU
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-005
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-007, FE-006
 **Odniesienie PRD:** US-01-01, US-01-02, US-01-03, EPIC-01
 

@@ -134,8 +134,8 @@ Główny layout aplikacji: responsywny sidebar z nawigacją kontekstową zależn
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** FE-005
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-006 (lub MSW)
+**Status:** ✅ Ukończone
+**Czeka na BE:** BE-006 ✅
 **Odniesienie PRD:** US-01-01, US-01-02, EPIC-01
 
 **Opis:**

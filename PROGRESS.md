@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-14 (aktualizacja po BE-006)
+**Ostatnia aktualizacja:** 2026-03-14 (aktualizacja po BE-006 + FE-006)
 
 ---
 
@@ -58,7 +58,7 @@
 | BE-003 | Konfiguracja bezpieczeństwa: Spring Security, JWT, MFA | ✅ | JwtService (RS256), JwtAuthFilter, TokenBlacklistService (Redis SHA-256), MfaService (TOTP RFC 6238 ±30s), AppUser/RefreshToken encje, AuthService, AuthController + DTO. 132 testy PASS |
 | BE-004 | Auth API: login, logout, refresh, zmiana hasła | ✅ | Rate limiting Redis (5/15min/IP→429), POST /api/auth/change-password (walidacja siły hasła), POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR), passwordResetRequired w LoginResponse, LoginRateLimiter.java |
 | BE-005 | Audit Log: zapis działań użytkowników | ⬜ | |
-| BE-006 | Tenant CRUD API i limity zasobów | ✅ | Tenant.java (encja JPA + JsonMapConverter JSONB), TenantRepository, TenantService, TenantResourceLimitService (reużywany przez BE-008/020/022), TenantController (6 endpointów), ResourceLimitExceededException (HTTP 422). 27 nowych testów. Łącznie 173 PASS |
+| BE-006 | Tenant CRUD API i limity zasobów | ✅ | Tenant.java (encja JPA, JSONB przez @JdbcTypeCode(SqlTypes.JSON)), TenantRepository, TenantService, TenantResourceLimitService (reużywany przez BE-008/020/022), TenantController (6 endpointów), ResourceLimitExceededException (HTTP 422). 27 nowych testów. Łącznie 173 PASS. Naprawiono: JsonMapConverter → @JdbcTypeCode, ENUM types → VARCHAR+CHECK (V019) |
 | BE-007 | Admin metrics API: metryki RT tenantów | ⬜ | |
 | BE-008 | User / Agent CRUD API ze skills | ⬜ | |
 | BE-009 | Adapter VoIP: integracja z SIP trunk / CPaaS API | ⬜ | |
@@ -96,7 +96,7 @@
 | FE-003 | HTTP Interceptor: JWT, refresh token, obsługa błędów 401/403 | ✅ | errorHandlerInterceptor (403→toast "Brak uprawnień", 5xx→toast "Błąd serwera", status 0→"Brak połączenia"), NotificationService (signal-based, auto-dismiss 4-6s), ToastContainerComponent (WCAG AA, aria-live), oba interceptory zarejestrowane w app.config.ts |
 | FE-004 | Moduł uwierzytelniania: ekran logowania i MFA | ✅ | LoginComponent (dwustanowy: credentials→MFA, reactive form, walidacja, spinner, błąd 401 inline), MFA krok TOTP (6 cyfr, pattern validator), ChangePasswordComponent (cross-field validator, wskaźnik siły hasła), AUTH_ROUTES, dropdown tenanta w formularzu logowania. Naprawiony proxy.conf.json (usunięty pathRewrite). Naprawiony hash BCrypt w V999__dev_seed.sql. |
 | FE-005 | Shell aplikacji: top navbar, sidenav, breadcrumbs, notyfikacje | ✅ | AppShellComponent (CSS Grid/Flex, skip-link WCAG), TopNavbarComponent (hamburger, badge roli, logout, tenant info), SidenavComponent (menu kontekstowe per rola ADMIN/SUPERVISOR/AGENT, SVG ikony inline, responsive: overlay mobile/tablet, sticky desktop 1280px+), BreadcrumbsComponent + BreadcrumbService (Router.events, data.breadcrumb, aria-current), admin/supervisor/agent shell i routes zaktualizowane. ng build PASS. |
-| FE-006 | Lista tenantów i formularz tworzenia tenanta | ⬜ | |
+| FE-006 | Lista tenantów i formularz tworzenia tenanta | ✅ | TenantListComponent (tabela z paginacją 20/str, filtry nazwa+status z debounce 300ms, skeleton loading, empty state, badge statusów ACTIVE/INACTIVE/SUSPENDED, przycisk dezaktywacji per wiersz), TenantFormComponent (reactive form, async validator unikalności nazwy debounce 500ms, limity agentów/kolejek/kampanii), TenantDeactivateModalComponent (natywny <dialog>, WCAG AA), TenantService (6 metod API), TENANT_ROUTES lazy-loaded, admin.routes.ts zaktualizowane. ng build PASS. Naprawiono: TenantService kontrakt (List nie PagedResponse), CreateTenantRequest pole config → limits |
 | FE-007 | Dashboard techniczny administratora (metryki tenantów RT) | ⬜ | |
 | FE-008 | Zarządzanie agentami: lista, tworzenie, edycja, skills | ⬜ | |
 | FE-009 | Agent Desktop: główny layout i panel statusu agenta | ⬜ | |
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 4/31 | 0 | 27 | 31 |
-| Frontend (FE) | 5/24 | 0 | 19 | 24 |
-| **RAZEM** | **28/74** | **0** | **46** | **74** |
+| Backend (BE) | 6/31 | 0 | 25 | 31 |
+| Frontend (FE) | 6/24 | 0 | 18 | 24 |
+| **RAZEM** | **31/74** | **0** | **43** | **74** |
 
 ---
 
@@ -145,12 +145,16 @@
 | 2026-03-13 | app.html | Domyślny scaffold Angular zasłaniał router-outlet | Zastąpiono zawartością: &lt;cc-toast-container /&gt; + &lt;router-outlet /&gt; |
 | 2026-03-14 | features/auth/login/login.component.ts | Po logowaniu bez MFA wyświetlał się ForbiddenComponent – `handleLoginResponse()` w ścieżce "direct login" nie wywoływała `handleLoginSuccess()`, token nie był zapisywany, `getUserRole()` zwracało null, `navigateToDashboard()` kierowało na /forbidden | Dodano wywołanie `authService.handleLoginSuccess({ accessToken, refreshToken })` przed `navigateToDashboard()` w ścieżce direct login |
 | 2026-03-14 | core/services/auth.service.ts | Interfejs `LoginResponse` nie zawierał pola `refreshToken` – backend zwracający refreshToken przy bezpośrednim logowaniu był ignorowany | Dodano `refreshToken?: string` do interfejsu `LoginResponse` |
+| 2026-03-14 | domain/model/Tenant.java | `JsonMapConverter` (AttributeConverter) powodował konflikty z Hibernate Envers i nie obsługiwał null-safe JSONB | Zastąpiony adnotacją `@JdbcTypeCode(SqlTypes.JSON)` bezpośrednio na polach JSONB |
+| 2026-03-14 | V019__convert_enum_types_to_varchar.sql | PostgreSQL custom ENUM types (`tenant_status`, `user_role`, `user_status`) powodowały błędy przy Flyway clean-on-validation (typy pozostawały w schemacie) | Nowa migracja V019: drop ENUM, zmiana kolumn na VARCHAR + CHECK constraint |
+| 2026-03-14 | features/admin/tenants/tenant.service.ts | Backend zwraca `List<Tenant>` (tablica JSON), frontend oczekiwał `PagedResponse<Tenant>` z polem `content` | Zaktualizowano TenantService – odpowiedź mapowana bezpośrednio jako `Tenant[]` |
+| 2026-03-14 | features/admin/tenants/tenant-form.component.ts | `CreateTenantRequest` zawierał pole `config` zamiast `limits` – backend odrzucał żądanie 400 | Zmieniono pole na `limits` zgodnie z kontraktem TenantController |
 
 ---
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 4/31 (BE-001..BE-004 ✅) | FE: 5/24 (FE-001..FE-005 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 6/31 (BE-001..BE-004 ✅, BE-006 ✅) | FE: 6/24 (FE-001..FE-006 ✅)
 
 ---
 
@@ -177,7 +181,8 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-002 | Multi-tenancy: TenantContext, TenantFilter, RLS | ✅ |
 | BE-003 | Spring Security, JWT RS256, MFA TOTP, Blacklista Redis | ✅ |
 | BE-004 | Auth API: rate limiting, change-password, force-reset | ✅ |
-| BE-005..BE-031 | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
+| BE-006 | Tenant CRUD API i limity zasobów | ✅ |
+| BE-005, BE-007..BE-031 | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
 
@@ -188,7 +193,8 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-003 | HTTP Interceptor, JWT refresh, toast błędów | ✅ |
 | FE-004 | Ekran logowania + MFA + zmiana hasła | ✅ |
 | FE-005 | Shell: navbar, sidenav, breadcrumbs, notyfikacje | ✅ |
-| FE-006..FE-024 | Wszystkie widoki funkcjonalne | ⬜ |
+| FE-006 | Lista tenantów i formularz tworzenia tenanta | ✅ |
+| FE-007..FE-024 | Wszystkie widoki funkcjonalne | ⬜ |
 
 ---
 
@@ -286,9 +292,9 @@ Poniższa kolejność maksymalizuje odblokowanie kolejnych zadań. Zadania oznac
 
 | Krok | Zadanie | Warstwa | Uzasadnienie |
 |------|---------|---------|--------------|
-| 1 | BE-004 | BE | 🔴 Auth API – odblokuje FE-004 produkcyjnie i jest prerekviztem dla bezpiecznego testowania wszystkich dalszych endpointów |
+| 1 | BE-004 ✅ | BE | 🔴 Auth API – odblokuje FE-004 produkcyjnie i jest prerekviztem dla bezpiecznego testowania wszystkich dalszych endpointów |
 | 2 | 🟢 BE-005 | BE | Audit Log – nie blokuje FE, ale jest wymagany przez RODO i powinien być gotowy przed operacjami na danych |
-| 3 | 🟢 BE-006 | BE | Tenant CRUD – odblokuje FE-006 i BE-007 |
+| 3 | 🟢 BE-006 ✅ | BE | Tenant CRUD – odblokuje FE-006 ✅ i BE-007 |
 | 4 | 🟢 BE-008 | BE | User/Agent CRUD – odblokuje FE-008 i BE-019 |
 
 **Faza 2 – Core Business (tygodnie 2-3)**
@@ -333,11 +339,11 @@ BE-004 (Auth API)
 
 | Kolejność | Zadanie | Status | Warunek |
 |-----------|---------|--------|---------|
-| 1 | BE-004 | ⬜ | Prerekvizyt dla wszystkich chronionych endpointów |
-| 2 | 🟢 BE-006 | ⬜ | Wymaga BE-002 ✅ + DB-005 ✅ |
+| 1 | BE-004 | ✅ | Prerekvizyt dla wszystkich chronionych endpointów |
+| 2 | 🟢 BE-006 | ✅ | Wymaga BE-002 ✅ + DB-005 ✅ |
 | 3 | 🟢 BE-008 | ⬜ | Wymaga BE-002 ✅ + DB-003 ✅ |
-| 4 | BE-007 | ⬜ | Wymaga BE-006 |
-| 5 | 🟢 FE-006 | ⬜ | Wymaga BE-006 (lub MSW) |
+| 4 | BE-007 | ⬜ | Wymaga BE-006 ✅ |
+| 5 | 🟢 FE-006 | ✅ | Wymaga BE-006 ✅ |
 | 6 | 🟢 FE-008 | ⬜ | Wymaga BE-008 (lub MSW) |
 | 7 | FE-007 | ⬜ | Wymaga BE-007 (lub MSW) |
 
@@ -444,10 +450,10 @@ Poniższa kolejność realizacji BE maksymalizuje liczbę odblokowanych zadań F
 
 | Priorytet | Zadanie BE | Odblokuje zadań FE | Uwagi |
 |-----------|------------|-------------------|-------|
-| 🔴 1 | BE-004 (Auth API) | FE-004 produkcyjnie | Niezbędne do działania wszystkich chronionych endpointów w środowisku staging/prod |
+| ✅ 1 | BE-004 (Auth API) | FE-004 produkcyjnie | Ukończone |
 | 🔴 2 | BE-025 (Customer API) | FE-018, FE-019, FE-011 | pg_trgm gotowy, koszt implementacji niski, wartość wysoka |
 | 🔴 3 | BE-027 (Contact API) | FE-017, FE-019, FE-022 | Fundament raportowania i disposition codes |
-| 🟡 4 | BE-006 (Tenant CRUD) | FE-006 | Odblokuje FE-006, a następnie BE-007 → FE-007 |
+| ✅ 4 | BE-006 (Tenant CRUD) | FE-006 ✅ | Ukończone – BE-007 odblokowane |
 | 🟡 5 | BE-008 (User CRUD) | FE-008 | Odblokuje FE-008 i BE-019 (Routing Engine) |
 | 🟡 6 | BE-020 (Queue API) | FE-024 | Krótkie zadanie (M), odblokuje konfigurację routingu |
 | 🟡 7 | BE-022 (Campaign CRUD) | FE-015, FE-016 | Odblokuje cały moduł kampanii |

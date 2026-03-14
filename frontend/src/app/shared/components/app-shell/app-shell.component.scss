@@ -1,0 +1,73 @@
+$sidenav-width: 240px;
+$navbar-height: 60px;
+$breakpoint-tablet: 1024px;
+$breakpoint-desktop: 1280px;
+
+// Skip link (WCAG – visible only on focus)
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 0.5rem;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: #1a56db;
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 0 0 6px 6px;
+  text-decoration: none;
+  transition: top 0.1s;
+
+  &:focus {
+    top: 0;
+  }
+}
+
+// Root shell wrapper
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #f8fafc;
+
+  &__navbar {
+    // Top navbar stretches full width; it is position: sticky inside
+    flex-shrink: 0;
+  }
+
+  &__body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  &__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0; // prevent overflow in flex container
+    overflow-y: auto;
+
+    // Shift main content to the right on desktop when sidenav is visible
+    @media (min-width: $breakpoint-desktop) {
+      margin-left: $sidenav-width;
+    }
+  }
+
+  &__breadcrumbs {
+    padding: 0.5rem 1.5rem 0;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+    min-height: 36px;
+  }
+
+  &__content {
+    flex: 1;
+    padding: 1.5rem;
+
+    @media (max-width: 600px) {
+      padding: 1rem;
+    }
+  }
+}

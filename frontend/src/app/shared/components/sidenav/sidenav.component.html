@@ -1,0 +1,47 @@
+<!-- Overlay for mobile/tablet -->
+<div
+  class="sidenav-overlay"
+  [class.sidenav-overlay--visible]="isOpen()"
+  (click)="onOverlayClick()"
+  aria-hidden="true"
+></div>
+
+<!-- Sidebar -->
+<nav
+  class="sidenav"
+  [class.sidenav--open]="isOpen()"
+  role="navigation"
+  aria-label="Nawigacja glowna"
+>
+  <div class="sidenav__header">
+    <span class="sidenav__title">Menu</span>
+  </div>
+
+  <ul class="sidenav__list" role="list">
+    @for (item of navItems(); track item.route) {
+      <li class="sidenav__item" role="listitem">
+        <a
+          class="sidenav__link"
+          [routerLink]="item.route"
+          routerLinkActive="sidenav__link--active"
+          [routerLinkActiveOptions]="{ exact: false }"
+          [attr.aria-label]="item.ariaLabel"
+          (click)="onLinkClick()"
+          #rla="routerLinkActive"
+          [attr.aria-current]="rla.isActive ? 'page' : null"
+        >
+          <svg
+            class="sidenav__icon"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path [attr.d]="item.svgPath" />
+          </svg>
+          <span class="sidenav__label">{{ item.label }}</span>
+        </a>
+      </li>
+    }
+  </ul>
+</nav>

@@ -1,30 +1,10 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { AppShellComponent } from '../../shared/components/app-shell/app-shell.component';
 
 @Component({
   selector: 'app-agent-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet],
-  template: `
-    <div class="shell">
-      <header class="shell-header">
-        <span class="shell-title">Contact Center – Agent Desktop</span>
-      </header>
-      <main class="shell-content">
-        <router-outlet />
-      </main>
-    </div>
-  `,
-  styles: `
-    .shell { display: flex; flex-direction: column; min-height: 100vh; }
-    .shell-header {
-      background: #6a1b9a;
-      color: #fff;
-      padding: 0.75rem 1.5rem;
-      font-size: 1rem;
-      font-weight: 500;
-    }
-    .shell-content { flex: 1; padding: 1.5rem; }
-  `,
+  imports: [AppShellComponent],
+  template: `<cc-app-shell />`,
 })
 export class AgentShellComponent {}

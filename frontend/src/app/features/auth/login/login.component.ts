@@ -176,9 +176,13 @@ export class LoginComponent {
       return;
     }
 
-    // Direct login success (no MFA, no reset) – should not normally happen
-    // but handle gracefully: backend returned accessToken without refreshToken.
-    // Guard will redirect appropriately.
+    // Direct login success (no MFA, no password reset required).
+    // Save tokens before navigating – without this getUserRole() returns null
+    // and navigateToDashboard() would redirect to /forbidden.
+    this.authService.handleLoginSuccess({
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken ?? '',
+    });
     this.navigateToDashboard();
   }
 

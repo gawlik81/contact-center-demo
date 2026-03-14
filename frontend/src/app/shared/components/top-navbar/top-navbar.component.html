@@ -1,0 +1,80 @@
+<header class="navbar" role="banner">
+  <div class="navbar__left">
+    <button
+      class="navbar__hamburger"
+      type="button"
+      aria-label="Przelacz nawigacje boczna"
+      [attr.aria-expanded]="sidenavOpen()"
+      (click)="onToggleSidenav()"
+    >
+      <svg
+        class="navbar__hamburger-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </svg>
+    </button>
+
+    <div class="navbar__brand">
+      <svg
+        class="navbar__logo"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2zm-9 9H9V9h2v2zm4 0h-2V9h2v2zm4 0h-2V9h2v2z" />
+      </svg>
+      <span class="navbar__brand-name">Contact Center</span>
+    </div>
+  </div>
+
+  <div class="navbar__right">
+    @if (auth.currentPayload()) {
+      <div class="navbar__tenant" aria-label="Identyfikator tenanta">
+        <span class="navbar__tenant-label">Tenant:</span>
+        <span class="navbar__tenant-id">{{ auth.currentTenantId() }}</span>
+      </div>
+
+      <div class="navbar__user">
+        <span class="navbar__user-email">{{ auth.currentPayload()?.email }}</span>
+        <span
+          class="badge"
+          [ngClass]="getRoleBadgeClass(auth.currentRole())"
+          aria-label="Rola: {{ getRoleLabel(auth.currentRole()) }}"
+        >{{ getRoleLabel(auth.currentRole()) }}</span>
+      </div>
+    }
+
+    <button
+      class="navbar__logout"
+      type="button"
+      aria-label="Wyloguj sie z aplikacji"
+      (click)="onLogout()"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+        <polyline points="16 17 21 12 16 7" />
+        <line x1="21" y1="12" x2="9" y2="12" />
+      </svg>
+      <span class="navbar__logout-label">Wyloguj</span>
+    </button>
+  </div>
+</header>

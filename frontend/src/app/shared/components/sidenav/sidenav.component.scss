@@ -1,0 +1,169 @@
+$sidenav-width: 240px;
+$sidenav-bg: #1e2a3a;
+$sidenav-text: #e2e8f0;
+$sidenav-active-bg: #2d6cdf;
+$sidenav-hover-bg: rgba(255, 255, 255, 0.07);
+$sidenav-border: rgba(255, 255, 255, 0.08);
+
+$breakpoint-tablet: 1024px;
+$breakpoint-desktop: 1280px;
+
+// Overlay (mobile/tablet only)
+.sidenav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 199;
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+
+  @media (max-width: #{$breakpoint-desktop - 1px}) {
+    display: block;
+  }
+
+  &--visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+// Sidenav panel
+.sidenav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: $sidenav-width;
+  background: $sidenav-bg;
+  color: $sidenav-text;
+  display: flex;
+  flex-direction: column;
+  z-index: 200;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: transform 0.25s ease;
+  will-change: transform;
+
+  // Mobile: hidden by default, slides in when open
+  @media (max-width: #{$breakpoint-tablet - 1px}) {
+    transform: translateX(-100%);
+    box-shadow: none;
+
+    &--open {
+      transform: translateX(0);
+      box-shadow: 4px 0 20px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  // Tablet: hidden by default (overlay drawer)
+  @media (min-width: $breakpoint-tablet) and (max-width: #{$breakpoint-desktop - 1px}) {
+    transform: translateX(-100%);
+    top: 60px; // below navbar
+    box-shadow: none;
+
+    &--open {
+      transform: translateX(0);
+      box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+    }
+  }
+
+  // Desktop: always visible, static
+  @media (min-width: $breakpoint-desktop) {
+    position: relative;
+    top: auto;
+    left: auto;
+    bottom: auto;
+    transform: none !important;
+    flex-shrink: 0;
+    height: 100%;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    height: 60px;
+    padding: 0 1.25rem;
+    border-bottom: 1px solid $sidenav-border;
+    flex-shrink: 0;
+
+    @media (min-width: $breakpoint-tablet) {
+      // On tablet/desktop the header is hidden (navbar covers it)
+      // But we keep it for mobile where sidenav overlaps navbar
+    }
+
+    @media (min-width: $breakpoint-desktop) {
+      display: none; // on desktop the global navbar already shows brand
+    }
+  }
+
+  &__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(226, 232, 240, 0.5);
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0.5rem 0;
+    flex: 1;
+  }
+
+  &__item {
+    margin: 0;
+    padding: 0 0.5rem;
+  }
+
+  &__link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 6px;
+    text-decoration: none;
+    color: $sidenav-text;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    transition:
+      background 0.15s,
+      color 0.15s;
+    position: relative;
+
+    &:hover {
+      background: $sidenav-hover-bg;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #60a5fa;
+      outline-offset: 2px;
+    }
+
+    &--active {
+      background: $sidenav-active-bg;
+      color: #ffffff;
+      font-weight: 500;
+
+      .sidenav__icon {
+        color: #ffffff;
+      }
+    }
+  }
+
+  &__icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: rgba(226, 232, 240, 0.7);
+    transition: color 0.15s;
+  }
+
+  &__label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

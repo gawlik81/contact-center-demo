@@ -1,0 +1,22 @@
+@if (breadcrumbService.breadcrumbs().length > 0) {
+  <nav class="breadcrumbs" aria-label="Sciezka nawigacji">
+    <ol class="breadcrumbs__list">
+      @for (item of breadcrumbService.breadcrumbs(); track item.url; let last = $last) {
+        <li class="breadcrumbs__item">
+          @if (!last) {
+            <a
+              class="breadcrumbs__link"
+              [routerLink]="item.url"
+            >{{ item.label }}</a>
+            <span class="breadcrumbs__separator" aria-hidden="true">/</span>
+          } @else {
+            <span
+              class="breadcrumbs__current"
+              aria-current="page"
+            >{{ item.label }}</span>
+          }
+        </li>
+      }
+    </ol>
+  </nav>
+}

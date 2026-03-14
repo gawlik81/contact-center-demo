@@ -83,7 +83,8 @@
       "Bash(cd \"E:/ClaudAI/contact-center-demo/frontend\" && npx ng build --configuration development 2>&1)",
       "Bash(cd \"E:\\\\ClaudAI\\\\contact-center-demo\\\\frontend\" && npx ng build --configuration=development 2>&1)",
       "mcp__ide__getDiagnostics",
-      "Bash(java -cp \".:/c/Users/pawel/.m2/repository/org/springframework/security/spring-security-crypto/6.3.4/spring-security-crypto-6.3.4.jar:/c/Users/pawel/.m2/repository/commons-logging/commons-logging/1.2/commons-logging-1.2.jar\" Verify)"
+      "Bash(java -cp \".:/c/Users/pawel/.m2/repository/org/springframework/security/spring-security-crypto/6.3.4/spring-security-crypto-6.3.4.jar:/c/Users/pawel/.m2/repository/commons-logging/commons-logging/1.2/commons-logging-1.2.jar\" Verify)",
+      "Bash(cd \"E:\\\\ClaudAI\\\\contact-center-demo\\\\frontend\" && npx ng build --configuration development 2>&1)"
     ]
   }
 }

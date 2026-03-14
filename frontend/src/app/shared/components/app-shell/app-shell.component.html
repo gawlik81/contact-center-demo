@@ -1,0 +1,32 @@
+<!-- Skip link for WCAG keyboard navigation -->
+<a href="#main-content" class="skip-link">Przejdz do tresci</a>
+
+<div class="shell" [class.shell--sidenav-open]="sidenavOpen()">
+  <!-- Top Navbar -->
+  <cc-top-navbar
+    class="shell__navbar"
+    [sidenavOpen]="sidenavOpen()"
+    (toggleSidenav)="onToggleSidenav()"
+  />
+
+  <div class="shell__body">
+    <!-- Sidenav -->
+    <cc-sidenav
+      [isOpen]="sidenavOpen()"
+      (closeRequest)="onCloseSidenav()"
+    />
+
+    <!-- Main content area -->
+    <main id="main-content" class="shell__main" tabindex="-1">
+      <!-- Breadcrumbs -->
+      <div class="shell__breadcrumbs">
+        <cc-breadcrumbs />
+      </div>
+
+      <!-- Page content -->
+      <div class="shell__content">
+        <router-outlet />
+      </div>
+    </main>
+  </div>
+</div>

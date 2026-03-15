@@ -1,0 +1,8 @@
+# IDE
+.idea/
+*.iml
+*.iws
+.classpath
+.project
+.settings/
+.factorypath

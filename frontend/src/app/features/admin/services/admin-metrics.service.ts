@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import {
   Observable,
   BehaviorSubject,
@@ -11,8 +11,10 @@ import {
   tap,
   map,
 } from 'rxjs';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { environment } from '../../../../environments/environment';
 import { GlobalMetrics, TenantMetricsDetail } from '../models/admin-metrics.model';
+import { AuthService } from '../../../core/services/auth.service';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -27,6 +29,7 @@ const EMPTY_METRICS: GlobalMetrics = {
 @Injectable({ providedIn: 'root' })
 export class AdminMetricsService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
   private readonly baseUrl = `${environment.apiUrl}/admin/metrics`;
 
   /**
@@ -46,28 +49,62 @@ export class AdminMetricsService {
   private readonly _error$ = new BehaviorSubject<boolean>(false);
 
   /**
-   * Polling stream: fires immediately, then every 30 s.
-   * refCount: false – the timer keeps running regardless of subscriber count,
-   * so navigating away and back does NOT restart the poll cycle or lose cached state.
-   * Errors are caught inside the stream so the timer is never terminated.
+   * Polling stream driven by the current user role.
+   *
+   * The outer switchMap listens to role changes via toObservable(). When the
+   * role is 'ADMIN' it starts timer(0, POLL_INTERVAL_MS); for any other role
+   * (SUPERVISOR, AGENT, null) it emits EMPTY, which means no timer is created
+   * and any running timer from a previous ADMIN session is automatically
+   * cancelled by switchMap's unsubscription logic.
+   *
+   * This makes the guard reactive instead of a one-shot constructor check,
+   * correctly handling the scenario where an ADMIN logs out and a SUPERVISOR
+   * logs in within the same browser tab without a page reload.
+   *
+   * On HTTP 403 inside the inner pipe: the error is caught and EMPTY is
+   * returned, completing that single tick's inner observable. The outer timer
+   * continues so subsequent ticks will retry – but since a 403 means the token
+   * itself does not have ADMIN access the role signal will have changed and
+   * the outer switchMap will have already torn down the timer. This is a
+   * defense-in-depth guard against any residual 403 propagating as a toast.
+   *
+   * refCount: false – the shareReplay stays connected even when all downstream
+   * consumers unsubscribe (e.g. navigating away from the dashboard), so cached
+   * metrics survive navigation and are replayed instantly on return.
    */
-  private readonly _poll$ = timer(0, POLL_INTERVAL_MS).pipe(
-    switchMap(() =>
-      this.http.get<GlobalMetrics>(this.baseUrl).pipe(
-        tap((metrics) => {
-          this._metrics$.next(metrics);
-          this._loading$.next(false);
-          this._error$.next(false);
-        }),
-        catchError(() => {
-          this._error$.next(true);
-          this._loading$.next(false);
-          // Return EMPTY so switchMap completes this inner observable without
-          // propagating the error to the outer timer stream.
-          return EMPTY;
-        }),
-      ),
-    ),
+  private readonly _poll$ = toObservable(this.auth.currentRole).pipe(
+    switchMap((role) => {
+      if (role !== 'ADMIN') {
+        // Not an admin – emit nothing. Any running timer from a prior ADMIN
+        // session is torn down by switchMap automatically.
+        return EMPTY;
+      }
+      return timer(0, POLL_INTERVAL_MS).pipe(
+        switchMap(() =>
+          this.http.get<GlobalMetrics>(this.baseUrl).pipe(
+            tap((metrics) => {
+              this._metrics$.next(metrics);
+              this._loading$.next(false);
+              this._error$.next(false);
+            }),
+            catchError((err: HttpErrorResponse) => {
+              // 403 means the JWT lost ADMIN access mid-session.
+              // Do NOT set the error flag – silently drop this tick.
+              // The outer role-based switchMap will already be tearing down
+              // the timer because the role signal will have been updated.
+              if (err.status === 403) {
+                return EMPTY;
+              }
+              this._error$.next(true);
+              this._loading$.next(false);
+              // Return EMPTY so switchMap completes this inner observable
+              // without propagating the error to the outer timer stream.
+              return EMPTY;
+            }),
+          ),
+        ),
+      );
+    }),
     shareReplay({ bufferSize: 1, refCount: false }),
   );
 
@@ -96,9 +133,11 @@ export class AdminMetricsService {
   );
 
   constructor() {
-    // Kick off the polling loop immediately when the service is instantiated.
-    // The subscription is intentionally never unsubscribed – this service is a
-    // root singleton and lives for the entire app lifetime.
+    // Subscribe unconditionally. The _poll$ stream is self-guarding: its
+    // outer switchMap gates on the currentRole signal and only creates the
+    // timer when role === 'ADMIN'. For SUPERVISOR / AGENT the inner stream
+    // is EMPTY (no HTTP calls). When role transitions away from ADMIN the
+    // running timer is automatically cancelled by switchMap.
     this._poll$.subscribe();
   }
 

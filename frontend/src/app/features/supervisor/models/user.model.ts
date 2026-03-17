@@ -1,0 +1,44 @@
+export type UserRole = 'ADMIN' | 'SUPERVISOR' | 'AGENT';
+
+export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'BREAK' | 'AVAILABLE' | 'BUSY' | 'AFTER_CONTACT';
+
+export interface UserResponse {
+  userId: string;
+  tenantId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  status: UserStatus;
+  skills: string[];
+  passwordResetRequired: boolean;
+  mfaEnabled: boolean;
+  createdAt: string;
+}
+
+export interface CreateUserRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  skills: string[];
+}
+
+export interface UpdateUserRequest {
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  skills: string[];
+}
+
+export interface UpdateStatusRequest {
+  status: UserStatus;
+}
+
+export interface UserListParams {
+  page: number;
+  size: number;
+  status?: UserStatus | '';
+  skill?: string;
+}

@@ -192,9 +192,15 @@ export class SidenavComponent implements OnInit {
   );
 
   ngOnInit(): void {
-    // Only subscribe to metrics stream for ADMIN role.
-    // For other roles the BehaviorSubject still emits EMPTY_METRICS (alertCount stays 0),
-    // but the template hides the badge via isAdmin guard anyway.
+    // Only subscribe to the alert count stream for ADMIN users.
+    // For SUPERVISOR and AGENT the badge is hidden by the isAdmin computed
+    // signal in the template, but we also skip the subscription entirely so
+    // the metrics service is not unnecessarily kept alive by this component.
+    // Note: AdminMetricsService._poll$ is already role-gated and will never
+    // issue HTTP calls for non-ADMIN users, but this guard is defense-in-depth.
+    if (this.auth.currentRole() !== 'ADMIN') {
+      return;
+    }
     this.metricsService.alertCount$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((count) => this.alertCount.set(count));

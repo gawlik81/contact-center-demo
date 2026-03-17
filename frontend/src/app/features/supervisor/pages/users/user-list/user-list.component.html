@@ -1,0 +1,225 @@
+<div class="user-list">
+  <div class="user-list__header">
+    <h1 class="user-list__title">Zarzadzanie agentami</h1>
+    <button class="btn btn-primary" type="button" (click)="openCreateModal()" aria-label="Dodaj nowego agenta">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      Nowy agent
+    </button>
+  </div>
+
+  <!-- Filters -->
+  <div class="user-list__filters" [formGroup]="filterForm" role="search" aria-label="Filtruj agentow">
+    <div class="filter-field">
+      <label class="filter-label" for="filter-skill">Skill</label>
+      <input
+        id="filter-skill"
+        type="text"
+        class="filter-input"
+        formControlName="skill"
+        placeholder="Szukaj po skill..."
+        autocomplete="off"
+      />
+    </div>
+    <div class="filter-field">
+      <label class="filter-label" for="filter-status">Status</label>
+      <select id="filter-status" class="filter-select" formControlName="status">
+        @for (opt of statusOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  <!-- Loading skeleton -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-cell--wide"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--badge"></div>
+          <div class="skeleton-cell skeleton-cell--badge"></div>
+          <div class="skeleton-cell skeleton-cell--wide"></div>
+          <div class="skeleton-cell skeleton-cell--action"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading()) {
+    @if (users().length > 0) {
+      <div class="table-wrapper" role="region" aria-label="Lista agentow">
+        <table class="user-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">Imie i nazwisko</th>
+              <th scope="col">Email</th>
+              <th scope="col">Rola</th>
+              <th scope="col">Status</th>
+              <th scope="col">Skills</th>
+              <th scope="col"><span class="sr-only">Akcje</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of users(); track user.userId) {
+              <tr class="user-row">
+                <td class="user-name">
+                  {{ user.firstName }} {{ user.lastName }}
+                  @if (user.passwordResetRequired) {
+                    <span class="reset-badge" title="Wymagana zmiana hasla" aria-label="Wymagana zmiana hasla">!</span>
+                  }
+                </td>
+                <td class="user-email">{{ user.email }}</td>
+                <td>
+                  <span
+                    class="role-badge"
+                    [class.role-badge--admin]="user.role === 'ADMIN'"
+                    [class.role-badge--supervisor]="user.role === 'SUPERVISOR'"
+                    [class.role-badge--agent]="user.role === 'AGENT'"
+                    [attr.aria-label]="'Rola: ' + user.role"
+                  >
+                    @switch (user.role) {
+                      @case ('ADMIN') {
+                        Admin
+                      }
+                      @case ('SUPERVISOR') {
+                        Supervisor
+                      }
+                      @case ('AGENT') {
+                        Agent
+                      }
+                    }
+                  </span>
+                </td>
+                <td>
+                  <span
+                    class="status-badge"
+                    [class.status-badge--available]="user.status === 'AVAILABLE'"
+                    [class.status-badge--busy]="user.status === 'BUSY' || user.status === 'AFTER_CONTACT'"
+                    [class.status-badge--break]="user.status === 'BREAK'"
+                    [class.status-badge--active]="user.status === 'ACTIVE'"
+                    [class.status-badge--inactive]="user.status === 'INACTIVE'"
+                    [attr.aria-label]="'Status: ' + user.status"
+                  >
+                    @switch (user.status) {
+                      @case ('AVAILABLE') {
+                        Dostepny
+                      }
+                      @case ('BUSY') {
+                        Zajety
+                      }
+                      @case ('AFTER_CONTACT') {
+                        Po kontakcie
+                      }
+                      @case ('BREAK') {
+                        Przerwa
+                      }
+                      @case ('ACTIVE') {
+                        Aktywny
+                      }
+                      @case ('INACTIVE') {
+                        Nieaktywny
+                      }
+                    }
+                  </span>
+                </td>
+                <td>
+                  <div class="skills-list" role="list" aria-label="Skills agenta">
+                    @for (skill of user.skills; track skill) {
+                      <span class="skill-tag" role="listitem">{{ skill }}</span>
+                    }
+                    @if (user.skills.length === 0) {
+                      <span class="no-skills">Brak</span>
+                    }
+                  </div>
+                </td>
+                <td class="user-actions">
+                  <button
+                    class="btn btn-icon-outline"
+                    type="button"
+                    (click)="openEditModal(user)"
+                    [attr.aria-label]="'Edytuj agenta ' + user.firstName + ' ' + user.lastName"
+                    title="Edytuj"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path
+                        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="btn btn-icon-warning"
+                    type="button"
+                    (click)="openResetPasswordModal(user)"
+                    [attr.aria-label]="'Wymus reset hasla dla agenta ' + user.firstName + ' ' + user.lastName"
+                    title="Wymus reset hasla"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path
+                        d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="btn btn-icon-danger"
+                    type="button"
+                    (click)="openDeleteModal(user)"
+                    [attr.aria-label]="'Usun agenta ' + user.firstName + ' ' + user.lastName"
+                    title="Usun"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Count -->
+      <div class="pagination" aria-label="Liczba agentow">
+        <span class="pagination__info" aria-live="polite"> Lacznie: {{ totalElements() }} </span>
+      </div>
+    } @else {
+      <!-- Empty state -->
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+          />
+        </svg>
+        <p class="empty-state__message">Brak agentow do wyswietlenia.</p>
+        <p class="empty-state__hint">Zmien filtry lub dodaj nowego agenta.</p>
+      </div>
+    }
+  }
+</div>
+
+<!-- Form modal (create / edit) -->
+@if (showFormModal()) {
+  <app-user-form
+    [user]="selectedUser()"
+    [isEditMode]="isEditMode()"
+    (saved)="onFormSaved()"
+    (cancelled)="closeFormModal()"
+  />
+}
+
+<!-- Delete modal -->
+@if (showDeleteModal() && selectedUser()) {
+  <app-user-delete-modal [user]="selectedUser()!" (confirmed)="onDeleteConfirmed()" (cancelled)="closeDeleteModal()" />
+}
+
+<!-- Reset password modal -->
+@if (showResetPasswordModal() && selectedUser()) {
+  <app-user-reset-password-modal
+    [user]="selectedUser()!"
+    (confirmed)="onResetPasswordConfirmed()"
+    (cancelled)="closeResetPasswordModal()"
+  />
+}

@@ -22,7 +22,7 @@ export const SUPERVISOR_ROUTES: Routes = [
         path: 'agents',
         data: { breadcrumb: 'Agenci' },
         loadComponent: () =>
-          import('./supervisor-dashboard.component').then((m) => m.SupervisorDashboardComponent),
+          import('./pages/users/user-list/user-list.component').then((m) => m.UserListComponent),
       },
       {
         path: 'queues',

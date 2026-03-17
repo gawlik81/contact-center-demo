@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -102,12 +101,11 @@ public class UserController {
             @ApiResponse(responseCode = "403", description = "Brak uprawnień")
         }
     )
-    public ResponseEntity<Page<UserResponse>> listUsers(
+    public ResponseEntity<List<UserResponse>> listUsers(
             @PageableDefault(size = 20, sort = "email") Pageable pageable
     ) {
         UUID tenantId = TenantContext.getTenantId();
-        Page<UserResponse> page = userService.listUsers(tenantId, pageable);
-        return ResponseEntity.ok(page);
+        return ResponseEntity.ok(userService.listUsers(tenantId, pageable).getContent());
     }
 
     // =========================================================================

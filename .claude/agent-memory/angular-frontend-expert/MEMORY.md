@@ -11,3 +11,4 @@
 - [App Shell infrastructure (FE-005)](./project_fe005_shell.md) – AppShellComponent, TopNavbar, Sidenav (role-aware nav), Breadcrumbs, BreadcrumbService, responsive breakpoints, WCAG skip-link
 - [Tenant management UI (FE-006)](./project_fe006_tenants.md) – TenantListComponent (paged table, filters, badges, skeleton), TenantFormComponent (async validator), TenantDeactivateModal (native dialog), TenantService, TENANT_ROUTES
 - [Admin Dashboard metrics RT (FE-007)](./project_fe007_admin_dashboard.md) – AdminDashboardComponent (KPI cards, tenant table, alert banner, skeleton), AdminMetricsService (30s polling via timer+switchMap+shareReplay), CSS progress bars for agent utilization
+- [Agent management UI (FE-008)](./project_fe008_agent_management.md) – UserListComponent (table, status/skill filters, skeleton), UserFormComponent (native dialog, skills chip multi-select, password validator), UserDeleteModal (409→warning toast), UserResetPasswordModal, UserService

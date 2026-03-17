@@ -1,9 +1,10 @@
 package com.contactcenter.domain.model;
 
-import com.contactcenter.infrastructure.persistence.JsonStringListConverter;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -92,8 +93,13 @@ public class AppUser {
      * Lista umiejętności agenta (skill tags) przechowywana jako JSONB string[].
      * Używana przez routing engine (BE-019) do dopasowania agent–kolejka.
      * Przykład: ["SALES", "TECH_SUPPORT", "BILLING"]
+     *
+     * <p>Mapowanie przez {@link JdbcTypeCode} zamiast {@link jakarta.persistence.Convert} –
+     * Hibernate 6 przez JDBC otrzymuje JSONB jako {@code PGobject}, nie jako {@code String},
+     * więc {@code AttributeConverter<List, String>} rzuciłby ClassCastException.
+     * {@code @JdbcTypeCode(SqlTypes.JSON)} obsługuje konwersję PGobject ↔ Java type natywnie.
      */
-    @Convert(converter = JsonStringListConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "skills", columnDefinition = "jsonb", nullable = false)
     @Builder.Default
     private List<String> skills = new ArrayList<>();

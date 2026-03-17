@@ -7,12 +7,7 @@
 ></div>
 
 <!-- Sidebar -->
-<nav
-  class="sidenav"
-  [class.sidenav--open]="isOpen()"
-  role="navigation"
-  aria-label="Nawigacja glowna"
->
+<nav class="sidenav" [class.sidenav--open]="isOpen()" role="navigation" aria-label="Nawigacja glowna">
   <div class="sidenav__header">
     <span class="sidenav__title">Menu</span>
   </div>
@@ -24,22 +19,32 @@
           class="sidenav__link"
           [routerLink]="item.route"
           routerLinkActive="sidenav__link--active"
-          [routerLinkActiveOptions]="{ exact: false }"
+          [routerLinkActiveOptions]="{ exact: true }"
           [attr.aria-label]="item.ariaLabel"
           (click)="onLinkClick()"
           #rla="routerLinkActive"
           [attr.aria-current]="rla.isActive ? 'page' : null"
         >
-          <svg
-            class="sidenav__icon"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            aria-hidden="true"
-            focusable="false"
-          >
+          <svg class="sidenav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
             <path [attr.d]="item.svgPath" />
           </svg>
           <span class="sidenav__label">{{ item.label }}</span>
+
+          <!--
+            Alert badge is rendered ONLY for the Dashboard nav item.
+            The guard `item.route === '/admin/dashboard'` ensures that even
+            inside the @for loop the badge is attached to exactly one element.
+            The computed signal showAlertBadge() additionally checks:
+              - user is ADMIN
+              - alertCount > 0
+              - current URL is exactly /admin/dashboard
+            All three conditions must be true simultaneously.
+          -->
+          @if (item.route === '/admin/dashboard' && showAlertBadge()) {
+            <span class="sidenav__alert-badge" [attr.aria-label]="alertCount() + ' alertow systemowych'">{{
+              alertBadgeLabel()
+            }}</span>
+          }
         </a>
       </li>
     }

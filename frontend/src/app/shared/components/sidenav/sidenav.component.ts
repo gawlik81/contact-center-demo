@@ -1,7 +1,20 @@
-import { ChangeDetectionStrategy, Component, inject, input, output, computed } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserRole } from '../../../core/models/jwt-payload.model';
+import { AdminMetricsService } from '../../../features/admin/services/admin-metrics.service';
 
 export interface NavItem {
   label: string;
@@ -15,8 +28,7 @@ const ADMIN_NAV: NavItem[] = [
     label: 'Dashboard',
     route: '/admin/dashboard',
     ariaLabel: 'Dashboard administratora',
-    svgPath:
-      'M3 3h7v7H3V3zm0 11h7v7H3v-7zm11-11h7v7h-7V3zm0 11h7v7h-7v-7z',
+    svgPath: 'M3 3h7v7H3V3zm0 11h7v7H3v-7zm11-11h7v7h-7V3zm0 11h7v7h-7v-7z',
   },
   {
     label: 'Tenants',
@@ -36,8 +48,7 @@ const ADMIN_NAV: NavItem[] = [
     label: 'Metryki',
     route: '/admin/metrics',
     ariaLabel: 'Metryki platformy',
-    svgPath:
-      'M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z',
+    svgPath: 'M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z',
   },
 ];
 
@@ -46,8 +57,7 @@ const SUPERVISOR_NAV: NavItem[] = [
     label: 'Dashboard',
     route: '/supervisor/dashboard',
     ariaLabel: 'Dashboard supervisora',
-    svgPath:
-      'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
+    svgPath: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
   },
   {
     label: 'Agenci',
@@ -81,8 +91,7 @@ const SUPERVISOR_NAV: NavItem[] = [
     label: 'Raporty',
     route: '/supervisor/reports',
     ariaLabel: 'Raporty historyczne',
-    svgPath:
-      'M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z',
+    svgPath: 'M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z',
   },
   {
     label: 'Konfiguracja',
@@ -110,6 +119,9 @@ const AGENT_NAV: NavItem[] = [
   },
 ];
 
+/** Route that owns the alert badge – must be an exact string match against router.url */
+const ALERT_BADGE_ROUTE = '/admin/dashboard';
+
 @Component({
   selector: 'cc-sidenav',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -117,8 +129,11 @@ const AGENT_NAV: NavItem[] = [
   templateUrl: './sidenav.component.html',
   styleUrl: './sidenav.component.scss',
 })
-export class SidenavComponent {
+export class SidenavComponent implements OnInit {
   protected readonly auth = inject(AuthService);
+  private readonly metricsService = inject(AdminMetricsService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
 
   /** Controls visibility on mobile/tablet */
   readonly isOpen = input<boolean>(false);
@@ -139,6 +154,57 @@ export class SidenavComponent {
         return [];
     }
   });
+
+  /** Number of active system alerts – displayed as badge on the Dashboard nav item */
+  readonly alertCount = signal(0);
+
+  /** True when the current user is an Admin (only then do we show the badge) */
+  readonly isAdmin = computed(() => this.auth.currentRole() === 'ADMIN');
+
+  /**
+   * Reactive signal tracking the current URL after every completed navigation.
+   *
+   * Derived from NavigationEnd events so it is always updated after each
+   * successful navigation, regardless of component reuse strategy. The
+   * initialValue seeds the signal synchronously from router.url so the very
+   * first render is already correct even before any NavigationEnd fires.
+   */
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  /**
+   * Computed signal: true only when ALL four conditions hold simultaneously.
+   *  1. Current user is ADMIN
+   *  2. There is at least one active system alert
+   *  3. The active URL is exactly '/admin/dashboard'
+   *
+   * This signal is used ONLY on the Dashboard list item (not inside the @for
+   * loop for every item) so condition 3 alone guarantees it never appears on
+   * Uzytkownicy, Tenants, or any other nav entry.
+   */
+  readonly showAlertBadge = computed(
+    () => this.isAdmin() && this.alertCount() > 0 && this.currentUrl() === ALERT_BADGE_ROUTE,
+  );
+
+  ngOnInit(): void {
+    // Only subscribe to metrics stream for ADMIN role.
+    // For other roles the BehaviorSubject still emits EMPTY_METRICS (alertCount stays 0),
+    // but the template hides the badge via isAdmin guard anyway.
+    this.metricsService.alertCount$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((count) => this.alertCount.set(count));
+  }
+
+  /** Badge label capped at 99+ for display */
+  alertBadgeLabel(): string {
+    const count = this.alertCount();
+    return count > 99 ? '99+' : String(count);
+  }
 
   onOverlayClick(): void {
     this.closeRequest.emit();

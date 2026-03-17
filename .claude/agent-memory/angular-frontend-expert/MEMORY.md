@@ -1,5 +1,8 @@
 # Agent Memory Index
 
+## Feedback memories
+- [RouterLinkActive.isActive zawodne przy OnPush](./feedback_routerlinkactive_onpush.md) – używaj Router events + toSignal zamiast rla.isActive jako parametru metody
+
 ## Project memories
 - [Angular workspace setup (FE-001)](./project_fe001_workspace.md) – Angular 21 in `frontend/`, Vitest, standalone components, proxy config, ESLint+Prettier+Husky setup
 - [Routing, guards and auth infrastructure (FE-002)](./project_fe002_routing.md) – lazy loading routes, AuthGuard, RoleGuard, AuthService, TokenService, HTTP interceptor with silent refresh
@@ -7,3 +10,4 @@
 - [Auth UI – Login and Change Password (FE-004)](./project_fe004_auth_ui.md) – LoginComponent with MFA step, ChangePasswordComponent, AuthService extensions, routing under /auth
 - [App Shell infrastructure (FE-005)](./project_fe005_shell.md) – AppShellComponent, TopNavbar, Sidenav (role-aware nav), Breadcrumbs, BreadcrumbService, responsive breakpoints, WCAG skip-link
 - [Tenant management UI (FE-006)](./project_fe006_tenants.md) – TenantListComponent (paged table, filters, badges, skeleton), TenantFormComponent (async validator), TenantDeactivateModal (native dialog), TenantService, TENANT_ROUTES
+- [Admin Dashboard metrics RT (FE-007)](./project_fe007_admin_dashboard.md) – AdminDashboardComponent (KPI cards, tenant table, alert banner, skeleton), AdminMetricsService (30s polling via timer+switchMap+shareReplay), CSS progress bars for agent utilization

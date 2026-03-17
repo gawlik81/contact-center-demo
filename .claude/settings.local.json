@@ -95,7 +95,8 @@
       "Bash(curl:*)",
       "Bash(grep:*)",
       "Read(//c/Users/pawel/.claude/**)",
-      "Read(//c/Users/pawel/.claude/plugins/**)"
+      "Read(//c/Users/pawel/.claude/plugins/**)",
+      "Bash(cat:*)"
     ]
   }
 }

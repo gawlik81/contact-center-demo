@@ -28,7 +28,8 @@ module.exports = defineConfig([
         'error',
         {
           type: 'element',
-          prefix: 'app',
+          // 'app' – feature components; 'cc' – shared/shell components
+          prefix: ['app', 'cc'],
           style: 'kebab-case',
         },
       ],

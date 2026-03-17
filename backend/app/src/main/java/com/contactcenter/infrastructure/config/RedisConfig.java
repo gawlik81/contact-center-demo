@@ -1,5 +1,6 @@
 package com.contactcenter.infrastructure.config;
 
+import com.contactcenter.api.admin.dto.AdminMetricsResponse;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
@@ -13,6 +14,7 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -101,10 +103,38 @@ public class RedisConfig {
                 // Nie cachujemy wartości null (zapobiega cache poisoning)
                 .disableCachingNullValues();
 
+        // Serializator typowany dla AdminMetricsResponse.
+        //
+        // Problem: Java record kompiluje się do final class. GenericJackson2JsonRedisSerializer
+        // z DefaultTyping.NON_FINAL pomija typy final przy generowaniu pola @class w JSON.
+        // Przy deserializacji do Object Jackson nie ma type metadata i rzuca
+        // "missing type id property '@class'".
+        //
+        // Rozwiązanie: Jackson2JsonRedisSerializer z jawnie podanym typem docelowym.
+        // Nie wymaga @class w JSON – deserializuje zawsze do AdminMetricsResponse.
+        // Obiekt ObjectMapper bez defaultTyping jest wystarczający (typ znany statycznie).
+        ObjectMapper adminMetricsObjectMapper = new ObjectMapper();
+        adminMetricsObjectMapper.registerModule(new JavaTimeModule());
+        adminMetricsObjectMapper.disable(
+                com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        Jackson2JsonRedisSerializer<AdminMetricsResponse> adminMetricsSerializer =
+                new Jackson2JsonRedisSerializer<>(adminMetricsObjectMapper, AdminMetricsResponse.class);
+
+        RedisCacheConfiguration adminMetricsConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(TTL_ADMIN_METRICS)
+                .serializeKeysWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                new StringRedisSerializer()))
+                .serializeValuesWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                adminMetricsSerializer))
+                .disableCachingNullValues();
+
         // Konfiguracje per cache z właściwymi TTL
         Map<String, RedisCacheConfiguration> cacheConfigurations = Map.of(
                 CacheNames.QUEUE_STATS,    defaultConfig.entryTtl(TTL_QUEUE_STATS),
-                CacheNames.ADMIN_METRICS,  defaultConfig.entryTtl(TTL_ADMIN_METRICS),
+                CacheNames.ADMIN_METRICS,  adminMetricsConfig,
                 CacheNames.CLI_LOOKUP,     defaultConfig.entryTtl(TTL_CLI_LOOKUP),
                 CacheNames.REPORT_CACHE,   defaultConfig.entryTtl(TTL_REPORT_CACHE),
                 CacheNames.TTS_AUDIO,      defaultConfig.entryTtl(TTL_TTS_AUDIO)

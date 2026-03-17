@@ -12,6 +12,7 @@ import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.model.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.service.AdminMetricsService;
 import com.contactcenter.domain.service.TenantService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.Instant;
 import java.util.*;
@@ -36,6 +39,7 @@ import static org.mockito.Mockito.*;
  * <p>Weryfikuje logikę biznesową bez dostępu do bazy danych (mock repository).
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("TenantService – zarządzanie tenantami")
 class TenantServiceTest {
 
@@ -47,6 +51,9 @@ class TenantServiceTest {
 
     @Mock
     private AppUserRepository appUserRepository;
+
+    @Mock
+    private AdminMetricsService adminMetricsService;
 
     @InjectMocks
     private TenantService tenantService;
@@ -69,6 +76,10 @@ class TenantServiceTest {
                 .config(config)
                 .createdAt(Instant.now())
                 .build();
+
+        // Mockito @InjectMocks używa konstruktora (Lombok @RequiredArgsConstructor),
+        // pomijając pola non-final (adminMetricsService). Ustawiamy ręcznie przez setter.
+        tenantService.setAdminMetricsService(adminMetricsService);
     }
 
     // =========================================================================

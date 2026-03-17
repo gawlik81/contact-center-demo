@@ -14,6 +14,8 @@ import com.contactcenter.infrastructure.aspect.Audited;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +44,22 @@ public class TenantService {
 
     private final TenantRepository tenantRepository;
     private final AppUserRepository appUserRepository;
+
+    /**
+     * Wstrzykiwany przez setter z {@code @Lazy} aby uniknąć potencjalnej cyklicznej
+     * zależności przez Spring Cache CGLIB proxy (AdminMetricsService → TenantRepository
+     * ← TenantService). Setter injection z @Lazy jest rozwiązaniem rekomendowanym przez Spring.
+     *
+     * <p>Pole nie-final – nie jest częścią konstruktora Lombok (@RequiredArgsConstructor).
+     * Mockito @InjectMocks wstrzykuje je przez setter w testach jednostkowych.
+     */
+    private AdminMetricsService adminMetricsService;
+
+    @Autowired
+    @Lazy
+    public void setAdminMetricsService(AdminMetricsService adminMetricsService) {
+        this.adminMetricsService = adminMetricsService;
+    }
 
     // =========================================================================
     // CRUD operacje na tenantach
@@ -159,10 +177,12 @@ public class TenantService {
         }
 
         // Zmiana statusu
+        boolean statusChanged = false;
         if (request.status() != null) {
-            tenant.setStatus(request.status());
             log.info("[TenantService] Zmiana statusu tenanta id={}: {} -> {}",
                     tenantId, tenant.getStatus(), request.status());
+            tenant.setStatus(request.status());
+            statusChanged = true;
         }
 
         // Aktualizacja limitów (merge z aktualnym config)
@@ -173,6 +193,11 @@ public class TenantService {
 
         tenant.setUpdatedAt(Instant.now());
         Tenant saved = tenantRepository.save(tenant);
+
+        // Inwaliduj cache metryk admin gdy zmienił się status tenanta
+        if (statusChanged) {
+            adminMetricsService.evictGlobalMetricsCache();
+        }
 
         log.info("[TenantService] Tenant zaktualizowany: id={}", saved.getId());
         return TenantResponse.from(saved);
@@ -229,6 +254,9 @@ public class TenantService {
 
         log.warn("[TenantService] Tenant id={} dezaktywowany. Zablokowano {} użytkowników.",
                 tenantId, disabledCount);
+
+        // Inwaliduj cache metryk admin – tenant zmienił status na INACTIVE
+        adminMetricsService.evictGlobalMetricsCache();
     }
 
     /**

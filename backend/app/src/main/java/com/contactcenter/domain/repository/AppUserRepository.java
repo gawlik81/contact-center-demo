@@ -77,4 +77,21 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     @Modifying
     @Query("UPDATE AppUser u SET u.passwordResetRequired = true WHERE u.id = :userId AND u.tenantId = :tenantId")
     int setPasswordResetRequired(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId);
+
+    /**
+     * Zlicza łączną liczbę agentów dla tenanta (is_deleted=false, role=AGENT).
+     *
+     * <p>Używane przez {@code AdminMetricsService} do wyliczenia agentsTotal per tenant.
+     * Nie filtruje po is_active – liczymy wszystkich agentów, nawet zablokowanych.
+     *
+     * @param tenantId UUID tenanta
+     * @return liczba agentów z rolą AGENT i is_deleted=false
+     */
+    @Query(value = """
+            SELECT COUNT(*) FROM app_user
+            WHERE tenant_id = :tenantId
+              AND role = 'AGENT'
+              AND is_deleted = FALSE
+            """, nativeQuery = true)
+    long countAgentsByTenantId(@Param("tenantId") UUID tenantId);
 }

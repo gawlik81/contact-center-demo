@@ -182,7 +182,8 @@ Endpoint `GET /api/admin/metrics` zwracający: liczba aktywnych tenantów, suma 
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-003
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-17
 **Blokuje:** BE-019, FE-008
 **Odniesienie PRD:** US-02-01, US-02-02, US-02-03, EPIC-02
 

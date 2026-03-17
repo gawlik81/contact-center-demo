@@ -188,7 +188,7 @@ Dashboard dla roli ADMIN z kartami metryk: liczba aktywnych tenantów, łączna 
 **Zlozonosc:** L
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-008 (lub MSW)
+**Czeka na BE:** BE-008 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-02-01, US-02-02, US-02-03, EPIC-02
 

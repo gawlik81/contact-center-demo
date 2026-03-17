@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-17 (aktualizacja po BE-005, BE-007 + FE-007)
+**Ostatnia aktualizacja:** 2026-03-17 (aktualizacja po BE-008 + fix AdminMetricsService polling)
 
 ---
 
@@ -60,7 +60,7 @@
 | BE-005 | Audit Log: zapis działań użytkowników | ✅ | @Audited AOP, AuditAspect (@Around), AuditLogService (RabbitMQ async), AuditLogConsumer (@RabbitListener), AuditLog entity (JPA + native INSERT dla tabeli partycjonowanej), AuditLogRepository, GET /api/audit-logs (ADMIN, paginacja max 100). @Audited dodany do TenantService: CREATED/UPDATED/DEACTIVATED. 189 testów PASS |
 | BE-006 | Tenant CRUD API i limity zasobów | ✅ | Tenant.java (encja JPA, JSONB przez @JdbcTypeCode(SqlTypes.JSON)), TenantRepository, TenantService, TenantResourceLimitService (reużywany przez BE-008/020/022), TenantController (6 endpointów), ResourceLimitExceededException (HTTP 422). 27 nowych testów. Łącznie 173 PASS. Naprawiono: JsonMapConverter → @JdbcTypeCode, ENUM types → VARCHAR+CHECK (V019) |
 | BE-007 | Admin metrics API: metryki RT tenantów | ✅ | AdminMetricsService (polling Redis session:agent:*, @Cacheable cache 30s), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}, @PreAuthorize("hasRole('ADMIN')")), cache Redis TTL 30s dla admin-metrics (Jackson2JsonRedisSerializer<AdminMetricsResponse>). TenantService inwaliduje cache przy deactivateTenant() i updateTenant(). 204 testy PASS |
-| BE-008 | User / Agent CRUD API ze skills | ✅ | AppUser.java (dodano firstName, lastName, skills JSONB, isDeleted, timestamps), JsonStringListConverter (JSONB → List<String>), AppUserRepository (findAllByTenantIdAndDeletedFalse, findByIdAndTenantIdAndDeletedFalse, findAllDistinctSkillsByTenantId, existsActiveContactsByUserId, softDeleteUser), UserService (createUser+limitAgentów, listUsers, getUser, updateUser, deleteUser soft+HTTP409, listSkills, updateStatus+Redis+RabbitMQ), UserController (7 endpointów), ConflictException (HTTP 409), V020 migracja. 19 nowych testów. Łącznie 223 PASS |
+| BE-008 | User / Agent CRUD API ze skills | ✅ | AppUser.java (dodano firstName, lastName, skills JSONB via @JdbcTypeCode(SqlTypes.JSON), isDeleted, timestamps, @PrePersist/@PreUpdate), AppUserRepository (findAllByTenantIdAndDeletedFalse, findByIdAndTenantIdAndDeletedFalse, findAllDistinctSkillsByTenantId native SQL, existsActiveContactsByUserId bez is_deleted bo kolumna nie istnieje w contact, softDeleteUser), UserService (createUser+limitAgentów, listUsers, getUser, updateUser PATCH, deleteUser soft+HTTP409+RabbitMQ+Redis, listSkills, updateStatus+Redis session:agent:{userId}+RabbitMQ cc.events agent.status.changed), UserController (7 endpointów: /skills przed /{id}), ConflictException (HTTP 409), GlobalExceptionHandler (handleConflictException), V020 migracja (safe DO block). 19 nowych testów. Łącznie 223 PASS |
 | BE-009 | Adapter VoIP: integracja z SIP trunk / CPaaS API | ⬜ | |
 | BE-010 | Nagrywanie rozmów: zapis do S3, metadane, retencja | ⬜ | |
 | BE-011 | CLI lookup: wzbogacenie połączenia o dane klienta | ⬜ | |
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 8/31 | 0 | 23 | 31 |
+| Backend (BE) | 9/31 | 0 | 22 | 31 |
 | Frontend (FE) | 7/24 | 0 | 17 | 24 |
-| **RAZEM** | **33/74** | **0** | **41** | **74** |
+| **RAZEM** | **34/74** | **0** | **40** | **74** |
 
 ---
 
@@ -153,12 +153,15 @@
 | 2026-03-17 | AuditLog.java | Schema validation: wrong column type [ip_address] found inet (Types#OTHER), expecting varchar(45) | Zmieniono @Column(length=45) na @Column(columnDefinition="inet") |
 | 2026-03-17 | RedisConfig.java | SerializationException: missing type id @class – AdminMetricsResponse jest Java record (final class), GenericJackson2JsonRedisSerializer pomija @class dla typów final | Dla cache admin-metrics użyto Jackson2JsonRedisSerializer<AdminMetricsResponse> (statycznie typowany) |
 | 2026-03-17 | admin.routes.ts | RT metrics wyświetlały się na zakładce Użytkownicy – trasy /admin/users i /admin/metrics ładowały AdminDashboardComponent jako placeholder | Utworzono AdminUsersComponent i AdminMetricsPageComponent jako właściwe placeholdery |
+| 2026-03-17 | AppUser.java | SUPERVISOR dostawał HTTP 403 na GET /api/users – Hibernate 6 dostarcza JSONB jako PGobject, AttributeConverter<List,String> odbierał PGobject zamiast String → ClassCastException połknięty przez JwtAuthFilter catch(Exception) → SecurityContext nie ustawiony | Zmieniono @Convert(JsonStringListConverter) na @JdbcTypeCode(SqlTypes.JSON) dla pola skills |
+| 2026-03-17 | AppUserRepository.java | existsActiveContactsByUserId zawierał AND is_deleted = FALSE – tabela contact (partycjonowana, V007) nie ma kolumny is_deleted, soft delete realizowany przez statusy QUEUED/ACTIVE/ON_HOLD | Usunięto warunek is_deleted z zapytania natywnego |
+| 2026-03-17 | AdminMetricsService.ts | SUPERVISOR/AGENT generował flood 403 co 30s – AdminMetricsService (providedIn: 'root') startował timer polling bezwarunkowo w konstruktorze, SidenavComponent wstrzykuje serwis dla wszystkich ról | Dodano guard if (this.auth.getUserRole() === 'ADMIN') w konstruktorze przed wywołaniem this._poll$.subscribe() |
 
 ---
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 8/31 (BE-001..BE-004 ✅, BE-005 ✅, BE-006 ✅, BE-007 ✅) | FE: 7/24 (FE-001..FE-007 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 9/31 (BE-001..BE-008 ✅) | FE: 7/24 (FE-001..FE-007 ✅)
 
 ---
 
@@ -188,7 +191,8 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-005 | Audit Log: @Audited AOP, AuditAspect, AuditLogService (RabbitMQ async), AuditLogConsumer, AuditLog entity (native INSERT, partycjonowanie), GET /api/audit-logs (ADMIN) | ✅ |
 | BE-006 | Tenant CRUD API i limity zasobów | ✅ |
 | BE-007 | Admin metrics API: AdminMetricsService (Redis polling), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}), cache Redis TTL 30s | ✅ |
-| BE-008..BE-031 | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
+| BE-008 | User / Agent CRUD API ze skills: AppUser JSONB (@JdbcTypeCode), UserService (createUser, listUsers, getUser, updateUser, deleteUser soft+HTTP409, listSkills, updateStatus+Redis+RabbitMQ), UserController (7 endpointów), ConflictException, V020 migracja. 223 testów PASS | ✅ |
+| BE-009..BE-031 | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
 
@@ -348,10 +352,10 @@ BE-004 (Auth API)
 |-----------|---------|--------|---------|
 | 1 | BE-004 | ✅ | Prerekvizyt dla wszystkich chronionych endpointów |
 | 2 | 🟢 BE-006 | ✅ | Wymaga BE-002 ✅ + DB-005 ✅ |
-| 3 | 🟢 BE-008 | ⬜ | Wymaga BE-002 ✅ + DB-003 ✅ |
+| 3 | 🟢 BE-008 | ✅ | Wymaga BE-002 ✅ + DB-003 ✅ |
 | 4 | BE-007 | ✅ | Wymaga BE-006 ✅ |
 | 5 | 🟢 FE-006 | ✅ | Wymaga BE-006 ✅ |
-| 6 | 🟢 FE-008 | ⬜ | Wymaga BE-008 (lub MSW) |
+| 6 | 🟢 FE-008 | ⬜ | Wymaga BE-008 ✅ – backend gotowy, FE do implementacji |
 | 7 | FE-007 | ✅ | Wymaga BE-007 ✅ |
 
 ---
@@ -461,7 +465,7 @@ Poniższa kolejność realizacji BE maksymalizuje liczbę odblokowanych zadań F
 | 🔴 2 | BE-025 (Customer API) | FE-018, FE-019, FE-011 | pg_trgm gotowy, koszt implementacji niski, wartość wysoka |
 | 🔴 3 | BE-027 (Contact API) | FE-017, FE-019, FE-022 | Fundament raportowania i disposition codes |
 | ✅ 4 | BE-006 (Tenant CRUD) | FE-006 ✅ | Ukończone – BE-007 odblokowane |
-| 🟡 5 | BE-008 (User CRUD) | FE-008 | Odblokuje FE-008 i BE-019 (Routing Engine) |
+| ✅ 5 | BE-008 (User CRUD) | FE-008 | Ukończone – odblokuje FE-008 i BE-019 (Routing Engine) |
 | 🟡 6 | BE-020 (Queue API) | FE-024 | Krótkie zadanie (M), odblokuje konfigurację routingu |
 | 🟡 7 | BE-022 (Campaign CRUD) | FE-015, FE-016 | Odblokuje cały moduł kampanii |
 | 🔴 8 | BE-009 (VoIP Adapter) | FE-010 (Softphone) | Krytyczny bloker dla Agent Desktop – najtrudniejsze zadanie (XL), zacząć wcześnie |

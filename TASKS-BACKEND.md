@@ -113,7 +113,8 @@ Endpointy REST: `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-004
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-17
 **Blokuje:** brak
 **Odniesienie PRD:** RODO (rejestr przetwarzania), przekrojowe
 
@@ -157,7 +158,8 @@ Endpointy: `POST /api/tenants`, `GET /api/tenants`, `GET /api/tenants/{id}`, `PA
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-006, BE-002
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-17
 **Blokuje:** FE-007
 **Odniesienie PRD:** US-01-04, US-10-04, EPIC-01
 

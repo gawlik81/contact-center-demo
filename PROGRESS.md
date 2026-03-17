@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-14 (aktualizacja po BE-006 + FE-006)
+**Ostatnia aktualizacja:** 2026-03-17 (aktualizacja po BE-005, BE-007 + FE-007)
 
 ---
 
@@ -59,7 +59,7 @@
 | BE-004 | Auth API: login, logout, refresh, zmiana hasła | ✅ | Rate limiting Redis (5/15min/IP→429), POST /api/auth/change-password (walidacja siły hasła), POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR), passwordResetRequired w LoginResponse, LoginRateLimiter.java |
 | BE-005 | Audit Log: zapis działań użytkowników | ✅ | @Audited AOP, AuditAspect (@Around), AuditLogService (RabbitMQ async), AuditLogConsumer (@RabbitListener), AuditLog entity (JPA + native INSERT dla tabeli partycjonowanej), AuditLogRepository, GET /api/audit-logs (ADMIN, paginacja max 100). @Audited dodany do TenantService: CREATED/UPDATED/DEACTIVATED. 189 testów PASS |
 | BE-006 | Tenant CRUD API i limity zasobów | ✅ | Tenant.java (encja JPA, JSONB przez @JdbcTypeCode(SqlTypes.JSON)), TenantRepository, TenantService, TenantResourceLimitService (reużywany przez BE-008/020/022), TenantController (6 endpointów), ResourceLimitExceededException (HTTP 422). 27 nowych testów. Łącznie 173 PASS. Naprawiono: JsonMapConverter → @JdbcTypeCode, ENUM types → VARCHAR+CHECK (V019) |
-| BE-007 | Admin metrics API: metryki RT tenantów | ⬜ | |
+| BE-007 | Admin metrics API: metryki RT tenantów | ✅ | AdminMetricsService (polling Redis session:agent:*, @Cacheable cache 30s), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}, @PreAuthorize("hasRole('ADMIN')")), cache Redis TTL 30s dla admin-metrics (Jackson2JsonRedisSerializer<AdminMetricsResponse>). TenantService inwaliduje cache przy deactivateTenant() i updateTenant(). 204 testy PASS |
 | BE-008 | User / Agent CRUD API ze skills | ⬜ | |
 | BE-009 | Adapter VoIP: integracja z SIP trunk / CPaaS API | ⬜ | |
 | BE-010 | Nagrywanie rozmów: zapis do S3, metadane, retencja | ⬜ | |
@@ -97,7 +97,7 @@
 | FE-004 | Moduł uwierzytelniania: ekran logowania i MFA | ✅ | LoginComponent (dwustanowy: credentials→MFA, reactive form, walidacja, spinner, błąd 401 inline), MFA krok TOTP (6 cyfr, pattern validator), ChangePasswordComponent (cross-field validator, wskaźnik siły hasła), AUTH_ROUTES, dropdown tenanta w formularzu logowania. Naprawiony proxy.conf.json (usunięty pathRewrite). Naprawiony hash BCrypt w V999__dev_seed.sql. |
 | FE-005 | Shell aplikacji: top navbar, sidenav, breadcrumbs, notyfikacje | ✅ | AppShellComponent (CSS Grid/Flex, skip-link WCAG), TopNavbarComponent (hamburger, badge roli, logout, tenant info), SidenavComponent (menu kontekstowe per rola ADMIN/SUPERVISOR/AGENT, SVG ikony inline, responsive: overlay mobile/tablet, sticky desktop 1280px+), BreadcrumbsComponent + BreadcrumbService (Router.events, data.breadcrumb, aria-current), admin/supervisor/agent shell i routes zaktualizowane. ng build PASS. |
 | FE-006 | Lista tenantów i formularz tworzenia tenanta | ✅ | TenantListComponent (tabela z paginacją 20/str, filtry nazwa+status z debounce 300ms, skeleton loading, empty state, badge statusów ACTIVE/INACTIVE/SUSPENDED, przycisk dezaktywacji per wiersz), TenantFormComponent (reactive form, async validator unikalności nazwy debounce 500ms, limity agentów/kolejek/kampanii), TenantDeactivateModalComponent (natywny <dialog>, WCAG AA), TenantService (6 metod API), TENANT_ROUTES lazy-loaded, admin.routes.ts zaktualizowane. ng build PASS. Naprawiono: TenantService kontrakt (List nie PagedResponse), CreateTenantRequest pole config → limits |
-| FE-007 | Dashboard techniczny administratora (metryki tenantów RT) | ⬜ | |
+| FE-007 | Dashboard techniczny administratora (metryki tenantów RT) | ✅ | AdminMetricsService (singleton state z BehaviorSubject, polling co 30s przez timer(0,30000), alertCount$), AdminDashboardComponent (KPI cards: aktywne tenanty/agenci online/alerty, tabela tenantów z badge statusami i progress bar, skeleton loading, empty state, timestamp odświeżania). Badge alertów w SidenavComponent (podpięty pod alertCount$, widoczny tylko na /admin/dashboard). Placeholder komponenty: AdminUsersComponent (/admin/users) i AdminMetricsPageComponent (/admin/metrics) |
 | FE-008 | Zarządzanie agentami: lista, tworzenie, edycja, skills | ⬜ | |
 | FE-009 | Agent Desktop: główny layout i panel statusu agenta | ⬜ | |
 | FE-010 | Komponent Softphone WebRTC | ⬜ | |
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 6/31 | 0 | 25 | 31 |
-| Frontend (FE) | 6/24 | 0 | 18 | 24 |
-| **RAZEM** | **31/74** | **0** | **43** | **74** |
+| Backend (BE) | 8/31 | 0 | 23 | 31 |
+| Frontend (FE) | 7/24 | 0 | 17 | 24 |
+| **RAZEM** | **33/74** | **0** | **41** | **74** |
 
 ---
 
@@ -149,12 +149,16 @@
 | 2026-03-14 | V019__convert_enum_types_to_varchar.sql | PostgreSQL custom ENUM types (`tenant_status`, `user_role`, `user_status`) powodowały błędy przy Flyway clean-on-validation (typy pozostawały w schemacie) | Nowa migracja V019: drop ENUM, zmiana kolumn na VARCHAR + CHECK constraint |
 | 2026-03-14 | features/admin/tenants/tenant.service.ts | Backend zwraca `List<Tenant>` (tablica JSON), frontend oczekiwał `PagedResponse<Tenant>` z polem `content` | Zaktualizowano TenantService – odpowiedź mapowana bezpośrednio jako `Tenant[]` |
 | 2026-03-14 | features/admin/tenants/tenant-form.component.ts | `CreateTenantRequest` zawierał pole `config` zamiast `limits` – backend odrzucał żądanie 400 | Zmieniono pole na `limits` zgodnie z kontraktem TenantController |
+| 2026-03-17 | TenantRepository.java | lower(bytea) – Hibernate 6 wiąże parametr :name jako bytea gdy jest użyty w :name IS NULL (brak kontekstu kolumny) | Zmieniono na nativeQuery=true z CAST(:name AS TEXT) |
+| 2026-03-17 | AuditLog.java | Schema validation: wrong column type [ip_address] found inet (Types#OTHER), expecting varchar(45) | Zmieniono @Column(length=45) na @Column(columnDefinition="inet") |
+| 2026-03-17 | RedisConfig.java | SerializationException: missing type id @class – AdminMetricsResponse jest Java record (final class), GenericJackson2JsonRedisSerializer pomija @class dla typów final | Dla cache admin-metrics użyto Jackson2JsonRedisSerializer<AdminMetricsResponse> (statycznie typowany) |
+| 2026-03-17 | admin.routes.ts | RT metrics wyświetlały się na zakładce Użytkownicy – trasy /admin/users i /admin/metrics ładowały AdminDashboardComponent jako placeholder | Utworzono AdminUsersComponent i AdminMetricsPageComponent jako właściwe placeholdery |
 
 ---
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 6/31 (BE-001..BE-004 ✅, BE-006 ✅) | FE: 6/24 (FE-001..FE-006 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 8/31 (BE-001..BE-004 ✅, BE-005 ✅, BE-006 ✅, BE-007 ✅) | FE: 7/24 (FE-001..FE-007 ✅)
 
 ---
 
@@ -181,8 +185,10 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-002 | Multi-tenancy: TenantContext, TenantFilter, RLS | ✅ |
 | BE-003 | Spring Security, JWT RS256, MFA TOTP, Blacklista Redis | ✅ |
 | BE-004 | Auth API: rate limiting, change-password, force-reset | ✅ |
+| BE-005 | Audit Log: @Audited AOP, AuditAspect, AuditLogService (RabbitMQ async), AuditLogConsumer, AuditLog entity (native INSERT, partycjonowanie), GET /api/audit-logs (ADMIN) | ✅ |
 | BE-006 | Tenant CRUD API i limity zasobów | ✅ |
-| BE-005, BE-007..BE-031 | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
+| BE-007 | Admin metrics API: AdminMetricsService (Redis polling), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}), cache Redis TTL 30s | ✅ |
+| BE-008..BE-031 | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
 
@@ -194,7 +200,8 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-004 | Ekran logowania + MFA + zmiana hasła | ✅ |
 | FE-005 | Shell: navbar, sidenav, breadcrumbs, notyfikacje | ✅ |
 | FE-006 | Lista tenantów i formularz tworzenia tenanta | ✅ |
-| FE-007..FE-024 | Wszystkie widoki funkcjonalne | ⬜ |
+| FE-007 | Dashboard techniczny admina: AdminMetricsService (BehaviorSubject, polling 30s), AdminDashboardComponent (KPI cards, tabela tenantów, skeleton loading), badge alertów w SidenavComponent | ✅ |
+| FE-008..FE-024 | Wszystkie widoki funkcjonalne | ⬜ |
 
 ---
 
@@ -293,7 +300,7 @@ Poniższa kolejność maksymalizuje odblokowanie kolejnych zadań. Zadania oznac
 | Krok | Zadanie | Warstwa | Uzasadnienie |
 |------|---------|---------|--------------|
 | 1 | BE-004 ✅ | BE | 🔴 Auth API – odblokuje FE-004 produkcyjnie i jest prerekviztem dla bezpiecznego testowania wszystkich dalszych endpointów |
-| 2 | 🟢 BE-005 | BE | Audit Log – nie blokuje FE, ale jest wymagany przez RODO i powinien być gotowy przed operacjami na danych |
+| 2 | 🟢 BE-005 ✅ | BE | Audit Log – nie blokuje FE, ale jest wymagany przez RODO i powinien być gotowy przed operacjami na danych |
 | 3 | 🟢 BE-006 ✅ | BE | Tenant CRUD – odblokuje FE-006 ✅ i BE-007 |
 | 4 | 🟢 BE-008 | BE | User/Agent CRUD – odblokuje FE-008 i BE-019 |
 
@@ -301,7 +308,7 @@ Poniższa kolejność maksymalizuje odblokowanie kolejnych zadań. Zadania oznac
 
 | Krok | Zadanie | Warstwa | Uzasadnienie |
 |------|---------|---------|--------------|
-| 5 | 🟢 BE-007 | BE | Admin metrics – odblokuje FE-007 |
+| 5 | 🟢 BE-007 ✅ | BE | Admin metrics – odblokuje FE-007 |
 | 6 | 🟢 BE-025 | BE | Customer API – odblokuje FE-018, FE-019, FE-011 i BE-011 |
 | 7 | 🟢 BE-027 | BE | Contact API – odblokuje FE-017, FE-019, FE-022, BE-028, BE-029 |
 | 8 | 🟢 BE-020 | BE | Queue API – odblokuje FE-024 i BE-019 |
@@ -318,7 +325,7 @@ Poniższa kolejność maksymalizuje odblokowanie kolejnych zadań. Zadania oznac
 | 14 | 🟢 BE-012 | BE | WebSocket hub – odblokuje FE-009 (Agent Desktop) i FE-021 |
 | 15 | 🟢 BE-019 | BE | Routing Engine (czeka na BE-008 + BE-020) |
 | 16 | FE-009 | FE | Agent Desktop layout (czeka na BE-012) |
-| 17 | 🟢 FE-007 | FE | Dashboard admina (czeka na BE-007) |
+| 17 | 🟢 FE-007 ✅ | FE | Dashboard admina (czeka na BE-007 ✅) |
 | 18 | 🟢 FE-017 | FE | Disposition codes (czeka na FE-009 + BE-027) |
 | 19 | 🟢 FE-019 | FE | Profil klienta (czeka na FE-018 + BE-025, BE-027) |
 | 20 | 🟢 FE-020 | FE | Import klientów (czeka na FE-018 + BE-026) |
@@ -342,10 +349,10 @@ BE-004 (Auth API)
 | 1 | BE-004 | ✅ | Prerekvizyt dla wszystkich chronionych endpointów |
 | 2 | 🟢 BE-006 | ✅ | Wymaga BE-002 ✅ + DB-005 ✅ |
 | 3 | 🟢 BE-008 | ⬜ | Wymaga BE-002 ✅ + DB-003 ✅ |
-| 4 | BE-007 | ⬜ | Wymaga BE-006 ✅ |
+| 4 | BE-007 | ✅ | Wymaga BE-006 ✅ |
 | 5 | 🟢 FE-006 | ✅ | Wymaga BE-006 ✅ |
 | 6 | 🟢 FE-008 | ⬜ | Wymaga BE-008 (lub MSW) |
-| 7 | FE-007 | ⬜ | Wymaga BE-007 (lub MSW) |
+| 7 | FE-007 | ✅ | Wymaga BE-007 ✅ |
 
 ---
 

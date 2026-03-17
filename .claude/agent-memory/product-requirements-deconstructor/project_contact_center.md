@@ -29,10 +29,10 @@ Projekt to wielokanałowa platforma Contact Center w modelu SaaS (multi-tenant),
 
 **Persony systemu:** ADMIN (globalny), SUPERVISOR (per tenant), AGENT (per tenant), Klient końcowy (zewnętrzny)
 
-**Aktualny postęp (stan na 2026-03-14):**
+**Aktualny postęp (stan na 2026-03-17):**
 - DB: 19/19 ukończone (cały schemat, RLS, indeksy, RODO, ClickHouse DW)
-- BE: 4/31 ukończone (BE-001 Spring Boot, BE-002 multi-tenancy, BE-003 JWT/MFA/Security, BE-004 Auth API z rate limitingiem Redis)
-- FE: 5/24 ukończone (FE-001 init, FE-002 routing/guards, FE-003 interceptory, FE-004 login/MFA, FE-005 shell)
+- BE: 8/31 ukończone (BE-001..BE-007, w tym BE-005 Audit Log AOP/RabbitMQ, BE-006 Tenant CRUD, BE-007 Admin Metrics API z cache Redis 30s)
+- FE: 7/24 ukończone (FE-001..FE-007, w tym FE-006 Lista tenantów, FE-007 Dashboard admina z polling 30s, badge alertów w SidenavComponent)
 
 **Kluczowe blokery krytyczne (zidentyfikowane w PROGRESS.md):**
 - BE-004 (Auth API) – ukończone; odblokowany FE-004 produkcyjnie
@@ -40,11 +40,12 @@ Projekt to wielokanałowa platforma Contact Center w modelu SaaS (multi-tenant),
 - BE-012 (WebSocket hub) – blokuje Agent Desktop i RT metrics dashboard
 - FE-009 (Agent Desktop layout) – blokuje 5 komponentów obsługi kontaktu
 
-**Konwencje pól w plikach zadań (TASKS-*.md) – ustalone 2026-03-14:**
-- Każde zadanie ma metadane: Typ, Priorytet, Zlozonosc, Zależności, Status, Blokuje (BE) / Czeka na BE (FE), Odniesienie PRD
+**Konwencje pól w plikach zadań (TASKS-*.md) – ustalone 2026-03-14, rozszerzone 2026-03-17:**
+- Każde zadanie ma metadane: Typ, Priorytet, Zlozonosc, Zależności, Status, [Zrealizowane: data], Blokuje, Odniesienie PRD
 - Status: ✅ Ukończone / ⬜ Nie rozpoczęte
-- Pole Blokuje (TASKS-BACKEND.md): lista zadań BE/FE odblokowanych po ukończeniu danego zadania
+- Pole Blokuje: stosowane we wszystkich trzech plikach (TASKS-BACKEND, TASKS-FRONTEND, TASKS-DATABASE). Lista zadań odblokowanych po ukończeniu danego zadania
 - Pole Czeka na BE (TASKS-FRONTEND.md): lista wymaganych BE z adnotacją "(lub MSW)" gdzie mocking jest realny; "(trudne do zamockowania)" dla WebRTC/VoIP; "(OAuth wymaga prawdziwego BE)" dla FE-023
+- Pole Zrealizowane: data ukończenia w formacie RRRR-MM-DD – dodawane tylko do ukończonych zadań
 
 **Kluczowe wymagania niefunkcjonalne:**
 - API CRUD < 200ms (p95)

@@ -28,6 +28,7 @@
 **Zależności:** brak
 **Status:** ✅ Ukończone
 **Czeka na BE:** brak
+**Blokuje:** FE-002, FE-003
 **Odniesienie PRD:** przekrojowe
 
 **Opis:**
@@ -49,6 +50,7 @@ Wygenerowanie projektu Angular (nx monorepo lub angular/cli), konfiguracja ESLin
 **Zależności:** FE-001
 **Status:** ✅ Ukończone
 **Czeka na BE:** brak
+**Blokuje:** FE-004
 **Odniesienie PRD:** przekrojowe
 
 **Opis:**
@@ -70,6 +72,7 @@ Definicja głównych tras aplikacji z lazy loadingiem modułów feature. Impleme
 **Zależności:** FE-001
 **Status:** ✅ Ukończone
 **Czeka na BE:** brak
+**Blokuje:** FE-004
 **Odniesienie PRD:** przekrojowe, wymagania bezpieczenstwa
 
 **Opis:**
@@ -91,6 +94,7 @@ Implementacja `AuthInterceptor` dodającego nagłówek `Authorization: Bearer <t
 **Zależności:** FE-002, FE-003
 **Status:** ✅ Ukończone
 **Czeka na BE:** BE-004 (produkcyjnie; aktualnie działa z seed data)
+**Blokuje:** FE-005
 **Odniesienie PRD:** US-02-04, wymagania bezpieczenstwa (MFA)
 
 **Opis:**
@@ -112,6 +116,7 @@ Ekran logowania z polami email/hasło i walidacją reaktywną. Po poprawnym uwie
 **Zależności:** FE-004
 **Status:** ✅ Ukończone
 **Czeka na BE:** brak
+**Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024
 **Odniesienie PRD:** przekrojowe (wszystkie persony)
 
 **Opis:**
@@ -136,6 +141,7 @@ Główny layout aplikacji: responsywny sidebar z nawigacją kontekstową zależn
 **Zależności:** FE-005
 **Status:** ✅ Ukończone
 **Czeka na BE:** BE-006 ✅
+**Blokuje:** brak
 **Odniesienie PRD:** US-01-01, US-01-02, EPIC-01
 
 **Opis:**
@@ -156,8 +162,10 @@ Widok listy tenantów (tabela z paginacją, filtrowaniem po nazwie i statusie) d
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** FE-005
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-007 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-17
+**Czeka na BE:** BE-007 ✅
+**Blokuje:** brak
 **Odniesienie PRD:** US-01-04, US-10-04, EPIC-01
 
 **Opis:**
@@ -181,6 +189,7 @@ Dashboard dla roli ADMIN z kartami metryk: liczba aktywnych tenantów, łączna 
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-008 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-02-01, US-02-02, US-02-03, EPIC-02
 
 **Opis:**
@@ -204,6 +213,7 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-012 (lub MSW WebSocket)
+**Blokuje:** FE-010, FE-011, FE-012, FE-013, FE-017
 **Odniesienie PRD:** US-07-05, EPIC-03, EPIC-05, EPIC-06
 
 **Opis:**
@@ -225,6 +235,7 @@ Główny widok agenta po zalogowaniu: panel zmiany statusu (dostępny/zajęty/pr
 **Zależności:** FE-009
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-009, BE-012 (trudne do zamockowania)
+**Blokuje:** brak
 **Odniesienie PRD:** US-03-01, US-03-02, US-03-03, US-03-04, EPIC-03
 
 **Opis:**
@@ -248,6 +259,7 @@ Komponent softphone w przeglądarce oparty na WebRTC (np. integracja z SIP.js lu
 **Zależności:** FE-009
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-025, BE-011 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-03-02, US-09-02, EPIC-09
 
 **Opis:**
@@ -269,6 +281,7 @@ Panel boczny wyświetlany podczas aktywnego kontaktu: dane klienta (imię, nazwi
 **Zależności:** FE-009
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-015, BE-016 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-05-01, US-05-02, US-05-03, US-05-04, EPIC-05
 
 **Opis:**
@@ -290,6 +303,7 @@ Widok obsługi wiadomości email: panel z treścią emaila (HTML render), edytor
 **Zależności:** FE-009
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-018 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-06-01, US-06-02, US-06-03, US-06-04, EPIC-06
 
 **Opis:**
@@ -313,6 +327,7 @@ Widok obsługi wiadomości z social media (Facebook Messenger, Instagram, WhatsA
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-020, BE-013 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-04-01, US-04-03, US-04-04, EPIC-04
 
 **Opis:**
@@ -338,6 +353,7 @@ Edytor wizualny IVR oparty na bibliotece flow-graph (np. Angular Flow, GoJS lub 
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-022 (lub MSW)
+**Blokuje:** FE-016
 **Odniesienie PRD:** US-08-01, US-08-02, US-08-06, EPIC-08
 
 **Opis:**
@@ -359,6 +375,7 @@ Widok listy kampanii dla SUPERVISOR: tabela z kolumnami (nazwa, status, progres,
 **Zależności:** FE-015
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-023 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-08-01, EPIC-08
 
 **Opis:**
@@ -380,6 +397,7 @@ Komponent upload pliku CSV z mapowaniem kolumn: użytkownik wskazuje która kolu
 **Zależności:** FE-009
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-027 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-08-04, US-08-05, EPIC-08
 
 **Opis:**
@@ -403,6 +421,7 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-025 (lub MSW)
+**Blokuje:** FE-019, FE-020
 **Odniesienie PRD:** US-09-01, US-09-03, EPIC-09
 
 **Opis:**
@@ -424,6 +443,7 @@ Strona bazy klientów z globalnym polem wyszukiwania (debounce 300ms, min 2 znak
 **Zależności:** FE-018
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-025, BE-027 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-09-02, US-09-03, US-09-04, EPIC-09
 
 **Opis:**
@@ -446,6 +466,7 @@ Strona profilu klienta: sekcja danych podstawowych (imię, nazwisko, wielowarto�
 **Zależności:** FE-018
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-026 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-09-05, EPIC-09
 
 **Opis:**
@@ -468,6 +489,7 @@ Komponent importu bazy klientów z pliku CSV (analogiczny do FE-016 ale dedykowa
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-029 (lub MSW WebSocket)
+**Blokuje:** brak
 **Odniesienie PRD:** US-10-01, EPIC-10
 
 **Opis:**
@@ -489,6 +511,7 @@ Dashboard real-time dla SUPERVISOR: karty KPI (aktywne połączenia, agenci onli
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-028 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-10-02, US-10-03, US-10-05, EPIC-10
 
 **Opis:**
@@ -512,6 +535,7 @@ Moduł raportów historycznych: filtry (zakres dat, agent, kolejka, kanał, kamp
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-017 (OAuth wymaga prawdziwego BE)
+**Blokuje:** brak
 **Odniesienie PRD:** US-06-02, EPIC-06
 
 **Opis:**
@@ -533,6 +557,7 @@ Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, W
 **Zależności:** FE-005
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-020 (lub MSW)
+**Blokuje:** brak
 **Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
 
 **Opis:**

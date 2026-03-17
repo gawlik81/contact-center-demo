@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -309,12 +310,20 @@ public class UserService {
         user.setStatus(request.status());
         AppUser saved = appUserRepository.save(user);
 
-        // Zapis statusu w Redis
+        // Zapis statusu w Redis jako structured Map (wymagane przez AdminMetricsService
+        // do zliczania agentów online per tenant – musi zawierać tenantId).
+        // Poprzednia implementacja zapisywała plain String (np. "AVAILABLE") co uniemożliwiało
+        // filtrowanie po tenantId w countOnlineAgentsForTenant → zawsze zwracało 0.
         String redisKey = String.format(REDIS_AGENT_STATUS_KEY, userId);
         try {
-            redisTemplate.opsForValue().set(redisKey, request.status().name(), REDIS_AGENT_STATUS_TTL);
-            log.debug("[UserService] Status agenta zapisany w Redis: key={}, status={}",
-                    redisKey, request.status());
+            Map<String, String> sessionData = Map.of(
+                    "tenantId", tenantId.toString(),
+                    "userId", userId.toString(),
+                    "status", request.status().name()
+            );
+            redisTemplate.opsForValue().set(redisKey, sessionData, REDIS_AGENT_STATUS_TTL);
+            log.debug("[UserService] Status agenta zapisany w Redis: key={}, status={}, tenantId={}",
+                    redisKey, request.status(), tenantId);
         } catch (Exception e) {
             // Redis failure nie blokuje operacji – logujemy warning
             log.warn("[UserService] Błąd zapisu statusu w Redis: key={}, error={}",

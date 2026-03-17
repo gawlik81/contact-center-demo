@@ -54,13 +54,10 @@ export class AuthService {
   readonly currentUserId = computed(() => this._currentPayload()?.user_id ?? null);
 
   private loadPayloadFromStorage(): JwtPayload | null {
-    const token = this.tokenService.getAccessToken();
-    if (!token) return null;
-    if (this.tokenService.isTokenExpired(token)) {
-      this.tokenService.clearAll();
-      return null;
-    }
-    return this.tokenService.decodePayload(token);
+    // Access token is no longer stored in localStorage (XSS mitigation).
+    // On page reload the in-memory token is gone; AuthGuard will trigger a
+    // silent refresh via refresh() if a refresh token exists in sessionStorage.
+    return null;
   }
 
   /**
@@ -117,6 +114,11 @@ export class AuthService {
   logout(): void {
     const accessToken = this.tokenService.getAccessToken();
     if (accessToken) {
+      // Best-effort server-side blacklisting: we fire the request and do not
+      // wait for a response. The local token is cleared immediately regardless
+      // of the server outcome. A network failure here is acceptable because the
+      // access token TTL is short (15 min) and the refresh token is cleared
+      // from sessionStorage below, preventing silent re-authentication.
       this.http
         .post(`${environment.apiUrl}/auth/logout`, {})
         .pipe(catchError(() => []))
@@ -141,10 +143,6 @@ export class AuthService {
 
   getUserRole(): UserRole | null {
     return this.currentRole();
-  }
-
-  isAuthenticated$(): boolean {
-    return this.isAuthenticated();
   }
 
   getRoleDefaultRoute(role: UserRole): string {

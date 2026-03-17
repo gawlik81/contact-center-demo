@@ -74,6 +74,7 @@ public class TenantFilter extends OncePerRequestFilter {
             "/swagger-ui",
             "/api/auth/login",
             "/api/auth/refresh",
+            "/api/public/",
             "/webhooks/"
     );
 
@@ -195,9 +196,11 @@ public class TenantFilter extends OncePerRequestFilter {
         String requestId = request.getHeader("X-Request-Id");
         if (StringUtils.hasText(requestId)) {
             // Sanitizacja – zapobiegamy log injection
-            return requestId.replaceAll("[^a-zA-Z0-9\\-_]", "").substring(
-                    0, Math.min(requestId.length(), 36)
-            );
+            // UWAGA: używamy sanitized.length() (po usunięciu znaków), NIE requestId.length()
+            // Poprzedni kod powodował StringIndexOutOfBoundsException gdy usunięte znaki
+            // skracały string poniżej długości requestId.length().
+            String sanitized = requestId.replaceAll("[^a-zA-Z0-9\\-_]", "");
+            return sanitized.substring(0, Math.min(sanitized.length(), 36));
         }
         // Fallback: czas+hash (wystarczający do korelacji w logu)
         return System.currentTimeMillis() + "-" + Integer.toHexString(request.hashCode());

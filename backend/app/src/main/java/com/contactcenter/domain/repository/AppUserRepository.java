@@ -18,6 +18,19 @@ import java.util.UUID;
  *
  * <p>Email jest unikalny per tenant (nie globalnie), dlatego wszystkie
  * zapytania po email muszą zawierać tenantId w warunku WHERE.
+ *
+ * <p><strong>Uwaga dotycząca Row-Level Security (RLS):</strong> To repozytorium
+ * rozszerza {@link JpaRepository} zamiast {@link TenantAwareRepository},
+ * ponieważ {@code AppUser} jest używany przez warstwę bezpieczeństwa
+ * ({@code UserDetailsServiceImpl}) podczas autentykacji – zanim TenantContext
+ * zostanie ustawiony. Wywoływanie {@code set_tenant_context()} w tym kontekście
+ * spowodowałoby błędy przy logowaniu.
+ *
+ * <p>Izolacja multi-tenant jest zapewniana explicite: <em>każde</em> zapytanie
+ * zawiera warunek {@code tenantId = :tenantId} w klauzuli WHERE (Spring Data JPA,
+ * JPQL lub native SQL). Nie polegamy na RLS dla tej tabeli.
+ *
+ * <p>Każda nowa metoda MUSI zawierać filtr tenantId aby zapobiec wyciekom danych.
  */
 @Repository
 public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
@@ -43,7 +56,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
      * Zapisz MFA secret i ustaw mfaEnabled=false (pending verification).
      * Używane przez endpoint /auth/mfa/setup.
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE AppUser u SET u.mfaSecret = :secret WHERE u.id = :userId")
     void updateMfaSecret(@Param("userId") UUID userId, @Param("secret") String secret);
 
@@ -51,7 +64,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
      * Aktywuj MFA po pomyślnej weryfikacji TOTP.
      * Używane przez endpoint /auth/mfa/verify.
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE AppUser u SET u.mfaEnabled = true WHERE u.id = :userId")
     void enableMfa(@Param("userId") UUID userId);
 
@@ -64,7 +77,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
      * @param userId UUID użytkownika
      * @param hash   nowy hash bcrypt (cost=12)
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE AppUser u SET u.passwordHash = :hash, u.passwordResetRequired = false WHERE u.id = :userId")
     void updatePasswordAndClearReset(@Param("userId") UUID userId, @Param("hash") String hash);
 
@@ -77,9 +90,25 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
      * @param tenantId UUID tenanta (izolacja danych)
      * @return liczba zaktualizowanych wierszy (0 jeśli użytkownik nie istnieje lub inny tenant)
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE AppUser u SET u.passwordResetRequired = true WHERE u.id = :userId AND u.tenantId = :tenantId")
     int setPasswordResetRequired(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId);
+
+    /**
+     * Dezaktywuje wszystkich aktywnych użytkowników tenanta jednym bulk UPDATE.
+     *
+     * <p>Używane przez {@link com.contactcenter.domain.service.TenantService#deactivateTenant(UUID)}
+     * zamiast pętli N+1 (findAll + N×save). Jeden UPDATE zamiast full table scan i N osobnych UPDATE.
+     *
+     * <p>{@code clearAutomatically = true} – usuwa z Hibernate L1 cache zaktualizowane encje,
+     * żeby nie czytać stale state po wykonaniu bulk UPDATE.
+     *
+     * @param tenantId UUID tenanta
+     * @return liczba dezaktywowanych użytkowników
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE AppUser u SET u.active = false WHERE u.tenantId = :tenantId AND u.active = true")
+    int deactivateAllByTenantId(@Param("tenantId") UUID tenantId);
 
     /**
      * Zlicza łączną liczbę agentów dla tenanta (is_deleted=false, role=AGENT).

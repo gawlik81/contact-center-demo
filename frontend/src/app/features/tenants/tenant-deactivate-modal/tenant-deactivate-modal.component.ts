@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   AfterViewInit,
-  OnDestroy,
   ElementRef,
   input,
   output,
@@ -16,8 +15,11 @@ import { Tenant } from '../tenant.model';
   imports: [],
   templateUrl: './tenant-deactivate-modal.component.html',
   styleUrl: './tenant-deactivate-modal.component.scss',
+  host: {
+    '(document:keydown.escape)': 'onEscapeKey($event)',
+  },
 })
-export class TenantDeactivateModalComponent implements AfterViewInit, OnDestroy {
+export class TenantDeactivateModalComponent implements AfterViewInit {
   readonly tenant = input.required<Tenant>();
 
   readonly confirmed = output<void>();
@@ -30,23 +32,12 @@ export class TenantDeactivateModalComponent implements AfterViewInit, OnDestroy 
     if (dialog && !dialog.open) {
       dialog.showModal();
     }
-    document.addEventListener('keydown', this.onKeyDown);
   }
 
-  ngOnDestroy(): void {
-    const dialog = this.dialogRef()?.nativeElement;
-    if (dialog?.open) {
-      dialog.close();
-    }
-    document.removeEventListener('keydown', this.onKeyDown);
+  onEscapeKey(event: Event): void {
+    event.preventDefault();
+    this.onCancel();
   }
-
-  private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      this.onCancel();
-    }
-  };
 
   onConfirm(): void {
     this.confirmed.emit();

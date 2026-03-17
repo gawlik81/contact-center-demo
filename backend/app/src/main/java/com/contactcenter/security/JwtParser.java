@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
 
@@ -114,11 +115,15 @@ public class JwtParser {
                     .parseSignedClaims(token)
                     .getPayload();
 
-            UUID tenantId = extractUuid(claims, CLAIM_TENANT_ID);
-            UUID userId   = extractUuid(claims, CLAIM_USER_ID);
-            String role   = claims.get(CLAIM_ROLE, String.class);
+            UUID tenantId  = extractUuid(claims, CLAIM_TENANT_ID);
+            UUID userId    = extractUuid(claims, CLAIM_USER_ID);
+            String role    = claims.get(CLAIM_ROLE, String.class);
+            // Pobieramy rzeczywisty exp z tokenu – wymagane do ustawienia precyzyjnego TTL blacklisty
+            Instant expiry = claims.getExpiration() != null
+                    ? claims.getExpiration().toInstant()
+                    : null;
 
-            return new JwtClaims(tenantId, userId, role, claims.getSubject());
+            return new JwtClaims(tenantId, userId, role, claims.getSubject(), expiry);
 
         } catch (ExpiredJwtException e) {
             log.debug("[JWT] Token wygasł: {}", e.getMessage());
@@ -221,12 +226,14 @@ public class JwtParser {
      * @param userId   UUID użytkownika z claim {@code user_id}
      * @param role     rola użytkownika z claim {@code role} (może być null)
      * @param subject  claim {@code sub} – zwykle email użytkownika
+     * @param expiresAt czas wygaśnięcia tokenu z claim {@code exp} (może być null dla tokenów bez exp)
      */
     public record JwtClaims(
             UUID tenantId,
             UUID userId,
             String role,
-            String subject
+            String subject,
+            Instant expiresAt
     ) {}
 
     /**

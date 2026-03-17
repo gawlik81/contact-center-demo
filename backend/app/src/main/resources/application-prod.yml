@@ -140,6 +140,15 @@ management:
         enabled: ${PROMETHEUS_ENABLED:false}
 
 # =============================================================================
+# SpringDoc OpenAPI – prod: WYŁĄCZONE (nie eksponujemy API docs publicznie)
+# =============================================================================
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+# =============================================================================
 # Logowanie – prod: INFO (bez SQL dump, bez debug security)
 # =============================================================================
 logging:

@@ -318,32 +318,22 @@ class TenantServiceTest {
     class DeactivateTenant {
 
         @Test
-        @DisplayName("powinien dezaktywować tenanta i zablokować użytkowników")
+        @DisplayName("powinien dezaktywować tenanta i zablokować użytkowników jednym bulk UPDATE")
         void shouldDeactivateTenantAndDisableUsers() {
             // given
-            AppUser activeUser = AppUser.builder()
-                    .id(USER_ID)
-                    .tenantId(TENANT_ID)
-                    .email("agent@acme.com")
-                    .passwordHash("$2a$12$hash")
-                    .role(UserRole.AGENT)
-                    .active(true)
-                    .mfaEnabled(false)
-                    .passwordResetRequired(false)
-                    .status(UserStatus.ACTIVE)
-                    .build();
-
             when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(activeTenant));
             when(tenantRepository.save(any(Tenant.class))).thenReturn(activeTenant);
-            when(appUserRepository.findAll()).thenReturn(List.of(activeUser));
-            when(appUserRepository.save(any(AppUser.class))).thenReturn(activeUser);
+            // Bulk UPDATE: deactivateAllByTenantId zwraca liczbę zablokowanych użytkowników
+            when(appUserRepository.deactivateAllByTenantId(TENANT_ID)).thenReturn(3);
 
             // when
             tenantService.deactivateTenant(TENANT_ID);
 
-            // then
+            // then – tenant zapisany jako INACTIVE, użytkownicy zablokowania jednym bulk UPDATE
             verify(tenantRepository).save(argThat(t -> t.getStatus() == TenantStatus.INACTIVE));
-            verify(appUserRepository).save(argThat(u -> !u.isActive()));
+            verify(appUserRepository).deactivateAllByTenantId(TENANT_ID);
+            // brak pętli N+1 – save() na AppUser nie powinien być wywołany
+            verify(appUserRepository, never()).save(any(AppUser.class));
         }
 
         @Test

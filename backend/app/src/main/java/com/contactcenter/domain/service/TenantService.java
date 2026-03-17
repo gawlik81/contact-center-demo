@@ -1,11 +1,11 @@
 package com.contactcenter.domain.service;
 
+import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.tenant.dto.CreateTenantRequest;
 import com.contactcenter.api.tenant.dto.TenantFilterParams;
 import com.contactcenter.api.tenant.dto.TenantResourceLimitsDto;
 import com.contactcenter.api.tenant.dto.TenantResponse;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
-import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.model.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
@@ -16,9 +16,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
@@ -46,12 +46,23 @@ public class TenantService {
     private final AppUserRepository appUserRepository;
 
     /**
-     * Wstrzykiwany przez setter z {@code @Lazy} aby uniknąć potencjalnej cyklicznej
-     * zależności przez Spring Cache CGLIB proxy (AdminMetricsService → TenantRepository
-     * ← TenantService). Setter injection z @Lazy jest rozwiązaniem rekomendowanym przez Spring.
+     * Wstrzykiwany przez setter z {@code @Lazy} aby uniknąć cyklicznej zależności.
+     *
+     * <p>Cykl: {@code TenantService} → {@code AdminMetricsService} →
+     * {@code TenantRepository} ← {@code TenantService}. Spring CGLIB proxy Cache
+     * powoduje, że bez {@code @Lazy} Spring nie może zainicjalizować kontekstu.
+     * Setter injection z {@code @Lazy} jest rozwiązaniem rekomendowanym przez Spring
+     * dla tego wzorca (patrz: Spring docs – Circular Dependencies).
+     *
+     * <p><strong>Alternatywa – refaktor na ApplicationEvent:</strong>
+     * Można by wyemitować {@code TenantStatusChangedEvent} (Spring {@code ApplicationEvent})
+     * i obsłużyć go w {@code AdminMetricsService} przez {@code @EventListener} –
+     * to usunęłoby bezpośrednią zależność. Jednak przy obecnym zakresie MVP
+     * (jeden typ eventu, jeden konsument) overhead ApplicationEvent nie jest
+     * uzasadniony. Rozważ migrację gdy liczba zależnych serwisów wzrośnie.
      *
      * <p>Pole nie-final – nie jest częścią konstruktora Lombok (@RequiredArgsConstructor).
-     * Mockito @InjectMocks wstrzykuje je przez setter w testach jednostkowych.
+     * W testach jednostkowych wstrzykuj przez metodę {@link #setAdminMetricsService}.
      */
     private AdminMetricsService adminMetricsService;
 
@@ -126,6 +137,27 @@ public class TenantService {
                 .stream()
                 .map(TenantResponse::from)
                 .toList();
+    }
+
+    /**
+     * Paginowana lista tenantów – używana przez REST endpoint GET /api/tenants.
+     */
+    @Transactional(readOnly = true)
+    public PagedResponse<TenantResponse> listTenantsPaged(TenantFilterParams filters, Pageable pageable) {
+        String nameFilter = (filters != null && filters.name() != null && !filters.name().isBlank())
+                ? filters.name().trim()
+                : null;
+        String statusFilter = (filters != null && filters.status() != null)
+                ? filters.status().name()
+                : null;
+
+        log.debug("[TenantService] listTenantsPaged: name={}, status={}, page={}, size={}",
+                nameFilter, statusFilter, pageable.getPageNumber(), pageable.getPageSize());
+
+        return PagedResponse.from(
+                tenantRepository.findPageByOptionalFilters(nameFilter, statusFilter, pageable)
+                        .map(TenantResponse::from)
+        );
     }
 
     /**
@@ -236,21 +268,10 @@ public class TenantService {
         tenant.setUpdatedAt(Instant.now());
         tenantRepository.save(tenant);
 
-        // Zablokuj logowanie wszystkich użytkowników tenanta
-        // Pobieramy wszystkich użytkowników (nie ma bezpośredniego @Modifying query na AppUserRepository
-        // per tenantId bez is_active, więc używamy findAllByTenantId lub dedukcji z JPA)
-        List<AppUser> tenantUsers = appUserRepository.findAll().stream()
-                .filter(u -> tenantId.equals(u.getTenantId()))
-                .toList();
-
-        int disabledCount = 0;
-        for (AppUser user : tenantUsers) {
-            if (user.isActive()) {
-                user.setActive(false);
-                appUserRepository.save(user);
-                disabledCount++;
-            }
-        }
+        // Zablokuj logowanie wszystkich użytkowników tenanta przez jeden bulk UPDATE.
+        // Poprzednia implementacja używała findAll() (full table scan wszystkich tenantów!)
+        // + pętla N×save – rażące N+1 problem naprawiony przez dedykowany @Modifying query.
+        int disabledCount = appUserRepository.deactivateAllByTenantId(tenantId);
 
         log.warn("[TenantService] Tenant id={} dezaktywowany. Zablokowano {} użytkowników.",
                 tenantId, disabledCount);

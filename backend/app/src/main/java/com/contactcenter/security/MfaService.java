@@ -10,7 +10,12 @@ import dev.samstevens.totp.secret.SecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
 import dev.samstevens.totp.time.TimeProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.UUID;
 
 import static dev.samstevens.totp.util.Utils.getDataUriForImage;
 
@@ -31,6 +36,12 @@ import static dev.samstevens.totp.util.Utils.getDataUriForImage;
  *   <li>Okres: 30 sekund</li>
  *   <li>Okno tolerancji: ±1 krok = ±30 sekund (RFC 6238 §5.2 rekomenduje nie więcej niż 1 krok)</li>
  * </ul>
+ *
+ * <p><strong>Ochrona przed replay attack (single-use codes):</strong>
+ * Ten sam kod TOTP jest matematycznie ważny przez 90s (okno t-1, t0, t+1).
+ * Po udanej weryfikacji kod jest oznaczany jako użyty w Redis z kluczem
+ * {@code mfa:used:{userId}:{code}} i TTL 90s. Ponowne użycie tego samego kodu
+ * w oknie tolerancji jest odrzucane.
  */
 @Slf4j
 @Service
@@ -49,11 +60,27 @@ public class MfaService {
     /** Okno tolerancji czasu: 1 = ±1 krok (±30s). */
     private static final int TIME_WINDOW = 1;
 
+    /**
+     * TTL klucza Redis dla już użytych kodów TOTP.
+     * Musi pokrywać całe okno tolerancji (t-1, t0, t+1) = 3 × 30s = 90s.
+     */
+    private static final Duration USED_CODE_TTL = Duration.ofSeconds(90);
+
+    /** Prefix klucza Redis dla zużytych kodów TOTP: {@code mfa:used:{userId}:{code}}. */
+    private static final String USED_CODE_KEY_PREFIX = "mfa:used:";
+
+    private final StringRedisTemplate stringRedisTemplate;
+
     private final SecretGenerator secretGenerator;
     private final CodeVerifier codeVerifier;
     private final QrGenerator qrGenerator;
 
-    public MfaService() {
+    /**
+     * Konstruktor produkcyjny – inicjalizuje TOTP komponenty i wstrzykuje Redis.
+     */
+    @Autowired
+    public MfaService(StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
         this.secretGenerator = new DefaultSecretGenerator(SECRET_LENGTH_CHARS);
 
         TimeProvider timeProvider = new SystemTimeProvider();
@@ -66,9 +93,11 @@ public class MfaService {
     }
 
     /**
-     * Konstruktor dla testów – pozwala wstrzyknąć mock TimeProvider.
+     * Konstruktor dla testów – pozwala wstrzyknąć mock TimeProvider i mock Redis.
      */
-    MfaService(SecretGenerator secretGenerator, CodeVerifier codeVerifier, QrGenerator qrGenerator) {
+    MfaService(StringRedisTemplate stringRedisTemplate, SecretGenerator secretGenerator,
+               CodeVerifier codeVerifier, QrGenerator qrGenerator) {
+        this.stringRedisTemplate = stringRedisTemplate;
         this.secretGenerator = secretGenerator;
         this.codeVerifier = codeVerifier;
         this.qrGenerator = qrGenerator;
@@ -131,17 +160,23 @@ public class MfaService {
     }
 
     /**
-     * Weryfikuje kod TOTP podany przez użytkownika.
+     * Weryfikuje kod TOTP podany przez użytkownika z ochroną przed replay attack.
      *
      * <p>Weryfikacja z oknem tolerancji ±1 krok (±30s):
      * sprawdzany jest bieżący krok czasowy oraz jeden krok przed i jeden po.
      * Jest to zgodne z RFC 6238 §5.2 i standardową praktyką.
      *
+     * <p><strong>Single-use enforcement:</strong> Po udanej weryfikacji kod jest
+     * zapisywany w Redis ({@code mfa:used:{userId}:{code}}) z TTL 90s.
+     * Ponowne użycie tego samego kodu w oknie tolerancji jest odrzucane,
+     * co zapobiega replay attack gdy atakujący przechwyci kod podczas transmisji.
+     *
      * @param secret TOTP secret użytkownika (Base32)
      * @param code   6-cyfrowy kod TOTP podany przez użytkownika
-     * @return true gdy kod jest prawidłowy (z uwzględnieniem okna tolerancji)
+     * @param userId UUID użytkownika – wymagany do izolacji zużytych kodów per user
+     * @return true gdy kod jest prawidłowy i nie był jeszcze użyty
      */
-    public boolean verifyCode(String secret, String code) {
+    public boolean verifyCode(String secret, String code, UUID userId) {
         if (secret == null || secret.isBlank() || code == null || code.isBlank()) {
             log.warn("[MFA] Weryfikacja TOTP: pusty secret lub kod");
             return false;
@@ -150,8 +185,30 @@ public class MfaService {
         // Sanityzacja kodu – usuwa spacje (Google Authenticator czasem grupuje cyfry)
         String sanitizedCode = code.replaceAll("\\s+", "");
 
+        // Sprawdź czy kod nie był już użyty (replay attack prevention)
+        String usedCodeKey = USED_CODE_KEY_PREFIX + userId + ":" + sanitizedCode;
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(usedCodeKey))) {
+            log.warn("[MFA] Odmowa weryfikacji TOTP – kod już użyty (replay attack): userId={}", userId);
+            return false;
+        }
+
         boolean valid = codeVerifier.isValidCode(secret, sanitizedCode);
         log.debug("[MFA] Weryfikacja TOTP: {}", valid ? "sukces" : "nieprawidłowy kod");
+
+        if (valid) {
+            // Oznacz kod jako użyty – TTL = 90s (pełne okno tolerancji t-1, t0, t+1)
+            try {
+                stringRedisTemplate.opsForValue().set(usedCodeKey, "1", USED_CODE_TTL);
+                log.debug("[MFA] Kod TOTP oznaczony jako użyty: userId={}", userId);
+            } catch (Exception e) {
+                // Błąd Redis nie blokuje operacji – logujemy warning.
+                // W najgorszym przypadku ten sam kod może zostać użyty ponownie
+                // w oknie 90s, co jest akceptowalnym ryzykiem vs. blokowanie użytkownika.
+                log.warn("[MFA] Nie udało się zapisać użytego kodu w Redis: userId={}, error={}",
+                        userId, e.getMessage());
+            }
+        }
+
         return valid;
     }
 

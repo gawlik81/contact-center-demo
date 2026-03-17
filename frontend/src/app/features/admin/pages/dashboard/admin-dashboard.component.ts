@@ -33,6 +33,15 @@ export class AdminDashboardComponent implements OnInit {
   readonly tenants = computed(() => this.metrics()?.tenants ?? []);
   readonly hasTenants = computed(() => this.tenants().length > 0);
 
+  /** Pre-computed utilization map keyed by tenant id — avoids 4x calls per row in the template */
+  readonly tenantUtilizationMap = computed(() => {
+    const map = new Map<string, number>();
+    for (const t of this.tenants()) {
+      map.set(t.id, t.agentsTotal ? Math.round((t.agentsOnline / t.agentsTotal) * 100) : 0);
+    }
+    return map;
+  });
+
   ngOnInit(): void {
     // Loading state from service (true only on first load)
     this.metricsService.loading$
@@ -55,10 +64,5 @@ export class AdminDashboardComponent implements OnInit {
 
   trackByTenantId(_index: number, tenant: TenantMetricsSummary): string {
     return tenant.id;
-  }
-
-  agentUtilizationPercent(tenant: TenantMetricsSummary): number {
-    if (!tenant.agentsTotal) return 0;
-    return Math.round((tenant.agentsOnline / tenant.agentsTotal) * 100);
   }
 }

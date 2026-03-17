@@ -14,7 +14,7 @@ import { Router } from '@angular/router';
 import { debounceTime, distinctUntilChanged, catchError, of } from 'rxjs';
 import { TenantService } from '../tenant.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { Tenant, TenantStatus } from '../tenant.model';
+import { Tenant, TenantStatus, PagedResponse } from '../tenant.model';
 import { TenantDeactivateModalComponent } from '../tenant-deactivate-modal/tenant-deactivate-modal.component';
 
 @Component({
@@ -33,7 +33,13 @@ export class TenantListComponent implements OnInit {
 
   readonly loading = signal(false);
   readonly tenants = signal<Tenant[]>([]);
-  readonly totalElements = computed(() => this.tenants().length);
+  readonly totalElements = signal(0);
+  readonly currentPage = signal(0);
+  readonly pageSize = 20;
+
+  readonly totalPages = computed(() => Math.ceil(this.totalElements() / this.pageSize));
+  readonly hasPreviousPage = computed(() => this.currentPage() > 0);
+  readonly hasNextPage = computed(() => this.currentPage() < this.totalPages() - 1);
 
   readonly selectedTenant = signal<Tenant | null>(null);
   readonly showDeactivateModal = signal(false);
@@ -58,6 +64,7 @@ export class TenantListComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
+        this.currentPage.set(0);
         this.loadTenants();
       });
 
@@ -72,20 +79,44 @@ export class TenantListComponent implements OnInit {
       .getTenants({
         name: name ?? '',
         status: status ?? '',
-        page: 0,
-        size: 1000,
+        page: this.currentPage(),
+        size: this.pageSize,
       })
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie pobrać listy tenantow. Sprobuj ponownie.');
-          return of<Tenant[]>([]);
+          this.notifications.error('Nie udało się pobrać listy tenantów. Spróbuj ponownie.');
+          return of<PagedResponse<Tenant>>({
+            content: [],
+            totalElements: 0,
+            totalPages: 0,
+            size: this.pageSize,
+            number: 0,
+          });
         }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((tenants) => {
-        this.tenants.set(tenants);
+      .subscribe((page) => {
+        this.tenants.set(page.content);
+        this.totalElements.set(page.totalElements);
         this.loading.set(false);
       });
+  }
+
+  goToPage(page: number): void {
+    this.currentPage.set(page);
+    this.loadTenants();
+  }
+
+  previousPage(): void {
+    if (this.hasPreviousPage()) {
+      this.goToPage(this.currentPage() - 1);
+    }
+  }
+
+  nextPage(): void {
+    if (this.hasNextPage()) {
+      this.goToPage(this.currentPage() + 1);
+    }
   }
 
   openDeactivateModal(tenant: Tenant): void {
@@ -106,14 +137,14 @@ export class TenantListComponent implements OnInit {
       .deactivateTenant(tenant.id)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie dezaktywowac tenanta. Sprobuj ponownie.');
+          this.notifications.error('Nie udało się dezaktywować tenanta. Spróbuj ponownie.');
           return of(undefined);
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
         this.closeDeactivateModal();
-        this.notifications.success(`Tenant "${tenant.name}" zostal dezaktywowany.`);
+        this.notifications.success(`Tenant "${tenant.name}" został dezaktywowany.`);
         this.loadTenants();
       });
   }

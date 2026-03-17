@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import {
   CreateUserRequest,
+  PagedResponse,
   UpdateStatusRequest,
   UpdateUserRequest,
   UserListParams,
@@ -15,7 +16,7 @@ export class UserService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/users`;
 
-  getUsers(params: UserListParams): Observable<UserResponse[]> {
+  getUsers(params: UserListParams): Observable<PagedResponse<UserResponse>> {
     let httpParams = new HttpParams()
       .set('page', params.page.toString())
       .set('size', params.size.toString());
@@ -27,7 +28,7 @@ export class UserService {
       httpParams = httpParams.set('skill', params.skill.trim());
     }
 
-    return this.http.get<UserResponse[]>(this.baseUrl, { params: httpParams });
+    return this.http.get<PagedResponse<UserResponse>>(this.baseUrl, { params: httpParams });
   }
 
   getUser(id: string): Observable<UserResponse> {

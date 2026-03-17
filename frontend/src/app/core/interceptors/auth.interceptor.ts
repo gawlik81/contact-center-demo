@@ -1,15 +1,15 @@
 import { HttpInterceptorFn, HttpRequest, HttpHandlerFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { catchError, switchMap, throwError, BehaviorSubject, filter, take } from 'rxjs';
+import { catchError, switchMap, throwError, filter, take } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { TokenService } from '../services/token.service';
-
-let isRefreshing = false;
-const refreshTokenSubject = new BehaviorSubject<string | null>(null);
+import { TokenRefreshService } from '../services/token-refresh.service';
 
 /**
  * Attaches Bearer token to every outgoing request.
  * On 401, attempts a single silent token refresh. If refresh fails, logs out.
+ * Refresh state is held in TokenRefreshService (injectable) instead of
+ * module-level variables to avoid race conditions across injector boundaries.
  */
 export const authInterceptor: HttpInterceptorFn = (
   req: HttpRequest<unknown>,
@@ -17,6 +17,7 @@ export const authInterceptor: HttpInterceptorFn = (
 ) => {
   const tokenService = inject(TokenService);
   const authService = inject(AuthService);
+  const refreshState = inject(TokenRefreshService);
 
   // Skip auth header for auth endpoints to avoid circular calls
   if (isAuthEndpoint(req.url)) {
@@ -29,7 +30,7 @@ export const authInterceptor: HttpInterceptorFn = (
   return next(authReq).pipe(
     catchError((error: unknown) => {
       if (error instanceof HttpErrorResponse && error.status === 401) {
-        return handle401(req, next, authService, tokenService);
+        return handle401(req, next, authService, tokenService, refreshState);
       }
       return throwError(() => error);
     }),
@@ -54,27 +55,28 @@ function handle401(
   next: HttpHandlerFn,
   authService: AuthService,
   tokenService: TokenService,
+  refreshState: TokenRefreshService,
 ) {
-  if (!isRefreshing) {
-    isRefreshing = true;
-    refreshTokenSubject.next(null);
+  if (!refreshState.isRefreshing) {
+    refreshState.isRefreshing = true;
+    refreshState.refreshTokenSubject.next(null);
 
     // If there is no refresh token (e.g. session storage cleared), bail out immediately
     if (!tokenService.getRefreshToken()) {
-      isRefreshing = false;
+      refreshState.isRefreshing = false;
       authService.logout();
       return throwError(() => new Error('No refresh token available'));
     }
 
     return authService.refresh().pipe(
       switchMap((tokens) => {
-        isRefreshing = false;
-        refreshTokenSubject.next(tokens.accessToken);
+        refreshState.isRefreshing = false;
+        refreshState.refreshTokenSubject.next(tokens.accessToken);
         return next(addToken(req, tokens.accessToken));
       }),
       catchError((err) => {
-        isRefreshing = false;
-        refreshTokenSubject.next(null);
+        refreshState.isRefreshing = false;
+        refreshState.refreshTokenSubject.next(null);
         authService.logout();
         return throwError(() => err);
       }),
@@ -82,7 +84,7 @@ function handle401(
   }
 
   // While refresh is in progress, queue requests until new token arrives
-  return refreshTokenSubject.pipe(
+  return refreshState.refreshTokenSubject.pipe(
     filter((token) => token !== null),
     take(1),
     switchMap((token) => next(addToken(req, token!))),

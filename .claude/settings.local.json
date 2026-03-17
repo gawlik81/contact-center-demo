@@ -96,7 +96,10 @@
       "Bash(grep:*)",
       "Read(//c/Users/pawel/.claude/**)",
       "Read(//c/Users/pawel/.claude/plugins/**)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npx tsc:*)",
+      "Bash(mvn package:*)",
+      "Bash(mvn test:*)"
     ]
   }
 }

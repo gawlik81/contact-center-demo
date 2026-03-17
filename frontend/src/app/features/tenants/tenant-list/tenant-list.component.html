@@ -105,11 +105,31 @@
         </table>
       </div>
 
-      <!-- Count -->
-      <div class="pagination" aria-label="Liczba tenantow">
+      <!-- Pagination -->
+      <div class="pagination" aria-label="Paginacja tenantów" role="navigation">
         <span class="pagination__info" aria-live="polite">
-          Lacznie: {{ totalElements() }}
+          Łącznie: {{ totalElements() }} | Strona {{ currentPage() + 1 }} z {{ totalPages() }}
         </span>
+        <div class="pagination__controls">
+          <button
+            class="btn btn-outline btn-sm"
+            type="button"
+            [disabled]="!hasPreviousPage()"
+            (click)="previousPage()"
+            aria-label="Poprzednia strona"
+          >
+            &laquo; Poprzednia
+          </button>
+          <button
+            class="btn btn-outline btn-sm"
+            type="button"
+            [disabled]="!hasNextPage()"
+            (click)="nextPage()"
+            aria-label="Następna strona"
+          >
+            Następna &raquo;
+          </button>
+        </div>
       </div>
     } @else {
       <!-- Empty state -->

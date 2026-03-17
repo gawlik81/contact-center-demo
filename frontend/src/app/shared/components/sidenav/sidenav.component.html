@@ -32,13 +32,13 @@
 
           <!--
             Alert badge is rendered ONLY for the Dashboard nav item.
-            The guard `item.route === '/admin/dashboard'` ensures that even
-            inside the @for loop the badge is attached to exactly one element.
-            The computed signal showAlertBadge() additionally checks:
+            Condition 1: `item.route === '/admin/dashboard'` short-circuits
+            the @if early for every non-dashboard item in the @for loop,
+            so the signal read in condition 2 is skipped entirely for those.
+            Condition 2: showAlertBadge() additionally checks:
               - user is ADMIN
               - alertCount > 0
-              - current URL is exactly /admin/dashboard
-            All three conditions must be true simultaneously.
+            Both conditions must be true simultaneously.
           -->
           @if (item.route === '/admin/dashboard' && showAlertBadge()) {
             <span class="sidenav__alert-badge" [attr.aria-label]="alertCount() + ' alertow systemowych'">{{

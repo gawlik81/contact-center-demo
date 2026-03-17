@@ -1,6 +1,7 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.api.auth.*;
+import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.RefreshToken;
 import com.contactcenter.domain.repository.AppUserRepository;
@@ -183,9 +184,12 @@ public class AuthService {
         refreshToken.setRevoked(true);
         refreshTokenRepository.save(refreshToken);
 
-        // Wystaw nową parę tokenów
-        // mfaVerified zachowujemy stan z poprzedniej sesji (refresh nie resetuje MFA)
-        String newAccessToken = jwtService.issueAccessToken(user, user.isMfaEnabled());
+        // Wystaw nową parę tokenów.
+        // mfaVerified = false – refresh token nie zastępuje weryfikacji TOTP.
+        // Przy włączonym MFA klient musi ponownie zweryfikować kod TOTP przez /api/auth/mfa/verify.
+        // Wcześniejszy kod używał user.isMfaEnabled() co oznaczało, że użytkownik z MFA
+        // otrzymywał token z mfaVerified=true bez podania kodu TOTP – luka bezpieczeństwa.
+        String newAccessToken = jwtService.issueAccessToken(user, false);
         String newRefreshTokenValue = createRefreshToken(user);
 
         log.info("[Auth] Token refresh (rotation): userId={}, tenantId={}", user.getId(), user.getTenantId());
@@ -251,11 +255,11 @@ public class AuthService {
     @Transactional
     public MfaSetupResponse setupMfa(UUID userId, String userEmail) {
         AppUser user = appUserRepository.findById(userId)
-                .orElseThrow(() -> new IllegalStateException("Użytkownik nie istnieje"));
+                .orElseThrow(() -> new InvalidOperationException("Użytkownik nie istnieje"));
 
         if (user.isMfaEnabled()) {
             log.warn("[MFA] Próba ponownego setup dla użytkownika z aktywnym MFA: userId={}", userId);
-            throw new IllegalStateException("MFA jest już aktywne dla tego konta. " +
+            throw new InvalidOperationException("MFA jest już aktywne dla tego konta. " +
                     "Aby zresetować MFA skontaktuj się z administratorem.");
         }
 
@@ -292,12 +296,12 @@ public class AuthService {
 
         if (user.getMfaSecret() == null || user.getMfaSecret().isBlank()) {
             log.warn("[MFA] Brak MFA secret dla userId={}. Setup wymagany przed weryfikacją.", userId);
-            throw new IllegalStateException("MFA nie zostało skonfigurowane. Wywołaj najpierw /api/auth/mfa/setup");
+            throw new InvalidOperationException("MFA nie zostało skonfigurowane. Wywołaj najpierw /api/auth/mfa/setup");
         }
 
-        // Weryfikacja kodu TOTP z oknem tolerancji ±30s
-        if (!mfaService.verifyCode(user.getMfaSecret(), request.code())) {
-            log.warn("[MFA] Nieprawidłowy kod TOTP dla userId={}", userId);
+        // Weryfikacja kodu TOTP z oknem tolerancji ±30s + ochrona przed replay attack
+        if (!mfaService.verifyCode(user.getMfaSecret(), request.code(), userId)) {
+            log.warn("[MFA] Nieprawidłowy lub już użyty kod TOTP dla userId={}", userId);
             throw new BadCredentialsException("Nieprawidłowy kod MFA");
         }
 
@@ -451,19 +455,33 @@ public class AuthService {
 
     /**
      * Dodaje access token do blacklisty Redis.
-     * Pobiera czas wygaśnięcia z claims tokenu (nie z konfiguracji).
+     *
+     * <p>TTL wpisu Redis = rzeczywisty czas wygaśnięcia z claim {@code exp} tokenu.
+     * Wcześniej używaliśmy {@code now + konfiguracja_ttl} jako przybliżenia – to błąd,
+     * bo token wystawiony godzinę temu miałby w Redis TTL dłuższy niż jego faktyczna
+     * ważność. Teraz pobieramy {@code expiresAt} bezpośrednio z {@link JwtClaims}.
+     *
+     * <p>Jeśli token jest już wygasły ({@code parseQuiet} zwraca null) – blacklista
+     * nie jest potrzebna, token i tak zostanie odrzucony przez parser JWT.
      */
     private void blacklistAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             return;
         }
         try {
-            // Parsujemy ciche – jeśli token już wygasł, blacklista nie jest potrzebna
+            // parseQuiet zwraca null gdy token wygasł lub jest nieprawidłowy –
+            // w takim przypadku nie trzeba blacklistować
             JwtClaims claims = jwtParser.parseQuiet(accessToken);
             if (claims != null) {
-                // Pobierz exp z claims przez bezpośrednie parsowanie (JwtParser nie eksponuje exp)
-                // Używamy TTL z konfiguracji jako przybliżenie (bezpieczne – lepiej za długo niż za krótko)
-                Instant expiresAt = Instant.now().plusSeconds(jwtService.getAccessTokenTtlSeconds());
+                Instant expiresAt;
+                if (claims.expiresAt() != null) {
+                    // Używamy rzeczywistego exp z tokenu (nie TTL z konfiguracji)
+                    expiresAt = claims.expiresAt();
+                } else {
+                    // Fallback: token bez exp claim – używamy konfiguracji jako bezpieczne przybliżenie
+                    log.warn("[Auth] Token nie ma claim exp – używam TTL z konfiguracji jako fallback");
+                    expiresAt = Instant.now().plusSeconds(jwtService.getAccessTokenTtlSeconds());
+                }
                 tokenBlacklistService.blacklist(accessToken, expiresAt);
             }
         } catch (Exception e) {

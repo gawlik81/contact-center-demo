@@ -186,8 +186,9 @@ Dashboard dla roli ADMIN z kartami metryk: liczba aktywnych tenantów, łączna 
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005
-**Status:** ⬜ Nie rozpoczęte
+**Zależności:** FE-005, BE-008
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-17
 **Czeka na BE:** BE-008 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-02-01, US-02-02, US-02-03, EPIC-02
@@ -196,10 +197,10 @@ Dashboard dla roli ADMIN z kartami metryk: liczba aktywnych tenantów, łączna 
 Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). Formularz tworzenia/edycji agenta z multi-select skills (tagi z autocomplete). Panel przypisywania agenta do kolejek. Akcja wymuszenia resetu hasła (POST /api/users/{id}/force-password-reset) z potwierdzeniem.
 
 **Kryteria akceptacji:**
-- [ ] Supervisor widzi tylko agentów swojego tenanta
-- [ ] Formularz skills używa multi-select z tagami i zapisuje jako tablica string[]
-- [ ] Wymuszone reset hasła wysyła e-mail i zmienia status użytkownika na `password_reset_required`
-- [ ] Dezaktywacja agenta z aktywnymi kontaktami wyświetla ostrzeżenie (soft block)
+- [x] Supervisor widzi tylko agentów swojego tenanta
+- [x] Formularz skills używa multi-select z tagami i zapisuje jako tablica string[]
+- [x] Wymuszone reset hasła wysyła e-mail i zmienia status użytkownika na `password_reset_required`
+- [x] Dezaktywacja agenta z aktywnymi kontaktami wyświetla ostrzeżenie (soft block – HTTP 409 guard)
 
 ---
 
@@ -210,7 +211,7 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005
+**Zależności:** FE-005, BE-012, BE-008
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-012 (lub MSW WebSocket)
 **Blokuje:** FE-010, FE-011, FE-012, FE-013, FE-017
@@ -232,7 +233,7 @@ Główny widok agenta po zalogowaniu: panel zmiany statusu (dostępny/zajęty/pr
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** XL
-**Zależności:** FE-009
+**Zależności:** FE-009, BE-009, BE-012
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-009, BE-012 (trudne do zamockowania)
 **Blokuje:** brak
@@ -256,7 +257,7 @@ Komponent softphone w przeglądarce oparty na WebRTC (np. integracja z SIP.js lu
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-009
+**Zależności:** FE-009, BE-025, BE-011
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-025, BE-011 (lub MSW)
 **Blokuje:** brak
@@ -278,7 +279,7 @@ Panel boczny wyświetlany podczas aktywnego kontaktu: dane klienta (imię, nazwi
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-009
+**Zależności:** FE-009, BE-015, BE-016
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-015, BE-016 (lub MSW)
 **Blokuje:** brak
@@ -300,7 +301,7 @@ Widok obsługi wiadomości email: panel z treścią emaila (HTML render), edytor
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-009
+**Zależności:** FE-009, BE-018
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-018 (lub MSW)
 **Blokuje:** brak
@@ -324,7 +325,7 @@ Widok obsługi wiadomości z social media (Facebook Messenger, Instagram, WhatsA
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** XL
-**Zależności:** FE-005
+**Zależności:** FE-005, BE-020, BE-013
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-020, BE-013 (lub MSW)
 **Blokuje:** brak
@@ -350,7 +351,7 @@ Edytor wizualny IVR oparty na bibliotece flow-graph (np. Angular Flow, GoJS lub 
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005
+**Zależności:** FE-005, BE-022
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-022 (lub MSW)
 **Blokuje:** FE-016
@@ -372,7 +373,7 @@ Widok listy kampanii dla SUPERVISOR: tabela z kolumnami (nazwa, status, progres,
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-015
+**Zależności:** FE-015, BE-023
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-023 (lub MSW)
 **Blokuje:** brak
@@ -394,7 +395,7 @@ Komponent upload pliku CSV z mapowaniem kolumn: użytkownik wskazuje która kolu
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależności:** FE-009
+**Zależności:** FE-009, BE-027
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-027 (lub MSW)
 **Blokuje:** brak
@@ -418,7 +419,7 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-005
+**Zależności:** FE-005, BE-025
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-025 (lub MSW)
 **Blokuje:** FE-019, FE-020
@@ -440,7 +441,7 @@ Strona bazy klientów z globalnym polem wyszukiwania (debounce 300ms, min 2 znak
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-018
+**Zależności:** FE-018, BE-025, BE-027
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-025, BE-027 (lub MSW)
 **Blokuje:** brak
@@ -463,7 +464,7 @@ Strona profilu klienta: sekcja danych podstawowych (imię, nazwisko, wielowarto�
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-018
+**Zależności:** FE-018, BE-026
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-026 (lub MSW)
 **Blokuje:** brak
@@ -486,7 +487,7 @@ Komponent importu bazy klientów z pliku CSV (analogiczny do FE-016 ale dedykowa
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005
+**Zależności:** FE-005, BE-029
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-029 (lub MSW WebSocket)
 **Blokuje:** brak
@@ -508,7 +509,7 @@ Dashboard real-time dla SUPERVISOR: karty KPI (aktywne połączenia, agenci onli
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005
+**Zależności:** FE-005, BE-028
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-028 (lub MSW)
 **Blokuje:** brak
@@ -532,7 +533,7 @@ Moduł raportów historycznych: filtry (zakres dat, agent, kolejka, kanał, kamp
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-005
+**Zależności:** FE-005, BE-017
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-017 (OAuth wymaga prawdziwego BE)
 **Blokuje:** brak
@@ -554,7 +555,7 @@ Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, W
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-005
+**Zależności:** FE-005, BE-020
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-020 (lub MSW)
 **Blokuje:** brak

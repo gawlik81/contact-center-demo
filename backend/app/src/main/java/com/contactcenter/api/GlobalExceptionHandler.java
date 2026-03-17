@@ -2,6 +2,7 @@ package com.contactcenter.api;
 
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
+import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.RateLimitExceededException;
 import com.contactcenter.domain.exception.ResourceLimitExceededException;
 import com.contactcenter.domain.service.AuthService;
@@ -296,19 +297,22 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Nieprawidłowy stan (np. MFA już aktywne, brak setup przed verify) – HTTP 409.
+     * Niedozwolona operacja ze względu na stan domeny (np. MFA już aktywne) – HTTP 409.
+     *
+     * <p>Używaj {@link InvalidOperationException} zamiast {@link IllegalStateException}
+     * dla domenowych naruszeń stanu (patrz klasa wyjątku po szczegóły).
      */
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ProblemDetail> handleIllegalStateException(
-            IllegalStateException ex, WebRequest request) {
+    @ExceptionHandler(InvalidOperationException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidOperationException(
+            InvalidOperationException ex, WebRequest request) {
 
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
-        problem.setType(URI.create(ERROR_BASE_URI + "invalid-state"));
-        problem.setTitle("Nieprawidłowy stan operacji");
+        problem.setType(URI.create(ERROR_BASE_URI + "invalid-operation"));
+        problem.setTitle("Niedozwolona operacja");
         problem.setDetail(ex.getMessage());
         problem.setProperty("timestamp", Instant.now());
 
-        log.warn("[API] Nieprawidłowy stan: {}", ex.getMessage());
+        log.warn("[API] Niedozwolona operacja domenowa: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 

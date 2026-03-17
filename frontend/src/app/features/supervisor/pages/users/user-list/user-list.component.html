@@ -181,10 +181,43 @@
         </table>
       </div>
 
-      <!-- Count -->
-      <div class="pagination" aria-label="Liczba agentow">
-        <span class="pagination__info" aria-live="polite"> Lacznie: {{ totalElements() }} </span>
-      </div>
+      <!-- Pagination -->
+      <nav class="pagination" aria-label="Nawigacja stron">
+        <span class="pagination__info" aria-live="polite">
+          @if (totalElements() > 0) {
+            Wyswietlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }} wynikow
+          }
+        </span>
+        <div class="pagination__controls">
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onPrevPage()"
+            [disabled]="currentPage() === 0"
+            aria-label="Poprzednia strona"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+            Poprzednia
+          </button>
+          <span class="pagination__pages" aria-current="page">
+            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+          </span>
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onNextPage()"
+            [disabled]="currentPage() + 1 >= totalPages()"
+            aria-label="Nastepna strona"
+          >
+            Nastepna
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          </button>
+        </div>
+      </nav>
     } @else {
       <!-- Empty state -->
       <div class="empty-state" role="status" aria-live="polite">

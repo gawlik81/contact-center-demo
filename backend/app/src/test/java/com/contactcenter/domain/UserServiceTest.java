@@ -401,9 +401,15 @@ class UserServiceTest {
                     eq("agent.status.changed"),
                     any(AgentStatusChangedEvent.class)
             );
+            // Po issue #15: Redis przechowuje Map z pełnymi danymi sesji (nie tylko status)
             verify(valueOperations).set(
                     eq("session:agent:" + USER_ID),
-                    eq("BUSY"),
+                    argThat(val -> {
+                        if (!(val instanceof java.util.Map<?, ?> map)) return false;
+                        return "BUSY".equals(map.get("status"))
+                                && USER_ID.toString().equals(map.get("userId"))
+                                && TENANT_ID.toString().equals(map.get("tenantId"));
+                    }),
                     any()
             );
         }

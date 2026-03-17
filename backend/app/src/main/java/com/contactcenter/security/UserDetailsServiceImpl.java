@@ -59,10 +59,14 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         String email = parts[1];
 
-        AppUser user = appUserRepository.findByTenantIdAndEmail(tenantId, email)
+        // Używamy findByTenantIdAndEmailAndActiveTrue – wyklucza nieaktywne i usunięte konta.
+        // Nie używamy findByTenantIdAndEmail który ładuje też konta z is_active=false lub is_deleted=true,
+        // co umożliwiałoby logowanie na dezaktywowane/usunięte konta (Spring Security weryfikuje
+        // isEnabled() ale dopiero po załadowaniu UserDetails – lepiej odrzucać wcześniej).
+        AppUser user = appUserRepository.findByTenantIdAndEmailAndActiveTrue(tenantId, email)
                 .orElseThrow(() -> {
                     // Logujemy na DEBUG, nie WARN – żeby nie zdradzać czy konto istnieje (timing attacks)
-                    log.debug("[UserDetails] Użytkownik nie znaleziony: tenant={}, email={}", tenantId, email);
+                    log.debug("[UserDetails] Użytkownik nie znaleziony lub nieaktywny: tenant={}, email={}", tenantId, email);
                     return new UsernameNotFoundException(
                             "Użytkownik nie znaleziony: " + email
                     );

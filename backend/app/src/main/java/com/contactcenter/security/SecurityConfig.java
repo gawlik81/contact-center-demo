@@ -96,6 +96,8 @@ public class SecurityConfig {
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 // Auth endpoints – publiczne (logowanie, refresh tokenów)
                 .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
+                // Publiczne API (bez JWT) – np. lista tenantów na stronie logowania
+                .requestMatchers("/api/public/**").permitAll()
                 // Webhooks zewnętrzne (Facebook, Instagram, WhatsApp) – weryfikacja przez HMAC
                 .requestMatchers("/webhooks/**").permitAll()
                 // Actuator (poza health) – wymaga autentykacji

@@ -10,10 +10,9 @@ export interface Toast {
   duration: number;
 }
 
-let nextId = 0;
-
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
+  private nextId = 0;
   private readonly _toasts = signal<Toast[]>([]);
 
   /** Read-only list of active toasts consumed by ToastContainerComponent */
@@ -40,7 +39,7 @@ export class NotificationService {
   }
 
   private add(opts: Omit<Toast, 'id'>): void {
-    const toast: Toast = { id: nextId++, ...opts };
+    const toast: Toast = { id: this.nextId++, ...opts };
     this._toasts.update((list) => [...list, toast]);
     setTimeout(() => this.dismiss(toast.id), toast.duration);
   }

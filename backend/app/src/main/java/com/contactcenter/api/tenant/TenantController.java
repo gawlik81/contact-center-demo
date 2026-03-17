@@ -16,8 +16,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.contactcenter.api.PagedResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -100,13 +104,13 @@ public class TenantController {
             @ApiResponse(responseCode = "403", description = "Brak roli ADMIN")
         }
     )
-    public ResponseEntity<List<TenantResponse>> listTenants(
+    public ResponseEntity<PagedResponse<TenantResponse>> listTenants(
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) TenantStatus status
+            @RequestParam(required = false) TenantStatus status,
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         TenantFilterParams filters = new TenantFilterParams(name, status);
-        List<TenantResponse> tenants = tenantService.listTenants(filters);
-        return ResponseEntity.ok(tenants);
+        return ResponseEntity.ok(tenantService.listTenantsPaged(filters, pageable));
     }
 
     // =========================================================================

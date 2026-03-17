@@ -45,6 +45,22 @@ public final class TenantContext {
     /**
      * InheritableThreadLocal umożliwia dziedziczenie kontekstu przez wątki potomne.
      * Kluczowe dla Java 21 virtual threads i @Async.
+     *
+     * <p><strong>Ograniczenie przy virtual threads (Spring Boot 3.2+):</strong>
+     * Przy włączeniu {@code spring.threads.virtual.enabled=true} wątki wirtualne
+     * są montowane na carrier threads. {@code InheritableThreadLocal} propaguje
+     * kontekst z carrier thread do wątku wirtualnego przy jego tworzeniu –
+     * nie przy montowaniu (mount/unmount). Oznacza to, że wątek wirtualny
+     * może dziedziczyć kontekst z poprzedniego żądania obsługiwanego przez
+     * ten sam carrier thread, co może prowadzić do cross-tenant data leakage.
+     *
+     * <p>Zalecenie: przy włączeniu virtual threads używaj <strong>wyłącznie</strong>
+     * jawnej propagacji przez {@link #snapshot()} i {@link #restore(Snapshot)}
+     * zamiast polegania na automatycznym dziedziczeniu. Rozważ migrację na
+     * {@code ScopedValue} (Java 21+) który jest bezpieczny dla virtual threads.
+     *
+     * <p>Bieżący stan (2026): virtual threads wyłączone w tym projekcie.
+     * Przed włączeniem przejrzyj wszystkie miejsca używające {@code InheritableThreadLocal}.
      */
     private static final InheritableThreadLocal<UUID> TENANT_ID = new InheritableThreadLocal<>();
     private static final InheritableThreadLocal<UUID> USER_ID   = new InheritableThreadLocal<>();

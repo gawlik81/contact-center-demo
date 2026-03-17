@@ -138,6 +138,7 @@
             </thead>
             <tbody>
               @for (tenant of tenants(); track tenant.id) {
+                @let utilization = tenantUtilizationMap().get(tenant.id) ?? 0;
                 <tr class="data-row">
                   <td class="data-row__name">{{ tenant.name }}</td>
                   <td>
@@ -170,22 +171,20 @@
                     <div
                       class="progress-bar"
                       role="progressbar"
-                      [attr.aria-valuenow]="agentUtilizationPercent(tenant)"
+                      [attr.aria-valuenow]="utilization"
                       aria-valuemin="0"
                       aria-valuemax="100"
-                      [attr.aria-label]="'Wykorzystanie agentow: ' + agentUtilizationPercent(tenant) + '%'"
+                      [attr.aria-label]="'Wykorzystanie agentow: ' + utilization + '%'"
                     >
                       <div
                         class="progress-bar__fill"
-                        [class.progress-bar__fill--low]="agentUtilizationPercent(tenant) < 50"
-                        [class.progress-bar__fill--mid]="
-                          agentUtilizationPercent(tenant) >= 50 && agentUtilizationPercent(tenant) < 80
-                        "
-                        [class.progress-bar__fill--high]="agentUtilizationPercent(tenant) >= 80"
-                        [style.width.%]="agentUtilizationPercent(tenant)"
+                        [class.progress-bar__fill--low]="utilization < 50"
+                        [class.progress-bar__fill--mid]="utilization >= 50 && utilization < 80"
+                        [class.progress-bar__fill--high]="utilization >= 80"
+                        [style.width.%]="utilization"
                       ></div>
                     </div>
-                    <span class="progress-bar__label">{{ agentUtilizationPercent(tenant) }}%</span>
+                    <span class="progress-bar__label">{{ utilization }}%</span>
                   </td>
                 </tr>
               }

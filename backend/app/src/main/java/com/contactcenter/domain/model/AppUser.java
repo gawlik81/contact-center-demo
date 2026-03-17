@@ -50,7 +50,15 @@ public class AppUser {
     @Column(name = "email", nullable = false)
     private String email;
 
-    /** Bcrypt hash hasła (cost=12). Nigdy nie eksponować w DTO/logach. */
+    /**
+     * Bcrypt hash hasła (cost=12). Nigdy nie eksponować w DTO/logach.
+     *
+     * <p><strong>Uwaga dotycząca długości kolumny:</strong> BCrypt zawsze generuje hash
+     * o długości 60 znaków (format {@code $2a$12$...}). Jeśli w przyszłości zostanie
+     * zmieniony algorytm hashowania (np. Argon2id), kolumna {@code password_hash}
+     * może wymagać migracji {@code ALTER TABLE app_user ALTER COLUMN password_hash TYPE VARCHAR(256)}.
+     * Nie zmieniaj algorytmu bez jednoczesnej migracji bazy danych.
+     */
     @Column(name = "password_hash", nullable = false, length = 60)
     private String passwordHash;
 

@@ -3,7 +3,8 @@ package com.contactcenter.infrastructure.config;
 import com.contactcenter.api.admin.dto.AdminMetricsResponse;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.EnableCaching;
@@ -13,6 +14,7 @@ import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
@@ -54,6 +56,18 @@ public class RedisConfig {
     public static final Duration TTL_RATE_LIMIT       = Duration.ofMinutes(15);
     public static final Duration TTL_VOICEBOT_SESSION = Duration.ofMinutes(15);
     public static final Duration TTL_REPORT_CACHE     = Duration.ofMinutes(5);
+
+    /**
+     * StringRedisTemplate – klucze i wartości serializowane jako String (UTF-8).
+     *
+     * <p>Używany przez serwisy operujące na prostych wartościach tekstowych:
+     * MfaService (TOTP replay prevention), TokenBlacklistService (JWT blacklista),
+     * LoginRateLimiter (INCR/EXPIRE counters).
+     */
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
+        return new StringRedisTemplate(connectionFactory);
+    }
 
     /**
      * RedisTemplate z serializacją String klucz / JSON wartość.
@@ -151,13 +165,30 @@ public class RedisConfig {
 
     /**
      * ObjectMapper dla Redis – z obsługą Java 8 Date/Time i informacji o typie.
+     *
+     * <p><strong>Bezpieczeństwo deserializacji:</strong> Poprzednia implementacja używała
+     * {@code LaissezFaireSubTypeValidator.instance} – nie weryfikuje typów podczas
+     * deserializacji JSON z Redis, co otwiera wektor ataku przez gadget chains (RCE)
+     * gdy atakujący może zapisywać do Redis.
+     *
+     * <p>Zastąpiono przez {@link BasicPolymorphicTypeValidator} z białą listą pakietów:
+     * {@code com.contactcenter} (klasy aplikacji) i {@code java.util} (standardowe kolekcje).
+     * Próba deserializacji do klasy spoza białej listy rzuci {@code InvalidTypeIdException}.
      */
     private ObjectMapper redisObjectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
+
+        // Biała lista typów dozwolonych przy deserializacji z Redis
+        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+                .allowIfBaseType("com.contactcenter")
+                .allowIfSubType("com.contactcenter")
+                .allowIfSubType("java.util")
+                .build();
+
         // Zapisuje informację o typie Java – umożliwia deserializację polimorficznych obiektów
         mapper.activateDefaultTyping(
-                LaissezFaireSubTypeValidator.instance,
+                ptv,
                 ObjectMapper.DefaultTyping.NON_FINAL,
                 JsonTypeInfo.As.PROPERTY
         );

@@ -2,6 +2,8 @@ package com.contactcenter.domain.repository;
 
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.model.Tenant.TenantStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -98,6 +100,29 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     List<Tenant> findAllByOptionalFilters(
             @Param("name") String name,
             @Param("status") String status
+    );
+
+    /**
+     * Paginowana wersja {@link #findAllByOptionalFilters} – do użycia przez list endpoint API.
+     */
+    @Query(value = """
+            SELECT tenant_id, config, created_at, name, status, updated_at
+            FROM   tenant
+            WHERE  (CAST(:name AS TEXT) IS NULL OR LOWER(name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%'))
+              AND  (CAST(:status AS TEXT) IS NULL OR status::TEXT = CAST(:status AS TEXT))
+            ORDER  BY name ASC
+            """,
+            countQuery = """
+            SELECT COUNT(*)
+            FROM   tenant
+            WHERE  (CAST(:name AS TEXT) IS NULL OR LOWER(name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%'))
+              AND  (CAST(:status AS TEXT) IS NULL OR status::TEXT = CAST(:status AS TEXT))
+            """,
+            nativeQuery = true)
+    Page<Tenant> findPageByOptionalFilters(
+            @Param("name") String name,
+            @Param("status") String status,
+            Pageable pageable
     );
 
     /**

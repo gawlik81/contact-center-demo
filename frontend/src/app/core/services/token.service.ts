@@ -1,26 +1,25 @@
 import { Injectable } from '@angular/core';
 import { JwtPayload } from '../models/jwt-payload.model';
 
-const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 
 @Injectable({ providedIn: 'root' })
 export class TokenService {
-  // Access token: in-memory (primary) with localStorage fallback for page refresh
+  // Access token: in-memory only — never persisted to localStorage (XSS mitigation).
+  // On page reload the token is lost; AuthService performs a silent refresh via /auth/refresh
+  // using the refresh token stored in sessionStorage.
   private accessTokenMemory: string | null = null;
 
   setAccessToken(token: string): void {
     this.accessTokenMemory = token;
-    localStorage.setItem(ACCESS_TOKEN_KEY, token);
   }
 
   getAccessToken(): string | null {
-    return this.accessTokenMemory ?? localStorage.getItem(ACCESS_TOKEN_KEY);
+    return this.accessTokenMemory;
   }
 
   clearAccessToken(): void {
     this.accessTokenMemory = null;
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
   }
 
   // Refresh token: sessionStorage (clears on tab/browser close)

@@ -55,7 +55,8 @@ export class TenantFormComponent {
       {
         validators: [Validators.required, Validators.minLength(2), Validators.maxLength(100)],
         asyncValidators: [nameAvailabilityValidator(this.tenantService)],
-        updateOn: 'change',
+        // 'blur' prevents multiple async validator calls on each keystroke
+        updateOn: 'blur',
       },
     ],
     maxAgents: [

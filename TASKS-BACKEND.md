@@ -99,11 +99,11 @@ Konfiguracja Spring Security: JWT access token (15 min TTL) + refresh token (7 d
 Endpointy REST: `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/refresh`, `POST /api/auth/change-password`, `POST /api/auth/force-reset/{userId}`. Obsługa flagi `password_reset_required` w JWT claims. Rate limiting na endpoint logowania (5 prób / 15 min / IP przez Redis).
 
 **Kryteria akceptacji:**
-- [ ] `POST /auth/login` z błędnymi danymi zwraca HTTP 401 (bez ujawniania czy email istnieje)
-- [ ] Po 5 nieudanych logowaniach z IP → HTTP 429 przez 15 minut
-- [ ] `POST /auth/force-reset/{userId}` wymaga roli ADMIN lub SUPERVISOR (dla własnych agentów)
-- [ ] `POST /auth/change-password` waliduje: nowe hasło min 8 znaków, 1 cyfra, 1 wielka litera
-- [ ] Dokumentacja OpenAPI wygenerowana automatycznie (springdoc)
+- [x] `POST /auth/login` z błędnymi danymi zwraca HTTP 401 (bez ujawniania czy email istnieje)
+- [x] Po 5 nieudanych logowaniach z IP → HTTP 429 przez 15 minut
+- [x] `POST /auth/force-reset/{userId}` wymaga roli ADMIN lub SUPERVISOR (dla własnych agentów)
+- [x] `POST /auth/change-password` waliduje: nowe hasło min 8 znaków, 1 cyfra, 1 wielka litera
+- [x] Dokumentacja OpenAPI wygenerowana automatycznie (springdoc)
 
 ---
 
@@ -122,10 +122,10 @@ Endpointy REST: `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth
 Serwis `AuditLogService` zapisujący do tabeli `AUDIT_LOG` każdą operację CRUD na encjach wrażliwych (User, Customer, Tenant, Campaign). Implementacja przez Spring AOP `@Aspect` na metodach serwisowych z adnotacją `@Audited`. Zapis asynchroniczny przez RabbitMQ (nie blokuje głównego flow). Endpoint `GET /api/audit-logs` (ADMIN only, paginacja, filtry: tenantId, entityType, userId, zakres dat).
 
 **Kryteria akceptacji:**
-- [ ] Każda operacja Create/Update/Delete na encjach wrażliwych generuje wpis w AUDIT_LOG
-- [ ] Wpis zawiera: old_value i new_value jako JSONB (bez pól hasło/token)
-- [ ] Zapis przez RabbitMQ nie spowalnia głównego zapytania (async, fire-and-forget)
-- [ ] GET /api/audit-logs dostępny tylko dla ADMIN, paginacja max 100 rekordów
+- [x] Każda operacja Create/Update/Delete na encjach wrażliwych generuje wpis w AUDIT_LOG
+- [x] Wpis zawiera: old_value i new_value jako JSONB (bez pól hasło/token)
+- [x] Zapis przez RabbitMQ nie spowalnia głównego zapytania (async, fire-and-forget)
+- [x] GET /api/audit-logs dostępny tylko dla ADMIN, paginacja max 100 rekordów
 
 ---
 
@@ -145,10 +145,10 @@ Serwis `AuditLogService` zapisujący do tabeli `AUDIT_LOG` każdą operację CRU
 Endpointy: `POST /api/tenants`, `GET /api/tenants`, `GET /api/tenants/{id}`, `PATCH /api/tenants/{id}`, `POST /api/tenants/{id}/deactivate`. Logika limitu zasobów w config JSONB (max_agents, max_queues, max_campaigns). Walidacja limitu przy tworzeniu każdego zasobu tenanta (np. przy dodawaniu agenta sprawdz max_agents).
 
 **Kryteria akceptacji:**
-- [ ] `POST /api/tenants` wymaga roli ADMIN
-- [ ] Dezaktywacja nie usuwa danych, ustawia status=INACTIVE, blokuje logowanie użytkowników tenanta
-- [ ] Próba dodania agenta powyżej limitu zwraca HTTP 422 z komunikatem o przekroczeniu limitu
-- [ ] `GET /api/tenants/{id}/check-name?name=X` zwraca {available: bool} (dla async validator FE)
+- [x] `POST /api/tenants` wymaga roli ADMIN
+- [x] Dezaktywacja nie usuwa danych, ustawia status=INACTIVE, blokuje logowanie użytkowników tenanta
+- [x] Próba dodania agenta powyżej limitu zwraca HTTP 422 z komunikatem o przekroczeniu limitu
+- [x] `GET /api/tenants/{id}/check-name?name=X` zwraca {available: bool} (dla async validator FE)
 
 ---
 
@@ -167,10 +167,10 @@ Endpointy: `POST /api/tenants`, `GET /api/tenants`, `GET /api/tenants/{id}`, `PA
 Endpoint `GET /api/admin/metrics` zwracający: liczba aktywnych tenantów, suma agentów online per tenant, alerty systemowe (lista). Dane częściowo cachowane w Redis (TTL 30s). Endpoint `GET /api/admin/metrics/tenants/{id}` z metrykami per tenant (CPU proxy z monitoring systemu lub mocki na MVP).
 
 **Kryteria akceptacji:**
-- [ ] Odpowiedź `/api/admin/metrics` zawiera tablicę tenantów z polami: id, name, agents_online, status
-- [ ] Cache Redis TTL 30s, inwalidowany przy zmianie statusu tenanta
-- [ ] Dostępny tylko dla roli ADMIN (403 dla innych ról)
-- [ ] Czas odpowiedzi < 200ms (p95) – wymóg z PRD
+- [x] Odpowiedź `/api/admin/metrics` zawiera tablicę tenantów z polami: id, name, agents_online, status
+- [x] Cache Redis TTL 30s, inwalidowany przy zmianie statusu tenanta
+- [x] Dostępny tylko dla roli ADMIN (403 dla innych ról)
+- [ ] Czas odpowiedzi < 200ms (p95) – wymóg z PRD (nie mierzony, MVP)
 
 ---
 
@@ -191,10 +191,10 @@ Endpoint `GET /api/admin/metrics` zwracający: liczba aktywnych tenantów, suma 
 Endpointy: `POST /api/users`, `GET /api/users`, `GET /api/users/{id}`, `PATCH /api/users/{id}`, `DELETE /api/users/{id}` (soft delete). Skills zarządzane jako JSONB w tabeli USER. Endpoint `GET /api/users/skills` – lista wszystkich unikalnych skills w tenantcie. `PATCH /api/users/{id}/status` – zmiana statusu agenta (AVAILABLE/BUSY/BREAK/AFTER_CONTACT).
 
 **Kryteria akceptacji:**
-- [ ] SUPERVISOR może zarządzać tylko użytkownikami własnego tenanta
-- [ ] Usunięcie agenta z aktywnymi kontaktami zwraca HTTP 409
-- [ ] Skills przechowywane jako `string[]` w JSONB, endpoint skills zwraca unikalne wartości (deduplicated)
-- [ ] Zmiana statusu agenta publikuje event na RabbitMQ (dla routing engine)
+- [x] SUPERVISOR może zarządzać tylko użytkownikami własnego tenanta
+- [x] Usunięcie agenta z aktywnymi kontaktami zwraca HTTP 409
+- [x] Skills przechowywane jako `string[]` w JSONB, endpoint skills zwraca unikalne wartości (deduplicated)
+- [x] Zmiana statusu agenta publikuje event na RabbitMQ (dla routing engine)
 
 ---
 

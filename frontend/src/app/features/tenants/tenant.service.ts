@@ -5,6 +5,7 @@ import { environment } from '../../../environments/environment';
 import {
   CreateTenantRequest,
   NameAvailabilityResponse,
+  PagedResponse,
   Tenant,
   TenantListParams,
 } from './tenant.model';
@@ -14,8 +15,10 @@ export class TenantService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/tenants`;
 
-  getTenants(params: TenantListParams): Observable<Tenant[]> {
-    let httpParams = new HttpParams();
+  getTenants(params: TenantListParams): Observable<PagedResponse<Tenant>> {
+    let httpParams = new HttpParams()
+      .set('page', String(params.page))
+      .set('size', String(params.size));
 
     if (params.name && params.name.trim()) {
       httpParams = httpParams.set('name', params.name.trim());
@@ -24,7 +27,7 @@ export class TenantService {
       httpParams = httpParams.set('status', params.status);
     }
 
-    return this.http.get<Tenant[]>(this.baseUrl, { params: httpParams });
+    return this.http.get<PagedResponse<Tenant>>(this.baseUrl, { params: httpParams });
   }
 
   createTenant(request: CreateTenantRequest): Observable<Tenant> {

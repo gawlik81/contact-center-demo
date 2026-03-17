@@ -12,6 +12,7 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
@@ -122,10 +123,15 @@ public class AuditAspect {
      * <p>Używane dla UPDATE i DELETE – wywołuje metodę z {@link Audited#fetchOldValueMethod()}
      * z pierwszym parametrem UUID znalezionym w argumentach wywołania.
      *
+     * <p>{@code @Transactional(readOnly = true)} zapewnia, że Hibernate L1 cache
+     * obsłuży ponowny odczyt tej samej encji w ramach transakcji biznesowej (jeśli
+     * jest już załadowana). Bez tej adnotacji getter mógłby generować dodatkowe zapytanie DB.
+     *
      * @param pjp     punkt złączenia
      * @param audited adnotacja z konfiguracją
      * @return JSON string reprezentujący stan encji, lub null gdy nie udało się pobrać
      */
+    @Transactional(readOnly = true)
     private String captureOldValue(ProceedingJoinPoint pjp, Audited audited) {
         try {
             String fetchMethod = audited.fetchOldValueMethod();

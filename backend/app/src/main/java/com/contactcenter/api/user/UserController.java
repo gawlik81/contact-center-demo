@@ -1,5 +1,6 @@
 package com.contactcenter.api.user;
 
+import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.user.dto.*;
 import com.contactcenter.domain.service.UserService;
 import com.contactcenter.security.TenantContext;
@@ -21,6 +22,10 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+
+// Uwaga: max page size jest globalnie ograniczony przez spring.data.web.pageable.max-page-size=100
+// (application.yml). Adnotacja @PageableDefault(max=100) jest duplikacją – zostawiamy
+// konfigurację globalną jako source of truth.
 
 /**
  * Kontroler REST zarządzający użytkownikami i agentami w tenancie.
@@ -94,18 +99,19 @@ public class UserController {
     @Operation(
         summary = "Lista użytkowników z paginacją",
         description = "Zwraca stronę użytkowników należących do tenanta zalogowanego użytkownika. " +
-                      "Paginacja: parametry page, size, sort.",
+                      "Paginacja: parametry page, size, sort. " +
+                      "Odpowiedź zawiera metadane paginacji: totalElements, totalPages, first, last.",
         responses = {
-            @ApiResponse(responseCode = "200", description = "Lista użytkowników"),
+            @ApiResponse(responseCode = "200", description = "Lista użytkowników z metadanymi paginacji"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
             @ApiResponse(responseCode = "403", description = "Brak uprawnień")
         }
     )
-    public ResponseEntity<List<UserResponse>> listUsers(
+    public ResponseEntity<PagedResponse<UserResponse>> listUsers(
             @PageableDefault(size = 20, sort = "email") Pageable pageable
     ) {
         UUID tenantId = TenantContext.getTenantId();
-        return ResponseEntity.ok(userService.listUsers(tenantId, pageable).getContent());
+        return ResponseEntity.ok(PagedResponse.from(userService.listUsers(tenantId, pageable)));
     }
 
     // =========================================================================

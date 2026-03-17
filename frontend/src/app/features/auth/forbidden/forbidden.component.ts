@@ -66,7 +66,7 @@ export class ForbiddenComponent {
     if (role) {
       this.router.navigate([this.authService.getRoleDefaultRoute(role)]);
     } else {
-      this.router.navigate(['/login']);
+      this.router.navigate(['/auth/login']);
     }
   }
 

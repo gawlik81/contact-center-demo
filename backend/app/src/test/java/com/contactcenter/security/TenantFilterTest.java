@@ -144,7 +144,7 @@ class TenantFilterTest {
         @Test
         @DisplayName("poprawny JWT ustawia TenantContext i kontynuuje łańcuch filtrów")
         void validJwt_setsTenantContextAndContinues() throws Exception {
-            JwtClaims claims = new JwtClaims(TENANT_ID, USER_ID, ROLE, "user@test.com");
+            JwtClaims claims = new JwtClaims(TENANT_ID, USER_ID, ROLE, "user@test.com", null);
             when(jwtParser.parse(VALID_TOKEN)).thenReturn(claims);
 
             MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/contacts");
@@ -168,7 +168,7 @@ class TenantFilterTest {
         @Test
         @DisplayName("po zakończeniu żądania TenantContext jest wyczyszczony")
         void afterRequest_tenantContextIsCleared() throws Exception {
-            JwtClaims claims = new JwtClaims(TENANT_ID, USER_ID, ROLE, "user@test.com");
+            JwtClaims claims = new JwtClaims(TENANT_ID, USER_ID, ROLE, "user@test.com", null);
             when(jwtParser.parse(VALID_TOKEN)).thenReturn(claims);
 
             MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/contacts");
@@ -185,7 +185,7 @@ class TenantFilterTest {
         @Test
         @DisplayName("TenantContext jest czyszczony nawet gdy filterChain rzuca wyjątek")
         void whenFilterChainThrows_tenantContextStillCleared() throws Exception {
-            JwtClaims claims = new JwtClaims(TENANT_ID, USER_ID, ROLE, "user@test.com");
+            JwtClaims claims = new JwtClaims(TENANT_ID, USER_ID, ROLE, "user@test.com", null);
             when(jwtParser.parse(VALID_TOKEN)).thenReturn(claims);
             doThrow(new RuntimeException("Błąd w łańcuchu filtrów"))
                     .when(filterChain).doFilter(any(), any());

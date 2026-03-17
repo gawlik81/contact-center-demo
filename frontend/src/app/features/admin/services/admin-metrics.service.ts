@@ -11,7 +11,7 @@ import {
   tap,
   map,
 } from 'rxjs';
-import { toObservable } from '@angular/core/rxjs-interop';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { environment } from '../../../../environments/environment';
 import { GlobalMetrics, TenantMetricsDetail } from '../models/admin-metrics.model';
 import { AuthService } from '../../../core/services/auth.service';
@@ -57,22 +57,12 @@ export class AdminMetricsService {
    * and any running timer from a previous ADMIN session is automatically
    * cancelled by switchMap's unsubscription logic.
    *
-   * This makes the guard reactive instead of a one-shot constructor check,
-   * correctly handling the scenario where an ADMIN logs out and a SUPERVISOR
-   * logs in within the same browser tab without a page reload.
-   *
-   * On HTTP 403 inside the inner pipe: the error is caught and EMPTY is
-   * returned, completing that single tick's inner observable. The outer timer
-   * continues so subsequent ticks will retry – but since a 403 means the token
-   * itself does not have ADMIN access the role signal will have changed and
-   * the outer switchMap will have already torn down the timer. This is a
-   * defense-in-depth guard against any residual 403 propagating as a toast.
-   *
-   * refCount: false – the shareReplay stays connected even when all downstream
-   * consumers unsubscribe (e.g. navigating away from the dashboard), so cached
-   * metrics survive navigation and are replayed instantly on return.
+   * refCount: true — the shareReplay unsubscribes (and stops the timer) when
+   * all consumers unsubscribe, preventing a memory leak when the admin logs out
+   * or navigates away permanently. The BehaviorSubject (_metrics$) retains the
+   * last cached value for instant replay when a new subscriber arrives.
    */
-  private readonly _poll$ = toObservable(this.auth.currentRole).pipe(
+  private readonly _poll$: Observable<GlobalMetrics> = toObservable(this.auth.currentRole).pipe(
     switchMap((role) => {
       if (role !== 'ADMIN') {
         // Not an admin – emit nothing. Any running timer from a prior ADMIN
@@ -90,28 +80,24 @@ export class AdminMetricsService {
             catchError((err: HttpErrorResponse) => {
               // 403 means the JWT lost ADMIN access mid-session.
               // Do NOT set the error flag – silently drop this tick.
-              // The outer role-based switchMap will already be tearing down
-              // the timer because the role signal will have been updated.
               if (err.status === 403) {
                 return EMPTY;
               }
               this._error$.next(true);
               this._loading$.next(false);
-              // Return EMPTY so switchMap completes this inner observable
-              // without propagating the error to the outer timer stream.
               return EMPTY;
             }),
           ),
         ),
       );
     }),
-    shareReplay({ bufferSize: 1, refCount: false }),
+    shareReplay({ bufferSize: 1, refCount: true }),
   );
 
   /**
    * Public read-only stream of the latest metrics.
    * Always emits the last known value immediately (BehaviorSubject replay).
-   * Multiple subscribers share the same value – no extra HTTP calls.
+   * Multiple subscribers share the same value — no extra HTTP calls.
    */
   readonly globalMetrics$: Observable<GlobalMetrics> = this._metrics$.asObservable();
 
@@ -132,14 +118,12 @@ export class AdminMetricsService {
     map((m) => m.systemAlerts?.length ?? 0),
   );
 
-  constructor() {
-    // Subscribe unconditionally. The _poll$ stream is self-guarding: its
-    // outer switchMap gates on the currentRole signal and only creates the
-    // timer when role === 'ADMIN'. For SUPERVISOR / AGENT the inner stream
-    // is EMPTY (no HTTP calls). When role transitions away from ADMIN the
-    // running timer is automatically cancelled by switchMap.
-    this._poll$.subscribe();
-  }
+  /**
+   * Signal-based subscription to the poll stream.
+   * toSignal() manages the subscription lifetime via the injection context,
+   * replacing the bare .subscribe() call in the constructor.
+   */
+  private readonly _pollSignal = toSignal(this._poll$);
 
   getTenantMetrics(id: string): Observable<TenantMetricsDetail> {
     return this.http.get<TenantMetricsDetail>(`${this.baseUrl}/tenants/${id}`);

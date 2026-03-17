@@ -44,6 +44,21 @@ public class AuditLogConsumer {
      * odbywa się przez {@code Jackson2JsonMessageConverter} skonfigurowany w
      * {@code RabbitMQConfig}.
      *
+     * <p><strong>Uwaga dotycząca @Transactional i manual acknowledge:</strong>
+     * Profil prod używa {@code acknowledge-mode: manual} w RabbitMQ.
+     * {@code @Transactional} na metodzie {@code @RabbitListener} z manual ack
+     * <em>nie</em> powoduje automatycznego ackowania wiadomości po commicie transakcji –
+     * ack AMQP i commit DB to niezależne operacje.
+     *
+     * <p>Świadoma decyzja: zostawiamy {@code acknowledge-mode: manual} bez ręcznego ack
+     * w tej metodzie, bo audit log jest operacją idempotentną (log_id = UUID.randomUUID()
+     * per każde przetworzenie). Duplikaty w audit_log są akceptowalne. Brak ack powoduje
+     * ponowne dostarczenie wiadomości przy restarcie brokera – to pożądane zachowanie
+     * dla audit trail (lepiej zdublowany wpis niż brak wpisu).
+     *
+     * <p>Jeśli wymagana jest dokładnie-jeden-raz semantyka, zmień na
+     * {@code acknowledge-mode: auto} lub dodaj ręczny {@code Channel.basicAck()} tutaj.
+     *
      * @param event zdarzenie audytowe – zdesializowane przez Jackson z JSON
      */
     @RabbitListener(queues = RabbitMQConfig.QUEUE_AUDIT_LOG)

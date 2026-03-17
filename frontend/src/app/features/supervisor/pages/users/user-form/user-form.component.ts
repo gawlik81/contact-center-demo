@@ -4,8 +4,8 @@ import {
   Component,
   DestroyRef,
   ElementRef,
-  OnDestroy,
   OnInit,
+  computed,
   inject,
   input,
   output,
@@ -40,8 +40,11 @@ function passwordStrengthValidator(control: AbstractControl): ValidationErrors |
   imports: [ReactiveFormsModule],
   templateUrl: './user-form.component.html',
   styleUrl: './user-form.component.scss',
+  host: {
+    '(document:keydown.escape)': 'onEscapeKey($event)',
+  },
 })
-export class UserFormComponent implements OnInit, AfterViewInit, OnDestroy {
+export class UserFormComponent implements OnInit, AfterViewInit {
   readonly user = input<UserResponse | null>(null);
   readonly isEditMode = input<boolean>(false);
 
@@ -101,23 +104,12 @@ export class UserFormComponent implements OnInit, AfterViewInit, OnDestroy {
     if (dialog && !dialog.open) {
       dialog.showModal();
     }
-    document.addEventListener('keydown', this.onKeyDown);
   }
 
-  ngOnDestroy(): void {
-    const dialog = this.dialogRef()?.nativeElement;
-    if (dialog?.open) {
-      dialog.close();
-    }
-    document.removeEventListener('keydown', this.onKeyDown);
+  onEscapeKey(event: Event): void {
+    event.preventDefault();
+    this.onCancel();
   }
-
-  private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      this.onCancel();
-    }
-  };
 
   private loadSkills(): void {
     this.userService
@@ -129,18 +121,18 @@ export class UserFormComponent implements OnInit, AfterViewInit, OnDestroy {
       .subscribe((skills) => this.availableSkills.set(skills));
   }
 
-  get filteredSkills(): string[] {
-    const input = this.skillInput().toLowerCase();
+  readonly filteredSkills = computed(() => {
+    const inputVal = this.skillInput().toLowerCase();
     const selected = this.selectedSkills();
     return this.availableSkills().filter(
-      (s) => !selected.includes(s) && s.toLowerCase().includes(input),
+      (s) => !selected.includes(s) && s.toLowerCase().includes(inputVal),
     );
-  }
+  });
 
   onSkillInputChange(event: Event): void {
     const val = (event.target as HTMLInputElement).value;
     this.skillInput.set(val);
-    this.showSkillDropdown.set(val.trim().length > 0 || this.filteredSkills.length > 0);
+    this.showSkillDropdown.set(val.trim().length > 0 || this.filteredSkills().length > 0);
   }
 
   onSkillInputFocus(): void {

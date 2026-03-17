@@ -8,6 +8,11 @@ import dev.samstevens.totp.time.TimeProvider;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+
+import java.time.Duration;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -21,18 +26,34 @@ import static org.mockito.Mockito.*;
  *   <li>Generowanie QR code URI (obecność kluczowych elementów)</li>
  *   <li>Weryfikację poprawnego kodu TOTP (test z rzeczywistym generatorem)</li>
  *   <li>Odrzucanie nieprawidłowych kodów</li>
+ *   <li>Ochronę przed replay attack (single-use codes)</li>
  *   <li>Obsługę edge cases (null, blank, zły format)</li>
  * </ul>
  */
 @DisplayName("MfaService – TOTP RFC 6238")
 class MfaServiceTest {
 
-    /** MfaService z rzeczywistą implementacją (nie mock) do testów integracyjnych TOTP. */
+    private static final UUID TEST_USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
+    /** Mock StringRedisTemplate – Redis nie jest potrzebny w testach jednostkowych. */
+    private StringRedisTemplate redisTemplate;
+
+    @SuppressWarnings("unchecked")
+    private ValueOperations<String, String> valueOps;
+
+    /** MfaService z rzeczywistą implementacją TOTP (nie mock) do testów integracyjnych TOTP. */
     private MfaService mfaService;
 
+    @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
-        mfaService = new MfaService();
+        redisTemplate = mock(StringRedisTemplate.class);
+        valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        // Domyślnie: żaden kod nie jest jeszcze użyty
+        when(redisTemplate.hasKey(anyString())).thenReturn(Boolean.FALSE);
+
+        mfaService = new MfaService(redisTemplate);
     }
 
     // =========================================================================
@@ -142,7 +163,7 @@ class MfaServiceTest {
             // Generujemy kod TOTP dla bieżącego czasu (to samo co zrobiłaby aplikacja MFA)
             String currentCode = generateCurrentCode(secret);
 
-            assertThat(mfaService.verifyCode(secret, currentCode)).isTrue();
+            assertThat(mfaService.verifyCode(secret, currentCode, TEST_USER_ID)).isTrue();
         }
 
         @Test
@@ -150,7 +171,7 @@ class MfaServiceTest {
         void shouldRejectInvalidCode() {
             String secret = mfaService.generateSecret();
 
-            assertThat(mfaService.verifyCode(secret, "000000")).isFalse();
+            assertThat(mfaService.verifyCode(secret, "000000", TEST_USER_ID)).isFalse();
         }
 
         @Test
@@ -158,33 +179,33 @@ class MfaServiceTest {
         void shouldRejectAllNines() {
             String secret = mfaService.generateSecret();
 
-            assertThat(mfaService.verifyCode(secret, "999999")).isFalse();
+            assertThat(mfaService.verifyCode(secret, "999999", TEST_USER_ID)).isFalse();
         }
 
         @Test
         @DisplayName("Null secret zwraca false")
         void shouldReturnFalseForNullSecret() {
-            assertThat(mfaService.verifyCode(null, "123456")).isFalse();
+            assertThat(mfaService.verifyCode(null, "123456", TEST_USER_ID)).isFalse();
         }
 
         @Test
         @DisplayName("Blank secret zwraca false")
         void shouldReturnFalseForBlankSecret() {
-            assertThat(mfaService.verifyCode("", "123456")).isFalse();
+            assertThat(mfaService.verifyCode("", "123456", TEST_USER_ID)).isFalse();
         }
 
         @Test
         @DisplayName("Null kod zwraca false")
         void shouldReturnFalseForNullCode() {
             String secret = mfaService.generateSecret();
-            assertThat(mfaService.verifyCode(secret, null)).isFalse();
+            assertThat(mfaService.verifyCode(secret, null, TEST_USER_ID)).isFalse();
         }
 
         @Test
         @DisplayName("Blank kod zwraca false")
         void shouldReturnFalseForBlankCode() {
             String secret = mfaService.generateSecret();
-            assertThat(mfaService.verifyCode(secret, "")).isFalse();
+            assertThat(mfaService.verifyCode(secret, "", TEST_USER_ID)).isFalse();
         }
 
         @Test
@@ -195,7 +216,7 @@ class MfaServiceTest {
             // Google Authenticator czasem wyświetla jako "123 456"
             String codeWithSpace = currentCode.substring(0, 3) + " " + currentCode.substring(3);
 
-            assertThat(mfaService.verifyCode(secret, codeWithSpace)).isTrue();
+            assertThat(mfaService.verifyCode(secret, codeWithSpace, TEST_USER_ID)).isTrue();
         }
 
         @Test
@@ -203,7 +224,7 @@ class MfaServiceTest {
         void shouldRejectTooLongCode() {
             String secret = mfaService.generateSecret();
             // 7 cyfr – nie pasuje do kodu 6-cyfrowego
-            assertThat(mfaService.verifyCode(secret, "1234567")).isFalse();
+            assertThat(mfaService.verifyCode(secret, "1234567", TEST_USER_ID)).isFalse();
         }
 
         @Test
@@ -215,7 +236,43 @@ class MfaServiceTest {
             String codeForSecret1 = generateCurrentCode(secret1);
 
             // Kod wygenerowany dla secret1 nie powinien pasować do secret2
-            assertThat(mfaService.verifyCode(secret2, codeForSecret1)).isFalse();
+            assertThat(mfaService.verifyCode(secret2, codeForSecret1, TEST_USER_ID)).isFalse();
+        }
+
+        @Test
+        @DisplayName("Ponowne użycie kodu (replay attack) jest odrzucane")
+        void shouldRejectReusedCode() throws Exception {
+            String secret = mfaService.generateSecret();
+            String currentCode = generateCurrentCode(secret);
+            String expectedKey = "mfa:used:" + TEST_USER_ID + ":" + currentCode;
+
+            // Symulacja: kod już obecny w Redis (użyty wcześniej)
+            when(redisTemplate.hasKey(expectedKey)).thenReturn(Boolean.TRUE);
+
+            assertThat(mfaService.verifyCode(secret, currentCode, TEST_USER_ID)).isFalse();
+        }
+
+        @Test
+        @DisplayName("Po udanej weryfikacji kod jest zapisywany w Redis z TTL 90s")
+        void shouldMarkCodeAsUsedInRedisAfterSuccessfulVerification() throws Exception {
+            String secret = mfaService.generateSecret();
+            String currentCode = generateCurrentCode(secret);
+            String expectedKey = "mfa:used:" + TEST_USER_ID + ":" + currentCode;
+
+            boolean result = mfaService.verifyCode(secret, currentCode, TEST_USER_ID);
+
+            assertThat(result).isTrue();
+            verify(valueOps).set(expectedKey, "1", Duration.ofSeconds(90));
+        }
+
+        @Test
+        @DisplayName("Po nieudanej weryfikacji kod NIE jest zapisywany w Redis")
+        void shouldNotMarkCodeAsUsedWhenVerificationFails() {
+            String secret = mfaService.generateSecret();
+
+            mfaService.verifyCode(secret, "000000", TEST_USER_ID);
+
+            verify(valueOps, never()).set(anyString(), anyString(), any(Duration.class));
         }
     }
 
@@ -245,6 +302,7 @@ class MfaServiceTest {
             CodeVerifier verifier = new DefaultCodeVerifier(codeGenerator, timeProvider);
 
             MfaService serviceWithFailingQr = new MfaService(
+                    redisTemplate,
                     new DefaultSecretGenerator(20),
                     verifier,
                     failingGenerator

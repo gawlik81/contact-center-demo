@@ -25,34 +25,49 @@ export const SUPERVISOR_ROUTES: Routes = [
           import('./pages/users/user-list/user-list.component').then((m) => m.UserListComponent),
       },
       {
+        // TODO FE-010: Replace placeholder with real Queues component
         path: 'queues',
         data: { breadcrumb: 'Kolejki' },
         loadComponent: () =>
-          import('./supervisor-dashboard.component').then((m) => m.SupervisorDashboardComponent),
+          import('./pages/queues/queues-placeholder.component').then(
+            (m) => m.QueuesPlaceholderComponent,
+          ),
       },
       {
+        // TODO FE-011: Replace placeholder with real Campaigns component
         path: 'campaigns',
         data: { breadcrumb: 'Kampanie' },
         loadComponent: () =>
-          import('./supervisor-dashboard.component').then((m) => m.SupervisorDashboardComponent),
+          import('./pages/campaigns/campaigns-placeholder.component').then(
+            (m) => m.CampaignsPlaceholderComponent,
+          ),
       },
       {
+        // TODO FE-012: Replace placeholder with real Customers component
         path: 'customers',
         data: { breadcrumb: 'Klienci' },
         loadComponent: () =>
-          import('./supervisor-dashboard.component').then((m) => m.SupervisorDashboardComponent),
+          import('./pages/customers/customers-placeholder.component').then(
+            (m) => m.CustomersPlaceholderComponent,
+          ),
       },
       {
+        // TODO FE-013: Replace placeholder with real Reports component
         path: 'reports',
         data: { breadcrumb: 'Raporty' },
         loadComponent: () =>
-          import('./supervisor-dashboard.component').then((m) => m.SupervisorDashboardComponent),
+          import('./pages/reports/reports-placeholder.component').then(
+            (m) => m.ReportsPlaceholderComponent,
+          ),
       },
       {
+        // TODO FE-014: Replace placeholder with real Settings component
         path: 'settings',
         data: { breadcrumb: 'Konfiguracja' },
         loadComponent: () =>
-          import('./supervisor-dashboard.component').then((m) => m.SupervisorDashboardComponent),
+          import('./pages/settings/settings-placeholder.component').then(
+            (m) => m.SettingsPlaceholderComponent,
+          ),
       },
     ],
   },

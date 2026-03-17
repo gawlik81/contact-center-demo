@@ -1,6 +1,7 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  OnInit,
   inject,
   signal,
   computed,
@@ -8,6 +9,7 @@ import {
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService, LoginResponse } from '../../../core/services/auth.service';
+import { PublicTenantService, PublicTenant } from '../services/public-tenant.service';
 
 type LoginStep = 'credentials' | 'mfa';
 
@@ -18,12 +20,14 @@ type LoginStep = 'credentials' | 'mfa';
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly publicTenantService = inject(PublicTenantService);
 
   readonly step = signal<LoginStep>('credentials');
+  readonly tenants = signal<PublicTenant[]>([]);
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
   readonly isMfaStep = computed(() => this.step() === 'mfa');
@@ -43,6 +47,10 @@ export class LoginComponent {
       [Validators.required, Validators.pattern(/^\d{6}$/)],
     ],
   });
+
+  ngOnInit(): void {
+    this.publicTenantService.getTenants().subscribe((list) => this.tenants.set(list));
+  }
 
   // ── Computed validation helpers ──────────────────────────────────────────
 

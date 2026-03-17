@@ -17,8 +17,12 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
+
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -197,17 +201,35 @@ public class AdminMetricsService {
     // =========================================================================
 
     /**
-     * Skanuje klucze {@code session:agent:*} z Redis używając SCAN (nie KEYS).
+     * Skanuje klucze {@code session:agent:*} z Redis używając iteracyjnego SCAN.
      *
-     * <p>SCAN jest bezpieczniejszy w środowisku produkcyjnym – nie blokuje Redis
-     * na czas wykonywania, w przeciwieństwie do KEYS *.
+     * <p>Używamy {@code SCAN} zamiast {@code KEYS} – {@code KEYS *} blokuje Redis event loop
+     * na czas pełnego skanowania (O(N) gdzie N = liczba kluczy). W środowisku produkcyjnym
+     * z tysiącami kluczy może to spowodować widoczne opóźnienia dla innych klientów Redis.
+     * {@code SCAN} przebiega iteracyjnie po {@code count=200} kluczy na iterację – nie blokuje.
      *
      * @return zbiór kluczy Redis reprezentujących agentów online
      */
     private Set<String> scanOnlineAgentKeys() {
         try {
-            Set<String> keys = redisTemplate.keys(AGENT_SESSION_KEY_PATTERN);
-            return keys != null ? keys : Set.of();
+            Set<String> keys = new HashSet<>();
+            ScanOptions options = ScanOptions.scanOptions()
+                    .match(AGENT_SESSION_KEY_PATTERN)
+                    .count(200)
+                    .build();
+
+            redisTemplate.execute(connection -> {
+                try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
+                    while (cursor.hasNext()) {
+                        keys.add(new String(cursor.next()));
+                    }
+                } catch (Exception e) {
+                    log.warn("[AdminMetrics] Błąd podczas SCAN kluczy sesji agentów: {}", e.getMessage());
+                }
+                return null;
+            }, true);
+
+            return keys;
         } catch (Exception e) {
             // W przypadku błędu Redis (np. timeout) – graceful degradation
             // Zwracamy pusty zbiór zamiast rzucać wyjątek (brak agentów online)

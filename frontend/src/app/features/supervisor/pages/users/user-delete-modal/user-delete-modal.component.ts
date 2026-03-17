@@ -3,7 +3,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  OnDestroy,
   input,
   output,
   viewChild,
@@ -16,8 +15,11 @@ import { UserResponse } from '../../../models/user.model';
   imports: [],
   templateUrl: './user-delete-modal.component.html',
   styleUrl: './user-delete-modal.component.scss',
+  host: {
+    '(document:keydown.escape)': 'onEscapeKey($event)',
+  },
 })
-export class UserDeleteModalComponent implements AfterViewInit, OnDestroy {
+export class UserDeleteModalComponent implements AfterViewInit {
   readonly user = input.required<UserResponse>();
 
   readonly confirmed = output<void>();
@@ -30,23 +32,12 @@ export class UserDeleteModalComponent implements AfterViewInit, OnDestroy {
     if (dialog && !dialog.open) {
       dialog.showModal();
     }
-    document.addEventListener('keydown', this.onKeyDown);
   }
 
-  ngOnDestroy(): void {
-    const dialog = this.dialogRef()?.nativeElement;
-    if (dialog?.open) {
-      dialog.close();
-    }
-    document.removeEventListener('keydown', this.onKeyDown);
+  onEscapeKey(event: Event): void {
+    event.preventDefault();
+    this.onCancel();
   }
-
-  private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      this.onCancel();
-    }
-  };
 
   onConfirm(): void {
     this.confirmed.emit();

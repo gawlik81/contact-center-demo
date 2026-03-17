@@ -10,10 +10,13 @@ export interface UserResponse {
   lastName: string;
   role: UserRole;
   status: UserStatus;
+  active: boolean;
   skills: string[];
   passwordResetRequired: boolean;
   mfaEnabled: boolean;
+  lastLoginAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateUserRequest {
@@ -41,4 +44,15 @@ export interface UserListParams {
   size: number;
   status?: UserStatus | '';
   skill?: string;
+}
+
+/** Generyczny wrapper paginowanej odpowiedzi – zgodny z backendem PagedResponse<T>. */
+export interface PagedResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
 }

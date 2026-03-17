@@ -137,16 +137,16 @@
               autocomplete="off"
               role="combobox"
               aria-autocomplete="list"
-              [attr.aria-expanded]="showSkillDropdown() && filteredSkills.length > 0"
+              [attr.aria-expanded]="showSkillDropdown() && filteredSkills().length > 0"
               aria-controls="skill-dropdown"
               (input)="onSkillInputChange($event)"
               (focus)="onSkillInputFocus()"
               (blur)="onSkillInputBlur()"
               (keydown)="onSkillInputKeydown($event)"
             />
-            @if (showSkillDropdown() && filteredSkills.length > 0) {
+            @if (showSkillDropdown() && filteredSkills().length > 0) {
               <ul id="skill-dropdown" class="skill-dropdown" role="listbox" aria-label="Dostepne skills">
-                @for (skill of filteredSkills; track skill) {
+                @for (skill of filteredSkills(); track skill) {
                   <li
                     class="skill-dropdown__item"
                     role="option"

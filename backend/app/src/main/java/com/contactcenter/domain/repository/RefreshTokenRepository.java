@@ -27,7 +27,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
      * Unieważnij wszystkie aktywne tokeny użytkownika.
      * Wywoływane przy logout (unieważnia wszystkie sesje użytkownika na wszystkich urządzeniach).
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.userId = :userId AND rt.revoked = false")
     int revokeAllByUserId(@Param("userId") UUID userId);
 
@@ -35,7 +35,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
      * Unieważnij konkretny token po jego wartości.
      * Wywoływane przy token rotation (stary token unieważniamy po wystawieniu nowego).
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.token = :token")
     int revokeByToken(@Param("token") String token);
 
@@ -43,7 +43,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
      * Usuń wygasłe tokeny (cleanup job).
      * Wywoływane przez scheduled task (nie zaimplementowany w BE-003, ale metoda gotowa).
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("DELETE FROM RefreshToken rt WHERE rt.expiresAt < :cutoff OR rt.revoked = true")
     int deleteExpiredAndRevoked(@Param("cutoff") Instant cutoff);
 

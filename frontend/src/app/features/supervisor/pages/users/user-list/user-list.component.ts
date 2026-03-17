@@ -3,16 +3,15 @@ import {
   Component,
   DestroyRef,
   OnInit,
-  computed,
   inject,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { debounceTime, distinctUntilChanged, catchError, of } from 'rxjs';
+import { debounceTime, distinctUntilChanged, catchError, of, finalize } from 'rxjs';
 import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
-import { UserResponse, UserStatus } from '../../../models/user.model';
+import { PagedResponse, UserResponse, UserStatus } from '../../../models/user.model';
 import { UserFormComponent } from '../user-form/user-form.component';
 import { UserDeleteModalComponent } from '../user-delete-modal/user-delete-modal.component';
 import { UserResetPasswordModalComponent } from '../user-reset-password-modal/user-reset-password-modal.component';
@@ -37,7 +36,8 @@ export class UserListComponent implements OnInit {
 
   readonly loading = signal(false);
   readonly users = signal<UserResponse[]>([]);
-  readonly totalElements = computed(() => this.users().length);
+  readonly totalElements = signal(0);
+  readonly totalPages = signal(0);
 
   readonly currentPage = signal(0);
   readonly pageSize = 20;
@@ -55,8 +55,8 @@ export class UserListComponent implements OnInit {
 
   readonly statusOptions: { value: UserStatus | ''; label: string }[] = [
     { value: '', label: 'Wszystkie statusy' },
-    { value: 'AVAILABLE', label: 'Dostepny' },
-    { value: 'BUSY', label: 'Zajety' },
+    { value: 'AVAILABLE', label: 'Dostępny' },
+    { value: 'BUSY', label: 'Zajęty' },
     { value: 'AFTER_CONTACT', label: 'Po kontakcie' },
     { value: 'BREAK', label: 'Przerwa' },
     { value: 'ACTIVE', label: 'Aktywny' },
@@ -90,14 +90,25 @@ export class UserListComponent implements OnInit {
         skill: skill ?? '',
       })
       .pipe(
-        catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac listy agentow. Sprobuj ponownie.');
-          return of<UserResponse[]>([]);
-        }),
         takeUntilDestroyed(this.destroyRef),
+        catchError(() => {
+          this.notifications.error('Nie udało się pobrać listy agentów. Spróbuj ponownie.');
+          const empty: PagedResponse<UserResponse> = {
+            content: [],
+            page: 0,
+            size: this.pageSize,
+            totalElements: 0,
+            totalPages: 0,
+            first: true,
+            last: true,
+          };
+          return of(empty);
+        }),
       )
-      .subscribe((users) => {
-        this.users.set(users);
+      .subscribe((response) => {
+        this.users.set(response.content);
+        this.totalElements.set(response.totalElements);
+        this.totalPages.set(response.totalPages);
         this.loading.set(false);
       });
   }
@@ -138,30 +149,27 @@ export class UserListComponent implements OnInit {
     const user = this.selectedUser();
     if (!user) return;
 
-    let hasError = false;
-
     this.userService
       .deleteUser(user.userId)
       .pipe(
+        takeUntilDestroyed(this.destroyRef),
         catchError((err) => {
-          hasError = true;
           if (err?.status === 409) {
             this.notifications.warning(
-              `Agent "${user.firstName} ${user.lastName}" ma aktywne kontakty i nie moze byc usuniety.`,
+              `Agent "${user.firstName} ${user.lastName}" ma aktywne kontakty i nie może być usunięty.`,
             );
           } else {
-            this.notifications.error('Nie udalo sie usunac agenta. Sprobuj ponownie.');
+            this.notifications.error('Nie udało się usunąć agenta. Spróbuj ponownie.');
           }
           return of(null);
         }),
-        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.closeDeleteModal()),
       )
-      .subscribe(() => {
-        if (!hasError) {
-          this.notifications.success(`Agent "${user.firstName} ${user.lastName}" zostal usuniety.`);
+      .subscribe((result) => {
+        if (result !== null) {
+          this.notifications.success(`Agent "${user.firstName} ${user.lastName}" został usunięty.`);
+          this.loadUsers();
         }
-        this.closeDeleteModal();
-        this.loadUsers();
       });
   }
 
@@ -182,20 +190,39 @@ export class UserListComponent implements OnInit {
     this.userService
       .forcePasswordReset(user.userId)
       .pipe(
+        takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udalo sie wymusic resetu hasla. Sprobuj ponownie.');
+          this.notifications.error('Nie udało się wymusić resetu hasła. Spróbuj ponownie.');
           return of(undefined);
         }),
-        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
         this.notifications.success(
-          `Agent "${user.firstName} ${user.lastName}" bedzie musial zmienic haslo przy nastepnym logowaniu.`,
+          `Agent "${user.firstName} ${user.lastName}" będzie musiał zmienić hasło przy następnym logowaniu.`,
         );
         this.closeResetPasswordModal();
         this.loadUsers();
       });
   }
+
+  onPrevPage(): void {
+    if (this.currentPage() > 0) {
+      this.currentPage.update((p) => p - 1);
+      this.loadUsers();
+    }
+  }
+
+  onNextPage(): void {
+    if (this.currentPage() + 1 < this.totalPages()) {
+      this.currentPage.update((p) => p + 1);
+      this.loadUsers();
+    }
+  }
+
+  readonly firstItemIndex = (): number => this.currentPage() * this.pageSize + 1;
+
+  readonly lastItemIndex = (): number =>
+    Math.min((this.currentPage() + 1) * this.pageSize, this.totalElements());
 
   trackByUserId(_index: number, user: UserResponse): string {
     return user.userId;

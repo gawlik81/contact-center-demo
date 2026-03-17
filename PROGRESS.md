@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-17 (aktualizacja po BE-008 + fix AdminMetricsService polling)
+**Ostatnia aktualizacja:** 2026-03-17 (CR-BACKEND code review fixes – 20 issues wdrożone, 222 testy PASS)
 
 ---
 
@@ -60,7 +60,7 @@
 | BE-005 | Audit Log: zapis działań użytkowników | ✅ | @Audited AOP, AuditAspect (@Around), AuditLogService (RabbitMQ async), AuditLogConsumer (@RabbitListener), AuditLog entity (JPA + native INSERT dla tabeli partycjonowanej), AuditLogRepository, GET /api/audit-logs (ADMIN, paginacja max 100). @Audited dodany do TenantService: CREATED/UPDATED/DEACTIVATED. 189 testów PASS |
 | BE-006 | Tenant CRUD API i limity zasobów | ✅ | Tenant.java (encja JPA, JSONB przez @JdbcTypeCode(SqlTypes.JSON)), TenantRepository, TenantService, TenantResourceLimitService (reużywany przez BE-008/020/022), TenantController (6 endpointów), ResourceLimitExceededException (HTTP 422). 27 nowych testów. Łącznie 173 PASS. Naprawiono: JsonMapConverter → @JdbcTypeCode, ENUM types → VARCHAR+CHECK (V019) |
 | BE-007 | Admin metrics API: metryki RT tenantów | ✅ | AdminMetricsService (polling Redis session:agent:*, @Cacheable cache 30s), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}, @PreAuthorize("hasRole('ADMIN')")), cache Redis TTL 30s dla admin-metrics (Jackson2JsonRedisSerializer<AdminMetricsResponse>). TenantService inwaliduje cache przy deactivateTenant() i updateTenant(). 204 testy PASS |
-| BE-008 | User / Agent CRUD API ze skills | ✅ | AppUser.java (dodano firstName, lastName, skills JSONB via @JdbcTypeCode(SqlTypes.JSON), isDeleted, timestamps, @PrePersist/@PreUpdate), AppUserRepository (findAllByTenantIdAndDeletedFalse, findByIdAndTenantIdAndDeletedFalse, findAllDistinctSkillsByTenantId native SQL, existsActiveContactsByUserId bez is_deleted bo kolumna nie istnieje w contact, softDeleteUser), UserService (createUser+limitAgentów, listUsers, getUser, updateUser PATCH, deleteUser soft+HTTP409+RabbitMQ+Redis, listSkills, updateStatus+Redis session:agent:{userId}+RabbitMQ cc.events agent.status.changed), UserController (7 endpointów: /skills przed /{id}), ConflictException (HTTP 409), GlobalExceptionHandler (handleConflictException), V020 migracja (safe DO block). 19 nowych testów. Łącznie 223 PASS |
+| BE-008 | User / Agent CRUD API ze skills | ✅ | AppUser.java (dodano firstName, lastName, skills JSONB via @JdbcTypeCode(SqlTypes.JSON), isDeleted, timestamps, @PrePersist/@PreUpdate), AppUserRepository (findAllByTenantIdAndDeletedFalse, findByIdAndTenantIdAndDeletedFalse, findAllDistinctSkillsByTenantId native SQL, existsActiveContactsByUserId bez is_deleted, softDeleteUser, deactivateAllByTenantId bulk UPDATE N+1 fix), UserService (createUser+limitAgentów, listUsers PagedResponse, getUser, updateUser PATCH, deleteUser soft+HTTP409+RabbitMQ+Redis, listSkills, updateStatus+Redis Map session data+RabbitMQ agent.status.changed), UserController (7 endpointów: /skills przed /{id}), ConflictException (HTTP 409), PagedResponse<T> record, InvalidOperationException (HTTP 409), GlobalExceptionHandler zaktualizowany, V020 migracja (safe DO block). CR-BACKEND: clearAutomatically=true, SCAN zamiast KEYS, blacklist TTL z JWT exp, TOTP replay attack Redis, BasicPolymorphicTypeValidator, max-page-size 100, Swagger OFF w prod, findByTenantIdAndEmailAndActiveTrue. Łącznie 222 PASS |
 | BE-009 | Adapter VoIP: integracja z SIP trunk / CPaaS API | ⬜ | |
 | BE-010 | Nagrywanie rozmów: zapis do S3, metadane, retencja | ⬜ | |
 | BE-011 | CLI lookup: wzbogacenie połączenia o dane klienta | ⬜ | |
@@ -98,7 +98,7 @@
 | FE-005 | Shell aplikacji: top navbar, sidenav, breadcrumbs, notyfikacje | ✅ | AppShellComponent (CSS Grid/Flex, skip-link WCAG), TopNavbarComponent (hamburger, badge roli, logout, tenant info), SidenavComponent (menu kontekstowe per rola ADMIN/SUPERVISOR/AGENT, SVG ikony inline, responsive: overlay mobile/tablet, sticky desktop 1280px+), BreadcrumbsComponent + BreadcrumbService (Router.events, data.breadcrumb, aria-current), admin/supervisor/agent shell i routes zaktualizowane. ng build PASS. |
 | FE-006 | Lista tenantów i formularz tworzenia tenanta | ✅ | TenantListComponent (tabela z paginacją 20/str, filtry nazwa+status z debounce 300ms, skeleton loading, empty state, badge statusów ACTIVE/INACTIVE/SUSPENDED, przycisk dezaktywacji per wiersz), TenantFormComponent (reactive form, async validator unikalności nazwy debounce 500ms, limity agentów/kolejek/kampanii), TenantDeactivateModalComponent (natywny <dialog>, WCAG AA), TenantService (6 metod API), TENANT_ROUTES lazy-loaded, admin.routes.ts zaktualizowane. ng build PASS. Naprawiono: TenantService kontrakt (List nie PagedResponse), CreateTenantRequest pole config → limits |
 | FE-007 | Dashboard techniczny administratora (metryki tenantów RT) | ✅ | AdminMetricsService (singleton state z BehaviorSubject, polling co 30s przez timer(0,30000), alertCount$), AdminDashboardComponent (KPI cards: aktywne tenanty/agenci online/alerty, tabela tenantów z badge statusami i progress bar, skeleton loading, empty state, timestamp odświeżania). Badge alertów w SidenavComponent (podpięty pod alertCount$, widoczny tylko na /admin/dashboard). Placeholder komponenty: AdminUsersComponent (/admin/users) i AdminMetricsPageComponent (/admin/metrics) |
-| FE-008 | Zarządzanie agentami: lista, tworzenie, edycja, skills | ⬜ | |
+| FE-008 | Zarządzanie agentami: lista, tworzenie, edycja, skills | ✅ | AgentListComponent (tabela z paginacją PagedResponse, filtry status+skill, multi-select skills chips, force-reset hasła, deactivate z HTTP 409 guard), AgentFormComponent (reactive form, skills autocomplete), AgentService (CRUD + skills API). Czeka na BE-008 ✅ |
 | FE-009 | Agent Desktop: główny layout i panel statusu agenta | ⬜ | |
 | FE-010 | Komponent Softphone WebRTC | ⬜ | |
 | FE-011 | Panel profilu klienta podczas kontaktu | ⬜ | |
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 9/31 | 0 | 22 | 31 |
-| Frontend (FE) | 7/24 | 0 | 17 | 24 |
-| **RAZEM** | **34/74** | **0** | **40** | **74** |
+| Backend (BE) | 8/31 | 0 | 23 | 31 |
+| Frontend (FE) | 8/24 | 0 | 16 | 24 |
+| **RAZEM** | **35/74** | **0** | **39** | **74** |
 
 ---
 
@@ -156,12 +156,13 @@
 | 2026-03-17 | AppUser.java | SUPERVISOR dostawał HTTP 403 na GET /api/users – Hibernate 6 dostarcza JSONB jako PGobject, AttributeConverter<List,String> odbierał PGobject zamiast String → ClassCastException połknięty przez JwtAuthFilter catch(Exception) → SecurityContext nie ustawiony | Zmieniono @Convert(JsonStringListConverter) na @JdbcTypeCode(SqlTypes.JSON) dla pola skills |
 | 2026-03-17 | AppUserRepository.java | existsActiveContactsByUserId zawierał AND is_deleted = FALSE – tabela contact (partycjonowana, V007) nie ma kolumny is_deleted, soft delete realizowany przez statusy QUEUED/ACTIVE/ON_HOLD | Usunięto warunek is_deleted z zapytania natywnego |
 | 2026-03-17 | AdminMetricsService.ts | SUPERVISOR/AGENT generował flood 403 co 30s – AdminMetricsService (providedIn: 'root') startował timer polling bezwarunkowo w konstruktorze, SidenavComponent wstrzykuje serwis dla wszystkich ról | Dodano guard if (this.auth.getUserRole() === 'ADMIN') w konstruktorze przed wywołaniem this._poll$.subscribe() |
+| 2026-03-17 | CR-BACKEND.md (20 issues) | Code review zidentyfikował: N+1 w deactivateTenant, blacklist TTL z runtime zamiast JWT exp, brak clearAutomatically=true, Redis KEYS() blokujący, TOTP replay attack, RLS Javadoc, PagedResponse brak metadanych, AuditAspect bez @Transactional, virtual thread ThreadLocal risk, Redis LaissezFaireSubTypeValidator RCE, brak max-page-size, MFA refresh vulnerability, SIOBE w TenantFilter, passwordHash comment, countOnlineAgents=0, AuditLogConsumer ack, circular dep comment, IllegalStateException→HTTP500, deleted users login, Swagger w prod | Wdrożono wszystkie 20 poprawek: bulk UPDATE (N+1), JwtClaims.expiresAt, clearAutomatically, SCAN cursor, Redis used-code TTL, BasicPolymorphicTypeValidator, PagedResponse<T>, InvalidOperationException, MfaService.verifyCode(userId), UserDetailsServiceImpl findByActiveTrue, springdoc OFF w prod, TenantContext Javadoc virtual thread warning. Naprawiono MfaService @RequiredArgsConstructor conflict i TenantService brakujący import List. 222 testy PASS |
 
 ---
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 9/31 (BE-001..BE-008 ✅) | FE: 7/24 (FE-001..FE-007 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 8/31 (BE-001..BE-008 ✅) | FE: 8/24 (FE-001..FE-008 ✅)
 
 ---
 
@@ -191,7 +192,7 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-005 | Audit Log: @Audited AOP, AuditAspect, AuditLogService (RabbitMQ async), AuditLogConsumer, AuditLog entity (native INSERT, partycjonowanie), GET /api/audit-logs (ADMIN) | ✅ |
 | BE-006 | Tenant CRUD API i limity zasobów | ✅ |
 | BE-007 | Admin metrics API: AdminMetricsService (Redis polling), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}), cache Redis TTL 30s | ✅ |
-| BE-008 | User / Agent CRUD API ze skills: AppUser JSONB (@JdbcTypeCode), UserService (createUser, listUsers, getUser, updateUser, deleteUser soft+HTTP409, listSkills, updateStatus+Redis+RabbitMQ), UserController (7 endpointów), ConflictException, V020 migracja. 223 testów PASS | ✅ |
+| BE-008 | User / Agent CRUD API ze skills: AppUser JSONB (@JdbcTypeCode), UserService (listUsers PagedResponse, deleteUser soft+HTTP409, updateStatus+Redis Map session), UserController, ConflictException, InvalidOperationException, PagedResponse<T>, V020 migracja. CR-BACKEND fixes applied. 222 testy PASS | ✅ |
 | BE-009..BE-031 | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
@@ -205,7 +206,8 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-005 | Shell: navbar, sidenav, breadcrumbs, notyfikacje | ✅ |
 | FE-006 | Lista tenantów i formularz tworzenia tenanta | ✅ |
 | FE-007 | Dashboard techniczny admina: AdminMetricsService (BehaviorSubject, polling 30s), AdminDashboardComponent (KPI cards, tabela tenantów, skeleton loading), badge alertów w SidenavComponent | ✅ |
-| FE-008..FE-024 | Wszystkie widoki funkcjonalne | ⬜ |
+| FE-008 | Zarządzanie agentami: AgentListComponent (tabela paginowana PagedResponse, filtry, multi-select skills), AgentFormComponent, AgentService, guard HTTP 409 przy deactivate | ✅ |
+| FE-009..FE-024 | Wszystkie widoki funkcjonalne | ⬜ |
 
 ---
 
@@ -355,7 +357,7 @@ BE-004 (Auth API)
 | 3 | 🟢 BE-008 | ✅ | Wymaga BE-002 ✅ + DB-003 ✅ |
 | 4 | BE-007 | ✅ | Wymaga BE-006 ✅ |
 | 5 | 🟢 FE-006 | ✅ | Wymaga BE-006 ✅ |
-| 6 | 🟢 FE-008 | ⬜ | Wymaga BE-008 ✅ – backend gotowy, FE do implementacji |
+| 6 | 🟢 FE-008 | ✅ | Wymaga BE-008 ✅ |
 | 7 | FE-007 | ✅ | Wymaga BE-007 ✅ |
 
 ---

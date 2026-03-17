@@ -56,6 +56,16 @@ spring:
     table: flyway_schema_history
 
   # ---------------------------------------------------------------------------
+  # Spring Data Web – paginacja
+  # ---------------------------------------------------------------------------
+  data:
+    web:
+      pageable:
+        # Globalny limit rozmiaru strony – zapobiega wyciąganiu całej tabeli
+        max-page-size: 100
+        default-page-size: 20
+
+  # ---------------------------------------------------------------------------
   # Jackson – serializacja JSON
   # ---------------------------------------------------------------------------
   jackson:

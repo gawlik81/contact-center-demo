@@ -1,6 +1,7 @@
 package com.contactcenter.api.tenant;
 
 import com.contactcenter.api.tenant.dto.*;
+import com.contactcenter.domain.model.Tenant.TenantStatus;
 import com.contactcenter.domain.service.TenantService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -84,17 +85,27 @@ public class TenantController {
 
     @GetMapping
     @Operation(
-        summary = "Lista wszystkich tenantów",
-        description = "Zwraca listę wszystkich tenantów platformy, posortowaną po nazwie. " +
-                      "Zawiera dane konfiguracyjne i limity zasobów.",
+        summary = "Lista tenantów z opcjonalnym filtrowaniem",
+        description = "Zwraca listę tenantów platformy posortowaną po nazwie. " +
+                      "Obsługuje opcjonalne filtrowanie po fragmencie nazwy (case-insensitive, LIKE) " +
+                      "i/lub po statusie. Brak parametrów = zwraca wszystkich tenantów.",
+        parameters = {
+            @Parameter(name = "name",   description = "Fragment nazwy tenanta (case-insensitive)",   example = "acme"),
+            @Parameter(name = "status", description = "Status tenanta: ACTIVE, INACTIVE, SUSPENDED", example = "ACTIVE")
+        },
         responses = {
             @ApiResponse(responseCode = "200", description = "Lista tenantów"),
+            @ApiResponse(responseCode = "400", description = "Nieprawidłowa wartość statusu"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
             @ApiResponse(responseCode = "403", description = "Brak roli ADMIN")
         }
     )
-    public ResponseEntity<List<TenantResponse>> listTenants() {
-        List<TenantResponse> tenants = tenantService.listTenants();
+    public ResponseEntity<List<TenantResponse>> listTenants(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) TenantStatus status
+    ) {
+        TenantFilterParams filters = new TenantFilterParams(name, status);
+        List<TenantResponse> tenants = tenantService.listTenants(filters);
         return ResponseEntity.ok(tenants);
     }
 

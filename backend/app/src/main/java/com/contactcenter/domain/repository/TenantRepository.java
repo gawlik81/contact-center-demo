@@ -1,6 +1,7 @@
 package com.contactcenter.domain.repository;
 
 import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.model.Tenant.TenantStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -61,6 +62,43 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
      * @return lista tenantów posortowana po name ASC
      */
     List<Tenant> findAllByOrderByNameAsc();
+
+    /**
+     * Lista tenantów z opcjonalnym filtrowaniem po nazwie i/lub statusie.
+     *
+     * <p>Parametry {@code name} i {@code status} są opcjonalne – wartość {@code null}
+     * wyłącza filtrowanie po danym kryterium.
+     *
+     * <p>Zapytanie jest natywne (SQL), ponieważ Hibernate 6 błędnie typuje parametr
+     * String jako {@code bytea} gdy ten sam bind parameter pojawia się zarówno
+     * w predykacie {@code IS NULL} jak i w wywołaniu {@code LOWER()} w tym samym
+     * wyrażeniu JPQL – PostgreSQL zgłasza {@code function lower(bytea) does not exist}.
+     * Zapytanie natywne z jawnym {@code CAST(:name AS TEXT)} rozwiązuje problem.
+     *
+     * <p>Logika filtrowania:
+     * <ul>
+     *   <li>Filtr nazwy: {@code CAST(:name AS TEXT) IS NULL OR LOWER(name) LIKE LOWER('%' || :name || '%')}
+     *       – wyszukiwanie fragmentu nazwy case-insensitive (LIKE)</li>
+     *   <li>Filtr statusu: {@code CAST(:status AS TEXT) IS NULL OR status::TEXT = :status}
+     *       – dokładne dopasowanie enum {@code tenant_status}</li>
+     * </ul>
+     *
+     * @param name   fragment nazwy do wyszukania (LIKE %name%), lub {@code null} by pominąć
+     * @param status status tenanta jako String (wartość enum: ACTIVE/INACTIVE/SUSPENDED),
+     *               lub {@code null} by pominąć
+     * @return lista pasujących tenantów posortowana po name ASC
+     */
+    @Query(value = """
+            SELECT tenant_id, config, created_at, name, status, updated_at
+            FROM   tenant
+            WHERE  (CAST(:name AS TEXT) IS NULL OR LOWER(name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%'))
+              AND  (CAST(:status AS TEXT) IS NULL OR status::TEXT = CAST(:status AS TEXT))
+            ORDER  BY name ASC
+            """, nativeQuery = true)
+    List<Tenant> findAllByOptionalFilters(
+            @Param("name") String name,
+            @Param("status") String status
+    );
 
     /**
      * Zliczenie aktywnych agentów dla tenanta.

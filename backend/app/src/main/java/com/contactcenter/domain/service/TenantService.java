@@ -1,6 +1,7 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.api.tenant.dto.CreateTenantRequest;
+import com.contactcenter.api.tenant.dto.TenantFilterParams;
 import com.contactcenter.api.tenant.dto.TenantResourceLimitsDto;
 import com.contactcenter.api.tenant.dto.TenantResponse;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
@@ -79,13 +80,29 @@ public class TenantService {
     }
 
     /**
-     * Zwraca listę wszystkich tenantów posortowaną po nazwie.
+     * Zwraca listę tenantów z opcjonalnym filtrowaniem.
      *
-     * @return lista DTO tenantów
+     * <p>Filtrowanie jest case-insensitive i obsługuje częściowe dopasowanie nazwy (LIKE).
+     * Gdy {@code filters} jest null lub nie zawiera żadnych kryteriów, zwracane są
+     * wszystkie tenanty posortowane po nazwie.
+     *
+     * @param filters parametry filtrowania (name, status) – może być null
+     * @return lista DTO tenantów spełniających kryteria, posortowana po nazwie ASC
      */
     @Transactional(readOnly = true)
-    public List<TenantResponse> listTenants() {
-        return tenantRepository.findAllByOrderByNameAsc()
+    public List<TenantResponse> listTenants(TenantFilterParams filters) {
+        String nameFilter = (filters != null && filters.name() != null && !filters.name().isBlank())
+                ? filters.name().trim()
+                : null;
+        // Przekazywany jako String (nazwa enum), bo repozytorium używa natywnego SQL
+        // i porównuje status::TEXT = :status. Null oznacza brak filtrowania.
+        String statusFilter = (filters != null && filters.status() != null)
+                ? filters.status().name()
+                : null;
+
+        log.debug("[TenantService] listTenants: name={}, status={}", nameFilter, statusFilter);
+
+        return tenantRepository.findAllByOptionalFilters(nameFilter, statusFilter)
                 .stream()
                 .map(TenantResponse::from)
                 .toList();

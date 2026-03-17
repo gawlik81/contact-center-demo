@@ -1,6 +1,7 @@
 package com.contactcenter.domain;
 
 import com.contactcenter.api.tenant.dto.CreateTenantRequest;
+import com.contactcenter.api.tenant.dto.TenantFilterParams;
 import com.contactcenter.api.tenant.dto.TenantResourceLimitsDto;
 import com.contactcenter.api.tenant.dto.TenantResponse;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
@@ -199,28 +200,98 @@ class TenantServiceTest {
     class ListTenants {
 
         @Test
-        @DisplayName("powinien zwrócić listę tenantów posortowaną po nazwie")
-        void shouldReturnSortedListOfTenants() {
+        @DisplayName("powinien zwrócić wszystkich tenantów gdy filtry są null")
+        void shouldReturnAllTenantsWhenFiltersAreNull() {
             // given
-            List<Tenant> tenants = List.of(activeTenant);
-            when(tenantRepository.findAllByOrderByNameAsc()).thenReturn(tenants);
+            when(tenantRepository.findAllByOptionalFilters(null, null))
+                    .thenReturn(List.of(activeTenant));
 
             // when
-            List<TenantResponse> result = tenantService.listTenants();
+            List<TenantResponse> result = tenantService.listTenants(null);
 
             // then
             assertThat(result).hasSize(1);
             assertThat(result.get(0).name()).isEqualTo("Acme Corporation");
+            verify(tenantRepository).findAllByOptionalFilters(null, null);
         }
 
         @Test
-        @DisplayName("powinien zwrócić pustą listę gdy brak tenantów")
-        void shouldReturnEmptyListWhenNoTenants() {
+        @DisplayName("powinien filtrować po fragmencie nazwy (case-insensitive)")
+        void shouldFilterByNameFragment() {
             // given
-            when(tenantRepository.findAllByOrderByNameAsc()).thenReturn(List.of());
+            TenantFilterParams filters = new TenantFilterParams("acme", null);
+            when(tenantRepository.findAllByOptionalFilters("acme", null))
+                    .thenReturn(List.of(activeTenant));
 
             // when
-            List<TenantResponse> result = tenantService.listTenants();
+            List<TenantResponse> result = tenantService.listTenants(filters);
+
+            // then
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).name()).isEqualTo("Acme Corporation");
+            verify(tenantRepository).findAllByOptionalFilters("acme", null);
+        }
+
+        @Test
+        @DisplayName("powinien filtrować po statusie")
+        void shouldFilterByStatus() {
+            // given
+            TenantFilterParams filters = new TenantFilterParams(null, TenantStatus.ACTIVE);
+            // Repozytorium przyjmuje String (nazwa enum) – serwis konwertuje przez .name()
+            when(tenantRepository.findAllByOptionalFilters(null, "ACTIVE"))
+                    .thenReturn(List.of(activeTenant));
+
+            // when
+            List<TenantResponse> result = tenantService.listTenants(filters);
+
+            // then
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).status()).isEqualTo(TenantStatus.ACTIVE);
+            verify(tenantRepository).findAllByOptionalFilters(null, "ACTIVE");
+        }
+
+        @Test
+        @DisplayName("powinien filtrować jednocześnie po nazwie i statusie")
+        void shouldFilterByNameAndStatus() {
+            // given
+            TenantFilterParams filters = new TenantFilterParams("acme", TenantStatus.ACTIVE);
+            when(tenantRepository.findAllByOptionalFilters("acme", "ACTIVE"))
+                    .thenReturn(List.of(activeTenant));
+
+            // when
+            List<TenantResponse> result = tenantService.listTenants(filters);
+
+            // then
+            assertThat(result).hasSize(1);
+            verify(tenantRepository).findAllByOptionalFilters("acme", "ACTIVE");
+        }
+
+        @Test
+        @DisplayName("powinien traktować pustą nazwę jako brak filtra")
+        void shouldTreatBlankNameAsNoFilter() {
+            // given – name jest pustym stringiem, powinien być traktowany jak null
+            TenantFilterParams filters = new TenantFilterParams("   ", null);
+            when(tenantRepository.findAllByOptionalFilters(null, null))
+                    .thenReturn(List.of(activeTenant));
+
+            // when
+            List<TenantResponse> result = tenantService.listTenants(filters);
+
+            // then
+            verify(tenantRepository).findAllByOptionalFilters(null, null);
+            assertThat(result).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("powinien zwrócić pustą listę gdy żaden tenant nie pasuje do filtrów")
+        void shouldReturnEmptyListWhenNoTenantsMatchFilters() {
+            // given
+            TenantFilterParams filters = new TenantFilterParams("nonexistent", TenantStatus.SUSPENDED);
+            when(tenantRepository.findAllByOptionalFilters("nonexistent", "SUSPENDED"))
+                    .thenReturn(List.of());
+
+            // when
+            List<TenantResponse> result = tenantService.listTenants(filters);
 
             // then
             assertThat(result).isEmpty();

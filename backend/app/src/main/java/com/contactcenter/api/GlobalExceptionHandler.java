@@ -1,5 +1,6 @@
 package com.contactcenter.api;
 
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.RateLimitExceededException;
 import com.contactcenter.domain.exception.ResourceLimitExceededException;
@@ -273,6 +274,25 @@ public class GlobalExceptionHandler {
 
         log.debug("[API] Nieprawidłowy argument: {}", ex.getMessage());
         return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * Konflikt stanu zasobu – HTTP 409 Conflict.
+     *
+     * <p>Przykład: próba usunięcia agenta z aktywnymi kontaktami (BE-008).
+     */
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ProblemDetail> handleConflictException(
+            ConflictException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setType(URI.create(ERROR_BASE_URI + "conflict"));
+        problem.setTitle("Konflikt stanu zasobu");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API] Konflikt: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     /**

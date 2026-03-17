@@ -1,12 +1,15 @@
 package com.contactcenter.domain.repository;
 
 import com.contactcenter.domain.model.AppUser;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -94,4 +97,88 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
               AND is_deleted = FALSE
             """, nativeQuery = true)
     long countAgentsByTenantId(@Param("tenantId") UUID tenantId);
+
+    // =========================================================================
+    // BE-008: User/Agent CRUD API
+    // =========================================================================
+
+    /**
+     * Lista użytkowników tenanta (nie usuniętych) z paginacją.
+     *
+     * @param tenantId UUID tenanta
+     * @param pageable parametry stronicowania
+     * @return strona użytkowników
+     */
+    Page<AppUser> findAllByTenantIdAndDeletedFalse(UUID tenantId, Pageable pageable);
+
+    /**
+     * Znajdź użytkownika po ID i tenantId (nie usuniętego).
+     * Bezpieczny odczyt per tenant – uniemożliwia cross-tenant lookup.
+     *
+     * @param userId   UUID użytkownika
+     * @param tenantId UUID tenanta
+     * @return Optional z użytkownikiem lub empty jeśli nie istnieje/inny tenant
+     */
+    Optional<AppUser> findByIdAndTenantIdAndDeletedFalse(UUID userId, UUID tenantId);
+
+    /**
+     * Zwraca unikalne skills wszystkich użytkowników tenanta jako spłaszczoną tablicę.
+     *
+     * <p>Zapytanie rozpakowuje JSONB array skills każdego użytkownika i zwraca
+     * posortowaną, zdeduplikowaną listę jako String. Wynik musi być zdeduplikowany
+     * na poziomie aplikacji lub przez DISTINCT w SQL.
+     *
+     * <p>Używamy native query bo JPQL nie obsługuje operatora JSONB unnest.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista unikalnych skill tagów jako surowe stringi
+     */
+    @Query(value = """
+            SELECT DISTINCT skill_value
+            FROM app_user,
+                 jsonb_array_elements_text(skills) AS skill_value
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND is_deleted = FALSE
+            ORDER BY skill_value
+            """, nativeQuery = true)
+    List<String> findAllDistinctSkillsByTenantId(@Param("tenantId") UUID tenantId);
+
+    /**
+     * Sprawdza czy agent ma aktywne kontakty (status IN QUEUED, ACTIVE, ON_HOLD).
+     *
+     * <p>Używane przed soft delete agenta – nie można usunąć agenta z aktywnymi kontaktami.
+     *
+     * @param userId   UUID użytkownika/agenta
+     * @param tenantId UUID tenanta (izolacja)
+     * @return true jeśli agent ma co najmniej jeden aktywny kontakt
+     */
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1 FROM contact
+                WHERE agent_id = CAST(:userId AS uuid)
+                  AND tenant_id = CAST(:tenantId AS uuid)
+                  AND status IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
+            )
+            """, nativeQuery = true)
+    boolean existsActiveContactsByUserId(@Param("userId") UUID userId,
+                                          @Param("tenantId") UUID tenantId);
+
+    /**
+     * Soft delete użytkownika – ustawia is_deleted=true i is_active=false.
+     *
+     * @param userId   UUID użytkownika
+     * @param tenantId UUID tenanta (izolacja cross-tenant)
+     * @return liczba zaktualizowanych wierszy
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE app_user
+            SET is_deleted = TRUE,
+                is_active  = FALSE,
+                updated_at = NOW()
+            WHERE user_id = CAST(:userId AS uuid)
+              AND tenant_id = CAST(:tenantId AS uuid)
+              AND is_deleted = FALSE
+            """, nativeQuery = true)
+    int softDeleteUser(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId);
 }

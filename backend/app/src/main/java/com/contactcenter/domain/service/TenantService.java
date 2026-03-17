@@ -10,6 +10,7 @@ import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.model.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.infrastructure.aspect.Audited;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +56,7 @@ public class TenantService {
      * @return DTO z danymi utworzonego tenanta
      * @throws IllegalArgumentException gdy nazwa jest już zajęta
      */
+    @Audited(action = "TENANT_CREATED", entityType = "TENANT")
     @Transactional
     public TenantResponse createTenant(CreateTenantRequest request) {
         log.info("[TenantService] Tworzenie tenanta: name={}", request.name());
@@ -133,6 +135,13 @@ public class TenantService {
      * @throws EntityNotFoundException  gdy tenant nie istnieje
      * @throws IllegalArgumentException gdy nowa nazwa jest już zajęta
      */
+    @Audited(
+        action = "TENANT_UPDATED",
+        entityType = "TENANT",
+        captureOldValue = true,
+        fetchOldValueMethod = "getTenant",
+        entityIdParamIndex = 0
+    )
     @Transactional
     public TenantResponse updateTenant(UUID tenantId, UpdateTenantRequest request) {
         log.info("[TenantService] Aktualizacja tenanta: id={}", tenantId);
@@ -179,6 +188,13 @@ public class TenantService {
      * @param tenantId UUID tenanta do dezaktywacji
      * @throws EntityNotFoundException gdy tenant nie istnieje
      */
+    @Audited(
+        action = "TENANT_DEACTIVATED",
+        entityType = "TENANT",
+        captureOldValue = true,
+        fetchOldValueMethod = "getTenant",
+        entityIdParamIndex = 0
+    )
     @Transactional
     public void deactivateTenant(UUID tenantId) {
         log.warn("[TenantService] Dezaktywacja tenanta: id={}", tenantId);

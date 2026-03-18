@@ -173,7 +173,7 @@ export class UserListComponent implements OnInit {
    */
   private applyStatusUpdate(agentId: string, newStatus: UserStatus): void {
     this.users.update((list) =>
-      list.map((u) => (u.userId === agentId ? { ...u, status: newStatus } : u)),
+      list.map((u) => (u.id === agentId ? { ...u, status: newStatus } : u)),
     );
 
     // Trigger flash animation.
@@ -265,7 +265,7 @@ export class UserListComponent implements OnInit {
     if (!user) return;
 
     this.userService
-      .deleteUser(user.userId)
+      .deleteUser(user.id)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError((err) => {
@@ -303,7 +303,7 @@ export class UserListComponent implements OnInit {
     if (!user) return;
 
     this.userService
-      .forcePasswordReset(user.userId)
+      .forcePasswordReset(user.id)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
@@ -340,6 +340,6 @@ export class UserListComponent implements OnInit {
     Math.min((this.currentPage() + 1) * this.pageSize, this.totalElements());
 
   trackByUserId(_index: number, user: UserResponse): string {
-    return user.userId;
+    return user.id;
   }
 }

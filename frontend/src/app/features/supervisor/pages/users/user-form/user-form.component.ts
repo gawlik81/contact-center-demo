@@ -216,7 +216,7 @@ export class UserFormComponent implements OnInit, AfterViewInit {
     const editUser = this.user();
     if (this.isEditMode() && editUser) {
       this.userService
-        .updateUser(editUser.userId, {
+        .updateUser(editUser.id, {
           firstName: raw.firstName!.trim(),
           lastName: raw.lastName!.trim(),
           role: raw.role as UserRole,

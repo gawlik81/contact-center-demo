@@ -64,7 +64,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (user of users(); track user.userId) {
+            @for (user of users(); track user.id) {
               <tr class="user-row">
                 <td class="user-name">
                   {{ user.firstName }} {{ user.lastName }}
@@ -103,9 +103,9 @@
                     [class.status-badge--active]="user.status === 'ACTIVE'"
                     [class.status-badge--inactive]="user.status === 'INACTIVE'"
                     [class.status-badge--offline]="user.status === 'OFFLINE'"
-                    [class.status-badge--updated]="flashingAgentIds().has(user.userId)"
+                    [class.status-badge--updated]="flashingAgentIds().has(user.id)"
                     [attr.aria-label]="'Status: ' + user.status"
-                    [attr.aria-live]="flashingAgentIds().has(user.userId) ? 'polite' : null"
+                    [attr.aria-live]="flashingAgentIds().has(user.id) ? 'polite' : null"
                   >
                     @switch (user.status) {
                       @case ('AVAILABLE') {

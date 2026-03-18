@@ -199,9 +199,9 @@ After `docker compose up -d` + backend start, use any of the following accounts 
 | Area | Done | Total |
 |------|------|-------|
 | Database (DB) | 19 | 19 |
-| Backend (BE) | 3 | 31 |
-| Frontend (FE) | 4 | 24 |
-| **Total** | **26** | **74** |
+| Backend (BE) | 10 | 31 |
+| Frontend (FE) | 9 | 24 |
+| **Total** | **38** | **74** |
 
 See [PROGRESS.md](PROGRESS.md) for full task status.
 

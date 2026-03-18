@@ -59,19 +59,33 @@ backend/
 ├── pom.xml                          # parent POM (Spring Boot 3.3.5, Java 21)
 ├── app/                             # sole Maven module (contact-center-app)
 │   └── src/main/java/com/contactcenter/
-│       ├── api/                     # REST controllers + DTOs (per feature, e.g. api/auth/)
+│       ├── api/                     # REST controllers + DTOs (per feature)
+│       │   ├── admin/               # AdminMetricsController + DTOs (AdminMetricsResponse, TenantMetrics, TenantDetailMetrics)
+│       │   ├── auditlog/            # AuditLogController + AuditLogResponse DTO
+│       │   ├── auth/                # AuthController + DTOs (LoginRequest/Response, MfaVerifyRequest, RefreshRequest, ChangePasswordRequest, LogoutRequest, MfaSetupResponse)
+│       │   ├── public_/             # PublicController (tenants list for login dropdown)
+│       │   ├── telephony/           # TelephonyWebhookController, MockCallController (dev) + DTOs
+│       │   ├── tenant/              # TenantController + DTOs (CreateTenantRequest, UpdateTenantRequest, TenantResponse, TenantFilterParams, TenantResourceLimitsDto, NameAvailabilityResponse)
+│       │   ├── user/                # UserController, AdminUserController + DTOs (CreateUserRequest, UpdateUserRequest, UpdateStatusRequest, UserResponse, AgentStatusChangedEvent)
+│       │   ├── websocket/           # WebSocketController (STOMP message handling)
+│       │   ├── GlobalExceptionHandler.java   # @RestControllerAdvice (HTTP 4xx/5xx mapping)
+│       │   └── PagedResponse.java            # Generic pagination record
 │       ├── domain/
-│       │   ├── model/               # JPA entities (AppUser, RefreshToken, ...)
-│       │   ├── repository/          # data access (extend TenantAwareRepository)
-│       │   └── service/             # business logic (@Service)
+│       │   ├── exception/           # CrossTenantAccessException, ConflictException (409), InvalidOperationException (409), RateLimitExceededException (429), ResourceLimitExceededException (422)
+│       │   ├── model/               # JPA entities: AppUser (JSONB skills), Tenant (JSONB limits/config), AuditLog (native INSERT, partitioned), AuditLogEvent, AuditLogId, RefreshToken
+│       │   ├── repository/          # TenantAwareRepository (base), TenantRepository, AppUserRepository, AuditLogRepository, RefreshTokenRepository
+│       │   ├── service/             # AuthService, TenantService, TenantResourceLimitService, UserService, AdminUserService, AuditLogService, AuditLogConsumer, AdminMetricsService
+│       │   ├── telephony/           # TelephonyAdapter (interface), MockTelephonyAdapter, CallEvent, CallSession, TelephonyEventPublisher (RabbitMQ)
+│       │   └── websocket/           # RabbitToWebSocketRelay, WebSocketEventBroadcaster, WebSocketEvent
 │       ├── infrastructure/
-│       │   ├── aspect/              # CrossTenantAspect (AOP)
-│       │   └── config/              # Spring configs (Security, Redis, RabbitMQ, Flyway, ...)
-│       ├── security/                # JWT, MFA, TenantContext, filters
+│       │   ├── aspect/              # CrossTenantAspect (AOP), AuditAspect (@Around), @Audited annotation
+│       │   ├── config/              # SecurityConfig, RedisConfig, RabbitMQConfig, FlywayConfig, WebSocketConfig (STOMP), AsyncConfig, OpenApiConfig
+│       │   └── persistence/         # JsonMapConverter, JsonStringListConverter (legacy – prefer @JdbcTypeCode)
+│       ├── security/                # JwtService, JwtParser, JwtProperties, JwtAuthFilter, TenantContext, TenantFilter, TokenBlacklistService, MfaService, LoginRateLimiter, SecurityConfig, AppUserDetails, UserDetailsServiceImpl, StompPrincipal, WebSocketAuthInterceptor
 │       └── app/                     # ContactCenterApplication main class
 └── src/main/resources/
     └── db/
-        ├── migration/               # Flyway migrations (V001–V018, shared)
+        ├── migration/               # Flyway migrations V001–V020 (shared)
         ├── seed/                    # V999__dev_seed.sql (dev profile only)
         └── init/                    # Docker init scripts (PostgreSQL extensions)
 dw/migrations/                       # ClickHouse DDL scripts (not Flyway)
@@ -121,9 +135,34 @@ Two places must be kept in sync:
 
 Routing key format: `{aggregate}.{event}` – e.g. `call.incoming`, `agent.status.changed`, `contact.queued`.
 
+### VoIP Adapter Pattern
+
+`TelephonyAdapter` (interface in `domain/telephony/`) decouples the system from a specific CPaaS provider:
+- `MockTelephonyAdapter` – dev/test implementation, generates fake `CallEvent`s for UI testing.
+- `TelephonyWebhookController` – receives webhook callbacks from the telephony provider.
+- `MockCallController` (`/api/dev/calls/simulate`) – dev-only endpoint to trigger simulated calls.
+- `TelephonyEventPublisher` – publishes `CallEvent`s to RabbitMQ exchange `cc.events` with routing key `call.*`.
+
+To integrate a real CPaaS, implement `TelephonyAdapter` and replace the `@Primary` bean.
+
+### WebSocket / Real-Time Hub
+
+Spring STOMP over WebSocket (`WebSocketConfig`):
+- Endpoint: `/ws` (SockJS fallback enabled).
+- `WebSocketAuthInterceptor` – validates JWT at the STOMP CONNECT frame; rejects with HTTP 401 if invalid or missing. Creates `StompPrincipal` from token claims.
+- `WebSocketController` – handles STOMP messages from clients (`@MessageMapping`).
+- `RabbitToWebSocketRelay` – `@RabbitListener` on `cc.notifications` exchange; pushes events to STOMP destinations.
+- `WebSocketEventBroadcaster` – service for sending events to `/user/{userId}/events` (targeted) and `/topic/tenant/{tenantId}/supervisor` (broadcast per tenant).
+
+### Audit Log
+
+`@Audited` annotation triggers `AuditAspect` (`@Around`) which publishes an `AuditLogEvent` to RabbitMQ (`cc.audit` exchange, routing key `audit.write`). `AuditLogConsumer` (`@RabbitListener`) persists via native INSERT to the partitioned `audit_log` table (bypasses JPA limitations with partitioned tables). Pagination endpoint: `GET /api/audit-logs` (ADMIN only, max 100/page).
+
 ### Database Migrations (Flyway)
 
 Migrations live in `backend/src/main/resources/db/migration/`. Naming: `V{NNN}__{description}.sql`.
+
+Current migrations: V001 (extensions) → V020 (user name fields). V019 converts ENUM types to VARCHAR + CHECK.
 
 **Dev-only settings** (`application-dev.yml`) – **never set these in prod**:
 - `clean-on-validation-error: true` – wipes and re-runs all migrations if checksums mismatch
@@ -152,6 +191,79 @@ Tests use `application-test.yml` which:
 - Disables Redis/RabbitMQ health checks
 
 Integration tests that need a real database use Testcontainers (`@Testcontainers` + `@Container` PostgreSQL). Test RSA keys are in `src/test/resources/keys/`.
+
+---
+
+## Frontend Architecture
+
+### Stack
+
+Angular 21, standalone components, SCSS, RxJS, Angular Material, Vitest. Proxy `/api/*` and `/ws` → `localhost:8080`.
+
+### Package Layout
+
+```
+frontend/src/app/
+├── app.ts                           # Root component (<cc-toast-container> + <router-outlet>)
+├── app.config.ts                    # provideRouter, provideHttpClient with interceptors, provideAnimations
+├── app.routes.ts                    # Top-level lazy routes
+├── core/
+│   ├── interceptors/
+│   │   ├── auth.interceptor.ts      # Attaches Bearer token; silent refresh on 401; queues in-flight requests
+│   │   └── error-handler.interceptor.ts  # 403→toast "Brak uprawnień", 5xx→toast, status 0→"Brak połączenia"
+│   ├── models/
+│   │   └── jwt-payload.model.ts     # Typed JWT claims interface
+│   └── services/
+│       ├── auth.service.ts          # Signal-based auth state, login/logout/refresh, handleLoginSuccess()
+│       ├── breadcrumb.service.ts    # Router.events → BreadcrumbItem[] observable
+│       ├── notification.service.ts  # Signal-based toast queue, auto-dismiss 4–6s
+│       ├── token.service.ts         # localStorage / sessionStorage for access+refresh tokens
+│       ├── token-refresh.service.ts # Singleton refresh lock; queues concurrent 401 responses
+│       └── websocket.service.ts     # STOMP/SockJS client; reconnect with backoff; typed event observables
+├── shared/
+│   └── components/
+│       ├── app-shell/               # AppShellComponent – CSS Grid layout (navbar + sidenav + router-outlet)
+│       ├── breadcrumbs/             # BreadcrumbsComponent (aria-current, Router.events)
+│       ├── sidenav/                 # SidenavComponent – context menu per role, badge alertów (ADMIN), responsive overlay/sticky
+│       ├── toast/                   # ToastContainerComponent (WCAG AA, aria-live)
+│       └── top-navbar/              # TopNavbarComponent (hamburger, role badge, logout, tenant info)
+└── features/
+    ├── auth/                        # LoginComponent (credentials→MFA flow), ChangePasswordComponent, ForbiddenComponent
+    │   └── services/public-tenant.service.ts  # Fetches tenant list for login dropdown (no auth)
+    ├── tenants/                     # TenantListComponent, TenantFormComponent, TenantDeactivateModalComponent, TenantEditModalComponent
+    │   └── tenant.service.ts        # 6 API methods; response is Tenant[] (not PagedResponse)
+    ├── admin/
+    │   ├── pages/
+    │   │   ├── dashboard/           # AdminDashboardComponent (KPI cards, polling 30s, skeleton)
+    │   │   ├── metrics/             # AdminMetricsPageComponent (placeholder)
+    │   │   └── users/               # AdminUsersComponent → AdminUserListComponent + AdminUserFormComponent
+    │   └── services/
+    │       ├── admin-metrics.service.ts  # BehaviorSubject, timer(0,30000), guarded to ADMIN role only
+    │       └── admin-user.service.ts
+    ├── supervisor/
+    │   ├── pages/users/             # UserListComponent, UserFormComponent, UserDeleteModalComponent, UserResetPasswordModalComponent
+    │   └── services/user.service.ts # Agent CRUD; PagedResponse<User> paginacja
+    └── agent/
+        ├── pages/agent-desktop/     # AgentDesktopComponent – status panel (AVAILABLE/BUSY/BREAK/AFTER_CONTACT), contact tabs (max 4), WS baner reconnect
+        └── services/
+            ├── agent-status.service.ts   # Updates agent status via API + WS
+            └── contact-tab.store.ts      # Signal store – manages open contact tabs (max 4)
+```
+
+### Guards & Routing
+
+- `AuthGuard` – redirects to `/auth/login` if no valid token.
+- `RoleGuard` – checks `data.roles` on route; redirects to `/forbidden` on mismatch.
+- `RoleRedirectGuard` – on root `/`, navigates to role-specific dashboard.
+- Lazy-loaded feature chunks: auth, tenants, admin, supervisor, agent (12 total).
+
+### Key Conventions
+
+- Standalone components only – no NgModules.
+- Signal-based state (`signal()`, `computed()`) preferred over BehaviorSubject where possible; BehaviorSubject retained for streaming/polling scenarios.
+- `@JdbcTypeCode(SqlTypes.JSON)` fields on the backend map to typed interfaces/models on the frontend (e.g. `skills: string[]`).
+- `PagedResponse<T>` record from backend maps to frontend `PagedResponse<T>` interface with `content`, `totalElements`, `totalPages`, `page`, `size`.
+- WCAG AA compliance: `aria-live` on toasts, `aria-current` on breadcrumbs, skip-link in AppShellComponent.
 
 ---
 

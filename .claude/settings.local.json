@@ -99,7 +99,8 @@
       "Bash(cat:*)",
       "Bash(npx tsc:*)",
       "Bash(mvn package:*)",
-      "Bash(mvn test:*)"
+      "Bash(mvn test:*)",
+      "Bash(npx ng:*)"
     ]
   }
 }

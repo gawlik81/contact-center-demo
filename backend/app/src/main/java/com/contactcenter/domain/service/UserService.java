@@ -85,6 +85,13 @@ public class UserService {
     @Transactional
     @Audited(action = "USER_CREATED", entityType = "USER")
     public UserResponse createUser(CreateUserRequest request, UUID tenantId) {
+        // Supervisor nie może tworzyć użytkowników z rolą ADMIN
+        String callerRole = TenantContext.getUserRole();
+        if ("SUPERVISOR".equalsIgnoreCase(callerRole) && UserRole.ADMIN.equals(request.role())) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Supervisorzy mogą tworzyć użytkowników tylko z rolą SUPERVISOR lub AGENT");
+        }
+
         // Sprawdź limit agentów (tylko dla roli AGENT)
         if (UserRole.AGENT.equals(request.role())) {
             tenantResourceLimitService.checkAgentLimit(tenantId);

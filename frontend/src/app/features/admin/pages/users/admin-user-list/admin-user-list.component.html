@@ -1,0 +1,333 @@
+<div class="user-list">
+  <div class="user-list__header">
+    <h1 class="user-list__title">Uzytkownicy (wszystkie tenanty)</h1>
+    <button
+      class="btn btn-primary"
+      type="button"
+      (click)="openCreateModal()"
+      aria-label="Dodaj nowego uzytkownika"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      Nowy uzytkownik
+    </button>
+  </div>
+
+  <!-- Tenant filter -->
+  <div
+    class="user-list__filters"
+    [formGroup]="filterForm"
+    role="search"
+    aria-label="Filtruj uzytkownikow"
+  >
+    <div class="filter-field">
+      <label class="filter-label" for="filter-tenant">Tenant</label>
+      <select id="filter-tenant" class="filter-select" formControlName="tenantId">
+        <option value="">Wszystkie tenanty</option>
+        @for (tenant of tenants(); track tenant.id) {
+          <option [value]="tenant.id">{{ tenant.name }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  <!-- Loading skeleton -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--wide"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--badge"></div>
+          <div class="skeleton-cell skeleton-cell--badge"></div>
+          <div class="skeleton-cell skeleton-cell--wide"></div>
+          <div class="skeleton-cell skeleton-cell--actions"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading()) {
+    @if (users().length > 0) {
+      <div class="table-wrapper" role="region" aria-label="Lista uzytkownikow">
+        <table class="user-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">Tenant</th>
+              <th scope="col">Imie i nazwisko</th>
+              <th scope="col">Email</th>
+              <th scope="col">Rola</th>
+              <th scope="col">Status</th>
+              <th scope="col">Skills</th>
+              <th scope="col"><span class="sr-only">Akcje</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of users(); track user.id) {
+              <tr class="user-row">
+                <td class="user-tenant">
+                  <span class="tenant-badge">{{ getTenantName(user.tenantId) }}</span>
+                </td>
+                <td class="user-name">
+                  {{ user.firstName }} {{ user.lastName }}
+                  @if (user.passwordResetRequired) {
+                    <span
+                      class="reset-badge"
+                      title="Wymagana zmiana hasla"
+                      aria-label="Wymagana zmiana hasla"
+                    >!</span>
+                  }
+                  @if (!user.active) {
+                    <span
+                      class="inactive-badge"
+                      title="Konto nieaktywne"
+                      aria-label="Konto nieaktywne"
+                    >Zablokowany</span>
+                  }
+                </td>
+                <td class="user-email">{{ user.email }}</td>
+                <td>
+                  <span
+                    class="role-badge"
+                    [class.role-badge--admin]="user.role === 'ADMIN'"
+                    [class.role-badge--supervisor]="user.role === 'SUPERVISOR'"
+                    [class.role-badge--agent]="user.role === 'AGENT'"
+                    [attr.aria-label]="'Rola: ' + user.role"
+                  >
+                    {{ getRoleLabel(user.role) }}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    class="status-badge"
+                    [class.status-badge--available]="user.status === 'AVAILABLE'"
+                    [class.status-badge--busy]="user.status === 'BUSY' || user.status === 'AFTER_CONTACT'"
+                    [class.status-badge--break]="user.status === 'BREAK'"
+                    [class.status-badge--active]="user.status === 'ACTIVE'"
+                    [class.status-badge--inactive]="user.status === 'INACTIVE'"
+                    [attr.aria-label]="'Status: ' + user.status"
+                  >
+                    {{ getStatusLabel(user.status) }}
+                  </span>
+                </td>
+                <td>
+                  <div class="skills-list" role="list" aria-label="Skills uzytkownika">
+                    @for (skill of user.skills; track skill) {
+                      <span class="skill-tag" role="listitem">{{ skill }}</span>
+                    }
+                    @if (user.skills.length === 0) {
+                      <span class="no-skills">Brak</span>
+                    }
+                  </div>
+                </td>
+                <td class="user-actions">
+                  <div class="action-group" role="group" [attr.aria-label]="'Akcje dla ' + user.firstName + ' ' + user.lastName">
+                    <button
+                      class="btn btn-icon btn-edit"
+                      type="button"
+                      (click)="openEditModal(user)"
+                      [attr.aria-label]="'Edytuj uzytkownika ' + user.firstName + ' ' + user.lastName"
+                      title="Edytuj"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                      </svg>
+                    </button>
+                    <button
+                      class="btn btn-icon btn-force-reset"
+                      type="button"
+                      (click)="openForceResetModal(user)"
+                      [attr.aria-label]="'Wymus zmiane hasla dla ' + user.firstName + ' ' + user.lastName"
+                      title="Wymus zmiane hasla"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                        <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" />
+                      </svg>
+                    </button>
+                    <button
+                      class="btn btn-icon btn-delete"
+                      type="button"
+                      (click)="openDeleteModal(user)"
+                      [attr.aria-label]="'Usun uzytkownika ' + user.firstName + ' ' + user.lastName"
+                      title="Usun"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <nav class="pagination" aria-label="Nawigacja stron">
+        <span class="pagination__info" aria-live="polite">
+          @if (totalElements() > 0) {
+            Wyswietlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }} wynikow
+          }
+        </span>
+        <div class="pagination__controls">
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onPrevPage()"
+            [disabled]="currentPage() === 0"
+            aria-label="Poprzednia strona"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+            Poprzednia
+          </button>
+          <span class="pagination__pages" aria-current="page">
+            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+          </span>
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onNextPage()"
+            [disabled]="currentPage() + 1 >= totalPages()"
+            aria-label="Nastepna strona"
+          >
+            Nastepna
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          </button>
+        </div>
+      </nav>
+    } @else {
+      <!-- Empty state -->
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+          />
+        </svg>
+        <p class="empty-state__message">Brak uzytkownikow do wyswietlenia.</p>
+        <p class="empty-state__hint">Zmien filtry lub dodaj nowego uzytkownika.</p>
+      </div>
+    }
+  }
+</div>
+
+<!-- Form modal (create / edit) -->
+@if (showFormModal()) {
+  <cc-admin-user-form
+    [tenants]="tenants()"
+    [user]="editingUser()"
+    (saved)="onFormSaved()"
+    (cancelled)="closeFormModal()"
+  />
+}
+
+<!-- Delete confirmation dialog -->
+@if (showDeleteModal() && deletingUser()) {
+  <dialog
+    class="confirm-dialog"
+    open
+    aria-labelledby="delete-dialog-title"
+    aria-modal="true"
+  >
+    <div class="confirm-dialog__content" role="document">
+      <div class="confirm-dialog__header">
+        <h2 id="delete-dialog-title" class="confirm-dialog__title">Usun uzytkownika</h2>
+      </div>
+      <div class="confirm-dialog__body">
+        <p class="confirm-dialog__message">
+          Czy na pewno chcesz usunac uzytkownika
+          <strong>{{ deletingUser()!.firstName }} {{ deletingUser()!.lastName }}</strong>
+          (<span class="confirm-dialog__email">{{ deletingUser()!.email }}</span>)?
+        </p>
+        <p class="confirm-dialog__warning">
+          Ta operacja jest nieodwracalna. Uzytkownik zostanie trwale zablokowany i ukryty.
+        </p>
+      </div>
+      <div class="confirm-dialog__footer">
+        <button
+          class="btn btn-cancel"
+          type="button"
+          (click)="closeDeleteModal()"
+          [disabled]="deleteSubmitting()"
+        >
+          Anuluj
+        </button>
+        <button
+          class="btn btn-danger"
+          type="button"
+          (click)="confirmDelete()"
+          [disabled]="deleteSubmitting()"
+          [attr.aria-disabled]="deleteSubmitting()"
+          aria-label="Potwierdz usuniecie uzytkownika"
+        >
+          @if (deleteSubmitting()) {
+            <span class="spinner" aria-hidden="true"></span>
+            Usuwanie...
+          } @else {
+            Usun
+          }
+        </button>
+      </div>
+    </div>
+  </dialog>
+  <div class="confirm-dialog-backdrop" (click)="closeDeleteModal()" aria-hidden="true"></div>
+}
+
+<!-- Force password reset confirmation dialog -->
+@if (showForceResetModal() && forceResetUser()) {
+  <dialog
+    class="confirm-dialog"
+    open
+    aria-labelledby="force-reset-dialog-title"
+    aria-modal="true"
+  >
+    <div class="confirm-dialog__content" role="document">
+      <div class="confirm-dialog__header">
+        <h2 id="force-reset-dialog-title" class="confirm-dialog__title">Wymus zmiane hasla</h2>
+      </div>
+      <div class="confirm-dialog__body">
+        <p class="confirm-dialog__message">
+          Czy na pewno chcesz wymusic zmiane hasla dla uzytkownika
+          <strong>{{ forceResetUser()!.firstName }} {{ forceResetUser()!.lastName }}</strong>
+          (<span class="confirm-dialog__email">{{ forceResetUser()!.email }}</span>)?
+        </p>
+        <p class="confirm-dialog__info">
+          Uzytkownik bedzie musial zmienic haslo przy nastepnym logowaniu.
+        </p>
+      </div>
+      <div class="confirm-dialog__footer">
+        <button
+          class="btn btn-cancel"
+          type="button"
+          (click)="closeForceResetModal()"
+          [disabled]="forceResetSubmitting()"
+        >
+          Anuluj
+        </button>
+        <button
+          class="btn btn-warning"
+          type="button"
+          (click)="confirmForceReset()"
+          [disabled]="forceResetSubmitting()"
+          [attr.aria-disabled]="forceResetSubmitting()"
+          aria-label="Potwierdz wymuszenie zmiany hasla"
+        >
+          @if (forceResetSubmitting()) {
+            <span class="spinner" aria-hidden="true"></span>
+            Przetwarzanie...
+          } @else {
+            Wymus zmiane hasla
+          }
+        </button>
+      </div>
+    </div>
+  </dialog>
+  <div class="confirm-dialog-backdrop" (click)="closeForceResetModal()" aria-hidden="true"></div>
+}

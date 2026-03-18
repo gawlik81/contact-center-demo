@@ -1,0 +1,247 @@
+<dialog
+  #dialogEl
+  class="user-form-dialog"
+  aria-labelledby="admin-user-form-title"
+  (click)="$event.target === dialogEl ? onCancel() : null"
+>
+  <div class="user-form-dialog__content" role="document">
+    <div class="user-form-dialog__header">
+      <h2 id="admin-user-form-title" class="user-form-dialog__title">
+        @if (isEditMode()) {
+          Edytuj uzytkownika
+        } @else {
+          Nowy uzytkownik
+        }
+      </h2>
+      <button class="btn-close" type="button" (click)="onCancel()" aria-label="Zamknij formularz">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </div>
+
+    <form
+      class="user-form-dialog__body"
+      [formGroup]="form"
+      (ngSubmit)="onSubmit()"
+      novalidate
+      id="admin-user-form"
+    >
+      <!-- Tenant selector (only in create mode) -->
+      @if (!isEditMode()) {
+        <div class="form-field" [class.form-field--error]="tenantIdError">
+          <label class="form-label" for="tenantId">
+            Tenant <span class="required" aria-hidden="true">*</span>
+          </label>
+          <select
+            id="tenantId"
+            class="form-select"
+            formControlName="tenantId"
+            aria-required="true"
+            [attr.aria-describedby]="tenantIdError ? 'tenantId-error' : null"
+            [attr.aria-invalid]="tenantIdError ? 'true' : null"
+          >
+            <option value="">-- Wybierz tenant --</option>
+            @for (tenant of tenants(); track tenant.id) {
+              <option [value]="tenant.id">{{ tenant.name }}</option>
+            }
+          </select>
+          @if (tenantIdError) {
+            <span id="tenantId-error" class="form-error" role="alert">{{ tenantIdError }}</span>
+          }
+        </div>
+      }
+
+      <!-- First name -->
+      <div class="form-field" [class.form-field--error]="firstNameError">
+        <label class="form-label" for="adm-firstName">
+          Imie <span class="required" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="adm-firstName"
+          type="text"
+          class="form-input"
+          formControlName="firstName"
+          autocomplete="given-name"
+          [attr.aria-describedby]="firstNameError ? 'adm-firstName-error' : null"
+          [attr.aria-invalid]="firstNameError ? 'true' : null"
+        />
+        @if (firstNameError) {
+          <span id="adm-firstName-error" class="form-error" role="alert">{{ firstNameError }}</span>
+        }
+      </div>
+
+      <!-- Last name -->
+      <div class="form-field" [class.form-field--error]="lastNameError">
+        <label class="form-label" for="adm-lastName">
+          Nazwisko <span class="required" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="adm-lastName"
+          type="text"
+          class="form-input"
+          formControlName="lastName"
+          autocomplete="family-name"
+          [attr.aria-describedby]="lastNameError ? 'adm-lastName-error' : null"
+          [attr.aria-invalid]="lastNameError ? 'true' : null"
+        />
+        @if (lastNameError) {
+          <span id="adm-lastName-error" class="form-error" role="alert">{{ lastNameError }}</span>
+        }
+      </div>
+
+      <!-- Email -->
+      <div class="form-field" [class.form-field--error]="emailError">
+        <label class="form-label" for="adm-email">
+          Email <span class="required" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="adm-email"
+          type="email"
+          class="form-input"
+          formControlName="email"
+          autocomplete="email"
+          [attr.aria-describedby]="emailError ? 'adm-email-error' : null"
+          [attr.aria-invalid]="emailError ? 'true' : null"
+        />
+        @if (emailError) {
+          <span id="adm-email-error" class="form-error" role="alert">{{ emailError }}</span>
+        }
+      </div>
+
+      <!-- Password (only in create mode) -->
+      @if (!isEditMode()) {
+        <div class="form-field" [class.form-field--error]="passwordError">
+          <label class="form-label" for="adm-password">
+            Haslo <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="adm-password"
+            type="password"
+            class="form-input"
+            formControlName="password"
+            autocomplete="new-password"
+            [attr.aria-describedby]="passwordError ? 'adm-password-error' : 'adm-password-hint'"
+            [attr.aria-invalid]="passwordError ? 'true' : null"
+          />
+          @if (passwordError) {
+            <span id="adm-password-error" class="form-error" role="alert">{{ passwordError }}</span>
+          } @else {
+            <span id="adm-password-hint" class="form-hint">Min. 8 znakow, 1 wielka litera, 1 cyfra.</span>
+          }
+        </div>
+      }
+
+      <!-- Role -->
+      <div class="form-field">
+        <label class="form-label" for="adm-role">
+          Rola <span class="required" aria-hidden="true">*</span>
+        </label>
+        <select id="adm-role" class="form-select" formControlName="role" aria-required="true">
+          @for (opt of roleOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Active toggle (only in edit mode) -->
+      @if (isEditMode()) {
+        <div class="form-field form-field--checkbox">
+          <label class="form-label form-label--checkbox" for="adm-active">
+            <input
+              id="adm-active"
+              type="checkbox"
+              class="form-checkbox"
+              formControlName="active"
+            />
+            Konto aktywne
+          </label>
+          <span class="form-hint">Odznaczenie zablokuje mozliwosc logowania uzytkownika.</span>
+        </div>
+      }
+
+      <!-- Skills multi-select -->
+      <div class="form-field">
+        <label class="form-label" for="adm-skill-input">Skills</label>
+        <div class="skills-container" role="group" aria-label="Wybrane skills">
+          @for (skill of selectedSkills(); track skill) {
+            <span class="skill-chip">
+              {{ skill }}
+              <button
+                type="button"
+                class="skill-chip__remove"
+                (click)="removeSkill(skill)"
+                [attr.aria-label]="'Usun skill ' + skill"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true">
+                  <path
+                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  />
+                </svg>
+              </button>
+            </span>
+          }
+          <div class="skill-input-wrapper">
+            <input
+              id="adm-skill-input"
+              type="text"
+              class="skill-input"
+              [value]="skillInput()"
+              placeholder="Dodaj skill..."
+              autocomplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              [attr.aria-expanded]="showSkillDropdown() && filteredSkills().length > 0"
+              aria-controls="adm-skill-dropdown"
+              (input)="onSkillInputChange($event)"
+              (focus)="onSkillInputFocus()"
+              (blur)="onSkillInputBlur()"
+              (keydown)="onSkillInputKeydown($event)"
+            />
+            @if (showSkillDropdown() && filteredSkills().length > 0) {
+              <ul
+                id="adm-skill-dropdown"
+                class="skill-dropdown"
+                role="listbox"
+                aria-label="Dostepne skills"
+              >
+                @for (skill of filteredSkills(); track skill) {
+                  <li
+                    class="skill-dropdown__item"
+                    role="option"
+                    (mousedown)="addSkill(skill)"
+                    [attr.aria-selected]="false"
+                  >
+                    {{ skill }}
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </div>
+        <span class="form-hint">Nacisnij Enter lub wybierz z listy, aby dodac skill.</span>
+      </div>
+    </form>
+
+    <div class="user-form-dialog__footer">
+      <button class="btn btn-cancel" type="button" (click)="onCancel()">Anuluj</button>
+      <button
+        class="btn btn-save"
+        type="submit"
+        form="admin-user-form"
+        [disabled]="isSaveDisabled"
+        [attr.aria-disabled]="isSaveDisabled"
+        [attr.aria-label]="isEditMode() ? 'Zapisz zmiany uzytkownika' : 'Zapisz uzytkownika'"
+      >
+        @if (submitting()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Zapisywanie...
+        } @else {
+          Zapisz
+        }
+      </button>
+    </div>
+  </div>
+</dialog>

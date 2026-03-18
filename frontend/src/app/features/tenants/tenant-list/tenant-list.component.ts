@@ -16,11 +16,12 @@ import { TenantService } from '../tenant.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { Tenant, TenantStatus, PagedResponse } from '../tenant.model';
 import { TenantDeactivateModalComponent } from '../tenant-deactivate-modal/tenant-deactivate-modal.component';
+import { TenantEditModalComponent } from '../tenant-edit-modal/tenant-edit-modal.component';
 
 @Component({
   selector: 'app-tenant-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DatePipe, TenantDeactivateModalComponent],
+  imports: [ReactiveFormsModule, DatePipe, TenantDeactivateModalComponent, TenantEditModalComponent],
   templateUrl: './tenant-list.component.html',
   styleUrl: './tenant-list.component.scss',
 })
@@ -41,8 +42,13 @@ export class TenantListComponent implements OnInit {
   readonly hasPreviousPage = computed(() => this.currentPage() > 0);
   readonly hasNextPage = computed(() => this.currentPage() < this.totalPages() - 1);
 
+  // Modal dezaktywacji
   readonly selectedTenant = signal<Tenant | null>(null);
   readonly showDeactivateModal = signal(false);
+
+  // Modal edycji
+  readonly editingTenant = signal<Tenant | null>(null);
+  readonly showEditModal = signal(false);
 
   readonly filterForm = this.fb.group({
     name: [''],
@@ -119,6 +125,8 @@ export class TenantListComponent implements OnInit {
     }
   }
 
+  // ── Dezaktywacja ──────────────────────────────────────────────────────────
+
   openDeactivateModal(tenant: Tenant): void {
     this.selectedTenant.set(tenant);
     this.showDeactivateModal.set(true);
@@ -148,6 +156,25 @@ export class TenantListComponent implements OnInit {
         this.loadTenants();
       });
   }
+
+  // ── Edycja ────────────────────────────────────────────────────────────────
+
+  openEditModal(tenant: Tenant): void {
+    this.editingTenant.set(tenant);
+    this.showEditModal.set(true);
+  }
+
+  closeEditModal(): void {
+    this.showEditModal.set(false);
+    this.editingTenant.set(null);
+  }
+
+  onEditSaved(): void {
+    this.closeEditModal();
+    this.loadTenants();
+  }
+
+  // ── Nawigacja ─────────────────────────────────────────────────────────────
 
   navigateToNew(): void {
     this.router.navigate(['/admin/tenants/new']);

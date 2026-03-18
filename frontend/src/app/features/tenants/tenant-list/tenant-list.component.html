@@ -88,16 +88,26 @@
                 <td>{{ tenant.config.max_agents }}</td>
                 <td>{{ tenant.createdAt | date: 'dd.MM.yyyy HH:mm' }}</td>
                 <td class="tenant-actions">
-                  @if (tenant.status === 'ACTIVE') {
+                  <div class="action-group" role="group" [attr.aria-label]="'Akcje dla tenanta ' + tenant.name">
                     <button
-                      class="btn btn-danger-outline btn-sm"
+                      class="btn btn-sm btn-outline"
                       type="button"
-                      (click)="openDeactivateModal(tenant)"
-                      [attr.aria-label]="'Dezaktywuj tenanta ' + tenant.name"
+                      (click)="openEditModal(tenant)"
+                      [attr.aria-label]="'Edytuj tenanta ' + tenant.name"
                     >
-                      Dezaktywuj
+                      Edytuj
                     </button>
-                  }
+                    @if (tenant.status === 'ACTIVE') {
+                      <button
+                        class="btn btn-danger-outline btn-sm"
+                        type="button"
+                        (click)="openDeactivateModal(tenant)"
+                        [attr.aria-label]="'Dezaktywuj tenanta ' + tenant.name"
+                      >
+                        Dezaktywuj
+                      </button>
+                    }
+                  </div>
                 </td>
               </tr>
             }
@@ -150,5 +160,14 @@
     [tenant]="selectedTenant()!"
     (confirmed)="onDeactivateConfirmed()"
     (cancelled)="closeDeactivateModal()"
+  />
+}
+
+<!-- Edit modal -->
+@if (showEditModal() && editingTenant()) {
+  <app-tenant-edit-modal
+    [tenant]="editingTenant()!"
+    (saved)="onEditSaved()"
+    (cancelled)="closeEditModal()"
   />
 }

@@ -8,6 +8,7 @@ import {
   PagedResponse,
   Tenant,
   TenantListParams,
+  UpdateTenantRequest,
 } from './tenant.model';
 
 @Injectable({ providedIn: 'root' })
@@ -34,6 +35,10 @@ export class TenantService {
     return this.http.post<Tenant>(this.baseUrl, request);
   }
 
+  updateTenant(id: string, request: UpdateTenantRequest): Observable<Tenant> {
+    return this.http.patch<Tenant>(`${this.baseUrl}/${id}`, request);
+  }
+
   deactivateTenant(id: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/${id}/deactivate`, {});
   }
@@ -41,5 +46,16 @@ export class TenantService {
   checkNameAvailability(name: string): Observable<NameAvailabilityResponse> {
     const params = new HttpParams().set('name', name);
     return this.http.get<NameAvailabilityResponse>(`${this.baseUrl}/check-name`, { params });
+  }
+
+  /** Sprawdza dostępność nazwy przy edycji – wyklucza tenant o podanym ID z porównania. */
+  checkNameAvailabilityForUpdate(
+    tenantId: string,
+    name: string,
+  ): Observable<NameAvailabilityResponse> {
+    const params = new HttpParams().set('name', name);
+    return this.http.get<NameAvailabilityResponse>(`${this.baseUrl}/${tenantId}/check-name`, {
+      params,
+    });
   }
 }

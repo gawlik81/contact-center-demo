@@ -1,32 +1,17 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { AdminUserListComponent } from './admin-user-list/admin-user-list.component';
 
 /**
- * Placeholder for FE-008 – User / Agent management view.
- * Will be implemented as part of FE-008 task.
+ * Panel Admina – zakładka "Uzytkownicy".
+ *
+ * Wyswietla uzytkownikow ze WSZYSTKICH tenantow (cross-tenant).
+ * Deleguje logike do AdminUserListComponent, ktory komunikuje sie
+ * z GET /api/admin/users (cross-tenant endpoint dla roli ADMIN).
  */
 @Component({
   selector: 'cc-admin-users',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="placeholder-page">
-      <h1>Zarządzanie użytkownikami</h1>
-      <p>Widok zostanie zaimplementowany w ramach zadania FE-008.</p>
-    </div>
-  `,
-  styles: [
-    `
-      .placeholder-page {
-        padding: 2rem;
-        color: var(--color-text-primary, #1a1a2e);
-      }
-      h1 {
-        margin-bottom: 0.5rem;
-        font-size: 1.5rem;
-      }
-      p {
-        color: var(--color-text-secondary, #6b7280);
-      }
-    `,
-  ],
+  imports: [AdminUserListComponent],
+  template: `<cc-admin-user-list />`,
 })
 export class AdminUsersComponent {}

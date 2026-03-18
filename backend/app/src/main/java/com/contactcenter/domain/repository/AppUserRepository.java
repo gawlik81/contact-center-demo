@@ -210,4 +210,36 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
               AND is_deleted = FALSE
             """, nativeQuery = true)
     int softDeleteUser(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId);
+
+    // =========================================================================
+    // BE-009: Admin cross-tenant user management
+    // =========================================================================
+
+    /**
+     * Lista wszystkich użytkowników ze wszystkich tenantów (nie usuniętych) z paginacją.
+     *
+     * <p>Używana wyłącznie przez AdminUserController – nie wymaga filtru tenantId,
+     * ponieważ Admin ma dostęp do wszystkich tenantów. Brak RLS – repozytorium
+     * rozszerza JpaRepository (nie TenantAwareRepository), więc zapytanie
+     * nie wywołuje set_tenant_context() i nie jest blokowane przez RLS.
+     *
+     * @param pageable parametry stronicowania
+     * @return strona wszystkich użytkowników
+     */
+    Page<AppUser> findAllByDeletedFalse(Pageable pageable);
+
+    /**
+     * Lista użytkowników danego tenanta (nie usuniętych) z paginacją.
+     * Wariant dla Admin – jawne przekazanie tenantId zamiast pobierania z TenantContext.
+     *
+     * <p>Tożsamy z {@link #findAllByTenantIdAndDeletedFalse} – jest to alias
+     * dla czytelności kodu w AdminUserService.
+     *
+     * @param tenantId UUID tenanta
+     * @param pageable parametry stronicowania
+     * @return strona użytkowników tenanta
+     */
+    default Page<AppUser> findAllByTenantIdAndDeletedFalseForAdmin(UUID tenantId, Pageable pageable) {
+        return findAllByTenantIdAndDeletedFalse(tenantId, pageable);
+    }
 }

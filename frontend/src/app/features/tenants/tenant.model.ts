@@ -37,6 +37,16 @@ export interface CreateTenantRequest {
   };
 }
 
+export interface UpdateTenantRequest {
+  name?: string | null;
+  status?: TenantStatus | null;
+  limits?: {
+    max_agents?: number | null;
+    max_queues?: number | null;
+    max_campaigns?: number | null;
+  } | null;
+}
+
 export interface PagedResponse<T> {
   content: T[];
   totalElements: number;

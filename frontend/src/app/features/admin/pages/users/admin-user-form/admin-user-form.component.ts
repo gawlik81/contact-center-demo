@@ -21,9 +21,11 @@ import {
   Validators,
 } from '@angular/forms';
 import { catchError, of } from 'rxjs';
-import { UserService } from '../../../services/user.service';
+import { AdminUserService } from '../../../services/admin-user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
-import { UserResponse, UserRole } from '../../../models/user.model';
+import { Tenant } from '../../../../tenants/tenant.model';
+import { AdminUserResponse } from '../../../models/admin-user.model';
+import { UserRole } from '../../../../supervisor/models/user.model';
 
 function passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
   const val: string = control.value ?? '';
@@ -35,23 +37,24 @@ function passwordStrengthValidator(control: AbstractControl): ValidationErrors |
 }
 
 @Component({
-  selector: 'app-user-form',
+  selector: 'cc-admin-user-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule],
-  templateUrl: './user-form.component.html',
-  styleUrl: './user-form.component.scss',
+  templateUrl: './admin-user-form.component.html',
+  styleUrl: './admin-user-form.component.scss',
   host: {
     '(document:keydown.escape)': 'onEscapeKey($event)',
   },
 })
-export class UserFormComponent implements OnInit, AfterViewInit {
-  readonly user = input<UserResponse | null>(null);
-  readonly isEditMode = input<boolean>(false);
+export class AdminUserFormComponent implements OnInit, AfterViewInit {
+  readonly tenants = input.required<Tenant[]>();
+  /** Gdy przekazany – formularz działa w trybie edycji */
+  readonly user = input<AdminUserResponse | null>(null);
 
   readonly saved = output<void>();
   readonly cancelled = output<void>();
 
-  private readonly userService = inject(UserService);
+  private readonly adminUserService = inject(AdminUserService);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
@@ -64,38 +67,50 @@ export class UserFormComponent implements OnInit, AfterViewInit {
   readonly skillInput = signal('');
   readonly showSkillDropdown = signal(false);
 
+  readonly isEditMode = computed(() => this.user() !== null);
+
   readonly roleOptions: { value: UserRole; label: string }[] = [
     { value: 'AGENT', label: 'Agent' },
     { value: 'SUPERVISOR', label: 'Supervisor' },
+    { value: 'ADMIN', label: 'Admin' },
   ];
 
   readonly form = this.fb.group({
+    tenantId: ['' as string, Validators.required],
     firstName: ['', [Validators.required, Validators.maxLength(100)]],
     lastName: ['', [Validators.required, Validators.maxLength(100)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(255)]],
-    password: ['', []],
+    password: ['', [Validators.required, passwordStrengthValidator]],
     role: ['AGENT' as UserRole, Validators.required],
+    active: [true],
   });
 
   ngOnInit(): void {
-    this.loadSkills();
-
     const editUser = this.user();
-    if (this.isEditMode() && editUser) {
+    if (editUser) {
+      // Tryb edycji – wypełnij formularz danymi użytkownika
       this.form.patchValue({
+        tenantId: editUser.tenantId,
         firstName: editUser.firstName,
         lastName: editUser.lastName,
         email: editUser.email,
         role: editUser.role,
+        active: editUser.active,
       });
       this.selectedSkills.set([...editUser.skills]);
-      this.form.get('email')?.disable();
+      // Email disabled – nie pozwolamy zmienić w uproszczonym trybie
+      // (możliwe przez pole aktywne dla ADMIN)
+      this.form.get('tenantId')?.disable();
+      // Hasło opcjonalne w trybie edycji
       this.form.get('password')?.clearValidators();
+      this.form.get('password')?.updateValueAndValidity();
     } else {
-      this.form.get('email')?.enable();
-      this.form.get('password')?.setValidators([Validators.required, passwordStrengthValidator]);
+      // Tryb tworzenia – pre-select first tenant if only one available
+      const tenantList = this.tenants();
+      if (tenantList.length === 1) {
+        this.form.get('tenantId')?.setValue(tenantList[0].id);
+      }
     }
-    this.form.get('password')?.updateValueAndValidity();
   }
 
   ngAfterViewInit(): void {
@@ -108,16 +123,6 @@ export class UserFormComponent implements OnInit, AfterViewInit {
   onEscapeKey(event: Event): void {
     event.preventDefault();
     this.onCancel();
-  }
-
-  private loadSkills(): void {
-    this.userService
-      .getSkills()
-      .pipe(
-        catchError(() => of<string[]>([])),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((skills) => this.availableSkills.set(skills));
   }
 
   readonly filteredSkills = computed(() => {
@@ -139,7 +144,6 @@ export class UserFormComponent implements OnInit, AfterViewInit {
   }
 
   onSkillInputBlur(): void {
-    // Delay to allow click on dropdown option to register first
     setTimeout(() => this.showSkillDropdown.set(false), 150);
   }
 
@@ -163,6 +167,13 @@ export class UserFormComponent implements OnInit, AfterViewInit {
 
   removeSkill(skill: string): void {
     this.selectedSkills.update((list) => list.filter((s) => s !== skill));
+  }
+
+  get tenantIdError(): string | null {
+    const ctrl = this.form.get('tenantId')!;
+    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
+    if (ctrl.hasError('required')) return 'Tenant jest wymagany.';
+    return null;
   }
 
   get firstNameError(): string | null {
@@ -212,33 +223,41 @@ export class UserFormComponent implements OnInit, AfterViewInit {
     this.submitting.set(true);
     const raw = this.form.getRawValue();
     const skills = this.selectedSkills();
-
     const editUser = this.user();
-    if (this.isEditMode() && editUser) {
-      this.userService
-        .updateUser(editUser.userId, {
+
+    if (editUser) {
+      // Tryb edycji
+      this.adminUserService
+        .updateUser(editUser.id, {
           firstName: raw.firstName!.trim(),
           lastName: raw.lastName!.trim(),
+          email: raw.email!.trim(),
           role: raw.role as UserRole,
           skills,
+          active: raw.active ?? true,
         })
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: () => {
+        .pipe(
+          catchError(() => {
+            this.submitting.set(false);
+            this.notifications.error('Nie udalo sie zaktualizowac uzytkownika. Sprobuj ponownie.');
+            return of(null);
+          }),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe((updated) => {
+          if (updated) {
             this.submitting.set(false);
             this.notifications.success(
-              `Agent "${raw.firstName} ${raw.lastName}" zostal zaktualizowany.`,
+              `Uzytkownik "${updated.firstName} ${updated.lastName}" zostal zaktualizowany.`,
             );
             this.saved.emit();
-          },
-          error: () => {
-            this.submitting.set(false);
-            this.notifications.error('Nie udalo sie zaktualizowac agenta. Sprobuj ponownie.');
-          },
+          }
         });
     } else {
-      this.userService
+      // Tryb tworzenia
+      this.adminUserService
         .createUser({
+          tenantId: raw.tenantId!,
           firstName: raw.firstName!.trim(),
           lastName: raw.lastName!.trim(),
           email: raw.email!.trim(),
@@ -246,25 +265,22 @@ export class UserFormComponent implements OnInit, AfterViewInit {
           role: raw.role as UserRole,
           skills,
         })
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: (created) => {
+        .pipe(
+          catchError(() => {
+            this.submitting.set(false);
+            this.notifications.error('Nie udalo sie utworzyc uzytkownika. Sprobuj ponownie.');
+            return of(null);
+          }),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe((created) => {
+          if (created) {
             this.submitting.set(false);
             this.notifications.success(
-              `Agent "${created.firstName} ${created.lastName}" zostal utworzony.`,
+              `Uzytkownik "${created.firstName} ${created.lastName}" zostal utworzony.`,
             );
             this.saved.emit();
-          },
-          error: (err: { status?: number }) => {
-            this.submitting.set(false);
-            if (err?.status === 403) {
-              this.notifications.error(
-                'Supervisorzy moga tworzyc uzytkownikow tylko z rola Supervisor lub Agent.',
-              );
-            } else {
-              this.notifications.error('Nie udalo sie utworzyc uzytkownika. Sprobuj ponownie.');
-            }
-          },
+          }
         });
     }
   }

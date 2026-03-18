@@ -83,25 +83,37 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     // =========================================================================
 
     /**
-     * Rejestruje endpoint WebSocket/SockJS.
+     * Rejestruje endpointy WebSocket/STOMP.
      *
-     * <p>Klienci łączą się pod adresem:
+     * <p>Endpoint {@code /ws} – z SockJS fallback (dla przyszłych klientów/starszych przeglądarek):
      * <ul>
-     *   <li>Native WebSocket: {@code ws://localhost:8080/ws}</li>
-     *   <li>SockJS: {@code http://localhost:8080/ws} (fallback HTTP long-polling / SSE)</li>
+     *   <li>SockJS: {@code http://localhost:8080/ws}</li>
      * </ul>
      *
-     * <p>Endpoint {@code /ws} jest skonfigurowany jako publiczny w SecurityConfig,
-     * ponieważ autentykacja odbywa się w warstwie STOMP (frame CONNECT + JWT interceptor).
+     * <p>Endpoint {@code /ws-native} – plain WebSocket + STOMP (bez SockJS):
+     * <ul>
+     *   <li>Native WebSocket: {@code ws://localhost:8080/ws-native}</li>
+     * </ul>
+     * Angular Agent Desktop łączy się przez {@code /ws-native} natywnym {@code WebSocket} API,
+     * ponieważ {@code sockjs-client} nie jest zależnością projektu frontend.
+     *
+     * <p>Oba endpointy używają tych samych interceptorów (WebSocketAuthInterceptor), brokera STOMP
+     * i destinations ({@code /user/events}, {@code /topic/tenant/{id}/supervisor}).
+     * Oba są publiczne w SecurityConfig (autentykacja na poziomie STOMP CONNECT frame + JWT).
      */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // Endpoint z SockJS – zachowany dla kompatybilności
         registry.addEndpoint("/ws")
                 .setAllowedOrigins(allowedOrigins.toArray(String[]::new))
-                // SockJS fallback dla środowisk bez natywnych WebSocket
                 .withSockJS();
 
-        log.info("[WebSocket] STOMP endpoint zarejestrowany: /ws (SockJS enabled). Allowed origins: {}",
+        // Endpoint plain WebSocket + STOMP – używany przez Angular Agent Desktop
+        registry.addEndpoint("/ws-native")
+                .setAllowedOrigins(allowedOrigins.toArray(String[]::new));
+        // Brak .withSockJS() – natywny protokół WebSocket (RFC 6455)
+
+        log.info("[WebSocket] STOMP endpointy zarejestrowane: /ws (SockJS), /ws-native (plain WS). Allowed origins: {}",
                 allowedOrigins);
     }
 

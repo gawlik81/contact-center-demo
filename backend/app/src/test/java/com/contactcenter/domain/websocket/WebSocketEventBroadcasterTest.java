@@ -21,7 +21,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Testy jednostkowe dla {@link WebSocketEventBroadcaster}.
@@ -68,32 +67,30 @@ class WebSocketEventBroadcasterTest {
     class SendToUserTest {
 
         @Test
-        @DisplayName("Wywołuje convertAndSendToUser z poprawnym userId i destination /events")
+        @DisplayName("Wywołuje convertAndSend z poprawnym destination /topic/user/{userId}/events")
         void shouldCallConvertAndSendToUserWithCorrectDestination() {
             broadcaster.sendToUser(USER_ID, sampleEvent);
 
-            verify(messagingTemplate).convertAndSendToUser(
-                    eq(USER_ID.toString()),
-                    eq("/events"),
-                    eq(sampleEvent)
-            );
+            String expectedDestination = "/topic/user/" + USER_ID + "/events";
+            verify(messagingTemplate).convertAndSend(eq(expectedDestination), eq(sampleEvent));
         }
 
         @Test
-        @DisplayName("userId przekazywany jako String (zgodnie z Principal.getName())")
+        @DisplayName("userId jest częścią destination path")
         void shouldPassUserIdAsString() {
-            ArgumentCaptor<String> userIdCaptor = ArgumentCaptor.forClass(String.class);
+            ArgumentCaptor<String> destinationCaptor = ArgumentCaptor.forClass(String.class);
+
             broadcaster.sendToUser(USER_ID, sampleEvent);
-            verify(messagingTemplate).convertAndSendToUser(
-                    userIdCaptor.capture(), anyString(), any());
-            assertThat(userIdCaptor.getValue()).isEqualTo(USER_ID.toString());
+
+            verify(messagingTemplate).convertAndSend(destinationCaptor.capture(), any(Object.class));
+            assertThat(destinationCaptor.getValue()).contains(USER_ID.toString());
         }
 
         @Test
         @DisplayName("Wyjątek przy wysyłce nie propaguje się do wywołującego")
         void shouldNotPropagateExceptionOnSendFailure() {
             doThrow(new RuntimeException("Broker niedostępny"))
-                    .when(messagingTemplate).convertAndSendToUser(anyString(), anyString(), any());
+                    .when(messagingTemplate).convertAndSend(anyString(), any(Object.class));
 
             assertThatNoException().isThrownBy(
                     () -> broadcaster.sendToUser(USER_ID, sampleEvent)

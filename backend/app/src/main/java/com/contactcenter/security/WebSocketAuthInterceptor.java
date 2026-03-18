@@ -10,7 +10,6 @@ import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -74,31 +73,30 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             throw new MessagingException("Nieprawidłowy token JWT: " + e.getMessage(), e);
         }
 
-        // Tworzymy mutable accessor, żeby móc ustawić Principal.
-        // accessor.getAccessor() może zwrócić immutable headers gdy wiadomość jest "frozen",
-        // dlatego tworzymy nowy mutable StompHeaderAccessor z nagłówkami oryginalnej wiadomości.
-        StompHeaderAccessor mutableAccessor = StompHeaderAccessor.wrap(message);
-        mutableAccessor.setLeaveMutable(true);
-
-        // Ustaw StompPrincipal – Spring STOMP używa Principal.getName() do routowania
-        // wiadomości na /user/{userId}/events
+        // Używamy ORYGINALNEGO, mutable accessora z wiadomości CONNECT.
+        // Frames CONNECT przychodzące przez kanał wejściowy są zawsze mutable –
+        // mutacja oryginalnego accessora (nie tworzenie nowej wiadomości) jest wymagana,
+        // aby Spring DefaultSimpUserRegistry poprawnie zarejestrował użytkownika.
+        // Tworzenie nowej wiadomości przez MessageBuilder.createMessage() zrywa powiązanie
+        // accessora z oryginałem, co powoduje że SimpUserRegistry nie widzi Principal
+        // i convertAndSendToUser() nie dostarcza wiadomości (brak sesji w rejestrze).
         StompPrincipal principal = new StompPrincipal(
                 claims.userId(),
                 claims.tenantId(),
                 claims.role()
         );
-        mutableAccessor.setUser(principal);
+        accessor.setUser(principal);
 
         // Zapisz atrybuty w sesji – dostępne w @MessageMapping przez SimpMessageHeaderAccessor
-        if (mutableAccessor.getSessionAttributes() != null) {
-            mutableAccessor.getSessionAttributes().put(SESSION_ATTR_TENANT_ID, claims.tenantId().toString());
-            mutableAccessor.getSessionAttributes().put(SESSION_ATTR_ROLE, claims.role());
+        if (accessor.getSessionAttributes() != null) {
+            accessor.getSessionAttributes().put(SESSION_ATTR_TENANT_ID, claims.tenantId().toString());
+            accessor.getSessionAttributes().put(SESSION_ATTR_ROLE, claims.role());
         }
 
         log.info("[WS-Auth] Autoryzacja WebSocket: userId={}, tenantId={}, role={}",
                 claims.userId(), claims.tenantId(), claims.role());
 
-        return MessageBuilder.createMessage(message.getPayload(), mutableAccessor.getMessageHeaders());
+        return message;
     }
 
     // =========================================================================

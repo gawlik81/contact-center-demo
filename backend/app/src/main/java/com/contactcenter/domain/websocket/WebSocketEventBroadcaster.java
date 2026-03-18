@@ -28,7 +28,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class WebSocketEventBroadcaster {
 
-    private static final String DESTINATION_USER_EVENTS    = "/events";
+    private static final String DESTINATION_USER_EVENTS       = "/topic/user/%s/events";
     private static final String DESTINATION_TENANT_SUPERVISOR = "/topic/tenant/%s/supervisor";
     private static final String DESTINATION_TENANT_AGENTS     = "/topic/tenant/%s/agents";
 
@@ -50,8 +50,9 @@ public class WebSocketEventBroadcaster {
      */
     public void sendToUser(UUID userId, WebSocketEvent event) {
         String userIdStr = userId.toString();
+        String destination = DESTINATION_USER_EVENTS.formatted(userIdStr);
         try {
-            messagingTemplate.convertAndSendToUser(userIdStr, DESTINATION_USER_EVENTS, event);
+            messagingTemplate.convertAndSend(destination, event);
             log.debug("[WS-Broadcast] Unicast → userId={}, eventType={}", userIdStr, event.eventType());
         } catch (Exception e) {
             log.error("[WS-Broadcast] Błąd wysyłki unicast do userId={}, eventType={}: {}",

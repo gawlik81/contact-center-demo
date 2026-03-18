@@ -10,7 +10,7 @@ export type WsEventType =
   | 'PONG';
 
 export interface WsEvent {
-  type: WsEventType;
+  eventType: WsEventType;
   payload: unknown;
 }
 

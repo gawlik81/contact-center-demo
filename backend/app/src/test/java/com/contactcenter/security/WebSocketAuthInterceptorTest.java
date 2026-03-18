@@ -78,6 +78,12 @@ class WebSocketAuthInterceptorTest {
     // Pomocnicze metody do budowania wiadomości STOMP
     // =========================================================================
 
+    /**
+     * Buduje wiadomość STOMP CONNECT z mutowalnym accessorem – dokładnie tak,
+     * jak Spring dostarcza wiadomości przez kanał wejściowy (inbound channel).
+     * Wymaga {@code setLeaveMutable(true)}, inaczej {@code MessageHeaders}
+     * zamrozi nagłówki i interceptor rzuci "Already immutable" przy {@code setUser()}.
+     */
     private Message<?> buildConnectMessage(String authHeaderValue, String tokenHeaderValue) {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
         accessor.setSessionAttributes(new HashMap<>());
@@ -90,12 +96,14 @@ class WebSocketAuthInterceptorTest {
             accessor.addNativeHeader("token", tokenHeaderValue);
         }
 
+        accessor.setLeaveMutable(true);
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
     private Message<?> buildNonConnectMessage(StompCommand command) {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(command);
         accessor.setSessionId("test-session-id");
+        accessor.setLeaveMutable(true);
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 

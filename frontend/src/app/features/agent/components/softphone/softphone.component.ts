@@ -1,0 +1,164 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Input,
+  OnInit,
+  OnDestroy,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { SoftphoneService } from '../../services/softphone.service';
+import { ContactTab } from '../../models/contact-tab.model';
+import { CallSession } from '../../models/call-session.model';
+
+type TransferMode = 'BLIND' | 'ATTENDED';
+
+@Component({
+  selector: 'app-softphone',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [FormsModule],
+  templateUrl: './softphone.component.html',
+  styleUrl: './softphone.component.scss',
+})
+export class SoftphoneComponent implements OnInit, OnDestroy {
+  @Input({ required: true }) tab!: ContactTab;
+
+  protected readonly softphone = inject(SoftphoneService);
+
+  protected readonly session = this.softphone.session;
+
+  protected readonly transferMode = signal<TransferMode>('BLIND');
+  protected readonly transferTarget = signal<string>('');
+  protected readonly attendedConnected = signal<boolean>(false);
+
+  protected readonly transferTargetValid = computed(
+    () => this.transferTarget().replace(/[\s+]/g, '').length >= 3,
+  );
+
+  protected readonly formattedDuration = computed(() => {
+    const s = this.session();
+    if (!s) return '00:00';
+    return this.formatSeconds(s.duration);
+  });
+
+  protected readonly formattedHoldDuration = computed(() => {
+    const s = this.session();
+    if (!s || !s.holdStartedAt) return '00:00';
+    const elapsed = Math.floor((new Date().getTime() - s.holdStartedAt.getTime()) / 1000);
+    return this.formatSeconds(elapsed);
+  });
+
+  protected readonly customerInitial = computed(() => {
+    const s = this.session();
+    return s ? s.customerName.charAt(0).toUpperCase() : '?';
+  });
+
+  private holdTickInterval: ReturnType<typeof setInterval> | null = null;
+
+  ngOnInit(): void {
+    // Force re-render of hold timer tick
+    this.holdTickInterval = setInterval(() => {
+      // Reading the signal will not re-render by itself when ON_HOLD;
+      // we need a small auxiliary signal to trigger CD.
+      this._holdTick.update((v) => v + 1);
+    }, 1000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.holdTickInterval !== null) {
+      clearInterval(this.holdTickInterval);
+    }
+  }
+
+  // auxiliary tick to force hold-timer re-evaluation in OnPush
+  protected readonly _holdTick = signal(0);
+
+  protected answer(): void {
+    this.softphone.answerCall();
+  }
+
+  protected reject(): void {
+    this.softphone.rejectCall();
+  }
+
+  protected hangup(): void {
+    this.softphone.hangupCall();
+  }
+
+  protected toggleMute(): void {
+    this.softphone.toggleMute();
+  }
+
+  protected toggleHold(): void {
+    this.softphone.toggleHold();
+  }
+
+  protected setTransferMode(mode: TransferMode): void {
+    this.transferMode.set(mode);
+    this.transferTarget.set('');
+    this.attendedConnected.set(false);
+  }
+
+  protected onTransferTargetChange(value: string): void {
+    this.transferTarget.set(value);
+  }
+
+  protected submitTransfer(): void {
+    const target = this.transferTarget();
+    if (!this.transferTargetValid()) return;
+    if (this.transferMode() === 'BLIND') {
+      this.softphone.initiateBlindTransfer(target);
+    } else {
+      this.softphone.initiateAttendedTransfer(target);
+      this.attendedConnected.set(true);
+    }
+  }
+
+  protected completeAttended(): void {
+    this.softphone.completeAttendedTransfer();
+  }
+
+  protected cancelTransfer(): void {
+    this.softphone.cancelTransfer();
+    this.transferTarget.set('');
+    this.attendedConnected.set(false);
+  }
+
+  protected openTransferView(): void {
+    const s = this.session();
+    if (!s || s.state !== 'ACTIVE') return;
+    // temporarily set state via service (no direct mutation)
+    // We show the transfer panel by setting a local signal;
+    // actual state change happens only when the user confirms
+    this._showTransferPanel.set(true);
+  }
+
+  protected closeTransferPanel(): void {
+    this._showTransferPanel.set(false);
+    this.transferTarget.set('');
+    this.attendedConnected.set(false);
+  }
+
+  protected readonly _showTransferPanel = signal(false);
+
+  protected formatSeconds(total: number): string {
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) {
+      return `${this.pad(h)}:${this.pad(m)}:${this.pad(s)}`;
+    }
+    return `${this.pad(m)}:${this.pad(s)}`;
+  }
+
+  private pad(n: number): string {
+    return n.toString().padStart(2, '0');
+  }
+
+  protected trackSession(_: number, s: CallSession): string {
+    return s.contactId;
+  }
+}

@@ -1,0 +1,628 @@
+// ============================================================
+// Softphone component – BEM
+// ============================================================
+
+:host {
+  display: block;
+  height: 100%;
+}
+
+.softphone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 24px 20px;
+  height: 100%;
+  box-sizing: border-box;
+  background: #fafafa;
+  border-radius: 8px;
+  gap: 16px;
+  font-family: inherit;
+
+  // ── State colour accents ────────────────────────────────
+  &--ringing {
+    background: linear-gradient(160deg, #f0fff4 0%, #fafafa 60%);
+  }
+
+  &--active {
+    background: linear-gradient(160deg, #f0f4ff 0%, #fafafa 60%);
+  }
+
+  &--hold {
+    background: linear-gradient(160deg, #fff8e1 0%, #fafafa 60%);
+  }
+
+  &--transferring {
+    background: linear-gradient(160deg, #f3e5f5 0%, #fafafa 60%);
+  }
+
+  &--ended {
+    background: linear-gradient(160deg, #e8f5e9 0%, #fafafa 60%);
+  }
+
+  &--idle {
+    justify-content: center;
+    color: #9e9e9e;
+  }
+
+  // ── State icon ──────────────────────────────────────────
+  &__state-icon {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+
+    &--ring {
+      color: #4caf50;
+    }
+
+    &--hold {
+      color: #f57c00;
+    }
+
+    &--transfer {
+      color: #7b1fa2;
+    }
+
+    &--ended {
+      color: #2e7d32;
+    }
+  }
+
+  &__state-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #424242;
+    margin: 0;
+  }
+
+  // ── Ringing ──────────────────────────────────────────────
+  &__ringing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+  }
+
+  &__ringing-actions {
+    display: flex;
+    gap: 32px;
+    margin-top: 8px;
+  }
+
+  // ── Avatar ───────────────────────────────────────────────
+  &__avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #42a5f5 0%, #1565c0 100%);
+    color: #fff;
+    font-size: 28px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    flex-shrink: 0;
+
+    &--pulse {
+      animation: softphone-pulse 1.4s ease-in-out infinite;
+    }
+  }
+
+  @keyframes softphone-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(66, 165, 245, 0.5);
+    }
+    70% {
+      box-shadow: 0 0 0 16px rgba(66, 165, 245, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(66, 165, 245, 0);
+    }
+  }
+
+  // ── Caller info ──────────────────────────────────────────
+  &__caller-info {
+    text-align: center;
+
+    &--sm {
+      text-align: left;
+      width: 100%;
+    }
+  }
+
+  &__caller-name {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #212121;
+  }
+
+  &__caller-phone {
+    margin: 4px 0 0;
+    font-size: 14px;
+    color: #616161;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__caller-queue {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #9e9e9e;
+
+    &--sm {
+      font-size: 12px;
+      color: #9e9e9e;
+      margin: 0;
+      width: 100%;
+      text-align: left;
+    }
+  }
+
+  // ── Action buttons (answer/reject) ───────────────────────
+  &__btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    transition:
+      transform 0.1s,
+      box-shadow 0.1s;
+
+    svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    &:hover {
+      transform: scale(1.07);
+    }
+
+    &:active {
+      transform: scale(0.96);
+    }
+
+    &--answer {
+      background: #43a047;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(67, 160, 71, 0.4);
+
+      &:hover {
+        background: #388e3c;
+        box-shadow: 0 6px 16px rgba(67, 160, 71, 0.5);
+      }
+    }
+
+    &--reject {
+      background: #e53935;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
+
+      &:hover {
+        background: #c62828;
+        box-shadow: 0 6px 16px rgba(229, 57, 53, 0.5);
+      }
+    }
+  }
+
+  // ── Active call ──────────────────────────────────────────
+  &__active {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 12px;
+  }
+
+  &__active-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+
+  &__recording-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #f44336;
+    flex-shrink: 0;
+    animation: softphone-blink 1.2s step-start infinite;
+  }
+
+  @keyframes softphone-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+
+  &__timer {
+    font-size: 20px;
+    font-weight: 700;
+    color: #212121;
+    font-variant-numeric: tabular-nums;
+    min-width: 64px;
+    flex-shrink: 0;
+  }
+
+  &__caller-compact {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+
+    .softphone__caller-name {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .softphone__caller-phone {
+      font-size: 12px;
+      margin: 0;
+    }
+  }
+
+  // ── Control buttons ──────────────────────────────────────
+  &__controls {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  &__ctrl-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 14px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #424242;
+    transition:
+      background 0.15s,
+      border-color 0.15s,
+      color 0.15s;
+    min-width: 64px;
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    &:hover {
+      background: #f5f5f5;
+      border-color: #bdbdbd;
+    }
+
+    &--active {
+      background: #fff3e0;
+      border-color: #f57c00;
+      color: #e65100;
+    }
+
+    &--resume {
+      background: #fff3e0;
+      border-color: #f57c00;
+      color: #e65100;
+
+      &:hover {
+        background: #ffe0b2;
+      }
+    }
+  }
+
+  // ── Hangup ───────────────────────────────────────────────
+  &__hangup-btn {
+    width: 100%;
+    padding: 12px;
+    background: #e53935;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.15s;
+    margin-top: auto;
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    &:hover {
+      background: #c62828;
+    }
+
+    &:active {
+      background: #b71c1c;
+    }
+  }
+
+  // ── Hold ────────────────────────────────────────────────
+  &__hold {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 12px;
+  }
+
+  &__hold-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  &__hold-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e65100;
+    flex: 1;
+  }
+
+  &__hold-timer {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f57c00;
+    font-variant-numeric: tabular-nums;
+  }
+
+  // ── Transfer panel ───────────────────────────────────────
+  &__transfer {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 14px;
+  }
+
+  &__transfer-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__transfer-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #212121;
+    flex: 1;
+  }
+
+  &__back-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: #1976d2;
+    padding: 4px 8px;
+    border-radius: 4px;
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    &:hover {
+      background: #e3f2fd;
+    }
+  }
+
+  &__transfer-modes {
+    display: flex;
+    gap: 8px;
+  }
+
+  &__mode-btn {
+    flex: 1;
+    padding: 8px;
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: #616161;
+    transition: all 0.15s;
+
+    &--active {
+      background: #e3f2fd;
+      border-color: #1976d2;
+      color: #1565c0;
+      font-weight: 600;
+    }
+
+    &:hover:not(&--active) {
+      background: #eeeeee;
+    }
+  }
+
+  &__transfer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__transfer-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #616161;
+  }
+
+  &__transfer-input {
+    padding: 10px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #212121;
+    width: 100%;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.15s;
+
+    &:focus {
+      border-color: #1976d2;
+      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+    }
+
+    &[aria-invalid='true'] {
+      border-color: #e53935;
+    }
+  }
+
+  &__transfer-hint {
+    font-size: 11px;
+    color: #9e9e9e;
+  }
+
+  &__transfer-submit {
+    width: 100%;
+    padding: 10px;
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &:hover {
+      background: #1565c0;
+    }
+
+    &:disabled {
+      background: #bdbdbd;
+      cursor: not-allowed;
+    }
+
+    &--complete {
+      background: #43a047;
+
+      &:hover {
+        background: #388e3c;
+      }
+    }
+
+    &--cancel {
+      background: #757575;
+
+      &:hover {
+        background: #616161;
+      }
+    }
+  }
+
+  &__attended-actions {
+    display: flex;
+    gap: 8px;
+
+    .softphone__transfer-submit {
+      flex: 1;
+    }
+  }
+
+  // ── Transferring spinner state ───────────────────────────
+  &__transferring {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding-top: 16px;
+  }
+
+  &__transferring-label {
+    font-size: 14px;
+    color: #616161;
+    margin: 0;
+  }
+
+  &__transferring-target {
+    font-size: 18px;
+    font-weight: 700;
+    color: #7b1fa2;
+    margin: 0;
+  }
+
+  &__transferring-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #e0e0e0;
+    border-top-color: #7b1fa2;
+    border-radius: 50%;
+    animation: softphone-spin 0.8s linear infinite;
+    display: block;
+  }
+
+  @keyframes softphone-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  // ── Ended ────────────────────────────────────────────────
+  &__ended {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding-top: 16px;
+  }
+
+  &__ended-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2e7d32;
+    margin: 0;
+  }
+
+  &__ended-duration {
+    font-size: 14px;
+    color: #616161;
+    margin: 0;
+  }
+
+  // ── Idle ─────────────────────────────────────────────────
+  &__idle-icon {
+    width: 48px;
+    height: 48px;
+    color: #bdbdbd;
+  }
+
+  &__idle-text {
+    font-size: 14px;
+    color: #9e9e9e;
+    margin: 0;
+  }
+}

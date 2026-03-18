@@ -15,7 +15,13 @@ import { WebSocketService } from '../../../../core/services/websocket.service';
 import { AgentStatusService } from '../../services/agent-status.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { AgentStatus, ALL_AGENT_STATUSES, AGENT_STATUS_CONFIG } from '../../models/agent-status.model';
+import { SoftphoneService } from '../../services/softphone.service';
+import { SoftphoneComponent } from '../../components/softphone/softphone.component';
+import {
+  AgentStatus,
+  ALL_AGENT_STATUSES,
+  AGENT_STATUS_CONFIG,
+} from '../../models/agent-status.model';
 import { ContactTab } from '../../models/contact-tab.model';
 import { QueueItem } from '../../models/queue-item.model';
 import {
@@ -28,7 +34,7 @@ import {
 @Component({
   selector: 'app-agent-desktop',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, LowerCasePipe],
+  imports: [DatePipe, LowerCasePipe, SoftphoneComponent],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
 })
@@ -38,6 +44,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
   protected readonly tabStore = inject(ContactTabStore);
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly softphoneService = inject(SoftphoneService);
 
   protected readonly statusConfig = AGENT_STATUS_CONFIG;
   protected readonly allStatuses = ALL_AGENT_STATUSES;
@@ -66,7 +73,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
     this.ws.events$
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.type === 'CALL_INCOMING'),
+        filter((e: WsEvent) => e.eventType === 'CALL_INCOMING'),
       )
       .subscribe((e) => {
         const payload = e.payload as CallIncomingPayload;
@@ -74,6 +81,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
         if (reason !== null) {
           this.showLimitMessage(reason);
         } else {
+          this.softphoneService.incomingCall(payload);
           this.notifications.info(
             `Przychodzace polaczenie od ${payload.customerName} (${payload.customerPhone})`,
           );
@@ -83,7 +91,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
     this.ws.events$
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.type === 'CONTACT_ASSIGNED'),
+        filter((e: WsEvent) => e.eventType === 'CONTACT_ASSIGNED'),
       )
       .subscribe((e) => {
         const payload = e.payload as ContactAssignedPayload;
@@ -98,7 +106,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
     this.ws.events$
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.type === 'QUEUE_UPDATE'),
+        filter((e: WsEvent) => e.eventType === 'QUEUE_UPDATE'),
       )
       .subscribe((e) => {
         const payload = e.payload as QueueUpdatePayload;
@@ -129,6 +137,9 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
 
   protected closeTab(event: MouseEvent, tab: ContactTab): void {
     event.stopPropagation();
+    if (tab.type === 'PHONE') {
+      this.softphoneService.hangupCall();
+    }
     this.tabStore.closeTab(tab.id);
   }
 

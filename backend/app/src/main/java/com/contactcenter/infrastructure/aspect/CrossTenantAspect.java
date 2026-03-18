@@ -45,10 +45,16 @@ public class CrossTenantAspect {
     // =========================================================================
 
     /**
-     * Wszystkie publiczne metody serwisów domenowych w pakiecie domain.
+     * Wszystkie publiczne metody serwisów domenowych w pakiecie domain,
+     * z wyjątkiem pakietu domain.websocket.
+     *
+     * <p>Klasy w domain.websocket (np. WebSocketEventBroadcaster) celowo nie korzystają
+     * z TenantContext – działają w wątkach RabbitMQ listener, które nie przechodzą
+     * przez TenantFilter. Włączenie ich do pointcutu generuje fałszywe ERROR logi.
      */
     @Pointcut("within(@org.springframework.stereotype.Service *) && " +
-              "within(com.contactcenter.domain..*)")
+              "within(com.contactcenter.domain..*) && " +
+              "!within(com.contactcenter.domain.websocket.*)")
     public void domainServiceMethods() {}
 
     /**

@@ -1,5 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { ContactTab, ContactType } from '../models/contact-tab.model';
+import { ContactTab, ContactTabStatus, ContactType } from '../models/contact-tab.model';
 import { ContactAssignedPayload, CallIncomingPayload } from '../models/ws-event.model';
 
 export const MAX_PHONE_TABS = 1;
@@ -74,9 +74,11 @@ export class ContactTabStore {
   }
 
   setActiveTab(id: string): void {
-    this.tabs.update((current) =>
-      current.map((t) => ({ ...t, isActive: t.id === id })),
-    );
+    this.tabs.update((current) => current.map((t) => ({ ...t, isActive: t.id === id })));
+  }
+
+  updateTabStatus(id: string, status: ContactTabStatus): void {
+    this.tabs.update((current) => current.map((t) => (t.id === id ? { ...t, status } : t)));
   }
 
   private checkLimits(type: ContactType): TabLimitReason {

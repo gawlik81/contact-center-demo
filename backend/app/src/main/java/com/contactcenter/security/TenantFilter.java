@@ -80,7 +80,10 @@ public class TenantFilter extends OncePerRequestFilter {
             "/api/telephony/webhook",
             // WebSocket/SockJS endpoint – autentykacja JWT dzieje się w STOMP CONNECT frame
             // przez WebSocketAuthInterceptor, nie przez HTTP filtr
-            "/ws"
+            "/ws",
+            // WebSocket plain endpoint (bez SockJS) – używany przez Angular Agent Desktop
+            // Ta sama zasada: auth dzieje się w warstwie STOMP CONNECT, nie HTTP
+            "/ws-native"
     );
 
     private final JwtParser jwtParser;

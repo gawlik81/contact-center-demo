@@ -15,3 +15,4 @@
 - [CR-FRONTEND code review fixes](./project_cr_frontend.md) – 20 issues fixed: XSS (token in-memory), TokenRefreshService, dynamic tenants, pagination, stub routes, host bindings for dialogs, shareReplay refCount:true, computed() for filteredSkills
 - [Admin cross-tenant user management (FE-009 / FE-010)](./project_fe009_admin_users.md) – Full CRUD admin users (edit/delete/force-reset), TenantEditModal, AdminUpdateUserRequest DTO, updateTenant + checkNameAvailabilityForUpdate in TenantService
 - [Agent Desktop layout and status panel (FE-009)](./project_fe009_agent_desktop.md) – WebSocketService (native WS, no STOMP), AgentStatusService, ContactTabStore (tab limits), AgentDesktopComponent (header/sidebar/tabs), WS reconnect banner
+- [Softphone WebRTC component (FE-010)](./project_fe010_softphone.md) – SoftphoneService (signal state machine), SoftphoneComponent (5 states, transfer panel blind/attended), ContactTabStore.updateTabStatus, AgentDesktop integration

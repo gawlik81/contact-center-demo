@@ -100,7 +100,14 @@
       "Bash(npx tsc:*)",
       "Bash(mvn package:*)",
       "Bash(mvn test:*)",
-      "Bash(npx ng:*)"
+      "Bash(npx ng:*)",
+      "Bash(mvn verify:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(jar tf:*)",
+      "Bash(cd /tmp)",
+      "Bash(jar xf:*)",
+      "Bash(javap -p org/springframework/messaging/simp/user/SimpUser.class)"
     ]
   }
 }

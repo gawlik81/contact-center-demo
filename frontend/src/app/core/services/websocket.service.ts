@@ -1,19 +1,6 @@
-/**
- * WebSocket Service – native WebSocket API implementation.
- *
- * NOTE: This service uses the native WebSocket API because @stomp/stompjs and
- * sockjs-client are NOT present in package.json. The backend endpoint /ws uses
- * SockJS + STOMP (BE-012). To enable full STOMP support, install the libraries:
- *   npm install @stomp/stompjs sockjs-client
- *   npm install --save-dev @types/sockjs-client
- * Then replace the native WebSocket implementation below with RxStomp from
- * @stomp/rx-stomp (see https://stomp-js.github.io/guide/rx-stomp/).
- *
- * Current implementation: native WebSocket connecting directly to /ws with a
- * custom JSON-based envelope. Reconnect uses exponential backoff capped at 30s.
- */
 import { Injectable, inject, signal } from '@angular/core';
 import { Subject } from 'rxjs';
+import { Client, IMessage, StompConfig } from '@stomp/stompjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 import { WsEvent } from '../../features/agent/models/ws-event.model';
@@ -30,117 +17,88 @@ export class WebSocketService {
   /** Stream of all incoming WebSocket events */
   readonly events$ = this._events$.asObservable();
 
-  private socket: WebSocket | null = null;
-  private reconnectAttempt = 0;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private intentionalDisconnect = false;
-
-  private readonly MIN_RECONNECT_DELAY_MS = 1_000;
-  private readonly MAX_RECONNECT_DELAY_MS = 30_000;
-  private readonly PING_INTERVAL_MS = 30_000;
-  private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private client: Client | null = null;
 
   connect(): void {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      return;
-    }
-    this.intentionalDisconnect = false;
-    this.doConnect();
+    if (this.client?.active) return;
+
+    const token = this.auth.getAccessToken();
+    const wsUrl = environment.wsUrl;
+
+    this.connectionState.set('CONNECTING');
+
+    const config: StompConfig = {
+      brokerURL: wsUrl,
+      connectHeaders: {
+        Authorization: `Bearer ${token ?? ''}`,
+      },
+      heartbeatOutgoing: 20000,
+      heartbeatIncoming: 0,
+      reconnectDelay: 1000,
+      onConnect: () => {
+        this.connectionState.set('CONNECTED');
+        this.subscribeToUserEvents();
+      },
+      onDisconnect: () => {
+        this.connectionState.set('DISCONNECTED');
+      },
+      onStompError: (frame) => {
+        console.error('[WS] STOMP error:', frame);
+        this.connectionState.set('ERROR');
+      },
+      onWebSocketError: (event) => {
+        console.error('[WS] WebSocket error:', event);
+        this.connectionState.set('ERROR');
+      },
+      onWebSocketClose: () => {
+        if (this.connectionState() !== 'DISCONNECTED') {
+          this.connectionState.set('DISCONNECTED');
+        }
+      },
+    };
+
+    this.client = new Client(config);
+    this.client.activate();
   }
 
   disconnect(): void {
-    this.intentionalDisconnect = true;
-    this.clearReconnectTimer();
-    this.clearPingTimer();
-    if (this.socket) {
-      this.socket.close(1000, 'Client disconnect');
-      this.socket = null;
+    if (this.client) {
+      this.client.deactivate();
+      this.client = null;
     }
     this.connectionState.set('DISCONNECTED');
   }
 
   publish(destination: string, body: unknown): void {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      return;
-    }
-    this.socket.send(JSON.stringify({ destination, body }));
+    if (!this.client?.connected) return;
+    this.client.publish({
+      destination,
+      body: JSON.stringify(body),
+    });
   }
 
-  private doConnect(): void {
-    this.connectionState.set('CONNECTING');
+  private subscribeToUserEvents(): void {
+    if (!this.client?.connected) return;
 
-    const token = this.auth.getAccessToken();
-    // Pass token as query param since native WS cannot set custom headers
-    const url = `${environment.wsUrl}?token=${token ?? ''}`;
-
-    try {
-      this.socket = new WebSocket(url);
-    } catch {
-      this.connectionState.set('ERROR');
-      this.scheduleReconnect();
-      return;
-    }
-
-    this.socket.onopen = () => {
-      this.connectionState.set('CONNECTED');
-      this.reconnectAttempt = 0;
-      this.startPingTimer();
-    };
-
-    this.socket.onmessage = (event: MessageEvent) => {
+    const onMessage = (message: IMessage) => {
       try {
-        const parsed = JSON.parse(event.data as string) as WsEvent;
-        this._events$.next(parsed);
+        const event = JSON.parse(message.body) as WsEvent;
+        this._events$.next(event);
       } catch {
-        // Ignore unparseable messages
+        // ignore unparseable
       }
     };
 
-    this.socket.onerror = () => {
-      this.connectionState.set('ERROR');
-    };
-
-    this.socket.onclose = () => {
-      this.clearPingTimer();
-      if (!this.intentionalDisconnect) {
-        this.connectionState.set('DISCONNECTED');
-        this.scheduleReconnect();
-      }
-    };
-  }
-
-  private scheduleReconnect(): void {
-    this.clearReconnectTimer();
-    const delay = Math.min(
-      this.MIN_RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempt),
-      this.MAX_RECONNECT_DELAY_MS,
-    );
-    this.reconnectAttempt++;
-    this.reconnectTimer = setTimeout(() => {
-      if (!this.intentionalDisconnect) {
-        this.doConnect();
-      }
-    }, delay);
-  }
-
-  private clearReconnectTimer(): void {
-    if (this.reconnectTimer !== null) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
+    // Unicast: events targeted at this specific user
+    const userId = this.auth.currentUserId();
+    if (userId) {
+      this.client.subscribe(`/topic/user/${userId}/events`, onMessage);
     }
-  }
 
-  private startPingTimer(): void {
-    this.clearPingTimer();
-    this.pingTimer = setInterval(() => {
-      this.publish('/app/ping', {});
-    }, this.PING_INTERVAL_MS);
-  }
-
-  private clearPingTimer(): void {
-    if (this.pingTimer !== null) {
-      clearInterval(this.pingTimer);
-      this.pingTimer = null;
+    // Broadcast: events sent to all agents of this tenant
+    const tenantId = this.auth.currentTenantId();
+    if (tenantId) {
+      this.client.subscribe(`/topic/tenant/${tenantId}/agents`, onMessage);
     }
   }
 }

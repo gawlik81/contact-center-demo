@@ -53,12 +53,14 @@ public record WebSocketEvent(
      * Tworzy event CALL_INCOMING z domenowego CallEvent.
      *
      * <p>Wysyłany do konkretnego agenta (unicast) gdy nadchodzi połączenie.
+     * Payload używa pól zgodnych z interfejsem {@code CallIncomingPayload} po stronie Angular:
+     * {@code contactId}, {@code customerName}, {@code customerPhone}, {@code queueName}.
      */
     public static WebSocketEvent callIncoming(CallEvent callEvent) {
         return new WebSocketEvent(
                 TYPE_CALL_INCOMING,
                 callEvent.getTenantId(),
-                CallPayload.from(callEvent),
+                CallIncomingPayload.from(callEvent),
                 callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
         );
     }
@@ -151,6 +153,37 @@ public record WebSocketEvent(
     // =========================================================================
     // Payload records – niezmienne DTO dla poszczególnych typów eventów
     // =========================================================================
+
+    /**
+     * Payload dla eventu CALL_INCOMING – pola zgodne z interfejsem Angular {@code CallIncomingPayload}.
+     *
+     * <p>Mapowanie z domenowego {@link CallEvent}:
+     * <ul>
+     *   <li>{@code contactId} ← {@code callEvent.getCallId()} (alias; call jest traktowany jako kontakt)</li>
+     *   <li>{@code customerPhone} ← {@code callEvent.getFrom()} (numer dzwoniącego)</li>
+     *   <li>{@code customerName} ← fallback "Nieznany ({from})" gdy CallEvent nie zawiera imienia klienta</li>
+     *   <li>{@code queueName} ← {@code callEvent.getMetadata().get("queueName")} lub pusty string</li>
+     * </ul>
+     */
+    public record CallIncomingPayload(
+            String contactId,
+            String customerName,
+            String customerPhone,
+            String queueName
+    ) {
+        public static CallIncomingPayload from(CallEvent callEvent) {
+            String from = callEvent.getFrom();
+            String queueName = callEvent.getMetadata() != null
+                    ? callEvent.getMetadata().getOrDefault("queueName", "")
+                    : "";
+            return new CallIncomingPayload(
+                    callEvent.getCallId(),
+                    "Nieznany (" + (from != null ? from : "?") + ")",
+                    from,
+                    queueName
+            );
+        }
+    }
 
     /**
      * Payload dla eventów związanych z połączeniami telefonicznymi.

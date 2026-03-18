@@ -113,14 +113,23 @@ export class AuthService {
 
   logout(): void {
     const accessToken = this.tokenService.getAccessToken();
-    if (accessToken) {
+    const refreshToken = this.tokenService.getRefreshToken();
+    if (accessToken && refreshToken) {
       // Best-effort server-side blacklisting: we fire the request and do not
       // wait for a response. The local token is cleared immediately regardless
       // of the server outcome. A network failure here is acceptable because the
       // access token TTL is short (15 min) and the refresh token is cleared
       // from sessionStorage below, preventing silent re-authentication.
+      // Authorization header must be set explicitly because the auth interceptor
+      // skips /auth/logout to avoid 401-retry loops. Without it the backend
+      // receives no JWT → TenantContext is never populated → setAgentOfflineOnLogout()
+      // reads null role and returns early without changing the agent status.
       this.http
-        .post(`${environment.apiUrl}/auth/logout`, {})
+        .post(
+          `${environment.apiUrl}/auth/logout`,
+          { refreshToken },
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        )
         .pipe(catchError(() => []))
         .subscribe();
     }

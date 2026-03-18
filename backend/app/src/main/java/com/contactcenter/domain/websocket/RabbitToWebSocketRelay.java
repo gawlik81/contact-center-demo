@@ -107,7 +107,7 @@ public class RabbitToWebSocketRelay {
     /**
      * Obsługuje eventy zmiany statusu agenta.
      *
-     * <p>Payload: mapa z kluczami {@code agentId}, {@code tenantId}, {@code status}.
+     * <p>Payload: mapa z kluczami {@code userId}, {@code tenantId}, {@code newStatus}.
      */
     @RabbitListener(bindings = @QueueBinding(
             value = @Queue(
@@ -135,9 +135,9 @@ public class RabbitToWebSocketRelay {
         log.debug("[WS-Relay] Otrzymano AgentStatus event: routingKey={}, payload={}", routingKey, payload);
 
         try {
-            String agentIdStr  = payload.get("agentId");
+            String agentIdStr  = payload.get("userId");     // matches AgentStatusChangedEvent.userId
             String tenantIdStr = payload.get("tenantId");
-            String status      = payload.get("status");
+            String status      = payload.get("newStatus"); // matches AgentStatusChangedEvent.newStatus
 
             if (tenantIdStr == null || agentIdStr == null || status == null) {
                 log.warn("[WS-Relay] AgentStatus event z brakującymi polami: payload={}", payload);

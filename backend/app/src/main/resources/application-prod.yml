@@ -112,7 +112,7 @@ spring:
     publisher-returns: true
     listener:
       simple:
-        acknowledge-mode: manual
+        acknowledge-mode: auto
         # Prod: więcej prób przed dead-letter
         retry:
           enabled: true

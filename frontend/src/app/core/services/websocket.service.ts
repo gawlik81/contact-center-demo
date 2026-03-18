@@ -19,6 +19,12 @@ export class WebSocketService {
 
   private client: Client | null = null;
 
+  /**
+   * Extra STOMP destinations registered by feature modules (e.g. supervisor topic).
+   * These are re-subscribed automatically on every reconnect.
+   */
+  private readonly _extraTopics = new Set<string>();
+
   connect(): void {
     if (this.client?.active) return;
 
@@ -38,6 +44,7 @@ export class WebSocketService {
       onConnect: () => {
         this.connectionState.set('CONNECTED');
         this.subscribeToUserEvents();
+        this.resubscribeExtraTopics();
       },
       onDisconnect: () => {
         this.connectionState.set('DISCONNECTED');
@@ -75,6 +82,51 @@ export class WebSocketService {
       destination,
       body: JSON.stringify(body),
     });
+  }
+
+  /**
+   * Registers an additional STOMP topic that funnels messages into the shared
+   * events$ stream. The topic is stored and automatically re-subscribed after
+   * every reconnect, so callers do not need to re-register on reconnect.
+   *
+   * Call this before or after connect() – if the client is already connected
+   * the subscription is activated immediately; otherwise it will be activated
+   * on the next onConnect callback.
+   *
+   * To clean up, call unregisterTopic() when the consuming component is destroyed.
+   */
+  registerTopic(destination: string): void {
+    this._extraTopics.add(destination);
+    if (this.client?.connected) {
+      this.subscribeOneTopic(destination);
+    }
+  }
+
+  /**
+   * Removes a previously registered extra topic. The STOMP subscription that
+   * was created by registerTopic() will remain active until the next disconnect;
+   * after that the topic will not be re-subscribed.
+   */
+  unregisterTopic(destination: string): void {
+    this._extraTopics.delete(destination);
+  }
+
+  private subscribeOneTopic(destination: string): void {
+    if (!this.client?.connected) return;
+    this.client.subscribe(destination, (message: IMessage) => {
+      try {
+        const event = JSON.parse(message.body) as WsEvent;
+        this._events$.next(event);
+      } catch {
+        // ignore unparseable frames
+      }
+    });
+  }
+
+  private resubscribeExtraTopics(): void {
+    for (const dest of this._extraTopics) {
+      this.subscribeOneTopic(dest);
+    }
   }
 
   private subscribeToUserEvents(): void {

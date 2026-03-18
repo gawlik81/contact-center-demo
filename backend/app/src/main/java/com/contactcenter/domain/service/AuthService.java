@@ -1,8 +1,10 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.api.auth.*;
+import com.contactcenter.api.user.dto.UpdateStatusRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.RefreshToken;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.RefreshTokenRepository;
@@ -57,6 +59,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final LoginRateLimiter loginRateLimiter;
+    private final UserService userService;
 
     // =========================================================================
     // Login
@@ -221,6 +224,9 @@ public class AuthService {
             log.warn("[Auth] Logout: refresh token nieznany lub już unieważniony");
         }
 
+        // Krok 3: Jeśli wylogowuje się agent – ustaw status OFFLINE
+        setAgentOfflineOnLogout();
+
         log.info("[Auth] Logout wykonany pomyślnie");
     }
 
@@ -234,7 +240,28 @@ public class AuthService {
     public void logoutAll(String accessToken, UUID userId) {
         blacklistAccessToken(accessToken);
         int count = refreshTokenRepository.revokeAllByUserId(userId);
+        setAgentOfflineOnLogout();
         log.info("[Auth] Logout ze wszystkich urządzeń: userId={}, unieważniono {} tokenów", userId, count);
+    }
+
+    /**
+     * Ustawia status agenta na OFFLINE przy wylogowaniu.
+     * Wywołuje UserService.updateStatus(), który zapisuje status w DB, Redis i publikuje event RabbitMQ.
+     * Operacja jest best-effort – błąd nie przerywa procesu wylogowania.
+     */
+    private void setAgentOfflineOnLogout() {
+        try {
+            String role = TenantContext.getUserRole();
+            if (!"AGENT".equalsIgnoreCase(role)) {
+                return;
+            }
+            UUID userId   = TenantContext.getUserId();
+            UUID tenantId = TenantContext.getTenantId();
+            userService.updateStatus(userId, new UpdateStatusRequest(UserStatus.OFFLINE), tenantId);
+            log.info("[Auth] Status agenta ustawiony na OFFLINE przy wylogowaniu: userId={}", userId);
+        } catch (Exception e) {
+            log.warn("[Auth] Nie udało się ustawić statusu OFFLINE przy wylogowaniu: {}", e.getMessage());
+        }
     }
 
     // =========================================================================

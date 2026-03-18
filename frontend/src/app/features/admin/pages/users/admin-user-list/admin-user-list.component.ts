@@ -259,6 +259,7 @@ export class AdminUserListComponent implements OnInit {
       case 'ADMIN': return 'Admin';
       case 'SUPERVISOR': return 'Supervisor';
       case 'AGENT': return 'Agent';
+      default: return role;
     }
   }
 
@@ -270,6 +271,7 @@ export class AdminUserListComponent implements OnInit {
       case 'BREAK': return 'Przerwa';
       case 'ACTIVE': return 'Aktywny';
       case 'INACTIVE': return 'Nieaktywny';
+      case 'OFFLINE': return 'Offline';
     }
   }
 }

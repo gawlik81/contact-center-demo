@@ -229,6 +229,37 @@ $radius: 6px;
     background: $inactive-bg;
     color: $inactive-text;
   }
+
+  &--offline {
+    background: #eeeeee;
+    color: #9e9e9e;
+  }
+
+  /**
+   * Briefly highlights a status badge when it was updated via WebSocket.
+   * The animation fades in a blue outline ring and then disappears.
+   * Duration must match STATUS_FLASH_DURATION_MS in the component (2000 ms).
+   */
+  &--updated {
+    animation: status-flash 2s ease forwards;
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+@keyframes status-flash {
+  0% {
+    outline-color: $brand-blue;
+    box-shadow: 0 0 0 3px rgba($brand-blue, 0.35);
+  }
+  60% {
+    outline-color: $brand-blue;
+    box-shadow: 0 0 0 3px rgba($brand-blue, 0.1);
+  }
+  100% {
+    outline-color: transparent;
+    box-shadow: none;
+  }
 }
 
 // ── Skills ────────────────────────────────────────────────────────────────────

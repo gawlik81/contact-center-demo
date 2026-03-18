@@ -8,13 +8,34 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { debounceTime, distinctUntilChanged, catchError, of, finalize } from 'rxjs';
+import {
+  debounceTime,
+  distinctUntilChanged,
+  catchError,
+  of,
+  finalize,
+  filter,
+  timer,
+  switchMap,
+} from 'rxjs';
 import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
+import { AuthService } from '../../../../../core/services/auth.service';
+import { WebSocketService } from '../../../../../core/services/websocket.service';
 import { PagedResponse, UserResponse, UserStatus } from '../../../models/user.model';
+import {
+  AgentStatusChangedPayload,
+  WsEvent,
+} from '../../../../agent/models/ws-event.model';
 import { UserFormComponent } from '../user-form/user-form.component';
 import { UserDeleteModalComponent } from '../user-delete-modal/user-delete-modal.component';
 import { UserResetPasswordModalComponent } from '../user-reset-password-modal/user-reset-password-modal.component';
+
+/** How long (ms) the status-updated highlight animation stays on a row. */
+const STATUS_FLASH_DURATION_MS = 2000;
+
+/** Polling interval (ms) used when WebSocket is not connected. */
+const POLLING_INTERVAL_MS = 30_000;
 
 @Component({
   selector: 'app-user-list',
@@ -31,6 +52,8 @@ import { UserResetPasswordModalComponent } from '../user-reset-password-modal/us
 export class UserListComponent implements OnInit {
   private readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
+  private readonly auth = inject(AuthService);
+  private readonly ws = inject(WebSocketService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -48,6 +71,9 @@ export class UserListComponent implements OnInit {
   readonly showResetPasswordModal = signal(false);
   readonly isEditMode = signal(false);
 
+  /** Set of agentIds whose status badge should display the "updated" flash animation. */
+  readonly flashingAgentIds = signal<Set<string>>(new Set());
+
   readonly filterForm = this.fb.group({
     skill: [''],
     status: ['' as UserStatus | ''],
@@ -61,6 +87,7 @@ export class UserListComponent implements OnInit {
     { value: 'BREAK', label: 'Przerwa' },
     { value: 'ACTIVE', label: 'Aktywny' },
     { value: 'INACTIVE', label: 'Nieaktywny' },
+    { value: 'OFFLINE', label: 'Offline' },
   ];
 
   ngOnInit(): void {
@@ -76,6 +103,94 @@ export class UserListComponent implements OnInit {
       });
 
     this.loadUsers();
+    this.initWebSocket();
+    this.initPollingFallback();
+  }
+
+  /**
+   * Registers the supervisor STOMP topic and listens for AGENT_STATUS_CHANGED
+   * events. Updates only the affected agent row in-place without a full reload.
+   */
+  private initWebSocket(): void {
+    const tenantId = this.auth.currentTenantId();
+    if (!tenantId) return;
+
+    const supervisorTopic = `/topic/tenant/${tenantId}/supervisor`;
+    this.ws.registerTopic(supervisorTopic);
+
+    // Unregister the topic when the component is destroyed so reconnects after
+    // navigation do not resubscribe to a topic no longer needed.
+    this.destroyRef.onDestroy(() => {
+      this.ws.unregisterTopic(supervisorTopic);
+    });
+
+    this.ws.events$
+      .pipe(
+        filter((e: WsEvent) => e.eventType === 'AGENT_STATUS_CHANGED'),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((e: WsEvent) => {
+        const payload = e.payload as AgentStatusChangedPayload;
+        this.applyStatusUpdate(payload.agentId, payload.status as UserStatus);
+      });
+  }
+
+  /**
+   * Falls back to polling every 30 s while the WebSocket is disconnected or
+   * in error state. Switches off automatically once WS reconnects.
+   */
+  private initPollingFallback(): void {
+    timer(POLLING_INTERVAL_MS, POLLING_INTERVAL_MS)
+      .pipe(
+        filter(() => {
+          const state = this.ws.connectionState();
+          return state === 'DISCONNECTED' || state === 'ERROR';
+        }),
+        switchMap(() =>
+          this.userService
+            .getUsers({
+              page: this.currentPage(),
+              size: this.pageSize,
+              status: this.filterForm.getRawValue().status ?? '',
+              skill: this.filterForm.getRawValue().skill ?? '',
+            })
+            .pipe(catchError(() => of(null))),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((response) => {
+        if (response) {
+          this.users.set(response.content);
+          this.totalElements.set(response.totalElements);
+          this.totalPages.set(response.totalPages);
+        }
+      });
+  }
+
+  /**
+   * Applies a status change to a single agent in the local signal state.
+   * Triggers a brief CSS flash animation on the affected row's status badge.
+   */
+  private applyStatusUpdate(agentId: string, newStatus: UserStatus): void {
+    this.users.update((list) =>
+      list.map((u) => (u.userId === agentId ? { ...u, status: newStatus } : u)),
+    );
+
+    // Trigger flash animation.
+    this.flashingAgentIds.update((ids) => {
+      const next = new Set(ids);
+      next.add(agentId);
+      return next;
+    });
+
+    // Clear the flash class after the animation duration.
+    setTimeout(() => {
+      this.flashingAgentIds.update((ids) => {
+        const next = new Set(ids);
+        next.delete(agentId);
+        return next;
+      });
+    }, STATUS_FLASH_DURATION_MS);
   }
 
   loadUsers(): void {

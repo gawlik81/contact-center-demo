@@ -110,8 +110,8 @@ spring:
     publisher-returns: true
     listener:
       simple:
-        # Acks tryb manual – ręczne potwierdzanie przetworzonych wiadomości
-        acknowledge-mode: manual
+        # AUTO: Spring wysyła ACK po normalnym powrocie z listenera, NACK przy wyjątku → DLQ
+        acknowledge-mode: auto
         # Ponowne próby przy błędzie
         retry:
           enabled: true

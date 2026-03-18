@@ -107,7 +107,8 @@
       "Bash(jar tf:*)",
       "Bash(cd /tmp)",
       "Bash(jar xf:*)",
-      "Bash(javap -p org/springframework/messaging/simp/user/SimpUser.class)"
+      "Bash(javap -p org/springframework/messaging/simp/user/SimpUser.class)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

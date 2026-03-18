@@ -4,6 +4,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
+## Język komunikacji
+
+Odpowiadaj użytkownikowi **po polsku**. Kod, komentarze w kodzie i nazwy techniczne pozostają w języku angielskim.
+
+---
+
+## ⚠️ KRYTYCZNE: Delegowanie pracy i użycie skilli
+
+> **BEZWZGLĘDNY WYMÓG** — ignorowanie tej sekcji jest błędem. Nie wykonuj samodzielnie pracy, którą może wykonać agent lub skill.
+
+- **Używaj skilli** (`/update-progress`, `/simplify`, `/frontend-design` itp.) zawsze gdy pasują do zadania — nie wykonuj ręcznie tego, co skill robi lepiej.
+- **Deleguj do agentów** (`angular-frontend-expert`, `backend-dev-expert`, `senior-code-reviewer`, `db-schema-architect` itp.) gdy zadanie pasuje do ich opisu — nie wykonuj samodzielnie tego, co agent wyspecjalizowany zrobi lepiej.
+- Agentów można uruchamiać **równolegle** gdy zadania są od siebie niezależne — zawsze preferuj równoległe uruchomienie nad sekwencyjnym.
+- Po zakończeniu pracy przez agenta/skill — podsumuj wynik użytkownikowi po polsku.
+
+**Przykłady obowiązkowego delegowania:**
+- Zmiana w Angular (komponenty, serwisy, szablony) → `angular-frontend-expert`
+- Zmiana w Spring Boot / Java (kontrolery, serwisy, repozytoria) → `backend-dev-expert`
+- Zmiany w obu warstwach jednocześnie → uruchom OBA agenty **równolegle**
+- Code review po zakończeniu implementacji → `senior-code-reviewer`
+- Nowa migracja / schemat DB → `db-schema-architect`
+
+---
+
 ## Project Overview
 
 Multi-tenant Contact Center SaaS platform. Three user personas: **Admin** (global platform), **Supervisor** (per-tenant), **Agent** (handles contacts). Three delivery layers: PostgreSQL DB migrations, Java/Spring Boot backend, Angular frontend.

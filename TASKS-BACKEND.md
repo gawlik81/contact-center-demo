@@ -206,7 +206,8 @@ Endpointy: `POST /api/users`, `GET /api/users`, `GET /api/users/{id}`, `PATCH /a
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** BE-001, DB-006
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-18
 **Blokuje:** BE-010, BE-011, BE-012, BE-013, BE-024
 **Odniesienie PRD:** US-03-01, US-03-03, US-03-04, EPIC-03
 
@@ -214,10 +215,10 @@ Endpointy: `POST /api/users`, `GET /api/users`, `GET /api/users/{id}`, `PATCH /a
 Implementacja interfejsu `TelephonyAdapter` z metodami: initiateCall, answerCall, hangupCall, holdCall, muteCall, transferCall (blind/attended). Konkretna implementacja przez CPaaS REST API (np. Twilio/Vonage) lub SIP stack (JAIN SIP). Zdarzenia przychodzące (webhook/WebSocket od providera) mapowane na domenowe eventy i publikowane na RabbitMQ.
 
 **Kryteria akceptacji:**
-- [ ] Interfejs TelephonyAdapter jest implementowalny przez różne providery (wzorzec adaptera)
-- [ ] Zdarzenia: CALL_INCOMING, CALL_ANSWERED, CALL_HANGUP, CALL_TRANSFERRED publikowane na RabbitMQ
-- [ ] Attended transfer: tworzenie drugiej nogi połączenia, bridge po potwierdzeniu
-- [ ] Testy jednostkowe z mockiem adaptera (bez wywołań do prawdziwego providera)
+- [x] Interfejs TelephonyAdapter jest implementowalny przez różne providery (wzorzec adaptera)
+- [x] Zdarzenia: CALL_INCOMING, CALL_ANSWERED, CALL_HANGUP, CALL_TRANSFERRED publikowane na RabbitMQ
+- [x] Attended transfer: tworzenie drugiej nogi połączenia, bridge po potwierdzeniu
+- [x] Testy jednostkowe z mockiem adaptera (bez wywołań do prawdziwego providera)
 
 ---
 
@@ -270,7 +271,8 @@ Przy zdarzeniu CALL_INCOMING: lookup klienta po numerze telefonu (tabela CUSTOME
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-001, BE-003
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-18
 **Blokuje:** FE-009, FE-021
 **Odniesienie PRD:** US-03-01, US-07-05, EPIC-03
 
@@ -278,10 +280,10 @@ Przy zdarzeniu CALL_INCOMING: lookup klienta po numerze telefonu (tabela CUSTOME
 Implementacja WebSocket server (Spring WebSocket + STOMP) lub Server-Sent Events. Topics per użytkownik (`/user/{userId}/events`) i per tenant (`/tenant/{tenantId}/supervisor`). Eventy: CALL_INCOMING, CONTACT_ASSIGNED, AGENT_STATUS_CHANGED, QUEUE_UPDATE. Autentykacja WebSocket przez JWT w handshake.
 
 **Kryteria akceptacji:**
-- [ ] Agent otrzymuje CALL_INCOMING przez WebSocket przed odebraniem telefonu
-- [ ] Supervisor otrzymuje AGENT_STATUS_CHANGED w czasie < 5s od zmiany
-- [ ] Rozłączenie WebSocket → automatyczny reconnect po stronie klienta (backoff)
-- [ ] JWT weryfikowany przy upgrade'ie do WebSocket (brak tokenu → HTTP 401)
+- [x] Agent otrzymuje CALL_INCOMING przez WebSocket przed odebraniem telefonu
+- [x] Supervisor otrzymuje AGENT_STATUS_CHANGED w czasie < 5s od zmiany
+- [x] Rozłączenie WebSocket → automatyczny reconnect po stronie klienta (backoff)
+- [x] JWT weryfikowany przy upgrade'ie do WebSocket (brak tokenu → HTTP 401)
 
 ---
 

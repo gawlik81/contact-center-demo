@@ -212,8 +212,9 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** FE-005, BE-012, BE-008
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-012 (lub MSW WebSocket)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-18
+**Czeka na BE:** BE-012 ✅
 **Blokuje:** FE-010, FE-011, FE-012, FE-013, FE-017
 **Odniesienie PRD:** US-07-05, EPIC-03, EPIC-05, EPIC-06
 
@@ -221,10 +222,10 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 Główny widok agenta po zalogowaniu: panel zmiany statusu (dostępny/zajęty/przerwa/po-kontakcie), kolejka przychodzących kontaktów z liczbą oczekujących, obszar aktywnych kontaktów (max 1 telefoniczny + 3 chat/email widoczne jednocześnie jako zakładki). Integracja z WebSocket dla aktualizacji RT.
 
 **Kryteria akceptacji:**
-- [ ] Agent może zmieniać status i zmiana jest natychmiast widoczna dla supervisora
-- [ ] Obszar kontaktów pokazuje max 4 zakładki (1 telefon + 3 chat/email)
-- [ ] Próba otwarcia 5. kontaktu wyświetla komunikat o limicie
-- [ ] WebSocket rozłączenie wyświetla baner "Utracono połączenie – próba reconnect"
+- [x] Agent może zmieniać status i zmiana jest natychmiast widoczna dla supervisora
+- [x] Obszar kontaktów pokazuje max 4 zakładki (1 telefon + 3 chat/email)
+- [x] Próba otwarcia 5. kontaktu wyświetla komunikat o limicie
+- [x] WebSocket rozłączenie wyświetla baner "Utracono połączenie – próba reconnect"
 
 ---
 

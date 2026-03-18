@@ -31,18 +31,20 @@ Projekt to wielokanałowa platforma Contact Center w modelu SaaS (multi-tenant),
 
 **Persony systemu:** ADMIN (globalny), SUPERVISOR (per tenant), AGENT (per tenant), Klient końcowy (zewnętrzny)
 
-**Aktualny postęp (stan na 2026-03-17):**
+**Aktualny postęp (stan na 2026-03-18):**
 
 - DB: 19/19 ukończone (cały schemat, RLS, indeksy, RODO, ClickHouse DW)
-- BE: 8/31 ukończone (BE-001..BE-007, w tym BE-005 Audit Log AOP/RabbitMQ, BE-006 Tenant CRUD, BE-007 Admin Metrics API z cache Redis 30s)
-- FE: 7/24 ukończone (FE-001..FE-007, w tym FE-006 Lista tenantów, FE-007 Dashboard admina z polling 30s, badge alertów w SidenavComponent)
+- BE: 10/31 ukończone (BE-001..BE-009, BE-012; w tym BE-009 VoIP Adapter z MockTelephonyAdapter i interfejsem TelephonyAdapter, BE-012 WebSocket hub STOMP z JWT interceptor i RabbitMQ relay)
+- FE: 9/24 ukończone (FE-001..FE-009; w tym FE-009 Agent Desktop z panelem statusu, zakładkami kontaktów max 4 i integracją WebSocket)
 
-**Kluczowe blokery krytyczne (zidentyfikowane w PROGRESS.md):**
+**Kluczowe blokery krytyczne (stan 2026-03-18):**
 
-- BE-004 (Auth API) – ukończone; odblokowany FE-004 produkcyjnie
-- BE-009 (VoIP Adapter) – blokuje cały kanał telefoniczny (softphone, nagrywanie, CLI, IVR, dialer)
-- BE-012 (WebSocket hub) – blokuje Agent Desktop i RT metrics dashboard
-- FE-009 (Agent Desktop layout) – blokuje 5 komponentów obsługi kontaktu
+- BE-009 (VoIP Adapter) – UKOŃCZONE; odblokowane BE-010, BE-011, BE-013
+- BE-012 (WebSocket hub) – UKOŃCZONE; odblokowane FE-009 i FE-021
+- FE-009 (Agent Desktop layout) – UKOŃCZONE; odblokowane FE-010..FE-013, FE-017
+- BE-010 (Nagrywanie) – nowy aktywny bloker (zależy od BE-009 ✅)
+- BE-025 (Customer API) – blokuje CLI lookup (BE-011), RODO (BE-031) i 3 widoki FE
+- BE-019 (Routing Engine) – blokuje BE-029 (RT metrics) i BE-021 (wait time)
 
 **Konwencje pól w plikach zadań (TASKS-*.md) – ustalone 2026-03-14, rozszerzone 2026-03-17:**
 

@@ -1,0 +1,687 @@
+// ===== WS Banner =====
+
+.ws-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: #f57f17;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  &__icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  &__text {
+    flex: 1;
+  }
+
+  &__dots {
+    display: inline-flex;
+    gap: 2px;
+
+    span {
+      animation: blink 1.2s infinite;
+      &:nth-child(2) { animation-delay: 0.2s; }
+      &:nth-child(3) { animation-delay: 0.4s; }
+    }
+  }
+}
+
+.limit-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: #1565c0;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+  }
+}
+
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0; }
+  40% { opacity: 1; }
+}
+
+// ===== Desktop Layout =====
+
+.desktop {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 60px - 36px); // subtract navbar + breadcrumbs
+  background: #f8fafc;
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.5rem;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  &__body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  &__sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: #fff;
+    border-right: 1px solid #e2e8f0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+
+    @media (max-width: 900px) {
+      width: 220px;
+    }
+
+    @media (max-width: 640px) {
+      display: none; // hidden on mobile — future: slide-out panel
+    }
+  }
+
+  &__main {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+}
+
+// ===== Status Panel =====
+
+.status-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+
+  &__label {
+    font-size: 0.875rem;
+    color: #64748b;
+    white-space: nowrap;
+  }
+
+  &__control {
+    position: relative;
+  }
+}
+
+.status-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border: 2px solid;
+  border-radius: 9999px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+
+  &:hover {
+    opacity: 0.85;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #1a56db;
+    outline-offset: 2px;
+  }
+
+  &__icon {
+    width: 1.125rem;
+    height: 1.125rem;
+    flex-shrink: 0;
+  }
+
+  &__chevron {
+    width: 1.125rem;
+    height: 1.125rem;
+    flex-shrink: 0;
+  }
+
+  &__spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+}
+
+.status-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    padding: 0.625rem 1rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 0.875rem;
+    text-align: left;
+    color: #1e293b;
+    transition: background 0.1s;
+
+    &:hover {
+      background: #f1f5f9;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #1a56db;
+      outline-offset: -2px;
+    }
+
+    &--active {
+      background: #f0f9ff;
+      font-weight: 600;
+    }
+  }
+
+  &__icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  &__check {
+    width: 1rem;
+    height: 1rem;
+    margin-left: auto;
+    color: #1a56db;
+  }
+}
+
+.status-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+}
+
+// ===== Header info (WS indicator) =====
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  color: #64748b;
+
+  &__ws-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    flex-shrink: 0;
+    transition: background 0.3s;
+
+    &--connected {
+      background: #22c55e;
+    }
+  }
+}
+
+// ===== Queue Panel =====
+
+.queue-panel {
+  padding: 1rem;
+  flex: 1;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  &__title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #1e293b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 9999px;
+  }
+
+  &__empty {
+    font-size: 0.8125rem;
+    color: #94a3b8;
+    text-align: center;
+    padding: 1.5rem 0;
+    margin: 0;
+  }
+}
+
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: background 0.1s;
+
+  &:hover {
+    background: #f1f5f9;
+  }
+
+  &__avatar {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    svg {
+      width: 1rem;
+      height: 1rem;
+      color: #64748b;
+    }
+  }
+
+  &__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__identifier {
+    font-size: 0.75rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__queue {
+    font-size: 0.6875rem;
+    color: #94a3b8;
+  }
+
+  &__wait {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #ef4444;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+// ===== No Contacts Placeholder =====
+
+.no-contacts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 3rem;
+  text-align: center;
+
+  &__icon {
+    width: 4rem;
+    height: 4rem;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+  }
+
+  &__text {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #475569;
+    margin: 0 0 0.5rem;
+  }
+
+  &__subtext {
+    font-size: 0.875rem;
+    color: #94a3b8;
+    margin: 0;
+    max-width: 320px;
+  }
+}
+
+// ===== Contact Tabs =====
+
+.contact-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+
+  &__bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 0.5rem 1rem 0;
+    background: #f1f5f9;
+    border-bottom: 2px solid #e2e8f0;
+    overflow-x: auto;
+    flex-shrink: 0;
+
+    &::-webkit-scrollbar {
+      height: 4px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 2px;
+    }
+  }
+
+  &__panel {
+    flex: 1;
+    overflow-y: auto;
+    background: #fff;
+  }
+}
+
+.contact-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: #475569;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  max-width: 200px;
+
+  &:focus-visible {
+    outline: 2px solid #1a56db;
+    outline-offset: -2px;
+  }
+
+  &--active {
+    background: #fff;
+    color: #1e293b;
+    font-weight: 600;
+    border-color: #e2e8f0;
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #fff;
+    }
+  }
+
+  &--phone.contact-tab--active {
+    border-top: 3px solid #2563eb;
+  }
+
+  &--chat.contact-tab--active {
+    border-top: 3px solid #16a34a;
+  }
+
+  &--email.contact-tab--active {
+    border-top: 3px solid #9333ea;
+  }
+
+  &__icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  &__name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+  }
+
+  &__type-badge {
+    font-size: 0.6875rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: #e2e8f0;
+    color: #64748b;
+    flex-shrink: 0;
+
+    .contact-tab--active & {
+      background: #f1f5f9;
+    }
+  }
+
+  &__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: none;
+    background: transparent;
+    border-radius: 3px;
+    cursor: pointer;
+    color: #94a3b8;
+    padding: 0;
+    flex-shrink: 0;
+
+    svg {
+      width: 0.875rem;
+      height: 0.875rem;
+    }
+
+    &:hover {
+      background: #e2e8f0;
+      color: #ef4444;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #1a56db;
+      outline-offset: 1px;
+    }
+  }
+}
+
+// ===== Contact Panel =====
+
+.contact-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    flex-wrap: wrap;
+  }
+
+  &__avatar {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  &__info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__name {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 0.25rem;
+  }
+
+  &__identifier {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0 0 0.25rem;
+  }
+
+  &__since {
+    font-size: 0.8125rem;
+    color: #94a3b8;
+    margin: 0;
+  }
+
+  &__type-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    flex-shrink: 0;
+
+    &--phone {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    &--chat {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    &--email {
+      background: #f3e8ff;
+      color: #7e22ce;
+    }
+  }
+
+  &__body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+}
+
+// Placeholders for future contact panels
+
+%contact-placeholder-base {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+  color: #94a3b8;
+
+  svg {
+    width: 3rem;
+    height: 3rem;
+    opacity: 0.5;
+  }
+
+  p {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0;
+  }
+}
+
+.phone-placeholder,
+.chat-placeholder,
+.email-placeholder {
+  @extend %contact-placeholder-base;
+
+  &__sub {
+    font-size: 0.875rem !important;
+    font-weight: 400 !important;
+    color: #94a3b8 !important;
+  }
+}
+
+// ===== Animations =====
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

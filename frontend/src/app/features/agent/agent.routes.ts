@@ -16,7 +16,9 @@ export const AGENT_ROUTES: Routes = [
         path: 'desktop',
         data: { breadcrumb: 'Desktop' },
         loadComponent: () =>
-          import('./agent-dashboard.component').then((m) => m.AgentDashboardComponent),
+          import('./pages/agent-desktop/agent-desktop.component').then(
+            (m) => m.AgentDesktopComponent,
+          ),
       },
       {
         // TODO FE-015: Replace placeholder with real Agent Customers component

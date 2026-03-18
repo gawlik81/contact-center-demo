@@ -1,0 +1,253 @@
+<!-- WebSocket disconnection banner -->
+@if (isOffline()) {
+  <div class="ws-banner" role="alert" aria-live="assertive">
+    <svg class="ws-banner__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M1 5.18l1.55-1.55C3.92 2.31 5.34 1.65 7 1.2V3.3C5.9 3.68 4.92 4.3 4.1 5.1L1 5.18zm9-2.96V0H8v2.22c.68.1 1.35.26 2 .46zm-4 1.54V1.2C4.34 1.65 2.92 2.31 1.55 3.63L3.1 5.18C4.1 4.28 5.5 3.58 7 3.28 ... "/>
+    </svg>
+    @if (isReconnecting()) {
+      <span class="ws-banner__text">
+        Laczenie z serwerem<span class="ws-banner__dots"><span>.</span><span>.</span><span>.</span></span>
+      </span>
+    } @else {
+      <span class="ws-banner__text">Utracono polaczenie – proba reconnect</span>
+    }
+  </div>
+}
+
+<!-- Tab limit warning -->
+@if (tabLimitMessage()) {
+  <div class="limit-banner" role="alert" aria-live="polite">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+    </svg>
+    {{ tabLimitMessage() }}
+  </div>
+}
+
+<div class="desktop">
+  <!-- ===== HEADER: status panel ===== -->
+  <header class="desktop__header">
+    <div class="status-panel">
+      <span class="status-panel__label">Twoj status:</span>
+      <div class="status-panel__control">
+        <button
+          type="button"
+          class="status-btn"
+          [style.border-color]="currentStatusConfig().color"
+          [style.color]="currentStatusConfig().color"
+          [style.background-color]="currentStatusConfig().bgColor"
+          [attr.aria-expanded]="statusMenuOpen()"
+          aria-haspopup="listbox"
+          aria-label="Zmien status"
+          (click)="toggleStatusMenu()"
+        >
+          <svg class="status-btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path [attr.d]="currentStatusConfig().icon" />
+          </svg>
+          <span class="status-btn__text">{{ currentStatusConfig().label }}</span>
+          @if (statusService.isChanging()) {
+            <span class="status-btn__spinner" aria-label="Zmiana statusu..."></span>
+          } @else {
+            <svg class="status-btn__chevron" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7 10l5 5 5-5z"/>
+            </svg>
+          }
+        </button>
+
+        @if (statusMenuOpen()) {
+          <div
+            class="status-menu"
+            role="listbox"
+            aria-label="Wybierz status"
+            (blur)="closeStatusMenu()"
+          >
+            @for (status of allStatuses; track status) {
+              <button
+                type="button"
+                class="status-menu__item"
+                role="option"
+                [attr.aria-selected]="statusService.currentStatus() === status"
+                [class.status-menu__item--active]="statusService.currentStatus() === status"
+                (click)="changeStatus(status)"
+              >
+                <svg class="status-menu__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"
+                     [style.color]="statusConfig[status].color">
+                  <path [attr.d]="statusConfig[status].icon" />
+                </svg>
+                <span>{{ statusConfig[status].label }}</span>
+                @if (statusService.currentStatus() === status) {
+                  <svg class="status-menu__check" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                  </svg>
+                }
+              </button>
+            }
+          </div>
+          <!-- Overlay to close menu on outside click -->
+          <div class="status-menu-overlay" (click)="closeStatusMenu()" aria-hidden="true"></div>
+        }
+      </div>
+    </div>
+
+    <div class="header-info">
+      <span class="header-info__ws-indicator"
+            [class.header-info__ws-indicator--connected]="connectionState() === 'CONNECTED'"
+            [attr.aria-label]="connectionState() === 'CONNECTED' ? 'Polaczono' : 'Rozlaczono'">
+      </span>
+      <span class="header-info__ws-label" aria-hidden="true">
+        {{ connectionState() === 'CONNECTED' ? 'Polaczono' : (connectionState() === 'CONNECTING' ? 'Laczenie...' : 'Rozlaczono') }}
+      </span>
+    </div>
+  </header>
+
+  <!-- ===== BODY: sidebar + main ===== -->
+  <div class="desktop__body">
+    <!-- SIDEBAR: queue -->
+    <aside class="desktop__sidebar" aria-label="Kolejka kontaktow">
+      <div class="queue-panel">
+        <div class="queue-panel__header">
+          <h2 class="queue-panel__title">Kolejka</h2>
+          @if (queueItems().length > 0) {
+            <span class="queue-panel__badge" aria-label="{{ queueItems().length }} oczekujacych">
+              {{ queueItems().length }}
+            </span>
+          }
+        </div>
+
+        @if (queueItems().length === 0) {
+          <p class="queue-panel__empty">Brak oczekujacych kontaktow</p>
+        } @else {
+          <ul class="queue-list" role="list">
+            @for (item of queueItems(); track trackByQueueId($index, item)) {
+              <li class="queue-item">
+                <div class="queue-item__avatar" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path [attr.d]="getQueueTypeIcon(item)" />
+                  </svg>
+                </div>
+                <div class="queue-item__info">
+                  <span class="queue-item__name">{{ item.customerName }}</span>
+                  <span class="queue-item__identifier">{{ item.customerIdentifier }}</span>
+                  <span class="queue-item__queue">{{ item.queueName }}</span>
+                </div>
+                <div class="queue-item__wait" aria-label="Czas oczekiwania {{ getWaitingTime(item.waitingSince) }}">
+                  {{ getWaitingTime(item.waitingSince) }}
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    </aside>
+
+    <!-- MAIN: contact tabs -->
+    <main class="desktop__main" id="main-content" aria-label="Aktywne kontakty">
+      @if (tabs().length === 0) {
+        <div class="no-contacts" role="status">
+          <svg class="no-contacts__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 13v1h2v-1c0-4.41 3.59-8 8-8s8 3.59 8 8v1h2v-1c0-5.52-4.48-10-10-10zm0 4c-3.31 0-6 2.69-6 6v1h2v-1c0-2.21 1.79-4 4-4s4 1.79 4 4v1h2v-1c0-3.31-2.69-6-6-6zm0 4c-1.1 0-2 .9-2 2v4h4v-4c0-1.1-.9-2-2-2z"/>
+          </svg>
+          <p class="no-contacts__text">Brak aktywnych kontaktow</p>
+          <p class="no-contacts__subtext">Oczekuj na przydzielenie kontaktu lub odbierz polaczenie z kolejki</p>
+        </div>
+      } @else {
+        <div class="contact-tabs">
+          <!-- Tab bar -->
+          <div class="contact-tabs__bar" role="tablist" aria-label="Aktywne kontakty">
+            @for (tab of tabs(); track trackByTabId($index, tab)) {
+              <button
+                type="button"
+                class="contact-tab"
+                role="tab"
+                [class.contact-tab--active]="tab.isActive"
+                [class.contact-tab--phone]="tab.type === 'PHONE'"
+                [class.contact-tab--chat]="tab.type === 'CHAT'"
+                [class.contact-tab--email]="tab.type === 'EMAIL'"
+                [attr.aria-selected]="tab.isActive"
+                [attr.aria-controls]="'tab-panel-' + tab.id"
+                [id]="'tab-' + tab.id"
+                (click)="setActiveTab(tab)"
+              >
+                <svg class="contact-tab__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path [attr.d]="getTabTypeIcon(tab)" />
+                </svg>
+                <span class="contact-tab__name">{{ tab.customerName }}</span>
+                <span class="contact-tab__type-badge">{{ getTabTypeLabel(tab) }}</span>
+                <button
+                  type="button"
+                  class="contact-tab__close"
+                  [attr.aria-label]="'Zamknij kontakt ' + tab.customerName"
+                  (click)="closeTab($event, tab)"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                  </svg>
+                </button>
+              </button>
+            }
+          </div>
+
+          <!-- Tab panel -->
+          @if (activeTab()) {
+            <div
+              class="contact-tabs__panel"
+              role="tabpanel"
+              [id]="'tab-panel-' + activeTab()!.id"
+              [attr.aria-labelledby]="'tab-' + activeTab()!.id"
+            >
+              <div class="contact-panel">
+                <div class="contact-panel__header">
+                  <div class="contact-panel__avatar" aria-hidden="true">
+                    {{ activeTab()!.customerName.charAt(0).toUpperCase() }}
+                  </div>
+                  <div class="contact-panel__info">
+                    <h2 class="contact-panel__name">{{ activeTab()!.customerName }}</h2>
+                    <p class="contact-panel__identifier">{{ activeTab()!.customerIdentifier }}</p>
+                    <p class="contact-panel__since">
+                      Od {{ activeTab()!.startedAt | date:'HH:mm:ss' }}
+                    </p>
+                  </div>
+                  <span class="contact-panel__type-badge contact-panel__type-badge--{{ activeTab()!.type | lowercase }}">
+                    {{ getTabTypeLabel(activeTab()!) }}
+                  </span>
+                </div>
+
+                <div class="contact-panel__body">
+                  @switch (activeTab()!.type) {
+                    @case ('PHONE') {
+                      <div class="phone-placeholder">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                        </svg>
+                        <p>Panel polaczenia telefonicznego</p>
+                        <p class="phone-placeholder__sub">Tutaj zostanie zaladowany softphone</p>
+                      </div>
+                    }
+                    @case ('CHAT') {
+                      <div class="chat-placeholder">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                        </svg>
+                        <p>Panel chatu</p>
+                        <p class="chat-placeholder__sub">Tutaj zostanie zaladowany widok chatu</p>
+                      </div>
+                    }
+                    @case ('EMAIL') {
+                      <div class="email-placeholder">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                        </svg>
+                        <p>Panel emaila</p>
+                        <p class="email-placeholder__sub">Tutaj zostanie zaladowany widok emaila</p>
+                      </div>
+                    }
+                  }
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </main>
+  </div>
+</div>

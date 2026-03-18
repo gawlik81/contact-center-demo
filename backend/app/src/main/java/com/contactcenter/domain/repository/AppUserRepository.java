@@ -258,6 +258,43 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     int softDeleteUser(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId);
 
     // =========================================================================
+    // Public / email-first login flow
+    // =========================================================================
+
+    /**
+     * Zwraca aktywne tenanty, w których istnieje aktywny, nieusunięty użytkownik z danym emailem.
+     *
+     * <p>Używane przez publiczny endpoint {@code POST /api/public/tenants-by-email} do
+     * flow "email-first" na stronie logowania – pozwala wyświetlić tylko organizacje,
+     * do których dany adres e-mail jest przypisany.
+     *
+     * <p><strong>Zasady bezpieczeństwa:</strong>
+     * <ul>
+     *   <li>Endpoint jest publiczny – wynik musi ujawniać jak najmniej informacji.
+     *       Zwracamy puste {@code []} gdy brak dopasowania (NIE 404).</li>
+     *   <li>Email NIE jest logowany w żadnej warstwie aplikacji (PII).</li>
+     *   <li>Metoda nie zwraca żadnych danych o użytkowniku – wyłącznie id i name tenanta.</li>
+     * </ul>
+     *
+     * <p>Zapytanie jest natywne (JOIN między app_user a tenant), bo JPQL nie obsługuje
+     * cross-entity JOIN bez relacji @ManyToOne między AppUser a Tenant.
+     *
+     * @param email adres e-mail użytkownika (case-insensitive)
+     * @return lista wierszy [tenant_id, name] aktywnych tenantów z dopasowaniem
+     */
+    @Query(value = """
+            SELECT DISTINCT t.tenant_id, t.name
+            FROM   app_user u
+            JOIN   tenant   t ON t.tenant_id = u.tenant_id
+            WHERE  LOWER(u.email) = LOWER(:email)
+              AND  u.is_active  = TRUE
+              AND  u.is_deleted = FALSE
+              AND  t.status     = 'ACTIVE'
+            ORDER  BY t.name ASC
+            """, nativeQuery = true)
+    List<Object[]> findActiveTenantsByUserEmail(@Param("email") String email);
+
+    // =========================================================================
     // BE-009: Admin cross-tenant user management
     // =========================================================================
 

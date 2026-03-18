@@ -8,18 +8,27 @@ export interface PublicTenant {
   name: string;
 }
 
-// TODO FE-009: Backend endpoint GET /api/public/tenants must be implemented.
-// Until then this service falls back to an empty list so the login form
-// renders without hardcoded UUIDs. Implement the endpoint in Spring Boot
-// with @PermitAll / PUBLIC_PATH_PREFIXES before enabling in production.
 @Injectable({ providedIn: 'root' })
 export class PublicTenantService {
   private readonly http = inject(HttpClient);
-  private readonly url = `${environment.apiUrl}/public/tenants`;
+  private readonly baseUrl = `${environment.apiUrl}/public`;
 
+  /** @deprecated Use getTenantsByEmail() – kept for backward compatibility. */
   getTenants(): Observable<PublicTenant[]> {
     return this.http
-      .get<PublicTenant[]>(this.url)
+      .get<PublicTenant[]>(`${this.baseUrl}/tenants`)
+      .pipe(catchError(() => of<PublicTenant[]>([])));
+  }
+
+  /**
+   * Returns tenants associated with the given email address.
+   * Calls POST /api/public/tenants-by-email.
+   * On any error falls back to an empty list – the login flow continues
+   * and the backend will return 401 if the credentials are invalid.
+   */
+  getTenantsByEmail(email: string): Observable<PublicTenant[]> {
+    return this.http
+      .post<PublicTenant[]>(`${this.baseUrl}/tenants-by-email`, { email })
       .pipe(catchError(() => of<PublicTenant[]>([])));
   }
 }

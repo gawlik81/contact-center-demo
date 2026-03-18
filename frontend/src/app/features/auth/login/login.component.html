@@ -7,7 +7,7 @@
       <h1 class="brand-name">Contact Center</h1>
     </header>
 
-    <!-- Error banner (shared for both steps) -->
+    <!-- Error banner (shared for all steps) -->
     @if (errorMessage()) {
       <div class="error-banner" role="alert" aria-live="assertive">
         <span class="error-icon" aria-hidden="true">!</span>
@@ -15,55 +15,83 @@
       </div>
     }
 
-    <!-- ── Step 1: Credentials ── -->
-    @if (!isMfaStep()) {
+    <!-- ── Step 1: Email ── -->
+    @if (step() === 'email') {
       <div class="step-wrapper">
         <h2 class="step-title">Logowanie</h2>
 
-        <form [formGroup]="credentialsForm" (ngSubmit)="onSubmitCredentials()" novalidate>
+        <form [formGroup]="emailStepForm" (ngSubmit)="onSubmitEmail()" novalidate>
 
           <div class="form-field">
-            <label for="tenantId" class="form-label">Organizacja</label>
-            <select
-              id="tenantId"
-              formControlName="tenantId"
-              [class.input-invalid]="tenantIdInvalid()"
-              aria-required="true"
-              [attr.aria-describedby]="tenantIdInvalid() ? 'tenantId-error' : null"
-            >
-              <option value="" disabled>-- wybierz organizację --</option>
-              @for (tenant of tenants(); track tenant.id) {
-                <option [value]="tenant.id">{{ tenant.name }}</option>
-              }
-              @if (tenants().length === 0) {
-                <option value="" disabled>Brak dostępnych organizacji</option>
-              }
-            </select>
-            @if (tenantIdInvalid()) {
-              <span id="tenantId-error" class="field-error" role="alert">
-                Wybór organizacji jest wymagany.
-              </span>
-            }
-          </div>
-
-          <div class="form-field">
-            <label for="email" class="form-label">Adres e-mail</label>
+            <label for="email-step" class="form-label">Adres e-mail</label>
             <input
-              id="email"
+              id="email-step"
               type="email"
               formControlName="email"
               autocomplete="email"
               placeholder="przyklad@firma.pl"
-              [class.input-invalid]="emailInvalid()"
+              [class.input-invalid]="emailStepInvalid()"
               aria-required="true"
-              [attr.aria-describedby]="emailInvalid() ? 'email-error' : null"
+              [attr.aria-describedby]="emailStepInvalid() ? 'email-step-error' : null"
             />
-            @if (emailInvalid()) {
-              <span id="email-error" class="field-error" role="alert">
-                {{ emailErrorMessage() }}
+            @if (emailStepInvalid()) {
+              <span id="email-step-error" class="field-error" role="alert">
+                {{ emailStepErrorMessage() }}
               </span>
             }
           </div>
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="loading()"
+            [attr.aria-busy]="loading()"
+          >
+            @if (loading()) {
+              <span class="spinner" aria-hidden="true"></span>
+              Sprawdzanie...
+            } @else {
+              Dalej
+            }
+          </button>
+
+        </form>
+      </div>
+    }
+
+    <!-- ── Step 2: Credentials ── -->
+    @if (step() === 'credentials') {
+      <div class="step-wrapper">
+        <h2 class="step-title">Logowanie</h2>
+
+        <p class="email-display" aria-label="Logujesz się jako {{ emailValue }}">
+          {{ emailValue }}
+        </p>
+
+        <form [formGroup]="credentialsForm" (ngSubmit)="onSubmitCredentials()" novalidate>
+
+          @if (showTenantSelect()) {
+            <div class="form-field">
+              <label for="tenantId" class="form-label">Organizacja</label>
+              <select
+                id="tenantId"
+                formControlName="tenantId"
+                [class.input-invalid]="tenantIdInvalid()"
+                aria-required="true"
+                [attr.aria-describedby]="tenantIdInvalid() ? 'tenantId-error' : null"
+              >
+                <option value="" disabled>-- wybierz organizację --</option>
+                @for (tenant of matchedTenants(); track tenant.id) {
+                  <option [value]="tenant.id">{{ tenant.name }}</option>
+                }
+              </select>
+              @if (tenantIdInvalid()) {
+                <span id="tenantId-error" class="field-error" role="alert">
+                  Wybór organizacji jest wymagany.
+                </span>
+              }
+            </div>
+          }
 
           <div class="form-field">
             <label for="password" class="form-label">Hasło</label>
@@ -99,10 +127,19 @@
           </button>
 
         </form>
+
+        <button
+          type="button"
+          class="btn btn-ghost back-btn"
+          (click)="backToEmail()"
+          [disabled]="loading()"
+        >
+          &larr; Wróć
+        </button>
       </div>
     }
 
-    <!-- ── Step 2: MFA ── -->
+    <!-- ── Step 3: MFA ── -->
     @if (isMfaStep()) {
       <div class="step-wrapper">
         <h2 class="step-title">Weryfikacja dwuetapowa</h2>

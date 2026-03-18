@@ -27,6 +27,12 @@ export class UserService {
     if (params.skill && params.skill.trim()) {
       httpParams = httpParams.set('skill', params.skill.trim());
     }
+    if (params.role) {
+      httpParams = httpParams.set('role', params.role);
+    }
+    if (params.search && params.search.trim()) {
+      httpParams = httpParams.set('search', params.search.trim());
+    }
 
     return this.http.get<PagedResponse<UserResponse>>(this.baseUrl, { params: httpParams });
   }

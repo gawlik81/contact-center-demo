@@ -39,9 +39,9 @@
 
   <div class="navbar__right">
     @if (auth.currentPayload()) {
-      <div class="navbar__tenant" aria-label="Identyfikator tenanta">
+      <div class="navbar__tenant" aria-label="Nazwa tenanta">
         <span class="navbar__tenant-label">Tenant:</span>
-        <span class="navbar__tenant-id">{{ auth.currentTenantId() }}</span>
+        <span class="navbar__tenant-id">{{ auth.currentTenantName() ?? auth.currentTenantId() }}</span>
       </div>
 
       <div class="navbar__user">

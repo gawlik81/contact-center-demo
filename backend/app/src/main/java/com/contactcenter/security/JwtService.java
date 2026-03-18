@@ -46,6 +46,7 @@ public class JwtService {
 
     // Claims JWT – spójne z JwtParser
     public static final String CLAIM_TENANT_ID   = JwtParser.CLAIM_TENANT_ID;
+    public static final String CLAIM_TENANT_NAME = "tenant_name";
     public static final String CLAIM_USER_ID     = JwtParser.CLAIM_USER_ID;
     public static final String CLAIM_ROLE        = JwtParser.CLAIM_ROLE;
     public static final String CLAIM_EMAIL       = "email";
@@ -84,7 +85,7 @@ public class JwtService {
      * @param mfaVerified czy użytkownik pomyślnie przeszedł weryfikację MFA w tej sesji
      * @return podpisany access token JWT (RS256)
      */
-    public String issueAccessToken(AppUser user, boolean mfaVerified) {
+    public String issueAccessToken(AppUser user, String tenantName, boolean mfaVerified) {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(jwtProperties.accessTokenTtlSeconds());
 
@@ -93,10 +94,11 @@ public class JwtService {
                 .issuer(jwtProperties.issuer())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
-                .claim(CLAIM_TENANT_ID, user.getTenantId().toString())
-                .claim(CLAIM_USER_ID,   user.getId().toString())
-                .claim(CLAIM_ROLE,      user.getRole().name())
-                .claim(CLAIM_EMAIL,     user.getEmail())
+                .claim(CLAIM_TENANT_ID,   user.getTenantId().toString())
+                .claim(CLAIM_TENANT_NAME, tenantName)
+                .claim(CLAIM_USER_ID,     user.getId().toString())
+                .claim(CLAIM_ROLE,        user.getRole().name())
+                .claim(CLAIM_EMAIL,       user.getEmail())
                 .claim(CLAIM_MFA_VERIFIED, mfaVerified)
                 .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();

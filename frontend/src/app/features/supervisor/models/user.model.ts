@@ -44,6 +44,8 @@ export interface UserListParams {
   size: number;
   status?: UserStatus | '';
   skill?: string;
+  role?: UserRole | '';
+  search?: string;
 }
 
 /** Generyczny wrapper paginowanej odpowiedzi – zgodny z backendem PagedResponse<T>. */

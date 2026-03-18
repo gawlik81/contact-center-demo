@@ -22,7 +22,7 @@ import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { AuthService } from '../../../../../core/services/auth.service';
 import { WebSocketService } from '../../../../../core/services/websocket.service';
-import { PagedResponse, UserResponse, UserStatus } from '../../../models/user.model';
+import { PagedResponse, UserResponse, UserRole, UserStatus } from '../../../models/user.model';
 import {
   AgentStatusChangedPayload,
   WsEvent,
@@ -75,8 +75,10 @@ export class UserListComponent implements OnInit {
   readonly flashingAgentIds = signal<Set<string>>(new Set());
 
   readonly filterForm = this.fb.group({
+    search: [''],
     skill: [''],
     status: ['' as UserStatus | ''],
+    role: ['' as UserRole | ''],
   });
 
   readonly statusOptions: { value: UserStatus | ''; label: string }[] = [
@@ -88,6 +90,13 @@ export class UserListComponent implements OnInit {
     { value: 'ACTIVE', label: 'Aktywny' },
     { value: 'INACTIVE', label: 'Nieaktywny' },
     { value: 'OFFLINE', label: 'Offline' },
+  ];
+
+  readonly roleOptions: { value: UserRole | ''; label: string }[] = [
+    { value: '', label: 'Wszystkie role' },
+    { value: 'AGENT', label: 'Agent' },
+    { value: 'SUPERVISOR', label: 'Supervisor' },
+    { value: 'ADMIN', label: 'Admin' },
   ];
 
   ngOnInit(): void {
@@ -148,12 +157,7 @@ export class UserListComponent implements OnInit {
         }),
         switchMap(() =>
           this.userService
-            .getUsers({
-              page: this.currentPage(),
-              size: this.pageSize,
-              status: this.filterForm.getRawValue().status ?? '',
-              skill: this.filterForm.getRawValue().skill ?? '',
-            })
+            .getUsers(this.buildFilterParams())
             .pipe(catchError(() => of(null))),
         ),
         takeUntilDestroyed(this.destroyRef),
@@ -193,17 +197,23 @@ export class UserListComponent implements OnInit {
     }, STATUS_FLASH_DURATION_MS);
   }
 
+  private buildFilterParams() {
+    const { search, skill, status, role } = this.filterForm.getRawValue();
+    return {
+      page: this.currentPage(),
+      size: this.pageSize,
+      search: search ?? '',
+      skill: skill ?? '',
+      status: status ?? '',
+      role: role ?? '',
+    };
+  }
+
   loadUsers(): void {
     this.loading.set(true);
-    const { skill, status } = this.filterForm.getRawValue();
 
     this.userService
-      .getUsers({
-        page: this.currentPage(),
-        size: this.pageSize,
-        status: status ?? '',
-        skill: skill ?? '',
-      })
+      .getUsers(this.buildFilterParams())
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {

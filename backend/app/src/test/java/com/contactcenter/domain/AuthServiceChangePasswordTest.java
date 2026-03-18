@@ -3,9 +3,12 @@ package com.contactcenter.domain;
 import com.contactcenter.api.auth.ChangePasswordRequest;
 import com.contactcenter.api.auth.LoginResponse;
 import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.RefreshTokenRepository;
+import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.service.AuthService;
+import com.contactcenter.domain.service.UserService;
 import com.contactcenter.security.*;
 import com.contactcenter.security.JwtParser.JwtClaims;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +56,8 @@ class AuthServiceChangePasswordTest {
     @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private LoginRateLimiter loginRateLimiter;
+    @Mock private UserService userService;
+    @Mock private TenantRepository tenantRepository;
 
     private AuthService authService;
 
@@ -61,11 +66,15 @@ class AuthServiceChangePasswordTest {
 
     @BeforeEach
     void setUp() {
+        Tenant tenant = new Tenant();
+        tenant.setName("Test Tenant");
+        when(tenantRepository.findById(any())).thenReturn(Optional.of(tenant));
+
         authService = new AuthService(
                 authenticationManager, jwtService, jwtParser,
                 tokenBlacklistService, mfaService,
                 appUserRepository, refreshTokenRepository,
-                passwordEncoder, loginRateLimiter
+                passwordEncoder, loginRateLimiter, userService, tenantRepository
         );
     }
 
@@ -103,7 +112,7 @@ class AuthServiceChangePasswordTest {
             when(passwordEncoder.matches("OldPass1", oldHash)).thenReturn(true);
             when(passwordEncoder.encode("NewPass2")).thenReturn(newHash);
             when(refreshTokenRepository.revokeAllByUserId(USER_ID)).thenReturn(2);
-            when(jwtService.issueAccessToken(any(AppUser.class), anyBoolean()))
+            when(jwtService.issueAccessToken(any(AppUser.class), anyString(), anyBoolean()))
                     .thenReturn("new.access.token");
             when(jwtService.generateRefreshTokenValue()).thenReturn("new-refresh-token-uuid");
             when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
@@ -138,7 +147,7 @@ class AuthServiceChangePasswordTest {
             when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);
             when(passwordEncoder.encode(anyString())).thenReturn("$2a$12$newHash");
             when(refreshTokenRepository.revokeAllByUserId(any())).thenReturn(0);
-            when(jwtService.issueAccessToken(any(), anyBoolean())).thenReturn("token");
+            when(jwtService.issueAccessToken(any(), anyString(), anyBoolean())).thenReturn("token");
             when(jwtService.generateRefreshTokenValue()).thenReturn("refresh-uuid");
             when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
             when(jwtService.refreshTokenExpiresAt()).thenReturn(java.time.Instant.now().plusSeconds(604800));

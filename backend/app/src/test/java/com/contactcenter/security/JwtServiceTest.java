@@ -82,7 +82,7 @@ class JwtServiceTest {
         void shouldContainRequiredClaims() {
             AppUser user = buildUser();
 
-            String token = jwtService.issueAccessToken(user, false);
+            String token = jwtService.issueAccessToken(user, "Test Tenant", false);
 
             assertThat(token).isNotBlank();
             JwtParser.JwtClaims claims = jwtParser.parse(token);
@@ -97,7 +97,7 @@ class JwtServiceTest {
         void shouldSetMfaVerifiedFalse() {
             AppUser user = buildUser();
 
-            String token = jwtService.issueAccessToken(user, false);
+            String token = jwtService.issueAccessToken(user, "Test Tenant", false);
 
             // Parsujemy bezpośrednio przez JJWT żeby sprawdzić claim mfaVerified
             Claims rawClaims = Jwts.parser()
@@ -114,7 +114,7 @@ class JwtServiceTest {
         void shouldSetMfaVerifiedTrue() {
             AppUser user = buildUser();
 
-            String token = jwtService.issueAccessToken(user, true);
+            String token = jwtService.issueAccessToken(user, "Test Tenant", true);
 
             Claims rawClaims = Jwts.parser()
                     .verifyWith(publicKey)
@@ -131,7 +131,7 @@ class JwtServiceTest {
             AppUser user = buildUser();
 
             Instant before = Instant.now();
-            String token = jwtService.issueAccessToken(user, false);
+            String token = jwtService.issueAccessToken(user, "Test Tenant", false);
             Instant after = Instant.now();
 
             Claims rawClaims = Jwts.parser()
@@ -151,7 +151,7 @@ class JwtServiceTest {
         void shouldContainCorrectIssuer() {
             AppUser user = buildUser();
 
-            String token = jwtService.issueAccessToken(user, false);
+            String token = jwtService.issueAccessToken(user, "Test Tenant", false);
 
             Claims rawClaims = Jwts.parser()
                     .verifyWith(publicKey)
@@ -167,7 +167,7 @@ class JwtServiceTest {
         void shouldContainEmail() {
             AppUser user = buildUser();
 
-            String token = jwtService.issueAccessToken(user, false);
+            String token = jwtService.issueAccessToken(user, "Test Tenant", false);
 
             Claims rawClaims = Jwts.parser()
                     .verifyWith(publicKey)

@@ -51,6 +51,7 @@ export class AuthService {
   });
   readonly currentRole = computed(() => this._currentPayload()?.role ?? null);
   readonly currentTenantId = computed(() => this._currentPayload()?.tenant_id ?? null);
+  readonly currentTenantName = computed(() => this._currentPayload()?.tenant_name ?? null);
   readonly currentUserId = computed(() => this._currentPayload()?.user_id ?? null);
 
   private loadPayloadFromStorage(): JwtPayload | null {

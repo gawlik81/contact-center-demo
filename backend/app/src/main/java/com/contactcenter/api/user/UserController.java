@@ -108,10 +108,18 @@ public class UserController {
         }
     )
     public ResponseEntity<PagedResponse<UserResponse>> listUsers(
-            @PageableDefault(size = 20, sort = "email") Pageable pageable
+            @PageableDefault(size = 20, sort = "email") Pageable pageable,
+            @Parameter(description = "Filtr po statusie użytkownika (np. ACTIVE, AVAILABLE, OFFLINE)")
+            @RequestParam(required = false) String status,
+            @Parameter(description = "Filtr po skillu agenta (szukanie w tablicy JSONB)")
+            @RequestParam(required = false) String skill,
+            @Parameter(description = "Filtr po roli (ADMIN, SUPERVISOR, AGENT)")
+            @RequestParam(required = false) String role,
+            @Parameter(description = "Wyszukiwanie po imieniu, nazwisku lub emailu (case-insensitive)")
+            @RequestParam(required = false) String search
     ) {
         UUID tenantId = TenantContext.getTenantId();
-        return ResponseEntity.ok(PagedResponse.from(userService.listUsers(tenantId, pageable)));
+        return ResponseEntity.ok(PagedResponse.from(userService.listUsers(tenantId, status, skill, role, search, pageable)));
     }
 
     // =========================================================================

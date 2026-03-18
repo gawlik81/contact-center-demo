@@ -130,17 +130,29 @@ public class UserService {
     // =========================================================================
 
     /**
-     * Lista użytkowników tenanta z paginacją.
+     * Lista użytkowników tenanta z paginacją i opcjonalnym filtrowaniem.
      *
      * @param tenantId UUID tenanta
+     * @param status   opcjonalny filtr statusu (null = brak filtru)
+     * @param skill    opcjonalny filtr skill (null = brak filtru)
+     * @param role     opcjonalny filtr roli (null = brak filtru)
+     * @param search   opcjonalna fraza wyszukiwania w imieniu, nazwisku, emailu (null = brak filtru)
      * @param pageable parametry stronicowania
      * @return strona DTO użytkowników
      */
     @Transactional(readOnly = true)
-    public Page<UserResponse> listUsers(UUID tenantId, Pageable pageable) {
+    public Page<UserResponse> listUsers(UUID tenantId, String status, String skill, String role, String search, Pageable pageable) {
+        String statusParam = blank(status) ? null : status.trim();
+        String skillParam  = blank(skill)  ? null : skill.trim();
+        String roleParam   = blank(role)   ? null : role.trim();
+        String searchParam = blank(search) ? null : search.trim();
         return appUserRepository
-                .findAllByTenantIdAndDeletedFalse(tenantId, pageable)
+                .findAllByTenantIdWithFilters(tenantId, statusParam, skillParam, roleParam, searchParam, pageable)
                 .map(UserResponse::from);
+    }
+
+    private static boolean blank(String s) {
+        return s == null || s.isBlank();
     }
 
     // =========================================================================

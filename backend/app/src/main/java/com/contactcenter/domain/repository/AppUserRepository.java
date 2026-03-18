@@ -141,6 +141,52 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     Page<AppUser> findAllByTenantIdAndDeletedFalse(UUID tenantId, Pageable pageable);
 
     /**
+     * Lista użytkowników tenanta z opcjonalnym filtrowaniem po statusie, skillu, roli i frazie wyszukiwania.
+     *
+     * <p>Wszystkie parametry są opcjonalne – gdy null, warunek jest pomijany.
+     * Filtr {@code skill} używa JSONB containment (@>).
+     * Filtr {@code search} przeszukuje imię, nazwisko i email za pomocą ILIKE (case-insensitive).
+     *
+     * @param tenantId UUID tenanta
+     * @param status   opcjonalny status (ACTIVE, INACTIVE, AVAILABLE, BUSY, …) lub null
+     * @param skill    opcjonalny skill do wyszukania w JSONB array lub null
+     * @param role     opcjonalna rola (ADMIN, SUPERVISOR, AGENT) lub null
+     * @param search   opcjonalna fraza do wyszukania w imieniu, nazwisku i emailu lub null
+     * @param pageable parametry stronicowania
+     * @return strona użytkowników spełniających kryteria
+     */
+    @Query(value = """
+            SELECT * FROM app_user
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND is_deleted = FALSE
+              AND (:status IS NULL OR status = :status)
+              AND (:skill IS NULL OR skills @> jsonb_build_array(:skill)::jsonb)
+              AND (:role IS NULL OR role = :role)
+              AND (:search IS NULL OR first_name ILIKE '%' || :search || '%'
+                                   OR last_name  ILIKE '%' || :search || '%'
+                                   OR email      ILIKE '%' || :search || '%')
+            """,
+           countQuery = """
+            SELECT COUNT(*) FROM app_user
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND is_deleted = FALSE
+              AND (:status IS NULL OR status = :status)
+              AND (:skill IS NULL OR skills @> jsonb_build_array(:skill)::jsonb)
+              AND (:role IS NULL OR role = :role)
+              AND (:search IS NULL OR first_name ILIKE '%' || :search || '%'
+                                   OR last_name  ILIKE '%' || :search || '%'
+                                   OR email      ILIKE '%' || :search || '%')
+            """,
+           nativeQuery = true)
+    Page<AppUser> findAllByTenantIdWithFilters(
+            @Param("tenantId") UUID tenantId,
+            @Param("status") String status,
+            @Param("skill") String skill,
+            @Param("role") String role,
+            @Param("search") String search,
+            Pageable pageable);
+
+    /**
      * Znajdź użytkownika po ID i tenantId (nie usuniętego).
      * Bezpieczny odczyt per tenant – uniemożliwia cross-tenant lookup.
      *

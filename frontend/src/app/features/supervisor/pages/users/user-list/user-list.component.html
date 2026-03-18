@@ -12,6 +12,17 @@
   <!-- Filters -->
   <div class="user-list__filters" [formGroup]="filterForm" role="search" aria-label="Filtruj agentow">
     <div class="filter-field">
+      <label class="filter-label" for="filter-search">Szukaj</label>
+      <input
+        id="filter-search"
+        type="text"
+        class="filter-input"
+        formControlName="search"
+        placeholder="Imię, nazwisko lub email..."
+        autocomplete="off"
+      />
+    </div>
+    <div class="filter-field">
       <label class="filter-label" for="filter-skill">Skill</label>
       <input
         id="filter-skill"
@@ -26,6 +37,14 @@
       <label class="filter-label" for="filter-status">Status</label>
       <select id="filter-status" class="filter-select" formControlName="status">
         @for (opt of statusOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="filter-field">
+      <label class="filter-label" for="filter-role">Rola</label>
+      <select id="filter-role" class="filter-select" formControlName="role">
+        @for (opt of roleOptions; track opt.value) {
           <option [value]="opt.value">{{ opt.label }}</option>
         }
       </select>

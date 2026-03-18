@@ -6,8 +6,10 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.RefreshToken;
+import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.RefreshTokenRepository;
+import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.security.*;
 import com.contactcenter.security.JwtParser.JwtClaims;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +59,7 @@ public class AuthService {
     private final MfaService mfaService;
     private final AppUserRepository appUserRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final TenantRepository tenantRepository;
     private final PasswordEncoder passwordEncoder;
     private final LoginRateLimiter loginRateLimiter;
     private final UserService userService;
@@ -125,7 +128,7 @@ public class AuthService {
         // Po udanym uwierzytelnieniu: zresetuj licznik rate limit
         loginRateLimiter.reset(ip);
 
-        String accessToken = jwtService.issueAccessToken(user, !user.isMfaEnabled());
+        String accessToken = jwtService.issueAccessToken(user, getTenantName(user), !user.isMfaEnabled());
         String refreshTokenValue = createRefreshToken(user);
         long ttl = jwtService.getAccessTokenTtlSeconds();
 
@@ -192,7 +195,7 @@ public class AuthService {
         // Przy włączonym MFA klient musi ponownie zweryfikować kod TOTP przez /api/auth/mfa/verify.
         // Wcześniejszy kod używał user.isMfaEnabled() co oznaczało, że użytkownik z MFA
         // otrzymywał token z mfaVerified=true bez podania kodu TOTP – luka bezpieczeństwa.
-        String newAccessToken = jwtService.issueAccessToken(user, false);
+        String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), false);
         String newRefreshTokenValue = createRefreshToken(user);
 
         log.info("[Auth] Token refresh (rotation): userId={}, tenantId={}", user.getId(), user.getTenantId());
@@ -345,7 +348,7 @@ public class AuthService {
         }
 
         // Wystaw nowy access token z mfaVerified=true
-        String newAccessToken = jwtService.issueAccessToken(user, true);
+        String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), true);
         log.info("[MFA] Weryfikacja TOTP pomyślna: userId={}", userId);
         return newAccessToken;
     }
@@ -406,7 +409,7 @@ public class AuthService {
         user.setPasswordResetRequired(false);
 
         // Wystaw nowe tokeny
-        String newAccessToken = jwtService.issueAccessToken(user, !user.isMfaEnabled());
+        String newAccessToken = jwtService.issueAccessToken(user, getTenantName(user), !user.isMfaEnabled());
         String newRefreshTokenValue = createRefreshToken(user);
 
         log.info("[Auth] Hasło zmienione pomyślnie: userId={}, tenantId={}", userId, tenantId);
@@ -463,6 +466,12 @@ public class AuthService {
     /**
      * Tworzy i zapisuje nowy refresh token w bazie danych.
      */
+    private String getTenantName(AppUser user) {
+        return tenantRepository.findById(user.getTenantId())
+                .map(Tenant::getName)
+                .orElse(user.getTenantId().toString());
+    }
+
     private String createRefreshToken(AppUser user) {
         String tokenValue = jwtService.generateRefreshTokenValue();
         Instant expiresAt = jwtService.refreshTokenExpiresAt();

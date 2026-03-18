@@ -1,0 +1,137 @@
+package com.contactcenter.domain.telephony;
+
+import com.contactcenter.infrastructure.config.RabbitMQConfig;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Serwis publikujący domenowe eventy telefoniczne na RabbitMQ.
+ *
+ * <p>Exchange: {@code cc.events} (topic).
+ * Routing key: {@code call.{eventType}} – np. {@code call.incoming}, {@code call.hangup}.
+ *
+ * <p>Konwencja routing keys zgodna z {@link RabbitMQConfig#RK_CALL_ALL} ({@code call.#}),
+ * więc wszystkie eventy trafiają do {@code cc.queue.call-events}.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class TelephonyEventPublisher {
+
+    private static final String ROUTING_KEY_PREFIX = "call.";
+
+    private final RabbitTemplate rabbitTemplate;
+
+    // =========================================================================
+    // Metody publikacji
+    // =========================================================================
+
+    /**
+     * Publikuje event domenowy na RabbitMQ.
+     *
+     * @param event event do opublikowania
+     * @throws AmqpException gdy komunikacja z RabbitMQ nie powiedzie się
+     */
+    public void publish(CallEvent event) {
+        String routingKey = ROUTING_KEY_PREFIX + event.getEventType().toRoutingKeySuffix();
+
+        log.debug("[Telephony] Publikuję event: type={}, callId={}, tenant={}, routingKey={}",
+                event.getEventType(), event.getCallId(), event.getTenantId(), routingKey);
+
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, routingKey, event);
+
+            log.info("[Telephony] Event opublikowany: type={}, callId={}, tenant={}, from={}, to={}",
+                    event.getEventType(), event.getCallId(),
+                    event.getTenantId(), event.getFrom(), event.getTo());
+
+        } catch (AmqpException e) {
+            log.error("[Telephony] Błąd publikacji eventu: type={}, callId={}, error={}",
+                    event.getEventType(), event.getCallId(), e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    // =========================================================================
+    // Metody fabryczne dla konkretnych typów zdarzeń
+    // =========================================================================
+
+    /**
+     * Publikuje zdarzenie CALL_INCOMING (przychodzące połączenie).
+     */
+    public void publishIncoming(String callId, UUID tenantId, UUID agentId,
+                                 String from, String to) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_INCOMING)
+                .callId(callId)
+                .tenantId(tenantId)
+                .agentId(agentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    /**
+     * Publikuje zdarzenie CALL_ANSWERED (połączenie odebrane).
+     */
+    public void publishAnswered(String callId, UUID tenantId, UUID agentId,
+                                 String from, String to) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_ANSWERED)
+                .callId(callId)
+                .tenantId(tenantId)
+                .agentId(agentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    /**
+     * Publikuje zdarzenie CALL_HANGUP (połączenie zakończone).
+     */
+    public void publishHangup(String callId, UUID tenantId, UUID agentId,
+                               String from, String to) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_HANGUP)
+                .callId(callId)
+                .tenantId(tenantId)
+                .agentId(agentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    /**
+     * Publikuje zdarzenie CALL_TRANSFERRED (połączenie przekazane).
+     *
+     * @param transferTarget numer docelowy przekazania
+     * @param transferType   typ przekazania (BLIND/ATTENDED)
+     */
+    public void publishTransferred(String callId, UUID tenantId, UUID agentId,
+                                    String from, String to,
+                                    String transferTarget, String transferType) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_TRANSFERRED)
+                .callId(callId)
+                .tenantId(tenantId)
+                .agentId(agentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .metadata(Map.of(
+                        "transferTarget", transferTarget,
+                        "transferType", transferType
+                ))
+                .build());
+    }
+}

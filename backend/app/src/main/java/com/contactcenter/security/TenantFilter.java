@@ -75,7 +75,9 @@ public class TenantFilter extends OncePerRequestFilter {
             "/api/auth/login",
             "/api/auth/refresh",
             "/api/public/",
-            "/webhooks/"
+            "/webhooks/",
+            // Webhook VoIP – weryfikacja przez X-Webhook-Secret (nie przez JWT)
+            "/api/telephony/webhook"
     );
 
     private final JwtParser jwtParser;

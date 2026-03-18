@@ -185,6 +185,18 @@ jwt:
   refresh-token-ttl-seconds: ${JWT_REFRESH_TOKEN_TTL:604800}
 
 # =============================================================================
+# Telephony – konfiguracja adaptera VoIP (BE-009)
+# =============================================================================
+telephony:
+  # Provider telefonii: mock (dev/test) | twilio | vonage
+  # Mock aktywny gdy brak właściwości lub jawne ustawienie na 'mock'
+  provider: ${TELEPHONY_PROVIDER:mock}
+  webhook:
+    # Shared secret weryfikowany w nagłówku X-Webhook-Secret przez TelephonyWebhookController
+    # W prod: ustaw mocny losowy secret przez ENV var TELEPHONY_WEBHOOK_SECRET
+    secret: ${TELEPHONY_WEBHOOK_SECRET:dev-secret}
+
+# =============================================================================
 # Logowanie – wspólna konfiguracja bazowa
 # =============================================================================
 logging:

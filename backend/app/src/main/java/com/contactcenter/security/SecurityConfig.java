@@ -100,6 +100,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/public/**").permitAll()
                 // Webhooks zewnętrzne (Facebook, Instagram, WhatsApp) – weryfikacja przez HMAC
                 .requestMatchers("/webhooks/**").permitAll()
+                // Webhook VoIP od providera telefonii – publiczny, weryfikacja przez X-Webhook-Secret
+                .requestMatchers("/api/telephony/webhook/**").permitAll()
                 // Actuator (poza health) – wymaga autentykacji
                 .requestMatchers("/actuator/**").authenticated()
                 // Endpointy ADMIN – tylko rola ADMIN

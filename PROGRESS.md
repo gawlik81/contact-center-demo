@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-18 (BE-009 VoIP Adapter, BE-012 WebSocket hub, FE-009 Agent Desktop – ukończone)
+**Ostatnia aktualizacja:** 2026-03-18 (BE-004 email-first flow + POST /api/public/tenants-by-email, FE-004 login flow przepisany na 3-krokowy email-first)
 
 ---
 
@@ -56,7 +56,7 @@
 | BE-001 | Inicjalizacja projektu Spring Boot i struktura modułów | ✅ | Multi-module Maven, profile dev/prod, Flyway, HikariCP, Redis, RabbitMQ |
 | BE-002 | Konfiguracja multi-tenancy: TenantContext i filtr tenant_id | ✅ | TenantContext, TenantFilter, JwtParser, JwtProperties, SecurityConfig, TenantAwareRepository, CrossTenantAccessException, CrossTenantAspect, GlobalExceptionHandler. 85 testów PASS |
 | BE-003 | Konfiguracja bezpieczeństwa: Spring Security, JWT, MFA | ✅ | JwtService (RS256), JwtAuthFilter, TokenBlacklistService (Redis SHA-256), MfaService (TOTP RFC 6238 ±30s), AppUser/RefreshToken encje, AuthService, AuthController + DTO. 132 testy PASS |
-| BE-004 | Auth API: login, logout, refresh, zmiana hasła | ✅ | Rate limiting Redis (5/15min/IP→429), POST /api/auth/change-password (walidacja siły hasła), POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR), passwordResetRequired w LoginResponse, LoginRateLimiter.java |
+| BE-004 | Auth API: login, logout, refresh, zmiana hasła | ✅ | Rate limiting Redis (5/15min/IP→429), POST /api/auth/change-password (walidacja siły hasła), POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR), passwordResetRequired w LoginResponse, LoginRateLimiter.java. Rozszerzono PublicController: POST /api/public/tenants-by-email (email-first flow), AppUserRepository.findActiveTenantsByUserEmail – zawsze HTTP 200, pusta lista zamiast 404 (bez ujawniania istnienia e-maila). |
 | BE-005 | Audit Log: zapis działań użytkowników | ✅ | @Audited AOP, AuditAspect (@Around), AuditLogService (RabbitMQ async), AuditLogConsumer (@RabbitListener), AuditLog entity (JPA + native INSERT dla tabeli partycjonowanej), AuditLogRepository, GET /api/audit-logs (ADMIN, paginacja max 100). @Audited dodany do TenantService: CREATED/UPDATED/DEACTIVATED. 189 testów PASS |
 | BE-006 | Tenant CRUD API i limity zasobów | ✅ | Tenant.java (encja JPA, JSONB przez @JdbcTypeCode(SqlTypes.JSON)), TenantRepository, TenantService, TenantResourceLimitService (reużywany przez BE-008/020/022), TenantController (6 endpointów), ResourceLimitExceededException (HTTP 422). 27 nowych testów. Łącznie 173 PASS. Naprawiono: JsonMapConverter → @JdbcTypeCode, ENUM types → VARCHAR+CHECK (V019) |
 | BE-007 | Admin metrics API: metryki RT tenantów | ✅ | AdminMetricsService (polling Redis session:agent:*, @Cacheable cache 30s), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}, @PreAuthorize("hasRole('ADMIN')")), cache Redis TTL 30s dla admin-metrics (Jackson2JsonRedisSerializer<AdminMetricsResponse>). TenantService inwaliduje cache przy deactivateTenant() i updateTenant(). 204 testy PASS |
@@ -94,7 +94,7 @@
 | FE-001 | Inicjalizacja projektu Angular i konfiguracja workspace | ✅ | Angular 21.2.x, standalone components, SCSS, Vitest. ESLint (angular-eslint) + Prettier + Husky/lint-staged. Struktura: core/, shared/, features/, environments/. Proxy /api/* → localhost:8080, WebSocket /ws. ng build i ng test PASS. |
 | FE-002 | Konfiguracja routingu, lazy loading i guard AuthGuard | ✅ | Standalone functional guards (AuthGuard, RoleGuard, RoleRedirectGuard), lazy loading 12 chunków, TokenService (localStorage/sessionStorage), AuthService (sygnały), authInterceptor z silent refresh kolejkującym żądania, routing dla /auth/**, /admin/**, /supervisor/**, /agent/** |
 | FE-003 | HTTP Interceptor: JWT, refresh token, obsługa błędów 401/403 | ✅ | errorHandlerInterceptor (403→toast "Brak uprawnień", 5xx→toast "Błąd serwera", status 0→"Brak połączenia"), NotificationService (signal-based, auto-dismiss 4-6s), ToastContainerComponent (WCAG AA, aria-live), oba interceptory zarejestrowane w app.config.ts |
-| FE-004 | Moduł uwierzytelniania: ekran logowania i MFA | ✅ | LoginComponent (dwustanowy: credentials→MFA, reactive form, walidacja, spinner, błąd 401 inline), MFA krok TOTP (6 cyfr, pattern validator), ChangePasswordComponent (cross-field validator, wskaźnik siły hasła), AUTH_ROUTES, dropdown tenanta w formularzu logowania. Naprawiony proxy.conf.json (usunięty pathRewrite). Naprawiony hash BCrypt w V999__dev_seed.sql. |
+| FE-004 | Moduł uwierzytelniania: ekran logowania i MFA | ✅ | LoginComponent przepisany na flow 3-krokowy "email-first": krok 1 email → POST /api/public/tenants-by-email → krok 2 hasło + opcjonalny dropdown organizacji (gdy >1 trafień) → krok 3 MFA TOTP (6 cyfr). Sygnały Angular: step, matchedTenants, loading, errorMessage. ChangePasswordComponent (cross-field validator, wskaźnik siły hasła), AUTH_ROUTES. Backend: POST /api/public/tenants-by-email w PublicController + findActiveTenantsByUserEmail w AppUserRepository. |
 | FE-005 | Shell aplikacji: top navbar, sidenav, breadcrumbs, notyfikacje | ✅ | AppShellComponent (CSS Grid/Flex, skip-link WCAG), TopNavbarComponent (hamburger, badge roli, logout, tenant info), SidenavComponent (menu kontekstowe per rola ADMIN/SUPERVISOR/AGENT, SVG ikony inline, responsive: overlay mobile/tablet, sticky desktop 1280px+), BreadcrumbsComponent + BreadcrumbService (Router.events, data.breadcrumb, aria-current), admin/supervisor/agent shell i routes zaktualizowane. ng build PASS. |
 | FE-006 | Lista tenantów i formularz tworzenia tenanta | ✅ | TenantListComponent (tabela z paginacją 20/str, filtry nazwa+status z debounce 300ms, skeleton loading, empty state, badge statusów ACTIVE/INACTIVE/SUSPENDED, przycisk dezaktywacji per wiersz), TenantFormComponent (reactive form, async validator unikalności nazwy debounce 500ms, limity agentów/kolejek/kampanii), TenantDeactivateModalComponent (natywny <dialog>, WCAG AA), TenantService (6 metod API), TENANT_ROUTES lazy-loaded, admin.routes.ts zaktualizowane. ng build PASS. Naprawiono: TenantService kontrakt (List nie PagedResponse), CreateTenantRequest pole config → limits |
 | FE-007 | Dashboard techniczny administratora (metryki tenantów RT) | ✅ | AdminMetricsService (singleton state z BehaviorSubject, polling co 30s przez timer(0,30000), alertCount$), AdminDashboardComponent (KPI cards: aktywne tenanty/agenci online/alerty, tabela tenantów z badge statusami i progress bar, skeleton loading, empty state, timestamp odświeżania). Badge alertów w SidenavComponent (podpięty pod alertCount$, widoczny tylko na /admin/dashboard). Placeholder komponenty: AdminUsersComponent (/admin/users) i AdminMetricsPageComponent (/admin/metrics) |
@@ -157,12 +157,13 @@
 | 2026-03-17 | AppUserRepository.java | existsActiveContactsByUserId zawierał AND is_deleted = FALSE – tabela contact (partycjonowana, V007) nie ma kolumny is_deleted, soft delete realizowany przez statusy QUEUED/ACTIVE/ON_HOLD | Usunięto warunek is_deleted z zapytania natywnego |
 | 2026-03-17 | AdminMetricsService.ts | SUPERVISOR/AGENT generował flood 403 co 30s – AdminMetricsService (providedIn: 'root') startował timer polling bezwarunkowo w konstruktorze, SidenavComponent wstrzykuje serwis dla wszystkich ról | Dodano guard if (this.auth.getUserRole() === 'ADMIN') w konstruktorze przed wywołaniem this._poll$.subscribe() |
 | 2026-03-17 | CR-BACKEND.md (20 issues) | Code review zidentyfikował: N+1 w deactivateTenant, blacklist TTL z runtime zamiast JWT exp, brak clearAutomatically=true, Redis KEYS() blokujący, TOTP replay attack, RLS Javadoc, PagedResponse brak metadanych, AuditAspect bez @Transactional, virtual thread ThreadLocal risk, Redis LaissezFaireSubTypeValidator RCE, brak max-page-size, MFA refresh vulnerability, SIOBE w TenantFilter, passwordHash comment, countOnlineAgents=0, AuditLogConsumer ack, circular dep comment, IllegalStateException→HTTP500, deleted users login, Swagger w prod | Wdrożono wszystkie 20 poprawek: bulk UPDATE (N+1), JwtClaims.expiresAt, clearAutomatically, SCAN cursor, Redis used-code TTL, BasicPolymorphicTypeValidator, PagedResponse<T>, InvalidOperationException, MfaService.verifyCode(userId), UserDetailsServiceImpl findByActiveTrue, springdoc OFF w prod, TenantContext Javadoc virtual thread warning. Naprawiono MfaService @RequiredArgsConstructor conflict i TenantService brakujący import List. 222 testy PASS |
+| 2026-03-18 | login.component.ts + public-tenant.service.ts | Flow logowania był dwustanowy (credentials→MFA); brak wykrywania organizacji po e-mailu wymuszał na użytkowniku ręczny wybór tenanta z pełnej listy | Przepisano LoginComponent na flow 3-krokowy "email-first": krok email → POST /api/public/tenants-by-email (nowy endpoint) → krok hasło z opcjonalnym dropdownem org (gdy >1 trafień) → krok MFA. Backend: PublicController.findTenantsByEmail + AppUserRepository.findActiveTenantsByUserEmail (native query). Bezpieczeństwo: zawsze HTTP 200 z pustą listą – nie ujawnia istnienia e-maila. |
 
 ---
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 10/31 (BE-001..BE-009 ✅, BE-012 ✅) | FE: 9/24 (FE-001..FE-009 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 10/31 (BE-001..BE-009 ✅, BE-012 ✅; BE-004 rozszerzony o email-first flow) | FE: 9/24 (FE-001..FE-009 ✅; FE-004 rozszerzony o 3-krokowy email-first flow)
 
 ---
 
@@ -188,7 +189,7 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-001 | Inicjalizacja Spring Boot, Flyway, Redis, RabbitMQ | ✅ |
 | BE-002 | Multi-tenancy: TenantContext, TenantFilter, RLS | ✅ |
 | BE-003 | Spring Security, JWT RS256, MFA TOTP, Blacklista Redis | ✅ |
-| BE-004 | Auth API: rate limiting, change-password, force-reset | ✅ |
+| BE-004 | Auth API: rate limiting, change-password, force-reset; POST /api/public/tenants-by-email (email-first) | ✅ |
 | BE-005 | Audit Log: @Audited AOP, AuditAspect, AuditLogService (RabbitMQ async), AuditLogConsumer, AuditLog entity (native INSERT, partycjonowanie), GET /api/audit-logs (ADMIN) | ✅ |
 | BE-006 | Tenant CRUD API i limity zasobów | ✅ |
 | BE-007 | Admin metrics API: AdminMetricsService (Redis polling), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}), cache Redis TTL 30s | ✅ |
@@ -204,7 +205,7 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-001 | Inicjalizacja Angular, workspace, proxy | ✅ |
 | FE-002 | Routing, lazy loading, AuthGuard, RoleGuard | ✅ |
 | FE-003 | HTTP Interceptor, JWT refresh, toast błędów | ✅ |
-| FE-004 | Ekran logowania + MFA + zmiana hasła | ✅ |
+| FE-004 | Ekran logowania (3-krokowy email-first flow) + MFA + zmiana hasła | ✅ |
 | FE-005 | Shell: navbar, sidenav, breadcrumbs, notyfikacje | ✅ |
 | FE-006 | Lista tenantów i formularz tworzenia tenanta | ✅ |
 | FE-007 | Dashboard techniczny admina: AdminMetricsService (BehaviorSubject, polling 30s), AdminDashboardComponent (KPI cards, tabela tenantów, skeleton loading), badge alertów w SidenavComponent | ✅ |
@@ -275,7 +276,7 @@ FE-005 → FE-023                                  (Integracje social media)
 
 | Zadanie FE | Czeka na BE | Opis zależności | MSW możliwe? |
 |------------|-------------|-----------------|--------------|
-| FE-004 | BE-004 | Ekran logowania: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`. Aktualnie działa z seed data, ale BE-004 musi być gotowe przed środowiskiem produkcyjnym | 🔵 Aktualnie mock przez seed |
+| FE-004 | BE-004 ✅ | Ekran logowania (email-first): `POST /api/public/tenants-by-email` (wykrycie org), `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`. Zrealizowane produkcyjnie. | ✅ Gotowe |
 | FE-006 | BE-006 | Lista tenantów i formularz tworzenia: cały CRUD `/api/tenants` | 🔵 Tak – MSW mock |
 | FE-007 | BE-007 | Dashboard admina: `GET /api/admin/metrics` | 🔵 Tak – MSW mock |
 | FE-008 | BE-008 | Zarządzanie agentami: CRUD `/api/users`, endpoint skills | 🔵 Tak – MSW mock |

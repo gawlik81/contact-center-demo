@@ -93,12 +93,13 @@ Implementacja `AuthInterceptor` dodającego nagłówek `Authorization: Bearer <t
 **Zlozonosc:** M
 **Zależności:** FE-002, FE-003
 **Status:** ✅ Ukończone
-**Czeka na BE:** BE-004 (produkcyjnie; aktualnie działa z seed data)
+**Zrealizowane:** 2026-03-18
+**Czeka na BE:** BE-004 ✅
 **Blokuje:** FE-005
 **Odniesienie PRD:** US-02-04, wymagania bezpieczenstwa (MFA)
 
 **Opis:**
-Ekran logowania z polami email/hasło i walidacją reaktywną. Po poprawnym uwierzytelnieniu – obsługa kroku MFA (wprowadzenie kodu TOTP). Zapis JWT i refresh tokenu w pamięci aplikacji (access token in-memory, refresh token w httpOnly cookie jeśli backend wspiera, lub sessionStorage jako fallback). Ekran "wymuszona zmiana hasła" po flagie `password_reset_required`.
+Ekran logowania zrealizowany jako flow "email-first": krok 1 – użytkownik wpisuje e-mail, frontend wywołuje `POST /api/public/tenants-by-email` i wykrywa organizacje powiązane z tym adresem; krok 2 – wyświetlane jest pole hasła (i opcjonalny dropdown organizacji gdy >1 trafień); krok 3 – opcjonalny krok MFA (TOTP 6-cyfr). Zapis JWT i refresh tokenu w pamięci aplikacji. Ekran "wymuszona zmiana hasła" po flagie `password_reset_required`. Formularz 3-krokowy z sygnałami Angular (step, matchedTenants, loading, errorMessage).
 
 **Kryteria akceptacji:**
 - [ ] Formularz logowania waliduje format email i niepuste hasło

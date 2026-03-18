@@ -34,17 +34,22 @@ Projekt to wielokanałowa platforma Contact Center w modelu SaaS (multi-tenant),
 **Aktualny postęp (stan na 2026-03-18):**
 
 - DB: 19/19 ukończone (cały schemat, RLS, indeksy, RODO, ClickHouse DW)
-- BE: 10/31 ukończone (BE-001..BE-009, BE-012; w tym BE-009 VoIP Adapter z MockTelephonyAdapter i interfejsem TelephonyAdapter, BE-012 WebSocket hub STOMP z JWT interceptor i RabbitMQ relay)
-- FE: 9/24 ukończone (FE-001..FE-009; w tym FE-009 Agent Desktop z panelem statusu, zakładkami kontaktów max 4 i integracją WebSocket)
+- BE: 10/31 ukończone (BE-001..BE-009, BE-012; BE-004 rozszerzony o POST /api/public/tenants-by-email dla email-first flow)
+- FE: 9/24 ukończone (FE-001..FE-009; FE-004 przepisany na 3-krokowy email-first flow)
 
 **Kluczowe blokery krytyczne (stan 2026-03-18):**
 
 - BE-009 (VoIP Adapter) – UKOŃCZONE; odblokowane BE-010, BE-011, BE-013
 - BE-012 (WebSocket hub) – UKOŃCZONE; odblokowane FE-009 i FE-021
 - FE-009 (Agent Desktop layout) – UKOŃCZONE; odblokowane FE-010..FE-013, FE-017
+- FE-004 / BE-004 – UKOŃCZONE w całości (email-first flow + nowy endpoint tenants-by-email)
 - BE-010 (Nagrywanie) – nowy aktywny bloker (zależy od BE-009 ✅)
 - BE-025 (Customer API) – blokuje CLI lookup (BE-011), RODO (BE-031) i 3 widoki FE
 - BE-019 (Routing Engine) – blokuje BE-029 (RT metrics) i BE-021 (wait time)
+
+**Wzorzec email-first flow (wprowadzony 2026-03-18):**
+
+Strona logowania wykonuje `POST /api/public/tenants-by-email` po wpisaniu e-maila. Backend zwraca listę aktywnych tenantów powiązanych z e-mailem (AppUserRepository.findActiveTenantsByUserEmail – native query). Endpoint zawsze zwraca HTTP 200 + pustą listę przy nieistniejącym e-mailu (brak ujawniania PII). Frontend wyświetla dropdown organizacji tylko gdy >1 trafień.
 
 **Konwencje pól w plikach zadań (TASKS-*.md) – ustalone 2026-03-14, rozszerzone 2026-03-17:**
 

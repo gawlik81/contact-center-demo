@@ -227,6 +227,28 @@ public class UserController {
     // Zmiana statusu agenta
     // =========================================================================
 
+    @PatchMapping("/me/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Zmień własny status agenta",
+        description = "Zmienia status dostępności zalogowanego agenta (userId z JWT). " +
+                      "Dozwolone statusy: AVAILABLE, BUSY, BREAK, AFTER_CONTACT.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Status zmieniony"),
+            @ApiResponse(responseCode = "400", description = "Błąd walidacji"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "422", description = "Niedozwolony status")
+        }
+    )
+    public ResponseEntity<UserResponse> updateOwnStatus(
+            @Valid @RequestBody UpdateStatusRequest request
+    ) {
+        UUID userId = TenantContext.getUserId();
+        UUID tenantId = TenantContext.getTenantId();
+        UserResponse response = userService.updateStatus(userId, request, tenantId);
+        return ResponseEntity.ok(response);
+    }
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
     @Operation(

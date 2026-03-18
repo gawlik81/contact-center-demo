@@ -52,7 +52,7 @@ public class UserService {
 
     /** Statusy dozwolone dla endpointu PATCH /users/{id}/status */
     private static final Set<UserStatus> ALLOWED_AGENT_STATUSES = Set.of(
-            UserStatus.AVAILABLE, UserStatus.BUSY, UserStatus.BREAK, UserStatus.AFTER_CONTACT
+            UserStatus.AVAILABLE, UserStatus.BUSY, UserStatus.BREAK, UserStatus.AFTER_CONTACT, UserStatus.OFFLINE
     );
 
     private final AppUserRepository appUserRepository;

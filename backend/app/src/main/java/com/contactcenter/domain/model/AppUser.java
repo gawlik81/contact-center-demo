@@ -154,6 +154,6 @@ public class AppUser {
     }
 
     public enum UserStatus {
-        ACTIVE, INACTIVE, BREAK, AVAILABLE, BUSY, AFTER_CONTACT
+        ACTIVE, INACTIVE, BREAK, AVAILABLE, BUSY, AFTER_CONTACT, OFFLINE
     }
 }

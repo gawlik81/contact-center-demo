@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-18 (BE-004 email-first flow + POST /api/public/tenants-by-email, FE-004 login flow przepisany na 3-krokowy email-first)
+**Ostatnia aktualizacja:** 2026-03-18 (FE-010 Softphone WebRTC ukończone)
 
 ---
 
@@ -100,7 +100,7 @@
 | FE-007 | Dashboard techniczny administratora (metryki tenantów RT) | ✅ | AdminMetricsService (singleton state z BehaviorSubject, polling co 30s przez timer(0,30000), alertCount$), AdminDashboardComponent (KPI cards: aktywne tenanty/agenci online/alerty, tabela tenantów z badge statusami i progress bar, skeleton loading, empty state, timestamp odświeżania). Badge alertów w SidenavComponent (podpięty pod alertCount$, widoczny tylko na /admin/dashboard). Placeholder komponenty: AdminUsersComponent (/admin/users) i AdminMetricsPageComponent (/admin/metrics) |
 | FE-008 | Zarządzanie agentami: lista, tworzenie, edycja, skills | ✅ | AgentListComponent (tabela z paginacją PagedResponse, filtry status+skill, multi-select skills chips, force-reset hasła, deactivate z HTTP 409 guard), AgentFormComponent (reactive form, skills autocomplete), AgentService (CRUD + skills API). Czeka na BE-008 ✅ |
 | FE-009 | Agent Desktop: główny layout i panel statusu agenta | ✅ | AgentDesktopComponent (layout, panel statusu agenta, zakładki kontaktów max 4, integracja WebSocket, baner reconnect). |
-| FE-010 | Komponent Softphone WebRTC | ⬜ | |
+| FE-010 | Komponent Softphone WebRTC | ✅ | Zrealizowane 2026-03-18. SIP.js/JsSIP WebRTC, odbieranie/rozłączanie połączeń, mute, hold, blind i attended transfer, wyświetlanie CLI. Wymaga FE-009 ✅, BE-009 ✅, BE-012 ✅ |
 | FE-011 | Panel profilu klienta podczas kontaktu | ⬜ | |
 | FE-012 | Komponent obsługi kontaktu email | ⬜ | |
 | FE-013 | Komponent obsługi kontaktu social media | ⬜ | |
@@ -124,8 +124,8 @@
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
 | Backend (BE) | 10/31 | 0 | 21 | 31 |
-| Frontend (FE) | 9/24 | 0 | 15 | 24 |
-| **RAZEM** | **38/74** | **0** | **36** | **74** |
+| Frontend (FE) | 10/24 | 0 | 14 | 24 |
+| **RAZEM** | **39/74** | **0** | **35** | **74** |
 
 ---
 
@@ -163,7 +163,7 @@
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 10/31 (BE-001..BE-009 ✅, BE-012 ✅; BE-004 rozszerzony o email-first flow) | FE: 9/24 (FE-001..FE-009 ✅; FE-004 rozszerzony o 3-krokowy email-first flow)
+**Stan na:** DB: 19/19 ✅ | BE: 10/31 (BE-001..BE-009 ✅, BE-012 ✅) | FE: 10/24 (FE-001..FE-010 ✅)
 
 ---
 
@@ -211,7 +211,8 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-007 | Dashboard techniczny admina: AdminMetricsService (BehaviorSubject, polling 30s), AdminDashboardComponent (KPI cards, tabela tenantów, skeleton loading), badge alertów w SidenavComponent | ✅ |
 | FE-008 | Zarządzanie agentami: AgentListComponent (tabela paginowana PagedResponse, filtry, multi-select skills), AgentFormComponent, AgentService, guard HTTP 409 przy deactivate | ✅ |
 | FE-009 | Agent Desktop: AgentDesktopComponent (layout z panelem statusu agenta AVAILABLE/BUSY/BREAK/AFTER_CONTACT, obszar zakładek kontaktów max 4: 1 telefon + 3 chat/email, integracja WebSocket z WebSocket.service.ts, baner "Utracono połączenie – próba reconnect"). Czeka na BE-012 ✅. | ✅ |
-| FE-010..FE-024 | Wszystkie widoki funkcjonalne | ⬜ |
+| FE-010 | Softphone WebRTC: SIP.js/JsSIP, odbieranie/rozłączanie, mute, hold, blind i attended transfer, CLi. Czeka na FE-009 ✅, BE-009 ✅, BE-012 ✅. | ✅ |
+| FE-011..FE-024 | Wszystkie pozostałe widoki funkcjonalne | ⬜ |
 
 ---
 
@@ -281,7 +282,7 @@ FE-005 → FE-023                                  (Integracje social media)
 | FE-007 | BE-007 | Dashboard admina: `GET /api/admin/metrics` | 🔵 Tak – MSW mock |
 | FE-008 | BE-008 | Zarządzanie agentami: CRUD `/api/users`, endpoint skills | 🔵 Tak – MSW mock |
 | FE-009 | BE-012 ✅ | Agent Desktop: WebSocket hub dla statusów i kontaktów RT. FE-009 ✅ ukończone. | ✅ Gotowe |
-| FE-010 | BE-009 ✅, BE-012 ✅ | Softphone WebRTC: adapter VoIP + WebSocket sygnalizacja | 🔴 Wymaga integracji SIP/WebRTC |
+| FE-010 | BE-009 ✅, BE-012 ✅ | Softphone WebRTC: adapter VoIP + WebSocket sygnalizacja | ✅ Gotowe |
 | FE-011 | BE-025, BE-011 | Panel klienta podczas kontaktu: CLI lookup + Customer API | 🔵 Tak – MSW mock |
 | FE-012 | BE-015, BE-016 | Obsługa emaila: adapter IMAP/SMTP + szablony | 🔵 Tak – MSW mock |
 | FE-013 | BE-018 | Obsługa social media: webhooks i wysyłka | 🔵 Tak – MSW mock |
@@ -392,7 +393,7 @@ BE-009 (VoIP Adapter) ────────┐
 | 5 | 🟢 BE-015 | ⬜ | Kanał email – niezależny od BE-009 |
 | 6 | 🟢 BE-017 | ⬜ | OAuth social – niezależny od BE-009 |
 | 7 | FE-009 | ✅ | Agent Desktop layout, panel statusu, zakładki kontaktów, integracja WS |
-| 8 | 🟢 FE-010 | ⬜ | Wymaga FE-009 ✅ + BE-009 ✅, BE-012 ✅ |
+| 8 | 🟢 FE-010 | ✅ | Wymaga FE-009 ✅ + BE-009 ✅, BE-012 ✅ |
 | 9 | 🟢 FE-011 | ⬜ | Wymaga FE-009 ✅ + BE-025, BE-011 (lub MSW) |
 | 10 | 🟢 FE-012 | ⬜ | Wymaga FE-009 ✅ + BE-015, BE-016 (lub MSW) |
 | 11 | 🟢 FE-013 | ⬜ | Wymaga FE-009 ✅ + BE-018 (lub MSW) |
@@ -506,6 +507,7 @@ Poniższe grupy zadań są od siebie niezależne i mogą być realizowane przez 
 | ✅ Rozwiązany | BE-004 (Auth API) | Ukończone – produkcyjnie weryfikowane z seedem |
 | ✅ Rozwiązany | BE-012 (WebSocket hub) | Ukończone – STOMP, JWT auth, RabbitMQ relay, topics per user/tenant |
 | ✅ Rozwiązany | FE-009 (Agent Desktop) | Ukończone – odblokowane FE-010..FE-013, FE-017 |
+| ✅ Rozwiązany | FE-010 (Softphone WebRTC) | Ukończone – komponent SIP.js/JsSIP, pełna obsługa połączeń |
 | 🔴 Nowy bloker | BE-010 (Nagrywanie) | Odblokowane przez BE-009 – zapis audio do S3 |
 | 🔴 Nowy bloker | BE-011 (CLI lookup) | Odblokowane przez BE-009 – wzbogacenie połączenia o dane klienta |
 | 🟡 Średni | BE-019 (Routing Engine) | Blokuje BE-029 (RT metrics) i BE-021 (wait time) |

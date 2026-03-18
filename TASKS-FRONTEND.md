@@ -236,8 +236,9 @@ Główny widok agenta po zalogowaniu: panel zmiany statusu (dostępny/zajęty/pr
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** FE-009, BE-009, BE-012
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-009, BE-012 (trudne do zamockowania)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-18
+**Czeka na BE:** BE-009 ✅, BE-012 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-03-01, US-03-02, US-03-03, US-03-04, EPIC-03
 
@@ -608,7 +609,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | FE-006 | BE-006 (tenant CRUD API) |
 | FE-007 | BE-007 (admin metrics API) |
 | FE-008 | BE-008 (users/agents API) |
-| FE-010 | BE-012 (WebRTC/SIP signaling) |
+| FE-010 | BE-009 ✅, BE-012 ✅ (WebRTC/SIP signaling – zrealizowane) |
 | FE-012 | BE-015 (email API) |
 | FE-013 | BE-018 (social media API) |
 | FE-014 | BE-020 (IVR API) |

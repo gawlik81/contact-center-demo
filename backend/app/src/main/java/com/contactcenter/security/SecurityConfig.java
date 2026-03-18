@@ -102,6 +102,8 @@ public class SecurityConfig {
                 .requestMatchers("/webhooks/**").permitAll()
                 // Webhook VoIP od providera telefonii – publiczny, weryfikacja przez X-Webhook-Secret
                 .requestMatchers("/api/telephony/webhook/**").permitAll()
+                // WebSocket endpoint – publiczny (HTTP → WS upgrade); autentykacja przez JWT w STOMP CONNECT
+                .requestMatchers("/ws/**").permitAll()
                 // Actuator (poza health) – wymaga autentykacji
                 .requestMatchers("/actuator/**").authenticated()
                 // Endpointy ADMIN – tylko rola ADMIN

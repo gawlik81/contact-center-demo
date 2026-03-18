@@ -1,0 +1,201 @@
+package com.contactcenter.domain.websocket;
+
+import com.contactcenter.domain.telephony.CallEvent;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * DTO eventu WebSocket wysyłanego do klientów przez STOMP.
+ *
+ * <p>Wszystkie eventy domenowe są serializowane do tej struktury przed wysłaniem
+ * przez {@link WebSocketEventBroadcaster}. Klient Angular deserializuje ten format.
+ *
+ * <p>Typy eventów (pole {@code eventType}):
+ * <ul>
+ *   <li>{@code CALL_INCOMING} – przychodzące połączenie (→ agentowi)</li>
+ *   <li>{@code CALL_ANSWERED} – połączenie odebrane</li>
+ *   <li>{@code CALL_HANGUP} – połączenie zakończone</li>
+ *   <li>{@code AGENT_STATUS_CHANGED} – zmiana statusu agenta (→ supervisorom)</li>
+ *   <li>{@code CONTACT_ASSIGNED} – kontakt przydzielony agentowi (→ agentowi)</li>
+ *   <li>{@code QUEUE_UPDATE} – aktualizacja stanu kolejki (→ supervisorom)</li>
+ * </ul>
+ *
+ * @param eventType typ eventu (jedna ze stałych powyżej)
+ * @param tenantId  UUID tenanta – do weryfikacji po stronie klienta
+ * @param payload   dane domenowe specyficzne dla typu eventu
+ * @param timestamp czas wystąpienia zdarzenia
+ */
+public record WebSocketEvent(
+        String eventType,
+        UUID tenantId,
+        Object payload,
+        Instant timestamp
+) {
+
+    // =========================================================================
+    // Stałe typów eventów
+    // =========================================================================
+
+    public static final String TYPE_CALL_INCOMING         = "CALL_INCOMING";
+    public static final String TYPE_CALL_ANSWERED         = "CALL_ANSWERED";
+    public static final String TYPE_CALL_HANGUP           = "CALL_HANGUP";
+    public static final String TYPE_AGENT_STATUS_CHANGED  = "AGENT_STATUS_CHANGED";
+    public static final String TYPE_CONTACT_ASSIGNED      = "CONTACT_ASSIGNED";
+    public static final String TYPE_QUEUE_UPDATE          = "QUEUE_UPDATE";
+    public static final String TYPE_PONG                  = "PONG";
+
+    // =========================================================================
+    // Fabryczne metody statyczne
+    // =========================================================================
+
+    /**
+     * Tworzy event CALL_INCOMING z domenowego CallEvent.
+     *
+     * <p>Wysyłany do konkretnego agenta (unicast) gdy nadchodzi połączenie.
+     */
+    public static WebSocketEvent callIncoming(CallEvent callEvent) {
+        return new WebSocketEvent(
+                TYPE_CALL_INCOMING,
+                callEvent.getTenantId(),
+                CallPayload.from(callEvent),
+                callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event CALL_ANSWERED z domenowego CallEvent.
+     */
+    public static WebSocketEvent callAnswered(CallEvent callEvent) {
+        return new WebSocketEvent(
+                TYPE_CALL_ANSWERED,
+                callEvent.getTenantId(),
+                CallPayload.from(callEvent),
+                callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event CALL_HANGUP z domenowego CallEvent.
+     */
+    public static WebSocketEvent callHangup(CallEvent callEvent) {
+        return new WebSocketEvent(
+                TYPE_CALL_HANGUP,
+                callEvent.getTenantId(),
+                CallPayload.from(callEvent),
+                callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event zmiany statusu agenta.
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  UUID agenta
+     * @param newStatus nowy status (np. AVAILABLE, BUSY, OFFLINE)
+     */
+    public static WebSocketEvent agentStatusChanged(UUID tenantId, UUID agentId, String newStatus) {
+        return new WebSocketEvent(
+                TYPE_AGENT_STATUS_CHANGED,
+                tenantId,
+                new AgentStatusPayload(agentId.toString(), newStatus),
+                Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event przydzielenia kontaktu do agenta.
+     *
+     * @param tenantId  UUID tenanta
+     * @param agentId   UUID agenta
+     * @param contactId UUID kontaktu
+     * @param channel   kanał kontaktu (np. VOICE, CHAT, EMAIL)
+     */
+    public static WebSocketEvent contactAssigned(UUID tenantId, UUID agentId,
+                                                  UUID contactId, String channel) {
+        return new WebSocketEvent(
+                TYPE_CONTACT_ASSIGNED,
+                tenantId,
+                new ContactAssignedPayload(agentId.toString(), contactId.toString(), channel),
+                Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event aktualizacji stanu kolejki.
+     *
+     * @param tenantId     UUID tenanta
+     * @param queueId      UUID kolejki
+     * @param waitingCount liczba oczekujących kontaktów
+     * @param agentsAvail  liczba dostępnych agentów
+     */
+    public static WebSocketEvent queueUpdate(UUID tenantId, UUID queueId,
+                                              int waitingCount, int agentsAvail) {
+        return new WebSocketEvent(
+                TYPE_QUEUE_UPDATE,
+                tenantId,
+                new QueueUpdatePayload(queueId.toString(), waitingCount, agentsAvail),
+                Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event PONG w odpowiedzi na PING od klienta.
+     *
+     * @param tenantId UUID tenanta bieżącej sesji
+     */
+    public static WebSocketEvent pong(UUID tenantId) {
+        return new WebSocketEvent(TYPE_PONG, tenantId, null, Instant.now());
+    }
+
+    // =========================================================================
+    // Payload records – niezmienne DTO dla poszczególnych typów eventów
+    // =========================================================================
+
+    /**
+     * Payload dla eventów związanych z połączeniami telefonicznymi.
+     */
+    public record CallPayload(
+            String callId,
+            String agentId,
+            String from,
+            String to,
+            String eventType
+    ) {
+        public static CallPayload from(CallEvent callEvent) {
+            return new CallPayload(
+                    callEvent.getCallId(),
+                    callEvent.getAgentId() != null ? callEvent.getAgentId().toString() : null,
+                    callEvent.getFrom(),
+                    callEvent.getTo(),
+                    callEvent.getEventType() != null ? callEvent.getEventType().name() : null
+            );
+        }
+    }
+
+    /**
+     * Payload dla eventów zmiany statusu agenta.
+     */
+    public record AgentStatusPayload(
+            String agentId,
+            String status
+    ) {}
+
+    /**
+     * Payload dla eventów przydzielenia kontaktu.
+     */
+    public record ContactAssignedPayload(
+            String agentId,
+            String contactId,
+            String channel
+    ) {}
+
+    /**
+     * Payload dla eventów aktualizacji kolejki.
+     */
+    public record QueueUpdatePayload(
+            String queueId,
+            int waitingCount,
+            int agentsAvailable
+    ) {}
+}

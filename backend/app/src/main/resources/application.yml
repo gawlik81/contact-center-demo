@@ -185,6 +185,14 @@ jwt:
   refresh-token-ttl-seconds: ${JWT_REFRESH_TOKEN_TTL:604800}
 
 # =============================================================================
+# WebSocket – konfiguracja STOMP endpointu (BE-012)
+# =============================================================================
+websocket:
+  # Dozwolone origins dla WebSocket/SockJS handshake
+  # Analogicznie do cors.allowed-origins; nadpisywalne przez ENV var (prod: domena SPA)
+  allowed-origins: ${WEBSOCKET_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:3000}
+
+# =============================================================================
 # Telephony – konfiguracja adaptera VoIP (BE-009)
 # =============================================================================
 telephony:

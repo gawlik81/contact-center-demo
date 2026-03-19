@@ -1,8 +1,10 @@
 package com.contactcenter.domain.websocket;
 
+import com.contactcenter.domain.service.CustomerCliResult;
 import com.contactcenter.domain.telephony.CallEvent;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -161,7 +163,9 @@ public record WebSocketEvent(
      * <ul>
      *   <li>{@code contactId} ← {@code callEvent.getCallId()} (alias; call jest traktowany jako kontakt)</li>
      *   <li>{@code customerPhone} ← {@code callEvent.getFrom()} (numer dzwoniącego)</li>
-     *   <li>{@code customerName} ← fallback "Nieznany ({from})" gdy CallEvent nie zawiera imienia klienta</li>
+     *   <li>{@code customerName} ← imię + nazwisko z CLI lookup, lub "Nieznany ({from})" gdy null</li>
+     *   <li>{@code customerId} ← UUID klienta z CLI lookup (null gdy nieznany numer)</li>
+     *   <li>{@code lastContacts} ← ostatnie 3 kontakty klienta (null gdy nieznany numer)</li>
      *   <li>{@code queueName} ← {@code callEvent.getMetadata().get("queueName")} lub pusty string</li>
      * </ul>
      */
@@ -169,18 +173,42 @@ public record WebSocketEvent(
             String contactId,
             String customerName,
             String customerPhone,
-            String queueName
+            String queueName,
+            String customerId,
+            List<CustomerCliResult.ContactSummary> lastContacts
     ) {
         public static CallIncomingPayload from(CallEvent callEvent) {
             String from = callEvent.getFrom();
             String queueName = callEvent.getMetadata() != null
                     ? callEvent.getMetadata().getOrDefault("queueName", "")
                     : "";
+
+            CustomerCliResult cli = callEvent.getCustomerInfo();
+            String customerName;
+            String customerId = null;
+            List<CustomerCliResult.ContactSummary> lastContacts = null;
+
+            if (cli != null) {
+                // Znany klient – buduj wyświetlaną nazwę
+                String firstName = cli.firstName() != null ? cli.firstName() : "";
+                String lastName  = cli.lastName()  != null ? cli.lastName()  : "";
+                customerName = (firstName + " " + lastName).trim();
+                if (customerName.isBlank()) {
+                    customerName = "Nieznany (" + (from != null ? from : "?") + ")";
+                }
+                customerId   = cli.customerId() != null ? cli.customerId().toString() : null;
+                lastContacts = cli.lastContacts();
+            } else {
+                customerName = "Nieznany (" + (from != null ? from : "?") + ")";
+            }
+
             return new CallIncomingPayload(
                     callEvent.getCallId(),
-                    "Nieznany (" + (from != null ? from : "?") + ")",
+                    customerName,
                     from,
-                    queueName
+                    queueName,
+                    customerId,
+                    lastContacts
             );
         }
     }

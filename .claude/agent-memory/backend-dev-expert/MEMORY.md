@@ -11,3 +11,4 @@
 - [feedback_mockito_injectmocks_lombok_constructor.md](feedback_mockito_injectmocks_lombok_constructor.md) – Mockito 5 + @RequiredArgsConstructor: pola non-final pomijane w @InjectMocks; fix: ręczne wywołanie settera w @BeforeEach
 - [feedback_jsonb_list_converter.md](feedback_jsonb_list_converter.md) – JSONB List<String>: brak hypersistence-utils → używaj JsonStringListConverter (@Convert), nie @Type(JsonType.class)
 - [feedback_contact_table_no_is_deleted.md](feedback_contact_table_no_is_deleted.md) – Tabela contact (partycjonowana) nie ma is_deleted; aktywne statusy: QUEUED/ACTIVE/ON_HOLD
+- [feedback_jsonb_phone_array_query.md](feedback_jsonb_phone_array_query.md) – customer.phone to JSONB array (nie TEXT[]): używaj `phone @> to_jsonb(CAST(:phone AS text))` z GIN index, nie `ANY()`

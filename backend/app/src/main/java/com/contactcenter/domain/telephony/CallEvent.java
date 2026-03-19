@@ -1,5 +1,6 @@
 package com.contactcenter.domain.telephony;
 
+import com.contactcenter.domain.service.CustomerCliResult;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -46,6 +47,14 @@ public class CallEvent {
      * Przykład: {"transferTarget": "+48987654321", "transferType": "BLIND"}
      */
     private final Map<String, String> metadata;
+
+    /**
+     * Dane klienta zidentyfikowanego przez CLI lookup (BE-011).
+     *
+     * <p>Wypełniane przez {@code CallEventEnricher} dla zdarzeń {@code CALL_INCOMING}
+     * przed przekazaniem eventu do WebSocket. Wartość {@code null} oznacza nieznany numer.
+     */
+    private final CustomerCliResult customerInfo;
 
     // =========================================================================
     // Typy zdarzeń

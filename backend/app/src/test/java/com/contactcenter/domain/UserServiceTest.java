@@ -179,10 +179,10 @@ class UserServiceTest {
             PageRequest pageable = PageRequest.of(0, 20);
             Page<AppUser> page = new PageImpl<>(List.of(user), pageable, 1);
 
-            when(appUserRepository.findAllByTenantIdAndDeletedFalse(TENANT_ID, pageable))
+            when(appUserRepository.findAllByTenantIdWithFilters(TENANT_ID, null, null, null, null, pageable))
                     .thenReturn(page);
 
-            Page<UserResponse> result = userService.listUsers(TENANT_ID, pageable);
+            Page<UserResponse> result = userService.listUsers(TENANT_ID, null, null, null, null, pageable);
 
             assertThat(result.getTotalElements()).isEqualTo(1);
             assertThat(result.getContent()).hasSize(1);

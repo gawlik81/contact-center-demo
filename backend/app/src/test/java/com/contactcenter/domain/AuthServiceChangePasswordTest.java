@@ -74,7 +74,7 @@ class AuthServiceChangePasswordTest {
                 authenticationManager, jwtService, jwtParser,
                 tokenBlacklistService, mfaService,
                 appUserRepository, refreshTokenRepository,
-                passwordEncoder, loginRateLimiter, userService, tenantRepository
+                tenantRepository, passwordEncoder, loginRateLimiter, userService
         );
     }
 

@@ -1,5 +1,6 @@
 package com.contactcenter.domain.service;
 
+import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.customer.dto.CreateCustomerRequest;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
@@ -131,7 +132,7 @@ public class CustomerService {
      * @return mapa z kluczami: content (lista), page, size, totalElements, totalPages
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> listCustomers(UUID tenantId, int page, int size) {
+    public PagedResponse<CustomerResponse> listCustomers(UUID tenantId, int page, int size) {
         int effectiveSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         int effectivePage = Math.max(page, 0);
 
@@ -143,16 +144,15 @@ public class CustomerService {
                 .map(CustomerResponse::from)
                 .toList();
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("content", content);
-        result.put("page", effectivePage);
-        result.put("size", effectiveSize);
-        result.put("totalElements", totalElements);
-        result.put("totalPages", totalPages);
-        result.put("first", effectivePage == 0);
-        result.put("last", effectivePage >= totalPages - 1 || totalPages == 0);
-
-        return result;
+        return new PagedResponse<>(
+                content,
+                effectivePage,
+                effectiveSize,
+                totalElements,
+                totalPages,
+                effectivePage == 0,
+                effectivePage >= totalPages - 1 || totalPages == 0
+        );
     }
 
     // =========================================================================

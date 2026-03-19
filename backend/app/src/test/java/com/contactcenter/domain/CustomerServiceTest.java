@@ -1,5 +1,6 @@
 package com.contactcenter.domain;
 
+import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.customer.dto.CreateCustomerRequest;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
@@ -239,18 +240,15 @@ class CustomerServiceTest {
         when(customerRepository.countByTenantId(TENANT_ID)).thenReturn(45L);
 
         // when
-        Map<String, Object> result = customerService.listCustomers(TENANT_ID, 0, 20);
+        PagedResponse<CustomerResponse> result = customerService.listCustomers(TENANT_ID, 0, 20);
 
         // then
-        assertThat(result.get("page")).isEqualTo(0);
-        assertThat(result.get("size")).isEqualTo(20);
-        assertThat(result.get("totalElements")).isEqualTo(45L);
-        assertThat(result.get("totalPages")).isEqualTo(3);
-        assertThat(result.get("first")).isEqualTo(true);
-
-        @SuppressWarnings("unchecked")
-        List<CustomerResponse> content = (List<CustomerResponse>) result.get("content");
-        assertThat(content).hasSize(1);
+        assertThat(result.page()).isEqualTo(0);
+        assertThat(result.size()).isEqualTo(20);
+        assertThat(result.totalElements()).isEqualTo(45L);
+        assertThat(result.totalPages()).isEqualTo(3);
+        assertThat(result.first()).isTrue();
+        assertThat(result.content()).hasSize(1);
     }
 
     // =========================================================================

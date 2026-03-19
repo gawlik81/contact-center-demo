@@ -18,9 +18,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.contactcenter.api.PagedResponse;
+
 import java.net.URI;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -101,7 +102,7 @@ public class CustomerController {
             @ApiResponse(responseCode = "403", description = "Brak uprawnień")
         }
     )
-    public ResponseEntity<?> listOrSearchCustomers(
+    public ResponseEntity<PagedResponse<CustomerResponse>> listOrSearchCustomers(
             @Parameter(description = "Fraza wyszukiwania fuzzy (imię, nazwisko, telefon, email). " +
                                      "Gdy podano, wykonuje trigram search zamiast paginacji.")
             @RequestParam(required = false) String q,
@@ -115,15 +116,17 @@ public class CustomerController {
         UUID tenantId = TenantContext.getTenantId();
 
         if (q != null && !q.isBlank()) {
-            // Fuzzy search – zwróć listę wyników
+            // Fuzzy search – owrappuj wyniki w PagedResponse dla spójności API
             log.debug("[CustomerController] Fuzzy search: q='{}', tenant={}", q, tenantId);
             List<CustomerResponse> results = customerService.searchCustomers(q.trim(), tenantId, size);
-            return ResponseEntity.ok(results);
+            PagedResponse<CustomerResponse> response = new PagedResponse<>(
+                    results, 0, size, results.size(), results.isEmpty() ? 0 : 1, true, true);
+            return ResponseEntity.ok(response);
         }
 
-        // Paginacja – zwróć PagedResponse-like mapę
+        // Paginacja
         log.debug("[CustomerController] Lista klientów: page={}, size={}, tenant={}", page, size, tenantId);
-        Map<String, Object> response = customerService.listCustomers(tenantId, page, size);
+        PagedResponse<CustomerResponse> response = customerService.listCustomers(tenantId, page, size);
         return ResponseEntity.ok(response);
     }
 

@@ -1,5 +1,6 @@
 package com.contactcenter.api;
 
+import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.customer.CustomerController;
 import com.contactcenter.api.customer.dto.CreateCustomerRequest;
 import com.contactcenter.api.customer.dto.CustomerResponse;
@@ -108,8 +109,9 @@ class CustomerControllerTest {
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         @SuppressWarnings("unchecked")
-        List<CustomerResponse> body = (List<CustomerResponse>) result.getBody();
-        assertThat(body).hasSize(1);
+        PagedResponse<CustomerResponse> body = (PagedResponse<CustomerResponse>) result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.content()).hasSize(1);
 
         verify(customerService).searchCustomers("kowalsk", TENANT_ID, 20);
         verify(customerService, never()).listCustomers(any(), anyInt(), anyInt());
@@ -132,14 +134,8 @@ class CustomerControllerTest {
     @DisplayName("listOrSearchCustomers – zwraca paginowaną listę gdy brak parametru q")
     void listOrSearchCustomers_returnsPaginatedListWhenNoQuery() {
         // given
-        Map<String, Object> pagedResult = new HashMap<>();
-        pagedResult.put("content", List.of());
-        pagedResult.put("page", 0);
-        pagedResult.put("size", 20);
-        pagedResult.put("totalElements", 0L);
-        pagedResult.put("totalPages", 0);
-        pagedResult.put("first", true);
-        pagedResult.put("last", true);
+        PagedResponse<CustomerResponse> pagedResult =
+                new PagedResponse<>(List.of(), 0, 20, 0L, 0, true, true);
 
         when(customerService.listCustomers(TENANT_ID, 0, 20)).thenReturn(pagedResult);
 
@@ -156,8 +152,8 @@ class CustomerControllerTest {
     @DisplayName("listOrSearchCustomers – traktuje pusty string q jak brak parametru")
     void listOrSearchCustomers_treatsBlankQAsNoQuery() {
         // given
-        Map<String, Object> pagedResult = Map.of("content", List.of(), "page", 0, "size", 20,
-                "totalElements", 0L, "totalPages", 0, "first", true, "last", true);
+        PagedResponse<CustomerResponse> pagedResult =
+                new PagedResponse<>(List.of(), 0, 20, 0L, 0, true, true);
         when(customerService.listCustomers(TENANT_ID, 0, 20)).thenReturn(pagedResult);
 
         // when

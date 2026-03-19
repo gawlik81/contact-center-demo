@@ -58,8 +58,10 @@ public class RabbitMQConfig {
     public static final String QUEUE_AUDIT_LOG        = "cc.queue.audit-log";
     public static final String QUEUE_CAMPAIGN_DIALER  = "cc.queue.campaign-dialer";
     public static final String QUEUE_NOTIFICATIONS    = "cc.queue.notifications";
-    public static final String QUEUE_CSV_IMPORT       = "cc.queue.csv-import";
-    public static final String QUEUE_DLQ              = "cc.queue.dead-letter";
+    public static final String QUEUE_CSV_IMPORT             = "cc.queue.csv-import";
+    public static final String QUEUE_DLQ                    = "cc.queue.dead-letter";
+    /** Kolejka dla eventu nieznanego dzwoniącego – auto-tworzenie profilu klienta (BE-025). */
+    public static final String QUEUE_UNKNOWN_CALLER         = "cc.queue.unknown-caller";
 
     // =========================================================================
     // Routing keys
@@ -170,6 +172,18 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(QUEUE_DLQ).build();
     }
 
+    /**
+     * Kolejka dla eventu call.unknown_caller – niezidentyfikowany dzwoniący.
+     * BE-025: auto-tworzenie profilu klienta z numerem CLI.
+     */
+    @Bean
+    public Queue unknownCallerQueue() {
+        return QueueBuilder.durable(QUEUE_UNKNOWN_CALLER)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", "dlq")
+                .build();
+    }
+
     // =========================================================================
     // Bindings – kolejki do exchanges
     // =========================================================================
@@ -221,6 +235,17 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(deadLetterQueue)
                 .to(deadLetterExchange)
                 .with("dlq");
+    }
+
+    /**
+     * Binding kolejki unknownCaller do exchange cc.events z routing key call.unknown_caller.
+     * BE-025: auto-tworzenie profilu klienta z niezidentyfikowanego połączenia.
+     */
+    @Bean
+    public Binding bindingUnknownCaller(Queue unknownCallerQueue, TopicExchange eventsExchange) {
+        return BindingBuilder.bind(unknownCallerQueue)
+                .to(eventsExchange)
+                .with("call.unknown_caller");
     }
 
     // =========================================================================

@@ -8,7 +8,9 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -20,6 +22,9 @@ import java.util.UUID;
  * <p>Pola {@code phone} i {@code email} przechowywane jako JSONB string[]
  * i mapowane przez {@link JdbcTypeCode} (SqlTypes.JSON) – Hibernate 6 obsługuje
  * PGobject ↔ List<String> natywnie bez potrzeby AttributeConverter.
+ *
+ * <p>Pola {@code customFields} i {@code gdprConsent} przechowywane jako JSONB object
+ * i mapowane na {@code Map<String, Object>}.
  */
 @Entity
 @Table(name = "customer")
@@ -66,6 +71,33 @@ public class Customer {
     @Builder.Default
     private List<String> email = new ArrayList<>();
 
+    /**
+     * Dowolne pola niestandardowe konfigurowane przez supervisora (JSONB object).
+     * Przykład: {"account_number": "123456", "vip_tier": "gold"}
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "custom_fields", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private Map<String, Object> customFields = new HashMap<>();
+
+    /**
+     * Zarządzanie zgodą RODO (JSONB object).
+     * Struktura: {"consent_given": true, "consent_date": "2026-01-15T10:00:00Z",
+     *             "consent_source": "WEB_FORM", "marketing_consent": true}
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "gdpr_consent", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private Map<String, Object> gdprConsent = new HashMap<>();
+
+    /**
+     * Źródło danych klienta.
+     * Wartości: MANUAL, CSV_IMPORT, INBOUND_PHONE, INBOUND_EMAIL, INBOUND_SOCIAL, API, AUTO.
+     */
+    @Column(name = "source", length = 50, nullable = false)
+    @Builder.Default
+    private String source = "MANUAL";
+
     /** Soft delete – anonimizacja RODO zachowuje rekord bez PII. */
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;
@@ -86,6 +118,15 @@ public class Customer {
         }
         if (email == null) {
             email = new ArrayList<>();
+        }
+        if (customFields == null) {
+            customFields = new HashMap<>();
+        }
+        if (gdprConsent == null) {
+            gdprConsent = new HashMap<>();
+        }
+        if (source == null) {
+            source = "MANUAL";
         }
     }
 

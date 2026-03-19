@@ -111,7 +111,9 @@
       "Bash(npx eslint:*)",
       "Bash(mvn compile:*)",
       "Bash(head -5 grep -n \"public Page\\\\|listUsers\" \"/D/CloudeAI/contact-center-demo/backend/app/src/main/java/com/contactcenter/domain/service/UserService.java\")",
-      "Bash(mvn dependency:resolve -pl app -q)"
+      "Bash(mvn dependency:resolve -pl app -q)",
+      "Bash(npx vitest:*)",
+      "Bash(find E:ClaudAIcontact-center-demofrontend -name vitest.config*)"
     ]
   }
 }

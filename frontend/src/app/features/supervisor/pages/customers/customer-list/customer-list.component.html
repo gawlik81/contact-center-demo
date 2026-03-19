@@ -1,0 +1,252 @@
+<div class="customer-list">
+  <div class="customer-list__header">
+    <h1 class="customer-list__title">Baza klientów</h1>
+    <button
+      class="btn btn-primary"
+      type="button"
+      (click)="navigateToCreate()"
+      aria-label="Dodaj nowego klienta"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      Nowy klient
+    </button>
+  </div>
+
+  <!-- Search bar -->
+  <div class="customer-list__search" [formGroup]="searchForm" role="search" aria-label="Wyszukaj klienta">
+    <div class="search-field">
+      <svg
+        class="search-field__icon"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path
+          d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+        />
+      </svg>
+      <input
+        id="customer-search"
+        type="search"
+        class="search-field__input"
+        formControlName="query"
+        placeholder="Szukaj po imieniu, nazwisku, telefonie lub emailu..."
+        autocomplete="off"
+        aria-label="Wyszukaj klienta (min. 2 znaki)"
+      />
+    </div>
+  </div>
+
+  <!-- Loading skeleton -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-cell--wide"></div>
+          <div class="skeleton-cell skeleton-cell--wide hide-xs"></div>
+          <div class="skeleton-cell skeleton-cell--medium hide-sm"></div>
+          <div class="skeleton-cell skeleton-cell--medium hide-sm"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--action"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading()) {
+    @if (customers().length > 0) {
+      <div class="table-wrapper" role="region" aria-label="Lista klientów">
+        <table class="customer-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">
+                <button
+                  class="sort-btn"
+                  type="button"
+                  (click)="onSort('firstName')"
+                  [class.sort-btn--active]="isSortActive('firstName')"
+                  [attr.aria-label]="'Imię - ' + getSortAriaLabel('firstName')"
+                  aria-sort="{{ isSortActive('firstName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                >
+                  Imię
+                  <span class="sort-icon" aria-hidden="true">
+                    @if (isSortActive('firstName')) {
+                      {{ sortDir() === 'asc' ? '↑' : '↓' }}
+                    } @else {
+                      ⇅
+                    }
+                  </span>
+                </button>
+              </th>
+              <th scope="col">
+                <button
+                  class="sort-btn"
+                  type="button"
+                  (click)="onSort('lastName')"
+                  [class.sort-btn--active]="isSortActive('lastName')"
+                  [attr.aria-label]="'Nazwisko - ' + getSortAriaLabel('lastName')"
+                  aria-sort="{{ isSortActive('lastName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                >
+                  Nazwisko
+                  <span class="sort-icon" aria-hidden="true">
+                    @if (isSortActive('lastName')) {
+                      {{ sortDir() === 'asc' ? '↑' : '↓' }}
+                    } @else {
+                      ⇅
+                    }
+                  </span>
+                </button>
+              </th>
+              <th scope="col" class="hide-xs">Telefon</th>
+              <th scope="col" class="hide-sm">Email</th>
+              <th scope="col">
+                <button
+                  class="sort-btn"
+                  type="button"
+                  (click)="onSort('createdAt')"
+                  [class.sort-btn--active]="isSortActive('createdAt')"
+                  [attr.aria-label]="'Data dodania - ' + getSortAriaLabel('createdAt')"
+                  aria-sort="{{ isSortActive('createdAt') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                >
+                  Data dodania
+                  <span class="sort-icon" aria-hidden="true">
+                    @if (isSortActive('createdAt')) {
+                      {{ sortDir() === 'asc' ? '↑' : '↓' }}
+                    } @else {
+                      ⇅
+                    }
+                  </span>
+                </button>
+              </th>
+              <th scope="col"><span class="sr-only">Akcje</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (customer of customers(); track customer.customerId) {
+              <tr class="customer-row">
+                <td class="customer-name">{{ customer.firstName ?? '—' }}</td>
+                <td class="customer-name">{{ customer.lastName ?? '—' }}</td>
+                <td class="customer-secondary hide-xs">{{ getFirstPhone(customer) }}</td>
+                <td class="customer-secondary hide-sm">{{ getFirstEmail(customer) }}</td>
+                <td class="customer-secondary">
+                  {{ customer.createdAt | date: 'dd.MM.yyyy' }}
+                </td>
+                <td class="customer-actions">
+                  <button
+                    class="btn btn-icon-outline"
+                    type="button"
+                    (click)="navigateToProfile(customer)"
+                    [attr.aria-label]="'Profil klienta ' + getCustomerName(customer)"
+                    title="Profil"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path
+                        d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="btn btn-icon-outline"
+                    type="button"
+                    (click)="navigateToEdit(customer)"
+                    [attr.aria-label]="'Edytuj klienta ' + getCustomerName(customer)"
+                    title="Edytuj"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path
+                        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="btn btn-icon-danger"
+                    type="button"
+                    (click)="openDeleteModal(customer)"
+                    [attr.aria-label]="'Usuń (RODO) klienta ' + getCustomerName(customer)"
+                    title="Usuń (RODO)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <nav class="pagination" aria-label="Nawigacja stron">
+        <span class="pagination__info" aria-live="polite">
+          @if (totalElements() > 0) {
+            Wyświetlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }} klientów
+          }
+        </span>
+        <div class="pagination__controls">
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onPrevPage()"
+            [disabled]="currentPage() === 0"
+            aria-label="Poprzednia strona"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+            Poprzednia
+          </button>
+          <span class="pagination__pages" aria-current="page">
+            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+          </span>
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onNextPage()"
+            [disabled]="currentPage() + 1 >= totalPages()"
+            aria-label="Następna strona"
+          >
+            Następna
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          </button>
+        </div>
+      </nav>
+    } @else {
+      <!-- Empty state -->
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+          />
+        </svg>
+        <p class="empty-state__message">Brak klientów do wyświetlenia.</p>
+        @if (searchForm.controls.query.value) {
+          <p class="empty-state__hint">Brak wyników dla podanej frazy. Spróbuj zmienić wyszukiwanie.</p>
+        } @else {
+          <p class="empty-state__hint">Dodaj pierwszego klienta lub zaimportuj z CSV.</p>
+          <button class="btn btn-primary" type="button" (click)="navigateToCreate()">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+            </svg>
+            Dodaj pierwszego klienta
+          </button>
+        }
+      </div>
+    }
+  }
+</div>
+
+<!-- Delete / GDPR modal -->
+@if (showDeleteModal() && selectedCustomer()) {
+  <app-customer-delete-modal
+    [customerName]="getCustomerName(selectedCustomer()!)"
+    (confirmed)="onDeleteConfirmed()"
+    (cancelled)="closeDeleteModal()"
+  />
+}

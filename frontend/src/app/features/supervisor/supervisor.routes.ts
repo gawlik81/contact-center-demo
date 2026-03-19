@@ -43,12 +43,11 @@ export const SUPERVISOR_ROUTES: Routes = [
           ),
       },
       {
-        // TODO FE-012: Replace placeholder with real Customers component
         path: 'customers',
         data: { breadcrumb: 'Klienci' },
         loadComponent: () =>
-          import('./pages/customers/customers-placeholder.component').then(
-            (m) => m.CustomersPlaceholderComponent,
+          import('./pages/customers/customer-list/customer-list.component').then(
+            (m) => m.CustomerListComponent,
           ),
       },
       {

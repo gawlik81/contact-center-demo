@@ -70,9 +70,11 @@ AI serwis: Python 3.12 + FastAPI (osobny runtime).
 - BE-003: UKOŃCZONE – JwtService (sign RS256), JwtAuthFilter (SecurityContext), TokenBlacklistService (Redis), MfaService (TOTP RFC 6238), AuthService, AuthController, AppUser+RefreshToken encje; 132 testy zielone
 - BE-004: UKOŃCZONE – LoginRateLimiter (Redis INCR+EXPIRE, 5 prób/15 min/IP, HTTP 429), passwordResetRequired w LoginResponse, POST /api/auth/change-password, POST /api/auth/force-reset/{userId} (ADMIN/SUPERVISOR @PreAuthorize); 146 testów zielonych (+14 nowych)
 - BE-006: UKOŃCZONE – Tenant.java (encja JPA, JSONB config przez JsonMapConverter), TenantRepository (JPA bez RLS), TenantService (CRUD+deactivate), TenantResourceLimitService (checkAgentLimit/checkQueueLimit/checkCampaignLimit+LimitCheckResult), TenantController (6 endpointów), ResourceLimitExceededException (HTTP 422 z resourceType/limit/current), GlobalExceptionHandler rozszerzony o ResourceLimitExceededException + EntityNotFoundException; 173 testów PASS (+27 nowych)
+- BE-010: UKOŃCZONE – S3Properties (@ConfigurationProperties prefix=s3), S3Config (S3Client+S3Presigner beany), ContactRepository (natywny JdbcTemplate dla partycjonowanej tabeli), RecordingService (@RabbitListener call.hangup, uploadToS3 SSE-AES256, presigned URL), RecordingRetentionJob (@Scheduled cron 02:00 UTC, retencja 90 dni), RecordingController (GET /api/recordings/{contactId}, SUPERVISOR+ADMIN), V022 migracja; AWS SDK v2 2.28.29 (BOM import); 316 testów PASS
 
 ## Nowe migracje Flyway
-- Kolejne migracje: od V019+ (V018 dodaje is_active do app_user)
+- Kolejne migracje: od V023+ (V022 = indeks retencji nagrań BE-010)
+- V021 = add_offline_status (status OFFLINE dla app_user)
 - V018 = dodano is_active BOOLEAN do app_user (wymagane przez BE-003 UserDetailsServiceImpl)
 - Uwaga: migracje V003 i BE-003 encje miały rozbieżności -- naprawione (patrz niżej)
 

@@ -205,6 +205,29 @@ telephony:
     secret: ${TELEPHONY_WEBHOOK_SECRET:dev-secret}
 
 # =============================================================================
+# S3-compatible Storage – nagrania rozmów (BE-010)
+# Obsługuje zarówno AWS S3 jak i MinIO (path-style access)
+# =============================================================================
+s3:
+  # Endpoint storage (DEV: MinIO Docker; PROD: nadpisywane przez ENV var S3_ENDPOINT)
+  endpoint: ${S3_ENDPOINT:http://localhost:9000}
+  # Klucze dostępu (PROD: ENV vars S3_ACCESS_KEY / S3_SECRET_KEY)
+  access-key: ${S3_ACCESS_KEY:minioadmin}
+  secret-key: ${S3_SECRET_KEY:minioadmin}
+  # Nazwa bucketu
+  bucket: ${S3_BUCKET:contact-center-recordings}
+  # Region (ignorowany przez MinIO, wymagany przez AWS SDK)
+  region: ${S3_REGION:us-east-1}
+  # Domyślna retencja nagrań w dniach (90 dni zgodnie z wymaganiami BE-010)
+  retention-days: ${S3_RETENTION_DAYS:90}
+  # Czas ważności presigned URL w minutach (domyślnie 60 min = 1h)
+  presigned-url-expiration-minutes: ${S3_PRESIGNED_URL_EXPIRATION_MINUTES:60}
+  # Path-style access (true dla MinIO i self-hosted; false dla AWS S3 z virtual-hosted-style)
+  path-style-access-enabled: ${S3_PATH_STYLE_ACCESS:true}
+  # Wyrażenie cron dla jobu retencji (domyślnie: codziennie o 02:00 UTC)
+  retention-cron: ${S3_RETENTION_CRON:0 0 2 * * *}
+
+# =============================================================================
 # Logowanie – wspólna konfiguracja bazowa
 # =============================================================================
 logging:

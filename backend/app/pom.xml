@@ -174,6 +174,16 @@
         </dependency>
 
         <!-- =================================================================
+             AWS SDK v2 – S3 client dla nagrań (BE-010)
+             ================================================================= -->
+
+        <!-- S3 client – upload nagrań, presigned URLs -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+
+        <!-- =================================================================
              Hot reload w trybie dev
              ================================================================= -->
         <dependency>

@@ -49,6 +49,7 @@
         <testcontainers.version>1.20.4</testcontainers.version>
         <flyway.version>10.20.1</flyway.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <aws.sdk.version>2.28.29</aws.sdk.version>
     </properties>
 
     <!-- ===================================================================
@@ -81,6 +82,15 @@
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers-bom</artifactId>
                 <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- AWS SDK v2 BOM – S3 client dla nagrań (BE-010) -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

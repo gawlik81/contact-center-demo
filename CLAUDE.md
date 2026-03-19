@@ -15,11 +15,13 @@ Odpowiadaj użytkownikowi **po polsku**. Kod, komentarze w kodzie i nazwy techni
 > **BEZWZGLĘDNY WYMÓG** — ignorowanie tej sekcji jest błędem. Nie wykonuj samodzielnie pracy, którą może wykonać agent lub skill.
 
 - **Używaj skilli** (`/update-progress`, `/simplify`, `/frontend-design` itp.) zawsze gdy pasują do zadania — nie wykonuj ręcznie tego, co skill robi lepiej.
-- **Deleguj do agentów** (`angular-frontend-expert`, `backend-dev-expert`, `senior-code-reviewer`, `db-schema-architect` itp.) gdy zadanie pasuje do ich opisu — nie wykonuj samodzielnie tego, co agent wyspecjalizowany zrobi lepiej.
+- **Deleguj do agentów** (`angular-frontend-expert`, `backend-dev-expert`, `senior-code-reviewer`, `db-schema-architect` itp.) gdy zadanie pasuje do ich opisu —
+  nie wykonuj samodzielnie tego, co agent wyspecjalizowany zrobi lepiej.
 - Agentów można uruchamiać **równolegle** gdy zadania są od siebie niezależne — zawsze preferuj równoległe uruchomienie nad sekwencyjnym.
 - Po zakończeniu pracy przez agenta/skill — podsumuj wynik użytkownikowi po polsku.
 
 **Przykłady obowiązkowego delegowania:**
+
 - Zmiana w Angular (komponenty, serwisy, szablony) → `angular-frontend-expert`
 - Zmiana w Spring Boot / Java (kontrolery, serwisy, repozytoria) → `backend-dev-expert`
 - Zmiany w obu warstwach jednocześnie → uruchom OBA agenty **równolegle**
@@ -30,9 +32,11 @@ Odpowiadaj użytkownikowi **po polsku**. Kod, komentarze w kodzie i nazwy techni
 
 ## Project Overview
 
-Multi-tenant Contact Center SaaS platform. Three user personas: **Admin** (global platform), **Supervisor** (per-tenant), **Agent** (handles contacts). Three delivery layers: PostgreSQL DB migrations, Java/Spring Boot backend, Angular frontend.
+Multi-tenant Contact Center SaaS platform. Three user personas: **Admin** (global platform), **Supervisor** (per-tenant), **Agent** (handles contacts). Three
+delivery layers: PostgreSQL DB migrations, Java/Spring Boot backend, Angular frontend.
 
-Progress tracking: `PROGRESS.md`. Task definitions: `TASKS-DATABASE.md`, `TASKS-BACKEND.md`, `TASKS-FRONTEND.md`.
+Progress tracking: `PROGRESS.md`. Task definitions: `TASKS-DATABASE.md`, `TASKS-BACKEND.md`, `TASKS-FRONTEND.md`. Architecture: `ARCHITECTURE.md`.
+Product Requirements Document: `PRD.md`.
 
 ---
 
@@ -66,6 +70,7 @@ cd backend && mvn verify -pl app
 ```
 
 Local services after `docker compose up -d`:
+
 - PostgreSQL: `localhost:5432` db=`contact_center_dev` user=`postgres` pass=`postgres`
 - Redis: `localhost:6379`
 - RabbitMQ: `localhost:5672` (AMQP), `localhost:15672` (Management UI, guest/guest)
@@ -115,32 +120,39 @@ backend/
 dw/migrations/                       # ClickHouse DDL scripts (not Flyway)
 ```
 
-The `app/pom.xml` build resources section includes **both** `app/src/main/resources` and `../src/main/resources`, so all migrations in `backend/src/main/resources/db/` are on the classpath.
+The `app/pom.xml` build resources section includes **both** `app/src/main/resources` and `../src/main/resources`, so all migrations in
+`backend/src/main/resources/db/` are on the classpath.
 
 ### Multi-Tenancy Pattern
 
 Every request flow follows this chain:
 
 1. **`JwtAuthFilter`** – verifies RS256 JWT signature, sets Spring `SecurityContext`.
-2. **`TenantFilter`** – extracts `tenant_id`/`user_id`/`role` from JWT claims, sets `TenantContext` (InheritableThreadLocal), adds MDC fields `[tenantId]` / `[userId]` / `[requestId]`. Always clears in `finally`.
-3. **`TenantAwareRepository`** – base class for all repositories; calls `SELECT set_tenant_context(?)` before each query to activate PostgreSQL Row-Level Security. Use `assertSameTenant()` before writes.
-4. **`CrossTenantAspect`** – AOP `@AfterThrowing` logs WARNING when `CrossTenantAccessException` is thrown; `@Before` logs ERROR when `TenantContext` is missing in a domain service (config bug).
+2. **`TenantFilter`** – extracts `tenant_id`/`user_id`/`role` from JWT claims, sets `TenantContext` (InheritableThreadLocal), adds MDC fields `[tenantId]` /
+   `[userId]` / `[requestId]`. Always clears in `finally`.
+3. **`TenantAwareRepository`** – base class for all repositories; calls `SELECT set_tenant_context(?)` before each query to activate PostgreSQL Row-Level
+   Security. Use `assertSameTenant()` before writes.
+4. **`CrossTenantAspect`** – AOP `@AfterThrowing` logs WARNING when `CrossTenantAccessException` is thrown; `@Before` logs ERROR when `TenantContext` is missing
+   in a domain service (config bug).
 
 **Filter order is critical** – `JwtAuthFilter` is registered _before_ `TenantFilter`, which is before `UsernamePasswordAuthenticationFilter`.
 
 **Rule:** Every new repository must extend `TenantAwareRepository`. Every write must call `assertSameTenant(entity.getTenantId())` before persisting.
 
-**Async propagation:** When crossing thread boundaries (e.g. `@Async`, `CompletableFuture`), call `TenantContext.snapshot()` on the caller thread and `TenantContext.restore(snapshot)` + `TenantContext.clear()` in `finally` on the worker thread.
+**Async propagation:** When crossing thread boundaries (e.g. `@Async`, `CompletableFuture`), call `TenantContext.snapshot()` on the caller thread and
+`TenantContext.restore(snapshot)` + `TenantContext.clear()` in `finally` on the worker thread.
 
 ### Adding a New Public Endpoint
 
 Two places must be kept in sync:
+
 1. `SecurityConfig` – `requestMatchers` permit list
 2. `TenantFilter.PUBLIC_PATH_PREFIXES` – set of path prefixes that skip JWT check
 
 ### JWT
 
-- Algorithm: RS256. Keys in `classpath:keys/private.pem` (PKCS#8) and `classpath:keys/public.pem` (dev). In prod, override via `JWT_PRIVATE_KEY_VALUE` / `JWT_PUBLIC_KEY_VALUE` ENV vars.
+- Algorithm: RS256. Keys in `classpath:keys/private.pem` (PKCS#8) and `classpath:keys/public.pem` (dev). In prod, override via `JWT_PRIVATE_KEY_VALUE` /
+  `JWT_PUBLIC_KEY_VALUE` ENV vars.
 - `JwtService` – signs tokens (uses private key).
 - `JwtParser` – validates tokens (uses public key).
 - Custom claims: `tenant_id`, `user_id`, `role`, `email`, `mfaVerified`.
@@ -150,18 +162,19 @@ Two places must be kept in sync:
 
 ### RabbitMQ Exchanges & Routing Key Convention
 
-| Exchange | Type | Purpose |
-|----------|------|---------|
-| `cc.events` | topic | Domain events (calls, contacts, agents, campaigns) |
-| `cc.audit` | topic | Async audit log writes |
-| `cc.notifications` | topic | Push to agents/supervisors |
-| `cc.dlx` | direct | Dead-letter for failed messages |
+| Exchange           | Type   | Purpose                                            |
+|--------------------|--------|----------------------------------------------------|
+| `cc.events`        | topic  | Domain events (calls, contacts, agents, campaigns) |
+| `cc.audit`         | topic  | Async audit log writes                             |
+| `cc.notifications` | topic  | Push to agents/supervisors                         |
+| `cc.dlx`           | direct | Dead-letter for failed messages                    |
 
 Routing key format: `{aggregate}.{event}` – e.g. `call.incoming`, `agent.status.changed`, `contact.queued`.
 
 ### VoIP Adapter Pattern
 
 `TelephonyAdapter` (interface in `domain/telephony/`) decouples the system from a specific CPaaS provider:
+
 - `MockTelephonyAdapter` – dev/test implementation, generates fake `CallEvent`s for UI testing.
 - `TelephonyWebhookController` – receives webhook callbacks from the telephony provider.
 - `MockCallController` (`/api/dev/calls/simulate`) – dev-only endpoint to trigger simulated calls.
@@ -172,15 +185,20 @@ To integrate a real CPaaS, implement `TelephonyAdapter` and replace the `@Primar
 ### WebSocket / Real-Time Hub
 
 Spring STOMP over WebSocket (`WebSocketConfig`):
+
 - Endpoint: `/ws` (SockJS fallback enabled).
-- `WebSocketAuthInterceptor` – validates JWT at the STOMP CONNECT frame; rejects with HTTP 401 if invalid or missing. Creates `StompPrincipal` from token claims.
+- `WebSocketAuthInterceptor` – validates JWT at the STOMP CONNECT frame; rejects with HTTP 401 if invalid or missing. Creates `StompPrincipal` from token
+  claims.
 - `WebSocketController` – handles STOMP messages from clients (`@MessageMapping`).
 - `RabbitToWebSocketRelay` – `@RabbitListener` on `cc.notifications` exchange; pushes events to STOMP destinations.
-- `WebSocketEventBroadcaster` – service for sending events to `/user/{userId}/events` (targeted) and `/topic/tenant/{tenantId}/supervisor` (broadcast per tenant).
+- `WebSocketEventBroadcaster` – service for sending events to `/user/{userId}/events` (targeted) and `/topic/tenant/{tenantId}/supervisor` (broadcast per
+  tenant).
 
 ### Audit Log
 
-`@Audited` annotation triggers `AuditAspect` (`@Around`) which publishes an `AuditLogEvent` to RabbitMQ (`cc.audit` exchange, routing key `audit.write`). `AuditLogConsumer` (`@RabbitListener`) persists via native INSERT to the partitioned `audit_log` table (bypasses JPA limitations with partitioned tables). Pagination endpoint: `GET /api/audit-logs` (ADMIN only, max 100/page).
+`@Audited` annotation triggers `AuditAspect` (`@Around`) which publishes an `AuditLogEvent` to RabbitMQ (`cc.audit` exchange, routing key `audit.write`).
+`AuditLogConsumer` (`@RabbitListener`) persists via native INSERT to the partitioned `audit_log` table (bypasses JPA limitations with partitioned tables).
+Pagination endpoint: `GET /api/audit-logs` (ADMIN only, max 100/page).
 
 ### Database Migrations (Flyway)
 
@@ -189,27 +207,30 @@ Migrations live in `backend/src/main/resources/db/migration/`. Naming: `V{NNN}__
 Current migrations: V001 (extensions) → V020 (user name fields). V019 converts ENUM types to VARCHAR + CHECK.
 
 **Dev-only settings** (`application-dev.yml`) – **never set these in prod**:
+
 - `clean-on-validation-error: true` – wipes and re-runs all migrations if checksums mismatch
 - `clean-disabled: false` – allows `clean()` to execute
 
-The seed file `V999__dev_seed.sql` is in `db/seed/` and only loaded when the `dev` profile is active (Flyway `locations` includes `classpath:db/seed` only in `application-dev.yml`).
+The seed file `V999__dev_seed.sql` is in `db/seed/` and only loaded when the `dev` profile is active (Flyway `locations` includes `classpath:db/seed` only in
+`application-dev.yml`).
 
 ClickHouse DDL scripts in `dw/migrations/` are versioned manually (not Flyway).
 
 ### Redis Key Namespaces
 
-| Key pattern | TTL | Purpose |
-|-------------|-----|---------|
-| `jwt:blacklist:{hash}` | remaining token validity | Logged-out tokens |
-| `session:agent:{userId}` | 8h | Agent presence/status |
-| `cache:customer:phone:{phone}` | 5 min | CLI lookup cache |
-| `cache:queue:stats:{queueId}` | 5s | Queue stats |
-| `cache:tenant:metrics` | 30s | Admin metrics |
-| `rate:login:{ip}` | 15 min | Login rate limit counter |
+| Key pattern                    | TTL                      | Purpose                  |
+|--------------------------------|--------------------------|--------------------------|
+| `jwt:blacklist:{hash}`         | remaining token validity | Logged-out tokens        |
+| `session:agent:{userId}`       | 8h                       | Agent presence/status    |
+| `cache:customer:phone:{phone}` | 5 min                    | CLI lookup cache         |
+| `cache:queue:stats:{queueId}`  | 5s                       | Queue stats              |
+| `cache:tenant:metrics`         | 30s                      | Admin metrics            |
+| `rate:login:{ip}`              | 15 min                   | Login rate limit counter |
 
 ### Test Configuration
 
 Tests use `application-test.yml` which:
+
 - Disables Flyway
 - Excludes `RabbitAutoConfiguration`, `RedisAutoConfiguration`, `RedisRepositoriesAutoConfiguration`
 - Disables Redis/RabbitMQ health checks
@@ -298,18 +319,19 @@ frontend/src/app/
 - **Timestamps**: `created_at TIMESTAMPTZ DEFAULT NOW()`, `updated_at TIMESTAMPTZ`.
 - RLS policies: `USING (tenant_id = current_setting('app.current_tenant_id')::UUID)` – activated via `set_tenant_context()` function.
 - PostgreSQL extensions required: `uuid-ossp`, `pg_trgm` (fuzzy search), `pgcrypto` (AES-256 for social tokens).
-- Indexes with `::DATE` or `NOW()` casts **cannot be used** in partial index predicates (PostgreSQL requires IMMUTABLE functions) – see known bugs in PROGRESS.md.
+- Indexes with `::DATE` or `NOW()` casts **cannot be used** in partial index predicates (PostgreSQL requires IMMUTABLE functions) – see known bugs in
+  PROGRESS.md.
 
 ---
 
 ## Environment Variables (Production Overrides)
 
-| Variable | Default (dev) | Description |
-|----------|--------------|-------------|
-| `DB_URL` | `jdbc:postgresql://localhost:5432/contact_center_dev` | JDBC URL |
-| `DB_USERNAME` / `DB_PASSWORD` | `postgres` / `postgres` | DB credentials |
-| `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Redis connection |
-| `RABBITMQ_HOST` / `_USERNAME` / `_PASSWORD` | `localhost` / `guest` / `guest` | RabbitMQ |
-| `JWT_PRIVATE_KEY_VALUE` / `JWT_PUBLIC_KEY_VALUE` | _(file fallback)_ | RSA key content (PEM string) |
-| `JWT_ISSUER` | `contact-center` | JWT `iss` claim |
-| `cors.allowed-origins` | `http://localhost:4200,http://localhost:3000` | CORS whitelist |
+| Variable                                         | Default (dev)                                         | Description                  |
+|--------------------------------------------------|-------------------------------------------------------|------------------------------|
+| `DB_URL`                                         | `jdbc:postgresql://localhost:5432/contact_center_dev` | JDBC URL                     |
+| `DB_USERNAME` / `DB_PASSWORD`                    | `postgres` / `postgres`                               | DB credentials               |
+| `REDIS_HOST` / `REDIS_PORT`                      | `localhost` / `6379`                                  | Redis connection             |
+| `RABBITMQ_HOST` / `_USERNAME` / `_PASSWORD`      | `localhost` / `guest` / `guest`                       | RabbitMQ                     |
+| `JWT_PRIVATE_KEY_VALUE` / `JWT_PUBLIC_KEY_VALUE` | _(file fallback)_                                     | RSA key content (PEM string) |
+| `JWT_ISSUER`                                     | `contact-center`                                      | JWT `iss` claim              |
+| `cors.allowed-origins`                           | `http://localhost:4200,http://localhost:3000`         | CORS whitelist               |

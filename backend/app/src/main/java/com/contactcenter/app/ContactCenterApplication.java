@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * Punkt wejściowy aplikacji Contact Center SaaS.
+ * Punkt wejściowy aplikacji Contact Center usageSaaS.
  *
  * <p>Architektura: Modularny monolit (Faza 1). Docelowa migracja do mikroserwisów
  * zachowana poprzez ścisłą izolację modułów: api/, domain/, infrastructure/, security/.
@@ -24,7 +24,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * @see com.contactcenter.infrastructure.config
  */
 @SpringBootApplication(
-        scanBasePackages = "com.contactcenter"
+    scanBasePackages = "com.contactcenter"
 )
 @EnableJpaRepositories(basePackages = "com.contactcenter.domain.repository")
 @EntityScan(basePackages = "com.contactcenter.domain.model")
@@ -33,7 +33,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class ContactCenterApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(ContactCenterApplication.class, args);
-    }
+  public static void main(String[] args) {
+    SpringApplication.run(ContactCenterApplication.class, args);
+  }
 }

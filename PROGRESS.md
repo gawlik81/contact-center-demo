@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-18 (FE-010 Softphone WebRTC ukończone)
+**Ostatnia aktualizacja:** 2026-03-19 (BE-010, BE-011, BE-025 ukończone; FE-018 ukończone)
 
 ---
 
@@ -62,7 +62,7 @@
 | BE-007 | Admin metrics API: metryki RT tenantów | ✅ | AdminMetricsService (polling Redis session:agent:*, @Cacheable cache 30s), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}, @PreAuthorize("hasRole('ADMIN')")), cache Redis TTL 30s dla admin-metrics (Jackson2JsonRedisSerializer<AdminMetricsResponse>). TenantService inwaliduje cache przy deactivateTenant() i updateTenant(). 204 testy PASS |
 | BE-008 | User / Agent CRUD API ze skills | ✅ | AppUser.java (dodano firstName, lastName, skills JSONB via @JdbcTypeCode(SqlTypes.JSON), isDeleted, timestamps, @PrePersist/@PreUpdate), AppUserRepository (findAllByTenantIdAndDeletedFalse, findByIdAndTenantIdAndDeletedFalse, findAllDistinctSkillsByTenantId native SQL, existsActiveContactsByUserId bez is_deleted, softDeleteUser, deactivateAllByTenantId bulk UPDATE N+1 fix), UserService (createUser+limitAgentów, listUsers PagedResponse, getUser, updateUser PATCH, deleteUser soft+HTTP409+RabbitMQ+Redis, listSkills, updateStatus+Redis Map session data+RabbitMQ agent.status.changed), UserController (7 endpointów: /skills przed /{id}), ConflictException (HTTP 409), PagedResponse<T> record, InvalidOperationException (HTTP 409), GlobalExceptionHandler zaktualizowany, V020 migracja (safe DO block). CR-BACKEND: clearAutomatically=true, SCAN zamiast KEYS, blacklist TTL z JWT exp, TOTP replay attack Redis, BasicPolymorphicTypeValidator, max-page-size 100, Swagger OFF w prod, findByTenantIdAndEmailAndActiveTrue. Łącznie 222 PASS |
 | BE-009 | Adapter VoIP: integracja z SIP trunk / CPaaS API | ✅ | TelephonyAdapter (interfejs), MockTelephonyAdapter, CallEvent, CallSession, TelephonyEventPublisher, TelephonyWebhookController, MockCallController. Wzorzec adaptera z implementacją mock do testów. |
-| BE-010 | Nagrywanie rozmów: zapis do S3, metadane, retencja | ⬜ | |
+| BE-010 | Nagrywanie rozmów: zapis do S3, metadane, retencja | ✅ | RecordingService (upload do S3/Minio, presigned URL TTL 1h, SSE-S3), RecordingRetentionJob (@Scheduled cron codziennie 02:00, usuwa pliki starsze niż retencja tenanta), RecordingController (GET /api/recordings/{contactId} – SUPERVISOR/ADMIN), S3Config + S3Properties (konfiguracja Minio/AWS), migracja V022 (indeks retencji). |
 | BE-011 | CLI lookup: wzbogacenie połączenia o dane klienta | ✅ | Customer.java (entity, JSONB phone[] via @JdbcTypeCode), CustomerRepository (findByPhoneNumber JSONB @> operator + GIN index, findLastContactsForCustomer native SQL na partycjonowanej tabeli), CustomerCliResult (record DTO + ContactSummary), CliLookupService (Redis cache TTL 5min, null sentinel anti-stampede, fallback do DB, invalidateCacheForCustomer), CallEvent rozszerzony o pole customerInfo, CallEventEnricher (@RabbitListener call.incoming, dedykowana kolejka cc.queue.cli-enricher, unicast przez WebSocketEventBroadcaster), WebSocketEvent.CallIncomingPayload rozszerzony o customerId + lastContacts. Naprawiono pre-istniejące błędy: AuthServiceChangePasswordTest (kolejność argumentów konstruktora) i UserServiceTest.listUsers (sygnatura metody). 299 testów PASS |
 | BE-012 | WebSocket hub: real-time events do Agent Desktop | ✅ | WebSocketConfig (STOMP), WebSocketAuthInterceptor (JWT przy handshake), WebSocketController, RabbitToWebSocketRelay, WebSocketEventBroadcaster, StompPrincipal. Topics per user i per tenant. |
 | BE-013 | IVR Engine: wykonanie drzewa IVR | ⬜ | |
@@ -77,7 +77,7 @@
 | BE-022 | Campaign CRUD API i harmonogram | ⬜ | |
 | BE-023 | Import CSV kontaktów kampanii (async job) | ⬜ | |
 | BE-024 | Progressive Dialer: silnik automatycznego dzwonienia | ⬜ | |
-| BE-025 | Customer CRUD API i fuzzy search | ⬜ | |
+| BE-025 | Customer CRUD API i fuzzy search | ✅ | CustomerController (POST/GET/GET{id}/PATCH/DELETE /api/customers, PagedResponse, fuzzy search ILIKE + word_similarity), CustomerService (CRUD + soft-delete anonimizacja RODO + invalidateCacheForCustomer), CustomerRepository (searchCustomers natywny SQL, findById), Customer entity (JSONB phone[], email[], custom_fields, gdpr_consent), migracje V023 (funkcja set_tenant_context) + V024 (fix prefix search ILIKE). |
 | BE-026 | Import klientów z CSV (async job) | ⬜ | |
 | BE-027 | Contact API: zapis i odczyt historii kontaktów | ⬜ | |
 | BE-028 | Raporty historyczne: agregacje per agent i kampania | ⬜ | |
@@ -108,7 +108,7 @@
 | FE-015 | Zarządzanie kampaniami: lista i formularz tworzenia | ⬜ | |
 | FE-016 | Import listy kontaktów CSV do kampanii | ⬜ | |
 | FE-017 | Panel disposition codes po zakończeniu kontaktu | ⬜ | |
-| FE-018 | Wyszukiwanie i lista klientów (fuzzy search) | ⬜ | |
+| FE-018 | Wyszukiwanie i lista klientów (fuzzy search) | ✅ | CustomerListComponent (tabela z paginacją PagedResponse, wyszukiwanie debounce 300ms, skeleton loading, empty state), CustomerDeleteModalComponent (modal RODO z potwierdzeniem anonimizacji), CustomerService (frontend, 5 metod API), supervisor.routes.ts zaktualizowany. Czeka na BE-025 ✅. |
 | FE-019 | Profil klienta: widok szczegółowy i historia kontaktów | ⬜ | |
 | FE-020 | Import klientów z CSV | ⬜ | |
 | FE-021 | Dashboard RT supervisora | ⬜ | |
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 10/31 | 0 | 21 | 31 |
-| Frontend (FE) | 10/24 | 0 | 14 | 24 |
-| **RAZEM** | **39/74** | **0** | **35** | **74** |
+| Backend (BE) | 13/31 | 0 | 18 | 31 |
+| Frontend (FE) | 11/24 | 0 | 13 | 24 |
+| **RAZEM** | **43/74** | **0** | **31** | **74** |
 
 ---
 
@@ -158,12 +158,15 @@
 | 2026-03-17 | AdminMetricsService.ts | SUPERVISOR/AGENT generował flood 403 co 30s – AdminMetricsService (providedIn: 'root') startował timer polling bezwarunkowo w konstruktorze, SidenavComponent wstrzykuje serwis dla wszystkich ról | Dodano guard if (this.auth.getUserRole() === 'ADMIN') w konstruktorze przed wywołaniem this._poll$.subscribe() |
 | 2026-03-17 | CR-BACKEND.md (20 issues) | Code review zidentyfikował: N+1 w deactivateTenant, blacklist TTL z runtime zamiast JWT exp, brak clearAutomatically=true, Redis KEYS() blokujący, TOTP replay attack, RLS Javadoc, PagedResponse brak metadanych, AuditAspect bez @Transactional, virtual thread ThreadLocal risk, Redis LaissezFaireSubTypeValidator RCE, brak max-page-size, MFA refresh vulnerability, SIOBE w TenantFilter, passwordHash comment, countOnlineAgents=0, AuditLogConsumer ack, circular dep comment, IllegalStateException→HTTP500, deleted users login, Swagger w prod | Wdrożono wszystkie 20 poprawek: bulk UPDATE (N+1), JwtClaims.expiresAt, clearAutomatically, SCAN cursor, Redis used-code TTL, BasicPolymorphicTypeValidator, PagedResponse<T>, InvalidOperationException, MfaService.verifyCode(userId), UserDetailsServiceImpl findByActiveTrue, springdoc OFF w prod, TenantContext Javadoc virtual thread warning. Naprawiono MfaService @RequiredArgsConstructor conflict i TenantService brakujący import List. 222 testy PASS |
 | 2026-03-18 | login.component.ts + public-tenant.service.ts | Flow logowania był dwustanowy (credentials→MFA); brak wykrywania organizacji po e-mailu wymuszał na użytkowniku ręczny wybór tenanta z pełnej listy | Przepisano LoginComponent na flow 3-krokowy "email-first": krok email → POST /api/public/tenants-by-email (nowy endpoint) → krok hasło z opcjonalnym dropdownem org (gdy >1 trafień) → krok MFA. Backend: PublicController.findTenantsByEmail + AppUserRepository.findActiveTenantsByUserEmail (native query). Bezpieczeństwo: zawsze HTTP 200 z pustą listą – nie ujawnia istnienia e-maila. |
+| 2026-03-19 | V023__create_set_tenant_context_function.sql | Brak funkcji PostgreSQL `set_tenant_context(uuid)` wywoływanej przez TenantAwareRepository – CustomerRepository rzucał błąd przy pierwszym zapytaniu | Dodano funkcję `set_tenant_context(p_tenant_id UUID)` wykonującą `SET LOCAL app.current_tenant_id` jako samodzielna migracja V023. |
+| 2026-03-19 | V024__fix_search_customers_prefix_search.sql + CustomerRepository | Fuzzy search po prefiksie (np. "Kow") nie znajdował rekordów – `word_similarity` zbyt rygorystyczna dla krótkich fraz | Zmieniono `search_customers` na ILIKE `%query%` jako fallback oraz `word_similarity` ≥ 0.2; naprawiony w V024. |
+| 2026-03-19 | CustomerController.java | Odpowiedź `GET /api/customers` zwracała `List<Customer>` zamiast `PagedResponse<CustomerResponse>` – niezgodność z kontraktem FE | Ujednolicono do `PagedResponse<CustomerResponse>` spójnie z innymi kontrolerami. |
 
 ---
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 10/31 (BE-001..BE-009 ✅, BE-012 ✅) | FE: 10/24 (FE-001..FE-010 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 13/31 (BE-001..BE-012 ✅, BE-025 ✅) | FE: 11/24 (FE-001..FE-010 ✅, FE-018 ✅)
 
 ---
 
@@ -195,8 +198,11 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-007 | Admin metrics API: AdminMetricsService (Redis polling), AdminMetricsController (GET /api/admin/metrics, GET /api/admin/metrics/tenants/{id}), cache Redis TTL 30s | ✅ |
 | BE-008 | User / Agent CRUD API ze skills: AppUser JSONB (@JdbcTypeCode), UserService (listUsers PagedResponse, deleteUser soft+HTTP409, updateStatus+Redis Map session), UserController, ConflictException, InvalidOperationException, PagedResponse<T>, V020 migracja. CR-BACKEND fixes applied. 222 testy PASS | ✅ |
 | BE-009 | Adapter VoIP: TelephonyAdapter (interfejs), MockTelephonyAdapter (implementacja mock), CallEvent, CallSession, TelephonyEventPublisher (RabbitMQ), TelephonyWebhookController, MockCallController. Wzorzec adaptera gotowy do podmiany na producencki CPaaS. | ✅ |
+| BE-010 | Nagrywanie rozmów: RecordingService (S3 upload, presigned URL TTL 1h, SSE-S3), RecordingRetentionJob (cron 02:00), RecordingController (GET /api/recordings/{contactId}), S3Config/S3Properties, migracja V022. | ✅ |
+| BE-011 | CLI lookup: CliLookupService (Redis TTL 5min, null sentinel), CallEventEnricher (@RabbitListener call.incoming), CustomerCliResult (record DTO + ContactSummary). Integracja z BE-025 (CustomerRepository). | ✅ |
 | BE-012 | WebSocket hub: WebSocketConfig (Spring STOMP, endpointy /ws), WebSocketAuthInterceptor (JWT przy handshake → HTTP 401 bez tokenu), WebSocketController, RabbitToWebSocketRelay (RabbitMQ → STOMP push), WebSocketEventBroadcaster, StompPrincipal. Topics: /user/{userId}/events, /tenant/{tenantId}/supervisor. | ✅ |
-| BE-010, BE-011, BE-013..BE-031 | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
+| BE-025 | Customer CRUD API: CustomerController (5 endpointów, PagedResponse), CustomerService (CRUD + RODO soft-delete anonimizacja), CustomerRepository (fuzzy search ILIKE + word_similarity), Customer entity (JSONB phone[], email[]), migracje V023 + V024. | ✅ |
+| BE-013..BE-031 (bez BE-025) | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
 
@@ -212,7 +218,8 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-008 | Zarządzanie agentami: AgentListComponent (tabela paginowana PagedResponse, filtry, multi-select skills), AgentFormComponent, AgentService, guard HTTP 409 przy deactivate | ✅ |
 | FE-009 | Agent Desktop: AgentDesktopComponent (layout z panelem statusu agenta AVAILABLE/BUSY/BREAK/AFTER_CONTACT, obszar zakładek kontaktów max 4: 1 telefon + 3 chat/email, integracja WebSocket z WebSocket.service.ts, baner "Utracono połączenie – próba reconnect"). Czeka na BE-012 ✅. | ✅ |
 | FE-010 | Softphone WebRTC: SIP.js/JsSIP, odbieranie/rozłączanie, mute, hold, blind i attended transfer, CLi. Czeka na FE-009 ✅, BE-009 ✅, BE-012 ✅. | ✅ |
-| FE-011..FE-024 | Wszystkie pozostałe widoki funkcjonalne | ⬜ |
+| FE-018 | Lista klientów: CustomerListComponent (tabela PagedResponse, wyszukiwanie debounce 300ms, skeleton loading), CustomerDeleteModalComponent (modal RODO), CustomerService (frontend). Czeka na BE-025 ✅. | ✅ |
+| FE-011..FE-017, FE-019..FE-024 | Wszystkie pozostałe widoki funkcjonalne | ⬜ |
 
 ---
 
@@ -283,15 +290,15 @@ FE-005 → FE-023                                  (Integracje social media)
 | FE-008 | BE-008 | Zarządzanie agentami: CRUD `/api/users`, endpoint skills | 🔵 Tak – MSW mock |
 | FE-009 | BE-012 ✅ | Agent Desktop: WebSocket hub dla statusów i kontaktów RT. FE-009 ✅ ukończone. | ✅ Gotowe |
 | FE-010 | BE-009 ✅, BE-012 ✅ | Softphone WebRTC: adapter VoIP + WebSocket sygnalizacja | ✅ Gotowe |
-| FE-011 | BE-025, BE-011 | Panel klienta podczas kontaktu: CLI lookup + Customer API | 🔵 Tak – MSW mock |
+| FE-011 | BE-025 ✅, BE-011 ✅ | Panel klienta podczas kontaktu: CLI lookup + Customer API | ✅ Gotowe (BE gotowe) |
 | FE-012 | BE-015, BE-016 | Obsługa emaila: adapter IMAP/SMTP + szablony | 🔵 Tak – MSW mock |
 | FE-013 | BE-018 | Obsługa social media: webhooks i wysyłka | 🔵 Tak – MSW mock |
 | FE-014 | BE-020, BE-013 | Edytor IVR: Queue API + IVR Engine (zapis JSONB) | 🔵 Tak – MSW mock |
 | FE-015 | BE-022 | Zarządzanie kampaniami: CRUD + akcje start/pause/stop | 🔵 Tak – MSW mock |
 | FE-016 | BE-023 | Import CSV kampanii: async job + polling statusu | 🔵 Tak – MSW mock |
 | FE-017 | BE-027 | Disposition codes: `PATCH /api/contacts/{id}/disposition` | 🔵 Tak – MSW mock |
-| FE-018 | BE-025 | Lista klientów: fuzzy search + paginacja `/api/customers` | 🔵 Tak – MSW mock |
-| FE-019 | BE-025, BE-027 | Profil klienta: dane + historia kontaktów | 🔵 Tak – MSW mock |
+| FE-018 | BE-025 ✅ | Lista klientów: fuzzy search + paginacja `/api/customers` | ✅ Gotowe |
+| FE-019 | BE-025 ✅, BE-027 | Profil klienta: dane + historia kontaktów | 🔵 Tak – MSW mock (BE-027 brakuje) |
 | FE-020 | BE-026 | Import klientów CSV: async job + polling | 🔵 Tak – MSW mock |
 | FE-021 | BE-029 | Dashboard RT supervisora: WebSocket metrics feed | 🔵 Tak – MSW/WS mock |
 | FE-022 | BE-028 | Raporty historyczne: agregacje + eksport CSV/XLSX | 🔵 Tak – MSW mock |
@@ -320,12 +327,12 @@ Poniższa kolejność maksymalizuje odblokowanie kolejnych zadań. Zadania oznac
 | Krok | Zadanie | Warstwa | Uzasadnienie |
 |------|---------|---------|--------------|
 | 5 | 🟢 BE-007 ✅ | BE | Admin metrics – odblokuje FE-007 |
-| 6 | 🟢 BE-025 | BE | Customer API – odblokuje FE-018, FE-019, FE-011 i BE-011 |
+| 6 | 🟢 BE-025 ✅ | BE | Customer API – ukończone; odblokowane FE-018 ✅, FE-019, FE-011 |
 | 7 | 🟢 BE-027 | BE | Contact API – odblokuje FE-017, FE-019, FE-022, BE-028, BE-029 |
 | 8 | 🟢 BE-020 | BE | Queue API – odblokuje FE-024 i BE-019 |
-| 9 | 🟢 FE-006 | FE | Lista tenantów (czeka na BE-006) |
-| 10 | 🟢 FE-008 | FE | Zarządzanie agentami (czeka na BE-008) |
-| 11 | 🟢 FE-018 | FE | Lista klientów (czeka na BE-025) |
+| 9 | 🟢 FE-006 ✅ | FE | Lista tenantów (ukończone) |
+| 10 | 🟢 FE-008 ✅ | FE | Zarządzanie agentami (ukończone) |
+| 11 | 🟢 FE-018 ✅ | FE | Lista klientów – ukończone |
 | 12 | 🟢 FE-024 | FE | Konfiguracja kolejek (czeka na BE-020) |
 
 **Faza 3 – Agent Desktop i Real-time (tydzień 3-4)**
@@ -387,8 +394,8 @@ BE-009 (VoIP Adapter) ────────┐
 | Kolejność | Zadanie | Status | Warunek |
 |-----------|---------|--------|---------|
 | 1 | BE-009 | ✅ | Adapter VoIP z MockTelephonyAdapter i TelephonyEventPublisher |
-| 2 | 🟢 BE-010 | ⬜ | Wymaga BE-009 ✅ |
-| 3 | 🟢 BE-011 | ⬜ | Wymaga BE-009 ✅ + BE-025 |
+| 2 | 🟢 BE-010 | ✅ | Ukończone – RecordingService S3, RetentionJob, RecordingController |
+| 3 | 🟢 BE-011 | ✅ | Ukończone – CliLookupService, CallEventEnricher, CustomerCliResult |
 | 4 | 🟢 BE-012 | ✅ | WebSocket STOMP, JWT interceptor, RabbitMQ relay |
 | 5 | 🟢 BE-015 | ⬜ | Kanał email – niezależny od BE-009 |
 | 6 | 🟢 BE-017 | ⬜ | OAuth social – niezależny od BE-009 |
@@ -429,12 +436,12 @@ BE-025 (Customer CRUD) ──┬──> BE-026 (Import CSV async)
 
 | Kolejność | Zadanie | Status | Warunek |
 |-----------|---------|--------|---------|
-| 1 | BE-025 | ⬜ | Wymaga BE-002 ✅ + DB-012 ✅. Indeks pg_trgm gotowy |
-| 2 | 🟢 BE-026 | ⬜ | Wymaga BE-025 |
-| 3 | 🟢 BE-031 | ⬜ | Wymaga BE-025 + BE-027 |
-| 4 | FE-018 | ⬜ | Wymaga BE-025 (lub MSW) |
-| 5 | 🟢 FE-019 | ⬜ | Wymaga FE-018 + BE-025, BE-027 (lub MSW) |
-| 6 | 🟢 FE-020 | ⬜ | Wymaga FE-018 + BE-026 (lub MSW) |
+| 1 | BE-025 | ✅ | Ukończone – CustomerController, CustomerService, fuzzy search |
+| 2 | 🟢 BE-026 | ⬜ | Wymaga BE-025 ✅ |
+| 3 | 🟢 BE-031 | ⬜ | Wymaga BE-025 ✅ + BE-027 |
+| 4 | FE-018 | ✅ | Ukończone – CustomerListComponent, CustomerDeleteModalComponent |
+| 5 | 🟢 FE-019 | ⬜ | Wymaga FE-018 ✅ + BE-025 ✅, BE-027 (lub MSW) |
+| 6 | 🟢 FE-020 | ⬜ | Wymaga FE-018 ✅ + BE-026 (lub MSW) |
 
 ---
 
@@ -469,14 +476,16 @@ Poniższa kolejność realizacji BE maksymalizuje liczbę odblokowanych zadań F
 | Priorytet | Zadanie BE | Odblokuje zadań FE | Uwagi |
 |-----------|------------|-------------------|-------|
 | ✅ 1 | BE-004 (Auth API) | FE-004 produkcyjnie | Ukończone |
-| 🔴 2 | BE-025 (Customer API) | FE-018, FE-019, FE-011 | pg_trgm gotowy, koszt implementacji niski, wartość wysoka |
+| ✅ 2 | BE-025 (Customer API) | FE-018 ✅, FE-019, FE-011 | Ukończone – fuzzy search, CRUD, RODO delete |
 | 🔴 3 | BE-027 (Contact API) | FE-017, FE-019, FE-022 | Fundament raportowania i disposition codes |
 | ✅ 4 | BE-006 (Tenant CRUD) | FE-006 ✅ | Ukończone – BE-007 odblokowane |
-| ✅ 5 | BE-008 (User CRUD) | FE-008 | Ukończone – odblokuje FE-008 i BE-019 (Routing Engine) |
+| ✅ 5 | BE-008 (User CRUD) | FE-008 ✅ | Ukończone – odblokuje BE-019 (Routing Engine) |
 | 🟡 6 | BE-020 (Queue API) | FE-024 | Krótkie zadanie (M), odblokuje konfigurację routingu |
 | 🟡 7 | BE-022 (Campaign CRUD) | FE-015, FE-016 | Odblokuje cały moduł kampanii |
 | ✅ 8 | BE-009 (VoIP Adapter) | FE-010 (Softphone) | Ukończone – MockTelephonyAdapter, TelephonyAdapter interfejs, webhook controller |
 | ✅ 9 | BE-012 (WebSocket hub) | FE-009 (Agent Desktop) | Ukończone – WebSocketConfig STOMP, JWT auth interceptor, RabbitMQ relay |
+| ✅ 10 | BE-010 (Nagrywanie) | FE-019 (link nagranie w profilu) | Ukończone – RecordingService S3, presigned URL |
+| ✅ 11 | BE-011 (CLI lookup) | FE-011 (Panel klienta podczas kontaktu) | Ukończone – CliLookupService, CallEventEnricher |
 
 ### 4.2 Strategia MSW (Mock Service Worker)
 
@@ -508,10 +517,13 @@ Poniższe grupy zadań są od siebie niezależne i mogą być realizowane przez 
 | ✅ Rozwiązany | BE-012 (WebSocket hub) | Ukończone – STOMP, JWT auth, RabbitMQ relay, topics per user/tenant |
 | ✅ Rozwiązany | FE-009 (Agent Desktop) | Ukończone – odblokowane FE-010..FE-013, FE-017 |
 | ✅ Rozwiązany | FE-010 (Softphone WebRTC) | Ukończone – komponent SIP.js/JsSIP, pełna obsługa połączeń |
-| 🔴 Nowy bloker | BE-010 (Nagrywanie) | Odblokowane przez BE-009 – zapis audio do S3 |
-| 🔴 Nowy bloker | BE-011 (CLI lookup) | Odblokowane przez BE-009 – wzbogacenie połączenia o dane klienta |
+| ✅ Rozwiązany | BE-010 (Nagrywanie) | Ukończone – RecordingService S3, RecordingRetentionJob, presigned URL |
+| ✅ Rozwiązany | BE-011 (CLI lookup) | Ukończone – CliLookupService, CallEventEnricher, Redis cache 5min |
+| ✅ Rozwiązany | BE-025 (Customer API) | Ukończone – CustomerController, CustomerService, fuzzy search, RODO delete |
+| ✅ Rozwiązany | FE-018 (Lista klientów) | Ukończone – CustomerListComponent, CustomerDeleteModalComponent, CustomerService |
+| 🔴 Nowy bloker | BE-027 (Contact API) | Blokuje FE-017, FE-019, FE-022, BE-028, BE-029, BE-030, BE-031 |
 | 🟡 Średni | BE-019 (Routing Engine) | Blokuje BE-029 (RT metrics) i BE-021 (wait time) |
-| 🟡 Średni | BE-025 (Customer API) | Blokuje CLI lookup (BE-011), RODO (BE-031) i 3 widoki FE |
+| 🟡 Średni | FE-019 (Profil klienta) | Odblokowane przez FE-018 ✅ + BE-025 ✅; czeka na BE-027 |
 
 ---
 

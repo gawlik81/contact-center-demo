@@ -229,7 +229,8 @@ Implementacja interfejsu `TelephonyAdapter` z metodami: initiateCall, answerCall
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-009, DB-006
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-19
 **Blokuje:** brak
 **Odniesienie PRD:** US-03-05, wymagania RODO (retencja nagrań)
 
@@ -237,11 +238,11 @@ Implementacja interfejsu `TelephonyAdapter` z metodami: initiateCall, answerCall
 Serwis `RecordingService`: odbiera strumień audio z TelephonyAdapter, konwertuje do MP3/WAV (FFmpeg przez ProcessBuilder lub biblioteka), uploaduje do S3-compatible storage (Minio / AWS S3) z szyfrowaniem AES-256 (SSE-S3). Ścieżka: `/{tenantId}/{year}/{month}/{contactId}.mp3`. Zapis URL nagrania do tabeli CONTACT. Zadanie cron usuwające nagrania starsze niż 90 dni (konfigurowalne per tenant).
 
 **Kryteria akceptacji:**
-- [ ] Plik audio uploadowany do S3 po zakończeniu połączenia (< 60s od hangup)
-- [ ] Nagranie szyfrowane AES-256 (SSE-S3 lub SSE-C)
-- [ ] Cron retencji uruchamiany codziennie o 02:00, usuwa pliki i czyści URL w tabeli CONTACT
-- [ ] Endpoint `GET /api/recordings/{contactId}` generuje presigned URL ważny 1h (nie zwraca pliku bezpośrednio)
-- [ ] Dostęp do nagrań wymaga roli SUPERVISOR lub ADMIN
+- [x] Plik audio uploadowany do S3 po zakończeniu połączenia (< 60s od hangup)
+- [x] Nagranie szyfrowane AES-256 (SSE-S3 lub SSE-C)
+- [x] Cron retencji uruchamiany codziennie o 02:00, usuwa pliki i czyści URL w tabeli CONTACT
+- [x] Endpoint `GET /api/recordings/{contactId}` generuje presigned URL ważny 1h (nie zwraca pliku bezpośrednio)
+- [x] Dostęp do nagrań wymaga roli SUPERVISOR lub ADMIN
 
 ---
 
@@ -251,7 +252,8 @@ Serwis `RecordingService`: odbiera strumień audio z TelephonyAdapter, konwertuj
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależności:** BE-009, BE-025
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-18
 **Blokuje:** brak
 **Odniesienie PRD:** US-03-02, EPIC-03
 
@@ -259,10 +261,10 @@ Serwis `RecordingService`: odbiera strumień audio z TelephonyAdapter, konwertuj
 Przy zdarzeniu CALL_INCOMING: lookup klienta po numerze telefonu (tabela CUSTOMER, pola phone[]). Wynik (dane klienta lub null) dołączany do eventu CALL_INCOMING przed przekazaniem do Agent Desktop przez WebSocket. Cache Redis dla numerów (TTL 5 min).
 
 **Kryteria akceptacji:**
-- [ ] Lookup wykonywany < 100ms (cache hit) lub < 500ms (cache miss z DB)
-- [ ] Wynik zawiera: customer_id, first_name, last_name, ostatnie 3 kontakty
-- [ ] Dla nieznanych numerów wynik null – frontend wyświetla "Nieznany klient"
-- [ ] Cache inwalidowany przy aktualizacji profilu klienta
+- [x] Lookup wykonywany < 100ms (cache hit) lub < 500ms (cache miss z DB)
+- [x] Wynik zawiera: customer_id, first_name, last_name, ostatnie 3 kontakty
+- [x] Dla nieznanych numerów wynik null – frontend wyświetla "Nieznany klient"
+- [x] Cache inwalidowany przy aktualizacji profilu klienta
 
 ---
 
@@ -560,7 +562,8 @@ Serwis `ProgressiveDialer`: po zmianie statusu agenta na AVAILABLE (event Rabbit
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-002, DB-012
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-19
 **Blokuje:** BE-026, BE-031, FE-018, FE-019, FE-011
 **Odniesienie PRD:** US-09-01, US-09-02, US-09-03, US-09-04, EPIC-09
 
@@ -568,10 +571,10 @@ Serwis `ProgressiveDialer`: po zmianie statusu agenta na AVAILABLE (event Rabbit
 Endpointy: `POST /api/customers`, `GET /api/customers` (search, paginacja), `GET /api/customers/{id}`, `PATCH /api/customers/{id}`, `DELETE /api/customers/{id}` (anonimizacja RODO). Fuzzy search przez PostgreSQL `pg_trgm` (trigram index) na polach first_name, last_name, phone[], email[]. Odpowiedź < 1s (wymóg PRD). Auto-tworzenie profilu przy nieznanych kontaktach przychodzących (event UNKNOWN_CALLER).
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/customers?q=kowalsk` zwraca wyniki fuzzy w < 1s (indeks trigram)
-- [ ] `DELETE` anonimizuje dane (first_name='ANONYMIZED', last_name='ANONYMIZED', phone[]=[], email[]=[], is_deleted=true) – nie usuwa rekordu (zachowanie CONTACT history)
+- [x] `GET /api/customers?q=kowalsk` zwraca wyniki fuzzy w < 1s (indeks trigram)
+- [x] `DELETE` anonimizuje dane (first_name='ANONYMIZED', last_name='ANONYMIZED', phone[]=[], email[]=[], is_deleted=true) – nie usuwa rekordu (zachowanie CONTACT history)
 - [ ] Auto-tworzenie: event UNKNOWN_CALLER tworzy CUSTOMER z phone=[CLI] i source='AUTO'
-- [ ] Paginacja cursor-based dla wydajności przy dużych zbiorach
+- [x] Paginacja cursor-based dla wydajności przy dużych zbiorach
 
 ---
 

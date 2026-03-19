@@ -423,8 +423,9 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** FE-005, BE-025
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-025 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-19
+**Czeka na BE:** BE-025 ✅
 **Blokuje:** FE-019, FE-020
 **Odniesienie PRD:** US-09-01, US-09-03, EPIC-09
 
@@ -432,10 +433,10 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 Strona bazy klientów z globalnym polem wyszukiwania (debounce 300ms, min 2 znaki, fuzzy search przez backend). Wyniki w tabeli z paginacją (20 rekordów). Kolumny: imię, nazwisko, telefon, email, data ostatniego kontaktu. Akcje: edytuj, wyświetl profil, usuń (RODO – soft delete z potwierdzeniem i informacją o anonimizacji).
 
 **Kryteria akceptacji:**
-- [ ] Wyszukiwanie inicjowane po 300ms debounce i min 2 znakach
-- [ ] Wyniki paginowane, link "Załaduj więcej" lub numeracja stron
-- [ ] Usunięcie klienta wymaga potwierdzenia z komunikatem RODO
-- [ ] Tabela ma nagłówki z sortowaniem (imię, nazwisko, data kontaktu)
+- [x] Wyszukiwanie inicjowane po 300ms debounce i min 2 znakach
+- [x] Wyniki paginowane, link "Załaduj więcej" lub numeracja stron
+- [x] Usunięcie klienta wymaga potwierdzenia z komunikatem RODO
+- [x] Tabela ma nagłówki z sortowaniem (imię, nazwisko, data kontaktu)
 
 ---
 

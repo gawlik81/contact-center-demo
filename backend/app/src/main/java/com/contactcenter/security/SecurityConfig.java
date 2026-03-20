@@ -106,6 +106,8 @@ public class SecurityConfig {
                 .requestMatchers("/ws/**").permitAll()
                 // WebSocket endpoint (plain WS + STOMP, bez SockJS) – używany przez Angular Agent Desktop
                 .requestMatchers("/ws-native/**").permitAll()
+                // Endpoint przyjmowania logów z frontendu – publiczny (FE wysyła logi przed zalogowaniem)
+                .requestMatchers("/api/logs").permitAll()
                 // Actuator (poza health) – wymaga autentykacji
                 .requestMatchers("/actuator/**").authenticated()
                 // Endpointy ADMIN – tylko rola ADMIN

@@ -150,114 +150,121 @@
       </div>
     </aside>
 
-    <!-- MAIN: contact tabs -->
-    <main class="desktop__main" id="main-content" aria-label="Aktywne kontakty">
-      @if (tabs().length === 0) {
-        <div class="no-contacts" role="status">
-          <svg class="no-contacts__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 2C6.48 2 2 6.48 2 13v1h2v-1c0-4.41 3.59-8 8-8s8 3.59 8 8v1h2v-1c0-5.52-4.48-10-10-10zm0 4c-3.31 0-6 2.69-6 6v1h2v-1c0-2.21 1.79-4 4-4s4 1.79 4 4v1h2v-1c0-3.31-2.69-6-6-6zm0 4c-1.1 0-2 .9-2 2v4h4v-4c0-1.1-.9-2-2-2z"
-            />
-          </svg>
-          <p class="no-contacts__text">Brak aktywnych kontaktow</p>
-          <p class="no-contacts__subtext">Oczekuj na przydzielenie kontaktu lub odbierz polaczenie z kolejki</p>
-        </div>
-      } @else {
-        <div class="contact-tabs">
-          <!-- Tab bar -->
-          <div class="contact-tabs__bar" role="tablist" aria-label="Aktywne kontakty">
-            @for (tab of tabs(); track trackByTabId($index, tab)) {
-              <button
-                type="button"
-                class="contact-tab"
-                role="tab"
-                [class.contact-tab--active]="tab.isActive"
-                [class.contact-tab--phone]="tab.type === 'PHONE'"
-                [class.contact-tab--chat]="tab.type === 'CHAT'"
-                [class.contact-tab--email]="tab.type === 'EMAIL'"
-                [attr.aria-selected]="tab.isActive"
-                [attr.aria-controls]="'tab-panel-' + tab.id"
-                [id]="'tab-' + tab.id"
-                (click)="setActiveTab(tab)"
-              >
-                <svg class="contact-tab__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                  <path [attr.d]="getTabTypeIcon(tab)" />
-                </svg>
-                <span class="contact-tab__name">{{ tab.customerName }}</span>
-                <span class="contact-tab__type-badge">{{ getTabTypeLabel(tab) }}</span>
+    <!-- MAIN: contact tabs + customer panel -->
+    <div class="desktop__content-area">
+      <main class="desktop__main" id="main-content" aria-label="Aktywne kontakty">
+        @if (tabs().length === 0) {
+          <div class="no-contacts" role="status">
+            <svg class="no-contacts__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 13v1h2v-1c0-4.41 3.59-8 8-8s8 3.59 8 8v1h2v-1c0-5.52-4.48-10-10-10zm0 4c-3.31 0-6 2.69-6 6v1h2v-1c0-2.21 1.79-4 4-4s4 1.79 4 4v1h2v-1c0-3.31-2.69-6-6-6zm0 4c-1.1 0-2 .9-2 2v4h4v-4c0-1.1-.9-2-2-2z"
+              />
+            </svg>
+            <p class="no-contacts__text">Brak aktywnych kontaktow</p>
+            <p class="no-contacts__subtext">Oczekuj na przydzielenie kontaktu lub odbierz polaczenie z kolejki</p>
+          </div>
+        } @else {
+          <div class="contact-tabs">
+            <!-- Tab bar -->
+            <div class="contact-tabs__bar" role="tablist" aria-label="Aktywne kontakty">
+              @for (tab of tabs(); track trackByTabId($index, tab)) {
                 <button
                   type="button"
-                  class="contact-tab__close"
-                  [attr.aria-label]="'Zamknij kontakt ' + tab.customerName"
-                  (click)="closeTab($event, tab)"
+                  class="contact-tab"
+                  role="tab"
+                  [class.contact-tab--active]="tab.isActive"
+                  [class.contact-tab--phone]="tab.type === 'PHONE'"
+                  [class.contact-tab--chat]="tab.type === 'CHAT'"
+                  [class.contact-tab--email]="tab.type === 'EMAIL'"
+                  [attr.aria-selected]="tab.isActive"
+                  [attr.aria-controls]="'tab-panel-' + tab.id"
+                  [id]="'tab-' + tab.id"
+                  (click)="setActiveTab(tab)"
                 >
-                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                    <path
-                      d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-                    />
+                  <svg class="contact-tab__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <path [attr.d]="getTabTypeIcon(tab)" />
                   </svg>
-                </button>
-              </button>
-            }
-          </div>
-
-          <!-- Tab panel -->
-          @if (activeTab()) {
-            <div
-              class="contact-tabs__panel"
-              role="tabpanel"
-              [id]="'tab-panel-' + activeTab()!.id"
-              [attr.aria-labelledby]="'tab-' + activeTab()!.id"
-            >
-              <div class="contact-panel">
-                <div class="contact-panel__header">
-                  <div class="contact-panel__avatar" aria-hidden="true">
-                    {{ activeTab()!.customerName.charAt(0).toUpperCase() }}
-                  </div>
-                  <div class="contact-panel__info">
-                    <h2 class="contact-panel__name">{{ activeTab()!.customerName }}</h2>
-                    <p class="contact-panel__identifier">{{ activeTab()!.customerIdentifier }}</p>
-                    <p class="contact-panel__since">Od {{ activeTab()!.startedAt | date: 'HH:mm:ss' }}</p>
-                  </div>
-                  <span
-                    class="contact-panel__type-badge contact-panel__type-badge--{{ activeTab()!.type | lowercase }}"
+                  <span class="contact-tab__name">{{ tab.customerName }}</span>
+                  <span class="contact-tab__type-badge">{{ getTabTypeLabel(tab) }}</span>
+                  <button
+                    type="button"
+                    class="contact-tab__close"
+                    [attr.aria-label]="'Zamknij kontakt ' + tab.customerName"
+                    (click)="closeTab($event, tab)"
                   >
-                    {{ getTabTypeLabel(activeTab()!) }}
-                  </span>
-                </div>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                      <path
+                        d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                      />
+                    </svg>
+                  </button>
+                </button>
+              }
+            </div>
 
-                <div class="contact-panel__body">
-                  @switch (activeTab()!.type) {
-                    @case ('PHONE') {
-                      <app-softphone [tab]="activeTab()!" />
+            <!-- Tab panel -->
+            @if (activeTab()) {
+              <div
+                class="contact-tabs__panel"
+                role="tabpanel"
+                [id]="'tab-panel-' + activeTab()!.id"
+                [attr.aria-labelledby]="'tab-' + activeTab()!.id"
+              >
+                <div class="contact-panel">
+                  <div class="contact-panel__header">
+                    <div class="contact-panel__avatar" aria-hidden="true">
+                      {{ activeTab()!.customerName.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="contact-panel__info">
+                      <h2 class="contact-panel__name">{{ activeTab()!.customerName }}</h2>
+                      <p class="contact-panel__identifier">{{ activeTab()!.customerIdentifier }}</p>
+                      <p class="contact-panel__since">Od {{ activeTab()!.startedAt | date: 'HH:mm:ss' }}</p>
+                    </div>
+                    <span
+                      class="contact-panel__type-badge contact-panel__type-badge--{{ activeTab()!.type | lowercase }}"
+                    >
+                      {{ getTabTypeLabel(activeTab()!) }}
+                    </span>
+                  </div>
+
+                  <div class="contact-panel__body">
+                    @switch (activeTab()!.type) {
+                      @case ('PHONE') {
+                        <app-softphone [tab]="activeTab()!" />
+                      }
+                      @case ('CHAT') {
+                        <div class="chat-placeholder">
+                          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+                          </svg>
+                          <p>Panel chatu</p>
+                          <p class="chat-placeholder__sub">Tutaj zostanie zaladowany widok chatu</p>
+                        </div>
+                      }
+                      @case ('EMAIL') {
+                        <div class="email-placeholder">
+                          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                              d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
+                            />
+                          </svg>
+                          <p>Panel emaila</p>
+                          <p class="email-placeholder__sub">Tutaj zostanie zaladowany widok emaila</p>
+                        </div>
+                      }
                     }
-                    @case ('CHAT') {
-                      <div class="chat-placeholder">
-                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                        </svg>
-                        <p>Panel chatu</p>
-                        <p class="chat-placeholder__sub">Tutaj zostanie zaladowany widok chatu</p>
-                      </div>
-                    }
-                    @case ('EMAIL') {
-                      <div class="email-placeholder">
-                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                          <path
-                            d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
-                          />
-                        </svg>
-                        <p>Panel emaila</p>
-                        <p class="email-placeholder__sub">Tutaj zostanie zaladowany widok emaila</p>
-                      </div>
-                    }
-                  }
+                  </div>
                 </div>
               </div>
-            </div>
-          }
-        </div>
-      }
-    </main>
+            }
+          </div>
+        }
+      </main>
+
+      <!-- RIGHT PANEL: customer profile -->
+      <aside class="desktop__customer-panel" aria-label="Profil klienta">
+        <cc-customer-panel [cli]="activeCli()" />
+      </aside>
+    </div>
   </div>
 </div>

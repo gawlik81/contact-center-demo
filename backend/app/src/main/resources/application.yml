@@ -228,11 +228,10 @@ s3:
   retention-cron: ${S3_RETENTION_CRON:0 0 2 * * *}
 
 # =============================================================================
-# Logowanie – wspólna konfiguracja bazowa
+# Logowanie – poziomy logowania czytane przez logback-spring.xml przez <springProperty>
+# Pattern konsoli i konfiguracja appenderów w logback-spring.xml
 # =============================================================================
 logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{tenantId}] [%X{requestId}] %logger{36} - %msg%n"
   level:
     root: INFO
     com.contactcenter: INFO

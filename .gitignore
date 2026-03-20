@@ -6,3 +6,6 @@
 .project
 .settings/
 .factorypath
+
+# Logi aplikacji
+logs/

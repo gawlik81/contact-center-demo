@@ -17,6 +17,7 @@ import { ContactTabStore } from '../../services/contact-tab.store';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SoftphoneService } from '../../services/softphone.service';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
+import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import {
   AgentStatus,
   ALL_AGENT_STATUSES,
@@ -34,7 +35,7 @@ import {
 @Component({
   selector: 'app-agent-desktop',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, LowerCasePipe, SoftphoneComponent],
+  imports: [DatePipe, LowerCasePipe, SoftphoneComponent, CustomerPanelComponent],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
 })
@@ -64,6 +65,18 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
 
   protected readonly tabs = this.tabStore.tabs;
   protected readonly activeTab = this.tabStore.activeTab;
+
+  /**
+   * CLI (phone number) of the active contact tab.
+   * Used to drive the CustomerPanelComponent.
+   * Only PHONE tabs carry a meaningful CLI – for CHAT/EMAIL we pass the customerIdentifier,
+   * which may be an email address; the lookup service will return null gracefully.
+   */
+  protected readonly activeCli = computed<string>(() => {
+    const tab = this.activeTab();
+    if (!tab) return '';
+    return tab.type === 'PHONE' ? tab.customerIdentifier : '';
+  });
 
   protected readonly tabLimitMessage = signal<string | null>(null);
 

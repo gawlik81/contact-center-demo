@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  logback-spring.xml – Konfiguracja Logback dla Contact Center SaaS
+  Zastępuje domyślną konfigurację Spring Boot Logback.
+
+  Appendery:
+    CONSOLE  – stdout (dev/prod)
+    FILE_BE  – logi backendu z rotacją (SizeAndTimeBasedRollingPolicy)
+    FILE_FE  – logi frontendu z rotacją (osobny plik, niższe limity retencji)
+
+  Poziomy logowania czytane z application.yml przez <springProperty>.
+  Profil 'dev': com.contactcenter loguje na DEBUG.
+-->
+<configuration>
+
+    <!-- =========================================================
+         Właściwości pobierane z application.yml / ENV
+         ========================================================= -->
+    <springProperty name="LOG_LEVEL_ROOT"
+                    source="logging.level.root"
+                    defaultValue="INFO"/>
+    <springProperty name="LOG_LEVEL_APP"
+                    source="logging.level.com.contactcenter"
+                    defaultValue="INFO"/>
+    <springProperty name="LOG_LEVEL_SECURITY"
+                    source="logging.level.org.springframework.security"
+                    defaultValue="WARN"/>
+    <springProperty name="LOG_LEVEL_FLYWAY"
+                    source="logging.level.org.flywaydb"
+                    defaultValue="INFO"/>
+
+    <!-- Katalog logów: nadpisywalny przez ENV var LOG_PATH -->
+    <property name="LOG_PATH" value="${LOG_PATH:-logs}"/>
+
+    <!-- Wspólny wzorzec dla BE i konsoli -->
+    <property name="PATTERN_BE"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{tenantId}] [%X{requestId}] %logger{36} - %msg%n"/>
+    <!-- Wzorzec dla FE – zamiast [%thread] stały tag [FRONTEND] -->
+    <property name="PATTERN_FE"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [FRONTEND] %-5level [%X{tenantId}] %logger{36} - %msg%n"/>
+
+    <!-- =========================================================
+         Appender: CONSOLE
+         ========================================================= -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${PATTERN_BE}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- =========================================================
+         Appender: FILE_BE – logi backendu
+         ========================================================= -->
+    <appender name="FILE_BE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/contact-center-demo-be.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Rotacja dzienna + po przekroczeniu rozmiaru -->
+            <fileNamePattern>${LOG_PATH}/contact-center-demo-be.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <!-- Retencja: 30 dni -->
+            <maxHistory>30</maxHistory>
+            <!-- Całkowity limit archiwum -->
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${PATTERN_BE}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- =========================================================
+         Appender: FILE_FE – logi frontendu
+         ========================================================= -->
+    <appender name="FILE_FE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/contact-center-demo-fe.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/contact-center-demo-fe.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>20MB</maxFileSize>
+            <!-- Retencja: 14 dni (krótsze niż BE – logi FE mniejsza wartość diagnostyczna) -->
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>500MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${PATTERN_FE}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- =========================================================
+         Logger dedykowany dla logów frontendu
+         additivity=false: logi FE NIE trafiają do root (CONSOLE/FILE_BE)
+         ========================================================= -->
+    <logger name="fe.contact-center" level="DEBUG" additivity="false">
+        <appender-ref ref="FILE_FE"/>
+    </logger>
+
+    <!-- =========================================================
+         Profil DEV – bardziej szczegółowe logowanie
+         ========================================================= -->
+    <springProfile name="dev">
+        <logger name="com.contactcenter" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE_BE"/>
+        </logger>
+        <logger name="org.springframework.security" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE_BE"/>
+        </logger>
+        <logger name="org.flywaydb" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE_BE"/>
+        </logger>
+    </springProfile>
+
+    <!-- =========================================================
+         Root logger – poziom i appendery sterowane przez application.yml
+         ========================================================= -->
+    <root level="${LOG_LEVEL_ROOT}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE_BE"/>
+    </root>
+
+    <!-- Poziom dla pakietu aplikacji (poza profilem dev) -->
+    <springProfile name="!dev">
+        <logger name="com.contactcenter" level="${LOG_LEVEL_APP}"/>
+        <logger name="org.springframework.security" level="${LOG_LEVEL_SECURITY}"/>
+        <logger name="org.flywaydb" level="${LOG_LEVEL_FLYWAY}"/>
+    </springProfile>
+
+</configuration>

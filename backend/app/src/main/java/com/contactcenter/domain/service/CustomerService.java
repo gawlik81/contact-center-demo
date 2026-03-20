@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -255,6 +256,28 @@ public class CustomerService {
 
         log.info("[CustomerService] Klient zanonimizowany (RODO): customerId={}, tenantId={}",
                 customerId, tenantId);
+    }
+
+    // =========================================================================
+    // Wyszukiwanie klienta po numerze telefonu (lookup)
+    // =========================================================================
+
+    /**
+     * Wyszukuje klienta po numerze telefonu bez auto-tworzenia profilu.
+     *
+     * <p>Używane przez agenta do identyfikacji klienta przy odbieraniu połączenia.
+     * W odróżnieniu od {@link #handleUnknownCaller} nie tworzy profilu gdy klient
+     * nie zostanie znaleziony – zamiast tego zwraca pusty Optional.
+     *
+     * @param phone    numer telefonu do wyszukania
+     * @param tenantId UUID tenanta
+     * @return Optional z DTO klienta lub empty gdy nie znaleziono
+     */
+    @Transactional(readOnly = true)
+    public Optional<CustomerResponse> lookupByPhone(String phone, UUID tenantId) {
+        log.debug("[CustomerService] Lookup po numerze telefonu: phone={}, tenant={}", phone, tenantId);
+        return customerRepository.findByPhoneNumber(phone, tenantId)
+                .map(CustomerResponse::from);
     }
 
     // =========================================================================

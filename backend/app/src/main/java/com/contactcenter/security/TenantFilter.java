@@ -83,7 +83,9 @@ public class TenantFilter extends OncePerRequestFilter {
             "/ws",
             // WebSocket plain endpoint (bez SockJS) – używany przez Angular Agent Desktop
             // Ta sama zasada: auth dzieje się w warstwie STOMP CONNECT, nie HTTP
-            "/ws-native"
+            "/ws-native",
+            // Endpoint przyjmowania logów z frontendu – publiczny (FE wysyła logi przed zalogowaniem)
+            "/api/logs"
     );
 
     private final JwtParser jwtParser;

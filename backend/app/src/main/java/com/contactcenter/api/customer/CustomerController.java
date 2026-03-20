@@ -131,6 +131,37 @@ public class CustomerController {
     }
 
     // =========================================================================
+    // Lookup klienta po numerze telefonu (dla agenta)
+    // =========================================================================
+
+    @GetMapping("/lookup")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Znajdź klienta po numerze telefonu",
+        description = "Wyszukuje profil klienta po dokładnym numerze telefonu. " +
+                      "Dostępne dla agentów – używane do identyfikacji klienta przy połączeniu. " +
+                      "Nie tworzy nowego profilu gdy klient nie istnieje (w odróżnieniu od UNKNOWN_CALLER). " +
+                      "Zwraca 404 gdy klient nie został znaleziony.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Profil klienta znaleziony"),
+            @ApiResponse(responseCode = "400", description = "Brak parametru phone"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "404", description = "Klient z tym numerem nie istnieje")
+        }
+    )
+    public ResponseEntity<CustomerResponse> lookupByPhone(
+            @Parameter(description = "Numer telefonu klienta (format E.164 np. +48501111001)", required = true)
+            @RequestParam String phone
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        log.debug("[CustomerController] Lookup klienta: phone={}, tenant={}", phone, tenantId);
+        return customerService.lookupByPhone(phone, tenantId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // =========================================================================
     // Szczegóły klienta
     // =========================================================================
 

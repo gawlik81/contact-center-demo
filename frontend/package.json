@@ -13,7 +13,8 @@
     "lint:fix": "ng lint --fix",
     "format": "prettier --write \"src/**/*.{ts,html,scss,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,html,scss,json}\"",
-    "prepare": "husky"
+    "prepare": "husky",
+    "start:log": "ng serve --proxy-config proxy.conf.json > ../../logs/contact-center-demo-fe.log 2>&1"
   },
   "lint-staged": {
     "src/**/*.ts": [

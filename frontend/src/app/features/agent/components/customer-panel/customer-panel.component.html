@@ -1,0 +1,165 @@
+<!-- ===== Empty state: no active contact ===== -->
+@if (state() === 'empty') {
+  <div class="cp cp--empty" role="status">
+    <svg class="cp__empty-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+      <path
+        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+      />
+    </svg>
+    <p class="cp__empty-text">Brak aktywnego kontaktu</p>
+  </div>
+}
+
+<!-- ===== Loading state: skeleton ===== -->
+@if (state() === 'loading') {
+  <div class="cp cp--loading" aria-busy="true" aria-label="Ladowanie danych klienta">
+    <div class="cp__section">
+      <div class="skeleton skeleton--avatar"></div>
+      <div class="cp__skeleton-lines">
+        <div class="skeleton skeleton--line skeleton--line-lg"></div>
+        <div class="skeleton skeleton--line skeleton--line-md"></div>
+        <div class="skeleton skeleton--line skeleton--line-sm"></div>
+      </div>
+    </div>
+    <div class="cp__divider"></div>
+    <div class="cp__section cp__section--col">
+      <div class="skeleton skeleton--line skeleton--line-label"></div>
+      @for (i of [1, 2, 3]; track i) {
+        <div class="cp__history-skeleton">
+          <div class="skeleton skeleton--icon"></div>
+          <div class="skeleton skeleton--line skeleton--line-md"></div>
+          <div class="skeleton skeleton--line skeleton--line-sm"></div>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<!-- ===== Unknown customer state ===== -->
+@if (state() === 'unknown') {
+  <div class="cp cp--unknown" role="status">
+    <svg class="cp__unknown-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+      <path
+        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"
+      />
+    </svg>
+    <h3 class="cp__unknown-title">Nieznany klient</h3>
+    <p class="cp__unknown-phone">{{ cli() }}</p>
+    <p class="cp__unknown-desc">Brak profilu klienta dla tego numeru telefonu.</p>
+    <button
+      type="button"
+      class="cp__cta-btn"
+      (click)="navigateToCreateProfile()"
+      aria-label="Utw&oacute;rz profil klienta dla numeru {{ cli() }}"
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      Utw&oacute;rz profil
+    </button>
+  </div>
+}
+
+<!-- ===== Known customer state ===== -->
+@if (state() === 'known' && profile()) {
+  <div class="cp cp--known">
+    <!-- Customer header -->
+    <div class="cp__customer-header">
+      <div class="cp__avatar" aria-hidden="true">
+        {{ profile()!.firstName.charAt(0).toUpperCase() }}{{ profile()!.lastName.charAt(0).toUpperCase() }}
+      </div>
+      <div class="cp__customer-info">
+        <h3 class="cp__customer-name">{{ profile()!.firstName }} {{ profile()!.lastName }}</h3>
+        @if (profile()!.phones.length > 0) {
+          <p class="cp__customer-meta">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+              />
+            </svg>
+            {{ profile()!.phones[0] }}
+          </p>
+        }
+        @if (profile()!.emails.length > 0) {
+          <p class="cp__customer-meta">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
+              />
+            </svg>
+            {{ profile()!.emails[0] }}
+          </p>
+        }
+      </div>
+    </div>
+
+    <!-- Full profile link -->
+    <button
+      type="button"
+      class="cp__profile-link"
+      (click)="navigateToFullProfile()"
+      aria-label="Zobacz pelny profil klienta {{ profile()!.firstName }} {{ profile()!.lastName }}"
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+        <path
+          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+        />
+      </svg>
+      Zobacz pelny profil
+    </button>
+
+    <div class="cp__divider"></div>
+
+    <!-- Contact history -->
+    <div class="cp__history">
+      <h4 class="cp__history-title">Ostatnie kontakty</h4>
+
+      @if (profile()!.recentContacts.length === 0) {
+        <p class="cp__history-empty">Brak historii kontakt&oacute;w</p>
+      } @else {
+        <ul class="cp__history-list" role="list">
+          @for (item of profile()!.recentContacts; track trackByContactId($index, item)) {
+            <li class="cp__history-item">
+              <div
+                class="cp__history-channel cp__history-channel--{{ item.channel | lowercase }}"
+                [attr.aria-label]="getChannelLabel(item.channel)"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  @switch (item.channel) {
+                    @case ('PHONE') {
+                      <path
+                        d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                      />
+                    }
+                    @case ('EMAIL') {
+                      <path
+                        d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
+                      />
+                    }
+                    @case ('CHAT') {
+                      <path
+                        d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"
+                      />
+                    }
+                    @case ('SOCIAL') {
+                      <path
+                        d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92z"
+                      />
+                    }
+                  }
+                </svg>
+              </div>
+              <div class="cp__history-details">
+                <span class="cp__history-disposition">{{ item.disposition }}</span>
+                <span class="cp__history-date">{{ item.date | date: 'dd.MM.yyyy HH:mm' }}</span>
+                @if (item.agentName) {
+                  <span class="cp__history-agent">{{ item.agentName }}</span>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+}

@@ -1,0 +1,95 @@
+<dialog class="disposition-dialog" open aria-modal="true" aria-labelledby="disposition-dialog-title" role="dialog">
+  <div class="disposition-dialog__backdrop"></div>
+
+  <div class="disposition-dialog__panel">
+    <!-- Header -->
+    <header class="disposition-dialog__header">
+      <div class="disposition-dialog__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
+          />
+        </svg>
+      </div>
+      <div class="disposition-dialog__title-block">
+        <h2 id="disposition-dialog-title" class="disposition-dialog__title">Zakoncz kontakt</h2>
+        @if (customerName()) {
+          <p class="disposition-dialog__subtitle">{{ customerName() }}</p>
+        }
+      </div>
+      <div class="disposition-dialog__acw" aria-live="polite" aria-atomic="true">
+        <span class="acw__label">Czas ACW</span>
+        <span class="acw__timer" [attr.aria-label]="'Czas po kontakcie: ' + formattedAcwTime()">
+          {{ formattedAcwTime() }}
+        </span>
+      </div>
+    </header>
+
+    <!-- Body -->
+    <div class="disposition-dialog__body">
+      <!-- Disposition code -->
+      <div class="form-field">
+        <label class="form-field__label" for="disposition-code">
+          Dyspozycja <span class="form-field__required" aria-hidden="true">*</span>
+        </label>
+        <select
+          id="disposition-code"
+          class="form-field__select"
+          [value]="selectedCode()"
+          (change)="onCodeChange($any($event.target).value)"
+          aria-required="true"
+          [attr.aria-invalid]="selectedCode().length === 0"
+        >
+          <option value="" disabled selected>-- Wybierz dyspozycje --</option>
+          @for (item of dispositionCodes; track item.code) {
+            <option [value]="item.code">{{ item.label }}</option>
+          }
+        </select>
+        @if (selectedCode().length === 0) {
+          <span class="form-field__hint" role="alert">Wybierz dyspozycje przed zapisem</span>
+        }
+      </div>
+
+      <!-- Notes -->
+      <div class="form-field">
+        <label class="form-field__label" for="disposition-notes">
+          Notatka <span class="form-field__optional">(opcjonalna)</span>
+        </label>
+        <textarea
+          id="disposition-notes"
+          class="form-field__textarea"
+          rows="4"
+          maxlength="1000"
+          placeholder="Dodaj notatke do kontaktu..."
+          [value]="notes()"
+          (input)="onNotesChange($any($event.target).value)"
+          aria-multiline="true"
+          aria-label="Notatka do kontaktu, opcjonalna"
+        ></textarea>
+        <span class="form-field__char-count" aria-live="polite"> {{ notes().length }}/1000 </span>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="disposition-dialog__footer">
+      <button
+        type="button"
+        class="btn btn--primary"
+        [disabled]="!canSave()"
+        [attr.aria-busy]="isSaving()"
+        aria-label="Zapisz dyspozycje i zmien status na dostepny"
+        (click)="save()"
+      >
+        @if (isSaving()) {
+          <span class="btn__spinner" aria-hidden="true"></span>
+          <span>Zapisywanie...</span>
+        } @else {
+          <svg class="btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </svg>
+          <span>Zapisz i zamknij</span>
+        }
+      </button>
+    </footer>
+  </div>
+</dialog>

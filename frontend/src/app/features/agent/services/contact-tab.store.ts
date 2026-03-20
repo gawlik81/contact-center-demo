@@ -16,6 +16,12 @@ export class ContactTabStore {
     () => this.tabs().find((t) => t.isActive) ?? this.tabs()[0] ?? null,
   );
 
+  /** Returns the active tab if it is in WRAPPING (ACW) state, otherwise null */
+  readonly wrappingTab = computed<ContactTab | null>(() => {
+    const active = this.activeTab();
+    return active?.status === 'WRAPPING' ? active : null;
+  });
+
   readonly phoneTabCount = computed(() => this.tabs().filter((t) => t.type === 'PHONE').length);
   readonly asyncTabCount = computed(
     () => this.tabs().filter((t) => t.type === 'CHAT' || t.type === 'EMAIL').length,
@@ -79,6 +85,14 @@ export class ContactTabStore {
 
   updateTabStatus(id: string, status: ContactTabStatus): void {
     this.tabs.update((current) => current.map((t) => (t.id === id ? { ...t, status } : t)));
+  }
+
+  /**
+   * Puts the tab into WRAPPING state (After Contact Work).
+   * The DispositionPanelComponent will be shown for this tab.
+   */
+  markAsWrapping(id: string): void {
+    this.updateTabStatus(id, 'WRAPPING');
   }
 
   private checkLimits(type: ContactType): TabLimitReason {

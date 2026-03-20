@@ -5,6 +5,7 @@ import {
   OnDestroy,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -18,6 +19,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { SoftphoneService } from '../../services/softphone.service';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
+import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
 import {
   AgentStatus,
   ALL_AGENT_STATUSES,
@@ -35,7 +37,13 @@ import {
 @Component({
   selector: 'app-agent-desktop',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, LowerCasePipe, SoftphoneComponent, CustomerPanelComponent],
+  imports: [
+    DatePipe,
+    LowerCasePipe,
+    SoftphoneComponent,
+    CustomerPanelComponent,
+    DispositionPanelComponent,
+  ],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
 })
@@ -78,7 +86,27 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
     return tab.type === 'PHONE' ? tab.customerIdentifier : '';
   });
 
+  /** Active tab in ACW/WRAPPING state – drives DispositionPanelComponent visibility */
+  protected readonly wrappingTab = this.tabStore.wrappingTab;
+
   protected readonly tabLimitMessage = signal<string | null>(null);
+
+  /**
+   * Monitors SoftphoneService session state.
+   * When a call transitions to ENDED, puts the active PHONE tab into WRAPPING state
+   * so the disposition panel appears automatically.
+   */
+  private readonly softphoneEndedEffect = effect(() => {
+    const session = this.softphoneService.session();
+    if (session?.state === 'ENDED') {
+      const phoneTab = this.tabStore
+        .tabs()
+        .find((t) => t.type === 'PHONE' && t.status !== 'WRAPPING');
+      if (phoneTab) {
+        this.tabStore.markAsWrapping(phoneTab.id);
+      }
+    }
+  });
 
   ngOnInit(): void {
     this.ws.connect();
@@ -199,6 +227,17 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
 
   protected readonly trackByTabId = (_i: number, tab: ContactTab) => tab.id;
   protected readonly trackByQueueId = (_i: number, item: QueueItem) => item.id;
+
+  /**
+   * Called when the DispositionPanelComponent emits `saved`.
+   * Closes the WRAPPING tab – the agent is now AVAILABLE (status changed by DispositionPanel).
+   */
+  protected onDispositionSaved(): void {
+    const tab = this.tabStore.wrappingTab();
+    if (tab) {
+      this.tabStore.closeTab(tab.id);
+    }
+  }
 
   private showLimitMessage(reason: 'MAX_PHONE' | 'MAX_ASYNC' | 'MAX_TOTAL'): void {
     const messages: Record<string, string> = {

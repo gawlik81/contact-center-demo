@@ -1,6 +1,11 @@
 export type ContactType = 'PHONE' | 'CHAT' | 'EMAIL';
 export type ContactTabStatus = 'ACTIVE' | 'HOLD' | 'WRAPPING';
 
+/** Extended tab data used when the tab enters ACW (After Contact Work) state */
+export interface WrappingContactTab extends ContactTab {
+  status: 'WRAPPING';
+}
+
 export interface ContactTab {
   id: string;
   type: ContactType;

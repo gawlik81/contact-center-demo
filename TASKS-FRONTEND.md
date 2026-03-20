@@ -261,8 +261,9 @@ Komponent softphone w przeglądarce oparty na WebRTC (np. integracja z SIP.js lu
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** FE-009, BE-025, BE-011
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-025, BE-011 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-20
+**Czeka na BE:** BE-025 ✅, BE-011 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-03-02, US-09-02, EPIC-09
 
@@ -270,10 +271,10 @@ Komponent softphone w przeglądarce oparty na WebRTC (np. integracja z SIP.js lu
 Panel boczny wyświetlany podczas aktywnego kontaktu: dane klienta (imię, nazwisko, telefon, email), historia ostatnich 10 kontaktów z danym klientem (kanał, data, disposition). Link do pełnego profilu klienta. Jeśli klient nieznany – przycisk "Utwórz profil" pre-wypełniający formularz numerem CLI.
 
 **Kryteria akceptacji:**
-- [ ] Panel ładuje dane klienta po numerze CLI w czasie < 1s (z cache jeśli możliwe)
-- [ ] Historia kontaktów pokazuje ostatnie 10 wpisów z ikoną kanału
-- [ ] Dla nieznanego numeru wyświetlany jest stan "Nieznany klient" z CTA tworzenia profilu
-- [ ] Formularz tworzenia profilu pre-wypełnia pole telefonu numerem CLI
+- [x] Panel ładuje dane klienta po numerze CLI w czasie < 1s (z cache jeśli możliwe)
+- [x] Historia kontaktów pokazuje ostatnie 10 wpisów z ikoną kanału
+- [x] Dla nieznanego numeru wyświetlany jest stan "Nieznany klient" z CTA tworzenia profilu
+- [x] Formularz tworzenia profilu pre-wypełnia pole telefonu numerem CLI
 
 ---
 
@@ -399,19 +400,20 @@ Komponent upload pliku CSV z mapowaniem kolumn: użytkownik wskazuje która kolu
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależności:** FE-009, BE-027
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-027 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-20
+**Czeka na BE:** BE-027 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-08-04, US-08-05, EPIC-08
 
 **Opis:**
-Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączenia. Dropdown z disposition codes (ładowanymi per tenant z API). Pole notatki (textarea, opcjonalne). Timer w panelu (czas pracy po-kontaktowej). Przycisk "Zapisz i zamknij" → zmiana statusu agenta na "dostępny".
+Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączenia. Dropdown z disposition codes (6 hardcoded kodów: Sprzedaż, Brak zainteresowania, Oddzwonienie, Błędny numer, Zgłoszenie techniczne, Inne; model w disposition.model.ts). Pole notatki (textarea, opcjonalne). Timer ACW w formacie MM:SS w panelu (czas pracy po-kontaktowej). Przycisk "Zapisz i zamknij" → PATCH /api/contacts/{id}/disposition. Integracja z contact-tab.store.ts (stan WRAPPING + markAsWrapping()). Effect() na session.state=ENDED w agent-desktop.component.ts automatycznie otwiera panel.
 
 **Kryteria akceptacji:**
-- [ ] Panel otwiera się automatycznie po rozłączeniu połączenia
-- [ ] Disposition codes ładowane z API per tenant (cached 5 min)
-- [ ] Zapis disposition wysyła PATCH /api/contacts/{id}/disposition
-- [ ] Timer wskazuje czas spędzony w stanie "po-kontaktowym" (wliczany do raportów)
+- [x] Panel otwiera się automatycznie po rozłączeniu połączenia
+- [x] Disposition codes ładowane z disposition.model.ts (6 kodów hardcoded na MVP)
+- [x] Zapis disposition wysyła PATCH /api/contacts/{id}/disposition
+- [x] Timer wskazuje czas spędzony w stanie "po-kontaktowym" (wliczany do raportów)
 
 ---
 

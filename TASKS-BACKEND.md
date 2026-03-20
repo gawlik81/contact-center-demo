@@ -607,18 +607,19 @@ Analogiczny do BE-023. Endpoint `POST /api/customers/import` – CSV z kolumnami
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-006
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** BE-028, BE-029, BE-030, BE-031, FE-017, FE-019, FE-022
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-20
+**Blokuje:** BE-028, BE-029, BE-030, BE-031, FE-019, FE-022
 **Odniesienie PRD:** US-09-02, US-10-02, EPIC-09, EPIC-10
 
 **Opis:**
-Endpointy: `GET /api/contacts` (filtry: customer_id, agent_id, channel, status, zakres dat, kampania), `GET /api/contacts/{id}`, `PATCH /api/contacts/{id}/disposition`. Kontakty tworzone przez eventy z systemu (nie bezpośrednio przez API klienta). Paginacja i sortowanie. Zapis disposition code przez agenta.
+Endpointy: `GET /api/contacts` (filtry: customer_id, agent_id, channel, status, zakres dat, kampania), `GET /api/contacts/{id}`, `POST /api/contacts`, `PATCH /api/contacts/{id}`, `PATCH /api/contacts/{id}/disposition`, `GET /api/contacts/customer/{customerId}`. ContactService z logiką uprawnień AGENT vs SUPERVISOR/ADMIN. ContactRepository z natywnym INSERT/UPDATE dla tabeli partycjonowanej i dynamicznym WHERE dla filtrów. ContactId.java (klucz złożony). DTOs: ContactResponse, CreateContactRequest, UpdateContactRequest, DispositionRequest, ContactFilterParams. 22 testy jednostkowe, build 365/365 PASS.
 
 **Kryteria akceptacji:**
-- [ ] Filtrowanie po wszystkich wymienionych polach (AND logic)
-- [ ] `PATCH /api/contacts/{id}/disposition` wymaga roli AGENT lub SUPERVISOR
-- [ ] Kontakt z typem CALL zawiera recording_url (jeśli nagranie dostępne)
-- [ ] Paginacja cursor-based (kontakty mogą być milionami rekordów)
+- [x] Filtrowanie po wszystkich wymienionych polach (AND logic)
+- [x] `PATCH /api/contacts/{id}/disposition` wymaga roli AGENT lub SUPERVISOR
+- [x] Kontakt z typem CALL zawiera recording_url (jeśli nagranie dostępne)
+- [x] Paginacja cursor-based (kontakty mogą być milionami rekordów)
 
 ---
 

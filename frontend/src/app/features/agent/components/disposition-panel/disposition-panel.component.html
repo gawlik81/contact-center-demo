@@ -1,4 +1,4 @@
-<dialog class="disposition-dialog" open aria-modal="true" aria-labelledby="disposition-dialog-title" role="dialog">
+<dialog #dialogEl class="disposition-dialog" aria-labelledby="disposition-dialog-title">
   <div class="disposition-dialog__backdrop"></div>
 
   <div class="disposition-dialog__panel">
@@ -36,17 +36,17 @@
           id="disposition-code"
           class="form-field__select"
           [value]="selectedCode()"
-          (change)="onCodeChange($any($event.target).value)"
+          (change)="onCodeChange($event)"
           aria-required="true"
           [attr.aria-invalid]="selectedCode().length === 0"
         >
-          <option value="" disabled selected>-- Wybierz dyspozycje --</option>
+          <option value="" disabled selected>-- Wybierz dyspozycję --</option>
           @for (item of dispositionCodes; track item.code) {
             <option [value]="item.code">{{ item.label }}</option>
           }
         </select>
         @if (selectedCode().length === 0) {
-          <span class="form-field__hint" role="alert">Wybierz dyspozycje przed zapisem</span>
+          <span class="form-field__hint" role="alert">Wybierz dyspozycję przed zapisem</span>
         }
       </div>
 

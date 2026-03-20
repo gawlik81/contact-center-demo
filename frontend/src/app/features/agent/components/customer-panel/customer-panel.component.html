@@ -60,6 +60,16 @@
   </div>
 }
 
+<!-- ===== Error state: server error (5xx / network failure) ===== -->
+@if (state() === 'error') {
+  <div class="cp cp--error" role="alert">
+    <svg class="cp__error-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+    </svg>
+    <p class="cp__error-text">Nie można pobrać danych klienta (błąd serwera).</p>
+  </div>
+}
+
 <!-- ===== Known customer state ===== -->
 @if (state() === 'known' && profile()) {
   <div class="cp cp--known">
@@ -93,20 +103,22 @@
       </div>
     </div>
 
-    <!-- Full profile link -->
-    <button
-      type="button"
-      class="cp__profile-link"
-      (click)="navigateToFullProfile()"
-      aria-label="Zobacz pelny profil klienta {{ profile()!.firstName }} {{ profile()!.lastName }}"
-    >
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-        <path
-          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
-        />
-      </svg>
-      Zobacz pelny profil
-    </button>
+    <!-- Full profile link – visible only to SUPERVISOR and ADMIN; AGENT has no access to /supervisor/** -->
+    @if (authService.currentRole() === 'SUPERVISOR' || authService.currentRole() === 'ADMIN') {
+      <button
+        type="button"
+        class="cp__profile-link"
+        (click)="navigateToFullProfile()"
+        aria-label="Zobacz pelny profil klienta {{ profile()!.firstName }} {{ profile()!.lastName }}"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+          />
+        </svg>
+        Zobacz pelny profil
+      </button>
+    }
 
     <div class="cp__divider"></div>
 

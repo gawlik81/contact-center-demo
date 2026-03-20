@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, of, catchError } from 'rxjs';
+import { Observable, of, catchError, throwError } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { CustomerProfile } from '../../../core/models/customer-profile.model';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -46,8 +46,10 @@ export class CustomerLookupService {
             this.setCache(normalised, null);
             return of(null);
           }
-          this.notifications.error('Nie udalo sie pobrac danych klienta.');
-          return of(null);
+          // For 5xx / network errors: show toast and rethrow so the caller
+          // (CustomerPanelComponent) can switch to the 'error' state.
+          this.notifications.error('Nie udało się pobrać danych klienta.');
+          return throwError(() => err);
         }),
       );
   }

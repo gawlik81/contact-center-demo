@@ -2,12 +2,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  OnDestroy,
   OnInit,
   computed,
   inject,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -25,7 +28,7 @@ import { DISPOSITION_CODES, DispositionCode } from '../../models/disposition.mod
   templateUrl: './disposition-panel.component.html',
   styleUrl: './disposition-panel.component.scss',
 })
-export class DispositionPanelComponent implements OnInit {
+export class DispositionPanelComponent implements OnInit, OnDestroy {
   /** ID zakładki/kontaktu – wymagane aby wiedzieć co zapisać */
   readonly contactId = input.required<string>();
   /** Nazwa klienta do wyświetlenia w nagłówku */
@@ -37,6 +40,8 @@ export class DispositionPanelComponent implements OnInit {
   private readonly statusService = inject(AgentStatusService);
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+
+  private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
 
   protected readonly dispositionCodes: DispositionCode[] = DISPOSITION_CODES;
 
@@ -58,7 +63,12 @@ export class DispositionPanelComponent implements OnInit {
   protected readonly canSave = computed(() => this.selectedCode().length > 0 && !this.isSaving());
 
   ngOnInit(): void {
+    this.dialogRef().nativeElement.showModal();
     this.startAcwTimer();
+  }
+
+  ngOnDestroy(): void {
+    this.stopAcwTimer();
   }
 
   private startAcwTimer(): void {
@@ -75,8 +85,8 @@ export class DispositionPanelComponent implements OnInit {
     }
   }
 
-  protected onCodeChange(value: string): void {
-    this.selectedCode.set(value);
+  protected onCodeChange(event: Event): void {
+    this.selectedCode.set((event.target as HTMLSelectElement).value);
   }
 
   protected onNotesChange(value: string): void {
@@ -92,19 +102,33 @@ export class DispositionPanelComponent implements OnInit {
     this.contactService
       .setDisposition(this.contactId(), this.selectedCode(), this.notes())
       .pipe(
-        takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udalo sie zapisac dyspozycji. Sprobuj ponownie.');
+          this.notifications.error('Nie udało się zapisać dyspozycji. Spróbuj ponownie.');
           this.isSaving.set(false);
           this.startAcwTimer();
           return EMPTY;
         }),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
         this.isSaving.set(false);
-        this.statusService.changeStatus('AVAILABLE');
-        this.notifications.success('Dyspozycja zapisana. Status zmieniony na Dostepny.');
-        this.saved.emit();
+        this.notifications.success('Dyspozycja zapisana. Zmieniam status na Dostępny...');
+        // Wait for status change confirmation before emitting saved — prevents the tab from
+        // closing before the server acknowledges the AVAILABLE status change.
+        this.statusService
+          .changeStatus('AVAILABLE')
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.notifications.success('Status zmieniony na Dostępny.');
+              this.saved.emit();
+            },
+            error: () => {
+              // Disposition was saved successfully; status change failed.
+              // Still close the tab — agent can change status manually.
+              this.saved.emit();
+            },
+          });
       });
   }
 }

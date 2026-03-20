@@ -241,11 +241,11 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
 
   private showLimitMessage(reason: 'MAX_PHONE' | 'MAX_ASYNC' | 'MAX_TOTAL'): void {
     const messages: Record<string, string> = {
-      MAX_PHONE: 'Mozesz obslugiwac tylko 1 polaczenie telefoniczne jednoczesnie.',
-      MAX_ASYNC: 'Osiagnales limit 3 kontaktow chat/email jednoczesnie.',
-      MAX_TOTAL: 'Osiagnales maksymalny limit 4 aktywnych kontaktow.',
+      MAX_PHONE: 'Możesz obsługiwać tylko 1 połączenie telefoniczne jednocześnie.',
+      MAX_ASYNC: 'Osiągnąłeś limit 3 kontaktów chat/email jednocześnie.',
+      MAX_TOTAL: 'Osiągnąłeś maksymalny limit 4 aktywnych kontaktów.',
     };
-    this.tabLimitMessage.set(messages[reason] ?? 'Osiagnales limit aktywnych kontaktow.');
+    this.tabLimitMessage.set(messages[reason] ?? 'Osiągnąłeś limit aktywnych kontaktów.');
     setTimeout(() => this.tabLimitMessage.set(null), 5_000);
   }
 }

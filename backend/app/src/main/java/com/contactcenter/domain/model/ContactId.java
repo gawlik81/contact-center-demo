@@ -20,6 +20,8 @@ import java.util.UUID;
 @EqualsAndHashCode
 public class ContactId implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     private UUID contactId;
     private Instant startedAt;
 }

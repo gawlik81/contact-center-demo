@@ -1,6 +1,8 @@
 package com.contactcenter.domain.repository;
 
 import com.contactcenter.domain.model.Contact;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -33,9 +35,11 @@ import java.util.UUID;
 public class ContactRepository extends TenantAwareRepository {
 
     private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
 
-    public ContactRepository(JdbcTemplate jdbcTemplate) {
+    public ContactRepository(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
+        this.objectMapper = objectMapper;
     }
 
     // =========================================================================
@@ -341,6 +345,13 @@ public class ContactRepository extends TenantAwareRepository {
                 .executeUpdate();
 
         log.debug("[ContactRepo] Zaktualizowano {} wierszy dla contactId={}", updated, contact.getContactId());
+
+        // Wyczyść L1 cache Hibernate po natywnym UPDATE – trigger DB mógł zmienić
+        // duration_seconds i updated_at. Bez flush+clear kolejny JPQL select trafił
+        // w cache i zwróciłby stan sprzed UPDATE.
+        em.flush();
+        em.clear();
+
         return updated;
     }
 
@@ -404,36 +415,28 @@ public class ContactRepository extends TenantAwareRepository {
 
     /**
      * Serializuje mapę channelMetadata do JSON string dla natywnych zapytań.
-     * Używa prostej ręcznej serializacji dla podstawowych typów – nie wymaga
-     * zależności od Jackson bezpośrednio w repozytorium.
+     *
+     * <p>Używa {@link ObjectMapper} (Spring auto-konfiguruje go jako bean) zamiast
+     * ręcznej serializacji. Poprzednia implementacja obsługiwała tylko płaskie typy
+     * (String, Number, Boolean) i nie escapowała znaków kontrolnych Unicode –
+     * wartości zagnieżdżone (List, Map) były błędnie serializowane przez {@code val.toString()}.
+     *
+     * <p>Przy błędzie serializacji zwraca {@code "{}"} i loguje warning – operacja
+     * zapisu nie jest przerywana (zgubienie metadanych jest mniej krytyczne niż błąd kontaktu).
+     *
+     * @param metadata mapa metadanych kanałowych (może być null lub pusta)
+     * @return poprawny JSON string do wstawienia jako JSONB w PostgreSQL
      */
     private String channelMetadataToJson(Map<String, Object> metadata) {
         if (metadata == null || metadata.isEmpty()) {
             return "{}";
         }
-        StringBuilder sb = new StringBuilder("{");
-        boolean first = true;
-        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
-            if (!first) sb.append(",");
-            sb.append("\"").append(escapeJson(entry.getKey())).append("\":");
-            Object val = entry.getValue();
-            if (val == null) {
-                sb.append("null");
-            } else if (val instanceof String s) {
-                sb.append("\"").append(escapeJson(s)).append("\"");
-            } else if (val instanceof Number || val instanceof Boolean) {
-                sb.append(val);
-            } else {
-                sb.append("\"").append(escapeJson(val.toString())).append("\"");
-            }
-            first = false;
+        try {
+            return objectMapper.writeValueAsString(metadata);
+        } catch (JsonProcessingException e) {
+            log.warn("[ContactRepo] Błąd serializacji channelMetadata: {}", e.getMessage());
+            return "{}";
         }
-        sb.append("}");
-        return sb.toString();
-    }
-
-    private String escapeJson(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     // =========================================================================
@@ -509,6 +512,7 @@ public class ContactRepository extends TenantAwareRepository {
      */
     @Transactional
     public void clearRecordingUrl(UUID contactId, UUID tenantId) {
+        assertSameTenant(tenantId, contactId);
         setTenantContextInDb(tenantId);
 
         jdbcTemplate.update(
@@ -565,18 +569,27 @@ public class ContactRepository extends TenantAwareRepository {
     /**
      * Pobiera wszystkie tenantId, które posiadają kontakty z nagraniami.
      *
-     * <p>Używane przez job retencji do iterowania po tenantach.
-     * Zapytanie jest globalne (SUPERUSER) – brak RLS kontekstu.
-     * Wymaga bezpośredniego dostępu do tabeli (pomija RLS przez jawny SQL).
+     * <p><strong>WYŁĄCZNIE DLA SCHEDULED JOB ({@code RecordingRetentionJob}) – POMIJA RLS.</strong>
+     * Metoda celowo nie wywołuje {@code setTenantContextInDb()} – zwraca dane wszystkich tenantów.
+     * Jeśli zostanie wywołana przez pomyłkę ze ścieżki HTTP, ujawni dane cross-tenant.
      *
-     * <p><strong>Uwaga bezpieczeństwa:</strong> Ta metoda jest wywoływana tylko przez
-     * {@code @Scheduled} job z uprawnieniami administratorskimi. Nigdy nie jest
-     * eksponowana przez API.
+     * <p>Asercja w metodzie wymusza brak aktywnego TenantContext – jeśli kontekst HTTP jest
+     * aktywny (co oznaczałoby błędne wywołanie z serwisu biznesowego), rzuca wyjątek.
+     * Job retencji działa w wątku schedulera bez TenantContext.
      *
      * @return lista unikalnych tenant_id posiadających nagrania
+     * @throws IllegalStateException gdy wywoływana z aktywnym TenantContext (błędne użycie)
      */
     @Transactional(readOnly = true)
     public java.util.List<UUID> findTenantsWithRecordings() {
+        // Guard: ta metoda pomija RLS – tylko dla scheduled job (brak TenantContext w schedulerze).
+        // Jeśli TenantContext jest aktywny – jesteśmy w wątku HTTP, co jest błędem.
+        if (com.contactcenter.security.TenantContext.getTenantIdOrNull() != null) {
+            throw new IllegalStateException(
+                    "[ContactRepository] findTenantsWithRecordings() wywołana z aktywnym " +
+                    "TenantContext – ta metoda jest przeznaczona wyłącznie dla scheduled job. " +
+                    "Dla zapytań per-tenant użyj findExpiredRecordings(tenantId, ...).");
+        }
         // Brak setTenantContextInDb() – zapytanie globalne dla jobu retencji
         // RLS jest pomijane przez jawne zapytanie (potrzebujemy wszystkich tenantów)
         return jdbcTemplate.query(

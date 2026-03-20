@@ -5,17 +5,18 @@ import com.contactcenter.domain.service.AuditLogService;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -37,6 +38,12 @@ import java.util.UUID;
  *
  * <p><strong>Bezpieczeństwo błędów:</strong> Błędy w logice audytu (serializacja, publikacja)
  * nie przerywają operacji biznesowej – są logowane i pomijane.
+ *
+ * <p><strong>Optymalizacja captureOldValue:</strong> Zamiast wywoływać getter serwisu przez
+ * refleksję (co przechodzi przez Spring AOP proxy i otwiera nową readOnly transakcję), aspekt
+ * używa {@code EntityManager.find()} bezpośrednio. Gdy encja jest już załadowana w L1 cache
+ * bieżącej transakcji JPA – nie wykonuje dodatkowego zapytania do bazy danych.
+ * Mapowanie {@code entityType} (string) → klasa JPA odbywa się przez {@link #ENTITY_CLASS_MAP}.
  */
 @Slf4j
 @Aspect
@@ -50,8 +57,26 @@ public class AuditAspect {
             "password_hash", "mfa_secret", "refresh_token"
     );
 
+    /**
+     * Mapowanie entityType (string z @Audited) → klasa JPA encji.
+     * Używane przez captureOldValue do wyszukania encji przez EntityManager.find()
+     * zamiast wywoływania gettera serwisu przez proxy (podwójny DB read).
+     */
+    private static final Map<String, Class<?>> ENTITY_CLASS_MAP;
+    static {
+        Map<String, Class<?>> map = new java.util.HashMap<>();
+        map.put("USER",     com.contactcenter.domain.model.AppUser.class);
+        map.put("TENANT",   com.contactcenter.domain.model.Tenant.class);
+        map.put("CUSTOMER", com.contactcenter.domain.model.Customer.class);
+        ENTITY_CLASS_MAP = java.util.Collections.unmodifiableMap(map);
+    }
+
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
+
+    /** EntityManager do odczytu encji przez L1 cache (bez proxy serwisu). */
+    @PersistenceContext
+    private EntityManager em;
 
     // =========================================================================
     // Advice
@@ -118,28 +143,28 @@ public class AuditAspect {
     // =========================================================================
 
     /**
-     * Pobiera stan encji przed operacją przez wywołanie metody gettera w tym samym serwisie.
+     * Pobiera stan encji przed operacją używając {@code EntityManager.find()}.
      *
-     * <p>Używane dla UPDATE i DELETE – wywołuje metodę z {@link Audited#fetchOldValueMethod()}
-     * z pierwszym parametrem UUID znalezionym w argumentach wywołania.
+     * <p>Poprzednia implementacja wywoływała getter serwisu przez refleksję + Spring AOP proxy,
+     * co zawsze otwierało nową transakcję {@code readOnly=true} i wykonywało dodatkowe
+     * zapytanie SELECT (niezależnie od tego, czy encja była już w L1 cache). To powodowało
+     * 2× DB read dla każdej operacji UPDATE/DELETE z {@code captureOldValue=true}.
      *
-     * <p>{@code @Transactional(readOnly = true)} zapewnia, że Hibernate L1 cache
-     * obsłuży ponowny odczyt tej samej encji w ramach transakcji biznesowej (jeśli
-     * jest już załadowana). Bez tej adnotacji getter mógłby generować dodatkowe zapytanie DB.
+     * <p>Nowe podejście: {@code em.find(entityClass, entityId)} działa bezpośrednio
+     * na EntityManager bieżącej transakcji. Gdy encja jest już załadowana w sesji JPA
+     * (np. przez wcześniejsze {@code findById} w tej samej transakcji serwisu) –
+     * Hibernate zwraca ją z L1 cache bez zapytania do bazy. Gdy nie ma w cache –
+     * wykonuje jeden SELECT, bez overhead proxy.
+     *
+     * <p>Mapowanie {@code entityType} → klasa JPA odbywa się przez {@link #ENTITY_CLASS_MAP}.
+     * Dla nieznanych typów encji – fallback: null (brak old_value w audycie).
      *
      * @param pjp     punkt złączenia
      * @param audited adnotacja z konfiguracją
      * @return JSON string reprezentujący stan encji, lub null gdy nie udało się pobrać
      */
-    @Transactional(readOnly = true)
     private String captureOldValue(ProceedingJoinPoint pjp, Audited audited) {
         try {
-            String fetchMethod = audited.fetchOldValueMethod();
-            if (fetchMethod == null || fetchMethod.isBlank()) {
-                log.debug("[AuditAspect] captureOldValue=true ale fetchOldValueMethod nie podano – pomijam");
-                return null;
-            }
-
             // Znajdź UUID (entity_id) w parametrach
             UUID entityId = findFirstUuidParam(pjp.getArgs(), audited.entityIdParamIndex());
             if (entityId == null) {
@@ -147,11 +172,26 @@ public class AuditAspect {
                 return null;
             }
 
-            // Wywołaj getter przez refleksję na tym samym obiekcie (target serwisu)
-            Object target = pjp.getTarget();
-            Method getter = target.getClass().getMethod(fetchMethod, UUID.class);
-            Object oldEntity = getter.invoke(target, entityId);
+            // Wyznacz klasę JPA na podstawie entityType
+            Class<?> entityClass = ENTITY_CLASS_MAP.get(audited.entityType());
+            if (entityClass == null) {
+                // Nieznany typ – fallback na getter serwisu przez refleksję (stara ścieżka)
+                String fetchMethod = audited.fetchOldValueMethod();
+                if (fetchMethod == null || fetchMethod.isBlank()) {
+                    log.debug("[AuditAspect] captureOldValue=true, entityType={} nieznany i brak fetchOldValueMethod – pomijam",
+                            audited.entityType());
+                    return null;
+                }
+                Object target = pjp.getTarget();
+                Method getter = target.getClass().getMethod(fetchMethod, UUID.class);
+                Object oldEntity = getter.invoke(target, entityId);
+                return serializeToJson(oldEntity);
+            }
 
+            // Szybka ścieżka: em.find() trafia w L1 cache jeśli encja jest już załadowana
+            // w bieżącej transakcji serwisu (np. przez findById wykonany przez serwis).
+            // Gdy nie ma w cache – wykona jeden SELECT bez overhead proxy.
+            Object oldEntity = em.find(entityClass, entityId);
             return serializeToJson(oldEntity);
 
         } catch (Exception e) {

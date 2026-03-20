@@ -245,7 +245,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
      * @param tenantId UUID tenanta (izolacja cross-tenant)
      * @return liczba zaktualizowanych wierszy
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query(value = """
             UPDATE app_user
             SET is_deleted = TRUE,

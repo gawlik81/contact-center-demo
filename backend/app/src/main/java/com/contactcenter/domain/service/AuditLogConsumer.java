@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -26,8 +25,14 @@ import java.util.UUID;
  *       jest odrzucana (nie requeued) – zapobiega nieskończonej pętli retry.</li>
  * </ul>
  *
- * <p><strong>Transakcyjność:</strong> Każdy zapis jest osobną transakcją.
- * Brak transakcji nadrzędnej – konsument działa poza kontekstem HTTP.
+ * <p><strong>Transakcyjność:</strong> Każdy zapis jest osobną transakcją zarządzaną
+ * przez {@link AuditLogRepository#insertAuditLog} (metoda ma własny {@code @Transactional}).
+ * Konsument NIE deklaruje własnego {@code @Transactional} – pozwala to uniknąć
+ * race condition między commitem transakcji a AMQP acknowledge:
+ * przy {@code acknowledge-mode: auto} Spring AMQP ackuje wiadomość po powrocie
+ * z metody listenera, więc transakcja repozytorium jest już commitowana przed ack.
+ * Gdyby konsument otwierał własną transakcję nadrzędną, ack mógłby nastąpić przed
+ * commitem w skrajnych przypadkach (np. przy rollback po ack).
  */
 @Slf4j
 @Service
@@ -44,25 +49,20 @@ public class AuditLogConsumer {
      * odbywa się przez {@code Jackson2JsonMessageConverter} skonfigurowany w
      * {@code RabbitMQConfig}.
      *
-     * <p><strong>Uwaga dotycząca @Transactional i manual acknowledge:</strong>
-     * Profil prod używa {@code acknowledge-mode: manual} w RabbitMQ.
-     * {@code @Transactional} na metodzie {@code @RabbitListener} z manual ack
-     * <em>nie</em> powoduje automatycznego ackowania wiadomości po commicie transakcji –
-     * ack AMQP i commit DB to niezależne operacje.
+     * <p><strong>Acknowledge mode:</strong> Skonfigurowany jako {@code auto}
+     * (patrz {@code application-prod.yml} i {@code application.yml}).
+     * Spring AMQP ackuje wiadomość automatycznie po normalnym powrocie z metody,
+     * lub nackuje przy wyjątku (co uruchamia retry/DLQ zgodnie z konfiguracją).
+     * {@code @Transactional} jest celowo pominięte na poziomie konsumenta –
+     * transakcja DB jest zarządzana przez {@link AuditLogRepository#insertAuditLog}.
+     * Dzięki temu ack następuje dopiero po commicie transakcji repozytorium.
      *
-     * <p>Świadoma decyzja: zostawiamy {@code acknowledge-mode: manual} bez ręcznego ack
-     * w tej metodzie, bo audit log jest operacją idempotentną (log_id = UUID.randomUUID()
-     * per każde przetworzenie). Duplikaty w audit_log są akceptowalne. Brak ack powoduje
-     * ponowne dostarczenie wiadomości przy restarcie brokera – to pożądane zachowanie
-     * dla audit trail (lepiej zdublowany wpis niż brak wpisu).
-     *
-     * <p>Jeśli wymagana jest dokładnie-jeden-raz semantyka, zmień na
-     * {@code acknowledge-mode: auto} lub dodaj ręczny {@code Channel.basicAck()} tutaj.
+     * <p>Audit log jest operacją idempotentną (log_id = UUID.randomUUID() per
+     * przetworzenie) – duplikaty przy ponownym dostarczeniu są akceptowalne.
      *
      * @param event zdarzenie audytowe – zdesializowane przez Jackson z JSON
      */
     @RabbitListener(queues = RabbitMQConfig.QUEUE_AUDIT_LOG)
-    @Transactional
     public void handleAuditEvent(AuditLogEvent event) {
         if (event == null) {
             log.warn("[AuditLogConsumer] Otrzymano null zdarzenie – ignoruję");

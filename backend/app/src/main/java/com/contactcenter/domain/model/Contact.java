@@ -18,7 +18,7 @@ import java.util.UUID;
  * specjalnej obsługi JPA:
  * <ul>
  *   <li>Klucz główny to para {@code (contact_id, started_at)} – obsługiwana przez {@link ContactId}.</li>
- *   <li>Zapis przez natywny SQL ({@code ContactRepository#insertContact}), ponieważ PostgreSQL
+ *   <li>Zapis przez natywny SQL ({@code ContactRepository#insert}), ponieważ PostgreSQL
  *       nie obsługuje standardowych JPA INSERT na tabelach partycjonowanych z PK zawierającym
  *       kolumnę partycjonowania.</li>
  *   <li>Aktualizacja przez natywny UPDATE (PATCH semantics).</li>
@@ -30,6 +30,15 @@ import java.util.UUID;
  *
  * <p>Kolumna {@code duration_seconds} jest obliczana przez trigger bazy danych
  * {@code fn_contact_on_update} przy ustawieniu {@code ended_at}.
+ *
+ * <p><strong>WAŻNE – brak callbacków JPA lifecycle:</strong>
+ * Ta klasa NIE definiuje {@code @PrePersist} ani {@code @PreUpdate}, ponieważ
+ * tabela jest partycjonowana. Zapis odbywa się wyłącznie przez natywny INSERT
+ * ({@code ContactRepository#insert}), a aktualizacja przez natywny UPDATE
+ * ({@code ContactRepository#update}) – oba omijają mechanizm JPA lifecycle callbacków.
+ * Wszystkie pola (createdAt, startedAt, queuedAt, status, channelMetadata) muszą być
+ * ustawiane explicite w warstwie serwisowej ({@code ContactService}) przed wywołaniem
+ * metod repozytorium.
  */
 @Entity
 @Table(name = "contact")
@@ -140,28 +149,4 @@ public class Contact {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
-
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = Instant.now();
-        }
-        if (startedAt == null) {
-            startedAt = Instant.now();
-        }
-        if (queuedAt == null) {
-            queuedAt = startedAt;
-        }
-        if (status == null) {
-            status = "QUEUED";
-        }
-        if (channelMetadata == null) {
-            channelMetadata = new HashMap<>();
-        }
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = Instant.now();
-    }
 }

@@ -8,6 +8,8 @@ import com.contactcenter.domain.exception.ResourceLimitExceededException;
 import com.contactcenter.domain.service.AuthService;
 import com.contactcenter.security.MfaService;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -255,6 +257,44 @@ public class GlobalExceptionHandler {
 
         log.debug("[API] Zasób nie istnieje: {}", ex.getMessage());
         return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * Naruszenie ograniczeń Bean Validation na parametrach metody (@RequestParam, @PathVariable).
+     *
+     * <p>Rzucany gdy kontroler jest oznaczony {@code @Validated} i parametr @RequestParam
+     * lub @PathVariable narusza constraint (np. {@code @Pattern}, {@code @NotNull}).
+     * Różni się od {@link MethodArgumentNotValidException} która dotyczy {@code @RequestBody}.
+     *
+     * <p>Zwraca HTTP 400 Bad Request (błąd danych wejściowych, nie błąd domenowy).
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ProblemDetail> handleConstraintViolationException(
+            ConstraintViolationException ex, WebRequest request) {
+
+        Map<String, String> fieldErrors = ex.getConstraintViolations().stream()
+                .collect(Collectors.toMap(
+                        cv -> extractParamName(cv),
+                        ConstraintViolation::getMessage,
+                        (existing, newVal) -> existing + "; " + newVal
+                ));
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setType(URI.create(ERROR_BASE_URI + "validation-failed"));
+        problem.setTitle("Nieprawidłowe parametry żądania");
+        problem.setDetail("Żądanie zawiera nieprawidłowe parametry");
+        problem.setProperty("timestamp", Instant.now());
+        problem.setProperty("errors", fieldErrors);
+
+        log.debug("[API] Błąd walidacji parametrów: {}", fieldErrors);
+        return ResponseEntity.badRequest().body(problem);
+    }
+
+    /** Wyodrębnia nazwę parametru z ConstraintViolation (np. "listContacts.status"). */
+    private String extractParamName(ConstraintViolation<?> cv) {
+        String path = cv.getPropertyPath().toString();
+        int dot = path.lastIndexOf('.');
+        return dot >= 0 ? path.substring(dot + 1) : path;
     }
 
     /**

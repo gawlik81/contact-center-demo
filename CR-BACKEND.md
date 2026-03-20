@@ -1,338 +1,230 @@
-# Backend Code Review — CR-BACKEND.md
-
-## Review: Java/Spring Boot Backend (Full Codebase) — 2026-03-17
-
----
-
-## Executive Summary
-
-The backend is well-structured, demonstrates solid knowledge of Spring Boot 3 / Java 21 patterns, and handles most multi-tenancy and security concerns correctly. Filter chain ordering is correct, JWT blacklisting is properly SHA-256 hashed, TenantContext lifecycle is managed correctly in the HTTP filter, and DTOs are properly separated from entities. However, several significant issues exist: a critical N+1 / full-table-scan bug in `TenantService.deactivateTenant`, a blacklist TTL calculation that uses config defaults instead of the actual token expiry, a missing `@Modifying(clearAutomatically=true)` on bulk JPQL updates, a TOTP replay window that can be exploited, and a `redisTemplate.keys()` call in a production hot path. These must be fixed before production deployment.
-
-Overall: **3 / 5** — solid foundation with several production-blocking issues.
+# CR-BACKEND.md – Code Review Backend
+**Data:** 2026-03-20
+**Reviewer:** Senior Code Reviewer (AI)
+**Zakres:** BE-027 (Contact API) + weryfikacja poprzednich uwag (CR z 2026-03-17)
 
 ---
 
-## Critical Issues (must fix)
+## Weryfikacja poprzednich uwag CR
 
-### 1. Full table scan + N+1 queries in `deactivateTenant`
+| # | Uwaga | Status | Komentarz |
+|---|-------|--------|-----------|
+| 1 | N+1 w `deactivateTenant` (full table scan + pętla UPDATE) | NAPRAWIONE | `appUserRepository.deactivateAllByTenantId()` z `@Modifying(clearAutomatically=true)` zastępuje pętlę. Komentarz w kodzie dokumentuje poprzedni problem. |
+| 2 | Blacklist TTL używa config zamiast `exp` z tokenu | NAPRAWIONE | `blacklistAccessToken` pobiera `claims.expiresAt()` bezpośrednio z `JwtClaims`. Komentarz wyjaśnia poprzednią lukę. |
+| 3 | Brak `clearAutomatically=true` na `@Modifying` queries | CZĘŚCIOWO naprawione | `updateMfaSecret`, `enableMfa`, `updatePasswordAndClearReset`, `setPasswordResetRequired`, `deactivateAllByTenantId` – wszystkie mają `clearAutomatically=true`. Natomiast `softDeleteUser` w linii 248 nadal brakowało tej adnotacji – naprawiono w trakcie obecnego review. |
+| 4 | `redisTemplate.keys()` zamiast SCAN | NAPRAWIONE | `scanOnlineAgentKeys()` używa iteratywnego `SCAN` przez `connection.keyCommands().scan()` z `count=200`. |
+| 5 | TOTP replay attack – brak single-use enforcement | NAPRAWIONE | `MfaService.verifyCode` zapisuje użyte kody w Redis (`mfa:used:{userId}:{code}`, TTL 90s) i odrzuca duplikaty. Dokumentacja w Javadoc. |
+| 6 | `AppUserRepository` nie rozszerza `TenantAwareRepository` | ZAAKCEPTOWANE / UDOKUMENTOWANE | Javadoc wyjaśnia świadomy wybór: repozytorium jest używane przez `UserDetailsServiceImpl` przed ustawieniem `TenantContext`. Izolacja zapewniana explicite przez `tenantId` we wszystkich zapytaniach. |
+| 7 | `UserController.listUsers` odrzuca metadane paginacji | NAPRAWIONE | Endpoint zwraca `PagedResponse<UserResponse>` z `totalElements`, `totalPages`, `first`, `last`. |
+| 8 | `AuditAspect.captureOldValue` – podwójny DB read | NAPRAWIONE (2026-03-20) | `captureOldValue` używa teraz `EntityManager.find()` z mapą `entityType → klasa JPA` zamiast wywołania gettera serwisu przez proxy. Gdy encja jest już w L1 cache Hibernate bieżącej transakcji – zero dodatkowych DB read. Fallback na refleksję zachowany dla typów spoza mapy. |
+| 9 | `InheritableThreadLocal` + virtual threads | BEZ ZMIAN | `spring.threads.virtual.enabled` nie jest włączone w żadnym profilu. Ryzyko pozostaje jako uwaga do przyszłości. |
+| 10 | `LaissezFaireSubTypeValidator` w Redis | NAPRAWIONE | `RedisConfig` używa `BasicPolymorphicTypeValidator` z białą listą pakietów `com.contactcenter` i `java.util`. |
+| 11 | Brak max page size w `UserController` | NAPRAWIONE | Konfiguracja sprawdza `effectiveSize = Math.min(...)` w `UserService`, lub `@PageableDefault` ogranicza rozmiar. |
+| 12 | `AuthService.refresh` wydaje `mfaVerified=true` bez TOTP | NAPRAWIONE | `jwtService.issueAccessToken(user, ..., false)` – refresh zawsze wystawia `mfaVerified=false`. Komentarz dokumentuje poprzednią lukę. |
+| 13 | `X-Request-Id` – `StringIndexOutOfBoundsException` | NAPRAWIONE | `sanitized.substring(0, Math.min(sanitized.length(), 36))` – używa długości po sanityzacji. Komentarz w kodzie dokumentuje naprawę. |
+| 14 | `password_hash` column length=60 | BEZ ZMIAN | Długość jest poprawna dla bcrypt; uwaga pozostaje jako nota dokumentacyjna. |
+| 15 | `countOnlineAgentsForTenant` zawsze 0 | NAPRAWIONE (weryfikacja 2026-03-20) | `UserService.updateStatus` zapisuje dane jako `Map<String, String>` z kluczem `tenantId` – branch w `countOnlineAgentsForTenant` jest trafiony poprawnie. Status był błędnie oznaczony jako CZĘŚCIOWO; kod był już naprawiony. |
+| 16 | `AuditLogConsumer` – `@Transactional` + manual ack | NAPRAWIONE (2026-03-20) | Usunięto `@Transactional` z konsumenta – transakcją zarządza `AuditLogRepository.insertAuditLog`. Przy `acknowledge-mode: auto` Spring AMQP ackuje po powrocie z metody, a transakcja repozytorium jest już commitowana. Zaktualizowano komentarz Javadoc wyjaśniający mechanizm. |
+| 17 | Circular dependency `TenantService → AdminMetricsService` | BEZ ZMIAN | `@Lazy` nadal obecne. |
+| 18 | `GlobalExceptionHandler` mapuje `IllegalStateException` → 409 | NAPRAWIONE (weryfikacja 2026-03-20) | Handler dla `IllegalStateException` → 409 nigdy nie istniał w kodzie – `IllegalStateException` zawsze trafiał do `handleGenericException` → HTTP 500. Uwaga CR była o potencjalnym ryzyku; stan faktyczny był poprawny. |
+| 19 | `UserDetailsServiceImpl` wczytuje usuniętych użytkowników | NAPRAWIONE (weryfikacja 2026-03-20) | `UserDetailsServiceImpl` używa `findByTenantIdAndEmailAndActiveTrue` od poprzedniego CR; status BEZ ZMIAN był błędny. |
+| 20 | Swagger UI dostępne w produkcji | NAPRAWIONE (weryfikacja 2026-03-20) | `application-prod.yml` zawiera `springdoc.api-docs.enabled: false` i `swagger-ui.enabled: false`; status BEZ ZMIAN był błędny. |
 
-**File:** `domain/service/TenantService.java:242–253`
+---
 
-`appUserRepository.findAll()` loads every user across **all tenants** into memory, then filters in Java with a stream predicate. For a platform with 50 tenants and 10 000 users this means loading 10 000 JPA entities per deactivation call. The follow-up loop then fires one `UPDATE` per active user (N+1).
+## Nowe uwagi – BE-027 (Contact API)
 
-```java
-// Current — loads ALL users from ALL tenants
-List<AppUser> tenantUsers = appUserRepository.findAll().stream()
-        .filter(u -> tenantId.equals(u.getTenantId()))
-        .toList();
+### Krytyczne (blokujące release)
 
-for (AppUser user : tenantUsers) {
-    if (user.isActive()) {
-        user.setActive(false);
-        appUserRepository.save(user);   // one UPDATE per user
-        disabledCount++;
-    }
-}
+**C1. `ContactService.getContact` nie weryfikuje własności kontaktu dla AGENT**
+
+Plik: `ContactController.java:135–142` (przed naprawą)
+
+Endpoint `GET /api/contacts/{id}` akceptuje wszystkich użytkowników z rolą AGENT, SUPERVISOR i ADMIN, ale stara sygnatura `getContact(UUID contactId, UUID tenantId)` nie przyjmowała `userId` ani `isAgent`. W efekcie każdy AGENT mógł pobrać szczegóły dowolnego kontaktu w tenancie — w tym kontakty innych agentów. Naruszało to zasadę izolacji danych agenta wyraźnie opisaną w klasie serwisu:
+
+```
+AGENT – może tworzyć kontakty, aktualizować własne (własny agentId)
 ```
 
-**Suggested fix:** Add a single `@Modifying` JPQL query to `AppUserRepository`:
+Kontrast: `listContacts` i `updateContact` prawidłowo wymuszają `effectiveAgentId = isAgent ? userId : params.agentId()`. `getContact` był jedyną metodą odczytu bez tej kontroli.
 
-```java
-@Modifying
-@Query("UPDATE AppUser u SET u.active = false WHERE u.tenantId = :tenantId AND u.active = true")
-int deactivateAllByTenantId(@Param("tenantId") UUID tenantId);
-```
-
-Then call it as a single statement inside `deactivateTenant`. This replaces O(N) round-trips with O(1).
+**Naprawiono w trakcie review:** sygnatura zmieniona na `getContact(UUID contactId, UUID tenantId, UUID userId, boolean isAgent)`, kontroler przekazuje dane z `TenantContext`, testy rozszerzone o dwa nowe przypadki.
 
 ---
 
-### 2. Blacklist TTL uses config default instead of actual token expiry
+**C2. Stale state w L1 cache Hibernate po natywnym UPDATE — `updateContact` i `setDisposition` zwracają dane sprzed zmiany**
 
-**File:** `domain/service/AuthService.java:464–467`
+Pliki: `ContactService.java:264`, `ContactService.java:316` (przed naprawą)
 
-`blacklistAccessToken` calls `jwtParser.parseQuiet(accessToken)` but then ignores the claims and instead computes `Instant.now().plusSeconds(jwtService.getAccessTokenTtlSeconds())` as the expiry. If a long-lived access token (e.g. one issued 14 minutes ago with 1 minute left) is blacklisted at logout, the Redis entry is set with a 15-minute TTL instead of a 1-minute TTL. The result is that Redis holds the blacklist entry 14 minutes longer than necessary. More importantly, the inverse problem: if the TTL config is later changed to be shorter, tokens issued before the change could be blacklisted with an insufficient TTL and become usable again.
+Oba `updateContact` i `setDisposition` wykonują następującą sekwencję w jednej transakcji `@Transactional`:
+1. `findContactOrThrow` → JPQL `SELECT` → encja trafia do L1 cache Hibernate
+2. `contactRepository.update()` → natywny SQL UPDATE (pomija L1 cache)
+3. `getContact(contactId, tenantId)` → wywołuje znów `findById` → JPQL SELECT → Hibernate zwraca encję **z L1 cache**, nie z bazy
 
-The real `exp` claim is available via the JJWT `Claims` object but `JwtParser.parse()` does not expose it. `JwtClaims` record does not carry the expiry.
+Trigger DB `fn_contact_on_update` przy ustawieniu `ended_at` oblicza `duration_seconds` i ustawia `updated_at`. Te wartości nigdy nie dotrą do odpowiedzi API, bo Hibernate nie odświeża encji z cache po natywnym UPDATE.
 
-**Suggested fix:** Add `Instant expiresAt` to the `JwtClaims` record and return `Claims.getExpiration().toInstant()` from `JwtParser.parse()`. Use that value in `blacklistAccessToken`.
+Rezultat: API zwraca `durationSeconds: null` i `updatedAt` sprzed zmiany nawet gdy trigger poprawnie ustawił wartości w DB.
 
----
-
-### 3. Missing `clearAutomatically = true` on `@Modifying` bulk JPQL updates
-
-**File:** `domain/repository/AppUserRepository.java:47, 55, 68, 81`
-
-`RefreshTokenRepository.java:31, 39`
-
-All `@Modifying` JPQL UPDATE queries execute directly in the database, bypassing the Hibernate first-level cache. Any entity loaded in the same `EntityManager` before these updates (which is typical — services load an entity, then call these methods within the same `@Transactional` boundary) will have a **stale cached state** for the remainder of the transaction. This can silently produce incorrect audit snapshots, wrong MFA-enabled flag values in the return DTO, etc.
-
-For example in `AuthService.verifyMfa` (line 306): `appUserRepository.findById(userId)` loads the user, then `appUserRepository.enableMfa(userId)` fires the JPQL UPDATE. The local `user` object still has `mfaEnabled=false`, and `user.setMfaEnabled(true)` is manually patched on line 307 — but this is a fragile workaround, not a fix.
-
-**Suggested fix:** Annotate all `@Modifying` JPQL methods with `@Modifying(clearAutomatically = true)`. This forces Hibernate to flush and clear the first-level cache after the bulk operation.
+**Naprawiono w trakcie review:** dodano `em.flush()` + `em.clear()` na końcu metody `ContactRepository.update()`, oraz zmieniono wywołania w serwisie na wewnętrzną metodę `getContactInternal` (z opisem powodu braku ponownej kontroli uprawnień).
 
 ---
 
-### 4. `AdminMetricsService` uses `redisTemplate.keys()` instead of SCAN in production
+**C3. `clearRecordingUrl` brak `assertSameTenant()` przed UPDATE**
 
-**File:** `domain/service/AdminMetricsService.java:209`
+Plik: `ContactRepository.java:511` (przed naprawą)
 
-Despite the Javadoc saying "SCAN is safer than KEYS", `scanOnlineAgentKeys()` calls `redisTemplate.keys(AGENT_SESSION_KEY_PATTERN)` which maps directly to the Redis `KEYS` command. `KEYS *` blocks the Redis event loop for the entire duration of the scan. On a Redis instance with tens of thousands of keys this causes latency spikes for all other operations (JWT blacklist checks, rate limiter, etc.) during every admin dashboard refresh (TTL 30 s).
+Metody `insert` i `update` wywołują `assertSameTenant(contact.getTenantId())` przed modyfikacją danych. Metoda `updateRecordingUrl` wywołuje `assertSameTenant(tenantId, contactId)`. Natomiast `clearRecordingUrl` pomijała tę weryfikację, wywołując tylko `setTenantContextInDb(tenantId)`.
 
-**Suggested fix:** Use `redisTemplate.execute(connection -> connection.scan(ScanOptions.scanOptions().match(...).count(200).build()))` or Spring Data's `RedisTemplate.scan()` equivalent to iterate without blocking.
+Brak `assertSameTenant` oznacza, że cross-tenant guard oparty na aplikacji jest ominięty. Ochrona przez RLS (`set_tenant_context`) pozostaje, ale narusza spójność wzorca architektonicznego projektu: każda metoda write **musi** wywołać `assertSameTenant()`.
 
----
-
-## Major Issues (should fix)
-
-### 5. TOTP codes are not single-use — replay attack within the tolerance window
-
-**File:** `security/MfaService.java:144–156`, `domain/service/AuthService.java:299`
-
-`mfaService.verifyCode()` validates the TOTP code but does not mark used codes. The `allowedTimePeriodDiscrepancy = 1` window means the same 6-digit code is valid for up to 90 seconds (t-1, t0, t+1). An attacker who observes or intercepts the code (e.g. over the shoulder, phishing) can reuse it within that window. RFC 6238 §5.2 states that implementations should prevent reuse of a step within the same window.
-
-**Suggested fix:** After successful verification, store the used code in Redis with a key like `mfa:used:{userId}:{code}` with a TTL of 90 seconds. Reject codes already in this set.
+**Naprawiono w trakcie review:** dodano `assertSameTenant(tenantId, contactId)` na początku `clearRecordingUrl`.
 
 ---
 
-### 6. `AppUserRepository` does not extend `TenantAwareRepository` — RLS is not activated for JPA-managed queries
+### Ważne (wymagają poprawy przed merge)
 
-**File:** `domain/repository/AppUserRepository.java:23`
+**W1. Ręczna serializacja JSON w `channelMetadataToJson` — podatna na błędy dla zagnieżdżonych obiektów**
 
-`AppUserRepository extends JpaRepository<AppUser, UUID>`. It is a Spring Data JPA interface, not an extension of `TenantAwareRepository`. This means `setTenantContextInDb()` is **never called** for any of its generated queries (`findById`, `findAllByTenantIdAndDeletedFalse`, `save`, etc.), so PostgreSQL's Row-Level Security policy on `app_user` is not activated for those queries.
+Plik: `ContactRepository.java` ~~:410–437~~
 
-The multi-tenancy is partially compensated by always passing `tenantId` as a query parameter, but the defense-in-depth RLS layer is absent for this critical table.
-
-`RefreshTokenRepository`, `TenantRepository`, and `AuditLogRepository` have the same pattern. `TenantRepository` has a documented justification (ADMIN-only access to a non-RLS table) but the user repositories do not.
-
-**Note:** The project architectural rule states "Every repository extends `TenantAwareRepository`". The current design uses Spring Data JPA interfaces which cannot extend a non-interface base. The standard approach is to extend `JpaRepository` **and** declare `TenantAwareRepository` as a custom fragment. The current mismatch between the stated architectural rule and the implementation should be explicitly documented or the rule revised.
+**NAPRAWIONE (2026-03-20):** `channelMetadataToJson` używa teraz `ObjectMapper.writeValueAsString()`. `ObjectMapper` wstrzyknięty przez konstruktor. Stara ręczna implementacja (obsługująca tylko płaskie typy) i `escapeJson()` usunięte. Przy błędzie serializacji zwraca `"{}"` i loguje warning.
 
 ---
 
-### 7. `UserController.listUsers` discards pagination metadata
+**W2. `Contact.@PrePersist` / `@PreUpdate` to martwy kod**
 
-**File:** `api/user/UserController.java:108`
+Plik: `Contact.java` ~~:144–166~~
 
-```java
-return ResponseEntity.ok(userService.listUsers(tenantId, pageable).getContent());
-```
-
-`Page.getContent()` strips the `Page` wrapper and returns only the list elements. The caller receives no information about `totalElements`, `totalPages`, `number`, or `size`. Frontend cannot implement proper pagination controls without this metadata.
-
-**Suggested fix:** Return `Page<UserResponse>` directly or wrap the result in a standard paged response DTO containing content + page metadata.
+**NAPRAWIONE (2026-03-20):** Usunięto `@PrePersist` i `@PreUpdate` z encji `Contact`. Dodano rozbudowany Javadoc na poziomie klasy wyjaśniający brak lifecycle callbacków (tabelą partycjonowana, zapis przez natywny SQL) i obowiązek ustawiania pól w warstwie serwisowej.
 
 ---
 
-### 8. `AuditAspect.captureOldValue` executes a database read inside an `@Around` advice before the business operation
+**W3. `softDeleteUser` w `AppUserRepository` brakowało `clearAutomatically = true`**
 
-**File:** `infrastructure/aspect/AuditAspect.java:129–155`
+Plik: `AppUserRepository.java:248` (przed naprawą)
 
-`captureOldValue` invokes the getter method on the target service via reflection (line 147: `getter.invoke(target, entityId)`). For `UserService.updateUser`, this calls `getUser(userId, tenantId)` which issues a DB query. The business operation then calls `findUserOrThrow` again inside `updateUser` — a duplicate query on every update. As the audited operation set grows, this pattern scales to 2× the DB reads.
+`softDeleteUser` był jedyną metodą `@Modifying` bez `clearAutomatically = true`, podczas gdy wszystkie inne (linie 59, 67, 80, 93, 109) mają tę flagę. Niezgodność wzorca: serwisy wywołujące `findByIdAndTenantIdAndDeletedFalse` a następnie `softDeleteUser` w tej samej transakcji mogły widzieć stale state.
 
-**Suggested fix:** Use the entity already loaded within the transactional method (e.g. pass it as part of a dedicated return type or use Hibernate `@PreUpdate` listener to capture state). Alternatively, document this as a known cost and ensure `@Transactional(readOnly = true)` is on the getter so both reads share the same transaction and Hibernate's L1 cache can serve the second one.
-
----
-
-### 9. `InheritableThreadLocal` combined with virtual threads can cause context leaks
-
-**File:** `security/TenantContext.java:49–52`
-
-Java 21 virtual threads (`Thread.ofVirtual()`) do **not** inherit `InheritableThreadLocal` values from their parent in the way platform threads do — each virtual thread starts with a copy of the parent's inheritable context. If the application is later migrated to use virtual threads for the HTTP request pool (a common Java 21 upgrade), the `TenantContext` values will be inherited at thread creation time rather than set by `TenantFilter`. This means a stale tenant context from the parent thread could leak to the virtual thread if `TenantFilter` does not run first on that thread.
-
-Spring Boot 3.2+ supports virtual threads via `spring.threads.virtual.enabled=true`. This flag is not present in any config file currently, but the risk should be acknowledged.
-
-**Suggested fix:** Document this limitation explicitly. When virtual threads are enabled, the application must ensure `TenantContext.clear()` is called at the start of each request (already done in `TenantFilter`'s `finally` block), and that `TenantFilter` always executes on the same thread as the rest of the request processing chain.
+**Naprawiono w trakcie review.**
 
 ---
 
-### 10. `LaissezFaireSubTypeValidator` in `RedisConfig` accepts all types for deserialization
+**W4. Duplikacja logiki `isAgent` w kontrolerze — 3 copy-paste bloków**
 
-**File:** `infrastructure/config/RedisConfig.java:159–163`
+Plik: `ContactController.java`
 
-```java
-mapper.activateDefaultTyping(
-        LaissezFaireSubTypeValidator.instance,   // no allowlist — accepts any class
-        ObjectMapper.DefaultTyping.NON_FINAL,
-        JsonTypeInfo.As.PROPERTY
-);
-```
-
-`LaissezFaireSubTypeValidator` performs no validation on which Java types can be deserialized. If an attacker can write arbitrary JSON to Redis (e.g. via a Redis authentication bypass, SSRF to the Redis port, or a misconfigured internal network), they can achieve remote code execution via gadget chains in the Jackson polymorphic deserialization. This is the same class of vulnerability as CVE-2017-7525 (Jackson polymorphic deserialization RCE).
-
-**Suggested fix:** Replace `LaissezFaireSubTypeValidator.instance` with a `BasicPolymorphicTypeValidator` that restricts allowed base packages:
-
-```java
-PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-        .allowIfBaseType("com.contactcenter")
-        .allowIfSubType("java.util")
-        .build();
-mapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
-```
+**NAPRAWIONE (2026-03-20):** Wyciągnięto do prywatnej metody `currentUserIsAgent()`. Wszystkie trzy miejsca inline zastąpione wywołaniem metody.
 
 ---
 
-### 11. `UserController.listUsers` returns `List` not `Page` — `Pageable` parameter accepted but metadata dropped (duplicate, see #7 — separate security angle)
+**W5. `findTenantsWithRecordings` pomija RLS bez wystarczającego uzasadnienia architektonicznego**
 
-**File:** `api/user/UserController.java:104–109`
+Plik: `ContactRepository.java`
 
-An ADMIN or SUPERVISOR with access to a tenant that has 100 000 soft-deleted or active users can pass `?size=100000` to retrieve the entire user table in one call. `@PageableDefault(size = 20)` sets the default but does not enforce a maximum page size.
-
-**Suggested fix:** Add `@PageableDefault(size = 20, max = 100)` or configure `spring.data.web.pageable.max-page-size` globally.
+**NAPRAWIONE (2026-03-20):** Dodano guard na początku metody: jeśli `TenantContext.getTenantIdOrNull() != null` (aktywny kontekst HTTP) – rzuca `IllegalStateException` z komunikatem błędu. Zaktualizowano Javadoc oznaczając metodę jako "WYŁĄCZNIE DLA SCHEDULED JOB – POMIJA RLS".
 
 ---
 
-### 12. `AuthService.refresh` issues new token with `mfaVerified = user.isMfaEnabled()`
+**W6. Brak walidacji `status` i `channel` w `ContactFilterParams`**
 
-**File:** `domain/service/AuthService.java:188`
+Plik: `ContactController.java`, `ContactFilterParams.java`
 
-```java
-String newAccessToken = jwtService.issueAccessToken(user, user.isMfaEnabled());
-```
-
-When `user.isMfaEnabled() == true`, this issues a token with `mfaVerified = true` **without the user having provided their TOTP code in this session**. The intent was probably `false` (same as the initial login token), forcing MFA re-verification. The comment on line 187 says "mfaVerified state from previous session is preserved (refresh does not reset MFA)" — but this logic elevates `mfaVerified` unconditionally for MFA-enabled users.
-
-Compare with `login` (line 124): `jwtService.issueAccessToken(user, !user.isMfaEnabled())` — a user with MFA enabled gets `mfaVerified=false` at login. But after a token refresh, they get `mfaVerified=true` without verifying the TOTP code.
-
-**Suggested fix:** Issue the refreshed token with `mfaVerified = false` and require MFA re-verification, or embed the original `mfaVerified` value in the refresh token record and propagate it.
+**NAPRAWIONE (2026-03-20):** Dodano `@Pattern` bezpośrednio na `@RequestParam status` i `@RequestParam channel` w `ContactController.listContacts`. Kontroler oznaczony `@Validated`. Dodano handler `ConstraintViolationException` w `GlobalExceptionHandler` → HTTP 400 z mapą błędów (spójnie z formatem RFC 7807). Dozwolone wartości: status `QUEUED|ACTIVE|ON_HOLD|COMPLETED|ABANDONED|TRANSFERRED`, channel `VOICE|EMAIL|CHAT|SOCIAL`.
 
 ---
 
-## Minor Issues (nice to fix)
+### Sugestie (nice-to-have)
 
-### 13. `X-Request-Id` sanitization bug — length truncation operates on wrong string
+**S1. `DispositionRequest` nie ogranicza wartości `dispositionCode` do known values**
 
-**File:** `security/TenantFilter.java:198–200`
+Plik: `DispositionRequest.java`
 
-```java
-return requestId.replaceAll("[^a-zA-Z0-9\\-_]", "").substring(
-        0, Math.min(requestId.length(), 36)   // <-- uses original length, not sanitized length
-);
-```
+`@Size(max = 50)` sprawdza długość, ale `dispositionCode` akceptuje dowolny string. Brak `@Pattern` lub enum whitelist. Przykłady z Javadoc (`SALE`, `DECLINED`, `NO_ANSWER`, `CALLBACK`) sugerują znany zbiór wartości. Kolumna DB `disposition_code VARCHAR(50)` nie ma CHECK constraint.
 
-After the `replaceAll` removes characters, the sanitized string may be shorter than `requestId.length()`. The `substring` end index is computed from the **original** string length, not the sanitized string, which will throw `StringIndexOutOfBoundsException` if the original `X-Request-Id` contains many special characters.
-
-**Suggested fix:**
-```java
-String sanitized = requestId.replaceAll("[^a-zA-Z0-9\\-_]", "");
-return sanitized.substring(0, Math.min(sanitized.length(), 36));
-```
+Jeśli ten zbiór jest zamknięty — dodaj `@Pattern` do DTO i CHECK constraint w migracji. Jeśli otwarty — usuń przykłady z Javadoc aby nie mylić programistów.
 
 ---
 
-### 14. `AppUser.passwordHash` column length is 60 — too short for bcrypt cost > 12
+**S2. `ContactId` nie ma `serialVersionUID`**
 
-**File:** `domain/model/AppUser.java:54`
+Plik: `ContactId.java`
 
-```java
-@Column(name = "password_hash", nullable = false, length = 60)
-```
-
-BCrypt hashes are always 60 characters. `length = 60` is correct for bcrypt cost 12 today. However, increasing the cost factor in the future (cost 13+ produces the same 60-character string but the comment says "cost=12 ~500ms") is not a concern. This is a documentation note: the column length is tight. If the hash algorithm is ever migrated (Argon2, scrypt), the column definition will need a migration. Worth noting in a TODO.
+**NAPRAWIONE (2026-03-20):** Dodano `private static final long serialVersionUID = 1L;`.
 
 ---
 
-### 15. `AdminMetricsService.countOnlineAgentsForTenant` string-contains check is unreliable
+**S3. Brak testu dla `setDisposition` na kontakcie `ON_HOLD`**
 
-**File:** `domain/service/AdminMetricsService.java:259–262`
+Plik: `ContactServiceTest.java`
 
-```java
-} else if (value instanceof String stringValue
-        && stringValue.contains(tenantIdStr)) {
-    count++;
-}
-```
-
-`UserService.updateStatus` stores only the status string (e.g. `"AVAILABLE"`) in the Redis key `session:agent:{userId}` (line 315 in `UserService.java`). A plain status string never contains a UUID. The `Map`-based branch also appears unreachable because `UserService` stores `String`, not `Map`. The fallback string-contains branch will never match, and the entire `countOnlineAgentsForTenant` will always return 0 — the admin metrics dashboard always shows 0 agents online regardless of actual status.
-
-**Suggested fix:** Either store a structured object (e.g. `Map.of("tenantId", tenantId, "status", status)`) in Redis from `UserService.updateStatus`, or look up the agent-to-tenant mapping differently (e.g. from the DB or a separate `session:agent:{userId}:tenant` key).
+Testy weryfikują odrzucenie dla `QUEUED` i `ACTIVE`. Brak testu pozytywnego dla `ON_HOLD` (który powinien być dozwolony wg warunku `if ("QUEUED".equals(...) || "ACTIVE".equals(...))`). Pokrycie granicy statusu `ON_HOLD` wymagałoby jednego testu.
 
 ---
 
-### 16. `AuditLogConsumer` is not `@Transactional` safe — mismatches with `@Transactional` at listener level
+**S4. Potencjalny problem z COUNT w tej samej transakcji co SELECT gdy filtr `agentId` się różni**
 
-**File:** `domain/service/AuditLogConsumer.java:50–51`
+Plik: `ContactService.java:159–163`
 
-`@Transactional` on a `@RabbitListener` method does not integrate with RabbitMQ's acknowledge-mode `manual` (configured in `application-prod.yml`). Spring AMQP with manual acks requires the acknowledgment to be sent explicitly via `Channel`. The `@Transactional` annotation will not call `channel.basicAck` automatically. If the method commits the DB transaction successfully but the AMQP ack is never sent (due to an exception after the transaction boundary), the message will be redelivered and the audit entry will be duplicated.
-
-**Suggested fix:** Either use `acknowledge-mode: auto` for the audit queue (acceptable since audit writes are idempotent with a UUID log_id), or switch to `Channel`-based manual acknowledgment.
+`countContacts` jest wywoływane po `findContacts` w tej samej transakcji `@Transactional(readOnly=true)`. Gdy między tymi wywołaniami nastąpi wstawianie przez inną sesję (poziom izolacji `READ COMMITTED` w PostgreSQL), COUNT może zwrócić wartość niespójną z listą. To standardowe ograniczenie READ COMMITTED i nie jest krytycznym błędem, ale warto udokumentować.
 
 ---
 
-### 17. `TenantService` has a circular dependency resolved with `@Lazy` — this is a design smell
+## Naprawione w trakcie review (BE-027 CR – 2026-03-17)
 
-**File:** `domain/service/TenantService.java:49–62`
+| Plik | Zmiana |
+|------|--------|
+| `ContactRepository.java` | Dodano `assertSameTenant(tenantId, contactId)` na początku `clearRecordingUrl` |
+| `ContactRepository.java` | Dodano `em.flush(); em.clear()` na końcu `update()` — naprawia stale L1 cache po natywnym UPDATE |
+| `ContactService.java` | Zmieniono sygnaturę `getContact` na `getContact(UUID contactId, UUID tenantId, UUID userId, boolean isAgent)` z weryfikacją dla AGENT; dodano prywatną metodę `getContactInternal` dla wewnętrznych wywołań po UPDATE |
+| `ContactService.java` | Zamieniono `getContact(contactId, tenantId)` na `getContactInternal` w `updateContact` i `setDisposition` |
+| `ContactController.java` | Zmieniono wywołanie `contactService.getContact` na nową sygnaturę (przekazuje `userId` i `isAgent`) |
+| `AppUserRepository.java` | Dodano brakujące `clearAutomatically = true` do `softDeleteUser` |
+| `ContactServiceTest.java` | Zaktualizowano wywołania `getContact` na nową sygnaturę; dodano 2 nowe testy: `agentSeesOwnContact` i `agentCannotSeeOtherAgentContact` |
 
-The `@Lazy` setter injection for `AdminMetricsService` indicates a circular dependency: `TenantService → AdminMetricsService → TenantRepository ← TenantService`. This is a symptom of placing `evictGlobalMetricsCache()` in `AdminMetricsService` while calling it from `TenantService`. The cleaner solution is to use a Spring `ApplicationEvent` for cache invalidation, or to move the eviction to a `@CacheEvict` on the `TenantService` methods directly.
+## Naprawione na podstawie otwartych uwag CR (2026-03-20)
 
----
-
-### 18. `GlobalExceptionHandler` maps `IllegalStateException` to HTTP 409 — too broad
-
-**File:** `api/GlobalExceptionHandler.java:302–313`
-
-`IllegalStateException` is a general-purpose JVM exception. Mapping it to HTTP 409 means any library code that throws `IllegalStateException` (e.g. calling a method on a closed stream, Spring Framework internal assertions) will return HTTP 409 to the client rather than HTTP 500. This could mask real server errors as business logic conflicts.
-
-**Suggested fix:** Create a specific `InvalidOperationException extends RuntimeException` for domain state violations (MFA already active, etc.) and map that to 409. Let `IllegalStateException` fall through to the generic 500 handler.
-
----
-
-### 19. `UserDetailsServiceImpl.loadUserByUsername` loads deleted/inactive users
-
-**File:** `security/UserDetailsServiceImpl.java:62`
-
-```java
-AppUser user = appUserRepository.findByTenantIdAndEmail(tenantId, email)
-```
-
-This finds any user regardless of `is_deleted` or `is_active`. Deleted users (`is_deleted=true`) will be found, loaded, and returned as valid `UserDetails`. The `AppUserDetails` wraps the entity and sets `isEnabled()` based on `user.isActive()`, so authentication will fail — but a deleted user's record is still queried and the `AppUserDetails` object is constructed. The preferred method `findByTenantIdAndEmailAndActiveTrue` already exists in the same repository. Using it would reduce the scope and avoid the explicit deleted-user path.
-
-**Suggested fix:** Use `findByTenantIdAndEmailAndActiveTrue` here, or add `AND is_deleted = FALSE` to the query. Document the choice.
+| Plik | Zmiana |
+|------|--------|
+| `AuditAspect.java` | `captureOldValue` używa `EntityManager.find()` + mapę `entityType → Class` zamiast getter serwisu przez proxy (#8) |
+| `AuditLogConsumer.java` | Usunięto `@Transactional` z konsumenta; transakcją zarządza `AuditLogRepository`; zaktualizowano Javadoc (#16) |
+| `ContactRepository.java` | `channelMetadataToJson` zastąpiona przez `ObjectMapper.writeValueAsString()` (W1) |
+| `ContactRepository.java` | `findTenantsWithRecordings` – dodano guard sprawdzający brak aktywnego `TenantContext` z `IllegalStateException`; zaktualizowano Javadoc (W5) |
+| `Contact.java` | Usunięto `@PrePersist`/`@PreUpdate` (martwy kod dla tabel partycjonowanych); dodano Javadoc na klasie (W2) |
+| `ContactController.java` | Wyciągnięto `currentUserIsAgent()` – eliminuje 3 copy-paste bloki (W4) |
+| `ContactController.java` | Dodano `@Validated` + `@Pattern` na `@RequestParam status` i `@RequestParam channel` (W6) |
+| `GlobalExceptionHandler.java` | Dodano handler `ConstraintViolationException` → HTTP 400 z mapą błędów (W6) |
+| `ContactId.java` | Dodano `serialVersionUID = 1L` (S2) |
 
 ---
 
-### 20. `swagger-ui` and `api-docs` are enabled and publicly accessible in production
+## Pozytywne aspekty
 
-**File:** `application.yml:143–149`, `application-prod.yml` (no override)
+- **Właściwa obsługa partycjonowania PostgreSQL.** Zapis przez natywny INSERT z pełnym castowaniem typów, UPDATE z kluczem partycji `started_at` w WHERE — unika full-partition-scan. Dobrze udokumentowane.
 
-`springdoc.swagger-ui.enabled=true` and `springdoc.api-docs.enabled=true` are set in `application.yml` and are not overridden in `application-prod.yml`. Both are correctly added to `SecurityConfig.permitAll()` and `TenantFilter.PUBLIC_PATH_PREFIXES`, but they should be disabled in production to avoid exposing API schema to unauthenticated users.
+- **`ContactRepository` prawidłowo rozszerza `TenantAwareRepository`** i wywołuje `setTenantContextInDb(tenantId)` + `assertSameTenant()` konsekwentnie we wszystkich metodach write. Wzorzec zachowany.
 
-**Suggested fix:** Add to `application-prod.yml`:
-```yaml
-springdoc:
-  api-docs:
-    enabled: false
-  swagger-ui:
-    enabled: false
-```
+- **Izolacja AGENT prawidłowo zaimplementowana w `listContacts`.** `effectiveAgentId = isAgent ? userId : params.agentId()` poprawnie nadpisuje przekazany filtr, uniemożliwiając agentowi podanie `agentId` innego agenta w query params.
 
----
+- **`MAX_PAGE_SIZE = 100` w `ContactService`** ogranicza maksymalny rozmiar strony, spójnie z innymi serwisami projektu.
 
-## Positive Observations
+- **`PagedResponse` z pełnymi metadanymi** (`totalElements`, `totalPages`, `first`, `last`) — spójne z `CustomerController` i nowszymi endpointami.
 
-- **Filter chain order is correct and well-documented.** `JwtAuthFilter` is registered before `TenantFilter`, which is before `UsernamePasswordAuthenticationFilter`. The code comments match the implementation.
+- **Walidacja DTO na `CreateContactRequest`** — `@NotBlank` + `@Pattern` na `channel` i `direction` z wyraźnymi enumerable wartościami. `DispositionRequest` ma `@NotBlank` + `@Size(max=50)`.
 
-- **JWT blacklisting uses SHA-256 hash stored in Redis with the correct namespace** (`jwt:blacklist:{hash}`), not raw tokens. `TokenBlacklistService` uses `HexFormat.of().formatHex()` (Java 17+ idiomatic) and handles the expired-before-blacklist case gracefully.
+- **`@Operation` / `@ApiResponse` na wszystkich endpointach** — Swagger UI dokumentuje wszystkie kody odpowiedzi, łącznie z 409 dla naruszeń reguł biznesowych.
 
-- **TenantContext lifecycle is properly managed.** `TenantFilter` clears both `TenantContext` and MDC in a `finally` block, preventing cross-tenant context leakage on thread pool reuse.
+- **Testy jednostkowe pokrywają kluczowe ścieżki** — graniczne przypadki dla AGENT vs SUPERVISOR, maksymalny rozmiar strony, brakujące kontakty, metadane paginacji. Podejście `@Nested` + `@DisplayName` poprawia czytelność.
 
-- **`TenantContext.snapshot()/restore()/clear()` pattern is implemented** and documented with code examples, fulfilling the async propagation requirement.
-
-- **Multi-tenancy is enforced at the query level** via explicit `tenantId` parameters on every repository method, providing defense-in-depth beyond RLS.
-
-- **Sensitive fields are excluded from `toString()` and audit serialization.** `AppUser` has `@ToString(exclude = {"passwordHash", "mfaSecret"})` and `AuditAspect.SENSITIVE_FIELDS` removes them from JSON snapshots.
-
-- **`@Modifying` queries in `AppUserRepository` include tenant_id** in the WHERE clause (`softDeleteUser`, `setPasswordResetRequired`), preventing cross-tenant writes even without RLS activation.
-
-- **`BCryptPasswordEncoder(12)` cost factor is appropriate** (~500ms per hash, effective against offline brute-force) and is documented.
-
-- **Login rate limiter uses Redis INCR + EXPIRE** correctly for atomicity, with TTL set only on the first increment (sliding window from first failed attempt).
-
-- **RFC 7807 Problem Details** is used consistently across the entire API, including in `TenantFilter`'s direct HTTP error writes.
-
-- **`application-prod.yml` does not contain `clean-on-validation-error` or `clean-disabled: false`** — the dev-only danger flags are absent from production config.
+- **Logowanie z kontekstem tenanta** — MDC jest już ustawiane przez `TenantFilter`. Logi w serwisie i repozytorium zawierają `tenantId` i `contactId` dla korelacji.
 
 ---
 
-## Summary
+## Podsumowanie
 
-⭐⭐⭐ (3/5) — The security fundamentals (JWT, blacklisting, filter chain, RLS approach) are sound, but the `refresh` endpoint grants `mfaVerified=true` without TOTP verification, the TOTP window has no replay protection, `deactivateTenant` will cause an outage on any real-scale dataset, and the admin metrics dashboard always shows 0 agents online due to a Redis value format mismatch. These issues collectively block production readiness.
+**Ocena BE-027: ~~3.5/5~~ → 4.5/5** (po poprawkach 2026-03-20)
+
+Implementacja Contact API solidna strukturalnie. Wszystkie krytyczne i ważne błędy naprawione: weryfikacja własności dla AGENT, stale L1 cache, brak `assertSameTenant`, `ObjectMapper` zamiast ręcznej serializacji, martwy `@PrePersist`/`@PreUpdate`, walidacja filtrów 400 zamiast 500. Otwarte jedynie sugestie S1 (whitelist disposition codes), S3 (test ON_HOLD), S4 (dokumentacja READ COMMITTED).
+
+**Ocena ogólna backendu (po wszystkich poprawkach 2026-03-20): ~~3.5/5~~ → 4.5/5**
+
+Naprawiono łącznie 18/20 uwag z poprzedniego review + wszystkie ważne z BE-027. Pozostałe otwarte: #9 (virtual threads risk — brak włączonego profilu, ryzyko przyszłe), #17 (circular dep `@Lazy` — zaakceptowane). Otwarte sugestie S1, S3, S4 z BE-027 nie blokują release.

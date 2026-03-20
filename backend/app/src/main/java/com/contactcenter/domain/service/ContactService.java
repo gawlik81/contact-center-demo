@@ -106,13 +106,36 @@ public class ContactService {
     /**
      * Pobiera szczegóły kontaktu.
      *
+     * <p>AGENT może pobierać tylko kontakty, w których jest przypisanym agentem.
+     * SUPERVISOR/ADMIN mają dostęp do wszystkich kontaktów tenanta.
+     *
      * @param contactId UUID kontaktu
      * @param tenantId  UUID tenanta
+     * @param userId    UUID zalogowanego użytkownika (weryfikacja dla AGENT)
+     * @param isAgent   true gdy zalogowany użytkownik jest AGENT
      * @return DTO kontaktu
-     * @throws EntityNotFoundException HTTP 404 gdy kontakt nie istnieje lub inny tenant
+     * @throws EntityNotFoundException   HTTP 404 gdy kontakt nie istnieje lub inny tenant
+     * @throws InvalidOperationException HTTP 409 gdy AGENT próbuje pobrać cudzy kontakt
      */
     @Transactional(readOnly = true)
-    public ContactResponse getContact(UUID contactId, UUID tenantId) {
+    public ContactResponse getContact(UUID contactId, UUID tenantId, UUID userId, boolean isAgent) {
+        Contact contact = findContactOrThrow(contactId, tenantId);
+
+        // AGENT może widzieć tylko własne kontakty
+        if (isAgent && !userId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Agent może przeglądać tylko kontakty przypisane do siebie: " + contactId);
+        }
+
+        return ContactResponse.from(contact);
+    }
+
+    /**
+     * Wewnętrzna metoda odczytu – używana po UPDATE w tej samej transakcji.
+     * Nie stosuje dodatkowej kontroli AGENT – wywołujący jest odpowiedzialny
+     * za wcześniejszą weryfikację uprawnień.
+     */
+    private ContactResponse getContactInternal(UUID contactId, UUID tenantId) {
         Contact contact = findContactOrThrow(contactId, tenantId);
         return ContactResponse.from(contact);
     }
@@ -238,8 +261,9 @@ public class ContactService {
         log.info("[ContactService] Kontakt zaktualizowany: contactId={}, tenant={}, status={}",
                 contactId, tenantId, contact.getStatus());
 
-        // Odczyt po UPDATE – trigger mógł zmienić duration_seconds i updated_at
-        return getContact(contactId, tenantId);
+        // Odczyt po UPDATE – trigger mógł zmienić duration_seconds i updated_at.
+        // Używamy getContactInternal bo uprawnienia zostały już zweryfikowane wyżej.
+        return getContactInternal(contactId, tenantId);
     }
 
     // =========================================================================
@@ -290,7 +314,7 @@ public class ContactService {
         log.info("[ContactService] Disposition ustawiony: contactId={}, tenant={}, code={}",
                 contactId, tenantId, request.dispositionCode());
 
-        return getContact(contactId, tenantId);
+        return getContactInternal(contactId, tenantId);
     }
 
     // =========================================================================

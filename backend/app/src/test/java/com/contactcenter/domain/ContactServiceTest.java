@@ -158,8 +158,8 @@ class ContactServiceTest {
             Contact contact = buildContact(CONTACT_ID, "ACTIVE");
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
 
-            // when
-            ContactResponse response = contactService.getContact(CONTACT_ID, TENANT_ID);
+            // when – SUPERVISOR (isAgent=false)
+            ContactResponse response = contactService.getContact(CONTACT_ID, TENANT_ID, AGENT_ID, false);
 
             // then
             assertThat(response.contactId()).isEqualTo(CONTACT_ID);
@@ -169,13 +169,42 @@ class ContactServiceTest {
         }
 
         @Test
+        @DisplayName("AGENT widzi własny kontakt")
+        void getContact_agentSeesOwnContact() {
+            // given
+            Contact contact = buildContact(CONTACT_ID, "ACTIVE");
+            contact.setAgentId(AGENT_ID); // ten sam agent
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+
+            // when
+            ContactResponse response = contactService.getContact(CONTACT_ID, TENANT_ID, AGENT_ID, true);
+
+            // then
+            assertThat(response.contactId()).isEqualTo(CONTACT_ID);
+        }
+
+        @Test
+        @DisplayName("AGENT nie może pobrać kontaktu przypisanego innemu agentowi")
+        void getContact_agentCannotSeeOtherAgentContact() {
+            // given
+            Contact contact = buildContact(CONTACT_ID, "ACTIVE");
+            contact.setAgentId(OTHER_AGENT); // inny agent
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+
+            // when / then
+            assertThatThrownBy(() -> contactService.getContact(CONTACT_ID, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOf(InvalidOperationException.class)
+                    .hasMessageContaining(CONTACT_ID.toString());
+        }
+
+        @Test
         @DisplayName("rzuca EntityNotFoundException gdy kontakt nie istnieje")
         void getContact_throwsWhenNotFound() {
             // given
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
 
             // when / then
-            assertThatThrownBy(() -> contactService.getContact(CONTACT_ID, TENANT_ID))
+            assertThatThrownBy(() -> contactService.getContact(CONTACT_ID, TENANT_ID, AGENT_ID, false))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(CONTACT_ID.toString());
         }

@@ -14,11 +14,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -50,6 +52,7 @@ import java.util.UUID;
  * <p>TenantId i userId pobierane z {@link TenantContext} ustawionego przez {@code TenantFilter}.
  */
 @Slf4j
+@Validated
 @RestController
 @RequestMapping("/api/contacts")
 @RequiredArgsConstructor
@@ -59,6 +62,18 @@ import java.util.UUID;
 public class ContactController {
 
     private final ContactService contactService;
+
+    /**
+     * Sprawdza czy zalogowany użytkownik ma rolę AGENT.
+     *
+     * <p>Wyciągnięte do metody pomocniczej zamiast powielać blok inline –
+     * jeden punkt zmiany gdy format roli w TenantContext ulegnie zmianie.
+     * Obsługuje oba warianty: "ROLE_AGENT" (Spring Security prefix) i "AGENT" (raw).
+     */
+    private boolean currentUserIsAgent() {
+        String role = TenantContext.getUserRole();
+        return "ROLE_AGENT".equals(role) || "AGENT".equals(role);
+    }
 
     // =========================================================================
     // Lista kontaktów z paginacją i filtrami
@@ -84,10 +99,14 @@ public class ContactController {
             @Parameter(description = "Filtr po ID klienta")
             @RequestParam(required = false) UUID customerId,
 
-            @Parameter(description = "Filtr po statusie: QUEUED, ACTIVE, ON_HOLD, COMPLETED, ABANDONED")
+            @Parameter(description = "Filtr po statusie: QUEUED, ACTIVE, ON_HOLD, COMPLETED, ABANDONED, TRANSFERRED")
+            @Pattern(regexp = "QUEUED|ACTIVE|ON_HOLD|COMPLETED|ABANDONED|TRANSFERRED",
+                     message = "status musi być jednym z: QUEUED, ACTIVE, ON_HOLD, COMPLETED, ABANDONED, TRANSFERRED")
             @RequestParam(required = false) String status,
 
-            @Parameter(description = "Filtr po kanale: PHONE, EMAIL, SOCIAL_FACEBOOK, SOCIAL_INSTAGRAM, SOCIAL_WHATSAPP")
+            @Parameter(description = "Filtr po kanale: VOICE, EMAIL, CHAT, SOCIAL")
+            @Pattern(regexp = "VOICE|EMAIL|CHAT|SOCIAL",
+                     message = "channel musi być jednym z: VOICE, EMAIL, CHAT, SOCIAL")
             @RequestParam(required = false) String channel,
 
             @Parameter(description = "Filtr od daty started_at (ISO 8601, np. 2026-03-01T00:00:00Z)")
@@ -104,8 +123,7 @@ public class ContactController {
     ) {
         UUID tenantId = TenantContext.getTenantId();
         UUID userId = TenantContext.getUserId();
-        boolean isAgent = "ROLE_AGENT".equals(TenantContext.getUserRole())
-                || "AGENT".equals(TenantContext.getUserRole());
+        boolean isAgent = currentUserIsAgent();
 
         ContactFilterParams params = new ContactFilterParams(
                 agentId, customerId, status, channel, dateFrom, dateTo, page, size);
@@ -137,8 +155,10 @@ public class ContactController {
             @PathVariable UUID id
     ) {
         UUID tenantId = TenantContext.getTenantId();
+        UUID userId = TenantContext.getUserId();
+        boolean isAgent = currentUserIsAgent();
         log.debug("[ContactController] Szczegóły kontaktu: contactId={}, tenant={}", id, tenantId);
-        ContactResponse response = contactService.getContact(id, tenantId);
+        ContactResponse response = contactService.getContact(id, tenantId, userId, isAgent);
         return ResponseEntity.ok(response);
     }
 
@@ -203,8 +223,7 @@ public class ContactController {
     ) {
         UUID tenantId = TenantContext.getTenantId();
         UUID userId = TenantContext.getUserId();
-        boolean isAgent = "ROLE_AGENT".equals(TenantContext.getUserRole())
-                || "AGENT".equals(TenantContext.getUserRole());
+        boolean isAgent = currentUserIsAgent();
 
         log.debug("[ContactController] Aktualizacja kontaktu: contactId={}, tenant={}", id, tenantId);
 
@@ -239,8 +258,7 @@ public class ContactController {
     ) {
         UUID tenantId = TenantContext.getTenantId();
         UUID userId = TenantContext.getUserId();
-        boolean isAgent = "ROLE_AGENT".equals(TenantContext.getUserRole())
-                || "AGENT".equals(TenantContext.getUserRole());
+        boolean isAgent = currentUserIsAgent();
 
         log.debug("[ContactController] Disposition: contactId={}, tenant={}, code={}",
                 id, tenantId, request.dispositionCode());

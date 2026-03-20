@@ -123,6 +123,33 @@ public class UserController {
     }
 
     // =========================================================================
+    // Dane zalogowanego użytkownika
+    // Uwaga: endpoint /me musi być PRZED /{id} żeby Spring nie interpretował
+    // "me" jako UUID parametru ścieżki.
+    // =========================================================================
+
+    @GetMapping("/me")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Dane zalogowanego użytkownika",
+        description = "Zwraca pełne dane użytkownika wynikające z JWT (userId z TenantContext). " +
+                      "Używane do inicjalizacji stanu aplikacji po zalogowaniu (np. status agenta). " +
+                      "Pola wrażliwe (passwordHash, mfaSecret) nie są uwzględniane w odpowiedzi.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Dane zalogowanego użytkownika"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "422", description = "Użytkownik nie istnieje")
+        }
+    )
+    public ResponseEntity<UserResponse> getMe() {
+        UUID userId = TenantContext.getUserId();
+        UUID tenantId = TenantContext.getTenantId();
+        log.debug("[UserController] GET /me: userId={}, tenantId={}", userId, tenantId);
+        UserResponse response = userService.getUser(userId, tenantId);
+        return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
     // Lista unikalnych skills tenanta
     // Uwaga: endpoint /skills musi być PRZED /{id} żeby Spring nie interpretował
     // "skills" jako UUID parametru ścieżki.

@@ -110,6 +110,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.ws.connect();
+    this.statusService.initStatus();
 
     this.ws.events$
       .pipe(
@@ -161,7 +162,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
 
   protected changeStatus(status: AgentStatus): void {
     this.statusMenuOpen.set(false);
-    this.statusService.changeStatus(status);
+    this.statusService.changeStatus(status).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
   }
 
   protected toggleStatusMenu(): void {

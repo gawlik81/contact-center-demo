@@ -1,10 +1,26 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, EMPTY, Observable, tap } from 'rxjs';
+import { catchError, EMPTY, Observable, switchMap, tap } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { AgentStatus } from '../models/agent-status.model';
 import { NotificationService } from '../../../core/services/notification.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
+
+interface UserResponse {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  status: string;
+}
+
+const ACTIVE_STATUSES: ReadonlySet<AgentStatus> = new Set<AgentStatus>([
+  'AVAILABLE',
+  'BUSY',
+  'BREAK',
+  'AFTER_CONTACT',
+]);
 
 @Injectable({ providedIn: 'root' })
 export class AgentStatusService {
@@ -14,6 +30,34 @@ export class AgentStatusService {
 
   readonly currentStatus = signal<AgentStatus>('OFFLINE');
   readonly isChanging = signal(false);
+
+  /**
+   * Fetches the current user profile via GET /api/users/me and initialises the agent status.
+   * - If the backend reports an active status (AVAILABLE, BUSY, BREAK, AFTER_CONTACT),
+   *   the signal is set locally without sending a PATCH.
+   * - If the status is OFFLINE, INACTIVE, ACTIVE (non-agent states), or absent,
+   *   a PATCH is sent to set the agent as AVAILABLE.
+   * Errors are swallowed after showing a toast so the desktop still loads.
+   */
+  initStatus(): void {
+    this.http
+      .get<UserResponse>(`${environment.apiUrl}/users/me`)
+      .pipe(
+        switchMap((user) => {
+          const status = user?.status as AgentStatus | undefined;
+          if (status && ACTIVE_STATUSES.has(status)) {
+            this.currentStatus.set(status);
+            return EMPTY;
+          }
+          return this.changeStatus('AVAILABLE');
+        }),
+        catchError(() => {
+          this.notifications.error('Nie udało się pobrać statusu agenta.');
+          return EMPTY;
+        }),
+      )
+      .subscribe();
+  }
 
   /**
    * Sends an HTTP PATCH to update the agent status and notifies supervisors via WebSocket.

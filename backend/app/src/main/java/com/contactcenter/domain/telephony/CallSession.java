@@ -29,6 +29,16 @@ public class CallSession {
     /** Agent obsługujący połączenie (może być null dla połączeń przychodzących przed przydziałem). */
     private final UUID agentId;
 
+    /**
+     * UUID rekordu kontaktu w tabeli {@code contact} powiązanego z tą sesją.
+     *
+     * <p>Wypełniany przez {@link MockTelephonyAdapter} po persystencji rekordu w DB.
+     * Pozwala adapterowi na aktualizację statusu kontaktu przy zmianach stanu sesji
+     * (np. COMPLETED przy hangup). Null gdy rekord contact nie został utworzony
+     * (błąd DB lub real provider).
+     */
+    private final UUID contactId;
+
     /** Numer dzwoniącego (format E.164, np. +48123456789). */
     private final String from;
 

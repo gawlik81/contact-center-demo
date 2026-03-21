@@ -10,6 +10,7 @@ import com.contactcenter.security.MfaService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -257,6 +258,37 @@ public class GlobalExceptionHandler {
 
         log.debug("[API] Zasób nie istnieje: {}", ex.getMessage());
         return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * Nieprawidłowy typ parametru path/query (np. UUID zamiast String) – HTTP 400.
+     *
+     * <p>Rzucany przez Spring MVC gdy konwersja {@code @PathVariable} lub {@code @RequestParam}
+     * na wymagany typ się nie powiedzie – np. gdy String {@code "mock-1"} nie może być
+     * skonwertowany na {@code UUID}.
+     *
+     * <p>Zwraca HTTP 400 zamiast domyślnego 500 – błąd leży po stronie klienta (zły format ID).
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ProblemDetail> handleMethodArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException ex, WebRequest request) {
+
+        String paramName = ex.getName();
+        String value = ex.getValue() != null ? ex.getValue().toString() : "null";
+        String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setType(URI.create(ERROR_BASE_URI + "invalid-parameter-type"));
+        problem.setTitle("Nieprawidłowy format parametru");
+        problem.setDetail(String.format(
+                "Parametr '%s' ma nieprawidłową wartość '%s' – oczekiwano formatu %s.",
+                paramName, value, requiredType));
+        problem.setProperty("timestamp", Instant.now());
+        problem.setProperty("parameter", paramName);
+
+        log.debug("[API] Nieprawidłowy typ parametru: param={}, value={}, required={}",
+                paramName, value, requiredType);
+        return ResponseEntity.badRequest().body(problem);
     }
 
     /**

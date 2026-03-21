@@ -75,6 +75,36 @@ public class ContactController {
         return "ROLE_AGENT".equals(role) || "AGENT".equals(role);
     }
 
+    /**
+     * Parsuje identyfikator kontaktu z path variable.
+     *
+     * <p>Akceptuje dwa formaty:
+     * <ul>
+     *   <li>UUID – standardowy identyfikator kontaktu w produkcji.</li>
+     *   <li>Dowolny string niebędący UUID (np. {@code mock-1}) – używany w środowisku dev
+     *       gdy frontend otrzymuje callId z MockTelephonyAdapter jako contactId przez WebSocket.
+     *       W takim przypadku rzuca {@link jakarta.persistence.EntityNotFoundException},
+     *       który jest mapowany na HTTP 422 przez {@link GlobalExceptionHandler}.</li>
+     * </ul>
+     *
+     * @param id surowy identyfikator z path variable
+     * @return sparsowany UUID
+     * @throws jakarta.persistence.EntityNotFoundException gdy id nie jest poprawnym UUID
+     *         (np. mock-1 w środowisku dev) – zwrócone jako HTTP 422 z czytelnym komunikatem
+     */
+    private UUID parseContactId(String id) {
+        try {
+            return UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            log.warn("[ContactController] Niepoprawny format contact ID: '{}' – " +
+                     "oczekiwano UUID. W trybie dev contactId może być callId (np. mock-1) " +
+                     "zamiast UUID z tabeli contact.", id);
+            throw new jakarta.persistence.EntityNotFoundException(
+                    "Kontakt nie istnieje: podany identyfikator '" + id + "' nie jest poprawnym UUID. " +
+                    "W środowisku dev kontakt musi zostać najpierw utworzony przez POST /api/contacts.");
+        }
+    }
+
     // =========================================================================
     // Lista kontaktów z paginacją i filtrami
     // =========================================================================
@@ -152,13 +182,14 @@ public class ContactController {
     )
     public ResponseEntity<ContactResponse> getContact(
             @Parameter(description = "UUID kontaktu", required = true)
-            @PathVariable UUID id
+            @PathVariable String id
     ) {
+        UUID contactId = parseContactId(id);
         UUID tenantId = TenantContext.getTenantId();
         UUID userId = TenantContext.getUserId();
         boolean isAgent = currentUserIsAgent();
-        log.debug("[ContactController] Szczegóły kontaktu: contactId={}, tenant={}", id, tenantId);
-        ContactResponse response = contactService.getContact(id, tenantId, userId, isAgent);
+        log.debug("[ContactController] Szczegóły kontaktu: contactId={}, tenant={}", contactId, tenantId);
+        ContactResponse response = contactService.getContact(contactId, tenantId, userId, isAgent);
         return ResponseEntity.ok(response);
     }
 
@@ -218,16 +249,17 @@ public class ContactController {
     )
     public ResponseEntity<ContactResponse> updateContact(
             @Parameter(description = "UUID kontaktu", required = true)
-            @PathVariable UUID id,
+            @PathVariable String id,
             @Valid @RequestBody UpdateContactRequest request
     ) {
+        UUID contactId = parseContactId(id);
         UUID tenantId = TenantContext.getTenantId();
         UUID userId = TenantContext.getUserId();
         boolean isAgent = currentUserIsAgent();
 
-        log.debug("[ContactController] Aktualizacja kontaktu: contactId={}, tenant={}", id, tenantId);
+        log.debug("[ContactController] Aktualizacja kontaktu: contactId={}, tenant={}", contactId, tenantId);
 
-        ContactResponse response = contactService.updateContact(id, request, tenantId, userId, isAgent);
+        ContactResponse response = contactService.updateContact(contactId, request, tenantId, userId, isAgent);
         return ResponseEntity.ok(response);
     }
 
@@ -253,17 +285,18 @@ public class ContactController {
     )
     public ResponseEntity<ContactResponse> setDisposition(
             @Parameter(description = "UUID kontaktu", required = true)
-            @PathVariable UUID id,
+            @PathVariable String id,
             @Valid @RequestBody DispositionRequest request
     ) {
+        UUID contactId = parseContactId(id);
         UUID tenantId = TenantContext.getTenantId();
         UUID userId = TenantContext.getUserId();
         boolean isAgent = currentUserIsAgent();
 
         log.debug("[ContactController] Disposition: contactId={}, tenant={}, code={}",
-                id, tenantId, request.dispositionCode());
+                contactId, tenantId, request.dispositionCode());
 
-        ContactResponse response = contactService.setDisposition(id, request, tenantId, userId, isAgent);
+        ContactResponse response = contactService.setDisposition(contactId, request, tenantId, userId, isAgent);
         return ResponseEntity.ok(response);
     }
 

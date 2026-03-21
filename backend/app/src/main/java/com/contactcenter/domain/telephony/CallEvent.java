@@ -27,6 +27,16 @@ public class CallEvent {
     /** Identyfikator sesji połączenia (z systemu providera lub wygenerowany lokalnie). */
     private final String callId;
 
+    /**
+     * UUID rekordu kontaktu w tabeli {@code contact}.
+     *
+     * <p>Wypełniany przez {@link MockTelephonyAdapter} (i docelowo przez webhook handler
+     * rzeczywistego providera), który tworzy rekord w DB przed opublikowaniem eventu.
+     * Gdy ustawiony, frontend używa tego UUID do operacji REST (np. {@code PATCH /api/contacts/{contactId}/disposition})
+     * zamiast surowego {@code callId}. {@code null} oznacza brak persystowanego rekordu (tryb legacy).
+     */
+    private final UUID contactId;
+
     /** Tenant, do którego należy zdarzenie. */
     private final UUID tenantId;
 

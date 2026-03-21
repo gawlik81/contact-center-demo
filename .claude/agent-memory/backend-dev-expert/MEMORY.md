@@ -12,6 +12,10 @@
 - [feedback_jsonb_list_converter.md](feedback_jsonb_list_converter.md) – JSONB List<String>: brak hypersistence-utils → używaj JsonStringListConverter (@Convert), nie @Type(JsonType.class)
 - [feedback_contact_table_no_is_deleted.md](feedback_contact_table_no_is_deleted.md) – Tabela contact (partycjonowana) nie ma is_deleted; aktywne statusy: QUEUED/ACTIVE/ON_HOLD
 - [feedback_jsonb_phone_array_query.md](feedback_jsonb_phone_array_query.md) – customer.phone to JSONB array (nie TEXT[]): używaj `phone @> to_jsonb(CAST(:phone AS text))` z GIN index, nie `ANY()`
+- [feedback_mock_callid_as_contactid.md](feedback_mock_callid_as_contactid.md) – MockTelephonyAdapter tworzy rekord contact w DB PRZED publishIncoming; UUID z DB trafia jako `contactId` do WebSocket payload; `CallEvent.contactId` (UUID) obok `callId` (String); fallback na callId gdy null
+- [feedback_mock_disposition_agent_ownership.md](feedback_mock_disposition_agent_ownership.md) – setDisposition blokuje gdy agent_id=null LUB status=QUEUED; MockCallController defaultuje agentId na TenantContext.getUserId(); MockTelephonyAdapter.hangupCall() aktualizuje status na COMPLETED przez jdbcTemplate (nie EntityManager – brak TenantContext)
+- [feedback_contact_enum_to_varchar.md](feedback_contact_enum_to_varchar.md) – contact.channel/direction/status były ENUM w V007, pominięte przez V019; fix: V025 konwertuje je do VARCHAR+CHECK; wzorzec: DROP widoki+indeksy partial → ALTER TYPE → DROP TYPE → odtwórz
+- [feedback_contact_enum_cast_after_v025.md](feedback_contact_enum_cast_after_v025.md) – Po V025 typy ENUM usunięte; ContactRepository musi używać `CAST(:x AS VARCHAR)` nie `CAST(:x AS contact_channel/status/direction)` – inaczej INSERT/UPDATE rzuca `type does not exist`
 
 ## Projekty
 - [BE-025 Customer CRUD API](project_be025_customer_api.md) – implementacja Customer CRUD, fuzzy search, RODO, RabbitMQ UNKNOWN_CALLER

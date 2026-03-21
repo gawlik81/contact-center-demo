@@ -65,12 +65,20 @@ public class TelephonyEventPublisher {
 
     /**
      * Publikuje zdarzenie CALL_INCOMING (przychodzące połączenie).
+     *
+     * @param callId    identyfikator sesji połączenia (format providera lub "mock-N")
+     * @param contactId UUID rekordu kontaktu w tabeli {@code contact} (null gdy brak rekordu)
+     * @param tenantId  UUID tenanta
+     * @param agentId   UUID agenta (null gdy brak przypisania)
+     * @param from      numer dzwoniącego
+     * @param to        numer docelowy
      */
-    public void publishIncoming(String callId, UUID tenantId, UUID agentId,
+    public void publishIncoming(String callId, UUID contactId, UUID tenantId, UUID agentId,
                                  String from, String to) {
         publish(CallEvent.builder()
                 .eventType(CallEvent.EventType.CALL_INCOMING)
                 .callId(callId)
+                .contactId(contactId)
                 .tenantId(tenantId)
                 .agentId(agentId)
                 .from(from)

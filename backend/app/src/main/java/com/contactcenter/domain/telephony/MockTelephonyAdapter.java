@@ -1,11 +1,14 @@
 package com.contactcenter.domain.telephony;
 
+import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.repository.ContactRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,10 +34,22 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     /** Rejestr aktywnych sesji: callId → CallSession. */
     private final ConcurrentHashMap<String, CallSession> sessions = new ConcurrentHashMap<>();
 
+    /**
+     * Mapa odwrotna: contactId (UUID z DB) → callId (mock-N).
+     *
+     * <p>Frontend otrzymuje contactId jako identyfikator kontaktu w evencie CALL_INCOMING
+     * (żeby móc wywoływać REST API na /api/contacts/{contactId}). Gdy wysyła akcje
+     * ANSWER/HANGUP/HOLD itp. przez /api/dev/telephony/simulate, przesyła ten sam UUID
+     * jako pole callId. Mapa pozwala przetłumaczyć go z powrotem na wewnętrzny callId,
+     * pod którym przechowywana jest sesja.
+     */
+    private final ConcurrentHashMap<UUID, String> contactIdToCallId = new ConcurrentHashMap<>();
+
     /** Licznik do generowania unikalnych callId w formacie mock-{N}. */
     private final AtomicLong callIdCounter = new AtomicLong(1);
 
     private final TelephonyEventPublisher eventPublisher;
+    private final ContactRepository contactRepository;
 
     // =========================================================================
     // TelephonyAdapter implementation
@@ -43,6 +58,11 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     @Override
     public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId) {
         String callId = generateCallId();
+        Instant now = Instant.now();
+
+        // Tworzy rekord contact w DB – UUID z rekordu jest wysyłany do frontendu jako contactId,
+        // żeby REST API (PATCH /api/contacts/{contactId}/disposition) działało poprawnie.
+        UUID contactId = persistMockContact(tenantId, agentId, from, now, callId);
 
         CallSession session = CallSession.builder()
                 .callId(callId)
@@ -51,15 +71,19 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                 .from(from)
                 .to(to)
                 .status(CallSession.CallStatus.RINGING)
-                .startedAt(Instant.now())
+                .startedAt(now)
+                .contactId(contactId)
                 .build();
 
         sessions.put(callId, session);
+        if (contactId != null) {
+            contactIdToCallId.put(contactId, callId);
+        }
 
-        log.info("[MockTelephony] Połączenie inicjowane: callId={}, from={}, to={}, tenant={}",
-                callId, from, to, tenantId);
+        log.info("[MockTelephony] Połączenie inicjowane: callId={}, contactId={}, from={}, to={}, tenant={}",
+                callId, contactId, from, to, tenantId);
 
-        eventPublisher.publishIncoming(callId, tenantId, agentId, from, to);
+        eventPublisher.publishIncoming(callId, contactId, tenantId, agentId, from, to);
 
         return session;
     }
@@ -101,14 +125,27 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
             return;
         }
 
+        Instant endedAt = Instant.now();
         CallSession updated = session
                 .withStatus(CallSession.CallStatus.ENDED)
-                .withEndedAt(Instant.now());
+                .withEndedAt(endedAt);
 
         sessions.put(callId, updated);
 
-        log.info("[MockTelephony] Połączenie zakończone: callId={}, tenant={}",
-                callId, updated.getTenantId());
+        log.info("[MockTelephony] Połączenie zakończone: callId={}, contactId={}, tenant={}",
+                callId, session.getContactId(), updated.getTenantId());
+
+        // Usuń wpis z mapy odwrotnej – sesja zakończona, contactId nie będzie już używany
+        if (session.getContactId() != null) {
+            contactIdToCallId.remove(session.getContactId());
+        }
+
+        // Aktualizacja statusu kontaktu w DB – wymagane żeby agent mógł ustawić disposition
+        // (ContactService.setDisposition blokuje kontakty ze statusem QUEUED/ACTIVE)
+        if (session.getContactId() != null) {
+            contactRepository.updateContactStatusOnTelephonyEvent(
+                    session.getContactId(), session.getTenantId(), "COMPLETED", endedAt);
+        }
 
         eventPublisher.publishHangup(
                 callId, updated.getTenantId(), updated.getAgentId(),
@@ -190,6 +227,12 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
             sessions.put(callId, session.withStatus(CallSession.CallStatus.ON_HOLD));
 
             String secondLegCallId = generateCallId();
+            Instant now = Instant.now();
+
+            // Tworzy rekord contact dla drugiej nogi transferu
+            UUID secondLegContactId = persistMockContact(
+                    session.getTenantId(), session.getAgentId(), session.getTo(), now, secondLegCallId);
+
             CallSession secondLeg = CallSession.builder()
                     .callId(secondLegCallId)
                     .tenantId(session.getTenantId())
@@ -197,16 +240,21 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     .from(session.getTo())   // agent dzwoni do target
                     .to(target)
                     .status(CallSession.CallStatus.RINGING)
-                    .startedAt(Instant.now())
+                    .startedAt(now)
+                    .contactId(secondLegContactId)
                     .build();
 
             sessions.put(secondLegCallId, secondLeg);
+            if (secondLegContactId != null) {
+                contactIdToCallId.put(secondLegContactId, secondLegCallId);
+            }
 
-            log.info("[MockTelephony] Attended transfer – 2nd leg: callId={}, secondLegCallId={}, target={}",
-                    callId, secondLegCallId, target);
+            log.info("[MockTelephony] Attended transfer – 2nd leg: callId={}, secondLegCallId={}, " +
+                     "secondLegContactId={}, target={}",
+                    callId, secondLegCallId, secondLegContactId, target);
 
             eventPublisher.publishIncoming(
-                    secondLegCallId, session.getTenantId(), session.getAgentId(),
+                    secondLegCallId, secondLegContactId, session.getTenantId(), session.getAgentId(),
                     secondLeg.getFrom(), target
             );
 
@@ -264,6 +312,11 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
      */
     public CallSession simulateIncomingCall(UUID tenantId, String from, String to, UUID agentId) {
         String callId = generateCallId();
+        Instant now = Instant.now();
+
+        // Tworzy rekord contact w DB – UUID z rekordu jest wysyłany do frontendu jako contactId,
+        // żeby REST API (PATCH /api/contacts/{contactId}/disposition) działało poprawnie.
+        UUID contactId = persistMockContact(tenantId, agentId, from, now, callId);
 
         CallSession session = CallSession.builder()
                 .callId(callId)
@@ -272,16 +325,52 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                 .from(from)
                 .to(to)
                 .status(CallSession.CallStatus.RINGING)
-                .startedAt(Instant.now())
+                .startedAt(now)
+                .contactId(contactId)
                 .build();
 
         sessions.put(callId, session);
+        if (contactId != null) {
+            contactIdToCallId.put(contactId, callId);
+        }
 
-        log.info("[MockTelephony] Symulacja przychodzącego: callId={}, from={}, to={}", callId, from, to);
+        log.info("[MockTelephony] Symulacja przychodzącego: callId={}, contactId={}, from={}, to={}",
+                callId, contactId, from, to);
 
-        eventPublisher.publishIncoming(callId, tenantId, agentId, from, to);
+        eventPublisher.publishIncoming(callId, contactId, tenantId, agentId, from, to);
 
         return session;
+    }
+
+    /**
+     * Tłumaczy contactId (UUID z DB) na wewnętrzny callId (mock-N).
+     *
+     * <p>Frontend przechowuje contactId jako identyfikator sesji (otrzymany w evencie
+     * CALL_INCOMING) i odsyła go w żądaniach ANSWER/HANGUP/HOLD do endpointu symulacji.
+     * Metoda pozwala kontrolerowi znormalizować identyfikator przed przekazaniem go
+     * do metod adaptera, które wymagają callId.
+     *
+     * @param rawId wartość przesłana przez frontend – może być callId (mock-N)
+     *              lub contactId (UUID z DB)
+     * @return oryginalny callId (mock-N); zwraca rawId bez zmian gdy nie znaleziono
+     *         mapowania (np. gdy rawId jest już callId lub jest nieznanym UUID)
+     */
+    public String resolveCallId(String rawId) {
+        if (rawId == null) {
+            return null;
+        }
+        // Sprawdź czy rawId to UUID – jeżeli tak, spróbuj zamienić na callId
+        try {
+            UUID contactId = UUID.fromString(rawId);
+            String mapped = contactIdToCallId.get(contactId);
+            if (mapped != null) {
+                log.debug("[MockTelephony] Translacja contactId → callId: {} → {}", rawId, mapped);
+                return mapped;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // rawId nie jest UUID – traktuj jako callId bezpośrednio
+        }
+        return rawId;
     }
 
     /**
@@ -316,5 +405,63 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
 
     private String generateCallId() {
         return "mock-" + callIdCounter.getAndIncrement();
+    }
+
+    /**
+     * Tworzy rekord w tabeli {@code contact} dla symulowanego połączenia mock.
+     *
+     * <p>Dzięki temu frontend otrzymuje prawdziwy UUID z bazy zamiast "mock-N",
+     * co pozwala na poprawne działanie REST API (np. {@code PATCH /api/contacts/{contactId}/disposition}).
+     *
+     * <p>Rekord jest tworzony ze statusem {@code QUEUED} (kontakt czeka na odbiór).
+     * {@code sip_call_id} w {@code channelMetadata} przechowuje oryginalne "mock-N"
+     * do celów diagnostycznych i mapowania sesji.
+     *
+     * <p>W przypadku błędu DB zwraca {@code null} – event jest publikowany bez contactId
+     * (frontend dostanie callId jako fallback, co powoduje 422 przy setDisposition,
+     * ale nie blokuje samego połączenia).
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  UUID agenta (może być null gdy brak przypisania)
+     * @param from     numer dzwoniącego (CLI)
+     * @param now      czas zdarzenia
+     * @param callId   surowy callId providera (np. "mock-N") – przechowywany w channelMetadata
+     * @return UUID nowo utworzonego rekordu contact lub null przy błędzie DB
+     */
+    private UUID persistMockContact(UUID tenantId, UUID agentId, String from, Instant now, String callId) {
+        try {
+            UUID contactId = UUID.randomUUID();
+
+            HashMap<String, Object> metadata = new HashMap<>();
+            metadata.put("sip_call_id", callId);
+            metadata.put("mock", true);
+
+            Contact contact = Contact.builder()
+                    .contactId(contactId)
+                    .tenantId(tenantId)
+                    .agentId(agentId)
+                    .channel("PHONE")
+                    .direction("INBOUND")
+                    .status("QUEUED")
+                    .remoteAddress(from)
+                    .queuedAt(now)
+                    .startedAt(now)
+                    .channelMetadata(metadata)
+                    .createdAt(now)
+                    .build();
+
+            contactRepository.insert(contact);
+
+            log.debug("[MockTelephony] Rekord contact utworzony: contactId={}, callId={}, tenant={}",
+                    contactId, callId, tenantId);
+
+            return contactId;
+
+        } catch (Exception e) {
+            log.error("[MockTelephony] Błąd tworzenia rekordu contact dla callId={}: {}. " +
+                      "Frontend otrzyma callId zamiast UUID – setDisposition zwróci 422.",
+                    callId, e.getMessage(), e);
+            return null;
+        }
     }
 }

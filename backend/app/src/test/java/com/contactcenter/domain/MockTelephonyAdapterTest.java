@@ -1,5 +1,7 @@
 package com.contactcenter.domain;
 
+import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.MockTelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -11,10 +13,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -22,8 +29,12 @@ import static org.mockito.Mockito.*;
  *
  * <p>Weryfikuje logikę zarządzania sesjami i publikację eventów bez rzeczywistego
  * połączenia z RabbitMQ (mock TelephonyEventPublisher).
+ *
+ * <p>ContactRepository jest mockowany – adapter tworzy rekordy contact przed publikacją
+ * eventu. Mock zwraca przekazany Contact bez wywołania bazy (brak TenantContext w testach).
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("MockTelephonyAdapter – zarządzanie sesjami połączeń")
 class MockTelephonyAdapterTest {
 
@@ -35,11 +46,16 @@ class MockTelephonyAdapterTest {
     @Mock
     private TelephonyEventPublisher eventPublisher;
 
+    @Mock
+    private ContactRepository contactRepository;
+
     private MockTelephonyAdapter adapter;
 
     @BeforeEach
     void setUp() {
-        adapter = new MockTelephonyAdapter(eventPublisher);
+        // ContactRepository.insert() zwraca przekazany Contact – symuluje persystencję
+        when(contactRepository.insert(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
+        adapter = new MockTelephonyAdapter(eventPublisher, contactRepository);
     }
 
     // =========================================================================
@@ -65,12 +81,13 @@ class MockTelephonyAdapterTest {
         }
 
         @Test
-        @DisplayName("powinien opublikować event CALL_INCOMING")
+        @DisplayName("powinien opublikować event CALL_INCOMING z contactId z DB")
         void shouldPublishIncomingEvent() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
 
+            // contactId jest UUID wygenerowanym przez adapter przed wstawieniem do DB
             verify(eventPublisher).publishIncoming(
-                    session.getCallId(), TENANT_ID, AGENT_ID, FROM, TO
+                    eq(session.getCallId()), any(UUID.class), eq(TENANT_ID), eq(AGENT_ID), eq(FROM), eq(TO)
             );
         }
 
@@ -320,8 +337,9 @@ class MockTelephonyAdapterTest {
                     session.getCallId(), "+48111222333", TelephonyAdapter.TransferType.ATTENDED);
 
             // Dwa razy publishIncoming: pierwsze dla initiateCall, drugie dla 2nd leg
+            // Nowa sygnatura: (callId, contactId, tenantId, agentId, from, to)
             verify(eventPublisher, times(2))
-                    .publishIncoming(anyString(), eq(TENANT_ID), any(), anyString(), anyString());
+                    .publishIncoming(anyString(), any(), eq(TENANT_ID), any(), anyString(), anyString());
         }
     }
 
@@ -398,15 +416,16 @@ class MockTelephonyAdapterTest {
     class SimulateIncomingCall {
 
         @Test
-        @DisplayName("powinien utworzyć sesję ze statusem RINGING i opublikować event")
+        @DisplayName("powinien utworzyć sesję ze statusem RINGING i opublikować event z contactId")
         void shouldCreateRingingSessionAndPublishEvent() {
             CallSession session = adapter.simulateIncomingCall(TENANT_ID, FROM, TO, AGENT_ID);
 
             assertThat(session.getStatus()).isEqualTo(CallSession.CallStatus.RINGING);
             assertThat(session.getTenantId()).isEqualTo(TENANT_ID);
 
+            // Nowa sygnatura: (callId, contactId, tenantId, agentId, from, to)
             verify(eventPublisher).publishIncoming(
-                    session.getCallId(), TENANT_ID, AGENT_ID, FROM, TO
+                    eq(session.getCallId()), any(UUID.class), eq(TENANT_ID), eq(AGENT_ID), eq(FROM), eq(TO)
             );
         }
     }

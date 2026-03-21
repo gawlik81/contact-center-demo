@@ -137,7 +137,7 @@ class TelephonyEventPublisherTest {
         @Test
         @DisplayName("publishIncoming powinien zbudować event z poprawnymi polami")
         void publishIncomingShouldSetCorrectFields() {
-            publisher.publishIncoming(CALL_ID, TENANT_ID, AGENT_ID, FROM, TO);
+            publisher.publishIncoming(CALL_ID, null, TENANT_ID, AGENT_ID, FROM, TO);
 
             ArgumentCaptor<CallEvent> captor = ArgumentCaptor.forClass(CallEvent.class);
             verify(rabbitTemplate).convertAndSend(eq(EXCHANGE_EVENTS), eq("call.incoming"), captor.capture());

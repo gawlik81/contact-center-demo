@@ -95,10 +95,12 @@ public class CallEventEnricher {
             Optional<CustomerCliResult> customerOpt =
                     cliLookupService.lookupCustomer(callEvent.getFrom(), callEvent.getTenantId());
 
-            // Zbuduj wzbogacony CallEvent z customerInfo (może być null gdy nieznany numer)
+            // Zbuduj wzbogacony CallEvent z customerInfo (może być null gdy nieznany numer).
+            // contactId musi być przepisany – frontend go używa do PATCH /api/contacts/{contactId}/disposition.
             CallEvent enrichedEvent = CallEvent.builder()
                     .eventType(callEvent.getEventType())
                     .callId(callEvent.getCallId())
+                    .contactId(callEvent.getContactId())
                     .tenantId(callEvent.getTenantId())
                     .agentId(callEvent.getAgentId())
                     .from(callEvent.getFrom())

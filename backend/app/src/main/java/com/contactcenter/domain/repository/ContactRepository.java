@@ -224,6 +224,12 @@ public class ContactRepository extends TenantAwareRepository {
      *
      * <p>Przed zapisem wywołuje {@code assertSameTenant()} dla bezpieczeństwa cross-tenant.
      *
+     * <p><strong>UWAGA dot. typów kolumn:</strong> {@code channel}, {@code direction} i {@code status}
+     * były ENUMami w V007, ale V025 skonwertowało je do {@code VARCHAR + CHECK constraint}.
+     * Dlatego INSERT używa {@code CAST(:x AS VARCHAR)} zamiast dawnych typów
+     * {@code contact_channel}, {@code contact_direction}, {@code contact_status} – te typy
+     * nie istnieją po V025 i spowodowałyby błąd {@code type does not exist}.
+     *
      * @param contact encja kontaktu do zapisu (contactId musi być ustawiony)
      * @return przekazana encja (trigger oblicza duration_seconds przy UPDATE)
      */
@@ -249,9 +255,9 @@ public class ContactRepository extends TenantAwareRepository {
                     CAST(:agentId AS uuid),
                     CAST(:queueId AS uuid),
                     CAST(:campaignId AS uuid),
-                    CAST(:channel AS contact_channel),
-                    CAST(:direction AS contact_direction),
-                    CAST(:status AS contact_status),
+                    CAST(:channel AS VARCHAR),
+                    CAST(:direction AS VARCHAR),
+                    CAST(:status AS VARCHAR),
                     :remoteAddress,
                     :queuedAt,
                     :assignedAt,
@@ -308,6 +314,8 @@ public class ContactRepository extends TenantAwareRepository {
      * <p>Klucz partycji {@code started_at} jest wymagany w WHERE – pozwala PostgreSQL
      * ograniczyć UPDATE do jednej partycji bez skanowania wszystkich.
      *
+     * <p>{@code status} to {@code VARCHAR} po V025 – używamy {@code CAST(:status AS VARCHAR)}.
+     *
      * @param contact encja kontaktu z wypełnionym contactId i startedAt
      * @return liczba zaktualizowanych wierszy (0 = kontakt nie istnieje)
      */
@@ -322,7 +330,7 @@ public class ContactRepository extends TenantAwareRepository {
         int updated = em.createNativeQuery("""
                 UPDATE contact SET
                     agent_id          = CAST(:agentId AS uuid),
-                    status            = CAST(:status AS contact_status),
+                    status            = CAST(:status AS VARCHAR),
                     assigned_at       = :assignedAt,
                     ended_at          = :endedAt,
                     remote_address    = :remoteAddress,
@@ -382,11 +390,11 @@ public class ContactRepository extends TenantAwareRepository {
             params.put("customerId", customerId.toString());
         }
         if (status != null && !status.isBlank()) {
-            sql.append(" AND status = CAST(:status AS contact_status)");
+            sql.append(" AND status = CAST(:status AS VARCHAR)");
             params.put("status", status);
         }
         if (channel != null && !channel.isBlank()) {
-            sql.append(" AND channel = CAST(:channel AS contact_channel)");
+            sql.append(" AND channel = CAST(:channel AS VARCHAR)");
             params.put("channel", channel);
         }
         if (dateFrom != null) {
@@ -436,6 +444,58 @@ public class ContactRepository extends TenantAwareRepository {
         } catch (JsonProcessingException e) {
             log.warn("[ContactRepo] Błąd serializacji channelMetadata: {}", e.getMessage());
             return "{}";
+        }
+    }
+
+    // =========================================================================
+    // Aktualizacja statusu kontaktu przez adapter telefonii (mock)
+    // =========================================================================
+
+    /**
+     * Aktualizuje status kontaktu po zdarzeniu telefonicznym (hangup → COMPLETED).
+     *
+     * <p>Używane wyłącznie przez {@link com.contactcenter.domain.telephony.MockTelephonyAdapter}
+     * przy zamknięciu sesji połączenia. Metoda celowo używa {@link JdbcTemplate} z jawnym
+     * {@code tenantId} zamiast {@link jakarta.persistence.EntityManager} z {@code assertSameTenant()},
+     * bo adapter może być wywoływany z wątków bez aktywnego {@link com.contactcenter.security.TenantContext}
+     * (np. scheduled hangup). Izolacja cross-tenant zapewniania przez warunek {@code AND tenant_id = ?}.
+     *
+     * <p>Nie rzuca wyjątku gdy kontakt nie istnieje – loguje WARN i kontynuuje.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta (zabezpieczenie cross-tenant)
+     * @param newStatus nowy status kontaktu (np. "COMPLETED", "ABANDONED")
+     * @param endedAt   czas zakończenia (może być null)
+     */
+    @Transactional
+    public void updateContactStatusOnTelephonyEvent(UUID contactId, UUID tenantId,
+                                                     String newStatus, Instant endedAt) {
+        if (contactId == null || tenantId == null) {
+            log.debug("[ContactRepo] updateContactStatusOnTelephonyEvent: pominięto – contactId={}, tenantId={}",
+                    contactId, tenantId);
+            return;
+        }
+
+        int updated = jdbcTemplate.update(
+                """
+                UPDATE contact
+                   SET status   = CAST(? AS VARCHAR),
+                       ended_at = ?
+                 WHERE contact_id = ?
+                   AND tenant_id  = ?
+                """,
+                newStatus,
+                endedAt != null ? java.sql.Timestamp.from(endedAt) : null,
+                contactId,
+                tenantId
+        );
+
+        if (updated == 0) {
+            log.warn("[ContactRepo] updateContactStatusOnTelephonyEvent: kontakt nie znaleziony: " +
+                     "contactId={}, tenantId={}", contactId, tenantId);
+        } else {
+            log.info("[ContactRepo] Status kontaktu zaktualizowany: contactId={}, status={}, endedAt={}",
+                    contactId, newStatus, endedAt);
         }
     }
 

@@ -202,8 +202,16 @@ public record WebSocketEvent(
                 customerName = "Nieznany (" + (from != null ? from : "?") + ")";
             }
 
+            // Gdy dostępny contactId z DB – użyj go jako identyfikatora kontaktu,
+            // żeby frontend mógł wywoływać REST API (np. PATCH /api/contacts/{contactId}/disposition).
+            // Fallback na callId dla kompatybilności z prawdziwymi providerami VoIP (webhook handler
+            // powinien też ustawiać contactId po stworzeniu rekordu w DB).
+            String contactId = callEvent.getContactId() != null
+                    ? callEvent.getContactId().toString()
+                    : callEvent.getCallId();
+
             return new CallIncomingPayload(
-                    callEvent.getCallId(),
+                    contactId,
                     customerName,
                     from,
                     queueName,

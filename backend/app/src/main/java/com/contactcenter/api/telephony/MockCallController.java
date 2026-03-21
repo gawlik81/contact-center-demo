@@ -3,6 +3,7 @@ package com.contactcenter.api.telephony;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.MockTelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Kontroler symulacji zdarzeń telefonicznych – <strong>tylko profil dev</strong>.
@@ -86,10 +88,10 @@ public class MockCallController {
     }
 
     @GetMapping("/sessions/{callId}")
-    @Operation(summary = "Pobierz sesję połączenia po callId")
+    @Operation(summary = "Pobierz sesję połączenia po callId lub contactId (UUID)")
     public ResponseEntity<CallSession> getSession(@PathVariable String callId) {
         try {
-            return ResponseEntity.ok(mockAdapter.getCallSession(callId));
+            return ResponseEntity.ok(mockAdapter.getCallSession(mockAdapter.resolveCallId(callId)));
         } catch (TelephonyAdapter.TelephonyException e) {
             return ResponseEntity.notFound().build();
         }
@@ -106,8 +108,19 @@ public class MockCallController {
             ));
         }
 
+        // Gdy agentId nie podano jawnie, przypisz połączenie do zalogowanego użytkownika.
+        // W środowisku dev agent zwykle symuluje połączenie "do siebie", więc jest to
+        // właściwe domyślne zachowanie – gwarantuje że contact.agent_id = current_user_id,
+        // co jest wymagane przez ContactService.setDisposition (walidacja własności).
+        UUID effectiveAgentId = request.agentId() != null
+                ? request.agentId()
+                : TenantContext.getUserId();
+
+        log.info("[MockCallController] INCOMING: from={}, to={}, agentId={} (explicit={})",
+                request.from(), request.to(), effectiveAgentId, request.agentId() != null);
+
         CallSession session = mockAdapter.simulateIncomingCall(
-                request.tenantId(), request.from(), request.to(), request.agentId()
+                request.tenantId(), request.from(), request.to(), effectiveAgentId
         );
 
         return ResponseEntity.ok(sessionToMap(session, "Przychodzące połączenie zasymulowane"));
@@ -115,27 +128,30 @@ public class MockCallController {
 
     private ResponseEntity<Map<String, Object>> handleAnswer(SimulateCallRequest request) {
         requireCallId(request);
-        mockAdapter.answerCall(request.callId());
+        String callId = mockAdapter.resolveCallId(request.callId());
+        mockAdapter.answerCall(callId);
         return ResponseEntity.ok(Map.of(
-                "callId", request.callId(),
+                "callId", callId,
                 "message", "Połączenie odebrane"
         ));
     }
 
     private ResponseEntity<Map<String, Object>> handleHangup(SimulateCallRequest request) {
         requireCallId(request);
-        mockAdapter.hangupCall(request.callId());
+        String callId = mockAdapter.resolveCallId(request.callId());
+        mockAdapter.hangupCall(callId);
         return ResponseEntity.ok(Map.of(
-                "callId", request.callId(),
+                "callId", callId,
                 "message", "Połączenie zakończone"
         ));
     }
 
     private ResponseEntity<Map<String, Object>> handleHold(SimulateCallRequest request, boolean hold) {
         requireCallId(request);
-        mockAdapter.holdCall(request.callId(), hold);
+        String callId = mockAdapter.resolveCallId(request.callId());
+        mockAdapter.holdCall(callId, hold);
         return ResponseEntity.ok(Map.of(
-                "callId", request.callId(),
+                "callId", callId,
                 "message", hold ? "Połączenie wstrzymane" : "Połączenie wznowione"
         ));
     }
@@ -149,7 +165,8 @@ public class MockCallController {
             ));
         }
 
-        CallSession result = mockAdapter.transferCall(request.callId(), request.to(), type);
+        String callId = mockAdapter.resolveCallId(request.callId());
+        CallSession result = mockAdapter.transferCall(callId, request.to(), type);
         return ResponseEntity.ok(sessionToMap(result,
                 type == TelephonyAdapter.TransferType.BLIND
                         ? "Blind transfer wykonany"
@@ -164,10 +181,12 @@ public class MockCallController {
             ));
         }
 
-        mockAdapter.bridgeCalls(request.callId(), request.secondCallId());
+        String callId = mockAdapter.resolveCallId(request.callId());
+        String secondCallId = mockAdapter.resolveCallId(request.secondCallId());
+        mockAdapter.bridgeCalls(callId, secondCallId);
         return ResponseEntity.ok(Map.of(
-                "callId1", request.callId(),
-                "callId2", request.secondCallId(),
+                "callId1", callId,
+                "callId2", secondCallId,
                 "message", "Bridge wykonany. Połączenia połączone."
         ));
     }

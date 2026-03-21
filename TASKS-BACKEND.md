@@ -1,8 +1,8 @@
 # TASKS-BACKEND.md
 # Contact Center SaaS – Zadania deweloperskie: Backend (Java/Spring Boot + Python)
 
-**Wersja:** 1.0
-**Data:** 2026-03-12
+**Wersja:** 1.1
+**Data:** 2026-03-21
 **Stack:** Java 21 + Spring Boot 3.x, Python 3.11+ (AI/automatyzacja), RabbitMQ, Redis, REST/OpenAPI 3.0, JWT/OAuth 2.0
 **Powiązany PRD:** PRD v1.0
 
@@ -431,7 +431,8 @@ Implementacja interfejsu `SocialMediaAdapter` z metodami: receiveMessage, sendMe
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależności:** BE-008, DB-010
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-21
 **Blokuje:** BE-021, BE-029
 **Odniesienie PRD:** US-07-01, US-07-02, US-07-03, US-07-05, EPIC-07
 
@@ -439,11 +440,11 @@ Implementacja interfejsu `SocialMediaAdapter` z metodami: receiveMessage, sendMe
 Serwis `RoutingEngine` konsumujący eventy z RabbitMQ (CONTACT_QUEUED). Algorytmy: round-robin (cykliczny przydział), first-available (pierwszy wolny agent), skill-based (match skills agenta z wymaganiami kolejki). Sticky agent: sprawdź czy poprzedni agent (z CONTACT.agent_id) jest dostępny w ciągu timeout (default 60s) – jeśli tak, przydziel do niego. Decyzja routingu < 500ms (wymóg PRD).
 
 **Kryteria akceptacji:**
-- [ ] Czas decyzji routingu mierzony i logowany; alert jeśli > 500ms
-- [ ] Sticky agent działa: przy ponownym kontakcie klienta sprawdzana dostępność poprzedniego agenta przez 60s
-- [ ] Skill-based: kontakt trafia do agenta posiadającego WSZYSTKIE wymagane skills kolejki
-- [ ] Brak dostępnego agenta → kontakt pozostaje w kolejce, event QUEUE_WAIT_UPDATE co 30s
-- [ ] Wielozadaniowość: agent może mieć max 1 aktywne połączenie TEL lub 3 aktywne chat/email
+- [x] Czas decyzji routingu mierzony i logowany; alert jeśli > 500ms
+- [x] Sticky agent działa: przy ponownym kontakcie klienta sprawdzana dostępność poprzedniego agenta przez 60s
+- [x] Skill-based: kontakt trafia do agenta posiadającego WSZYSTKIE wymagane skills kolejki
+- [x] Brak dostępnego agenta → kontakt pozostaje w kolejce, event QUEUE_WAIT_UPDATE co 30s
+- [x] Wielozadaniowość: agent może mieć max 1 aktywne połączenie TEL lub 3 aktywne chat/email
 
 ---
 
@@ -453,7 +454,8 @@ Serwis `RoutingEngine` konsumujący eventy z RabbitMQ (CONTACT_QUEUED). Algorytm
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-010
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-21
 **Blokuje:** FE-024
 **Odniesienie PRD:** US-07-01, US-07-03, EPIC-07
 
@@ -461,10 +463,10 @@ Serwis `RoutingEngine` konsumujący eventy z RabbitMQ (CONTACT_QUEUED). Algorytm
 Endpointy: `POST /api/queues`, `GET /api/queues`, `GET /api/queues/{id}`, `PATCH /api/queues/{id}`, `DELETE /api/queues/{id}`. Pola: name, routing_strategy (ROUND_ROBIN/FIRST_AVAILABLE/SKILL_BASED), required_skills (string[]), sticky_agent_timeout_seconds (integer, min 0). Endpoint `GET /api/queues/{id}/stats` – aktualna liczba oczekujących i dostępnych agentów.
 
 **Kryteria akceptacji:**
-- [ ] Usunięcie kolejki z aktywnym ruchem zwraca HTTP 409
-- [ ] `GET /api/queues/{id}/stats` zwraca: waiting_count, available_agents_count, avg_wait_time_seconds
-- [ ] required_skills walidowane jako tablica niepustych stringów
-- [ ] Endpoint stats cachowany Redis TTL 5s
+- [x] Usunięcie kolejki z aktywnym ruchem zwraca HTTP 409
+- [x] `GET /api/queues/{id}/stats` zwraca: waiting_count, available_agents_count, avg_wait_time_seconds
+- [x] required_skills walidowane jako tablica niepustych stringów
+- [x] Endpoint stats cachowany Redis TTL 5s
 
 ---
 

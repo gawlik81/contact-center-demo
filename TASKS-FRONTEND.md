@@ -1,8 +1,8 @@
 # TASKS-FRONTEND.md
 # Contact Center SaaS – Zadania deweloperskie: Frontend (Angular SPA)
 
-**Wersja:** 1.0
-**Data:** 2026-03-12
+**Wersja:** 1.1
+**Data:** 2026-03-21
 **Stack:** Angular (TypeScript), WebRTC, RxJS, Angular Material / PrimeNG
 **Powiązany PRD:** PRD v1.0
 
@@ -448,8 +448,9 @@ Strona bazy klientów z globalnym polem wyszukiwania (debounce 300ms, min 2 znak
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** FE-018, BE-025, BE-027
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-025, BE-027 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-21
+**Czeka na BE:** BE-025 ✅, BE-027 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-09-02, US-09-03, US-09-04, EPIC-09
 
@@ -457,11 +458,11 @@ Strona bazy klientów z globalnym polem wyszukiwania (debounce 300ms, min 2 znak
 Strona profilu klienta: sekcja danych podstawowych (imię, nazwisko, wielowartościowe pola telefon[] i email[]), sekcja custom_fields (dynamiczny formularz z pól JSONB), oś czasu historii kontaktów (kanał, agent, data, disposition, link do nagrania jeśli dostępny), status zgody RODO.
 
 **Kryteria akceptacji:**
-- [ ] Formularz edycji obsługuje wielokrotne wartości dla telefon i email (add/remove chip)
-- [ ] Custom fields renderowane dynamicznie na podstawie schematu z API
-- [ ] Historia kontaktów paginowana (20 per strona), sortowalna po dacie
-- [ ] Link do nagrania otwiera odtwarzacz audio inline (jeśli nagranie dostępne i uprawnienia OK)
-- [ ] Badge "RODO: zgoda" lub "RODO: brak zgody" z datą ostatniej zgody
+- [x] Formularz edycji obsługuje wielokrotne wartości dla telefon i email (add/remove chip)
+- [x] Custom fields renderowane dynamicznie na podstawie schematu z API
+- [x] Historia kontaktów paginowana (20 per strona), sortowalna po dacie
+- [x] Link do nagrania otwiera odtwarzacz audio inline (jeśli nagranie dostępne i uprawnienia OK)
+- [x] Badge "RODO: zgoda" lub "RODO: brak zgody" z datą ostatniej zgody
 
 ---
 
@@ -562,8 +563,9 @@ Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, W
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** FE-005, BE-020
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-020 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-21
+**Czeka na BE:** BE-020 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
 
@@ -571,9 +573,9 @@ Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, W
 Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first-available/skill-based), wymagane skills (multi-select), sticky agent timeout (input numeryczny, domyślnie 60s). Lista kolejek z liczbą agentów i aktualnym obciążeniem.
 
 **Kryteria akceptacji:**
-- [ ] Zmiana strategii routingu na "skill-based" ujawnia sekcję wymaganych skills
-- [ ] Sticky agent timeout tylko liczba całkowita > 0 (walidacja)
-- [ ] Lista kolejek pokazuje aktualną liczbę oczekujących (polling co 10s)
+- [x] Zmiana strategii routingu na "skill-based" ujawnia sekcję wymaganych skills
+- [x] Sticky agent timeout tylko liczba całkowita > 0 (walidacja)
+- [x] Lista kolejek pokazuje aktualną liczbę oczekujących (polling co 10s)
 
 ---
 
@@ -615,9 +617,9 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | FE-010 | BE-009 ✅, BE-012 ✅ (WebRTC/SIP signaling – zrealizowane) |
 | FE-012 | BE-015 (email API) |
 | FE-013 | BE-018 (social media API) |
-| FE-014 | BE-020 (IVR API) |
+| FE-014 | BE-020 ✅ (Queue API – gotowe), BE-013 (IVR Engine – brakuje) |
 | FE-015, FE-016 | BE-022 (campaign API) |
-| FE-018, FE-019 | BE-025 (customer API) |
+| FE-018, FE-019 | BE-025 ✅, BE-027 ✅ (customer API + contact API – gotowe) |
 | FE-021 | BE-029 (RT metrics WebSocket) |
 | FE-022 | BE-030 (reports API) |
 

@@ -1,0 +1,234 @@
+<div class="queue-list">
+  <div class="queue-list__header">
+    <h1 class="queue-list__title">Kolejki</h1>
+    <button
+      class="btn btn-primary"
+      type="button"
+      (click)="openCreateModal()"
+      aria-label="Dodaj nowa kolejke"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      Nowa kolejka
+    </button>
+  </div>
+
+  <!-- Search bar -->
+  <div
+    class="queue-list__search"
+    [formGroup]="searchForm"
+    role="search"
+    aria-label="Wyszukaj kolejke"
+  >
+    <div class="search-field">
+      <svg
+        class="search-field__icon"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path
+          d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+        />
+      </svg>
+      <input
+        id="queue-search"
+        type="search"
+        class="search-field__input"
+        formControlName="name"
+        placeholder="Szukaj po nazwie kolejki..."
+        autocomplete="off"
+        aria-label="Wyszukaj kolejke po nazwie"
+      />
+    </div>
+  </div>
+
+  <!-- Loading skeleton -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-cell--wide"></div>
+          <div class="skeleton-cell skeleton-cell--medium hide-sm"></div>
+          <div class="skeleton-cell skeleton-cell--medium hide-sm"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--action"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading()) {
+    @if (queues().length > 0) {
+      <div class="table-wrapper" role="region" aria-label="Lista kolejek">
+        <table class="queue-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">Nazwa</th>
+              <th scope="col" class="hide-sm">Strategia routingu</th>
+              <th scope="col" class="hide-sm">Wymagane skills</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span class="sr-only">Akcje</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (queue of queues(); track queue.id) {
+              <tr class="queue-row">
+                <td class="queue-name">{{ queue.name }}</td>
+                <td class="queue-secondary hide-sm">{{ queue.routingStrategy }}</td>
+                <td class="queue-skills hide-sm">
+                  @if (queue.requiredSkills.length > 0) {
+                    <div class="skills-list" role="list" [attr.aria-label]="'Skills wymagane przez kolejke ' + queue.name">
+                      @for (skill of queue.requiredSkills; track skill) {
+                        <span class="skill-badge" role="listitem">{{ skill }}</span>
+                      }
+                    </div>
+                  } @else {
+                    <span class="queue-secondary">—</span>
+                  }
+                </td>
+                <td>
+                  <span
+                    class="status-badge"
+                    [class.status-badge--active]="queue.isActive"
+                    [class.status-badge--inactive]="!queue.isActive"
+                    [attr.aria-label]="queue.isActive ? 'Kolejka aktywna' : 'Kolejka nieaktywna'"
+                  >
+                    {{ queue.isActive ? 'Aktywna' : 'Nieaktywna' }}
+                  </span>
+                </td>
+                <td class="queue-actions">
+                  <button
+                    class="btn btn-icon-outline"
+                    type="button"
+                    (click)="openEditModal(queue)"
+                    [attr.aria-label]="'Edytuj kolejke ' + queue.name"
+                    title="Edytuj"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path
+                        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="btn btn-icon-outline"
+                    type="button"
+                    (click)="toggleActive(queue)"
+                    [disabled]="toggling() === queue.id"
+                    [attr.aria-label]="(queue.isActive ? 'Dezaktywuj' : 'Aktywuj') + ' kolejke ' + queue.name"
+                    [title]="queue.isActive ? 'Dezaktywuj' : 'Aktywuj'"
+                  >
+                    @if (toggling() === queue.id) {
+                      <span class="spinner" aria-hidden="true"></span>
+                    } @else if (queue.isActive) {
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+                      </svg>
+                    } @else {
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
+                      </svg>
+                    }
+                  </button>
+                  <button
+                    class="btn btn-icon-danger"
+                    type="button"
+                    (click)="openDeleteModal(queue)"
+                    [attr.aria-label]="'Usun kolejke ' + queue.name"
+                    title="Usun"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <nav class="pagination" aria-label="Nawigacja stron">
+        <span class="pagination__info" aria-live="polite">
+          @if (totalElements() > 0) {
+            Wyswietlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }} kolejek
+          }
+        </span>
+        <div class="pagination__controls">
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onPrevPage()"
+            [disabled]="currentPage() === 0"
+            aria-label="Poprzednia strona"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+            Poprzednia
+          </button>
+          <span class="pagination__pages" aria-current="page">
+            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+          </span>
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onNextPage()"
+            [disabled]="currentPage() + 1 >= totalPages()"
+            aria-label="Nastepna strona"
+          >
+            Nastepna
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          </button>
+        </div>
+      </nav>
+    } @else {
+      <!-- Empty state -->
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"
+          />
+        </svg>
+        <p class="empty-state__message">Brak kolejek do wyswietlenia.</p>
+        @if (searchForm.controls.name.value) {
+          <p class="empty-state__hint">Brak wynikow dla podanej frazy. Sprobuj zmienic wyszukiwanie.</p>
+        } @else {
+          <p class="empty-state__hint">Dodaj pierwsza kolejke, aby skonfigurowac routing kontaktow.</p>
+          <button class="btn btn-primary" type="button" (click)="openCreateModal()">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+            </svg>
+            Dodaj kolejke
+          </button>
+        }
+      </div>
+    }
+  }
+</div>
+
+<!-- Form modal (create / edit) -->
+@if (showFormModal()) {
+  <app-queue-form
+    [queue]="selectedQueue()"
+    [isEditMode]="isEditMode()"
+    (saved)="onFormSaved()"
+    (cancelled)="closeFormModal()"
+  />
+}
+
+<!-- Delete confirmation modal -->
+@if (showDeleteModal() && selectedQueue()) {
+  <app-queue-delete-modal
+    [queueName]="selectedQueue()!.name"
+    (confirmed)="onDeleteConfirmed()"
+    (cancelled)="closeDeleteModal()"
+  />
+}

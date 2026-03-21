@@ -426,3 +426,219 @@ Solidna implementacja z dobrym UX. Wszystkie krytyczne i ważne problemy naprawi
 
 **FE-011 (Panel profilu klienta): ~~3.5/5~~ → 4.5/5** (po poprawkach 2026-03-20)
 Poprawna architektura stanu, solidny cache z TTL, dobra jakość testów. Wszystkie ważne problemy naprawione: race condition subskrypcji, Role Guard dla przycisku, stan `'error'` dla 5xx. Otwarte jedynie sugestie nice-to-have (evict po tworzeniu profilu, czyszczenie cache przy wylogowaniu).
+
+---
+
+## Review: FE-024 (Panel konfiguracji kolejek) — 2026-03-21
+
+### Pliki: `queue.model.ts`, `queue.service.ts`, `queue-list.component.ts`, `queue-list.component.html`, `queue-form.component.ts`, `queue-form.component.html`, `queue-delete-modal.component.ts`, `supervisor.routes.ts`
+
+---
+
+### Bugs / Critical Issues
+
+**[queue-list.component.ts:77] `takeUntilDestroyed` w metodzie `loadQueues()` — subskrypcja tworzona poza kontekstem injection**
+
+`loadQueues()` jest metodą publiczną wywoływaną z `ngOnInit`, `onFormSaved()`, `onDeleteConfirmed()`, `onNextPage()`, `onPrevPage()` i `toggleActive()`. Każde wywołanie tworzy nową subskrypcję z `takeUntilDestroyed(this.destroyRef)`. Angular wymaga, aby `takeUntilDestroyed` był wywoływany w kontekście injection (konstruktor lub pole klasy). Wywołanie wewnątrz metody instancji działa poprawnie **wyłącznie gdy** `DestroyRef` jest wstrzyknięty przez `inject()` w polu klasy — co ma tutaj miejsce. Technicznie działa, ale jest wzorcem ryzykownym: jeśli `loadQueues()` zostałaby przeniesiona do serwisu lub wywołana przed gotowością DI, rzuci `NG0203`. Dodatkowo, gdy użytkownik szybko przewija strony (wiele wywołań `loadQueues()` z debounce 0), wiele równoległych żądań HTTP będzie aktywnych jednocześnie, gdyż brak operatora `switchMap` czy `exhaustMap` — każde nowe wywołanie tworzy nową subskrypcję, nie anulując poprzednich.
+
+Sugestia: zamiast bezpośredniego `this.queueService.getQueues(...).pipe(takeUntilDestroyed(...)).subscribe(...)` w każdym wywołaniu — użyć `Subject<void>` z `switchMap`, analogicznie do wzorca stosowanego w `customer-detail.component.ts`.
+
+---
+
+**[queue-list.component.ts:148–149] `onDeleteConfirmed()` wywołuje `closeDeleteModal()` w `finalize` przed sprawdzeniem wyniku — zamknięcie modala przy błędzie może dezorientować użytkownika**
+
+```typescript
+finalize(() => {
+  this.deleting.set(false);
+  this.closeDeleteModal();   // zamknięcie ZAWSZE, nawet przy błędzie
+}),
+```
+
+Modal zamykany jest w `finalize()` — zarówno po sukcesie jak i po błędzie. W gałęzi błędu `catchError` wyświetla toast i zwraca `of(null)`, następnie `finalize` zamyka modal. Użytkownik widzi toast z błędem, ale modal znika — nie ma możliwości ponowienia próby bez ponownego otwarcia modala. To zachowanie jest niespójne z wzorcem `queue-form.component.ts`, gdzie modal zamykany jest wyłącznie po sukcesie (`saved.emit()` wewnątrz `next`).
+
+Sugestia: przenieść `this.closeDeleteModal()` do bloku `next` po sukcesie, a w błędzie pozostawić modal otwarty z widocznym komunikatem.
+
+---
+
+### Security Concerns
+
+**[supervisor.routes.ts:29–35] Brak `canActivate: [roleGuard]` na trasie `/queues` — dostęp dla wszystkich zalogowanych użytkowników**
+
+```typescript
+{
+  path: 'queues',
+  data: { breadcrumb: 'Kolejki' },
+  loadComponent: () => import('./pages/queues/queue-list/queue-list.component')...
+},
+```
+
+Trasa `queues` nie ma `canActivate: [roleGuard]` z deklaracją `data.roles`. Porównaj: trasa `customers/:id` (linia 55) explicite deklaruje `data: { roles: ['SUPERVISOR', 'ADMIN'] }` i `canActivate: [roleGuard]`. Bez `roleGuard` każdy zalogowany użytkownik (w tym AGENT) może przejść bezpośrednio pod adres `/supervisor/queues` — co jest chronione jedynie przez ochronę backendu (SUPERVISOR/ADMIN w kontrolerze), ale po stronie UI AGENT będzie widzieć panel zarządzania kolejkami i otrzymywać błędy HTTP 403 przy każdej akcji, zamiast być zredirektowanym do `/forbidden`.
+
+Sugestia:
+```typescript
+{
+  path: 'queues',
+  data: { breadcrumb: 'Kolejki', roles: ['SUPERVISOR', 'ADMIN'] },
+  canActivate: [roleGuard],
+  loadComponent: () => import('./pages/queues/queue-list/queue-list.component')...
+},
+```
+
+---
+
+**[queue.service.ts:6] Import `PagedResponse` z `models/user.model` — naruszenie granicy modułów**
+
+```typescript
+import { PagedResponse } from '../models/user.model';
+```
+
+`PagedResponse` jest typem generycznym, który nie należy do modelu użytkownika — jest odpowiedzią paginacji wspólną dla całego projektu. Import z `user.model` tworzy nielogiczną zależność: `QueueService` importuje typ ze sceny `user`. Jeśli `user.model.ts` zostałby zrefaktorowany lub przeniesiony, `queue.service.ts` przestałby się kompilować.
+
+Analogiczny problem został wcześniej zidentyfikowany dla `ContactResponse` w CR FE-019 (naruszenie granicy między `features/agent` a `features/supervisor`).
+
+Sugestia: przenieść `PagedResponse<T>` do `core/models/paged-response.model.ts` i importować stamtąd. Wszystkie serwisy w projekcie powinny używać tej samej lokalizacji.
+
+---
+
+### Architecture / Pattern Violations
+
+**[queue-form.component.ts:129] `setTimeout(() => this.showSkillDropdown.set(false), 150)` w `onSkillInputBlur` — niebezpieczny hack, ryzyko przy szybkim destroy**
+
+```typescript
+onSkillInputBlur(): void {
+  setTimeout(() => this.showSkillDropdown.set(false), 150);
+}
+```
+
+`setTimeout` z opóźnieniem 150ms jest klasycznym hackiem pozwalającym na przechwycenie kliknięcia w dropdown przed jego ukryciem. Problem: jeśli komponent zostanie zniszczony w ciągu tych 150ms (np. nagłe zamknięcie modala), callback nadal się wykona i spróbuje wywołać `this.showSkillDropdown.set(false)` na zniszczonym komponencie. W Angular 21 z sygnałami powoduje to ostrzeżenie `ExpressionChangedAfterItHasBeenCheckedError` lub błąd w trybie ścisłym.
+
+Sugestia: przechować referencję `private blurTimer: ReturnType<typeof setTimeout> | null = null` i wyczyścić ją w `ngOnDestroy()`. Ewentualnie zastąpić `setTimeout` przez obserwowanie `focusout` z `relatedTarget` — sprawdzenie czy fokus przeszedł poza kontener skill.
+
+---
+
+**[queue-form.component.html:5] Obsługa kliknięcia na dialog backdrop przez porównanie referencji w szablonie — niebezpieczny wzorzec**
+
+```html
+(click)="$event.target === dialogEl ? onCancel() : null"
+```
+
+`dialogEl` jest zmienną szablonową odnoszącą się do elementu `<dialog>`. Porównanie `$event.target === dialogEl` zakłada, że kliknięcie na backdrop trafi bezpośrednio na element `<dialog>` (nie na dziecko). Jest to poprawne dla natywnego `<dialog>` i kliknięcia w obszar backdrop — przeglądarka dostarcza click event z `target === dialog`. Jednak `dialogEl` w szablonie to zmienna blokowa, a nie bezpośrednie odwołanie do `nativeElement`. W Angular `#dialogEl` w szablonie jest referencją do `ElementRef`, natomiast `$event.target` to `HTMLElement`. To porównanie `HTMLElement === ElementRef` zawsze zwróci `false`.
+
+Jest to błąd logiczny — zamknięcie kliknięciem w backdrop nigdy nie zadziała. Ten sam wzorzec występuje w `queue-delete-modal.component.html` (linia 6) i `queue-form.component.html` (linia 5).
+
+Sugestia: porównywać `$event.target === $event.currentTarget` (kliknięcie bezpośrednio na dialog, nie na dziecko):
+```html
+(click)="$event.target === $event.currentTarget ? onCancel() : null"
+```
+Lub wyciągnąć logikę do handlera w komponencie TypeScript.
+
+---
+
+**[queue-form.component.ts:87–107] Brak obsługi błędu w `loadOptions()` — `loadingOptions` pozostaje `true` przy błędzie obu żądań**
+
+```typescript
+forkJoin({
+  strategies: this.queueService.getRoutingStrategies().pipe(catchError(() => of<string[]>([]))),
+  skills: this.userService.getSkills().pipe(catchError(() => of<string[]>([]))),
+})
+  .pipe(takeUntilDestroyed(this.destroyRef))
+  .subscribe(({ strategies, skills }) => {
+    this.routingStrategies.set(strategies);
+    this.availableSkills.set(skills);
+    this.loadingOptions.set(false);   // ustawiane tylko w .subscribe next
+```
+
+Gdy oba `catchError` zwracają `of([])`, `forkJoin` nadal wyemituje wartość i `loadingOptions.set(false)` zostanie wywołane. Scenariusz problematyczny: gdy serwis sieciowy rzuci błąd, który nie zostanie przechwycony przez `catchError` wewnątrz `forkJoin` (np. błąd parsowania JSON przed HTTP), cały `forkJoin` zakończy się błędem, a `loadingOptions` pozostanie `true` — formularz będzie wyglądał jak stale wczytywany. Brak `finalize(() => this.loadingOptions.set(false))` na zewnętrznym pipe.
+
+Sugestia: dodać `finalize(() => this.loadingOptions.set(false))` po `takeUntilDestroyed`:
+```typescript
+.pipe(
+  takeUntilDestroyed(this.destroyRef),
+  finalize(() => this.loadingOptions.set(false))
+)
+```
+
+---
+
+### Improvements & Suggestions
+
+**[queue.model.ts:13–17] `description` brak w `CreateQueueRequest` — pole modelu `Queue` niedostępne przy tworzeniu**
+
+```typescript
+export interface Queue {
+  description?: string;   // pole istnieje w modelu
+}
+
+export interface CreateQueueRequest {
+  name: string;
+  routingStrategy: string;
+  requiredSkills?: string[];
+  // brak description
+}
+```
+
+`Queue` ma opcjonalne pole `description`, ale `CreateQueueRequest` go nie zawiera — użytkownik nie może ustawić opisu przy tworzeniu kolejki, tylko przy edycji (gdy `UpdateQueueRequest` zawiera `name?`). Brak `description` również w `UpdateQueueRequest`. Jeśli opis jest planowany, obie DTOs powinny go zawierać. Jeśli nie jest używany, pole powinno zostać usunięte z `Queue`.
+
+**[queue-list.component.ts:193–194] `firstItemIndex` i `lastItemIndex` jako pola klasy przypisane do funkcji strzałkowych — niestandardowy wzorzec**
+
+```typescript
+readonly firstItemIndex = (): number => this.currentPage() * this.pageSize + 1;
+readonly lastItemIndex = (): number => Math.min(...);
+```
+
+Pola przypisane do funkcji strzałkowych są wykonywane przy każdym wywołaniu bez memoizacji (inaczej niż `computed()`). Wzorzec mylący: wyglądają jak sygnały `signal()` przez `readonly`, ale są zwykłymi funkcjami. Warto zastąpić przez `computed()`:
+```typescript
+readonly firstItemIndex = computed(() => this.currentPage() * this.pageSize + 1);
+readonly lastItemIndex = computed(() => Math.min(...));
+```
+
+**[queue-form.component.ts:75–77] Zbędna gałąź `if (!this.isEditMode())` dla `isActive`**
+
+```typescript
+if (!this.isEditMode()) {
+  this.form.get('isActive')?.setValue(true);
+}
+```
+
+`isActive` jest inicjalizowane jako `[true]` w `FormGroup` (linia 59). Warunek jest martwy kodem — nie zmienia stanu, który był już ustawiony przy tworzeniu formy. Można go usunąć.
+
+**[queue-list.component.html:67] `aria-live="polite"` na elemencie `<table>` — nieprawidłowe użycie ARIA**
+
+```html
+<table class="queue-table" aria-live="polite">
+```
+
+`aria-live` na `<table>` może powodować nieoczekiwane zachowanie screen readerów, które mogą ogłaszać całą zawartość tabeli przy każdej zmianie. `aria-live` powinno być umieszczone na kontenerze wyświetlającym krótkie komunikaty statusu, nie na tabeli danych. Tabela jest renderowana jako całość po załadowaniu (`@if (!loading())`), więc ogłoszenie przez `aria-live` na tablicy spowoduje przeczytanie wszystkich wierszy naraz.
+
+Sugestia: usunąć `aria-live` z `<table>` i przenieść na informację o wynikach (np. `Wyświetlanie X–Y z Z kolejek`), które już ma poprawny `aria-live="polite"` na pagination info.
+
+**[queue-delete-modal.component.html:23] `autofocus` na przycisku "Anuluj" — dostępność**
+
+```html
+<button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>Anuluj</button>
+```
+
+`autofocus` na "Anuluj" zamiast na "Usuń" jest dobrą praktyką bezpieczeństwa (zapobiega przypadkowemu usunięciu przez Enter). Jednak w kontekście destruktywnej operacji WCAG zaleca, aby domyślny fokus był na akcji mniej destruktywnej — co tutaj jest spełnione. Pozytywna obserwacja, warto odnotować jako świadomy wybór.
+
+---
+
+### Positive Observations
+
+- **`OnPush` i sygnały konsekwentnie zastosowane** w `QueueListComponent`, `QueueFormComponent` i `QueueDeleteModalComponent`. `signal()` i `computed()` (w `filteredSkills`) zamiast `BehaviorSubject`.
+- **`takeUntilDestroyed(this.destroyRef)` we wszystkich subskrypcjach** — brak niezarządzanych subskrypcji. `DestroyRef` wstrzyknięty przez `inject()`, co jest poprawnym wzorcem Angular 21.
+- **`forkJoin` do równoległego ładowania opcji** (`routingStrategies` + `skills`) zamiast sekwencyjnych wywołań — dobra praktyka wydajnościowa.
+- **`showModal()` przez `ngAfterViewInit`** — oba modale (`QueueFormComponent`, `QueueDeleteModalComponent`) poprawnie używają `showModal()` z `viewChild`, aktywując natywną pułapkę fokusa. Wzorzec naprawiony w poprzednich CR jest tutaj zastosowany od razu.
+- **Escape key przez `(document:keydown.escape)` w `host`** — zamiast ręcznego `document.addEventListener` (stary problem z user-form). Nowy kod nie powtarza błędu z poprzednich sesji.
+- **`trackByQueueId` zdefiniowany i użyty** w `@for (queue of queues(); track queue.id)` — poprawna optymalizacja renderowania listy.
+- **Skeleton loading z `aria-busy="true"`** i empty state z kontekstowym przyciskiem CTA — dobry UX.
+- **ARIA na combobox skills** — `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded`, `aria-controls` — poprawna implementacja wzorca dostępności dla pola z podpowiedziami.
+- **`routingStrategy` walidowany przez formularz** — `Validators.required` i select z opcją disabled `value=""` zapewniają, że użytkownik musi wybrać strategię.
+- **Lazy loading trasy `queues`** — komponent ładowany przez `loadComponent: () => import(...)` — spójne z innymi trasami supervisora.
+
+---
+
+### Summary
+
+Panel kolejek jest solidną implementacją z dobrym wzorcem sygnałów i właściwym użyciem `showModal()`. Jeden błąd logiczny jest krytyczny: porównanie `$event.target === dialogEl` w szablonie (typ `HTMLElement` vs `ElementRef`) sprawia, że zamknięcie modala kliknięciem w backdrop nigdy nie działa. Brakujący `roleGuard` na trasie `queues` to luka bezpieczeństwa po stronie UI. Problem z wieloma równoległymi żądaniami HTTP (`loadQueues` bez `switchMap`) może powodować niespójność stanu przy szybkiej paginacji. Pozostałe uwagi to ulepszenia jakości i dostępności.
+
+**Ocena: 3.5/5** — poprawny kod z jednym błędem logicznym (backdrop click), brakującym guard bezpieczeństwa i kilkoma wzorcami do dopracowania przed release.

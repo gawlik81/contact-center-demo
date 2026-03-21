@@ -64,5 +64,32 @@ The frontend is Angular 21 with standalone components, Signals, OnPush everywher
 - `formatDuration` guards against negative diff (endedAt before startedAt).
 - `trackByContactId` defined and used in `@for`.
 
+## FE-024 (Queue Configuration Panel) — new findings 2026-03-21
+
+**Bugs:**
+- `queue-form.component.html` and `queue-delete-modal.component.html`: backdrop click uses `$event.target === dialogEl` where `dialogEl` is `ElementRef`, but `$event.target` is `HTMLElement` — comparison always false. Backdrop close never works. Fix: use `$event.target === $event.currentTarget`.
+- `QueueListComponent.loadQueues()` creates new subscription on every call (no switchMap/exhaustMap) — concurrent HTTP requests on fast pagination. Should use Subject + switchMap.
+- `onDeleteConfirmed()` calls `closeDeleteModal()` in `finalize()` — closes modal on error, preventing user retry. Should close only in `next` (success) branch.
+
+**Security:**
+- `supervisor.routes.ts` route `queues` has no `canActivate: [roleGuard]` with `data.roles` — AGENT can navigate to `/supervisor/queues` directly and get series of 403s instead of proper redirect to `/forbidden`.
+
+**Architecture violations:**
+- `QueueService` imports `PagedResponse` from `user.model` — cross-module type dependency. `PagedResponse<T>` is a shared contract and should live in `core/models/paged-response.model.ts`.
+
+**Minor:**
+- `setTimeout(..., 150)` in `onSkillInputBlur` — no cleanup on destroy, signal update on destroyed component possible.
+- `firstItemIndex` and `lastItemIndex` declared as arrow function fields, not `computed()` — misleading pattern, no memoization.
+- Redundant `if (!isEditMode())` block setting `isActive=true` — already the FormGroup default value.
+- `aria-live="polite"` on `<table>` element — screen reader may announce entire table contents on any change. Should be on summary/status text only.
+- `loadingOptions` not reset in `finalize()` — remains `true` if forkJoin errors before subscribe. Fix: add `finalize(() => this.loadingOptions.set(false))`.
+
+**Positive patterns (new in FE-024):**
+- `showModal()` used correctly via `viewChild` in `ngAfterViewInit` — lesson from FE-017 applied immediately.
+- Escape key handling via `host: { '(document:keydown.escape)' }` — correct, avoids `document.addEventListener` anti-pattern.
+- `forkJoin` for parallel options loading — good performance practice.
+- `autofocus` on "Anuluj" in delete modal — correct UX (non-destructive default focus).
+- ARIA on skills combobox: `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded`, `aria-controls` — solid a11y.
+
 **Why:** This context loads before any future review session so findings are not rediscovered from scratch.
 **How to apply:** When reviewing new frontend PRs, check against these known issues to see if they've been resolved or if new code repeats the patterns.

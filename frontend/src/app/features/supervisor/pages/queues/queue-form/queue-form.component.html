@@ -1,0 +1,182 @@
+<dialog
+  #dialogEl
+  class="queue-form-dialog"
+  aria-labelledby="queue-form-title"
+  (click)="$event.target === $event.currentTarget ? onCancel() : null"
+>
+  <div class="queue-form-dialog__content" role="document">
+    <div class="queue-form-dialog__header">
+      <h2 id="queue-form-title" class="queue-form-dialog__title">
+        {{ isEditMode() ? 'Edytuj kolejke' : 'Nowa kolejka' }}
+      </h2>
+      <button class="btn-close" type="button" (click)="onCancel()" aria-label="Zamknij formularz">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </div>
+
+    <form
+      class="queue-form-dialog__body"
+      [formGroup]="form"
+      (ngSubmit)="onSubmit()"
+      novalidate
+      id="queue-form"
+    >
+      <!-- Loading options indicator -->
+      @if (loadingOptions()) {
+        <div class="options-loading" aria-label="Wczytywanie opcji...">
+          <span class="spinner spinner--dark" aria-hidden="true"></span>
+          Wczytywanie opcji...
+        </div>
+      }
+
+      <!-- Name -->
+      <div class="form-field" [class.form-field--error]="nameError">
+        <label class="form-label" for="queue-name">
+          Nazwa <span class="required" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="queue-name"
+          type="text"
+          class="form-input"
+          formControlName="name"
+          autocomplete="off"
+          [attr.aria-describedby]="nameError ? 'queue-name-error' : null"
+          [attr.aria-invalid]="nameError ? 'true' : null"
+        />
+        @if (nameError) {
+          <span id="queue-name-error" class="form-error" role="alert">{{ nameError }}</span>
+        }
+      </div>
+
+      <!-- Routing strategy -->
+      <div class="form-field" [class.form-field--error]="routingStrategyError">
+        <label class="form-label" for="routing-strategy">
+          Strategia routingu <span class="required" aria-hidden="true">*</span>
+        </label>
+        <select
+          id="routing-strategy"
+          class="form-select"
+          formControlName="routingStrategy"
+          aria-required="true"
+          [attr.aria-describedby]="routingStrategyError ? 'routing-strategy-error' : null"
+          [attr.aria-invalid]="routingStrategyError ? 'true' : null"
+        >
+          <option value="" disabled>Wybierz strategie...</option>
+          @for (strategy of routingStrategies(); track strategy) {
+            <option [value]="strategy">{{ strategy }}</option>
+          }
+        </select>
+        @if (routingStrategyError) {
+          <span id="routing-strategy-error" class="form-error" role="alert">{{ routingStrategyError }}</span>
+        }
+      </div>
+
+      <!-- Required skills multi-select -->
+      <div class="form-field">
+        <label class="form-label" for="skill-input">Wymagane skills</label>
+        <div class="skills-container" role="group" aria-label="Wybrane skills">
+          @for (skill of selectedSkills(); track skill) {
+            <span class="skill-chip">
+              {{ skill }}
+              <button
+                type="button"
+                class="skill-chip__remove"
+                (click)="removeSkill(skill)"
+                [attr.aria-label]="'Usun skill ' + skill"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true">
+                  <path
+                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  />
+                </svg>
+              </button>
+            </span>
+          }
+
+          <div class="skill-input-wrapper">
+            <input
+              id="skill-input"
+              type="text"
+              class="skill-input"
+              [value]="skillInput()"
+              placeholder="Dodaj skill..."
+              autocomplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              [attr.aria-expanded]="showSkillDropdown() && filteredSkills().length > 0"
+              aria-controls="skill-dropdown"
+              (input)="onSkillInputChange($event)"
+              (focus)="onSkillInputFocus()"
+              (blur)="onSkillInputBlur()"
+              (keydown)="onSkillInputKeydown($event)"
+            />
+            @if (showSkillDropdown() && filteredSkills().length > 0) {
+              <ul
+                id="skill-dropdown"
+                class="skill-dropdown"
+                role="listbox"
+                aria-label="Dostepne skills"
+              >
+                @for (skill of filteredSkills(); track skill) {
+                  <li
+                    class="skill-dropdown__item"
+                    role="option"
+                    (mousedown)="addSkill(skill)"
+                    [attr.aria-selected]="false"
+                  >
+                    {{ skill }}
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </div>
+        <span class="form-hint">Nacisnij Enter lub wybierz z listy, aby dodac skill.</span>
+      </div>
+
+      <!-- Active toggle (edit only) -->
+      @if (isEditMode()) {
+        <div class="form-field form-field--toggle">
+          <label class="form-label" for="queue-active">Status</label>
+          <label class="toggle-label" aria-label="Aktywnosc kolejki">
+            <input
+              id="queue-active"
+              type="checkbox"
+              class="toggle-input"
+              formControlName="isActive"
+              role="switch"
+              [attr.aria-checked]="form.get('isActive')?.value"
+            />
+            <span class="toggle-track" aria-hidden="true"></span>
+            <span class="toggle-text">
+              {{ form.get('isActive')?.value ? 'Aktywna' : 'Nieaktywna' }}
+            </span>
+          </label>
+        </div>
+      }
+    </form>
+
+    <div class="queue-form-dialog__footer">
+      <button class="btn btn-cancel" type="button" (click)="onCancel()">Anuluj</button>
+      <button
+        class="btn btn-save"
+        type="submit"
+        form="queue-form"
+        [disabled]="isSaveDisabled"
+        [attr.aria-disabled]="isSaveDisabled"
+        aria-label="Zapisz kolejke"
+      >
+        @if (submitting()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Zapisywanie...
+        } @else {
+          Zapisz
+        }
+      </button>
+    </div>
+  </div>
+</dialog>

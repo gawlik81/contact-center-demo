@@ -71,6 +71,30 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - No test for `deleteQueue` when `softDelete` returns 0 (race condition / TOCTOU).
 - `@MockitoSettings(strictness = LENIENT)` masks unused stubs — should use default STRICT_STUBS.
 
+## BE-019 (Routing Engine) — new issues found 2026-03-21
+
+**Critical architecture errors:**
+- `RoutingService.publishQueuedEvent` publishes `contact.queued` when no agents available — `onContactQueued` listener immediately receives it, creating an infinite retry loop. TTL=30s limits duration but causes tight loop for 30s. Fix: remove `publishQueuedEvent` from "no agents" branch; use external scheduled job for retry.
+- `routeContact` is `@Async` but called from `@RabbitListener`. `CompletableFuture` returned by `@Async` is not awaited by `onContactQueued` — exceptions in async thread cause silent AMQP ACK (message consumed, routing failed). Fix: remove `@Async` from `routeContact` — AMQP thread blocking is acceptable for fast routing operations.
+- `@Async` + `@Transactional` without `TenantContext.snapshot()/restore()/clear()` — breaks architectural invariant. No current data leak (explicit tenantId in all queries), but fragile: any new code using `TenantContext.getTenantId()` in `routeContact` will throw ISE at runtime.
+
+**Security:**
+- Sticky agent: `belongsToTenant()` verified only from Redis data. When `requiredSkills` is empty, no DB cross-check is performed — tenant isolation depends on Redis correctness. Should always call `findByIdAndTenantIdAndDeletedFalse` for sticky agent, regardless of skills.
+
+**Performance:**
+- `findAgentWithLeastActiveContacts` runs N individual SQL queries per routing call (one per candidate agent). For SKILL_BASED strategy this is up to 50 queries. Need batch query: `COUNT(*) GROUP BY agent_id WHERE agent_id IN (:ids)`.
+- Redis SCAN uses `session:agent:*` (all tenants) — filters by tenantId in Java. At 5000 keys, routing for one tenant scans all 5000. Should use per-tenant key pattern `session:agent:{tenantId}:*`.
+
+**Minor:**
+- ROUND_ROBIN fallback counter `0L` selects index 1 (not 0) when list size >= 2 — fallback should use `1L`.
+- `ContactQueuedMessage` (and `ContactAssignedEvent`) missing `@JsonIgnoreProperties(ignoreUnknown = true)` — rigid to schema evolution.
+
+**Positive patterns:**
+- Redis SCAN (iterative, count=200) — correct, not KEYS. Documented.
+- `AgentSessionData.belongsToTenant()` guards against NPE.
+- Deterministic tie-breaking in ROUND_ROBIN and FIRST_AVAILABLE via UUID string sort — consistent across app instances.
+- `@Primary` on `DefaultRoutingEngine` follows established MockTelephonyAdapter pattern.
+
 ## Architectural patterns observed in BE-027
 
 **Partitioned table pattern (new in BE-027):**

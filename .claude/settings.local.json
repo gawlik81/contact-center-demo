@@ -114,7 +114,9 @@
       "Bash(mvn dependency:resolve -pl app -q)",
       "Bash(npx vitest:*)",
       "Bash(find E:ClaudAIcontact-center-demofrontend -name vitest.config*)",
-      "Bash(mvn dependency:tree -pl app)"
+      "Bash(mvn dependency:tree -pl app)",
+      "Bash(mvn dependency:get -Dartifact=org.springframework.data:spring-data-redis:3.3.5:jar --no-transfer-progress)",
+      "Bash(javap:*)"
     ]
   }
 }

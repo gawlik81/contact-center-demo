@@ -26,12 +26,12 @@ export const SUPERVISOR_ROUTES: Routes = [
           import('./pages/users/user-list/user-list.component').then((m) => m.UserListComponent),
       },
       {
-        // TODO FE-010: Replace placeholder with real Queues component
         path: 'queues',
-        data: { breadcrumb: 'Kolejki' },
+        data: { breadcrumb: 'Kolejki', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
         loadComponent: () =>
-          import('./pages/queues/queues-placeholder.component').then(
-            (m) => m.QueuesPlaceholderComponent,
+          import('./pages/queues/queue-list/queue-list.component').then(
+            (m) => m.QueueListComponent,
           ),
       },
       {

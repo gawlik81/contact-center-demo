@@ -448,6 +448,44 @@ public class ContactRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // BE-019: Routing – pobieranie oczekujących kontaktów
+    // =========================================================================
+
+    /**
+     * Pobiera kontakty ze statusem QUEUED dla danego tenanta (oczekujące na przydzielenie agenta).
+     *
+     * <p>Używane przez {@link com.contactcenter.domain.routing.RoutingService#onAgentStatusChanged}
+     * do retry routingu gdy agent staje się AVAILABLE. Posortowane od najstarszych (FIFO).
+     *
+     * <p>Limit 50 – chroni przed zbyt dużym batche'm w jednym wywołaniu listenera.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista oczekujących kontaktów posortowana od najstarszych (queuedAt ASC)
+     */
+    @Transactional(readOnly = true)
+    public List<Contact> findQueuedContacts(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        log.debug("[ContactRepo] Szukam oczekujących kontaktów: tenant={}", tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Contact> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM contact
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND status    = 'QUEUED'
+                        ORDER BY queued_at ASC NULLS LAST
+                        LIMIT 50
+                        """,
+                        Contact.class)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        log.debug("[ContactRepo] Znaleziono {} oczekujących kontaktów dla tenanta={}", results.size(), tenantId);
+        return results;
+    }
+
+    // =========================================================================
     // Aktualizacja statusu kontaktu przez adapter telefonii (mock)
     // =========================================================================
 

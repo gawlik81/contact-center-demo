@@ -381,3 +381,195 @@ Implementacja Contact API solidna strukturalnie. Wszystkie krytyczne i ważne b�
 **Ocena ogólna backendu (po wszystkich poprawkach 2026-03-20): ~~3.5/5~~ → 4.5/5**
 
 Naprawiono łącznie 18/20 uwag z poprzedniego review + wszystkie ważne z BE-027. Pozostałe otwarte: #9 (virtual threads risk — brak włączonego profilu, ryzyko przyszłe), #17 (circular dep `@Lazy` — zaakceptowane). Otwarte sugestie S1, S3, S4 z BE-027 nie blokują release.
+
+---
+
+## Review: BE-019 (Routing Engine) — 2026-03-21
+
+### Pliki: `RoutingEngine.java`, `DefaultRoutingEngine.java`, `RoutingService.java`, `RoutingRequest.java`, `RoutingResult.java`, `AgentSessionData.java`, `ContactAssignedEvent.java`, `ContactQueuedMessage.java`, `AppUserRepository.java` (modyfikacja), `RabbitMQConfig.java` (modyfikacja), `DefaultRoutingEngineTest.java`, `RoutingServiceTest.java`
+
+---
+
+### Bugs / Critical Issues
+
+**[RoutingService.java:77] `@Async` + `@Transactional` — transakcja otwierana w wątku async executor, ale `TenantContext` jest pusty**
+
+`routeContact` jest annotowana `@Async` i `@Transactional`. Wywołanie z `onContactQueued` (wątek AMQP) deleguje wykonanie do puli wątków `cc-async-`. W wątku AMQP `TenantContext` **nigdy** nie jest ustawiany — jest to wątek infrastrukturalny, nie HTTP request thread. `TenantContext` nie używa snapshot/restore. W efekcie gdy `routeContact` wykona `queueRepository.findByIdAndTenantId(queueId, tenantId)`:
+1. `TenantAwareRepository.setTenantContextInDb(tenantId)` wywoła `SELECT set_tenant_context(?)` — a dokładniej parametr pobiera z jawnie przekazanego `tenantId`, więc RLS jest ustawiane poprawnie.
+2. Jednak `AppUserRepository` NIE rozszerza `TenantAwareRepository` — nie wywołuje `set_tenant_context()` i nie używa RLS. Zapytania `findByIdAndTenantIdAndDeletedFalse` i `countActiveContactsByAgentId` mają jawny filtr `tenantId` w WHERE — co jest prawidłowe.
+
+Aktualnie nie ma wycieku danych z powodu explicite filtrowanych zapytań. Natomiast naruszony jest wzorzec architektoniczny: `@Async` bez `TenantContext.snapshot()/restore()/clear()`. Jeśli ktoś doda nową metodę w `routeContact` która korzysta z `TenantContext.getTenantId()` (np. dla logu MDC, audytu, WebSocket broadcast), rzuci `IllegalStateException` w runtime. `CrossTenantAspect.verifyTenantContext` loguje ERROR ale nie rzuca wyjątku — problemy będą trudne do zidentyfikowania.
+
+Sugestia: przekazać `tenantId` do `routeContact` i na początku metody wywołać `TenantContext.restore(new TenantContext.Snapshot(tenantId, null, null))` z `finally { TenantContext.clear(); }`. Alternatywnie udokumentować w Javadoc jako świadomą decyzję z wylistowaniem wszystkich metod które NIE mogą używać `TenantContext` w tym flow.
+
+---
+
+**[RoutingService.java:116–118] Nieskończona pętla retry: `publishQueuedEvent` ponownie publikuje `contact.queued` — `onContactQueued` odbierze tę samą wiadomość**
+
+```java
+// routeContact gdy brak agentów:
+publishQueuedEvent(contactId, queueId, tenantId);  // publikuje contact.queued
+
+// onContactQueued odbiera contact.queued:
+routeContact(event.contactId(), event.queueId(), event.tenantId());  // znów szuka agenta
+// → znów brak agentów → znów publishQueuedEvent → nieskończona pętla
+```
+
+Gdy brak dostępnych agentów, `routeContact` publikuje `contact.queued` na exchange `cc.events`. Kolejka `cc.queue.contact-routing` jest zbindowana do tego exchange z routing key `contact.queued`. `onContactQueued` natychmiast odbierze wiadomość i ponownie wywoła `routeContact`. Przy wciąż braku agentów — pętla się powtarza bez żadnego limitu ani opóźnienia. `x-message-ttl: 30000ms` na kolejce ogranicza czas życia wiadomości, ale przez 30 sekund aplikacja będzie w tight loop przetwarzając kontakt w kółko, wykonując zapytania do Redis i bazy danych.
+
+Jest to krytyczny błąd logiczny w architekturze retry. Wiadomość `contact.queued` powinna być publikowana wyłącznie przez oryginalnego nadawcę (np. `TelephonyEventPublisher` przy przychodzącym połączeniu), nie przez `RoutingService` sam do siebie.
+
+Sugestia: usunąć `publishQueuedEvent` z gałęzi "brak agentów" w `routeContact`. Status kontaktu pozostaje `QUEUED` w bazie. Zewnętrzny mechanizm (np. scheduled job co N sekund lub event `agent.status.changed`) powinien wyzwalać ponowną próbę routingu dla kontaktów z statusem `QUEUED`.
+
+---
+
+**[DefaultRoutingEngine.java:289–298] SCAN po wszystkich kluczach `session:agent:*` — brak filtrowania po tenancie na poziomie Redis**
+
+```java
+ScanOptions options = ScanOptions.scanOptions()
+        .match(AGENT_SESSION_KEY_PATTERN)  // "session:agent:*" — wszystkie tenanty
+        .count(200)
+        .build();
+```
+
+SCAN pobiera **wszystkie** klucze sesji agentów ze wszystkich tenantów, a filtrowanie po `tenantId` odbywa się dopiero w Javie (linia 308–310: `session.belongsToTenant(tenantId)`). W środowisku z 100 tenantami po 50 agentów każdy (5000 kluczy), routing dla jednego tenanta z 50 agentami skanuje 5000 kluczy tylko po to, by odrzucić 4950 z nich. Przy wielu równoległych routingach (np. 20 jednocześnie) generuje to 100000 odczytów Redis per sekunda.
+
+Rozwiązanie z kluczem per-tenant: `session:agent:{tenantId}:*` lub zbiorem `SET` per-tenant (`session:agents:{tenantId}` jako Redis Set UUID agentów z kluczami `session:agent:{userId}` dla danych). SCAN z wzorcem `session:agent:{tenantId}:*` pozwoliłby na filtrowanie na poziomie Redis.
+
+Uwaga: zmiana klucza wymaga aktualizacji `UserService` który zapisuje klucze sesji. Przy obecnej skali (dev/staging) nie jest to blokujące, ale powinno być zaplanowane przed skalowaniem.
+
+---
+
+### Security Concerns
+
+**[DefaultRoutingEngine.java:137–141] Sticky agent: weryfikacja przynależności do tenanta opiera się wyłącznie na danych z Redis**
+
+```java
+if (!session.isAvailable() || !session.belongsToTenant(request.tenantId())) {
+    return Optional.empty();
+}
+```
+
+Dane w Redis mogą zostać zmodyfikowane przez inny komponent lub operację administracyjną, która niepoprawnie zapisze `tenantId`. W teorii (np. błąd w `UserService.updateStatus`) sesja agenta X z tenanta A mogłaby zawierać `tenantId` tenanta B. Silnik routingu zaakceptowałby takiego agenta dla tenanta B.
+
+Obecna ochrona: `agentHasRequiredSkills` weryfikuje agenta przez `appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)` — to zapytanie do bazy z explicite podanym `tenantId` w WHERE. Więc weryfikacja przez DB jest wykonywana gdy jest wymagane dopasowanie skills. Gdy `requiredSkills` jest pusty i strategia jest inna niż SKILL_BASED, DB check nie jest wykonywany — jedyną ochroną jest wartość z Redis.
+
+Sugestia: dla sticky agent zawsze wykonywać `appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)` niezależnie od skills — to jest już jednorazowy SELECT per routing, akceptowalny koszt dla bezpieczeństwa multi-tenant.
+
+---
+
+**[RoutingService.java:82–84] `EntityNotFoundException` wewnątrz `@Async` — nieobsługiwany wyjątek zależy od `AsyncUncaughtExceptionHandler`**
+
+```java
+Queue queue = queueRepository.findByIdAndTenantId(queueId, tenantId)
+        .orElseThrow(() -> new EntityNotFoundException(...));
+```
+
+`routeContact` jest `@Async`. Gdy `EntityNotFoundException` zostanie rzucony (kolejka usunięta między publikacją eventu a jego przetworzeniem), wyjątek nie propaguje do wywołującego (wywołujący otrzymuje `CompletableFuture` z błędem). `AsyncConfig.getAsyncUncaughtExceptionHandler()` loguje błąd. Jednak `onContactQueued` wywołuje `routeContact(...)` bez oczekiwania na `Future` — zwrócona wartość jest zignorowana. Wyjątek z wątku async nie wróci do wątku AMQP, więc wiadomość **zostanie potwierdzona (ACK)** przez Spring AMQP, mimo że routing zakończył się błędem. Kontakt pozostanie w statusie `QUEUED` bez żadnej akcji naprawczej.
+
+Jest to fundamentalny problem z `@Async` na `routeContact` wywoływanym z `@RabbitListener`: albo `routeContact` jest synchroniczny (blokuje wątek AMQP, ale błędy powodują NACK/retry), albo `@Async` wymaga jawnego obsłużenia `CompletableFuture` w listenerze.
+
+Sugestia: usunąć `@Async` z `routeContact` — wątek AMQP jest dedykowany i blokowanie go przez czas routingu (kilka zapytań Redis + SQL) jest akceptowalne. Czas przetwarzania jest krótki (< 100ms przy małej liczbie agentów). Jeśli `@Async` jest wymagany, `onContactQueued` musi obsłużyć `CompletableFuture`:
+```java
+routeContact(...)
+  .exceptionally(e -> { throw new RuntimeException("...", e); });
+```
+
+---
+
+### Architecture / Pattern Violations
+
+**[DefaultRoutingEngine.java:442–462] N+1 zapytań do bazy w `findAgentWithLeastActiveContacts` — zapytanie per agent w pętli**
+
+```java
+for (UUID agentId : sorted) {
+    long count = appUserRepository.countActiveContactsByAgentId(agentId, tenantId);
+    // ...
+}
+```
+
+Przy 20 kwalifikowanych agentach — 20 zapytań SQL. Javadoc sam zauważa ten problem: _"dla małych list (< 50 agentów online) akceptowalne"_. Jednak przy strategii SKILL_BASED która jest domyślną dla kolejek specjalistycznych, ta ścieżka jest hot path. Każde wywołanie `routeContact` wykonuje do 50 zapytań.
+
+Sugestia: batch query — jeden SELECT z GROUP BY:
+```sql
+SELECT agent_id, COUNT(*) FROM contact
+WHERE agent_id IN (:agentIds)
+  AND tenant_id = :tenantId
+  AND status IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
+GROUP BY agent_id
+```
+Wynik jako `Map<UUID, Long>` w jednym zapytaniu. Dodać jako nową metodę `countActiveContactsByAgentIds(List<UUID> agentIds, UUID tenantId)` w `AppUserRepository`.
+
+---
+
+**[RoutingService.java:40] `RoutingService` nie rozszerza żadnego interfejsu domenowego — trudność testowania i rozszerzalności**
+
+`DefaultRoutingEngine` ma interfejs `RoutingEngine` z adnotacją `@Primary`. `RoutingService` nie ma analogicznego interfejsu. Utrudnia to mockowanie w testach integracyjnych (gdzie nie chcemy uruchamiać rzeczywistego routingu) i zastąpienie implementacji w środowiskach enterprise. Obecne testy jednostkowe mockują `RoutingEngine` ale muszą tworzyć pełny `RoutingService`.
+
+---
+
+**[RabbitMQConfig.java:56] `QUEUE_CONTACT_ROUTING` zbindowany do `cc.events` z routing key `contact.queued` — ta sama kolejka publikuje i konsumuje**
+
+`RoutingService.publishQueuedEvent` publikuje na `cc.events` z routing key `contact.queued`. Ta sama kolejka `cc.queue.contact-routing` jest zbindowana do `cc.events` z routing key `contact.queued`. Oznacza to, że `RoutingService` słucha na wiadomości, które sam produkuje (w scenariuszu "brak agentów"). Jest to oczekiwane tylko w scenariuszu retry — ale jak opisano w błędzie krytycznym #2, prowadzi to do nieskończonej pętli.
+
+Dodatkowe ryzyko: jeśli inny komponent (np. `TelephonyEventPublisher`) opublikuje `contact.queued` z innym payload format niż `ContactQueuedMessage`, Jackson rzuci `MessageConversionException` podczas deserializacji w `onContactQueued` — wiadomość trafi do DLQ bez retry.
+
+---
+
+### Improvements & Suggestions
+
+**[DefaultRoutingEngine.java:230–234] ROUND_ROBIN: `counter - 1` przy counter=0 (po fallback) zwraca ujemną wartość przed `Math.abs()`**
+
+```java
+Long counter = redisTemplate.opsForValue().increment(counterKey);
+if (counter == null) {
+    counter = 0L;
+}
+int index = (int) (Math.abs(counter - 1) % sorted.size());
+```
+
+Gdy `counter == null` fallbackuje do `0L`, wynik `Math.abs(0 - 1) % size = 1 % size`. Dla `size == 1` wynik to `0` (poprawny). Dla `size >= 2` wynik to `1`, co pomija pierwszego agenta i zawsze wybiera drugiego. Brak buga przy normalnym działaniu (Redis zwraca zawsze non-null dla INCR), ale wartość fallback `0L` daje mylący wynik.
+
+Sugestia: fallback powinien zwrócić `1L` (pierwsze wywołanie INCR) lub użyć `counter != null ? counter : 1L`.
+
+**[DefaultRoutingEngineTest.java:284] `lenient()` na `findByIdAndTenantIdAndDeletedFalse` w teście sticky — niejasny powód**
+
+```java
+lenient().when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_A, TENANT_ID))
+        .thenReturn(Optional.of(buildAgent(AGENT_A, List.of("SALES"))));
+```
+
+`lenient()` jest używane selektywnie — w niektórych testach sticky bez widocznego powodu (test `shouldSelectPreferredAgentWhenAvailable`). Mockito strict stubs wymagałoby usunięcia stubu lub wyjaśnienia. Warto albo usunąć `lenient()` gdy stub jest faktycznie używany, albo dodać komentarz.
+
+**[RoutingServiceTest.java:275–289] `onContactQueued` test nie weryfikuje, że `@Async` nie jest blokujące**
+
+Test `shouldCallRouteContactForReceivedEvent` wywołuje `routingService.onContactQueued(message)` synchronicznie (bo `@Async` nie działa w testach jednostkowych bez Spring context). Test działa, ale nie weryfikuje zachowania asynchronicznego. Warto dodać komentarz informujący, że test ignoruje `@Async` i zachowanie w runtime jest inne.
+
+**[ContactQueuedMessage.java] Brak `@JsonIgnoreProperties(ignoreUnknown = true)` — deserializacja wrażliwa na rozszerzenie modelu**
+
+```java
+public record ContactQueuedMessage(UUID contactId, UUID queueId, UUID tenantId) {}
+```
+
+Jeśli inny komponent opublikuje `contact.queued` z dodatkowymi polami (np. `priority`, `channel`), Jackson przy domyślnej konfiguracji rzuci `UnrecognizedPropertyException`. Dla wiadomości RabbitMQ zalecane jest `@JsonIgnoreProperties(ignoreUnknown = true)` — wiadomości są publicznym kontraktem i powinny być odporne na rozszerzenia.
+
+---
+
+### Positive Observations
+
+- **Redis SCAN zamiast KEYS** — `connection.keyCommands().scan(ScanOptions)` z `count=200` jest poprawnym podejściem dla środowisk produkcyjnych. Iteratywny SCAN nie blokuje Redis event loop. Javadoc w kodzie i interfejsie explicite dokumentuje tę decyzję.
+- **Izolacja multi-tenant w `AgentSessionData.belongsToTenant()`** — sprawdzenie `tenantId != null && tenantId.equals(this.tenantId)` chroni przed NPE. Filtrowanie po tenancie odbywa się przed zwróceniem listy kandydatów.
+- **Deterministyczny wybór w ROUND_ROBIN i FIRST_AVAILABLE** — sortowanie po `UUID.toString()` zapewnia spójny wynik między instancjami aplikacji. Komentarz w Javadoc wyjaśnia dlaczego.
+- **`@Primary` na `DefaultRoutingEngine`** — zgodnie z wzorcem `MockTelephonyAdapter`/`TelephonyAdapter`, umożliwia podpięcie alternatywnej implementacji bez modyfikacji konfiguracji.
+- **`parseSessionData` obsługuje dwa formaty** (Map i String) z graceful fallback na null — defensywne programowanie dla danych zewnętrznych (Redis).
+- **`contactRoutingQueue` z `x-message-ttl: 30000ms`** — ograniczenie czasu życia wiadomości routingu zapobiega przetwarzaniu przeterminowanych kontaktów. Dobra decyzja architektoniczna.
+- **Testy jednostkowe z `@Nested`** — przejrzysta struktura, separacja testów per strategia, pomocnicze metody `stubScan` / `stubStickySession` / `stubAgentSkills` eliminują duplikację. Podejście spy na `scanAvailableAgents` jest uzasadnione i udokumentowane.
+- **Javadoc na wszystkich klasach i metodach publicznych** — pełna dokumentacja intencji, kontraktu i ograniczeń.
+
+---
+
+### Summary
+
+Implementacja ma solidną strukturę algorytmiczną i dobrą dokumentację, ale zawiera dwa krytyczne błędy architektoniczne: nieskończona pętla retry (`contact.queued` publikowany przez routing do samego siebie) oraz `@Async` + `@RabbitListener` bez obsługi `CompletableFuture` powodujący ciche ACK przy błędach. SCAN bez filtrowania per-tenant jest potencjalnym problemem wydajnościowym przy skali. Brak snapshot/restore TenantContext w wątku async narusza wzorzec architektoniczny projektu.
+
+**Ocena: 3/5** — algorytm routingu poprawny, ale dwa krytyczne błędy architektoniczne muszą być naprawione przed merge: nieskończona pętla retry i `@Async`/AMQP bez obsługi Future.

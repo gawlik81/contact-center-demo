@@ -42,6 +42,28 @@ Inicjalizacja projektu Spring Boot 3.x (Maven/Gradle multi-module). Konfiguracja
 
 ---
 
+### BE-001b – Lokalne środowisko DEV: docker-compose (MinIO i pozostałe serwisy)
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależności:** BE-001
+**Status:** ✅ Ukończone
+**Blokuje:** BE-010 (nagrywanie rozmów), BE-013 (IVR audio), BE-028 (GDPR anonymize)
+**Odniesienie PRD:** przekrojowe (środowisko deweloperskie)
+
+**Opis:**
+Uzupełnienie `docker-compose.yml` o MinIO (S3-compatible object storage) wymagany przez `S3Properties` i taskt BE-010 (nagrywanie rozmów). Serwis `minio` na portach 9000 (S3 API) / 9001 (Console UI), serwis `minio-init` tworzący bucket `contact-center-recordings` po starcie. Aktualizacja nagłówka `docker-compose.yml` i sekcji `volumes`.
+
+**Kryteria akceptacji:**
+- [x] `docker compose up -d` uruchamia MinIO obok PostgreSQL, Redis, RabbitMQ
+- [x] MinIO Console dostępna pod `http://localhost:9001` (minioadmin/minioadmin)
+- [x] Bucket `contact-center-recordings` tworzony automatycznie przy pierwszym starcie
+- [x] `S3Properties` (endpoint `http://localhost:9000`, credentiale minioadmin) odpowiada konfiguracji docker-compose
+- [x] Volumen `minio_data` persystuje dane między restartami
+
+---
+
 ### BE-002 – Konfiguracja multi-tenancy: TenantContext i filtr tenant_id
 
 **Typ:** Infrastructure

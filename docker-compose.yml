@@ -9,6 +9,7 @@
 #   - PostgreSQL 16  → localhost:5432
 #   - Redis 7        → localhost:6379
 #   - RabbitMQ 3.13  → localhost:5672 (AMQP), localhost:15672 (Management UI)
+#   - MinIO          → localhost:9000 (S3 API), localhost:9001 (Console UI)
 # =============================================================================
 
 services:
@@ -92,6 +93,51 @@ services:
     networks:
       - cc-network
 
+  # ---------------------------------------------------------------------------
+  # MinIO – S3-compatible object storage (nagrania rozmów, pliki IVR)
+  # API:     http://localhost:9000
+  # Console: http://localhost:9001 (minioadmin/minioadmin)
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: cc-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console UI
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - cc-network
+
+  # ---------------------------------------------------------------------------
+  # MinIO init – tworzy bucket contact-center-recordings po starcie MinIO
+  # ---------------------------------------------------------------------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: cc-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin &&
+        mc mb --ignore-existing local/contact-center-recordings &&
+        echo 'Bucket contact-center-recordings ready.'
+      "
+    networks:
+      - cc-network
+
 # =============================================================================
 # Volumes – persystencja danych między restartami
 # =============================================================================
@@ -101,6 +147,8 @@ volumes:
   redis_data:
     driver: local
   rabbitmq_data:
+    driver: local
+  minio_data:
     driver: local
 
 # =============================================================================

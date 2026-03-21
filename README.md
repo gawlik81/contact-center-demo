@@ -115,30 +115,35 @@ contact-center-demo/
 │   ├── pom.xml                          # Parent POM
 │   └── app/src/main/java/com/contactcenter/
 │       ├── api/                         # REST controllers + DTOs
+│       │   ├── contact/                 # Contact history API
+│       │   ├── queue/                   # Queue CRUD API
+│       │   ├── telemetry/               # Frontend log collector (POST /api/logs)
+│       │   ├── telephony/               # VoIP webhook + MockCallController (dev)
+│       │   └── ...                      # auth, tenant, user, admin, websocket
 │       ├── domain/
 │       │   ├── model/                   # JPA entities
 │       │   ├── repository/              # TenantAwareRepository extensions
-│       │   └── service/                 # Business logic
+│       │   ├── routing/                 # Routing Engine (skill-based, round-robin, sticky)
+│       │   ├── service/                 # Business logic
+│       │   ├── telephony/               # VoIP adapter + MockTelephonyAdapter
+│       │   └── websocket/               # STOMP hub, RabbitMQ relay
 │       ├── infrastructure/
-│       │   ├── aspect/                  # CrossTenantAspect (AOP)
-│       │   └── config/                  # Spring configs
+│       │   ├── aspect/                  # CrossTenantAspect, AuditAspect (AOP)
+│       │   └── config/                  # Spring configs (Security, Redis, RabbitMQ, WS)
 │       └── security/                    # JWT, MFA, TenantContext, filters
 ├── backend/src/main/resources/
 │   └── db/
-│       ├── migration/                   # Flyway V001–V018 (shared)
+│       ├── migration/                   # Flyway V001–V025 (shared)
 │       └── seed/                        # V999__dev_seed.sql (dev only)
 ├── frontend/
 │   ├── src/app/
-│   │   ├── core/                        # Guards, interceptors, singleton services
-│   │   ├── shared/                      # Reusable components, pipes, directives
+│   │   ├── core/                        # Guards, interceptors, singleton services, models
+│   │   ├── shared/                      # Reusable components (shell, navbar, sidenav, toasts)
 │   │   ├── features/                    # Lazy-loaded feature modules
-│   │   │   ├── auth/                    # Login, MFA
-│   │   │   ├── admin/                   # Tenant management (ADMIN role)
-│   │   │   ├── supervisor/              # Supervisor dashboard
-│   │   │   ├── agent/                   # Agent Desktop
-│   │   │   ├── customers/               # Customer database
-│   │   │   ├── reports/                 # Historical reports
-│   │   │   └── campaigns/               # Outbound campaigns
+│   │   │   ├── auth/                    # Login (email-first 3-step flow), MFA
+│   │   │   ├── admin/                   # Tenant management, metrics dashboard (ADMIN)
+│   │   │   ├── supervisor/              # Agents, customers, queues, customer detail (SUPERVISOR)
+│   │   │   └── agent/                   # Agent Desktop, softphone WebRTC, disposition panel
 │   │   └── environments/                # Environment configs
 │   └── proxy.conf.json                  # Dev proxy → localhost:8080
 ├── dw/migrations/                       # ClickHouse DDL (manual versioning)
@@ -199,9 +204,9 @@ After `docker compose up -d` + backend start, use any of the following accounts 
 | Area | Done | Total |
 |------|------|-------|
 | Database (DB) | 19 | 19 |
-| Backend (BE) | 10 | 31 |
-| Frontend (FE) | 9 | 24 |
-| **Total** | **38** | **74** |
+| Backend (BE) | 16 | 31 |
+| Frontend (FE) | 15 | 24 |
+| **Total** | **50** | **74** |
 
 See [PROGRESS.md](PROGRESS.md) for full task status.
 

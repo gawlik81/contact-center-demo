@@ -53,6 +53,24 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 
 ---
 
+## BE-020 (Queue API) — new issues found 2026-03-21
+
+**Critical — not fixed at time of review:**
+- `skillsToJson` (manual JSON serialization) in `QueueRepository` does not handle control chars (`\n`, `\r`, `\t`), only backslash and quote. Same bug that existed in `ContactRepository.channelMetadataToJson` before BE-027 fix. Requires `ObjectMapper.writeValueAsString()`.
+- `@PrePersist`/`@PreUpdate` in `Queue` are dead code — entity uses native INSERT/UPDATE, lifecycle callbacks never fire. Pattern fixed in `Contact` (BE-027 CR) but not applied to `Queue`.
+- Missing `@Size(max=255)` on `name` in `CreateQueueRequest` — DB constraint can cause HTTP 500 instead of 400.
+- `UpdateQueueRequest.name` accepts empty string `""` on PATCH (no `@NotBlank` guard for non-null values).
+
+**Architectural notes:**
+- `em.clear()` after native UPDATE in `QueueRepository.update()` clears entire L1 cache — risky if Queue entity gains lazy associations. Monitor when Queue entity is extended.
+- `findAllByTenantId` returns only `is_active=true` queues — no way to list inactive queues for audit. Intentional product decision (not documented).
+- `ROUTING_STRATEGIES` static list in `QueueService` duplicates DB ENUM — must stay in sync.
+
+**Test gaps:**
+- No tests for `updateQueue` (PATCH null-field logic, EntityNotFound when update=0).
+- No test for `deleteQueue` when `softDelete` returns 0 (race condition / TOCTOU).
+- `@MockitoSettings(strictness = LENIENT)` masks unused stubs — should use default STRICT_STUBS.
+
 ## Architectural patterns observed in BE-027
 
 **Partitioned table pattern (new in BE-027):**

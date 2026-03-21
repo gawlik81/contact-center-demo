@@ -44,5 +44,25 @@ The frontend is Angular 21 with standalone components, Signals, OnPush everywher
 - softphoneEndedEffect uses effect() as class field (preferred Angular 21 pattern), with WRAPPING guard to prevent double-transition.
 - canSave computed() correctly combines code selection + isSaving for double-submit prevention.
 
+## FE-019 (Customer Detail) — new findings 2026-03-21
+
+**Architecture violations:**
+- `CustomerDetailComponent` imports `ContactResponse` from `features/agent/models/contact.model` — cross-feature dependency (supervisor importing from agent). `ContactResponse` is a shared domain model and should live in `core/models/` or `shared/models/`.
+- `supervisor.routes.ts` route `customers/:id` lacks explicit `canActivate: [RoleGuard]` + `data.roles` — inconsistent with other routes in the project.
+
+**Minor issues:**
+- `contactsLoadState` has no `'error'` state (unlike `loadState`) — user cannot distinguish "empty" from "load error" in contacts history section.
+- `customerService.getCustomerContacts` has no max-size guard on `size` parameter — callers could pass large values.
+- `customerId` stored as separate signal redundant with `customer()?.customerId` — two sources of truth for same ID.
+- `.status-badge--wrap_up` CSS class uses underscore in BEM modifier (non-standard); built dynamically from `contact.status.toLowerCase()`.
+
+**Positive patterns (FE-019):**
+- `switchMap` on `paramMap` correctly cancels in-flight requests on route param change.
+- `loadContacts()` correctly uses `takeUntilDestroyed(this.destroyRef)` — no leak on pagination clicks.
+- Full skeleton UI for both page load and contacts table load.
+- ARIA attributes well implemented: `scope="col"`, `aria-live="polite"` on pagination info, `aria-label` on buttons, `aria-current="page"`.
+- `formatDuration` guards against negative diff (endedAt before startedAt).
+- `trackByContactId` defined and used in `@for`.
+
 **Why:** This context loads before any future review session so findings are not rediscovered from scratch.
 **How to apply:** When reviewing new frontend PRs, check against these known issues to see if they've been resolved or if new code repeats the patterns.

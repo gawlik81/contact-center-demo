@@ -1,0 +1,329 @@
+<div class="customer-detail">
+
+  <!-- ── Loading skeleton ──────────────────────────────────────────────── -->
+  @if (loadState() === 'loading') {
+    <div class="skeleton-page" aria-busy="true" aria-label="Wczytywanie danych klienta...">
+      <div class="skeleton-header">
+        <div class="skeleton-block skeleton-block--title"></div>
+        <div class="skeleton-block skeleton-block--btn"></div>
+      </div>
+      <div class="skeleton-cards">
+        @for (i of [1, 2, 3]; track i) {
+          <div class="skeleton-card">
+            <div class="skeleton-block skeleton-block--label"></div>
+            <div class="skeleton-block skeleton-block--value"></div>
+            <div class="skeleton-block skeleton-block--value skeleton-block--short"></div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Not found ─────────────────────────────────────────────────────── -->
+  @if (loadState() === 'not-found') {
+    <div class="error-state" role="alert">
+      <svg class="error-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+      </svg>
+      <h2 class="error-state__title">Klient nie istnieje</h2>
+      <p class="error-state__message">Nie znaleziono klienta o podanym identyfikatorze.</p>
+      <button class="btn btn-primary" type="button" (click)="goBack()">
+        Wróć do listy klientów
+      </button>
+    </div>
+  }
+
+  <!-- ── Error ─────────────────────────────────────────────────────────── -->
+  @if (loadState() === 'error') {
+    <div class="error-state" role="alert">
+      <svg class="error-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+      </svg>
+      <h2 class="error-state__title">Błąd ładowania</h2>
+      <p class="error-state__message">Nie udało się pobrać danych klienta. Spróbuj ponownie.</p>
+      <button class="btn btn-primary" type="button" (click)="goBack()">
+        Wróć do listy klientów
+      </button>
+    </div>
+  }
+
+  <!-- ── Loaded content ────────────────────────────────────────────────── -->
+  @if (loadState() === 'loaded' && customer(); as c) {
+
+    <!-- Header -->
+    <header class="detail-header">
+      <div class="detail-header__left">
+        <button
+          class="btn btn-back"
+          type="button"
+          (click)="goBack()"
+          aria-label="Wróć do listy klientów"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
+          Wróć
+        </button>
+        <div class="detail-header__title-block">
+          <h1 class="detail-header__name">{{ customerName() }}</h1>
+          <span class="detail-header__since">
+            Klient od {{ c.createdAt | date: 'dd.MM.yyyy' }}
+          </span>
+        </div>
+      </div>
+      <div class="detail-header__actions">
+        <button
+          class="btn btn-primary"
+          type="button"
+          (click)="goToEdit()"
+          aria-label="Edytuj dane klienta {{ customerName() }}"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="btn__icon">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+          </svg>
+          Edytuj
+        </button>
+      </div>
+    </header>
+
+    <!-- Cards grid -->
+    <div class="detail-grid">
+
+      <!-- Card: Contact data -->
+      <section class="detail-card" aria-labelledby="section-contact">
+        <h2 id="section-contact" class="detail-card__title">Dane kontaktowe</h2>
+
+        <dl class="detail-dl">
+          <div class="detail-dl__row">
+            <dt class="detail-dl__term">Numery telefonów</dt>
+            <dd class="detail-dl__desc">
+              @if (c.phone.length > 0) {
+                <ul class="value-list" aria-label="Numery telefonów">
+                  @for (phone of c.phone; track phone) {
+                    <li>{{ phone }}</li>
+                  }
+                </ul>
+              } @else {
+                <span class="value-empty">Brak</span>
+              }
+            </dd>
+          </div>
+
+          <div class="detail-dl__row">
+            <dt class="detail-dl__term">Adresy e-mail</dt>
+            <dd class="detail-dl__desc">
+              @if (c.email.length > 0) {
+                <ul class="value-list" aria-label="Adresy email">
+                  @for (email of c.email; track email) {
+                    <li>{{ email }}</li>
+                  }
+                </ul>
+              } @else {
+                <span class="value-empty">Brak</span>
+              }
+            </dd>
+          </div>
+
+          <div class="detail-dl__row">
+            <dt class="detail-dl__term">Źródło</dt>
+            <dd class="detail-dl__desc">{{ c.source }}</dd>
+          </div>
+
+          @if (c.updatedAt) {
+            <div class="detail-dl__row">
+              <dt class="detail-dl__term">Ostatnia aktualizacja</dt>
+              <dd class="detail-dl__desc">{{ c.updatedAt | date: 'dd.MM.yyyy HH:mm' }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+
+      <!-- Card: GDPR -->
+      <section class="detail-card" aria-labelledby="section-gdpr">
+        <h2 id="section-gdpr" class="detail-card__title">Zgoda RODO</h2>
+
+        <dl class="detail-dl">
+          <div class="detail-dl__row">
+            <dt class="detail-dl__term">Zgoda na przetwarzanie</dt>
+            <dd class="detail-dl__desc">
+              @if (c.gdprConsent.consent_given) {
+                <span class="badge badge--success" role="img" aria-label="Zgoda udzielona">Tak</span>
+              } @else {
+                <span class="badge badge--danger" role="img" aria-label="Zgoda nieudzielona">Nie</span>
+              }
+            </dd>
+          </div>
+
+          @if (c.gdprConsent.consent_date) {
+            <div class="detail-dl__row">
+              <dt class="detail-dl__term">Data zgody</dt>
+              <dd class="detail-dl__desc">{{ c.gdprConsent.consent_date | date: 'dd.MM.yyyy' }}</dd>
+            </div>
+          }
+
+          @if (c.gdprConsent.consent_source) {
+            <div class="detail-dl__row">
+              <dt class="detail-dl__term">Źródło zgody</dt>
+              <dd class="detail-dl__desc">{{ c.gdprConsent.consent_source }}</dd>
+            </div>
+          }
+
+          <div class="detail-dl__row">
+            <dt class="detail-dl__term">Zgoda marketingowa</dt>
+            <dd class="detail-dl__desc">
+              @if (c.gdprConsent.marketing_consent) {
+                <span class="badge badge--success" role="img" aria-label="Zgoda marketingowa udzielona">Tak</span>
+              } @else {
+                <span class="badge badge--neutral" role="img" aria-label="Brak zgody marketingowej">Nie</span>
+              }
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <!-- Card: Custom fields -->
+      @if (hasCustomFields()) {
+        <section class="detail-card detail-card--wide" aria-labelledby="section-custom">
+          <h2 id="section-custom" class="detail-card__title">Dodatkowe pola</h2>
+          <dl class="detail-dl">
+            @for (entry of c.customFields | keyvalue; track entry.key) {
+              <div class="detail-dl__row">
+                <dt class="detail-dl__term">{{ entry.key }}</dt>
+                <dd class="detail-dl__desc">{{ entry.value }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+      }
+
+    </div>
+
+    <!-- ── Contact history ─────────────────────────────────────────────── -->
+    <section class="contacts-section" aria-labelledby="section-history">
+      <h2 id="section-history" class="contacts-section__title">Historia kontaktów</h2>
+
+      <!-- Contacts loading skeleton -->
+      @if (contactsLoadState() === 'loading') {
+        <div class="skeleton-table" aria-busy="true" aria-label="Wczytywanie historii kontaktów...">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="skeleton-row">
+              <div class="skeleton-block skeleton-block--medium"></div>
+              <div class="skeleton-block skeleton-block--short"></div>
+              <div class="skeleton-block skeleton-block--short"></div>
+              <div class="skeleton-block skeleton-block--short"></div>
+              <div class="skeleton-block skeleton-block--medium"></div>
+              <div class="skeleton-block skeleton-block--wide"></div>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Contacts error state -->
+      @if (contactsLoadState() === 'error') {
+        <div class="empty-state" role="alert">
+          <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+          </svg>
+          <p class="empty-state__message">Błąd ładowania historii kontaktów</p>
+          <p class="empty-state__hint">Nie udało się pobrać historii kontaktów. Sprawdź połączenie i spróbuj ponownie.</p>
+          <button class="btn btn-primary" type="button" (click)="loadContacts()">
+            Spróbuj ponownie
+          </button>
+        </div>
+      }
+
+      <!-- Contacts table -->
+      @if (contactsLoadState() === 'loaded') {
+        @if (contacts().length > 0) {
+          <div class="table-wrapper" role="region" aria-label="Historia kontaktów">
+            <table class="contacts-table">
+              <thead>
+                <tr>
+                  <th scope="col">Data</th>
+                  <th scope="col">Czas trwania</th>
+                  <th scope="col">Kanał</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Dyspozycja</th>
+                  <th scope="col">Notatka</th>
+                  <th scope="col">Agent ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (contact of contacts(); track contact.id; let i = $index) {
+                  <tr [class.contacts-table__row--even]="i % 2 === 0">
+                    <td>{{ contact.startedAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+                    <td class="text-secondary">{{ formatDuration(contact.startedAt, contact.endedAt) }}</td>
+                    <td>
+                      <span [class]="'channel-badge channel-badge--' + contact.channel.toLowerCase()">
+                        {{ getChannelLabel(contact.channel) }}
+                      </span>
+                    </td>
+                    <td>
+                      <span [class]="'status-badge status-badge--' + contact.status.toLowerCase()">
+                        {{ getStatusLabel(contact.status) }}
+                      </span>
+                    </td>
+                    <td class="text-secondary">{{ contact.dispositionCode ?? '—' }}</td>
+                    <td class="contacts-table__notes" [title]="contact.notes ?? ''">
+                      {{ contact.notes ?? '—' }}
+                    </td>
+                    <td class="text-secondary text-mono">{{ contact.agentId }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          @if (contactsTotalPages() > 1) {
+            <nav class="pagination" aria-label="Nawigacja po historii kontaktów">
+              <span class="pagination__info" aria-live="polite">
+                Wyświetlanie {{ contactsFirstIndex() }}&ndash;{{ contactsLastIndex() }} z {{ contactsTotalElements() }}
+              </span>
+              <div class="pagination__controls">
+                <button
+                  class="btn btn-pagination"
+                  type="button"
+                  (click)="onContactsPrevPage()"
+                  [disabled]="contactsCurrentPage() === 0"
+                  aria-label="Poprzednia strona historii"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+                  </svg>
+                  Poprzednia
+                </button>
+                <span class="pagination__pages" aria-current="page">
+                  Strona {{ contactsCurrentPage() + 1 }} z {{ contactsTotalPages() }}
+                </span>
+                <button
+                  class="btn btn-pagination"
+                  type="button"
+                  (click)="onContactsNextPage()"
+                  [disabled]="contactsCurrentPage() + 1 >= contactsTotalPages()"
+                  aria-label="Następna strona historii"
+                >
+                  Następna
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                  </svg>
+                </button>
+              </div>
+            </nav>
+          }
+        } @else {
+          <!-- Empty state -->
+          <div class="empty-state" role="status" aria-live="polite">
+            <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+            </svg>
+            <p class="empty-state__message">Brak historii kontaktów</p>
+            <p class="empty-state__hint">Ten klient nie miał jeszcze żadnego kontaktu z centrum.</p>
+          </div>
+        }
+      }
+    </section>
+
+  }
+
+</div>

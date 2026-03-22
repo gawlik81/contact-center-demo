@@ -1,5 +1,7 @@
 package com.contactcenter.domain.service;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.List;
@@ -20,6 +22,7 @@ import java.util.UUID;
  * @param phoneNumber   numer telefonu użyty w lookupie (klucz wyszukiwania)
  * @param lastContacts  ostatnie 3 kontakty klienta (posortowane od najnowszego)
  */
+@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, property = "@class")
 public record CustomerCliResult(
         UUID customerId,
         String firstName,
@@ -36,6 +39,7 @@ public record CustomerCliResult(
      * @param status    status: QUEUED, ACTIVE, COMPLETED, ABANDONED, itp.
      * @param startedAt czas rozpoczęcia kontaktu
      */
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, property = "@class")
     public record ContactSummary(
             UUID contactId,
             String channel,

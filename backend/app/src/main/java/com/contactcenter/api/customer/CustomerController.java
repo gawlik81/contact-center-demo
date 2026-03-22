@@ -1,6 +1,7 @@
 package com.contactcenter.api.customer;
 
 import com.contactcenter.api.customer.dto.CreateCustomerRequest;
+import com.contactcenter.api.customer.dto.CustomerLookupResponse;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
 import com.contactcenter.domain.service.CustomerService;
@@ -150,7 +151,7 @@ public class CustomerController {
             @ApiResponse(responseCode = "404", description = "Klient z tym numerem nie istnieje")
         }
     )
-    public ResponseEntity<CustomerResponse> lookupByPhone(
+    public ResponseEntity<CustomerLookupResponse> lookupByPhone(
             @Parameter(description = "Numer telefonu klienta (format E.164 np. +48501111001)", required = true)
             @RequestParam String phone
     ) {

@@ -17,6 +17,7 @@ import { AgentStatusService } from '../../services/agent-status.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SoftphoneService } from '../../services/softphone.service';
+import { CustomerLookupService } from '../../services/customer-lookup.service';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
@@ -54,6 +55,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly softphoneService = inject(SoftphoneService);
+  private readonly lookupService = inject(CustomerLookupService);
 
   protected readonly statusConfig = AGENT_STATUS_CONFIG;
   protected readonly allStatuses = ALL_AGENT_STATUSES;
@@ -119,6 +121,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
       )
       .subscribe((e) => {
         const payload = e.payload as CallIncomingPayload;
+        this.lookupService.evict(payload.customerPhone);
         const reason = this.tabStore.openFromCallIncoming(payload);
         if (reason !== null) {
           this.showLimitMessage(reason);

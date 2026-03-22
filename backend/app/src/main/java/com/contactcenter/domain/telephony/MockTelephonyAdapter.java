@@ -1,7 +1,10 @@
 package com.contactcenter.domain.telephony;
 
 import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.service.CliLookupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -50,6 +53,8 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
 
     private final TelephonyEventPublisher eventPublisher;
     private final ContactRepository contactRepository;
+    private final CustomerRepository customerRepository;
+    private final CliLookupService cliLookupService;
 
     // =========================================================================
     // TelephonyAdapter implementation
@@ -432,6 +437,9 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
         try {
             UUID contactId = UUID.randomUUID();
 
+            // Lookup klienta po numerze telefonu – powiązanie kontaktu z profilem klienta
+            UUID customerId = resolveCustomerId(from, tenantId);
+
             HashMap<String, Object> metadata = new HashMap<>();
             metadata.put("sip_call_id", callId);
             metadata.put("mock", true);
@@ -440,6 +448,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     .contactId(contactId)
                     .tenantId(tenantId)
                     .agentId(agentId)
+                    .customerId(customerId)
                     .channel("PHONE")
                     .direction("INBOUND")
                     .status("QUEUED")
@@ -452,8 +461,16 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
 
             contactRepository.insert(contact);
 
-            log.debug("[MockTelephony] Rekord contact utworzony: contactId={}, callId={}, tenant={}",
-                    contactId, callId, tenantId);
+            log.debug("[MockTelephony] Rekord contact utworzony: contactId={}, customerId={}, callId={}, tenant={}",
+                    contactId, customerId, callId, tenantId);
+
+            // Inwalidacja cache CLI lookup – nowy kontakt musi być widoczny przy następnym lookup
+            try {
+                cliLookupService.invalidateCacheForPhone(from);
+            } catch (Exception cacheEx) {
+                log.warn("[MockTelephony] Błąd inwalidacji cache CLI dla from={}: {}",
+                        from, cacheEx.getMessage());
+            }
 
             return contactId;
 
@@ -461,6 +478,40 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
             log.error("[MockTelephony] Błąd tworzenia rekordu contact dla callId={}: {}. " +
                       "Frontend otrzyma callId zamiast UUID – setDisposition zwróci 422.",
                     callId, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Wyszukuje UUID klienta na podstawie numeru telefonu dzwoniącego.
+     *
+     * <p>Używany w {@link #persistMockContact} do powiązania nowego rekordu contact
+     * z profilem klienta – bez tego kontakty mock nie pojawiają się w historii klienta.
+     *
+     * <p>Defensywny: w razie błędu (np. brak TenantContext przy lookup, timeout DB)
+     * zwraca {@code null} zamiast rzucać wyjątek – połączenie nie może zostać zablokowane
+     * przez nieudane wyszukanie klienta.
+     *
+     * @param phoneNumber numer dzwoniącego (CLI)
+     * @param tenantId    UUID tenanta
+     * @return UUID klienta lub null gdy nie znaleziono / błąd lookup
+     */
+    private UUID resolveCustomerId(String phoneNumber, UUID tenantId) {
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            log.debug("[MockTelephony] Pominięto lookup klienta – pusty numer telefonu");
+            return null;
+        }
+        try {
+            return customerRepository.findByPhoneNumber(phoneNumber, tenantId)
+                    .map(Customer::getCustomerId)
+                    .orElseGet(() -> {
+                        log.debug("[MockTelephony] Klient nie znaleziony dla phone={}, tenant={} – customerId=null",
+                                phoneNumber, tenantId);
+                        return null;
+                    });
+        } catch (Exception e) {
+            log.debug("[MockTelephony] Błąd lookup klienta dla phone={}, tenant={}: {} – kontynuuję bez customerId",
+                    phoneNumber, tenantId, e.getMessage());
             return null;
         }
     }

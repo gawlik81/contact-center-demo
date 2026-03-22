@@ -353,6 +353,7 @@ public class CustomerRepository extends TenantAwareRepository {
                         FROM contact
                         WHERE tenant_id = CAST(:tenantId AS uuid)
                           AND customer_id = CAST(:customerId AS uuid)
+                          AND status NOT IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
                         ORDER BY started_at DESC
                         LIMIT :limit
                         """)

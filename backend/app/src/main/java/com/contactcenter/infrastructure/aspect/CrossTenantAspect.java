@@ -9,6 +9,7 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import java.util.UUID;
 
@@ -109,9 +110,13 @@ public class CrossTenantAspect {
     /**
      * Weryfikuje, że TenantContext jest ustawiony przed wywołaniem metod serwisowych.
      *
-     * <p>Gdy TenantContext nie jest ustawiony dla chronionego endpointu, to błąd
-     * konfiguracji filtrów (TenantFilter powinien był zablokować żądanie wcześniej).
-     * Loguje ERROR i pozwala propagować ISE.
+     * <p>Sprawdzenie jest aktywne <strong>tylko dla żądań HTTP</strong> – wątki
+     * asynchroniczne (RabbitMQ listenery, {@code @Scheduled}, {@code @Async}) działają
+     * poza HTTP pipeline i celowo nie mają TenantContext. Obecność aktywnego
+     * {@code RequestAttributes} jest wyznacznikiem wątku HTTP.
+     *
+     * <p>Gdy TenantContext nie jest ustawiony dla żądania HTTP, to błąd konfiguracji
+     * filtrów (TenantFilter powinien był zablokować żądanie wcześniej). Loguje ERROR.
      *
      * @param joinPoint punkt złączenia
      */
@@ -121,14 +126,27 @@ public class CrossTenantAspect {
             String className  = joinPoint.getTarget().getClass().getSimpleName();
             String methodName = joinPoint.getSignature().getName();
 
-            // To jest błąd konfiguracji – powinno nigdy nie wystąpić gdy TenantFilter jest poprawny
-            log.error("[CrossTenant][Config] TenantContext NIE JEST ustawiony dla metody {}.{}. " +
-                    "Sprawdź czy TenantFilter jest poprawnie zarejestrowany w SecurityConfig.",
-                    className, methodName);
+            // Sprawdź czy wywołanie pochodzi z wątku HTTP czy asynchronicznego.
+            // RequestContextHolder ma aktywne atrybuty tylko dla żądań HTTP.
+            boolean isHttpRequestThread = RequestContextHolder.getRequestAttributes() != null;
 
-            // Nie rzucamy wyjątku tutaj – pozwalamy na propagację ISE z TenantContext.getTenantId()
-            // gdy metoda domeny spróbuje go użyć. Dzięki temu nie zakłócamy flow publicznych endpointów
-            // obsługiwanych przez metody serwisowe (np. webhook validation).
+            if (isHttpRequestThread) {
+                // Brak TenantContext w wątku HTTP = błąd konfiguracji (TenantFilter pominięty)
+                log.error("[CrossTenant][Config] TenantContext NIE JEST ustawiony dla metody {}.{} " +
+                        "w wątku HTTP. Sprawdź czy TenantFilter jest poprawnie zarejestrowany " +
+                        "w SecurityConfig.",
+                        className, methodName);
+            } else {
+                // Wątek async (RabbitMQ, @Scheduled) – brak TenantContext jest oczekiwany.
+                // Serwisy domenowe wywołane z tych wątków powinny przyjmować tenantId jako
+                // jawny parametr (setTenantContextInDb(uuid) zamiast setTenantContextInDb()).
+                log.trace("[CrossTenant][Async] TenantContext nie ustawiony w wątku async dla {}.{} " +
+                        "(oczekiwane – wątek: {})",
+                        className, methodName, Thread.currentThread().getName());
+            }
+
+            // Nie rzucamy wyjątku – pozwalamy na propagację ISE z TenantContext.getTenantId()
+            // gdy metoda domeny spróbuje go użyć bez jawnego parametru tenantId.
         }
     }
 }

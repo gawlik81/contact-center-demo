@@ -116,7 +116,11 @@
       "Bash(find E:ClaudAIcontact-center-demofrontend -name vitest.config*)",
       "Bash(mvn dependency:tree -pl app)",
       "Bash(mvn dependency:get -Dartifact=org.springframework.data:spring-data-redis:3.3.5:jar --no-transfer-progress)",
-      "Bash(javap:*)"
+      "Bash(javap:*)",
+      "Bash(python -c \"import sys,json; print\\(json.dumps\\(json.load\\(sys.stdin\\), indent=2\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''accessToken'''',''''FAIL:''''+str\\(d\\)[:200]\\)\\)\")",
+      "Bash(pkill -f \"spring-boot:run\")",
+      "Bash(pkill -f \"contact-center\")"
     ]
   }
 }

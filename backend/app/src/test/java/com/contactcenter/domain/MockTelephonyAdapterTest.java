@@ -2,6 +2,8 @@ package com.contactcenter.domain;
 
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.service.CliLookupService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.MockTelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -49,13 +51,22 @@ class MockTelephonyAdapterTest {
     @Mock
     private ContactRepository contactRepository;
 
+    @Mock
+    private CustomerRepository customerRepository;
+
+    @Mock
+    private CliLookupService cliLookupService;
+
     private MockTelephonyAdapter adapter;
 
     @BeforeEach
     void setUp() {
         // ContactRepository.insert() zwraca przekazany Contact – symuluje persystencję
         when(contactRepository.insert(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        adapter = new MockTelephonyAdapter(eventPublisher, contactRepository);
+        // CustomerRepository.findByPhoneNumber() domyślnie zwraca empty – klient nieznany
+        when(customerRepository.findByPhoneNumber(anyString(), any(UUID.class)))
+                .thenReturn(java.util.Optional.empty());
+        adapter = new MockTelephonyAdapter(eventPublisher, contactRepository, customerRepository, cliLookupService);
     }
 
     // =========================================================================

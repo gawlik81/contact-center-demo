@@ -2,6 +2,7 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.customer.dto.CreateCustomerRequest;
+import com.contactcenter.api.customer.dto.CustomerLookupResponse;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
 import com.contactcenter.domain.model.Customer;
@@ -16,6 +17,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -274,10 +276,48 @@ public class CustomerService {
      * @return Optional z DTO klienta lub empty gdy nie znaleziono
      */
     @Transactional(readOnly = true)
-    public Optional<CustomerResponse> lookupByPhone(String phone, UUID tenantId) {
+    public Optional<CustomerLookupResponse> lookupByPhone(String phone, UUID tenantId) {
         log.debug("[CustomerService] Lookup po numerze telefonu: phone={}, tenant={}", phone, tenantId);
         return customerRepository.findByPhoneNumber(phone, tenantId)
-                .map(CustomerResponse::from);
+                .map(customer -> {
+                    List<CustomerLookupResponse.ContactSummaryDto> contacts =
+                            fetchRecentContactsForLookup(customer.getCustomerId(), tenantId);
+                    return new CustomerLookupResponse(
+                            customer.getCustomerId(),
+                            customer.getFirstName(),
+                            customer.getLastName(),
+                            customer.getPhone() != null ? customer.getPhone() : List.of(),
+                            customer.getEmail() != null ? customer.getEmail() : List.of(),
+                            contacts
+                    );
+                });
+    }
+
+    private List<CustomerLookupResponse.ContactSummaryDto> fetchRecentContactsForLookup(
+            UUID customerId, UUID tenantId) {
+        try {
+            List<Object[]> rows = customerRepository.findLastContactsForCustomer(customerId, tenantId, 5);
+            List<CustomerLookupResponse.ContactSummaryDto> result = new ArrayList<>(rows.size());
+            for (Object[] row : rows) {
+                UUID contactId = row[0] instanceof UUID u ? u : (row[0] != null ? UUID.fromString(row[0].toString()) : null);
+                String channel = row[1] != null ? row[1].toString() : null;
+                String status = row[2] != null ? row[2].toString() : null;
+                String date = null;
+                if (row[3] instanceof java.sql.Timestamp ts) {
+                    date = ts.toInstant().toString();
+                } else if (row[3] instanceof Instant inst) {
+                    date = inst.toString();
+                } else if (row[3] instanceof java.time.OffsetDateTime odt) {
+                    date = odt.toInstant().toString();
+                }
+                result.add(new CustomerLookupResponse.ContactSummaryDto(contactId, channel, status, date, null));
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("[CustomerService] Błąd pobierania ostatnich kontaktów dla customerId={}: {}",
+                    customerId, e.getMessage());
+            return List.of();
+        }
     }
 
     // =========================================================================

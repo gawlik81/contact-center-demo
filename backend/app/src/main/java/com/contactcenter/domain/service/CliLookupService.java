@@ -121,6 +121,27 @@ public class CliLookupService {
                 invalidated, customer.getCustomerId());
     }
 
+    /**
+     * Inwaliduje wpis cache dla pojedynczego numeru telefonu.
+     *
+     * <p>Wywoływać po każdej operacji, która tworzy lub modyfikuje kontakt powiązany
+     * z danym numerem – np. po stworzeniu nowego rekordu contact w {@code MockTelephonyAdapter}.
+     * Gwarantuje, że następne CLI lookup odświeży listę ostatnich kontaktów z DB.
+     *
+     * <p>Defensywny: błąd Redis jest logowany i nie propaguje się.
+     *
+     * @param phoneNumber numer telefonu (format E.164); null lub pusty jest ignorowany
+     */
+    public void invalidateCacheForPhone(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.isBlank()) return;
+        try {
+            Boolean deleted = redisTemplate.delete(buildCacheKey(phoneNumber));
+            log.debug("[CliLookup] Inwalidowano cache dla phone={}, deleted={}", phoneNumber, deleted);
+        } catch (Exception e) {
+            log.warn("[CliLookup] Błąd inwalidacji cache dla phone={}: {}", phoneNumber, e.getMessage());
+        }
+    }
+
     // =========================================================================
     // Prywatne metody pomocnicze
     // =========================================================================

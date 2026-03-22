@@ -2,6 +2,8 @@ package com.contactcenter.domain.websocket;
 
 import com.contactcenter.domain.service.CustomerCliResult;
 import com.contactcenter.domain.telephony.CallEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,6 +36,8 @@ public record WebSocketEvent(
         Object payload,
         Instant timestamp
 ) {
+
+    private static final Logger log = LoggerFactory.getLogger(WebSocketEvent.class);
 
     // =========================================================================
     // Stałe typów eventów
@@ -204,11 +208,18 @@ public record WebSocketEvent(
 
             // Gdy dostępny contactId z DB – użyj go jako identyfikatora kontaktu,
             // żeby frontend mógł wywoływać REST API (np. PATCH /api/contacts/{contactId}/disposition).
-            // Fallback na callId dla kompatybilności z prawdziwymi providerami VoIP (webhook handler
-            // powinien też ustawiać contactId po stworzeniu rekordu w DB).
-            String contactId = callEvent.getContactId() != null
-                    ? callEvent.getContactId().toString()
-                    : callEvent.getCallId();
+            // Fallback na callId gdy persistMockContact() zawiodło – powoduje 422 przy setDisposition.
+            // Logujemy ERROR żeby ułatwić diagnozę (np. brak rekordu contact w DB).
+            String contactId;
+            if (callEvent.getContactId() != null) {
+                contactId = callEvent.getContactId().toString();
+            } else {
+                contactId = callEvent.getCallId();
+                log.error("[WS][CallIncoming] contactId IS NULL dla callId={}. " +
+                        "persistMockContact() zawiodło – frontend otrzyma callId zamiast UUID. " +
+                        "PATCH /api/contacts/{}/disposition zwróci 422. Sprawdź logi MockTelephonyAdapter.",
+                        callEvent.getCallId(), callEvent.getCallId());
+            }
 
             return new CallIncomingPayload(
                     contactId,

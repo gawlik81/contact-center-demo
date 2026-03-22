@@ -198,13 +198,16 @@ public class MockCallController {
     }
 
     private Map<String, Object> sessionToMap(CallSession session, String message) {
-        return Map.of(
-                "callId", session.getCallId(),
-                "tenantId", session.getTenantId().toString(),
-                "from", session.getFrom() != null ? session.getFrom() : "",
-                "to", session.getTo() != null ? session.getTo() : "",
-                "status", session.getStatus().name(),
-                "message", message
-        );
+        // contactId (UUID z DB) jest kluczowy dla frontendu – umożliwia PATCH /api/contacts/{contactId}/...
+        // Gdy null – persistMockContact() zawiodło i frontend użyje callId jako fallbacku (422 przy disposition).
+        java.util.LinkedHashMap<String, Object> map = new java.util.LinkedHashMap<>();
+        map.put("callId", session.getCallId());
+        map.put("contactId", session.getContactId() != null ? session.getContactId().toString() : null);
+        map.put("tenantId", session.getTenantId().toString());
+        map.put("from", session.getFrom() != null ? session.getFrom() : "");
+        map.put("to", session.getTo() != null ? session.getTo() : "");
+        map.put("status", session.getStatus().name());
+        map.put("message", message);
+        return map;
     }
 }

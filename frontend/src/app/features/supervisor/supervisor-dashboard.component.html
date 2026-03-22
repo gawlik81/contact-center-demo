@@ -1,0 +1,196 @@
+<!-- WS disconnection banner -->
+@if (wsService.connectionState() !== 'CONNECTED') {
+  <div class="ws-banner" role="alert" aria-live="assertive">
+    <span class="ws-banner__icon" aria-hidden="true">⚠</span>
+    Utracono połączenie z serwerem – dane mogą być nieaktualne.
+  </div>
+}
+
+<!-- Dashboard header -->
+<div class="dashboard-header">
+  <h1>Dashboard RT Supervisora</h1>
+  <button
+    type="button"
+    class="btn-fullscreen"
+    (click)="toggleFullscreen()"
+    aria-label="Tryb pełnoekranowy"
+  >
+    <span class="btn-fullscreen__icon" aria-hidden="true">⛶</span>
+    Pełny ekran
+  </button>
+</div>
+
+<!-- ── SKELETON (metrics not yet loaded) ─────────────────────── -->
+@if (metrics() === null) {
+  <div class="kpi-skeleton-grid" aria-busy="true" aria-label="Ładowanie metryk">
+    @for (_ of [1, 2, 3, 4, 5]; track $index) {
+      <div class="kpi-skeleton-card">
+        <div class="skeleton skeleton-label"></div>
+        <div class="skeleton skeleton-value"></div>
+      </div>
+    }
+  </div>
+
+  <div class="skeleton-section">
+    <div class="skeleton skeleton-title"></div>
+    @for (_ of [1, 2, 3, 4]; track $index) {
+      <div class="skeleton skeleton-row"></div>
+    }
+  </div>
+
+  <div class="skeleton-section">
+    <div class="skeleton skeleton-title"></div>
+    @for (_ of [1, 2, 3]; track $index) {
+      <div class="skeleton skeleton-row"></div>
+    }
+  </div>
+}
+
+<!-- ── LIVE DATA ──────────────────────────────────────────────── -->
+@if (metrics() !== null) {
+  <!-- KPI cards -->
+  <div
+    class="kpi-grid"
+    role="region"
+    aria-label="Wskaźniki KPI"
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    <div class="kpi-card kpi-calls" role="status">
+      <span class="kpi-label">Aktywne połączenia</span>
+      <span class="kpi-value" aria-label="Aktywne połączenia: {{ activeCalls() }}">
+        {{ activeCalls() }}
+      </span>
+    </div>
+
+    <div class="kpi-card kpi-avail" role="status">
+      <span class="kpi-label">Dostępni agenci</span>
+      <span class="kpi-value" aria-label="Dostępni agenci: {{ availableCount() }}">
+        {{ availableCount() }}
+      </span>
+    </div>
+
+    <div class="kpi-card kpi-break" role="status">
+      <span class="kpi-label">Na przerwie</span>
+      <span class="kpi-value" aria-label="Na przerwie: {{ breakCount() }}">
+        {{ breakCount() }}
+      </span>
+    </div>
+
+    <div class="kpi-card kpi-acw" role="status">
+      <span class="kpi-label">Po kontakcie</span>
+      <span class="kpi-value" aria-label="Po kontakcie: {{ acwCount() }}">
+        {{ acwCount() }}
+      </span>
+    </div>
+
+    <div class="kpi-card kpi-wait" role="status">
+      <span class="kpi-label">Śr. czas oczekiwania</span>
+      <span
+        class="kpi-value"
+        aria-label="Średni czas oczekiwania: {{ secondsToTime(avgWaitTime()) }}"
+      >
+        {{ secondsToTime(avgWaitTime()) }}
+      </span>
+    </div>
+  </div>
+
+  <!-- ── Agents table ───────────────────────────────────────── -->
+  <section class="section" aria-label="Tabela agentów" aria-live="polite">
+    <div class="section-header">
+      <h2>Agenci ({{ agents().length }})</h2>
+    </div>
+
+    <div class="agents-table-wrapper">
+      <table class="agents-table" aria-label="Lista agentów i ich statusy">
+        <thead>
+          <tr>
+            <th scope="col">Imię i nazwisko</th>
+            <th scope="col">Status</th>
+            <th scope="col">Aktualny kontakt</th>
+            <th scope="col">Czas przerwy</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (agent of agents(); track agent.id) {
+            <tr [class.break-alert]="isBreakAlert(agent)">
+              <td>{{ agent.name }}</td>
+              <td>
+                <span
+                  class="status-badge"
+                  [class]="'status-badge badge-' + agent.status"
+                  [attr.aria-label]="'Status: ' + statusLabel(agent.status)"
+                >
+                  {{ statusLabel(agent.status) }}
+                </span>
+              </td>
+              <td>
+                @if (agent.currentContact) {
+                  {{ agent.currentContact }}
+                } @else {
+                  <span class="contact-dash" aria-label="brak kontaktu">–</span>
+                }
+              </td>
+              <td>
+                @if (agent.status === 'BREAK') {
+                  <span
+                    class="break-time"
+                    [class.break-time--alert]="isBreakAlert(agent)"
+                    [attr.aria-label]="'Na przerwie od ' + breakMinutes(agent) + ' minut'"
+                  >
+                    {{ breakMinutes(agent) }} min
+                  </span>
+                } @else {
+                  <span class="contact-dash" aria-label="nie dotyczy">–</span>
+                }
+              </td>
+            </tr>
+          }
+          @empty {
+            <tr>
+              <td colspan="4" style="text-align:center; color:#9e9e9e; padding:24px">
+                Brak danych o agentach
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Queue chart ────────────────────────────────────────── -->
+  <section class="section" aria-label="Kolejki" aria-live="polite">
+    <div class="section-header">
+      <h2>Kolejki</h2>
+    </div>
+
+    @if (queues().length === 0) {
+      <p class="queues-empty">Brak danych o kolejkach.</p>
+    } @else {
+      <div class="queues-list" role="list" aria-label="Oczekujące w kolejkach">
+        @for (queue of queues(); track queue.id) {
+          <div
+            class="queue-row"
+            role="listitem"
+            [attr.aria-label]="queue.name + ': ' + queue.waiting + ' oczekujących, ' + queue.availableAgents + ' dostępnych agentów'"
+          >
+            <span class="queue-name">{{ queue.name }}</span>
+
+            <div class="queue-bar-track" aria-hidden="true">
+              <div
+                class="queue-bar-fill"
+                [class]="queueBarClass(queue)"
+                [style.width.%]="queueBarWidth(queue)"
+              ></div>
+            </div>
+
+            <div class="queue-stats" aria-hidden="true">
+              <span class="waiting-count">{{ queue.waiting }} czek.</span>
+              <span>{{ queue.availableAgents }} ag.</span>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </section>
+}

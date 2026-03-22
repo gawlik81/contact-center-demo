@@ -7,6 +7,7 @@ export type WsEventType =
   | 'AGENT_STATUS_CHANGED'
   | 'CONTACT_ASSIGNED'
   | 'QUEUE_UPDATE'
+  | 'SUPERVISOR_METRICS'
   | 'PONG';
 
 export interface WsEvent {

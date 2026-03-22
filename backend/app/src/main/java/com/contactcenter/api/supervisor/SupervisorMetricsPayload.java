@@ -2,6 +2,7 @@ package com.contactcenter.api.supervisor;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,16 +30,18 @@ public record SupervisorMetricsPayload(
     /**
      * Metryki pojedynczego agenta.
      *
-     * @param id             UUID agenta
-     * @param name           imię i nazwisko agenta
-     * @param status         aktualny status (AVAILABLE, BUSY, BREAK, AFTER_CONTACT, OFFLINE, ACTIVE, INACTIVE)
-     * @param currentContact UUID aktualnie obsługiwanego kontaktu (null gdy brak)
+     * @param id               UUID agenta
+     * @param name             imię i nazwisko agenta
+     * @param status           aktualny status (AVAILABLE, BUSY, BREAK, AFTER_CONTACT, OFFLINE, ACTIVE, INACTIVE)
+     * @param currentContact   UUID aktualnie obsługiwanego kontaktu (null gdy brak)
+     * @param breakStartedAt   moment wejścia w status BREAK (null gdy agent nie jest na przerwie)
      */
     public record AgentMetric(
             UUID id,
             String name,
             String status,
-            @JsonProperty("current_contact") UUID currentContact
+            @JsonProperty("current_contact") UUID currentContact,
+            @JsonProperty("break_started_at") Instant breakStartedAt
     ) {}
 
     /**

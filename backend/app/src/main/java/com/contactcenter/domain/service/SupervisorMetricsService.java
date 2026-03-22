@@ -192,6 +192,8 @@ public class SupervisorMetricsService {
             String status = agent.getStatus() != null ? agent.getStatus().name() : "OFFLINE";
             UUID currentContact = null;
 
+            Instant breakStartedAt = null;
+
             Map<String, String> session = agentSessions.get(redisKey);
             if (session != null) {
                 // Weryfikacja cross-tenant: sesja musi należeć do tego samego tenanta
@@ -209,11 +211,21 @@ public class SupervisorMetricsService {
                             log.trace("[SupervisorMetrics] Nieprawidłowy contactId w sesji Redis: {}", contactIdStr);
                         }
                     }
+                    if ("BREAK".equals(status)) {
+                        String breakTs = session.get("breakStartedAt");
+                        if (breakTs != null && !breakTs.isBlank()) {
+                            try {
+                                breakStartedAt = Instant.parse(breakTs);
+                            } catch (Exception e) {
+                                log.trace("[SupervisorMetrics] Nieprawidłowy breakStartedAt: {}", breakTs);
+                            }
+                        }
+                    }
                 }
             }
 
             String fullName = buildFullName(agent);
-            result.add(new AgentMetric(agent.getId(), fullName, status, currentContact));
+            result.add(new AgentMetric(agent.getId(), fullName, status, currentContact, breakStartedAt));
         }
 
         return result;

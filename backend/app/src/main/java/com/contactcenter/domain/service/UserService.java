@@ -22,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -335,11 +337,25 @@ public class UserService {
         // filtrowanie po tenantId w countOnlineAgentsForTenant → zawsze zwracało 0.
         String redisKey = String.format(REDIS_AGENT_STATUS_KEY, userId);
         try {
-            Map<String, String> sessionData = Map.of(
-                    "tenantId", tenantId.toString(),
-                    "userId", userId.toString(),
-                    "status", request.status().name()
-            );
+            Map<String, String> sessionData = new HashMap<>();
+            sessionData.put("tenantId", tenantId.toString());
+            sessionData.put("userId", userId.toString());
+            sessionData.put("status", request.status().name());
+
+            if (request.status() == UserStatus.BREAK) {
+                // Tylko przy nowym wejściu na przerwę ustawiamy timestamp
+                if (oldStatus != UserStatus.BREAK) {
+                    sessionData.put("breakStartedAt", Instant.now().toString());
+                } else {
+                    // Kontynuacja BREAK – zachowaj poprzedni timestamp jeśli istnieje w Redis
+                    String existingBreakStart = getExistingBreakStartedAt(redisKey);
+                    sessionData.put("breakStartedAt",
+                            existingBreakStart != null ? existingBreakStart : Instant.now().toString());
+                }
+            } else {
+                sessionData.put("breakStartedAt", "");
+            }
+
             redisTemplate.opsForValue().set(redisKey, sessionData, REDIS_AGENT_STATUS_TTL);
             log.debug("[UserService] Status agenta zapisany w Redis: key={}, status={}, tenantId={}",
                     redisKey, request.status(), tenantId);
@@ -367,6 +383,20 @@ public class UserService {
                 .findByIdAndTenantIdAndDeletedFalse(userId, tenantId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Użytkownik nie istnieje lub nie należy do tego tenanta: " + userId));
+    }
+
+    @SuppressWarnings("unchecked")
+    private String getExistingBreakStartedAt(String redisKey) {
+        try {
+            Object val = redisTemplate.opsForValue().get(redisKey);
+            if (val instanceof Map<?, ?> m) {
+                Object ts = m.get("breakStartedAt");
+                return (ts != null && !ts.toString().isBlank()) ? ts.toString() : null;
+            }
+        } catch (Exception e) {
+            log.trace("[UserService] Błąd odczytu breakStartedAt z Redis: {}", e.getMessage());
+        }
+        return null;
     }
 
     private void publishStatusChangedEvent(UUID userId, UUID tenantId,

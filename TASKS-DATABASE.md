@@ -30,6 +30,7 @@
 **Zlozonosc:** S
 **Zależności:** brak
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-002, DB-003, DB-005, DB-009, DB-010, DB-012
 **Odniesienie PRD:** przekrojowe
 
@@ -51,6 +52,7 @@ Konfiguracja Flyway w projekcie Spring Boot (flyway-core). Plik migracji `V001__
 **Zlozonosc:** S
 **Zależności:** DB-001
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-003, DB-005, DB-006, DB-009, DB-010, DB-011, DB-012, DB-015
 **Odniesienie PRD:** US-01-01, US-01-02, US-01-03, EPIC-01
 
@@ -73,6 +75,7 @@ Migracja `V002__create_tenant.sql`. Definicja tabeli TENANT zgodna z modelem dan
 **Zlozonosc:** S
 **Zależności:** DB-002
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-004, DB-006, DB-013, DB-014, DB-015
 **Odniesienie PRD:** US-02-01, US-02-02, US-02-03, EPIC-02
 
@@ -95,6 +98,7 @@ Migracja `V003__create_user.sql`. Tabela USER z FK do TENANT. Pole `role` jako E
 **Zlozonosc:** M
 **Zależności:** DB-002, DB-003
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-018
 **Odniesienie PRD:** RODO, przekrojowe
 
@@ -119,6 +123,7 @@ Migracja `V004__create_audit_log.sql`. Tabela AUDIT_LOG partycjonowana po `creat
 **Zlozonosc:** S
 **Zależności:** DB-002
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** brak (BE-006 i dalej)
 **Odniesienie PRD:** US-01-03, EPIC-01
 
@@ -139,6 +144,7 @@ Migracja `V005__tenant_config_schema.sql`. Dodanie JSON Schema validation dla ko
 **Zlozonosc:** M
 **Zależności:** DB-002, DB-003, DB-012
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-007, DB-008, DB-013, DB-014, DB-015, DB-017
 **Odniesienie PRD:** US-03-05, US-09-02, EPIC-03, EPIC-09
 
@@ -161,6 +167,7 @@ Migracja `V006__create_contact.sql`. Tabela CONTACT partycjonowana po `started_a
 **Zlozonosc:** M
 **Zależności:** DB-006
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-017
 **Odniesienie PRD:** US-05-01, US-05-02, US-05-03, EPIC-05
 
@@ -182,6 +189,7 @@ Migracja `V007__create_email.sql`. Tabela `EMAIL_MESSAGE` (message_id, tenant_id
 **Zlozonosc:** M
 **Zależności:** DB-006
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-017
 **Odniesienie PRD:** US-06-01, US-06-02, EPIC-06
 
@@ -203,6 +211,7 @@ Migracja `V008__create_social.sql`. Tabela `SOCIAL_INTEGRATION` (integration_id,
 **Zlozonosc:** S
 **Zależności:** DB-002
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** brak
 **Odniesienie PRD:** US-04-01, EPIC-04
 
@@ -224,6 +233,7 @@ Migracja `V009__create_ivr_tree.sql`. Tabela `IVR_TREE` (ivr_id, tenant_id, name
 **Zlozonosc:** S
 **Zależności:** DB-002
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-018
 **Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
 
@@ -245,6 +255,7 @@ Migracja `V010__create_queue.sql`. Tabela `QUEUE` (queue_id, tenant_id, name, ro
 **Zlozonosc:** M
 **Zależności:** DB-002, DB-012
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-013, DB-014
 **Odniesienie PRD:** US-08-01, US-08-02, US-08-03, US-08-04, US-08-05, EPIC-08
 
@@ -267,6 +278,7 @@ Migracja `V011__create_campaign.sql`. Tabela `CAMPAIGN` (campaign_id, tenant_id,
 **Zlozonosc:** M
 **Zależności:** DB-002
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-011, DB-015, DB-017
 **Odniesienie PRD:** US-09-01, US-09-02, US-09-03, US-09-06, EPIC-09
 
@@ -291,6 +303,7 @@ Migracja `V012__create_customer.sql`. Tabela `CUSTOMER` (customer_id, tenant_id,
 **Zlozonosc:** L
 **Zależności:** DB-006, DB-003, DB-011, DB-012
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** DB-018
 **Odniesienie PRD:** US-10-02, US-10-03, EPIC-10, wymagania wydajnoscowe (< 200ms)
 
@@ -313,6 +326,7 @@ Migracja `V013__performance_indexes.sql`. Dodatkowe indeksy kompozytowe na tabel
 **Zlozonosc:** L
 **Zależności:** DB-006, DB-011, DB-003
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** brak
 **Odniesienie PRD:** US-10-06, EPIC-10
 
@@ -335,6 +349,7 @@ Definicja tabel w ClickHouse (DDL skrypty, nie Flyway – osobny katalog `dw/`):
 **Zlozonosc:** M
 **Zależności:** DB-002, DB-003, DB-006, DB-012
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** brak
 **Odniesienie PRD:** wymagania bezpieczenstwa (izolacja logiczna tenant_id)
 
@@ -356,6 +371,7 @@ Migracja `V015__row_level_security.sql`. Włączenie RLS na kluczowych tabelach:
 **Zlozonosc:** M
 **Zależności:** brak (niezalezne od PostgreSQL)
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** brak
 **Odniesienie PRD:** wymagania wydajnoscowe, bezpieczenstwo (JWT blacklista)
 
@@ -377,6 +393,7 @@ Dokumentacja i konfiguracja struktur Redis używanych przez backend. Klucze i TT
 **Zlozonosc:** M
 **Zależności:** DB-012, DB-006, DB-007, DB-008
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** brak
 **Odniesienie PRD:** US-09-06, wymagania RODO (Art. 15, Art. 17)
 
@@ -401,6 +418,7 @@ Migracja `V017__gdpr_functions.sql`. Funkcja PostgreSQL `anonymize_customer(p_cu
 **Zlozonosc:** S
 **Zależności:** DB-004, DB-010, DB-013
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** brak
 **Odniesienie PRD:** US-03-05 (retencja nagran), RODO (retencja danych)
 
@@ -422,6 +440,7 @@ Migracja `V018__pg_cron_jobs.sql`. Konfiguracja zadań pg_cron (lub tabela z def
 **Zlozonosc:** M
 **Zależności:** DB-001 do DB-017
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-14
 **Blokuje:** brak
 **Odniesienie PRD:** przekrojowe (wspomaga development)
 

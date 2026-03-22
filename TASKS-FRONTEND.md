@@ -27,6 +27,7 @@
 **Zlozonosc:** M
 **Zależności:** brak
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Czeka na BE:** brak
 **Blokuje:** FE-002, FE-003
 **Odniesienie PRD:** przekrojowe
@@ -49,6 +50,7 @@ Wygenerowanie projektu Angular (nx monorepo lub angular/cli), konfiguracja ESLin
 **Zlozonosc:** M
 **Zależności:** FE-001
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Czeka na BE:** brak
 **Blokuje:** FE-004
 **Odniesienie PRD:** przekrojowe
@@ -71,6 +73,7 @@ Definicja głównych tras aplikacji z lazy loadingiem modułów feature. Impleme
 **Zlozonosc:** M
 **Zależności:** FE-001
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Czeka na BE:** brak
 **Blokuje:** FE-004
 **Odniesienie PRD:** przekrojowe, wymagania bezpieczenstwa
@@ -116,6 +119,7 @@ Ekran logowania zrealizowany jako flow "email-first": krok 1 – użytkownik wpi
 **Zlozonosc:** L
 **Zależności:** FE-004
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-14
 **Czeka na BE:** brak
 **Blokuje:** FE-006, FE-007, FE-008, FE-009, FE-014, FE-015, FE-018, FE-021, FE-022, FE-023, FE-024
 **Odniesienie PRD:** przekrojowe (wszystkie persony)
@@ -141,6 +145,7 @@ Główny layout aplikacji: responsywny sidebar z nawigacją kontekstową zależn
 **Zlozonosc:** M
 **Zależności:** FE-005
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-14
 **Czeka na BE:** BE-006 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-01-01, US-01-02, EPIC-01

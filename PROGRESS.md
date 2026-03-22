@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-21 (BE-019, BE-020 ukończone; FE-019, FE-024 ukończone)
+**Ostatnia aktualizacja:** 2026-03-22 (BE-029 ukończone)
 
 ---
 
@@ -81,7 +81,7 @@
 | BE-026 | Import klientów z CSV (async job) | ⬜ | |
 | BE-027 | Contact API: zapis i odczyt historii kontaktów | ✅ | ContactController (6 endp.), ContactService (CRUD + uprawnienia AGENT/SUPERVISOR/ADMIN), ContactRepository (native INSERT/UPDATE, partycjonowana tabela), ContactId.java, DTOs: ContactResponse/CreateContactRequest/UpdateContactRequest/DispositionRequest/ContactFilterParams. 22 testy PASS. |
 | BE-028 | Raporty historyczne: agregacje per agent i kampania | ⬜ | |
-| BE-029 | RT Metrics API: WebSocket feed dla supervisora | ⬜ | |
+| BE-029 | RT Metrics API: WebSocket feed dla supervisora | ✅ | SupervisorMetricsPayload (rekord DTO), SupervisorMetricsService (@Scheduled fixedRate=5000, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor, eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów jednostkowych, 429 testów PASS |
 | BE-030 | ETL do data warehouse: CDC z PostgreSQL | ⬜ | |
 | BE-031 | RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17) | ⬜ | |
 
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 16/31 | 0 | 15 | 31 |
+| Backend (BE) | 17/31 | 0 | 14 | 31 |
 | Frontend (FE) | 15/24 | 0 | 9 | 24 |
-| **RAZEM** | **50/74** | **0** | **24** | **74** |
+| **RAZEM** | **51/74** | **0** | **23** | **74** |
 
 ---
 
@@ -166,7 +166,7 @@
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 16/31 (BE-001..BE-012 ✅, BE-019 ✅, BE-020 ✅, BE-025 ✅, BE-027 ✅) | FE: 15/24 (FE-001..FE-011 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-024 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 17/31 (BE-001..BE-012 ✅, BE-019 ✅, BE-020 ✅, BE-025 ✅, BE-027 ✅, BE-029 ✅) | FE: 15/24 (FE-001..FE-011 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-024 ✅)
 
 ---
 
@@ -205,7 +205,8 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-027 | Contact API: ContactController (6 endpointów: GET/POST/PATCH /api/contacts, PATCH /disposition, GET /customer/{customerId}), ContactService (CRUD + logika uprawnień AGENT vs SUPERVISOR/ADMIN), ContactRepository (native INSERT/UPDATE dla partycjonowanej tabeli, dynamiczny WHERE dla filtrów), ContactId.java, DTOs: ContactResponse/CreateContactRequest/UpdateContactRequest/DispositionRequest/ContactFilterParams. 22 testy PASS. | ✅ |
 | BE-019 | Routing Engine: RoutingEngine (interfejs), DefaultRoutingEngine (skill-based, round-robin, sticky), RoutingService, AgentSessionData, ContactQueuedMessage, ContactAssignedEvent. | ✅ |
 | BE-020 | Queue API: QueueController (5 endpointów + stats), DTOs, routing strategy enum, Redis cache TTL 5s dla stats. | ✅ |
-| BE-013..BE-031 (bez BE-019, BE-020, BE-025, BE-027) | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
+| BE-029 | RT Metrics API: SupervisorMetricsPayload (DTO), SupervisorMetricsService (@Scheduled fixedRate=5s, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów, 429 PASS. | ✅ |
+| BE-013..BE-031 (bez BE-019, BE-020, BE-025, BE-027, BE-029) | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
 

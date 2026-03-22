@@ -28,6 +28,7 @@
 **Zlozonosc:** M
 **Zależności:** DB-001
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** BE-002, BE-005, BE-009, BE-015
 **Odniesienie PRD:** przekrojowe
 
@@ -49,6 +50,7 @@ Inicjalizacja projektu Spring Boot 3.x (Maven/Gradle multi-module). Konfiguracja
 **Zlozonosc:** S
 **Zależności:** BE-001
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-21
 **Blokuje:** BE-010 (nagrywanie rozmów), BE-013 (IVR audio), BE-028 (GDPR anonymize)
 **Odniesienie PRD:** przekrojowe (środowisko deweloperskie)
 
@@ -71,6 +73,7 @@ Uzupełnienie `docker-compose.yml` o MinIO (S3-compatible object storage) wymaga
 **Zlozonosc:** M
 **Zależności:** BE-001, DB-002
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** BE-003, BE-005, BE-006, BE-008, BE-012, BE-015, BE-017, BE-020, BE-022, BE-025, BE-027
 **Odniesienie PRD:** US-01-01, wymagania bezpieczenstwa (izolacja)
 
@@ -92,6 +95,7 @@ Implementacja `TenantContext` (ThreadLocal) ładowanego z JWT claims przy każdy
 **Zlozonosc:** L
 **Zależności:** BE-001, DB-003
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-13
 **Blokuje:** BE-004, BE-012
 **Odniesienie PRD:** wymagania bezpieczenstwa (TLS, JWT, MFA, bcrypt 12)
 
@@ -161,6 +165,7 @@ Serwis `AuditLogService` zapisujący do tabeli `AUDIT_LOG` każdą operację CRU
 **Zlozonosc:** M
 **Zależności:** BE-002, DB-005
 **Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-14
 **Blokuje:** BE-007, FE-006
 **Odniesienie PRD:** US-01-01, US-01-02, US-01-03, EPIC-01
 
@@ -674,7 +679,8 @@ Endpointy raportów: `GET /api/reports/agents` (metryki: avg_handle_time, contac
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-012, BE-019
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-22
 **Blokuje:** FE-021
 **Odniesienie PRD:** US-10-01, EPIC-10
 
@@ -682,10 +688,10 @@ Endpointy raportów: `GET /api/reports/agents` (metryki: avg_handle_time, contac
 WebSocket topic `/tenant/{tenantId}/supervisor/metrics` z payloadem: {agents: [{id, name, status, current_contact}], queues: [{id, name, waiting, available_agents}], kpi: {active_calls, avg_wait_time, avg_handle_time}}. Dane agregowane co 5s z Redis (bieżący stan agentów/kolejek). Supervisor subskrybuje przy wejściu na dashboard.
 
 **Kryteria akceptacji:**
-- [ ] Metryki wysyłane co max 5s (wymóg PRD ≤ 5s odświeżanie)
-- [ ] Payload zawiera pełną listę agentów tenanta z aktualnym statusem
-- [ ] Disconnected supervisor automatycznie przestaje otrzymywać eventy
-- [ ] Dane AGENTS_ONLINE zsynchronizowane z faktycznym statusem w Redis
+- [x] Metryki wysyłane co max 5s (wymóg PRD ≤ 5s odświeżanie)
+- [x] Payload zawiera pełną listę agentów tenanta z aktualnym statusem
+- [x] Disconnected supervisor automatycznie przestaje otrzymywać eventy
+- [x] Dane AGENTS_ONLINE zsynchronizowane z faktycznym statusem w Redis
 
 ---
 

@@ -314,11 +314,11 @@ SELECT
     'Klient' || n,
     'Testowy' || n,
     CASE
-        WHEN n <= 20  THEN 'COMPLETED'::campaign_contact_status
-        WHEN n <= 30  THEN 'NO_ANSWER'::campaign_contact_status
-        WHEN n <= 35  THEN 'CONNECTED'::campaign_contact_status
-        WHEN n <= 40  THEN 'FAILED'::campaign_contact_status
-        ELSE 'PENDING'::campaign_contact_status
+        WHEN n <= 20  THEN 'COMPLETED'
+        WHEN n <= 30  THEN 'NO_ANSWER'
+        WHEN n <= 35  THEN 'CONNECTED'
+        WHEN n <= 40  THEN 'FAILED'
+        ELSE 'PENDING'
     END,
     CASE WHEN n <= 35 THEN (n % 3 + 1) ELSE 0 END,
     CASE WHEN n > 40 THEN NOW() + (n || ' minutes')::INTERVAL ELSE NULL END

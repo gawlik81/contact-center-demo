@@ -1,0 +1,395 @@
+@use 'sass:color';
+
+// ── Variables ─────────────────────────────────────────────────────────────────
+$brand-blue: #1565c0;
+$brand-blue-dark: #0d47a1;
+$text-primary: #212121;
+$text-secondary: #616161;
+$border-color: #e2e8f0;
+$bg-white: #ffffff;
+$bg-row-hover: #f8fafc;
+$danger: #c62828;
+$danger-bg: #ffebee;
+$danger-border: #ef9a9a;
+$warning: #e65100;
+$warning-bg: #fff8e1;
+$warning-border: #ffcc02;
+$success: #2e7d32;
+$success-bg: #e8f5e9;
+$success-border: #a5d6a7;
+$inactive-bg: #f5f5f5;
+$inactive-text: #757575;
+$blue-bg: #e3f2fd;
+$blue-text: #1565c0;
+$teal-bg: #e0f2f1;
+$teal-text: #00695c;
+$radius: 6px;
+
+// ── Page layout ───────────────────────────────────────────────────────────────
+.campaign-list {
+  max-width: 1200px;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0;
+  }
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: $radius;
+  border: 1px solid $border-color;
+  background: $bg-white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.campaign-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+
+  thead tr {
+    background: #f8fafc;
+    border-bottom: 1px solid $border-color;
+  }
+
+  th {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.875rem 1rem;
+    color: $text-primary;
+    border-bottom: 1px solid $border-color;
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.campaign-row {
+  transition: background 0.12s ease;
+
+  &:hover {
+    background: $bg-row-hover;
+  }
+}
+
+.campaign-name {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.campaign-type,
+.campaign-dialer {
+  font-size: 0.875rem;
+  color: $text-secondary;
+  white-space: nowrap;
+}
+
+.campaign-dates {
+  font-size: 0.875rem;
+  color: $text-secondary;
+  white-space: nowrap;
+}
+
+.campaign-actions {
+  text-align: right;
+  white-space: nowrap;
+  display: flex;
+  gap: 0.375rem;
+  justify-content: flex-end;
+  align-items: center;
+  padding-right: 0.75rem;
+}
+
+.no-actions {
+  font-size: 0.875rem;
+  color: $text-secondary;
+}
+
+// ── Status badges ─────────────────────────────────────────────────────────────
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &--draft {
+    background: $inactive-bg;
+    color: $inactive-text;
+  }
+
+  &--scheduled {
+    background: $blue-bg;
+    color: $blue-text;
+  }
+
+  &--running {
+    background: $success-bg;
+    color: $success;
+  }
+
+  &--paused {
+    background: #fff8e1;
+    color: #f57f17;
+  }
+
+  &--stopped {
+    background: $danger-bg;
+    color: $danger;
+  }
+
+  &--completed {
+    background: $teal-bg;
+    color: $teal-text;
+  }
+}
+
+// ── Buttons ───────────────────────────────────────────────────────────────────
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: none;
+  border-radius: $radius;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+  text-decoration: none;
+  line-height: 1;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  &__icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+.btn-primary {
+  padding: 0.625rem 1.125rem;
+  background: $brand-blue;
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: $brand-blue-dark;
+  }
+}
+
+.btn-icon-success {
+  padding: 0.375rem;
+  background: transparent;
+  color: $success;
+  border: 1.5px solid $success-border;
+  border-radius: $radius;
+
+  &:hover:not(:disabled) {
+    background: $success-bg;
+    border-color: $success;
+  }
+}
+
+.btn-icon-warning {
+  padding: 0.375rem;
+  background: transparent;
+  color: $warning;
+  border: 1.5px solid $warning-border;
+  border-radius: $radius;
+
+  &:hover:not(:disabled) {
+    background: $warning-bg;
+  }
+}
+
+.btn-icon-danger {
+  padding: 0.375rem;
+  background: transparent;
+  color: $danger;
+  border: 1.5px solid $danger-border;
+  border-radius: $radius;
+
+  &:hover:not(:disabled) {
+    background: $danger-bg;
+  }
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────────
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+
+  &__info {
+    font-size: 0.875rem;
+    color: $text-secondary;
+  }
+
+  &__controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__pages {
+    font-size: 0.875rem;
+    color: $text-secondary;
+    white-space: nowrap;
+    min-width: 100px;
+    text-align: center;
+  }
+}
+
+.btn-pagination {
+  padding: 0.4375rem 0.875rem;
+  background: $bg-white;
+  color: $brand-blue;
+  border: 1.5px solid $border-color;
+  border-radius: $radius;
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  &:hover:not(:disabled) {
+    background: $blue-bg;
+    border-color: $brand-blue;
+  }
+}
+
+// ── Skeleton loading ───────────────────────────────────────────────────────────
+.skeleton-wrapper {
+  border: 1px solid $border-color;
+  border-radius: $radius;
+  background: $bg-white;
+  overflow: hidden;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid $border-color;
+  align-items: center;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.skeleton-cell {
+  height: 16px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+
+  &--wide {
+    flex: 3;
+  }
+
+  &--medium {
+    flex: 2;
+  }
+
+  &--badge {
+    width: 90px;
+    flex-shrink: 0;
+  }
+
+  &--action {
+    width: 100px;
+    flex-shrink: 0;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+// ── Empty state ────────────────────────────────────────────────────────────────
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 1rem;
+  text-align: center;
+  background: $bg-white;
+  border: 1px solid $border-color;
+  border-radius: $radius;
+
+  &__icon {
+    width: 48px;
+    height: 48px;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+  }
+
+  &__message {
+    font-size: 1rem;
+    font-weight: 500;
+    color: $text-primary;
+    margin: 0 0 0.25rem;
+  }
+
+  &__hint {
+    font-size: 0.875rem;
+    color: $text-secondary;
+    margin: 0;
+  }
+}
+
+// ── Accessibility ─────────────────────────────────────────────────────────────
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

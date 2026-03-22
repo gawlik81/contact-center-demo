@@ -1,8 +1,8 @@
 # TASKS-BACKEND.md
 # Contact Center SaaS – Zadania deweloperskie: Backend (Java/Spring Boot + Python)
 
-**Wersja:** 1.1
-**Data:** 2026-03-21
+**Wersja:** 1.2
+**Data:** 2026-03-22
 **Stack:** Java 21 + Spring Boot 3.x, Python 3.11+ (AI/automatyzacja), RabbitMQ, Redis, REST/OpenAPI 3.0, JWT/OAuth 2.0
 **Powiązany PRD:** PRD v1.0
 
@@ -525,7 +525,8 @@ Serwis kalkulujący szacowany czas oczekiwania w kolejce na podstawie: liczby oc
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-002, DB-011
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-22
 **Blokuje:** BE-023, BE-024, FE-015
 **Odniesienie PRD:** US-08-02, US-08-06, EPIC-08
 
@@ -533,10 +534,10 @@ Serwis kalkulujący szacowany czas oczekiwania w kolejce na podstawie: liczby oc
 Endpointy: `POST /api/campaigns`, `GET /api/campaigns`, `PATCH /api/campaigns/{id}`, `POST /api/campaigns/{id}/start`, `POST /api/campaigns/{id}/pause`, `POST /api/campaigns/{id}/stop`. Schedule jako JSONB (start_date, end_date, time_from, time_to, days_of_week[]). Walidacja: nie można uruchomić bez listy kontaktów.
 
 **Kryteria akceptacji:**
-- [ ] Przejścia statusów kampanii: DRAFT → SCHEDULED → RUNNING → PAUSED → STOPPED/COMPLETED
-- [ ] Przejście niedozwolone (np. STOPPED → RUNNING) zwraca HTTP 422 z opisem
-- [ ] Harmonogram waliduje: end_date >= start_date, time_to > time_from
-- [ ] Start kampanii poza harmonogramem zwraca HTTP 422 "poza oknem czasowym"
+- [x] Przejścia statusów kampanii: DRAFT → SCHEDULED → RUNNING → PAUSED → STOPPED/COMPLETED
+- [x] Przejście niedozwolone (np. STOPPED → RUNNING) zwraca HTTP 422 z opisem
+- [x] Harmonogram waliduje: end_date >= start_date, time_to > time_from
+- [x] Start kampanii poza harmonogramem zwraca HTTP 422 "poza oknem czasowym"
 
 ---
 

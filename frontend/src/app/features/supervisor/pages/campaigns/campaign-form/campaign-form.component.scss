@@ -1,0 +1,321 @@
+@use 'sass:color';
+
+$brand-blue: #1565c0;
+$brand-blue-dark: #0d47a1;
+$text-primary: #212121;
+$text-secondary: #616161;
+$border-color: #e2e8f0;
+$error: #c62828;
+$blue-bg: #e3f2fd;
+$radius: 8px;
+
+// ── Dialog ─────────────────────────────────────────────────────────────────────
+.campaign-form-dialog {
+  border: none;
+  border-radius: $radius;
+  padding: 0;
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.12),
+    0 24px 48px rgba(0, 0, 0, 0.16);
+  width: 100%;
+  max-width: 580px;
+  background: #fff;
+  color: $text-primary;
+
+  &::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+  }
+
+  @media (max-width: 620px) {
+    max-width: 100%;
+    border-radius: $radius $radius 0 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid $border-color;
+  }
+
+  &__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+    color: $text-primary;
+  }
+
+  &__body {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow-y: auto;
+    max-height: calc(90vh - 140px);
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid $border-color;
+    background: #fafafa;
+    border-radius: 0 0 $radius $radius;
+  }
+}
+
+// ── Close button ──────────────────────────────────────────────────────────────
+.btn-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: $text-secondary;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+
+  &:hover {
+    background: #f0f0f0;
+    color: $text-primary;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+// ── Form layout ───────────────────────────────────────────────────────────────
+.form-row {
+  display: flex;
+  gap: 1rem;
+
+  .form-field {
+    flex: 1;
+  }
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+  }
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+
+  &--error {
+    .form-input,
+    .form-select {
+      border-color: $error;
+
+      &:focus {
+        box-shadow: 0 0 0 3px rgba($error, 0.12);
+      }
+    }
+  }
+}
+
+.form-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: $text-primary;
+}
+
+.required {
+  color: $error;
+}
+
+.form-input,
+.form-select {
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid $border-color;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  color: $text-primary;
+  background: #fff;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:focus {
+    border-color: $brand-blue;
+    box-shadow: 0 0 0 3px rgba($brand-blue, 0.12);
+  }
+
+  &:disabled {
+    background: #f5f5f5;
+    color: $text-secondary;
+    cursor: not-allowed;
+  }
+}
+
+.form-input--number {
+  max-width: 160px;
+  width: 100%;
+}
+
+.form-select {
+  cursor: pointer;
+}
+
+.form-error {
+  font-size: 0.8125rem;
+  color: $error;
+}
+
+// ── Schedule section ──────────────────────────────────────────────────────────
+.schedule-section {
+  border: 1.5px solid $border-color;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  &__legend {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: $text-secondary;
+    padding: 0 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+// ── Day selector ──────────────────────────────────────────────────────────────
+.days-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.day-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 36px;
+  border: 1.5px solid $border-color;
+  border-radius: 6px;
+  background: #fff;
+  color: $text-secondary;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: $blue-bg;
+    border-color: $brand-blue;
+    color: $brand-blue;
+  }
+
+  &--selected {
+    background: $brand-blue;
+    border-color: $brand-blue;
+    color: #fff;
+
+    &:hover {
+      background: $brand-blue-dark;
+      border-color: $brand-blue-dark;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+// ── Buttons ────────────────────────────────────────────────────────────────────
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5625rem 1.125rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+  line-height: 1;
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+.btn-cancel {
+  background: transparent;
+  color: $text-secondary;
+  border: 1.5px solid $border-color;
+
+  &:hover:not(:disabled) {
+    background: #f5f5f5;
+    border-color: #bdbdbd;
+  }
+}
+
+.btn-save {
+  background: $brand-blue;
+  color: #fff;
+  min-width: 100px;
+
+  &:hover:not(:disabled) {
+    background: $brand-blue-dark;
+  }
+}
+
+// ── Spinner ────────────────────────────────────────────────────────────────────
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

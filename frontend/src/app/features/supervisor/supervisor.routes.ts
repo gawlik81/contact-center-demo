@@ -35,12 +35,12 @@ export const SUPERVISOR_ROUTES: Routes = [
           ),
       },
       {
-        // TODO FE-011: Replace placeholder with real Campaigns component
         path: 'campaigns',
-        data: { breadcrumb: 'Kampanie' },
+        data: { breadcrumb: 'Kampanie', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
         loadComponent: () =>
-          import('./pages/campaigns/campaigns-placeholder.component').then(
-            (m) => m.CampaignsPlaceholderComponent,
+          import('./pages/campaigns/campaign-list/campaign-list.component').then(
+            (m) => m.CampaignListComponent,
           ),
       },
       {

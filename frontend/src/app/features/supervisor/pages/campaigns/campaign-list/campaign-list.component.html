@@ -1,0 +1,182 @@
+<div class="campaign-list">
+  <div class="campaign-list__header">
+    <h1 class="campaign-list__title">Kampanie</h1>
+    <button class="btn btn-primary" type="button" (click)="openCreateModal()" aria-label="Dodaj nowa kampanie">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      Nowa kampania
+    </button>
+  </div>
+
+  <!-- Loading skeleton -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-cell--wide"></div>
+          <div class="skeleton-cell skeleton-cell--badge"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--wide"></div>
+          <div class="skeleton-cell skeleton-cell--action"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading()) {
+    @if (campaigns().length > 0) {
+      <div class="table-wrapper" role="region" aria-label="Lista kampanii">
+        <table class="campaign-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">Nazwa</th>
+              <th scope="col">Status</th>
+              <th scope="col">Typ</th>
+              <th scope="col">Dialer</th>
+              <th scope="col">Daty harmonogramu</th>
+              <th scope="col"><span class="sr-only">Akcje</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (campaign of campaigns(); track campaign.campaignId) {
+              <tr class="campaign-row">
+                <td class="campaign-name">{{ campaign.name }}</td>
+                <td>
+                  <span
+                    class="status-badge"
+                    [class.status-badge--draft]="campaign.status === 'DRAFT'"
+                    [class.status-badge--scheduled]="campaign.status === 'SCHEDULED'"
+                    [class.status-badge--running]="campaign.status === 'RUNNING'"
+                    [class.status-badge--paused]="campaign.status === 'PAUSED'"
+                    [class.status-badge--stopped]="campaign.status === 'STOPPED'"
+                    [class.status-badge--completed]="campaign.status === 'COMPLETED'"
+                    [attr.aria-label]="'Status: ' + campaign.status"
+                  >
+                    @switch (campaign.status) {
+                      @case ('DRAFT') { Szkic }
+                      @case ('SCHEDULED') { Zaplanowana }
+                      @case ('RUNNING') { Aktywna }
+                      @case ('PAUSED') { Wstrzymana }
+                      @case ('STOPPED') { Zatrzymana }
+                      @case ('COMPLETED') { Zakonczona }
+                    }
+                  </span>
+                </td>
+                <td class="campaign-type">{{ formatType(campaign.type) }}</td>
+                <td class="campaign-dialer">{{ formatDialerType(campaign.dialerType) }}</td>
+                <td class="campaign-dates">{{ formatScheduleDates(campaign) }}</td>
+                <td class="campaign-actions">
+                  @if (canStart(campaign.status)) {
+                    <button
+                      class="btn btn-icon-success"
+                      type="button"
+                      (click)="onStart(campaign)"
+                      [disabled]="actionInProgress().has(campaign.campaignId)"
+                      [attr.aria-label]="'Uruchom kampanie ' + campaign.name"
+                      title="Uruchom"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </button>
+                  }
+                  @if (canPause(campaign.status)) {
+                    <button
+                      class="btn btn-icon-warning"
+                      type="button"
+                      (click)="onPause(campaign)"
+                      [disabled]="actionInProgress().has(campaign.campaignId)"
+                      [attr.aria-label]="'Wstrzymaj kampanie ' + campaign.name"
+                      title="Wstrzymaj"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                      </svg>
+                    </button>
+                  }
+                  @if (canStop(campaign.status)) {
+                    <button
+                      class="btn btn-icon-danger"
+                      type="button"
+                      (click)="onStop(campaign)"
+                      [disabled]="actionInProgress().has(campaign.campaignId)"
+                      [attr.aria-label]="'Zatrzymaj kampanie ' + campaign.name"
+                      title="Zatrzymaj"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                        <path d="M6 6h12v12H6z" />
+                      </svg>
+                    </button>
+                  }
+                  @if (campaign.status === 'STOPPED' || campaign.status === 'COMPLETED') {
+                    <span class="no-actions" aria-label="Brak dostepnych akcji">—</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <nav class="pagination" aria-label="Nawigacja stron">
+        <span class="pagination__info" aria-live="polite">
+          @if (totalElements() > 0) {
+            Wyswietlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }} wynikow
+          }
+        </span>
+        <div class="pagination__controls">
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onPrevPage()"
+            [disabled]="currentPage() === 0"
+            aria-label="Poprzednia strona"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+            Poprzednia
+          </button>
+          <span class="pagination__pages" aria-current="page">
+            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+          </span>
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onNextPage()"
+            [disabled]="currentPage() + 1 >= totalPages()"
+            aria-label="Nastepna strona"
+          >
+            Nastepna
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          </button>
+        </div>
+      </nav>
+    } @else {
+      <!-- Empty state -->
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M20.45 6.23l-1.41-1.42-1.42 1.42 1.42 1.41 1.41-1.41zM11 1v2h2V1h-2zm8 11h2v-2h-2v2zM4.17 5.64L2.76 7.05l1.41 1.42 1.42-1.42-1.42-1.41zM13 17.95V22h-2v-4.05A6.002 6.002 0 016 12c0-3.31 2.69-6 6-6s6 2.69 6 6a6.002 6.002 0 01-5 5.95zM1 12h2v2H1v-2zm3-6.5L2.5 7l1 1 1.5-1.5L4 4.5z" />
+        </svg>
+        <p class="empty-state__message">Brak kampanii do wyswietlenia.</p>
+        <p class="empty-state__hint">Kliknij "Nowa kampania", aby dodac pierwsza kampanie.</p>
+      </div>
+    }
+  }
+</div>
+
+<!-- Form modal (create) -->
+@if (showFormModal()) {
+  <app-campaign-form
+    [campaign]="selectedCampaign()"
+    [isEditMode]="isEditMode()"
+    (saved)="onFormSaved()"
+    (cancelled)="closeFormModal()"
+  />
+}

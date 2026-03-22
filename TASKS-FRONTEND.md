@@ -361,8 +361,9 @@ Edytor wizualny IVR oparty na bibliotece flow-graph (np. Angular Flow, GoJS lub 
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** FE-005, BE-022
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-022 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-22
+**Czeka na BE:** BE-022 ✅
 **Blokuje:** FE-016
 **Odniesienie PRD:** US-08-01, US-08-02, US-08-06, EPIC-08
 
@@ -370,10 +371,10 @@ Edytor wizualny IVR oparty na bibliotece flow-graph (np. Angular Flow, GoJS lub 
 Widok listy kampanii dla SUPERVISOR: tabela z kolumnami (nazwa, status, progres, start, koniec). Formularz tworzenia kampanii: nazwa, typ (inbound/outbound), dialer type (progressive/predictive), harmonogram (date picker, time range picker, dni tygodnia checkboxes). Akcje inline: uruchom, wstrzymaj, zatrzymaj (z potwierdzeniem).
 
 **Kryteria akceptacji:**
-- [ ] Status kampanii aktualizowany RT przez polling co 10s lub WebSocket
-- [ ] Przyciski akcji (uruchom/wstrzymaj/zatrzymaj) zmieniają stan wg możliwych przejść
-- [ ] Formularz harmonogramu waliduje: data końca > data startu, przynajmniej 1 dzień tygodnia wybrany
-- [ ] Tabela sortowalna po kolumnach: nazwa, status, data startu
+- [x] Status kampanii aktualizowany RT przez polling co 10s lub WebSocket
+- [x] Przyciski akcji (uruchom/wstrzymaj/zatrzymaj) zmieniają stan wg możliwych przejść
+- [x] Formularz harmonogramu waliduje: data końca > data startu, przynajmniej 1 dzień tygodnia wybrany
+- [x] Tabela sortowalna po kolumnach: nazwa, status, data startu
 
 ---
 
@@ -627,7 +628,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | FE-012 | BE-015 (email API) |
 | FE-013 | BE-018 (social media API) |
 | FE-014 | BE-020 ✅ (Queue API – gotowe), BE-013 (IVR Engine – brakuje) |
-| FE-015, FE-016 | BE-022 (campaign API) |
+| FE-015, FE-016 | BE-022 ✅ (campaign API – zrealizowane) |
 | FE-018, FE-019 | BE-025 ✅, BE-027 ✅ (customer API + contact API – gotowe) |
 | FE-021 | BE-029 ✅ (RT metrics WebSocket – zrealizowane) |
 | FE-022 | BE-028 ✅ (reports API – zrealizowane) |

@@ -1,0 +1,239 @@
+<div class="reports">
+  <div class="reports__header">
+    <h1 class="reports__title">Raporty historyczne</h1>
+  </div>
+
+  <!-- Filters -->
+  <section
+    class="reports__filters"
+    [formGroup]="filterForm"
+    role="search"
+    aria-label="Filtry raportu"
+  >
+    <div class="filters__row">
+      <div class="filter-field">
+        <label for="dateFrom" class="filter-label">Od</label>
+        <input
+          id="dateFrom"
+          type="date"
+          class="filter-input"
+          formControlName="dateFrom"
+          aria-label="Data od"
+        />
+      </div>
+
+      <div class="filter-field">
+        <label for="dateTo" class="filter-label">Do</label>
+        <input
+          id="dateTo"
+          type="date"
+          class="filter-input"
+          formControlName="dateTo"
+          aria-label="Data do"
+        />
+      </div>
+
+      <div class="filter-field">
+        <label for="agentId" class="filter-label">Agent</label>
+        <select id="agentId" class="filter-select" formControlName="agentId" aria-label="Filtruj po agencie">
+          <option value="">Wszyscy agenci</option>
+          @for (agent of agents(); track agent.id) {
+            <option [value]="agent.id">{{ agent.firstName }} {{ agent.lastName }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="channel" class="filter-label">Kanal</label>
+        <select id="channel" class="filter-select" formControlName="channel" aria-label="Filtruj po kanale">
+          <option value="">Wszystkie kanaly</option>
+          @for (ch of channels; track ch) {
+            <option [value]="ch">{{ ch }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filters__actions">
+        <button
+          class="btn btn-primary"
+          type="button"
+          (click)="onSearch()"
+          [disabled]="!filtersAreValid"
+          aria-label="Zastosuj filtry i wyszukaj"
+        >
+          Szukaj
+        </button>
+        <button
+          class="btn btn-secondary"
+          type="button"
+          (click)="onClearFilters()"
+          aria-label="Wyczysc filtry i przywroc domyslne"
+          title="Wyczysc filtry"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+          Wyczysc
+        </button>
+      </div>
+    </div>
+
+    <!-- Date range validation error -->
+    @if (dateRangeError) {
+      <div class="filters__error" role="alert" aria-live="polite">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        </svg>
+        {{ dateRangeError }}
+      </div>
+    }
+
+    <!-- Export buttons -->
+    <div class="filters__export">
+      <button
+        class="btn btn-export"
+        type="button"
+        (click)="onExportCsv()"
+        [disabled]="!filtersAreValid || exportingCsv()"
+        aria-label="Eksportuj raport do CSV"
+      >
+        @if (exportingCsv()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Eksportowanie...
+        } @else {
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          </svg>
+          Eksport CSV
+        }
+      </button>
+      <button
+        class="btn btn-export"
+        type="button"
+        (click)="onExportXlsx()"
+        [disabled]="!filtersAreValid || exportingXlsx()"
+        aria-label="Eksportuj raport do XLSX"
+      >
+        @if (exportingXlsx()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Eksportowanie...
+        } @else {
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          </svg>
+          Eksport XLSX
+        }
+      </button>
+    </div>
+  </section>
+
+  <!-- Table anchor for scroll -->
+  <div #tableTop></div>
+
+  <!-- Skeleton loading -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych raportu...">
+      @for (i of [1, 2, 3, 4, 5, 6, 7, 8]; track i) {
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading()) {
+    @if (rows().length > 0) {
+      <div class="table-wrapper" role="region" aria-label="Wyniki raportu agentow">
+        <table class="report-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">Data</th>
+              <th scope="col">Agent</th>
+              <th scope="col">Kanal</th>
+              <th scope="col">Kontakty</th>
+              <th scope="col">Avg czas obslugi</th>
+              <th scope="col">Avg czas oczekiwania</th>
+              <th scope="col">FCR</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track trackByRow($index, row)) {
+              <tr class="report-row">
+                <td class="report-cell">{{ row.date }}</td>
+                <td class="report-cell">{{ row.agentName }}</td>
+                <td class="report-cell">
+                  <span
+                    class="channel-badge"
+                    [class.channel-badge--call]="row.channel === 'CALL'"
+                    [class.channel-badge--email]="row.channel === 'EMAIL'"
+                    [class.channel-badge--chat]="row.channel === 'CHAT'"
+                    [class.channel-badge--social]="row.channel === 'SOCIAL'"
+                    [attr.aria-label]="'Kanal: ' + row.channel"
+                  >
+                    {{ row.channel }}
+                  </span>
+                </td>
+                <td class="report-cell report-cell--number">{{ row.contactsCount }}</td>
+                <td class="report-cell report-cell--number">{{ secondsToTime(row.avgHandleTimeSeconds) }}</td>
+                <td class="report-cell report-cell--number">{{ secondsToTime(row.avgWaitTimeSeconds) }}</td>
+                <td class="report-cell report-cell--number">{{ fcrPercent(row.firstContactResolution) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <nav class="pagination" aria-label="Nawigacja stron raportu">
+        <span class="pagination__info" aria-live="polite">
+          Wyswietlanie {{ currentPage() * pageSize + 1 }}&ndash;{{ (currentPage() + 1) * pageSize > totalElements() ? totalElements() : (currentPage() + 1) * pageSize }} z {{ totalElements() }} wynikow
+        </span>
+        <div class="pagination__controls">
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onPrevPage()"
+            [disabled]="currentPage() === 0"
+            aria-label="Poprzednia strona"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+            Poprzednia
+          </button>
+          <span class="pagination__pages" aria-current="page">
+            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+          </span>
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onNextPage()"
+            [disabled]="currentPage() + 1 >= totalPages()"
+            aria-label="Nastepna strona"
+          >
+            Nastepna
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+            </svg>
+          </button>
+        </div>
+      </nav>
+    } @else {
+      <!-- Empty state -->
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+        </svg>
+        <p class="empty-state__message">Brak danych dla wybranych filtrow.</p>
+        <p class="empty-state__hint">Sprobuj zmienic zakres dat lub filtry.</p>
+      </div>
+    }
+  }
+</div>

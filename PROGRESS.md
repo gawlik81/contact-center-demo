@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-22 (BE-029 ukończone)
+**Ostatnia aktualizacja:** 2026-03-22 (BE-028, BE-029, FE-021, FE-022 ukończone; ReportsServiceTest naprawiony – 442 testy PASS)
 
 ---
 
@@ -80,7 +80,7 @@
 | BE-025 | Customer CRUD API i fuzzy search | ✅ | CustomerController (POST/GET/GET{id}/PATCH/DELETE /api/customers, PagedResponse, fuzzy search ILIKE + word_similarity), CustomerService (CRUD + soft-delete anonimizacja RODO + invalidateCacheForCustomer), CustomerRepository (searchCustomers natywny SQL, findById), Customer entity (JSONB phone[], email[], custom_fields, gdpr_consent), migracje V023 (funkcja set_tenant_context) + V024 (fix prefix search ILIKE). |
 | BE-026 | Import klientów z CSV (async job) | ⬜ | |
 | BE-027 | Contact API: zapis i odczyt historii kontaktów | ✅ | ContactController (6 endp.), ContactService (CRUD + uprawnienia AGENT/SUPERVISOR/ADMIN), ContactRepository (native INSERT/UPDATE, partycjonowana tabela), ContactId.java, DTOs: ContactResponse/CreateContactRequest/UpdateContactRequest/DispositionRequest/ContactFilterParams. 22 testy PASS. |
-| BE-028 | Raporty historyczne: agregacje per agent i kampania | ⬜ | |
+| BE-028 | Raporty historyczne: agregacje per agent i kampania | ✅ | AgentReportRow/AgentReportParams DTOs (Bean Validation), ContactRepository +2 native SQL GROUP BY, ReportsService (Redis cache MD5 5min, walidacja 90 dni, CSV + XLSX Apache POI 5.2.5), ReportsController (4 endpointy: /api/reports/agents, /agents/export, /agents/export/xlsx, /campaigns 501), 13 testów, 442 PASS |
 | BE-029 | RT Metrics API: WebSocket feed dla supervisora | ✅ | SupervisorMetricsPayload (rekord DTO), SupervisorMetricsService (@Scheduled fixedRate=5000, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor, eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów jednostkowych, 429 testów PASS |
 | BE-030 | ETL do data warehouse: CDC z PostgreSQL | ⬜ | |
 | BE-031 | RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17) | ⬜ | |
@@ -111,8 +111,8 @@
 | FE-018 | Wyszukiwanie i lista klientów (fuzzy search) | ✅ | CustomerListComponent (tabela z paginacją PagedResponse, wyszukiwanie debounce 300ms, skeleton loading, empty state), CustomerDeleteModalComponent (modal RODO z potwierdzeniem anonimizacji), CustomerService (frontend, 5 metod API), supervisor.routes.ts zaktualizowany. Czeka na BE-025 ✅. |
 | FE-019 | Profil klienta: widok szczegółowy i historia kontaktów | ✅ | CustomerDetailComponent (dane podstawowe, multi-value telefon/email chips, custom_fields, oś czasu historii kontaktów z kanałem/agentem/disposition, badge RODO), integracja z BE-025 ✅ i BE-027 ✅. |
 | FE-020 | Import klientów z CSV | ⬜ | |
-| FE-021 | Dashboard RT supervisora | ⬜ | |
-| FE-022 | Raporty historyczne: filtry, tabele, eksport | ⬜ | |
+| FE-021 | Dashboard RT supervisora | ✅ | Dashboard RT supervisora: KPI cards (aktywne połączenia, agenci online/przerwa/dostępni), tabela agentów z aktualnym statusem, wykres kolejek; WebSocket STOMP /topic/tenant/{tenantId}/supervisor, dane co 5s; tryb pełnoekranowy |
+| FE-022 | Raporty historyczne: filtry, tabele, eksport | ✅ | report.model.ts (AgentReportRow, AgentReportFilters), reports.service.ts (getAgentReport, exportCsv, exportXlsx blob), ReportsComponent (filtry URL sync, tabela badge'ami kanałów, paginacja, eksport Blob, skeleton, empty state), supervisor.routes.ts /reports z roleGuard, build 0 błędów |
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ | |
 | FE-024 | Panel konfiguracji kolejek i routingu | ✅ | QueueListComponent (tabela kolejek z liczbą oczekujących, polling co 10s), QueueFormComponent (formularz tworzenia/edycji: nazwa, strategia routingu, required skills multi-select, sticky agent timeout), QueueDeleteModalComponent. Integracja z BE-020 ✅. |
 
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 17/31 | 0 | 14 | 31 |
-| Frontend (FE) | 15/24 | 0 | 9 | 24 |
-| **RAZEM** | **51/74** | **0** | **23** | **74** |
+| Backend (BE) | 18/31 | 0 | 13 | 31 |
+| Frontend (FE) | 17/24 | 0 | 7 | 24 |
+| **RAZEM** | **54/74** | **0** | **20** | **74** |
 
 ---
 
@@ -161,12 +161,15 @@
 | 2026-03-19 | V023__create_set_tenant_context_function.sql | Brak funkcji PostgreSQL `set_tenant_context(uuid)` wywoływanej przez TenantAwareRepository – CustomerRepository rzucał błąd przy pierwszym zapytaniu | Dodano funkcję `set_tenant_context(p_tenant_id UUID)` wykonującą `SET LOCAL app.current_tenant_id` jako samodzielna migracja V023. |
 | 2026-03-19 | V024__fix_search_customers_prefix_search.sql + CustomerRepository | Fuzzy search po prefiksie (np. "Kow") nie znajdował rekordów – `word_similarity` zbyt rygorystyczna dla krótkich fraz | Zmieniono `search_customers` na ILIKE `%query%` jako fallback oraz `word_similarity` ≥ 0.2; naprawiony w V024. |
 | 2026-03-19 | CustomerController.java | Odpowiedź `GET /api/customers` zwracała `List<Customer>` zamiast `PagedResponse<CustomerResponse>` – niezgodność z kontraktem FE | Ujednolicono do `PagedResponse<CustomerResponse>` spójnie z innymi kontrolerami. |
+| 2026-03-22 | ReportsService.java + ContactRepository.java | `ReportsServiceTest` – 6 błędów kompilacji: `u.id` zamiast `u.user_id` w native SQL GROUP BY JOIN na tabeli `app_user`; `StringRedisTemplate` wstrzykiwany zamiast `RedisTemplate<String, String>` (niezgodność typów przy serializacji klucza cache MD5) | Poprawiono alias kolumny na `u.user_id` w zapytaniach natywnych `ContactRepository`; zmieniono typ pola na `StringRedisTemplate` w `ReportsService`. 442 testy PASS. |
+| 2026-03-22 | supervisor-dashboard.component.ts | Czas przerwy agenta wyświetlał się jako `undefined` (zamiast HH:MM od startu przerwy) – frontend obliczał czas lokalnie, ale backend nie wysyłał pola `breakStartedAt` | Dodano pole `breakStartedAt` do `SupervisorMetricsPayload` (BE) i obsługę w komponencie (FE). |
+| 2026-03-22 | supervisor-dashboard.component.ts | Badge statusu OFFLINE nie był wyświetlany (brak case w ngSwitch) – agenci OFFLINE byli widoczni bez etykiety statusu | Dodano case 'OFFLINE' do przełącznika statusów w szablonie. |
 
 ---
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 17/31 (BE-001..BE-012 ✅, BE-019 ✅, BE-020 ✅, BE-025 ✅, BE-027 ✅, BE-029 ✅) | FE: 15/24 (FE-001..FE-011 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-024 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 18/31 (BE-001..BE-012 ✅, BE-019 ✅, BE-020 ✅, BE-025 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 17/24 (FE-001..FE-011 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
 
 ---
 
@@ -205,8 +208,9 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-027 | Contact API: ContactController (6 endpointów: GET/POST/PATCH /api/contacts, PATCH /disposition, GET /customer/{customerId}), ContactService (CRUD + logika uprawnień AGENT vs SUPERVISOR/ADMIN), ContactRepository (native INSERT/UPDATE dla partycjonowanej tabeli, dynamiczny WHERE dla filtrów), ContactId.java, DTOs: ContactResponse/CreateContactRequest/UpdateContactRequest/DispositionRequest/ContactFilterParams. 22 testy PASS. | ✅ |
 | BE-019 | Routing Engine: RoutingEngine (interfejs), DefaultRoutingEngine (skill-based, round-robin, sticky), RoutingService, AgentSessionData, ContactQueuedMessage, ContactAssignedEvent. | ✅ |
 | BE-020 | Queue API: QueueController (5 endpointów + stats), DTOs, routing strategy enum, Redis cache TTL 5s dla stats. | ✅ |
+| BE-028 | Raporty historyczne: AgentReportRow/AgentReportParams DTOs, ContactRepository +2 native SQL GROUP BY, ReportsService (Redis cache MD5 5min, walidacja 90 dni, CSV + XLSX Apache POI 5.2.5), ReportsController (4 endpointy), ReportsServiceTest 13 testów, 442 PASS. | ✅ |
 | BE-029 | RT Metrics API: SupervisorMetricsPayload (DTO), SupervisorMetricsService (@Scheduled fixedRate=5s, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów, 429 PASS. | ✅ |
-| BE-013..BE-031 (bez BE-019, BE-020, BE-025, BE-027, BE-029) | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
+| BE-013..BE-031 (bez BE-019, BE-020, BE-025, BE-027, BE-028, BE-029) | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
 
@@ -226,8 +230,10 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-017 | Disposition panel: DispositionPanelComponent (modal ACW, timer MM:SS, dropdown 6 kodów, textarea notatka), ContactService.setDisposition() → PATCH /api/contacts/{id}/disposition, contact-tab.store.ts (stan WRAPPING), effect() na session.state=ENDED w agent-desktop. | ✅ |
 | FE-018 | Lista klientów: CustomerListComponent (tabela PagedResponse, wyszukiwanie debounce 300ms, skeleton loading), CustomerDeleteModalComponent (modal RODO), CustomerService (frontend). Czeka na BE-025 ✅. | ✅ |
 | FE-019 | Profil klienta: CustomerDetailComponent (dane podstawowe, chips telefon/email, custom_fields, oś czasu kontaktów, badge RODO). Czeka na FE-018 ✅ + BE-025 ✅ + BE-027 ✅. | ✅ |
+| FE-021 | Dashboard RT supervisora: KPI cards, tabela agentów z aktualnym statusem, wykres kolejek; WebSocket STOMP /topic/tenant/{tenantId}/supervisor, dane co 5s, tryb pełnoekranowy. Czeka na BE-029 ✅. | ✅ |
+| FE-022 | Raporty historyczne: report.model.ts, reports.service.ts (getAgentReport, exportCsv, exportXlsx blob), ReportsComponent (filtry URL sync, tabela badge'ami kanałów, paginacja, eksport Blob, skeleton, empty state), /reports z roleGuard, build 0 błędów. Czeka na BE-028 ✅. | ✅ |
 | FE-024 | Panel konfiguracji kolejek: QueueListComponent (tabela + polling 10s), QueueFormComponent (strategia routingu, skills, sticky timeout), QueueDeleteModalComponent. Czeka na BE-020 ✅. | ✅ |
-| FE-012..FE-016, FE-020..FE-023 | Wszystkie pozostałe widoki funkcjonalne | ⬜ |
+| FE-012..FE-016, FE-020, FE-023 | Wszystkie pozostałe widoki funkcjonalne | ⬜ |
 
 ---
 

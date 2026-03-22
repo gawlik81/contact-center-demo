@@ -61,12 +61,12 @@ export const SUPERVISOR_ROUTES: Routes = [
           ),
       },
       {
-        // TODO FE-013: Replace placeholder with real Reports component
         path: 'reports',
-        data: { breadcrumb: 'Raporty' },
+        data: { breadcrumb: 'Raporty', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/reports/reports-placeholder.component').then(
-            (m) => m.ReportsPlaceholderComponent,
+            (m) => m.ReportsComponent,
           ),
       },
       {

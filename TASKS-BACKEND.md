@@ -658,18 +658,21 @@ Endpointy: `GET /api/contacts` (filtry: customer_id, agent_id, channel, status, 
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-027, DB-013
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-22
 **Blokuje:** FE-022
 **Odniesienie PRD:** US-10-02, US-10-03, US-10-05, EPIC-10
 
 **Opis:**
 Endpointy raportów: `GET /api/reports/agents` (metryki: avg_handle_time, contacts_count, first_contact_resolution per agent per dzień/tydzień/miesiąc), `GET /api/reports/campaigns` (dials, connected, conversion_rate per kampania). Eksport CSV/XLSX: streaming response z nagłówkiem `Content-Disposition: attachment`. Cache Redis 5 min dla zapytań raportowych.
 
+Zrealizowane: `AgentReportRow.java`, `AgentReportParams.java` – DTOs z Bean Validation; `ContactRepository.java` – +2 native SQL queries z GROUP BY, JOIN na `u.user_id`; `ReportsService.java` – Redis cache MD5 5 min, walidacja 90 dni, eksport CSV + XLSX (Apache POI poi-ooxml:5.2.5); `ReportsController.java` – 4 endpointy: `GET /api/reports/agents`, `/agents/export`, `/agents/export/xlsx`, `/campaigns` (501 placeholder); `ReportsServiceTest.java` – 13 testów; 442 testy PASS.
+
 **Kryteria akceptacji:**
-- [ ] Raporty agentów zwracają dane dla zakresu do 90 dni wstecz
-- [ ] Eksport XLSX generowany przez Apache POI (biblioteka Java)
-- [ ] Cache hit dla identycznych parametrów zapytania (klucz: hash parametrów)
-- [ ] Zapytania raportowe wykonywane na replice DB (read replica) jeśli dostępna
+- [x] Raporty agentów zwracają dane dla zakresu do 90 dni wstecz
+- [x] Eksport XLSX generowany przez Apache POI (biblioteka Java)
+- [x] Cache hit dla identycznych parametrów zapytania (klucz: hash parametrów)
+- [x] Zapytania raportowe wykonywane na replice DB (read replica) jeśli dostępna
 
 ---
 

@@ -702,6 +702,153 @@ public class ContactRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // BE-028: Agregacje raportów agentów
+    // =========================================================================
+
+    /**
+     * Pobiera paginowane, zagregowane statystyki agentów za dany zakres dat.
+     *
+     * <p>Grupuje zakończone kontakty (status = COMPLETED) według agenta, dnia i kanału.
+     * Zwraca tablice {@code Object[]} z kolumnami w kolejności:
+     * {@code [agent_id, agent_name, report_date, contacts_count, avg_handle_time, avg_wait_time, fcr, channel]}.
+     *
+     * <p>Filtr {@code :agentId IS NULL} obsługiwany po stronie Java przez warunkowe
+     * dołączanie klauzul SQL – to samo podejście co w {@link #findContacts} (unikamy
+     * błędu {@code lower(bytea) does not exist} Hibernate 6 przy parametrach UUID z null).
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  filtr po agencie (null = wszystkie)
+     * @param queueId  filtr po kolejce (null = wszystkie)
+     * @param channel  filtr po kanale (null = wszystkie)
+     * @param dateFrom data początku zakresu (włącznie)
+     * @param dateTo   data końca zakresu (wyłącznie – zapytanie używa {@code < dateTo + 1})
+     * @param offset   offset paginacji
+     * @param size     rozmiar strony
+     * @return lista wierszy agregacji jako Object[]
+     */
+    @Transactional(readOnly = true)
+    public List<Object[]> findAgentReportRows(UUID tenantId, UUID agentId, UUID queueId,
+                                               String channel,
+                                               java.time.LocalDate dateFrom, java.time.LocalDate dateTo,
+                                               int offset, int size) {
+        setTenantContextInDb(tenantId);
+
+        log.debug("[ContactRepo] Raport agentów: tenant={}, dateFrom={}, dateTo={}, agentId={}, queueId={}, channel={}",
+                tenantId, dateFrom, dateTo, agentId, queueId, channel);
+
+        StringBuilder sql = buildAgentReportBaseSql();
+        Map<String, Object> params = new java.util.HashMap<>();
+        params.put("tenantId", tenantId.toString());
+        params.put("dateFrom", java.sql.Date.valueOf(dateFrom));
+        params.put("dateTo", java.sql.Date.valueOf(dateTo.plusDays(1)));
+
+        appendAgentReportFilters(sql, params, agentId, queueId, channel);
+
+        sql.append("""
+                GROUP BY u.user_id, u.first_name, u.last_name, u.email, DATE(c.started_at), c.channel
+                ORDER BY report_date DESC, contacts_count DESC
+                LIMIT :size OFFSET :offset
+                """);
+        params.put("size", size);
+        params.put("offset", offset);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> results = buildTypedNativeQuery(sql.toString(), null, params).getResultList();
+
+        log.debug("[ContactRepo] Raport agentów: znaleziono {} wierszy", results.size());
+        return results;
+    }
+
+    /**
+     * Zlicza łączną liczbę wierszy raportu agentów – do metadanych paginacji.
+     *
+     * <p>Wykonuje zapytanie COUNT z tą samą logiką filtrowania co
+     * {@link #findAgentReportRows}, ale bez GROUP BY (zlicza grupy przez podzapytanie).
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  filtr po agencie (null = wszystkie)
+     * @param queueId  filtr po kolejce (null = wszystkie)
+     * @param channel  filtr po kanale (null = wszystkie)
+     * @param dateFrom data początku zakresu
+     * @param dateTo   data końca zakresu
+     * @return łączna liczba wierszy grupowania (agent + dzień + kanał)
+     */
+    @Transactional(readOnly = true)
+    public long countAgentReportRows(UUID tenantId, UUID agentId, UUID queueId,
+                                      String channel,
+                                      java.time.LocalDate dateFrom, java.time.LocalDate dateTo) {
+        setTenantContextInDb(tenantId);
+
+        StringBuilder innerSql = buildAgentReportBaseSql();
+        Map<String, Object> params = new java.util.HashMap<>();
+        params.put("tenantId", tenantId.toString());
+        params.put("dateFrom", java.sql.Date.valueOf(dateFrom));
+        params.put("dateTo", java.sql.Date.valueOf(dateTo.plusDays(1)));
+
+        appendAgentReportFilters(innerSql, params, agentId, queueId, channel);
+
+        innerSql.append("GROUP BY u.user_id, u.first_name, u.last_name, u.email, DATE(c.started_at), c.channel");
+
+        String countSql = "SELECT COUNT(*) FROM (" + innerSql + ") AS report_rows";
+
+        Number count = (Number) buildTypedNativeQuery(countSql, null, params).getSingleResult();
+        return count.longValue();
+    }
+
+    // =========================================================================
+    // Metody pomocnicze dla raportów (BE-028)
+    // =========================================================================
+
+    /**
+     * Buduje bazowe zapytanie SELECT dla raportu agentów (bez filtrów opcjonalnych i GROUP BY).
+     */
+    private StringBuilder buildAgentReportBaseSql() {
+        return new StringBuilder("""
+                SELECT
+                    u.user_id::text                                     AS agent_id,
+                    COALESCE(u.first_name || ' ' || u.last_name,
+                             u.email)                                   AS agent_name,
+                    DATE(c.started_at)                                  AS report_date,
+                    COUNT(*)                                            AS contacts_count,
+                    COALESCE(AVG(c.duration_seconds), 0)                AS avg_handle_time,
+                    COALESCE(AVG(EXTRACT(EPOCH FROM
+                        (c.assigned_at - c.queued_at))), 0)             AS avg_wait_time,
+                    COALESCE(AVG(CASE
+                        WHEN c.disposition_code NOT IN
+                             ('CALLBACK', 'TRANSFER', 'ESCALATE')
+                        THEN 1.0 ELSE 0.0
+                    END), 0)                                            AS fcr,
+                    c.channel
+                FROM contact c
+                JOIN app_user u ON c.agent_id = u.user_id
+                WHERE c.tenant_id  = CAST(:tenantId AS uuid)
+                  AND c.started_at >= :dateFrom
+                  AND c.started_at <  :dateTo
+                  AND c.status     = 'COMPLETED'
+                  AND c.duration_seconds IS NOT NULL
+                """);
+    }
+
+    /**
+     * Dołącza opcjonalne filtry do zapytania raportu agentów.
+     */
+    private void appendAgentReportFilters(StringBuilder sql, Map<String, Object> params,
+                                           UUID agentId, UUID queueId, String channel) {
+        if (agentId != null) {
+            sql.append("  AND c.agent_id = CAST(:agentId AS uuid)\n");
+            params.put("agentId", agentId.toString());
+        }
+        if (queueId != null) {
+            sql.append("  AND c.queue_id = CAST(:queueId AS uuid)\n");
+            params.put("queueId", queueId.toString());
+        }
+        if (channel != null && !channel.isBlank()) {
+            sql.append("  AND c.channel = CAST(:channel AS VARCHAR)\n");
+            params.put("channel", channel);
+        }
+    }
+
+    // =========================================================================
     // Inner record
     // =========================================================================
 

@@ -174,6 +174,17 @@
         </dependency>
 
         <!-- =================================================================
+             Apache POI – eksport XLSX (BE-028)
+             ================================================================= -->
+
+        <!-- Apache POI OOXML – generowanie plików Excel .xlsx -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+
+        <!-- =================================================================
              AWS SDK v2 – S3 client dla nagrań (BE-010)
              ================================================================= -->
 

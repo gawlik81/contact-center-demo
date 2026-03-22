@@ -500,8 +500,9 @@ Komponent importu bazy klientów z pliku CSV (analogiczny do FE-016 ale dedykowa
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** FE-005, BE-029
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-029 (lub MSW WebSocket)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-22
+**Czeka na BE:** BE-029 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-10-01, EPIC-10
 
@@ -509,10 +510,10 @@ Komponent importu bazy klientów z pliku CSV (analogiczny do FE-016 ale dedykowa
 Dashboard real-time dla SUPERVISOR: karty KPI (aktywne połączenia, agenci online/przerwa/dostępni, śr. czas oczekiwania, śr. czas obsługi), tabela agentów z aktualnym statusem i aktualnym kontaktem, wykres kolejek (liczba oczekujących per kolejka). Dane aktualizowane przez WebSocket lub polling co 5s.
 
 **Kryteria akceptacji:**
-- [ ] Dane odświeżane co max 5 sekund (wymaganie PRD ≤ 5s)
-- [ ] Tabela agentów podświetla agentów na przerwie > 10 min (konfigurowalny próg)
-- [ ] Wykresy kolejek aktualizowane animowane (bez migotania całego komponentu)
-- [ ] Dashboard ma tryb pełnoekranowy (F11 lub przycisk "fullscreen")
+- [x] Dane odświeżane co max 5 sekund (wymaganie PRD ≤ 5s)
+- [x] Tabela agentów podświetla agentów na przerwie > 10 min (konfigurowalny próg)
+- [x] Wykresy kolejek aktualizowane animowane (bez migotania całego komponentu)
+- [x] Dashboard ma tryb pełnoekranowy (F11 lub przycisk "fullscreen")
 
 ---
 
@@ -522,19 +523,22 @@ Dashboard real-time dla SUPERVISOR: karty KPI (aktywne połączenia, agenci onli
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** FE-005, BE-028
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-028 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-22
+**Czeka na BE:** BE-028 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-10-02, US-10-03, US-10-05, EPIC-10
 
 **Opis:**
 Moduł raportów historycznych: filtry (zakres dat, agent, kolejka, kanał, kampania), tabela wynikowa z sortowaniem i paginacją. Raporty: wydajność agentów, statystyki kampanii outbound, ruch per kolejka. Eksport do CSV i Excel (XLSX) przez pobieranie pliku z API.
 
+Zrealizowane: `report.model.ts` – interfejsy `AgentReportRow`, `AgentReportFilters`; `reports.service.ts` – `getAgentReport()`, `exportCsv()`, `exportXlsx()` (responseType: blob); `ReportsComponent` – filtry z URL sync, tabela z badge'ami kanałów (CALL/EMAIL/CHAT/SOCIAL), paginacja, eksport Blob, skeleton, empty state; `supervisor.routes.ts` – trasa `/reports` z `roleGuard`; build 0 błędów.
+
 **Kryteria akceptacji:**
-- [ ] Filtry zachowywane w URL query params (sharable link)
-- [ ] Eksport CSV/XLSX inicjuje pobieranie pliku bez przeładowania strony (Blob URL)
-- [ ] Tabela z kolumną "Nagranie" ma link otwierający odtwarzacz (jeśli uprawnienia OK)
-- [ ] Brak danych dla wybranych filtrów pokazuje stan "brak wyników" z sugestią zmiany filtrów
+- [x] Filtry zachowywane w URL query params (sharable link)
+- [x] Eksport CSV/XLSX inicjuje pobieranie pliku bez przeładowania strony (Blob URL)
+- [x] Tabela z kolumną "Nagranie" ma link otwierający odtwarzacz (jeśli uprawnienia OK)
+- [x] Brak danych dla wybranych filtrów pokazuje stan "brak wyników" z sugestią zmiany filtrów
 
 ---
 
@@ -625,8 +629,8 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | FE-014 | BE-020 ✅ (Queue API – gotowe), BE-013 (IVR Engine – brakuje) |
 | FE-015, FE-016 | BE-022 (campaign API) |
 | FE-018, FE-019 | BE-025 ✅, BE-027 ✅ (customer API + contact API – gotowe) |
-| FE-021 | BE-029 (RT metrics WebSocket) |
-| FE-022 | BE-030 (reports API) |
+| FE-021 | BE-029 ✅ (RT metrics WebSocket – zrealizowane) |
+| FE-022 | BE-028 ✅ (reports API – zrealizowane) |
 
 > Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
 

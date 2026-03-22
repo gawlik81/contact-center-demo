@@ -1,0 +1,100 @@
+<dialog
+  #dialogEl
+  class="create-dialog"
+  aria-labelledby="create-customer-title"
+  (click)="onBackdropClick($event)"
+>
+  <div class="create-dialog__content" role="document">
+    <div class="create-dialog__header">
+      <h2 id="create-customer-title" class="create-dialog__title">Nowy klient</h2>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="create-dialog__body">
+
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label" for="firstName">Imię</label>
+            <input
+              id="firstName"
+              type="text"
+              class="form-input"
+              formControlName="firstName"
+              maxlength="100"
+              autocomplete="given-name"
+              placeholder="Opcjonalne"
+            />
+            @if (form.controls.firstName.hasError('maxlength')) {
+              <span class="form-error" role="alert">Maksymalnie 100 znaków.</span>
+            }
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="lastName">Nazwisko</label>
+            <input
+              id="lastName"
+              type="text"
+              class="form-input"
+              formControlName="lastName"
+              maxlength="100"
+              autocomplete="family-name"
+              placeholder="Opcjonalne"
+            />
+            @if (form.controls.lastName.hasError('maxlength')) {
+              <span class="form-error" role="alert">Maksymalnie 100 znaków.</span>
+            }
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="phones">Numery telefonów</label>
+          <input
+            id="phones"
+            type="text"
+            class="form-input"
+            formControlName="phones"
+            autocomplete="off"
+            placeholder="np. +48123456789, +48987654321"
+          />
+          <span class="form-hint">Wiele numerów oddziel przecinkami.</span>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="emails">Adresy e-mail</label>
+          <input
+            id="emails"
+            type="text"
+            class="form-input"
+            formControlName="emails"
+            autocomplete="off"
+            placeholder="np. jan@example.com, inna@example.com"
+          />
+          <span class="form-hint">Wiele adresów oddziel przecinkami.</span>
+        </div>
+
+      </div>
+
+      <div class="create-dialog__footer">
+        <button
+          class="btn btn-cancel"
+          type="button"
+          (click)="onCancel()"
+        >
+          Anuluj
+        </button>
+        <button
+          class="btn btn-save"
+          type="submit"
+          [disabled]="form.invalid || saving()"
+          [attr.aria-busy]="saving()"
+        >
+          @if (saving()) {
+            Zapisywanie...
+          } @else {
+            Zapisz klienta
+          }
+        </button>
+      </div>
+    </form>
+  </div>
+</dialog>

@@ -5,6 +5,7 @@ import {
   OnInit,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
@@ -21,6 +22,7 @@ import {
 import { CustomerService } from '../services/customer.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerDeleteModalComponent } from '../customer-delete-modal/customer-delete-modal.component';
+import { CustomerCreateModalComponent } from '../customer-create-modal/customer-create-modal.component';
 import { CustomerResponse } from '../../../models/customer.model';
 
 type SortField = 'firstName' | 'lastName' | 'createdAt';
@@ -29,7 +31,7 @@ type SortDir = 'asc' | 'desc';
 @Component({
   selector: 'app-customer-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, ReactiveFormsModule, CustomerDeleteModalComponent],
+  imports: [DatePipe, ReactiveFormsModule, CustomerDeleteModalComponent, CustomerCreateModalComponent],
   templateUrl: './customer-list.component.html',
   styleUrl: './customer-list.component.scss',
 })
@@ -53,6 +55,8 @@ export class CustomerListComponent implements OnInit {
 
   readonly selectedCustomer = signal<CustomerResponse | null>(null);
   readonly showDeleteModal = signal(false);
+
+  private readonly createModalRef = viewChild(CustomerCreateModalComponent);
 
   readonly searchForm = this.fb.group({
     query: [''],
@@ -156,8 +160,12 @@ export class CustomerListComponent implements OnInit {
     void this.router.navigate(['/supervisor/customers', customer.customerId, 'edit']);
   }
 
-  navigateToCreate(): void {
-    void this.router.navigate(['/supervisor/customers', 'new']);
+  openCreateModal(): void {
+    this.createModalRef()?.open();
+  }
+
+  onCustomerCreated(): void {
+    this.loadCustomers();
   }
 
   getCustomerName(customer: CustomerResponse): string {

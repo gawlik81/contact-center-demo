@@ -4,7 +4,7 @@
     <button
       class="btn btn-primary"
       type="button"
-      (click)="navigateToCreate()"
+      (click)="openCreateModal()"
       aria-label="Dodaj nowego klienta"
     >
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
@@ -230,7 +230,7 @@
           <p class="empty-state__hint">Brak wyników dla podanej frazy. Spróbuj zmienić wyszukiwanie.</p>
         } @else {
           <p class="empty-state__hint">Dodaj pierwszego klienta lub zaimportuj z CSV.</p>
-          <button class="btn btn-primary" type="button" (click)="navigateToCreate()">
+          <button class="btn btn-primary" type="button" (click)="openCreateModal()">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
               <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
             </svg>
@@ -250,3 +250,9 @@
     (cancelled)="closeDeleteModal()"
   />
 }
+
+<!-- Create customer modal -->
+<app-customer-create-modal
+  (customerCreated)="onCustomerCreated()"
+/>
+

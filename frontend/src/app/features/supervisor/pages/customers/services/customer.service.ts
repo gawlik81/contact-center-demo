@@ -53,6 +53,15 @@ export class CustomerService {
     });
   }
 
+  createCustomer(payload: {
+    firstName?: string;
+    lastName?: string;
+    phone: string[];
+    email: string[];
+  }): Observable<CustomerResponse> {
+    return this.http.post<CustomerResponse>(this.baseUrl, payload);
+  }
+
   deleteCustomer(id: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }

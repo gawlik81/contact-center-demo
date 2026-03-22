@@ -52,6 +52,11 @@ export const SUPERVISOR_ROUTES: Routes = [
           ),
       },
       {
+        path: 'customers/new',
+        redirectTo: '/supervisor/customers',
+        pathMatch: 'full',
+      },
+      {
         path: 'customers/:id',
         data: { breadcrumb: 'Profil klienta', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],

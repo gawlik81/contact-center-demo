@@ -160,6 +160,10 @@ export class CustomerListComponent implements OnInit {
     void this.router.navigate(['/supervisor/customers', customer.customerId, 'edit']);
   }
 
+  navigateToImport(): void {
+    void this.router.navigate(['/supervisor/customers/import']);
+  }
+
   openCreateModal(): void {
     this.createModalRef()?.open();
   }

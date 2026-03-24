@@ -1,0 +1,734 @@
+// ── Variables ──────────────────────────────────────────────────────────────
+$brand-blue: #1565c0;
+$brand-blue-dark: #0d47a1;
+$brand-blue-light: #e3f2fd;
+$text-primary: #212121;
+$text-secondary: #616161;
+$border-color: #e2e8f0;
+$bg-white: #ffffff;
+$bg-gray: #f8fafc;
+$success: #2e7d32;
+$success-bg: #e8f5e9;
+$success-border: #a5d6a7;
+$danger: #c62828;
+$danger-bg: #ffebee;
+$danger-border: #ef9a9a;
+$info: #1565c0;
+$info-bg: #e3f2fd;
+$info-border: #90caf9;
+$radius: 6px;
+
+// ── Page layout ─────────────────────────────────────────────────────────────
+.customer-import {
+  padding: 1.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  &__title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0;
+  }
+}
+
+// ── Back button ─────────────────────────────────────────────────────────────
+.btn-icon-back {
+  background: transparent;
+  border: 1.5px solid $border-color;
+  border-radius: $radius;
+  padding: 0.4rem;
+  cursor: pointer;
+  color: $text-secondary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    color: $text-primary;
+    background: $bg-gray;
+    border-color: #c4cdd8;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+// ── Stepper ────────────────────────────────────────────────────────────────
+.stepper {
+  display: flex;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border: 1px solid $border-color;
+  border-radius: 8px 8px 0 0;
+  background: $bg-gray;
+  gap: 0;
+
+  &__step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+
+    &--active .stepper__circle {
+      background: $brand-blue;
+      color: #fff;
+      border-color: $brand-blue;
+    }
+
+    &--completed .stepper__circle {
+      background: $success;
+      color: #fff;
+      border-color: $success;
+    }
+  }
+
+  &__circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid $border-color;
+    background: $bg-white;
+    color: $text-secondary;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+  }
+
+  &__label {
+    font-size: 0.6875rem;
+    color: $text-secondary;
+    white-space: nowrap;
+
+    .stepper__step--active & {
+      color: $brand-blue;
+      font-weight: 600;
+    }
+
+    .stepper__step--completed & {
+      color: $success;
+    }
+  }
+
+  &__connector {
+    flex: 1;
+    height: 2px;
+    background: $border-color;
+    margin: 0 0.5rem;
+    margin-bottom: 1rem;
+    transition: background 0.2s ease;
+
+    &--done {
+      background: $success;
+    }
+  }
+}
+
+// ── Card ───────────────────────────────────────────────────────────────────
+.import-card {
+  background: $bg-white;
+  border: 1px solid $border-color;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+
+// ── Step content ───────────────────────────────────────────────────────────
+.import-step {
+  padding: 1.5rem;
+
+  &--centered {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2.5rem 1.5rem;
+  }
+
+  &__subtitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0 0 1rem;
+  }
+
+  &__desc {
+    font-size: 0.875rem;
+    color: $text-secondary;
+    margin: 0 0 1.25rem;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid $border-color;
+  }
+}
+
+// ── Drag & Drop zone ───────────────────────────────────────────────────────
+.drop-zone {
+  border: 2px dashed $border-color;
+  border-radius: 8px;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+  background: $bg-gray;
+  margin-bottom: 1rem;
+
+  &:hover,
+  &:focus-within {
+    border-color: $brand-blue;
+    background: $brand-blue-light;
+  }
+
+  &--dragging {
+    border-color: $brand-blue;
+    background: $brand-blue-light;
+  }
+
+  &--has-file {
+    border-color: $success-border;
+    background: $success-bg;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+
+  &__icon {
+    width: 40px;
+    height: 40px;
+    color: $text-secondary;
+
+    &--success {
+      color: $success;
+    }
+  }
+
+  &__text {
+    font-size: 0.9375rem;
+    color: $text-primary;
+    margin: 0;
+  }
+
+  &__hint {
+    font-size: 0.8125rem;
+    color: $text-secondary;
+    margin: 0;
+  }
+
+  &__filename {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: $text-primary;
+    margin: 0;
+    word-break: break-all;
+    text-align: center;
+  }
+
+  &__filesize {
+    font-size: 0.8125rem;
+    color: $text-secondary;
+    margin: 0;
+  }
+}
+
+// ── Deduplication radio ────────────────────────────────────────────────────
+.dedup-section {
+  background: $bg-gray;
+  border: 1px solid $border-color;
+  border-radius: $radius;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1.25rem;
+
+  &__label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 0.625rem;
+  }
+}
+
+.radio-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  font-size: 0.9rem;
+  color: $text-primary;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.radio-input {
+  width: 16px;
+  height: 16px;
+  accent-color: $brand-blue;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+// ── Separator config ───────────────────────────────────────────────────────
+.separator-config {
+  background: $bg-gray;
+  border: 1px solid $border-color;
+  border-radius: $radius;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1.25rem;
+
+  &__label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 0.75rem;
+  }
+
+  &__row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex: 1;
+    min-width: 180px;
+  }
+
+  &__field-label {
+    font-size: 0.8125rem;
+    color: $text-primary;
+    font-weight: 500;
+  }
+}
+
+// ── CSV Preview ────────────────────────────────────────────────────────────
+.preview-section {
+  margin-bottom: 0.5rem;
+
+  &__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: $text-secondary;
+    margin: 0 0 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+.preview-table-wrapper {
+  overflow-x: auto;
+  border-radius: $radius;
+  border: 1px solid $border-color;
+  background: $bg-white;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  thead tr {
+    background: $bg-gray;
+    border-bottom: 1px solid $border-color;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  th {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    color: $text-secondary;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.4375rem 0.75rem;
+    color: $text-primary;
+    border-bottom: 1px solid $border-color;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+// ── Field error ────────────────────────────────────────────────────────────
+.field-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: $danger;
+  font-size: 0.875rem;
+  background: $danger-bg;
+  border: 1px solid $danger-border;
+  border-radius: $radius;
+  padding: 0.625rem 0.875rem;
+  margin-bottom: 1rem;
+}
+
+// ── Mapping table ──────────────────────────────────────────────────────────
+.mapping-table-wrapper {
+  overflow-x: auto;
+  border-radius: $radius;
+  border: 1px solid $border-color;
+  background: $bg-white;
+  margin-bottom: 1rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.mapping-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+
+  thead tr {
+    background: $bg-gray;
+    border-bottom: 1px solid $border-color;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  th {
+    padding: 0.625rem 1rem;
+    text-align: left;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.625rem 1rem;
+    color: $text-primary;
+    border-bottom: 1px solid $border-color;
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  &__csv-header {
+    width: 40%;
+  }
+}
+
+.csv-header-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  background: $brand-blue-light;
+  color: $brand-blue;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.field-select {
+  width: 100%;
+  padding: 0.4375rem 0.75rem;
+  border: 1.5px solid $border-color;
+  border-radius: $radius;
+  font-size: 0.875rem;
+  color: $text-primary;
+  background: $bg-white;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  appearance: auto;
+
+  &:focus {
+    outline: none;
+    border-color: $brand-blue;
+    box-shadow: 0 0 0 2px rgba($brand-blue, 0.15);
+  }
+}
+
+// ── Mapping OK indicator ───────────────────────────────────────────────────
+.mapping-ok {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: $success;
+  font-size: 0.875rem;
+  background: $success-bg;
+  border: 1px solid $success-border;
+  border-radius: $radius;
+  padding: 0.625rem 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+// ── Progress bar ───────────────────────────────────────────────────────────
+.progress-wrapper {
+  width: 100%;
+  max-width: 480px;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.progress-bar-track {
+  height: 10px;
+  background: $border-color;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: $brand-blue;
+  border-radius: 5px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+
+.progress-percent {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: $brand-blue;
+  text-align: right;
+}
+
+.progress-text {
+  font-size: 0.9375rem;
+  color: $text-primary;
+  margin: 0.5rem 0 0;
+}
+
+.progress-status {
+  font-size: 0.875rem;
+  color: $text-secondary;
+  margin: 0.25rem 0 0;
+}
+
+.progress-hint {
+  font-size: 0.8125rem;
+  color: $text-secondary;
+  margin: 1rem 0 0;
+  font-style: italic;
+}
+
+// ── Badges ────────────────────────────────────────────────────────────────
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+
+  &--info {
+    background: $info-bg;
+    color: $info;
+  }
+}
+
+// ── Report summary ─────────────────────────────────────────────────────────
+.report-summary {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.report-card {
+  flex: 1;
+  min-width: 100px;
+  background: $bg-gray;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  text-align: center;
+
+  &--success {
+    background: $success-bg;
+    border-color: $success-border;
+
+    .report-card__value {
+      color: $success;
+    }
+  }
+
+  &--info {
+    background: $info-bg;
+    border-color: $info-border;
+
+    .report-card__value {
+      color: $info;
+    }
+  }
+
+  &--danger {
+    background: $danger-bg;
+    border-color: $danger-border;
+
+    .report-card__value {
+      color: $danger;
+    }
+  }
+
+  &__value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: $text-primary;
+    line-height: 1;
+  }
+
+  &__label {
+    font-size: 0.8125rem;
+    color: $text-secondary;
+    text-align: center;
+  }
+}
+
+// ── Buttons ────────────────────────────────────────────────────────────────
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: none;
+  border-radius: $radius;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+  text-decoration: none;
+  line-height: 1;
+  padding: 0.625rem 1.125rem;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+.btn-primary {
+  background: $brand-blue;
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: $brand-blue-dark;
+  }
+}
+
+.btn-secondary {
+  background: $bg-white;
+  color: $text-primary;
+  border: 1.5px solid $border-color;
+
+  &:hover:not(:disabled) {
+    background: $bg-gray;
+    border-color: #c4cdd8;
+  }
+}
+
+.btn-link {
+  background: transparent;
+  color: $brand-blue;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+
+  &:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+}
+
+// ── Spinner ────────────────────────────────────────────────────────────────
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ── Accessibility ──────────────────────────────────────────────────────────
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

@@ -121,7 +121,8 @@
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''accessToken'''',''''FAIL:''''+str\\(d\\)[:200]\\)\\)\")",
       "Bash(pkill -f \"spring-boot:run\")",
       "Bash(pkill -f \"contact-center\")",
-      "Bash(find /e/ClaudAI/contact-center-demo/backend/src/main/resources/db/migration -name *.sql)"
+      "Bash(find /e/ClaudAI/contact-center-demo/backend/src/main/resources/db/migration -name *.sql)",
+      "Skill(update-config)"
     ]
   }
 }

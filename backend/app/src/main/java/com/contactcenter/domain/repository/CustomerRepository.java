@@ -94,6 +94,43 @@ public class CustomerRepository extends TenantAwareRepository {
         return Optional.of(customer);
     }
 
+    /**
+     * Wyszukuje klienta po adresie email w tablicy JSONB {@code email}.
+     *
+     * <p>Zapytanie używa operatora JSONB {@code @>} (contains), który jest obsługiwany
+     * przez indeks GIN {@code idx_customer_email_gin} (V006).
+     * Używane do deduplikacji podczas importu CSV (BE-026).
+     *
+     * @param emailAddress adres email do wyszukania
+     * @param tenantId     UUID tenanta – filtr RLS
+     * @return Optional z pierwszym znalezionym klientem lub empty gdy brak
+     */
+    @Transactional(readOnly = true)
+    public Optional<Customer> findByEmail(String emailAddress, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        log.debug("[CustomerRepo] Szukam klienta po email: email={}, tenant={}", emailAddress, tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Customer> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM customer
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND email @> to_jsonb(CAST(:email AS text))
+                          AND is_deleted = false
+                        LIMIT 1
+                        """,
+                        Customer.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("email", emailAddress)
+                .getResultList();
+
+        if (results.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(results.get(0));
+    }
+
     // =========================================================================
     // Fuzzy search
     // =========================================================================

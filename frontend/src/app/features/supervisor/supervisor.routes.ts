@@ -52,6 +52,15 @@ export const SUPERVISOR_ROUTES: Routes = [
           ),
       },
       {
+        path: 'customers/import',
+        data: { breadcrumb: 'Import CSV', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
+        loadComponent: () =>
+          import('./pages/customers/customer-import/customer-import.component').then(
+            (m) => m.CustomerImportComponent,
+          ),
+      },
+      {
         path: 'customers/new',
         redirectTo: '/supervisor/customers',
         pathMatch: 'full',

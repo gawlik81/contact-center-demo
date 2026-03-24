@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-24 (BE-023 + FE-016 ukończone: import CSV kontaktów kampanii)
+**Ostatnia aktualizacja:** 2026-03-24 (BE-026 + FE-020 ukończone: import klientów z CSV)
 
 ---
 
@@ -78,7 +78,7 @@
 | BE-023 | Import CSV kontaktów kampanii (async job) | ✅ | CampaignImportController (POST import + GET status), CampaignImportService (@Async, OpenCSV, batch JdbcTemplate chunk 1000, deduplikacja ON CONFLICT), Redis TTL 1h dla statusu joba, V027 unikalny indeks (campaign_id, phone). 25 nowych testów, 467 PASS |
 | BE-024 | Progressive Dialer: silnik automatycznego dzwonienia | ⬜ | |
 | BE-025 | Customer CRUD API i fuzzy search | ✅ | CustomerController (POST/GET/GET{id}/PATCH/DELETE /api/customers, PagedResponse, fuzzy search ILIKE + word_similarity), CustomerService (CRUD + soft-delete anonimizacja RODO + invalidateCacheForCustomer), CustomerRepository (searchCustomers natywny SQL, findById), Customer entity (JSONB phone[], email[], custom_fields, gdpr_consent), migracje V023 (funkcja set_tenant_context) + V024 (fix prefix search ILIKE). |
-| BE-026 | Import klientów z CSV (async job) | ⬜ | |
+| BE-026 | Import klientów z CSV (async job) | ✅ | Zrealizowane 2026-03-24. CustomerImportController (POST /api/customers/import 202+jobId, GET status polling, GET errors CSV blob), CustomerImportService (@Async, OpenCSV, batch chunk 500, deduplikacja SKIP/OVERWRITE, walidacja E.164, Redis TTL 1h), CustomerRepository (findByEmail JSONB @>). 24 testy, 506 PASS |
 | BE-027 | Contact API: zapis i odczyt historii kontaktów | ✅ | ContactController (6 endp.), ContactService (CRUD + uprawnienia AGENT/SUPERVISOR/ADMIN), ContactRepository (native INSERT/UPDATE, partycjonowana tabela), ContactId.java, DTOs: ContactResponse/CreateContactRequest/UpdateContactRequest/DispositionRequest/ContactFilterParams. 22 testy PASS. |
 | BE-028 | Raporty historyczne: agregacje per agent i kampania | ✅ | AgentReportRow/AgentReportParams DTOs (Bean Validation), ContactRepository +2 native SQL GROUP BY, ReportsService (Redis cache MD5 5min, walidacja 90 dni, CSV + XLSX Apache POI 5.2.5), ReportsController (4 endpointy: /api/reports/agents, /agents/export, /agents/export/xlsx, /campaigns 501), 13 testów, 442 PASS |
 | BE-029 | RT Metrics API: WebSocket feed dla supervisora | ✅ | SupervisorMetricsPayload (rekord DTO), SupervisorMetricsService (@Scheduled fixedRate=5000, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor, eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów jednostkowych, 429 testów PASS |
@@ -110,7 +110,7 @@
 | FE-017 | Panel disposition codes po zakończeniu kontaktu | ✅ | DispositionPanelComponent (modal ACW z timerem MM:SS, dropdown 6 kodów, textarea notatka), ContactService (setDisposition → PATCH /api/contacts/{id}/disposition), contact-tab.store.ts (stan WRAPPING + markAsWrapping()), effect() na session.state=ENDED w agent-desktop. |
 | FE-018 | Wyszukiwanie i lista klientów (fuzzy search) | ✅ | CustomerListComponent (tabela z paginacją PagedResponse, wyszukiwanie debounce 300ms, skeleton loading, empty state), CustomerDeleteModalComponent (modal RODO z potwierdzeniem anonimizacji), CustomerService (frontend, 5 metod API), supervisor.routes.ts zaktualizowany. Czeka na BE-025 ✅. |
 | FE-019 | Profil klienta: widok szczegółowy i historia kontaktów | ✅ | CustomerDetailComponent (dane podstawowe, multi-value telefon/email chips, custom_fields, oś czasu historii kontaktów z kanałem/agentem/disposition, badge RODO), integracja z BE-025 ✅ i BE-027 ✅. |
-| FE-020 | Import klientów z CSV | ⬜ | |
+| FE-020 | Import klientów z CSV | ✅ | Zrealizowane 2026-03-24. customer-import.component (4-krokowy wizard: upload drag&drop + deduplikacja radio, mapowanie kolumn z auto-mapowaniem, progress bar polling 3s, raport z pobieraniem błędów CSV), customer-import.model.ts, customer.service.ts rozszerzony. Czeka na BE: BE-026 ✅ |
 | FE-021 | Dashboard RT supervisora | ✅ | Dashboard RT supervisora: KPI cards (aktywne połączenia, agenci online/przerwa/dostępni), tabela agentów z aktualnym statusem, wykres kolejek; WebSocket STOMP /topic/tenant/{tenantId}/supervisor, dane co 5s; tryb pełnoekranowy |
 | FE-022 | Raporty historyczne: filtry, tabele, eksport | ✅ | report.model.ts (AgentReportRow, AgentReportFilters), reports.service.ts (getAgentReport, exportCsv, exportXlsx blob), ReportsComponent (filtry URL sync, tabela badge'ami kanałów, paginacja, eksport Blob, skeleton, empty state), supervisor.routes.ts /reports z roleGuard, build 0 błędów |
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ | |
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 20/31 | 0 | 11 | 31 |
-| Frontend (FE) | 19/24 | 0 | 5 | 24 |
-| **RAZEM** | **58/74** | **0** | **16** | **74** |
+| Backend (BE) | 21/31 | 0 | 10 | 31 |
+| Frontend (FE) | 20/24 | 0 | 4 | 24 |
+| **RAZEM** | **60/74** | **0** | **14** | **74** |
 
 ---
 

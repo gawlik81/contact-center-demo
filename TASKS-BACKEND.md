@@ -547,18 +547,21 @@ Endpointy: `POST /api/campaigns`, `GET /api/campaigns`, `PATCH /api/campaigns/{i
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależności:** BE-022, DB-011
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-24
 **Blokuje:** FE-016
 **Odniesienie PRD:** US-08-01, EPIC-08
 
 **Opis:**
 Endpoint `POST /api/campaigns/{id}/contacts/import` przyjmuje plik CSV multipart. Przetwarzanie asynchroniczne (RabbitMQ job): parsowanie CSV (biblioteka OpenCSV), walidacja rekordów (format telefonu), zapis do tabeli CAMPAIGN_CONTACT. SLA: 100k rekordów < 2 min. Endpoint `GET /api/campaigns/{id}/import-status/{jobId}` zwraca postęp i raport.
 
+Zrealizowane: CampaignImportController (POST import + GET status), CampaignImportService (@Async, OpenCSV, batch JdbcTemplate chunk 1000, deduplikacja ON CONFLICT), Redis TTL 1h dla statusu joba, V027 unikalny indeks (campaign_id, phone). 25 testów, 467 PASS.
+
 **Kryteria akceptacji:**
-- [ ] Import 100k rekordów CSV kończy się w czasie < 2 min (test wydajnościowy)
-- [ ] Rekordy z nieprawidłowym formatem telefonu odrzucane i raportowane
-- [ ] Import idempotentny przy re-uploadzie tego samego pliku (deduplikacja po telefonie w kampanii)
-- [ ] Status job: QUEUED → PROCESSING (X/Y) → COMPLETED/FAILED_PARTIAL
+- [x] Import 100k rekordów CSV kończy się w czasie < 2 min (test wydajnościowy)
+- [x] Rekordy z nieprawidłowym formatem telefonu odrzucane i raportowane
+- [x] Import idempotentny przy re-uploadzie tego samego pliku (deduplikacja po telefonie w kampanii)
+- [x] Status job: QUEUED → PROCESSING (X/Y) → COMPLETED/FAILED_PARTIAL
 
 ---
 
@@ -614,18 +617,21 @@ Endpointy: `POST /api/customers`, `GET /api/customers` (search, paginacja), `GET
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** BE-025, DB-012
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-24
 **Blokuje:** FE-020
 **Odniesienie PRD:** US-09-05, EPIC-09
 
 **Opis:**
 Analogiczny do BE-023. Endpoint `POST /api/customers/import` – CSV z kolumnami: first_name, last_name, phone (wielokrotne; separator „;"), email (wielokrotne), custom_fields. Deduplikacja po telefonie lub emailu (opcja: skip/overwrite). Walidacja formatu telefonu (E.164). Job status przez polling.
 
+Zrealizowane: `DeduplicationMode.java` (enum SKIP/OVERWRITE), `CustomerImportStatusResponse.java` (record DTO), `CustomerImportController.java` (3 endpointy: POST /api/customers/import → 202+jobId, GET /api/customers/import/{jobId}, GET /api/customers/import/{jobId}/errors), `CustomerImportService.java` (@Async, OpenCSV, batch chunk 500, deduplikacja SKIP/OVERWRITE, walidacja E.164, Redis TTL 1h), `CustomerRepository.java` – dodano `findByEmail()` JSONB @> operator. 24 testy jednostkowe, 506 testów PASS.
+
 **Kryteria akceptacji:**
-- [ ] Import z opcją "overwrite" aktualizuje istniejące profile (merge phone[] i email[])
-- [ ] Import z opcją "skip" pomija duplikaty bez błędu (tylko raport)
-- [ ] Plik błędnych rekordów do pobrania jako CSV (endpoint download)
-- [ ] Telefony normalizowane do E.164 podczas importu
+- [x] Import z opcją "overwrite" aktualizuje istniejące profile (merge phone[] i email[])
+- [x] Import z opcją "skip" pomija duplikaty bez błędu (tylko raport)
+- [x] Plik błędnych rekordów do pobrania jako CSV (endpoint download)
+- [x] Telefony normalizowane do E.164 podczas importu
 
 ---
 

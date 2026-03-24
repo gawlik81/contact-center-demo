@@ -1,17 +1,30 @@
 <div class="customer-list">
   <div class="customer-list__header">
     <h1 class="customer-list__title">Baza klientów</h1>
-    <button
-      class="btn btn-primary"
-      type="button"
-      (click)="openCreateModal()"
-      aria-label="Dodaj nowego klienta"
-    >
-      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
-        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-      </svg>
-      Nowy klient
-    </button>
+    <div class="customer-list__actions">
+      <button
+        class="btn btn-secondary"
+        type="button"
+        (click)="navigateToImport()"
+        aria-label="Importuj klientów z pliku CSV"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+        </svg>
+        Importuj CSV
+      </button>
+      <button
+        class="btn btn-primary"
+        type="button"
+        (click)="openCreateModal()"
+        aria-label="Dodaj nowego klienta"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+        </svg>
+        Nowy klient
+      </button>
+    </div>
   </div>
 
   <!-- Search bar -->
@@ -230,12 +243,20 @@
           <p class="empty-state__hint">Brak wyników dla podanej frazy. Spróbuj zmienić wyszukiwanie.</p>
         } @else {
           <p class="empty-state__hint">Dodaj pierwszego klienta lub zaimportuj z CSV.</p>
-          <button class="btn btn-primary" type="button" (click)="openCreateModal()">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
-              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-            </svg>
-            Dodaj pierwszego klienta
-          </button>
+          <div class="empty-state__buttons">
+            <button class="btn btn-secondary" type="button" (click)="navigateToImport()">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+              </svg>
+              Importuj CSV
+            </button>
+            <button class="btn btn-primary" type="button" (click)="openCreateModal()">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+              </svg>
+              Dodaj pierwszego klienta
+            </button>
+          </div>
         }
       </div>
     }
@@ -255,4 +276,3 @@
 <app-customer-create-modal
   (customerCreated)="onCustomerCreated()"
 />
-

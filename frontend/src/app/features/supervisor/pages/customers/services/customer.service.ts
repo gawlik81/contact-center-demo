@@ -8,6 +8,7 @@ import {
   PagedResponse,
 } from '../../../models/customer.model';
 import { ContactResponse } from '../../../../../core/models/contact.model';
+import { DeduplicationMode, CustomerImportStatus } from '../customer-import.model';
 
 export interface ContactListParams {
   customerId: string;
@@ -64,5 +65,32 @@ export class CustomerService {
 
   deleteCustomer(id: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
+
+  importCsv(
+    file: File,
+    separator: string,
+    quoteChar: string,
+    deduplication: DeduplicationMode,
+    columnMapping: Record<string, number>,
+  ): Observable<{ jobId: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('columnMapping', JSON.stringify(columnMapping));
+
+    const params = new HttpParams()
+      .set('separator', separator)
+      .set('quoteChar', quoteChar)
+      .set('deduplication', deduplication);
+
+    return this.http.post<{ jobId: string }>(`${this.baseUrl}/import`, formData, { params });
+  }
+
+  getImportStatus(jobId: string): Observable<CustomerImportStatus> {
+    return this.http.get<CustomerImportStatus>(`${this.baseUrl}/import/${jobId}`);
+  }
+
+  downloadImportErrors(jobId: string): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/import/${jobId}/errors`, { responseType: 'blob' });
   }
 }

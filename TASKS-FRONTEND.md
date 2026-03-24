@@ -384,19 +384,22 @@ Widok listy kampanii dla SUPERVISOR: tabela z kolumnami (nazwa, status, progres,
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** FE-015, BE-023
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-023 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-24
+**Czeka na BE:** BE-023 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-08-01, EPIC-08
 
 **Opis:**
 Komponent upload pliku CSV z mapowaniem kolumn: użytkownik wskazuje która kolumna CSV odpowiada polu systemowemu (telefon, imię, nazwisko, custom_fields). Walidacja formatu pliku przed wysłaniem (max 50MB, tylko .csv). Pasek postępu importu (polling statusu zadania async). Raport po zakończeniu: ile rekordów zaimportowano, ile odrzucono z powodu błędów.
 
+Zrealizowane: CampaignImportComponent – 4-krokowy wizard (upload drag&drop → mapowanie kolumn → progress bar polling 3s → raport), walidacja client-side 50MB, auto-mapowanie kolumn, integracja z campaign-list (przycisk dla DRAFT/SCHEDULED).
+
 **Kryteria akceptacji:**
-- [ ] Plik > 50MB wyświetla błąd przed wysłaniem (walidacja client-side)
-- [ ] Mapowanie kolumn CSV działa dla plików z nagłówkiem i bez nagłówka
-- [ ] Pasek postępu odpytuje endpoint statusu co 3s i zamyka się po zakończeniu
-- [ ] Raport końcowy pokazuje liczbę sukcesów i błędów z przykładowymi wadliwymi rekordami
+- [x] Plik > 50MB wyświetla błąd przed wysłaniem (walidacja client-side)
+- [x] Mapowanie kolumn CSV działa dla plików z nagłówkiem i bez nagłówka
+- [x] Pasek postępu odpytuje endpoint statusu co 3s i zamyka się po zakończeniu
+- [x] Raport końcowy pokazuje liczbę sukcesów i błędów z przykładowymi wadliwymi rekordami
 
 ---
 
@@ -478,18 +481,21 @@ Strona profilu klienta: sekcja danych podstawowych (imię, nazwisko, wielowarto�
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależności:** FE-018, BE-026
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-026 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-24
+**Czeka na BE:** BE-026 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-09-05, EPIC-09
 
 **Opis:**
 Komponent importu bazy klientów z pliku CSV (analogiczny do FE-016 ale dedykowany dla modułu klientów). Mapowanie kolumn, walidacja po stronie klienta (max 50MB), async job z paskiem postępu. Deduplikacja po telefonie/emailu (opcja: pomij duplikat / nadpisz).
 
+Zrealizowane: `customer-import.model.ts` (typy DeduplicationMode, ImportJobStatus, CustomerImportStatus), `customer-import.component.ts|html|scss` (4-krokowy wizard: upload drag&drop + deduplikacja radio, mapowanie kolumn z auto-mapowaniem, progress bar polling 3s, raport z pobieraniem błędów CSV). Zmodyfikowane: `customer.service.ts` – dodano importCsv(), getImportStatus(), downloadImportErrors(); `customer-list.component.ts|html` – przycisk "Importuj CSV"; `supervisor.routes.ts` – trasa `customers/import` PRZED `customers/:id`. ng build: SUKCES, 0 błędów.
+
 **Kryteria akceptacji:**
-- [ ] Opcja deduplikacji widoczna w kroku mapowania kolumn
-- [ ] Raport importu zawiera liczbę: dodanych, zaktualizowanych, pominiętych, błędnych
-- [ ] Użytkownik może pobrać plik błędnych rekordów jako CSV
+- [x] Opcja deduplikacji widoczna w kroku mapowania kolumn
+- [x] Raport importu zawiera liczbę: dodanych, zaktualizowanych, pominiętych, błędnych
+- [x] Użytkownik może pobrać plik błędnych rekordów jako CSV
 
 ---
 

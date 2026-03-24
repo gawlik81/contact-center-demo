@@ -22,3 +22,4 @@
 - [Customer detail view and contact history (FE-019)](./project_fe019_customer_detail.md) – CustomerDetailComponent (4 stany, skeleton, error/not-found), CustomerService.getCustomerContacts, paginowana historia kontaktów, badge CSS per kanał/status
 - [Supervisor RT Dashboard (FE-021)](./project_fe021_supervisor_dashboard.md) – KPI cards, agent table z break-time tracking, queue CSS bar chart, SupervisorMetricsService (WS SUPERVISOR_METRICS), fullscreen API
 - [Campaign management (FE-015)](./project_campaigns_fe015.md) – CampaignListComponent (polling 10s), CampaignFormComponent (native dialog, cross-field validators, day selector signals), CampaignService, campaign.model.ts
+- [Customer import from CSV (FE-020)](./project_fe020_customer_import.md) – CustomerImportComponent (full-page wizard), CustomerImportStatus model, CustomerService import methods, route customers/import

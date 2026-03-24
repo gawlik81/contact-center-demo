@@ -1,0 +1,381 @@
+<div class="customer-import">
+
+  <!-- ── Page header ────────────────────────────────────────────────────── -->
+  <div class="customer-import__header">
+    <button class="btn btn-icon-back" type="button" (click)="navigateToList()" aria-label="Powrót do listy klientów">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20">
+        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+      </svg>
+    </button>
+    <h1 class="customer-import__title">Import klientów z CSV</h1>
+  </div>
+
+  <!-- ── Stepper ────────────────────────────────────────────────────────── -->
+  <nav class="stepper" aria-label="Kroki importu">
+    @for (step of allSteps; track step) {
+      <div
+        class="stepper__step"
+        [class.stepper__step--active]="isStepActive(step)"
+        [class.stepper__step--completed]="isStepCompleted(step)"
+        [attr.aria-current]="isStepActive(step) ? 'step' : null"
+      >
+        <div class="stepper__circle">
+          @if (isStepCompleted(step)) {
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="14" height="14">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+            </svg>
+          } @else {
+            {{ getStepNumber(step) }}
+          }
+        </div>
+        <span class="stepper__label">
+          @switch (step) {
+            @case ('upload') { Plik }
+            @case ('mapping') { Mapowanie }
+            @case ('progress') { Import }
+            @case ('report') { Raport }
+          }
+        </span>
+      </div>
+      @if (step !== 'report') {
+        <div class="stepper__connector" [class.stepper__connector--done]="isStepCompleted(step)"></div>
+      }
+    }
+  </nav>
+
+  <!-- ── Step content card ─────────────────────────────────────────────── -->
+  <div class="import-card">
+
+    <!-- ── Step 1: Upload ──────────────────────────────────────────────── -->
+    @if (currentStep() === 'upload') {
+      <div class="import-step" role="region" aria-labelledby="step-upload-title">
+        <h2 class="import-step__subtitle" id="step-upload-title">Wybierz plik CSV</h2>
+
+        <!-- Drag & drop zone -->
+        <div
+          class="drop-zone"
+          [class.drop-zone--dragging]="isDragging()"
+          [class.drop-zone--has-file]="selectedFile() !== null"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave()"
+          (drop)="onDrop($event)"
+          role="button"
+          tabindex="0"
+          aria-label="Strefa przeciagania pliku CSV"
+          (keydown.enter)="fileInput.click()"
+          (keydown.space)="fileInput.click()"
+        >
+          @if (!selectedFile()) {
+            <svg class="drop-zone__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+            </svg>
+            <p class="drop-zone__text">Przeciagnij plik CSV tutaj lub</p>
+            <button class="btn btn-secondary" type="button" (click)="fileInput.click()">Wybierz plik</button>
+            <p class="drop-zone__hint">Maksymalny rozmiar: 50 MB &bull; Format: .csv</p>
+          } @else {
+            <svg class="drop-zone__icon drop-zone__icon--success" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+            </svg>
+            <p class="drop-zone__filename">{{ selectedFile()!.name }}</p>
+            <p class="drop-zone__filesize">{{ formatFileSize(selectedFile()!.size) }}</p>
+            <button class="btn btn-link" type="button" (click)="fileInput.click()">Zmien plik</button>
+          }
+        </div>
+
+        <input
+          #fileInput
+          type="file"
+          accept=".csv"
+          class="sr-only"
+          aria-label="Wybierz plik CSV"
+          (change)="onFileInputChange($event)"
+        />
+
+        <!-- File error -->
+        @if (fileError()) {
+          <div class="field-error" role="alert" aria-live="assertive">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            {{ fileError() }}
+          </div>
+        }
+
+        <!-- Deduplication mode -->
+        <div class="dedup-section" role="group" aria-labelledby="dedup-section-label">
+          <p class="dedup-section__label" id="dedup-section-label">Obsługa duplikatów (wg numeru telefonu)</p>
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="deduplication"
+              class="radio-input"
+              [checked]="deduplicationMode() === 'SKIP'"
+              (change)="deduplicationMode.set('SKIP')"
+            />
+            <span>Pomiń duplikaty – nie nadpisuj istniejących klientów</span>
+          </label>
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="deduplication"
+              class="radio-input"
+              [checked]="deduplicationMode() === 'OVERWRITE'"
+              (change)="deduplicationMode.set('OVERWRITE')"
+            />
+            <span>Nadpisz duplikaty – zaktualizuj dane istniejących klientów</span>
+          </label>
+        </div>
+
+        <!-- Separator configuration -->
+        <div class="separator-config" role="group" aria-labelledby="separator-config-label">
+          <p class="separator-config__label" id="separator-config-label">Konfiguracja separatorów</p>
+          <div class="separator-config__row">
+            <div class="separator-config__field">
+              <label class="separator-config__field-label" for="column-separator-select">Separator kolumn</label>
+              <select
+                id="column-separator-select"
+                class="field-select"
+                [ngModel]="columnSeparator()"
+                (ngModelChange)="columnSeparator.set($event)"
+                aria-label="Separator kolumn"
+              >
+                @for (opt of columnSeparatorOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="separator-config__field">
+              <label class="separator-config__field-label" for="quote-char-select">Separator stringów (quote char)</label>
+              <select
+                id="quote-char-select"
+                class="field-select"
+                [ngModel]="quoteChar()"
+                (ngModelChange)="quoteChar.set($event)"
+                aria-label="Separator stringow (quote char)"
+              >
+                @for (opt of quoteCharOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- CSV Preview -->
+        @if (csvHeaders().length > 0) {
+          <div class="preview-section">
+            <h3 class="preview-section__title">Podglad pliku (pierwsze {{ csvPreviewRows().length }} wierszy)</h3>
+            <div class="preview-table-wrapper" role="region" aria-label="Podglad zawartosci CSV">
+              <table class="preview-table">
+                <thead>
+                  <tr>
+                    @for (header of csvHeaders(); track $index) {
+                      <th scope="col">{{ header }}</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of csvPreviewRows(); track $index) {
+                    <tr>
+                      @for (cell of row; track $index) {
+                        <td>{{ cell }}</td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        <!-- Actions -->
+        <div class="import-step__actions">
+          <button class="btn btn-secondary" type="button" (click)="navigateToList()">Anuluj</button>
+          <button class="btn btn-primary" type="button" [disabled]="!selectedFile()" (click)="goToMapping()">
+            Dalej: Mapowanie kolumn
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ── Step 2: Column Mapping ──────────────────────────────────────── -->
+    @if (currentStep() === 'mapping') {
+      <div class="import-step" role="region" aria-labelledby="step-mapping-title">
+        <h2 class="import-step__subtitle" id="step-mapping-title">Mapowanie kolumn CSV</h2>
+        <p class="import-step__desc">
+          Przypisz kolumny z pliku CSV do pól systemowych. Pole <strong>Telefon</strong> jest wymagane.
+        </p>
+
+        <div class="mapping-table-wrapper" role="region" aria-label="Tabela mapowania kolumn">
+          <table class="mapping-table">
+            <thead>
+              <tr>
+                <th scope="col">Kolumna CSV</th>
+                <th scope="col">Pole systemowe</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (mapping of columnMappings(); track $index) {
+                <tr>
+                  <td class="mapping-table__csv-header">
+                    <span class="csv-header-chip">{{ mapping.csvHeader }}</span>
+                  </td>
+                  <td>
+                    <select
+                      class="field-select"
+                      [ngModel]="mapping.systemField"
+                      (ngModelChange)="updateMapping($index, $event)"
+                      [attr.aria-label]="'Mapowanie kolumny ' + mapping.csvHeader"
+                    >
+                      @for (opt of systemFieldOptions; track opt.value) {
+                        <option [value]="opt.value">{{ opt.label }}</option>
+                      }
+                    </select>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Phone mapping validation error -->
+        @if (mappingError()) {
+          <div class="field-error" role="alert" aria-live="assertive">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            {{ mappingError() }}
+          </div>
+        }
+
+        @if (isPhoneMapped()) {
+          <div class="mapping-ok" role="status" aria-live="polite">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            Pole telefonu jest zmapowane.
+          </div>
+        }
+
+        <!-- Actions -->
+        <div class="import-step__actions">
+          <button class="btn btn-secondary" type="button" (click)="goBackToUpload()">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+            Wstecz
+          </button>
+          <button class="btn btn-primary" type="button" [disabled]="submitting()" (click)="onImport()">
+            @if (submitting()) {
+              <span class="spinner" aria-hidden="true"></span>
+              Wysylanie...
+            } @else {
+              Importuj klientów
+            }
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ── Step 3: Progress ─────────────────────────────────────────────── -->
+    @if (currentStep() === 'progress') {
+      <div class="import-step import-step--centered" role="region" aria-labelledby="step-progress-title">
+        <h2 class="import-step__subtitle" id="step-progress-title">Trwa import...</h2>
+
+        <div class="progress-wrapper" aria-live="polite" [attr.aria-label]="'Postep importu: ' + progressPercent() + '%'">
+          <div
+            class="progress-bar-track"
+            role="progressbar"
+            [attr.aria-valuenow]="progressPercent()"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <div class="progress-bar-fill" [style.width.%]="progressPercent()"></div>
+          </div>
+          <span class="progress-percent">{{ progressPercent() }}%</span>
+        </div>
+
+        @if (jobStatus(); as job) {
+          <p class="progress-text">
+            Przetworzono <strong>{{ job.processed }}</strong> z <strong>{{ job.total }}</strong> rekordów
+          </p>
+          <p class="progress-status">
+            Status:
+            @switch (job.status) {
+              @case ('QUEUED') {
+                <span class="badge badge--info">W kolejce</span>
+              }
+              @case ('PROCESSING') {
+                <span class="badge badge--info">Przetwarzanie</span>
+              }
+            }
+          </p>
+        } @else {
+          <p class="progress-text">Inicjalizacja importu...</p>
+        }
+
+        <p class="progress-hint">Import odbywa sie w tle. Nie zamykaj okna.</p>
+      </div>
+    }
+
+    <!-- ── Step 4: Report ──────────────────────────────────────────────── -->
+    @if (currentStep() === 'report') {
+      @if (jobStatus(); as job) {
+        <div class="import-step" role="region" aria-labelledby="step-report-title">
+          <h2 class="import-step__subtitle" id="step-report-title">
+            @if (job.status === 'COMPLETED') {
+              Import zakończony pomyślnie
+            } @else if (job.status === 'FAILED_PARTIAL') {
+              Import zakończony z ostrzeżeniami
+            } @else {
+              Import zakończony z błędem
+            }
+          </h2>
+
+          <!-- Summary cards -->
+          <div class="report-summary" role="list" aria-label="Podsumowanie importu">
+            <div class="report-card report-card--total" role="listitem">
+              <span class="report-card__value">{{ job.total }}</span>
+              <span class="report-card__label">Łacznie wierszy</span>
+            </div>
+            <div class="report-card report-card--success" role="listitem">
+              <span class="report-card__value">{{ job.imported }}</span>
+              <span class="report-card__label">Dodano</span>
+            </div>
+            <div class="report-card report-card--info" role="listitem">
+              <span class="report-card__value">{{ job.updated }}</span>
+              <span class="report-card__label">Zaktualizowano</span>
+            </div>
+            <div class="report-card" role="listitem">
+              <span class="report-card__value">{{ job.skipped }}</span>
+              <span class="report-card__label">Pominięto</span>
+            </div>
+            <div class="report-card" [class.report-card--danger]="job.failed > 0" role="listitem">
+              <span class="report-card__value">{{ job.failed }}</span>
+              <span class="report-card__label">Błędów</span>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="import-step__actions">
+            @if (job.errorFileAvailable) {
+              <button class="btn btn-secondary" type="button" (click)="downloadErrors()">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                  <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+                Pobierz błędy CSV
+              </button>
+            }
+            <button class="btn btn-primary" type="button" (click)="navigateToList()">
+              Powrót do listy klientów
+            </button>
+          </div>
+        </div>
+      }
+    }
+
+  </div>
+</div>

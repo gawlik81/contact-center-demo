@@ -1,5 +1,16 @@
 {
   "enabledPlugins": {
     "frontend-design@claude-code-plugins": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(mvn:*)",
+      "Bash(cd backend*)",
+      "Bash(cd frontend*)",
+      "Bash(npx ng*)",
+      "Bash(npx ng build*)",
+      "Bash(npx ng serve*)",
+      "Write"
+    ]
   }
 }

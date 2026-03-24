@@ -5,6 +5,7 @@ import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.config.S3Properties;
+import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -15,7 +16,6 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -114,21 +114,21 @@ public class RecordingService {
             return;
         }
 
-        // Pobierz contactId z metadanych zdarzenia
-        String contactIdStr = event.getMetadata() != null
-                ? event.getMetadata().get(METADATA_CONTACT_ID)
-                : null;
-
-        if (contactIdStr == null || contactIdStr.isBlank()) {
-            log.warn("[Recording] Brak contactId w metadata CallEvent callId={} – pomijam", event.getCallId());
-            return;
+        // Pobierz contactId – najpierw z dedykowanego pola, fallback do metadanych (legacy)
+        UUID contactId = event.getContactId();
+        if (contactId == null && event.getMetadata() != null) {
+            String contactIdStr = event.getMetadata().get(METADATA_CONTACT_ID);
+            if (contactIdStr != null && !contactIdStr.isBlank()) {
+                try {
+                    contactId = UUID.fromString(contactIdStr);
+                } catch (IllegalArgumentException e) {
+                    log.warn("[Recording] Nieprawidłowy contactId='{}' w metadata CallEvent callId={}", contactIdStr, event.getCallId());
+                }
+            }
         }
 
-        UUID contactId;
-        try {
-            contactId = UUID.fromString(contactIdStr);
-        } catch (IllegalArgumentException e) {
-            log.warn("[Recording] Nieprawidłowy contactId='{}' w CallEvent callId={}", contactIdStr, event.getCallId());
+        if (contactId == null) {
+            log.warn("[Recording] Brak contactId w CallEvent callId={} – pomijam", event.getCallId());
             return;
         }
 
@@ -145,7 +145,14 @@ public class RecordingService {
         try {
             String s3Key = buildS3Key(tenantId, contactId, event.getTimestamp());
             uploadToS3(s3Key, audioFile);
-            contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
+
+            // Wątek RabbitMQ listener nie przechodzi przez TenantFilter – ustawiamy kontekst ręcznie
+            TenantContext.setTenantId(tenantId);
+            try {
+                contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
+            } finally {
+                TenantContext.clear();
+            }
 
             log.info("[Recording] Nagranie uploadowane: contactId={}, s3Key={}", contactId, s3Key);
         } finally {
@@ -227,7 +234,6 @@ public class RecordingService {
                     .bucket(s3Properties.getBucket())
                     .key(s3Key)
                     .contentType("audio/mpeg")
-                    .serverSideEncryption(ServerSideEncryption.AES256)
                     .build();
 
             s3Client.putObject(putRequest, RequestBody.fromFile(filePath));

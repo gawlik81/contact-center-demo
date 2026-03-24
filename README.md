@@ -166,6 +166,43 @@ contact-center-demo/
 - **Multi-tenancy** – every request sets PostgreSQL `app.current_tenant_id` via RLS; enforced at DB level
 - **Token blacklist** – SHA-256 token hash stored in Redis on logout
 - **Filter chain order**: `JwtAuthFilter` → `TenantFilter` → `UsernamePasswordAuthenticationFilter`
+- **Recording encryption** – handled at bucket level in MinIO/S3 (see below); no per-request SSE header is sent by the application
+
+---
+
+## MinIO – Bucket-Level Encryption (SSE-S3)
+
+Recordings are uploaded without a per-request SSE header. Encryption is configured once on the bucket so every object is encrypted automatically.
+
+### Enable via MinIO Client (`mc`)
+
+```bash
+# Add alias for local MinIO (adjust URL/credentials as needed)
+mc alias set local http://localhost:9000 minioadmin minioadmin
+
+# Enable SSE-S3 (AES-256) on the recordings bucket
+mc encrypt set sse-s3 local/recordings
+```
+
+Verify:
+
+```bash
+mc encrypt info local/recordings
+# Expected output: Auto encryption 'sse-s3' is enabled
+```
+
+### Enable via MinIO Console
+
+1. Open `http://localhost:9001` → log in with MinIO root credentials.
+2. Navigate to **Buckets** → select your recordings bucket.
+3. Open the **Summary** tab → **Encryption** section.
+4. Set encryption type to **SSE-S3** and save.
+
+### Notes
+
+- SSE-S3 on MinIO requires the **KES** (Key Encryption Service) sidecar **only for SSE-KMS**. SSE-S3 works without KES – MinIO manages the keys internally.
+- In production (AWS S3), enable **Default Encryption** on the bucket (`AES-256`) via the S3 Console or IaC, or set `serverSideEncryption(ServerSideEncryption.AES256)` back in `RecordingService.uploadToS3()`.
+- The `docker-compose.yml` MinIO service does **not** enable SSE-S3 by default – run the `mc encrypt set` command once after first `docker compose up -d`.
 
 ---
 

@@ -153,7 +153,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
         }
 
         eventPublisher.publishHangup(
-                callId, updated.getTenantId(), updated.getAgentId(),
+                callId, session.getContactId(), updated.getTenantId(), updated.getAgentId(),
                 updated.getFrom(), updated.getTo()
         );
     }

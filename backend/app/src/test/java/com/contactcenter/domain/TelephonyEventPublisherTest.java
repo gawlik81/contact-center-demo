@@ -171,7 +171,7 @@ class TelephonyEventPublisherTest {
         @Test
         @DisplayName("publishHangup powinien ustawić poprawny eventType i routing key")
         void publishHangupShouldSetCorrectEventType() {
-            publisher.publishHangup(CALL_ID, TENANT_ID, AGENT_ID, FROM, TO);
+            publisher.publishHangup(CALL_ID, null, TENANT_ID, AGENT_ID, FROM, TO);
 
             ArgumentCaptor<CallEvent> captor = ArgumentCaptor.forClass(CallEvent.class);
             verify(rabbitTemplate).convertAndSend(eq(EXCHANGE_EVENTS), eq("call.hangup"), captor.capture());

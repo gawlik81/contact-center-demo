@@ -105,12 +105,15 @@ public class TelephonyEventPublisher {
 
     /**
      * Publikuje zdarzenie CALL_HANGUP (połączenie zakończone).
+     *
+     * @param contactId UUID rekordu kontaktu w tabeli {@code contact} (null gdy brak rekordu)
      */
-    public void publishHangup(String callId, UUID tenantId, UUID agentId,
+    public void publishHangup(String callId, UUID contactId, UUID tenantId, UUID agentId,
                                String from, String to) {
         publish(CallEvent.builder()
                 .eventType(CallEvent.EventType.CALL_HANGUP)
                 .callId(callId)
+                .contactId(contactId)
                 .tenantId(tenantId)
                 .agentId(agentId)
                 .from(from)

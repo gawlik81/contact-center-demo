@@ -194,7 +194,7 @@ class MockTelephonyAdapterTest {
             adapter.hangupCall(session.getCallId());
 
             verify(eventPublisher).publishHangup(
-                    session.getCallId(), TENANT_ID, AGENT_ID, FROM, TO
+                    eq(session.getCallId()), any(), eq(TENANT_ID), eq(AGENT_ID), eq(FROM), eq(TO)
             );
         }
 
@@ -206,7 +206,7 @@ class MockTelephonyAdapterTest {
 
             assertThatNoException().isThrownBy(() -> adapter.hangupCall(session.getCallId()));
             // Event hangup wywołany tylko raz
-            verify(eventPublisher, times(1)).publishHangup(anyString(), any(), any(), anyString(), anyString());
+            verify(eventPublisher, times(1)).publishHangup(anyString(), any(), any(), any(), anyString(), anyString());
         }
 
         @Test

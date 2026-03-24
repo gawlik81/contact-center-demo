@@ -1,0 +1,457 @@
+@use 'sass:color';
+
+// ── Variables (consistent with campaign-list palette) ─────────────────────────
+$brand-blue: #1565c0;
+$brand-blue-dark: #0d47a1;
+$text-primary: #212121;
+$text-secondary: #616161;
+$border-color: #e2e8f0;
+$bg-white: #ffffff;
+$bg-row-hover: #f8fafc;
+$danger: #c62828;
+$danger-bg: #ffebee;
+$success: #2e7d32;
+$success-bg: #e8f5e9;
+$warning: #f57f17;
+$warning-bg: #fff8e1;
+$inactive-bg: #f5f5f5;
+$inactive-text: #757575;
+$blue-bg: #e3f2fd;
+$radius: 6px;
+
+// ── Native dialog reset & backdrop ────────────────────────────────────────────
+.contacts-dialog {
+  border: none;
+  padding: 0;
+  border-radius: 10px;
+  background: $bg-white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  width: min(90vw, 1000px);
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  &::backdrop {
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(2px);
+  }
+}
+
+// ── Modal layout ──────────────────────────────────────────────────────────────
+.contacts-modal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 90vh;
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem 0;
+    flex-shrink: 0;
+  }
+
+  &__title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  &__title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0;
+  }
+
+  &__campaign-name {
+    font-size: 0.875rem;
+    color: $text-secondary;
+  }
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid $border-color;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  &__count {
+    font-size: 0.9375rem;
+    color: $text-secondary;
+
+    strong {
+      color: $text-primary;
+      font-weight: 600;
+    }
+  }
+
+  &__filters {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.75rem 1.5rem;
+    padding: 0.75rem 1rem;
+    background: $danger-bg;
+    color: $danger;
+    border-radius: $radius;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  &__footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid $border-color;
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+}
+
+// ── Filter controls ───────────────────────────────────────────────────────────
+.filter-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: $text-secondary;
+  white-space: nowrap;
+}
+
+.filter-select {
+  padding: 0.375rem 0.625rem;
+  border: 1.5px solid $border-color;
+  border-radius: $radius;
+  font-size: 0.875rem;
+  color: $text-primary;
+  background: $bg-white;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    outline: none;
+    border-color: $brand-blue;
+  }
+}
+
+// ── Table wrapper (scrollable body) ──────────────────────────────────────────
+.contacts-table-wrapper {
+  overflow: auto;
+  flex: 1;
+  padding: 0 1.5rem;
+}
+
+.contacts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  thead tr {
+    background: #f8fafc;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    box-shadow: 0 1px 0 $border-color;
+  }
+
+  th {
+    padding: 0.625rem 0.875rem;
+    text-align: left;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    background: #f8fafc;
+  }
+
+  td {
+    padding: 0.75rem 0.875rem;
+    color: $text-primary;
+    border-bottom: 1px solid $border-color;
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.contact-row {
+  transition: background 0.1s ease;
+
+  &:hover {
+    background: $bg-row-hover;
+  }
+}
+
+.contact-phone {
+  font-weight: 500;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  font-family: monospace;
+}
+
+.contact-name {
+  font-size: 0.875rem;
+  color: $text-secondary;
+}
+
+.contact-error {
+  max-width: 200px;
+
+  &__text {
+    font-size: 0.8125rem;
+    color: $danger;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+    cursor: help;
+  }
+}
+
+.contact-date {
+  font-size: 0.8125rem;
+  color: $text-secondary;
+  white-space: nowrap;
+}
+
+.contact-empty {
+  color: $text-secondary;
+  font-size: 0.875rem;
+}
+
+// ── Contact status badges ─────────────────────────────────────────────────────
+.contact-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &--pending {
+    background: $inactive-bg;
+    color: $inactive-text;
+  }
+
+  &--called {
+    background: $success-bg;
+    color: $success;
+  }
+
+  &--failed {
+    background: $danger-bg;
+    color: $danger;
+  }
+
+  &--skipped {
+    background: $warning-bg;
+    color: $warning;
+  }
+}
+
+// ── Buttons ───────────────────────────────────────────────────────────────────
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: none;
+  border-radius: $radius;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+  line-height: 1;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+.btn-close {
+  padding: 0.375rem;
+  background: transparent;
+  color: $text-secondary;
+  border-radius: $radius;
+
+  &:hover {
+    background: $inactive-bg;
+    color: $text-primary;
+  }
+}
+
+.btn-secondary {
+  padding: 0.5625rem 1.125rem;
+  background: $bg-white;
+  color: $brand-blue;
+  border: 1.5px solid $border-color;
+
+  &:hover:not(:disabled) {
+    background: $blue-bg;
+    border-color: $brand-blue;
+  }
+}
+
+.btn-pagination {
+  padding: 0.4375rem 0.875rem;
+  background: $bg-white;
+  color: $brand-blue;
+  border: 1.5px solid $border-color;
+  border-radius: $radius;
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  &:hover:not(:disabled) {
+    background: $blue-bg;
+    border-color: $brand-blue;
+  }
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+.contacts-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.5rem;
+  border-top: 1px solid $border-color;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  flex-shrink: 0;
+
+  &__info {
+    font-size: 0.875rem;
+    color: $text-secondary;
+  }
+
+  &__controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__pages {
+    font-size: 0.875rem;
+    color: $text-secondary;
+    white-space: nowrap;
+    min-width: 90px;
+    text-align: center;
+  }
+}
+
+// ── Skeleton loading ──────────────────────────────────────────────────────────
+.skeleton-wrapper {
+  padding: 0 1.5rem;
+  flex: 1;
+  overflow: hidden;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid $border-color;
+  align-items: center;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.skeleton-cell {
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+
+  &--phone {
+    width: 130px;
+    flex-shrink: 0;
+  }
+
+  &--name {
+    flex: 2;
+    max-width: 120px;
+  }
+
+  &--badge {
+    width: 80px;
+    flex-shrink: 0;
+  }
+
+  &--error {
+    flex: 3;
+  }
+
+  &--date {
+    width: 140px;
+    flex-shrink: 0;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+.contacts-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  flex: 1;
+
+  &__icon {
+    width: 48px;
+    height: 48px;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+  }
+
+  &__message {
+    font-size: 1rem;
+    font-weight: 500;
+    color: $text-primary;
+    margin: 0 0 0.25rem;
+  }
+
+  &__hint {
+    font-size: 0.875rem;
+    color: $text-secondary;
+    margin: 0;
+  }
+}

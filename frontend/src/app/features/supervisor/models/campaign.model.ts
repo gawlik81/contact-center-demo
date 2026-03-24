@@ -59,3 +59,37 @@ export interface PagedResponse<T> {
   first: boolean;
   last: boolean;
 }
+
+export type ImportJobStatusType = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED_PARTIAL';
+
+export interface ImportJobStatus {
+  jobId: string;
+  campaignId: string;
+  status: ImportJobStatusType;
+  totalRows: number;
+  processedRows: number;
+  importedRows: number;
+  rejectedRows: number;
+  rejectedSamples: string[];
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export interface ImportJobStartResponse {
+  jobId: string;
+  campaignId: string;
+  status: ImportJobStatusType;
+}
+
+export type CampaignContactStatus = 'PENDING' | 'CALLED' | 'FAILED' | 'SKIPPED';
+
+export interface CampaignContact {
+  recordId: string;
+  phone: string;
+  firstName: string | null;
+  lastName: string | null;
+  customFields: Record<string, string> | null;
+  status: CampaignContactStatus;
+  dispositionCode: string | null;
+  createdAt: string;
+}

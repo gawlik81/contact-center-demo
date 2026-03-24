@@ -215,6 +215,30 @@ $radius: 6px;
   }
 }
 
+.btn-icon-contacts {
+  padding: 0.375rem;
+  background: transparent;
+  color: $teal-text;
+  border: 1.5px solid $teal-text;
+  border-radius: $radius;
+
+  &:hover:not(:disabled) {
+    background: $teal-bg;
+  }
+}
+
+.btn-icon-import {
+  padding: 0.375rem;
+  background: transparent;
+  color: $blue-text;
+  border: 1.5px solid $blue-text;
+  border-radius: $radius;
+
+  &:hover:not(:disabled) {
+    background: $blue-bg;
+  }
+}
+
 .btn-icon-success {
   padding: 0.375rem;
   background: transparent;
@@ -345,8 +369,12 @@ $radius: 6px;
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 // ── Empty state ────────────────────────────────────────────────────────────────

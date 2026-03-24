@@ -202,6 +202,17 @@
         </dependency>
 
         <!-- =================================================================
+             OpenCSV – parsowanie plików CSV (BE-023)
+             ================================================================= -->
+
+        <!-- OpenCSV – parser CSV z obsługą nagłówków, cudzysłowów, kodowania -->
+        <dependency>
+            <groupId>com.opencsv</groupId>
+            <artifactId>opencsv</artifactId>
+            <version>5.9</version>
+        </dependency>
+
+        <!-- =================================================================
              Hot reload w trybie dev
              ================================================================= -->
         <dependency>

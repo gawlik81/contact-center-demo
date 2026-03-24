@@ -16,7 +16,6 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -177,7 +176,7 @@ class RecordingServiceTest {
             PutObjectRequest capturedPut = putCaptor.getValue();
             assertThat(capturedPut.bucket()).isEqualTo(BUCKET);
             assertThat(capturedPut.key()).isEqualTo(TENANT_ID + "/2026/03/" + CONTACT_ID + ".mp3");
-            assertThat(capturedPut.serverSideEncryption()).isEqualTo(ServerSideEncryption.AES256);
+            assertThat(capturedPut.serverSideEncryption()).isNull(); // SSE obsługiwane na poziomie bucketu
 
             // Weryfikacja: recording_url zaktualizowane w DB
             verify(contactRepository).updateRecordingUrl(
@@ -211,7 +210,7 @@ class RecordingServiceTest {
                 ArgumentCaptor<PutObjectRequest> putCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
                 verify(s3Client).putObject(putCaptor.capture(), any(RequestBody.class));
 
-                assertThat(putCaptor.getValue().serverSideEncryption()).isEqualTo(ServerSideEncryption.AES256);
+                assertThat(putCaptor.getValue().serverSideEncryption()).isNull(); // SSE obsługiwane na poziomie bucketu
                 verify(contactRepository).updateRecordingUrl(eq(CONTACT_ID), eq(TENANT_ID), any());
 
             } finally {
@@ -244,7 +243,7 @@ class RecordingServiceTest {
                 PutObjectRequest req = captor.getValue();
                 assertThat(req.bucket()).isEqualTo(BUCKET);
                 assertThat(req.key()).isEqualTo(s3Key);
-                assertThat(req.serverSideEncryption()).isEqualTo(ServerSideEncryption.AES256);
+                assertThat(req.serverSideEncryption()).isNull(); // SSE obsługiwane na poziomie bucketu
                 assertThat(req.contentType()).isEqualTo("audio/mpeg");
             } finally {
                 Files.deleteIfExists(tempFile);

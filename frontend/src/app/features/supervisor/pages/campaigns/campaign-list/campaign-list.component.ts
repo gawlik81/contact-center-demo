@@ -12,13 +12,15 @@ import { CampaignService } from '../../../services/campaign.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { Campaign, CampaignStatus, PagedResponse } from '../../../models/campaign.model';
 import { CampaignFormComponent } from '../campaign-form/campaign-form.component';
+import { CampaignImportComponent } from '../campaign-import/campaign-import.component';
+import { CampaignContactsComponent } from '../campaign-contacts/campaign-contacts.component';
 
 const POLLING_INTERVAL_MS = 10_000;
 
 @Component({
   selector: 'app-campaign-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CampaignFormComponent],
+  imports: [CampaignFormComponent, CampaignImportComponent, CampaignContactsComponent],
   templateUrl: './campaign-list.component.html',
   styleUrl: './campaign-list.component.scss',
 })
@@ -39,6 +41,12 @@ export class CampaignListComponent implements OnInit {
   readonly isEditMode = signal(false);
 
   readonly actionInProgress = signal<Set<string>>(new Set());
+
+  readonly showImportModal = signal(false);
+  readonly importCampaign = signal<Campaign | null>(null);
+
+  readonly showContactsModal = signal(false);
+  readonly contactsCampaign = signal<Campaign | null>(null);
 
   ngOnInit(): void {
     this.loadCampaigns();
@@ -106,6 +114,34 @@ export class CampaignListComponent implements OnInit {
   onFormSaved(): void {
     this.closeFormModal();
     this.loadCampaigns();
+  }
+
+  canImport(status: CampaignStatus): boolean {
+    return status === 'DRAFT' || status === 'SCHEDULED';
+  }
+
+  openImportModal(campaign: Campaign): void {
+    this.importCampaign.set(campaign);
+    this.showImportModal.set(true);
+  }
+
+  onImportClosed(success: boolean): void {
+    this.showImportModal.set(false);
+    this.importCampaign.set(null);
+    if (success) {
+      this.notifications.success('Import kontaktow zostal zakonczony pomyslnie.');
+      this.loadCampaigns();
+    }
+  }
+
+  openContactsModal(campaign: Campaign): void {
+    this.contactsCampaign.set(campaign);
+    this.showContactsModal.set(true);
+  }
+
+  onContactsClosed(): void {
+    this.showContactsModal.set(false);
+    this.contactsCampaign.set(null);
   }
 
   canStart(status: CampaignStatus): boolean {
@@ -178,7 +214,12 @@ export class CampaignListComponent implements OnInit {
 
   onStop(campaign: Campaign): void {
     const id = campaign.campaignId;
-    if (!confirm(`Czy na pewno chcesz zatrzymac kampanie "${campaign.name}"? Tej operacji nie mozna cofnac.`)) return;
+    if (
+      !confirm(
+        `Czy na pewno chcesz zatrzymac kampanie "${campaign.name}"? Tej operacji nie mozna cofnac.`,
+      )
+    )
+      return;
 
     this.setActionInProgress(id, true);
     this.campaignService
@@ -246,18 +287,25 @@ export class CampaignListComponent implements OnInit {
 
   formatDialerType(dialerType: string): string {
     switch (dialerType) {
-      case 'PROGRESSIVE': return 'Progresywny';
-      case 'PREDICTIVE': return 'Predyktywny';
-      case 'MANUAL': return 'Manualny';
-      default: return dialerType;
+      case 'PROGRESSIVE':
+        return 'Progresywny';
+      case 'PREDICTIVE':
+        return 'Predyktywny';
+      case 'MANUAL':
+        return 'Manualny';
+      default:
+        return dialerType;
     }
   }
 
   formatType(type: string): string {
     switch (type) {
-      case 'OUTBOUND_VOICE': return 'Wychodzace glosy';
-      case 'OUTBOUND_EMAIL': return 'Wychodzace email';
-      default: return type;
+      case 'OUTBOUND_VOICE':
+        return 'Wychodzace glosy';
+      case 'OUTBOUND_EMAIL':
+        return 'Wychodzace email';
+      default:
+        return type;
     }
   }
 

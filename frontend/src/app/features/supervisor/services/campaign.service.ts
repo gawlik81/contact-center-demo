@@ -3,7 +3,10 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   Campaign,
+  CampaignContact,
   CreateCampaignRequest,
+  ImportJobStartResponse,
+  ImportJobStatus,
   PagedResponse,
   UpdateCampaignRequest,
 } from '../models/campaign.model';
@@ -40,5 +43,44 @@ export class CampaignService {
 
   stopCampaign(id: string): Observable<Campaign> {
     return this.http.post<Campaign>(`${this.API}/${id}/stop`, {});
+  }
+
+  importContacts(
+    campaignId: string,
+    file: File,
+    skipDuplicates: boolean,
+    columnSeparator: string,
+    quoteChar: string,
+    columnMapping: string,
+  ): Observable<ImportJobStartResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('skipDuplicates', String(skipDuplicates));
+    formData.append('columnSeparator', columnSeparator);
+    formData.append('quoteChar', quoteChar);
+    formData.append('columnMapping', columnMapping);
+    return this.http.post<ImportJobStartResponse>(
+      `${this.API}/${campaignId}/contacts/import`,
+      formData,
+    );
+  }
+
+  getImportStatus(campaignId: string, jobId: string): Observable<ImportJobStatus> {
+    return this.http.get<ImportJobStatus>(`${this.API}/${campaignId}/import-status/${jobId}`);
+  }
+
+  getCampaignContacts(
+    campaignId: string,
+    page = 0,
+    size = 50,
+    status?: string,
+  ): Observable<PagedResponse<CampaignContact>> {
+    let params = new HttpParams().set('page', page.toString()).set('size', size.toString());
+    if (status) {
+      params = params.set('status', status);
+    }
+    return this.http.get<PagedResponse<CampaignContact>>(`${this.API}/${campaignId}/contacts`, {
+      params,
+    });
   }
 }

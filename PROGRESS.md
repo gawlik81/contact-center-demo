@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-22 (FE-015 ukończone: lista kampanii + formularz tworzenia; odblokowuje FE-016)
+**Ostatnia aktualizacja:** 2026-03-24 (BE-023 + FE-016 ukończone: import CSV kontaktów kampanii)
 
 ---
 
@@ -75,7 +75,7 @@
 | BE-020 | Queue API: CRUD kolejek i konfiguracja routingu | ✅ | QueueController (POST/GET/PATCH/DELETE /api/queues, GET /api/queues/{id}/stats), DTOs: CreateQueueRequest, UpdateQueueRequest, QueueResponse. Routing strategy enum: ROUND_ROBIN/FIRST_AVAILABLE/SKILL_BASED. |
 | BE-021 | Wait time estimation: informacja o czasie oczekiwania | ⬜ | |
 | BE-022 | Campaign CRUD API i harmonogram | ✅ | Campaign.java, CampaignRepository, CampaignService, CampaignController + DTOs, V026 migracja. Odblokowuje BE-023, FE-015 |
-| BE-023 | Import CSV kontaktów kampanii (async job) | ⬜ | |
+| BE-023 | Import CSV kontaktów kampanii (async job) | ✅ | CampaignImportController (POST import + GET status), CampaignImportService (@Async, OpenCSV, batch JdbcTemplate chunk 1000, deduplikacja ON CONFLICT), Redis TTL 1h dla statusu joba, V027 unikalny indeks (campaign_id, phone). 25 nowych testów, 467 PASS |
 | BE-024 | Progressive Dialer: silnik automatycznego dzwonienia | ⬜ | |
 | BE-025 | Customer CRUD API i fuzzy search | ✅ | CustomerController (POST/GET/GET{id}/PATCH/DELETE /api/customers, PagedResponse, fuzzy search ILIKE + word_similarity), CustomerService (CRUD + soft-delete anonimizacja RODO + invalidateCacheForCustomer), CustomerRepository (searchCustomers natywny SQL, findById), Customer entity (JSONB phone[], email[], custom_fields, gdpr_consent), migracje V023 (funkcja set_tenant_context) + V024 (fix prefix search ILIKE). |
 | BE-026 | Import klientów z CSV (async job) | ⬜ | |
@@ -106,7 +106,7 @@
 | FE-013 | Komponent obsługi kontaktu social media | ⬜ | |
 | FE-014 | Graficzny edytor drzewa IVR (drag & drop) | ⬜ | |
 | FE-015 | Zarządzanie kampaniami: lista i formularz tworzenia | ✅ | campaign.model.ts, campaign.service.ts, campaign-list.component (ts/html/scss), campaign-form.component (ts/html/scss), supervisor.routes.ts zaktualizowany. Odblokowuje FE-016. |
-| FE-016 | Import listy kontaktów CSV do kampanii | ⬜ | |
+| FE-016 | Import listy kontaktów CSV do kampanii | ✅ | CampaignImportComponent: 4-krokowy wizard (upload drag&drop → mapowanie kolumn → progress bar polling 3s → raport), walidacja client-side 50MB, auto-mapowanie kolumn, integracja z campaign-list (przycisk dla DRAFT/SCHEDULED). |
 | FE-017 | Panel disposition codes po zakończeniu kontaktu | ✅ | DispositionPanelComponent (modal ACW z timerem MM:SS, dropdown 6 kodów, textarea notatka), ContactService (setDisposition → PATCH /api/contacts/{id}/disposition), contact-tab.store.ts (stan WRAPPING + markAsWrapping()), effect() na session.state=ENDED w agent-desktop. |
 | FE-018 | Wyszukiwanie i lista klientów (fuzzy search) | ✅ | CustomerListComponent (tabela z paginacją PagedResponse, wyszukiwanie debounce 300ms, skeleton loading, empty state), CustomerDeleteModalComponent (modal RODO z potwierdzeniem anonimizacji), CustomerService (frontend, 5 metod API), supervisor.routes.ts zaktualizowany. Czeka na BE-025 ✅. |
 | FE-019 | Profil klienta: widok szczegółowy i historia kontaktów | ✅ | CustomerDetailComponent (dane podstawowe, multi-value telefon/email chips, custom_fields, oś czasu historii kontaktów z kanałem/agentem/disposition, badge RODO), integracja z BE-025 ✅ i BE-027 ✅. |
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 19/31 | 0 | 12 | 31 |
-| Frontend (FE) | 18/24 | 0 | 6 | 24 |
-| **RAZEM** | **56/74** | **0** | **18** | **74** |
+| Backend (BE) | 20/31 | 0 | 11 | 31 |
+| Frontend (FE) | 19/24 | 0 | 5 | 24 |
+| **RAZEM** | **58/74** | **0** | **16** | **74** |
 
 ---
 

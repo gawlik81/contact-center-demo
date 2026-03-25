@@ -23,3 +23,4 @@
 - [BE-027 Contact API](project_be027_contact_api.md) – CRUD historii kontaktów, tabela partycjonowana, ContactRepository rozszerza istniejący plik (BE-010 recording)
 - [BE-019 Routing Engine](project_routing_engine.md) – silnik routingu (skill-based, round-robin, sticky agent), pakiet domain.routing, spy pattern w testach
 - [BE-023 Campaign CSV Import](project_be023_csv_import.md) – async CSV import, JdbcTemplate batch, Redis status QUEUED/PROCESSING/COMPLETED/FAILED_PARTIAL, V027 unique index
+- [BE-013 IVR Engine](project_be013_ivr_engine.md) – silnik IVR, drzewa węzłów JSONB, sesja Redis (ivr:session:), TTS cache (ivr:tts:), fallback do kolejki, TaskScheduler DTMF timeout

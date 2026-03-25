@@ -62,6 +62,8 @@ public class RabbitMQConfig {
     public static final String QUEUE_DLQ                    = "cc.queue.dead-letter";
     /** Kolejka dla eventu nieznanego dzwoniącego – auto-tworzenie profilu klienta (BE-025). */
     public static final String QUEUE_UNKNOWN_CALLER         = "cc.queue.unknown-caller";
+    /** Kolejka dla przychodzących połączeń obsługiwanych przez silnik IVR (BE-013). */
+    public static final String QUEUE_IVR_HANDLER            = "cc.queue.ivr-handler";
 
     // =========================================================================
     // Routing keys
@@ -246,6 +248,29 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(unknownCallerQueue)
                 .to(eventsExchange)
                 .with("call.unknown_caller");
+    }
+
+    /**
+     * Kolejka dla silnika IVR – nasłuchuje przychodzących połączeń.
+     * BE-013: IVR Engine – przechwytuje call.incoming przed routingiem do agenta.
+     */
+    @Bean
+    public Queue ivrHandlerQueue() {
+        return QueueBuilder.durable(QUEUE_IVR_HANDLER)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", "dlq")
+                .build();
+    }
+
+    /**
+     * Binding kolejki IVR handler do exchange cc.events z routing key call.incoming.
+     * BE-013: Przechwytuje przychodzące połączenia przed routingiem.
+     */
+    @Bean
+    public Binding bindingIvrHandler(Queue ivrHandlerQueue, TopicExchange eventsExchange) {
+        return BindingBuilder.bind(ivrHandlerQueue)
+                .to(eventsExchange)
+                .with("call.incoming");
     }
 
     // =========================================================================

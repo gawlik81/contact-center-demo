@@ -5,6 +5,7 @@ import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.RateLimitExceededException;
 import com.contactcenter.domain.exception.ResourceLimitExceededException;
+import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.service.AuthService;
 import com.contactcenter.security.MfaService;
 import jakarta.persistence.EntityNotFoundException;
@@ -238,6 +239,26 @@ public class GlobalExceptionHandler {
         log.warn("[API][TenantLimit] Przekroczono limit zasobu '{}': limit={}, current={}",
                 ex.getResourceType(), ex.getLimit(), ex.getCurrent());
         return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * Zasób nie istnieje – HTTP 404 Not Found.
+     *
+     * <p>Obsługuje {@link ResourceNotFoundException} dla zasobów domenowych
+     * (IVR, audio, itp.) gdzie semantycznie właściwe jest HTTP 404.
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleResourceNotFoundException(
+            ResourceNotFoundException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setType(URI.create(ERROR_BASE_URI + "resource-not-found"));
+        problem.setTitle("Zasób nie istnieje");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.debug("[API] Zasób nie istnieje: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
     /**

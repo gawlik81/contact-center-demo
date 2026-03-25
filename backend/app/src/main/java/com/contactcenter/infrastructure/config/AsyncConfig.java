@@ -3,8 +3,11 @@ package com.contactcenter.infrastructure.config;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import java.util.concurrent.Executor;
 
@@ -20,6 +23,7 @@ import java.util.concurrent.Executor;
  */
 @Slf4j
 @Configuration
+@EnableScheduling
 public class AsyncConfig implements AsyncConfigurer {
 
     /**
@@ -48,6 +52,25 @@ public class AsyncConfig implements AsyncConfigurer {
         log.info("[Async] ThreadPoolTaskExecutor skonfigurowany: core={}, max={}, queueCapacity={}",
                 executor.getCorePoolSize(), executor.getMaxPoolSize(), 500);
         return executor;
+    }
+
+    /**
+     * TaskScheduler dla IVR timeoutów DTMF oraz innych zaplanowanych zadań.
+     *
+     * <p>Używany przez {@link com.contactcenter.domain.service.IvrEngineService}
+     * do planowania timeoutów oczekiwania na wejście DTMF.
+     */
+    @Bean
+    public TaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(4);
+        scheduler.setThreadNamePrefix("cc-scheduler-");
+        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        scheduler.setAwaitTerminationSeconds(10);
+        scheduler.initialize();
+
+        log.info("[Scheduler] ThreadPoolTaskScheduler skonfigurowany: poolSize=4");
+        return scheduler;
     }
 
     /**

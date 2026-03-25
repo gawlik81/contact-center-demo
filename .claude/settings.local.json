@@ -122,7 +122,8 @@
       "Bash(pkill -f \"spring-boot:run\")",
       "Bash(pkill -f \"contact-center\")",
       "Bash(find /e/ClaudAI/contact-center-demo/backend/src/main/resources/db/migration -name *.sql)",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Bash(find E:ClaudAIcontact-center-demo -path */.m2/repository/com/twilio/sdk/twilio/10.1.5/*.jar)"
     ]
   }
 }

@@ -317,6 +317,36 @@ Implementacja WebSocket server (Spring WebSocket + STOMP) lub Server-Sent Events
 
 ---
 
+### BE-032 – Twilio: konfiguracja numeru telefonu per tenant
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** BE-009, BE-006
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-025
+**Odniesienie PRD:** EPIC-03
+
+**Opis:**
+Rozszerzenie adaptera Twilio o obsługę wielu numerów telefonów – po jednym (lub więcej) dla każdego tenanta. Numer przechowywany jako `twilio_phone_number` w JSONB `tenant.config`. Przy połączeniu wychodzącym adapter szuka numeru tenanta; jeśli brak – używa globalnego fallbacku z `twilio.phone-number`. Analogicznie `twilio_status_callback_url` per tenant. Supervisor konfiguruje numery przez API ustawień tenanta (endpoint PATCH `/api/tenants/{id}/config`).
+
+**Szczegóły implementacji:**
+- Dodaj metody pomocnicze `getTwilioPhoneNumber()` i `getTwilioStatusCallbackUrl()` do encji `Tenant`
+- Wstrzyknij `TenantRepository` do `TwilioTelephonyAdapter`; zastąp `twilioProperties.getPhoneNumber()` logiką: lookup po `tenantId` → fallback globalny
+- Metoda `buildStatusCallbackUrl(UUID tenantId)` buduje URL dynamicznie: `baseUrl + "?tenantId=" + tenantId` (gdy brak per-tenant URL) lub pobiera z `tenant.config`
+- Walidacja przy zapisie: numer musi być w formacie E.164 (`+` i 7–15 cyfr)
+- Endpoint `PATCH /api/tenants/{id}/config` z DTO `TenantTwilioConfigRequest { twilioPhoneNumber, twilioStatusCallbackUrl }`; dostępny dla ADMIN i SUPERVISOR swojego tenanta
+
+**Kryteria akceptacji:**
+- [ ] Dwa tenanci z różnymi numerami Twilio – połączenia wychodzące używają właściwego numeru per tenant
+- [ ] Brak konfiguracji per tenant → fallback do `twilio.phone-number` z `application.yml`
+- [ ] Webhook URL zawiera `tenantId` jako query param (automatycznie lub z konfiguracji)
+- [ ] Walidacja E.164 zwraca HTTP 400 dla niepoprawnego numeru
+- [ ] Zapis nowego numeru nie wymaga restartu aplikacji (brak cache bez TTL)
+- [ ] Test jednostkowy: `resolvePhoneNumber()` – priorytet: per-tenant > globalny fallback
+
+---
+
 ## MODUL: IVR i Automatyzacja (EPIC-04)
 
 ### BE-013 – IVR Engine: wykonanie drzewa IVR
@@ -774,6 +804,7 @@ BE-002 + DB-006 → BE-027 → BE-028
 BE-012 + BE-019 → BE-029
 BE-027 + DB-013 + DB-014 → BE-030 (ETL)
 BE-025 + BE-027 + DB-012 → BE-031 (RODO)
+BE-009 + BE-006 → BE-032 (Twilio per-tenant)
 ```
 
 ### Blokery od Bazy Danych (BE czeka na DB)
@@ -802,7 +833,7 @@ BE-025 + BE-027 + DB-012 → BE-031 (RODO)
 | Auth + Security | BE-003 → BE-004 |
 | Tenants | BE-006 → BE-007 |
 | Users | BE-008 |
-| Telephony | BE-009 → BE-010, BE-011, BE-012 |
+| Telephony | BE-009 → BE-010, BE-011, BE-012, BE-032 |
 | IVR + Voicebot | BE-013 → BE-014 |
 | Email | BE-015 → BE-016 |
 | Social Media | BE-017 → BE-018 |
@@ -820,7 +851,7 @@ BE-025 + BE-027 + DB-012 → BE-031 (RODO)
 | Infrastruktura | 5 | 5 | 0 |
 | Tenants (EPIC-01) | 2 | 2 | 0 |
 | Użytkownicy (EPIC-02) | 1 | 1 | 0 |
-| Telefonia (EPIC-03) | 4 | 4 | 0 |
+| Telefonia (EPIC-03) | 5 | 4 | 1 |
 | IVR + Voicebot (EPIC-04) | 2 | 2 | 0 |
 | Email (EPIC-05) | 2 | 1 | 1 |
 | Social Media (EPIC-06) | 2 | 2 | 0 |
@@ -829,4 +860,4 @@ BE-025 + BE-027 + DB-012 → BE-031 (RODO)
 | Klienci (EPIC-09) | 2 | 2 | 0 |
 | Raporty (EPIC-10) | 4 | 4 | 0 |
 | RODO | 1 | 1 | 0 |
-| **RAZEM** | **31** | **29** | **2** |
+| **RAZEM** | **32** | **29** | **3** |

@@ -1,0 +1,626 @@
+package com.contactcenter.domain;
+
+import com.contactcenter.domain.telephony.CallSession;
+import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.domain.telephony.TelephonyEventPublisher;
+import com.contactcenter.domain.telephony.TwilioTelephonyAdapter;
+import com.contactcenter.infrastructure.config.TwilioProperties;
+import com.twilio.exception.ApiException;
+import com.twilio.rest.api.v2010.account.Call;
+import com.twilio.rest.api.v2010.account.CallCreator;
+import com.twilio.rest.api.v2010.account.CallUpdater;
+import com.twilio.type.Twiml;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+
+import java.util.UUID;
+
+import java.net.URI;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * Testy jednostkowe dla {@link TwilioTelephonyAdapter}.
+ *
+ * <p>Twilio SDK jest mockowany przez {@link MockedStatic} – żadne prawdziwe wywołania
+ * API nie są wykonywane. Testy weryfikują logikę mapowania statusów, zarządzanie
+ * sesjami i publikację eventów.
+ *
+ * <p>Adapter jest konstruowany ręcznie (bez Spring kontekstu) z mockowanymi
+ * zależnościami, żeby uniknąć uruchamiania {@link TwilioTelephonyAdapter#init()},
+ * który wywołuje {@code Twilio.init()} wymagające połączenia z API.
+ */
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
+@DisplayName("TwilioTelephonyAdapter – zarządzanie sesjami i mapowanie statusów")
+class TwilioTelephonyAdapterTest {
+
+    private static final UUID TENANT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID AGENT_ID  = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static final String FROM    = "+48123456789";
+    private static final String TO      = "+48987654321";
+    private static final String CALL_SID = "CA1234567890abcdef1234567890abcdef";
+
+    @Mock
+    private TelephonyEventPublisher eventPublisher;
+
+    private TwilioProperties twilioProperties;
+    private TwilioTelephonyAdapter adapter;
+
+    @BeforeEach
+    void setUp() {
+        twilioProperties = new TwilioProperties();
+        twilioProperties.setEnabled(true);
+        twilioProperties.setAccountSid("ACtest12345678901234567890123456");
+        twilioProperties.setAuthToken("testAuthToken12345678901234567890");
+        twilioProperties.setPhoneNumber("+48111000111");
+        twilioProperties.setStatusCallbackUrl("https://example.com/api/telephony/webhook/twilio");
+
+        // Nie wywołujemy @PostConstruct init() – omijamy Twilio.init() w testach
+        adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher);
+    }
+
+    // =========================================================================
+    // mapTwilioStatus
+    // =========================================================================
+
+    @Nested
+    @DisplayName("mapTwilioStatus() – mapowanie statusów Twilio")
+    class MapTwilioStatus {
+
+        @Test
+        @DisplayName("'queued' powinien mapować na RINGING")
+        void queuedShouldMapToRinging() {
+            assertThat(adapter.mapTwilioStatus("queued"))
+                    .isEqualTo(CallSession.CallStatus.RINGING);
+        }
+
+        @Test
+        @DisplayName("'initiated' powinien mapować na RINGING")
+        void initiatedShouldMapToRinging() {
+            assertThat(adapter.mapTwilioStatus("initiated"))
+                    .isEqualTo(CallSession.CallStatus.RINGING);
+        }
+
+        @Test
+        @DisplayName("'ringing' powinien mapować na RINGING")
+        void ringingShouldMapToRinging() {
+            assertThat(adapter.mapTwilioStatus("ringing"))
+                    .isEqualTo(CallSession.CallStatus.RINGING);
+        }
+
+        @Test
+        @DisplayName("'in-progress' powinien mapować na ACTIVE")
+        void inProgressShouldMapToActive() {
+            assertThat(adapter.mapTwilioStatus("in-progress"))
+                    .isEqualTo(CallSession.CallStatus.ACTIVE);
+        }
+
+        @Test
+        @DisplayName("'completed' powinien mapować na ENDED")
+        void completedShouldMapToEnded() {
+            assertThat(adapter.mapTwilioStatus("completed"))
+                    .isEqualTo(CallSession.CallStatus.ENDED);
+        }
+
+        @Test
+        @DisplayName("'busy' powinien mapować na ENDED")
+        void busyShouldMapToEnded() {
+            assertThat(adapter.mapTwilioStatus("busy"))
+                    .isEqualTo(CallSession.CallStatus.ENDED);
+        }
+
+        @Test
+        @DisplayName("'failed' powinien mapować na ENDED")
+        void failedShouldMapToEnded() {
+            assertThat(adapter.mapTwilioStatus("failed"))
+                    .isEqualTo(CallSession.CallStatus.ENDED);
+        }
+
+        @Test
+        @DisplayName("'no-answer' powinien mapować na ENDED")
+        void noAnswerShouldMapToEnded() {
+            assertThat(adapter.mapTwilioStatus("no-answer"))
+                    .isEqualTo(CallSession.CallStatus.ENDED);
+        }
+
+        @Test
+        @DisplayName("'canceled' powinien mapować na ENDED")
+        void canceledShouldMapToEnded() {
+            assertThat(adapter.mapTwilioStatus("canceled"))
+                    .isEqualTo(CallSession.CallStatus.ENDED);
+        }
+
+        @Test
+        @DisplayName("null powinien mapować na RINGING (defensywne)")
+        void nullShouldMapToRinging() {
+            assertThat(adapter.mapTwilioStatus(null))
+                    .isEqualTo(CallSession.CallStatus.RINGING);
+        }
+
+        @Test
+        @DisplayName("nieznany status powinien mapować na RINGING z ostrzeżeniem")
+        void unknownStatusShouldMapToRinging() {
+            assertThat(adapter.mapTwilioStatus("unknown-status"))
+                    .isEqualTo(CallSession.CallStatus.RINGING);
+        }
+
+        @Test
+        @DisplayName("mapowanie powinno być case-insensitive (COMPLETED → ENDED)")
+        void mappingShouldBeCaseInsensitive() {
+            assertThat(adapter.mapTwilioStatus("COMPLETED"))
+                    .isEqualTo(CallSession.CallStatus.ENDED);
+            assertThat(adapter.mapTwilioStatus("IN-PROGRESS"))
+                    .isEqualTo(CallSession.CallStatus.ACTIVE);
+        }
+    }
+
+    // =========================================================================
+    // answerCall
+    // =========================================================================
+
+    @Nested
+    @DisplayName("answerCall()")
+    class AnswerCall {
+
+        @Test
+        @DisplayName("powinien przejść sesję do stanu ACTIVE i opublikować event CALL_ANSWERED")
+        void shouldTransitionToActiveAndPublishEvent() {
+            // Arrange: wstaw sesję ręcznie przez webhook handler
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+
+            // Act
+            adapter.answerCall(CALL_SID);
+
+            // Assert
+            CallSession session = adapter.getCallSession(CALL_SID);
+            assertThat(session.getStatus()).isEqualTo(CallSession.CallStatus.ACTIVE);
+            assertThat(session.getAnsweredAt()).isNotNull();
+
+            verify(eventPublisher).publishAnswered(CALL_SID, TENANT_ID, null, FROM, TO);
+        }
+
+        @Test
+        @DisplayName("wywołanie na zakończonej sesji powinno rzucić TelephonyException")
+        void shouldThrowForEndedCall() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "completed", TENANT_ID);
+
+            assertThatThrownBy(() -> adapter.answerCall(CALL_SID))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class)
+                    .hasMessageContaining(CALL_SID);
+        }
+
+        @Test
+        @DisplayName("wywołanie na już aktywnej sesji powinno być idempotentne")
+        void shouldBeIdempotentForActiveCall() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+            clearInvocations(eventPublisher);
+
+            assertThatNoException().isThrownBy(() -> adapter.answerCall(CALL_SID));
+            // Nie publikujemy dublowanego eventu CALL_ANSWERED
+            verify(eventPublisher, never()).publishAnswered(anyString(), any(), any(), anyString(), anyString());
+        }
+
+        @Test
+        @DisplayName("wywołanie na nieistniejącej sesji powinno rzucić TelephonyException")
+        void shouldThrowForUnknownCallId() {
+            assertThatThrownBy(() -> adapter.answerCall("NIEISTNIEJACY_SID"))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class);
+        }
+    }
+
+    // =========================================================================
+    // hangupCall
+    // =========================================================================
+
+    @Nested
+    @DisplayName("hangupCall()")
+    class HangupCall {
+
+        @Test
+        @DisplayName("powinien zaktualizować stan sesji na ENDED i opublikować event CALL_HANGUP")
+        void shouldTransitionToEndedAndPublishHangupEvent() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
+                CallUpdater mockUpdater = mock(CallUpdater.class);
+                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
+                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+
+                adapter.hangupCall(CALL_SID);
+            }
+
+            CallSession session = adapter.getCallSession(CALL_SID);
+            assertThat(session.getStatus()).isEqualTo(CallSession.CallStatus.ENDED);
+            assertThat(session.getEndedAt()).isNotNull();
+
+            verify(eventPublisher).publishHangup(eq(CALL_SID), any(), eq(TENANT_ID), any(), eq(FROM), eq(TO));
+        }
+
+        @Test
+        @DisplayName("wywołanie na już zakończonej sesji powinno być idempotentne")
+        void shouldBeIdempotentForEndedCall() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "completed", TENANT_ID);
+            clearInvocations(eventPublisher);
+
+            assertThatNoException().isThrownBy(() -> adapter.hangupCall(CALL_SID));
+            verify(eventPublisher, never()).publishHangup(anyString(), any(), any(), any(), anyString(), anyString());
+        }
+
+        @Test
+        @DisplayName("błąd 404 od Twilio powinien być traktowany idempotentnie")
+        void shouldHandleTwilio404Idempotently() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
+                CallUpdater mockUpdater = mock(CallUpdater.class);
+                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
+                ApiException notFound = new ApiException("Call not found", 20404, null, 404, null);
+                when(mockUpdater.update()).thenThrow(notFound);
+                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+
+                // Nie rzuca wyjątku – traktuje 404 jako "już zakończone"
+                assertThatNoException().isThrownBy(() -> adapter.hangupCall(CALL_SID));
+            }
+        }
+
+        @Test
+        @DisplayName("błąd 5xx od Twilio powinien rzucić TelephonyException")
+        void shouldThrowForTwilioServerError() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
+                CallUpdater mockUpdater = mock(CallUpdater.class);
+                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
+                ApiException serverError = new ApiException("Internal Server Error", 0, null, 500, null);
+                when(mockUpdater.update()).thenThrow(serverError);
+                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+
+                assertThatThrownBy(() -> adapter.hangupCall(CALL_SID))
+                        .isInstanceOf(TelephonyAdapter.TelephonyException.class)
+                        .hasMessageContaining("Twilio");
+            }
+        }
+
+        @Test
+        @DisplayName("wywołanie na nieistniejącej sesji powinno rzucić TelephonyException")
+        void shouldThrowForUnknownCallId() {
+            assertThatThrownBy(() -> adapter.hangupCall("NIEISTNIEJACY_SID"))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class);
+        }
+    }
+
+    // =========================================================================
+    // holdCall
+    // =========================================================================
+
+    @Nested
+    @DisplayName("holdCall()")
+    class HoldCall {
+
+        @Test
+        @DisplayName("hold=true powinien przejść ACTIVE → ON_HOLD")
+        void holdShouldTransitionActiveToOnHold() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
+                CallUpdater mockUpdater = mock(CallUpdater.class);
+                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
+                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+
+                adapter.holdCall(CALL_SID, true);
+            }
+
+            assertThat(adapter.getCallSession(CALL_SID).getStatus())
+                    .isEqualTo(CallSession.CallStatus.ON_HOLD);
+        }
+
+        @Test
+        @DisplayName("hold=false powinien przejść ON_HOLD → ACTIVE")
+        void unholdShouldTransitionOnHoldToActive() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
+                CallUpdater mockUpdater = mock(CallUpdater.class);
+                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
+                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+
+                adapter.holdCall(CALL_SID, true);
+                adapter.holdCall(CALL_SID, false);
+            }
+
+            assertThat(adapter.getCallSession(CALL_SID).getStatus())
+                    .isEqualTo(CallSession.CallStatus.ACTIVE);
+        }
+
+        @Test
+        @DisplayName("hold=true na sesji ON_HOLD powinien rzucić TelephonyException")
+        void holdOnAlreadyHeldCallShouldThrow() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
+                CallUpdater mockUpdater = mock(CallUpdater.class);
+                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
+                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+
+                adapter.holdCall(CALL_SID, true); // → ON_HOLD
+
+                assertThatThrownBy(() -> adapter.holdCall(CALL_SID, true))
+                        .isInstanceOf(TelephonyAdapter.TelephonyException.class);
+            }
+        }
+
+        @Test
+        @DisplayName("hold na nieaktywnym połączeniu powinien rzucić TelephonyException")
+        void holdOnRingingCallShouldThrow() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+
+            assertThatThrownBy(() -> adapter.holdCall(CALL_SID, true))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class);
+        }
+    }
+
+    // =========================================================================
+    // muteCall
+    // =========================================================================
+
+    @Nested
+    @DisplayName("muteCall()")
+    class MuteCall {
+
+        @Test
+        @DisplayName("mute na aktywnym połączeniu nie powinien rzucić wyjątku")
+        void muteShouldNotThrowForActiveCall() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            assertThatNoException().isThrownBy(() -> adapter.muteCall(CALL_SID, true));
+        }
+
+        @Test
+        @DisplayName("mute na zakończonym połączeniu powinien rzucić TelephonyException")
+        void muteShouldThrowForEndedCall() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "completed", TENANT_ID);
+
+            assertThatThrownBy(() -> adapter.muteCall(CALL_SID, true))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class);
+        }
+    }
+
+    // =========================================================================
+    // handleWebhookStatusUpdate
+    // =========================================================================
+
+    @Nested
+    @DisplayName("handleWebhookStatusUpdate()")
+    class HandleWebhookStatusUpdate {
+
+        @Test
+        @DisplayName("nowe połączenie przychodzące powinno tworzyć sesję")
+        void newCallShouldCreateSession() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+
+            CallSession session = adapter.getCallSession(CALL_SID);
+            assertThat(session).isNotNull();
+            assertThat(session.getCallId()).isEqualTo(CALL_SID);
+            assertThat(session.getFrom()).isEqualTo(FROM);
+            assertThat(session.getTo()).isEqualTo(TO);
+            assertThat(session.getTenantId()).isEqualTo(TENANT_ID);
+            assertThat(session.getStatus()).isEqualTo(CallSession.CallStatus.RINGING);
+        }
+
+        @Test
+        @DisplayName("zmiana statusu na 'in-progress' powinna opublikować event CALL_ANSWERED")
+        void inProgressShouldPublishAnsweredEvent() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+            // Reset weryfikacji z poprzedniego eventu CALL_INCOMING
+            clearInvocations(eventPublisher);
+
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            verify(eventPublisher).publishAnswered(CALL_SID, TENANT_ID, null, FROM, TO);
+        }
+
+        @Test
+        @DisplayName("zmiana statusu na 'completed' powinna opublikować event CALL_HANGUP")
+        void completedShouldPublishHangupEvent() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+            clearInvocations(eventPublisher);
+
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "completed", TENANT_ID);
+
+            verify(eventPublisher).publishHangup(eq(CALL_SID), any(), eq(TENANT_ID), any(), eq(FROM), eq(TO));
+        }
+
+        @Test
+        @DisplayName("zmiana statusu na 'ringing' powinna opublikować event CALL_INCOMING")
+        void ringingShouldPublishIncomingEvent() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+
+            verify(eventPublisher).publishIncoming(eq(CALL_SID), any(), eq(TENANT_ID), any(), eq(FROM), eq(TO));
+        }
+
+        @Test
+        @DisplayName("aktualizacja istniejącej sesji powinna zmieniać stan bez tworzenia nowej sesji")
+        void updateExistingSessionShouldModifyState() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            assertThat(adapter.getCallSession(CALL_SID).getStatus())
+                    .isEqualTo(CallSession.CallStatus.ACTIVE);
+            assertThat(adapter.getActiveSessionCount()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("zmiana na 'in-progress' powinna ustawić answeredAt")
+        void inProgressShouldSetAnsweredAt() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            assertThat(adapter.getCallSession(CALL_SID).getAnsweredAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("zmiana na 'completed' powinna ustawić endedAt")
+        void completedShouldSetEndedAt() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "completed", TENANT_ID);
+
+            assertThat(adapter.getCallSession(CALL_SID).getEndedAt()).isNotNull();
+        }
+    }
+
+    // =========================================================================
+    // bridgeCalls
+    // =========================================================================
+
+    @Nested
+    @DisplayName("bridgeCalls()")
+    class BridgeCalls {
+
+        private static final String CALL_SID_2 = "CB9876543210fedcba9876543210fedcba";
+
+        @Test
+        @DisplayName("powinien oznaczyć callId1 jako TRANSFERRED i callId2 jako ACTIVE")
+        void shouldTransferFirstAndActivateSecond() {
+            adapter.handleWebhookStatusUpdate(CALL_SID,   FROM, TO, "in-progress", TENANT_ID);
+            adapter.handleWebhookStatusUpdate(CALL_SID_2, TO, "+48111222333", "in-progress", TENANT_ID);
+
+            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
+                CallUpdater mockUpdater = mock(CallUpdater.class);
+                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
+                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+
+                adapter.bridgeCalls(CALL_SID, CALL_SID_2);
+            }
+
+            assertThat(adapter.getCallSession(CALL_SID).getStatus())
+                    .isEqualTo(CallSession.CallStatus.TRANSFERRED);
+            assertThat(adapter.getCallSession(CALL_SID_2).getStatus())
+                    .isEqualTo(CallSession.CallStatus.ACTIVE);
+        }
+
+        @Test
+        @DisplayName("bridge z nieistniejącym callId powinien rzucić TelephonyException")
+        void shouldThrowForUnknownCallId() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
+
+            assertThatThrownBy(() -> adapter.bridgeCalls(CALL_SID, "NIEISTNIEJACY"))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class);
+        }
+
+        @Test
+        @DisplayName("bridge zakończonej sesji powinien rzucić TelephonyException")
+        void shouldThrowForEndedSession() {
+            adapter.handleWebhookStatusUpdate(CALL_SID,   FROM, TO, "in-progress", TENANT_ID);
+            adapter.handleWebhookStatusUpdate(CALL_SID_2, TO, "+48111", "completed",   TENANT_ID);
+
+            assertThatThrownBy(() -> adapter.bridgeCalls(CALL_SID, CALL_SID_2))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class);
+        }
+    }
+
+    // =========================================================================
+    // getCallSession
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getCallSession()")
+    class GetCallSession {
+
+        @Test
+        @DisplayName("powinien zwrócić sesję dla istniejącego callId")
+        void shouldReturnSessionForExistingCallId() {
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
+
+            CallSession session = adapter.getCallSession(CALL_SID);
+            assertThat(session.getCallId()).isEqualTo(CALL_SID);
+        }
+
+        @Test
+        @DisplayName("powinien rzucić TelephonyException dla nieznanego callId")
+        void shouldThrowForUnknownCallId() {
+            assertThatThrownBy(() -> adapter.getCallSession("NIEZNANY"))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class);
+        }
+    }
+
+    // =========================================================================
+    // getActiveSessionCount
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getActiveSessionCount()")
+    class ActiveSessionCount {
+
+        @Test
+        @DisplayName("powinien liczyć tylko nieukończone sesje")
+        void shouldCountOnlyActiveSessions() {
+            adapter.handleWebhookStatusUpdate("CA001", FROM, TO, "ringing",     TENANT_ID); // RINGING
+            adapter.handleWebhookStatusUpdate("CA002", FROM, TO, "in-progress", TENANT_ID); // ACTIVE
+            adapter.handleWebhookStatusUpdate("CA003", FROM, TO, "completed",   TENANT_ID); // ENDED – nie liczymy
+
+            assertThat(adapter.getActiveSessionCount()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("pusta mapa sesji zwraca 0")
+        void shouldReturnZeroForEmptyState() {
+            assertThat(adapter.getActiveSessionCount()).isEqualTo(0);
+        }
+    }
+
+    // =========================================================================
+    // initiateCall – walidacja konfiguracji
+    // =========================================================================
+
+    @Nested
+    @DisplayName("initiateCall() – walidacja konfiguracji")
+    class InitiateCallValidation {
+
+        @Test
+        @DisplayName("brak phoneNumber powinien rzucić TelephonyException")
+        void shouldThrowWhenPhoneNumberMissing() {
+            twilioProperties.setPhoneNumber("");
+
+            assertThatThrownBy(() -> adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class)
+                    .hasMessageContaining("twilio.phone-number");
+        }
+
+        @Test
+        @DisplayName("błąd Twilio API powinien być opakowany w TelephonyException")
+        void shouldWrapTwilioApiExceptionInTelephonyException() {
+            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
+                CallCreator mockCreator = mock(CallCreator.class);
+                when(mockCreator.setStatusCallback(any(java.net.URI.class))).thenReturn(mockCreator);
+                when(mockCreator.setStatusCallbackMethod(any())).thenReturn(mockCreator);
+                when(mockCreator.setStatusCallbackEvent(anyList())).thenReturn(mockCreator);
+                ApiException apiError = new ApiException("Authentication failed", 20003, null, 401, null);
+                when(mockCreator.create()).thenThrow(apiError);
+
+                mockedCall.when(() -> Call.creator(any(), any(), (Twiml) any()))
+                        .thenReturn(mockCreator);
+
+                assertThatThrownBy(() -> adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID))
+                        .isInstanceOf(TelephonyAdapter.TelephonyException.class)
+                        .hasMessageContaining("Twilio");
+            }
+        }
+    }
+}

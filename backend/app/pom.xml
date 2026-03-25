@@ -213,6 +213,24 @@
         </dependency>
 
         <!-- =================================================================
+             Twilio SDK – adapter telefonii (BE-029)
+             ================================================================= -->
+
+        <!-- Twilio Programmable Voice REST API client -->
+        <dependency>
+            <groupId>com.twilio.sdk</groupId>
+            <artifactId>twilio</artifactId>
+            <version>10.1.5</version>
+            <exclusions>
+                <!-- Wyklucz commons-logging – Spring Boot używa spring-jcl -->
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- =================================================================
              Hot reload w trybie dev
              ================================================================= -->
         <dependency>

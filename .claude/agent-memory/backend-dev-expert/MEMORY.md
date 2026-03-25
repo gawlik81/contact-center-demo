@@ -17,6 +17,8 @@
 - [feedback_contact_enum_to_varchar.md](feedback_contact_enum_to_varchar.md) – contact.channel/direction/status były ENUM w V007, pominięte przez V019; fix: V025 konwertuje je do VARCHAR+CHECK; wzorzec: DROP widoki+indeksy partial → ALTER TYPE → DROP TYPE → odtwórz
 - [feedback_contact_enum_cast_after_v025.md](feedback_contact_enum_cast_after_v025.md) – Po V025 typy ENUM usunięte; ContactRepository musi używać `CAST(:x AS VARCHAR)` nie `CAST(:x AS contact_channel/status/direction)` – inaczej INSERT/UPDATE rzuca `type does not exist`
 
+- [feedback_twilio_sdk_api.md](feedback_twilio_sdk_api.md) – Twilio SDK 10.1.5: `CallCreator` (nie `Call.Creator`), `Call.UpdateStatus` (nie `CallUpdater.Status`), ambiguous mocks w testach
+
 ## Projekty
 - [BE-025 Customer CRUD API](project_be025_customer_api.md) – implementacja Customer CRUD, fuzzy search, RODO, RabbitMQ UNKNOWN_CALLER
 - [BE-026 Customer CSV Import](project_be026_customer_import.md) – async import klientów z CSV, DeduplicationMode SKIP/OVERWRITE, Redis job status, batch JdbcTemplate, wielokrotne phone/email (;)

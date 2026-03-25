@@ -30,6 +30,7 @@ Three delivery layers:
 | Messaging | RabbitMQ 3.13 |
 | Data Warehouse | ClickHouse |
 | Auth | JWT RS256, TOTP MFA |
+| VoIP | Twilio (optional), Mock (dev) |
 
 ---
 
@@ -170,6 +171,44 @@ contact-center-demo/
 
 ---
 
+## Twilio Integration (VoIP)
+
+By default the backend uses `MockTelephonyAdapter` which generates fake call events for local development. To connect a real Twilio account, set the following environment variables and restart the backend.
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `TWILIO_ENABLED` | Set to `true` to activate Twilio (default: `false`) |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID (`ACxxxxxxxx…`) |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+| `TWILIO_PHONE_NUMBER` | Caller ID in E.164 format (e.g. `+48111000111`) |
+| `TWILIO_STATUS_CALLBACK_URL` | Public HTTPS URL for Twilio status webhooks (see below) |
+
+### Webhook Setup
+
+Twilio sends call status updates (POST form-encoded) to the endpoint:
+
+```
+POST /api/telephony/webhook/twilio?tenantId=<tenant-UUID>
+```
+
+The URL must be publicly reachable by Twilio. For local development use [ngrok](https://ngrok.com/) or a similar tunnel:
+
+```bash
+ngrok http 8080
+# then set TWILIO_STATUS_CALLBACK_URL=https://<ngrok-id>.ngrok.io/api/telephony/webhook/twilio?tenantId=<UUID>
+```
+
+### Switching Adapters
+
+| `TWILIO_ENABLED` | Active bean | Effect |
+|---|---|---|
+| `false` (default) | `MockTelephonyAdapter` | Simulated calls, no external traffic |
+| `true` | `TwilioTelephonyAdapter` | Live Twilio REST API |
+
+---
+
 ## MinIO – Bucket-Level Encryption (SSE-S3)
 
 Recordings are uploaded without a per-request SSE header. Encryption is configured once on the bucket so every object is encrypted automatically.
@@ -260,3 +299,8 @@ See [PROGRESS.md](PROGRESS.md) for full task status.
 | `JWT_PRIVATE_KEY_VALUE` / `JWT_PUBLIC_KEY_VALUE` | RSA keys (PEM string) |
 | `JWT_ISSUER` | JWT `iss` claim |
 | `cors.allowed-origins` | CORS whitelist |
+| `TWILIO_ENABLED` | Enable Twilio adapter (`true`/`false`) |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+| `TWILIO_PHONE_NUMBER` | Outbound caller ID (E.164) |
+| `TWILIO_STATUS_CALLBACK_URL` | Public webhook URL for call status updates |

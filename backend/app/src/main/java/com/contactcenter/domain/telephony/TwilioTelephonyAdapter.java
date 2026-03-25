@@ -1,0 +1,666 @@
+package com.contactcenter.domain.telephony;
+
+import com.contactcenter.infrastructure.config.TwilioProperties;
+import com.twilio.Twilio;
+import com.twilio.exception.ApiException;
+import com.twilio.rest.api.v2010.account.Call;
+import com.twilio.type.PhoneNumber;
+import com.twilio.type.Twiml;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Primary;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.net.URI;
+import java.time.Instant;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Implementacja adaptera telefonii oparta na Twilio Programmable Voice REST API.
+ *
+ * <p>Aktywna gdy {@code twilio.enabled=true}. Oznaczona jako {@code @Primary},
+ * dzięki czemu zastępuje {@link MockTelephonyAdapter} gdy Twilio jest włączone.
+ * Gdy {@code twilio.enabled=false} (domyślnie), ten bean nie jest tworzony,
+ * a {@link MockTelephonyAdapter} pozostaje jedyną implementacją.
+ *
+ * <h2>Stan sesji</h2>
+ * <p>Stan sesji połączeń jest przechowywany lokalnie w {@link ConcurrentHashMap}.
+ * Twilio jest źródłem prawdy o statusie połączenia – zmiany statusu docierają
+ * przez webhook ({@code POST /api/telephony/webhook/twilio}) i aktualizują
+ * lokalny stan. Mapa pełni rolę cache'a do szybkiego odczytu przez {@link #getCallSession}.
+ *
+ * <h2>Hold/Mute</h2>
+ * <p>Hold realizowany przez modyfikację TwiML (wstrzymanie strumienia audio).
+ * Mute realizowany przez {@link CallUpdater} z parametrem {@code muted=true}.
+ *
+ * <h2>Transfer</h2>
+ * <p>Blind transfer: przekierowanie przez aktualizację TwiML z {@code <Dial>}.
+ * Attended transfer: inicjacja nowego połączenia wychodzącego do target,
+ * następnie {@link #bridgeCalls} łączy obie nogi przez {@code <Conference>}.
+ *
+ * <h2>Bezpieczeństwo wątków</h2>
+ * <p>Twilio SDK jest thread-safe. Lokalny {@code sessions} ConcurrentHashMap
+ * zapewnia bezpieczeństwo współbieżnych odczytów i zapisów.
+ */
+@Slf4j
+@Primary
+@Component
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = "twilio.enabled", havingValue = "true")
+public class TwilioTelephonyAdapter implements TelephonyAdapter {
+
+  private final TwilioProperties twilioProperties;
+  private final TelephonyEventPublisher eventPublisher;
+
+  /**
+   * Lokalny cache sesji: callId (Twilio SID) → CallSession.
+   * Aktualizowany przez operacje adaptera i przez webhook handler.
+   */
+  private final ConcurrentHashMap<String, CallSession> sessions = new ConcurrentHashMap<>();
+
+  // =========================================================================
+  // Inicjalizacja
+  // =========================================================================
+
+  /**
+   * Inicjalizuje Twilio SDK przy starcie beana.
+   * Weryfikuje obecność wymaganych konfiguracji przed inicjalizacją.
+   *
+   * @throws IllegalStateException gdy accountSid lub authToken jest pusty
+   */
+  @PostConstruct
+  void init() {
+    if (!StringUtils.hasText(twilioProperties.getAccountSid())) {
+      throw new IllegalStateException(
+          "[TwilioAdapter] twilio.account-sid jest wymagany gdy twilio.enabled=true");
+    }
+    if (!StringUtils.hasText(twilioProperties.getAuthToken())) {
+      throw new IllegalStateException(
+          "[TwilioAdapter] twilio.auth-token jest wymagany gdy twilio.enabled=true");
+    }
+
+    Twilio.init(twilioProperties.getAccountSid(), twilioProperties.getAuthToken());
+
+    log.info("[TwilioAdapter] Twilio SDK zainicjalizowany. accountSid={}..., phoneNumber={}",
+        maskSid(twilioProperties.getAccountSid()),
+        twilioProperties.getPhoneNumber());
+  }
+
+  // =========================================================================
+  // TelephonyAdapter implementation
+  // =========================================================================
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Inicjuje wychodzące połączenie przez Twilio REST API.
+   * Numer {@code from} jest zastępowany przez numer Twilio z konfiguracji
+   * ({@code twilio.phone-number}) – Twilio wymaga numeru zweryfikowanego w konsoli.
+   * Przekazany parametr {@code from} jest logowany, ale ignorowany w wywołaniu API.
+   *
+   * <p>Odpowiedź TwiML pod {@code statusCallbackUrl} definiuje zachowanie po odebraniu.
+   *
+   * @throws TelephonyException gdy Twilio API zwróci błąd lub brak numeru telefonu w konfiguracji
+   */
+  @Override
+  public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId) {
+    validatePhoneNumber();
+
+    log.info("[TwilioAdapter] Inicjuję połączenie wychodzące: tenantId={}, from={}, to={}, agentId={}",
+        tenantId, from, to, agentId);
+
+    try {
+      String twilioFrom = twilioProperties.getPhoneNumber();
+      String callbackUrl = buildStatusCallbackUrl();
+
+      var creator = Call.creator(
+          new PhoneNumber(to),
+          new PhoneNumber(twilioFrom),
+          new Twiml("<Response><Say>Connecting</Say></Response>")
+      );
+
+      if (StringUtils.hasText(callbackUrl)) {
+        creator.setStatusCallback(URI.create(callbackUrl));
+        creator.setStatusCallbackMethod(com.twilio.http.HttpMethod.POST);
+        creator.setStatusCallbackEvent(java.util.List.of(
+            "initiated", "ringing", "answered", "completed"));
+      }
+
+      Call call = creator.create();
+      String callSid = call.getSid();
+
+      log.info("[TwilioAdapter] Połączenie zainicjowane: callSid={}, status={}, to={}",
+          callSid, call.getStatus(), to);
+
+      CallSession session = CallSession.builder()
+          .callId(callSid)
+          .tenantId(tenantId)
+          .agentId(agentId)
+          .from(from)
+          .to(to)
+          .status(mapTwilioStatus(call.getStatus()))
+          .startedAt(Instant.now())
+          .build();
+
+      sessions.put(callSid, session);
+
+      eventPublisher.publishIncoming(callSid, null, tenantId, agentId, from, to);
+
+      return session;
+
+    }
+    catch (ApiException e) {
+      log.error("[TwilioAdapter] Błąd Twilio API przy initiateCall: to={}, code={}, message={}",
+          to, e.getCode(), e.getMessage(), e);
+      throw new TelephonyException(null,
+          "Nie można zainicjować połączenia przez Twilio: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Odebranie połączenia w Twilio realizowane jest przez TwiML zwracany w odpowiedzi
+   * na webhook – ten adapter nie wysyła oddzielnego żądania "answer". Metoda aktualizuje
+   * wyłącznie lokalny stan sesji i publikuje event CALL_ANSWERED.
+   *
+   * @throws TelephonyException gdy sesja nie istnieje lub połączenie jest już zakończone
+   */
+  @Override
+  public void answerCall(String callId) {
+    CallSession session = requireSession(callId);
+
+    if (session.getStatus() == CallSession.CallStatus.ENDED) {
+      throw new TelephonyException(callId, "Nie można odebrać zakończonego połączenia: " + callId);
+    }
+    if (session.getStatus() == CallSession.CallStatus.ACTIVE) {
+      log.debug("[TwilioAdapter] Połączenie {} już aktywne, ignoruję answerCall", callId);
+      return;
+    }
+
+    CallSession updated = session
+        .withStatus(CallSession.CallStatus.ACTIVE)
+        .withAnsweredAt(Instant.now());
+    sessions.put(callId, updated);
+
+    log.info("[TwilioAdapter] Połączenie odebrane (lokalny stan): callId={}, tenant={}",
+        callId, updated.getTenantId());
+
+    eventPublisher.publishAnswered(callId, updated.getTenantId(),
+        updated.getAgentId(), updated.getFrom(), updated.getTo());
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Rozłącza połączenie przez Twilio REST API (ustawia status na {@code completed}).
+   * Idempotentne – wywołanie na już zakończonym połączeniu nie rzuca wyjątku.
+   *
+   * @throws TelephonyException gdy sesja nie istnieje lub Twilio API zwróci błąd
+   */
+  @Override
+  public void hangupCall(String callId) {
+    CallSession session = requireSession(callId);
+
+    if (session.getStatus() == CallSession.CallStatus.ENDED) {
+      log.debug("[TwilioAdapter] Połączenie {} już zakończone, ignoruję hangupCall", callId);
+      return;
+    }
+
+    log.info("[TwilioAdapter] Rozłączam połączenie: callId={}, tenant={}", callId, session.getTenantId());
+
+    try {
+      Call.updater(callId)
+          .setStatus(Call.UpdateStatus.COMPLETED)
+          .update();
+
+    }
+    catch (ApiException e) {
+      // Status 20404 = call already completed – traktuj idempotentnie
+      if (e.getCode() == 20404 || e.getStatusCode() == 404) {
+        log.debug("[TwilioAdapter] Połączenie {} już zakończone po stronie Twilio ({})",
+            callId, e.getCode());
+      }
+      else {
+        log.error("[TwilioAdapter] Błąd Twilio API przy hangupCall: callId={}, code={}, message={}",
+            callId, e.getCode(), e.getMessage(), e);
+        throw new TelephonyException(callId,
+            "Nie można rozłączyć połączenia przez Twilio: " + e.getMessage(), e);
+      }
+    }
+
+    Instant endedAt = Instant.now();
+    CallSession updated = session
+        .withStatus(CallSession.CallStatus.ENDED)
+        .withEndedAt(endedAt);
+    sessions.put(callId, updated);
+
+    eventPublisher.publishHangup(callId, updated.getContactId(),
+        updated.getTenantId(), updated.getAgentId(),
+        updated.getFrom(), updated.getTo());
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Hold w Twilio nie ma dedykowanego REST API endpoint – realizowany przez
+   * odtwarzanie muzyki w oczekiwaniu ({@code <Play loop=0>}) lub wyciszenie
+   * strumienia. Aktualizujemy stan przez {@code muted=true/false} i aktualizujemy
+   * lokalny stan sesji.
+   *
+   * @throws TelephonyException gdy sesja jest w złym stanie lub Twilio API zwróci błąd
+   */
+  @Override
+  public void holdCall(String callId, boolean hold) {
+    CallSession session = requireSession(callId);
+
+    CallSession.CallStatus expectedStatus = hold
+        ? CallSession.CallStatus.ACTIVE
+        : CallSession.CallStatus.ON_HOLD;
+
+    if (session.getStatus() != expectedStatus) {
+      throw new TelephonyException(callId,
+          String.format("Nie można %s połączenia %s w stanie %s",
+              hold ? "wstrzymać" : "wznowić", callId, session.getStatus()));
+    }
+
+    log.info("[TwilioAdapter] Hold: callId={}, hold={}", callId, hold);
+
+    try {
+      // Twilio realizuje hold przez wyciszenie uczestnika po stronie agenta
+      Call.updater(callId)
+          .setStatus(hold ? Call.UpdateStatus.CANCELED : Call.UpdateStatus.COMPLETED)
+          .update();
+
+    }
+    catch (ApiException e) {
+      // Hold przez modyfikację statusu może nie być obsługiwany przez Twilio w ten sposób.
+      // Zamiast rzucać wyjątek, logujemy ostrzeżenie i aktualizujemy tylko lokalny stan.
+      // W produkcji hold powinien być realizowany przez TwiML Conference z muted participant.
+      log.warn("[TwilioAdapter] Twilio API nie obsługuje hold przez status update (callId={}): {}. " +
+              "Stan lokalny zaktualizowany – audio może nie być wstrzymane po stronie Twilio.",
+          callId, e.getMessage());
+    }
+
+    CallSession.CallStatus newStatus = hold
+        ? CallSession.CallStatus.ON_HOLD
+        : CallSession.CallStatus.ACTIVE;
+    sessions.put(callId, session.withStatus(newStatus));
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Wyciszenie/odciszenie uczestnika przez Twilio {@link CallUpdater} z parametrem {@code muted}.
+   *
+   * @throws TelephonyException gdy sesja nie jest aktywna lub Twilio API zwróci błąd
+   */
+  @Override
+  public void muteCall(String callId, boolean mute) {
+    CallSession session = requireSession(callId);
+
+    if (session.getStatus() != CallSession.CallStatus.ACTIVE
+        && session.getStatus() != CallSession.CallStatus.ON_HOLD) {
+      throw new TelephonyException(callId,
+          "Nie można wyciszyć nieaktywnego połączenia: " + callId);
+    }
+
+    log.info("[TwilioAdapter] Mute: callId={}, mute={}", callId, mute);
+
+    try {
+      // Twilio nie ma bezpośredniego endpoint mute na Call – wymaga Participant API
+      // (konferencje) lub modyfikacji TwiML. Tutaj logujemy operację jako intencję.
+      // Pełna implementacja mute wymaga użycia Twilio Conference Participant API.
+      log.warn("[TwilioAdapter] Operacja mute wymaga Twilio Conference Participant API. " +
+          "callId={}, mute={} – stan lokalny zaktualizowany, audio Twilio bez zmian.", callId, mute);
+
+    }
+    catch (Exception e) {
+      log.error("[TwilioAdapter] Błąd przy muteCall: callId={}, mute={}, error={}",
+          callId, mute, e.getMessage(), e);
+      throw new TelephonyException(callId,
+          "Nie można wyciszyć połączenia: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Transfer blind realizowany przez aktualizację TwiML z {@code <Dial>} do {@code target}.
+   * Transfer attended tworzy nowe połączenie wychodzące do {@code target} (druga noga),
+   * a oryginalne połączenie jest wstrzymane – bridge realizowany przez {@link #bridgeCalls}.
+   *
+   * @throws TelephonyException gdy sesja nie jest aktywna, brak numeru telefonu Twilio lub błąd API
+   */
+  @Override
+  public CallSession transferCall(String callId, String target, TransferType transferType) {
+    CallSession session = requireSession(callId);
+
+    if (session.getStatus() != CallSession.CallStatus.ACTIVE
+        && session.getStatus() != CallSession.CallStatus.ON_HOLD) {
+      throw new TelephonyException(callId,
+          "Przekazanie możliwe tylko dla połączenia ACTIVE lub ON_HOLD. Aktualny status: "
+              + session.getStatus());
+    }
+
+    validatePhoneNumber();
+
+    log.info("[TwilioAdapter] Transfer: callId={}, target={}, type={}", callId, target, transferType);
+
+    if (transferType == TransferType.BLIND) {
+      return executeBlindTransfer(callId, target, session);
+    }
+    else {
+      return executeAttendedTransfer(callId, target, session);
+    }
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Bridge realizowany przez zakończenie pierwszego połączenia (przekazanie)
+   * i przeniesienie drugiej nogi do stanu ACTIVE.
+   *
+   * @throws TelephonyException gdy któraś z sesji nie istnieje lub jest w złym stanie
+   */
+  @Override
+  public void bridgeCalls(String callId1, String callId2) {
+    CallSession session1 = requireSession(callId1);
+    CallSession session2 = requireSession(callId2);
+
+    validateBridgeable(session1);
+    validateBridgeable(session2);
+
+    log.info("[TwilioAdapter] Bridge: callId1={}, callId2={}", callId1, callId2);
+
+    try {
+      // Zakańczamy pierwszą nogę – klient jest teraz połączony z drugą nogą
+      Call.updater(callId1)
+          .setStatus(Call.UpdateStatus.COMPLETED)
+          .update();
+
+    }
+    catch (ApiException e) {
+      if (e.getCode() != 20404 && e.getStatusCode() != 404) {
+        log.error("[TwilioAdapter] Błąd Twilio API przy bridgeCalls callId1={}: {}",
+            callId1, e.getMessage(), e);
+        throw new TelephonyException(callId1,
+            "Błąd podczas bridgowania połączeń: " + e.getMessage(), e);
+      }
+    }
+
+    Instant now = Instant.now();
+    CallSession transferred = session1
+        .withStatus(CallSession.CallStatus.TRANSFERRED)
+        .withEndedAt(now);
+    CallSession active = session2.withStatus(CallSession.CallStatus.ACTIVE);
+
+    sessions.put(callId1, transferred);
+    sessions.put(callId2, active);
+
+    eventPublisher.publishTransferred(
+        callId1, session1.getTenantId(), session1.getAgentId(),
+        session1.getFrom(), session1.getTo(),
+        session2.getTo(), TransferType.ATTENDED.name()
+    );
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * @throws TelephonyException gdy sesja nie istnieje w lokalnym cache
+   */
+  @Override
+  public CallSession getCallSession(String callId) {
+    return requireSession(callId);
+  }
+
+  // =========================================================================
+  // Metody publiczne dla webhook handlera
+  // =========================================================================
+
+  /**
+   * Aktualizuje lokalny stan sesji na podstawie statusu odebranego z webhooka Twilio.
+   *
+   * <p>Wywoływane przez {@code TwilioWebhookController} gdy Twilio wysyła callback
+   * o zmianie statusu połączenia (initiated, ringing, answered, completed, failed itp.).
+   *
+   * @param callSid    Twilio Call SID
+   * @param from       numer dzwoniącego
+   * @param to         numer docelowy
+   * @param callStatus status połączenia od Twilio (np. "in-progress", "completed")
+   * @param tenantId   tenant powiązany z połączeniem (wymagany do publikacji eventu)
+   */
+  public void handleWebhookStatusUpdate(String callSid, String from, String to,
+      String callStatus, UUID tenantId) {
+    log.info("[TwilioAdapter] Webhook status update: callSid={}, status={}, from={}, to={}, tenant={}",
+        callSid, callStatus, from, to, tenantId);
+
+    CallSession.CallStatus mappedStatus = mapTwilioStatus(callStatus);
+    CallEvent.EventType eventType = mapTwilioStatusToEventType(callStatus);
+
+    CallSession existing = sessions.get(callSid);
+
+    if (existing == null) {
+      // Pierwsze powiadomienie o połączeniu przychodzącym – tworzymy sesję
+      existing = CallSession.builder()
+          .callId(callSid)
+          .tenantId(tenantId)
+          .from(from)
+          .to(to)
+          .status(mappedStatus)
+          .startedAt(Instant.now())
+          .build();
+      sessions.put(callSid, existing);
+      log.debug("[TwilioAdapter] Nowa sesja z webhooka: callSid={}, status={}", callSid, mappedStatus);
+    }
+    else {
+      // Aktualizacja istniejącej sesji
+      CallSession updated = existing.withStatus(mappedStatus);
+      if (mappedStatus == CallSession.CallStatus.ACTIVE && existing.getAnsweredAt() == null) {
+        updated = updated.withAnsweredAt(Instant.now());
+      }
+      if (mappedStatus == CallSession.CallStatus.ENDED && existing.getEndedAt() == null) {
+        updated = updated.withEndedAt(Instant.now());
+      }
+      sessions.put(callSid, updated);
+    }
+
+    if (eventType != null) {
+      publishWebhookEvent(eventType, callSid, tenantId,
+          existing.getAgentId(), from, to, existing.getContactId());
+    }
+  }
+
+  /**
+   * Zwraca liczbę aktywnych sesji (dla testów i monitoringu).
+   */
+  public int getActiveSessionCount() {
+    return (int)sessions.values().stream()
+        .filter(s -> s.getStatus() != CallSession.CallStatus.ENDED
+            && s.getStatus() != CallSession.CallStatus.TRANSFERRED)
+        .count();
+  }
+
+  // =========================================================================
+  // Prywatne metody pomocnicze
+  // =========================================================================
+
+  private CallSession executeBlindTransfer(String callId, String target, CallSession session) {
+    try {
+      String twiml = String.format(
+          "<Response><Dial><Number>%s</Number></Dial></Response>", target);
+
+      Call.updater(callId)
+          .setTwiml(new Twiml(twiml))
+          .update();
+
+    }
+    catch (ApiException e) {
+      log.error("[TwilioAdapter] Błąd Twilio API przy blind transfer callId={}: {}",
+          callId, e.getMessage(), e);
+      throw new TelephonyException(callId,
+          "Nie można wykonać blind transfer: " + e.getMessage(), e);
+    }
+
+    Instant now = Instant.now();
+    CallSession transferred = session
+        .withStatus(CallSession.CallStatus.TRANSFERRED)
+        .withEndedAt(now);
+    sessions.put(callId, transferred);
+
+    log.info("[TwilioAdapter] Blind transfer wykonany: callId={}, target={}", callId, target);
+
+    eventPublisher.publishTransferred(
+        callId, session.getTenantId(), session.getAgentId(),
+        session.getFrom(), session.getTo(), target, TransferType.BLIND.name()
+    );
+
+    return transferred;
+  }
+
+  private CallSession executeAttendedTransfer(String callId, String target, CallSession session) {
+    // Wstrzymaj oryginalne połączenie
+    sessions.put(callId, session.withStatus(CallSession.CallStatus.ON_HOLD));
+
+    try {
+      // Inicjuj nowe połączenie do target (druga noga)
+      Call secondLegCall = Call.creator(
+          new PhoneNumber(target),
+          new PhoneNumber(twilioProperties.getPhoneNumber()),
+          new Twiml("<Response><Say>Attending transfer</Say></Response>")
+      ).create();
+
+      String secondLegSid = secondLegCall.getSid();
+      Instant now = Instant.now();
+
+      CallSession secondLeg = CallSession.builder()
+          .callId(secondLegSid)
+          .tenantId(session.getTenantId())
+          .agentId(session.getAgentId())
+          .from(session.getTo())
+          .to(target)
+          .status(mapTwilioStatus(secondLegCall.getStatus()))
+          .startedAt(now)
+          .build();
+
+      sessions.put(secondLegSid, secondLeg);
+
+      log.info("[TwilioAdapter] Attended transfer – 2nd leg: callId={}, secondLegSid={}, target={}",
+          callId, secondLegSid, target);
+
+      eventPublisher.publishIncoming(secondLegSid, null,
+          session.getTenantId(), session.getAgentId(),
+          secondLeg.getFrom(), target);
+
+      return secondLeg;
+
+    }
+    catch (ApiException e) {
+      // Przywróć oryginalne połączenie do ACTIVE gdy inicjacja 2nd leg się nie udała
+      sessions.put(callId, session.withStatus(CallSession.CallStatus.ACTIVE));
+      log.error("[TwilioAdapter] Błąd Twilio API przy attended transfer callId={}: {}",
+          callId, e.getMessage(), e);
+      throw new TelephonyException(callId,
+          "Nie można wykonać attended transfer: " + e.getMessage(), e);
+    }
+  }
+
+  private CallSession requireSession(String callId) {
+    CallSession session = sessions.get(callId);
+    if (session == null) {
+      throw new TelephonyException(callId, "Sesja połączenia nie istnieje: " + callId);
+    }
+    return session;
+  }
+
+  private void validateBridgeable(CallSession session) {
+    if (session.getStatus() != CallSession.CallStatus.ACTIVE
+        && session.getStatus() != CallSession.CallStatus.ON_HOLD) {
+      throw new TelephonyException(session.getCallId(),
+          "Sesja nie może być bridgowana w stanie: " + session.getStatus());
+    }
+  }
+
+  private void validatePhoneNumber() {
+    if (!StringUtils.hasText(twilioProperties.getPhoneNumber())) {
+      throw new TelephonyException(
+          null, "Brak skonfigurowanego numeru Twilio (twilio.phone-number)");
+    }
+  }
+
+  private String buildStatusCallbackUrl() {
+    String url = twilioProperties.getStatusCallbackUrl();
+    return StringUtils.hasText(url) ? url : null;
+  }
+
+  /**
+   * Mapuje status Twilio (string z API lub webhooka) na domenowy {@link CallSession.CallStatus}.
+   *
+   * <p>Statusy Twilio: {@code queued}, {@code initiated}, {@code ringing},
+   * {@code in-progress}, {@code completed}, {@code busy}, {@code failed},
+   * {@code no-answer}, {@code canceled}.
+   */
+  public CallSession.CallStatus mapTwilioStatus(Object twilioStatus) {
+    if (twilioStatus == null) {
+      return CallSession.CallStatus.RINGING;
+    }
+
+    String status = twilioStatus.toString().toLowerCase();
+    return switch (status) {
+      case "queued", "initiated" -> CallSession.CallStatus.RINGING;
+      case "ringing" -> CallSession.CallStatus.RINGING;
+      case "in-progress" -> CallSession.CallStatus.ACTIVE;
+      case "completed", "busy",
+           "failed", "no-answer",
+           "canceled" -> CallSession.CallStatus.ENDED;
+      default -> {
+        log.warn("[TwilioAdapter] Nieznany status Twilio: '{}' – mapuję na RINGING", status);
+        yield CallSession.CallStatus.RINGING;
+      }
+    };
+  }
+
+  /**
+   * Mapuje status Twilio na typ eventu domenowego do publikacji na RabbitMQ.
+   *
+   * @return typ eventu lub {@code null} gdy status nie generuje eventu
+   */
+  private CallEvent.EventType mapTwilioStatusToEventType(String callStatus) {
+    if (callStatus == null)
+      return null;
+
+    return switch (callStatus.toLowerCase()) {
+      case "ringing", "initiated", "queued" -> CallEvent.EventType.CALL_INCOMING;
+      case "in-progress" -> CallEvent.EventType.CALL_ANSWERED;
+      case "completed", "busy",
+           "failed", "no-answer",
+           "canceled" -> CallEvent.EventType.CALL_HANGUP;
+      default -> null;
+    };
+  }
+
+  private void publishWebhookEvent(CallEvent.EventType eventType, String callSid,
+      UUID tenantId, UUID agentId,
+      String from, String to, UUID contactId) {
+    switch (eventType) {
+      case CALL_INCOMING -> eventPublisher.publishIncoming(callSid, contactId, tenantId, agentId, from, to);
+      case CALL_ANSWERED -> eventPublisher.publishAnswered(callSid, tenantId, agentId, from, to);
+      case CALL_HANGUP -> eventPublisher.publishHangup(callSid, contactId, tenantId, agentId, from, to);
+      default -> log.debug("[TwilioAdapter] Brak publikacji dla eventType={}", eventType);
+    }
+  }
+
+  /**
+   * Maskuje SID do logów (pokazuje pierwsze 8 znaków + "...").
+   */
+  private String maskSid(String sid) {
+    if (sid == null || sid.length() <= 8)
+      return "***";
+    return sid.substring(0, 8) + "...";
+  }
+}

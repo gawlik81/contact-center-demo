@@ -596,6 +596,29 @@ Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first
 
 ---
 
+### FE-025 – Panel konfiguracji Twilio per tenant
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-005, BE-032
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-032 (endpoint PATCH `/api/tenants/{id}/config`)
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-03
+
+**Opis:**
+Sekcja „Telefonia VoIP" w panelu ustawień tenanta (dostępna dla ADMIN i SUPERVISOR). Formularz z dwoma polami: numer telefonu Twilio (walidacja E.164) i URL webhooka statusów (opcjonalny, generowany automatycznie gdy pusty). Przycisk „Zapisz" wywołuje `PATCH /api/tenants/{id}/config`. Status aktualnej konfiguracji wyświetlany inline (numer aktywny / brak konfiguracji – fallback globalny).
+
+**Kryteria akceptacji:**
+- [ ] Pole numeru telefonu walidowane po stronie klienta (regex E.164: `^\+[1-9]\d{6,14}$`) przed wysłaniem
+- [ ] Przy pustym URL webhooka wyświetlany jest podgląd automatycznie generowanego URL (`baseUrl + ?tenantId=UUID`)
+- [ ] Po zapisie toast „Konfiguracja Twilio zaktualizowana"
+- [ ] Przy braku konfiguracji per-tenant widoczna informacja „Używany globalny numer fallback"
+- [ ] Formularz dostępny tylko dla roli ADMIN i SUPERVISOR (guard RoleGuard)
+
+---
+
 ---
 
 ## Zależności między zadaniami
@@ -622,6 +645,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | Klienci | FE-018 → FE-019, FE-020 |
 | Raporty | FE-021, FE-022 |
 | Integracje | FE-023 |
+| Twilio config | FE-025 (po BE-032) |
 
 ### Blokery od Backendu (FE czeka na BE)
 
@@ -639,6 +663,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | FE-018, FE-019 | BE-025 ✅, BE-027 ✅ (customer API + contact API – gotowe) |
 | FE-021 | BE-029 ✅ (RT metrics WebSocket – zrealizowane) |
 | FE-022 | BE-028 ✅ (reports API – zrealizowane) |
+| FE-025 | BE-032 (Twilio per-tenant config) |
 
 > Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
 
@@ -656,5 +681,5 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | Kampanie (EPIC-08) | 3 | 3 | 0 |
 | Klienci (EPIC-09) | 3 | 3 | 0 |
 | Raporty (EPIC-10) | 2 | 2 | 0 |
-| Konfiguracja | 2 | 2 | 0 |
-| **RAZEM** | **24** | **24** | **0** |
+| Konfiguracja | 3 | 2 | 1 |
+| **RAZEM** | **25** | **24** | **1** |

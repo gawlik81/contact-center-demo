@@ -205,6 +205,25 @@ telephony:
     secret: ${TELEPHONY_WEBHOOK_SECRET:dev-secret}
 
 # =============================================================================
+# Twilio – adapter telefonii Programmable Voice (BE-029)
+# Domyślnie wyłączone – MockTelephonyAdapter jest aktywny gdy enabled=false.
+# Włącz przez TWILIO_ENABLED=true + pozostałe ENV vars w środowisku produkcyjnym.
+# =============================================================================
+twilio:
+  # Włącza TwilioTelephonyAdapter jako @Primary – zastępuje MockTelephonyAdapter.
+  # Domyślnie false – nic się nie zmienia gdy Twilio nie jest skonfigurowane.
+  enabled: ${TWILIO_ENABLED:false}
+  # Account SID z Twilio Console (zaczyna się od "AC")
+  account-sid: ${TWILIO_ACCOUNT_SID:}
+  # Auth Token z Twilio Console – NIGDY nie umieszczaj wartości w repozytorium
+  auth-token: ${TWILIO_AUTH_TOKEN:}
+  # Numer telefonu Twilio w formacie E.164 (np. +48123456789)
+  phone-number: ${TWILIO_PHONE_NUMBER:}
+  # URL StatusCallback – publiczny URL do odbioru zdarzeń od Twilio
+  # Format: https://your-domain.com/api/telephony/webhook/twilio?tenantId={UUID}
+  status-callback-url: ${TWILIO_STATUS_CALLBACK_URL:}
+
+# =============================================================================
 # S3-compatible Storage – nagrania rozmów (BE-010)
 # Obsługuje zarówno AWS S3 jak i MinIO (path-style access)
 # =============================================================================

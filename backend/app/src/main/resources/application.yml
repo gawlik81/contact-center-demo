@@ -247,6 +247,19 @@ s3:
   retention-cron: ${S3_RETENTION_CRON:0 0 2 * * *}
 
 # =============================================================================
+# Email – IMAP polling + SMTP (BE-015)
+# =============================================================================
+email:
+  # Opóźnienie między kolejnymi pollami IMAP w ms (domyślnie 60s)
+  poll-delay-ms: ${EMAIL_POLL_DELAY_MS:60000}
+  # Klucz szyfrowania AES-256 dla haseł IMAP/SMTP (32-bajtowy hex = 64 znaki)
+  # PROD: ustaw przez ENV var EMAIL_ENCRYPTION_KEY (mocny losowy klucz)
+  # DEV: zerowy klucz domyślny – NIGDY nie używaj w produkcji
+  encryption-key: ${EMAIL_ENCRYPTION_KEY:0000000000000000000000000000000000000000000000000000000000000000}
+  # Włącza/wyłącza moduł email (IMAP polling + SMTP)
+  enabled: ${EMAIL_ENABLED:true}
+
+# =============================================================================
 # Logowanie – poziomy logowania czytane przez logback-spring.xml przez <springProperty>
 # Pattern konsoli i konfiguracja appenderów w logback-spring.xml
 # =============================================================================

@@ -231,6 +231,15 @@
         </dependency>
 
         <!-- =================================================================
+             Jakarta Mail (IMAP polling + SMTP) – BE-015
+             Spring Boot 3.x zarządza wersją przez BOM
+             ================================================================= -->
+        <dependency>
+            <groupId>org.eclipse.angus</groupId>
+            <artifactId>angus-mail</artifactId>
+        </dependency>
+
+        <!-- =================================================================
              Hot reload w trybie dev
              ================================================================= -->
         <dependency>

@@ -64,6 +64,8 @@ public class RabbitMQConfig {
     public static final String QUEUE_UNKNOWN_CALLER         = "cc.queue.unknown-caller";
     /** Kolejka dla przychodzących połączeń obsługiwanych przez silnik IVR (BE-013). */
     public static final String QUEUE_IVR_HANDLER            = "cc.queue.ivr-handler";
+    /** Kolejka dla eventów email – BE-015: IMAP polling + SMTP. */
+    public static final String QUEUE_EMAIL_EVENTS           = "cc.queue.email-events";
 
     // =========================================================================
     // Routing keys
@@ -271,6 +273,29 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(ivrHandlerQueue)
                 .to(eventsExchange)
                 .with("call.incoming");
+    }
+
+    /**
+     * Kolejka dla eventów email (received, queued, sent, assigned).
+     * BE-015: IMAP polling + SMTP wysyłka.
+     */
+    @Bean
+    public Queue emailEventsQueue() {
+        return QueueBuilder.durable(QUEUE_EMAIL_EVENTS)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", "dlq")
+                .build();
+    }
+
+    /**
+     * Binding kolejki email events do exchange cc.events z routing key email.#.
+     * Przechwytuje wszystkie eventy email (received, queued, sent, assigned).
+     */
+    @Bean
+    public Binding bindingEmailEvents(Queue emailEventsQueue, TopicExchange eventsExchange) {
+        return BindingBuilder.bind(emailEventsQueue)
+                .to(eventsExchange)
+                .with("email.#");
     }
 
     // =========================================================================

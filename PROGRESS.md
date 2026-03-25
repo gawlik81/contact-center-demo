@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-25 (BE-013 + FE-014 potwierdzone w kodzie: IVR Engine + edytor drag & drop)
+**Ostatnia aktualizacja:** 2026-03-25 (BE-015 Email Adapter potwierdzony w kodzie; łączny stan: DB 19/19, BE 24/33, FE 21/25)
 
 ---
 
@@ -67,7 +67,7 @@
 | BE-012 | WebSocket hub: real-time events do Agent Desktop | ✅ | WebSocketConfig (STOMP), WebSocketAuthInterceptor (JWT przy handshake), WebSocketController, RabbitToWebSocketRelay, WebSocketEventBroadcaster, StompPrincipal. Topics per user i per tenant. |
 | BE-013 | IVR Engine: wykonanie drzewa IVR | ✅ | IvrController (7 endpointów CRUD + activate + DTMF simulate), IvrService, IvrEngineService, IvrCallListener, IvrDefinition/Node/NodeType/Option/SessionData w domain/ivr |
 | BE-014 | Voicebot Python: ASR + NLU + eskalacja do agenta | ⬜ | |
-| BE-015 | Email Adapter: IMAP polling + SMTP wysyłka | ⬜ | |
+| BE-015 | Email Adapter: IMAP polling + SMTP wysyłka | ✅ | EmailPollingService (IMAP @Scheduled), EmailSendService (SMTP), EmailRoutingService, EmailEncryptionService (AES-256), EmailController (5 endpointów), EmailMessage/EmailRoutingRule repozytoria, EmailEventPublisher (RabbitMQ) |
 | BE-016 | Szablony odpowiedzi email: CRUD API | ⬜ | |
 | BE-017 | OAuth flow i zarządzanie tokenami social media | ⬜ | |
 | BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ⬜ | |
@@ -84,6 +84,7 @@
 | BE-029 | RT Metrics API: WebSocket feed dla supervisora | ✅ | SupervisorMetricsPayload (rekord DTO), SupervisorMetricsService (@Scheduled fixedRate=5000, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor, eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów jednostkowych, 429 testów PASS |
 | BE-030 | ETL do data warehouse: CDC z PostgreSQL | ⬜ | |
 | BE-031 | RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17) | ⬜ | |
+| BE-032 | Twilio: konfiguracja numeru telefonu per tenant | ⬜ | |
 
 ---
 
@@ -115,6 +116,7 @@
 | FE-022 | Raporty historyczne: filtry, tabele, eksport | ✅ | report.model.ts (AgentReportRow, AgentReportFilters), reports.service.ts (getAgentReport, exportCsv, exportXlsx blob), ReportsComponent (filtry URL sync, tabela badge'ami kanałów, paginacja, eksport Blob, skeleton, empty state), supervisor.routes.ts /reports z roleGuard, build 0 błędów |
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ | |
 | FE-024 | Panel konfiguracji kolejek i routingu | ✅ | QueueListComponent (tabela kolejek z liczbą oczekujących, polling co 10s), QueueFormComponent (formularz tworzenia/edycji: nazwa, strategia routingu, required skills multi-select, sticky agent timeout), QueueDeleteModalComponent. Integracja z BE-020 ✅. |
+| FE-025 | Panel konfiguracji Twilio per tenant | ⬜ | Czeka na BE-032 |
 
 ---
 
@@ -123,9 +125,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 22/31 | 0 | 9 | 31 |
-| Frontend (FE) | 21/24 | 0 | 3 | 24 |
-| **RAZEM** | **62/74** | **0** | **12** | **74** |
+| Backend (BE) | 24/33 | 0 | 9 | 33 |
+| Frontend (FE) | 21/25 | 0 | 4 | 25 |
+| **RAZEM** | **64/77** | **0** | **13** | **77** |
 
 ---
 
@@ -169,7 +171,7 @@
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 22/31 (BE-001..BE-013 ✅, BE-019 ✅, BE-020 ✅, BE-022 ✅, BE-023 ✅, BE-025 ✅, BE-026 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 21/24 (FE-001..FE-011 ✅, FE-014 ✅, FE-015 ✅, FE-016 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-020 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 24/33 (BE-001 ✅, BE-001b ✅, BE-002 ✅, BE-003 ✅, BE-004 ✅, BE-005 ✅, BE-006 ✅, BE-007 ✅, BE-008 ✅, BE-009 ✅, BE-010 ✅, BE-011 ✅, BE-012 ✅, BE-013 ✅, BE-015 ✅, BE-019 ✅, BE-020 ✅, BE-022 ✅, BE-023 ✅, BE-025 ✅, BE-026 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 21/25 (FE-001..FE-011 ✅, FE-014 ✅, FE-015 ✅, FE-016 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-020 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
 
 ---
 
@@ -215,7 +217,16 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-023 | Import CSV kampanii: CampaignImportController, CampaignImportService (@Async, OpenCSV, batch 1000, ON CONFLICT), Redis TTL 1h, V027 indeks | ✅ |
 | BE-026 | Import klientów CSV: CustomerImportController, CustomerImportService (@Async, chunk 500, SKIP/OVERWRITE, E.164), 24 testy PASS | ✅ |
 | BE-001b | MinIO docker-compose: serwis minio + minio-init, bucket contact-center-recordings, S3Properties | ✅ |
-| BE-014..BE-031 (bez BE-019, BE-020, BE-022, BE-023, BE-025, BE-026, BE-027, BE-028, BE-029) | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
+| BE-015 | Email Adapter: EmailPollingService (IMAP @Scheduled), EmailSendService (SMTP), EmailRoutingService, EmailEncryptionService (AES-256), EmailController (5 endpointów), EmailMessage/EmailRoutingRule repozytoria, EmailEventPublisher (RabbitMQ) | ✅ |
+| BE-014 | Voicebot Python: ASR + NLU + eskalacja do agenta | ⬜ |
+| BE-016 | Szablony odpowiedzi email: CRUD API | ⬜ |
+| BE-017 | OAuth flow i zarządzanie tokenami social media | ⬜ |
+| BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ⬜ |
+| BE-021 | Wait time estimation: informacja o czasie oczekiwania | ⬜ |
+| BE-024 | Progressive Dialer: silnik automatycznego dzwonienia | ⬜ |
+| BE-030 | ETL do data warehouse: CDC z PostgreSQL | ⬜ |
+| BE-031 | RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17) | ⬜ |
+| BE-032 | Twilio: konfiguracja numeru telefonu per tenant | ⬜ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
 
@@ -242,7 +253,10 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-015 | Kampanie: CampaignListComponent (tabela + polling 10s, akcje inline start/pause/stop), CampaignFormComponent (harmonogram, walidacja) | ✅ |
 | FE-016 | Import CSV kampanii: CampaignImportComponent (4-krokowy wizard, drag&drop, mapowanie kolumn, polling 3s, raport) | ✅ |
 | FE-020 | Import klientów CSV: CustomerImportComponent (4-krokowy wizard, deduplikacja radio, auto-mapowanie, pobieranie błędów CSV) | ✅ |
-| FE-012, FE-013, FE-023 | Kanał email, social media, konfiguracja social OAuth | ⬜ |
+| FE-012 | Komponent obsługi kontaktu email | ⬜ |
+| FE-013 | Komponent obsługi kontaktu social media | ⬜ |
+| FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ |
+| FE-025 | Panel konfiguracji Twilio per tenant | ⬜ |
 
 ---
 

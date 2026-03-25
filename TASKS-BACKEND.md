@@ -401,19 +401,22 @@ Serwis Python (FastAPI) integrujący ASR (Google Speech-to-Text lub Whisper) i p
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależy od:** BE-001, DB-007
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-25
 **Blokuje:** BE-016, FE-012
 **Odniesienie PRD:** US-05-01, US-05-02, US-05-04, EPIC-05
 
 **Opis:**
 Serwis emailowy: polling IMAP co 60s (konfiguracja per tenant: host, port, login, hasło zaszyfrowane), parsowanie wiadomości (JavaMail/Jakarta Mail), zapis do tabeli CONTACT. Routing emaila do kolejki przez `EmailRoutingEngine` (reguły: nadawca, temat, słowa kluczowe → kolejka). SMTP do wysyłki odpowiedzi. Linkowanie wątku po Message-ID / In-Reply-To.
 
+Zrealizowane: `EmailPollingService` (@Scheduled, IMAP Jakarta Mail, parsowanie MimeMessage/MimeMultipart), `EmailSendService` (SMTP), `EmailRoutingService` (reguły per tenant), `EmailRoutingRule`/`EmailRoutingRuleRepository`, `EmailMessage`/`EmailMessageRepository`, `EmailAccountConfig`, `EmailEncryptionService` (AES-256), `EmailEventPublisher` (RabbitMQ), `EmailController` (GET /api/email/messages, PATCH /api/email/messages/{id}/read, POST /api/email/config, GET /api/email/config, POST /api/email/reply).
+
 **Kryteria akceptacji:**
-- [ ] Nowe emaile odbierane w czasie < 2 min od wpłynięcia na skrzynkę
-- [ ] Wątek email grupowany po nagłówkach Message-ID / In-Reply-To / Subject (Re:)
-- [ ] Routing emaila przypisuje do kolejki zgodnie z regułami w DB (priorytet reguł: kolejność)
-- [ ] Wysłana odpowiedź zapisana jako kolejna wiadomość w wątku (CONTACT powiązany)
-- [ ] Dane logowania IMAP/SMTP szyfrowane AES-256 w DB (not plaintext)
+- [x] Nowe emaile odbierane w czasie < 2 min od wpłynięcia na skrzynkę
+- [x] Wątek email grupowany po nagłówkach Message-ID / In-Reply-To / Subject (Re:)
+- [x] Routing emaila przypisuje do kolejki zgodnie z regułami w DB (priorytet reguł: kolejność)
+- [x] Wysłana odpowiedź zapisana jako kolejna wiadomość w wątku (CONTACT powiązany)
+- [x] Dane logowania IMAP/SMTP szyfrowane AES-256 w DB (not plaintext)
 
 ---
 
@@ -853,11 +856,11 @@ BE-009 + BE-006 → BE-032 (Twilio per-tenant)
 | Użytkownicy (EPIC-02) | 1 | 1 | 0 |
 | Telefonia (EPIC-03) | 5 | 4 | 1 |
 | IVR + Voicebot (EPIC-04) | 2 | 2 | 0 |
-| Email (EPIC-05) | 2 | 1 | 1 |
+| Email (EPIC-05) | 2 | 2 | 0 |
 | Social Media (EPIC-06) | 2 | 2 | 0 |
 | Routing (EPIC-07) | 3 | 2 | 1 |
 | Kampanie (EPIC-08) | 3 | 3 | 0 |
 | Klienci (EPIC-09) | 2 | 2 | 0 |
 | Raporty (EPIC-10) | 4 | 4 | 0 |
 | RODO | 1 | 1 | 0 |
-| **RAZEM** | **32** | **29** | **3** |
+| **RAZEM** | **33** | **30** | **3** |

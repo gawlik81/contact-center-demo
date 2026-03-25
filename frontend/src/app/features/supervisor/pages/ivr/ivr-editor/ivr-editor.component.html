@@ -98,6 +98,9 @@
           <div class="legend-item"><span class="legend-dot legend-dot--COLLECT_DTMF"></span>DTMF</div>
           <div class="legend-item"><span class="legend-dot legend-dot--QUEUE_TRANSFER"></span>Kolejka</div>
           <div class="legend-item"><span class="legend-dot legend-dot--HANGUP"></span>Rozłącz</div>
+          <div class="legend-item"><span class="legend-dot legend-dot--SET"></span>Ustaw zmienn.</div>
+          <div class="legend-item"><span class="legend-dot legend-dot--IF"></span>Warunek</div>
+          <div class="legend-item"><span class="legend-dot legend-dot--SWITCH"></span>Przełącznik</div>
         </div>
       </aside>
 
@@ -171,6 +174,18 @@
                   <span class="node-var-label">→ {{ node.variable_name }}</span>
                 </div>
               }
+              @if (node.type === 'SET') {
+                <div class="node-var-badge">
+                  <span class="node-var-label"
+                    >{{ node.variable_name || '?' }} = {{ node.value || '""' | slice: 0 : 15 }}</span
+                  >
+                </div>
+              }
+              @if (node.type === 'IF' || node.type === 'SWITCH') {
+                <div class="node-var-badge">
+                  <span class="node-var-label">{{ node.variable_name || '?' }}</span>
+                </div>
+              }
               <!-- Input port (top-center) -->
               <div
                 class="node-port node-input-port"
@@ -198,6 +213,48 @@
               }
               <!-- Output: MENU / COLLECT_DTMF – one port per DTMF option -->
               @if (node.type === 'MENU' || node.type === 'COLLECT_DTMF') {
+                <div class="node-options">
+                  @for (opt of node.options ?? []; track trackByIndex($index)) {
+                    <div class="node-option">
+                      <span class="node-option__key">{{ opt.key || '?' }}</span>
+                      <span class="node-option__arrow">→</span>
+                      <span class="node-option__target">{{
+                        opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
+                      }}</span>
+                      <div
+                        class="node-port node-output-port"
+                        [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
+                        (click)="onOutputPortClick($event, node.node_id, opt.key)"
+                        [attr.aria-label]="'Port wyjściowy dla opcji ' + opt.key"
+                        title="Kliknij, by połączyć"
+                        role="button"
+                        tabindex="0"
+                      ></div>
+                    </div>
+                  }
+                </div>
+              }
+              <!-- Output: SET – single "next" port -->
+              @if (node.type === 'SET') {
+                <div class="node-next-connection">
+                  <span class="node-option__arrow">→</span>
+                  <span class="node-option__target">
+                    @let nextId = node.options?.[0]?.next_node_id;
+                    {{ nextId ? getNodeShortLabel(nextId) : '—' }}
+                  </span>
+                  <div
+                    class="node-port node-output-port"
+                    [class.node-output-port--active]="isConnectingFromOption(node.node_id, 'next')"
+                    (click)="onOutputPortClick($event, node.node_id, 'next')"
+                    aria-label="Port wyjściowy – następny węzeł"
+                    title="Kliknij, by połączyć z następnym węzłem"
+                    role="button"
+                    tabindex="0"
+                  ></div>
+                </div>
+              }
+              <!-- Output: IF / SWITCH – one port per option (true/false or cases) -->
+              @if (node.type === 'IF' || node.type === 'SWITCH') {
                 <div class="node-options">
                   @for (opt of node.options ?? []; track trackByIndex($index)) {
                     <div class="node-option">
@@ -248,18 +305,20 @@
         @if (selectedNode(); as node) {
           <h3 class="props-title">{{ nodeLabels[node.type] }}</h3>
           <div class="props-form">
-            <!-- Prompt -->
-            <div class="form-group">
-              <label class="form-label" [for]="'prompt-' + node.node_id">Komunikat TTS</label>
-              <textarea
-                [id]="'prompt-' + node.node_id"
-                class="form-control form-control--textarea"
-                [value]="node.prompt ?? ''"
-                (input)="updateSelectedNodeProp('prompt', $any($event.target).value)"
-                rows="3"
-                placeholder="Treść komunikatu..."
-              ></textarea>
-            </div>
+            <!-- Prompt (not applicable for SET / IF / SWITCH) -->
+            @if (node.type !== 'SET' && node.type !== 'IF' && node.type !== 'SWITCH') {
+              <div class="form-group">
+                <label class="form-label" [for]="'prompt-' + node.node_id">Komunikat TTS</label>
+                <textarea
+                  [id]="'prompt-' + node.node_id"
+                  class="form-control form-control--textarea"
+                  [value]="node.prompt ?? ''"
+                  (input)="updateSelectedNodeProp('prompt', $any($event.target).value)"
+                  rows="3"
+                  placeholder="Treść komunikatu..."
+                ></textarea>
+              </div>
+            }
 
             <!-- PLAY_AUDIO: audio file upload -->
             @if (node.type === 'PLAY_AUDIO') {
@@ -516,6 +575,186 @@
                     (input)="updateSelectedNodeProp('max_retries', +$any($event.target).value)"
                   />
                 </div>
+              </div>
+            }
+
+            <!-- SET: variable_name + value + single next routing -->
+            @if (node.type === 'SET') {
+              <div class="form-group">
+                <label class="form-label" [for]="'setvar-' + node.node_id">Nazwa zmiennej</label>
+                <input
+                  [id]="'setvar-' + node.node_id"
+                  class="form-control"
+                  type="text"
+                  [value]="node.variable_name ?? ''"
+                  (input)="updateSelectedNodeProp('variable_name', $any($event.target).value)"
+                  placeholder="np. priority, channel"
+                  maxlength="50"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label" [for]="'setval-' + node.node_id">Wartość</label>
+                <input
+                  [id]="'setval-' + node.node_id"
+                  class="form-control"
+                  type="text"
+                  [value]="node.value ?? ''"
+                  (input)="updateSelectedNodeProp('value', $any($event.target).value)"
+                  placeholder="wartość lub $&#123;inna_zmienna&#125;"
+                  maxlength="200"
+                />
+                <p class="form-hint">Możesz użyć $&#123;nazwa_zmiennej&#125; by wstawić wartość z sesji.</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Następny węzeł</label>
+                <select
+                  class="form-control"
+                  [ngModel]="node.options?.[0]?.next_node_id ?? ''"
+                  (ngModelChange)="updateOption(0, 'next_node_id', $event)"
+                >
+                  <option value="">— brak —</option>
+                  @for (n of otherNodes(node.node_id); track n.node_id) {
+                    <option [value]="n.node_id">
+                      {{ nodeLabels[n.type] }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
+                    </option>
+                  }
+                </select>
+              </div>
+            }
+
+            <!-- IF: variable_name + operator + compare_value + fixed true/false routing -->
+            @if (node.type === 'IF') {
+              <div class="form-group">
+                <label class="form-label" [for]="'ifvar-' + node.node_id">Zmienna</label>
+                <input
+                  [id]="'ifvar-' + node.node_id"
+                  class="form-control"
+                  type="text"
+                  [value]="node.variable_name ?? ''"
+                  (input)="updateSelectedNodeProp('variable_name', $any($event.target).value)"
+                  placeholder="np. account_number"
+                  maxlength="50"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label" [for]="'ifop-' + node.node_id">Operator</label>
+                <select
+                  [id]="'ifop-' + node.node_id"
+                  class="form-control"
+                  [ngModel]="node.operator ?? 'EQUALS'"
+                  (ngModelChange)="updateSelectedNodeProp('operator', $event)"
+                >
+                  <option value="EQUALS">równa się (=)</option>
+                  <option value="NOT_EQUALS">różna od (&#8800;)</option>
+                  <option value="CONTAINS">zawiera</option>
+                  <option value="STARTS_WITH">zaczyna się od</option>
+                  <option value="IS_EMPTY">jest pusta</option>
+                  <option value="NOT_EMPTY">nie jest pusta</option>
+                  <option value="MATCHES_REGEX">pasuje do regex</option>
+                </select>
+              </div>
+              @if (node.operator !== 'IS_EMPTY' && node.operator !== 'NOT_EMPTY') {
+                <div class="form-group">
+                  <label class="form-label" [for]="'ifcmp-' + node.node_id">Wartość porównania</label>
+                  <input
+                    [id]="'ifcmp-' + node.node_id"
+                    class="form-control"
+                    type="text"
+                    [value]="node.compare_value ?? ''"
+                    (input)="updateSelectedNodeProp('compare_value', $any($event.target).value)"
+                    placeholder="wartość lub $&#123;zmienna&#125;"
+                    maxlength="200"
+                  />
+                </div>
+              }
+              <div class="form-group">
+                <label class="form-label">Routing</label>
+                <div class="options-list">
+                  @for (opt of node.options ?? []; track opt.key) {
+                    <div class="option-row option-row--fixed">
+                      <span
+                        class="option-key option-key--fixed"
+                        [class.option-key--true]="opt.key === 'true'"
+                        [class.option-key--false]="opt.key === 'false'"
+                      >
+                        {{ opt.key }}
+                      </span>
+                      <select
+                        class="form-control option-target"
+                        [ngModel]="opt.next_node_id"
+                        (ngModelChange)="updateOption($index, 'next_node_id', $event)"
+                      >
+                        <option value="">— brak —</option>
+                        @for (n of otherNodes(node.node_id); track n.node_id) {
+                          <option [value]="n.node_id">
+                            {{ nodeLabels[n.type] }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
+                          </option>
+                        }
+                      </select>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- SWITCH: variable_name + editable cases + fixed default -->
+            @if (node.type === 'SWITCH') {
+              <div class="form-group">
+                <label class="form-label" [for]="'swvar-' + node.node_id">Zmienna</label>
+                <input
+                  [id]="'swvar-' + node.node_id"
+                  class="form-control"
+                  type="text"
+                  [value]="node.variable_name ?? ''"
+                  (input)="updateSelectedNodeProp('variable_name', $any($event.target).value)"
+                  placeholder="np. account_type"
+                  maxlength="50"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Przypadki</label>
+                <div class="options-list">
+                  @for (opt of node.options ?? []; track trackByIndex($index)) {
+                    <div class="option-row">
+                      @if (opt.key === 'default') {
+                        <span class="option-key option-key--fixed option-key--default">default</span>
+                      } @else {
+                        <input
+                          class="form-control option-key"
+                          type="text"
+                          [value]="opt.key"
+                          (input)="updateOption($index, 'key', $any($event.target).value)"
+                          placeholder="wartość..."
+                          maxlength="50"
+                          [attr.aria-label]="'Wartość przypadku ' + ($index + 1)"
+                        />
+                      }
+                      <select
+                        class="form-control option-target"
+                        [ngModel]="opt.next_node_id"
+                        (ngModelChange)="updateOption($index, 'next_node_id', $event)"
+                      >
+                        <option value="">— brak —</option>
+                        @for (n of otherNodes(node.node_id); track n.node_id) {
+                          <option [value]="n.node_id">
+                            {{ nodeLabels[n.type] }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
+                          </option>
+                        }
+                      </select>
+                      @if (opt.key !== 'default') {
+                        <button
+                          class="btn btn-sm btn-danger"
+                          type="button"
+                          (click)="removeOption($index)"
+                          title="Usuń przypadek"
+                        >
+                          ✕
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+                <button class="btn btn-sm btn-secondary" type="button" (click)="addOption()">+ Dodaj przypadek</button>
               </div>
             }
 

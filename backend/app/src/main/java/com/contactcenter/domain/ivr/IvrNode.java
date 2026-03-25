@@ -19,10 +19,14 @@ import java.util.List;
  * @param queueId        UUID kolejki docelowej (dla QUEUE_TRANSFER)
  * @param timeoutSeconds czas oczekiwania na wejście DTMF w sekundach (domyślnie 10)
  * @param maxRetries     maksymalna liczba prób ponownego odtworzenia komunikatu (domyślnie 3)
- * @param variableName   nazwa zmiennej sesji, do której zapisywane są zebrane cyfry (COLLECT_DTMF)
+ * @param variableName   nazwa zmiennej sesji (COLLECT_DTMF – zapis zebranych cyfr; SET/IF/SWITCH – zmienna operacji)
  * @param minDigits      minimalna liczba cyfr wymagana do zakończenia zbierania (domyślnie 1)
  * @param maxDigits      maksymalna liczba cyfr – po osiągnięciu auto-zakończenie (domyślnie 1)
  * @param finishOnKey    klawisz kończący zbieranie cyfr (domyślnie "#"; pusty string = auto po maxDigits)
+ * @param value          wartość do ustawienia (SET); może zawierać interpolację {@code ${zmienna}}
+ * @param operator       operator porównania dla IF: EQUALS, NOT_EQUALS, CONTAINS, STARTS_WITH,
+ *                       IS_EMPTY, NOT_EMPTY, MATCHES_REGEX (domyślnie EQUALS)
+ * @param compareValue   wartość porównania dla IF; może zawierać interpolację {@code ${zmienna}}
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record IvrNode(
@@ -37,7 +41,10 @@ public record IvrNode(
         @JsonProperty("variable_name") String variableName,
         @JsonProperty("min_digits") int minDigits,
         @JsonProperty("max_digits") int maxDigits,
-        @JsonProperty("finish_on_key") String finishOnKey
+        @JsonProperty("finish_on_key") String finishOnKey,
+        @JsonProperty("value") String value,
+        @JsonProperty("operator") String operator,
+        @JsonProperty("compare_value") String compareValue
 ) {
     /**
      * Wartości domyślne dla pól opcjonalnych.
@@ -48,6 +55,7 @@ public record IvrNode(
         if (minDigits <= 0)      minDigits = 1;
         if (maxDigits <= 0)      maxDigits = 1;
         if (finishOnKey == null) finishOnKey = "#";
+        if (operator == null)    operator = "EQUALS";
     }
 
     /**

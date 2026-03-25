@@ -236,7 +236,7 @@ class IvrEngineServiceTest {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
 
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
-                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#");
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
@@ -266,7 +266,7 @@ class IvrEngineServiceTest {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
 
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
-                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#");
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.empty());
             when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
@@ -296,7 +296,7 @@ class IvrEngineServiceTest {
         void executeNode_HANGUP_shouldCallHangupAndCleanSession() {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_HANGUP, TENANT_ID);
             IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
-                    null, null, List.of(), null, 10, 3, null, 1, 1, "#");
+                    null, null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
 
             doNothing().when(telephonyAdapter).hangupCall(CALL_ID);
 
@@ -311,7 +311,7 @@ class IvrEngineServiceTest {
         void executeNode_HANGUP_withHangupError_shouldStillCleanSession() {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_HANGUP, TENANT_ID);
             IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
-                    null, null, List.of(), null, 10, 3, null, 1, 1, "#");
+                    null, null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
 
             doThrow(new TelephonyAdapter.TelephonyException(CALL_ID, "Connection error"))
                     .when(telephonyAdapter).hangupCall(CALL_ID);
@@ -338,7 +338,7 @@ class IvrEngineServiceTest {
         void executeNode_PLAY_AUDIO_shouldLogAudioPlay() {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_AUDIO, TENANT_ID);
             IvrNode audioNode = new IvrNode(NODE_AUDIO, IvrNodeType.PLAY_AUDIO,
-                    "Witamy w systemie", AUDIO_ID.toString(), List.of(), null, 10, 3, null, 1, 1, "#");
+                    "Witamy w systemie", AUDIO_ID.toString(), List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
 
             IvrAudio audio = IvrAudio.builder()
                     .audioId(AUDIO_ID)
@@ -363,7 +363,7 @@ class IvrEngineServiceTest {
         void executeNode_PLAY_AUDIO_withoutAudioId_shouldUseTextPrompt() {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_AUDIO, TENANT_ID);
             IvrNode audioNode = new IvrNode(NODE_AUDIO, IvrNodeType.PLAY_AUDIO,
-                    "Witamy w systemie", null, List.of(), null, 10, 3, null, 1, 1, "#");
+                    "Witamy w systemie", null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
 
             assertThatCode(() -> ivrEngineService.executeNode(CALL_ID, audioNode, session))
                     .doesNotThrowAnyException();
@@ -388,7 +388,7 @@ class IvrEngineServiceTest {
 
             // queueId z nieprawidłowym formatem UUID
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
-                    null, null, List.of(), "invalid-uuid", 10, 3, null, 1, 1, "#");
+                    null, null, List.of(), "invalid-uuid", 10, 3, null, 1, 1, "#", null, null, null);
 
             when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
                     .thenReturn(buildQueuePage(buildQueue()));
@@ -421,14 +421,14 @@ class IvrEngineServiceTest {
          */
         private IvrDefinition buildCollectDtmfDefinition(int maxDigits, String finishOnKey) {
             IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
-                    null, null, List.of(), null, 10, 3, null, 1, 1, "#");
+                    null, null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
             IvrNode successNode = new IvrNode(NODE_SUCCESS, IvrNodeType.PLAY_AUDIO,
-                    "Dziękujemy", null, List.of(), null, 10, 3, null, 1, 1, "#");
+                    "Dziękujemy", null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
             IvrNode collectNode = new IvrNode(NODE_COLLECT, IvrNodeType.COLLECT_DTMF,
                     "Podaj numer konta", null,
                     List.of(new IvrOption("success", NODE_SUCCESS),
                             new IvrOption("timeout", NODE_HANGUP)),
-                    null, 10, 3, "account_number", 1, maxDigits, finishOnKey);
+                    null, 10, 3, "account_number", 1, maxDigits, finishOnKey, null, null, null);
             return new IvrDefinition(List.of(collectNode, successNode, hangupNode), NODE_COLLECT);
         }
 
@@ -553,7 +553,7 @@ class IvrEngineServiceTest {
             session.setVariable("account_number", "99887766");
 
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
-                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#");
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
@@ -631,31 +631,31 @@ class IvrEngineServiceTest {
     /** Definicja z węzłem PLAY_AUDIO jako entry. */
     private IvrDefinition buildPlayAudioDefinition() {
         IvrNode audioNode = new IvrNode(NODE_ENTRY, IvrNodeType.PLAY_AUDIO,
-                "Witamy", null, List.of(), null, 10, 3, null, 1, 1, "#");
+                "Witamy", null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
         return new IvrDefinition(List.of(audioNode), NODE_ENTRY);
     }
 
     /** Definicja MENU z opcją '1' → node-audio i timeout → node-hangup. */
     private IvrDefinition buildMenuDefinition() {
         IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
-                null, null, List.of(), null, 10, 3, null, 1, 1, "#");
+                null, null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
         IvrNode audioNode = new IvrNode(NODE_AUDIO, IvrNodeType.PLAY_AUDIO,
-                "Wybrano opcję 1", null, List.of(), null, 10, 3, null, 1, 1, "#");
+                "Wybrano opcję 1", null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
         IvrNode menuNode = new IvrNode(NODE_MENU, IvrNodeType.MENU,
                 "Naciśnij 1", null,
                 List.of(new IvrOption("1", NODE_AUDIO), new IvrOption("timeout", NODE_HANGUP)),
-                null, 10, 3, null, 1, 1, "#");
+                null, 10, 3, null, 1, 1, "#", null, null, null);
         return new IvrDefinition(List.of(menuNode, audioNode, hangupNode), NODE_MENU);
     }
 
     /** Definicja MENU z opcją timeout → node-hangup. */
     private IvrDefinition buildMenuWithTimeoutDefinition() {
         IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
-                null, null, List.of(), null, 10, 3, null, 1, 1, "#");
+                null, null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
         IvrNode menuNode = new IvrNode(NODE_MENU, IvrNodeType.MENU,
                 "Naciśnij klawisz", null,
                 List.of(new IvrOption("timeout", NODE_HANGUP)),
-                null, 10, 3, null, 1, 1, "#");
+                null, 10, 3, null, 1, 1, "#", null, null, null);
         return new IvrDefinition(List.of(menuNode, hangupNode), NODE_MENU);
     }
 

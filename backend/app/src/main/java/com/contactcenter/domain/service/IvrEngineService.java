@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
@@ -355,6 +356,9 @@ public class IvrEngineService {
             case COLLECT_DTMF -> executeCollectDtmf(callId, node, session);
             case QUEUE_TRANSFER -> executeQueueTransfer(callId, node, session);
             case HANGUP -> executeHangup(callId, session);
+            case SET -> executeSet(callId, node, session);
+            case IF -> executeIf(callId, node, session);
+            case SWITCH -> executeSwitch(callId, node, session);
             default -> {
                 log.error("[IVR] Nieznany typ węzła: type={}, callId={}", node.type(), callId);
                 fallbackToDefaultQueue(callId, session.getTenantId());
@@ -533,6 +537,149 @@ public class IvrEngineService {
         // Usuń sesję IVR
         deleteSession(callId);
         log.info("[IVR] Sesja IVR zakończona (HANGUP): callId={}", callId);
+    }
+
+    /**
+     * Wykonuje węzeł SET – ustawia zmienną sesji i natychmiast przechodzi do opcji {@code next}.
+     *
+     * <p>Pole {@code value} może zawierać interpolację {@code ${zmienna}} – wartości zostaną
+     * rozwinięte z aktualnych zmiennych sesji przed zapisem.
+     */
+    private void executeSet(String callId, IvrNode node, IvrSessionData session) {
+        String varName = node.variableName();
+        String rawValue = node.value() != null ? node.value() : "";
+        String resolvedValue = resolveVariables(rawValue, session);
+
+        if (varName != null && !varName.isBlank()) {
+            session.setVariable(varName, resolvedValue);
+            log.info("[IVR] SET: {}='{}' (resolved); callId={}", varName, resolvedValue, callId);
+        } else {
+            log.warn("[IVR] SET: puste variableName – pomijam; callId={}", callId);
+        }
+
+        IvrTree ivr = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
+        if (ivr == null) { fallbackToDefaultQueue(callId, session.getTenantId()); return; }
+
+        IvrOption nextOpt = node.findOption("next");
+        if (nextOpt == null || nextOpt.nextNodeId() == null || nextOpt.nextNodeId().isBlank()) {
+            log.warn("[IVR] SET: brak opcji 'next'; callId={}", callId);
+            fallbackToDefaultQueue(callId, session.getTenantId());
+            return;
+        }
+        transitionToNextNode(callId, nextOpt.nextNodeId(), session, ivr);
+    }
+
+    /**
+     * Wykonuje węzeł IF – testuje wartość zmiennej sesji przy użyciu operatora logicznego.
+     *
+     * <p>Obsługiwane operatory:
+     * {@code EQUALS}, {@code NOT_EQUALS}, {@code CONTAINS}, {@code STARTS_WITH},
+     * {@code IS_EMPTY}, {@code NOT_EMPTY}, {@code MATCHES_REGEX}.
+     *
+     * <p>Wyjścia: opcja {@code true} lub {@code false}.
+     */
+    private void executeIf(String callId, IvrNode node, IvrSessionData session) {
+        String varName = node.variableName();
+        String varValue = varName != null ? session.getVariable(varName) : null;
+        String compareValue = resolveVariables(node.compareValue() != null ? node.compareValue() : "", session);
+        String operator = node.operator() != null ? node.operator() : "EQUALS";
+
+        boolean result = evaluateCondition(varValue, operator, compareValue);
+        log.info("[IVR] IF: var='{}' value='{}' op='{}' cmp='{}' → {}; callId={}",
+                varName, varValue, operator, compareValue, result, callId);
+
+        IvrTree ivr = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
+        if (ivr == null) { fallbackToDefaultQueue(callId, session.getTenantId()); return; }
+
+        IvrOption branch = node.findOption(result ? "true" : "false");
+        if (branch == null) {
+            log.warn("[IVR] IF: brak opcji '{}'; callId={}", result ? "true" : "false", callId);
+            fallbackToDefaultQueue(callId, session.getTenantId());
+            return;
+        }
+        transitionToNextNode(callId, branch.nextNodeId(), session, ivr);
+    }
+
+    /**
+     * Wykonuje węzeł SWITCH – routing wielowariantowy na podstawie wartości zmiennej sesji.
+     *
+     * <p>Szuka opcji o kluczu równym bieżącej wartości zmiennej; gdy brak dopasowania – używa
+     * opcji o kluczu {@code default}. Gdy i ta nie istnieje – fallback do domyślnej kolejki.
+     */
+    private void executeSwitch(String callId, IvrNode node, IvrSessionData session) {
+        String varName = node.variableName();
+        String varValue = varName != null ? session.getVariable(varName) : null;
+
+        IvrTree ivr = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
+        if (ivr == null) { fallbackToDefaultQueue(callId, session.getTenantId()); return; }
+
+        // Szukaj dokładnego dopasowania
+        IvrOption matched = varValue != null ? node.findOption(varValue) : null;
+
+        // Fallback do "default"
+        if (matched == null) {
+            matched = node.findOption("default");
+        }
+
+        if (matched == null) {
+            log.warn("[IVR] SWITCH: brak dopasowania i brak 'default' dla var='{}' value='{}'; callId={}",
+                    varName, varValue, callId);
+            fallbackToDefaultQueue(callId, session.getTenantId());
+            return;
+        }
+
+        log.info("[IVR] SWITCH: var='{}' value='{}' → opcja='{}'; callId={}",
+                varName, varValue, matched.key(), callId);
+        transitionToNextNode(callId, matched.nextNodeId(), session, ivr);
+    }
+
+    /**
+     * Rozwiązuje interpolację zmiennych w szablonie tekstowym.
+     *
+     * <p>Wzorzec: {@code ${nazwaZmiennej}} zastępowany wartością z {@code session.getVariables()}.
+     * Nieznane zmienne pozostawiane jako literał.
+     *
+     * @param template tekst zawierający opcjonalne wyrażenia {@code ${...}}
+     * @param session  aktualny stan sesji IVR ze zmiennymi
+     * @return tekst z rozwiązanymi zmiennymi; nigdy null
+     */
+    private String resolveVariables(String template, IvrSessionData session) {
+        if (template == null || !template.contains("${")) return template != null ? template : "";
+        String result = template;
+        for (Map.Entry<String, String> entry : session.getVariables().entrySet()) {
+            result = result.replace("${" + entry.getKey() + "}", entry.getValue());
+        }
+        return result;
+    }
+
+    /**
+     * Ocenia warunek logiczny dla węzła IF.
+     *
+     * @param varValue     aktualna wartość zmiennej sesji (może być null)
+     * @param operator     operator porównania (np. EQUALS, CONTAINS, MATCHES_REGEX)
+     * @param compareValue wartość porównania (już po rozwinięciu zmiennych)
+     * @return wynik ewaluacji warunku
+     */
+    private boolean evaluateCondition(String varValue, String operator, String compareValue) {
+        return switch (operator) {
+            case "EQUALS"        -> compareValue.equals(varValue != null ? varValue : "");
+            case "NOT_EQUALS"    -> !compareValue.equals(varValue != null ? varValue : "");
+            case "CONTAINS"      -> varValue != null && varValue.contains(compareValue);
+            case "STARTS_WITH"   -> varValue != null && varValue.startsWith(compareValue);
+            case "IS_EMPTY"      -> varValue == null || varValue.isBlank();
+            case "NOT_EMPTY"     -> varValue != null && !varValue.isBlank();
+            case "MATCHES_REGEX" -> {
+                try { yield varValue != null && varValue.matches(compareValue); }
+                catch (Exception e) {
+                    log.warn("[IVR] IF: nieprawidłowy regex '{}': {}", compareValue, e.getMessage());
+                    yield false;
+                }
+            }
+            default -> {
+                log.warn("[IVR] IF: nieznany operator '{}' – traktuję jako EQUALS", operator);
+                yield compareValue.equals(varValue != null ? varValue : "");
+            }
+        };
     }
 
     // =========================================================================

@@ -10,6 +10,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -46,7 +47,7 @@ const NODE_HEIGHT_BASE = 80;
 @Component({
   selector: 'app-ivr-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, SlicePipe],
   templateUrl: './ivr-editor.component.html',
   styleUrl: './ivr-editor.component.scss',
 })
@@ -130,6 +131,9 @@ export class IvrEditorComponent implements OnInit {
     'COLLECT_DTMF',
     'QUEUE_TRANSFER',
     'HANGUP',
+    'SET',
+    'IF',
+    'SWITCH',
   ];
 
   readonly nodeTypeIcons: Record<IvrNodeType, string> = {
@@ -138,6 +142,9 @@ export class IvrEditorComponent implements OnInit {
     COLLECT_DTMF: 'D',
     QUEUE_TRANSFER: 'Q',
     HANGUP: 'H',
+    SET: 'S',
+    IF: '?',
+    SWITCH: '⊞',
   };
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -264,6 +271,21 @@ export class IvrEditorComponent implements OnInit {
           `Wezel COLLECT_DTMF "${node.prompt?.slice(0, 30) ?? node.node_id}" nie ma ustawionej nazwy zmiennej.`,
         );
       }
+      if (node.type === 'SET' && !node.variable_name?.trim()) {
+        warnings.push(`Wezel SET "${node.node_id}" nie ma ustawionej nazwy zmiennej.`);
+      }
+      if (node.type === 'IF' && !node.variable_name?.trim()) {
+        warnings.push(`Wezel IF "${node.node_id}" nie ma ustawionej nazwy zmiennej.`);
+      }
+      if (node.type === 'SWITCH') {
+        if (!node.variable_name?.trim()) {
+          warnings.push(`Wezel SWITCH "${node.node_id}" nie ma ustawionej nazwy zmiennej.`);
+        }
+        const hasDefault = (node.options ?? []).some((o) => o.key === 'default');
+        if (!hasDefault) {
+          warnings.push(`Wezel SWITCH "${node.node_id}" nie ma opcji "default".`);
+        }
+      }
       for (const opt of node.options ?? []) {
         if (opt.next_node_id && !nodeIds.has(opt.next_node_id)) {
           warnings.push(
@@ -328,8 +350,9 @@ export class IvrEditorComponent implements OnInit {
     const newNode: IvrNodeUI = {
       node_id: this.ivrService.generateNodeId(),
       type,
-      prompt: '',
+      prompt: type === 'SET' || type === 'IF' || type === 'SWITCH' ? undefined : '',
       // PLAY_AUDIO always has a single "next" output; MENU/COLLECT_DTMF start with empty options
+      // SET has a single "next" output; IF has fixed true/false; SWITCH starts with "default"
       options:
         type === 'PLAY_AUDIO'
           ? [{ key: 'next', next_node_id: '' }]
@@ -339,7 +362,16 @@ export class IvrEditorComponent implements OnInit {
                 { key: 'timeout', next_node_id: '' },
                 { key: 'no-input', next_node_id: '' },
               ]
-            : [],
+            : type === 'SET'
+              ? [{ key: 'next', next_node_id: '' }]
+              : type === 'IF'
+                ? [
+                    { key: 'true', next_node_id: '' },
+                    { key: 'false', next_node_id: '' },
+                  ]
+                : type === 'SWITCH'
+                  ? [{ key: 'default', next_node_id: '' }]
+                  : [],
       x: Math.max(0, x),
       y: Math.max(0, y),
       timeout_seconds: type === 'MENU' || type === 'COLLECT_DTMF' ? 10 : undefined,
@@ -352,6 +384,9 @@ export class IvrEditorComponent implements OnInit {
             finish_on_key: '#',
           }
         : {}),
+      ...(type === 'SET' ? { variable_name: '', value: '' } : {}),
+      ...(type === 'IF' ? { variable_name: '', operator: 'EQUALS', compare_value: '' } : {}),
+      ...(type === 'SWITCH' ? { variable_name: '' } : {}),
     };
 
     this.definition.update((def) => ({
@@ -510,6 +545,24 @@ export class IvrEditorComponent implements OnInit {
   addOption(): void {
     const id = this.selectedNodeId();
     if (!id) return;
+    const node = this.selectedNode();
+    // SET and IF have fixed routing – cannot add options
+    if (node?.type === 'SET' || node?.type === 'IF') return;
+    // For SWITCH: insert new option before the "default" entry
+    if (node?.type === 'SWITCH') {
+      const options = node.options ?? [];
+      const defaultIndex = options.findIndex((o) => o.key === 'default');
+      const newOpt: IvrOption = { key: '', next_node_id: '' };
+      const updated =
+        defaultIndex >= 0
+          ? [...options.slice(0, defaultIndex), newOpt, ...options.slice(defaultIndex)]
+          : [...options, newOpt];
+      this.definition.update((def) => ({
+        ...def,
+        nodes: def.nodes.map((n) => (n.node_id === id ? { ...n, options: updated } : n)),
+      }));
+      return;
+    }
     const newOpt: IvrOption = { key: '', next_node_id: '' };
     this.definition.update((def) => ({
       ...def,
@@ -537,6 +590,12 @@ export class IvrEditorComponent implements OnInit {
   removeOption(optionIndex: number): void {
     const id = this.selectedNodeId();
     if (!id) return;
+    // Guard: "default" option in SWITCH cannot be removed
+    const node = this.selectedNode();
+    if (node?.type === 'SWITCH') {
+      const opt = node.options?.[optionIndex];
+      if (opt?.key === 'default') return;
+    }
     this.definition.update((def) => ({
       ...def,
       nodes: def.nodes.map((n) => {

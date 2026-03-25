@@ -9,6 +9,9 @@ package com.contactcenter.domain.ivr;
  *   <li>{@code COLLECT_DTMF}  – zbieranie wejścia DTMF od dzwoniącego z timeoutem</li>
  *   <li>{@code QUEUE_TRANSFER} – przekazanie do kolejki obsługi przez agenta</li>
  *   <li>{@code HANGUP}         – rozłączenie połączenia</li>
+ *   <li>{@code SET}            – ustawia zmienną sesji na podaną wartość, natychmiast przechodzi do {@code next}</li>
+ *   <li>{@code IF}             – testuje zmienną warunkowo; wyjścia: {@code true} / {@code false}</li>
+ *   <li>{@code SWITCH}         – routing wielowariantowy na podstawie wartości zmiennej; fallback: {@code default}</li>
  * </ul>
  */
 public enum IvrNodeType {
@@ -16,5 +19,8 @@ public enum IvrNodeType {
     PLAY_AUDIO,
     COLLECT_DTMF,
     QUEUE_TRANSFER,
-    HANGUP
+    HANGUP,
+    SET,
+    IF,
+    SWITCH
 }

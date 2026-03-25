@@ -1,4 +1,12 @@
-export type IvrNodeType = 'MENU' | 'PLAY_AUDIO' | 'COLLECT_DTMF' | 'QUEUE_TRANSFER' | 'HANGUP';
+export type IvrNodeType =
+  | 'MENU'
+  | 'PLAY_AUDIO'
+  | 'COLLECT_DTMF'
+  | 'QUEUE_TRANSFER'
+  | 'HANGUP'
+  | 'SET'
+  | 'IF'
+  | 'SWITCH';
 
 export interface IvrOption {
   key: string;
@@ -18,6 +26,9 @@ export interface IvrNode {
   min_digits?: number;
   max_digits?: number;
   finish_on_key?: string;
+  value?: string;
+  operator?: string;
+  compare_value?: string;
 }
 
 export interface IvrNodeUI extends IvrNode {
@@ -61,6 +72,9 @@ export const IVR_NODE_LABELS: Record<IvrNodeType, string> = {
   COLLECT_DTMF: 'Zbieranie DTMF',
   QUEUE_TRANSFER: 'Transfer do kolejki',
   HANGUP: 'Rozlaczenie',
+  SET: 'Ustaw zmienną',
+  IF: 'Warunek',
+  SWITCH: 'Przełącznik',
 };
 
 export const IVR_NODE_ICONS: Record<IvrNodeType, string> = {
@@ -69,6 +83,9 @@ export const IVR_NODE_ICONS: Record<IvrNodeType, string> = {
   COLLECT_DTMF: 'D',
   QUEUE_TRANSFER: 'Q',
   HANGUP: 'H',
+  SET: 'S',
+  IF: '?',
+  SWITCH: '⊞',
 };
 
 export const DEMO_IVR: IvrDefinition = {

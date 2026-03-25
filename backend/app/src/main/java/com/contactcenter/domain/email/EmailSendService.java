@@ -1,5 +1,6 @@
 package com.contactcenter.domain.email;
 
+import com.contactcenter.domain.email.EmailTemplateService.RenderedEmailTemplate;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.TenantRepository;
@@ -37,6 +38,7 @@ public class EmailSendService {
     private final EmailEventPublisher emailEventPublisher;
     private final TenantRepository tenantRepository;
     private final EmailEncryptionService encryptionService;
+    private final EmailTemplateService emailTemplateService;
 
     // =========================================================================
     // Wysyłka odpowiedzi
@@ -129,6 +131,41 @@ public class EmailSendService {
                 saved.getId(), originalMessageId, agentId);
 
         return saved;
+    }
+
+    // =========================================================================
+    // Wysyłka z szablonem
+    // =========================================================================
+
+    /**
+     * Wysyła odpowiedź na istniejącą wiadomość email z użyciem szablonu Mustache.
+     *
+     * <p>Renderuje szablon (temat + treść HTML) z podanymi zmiennymi i wywołuje
+     * {@link #sendReply} z wyrenderowanymi wartościami.
+     *
+     * @param tenantId          UUID tenanta (z TenantContext)
+     * @param originalMessageId UUID wiadomości oryginalnej (PK tabeli email_message)
+     * @param templateId        UUID szablonu email (z tabeli email_template)
+     * @param variables         mapa zmiennych do podstawienia w szablonie
+     * @param agentId           UUID agenta wysyłającego odpowiedź
+     * @return zapisana encja wiadomości OUTBOUND
+     * @throws ResourceNotFoundException gdy oryginalna wiadomość lub szablon nie istnieje
+     * @throws TemplateRenderException   gdy brakuje wymaganych zmiennych szablonu
+     * @throws EmailSendException        gdy wysyłka SMTP się nie powiedzie
+     */
+    @Transactional
+    public EmailMessage sendReplyWithTemplate(UUID tenantId, UUID originalMessageId,
+                                              UUID templateId, java.util.Map<String, Object> variables,
+                                              UUID agentId) {
+
+        log.info("[EmailSend] Wysyłam odpowiedź z szablonem: templateId={}, originalId={}, tenant={}, agent={}",
+                templateId, originalMessageId, tenantId, agentId);
+
+        // Renderuj szablon – rzuca TemplateRenderException gdy brakuje zmiennych
+        RenderedEmailTemplate rendered = emailTemplateService.render(templateId, variables);
+
+        // Wyślij przez istniejącą metodę z wyrenderowanymi wartościami
+        return sendReply(tenantId, originalMessageId, rendered.bodyHtml(), rendered.subject(), agentId);
     }
 
     // =========================================================================

@@ -1,5 +1,6 @@
 package com.contactcenter.api;
 
+import com.contactcenter.domain.email.TemplateRenderException;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.InvalidOperationException;
@@ -407,6 +408,27 @@ public class GlobalExceptionHandler {
 
         log.warn("[API] Niedozwolona operacja domenowa: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    /**
+     * Brakujące zmienne szablonu Mustache – HTTP 422 Unprocessable Entity.
+     *
+     * <p>Rzucany gdy szablon email zawiera placeholdery, które nie zostały dostarczone
+     * w mapie kontekstu renderowania (BE-016).
+     */
+    @ExceptionHandler(TemplateRenderException.class)
+    public ResponseEntity<ProblemDetail> handleTemplateRenderException(
+            TemplateRenderException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
+        problem.setType(URI.create(ERROR_BASE_URI + "template-missing-variables"));
+        problem.setTitle("Brakujące zmienne szablonu");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+        problem.setProperty("missingVariables", ex.getMissingVariables());
+
+        log.debug("[API] Brakujące zmienne szablonu: {}", ex.getMissingVariables());
+        return ResponseEntity.unprocessableEntity().body(problem);
     }
 
     /**

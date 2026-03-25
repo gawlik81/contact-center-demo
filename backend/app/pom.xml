@@ -240,6 +240,15 @@
         </dependency>
 
         <!-- =================================================================
+             Mustache – silnik renderowania szablonów email (BE-016)
+             ================================================================= -->
+        <dependency>
+            <groupId>com.github.spullara.mustache.java</groupId>
+            <artifactId>compiler</artifactId>
+            <version>0.9.14</version>
+        </dependency>
+
+        <!-- =================================================================
              Hot reload w trybie dev
              ================================================================= -->
         <dependency>

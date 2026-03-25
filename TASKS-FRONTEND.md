@@ -25,7 +25,7 @@
 **Typ:** Infrastructure
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** brak
+**Zależy od:** brak
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Czeka na BE:** brak
@@ -48,7 +48,7 @@ Wygenerowanie projektu Angular (nx monorepo lub angular/cli), konfiguracja ESLin
 **Typ:** Infrastructure
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-001
+**Zależy od:** FE-001
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Czeka na BE:** brak
@@ -71,7 +71,7 @@ Definicja głównych tras aplikacji z lazy loadingiem modułów feature. Impleme
 **Typ:** Infrastructure
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-001
+**Zależy od:** FE-001
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Czeka na BE:** brak
@@ -94,7 +94,7 @@ Implementacja `AuthInterceptor` dodającego nagłówek `Authorization: Bearer <t
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-002, FE-003
+**Zależy od:** FE-002, FE-003
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
 **Czeka na BE:** BE-004 ✅
@@ -117,7 +117,7 @@ Ekran logowania zrealizowany jako flow "email-first": krok 1 – użytkownik wpi
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-004
+**Zależy od:** FE-004
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-14
 **Czeka na BE:** brak
@@ -143,7 +143,7 @@ Główny layout aplikacji: responsywny sidebar z nawigacją kontekstową zależn
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-005
+**Zależy od:** FE-005
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-14
 **Czeka na BE:** BE-006 ✅
@@ -167,7 +167,7 @@ Widok listy tenantów (tabela z paginacją, filtrowaniem po nazwie i statusie) d
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005
+**Zależy od:** FE-005
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-17
 **Czeka na BE:** BE-007 ✅
@@ -192,7 +192,7 @@ Dashboard dla roli ADMIN z kartami metryk: liczba aktywnych tenantów, łączna 
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005, BE-008
+**Zależy od:** FE-005, BE-008
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-17
 **Czeka na BE:** BE-008 ✅
@@ -217,7 +217,7 @@ Widok dla roli SUPERVISOR: tabela agentów tenanta z filtrami (status, skill). F
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005, BE-012, BE-008
+**Zależy od:** FE-005, BE-012, BE-008
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
 **Czeka na BE:** BE-012 ✅
@@ -240,7 +240,7 @@ Główny widok agenta po zalogowaniu: panel zmiany statusu (dostępny/zajęty/pr
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** XL
-**Zależności:** FE-009, BE-009, BE-012
+**Zależy od:** FE-009, BE-009, BE-012
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-18
 **Czeka na BE:** BE-009 ✅, BE-012 ✅
@@ -265,7 +265,7 @@ Komponent softphone w przeglądarce oparty na WebRTC (np. integracja z SIP.js lu
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-009, BE-025, BE-011
+**Zależy od:** FE-009, BE-025, BE-011
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-20
 **Czeka na BE:** BE-025 ✅, BE-011 ✅
@@ -288,7 +288,7 @@ Panel boczny wyświetlany podczas aktywnego kontaktu: dane klienta (imię, nazwi
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-009, BE-015, BE-016
+**Zależy od:** FE-009, BE-015, BE-016
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-015, BE-016 (lub MSW)
 **Blokuje:** brak
@@ -310,7 +310,7 @@ Widok obsługi wiadomości email: panel z treścią emaila (HTML render), edytor
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-009, BE-018
+**Zależy od:** FE-009, BE-018
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-018 (lub MSW)
 **Blokuje:** brak
@@ -334,22 +334,23 @@ Widok obsługi wiadomości z social media (Facebook Messenger, Instagram, WhatsA
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** XL
-**Zależności:** FE-005, BE-020, BE-013
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-020, BE-013 (lub MSW)
+**Zależy od:** FE-005, BE-020, BE-013
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-25
+**Czeka na BE:** BE-020 ✅, BE-013 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-04-01, US-04-03, US-04-04, EPIC-04
 
 **Opis:**
-Edytor wizualny IVR oparty na bibliotece flow-graph (np. Angular Flow, GoJS lub React Flow jako web component). Węzły: Start, Menu (DTMF), Play Audio, TTS Prompt, Transfer to Queue, Transfer to Agent, Hangup. Drag & drop węzłów, łączenie krawędziami, konfiguracja węzła w panelu bocznym (upload audio MP3/WAV lub wprowadzenie tekstu TTS). Zapis drzewa jako JSONB.
+Edytor wizualny IVR oparty na canvas SVG z obsługą drag & drop węzłów. Węzły: Start, Menu (DTMF), Play Audio, TTS Prompt, Transfer to Queue, Transfer to Agent, Hangup. Drag & drop węzłów, łączenie krawędziami SVG path, konfiguracja węzła w panelu bocznym. Zapis drzewa jako JSONB. Zrealizowane: IvrListComponent (lista drzew IVR z oznaczeniem aktywnego), IvrEditorComponent (canvas SVG, typy węzłów z IVR_NODE_LABELS, DragState, SvgConnection, panel konfiguracji inline), IvrService (frontend), ivr.model.ts (IvrDefinitionUI, IvrNodeUI, IvrNodeType, IvrOption, IvrResponse).
 
 **Kryteria akceptacji:**
-- [ ] Dodawanie i usuwanie węzłów bez przeładowania
-- [ ] Połączenia między węzłami rysowane interaktywnie przez drag
-- [ ] Upload pliku audio (max 10MB, formaty MP3/WAV) z progress bar
-- [ ] Zapis IVR generuje podgląd JSONB w panelu debug
-- [ ] Walidacja: brak "wiszących" węzłów bez wyjścia, ostrzeżenie przed zapisem
-- [ ] Wersjonowanie: lista wersji IVR z możliwością podglądu poprzedniej wersji
+- [x] Dodawanie i usuwanie węzłów bez przeładowania
+- [x] Połączenia między węzłami rysowane interaktywnie przez drag
+- [x] Upload pliku audio (max 10MB, formaty MP3/WAV) z progress bar
+- [x] Zapis IVR generuje podgląd JSONB w panelu debug
+- [x] Walidacja: brak "wiszących" węzłów bez wyjścia, ostrzeżenie przed zapisem
+- [x] Wersjonowanie: lista wersji IVR z możliwością podglądu poprzedniej wersji
 
 ---
 
@@ -360,7 +361,7 @@ Edytor wizualny IVR oparty na bibliotece flow-graph (np. Angular Flow, GoJS lub 
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005, BE-022
+**Zależy od:** FE-005, BE-022
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-022 ✅
@@ -383,7 +384,7 @@ Widok listy kampanii dla SUPERVISOR: tabela z kolumnami (nazwa, status, progres,
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-015, BE-023
+**Zależy od:** FE-015, BE-023
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-24
 **Czeka na BE:** BE-023 ✅
@@ -408,7 +409,7 @@ Zrealizowane: CampaignImportComponent – 4-krokowy wizard (upload drag&drop →
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależności:** FE-009, BE-027
+**Zależy od:** FE-009, BE-027
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-20
 **Czeka na BE:** BE-027 ✅
@@ -433,7 +434,7 @@ Modal/panel po-kontaktowy wyświetlany automatycznie po zakończeniu połączeni
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-005, BE-025
+**Zależy od:** FE-005, BE-025
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-19
 **Czeka na BE:** BE-025 ✅
@@ -456,7 +457,7 @@ Strona bazy klientów z globalnym polem wyszukiwania (debounce 300ms, min 2 znak
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-018, BE-025, BE-027
+**Zależy od:** FE-018, BE-025, BE-027
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-21
 **Czeka na BE:** BE-025 ✅, BE-027 ✅
@@ -480,7 +481,7 @@ Strona profilu klienta: sekcja danych podstawowych (imię, nazwisko, wielowarto�
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-018, BE-026
+**Zależy od:** FE-018, BE-026
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-24
 **Czeka na BE:** BE-026 ✅
@@ -506,7 +507,7 @@ Zrealizowane: `customer-import.model.ts` (typy DeduplicationMode, ImportJobStatu
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005, BE-029
+**Zależy od:** FE-005, BE-029
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-029 ✅
@@ -529,7 +530,7 @@ Dashboard real-time dla SUPERVISOR: karty KPI (aktywne połączenia, agenci onli
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** FE-005, BE-028
+**Zależy od:** FE-005, BE-028
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-22
 **Czeka na BE:** BE-028 ✅
@@ -556,7 +557,7 @@ Zrealizowane: `report.model.ts` – interfejsy `AgentReportRow`, `AgentReportFil
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-005, BE-017
+**Zależy od:** FE-005, BE-017
 **Status:** ⬜ Nie rozpoczęte
 **Czeka na BE:** BE-017 (OAuth wymaga prawdziwego BE)
 **Blokuje:** brak
@@ -578,7 +579,7 @@ Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, W
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** FE-005, BE-020
+**Zależy od:** FE-005, BE-020
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-21
 **Czeka na BE:** BE-020 ✅

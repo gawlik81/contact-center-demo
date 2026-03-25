@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-24 (BE-026 + FE-020 ukończone: import klientów z CSV)
+**Ostatnia aktualizacja:** 2026-03-25 (BE-013 + FE-014 potwierdzone w kodzie: IVR Engine + edytor drag & drop)
 
 ---
 
@@ -65,7 +65,7 @@
 | BE-010 | Nagrywanie rozmów: zapis do S3, metadane, retencja | ✅ | RecordingService (upload do S3/Minio, presigned URL TTL 1h, SSE-S3), RecordingRetentionJob (@Scheduled cron codziennie 02:00, usuwa pliki starsze niż retencja tenanta), RecordingController (GET /api/recordings/{contactId} – SUPERVISOR/ADMIN), S3Config + S3Properties (konfiguracja Minio/AWS), migracja V022 (indeks retencji). |
 | BE-011 | CLI lookup: wzbogacenie połączenia o dane klienta | ✅ | Customer.java (entity, JSONB phone[] via @JdbcTypeCode), CustomerRepository (findByPhoneNumber JSONB @> operator + GIN index, findLastContactsForCustomer native SQL na partycjonowanej tabeli), CustomerCliResult (record DTO + ContactSummary), CliLookupService (Redis cache TTL 5min, null sentinel anti-stampede, fallback do DB, invalidateCacheForCustomer), CallEvent rozszerzony o pole customerInfo, CallEventEnricher (@RabbitListener call.incoming, dedykowana kolejka cc.queue.cli-enricher, unicast przez WebSocketEventBroadcaster), WebSocketEvent.CallIncomingPayload rozszerzony o customerId + lastContacts. Naprawiono pre-istniejące błędy: AuthServiceChangePasswordTest (kolejność argumentów konstruktora) i UserServiceTest.listUsers (sygnatura metody). 299 testów PASS |
 | BE-012 | WebSocket hub: real-time events do Agent Desktop | ✅ | WebSocketConfig (STOMP), WebSocketAuthInterceptor (JWT przy handshake), WebSocketController, RabbitToWebSocketRelay, WebSocketEventBroadcaster, StompPrincipal. Topics per user i per tenant. |
-| BE-013 | IVR Engine: wykonanie drzewa IVR | ⬜ | |
+| BE-013 | IVR Engine: wykonanie drzewa IVR | ✅ | IvrController (7 endpointów CRUD + activate + DTMF simulate), IvrService, IvrEngineService, IvrCallListener, IvrDefinition/Node/NodeType/Option/SessionData w domain/ivr |
 | BE-014 | Voicebot Python: ASR + NLU + eskalacja do agenta | ⬜ | |
 | BE-015 | Email Adapter: IMAP polling + SMTP wysyłka | ⬜ | |
 | BE-016 | Szablony odpowiedzi email: CRUD API | ⬜ | |
@@ -104,7 +104,7 @@
 | FE-011 | Panel profilu klienta podczas kontaktu | ✅ | Panel boczny w AgentDesktopComponent: dane klienta z CLI lookup, historia ostatnich kontaktów, CTA "Utwórz profil" dla nieznanych numerów. Integracja z BE-025 ✅ i BE-011 ✅. |
 | FE-012 | Komponent obsługi kontaktu email | ⬜ | |
 | FE-013 | Komponent obsługi kontaktu social media | ⬜ | |
-| FE-014 | Graficzny edytor drzewa IVR (drag & drop) | ⬜ | |
+| FE-014 | Graficzny edytor drzewa IVR (drag & drop) | ✅ | IvrListComponent (lista drzew IVR), IvrEditorComponent (edytor drag & drop SVG canvas: węzły PlayAudio/TTS/CollectDTMF/Menu/TransferToQueue/Hangup, krawędzie SVG path, panel boczny konfiguracji węzła, zapis JSONB). IvrService (frontend), ivr.model.ts. |
 | FE-015 | Zarządzanie kampaniami: lista i formularz tworzenia | ✅ | campaign.model.ts, campaign.service.ts, campaign-list.component (ts/html/scss), campaign-form.component (ts/html/scss), supervisor.routes.ts zaktualizowany. Odblokowuje FE-016. |
 | FE-016 | Import listy kontaktów CSV do kampanii | ✅ | CampaignImportComponent: 4-krokowy wizard (upload drag&drop → mapowanie kolumn → progress bar polling 3s → raport), walidacja client-side 50MB, auto-mapowanie kolumn, integracja z campaign-list (przycisk dla DRAFT/SCHEDULED). |
 | FE-017 | Panel disposition codes po zakończeniu kontaktu | ✅ | DispositionPanelComponent (modal ACW z timerem MM:SS, dropdown 6 kodów, textarea notatka), ContactService (setDisposition → PATCH /api/contacts/{id}/disposition), contact-tab.store.ts (stan WRAPPING + markAsWrapping()), effect() na session.state=ENDED w agent-desktop. |
@@ -123,9 +123,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 21/31 | 0 | 10 | 31 |
-| Frontend (FE) | 20/24 | 0 | 4 | 24 |
-| **RAZEM** | **60/74** | **0** | **14** | **74** |
+| Backend (BE) | 22/31 | 0 | 9 | 31 |
+| Frontend (FE) | 21/24 | 0 | 3 | 24 |
+| **RAZEM** | **62/74** | **0** | **12** | **74** |
 
 ---
 
@@ -169,7 +169,7 @@
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 18/31 (BE-001..BE-012 ✅, BE-019 ✅, BE-020 ✅, BE-025 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 18/24 (FE-001..FE-011 ✅, FE-015 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
+**Stan na:** DB: 19/19 ✅ | BE: 22/31 (BE-001..BE-013 ✅, BE-019 ✅, BE-020 ✅, BE-022 ✅, BE-023 ✅, BE-025 ✅, BE-026 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 21/24 (FE-001..FE-011 ✅, FE-014 ✅, FE-015 ✅, FE-016 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-020 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
 
 ---
 
@@ -210,7 +210,12 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-020 | Queue API: QueueController (5 endpointów + stats), DTOs, routing strategy enum, Redis cache TTL 5s dla stats. | ✅ |
 | BE-028 | Raporty historyczne: AgentReportRow/AgentReportParams DTOs, ContactRepository +2 native SQL GROUP BY, ReportsService (Redis cache MD5 5min, walidacja 90 dni, CSV + XLSX Apache POI 5.2.5), ReportsController (4 endpointy), ReportsServiceTest 13 testów, 442 PASS. | ✅ |
 | BE-029 | RT Metrics API: SupervisorMetricsPayload (DTO), SupervisorMetricsService (@Scheduled fixedRate=5s, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów, 429 PASS. | ✅ |
-| BE-013..BE-031 (bez BE-019, BE-020, BE-025, BE-027, BE-028, BE-029) | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
+| BE-013 | IVR Engine: IvrController (7 endp. CRUD + activate + DTMF), IvrService, IvrEngineService, IvrCallListener, domain/ivr model (IvrDefinition/Node/NodeType/Option/SessionData) | ✅ |
+| BE-022 | Campaign CRUD API: CampaignController (6 endp.), CampaignService, CampaignRepository, Campaign entity, V026 migracja | ✅ |
+| BE-023 | Import CSV kampanii: CampaignImportController, CampaignImportService (@Async, OpenCSV, batch 1000, ON CONFLICT), Redis TTL 1h, V027 indeks | ✅ |
+| BE-026 | Import klientów CSV: CustomerImportController, CustomerImportService (@Async, chunk 500, SKIP/OVERWRITE, E.164), 24 testy PASS | ✅ |
+| BE-001b | MinIO docker-compose: serwis minio + minio-init, bucket contact-center-recordings, S3Properties | ✅ |
+| BE-014..BE-031 (bez BE-019, BE-020, BE-022, BE-023, BE-025, BE-026, BE-027, BE-028, BE-029) | Wszystkie pozostałe endpointy funkcjonalne | ⬜ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
 
@@ -233,7 +238,11 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-021 | Dashboard RT supervisora: KPI cards, tabela agentów z aktualnym statusem, wykres kolejek; WebSocket STOMP /topic/tenant/{tenantId}/supervisor, dane co 5s, tryb pełnoekranowy. Czeka na BE-029 ✅. | ✅ |
 | FE-022 | Raporty historyczne: report.model.ts, reports.service.ts (getAgentReport, exportCsv, exportXlsx blob), ReportsComponent (filtry URL sync, tabela badge'ami kanałów, paginacja, eksport Blob, skeleton, empty state), /reports z roleGuard, build 0 błędów. Czeka na BE-028 ✅. | ✅ |
 | FE-024 | Panel konfiguracji kolejek: QueueListComponent (tabela + polling 10s), QueueFormComponent (strategia routingu, skills, sticky timeout), QueueDeleteModalComponent. Czeka na BE-020 ✅. | ✅ |
-| FE-012..FE-016, FE-020, FE-023 | Wszystkie pozostałe widoki funkcjonalne | ⬜ |
+| FE-014 | IVR Editor: IvrListComponent (lista drzew + status aktywny), IvrEditorComponent (canvas SVG drag & drop: węzły PlayAudio/TTS/CollectDTMF/Menu/TransferToQueue/Hangup, krawędzie SVG, panel konfiguracji, zapis JSONB). IvrService, ivr.model.ts. | ✅ |
+| FE-015 | Kampanie: CampaignListComponent (tabela + polling 10s, akcje inline start/pause/stop), CampaignFormComponent (harmonogram, walidacja) | ✅ |
+| FE-016 | Import CSV kampanii: CampaignImportComponent (4-krokowy wizard, drag&drop, mapowanie kolumn, polling 3s, raport) | ✅ |
+| FE-020 | Import klientów CSV: CustomerImportComponent (4-krokowy wizard, deduplikacja radio, auto-mapowanie, pobieranie błędów CSV) | ✅ |
+| FE-012, FE-013, FE-023 | Kanał email, social media, konfiguracja social OAuth | ⬜ |
 
 ---
 
@@ -307,15 +316,15 @@ FE-005 → FE-023                                  (Integracje social media)
 | FE-011 | BE-025 ✅, BE-011 ✅ | Panel klienta podczas kontaktu: CLI lookup + Customer API | ✅ Gotowe |
 | FE-012 | BE-015, BE-016 | Obsługa emaila: adapter IMAP/SMTP + szablony | 🔵 Tak – MSW mock |
 | FE-013 | BE-018 | Obsługa social media: webhooks i wysyłka | 🔵 Tak – MSW mock |
-| FE-014 | BE-020 ✅, BE-013 | Edytor IVR: Queue API (gotowe) + IVR Engine (zapis JSONB) | 🔵 Tak – MSW mock (BE-013 brakuje) |
-| FE-015 | BE-022 | Zarządzanie kampaniami: CRUD + akcje start/pause/stop | 🔵 Tak – MSW mock |
-| FE-016 | BE-023 | Import CSV kampanii: async job + polling statusu | 🔵 Tak – MSW mock |
+| FE-014 | BE-020 ✅, BE-013 ✅ | Edytor IVR: Queue API + IVR Engine (zapis JSONB). Oba gotowe. | ✅ Gotowe |
+| FE-015 | BE-022 ✅ | Zarządzanie kampaniami: CRUD + akcje start/pause/stop | ✅ Gotowe |
+| FE-016 | BE-023 ✅ | Import CSV kampanii: async job + polling statusu | ✅ Gotowe |
 | FE-017 | BE-027 ✅ | Disposition codes: `PATCH /api/contacts/{id}/disposition` | ✅ Gotowe |
 | FE-018 | BE-025 ✅ | Lista klientów: fuzzy search + paginacja `/api/customers` | ✅ Gotowe |
 | FE-019 | BE-025 ✅, BE-027 ✅ | Profil klienta: dane + historia kontaktów | ✅ Gotowe |
-| FE-020 | BE-026 | Import klientów CSV: async job + polling | 🔵 Tak – MSW mock |
-| FE-021 | BE-029 | Dashboard RT supervisora: WebSocket metrics feed | 🔵 Tak – MSW/WS mock |
-| FE-022 | BE-028 | Raporty historyczne: agregacje + eksport CSV/XLSX | 🔵 Tak – MSW mock |
+| FE-020 | BE-026 ✅ | Import klientów CSV: async job + polling | ✅ Gotowe |
+| FE-021 | BE-029 ✅ | Dashboard RT supervisora: WebSocket metrics feed | ✅ Gotowe |
+| FE-022 | BE-028 ✅ | Raporty historyczne: agregacje + eksport CSV/XLSX | ✅ Gotowe |
 | FE-023 | BE-017 | Panel integracji social media: OAuth flow callback | 🔴 OAuth wymaga prawdziwego backendu |
 | FE-024 | BE-020 ✅ | Konfiguracja kolejek: CRUD + stats `/api/queues` | ✅ Gotowe |
 

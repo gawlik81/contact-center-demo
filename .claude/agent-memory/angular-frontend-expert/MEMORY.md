@@ -23,3 +23,4 @@
 - [Supervisor RT Dashboard (FE-021)](./project_fe021_supervisor_dashboard.md) – KPI cards, agent table z break-time tracking, queue CSS bar chart, SupervisorMetricsService (WS SUPERVISOR_METRICS), fullscreen API
 - [Campaign management (FE-015)](./project_campaigns_fe015.md) – CampaignListComponent (polling 10s), CampaignFormComponent (native dialog, cross-field validators, day selector signals), CampaignService, campaign.model.ts
 - [Customer import from CSV (FE-020)](./project_fe020_customer_import.md) – CustomerImportComponent (full-page wizard), CustomerImportStatus model, CustomerService import methods, route customers/import
+- [IVR editor drag & drop (FE-014)](./project_fe014_ivr_editor.md) – IvrListComponent, IvrEditorComponent (HTML5 DnD + SVG Bezier), IvrService (localStorage positions), walidacja, mock audio upload

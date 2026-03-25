@@ -1,5 +1,6 @@
 package com.contactcenter.domain.ivr;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
@@ -19,6 +20,7 @@ import java.util.List;
  * @param timeoutSeconds czas oczekiwania na wejście DTMF w sekundach (domyślnie 10)
  * @param maxRetries     maksymalna liczba prób ponownego odtworzenia komunikatu (domyślnie 3)
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record IvrNode(
         @JsonProperty("node_id") String nodeId,
         @JsonProperty("type") IvrNodeType type,

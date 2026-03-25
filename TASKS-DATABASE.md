@@ -28,7 +28,7 @@
 **Typ:** Infrastructure
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależności:** brak
+**Zależy od:** brak
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-002, DB-003, DB-005, DB-009, DB-010, DB-012
@@ -50,7 +50,7 @@ Konfiguracja Flyway w projekcie Spring Boot (flyway-core). Plik migracji `V001__
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależności:** DB-001
+**Zależy od:** DB-001
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-003, DB-005, DB-006, DB-009, DB-010, DB-011, DB-012, DB-015
@@ -73,7 +73,7 @@ Migracja `V002__create_tenant.sql`. Definicja tabeli TENANT zgodna z modelem dan
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależności:** DB-002
+**Zależy od:** DB-002
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-004, DB-006, DB-013, DB-014, DB-015
@@ -96,7 +96,7 @@ Migracja `V003__create_user.sql`. Tabela USER z FK do TENANT. Pole `role` jako E
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** DB-002, DB-003
+**Zależy od:** DB-002, DB-003
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-018
@@ -121,7 +121,7 @@ Migracja `V004__create_audit_log.sql`. Tabela AUDIT_LOG partycjonowana po `creat
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależności:** DB-002
+**Zależy od:** DB-002
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** brak (BE-006 i dalej)
@@ -142,7 +142,7 @@ Migracja `V005__tenant_config_schema.sql`. Dodanie JSON Schema validation dla ko
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** DB-002, DB-003, DB-012
+**Zależy od:** DB-002, DB-003, DB-012
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-007, DB-008, DB-013, DB-014, DB-015, DB-017
@@ -165,7 +165,7 @@ Migracja `V006__create_contact.sql`. Tabela CONTACT partycjonowana po `started_a
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** DB-006
+**Zależy od:** DB-006
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-017
@@ -187,7 +187,7 @@ Migracja `V007__create_email.sql`. Tabela `EMAIL_MESSAGE` (message_id, tenant_id
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** DB-006
+**Zależy od:** DB-006
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-017
@@ -209,7 +209,7 @@ Migracja `V008__create_social.sql`. Tabela `SOCIAL_INTEGRATION` (integration_id,
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależności:** DB-002
+**Zależy od:** DB-002
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** brak
@@ -231,7 +231,7 @@ Migracja `V009__create_ivr_tree.sql`. Tabela `IVR_TREE` (ivr_id, tenant_id, name
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależności:** DB-002
+**Zależy od:** DB-002
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-018
@@ -253,7 +253,7 @@ Migracja `V010__create_queue.sql`. Tabela `QUEUE` (queue_id, tenant_id, name, ro
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** DB-002, DB-012
+**Zależy od:** DB-002, DB-012
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-013, DB-014
@@ -276,7 +276,7 @@ Migracja `V011__create_campaign.sql`. Tabela `CAMPAIGN` (campaign_id, tenant_id,
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** DB-002
+**Zależy od:** DB-002
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-011, DB-015, DB-017
@@ -301,7 +301,7 @@ Migracja `V012__create_customer.sql`. Tabela `CUSTOMER` (customer_id, tenant_id,
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** DB-006, DB-003, DB-011, DB-012
+**Zależy od:** DB-006, DB-003, DB-011, DB-012
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** DB-018
@@ -324,7 +324,7 @@ Migracja `V013__performance_indexes.sql`. Dodatkowe indeksy kompozytowe na tabel
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależności:** DB-006, DB-011, DB-003
+**Zależy od:** DB-006, DB-011, DB-003
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** brak
@@ -347,7 +347,7 @@ Definicja tabel w ClickHouse (DDL skrypty, nie Flyway – osobny katalog `dw/`):
 **Typ:** Feature
 **Priorytet:** Should Have
 **Zlozonosc:** M
-**Zależności:** DB-002, DB-003, DB-006, DB-012
+**Zależy od:** DB-002, DB-003, DB-006, DB-012
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** brak
@@ -369,7 +369,7 @@ Migracja `V015__row_level_security.sql`. Włączenie RLS na kluczowych tabelach:
 **Typ:** Infrastructure
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** brak (niezalezne od PostgreSQL)
+**Zależy od:** brak (niezalezne od PostgreSQL)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** brak
@@ -391,7 +391,7 @@ Dokumentacja i konfiguracja struktur Redis używanych przez backend. Klucze i TT
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** DB-012, DB-006, DB-007, DB-008
+**Zależy od:** DB-012, DB-006, DB-007, DB-008
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** brak
@@ -416,7 +416,7 @@ Migracja `V017__gdpr_functions.sql`. Funkcja PostgreSQL `anonymize_customer(p_cu
 **Typ:** Infrastructure
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależności:** DB-004, DB-010, DB-013
+**Zależy od:** DB-004, DB-010, DB-013
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-13
 **Blokuje:** brak
@@ -438,7 +438,7 @@ Migracja `V018__pg_cron_jobs.sql`. Konfiguracja zadań pg_cron (lub tabela z def
 **Typ:** Infrastructure
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależności:** DB-001 do DB-017
+**Zależy od:** DB-001 do DB-017
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-03-14
 **Blokuje:** brak

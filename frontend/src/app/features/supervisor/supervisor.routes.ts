@@ -79,9 +79,7 @@ export const SUPERVISOR_ROUTES: Routes = [
         data: { breadcrumb: 'Raporty', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
-          import('./pages/reports/reports-placeholder.component').then(
-            (m) => m.ReportsComponent,
-          ),
+          import('./pages/reports/reports-placeholder.component').then((m) => m.ReportsComponent),
       },
       {
         // TODO FE-014: Replace placeholder with real Settings component
@@ -91,6 +89,20 @@ export const SUPERVISOR_ROUTES: Routes = [
           import('./pages/settings/settings-placeholder.component').then(
             (m) => m.SettingsPlaceholderComponent,
           ),
+      },
+      {
+        path: 'ivr',
+        data: { breadcrumb: 'Edytor IVR', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
+        loadComponent: () =>
+          import('./pages/ivr/ivr-list/ivr-list.component').then((m) => m.IvrListComponent),
+      },
+      {
+        path: 'ivr/:ivrId',
+        data: { breadcrumb: 'Edytor', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
+        loadComponent: () =>
+          import('./pages/ivr/ivr-editor/ivr-editor.component').then((m) => m.IvrEditorComponent),
       },
     ],
   },

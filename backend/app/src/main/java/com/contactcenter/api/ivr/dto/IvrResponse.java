@@ -18,12 +18,12 @@ import java.util.UUID;
  * @param createdAt  timestamp utworzenia
  */
 public record IvrResponse(
-        UUID ivrId,
-        String name,
-        IvrDefinition definition,
-        Integer version,
-        @JsonProperty("isActive") boolean isActive,
-        Instant createdAt
+        @JsonProperty("ivr_id") UUID ivrId,
+        @JsonProperty("name") String name,
+        @JsonProperty("definition") IvrDefinition definition,
+        @JsonProperty("version") Integer version,
+        @JsonProperty("is_active") boolean isActive,
+        @JsonProperty("created_at") Instant createdAt
 ) {
     /**
      * Tworzy DTO z encji JPA.

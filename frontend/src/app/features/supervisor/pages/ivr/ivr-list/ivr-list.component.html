@@ -1,0 +1,187 @@
+<div class="ivr-list">
+  <div class="ivr-list__header">
+    <h1 class="ivr-list__title">Edytor IVR</h1>
+    <button class="btn btn-primary" type="button" (click)="openCreateModal()" aria-label="Nowe drzewo IVR">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      Nowe drzewo IVR
+    </button>
+  </div>
+
+  <!-- Skeleton loading -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie...">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-cell--wide"></div>
+          <div class="skeleton-cell skeleton-cell--badge"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--actions"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading()) {
+    @if (ivrs().length > 0) {
+      <div class="table-wrapper" role="region" aria-label="Lista drzew IVR">
+        <table class="ivr-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">Nazwa</th>
+              <th scope="col">Status</th>
+              <th scope="col">Wersja</th>
+              <th scope="col">Data modyfikacji</th>
+              <th scope="col"><span class="sr-only">Akcje</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (ivr of ivrs(); track ivr.ivr_id) {
+              <tr class="ivr-row">
+                <td class="ivr-name">{{ ivr.name }}</td>
+                <td>
+                  <span
+                    class="status-badge"
+                    [class.status-badge--active]="ivr.is_active"
+                    [class.status-badge--inactive]="!ivr.is_active"
+                    [attr.aria-label]="ivr.is_active ? 'Status: Aktywne' : 'Status: Nieaktywne'"
+                  >
+                    {{ ivr.is_active ? 'AKTYWNE' : 'NIEAKTYWNE' }}
+                  </span>
+                </td>
+                <td
+                  class="ivr-version"
+                  [title]="'Wersja ' + ivr.version + ' – zaktualizowano ' + formatDate(ivr.created_at)"
+                >
+                  v{{ ivr.version }}
+                </td>
+                <td class="ivr-date">{{ formatDate(ivr.created_at) }}</td>
+                <td class="ivr-actions">
+                  <button
+                    class="btn btn-sm btn-secondary"
+                    type="button"
+                    (click)="openEditor(ivr.ivr_id)"
+                    [attr.aria-label]="'Edytuj IVR ' + ivr.name"
+                  >
+                    Edytuj
+                  </button>
+                  @if (!ivr.is_active) {
+                    <button
+                      class="btn btn-sm btn-success"
+                      type="button"
+                      (click)="onActivate(ivr)"
+                      [disabled]="actionInProgress().has(ivr.ivr_id)"
+                      [attr.aria-label]="'Aktywuj IVR ' + ivr.name"
+                    >
+                      Aktywuj
+                    </button>
+                  }
+                  <button
+                    class="btn btn-sm btn-danger"
+                    type="button"
+                    (click)="requestDelete(ivr.ivr_id)"
+                    [disabled]="actionInProgress().has(ivr.ivr_id)"
+                    [attr.aria-label]="'Usun IVR ' + ivr.name"
+                  >
+                    Usun
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <!-- Empty state -->
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M12 1c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm1-11h-2v3H8v2h3v3h2v-3h3v-2h-3V6z"
+          />
+        </svg>
+        <p class="empty-state__message">Brak drzew IVR.</p>
+        <p class="empty-state__hint">Kliknij "Nowe drzewo IVR", aby dodac pierwsze drzewo.</p>
+      </div>
+    }
+  }
+</div>
+
+<!-- Create modal -->
+@if (showCreateModal()) {
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="create-ivr-title"
+    (click)="closeCreateModal()"
+  >
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title" id="create-ivr-title">Nowe drzewo IVR</h2>
+        <button class="modal__close" type="button" (click)="closeCreateModal()" aria-label="Zamknij">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20">
+            <path
+              d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
+          </svg>
+        </button>
+      </div>
+      <div class="modal__body">
+        <label class="form-label" for="ivr-name">Nazwa drzewa IVR</label>
+        <input
+          id="ivr-name"
+          class="form-control"
+          type="text"
+          [value]="newIvrName()"
+          (input)="newIvrName.set($any($event.target).value)"
+          placeholder="np. IVR glowny"
+          maxlength="100"
+          autofocus
+          aria-required="true"
+        />
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" type="button" (click)="closeCreateModal()">Anuluj</button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          (click)="onCreate()"
+          [disabled]="!newIvrName().trim() || createInProgress()"
+        >
+          @if (createInProgress()) {
+            Tworzenie...
+          } @else {
+            Utworz
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete confirmation modal -->
+@if (confirmDeleteId()) {
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="delete-ivr-title"
+    (click)="cancelDelete()"
+  >
+    <div class="modal modal--danger" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title" id="delete-ivr-title">Potwierdzenie usuniecia</h2>
+      </div>
+      <div class="modal__body">
+        <p>Czy na pewno chcesz usunac to drzewo IVR? Tej operacji nie mozna cofnac.</p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" type="button" (click)="cancelDelete()">Anuluj</button>
+        <button class="btn btn-danger" type="button" (click)="confirmDelete()">Usun</button>
+      </div>
+    </div>
+  </div>
+}

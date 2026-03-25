@@ -27,7 +27,7 @@ $breakpoint-desktop: 1280px;
 .shell {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh; // definite height – required so nested height:100% chains resolve
   background: #f8fafc;
 
   &__navbar {
@@ -47,7 +47,8 @@ $breakpoint-desktop: 1280px;
     display: flex;
     flex-direction: column;
     min-width: 0; // prevent overflow in flex container
-    overflow-y: auto;
+    min-height: 0; // allow flex children to control height
+    overflow: hidden; // constrain children – scroll is handled by __content
 
     // Shift main content to the right on desktop when sidenav is visible
     @media (min-width: $breakpoint-desktop) {
@@ -60,10 +61,13 @@ $breakpoint-desktop: 1280px;
     border-bottom: 1px solid #e2e8f0;
     background: #ffffff;
     min-height: 36px;
+    flex-shrink: 0;
   }
 
   &__content {
     flex: 1;
+    min-height: 0; // allow child height: 100% to resolve against flex-allocated height
+    overflow-y: auto; // regular pages scroll here
     padding: 1.5rem;
 
     @media (max-width: 600px) {

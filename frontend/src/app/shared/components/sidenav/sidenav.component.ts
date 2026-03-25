@@ -94,6 +94,12 @@ const SUPERVISOR_NAV: NavItem[] = [
     svgPath: 'M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z',
   },
   {
+    label: 'IVR',
+    route: '/supervisor/ivr',
+    ariaLabel: 'Edytor IVR',
+    svgPath: 'M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z',
+  },
+  {
     label: 'Konfiguracja',
     route: '/supervisor/settings',
     ariaLabel: 'Konfiguracja',

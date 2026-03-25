@@ -1,0 +1,495 @@
+@if (loading()) {
+  <div class="editor-loading" aria-busy="true" aria-label="Wczytywanie edytora IVR...">
+    <div class="spinner" role="status">
+      <span class="sr-only">Wczytywanie...</span>
+    </div>
+    <p>Wczytywanie drzewa IVR...</p>
+  </div>
+} @else if (error()) {
+  <div class="editor-error" role="alert">
+    <p>{{ error() }}</p>
+    <button class="btn btn-secondary" type="button" (click)="goBack()">Wróć do listy</button>
+  </div>
+} @else {
+  <div class="ivr-editor">
+    <!-- ═══ HEADER ═══════════════════════════════════════════════════════════ -->
+    <header class="editor-header">
+      <div class="editor-header__left">
+        <button class="btn btn-icon" type="button" (click)="goBack()" aria-label="Wróć do listy IVR">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+          </svg>
+        </button>
+        <div class="editor-header__info">
+          <input
+            class="editor-title-input"
+            type="text"
+            [value]="ivrName()"
+            (input)="ivrName.set($any($event.target).value)"
+            aria-label="Nazwa drzewa IVR"
+            maxlength="100"
+          />
+          <div class="editor-header__meta">
+            <span class="version-badge">v{{ ivrVersion() }}</span>
+            @if (ivrIsActive()) {
+              <span class="status-badge status-badge--active">AKTYWNE</span>
+            } @else {
+              <span class="status-badge status-badge--inactive">NIEAKTYWNE</span>
+            }
+          </div>
+        </div>
+      </div>
+      <div class="editor-header__actions">
+        <button
+          class="btn btn-ghost"
+          type="button"
+          (click)="showDebugPanel.update(v => !v)"
+          [class.btn-ghost--active]="showDebugPanel()"
+          aria-label="Pokaż panel debug JSON"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" />
+          </svg>
+          Debug JSON
+        </button>
+        <button class="btn btn-primary" type="button" (click)="onSave()" [disabled]="saving()">
+          @if (saving()) {
+            <svg class="spinner-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="30 10" />
+            </svg>
+            Zapisywanie...
+          } @else {
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path
+                d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"
+              />
+            </svg>
+            Zapisz
+          }
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══ MAIN LAYOUT ══════════════════════════════════════════════════════ -->
+    <div class="editor-body">
+      <!-- ─── LEFT TOOLBAR ──────────────────────────────────────────────────── -->
+      <aside class="node-toolbar" aria-label="Paleta węzłów">
+        <h3 class="toolbar-title">Węzły</h3>
+        <div class="toolbar-nodes">
+          @for (nt of nodeTypesList(); track nt.type) {
+            <div
+              class="toolbar-node"
+              [class]="'toolbar-node--' + nt.type"
+              draggable="true"
+              (dragstart)="onToolbarDragStart($event, nt.type)"
+              [attr.aria-label]="'Przeciągnij węzeł: ' + nt.label"
+              tabindex="0"
+              role="button"
+            >
+              <span class="toolbar-node__icon">{{ nodeTypeIcons[nt.type] }}</span>
+              <span class="toolbar-node__label">{{ nt.label }}</span>
+            </div>
+          }
+        </div>
+        <div class="toolbar-legend">
+          <h4 class="toolbar-legend__title">Legenda</h4>
+          <div class="legend-item"><span class="legend-dot legend-dot--MENU"></span>Menu</div>
+          <div class="legend-item"><span class="legend-dot legend-dot--PLAY_AUDIO"></span>Audio</div>
+          <div class="legend-item"><span class="legend-dot legend-dot--COLLECT_DTMF"></span>DTMF</div>
+          <div class="legend-item"><span class="legend-dot legend-dot--QUEUE_TRANSFER"></span>Kolejka</div>
+          <div class="legend-item"><span class="legend-dot legend-dot--HANGUP"></span>Rozłącz</div>
+        </div>
+      </aside>
+
+      <!-- ─── CANVAS ─────────────────────────────────────────────────────────── -->
+      <main
+        class="canvas-wrapper"
+        (dragover)="onCanvasDragOver($event)"
+        (drop)="onCanvasDrop($event)"
+        (mousemove)="onCanvasMouseMove($event)"
+        (mouseup)="onCanvasMouseUp()"
+        (click)="onCanvasClick()"
+      >
+        <div class="ivr-canvas" #canvasRef>
+          <!-- SVG overlay for connections -->
+          <svg class="canvas-svg" [attr.width]="canvasSvgWidth" [attr.height]="canvasSvgHeight" aria-hidden="true">
+            <defs>
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#4a90d9" />
+              </marker>
+            </defs>
+            @for (conn of svgConnections(); track conn.fromNodeId + conn.fromOptionKey) {
+              <path
+                [attr.d]="conn.pathD"
+                class="svg-connection"
+                [class.svg-connection--active]="isConnectingFromOption(conn.fromNodeId, conn.fromOptionKey)"
+                marker-end="url(#arrowhead)"
+              />
+            }
+          </svg>
+
+          <!-- Nodes -->
+          @for (node of definition().nodes; track node.node_id) {
+            <div
+              class="ivr-node"
+              [class]="
+                'ivr-node ivr-node--' +
+                node.type +
+                (selectedNodeId() === node.node_id ? ' ivr-node--selected' : '') +
+                (definition().entry_node_id === node.node_id ? ' ivr-node--entry' : '')
+              "
+              [style.left.px]="node.x"
+              [style.top.px]="node.y"
+              (mousedown)="onNodeMouseDown($event, node.node_id)"
+              (click)="onNodeClick($event, node.node_id)"
+            >
+              <div class="node-header">
+                <span class="node-icon">{{ nodeTypeIcons[node.type] }}</span>
+                <span class="node-title">{{ nodeLabels[node.type] }}</span>
+                @if (definition().entry_node_id === node.node_id) {
+                  <span class="node-entry-badge" aria-label="Węzeł startowy">START</span>
+                }
+                <button
+                  class="node-delete"
+                  type="button"
+                  (click)="onDeleteNode($event, node.node_id)"
+                  [attr.aria-label]="'Usuń węzeł ' + nodeLabels[node.type]"
+                  title="Usuń węzeł"
+                >
+                  ✕
+                </button>
+              </div>
+              @if (node.prompt) {
+                <div class="node-body">
+                  <span class="node-prompt">{{
+                    node.prompt.length > 40 ? node.prompt.slice(0, 40) + '…' : node.prompt
+                  }}</span>
+                </div>
+              }
+              <!-- Input port (top-center) -->
+              <div
+                class="node-port node-input-port"
+                (click)="onNodeClick($event, node.node_id)"
+                title="Port wejściowy"
+              ></div>
+              <!-- Output: PLAY_AUDIO – single "next" port -->
+              @if (node.type === 'PLAY_AUDIO') {
+                <div class="node-next-connection">
+                  <span class="node-option__arrow">→</span>
+                  <span class="node-option__target">
+                    @let nextId = node.options?.[0]?.next_node_id;
+                    {{ nextId ? getNodeShortLabel(nextId) : '—' }}
+                  </span>
+                  <div
+                    class="node-port node-output-port"
+                    [class.node-output-port--active]="isConnectingFromOption(node.node_id, 'next')"
+                    (click)="onOutputPortClick($event, node.node_id, 'next')"
+                    aria-label="Port wyjściowy – następny węzeł"
+                    title="Kliknij, by połączyć z następnym węzłem"
+                    role="button"
+                    tabindex="0"
+                  ></div>
+                </div>
+              }
+              <!-- Output: MENU / COLLECT_DTMF – one port per DTMF option -->
+              @if (node.type === 'MENU' || node.type === 'COLLECT_DTMF') {
+                <div class="node-options">
+                  @for (opt of node.options ?? []; track trackByIndex($index)) {
+                    <div class="node-option">
+                      <span class="node-option__key">{{ opt.key || '?' }}</span>
+                      <span class="node-option__arrow">→</span>
+                      <span class="node-option__target">{{
+                        opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
+                      }}</span>
+                      <div
+                        class="node-port node-output-port"
+                        [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
+                        (click)="onOutputPortClick($event, node.node_id, opt.key)"
+                        [attr.aria-label]="'Port wyjściowy dla opcji ' + opt.key"
+                        title="Kliknij, by połączyć"
+                        role="button"
+                        tabindex="0"
+                      ></div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Empty state on canvas -->
+          @if (definition().nodes.length === 0) {
+            <div class="canvas-empty-state">
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+                width="48"
+                height="48"
+                style="color: #94a3b8"
+              >
+                <path
+                  d="M12 1c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm1-11h-2v3H8v2h3v3h2v-3h3v-2h-3V6z"
+                />
+              </svg>
+              <p>Przeciągnij węzeł z panelu po lewej na to pole</p>
+            </div>
+          }
+        </div>
+      </main>
+
+      <!-- ─── PROPERTIES PANEL ────────────────────────────────────────────── -->
+      <aside class="props-panel" aria-label="Właściwości węzła">
+        @if (selectedNode(); as node) {
+          <h3 class="props-title">{{ nodeLabels[node.type] }}</h3>
+          <div class="props-form">
+            <!-- Prompt -->
+            <div class="form-group">
+              <label class="form-label" [for]="'prompt-' + node.node_id">Komunikat TTS</label>
+              <textarea
+                [id]="'prompt-' + node.node_id"
+                class="form-control form-control--textarea"
+                [value]="node.prompt ?? ''"
+                (input)="updateSelectedNodeProp('prompt', $any($event.target).value)"
+                rows="3"
+                placeholder="Treść komunikatu..."
+              ></textarea>
+            </div>
+
+            <!-- PLAY_AUDIO: audio file upload -->
+            @if (node.type === 'PLAY_AUDIO') {
+              <div class="form-group">
+                <label class="form-label">Plik audio</label>
+                @if (node.audio_id) {
+                  <div class="audio-info">
+                    <span class="audio-filename">{{ node.audio_id }}</span>
+                    <button class="btn btn-sm btn-secondary" type="button" (click)="triggerAudioUpload(node.node_id)">
+                      Zmień
+                    </button>
+                  </div>
+                } @else {
+                  <button
+                    class="btn btn-secondary btn--full"
+                    type="button"
+                    (click)="triggerAudioUpload(node.node_id)"
+                    [disabled]="uploadInProgress() === node.node_id"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
+                    </svg>
+                    Prześlij audio (MP3/WAV, max 10MB)
+                  </button>
+                }
+                @if (uploadInProgress() === node.node_id) {
+                  <div
+                    class="upload-progress"
+                    role="progressbar"
+                    [attr.aria-valuenow]="uploadProgress()"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  >
+                    <div class="upload-progress__bar" [style.width.%]="uploadProgress()"></div>
+                    <span class="upload-progress__label">Symulacja uploadu (dev) {{ uploadProgress() }}%</span>
+                  </div>
+                }
+                <p class="form-hint">Prawdziwy upload wymaga endpointu BE-010.</p>
+              </div>
+            }
+
+            <!-- QUEUE_TRANSFER: queue_id -->
+            @if (node.type === 'QUEUE_TRANSFER') {
+              <div class="form-group">
+                <label class="form-label" [for]="'queue-' + node.node_id">Kolejka docelowa</label>
+                @if (queues().length > 0) {
+                  <select
+                    [id]="'queue-' + node.node_id"
+                    class="form-control"
+                    [ngModel]="node.queue_id ?? ''"
+                    (ngModelChange)="updateSelectedNodeProp('queue_id', $event)"
+                    [attr.aria-label]="'Wybierz kolejkę'"
+                  >
+                    <option value="">— wybierz kolejkę —</option>
+                    @for (q of queues(); track q.id) {
+                      <option [value]="q.id">{{ q.name }}</option>
+                    }
+                  </select>
+                } @else {
+                  <input
+                    [id]="'queue-' + node.node_id"
+                    class="form-control"
+                    type="text"
+                    [value]="node.queue_id ?? ''"
+                    (input)="updateSelectedNodeProp('queue_id', $any($event.target).value)"
+                    placeholder="UUID kolejki..."
+                  />
+                  <p class="form-hint">Brak załadowanych kolejek – wpisz UUID ręcznie.</p>
+                }
+              </div>
+            }
+
+            <!-- MENU / COLLECT_DTMF: options -->
+            @if (node.type === 'MENU' || node.type === 'COLLECT_DTMF') {
+              <div class="form-group">
+                <label class="form-label">Opcje DTMF</label>
+                <div class="options-list">
+                  @for (opt of node.options ?? []; track trackByIndex($index)) {
+                    <div class="option-row">
+                      <input
+                        class="form-control option-key"
+                        type="text"
+                        [value]="opt.key"
+                        (input)="updateOption($index, 'key', $any($event.target).value)"
+                        placeholder="1–9,*,#,timeout"
+                        maxlength="10"
+                        [attr.aria-label]="'Klawisz DTMF opcji ' + ($index + 1)"
+                      />
+                      <select
+                        class="form-control option-target"
+                        [ngModel]="opt.next_node_id"
+                        (ngModelChange)="updateOption($index, 'next_node_id', $event)"
+                        [attr.aria-label]="'Węzeł docelowy dla opcji ' + opt.key"
+                      >
+                        <option value="">— brak —</option>
+                        @for (n of otherNodes(node.node_id); track n.node_id) {
+                          <option [value]="n.node_id">
+                            {{ nodeLabels[n.type] }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
+                          </option>
+                        }
+                      </select>
+                      <button
+                        class="btn btn-sm btn-danger"
+                        type="button"
+                        (click)="removeOption($index)"
+                        [attr.aria-label]="'Usuń opcję ' + opt.key"
+                        title="Usuń opcję"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  }
+                </div>
+                <button class="btn btn-sm btn-secondary" type="button" (click)="addOption()">+ Dodaj opcję</button>
+              </div>
+
+              <!-- Timeout & retries -->
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" [for]="'timeout-' + node.node_id">Timeout (s)</label>
+                  <input
+                    [id]="'timeout-' + node.node_id"
+                    class="form-control"
+                    type="number"
+                    min="1"
+                    max="60"
+                    [value]="node.timeout_seconds ?? 10"
+                    (input)="updateSelectedNodeProp('timeout_seconds', +$any($event.target).value)"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" [for]="'retries-' + node.node_id">Max powtórzeń</label>
+                  <input
+                    [id]="'retries-' + node.node_id"
+                    class="form-control"
+                    type="number"
+                    min="0"
+                    max="10"
+                    [value]="node.max_retries ?? 3"
+                    (input)="updateSelectedNodeProp('max_retries', +$any($event.target).value)"
+                  />
+                </div>
+              </div>
+            }
+
+            <!-- Actions -->
+            <div class="props-actions">
+              @if (definition().entry_node_id !== node.node_id) {
+                <button class="btn btn-secondary btn--full" type="button" (click)="setEntryNode()">
+                  Ustaw jako węzeł startowy
+                </button>
+              } @else {
+                <p class="entry-node-info">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                    />
+                  </svg>
+                  To jest węzeł startowy
+                </p>
+              }
+              <button class="btn btn-danger btn--full" type="button" (click)="onDeleteNode($event, node.node_id)">
+                Usuń węzeł
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div class="props-empty">
+            <p>Kliknij węzeł, aby edytować jego właściwości.</p>
+          </div>
+        }
+      </aside>
+    </div>
+
+    <!-- ═══ DEBUG PANEL ══════════════════════════════════════════════════════ -->
+    @if (showDebugPanel()) {
+      <div class="debug-panel" role="region" aria-label="Podgląd JSON definicji">
+        <div class="debug-panel__header">
+          <span class="debug-panel__title">Podgląd JSON (definicja API)</span>
+          <div class="debug-panel__actions">
+            <button class="btn btn-sm btn-secondary" type="button" (click)="copyJsonToClipboard()">Kopiuj</button>
+            <button
+              class="btn btn-sm btn-ghost"
+              type="button"
+              (click)="showDebugPanel.set(false)"
+              aria-label="Zamknij panel JSON"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        <pre class="debug-json" aria-label="JSON definicji IVR">{{ apiDefinitionJson() }}</pre>
+      </div>
+    }
+  </div>
+}
+
+<!-- ═══ WARNINGS MODAL ════════════════════════════════════════════════════════ -->
+@if (showWarningsModal()) {
+  <div
+    class="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="warnings-title"
+    (click)="showWarningsModal.set(false)"
+  >
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title" id="warnings-title">Ostrzeżenia przed zapisem</h2>
+      </div>
+      <div class="modal__body">
+        <p class="modal__description">Wykryto następujące problemy w drzewie IVR:</p>
+        <ul class="warnings-list" role="list">
+          @for (w of pendingWarnings(); track $index) {
+            <li class="warnings-list__item">
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+                width="16"
+                height="16"
+                style="color: #f59e0b; flex-shrink: 0"
+              >
+                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+              </svg>
+              {{ w }}
+            </li>
+          }
+        </ul>
+        <p class="modal__question">Czy mimo to zapisać drzewo?</p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn-secondary" type="button" (click)="showWarningsModal.set(false)">Anuluj</button>
+        <button class="btn btn-primary" type="button" (click)="onSaveAnyway()">Zapisz mimo to</button>
+      </div>
+    </div>
+  </div>
+}

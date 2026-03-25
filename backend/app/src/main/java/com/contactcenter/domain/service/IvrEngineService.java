@@ -137,13 +137,12 @@ public class IvrEngineService {
     /**
      * Przetwarza wejście DTMF od dzwoniącego.
      *
-     * <p>Przepływ:
-     * <ol>
-     *   <li>Wczytuje sesję z Redis</li>
-     *   <li>Pobiera aktualny węzeł z definicji IVR</li>
-     *   <li>Wyszukuje opcję odpowiadającą kluczowi DTMF</li>
-     *   <li>Przechodzi do następnego węzła lub obsługuje retry/fallback</li>
-     * </ol>
+     * <p>Rozróżnia dwa tryby pracy:
+     * <ul>
+     *   <li><b>COLLECT_DTMF</b> – gdy {@code session.getCollectingDtmfForNodeId() != null};
+     *       akumuluje cyfry w buforze, kończy zbieranie po {@code finishOnKey} lub {@code maxDigits}</li>
+     *   <li><b>MENU / domyślny</b> – szuka opcji w aktualnym węźle po pojedynczym klawiszu DTMF</li>
+     * </ul>
      *
      * @param callId  identyfikator sesji połączenia
      * @param dtmfKey klawisz DTMF ("0"–"9", "*", "#", "timeout", "no-input")
@@ -167,6 +166,17 @@ public class IvrEngineService {
                 return;
             }
 
+            // ----------------------------------------------------------------
+            // Tryb COLLECT_DTMF – sesja jest w trakcie zbierania cyfr
+            // ----------------------------------------------------------------
+            if (session.getCollectingDtmfForNodeId() != null) {
+                handleCollectDtmfInput(callId, dtmfKey, session, ivr);
+                return;
+            }
+
+            // ----------------------------------------------------------------
+            // Tryb MENU (domyślny) – pojedynczy klawisz DTMF
+            // ----------------------------------------------------------------
             IvrNode currentNode = ivr.getDefinition().findNode(session.getCurrentNodeId())
                     .orElse(null);
             if (currentNode == null) {
@@ -196,23 +206,7 @@ public class IvrEngineService {
                 return;
             }
 
-            // Przejdź do następnego węzła
-            String nextNodeId = option.nextNodeId();
-            IvrNode nextNode = ivr.getDefinition().findNode(nextNodeId).orElse(null);
-
-            if (nextNode == null) {
-                log.error("[IVR] Następny węzeł nie istnieje: nextNodeId={}, callId={}",
-                        nextNodeId, callId);
-                fallbackToDefaultQueue(callId, session.getTenantId());
-                return;
-            }
-
-            // Resetuj retry count przy przejściu do nowego węzła
-            session.setCurrentNodeId(nextNodeId);
-            session.setRetryCount(0);
-            saveSession(session);
-
-            executeNode(callId, nextNode, session);
+            transitionToNextNode(callId, option.nextNodeId(), session, ivr);
 
         } catch (Exception e) {
             log.error("[IVR] Błąd podczas przetwarzania DTMF: callId={}, key={}, error={}",
@@ -224,6 +218,121 @@ public class IvrEngineService {
                 fallbackToDefaultQueue(callId, tenantId);
             }
         }
+    }
+
+    /**
+     * Obsługuje wejście DTMF w trybie zbierania cyfr (węzeł COLLECT_DTMF).
+     *
+     * <p>Możliwe scenariusze:
+     * <ul>
+     *   <li>"timeout" / "no-input" – szuka opcji o tym kluczu w węźle; jeśli brak → fallback</li>
+     *   <li>klawisz równy {@code finishOnKey} – kończy zbieranie i przechodzi do opcji "success"</li>
+     *   <li>cyfra – dodaje do bufora; po osiągnięciu {@code maxDigits} auto-zakończenie</li>
+     * </ul>
+     */
+    private void handleCollectDtmfInput(String callId, String dtmfKey,
+                                         IvrSessionData session, IvrTree ivr) {
+        String collectNodeId = session.getCollectingDtmfForNodeId();
+        IvrNode collectNode = ivr.getDefinition().findNode(collectNodeId).orElse(null);
+
+        if (collectNode == null) {
+            log.error("[IVR] COLLECT_DTMF: węzeł zbierania nie istnieje: nodeId={}, callId={}",
+                    collectNodeId, callId);
+            fallbackToDefaultQueue(callId, session.getTenantId());
+            return;
+        }
+
+        // --- Obsługa timeout / no-input ---
+        if ("timeout".equals(dtmfKey) || "no-input".equals(dtmfKey)) {
+            IvrOption option = collectNode.findOption(dtmfKey);
+            if (option == null) {
+                log.warn("[IVR] COLLECT_DTMF: brak opcji '{}' w węźle={}, fallback; callId={}",
+                        dtmfKey, collectNodeId, callId);
+                session.clearDtmfCollection();
+                saveSession(session);
+                fallbackToDefaultQueue(callId, session.getTenantId());
+            } else {
+                log.debug("[IVR] COLLECT_DTMF: {} – przejście do następnego węzła: callId={}",
+                        dtmfKey, callId);
+                session.clearDtmfCollection();
+                transitionToNextNode(callId, option.nextNodeId(), session, ivr);
+            }
+            return;
+        }
+
+        // --- Obsługa finishOnKey (np. "#") ---
+        String finishOnKey = collectNode.finishOnKey();
+        if (!finishOnKey.isEmpty() && finishOnKey.equals(dtmfKey)) {
+            String collected = session.getDtmfBuffer();
+            log.debug("[IVR] COLLECT_DTMF: finishOnKey='{}' – zebrano='{}', callId={}",
+                    finishOnKey, collected, callId);
+            finishDtmfCollection(callId, collected, collectNode, session, ivr);
+            return;
+        }
+
+        // --- Akumulacja cyfry ---
+        session.appendDtmfDigit(dtmfKey);
+        String buffer = session.getDtmfBuffer();
+        log.debug("[IVR] COLLECT_DTMF: bufor='{}' ({}/{}), callId={}",
+                buffer, buffer.length(), collectNode.maxDigits(), callId);
+
+        if (buffer.length() >= collectNode.maxDigits()) {
+            // Osiągnięto maxDigits – automatyczne zakończenie zbierania
+            log.debug("[IVR] COLLECT_DTMF: maxDigits={} osiągnięte – kończę zbieranie; callId={}",
+                    collectNode.maxDigits(), callId);
+            finishDtmfCollection(callId, buffer, collectNode, session, ivr);
+        } else {
+            // Czekaj na kolejne cyfry
+            saveSession(session);
+        }
+    }
+
+    /**
+     * Finalizuje zbieranie cyfr: zapisuje zmienną sesji, czyści stan COLLECT_DTMF
+     * i przechodzi do opcji "success" węzła.
+     */
+    private void finishDtmfCollection(String callId, String collected,
+                                       IvrNode collectNode, IvrSessionData session, IvrTree ivr) {
+        // Zapisz zebraną wartość do zmiennych sesji
+        if (collectNode.variableName() != null && !collectNode.variableName().isBlank()) {
+            session.setVariable(collectNode.variableName(), collected);
+            log.info("[IVR] COLLECT_DTMF: zapisano zmienną '{}' = '{}'; callId={}",
+                    collectNode.variableName(), collected, callId);
+        }
+
+        session.clearDtmfCollection();
+
+        // Przejdź do węzła "success"
+        IvrOption successOption = collectNode.findOption("success");
+        if (successOption == null) {
+            log.warn("[IVR] COLLECT_DTMF: brak opcji 'success' w węźle={}, fallback; callId={}",
+                    collectNode.nodeId(), callId);
+            saveSession(session);
+            fallbackToDefaultQueue(callId, session.getTenantId());
+            return;
+        }
+
+        transitionToNextNode(callId, successOption.nextNodeId(), session, ivr);
+    }
+
+    /**
+     * Przechodzi do następnego węzła IVR: aktualizuje sesję i wywołuje {@link #executeNode}.
+     */
+    private void transitionToNextNode(String callId, String nextNodeId,
+                                       IvrSessionData session, IvrTree ivr) {
+        IvrNode nextNode = ivr.getDefinition().findNode(nextNodeId).orElse(null);
+
+        if (nextNode == null) {
+            log.error("[IVR] Następny węzeł nie istnieje: nextNodeId={}, callId={}", nextNodeId, callId);
+            fallbackToDefaultQueue(callId, session.getTenantId());
+            return;
+        }
+
+        session.setCurrentNodeId(nextNodeId);
+        session.setRetryCount(0);
+        saveSession(session);
+
+        executeNode(callId, nextNode, session);
     }
 
     // =========================================================================
@@ -242,7 +351,8 @@ public class IvrEngineService {
 
         switch (node.type()) {
             case PLAY_AUDIO -> executePlayAudio(callId, node, session);
-            case MENU, COLLECT_DTMF -> executeCollectInput(callId, node, session);
+            case MENU -> executeMenu(callId, node, session);
+            case COLLECT_DTMF -> executeCollectDtmf(callId, node, session);
             case QUEUE_TRANSFER -> executeQueueTransfer(callId, node, session);
             case HANGUP -> executeHangup(callId, session);
             default -> {
@@ -291,19 +401,62 @@ public class IvrEngineService {
         // Mock: adapter nie ma metody playAudio – logujemy operację
     }
 
-    private void executeCollectInput(String callId, IvrNode node, IvrSessionData session) {
-        // Najpierw odtwórz komunikat (jeśli istnieje)
+    /**
+     * Wykonuje węzeł MENU – oczekuje na pojedynczy klawisz DTMF z opcji węzła.
+     *
+     * <p>Logika:
+     * <ol>
+     *   <li>Odtwarza prompt</li>
+     *   <li>Planuje timeout – po {@code timeoutSeconds} wywołuje {@link #handleDtmfInput} z "timeout"</li>
+     * </ol>
+     */
+    private void executeMenu(String callId, IvrNode node, IvrSessionData session) {
+        // Odtwórz komunikat (jeśli istnieje)
         if (node.prompt() != null || node.audioId() != null) {
             executePlayAudio(callId, node, session);
         }
 
-        log.debug("[IVR] Oczekiwanie na DTMF: callId={}, nodeId={}, timeout={}s",
+        log.debug("[IVR] MENU: oczekiwanie na DTMF: callId={}, nodeId={}, timeout={}s",
                 callId, node.nodeId(), node.timeoutSeconds());
 
-        // Zaplanuj timeout – jeśli brak DTMF po timeoutSeconds wywołaj handleDtmfInput z "timeout"
+        scheduleTimeoutForDtmf(callId, node);
+    }
+
+    /**
+     * Wykonuje węzeł COLLECT_DTMF – zbiera sekwencję cyfr od dzwoniącego.
+     *
+     * <p>Różni się od MENU tym, że:
+     * <ul>
+     *   <li>Ustawia w sesji {@code collectingDtmfForNodeId} – silnik wie, że jest w trybie akumulacji cyfr</li>
+     *   <li>Resetuje bufor DTMF</li>
+     *   <li>Zbieranie kończy się po: naciśnięciu {@code finishOnKey}, zebraniu {@code maxDigits} cyfr
+     *       lub timeoucie</li>
+     * </ul>
+     */
+    private void executeCollectDtmf(String callId, IvrNode node, IvrSessionData session) {
+        // Odtwórz komunikat
+        if (node.prompt() != null || node.audioId() != null) {
+            executePlayAudio(callId, node, session);
+        }
+
+        log.debug("[IVR] COLLECT_DTMF: start zbierania cyfr: callId={}, nodeId={}, "
+                        + "variableName={}, minDigits={}, maxDigits={}, finishOnKey={}, timeout={}s",
+                callId, node.nodeId(), node.variableName(),
+                node.minDigits(), node.maxDigits(), node.finishOnKey(), node.timeoutSeconds());
+
+        // Ustaw tryb zbierania cyfr – bufor jest już "" po setCollectingDtmfForNodeId
+        session.setDtmfBuffer("");
+        session.setCollectingDtmfForNodeId(node.nodeId());
+        saveSession(session);
+
+        scheduleTimeoutForDtmf(callId, node);
+    }
+
+    /** Współdzielona logika planowania timeout-zadania DTMF dla MENU i COLLECT_DTMF. */
+    private void scheduleTimeoutForDtmf(String callId, IvrNode node) {
         TenantContext.Snapshot snapshot = TenantContext.isSet() ? TenantContext.snapshot() : null;
 
-        ScheduledFuture<?> timeoutTask = taskScheduler.schedule(
+        taskScheduler.schedule(
                 () -> {
                     if (snapshot != null) {
                         TenantContext.restore(snapshot);
@@ -346,7 +499,10 @@ public class IvrEngineService {
             // Opublikuj ContactQueuedMessage – contact_id = callId jako UUID (mock)
             // W prawdziwym przepływie contactId pochodzi z rekordu contact w DB
             UUID contactId = deriveContactId(callId);
-            ContactQueuedMessage message = new ContactQueuedMessage(contactId, queueId, session.getTenantId());
+            // Przekaż zmienne zebrane przez COLLECT_DTMF (mapa może być pusta, nigdy null)
+            ContactQueuedMessage message = new ContactQueuedMessage(
+                    contactId, queueId, session.getTenantId(),
+                    session.getVariables().isEmpty() ? null : session.getVariables());
 
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, ROUTING_KEY_CONTACT_QUEUED, message);
 

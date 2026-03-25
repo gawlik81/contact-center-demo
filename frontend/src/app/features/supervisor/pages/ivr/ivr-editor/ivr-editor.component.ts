@@ -259,6 +259,11 @@ export class IvrEditorComponent implements OnInit {
           `Wezel "${node.prompt?.slice(0, 30) ?? node.node_id}" (${node.type}) nie ma zadnej opcji wyjscia.`,
         );
       }
+      if (node.type === 'COLLECT_DTMF' && !node.variable_name?.trim()) {
+        warnings.push(
+          `Wezel COLLECT_DTMF "${node.prompt?.slice(0, 30) ?? node.node_id}" nie ma ustawionej nazwy zmiennej.`,
+        );
+      }
       for (const opt of node.options ?? []) {
         if (opt.next_node_id && !nodeIds.has(opt.next_node_id)) {
           warnings.push(
@@ -325,11 +330,28 @@ export class IvrEditorComponent implements OnInit {
       type,
       prompt: '',
       // PLAY_AUDIO always has a single "next" output; MENU/COLLECT_DTMF start with empty options
-      options: type === 'PLAY_AUDIO' ? [{ key: 'next', next_node_id: '' }] : [],
+      options:
+        type === 'PLAY_AUDIO'
+          ? [{ key: 'next', next_node_id: '' }]
+          : type === 'COLLECT_DTMF'
+            ? [
+                { key: 'success', next_node_id: '' },
+                { key: 'timeout', next_node_id: '' },
+                { key: 'no-input', next_node_id: '' },
+              ]
+            : [],
       x: Math.max(0, x),
       y: Math.max(0, y),
       timeout_seconds: type === 'MENU' || type === 'COLLECT_DTMF' ? 10 : undefined,
       max_retries: type === 'MENU' || type === 'COLLECT_DTMF' ? 3 : undefined,
+      ...(type === 'COLLECT_DTMF'
+        ? {
+            variable_name: '',
+            min_digits: 1,
+            max_digits: 4,
+            finish_on_key: '#',
+          }
+        : {}),
     };
 
     this.definition.update((def) => ({

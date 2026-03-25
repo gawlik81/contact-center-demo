@@ -236,7 +236,7 @@ class IvrEngineServiceTest {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
 
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
-                    null, null, List.of(), QUEUE_ID.toString(), 10, 3);
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#");
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
@@ -266,7 +266,7 @@ class IvrEngineServiceTest {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
 
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
-                    null, null, List.of(), QUEUE_ID.toString(), 10, 3);
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#");
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.empty());
             when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
@@ -296,7 +296,7 @@ class IvrEngineServiceTest {
         void executeNode_HANGUP_shouldCallHangupAndCleanSession() {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_HANGUP, TENANT_ID);
             IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
-                    null, null, List.of(), null, 10, 3);
+                    null, null, List.of(), null, 10, 3, null, 1, 1, "#");
 
             doNothing().when(telephonyAdapter).hangupCall(CALL_ID);
 
@@ -311,7 +311,7 @@ class IvrEngineServiceTest {
         void executeNode_HANGUP_withHangupError_shouldStillCleanSession() {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_HANGUP, TENANT_ID);
             IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
-                    null, null, List.of(), null, 10, 3);
+                    null, null, List.of(), null, 10, 3, null, 1, 1, "#");
 
             doThrow(new TelephonyAdapter.TelephonyException(CALL_ID, "Connection error"))
                     .when(telephonyAdapter).hangupCall(CALL_ID);
@@ -338,7 +338,7 @@ class IvrEngineServiceTest {
         void executeNode_PLAY_AUDIO_shouldLogAudioPlay() {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_AUDIO, TENANT_ID);
             IvrNode audioNode = new IvrNode(NODE_AUDIO, IvrNodeType.PLAY_AUDIO,
-                    "Witamy w systemie", AUDIO_ID.toString(), List.of(), null, 10, 3);
+                    "Witamy w systemie", AUDIO_ID.toString(), List.of(), null, 10, 3, null, 1, 1, "#");
 
             IvrAudio audio = IvrAudio.builder()
                     .audioId(AUDIO_ID)
@@ -363,7 +363,7 @@ class IvrEngineServiceTest {
         void executeNode_PLAY_AUDIO_withoutAudioId_shouldUseTextPrompt() {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_AUDIO, TENANT_ID);
             IvrNode audioNode = new IvrNode(NODE_AUDIO, IvrNodeType.PLAY_AUDIO,
-                    "Witamy w systemie", null, List.of(), null, 10, 3);
+                    "Witamy w systemie", null, List.of(), null, 10, 3, null, 1, 1, "#");
 
             assertThatCode(() -> ivrEngineService.executeNode(CALL_ID, audioNode, session))
                     .doesNotThrowAnyException();
@@ -388,7 +388,7 @@ class IvrEngineServiceTest {
 
             // queueId z nieprawidłowym formatem UUID
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
-                    null, null, List.of(), "invalid-uuid", 10, 3);
+                    null, null, List.of(), "invalid-uuid", 10, 3, null, 1, 1, "#");
 
             when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
                     .thenReturn(buildQueuePage(buildQueue()));
@@ -401,6 +401,176 @@ class IvrEngineServiceTest {
                     eq("contact.queued"),
                     any(ContactQueuedMessage.class)
             );
+        }
+    }
+
+    // =========================================================================
+    // COLLECT_DTMF
+    // =========================================================================
+
+    @Nested
+    @DisplayName("handleDtmfInput – COLLECT_DTMF")
+    class HandleDtmfInputCollectDtmf {
+
+        private static final String NODE_COLLECT = "node-collect";
+        private static final String NODE_SUCCESS = "node-success";
+
+        /**
+         * Buduje drzewo z węzłem COLLECT_DTMF (maxDigits=4, finishOnKey="#")
+         * i opcjami: success → node-hangup, timeout → node-hangup.
+         */
+        private IvrDefinition buildCollectDtmfDefinition(int maxDigits, String finishOnKey) {
+            IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
+                    null, null, List.of(), null, 10, 3, null, 1, 1, "#");
+            IvrNode successNode = new IvrNode(NODE_SUCCESS, IvrNodeType.PLAY_AUDIO,
+                    "Dziękujemy", null, List.of(), null, 10, 3, null, 1, 1, "#");
+            IvrNode collectNode = new IvrNode(NODE_COLLECT, IvrNodeType.COLLECT_DTMF,
+                    "Podaj numer konta", null,
+                    List.of(new IvrOption("success", NODE_SUCCESS),
+                            new IvrOption("timeout", NODE_HANGUP)),
+                    null, 10, 3, "account_number", 1, maxDigits, finishOnKey);
+            return new IvrDefinition(List.of(collectNode, successNode, hangupNode), NODE_COLLECT);
+        }
+
+        /** Tworzy sesję w trybie COLLECT_DTMF z wypełnionym buforem. */
+        private IvrSessionData buildCollectingSession(String buffer) {
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_COLLECT, TENANT_ID);
+            session.setCollectingDtmfForNodeId(NODE_COLLECT);
+            session.setDtmfBuffer(buffer);
+            return session;
+        }
+
+        @Test
+        @DisplayName("executeCollectDtmf: powinien ustawić collectingDtmfForNodeId i zaplanować timeout")
+        void executeCollectDtmf_shouldSetCollectingStateAndScheduleTimeout() throws Exception {
+            IvrTree ivr = buildIvrTree(buildCollectDtmfDefinition(4, "#"));
+            when(ivrTreeRepository.findActiveByTenantId(TENANT_ID)).thenReturn(Optional.of(ivr));
+
+            ivrEngineService.startIvrSession(CALL_ID, TENANT_ID, null);
+
+            // Sesja powinna być zapisana z collectingDtmfForNodeId
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq("ivr:session:" + CALL_ID), jsonCaptor.capture(), any(Duration.class));
+
+            // Ostatni zapis sesji powinien zawierać collectingDtmfForNodeId
+            String lastJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            IvrSessionData savedSession = objectMapper.readValue(lastJson, IvrSessionData.class);
+            assertThat(savedSession.getCollectingDtmfForNodeId()).isEqualTo(NODE_COLLECT);
+            assertThat(savedSession.getDtmfBuffer()).isEmpty();
+
+            // Timeout powinien być zaplanowany
+            verify(taskScheduler).schedule(any(Runnable.class), any(Instant.class));
+        }
+
+        @Test
+        @DisplayName("cyfry powinny być akumulowane w buforze; po maxDigits auto-zakończenie")
+        void handleDtmfInput_digitsAccumulated_autoFinishAtMaxDigits() throws Exception {
+            // maxDigits=3, finishOnKey pusta → auto po 3 cyfrach
+            IvrTree ivr = buildIvrTree(buildCollectDtmfDefinition(3, ""));
+            // Sesja z 2 już zebranymi cyframi
+            IvrSessionData session = buildCollectingSession("12");
+            String sessionJson = objectMapper.writeValueAsString(session);
+
+            when(valueOps.get(anyString())).thenAnswer(inv -> {
+                String key = inv.getArgument(0);
+                return key.equals("ivr:session:" + CALL_ID) ? sessionJson : null;
+            });
+            when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
+
+            // Podajemy 3-cią cyfrę → maxDigits=3 osiągnięte
+            ivrEngineService.handleDtmfInput(CALL_ID, "3");
+
+            // Sesja powinna przejść do NODE_SUCCESS z zapisaną zmienną
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq("ivr:session:" + CALL_ID), jsonCaptor.capture(), any(Duration.class));
+
+            String lastJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            IvrSessionData finalSession = objectMapper.readValue(lastJson, IvrSessionData.class);
+            assertThat(finalSession.getVariable("account_number")).isEqualTo("123");
+            assertThat(finalSession.getCollectingDtmfForNodeId()).isNull();
+            assertThat(finalSession.getCurrentNodeId()).isEqualTo(NODE_SUCCESS);
+        }
+
+        @Test
+        @DisplayName("finishOnKey '#' powinien zakończyć zbieranie i zapisać zmienną")
+        void handleDtmfInput_finishOnKey_shouldFinishAndSaveVariable() throws Exception {
+            // maxDigits=10, finishOnKey="#"
+            IvrTree ivr = buildIvrTree(buildCollectDtmfDefinition(10, "#"));
+            IvrSessionData session = buildCollectingSession("9876");
+            String sessionJson = objectMapper.writeValueAsString(session);
+
+            when(valueOps.get(anyString())).thenAnswer(inv -> {
+                String key = inv.getArgument(0);
+                return key.equals("ivr:session:" + CALL_ID) ? sessionJson : null;
+            });
+            when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
+
+            ivrEngineService.handleDtmfInput(CALL_ID, "#");
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq("ivr:session:" + CALL_ID), jsonCaptor.capture(), any(Duration.class));
+
+            String lastJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            IvrSessionData finalSession = objectMapper.readValue(lastJson, IvrSessionData.class);
+            assertThat(finalSession.getVariable("account_number")).isEqualTo("9876");
+            assertThat(finalSession.getCollectingDtmfForNodeId()).isNull();
+            assertThat(finalSession.getCurrentNodeId()).isEqualTo(NODE_SUCCESS);
+        }
+
+        @Test
+        @DisplayName("timeout w trybie COLLECT_DTMF powinien przejść do gałęzi 'timeout'")
+        void handleDtmfInput_timeout_shouldNavigateToTimeoutBranch() throws Exception {
+            IvrTree ivr = buildIvrTree(buildCollectDtmfDefinition(4, "#"));
+            IvrSessionData session = buildCollectingSession("12");
+            String sessionJson = objectMapper.writeValueAsString(session);
+
+            when(valueOps.get(anyString())).thenAnswer(inv -> {
+                String key = inv.getArgument(0);
+                return key.equals("ivr:session:" + CALL_ID) ? sessionJson : null;
+            });
+            when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
+            doNothing().when(telephonyAdapter).hangupCall(anyString());
+
+            ivrEngineService.handleDtmfInput(CALL_ID, "timeout");
+
+            // Gałąź timeout → NODE_HANGUP
+            verify(telephonyAdapter).hangupCall(CALL_ID);
+            // Bufor powinien być wyczyszczony
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq("ivr:session:" + CALL_ID), jsonCaptor.capture(), any(Duration.class));
+            // Sesja powinna być usunięta po HANGUP
+            verify(stringRedisTemplate).delete("ivr:session:" + CALL_ID);
+        }
+
+        @Test
+        @DisplayName("QUEUE_TRANSFER powinien przekazać ivrVariables z sesji")
+        void executeQueueTransfer_shouldPassIvrVariables() throws Exception {
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_QUEUE, TENANT_ID);
+            session.setVariable("account_number", "99887766");
+
+            IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
+                    null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#");
+
+            when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
+                    .thenReturn(Optional.of(buildQueue()));
+
+            ivrEngineService.executeNode(CALL_ID, queueNode, session);
+
+            ArgumentCaptor<ContactQueuedMessage> messageCaptor =
+                    ArgumentCaptor.forClass(ContactQueuedMessage.class);
+            verify(rabbitTemplate).convertAndSend(
+                    eq(RabbitMQConfig.EXCHANGE_EVENTS),
+                    eq("contact.queued"),
+                    messageCaptor.capture()
+            );
+
+            ContactQueuedMessage msg = messageCaptor.getValue();
+            assertThat(msg.ivrVariables()).isNotNull();
+            assertThat(msg.ivrVariables()).containsEntry("account_number", "99887766");
         }
     }
 
@@ -461,31 +631,31 @@ class IvrEngineServiceTest {
     /** Definicja z węzłem PLAY_AUDIO jako entry. */
     private IvrDefinition buildPlayAudioDefinition() {
         IvrNode audioNode = new IvrNode(NODE_ENTRY, IvrNodeType.PLAY_AUDIO,
-                "Witamy", null, List.of(), null, 10, 3);
+                "Witamy", null, List.of(), null, 10, 3, null, 1, 1, "#");
         return new IvrDefinition(List.of(audioNode), NODE_ENTRY);
     }
 
     /** Definicja MENU z opcją '1' → node-audio i timeout → node-hangup. */
     private IvrDefinition buildMenuDefinition() {
         IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
-                null, null, List.of(), null, 10, 3);
+                null, null, List.of(), null, 10, 3, null, 1, 1, "#");
         IvrNode audioNode = new IvrNode(NODE_AUDIO, IvrNodeType.PLAY_AUDIO,
-                "Wybrano opcję 1", null, List.of(), null, 10, 3);
+                "Wybrano opcję 1", null, List.of(), null, 10, 3, null, 1, 1, "#");
         IvrNode menuNode = new IvrNode(NODE_MENU, IvrNodeType.MENU,
                 "Naciśnij 1", null,
                 List.of(new IvrOption("1", NODE_AUDIO), new IvrOption("timeout", NODE_HANGUP)),
-                null, 10, 3);
+                null, 10, 3, null, 1, 1, "#");
         return new IvrDefinition(List.of(menuNode, audioNode, hangupNode), NODE_MENU);
     }
 
     /** Definicja MENU z opcją timeout → node-hangup. */
     private IvrDefinition buildMenuWithTimeoutDefinition() {
         IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
-                null, null, List.of(), null, 10, 3);
+                null, null, List.of(), null, 10, 3, null, 1, 1, "#");
         IvrNode menuNode = new IvrNode(NODE_MENU, IvrNodeType.MENU,
                 "Naciśnij klawisz", null,
                 List.of(new IvrOption("timeout", NODE_HANGUP)),
-                null, 10, 3);
+                null, 10, 3, null, 1, 1, "#");
         return new IvrDefinition(List.of(menuNode, hangupNode), NODE_MENU);
     }
 

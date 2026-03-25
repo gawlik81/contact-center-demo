@@ -19,6 +19,10 @@ import java.util.List;
  * @param queueId        UUID kolejki docelowej (dla QUEUE_TRANSFER)
  * @param timeoutSeconds czas oczekiwania na wejście DTMF w sekundach (domyślnie 10)
  * @param maxRetries     maksymalna liczba prób ponownego odtworzenia komunikatu (domyślnie 3)
+ * @param variableName   nazwa zmiennej sesji, do której zapisywane są zebrane cyfry (COLLECT_DTMF)
+ * @param minDigits      minimalna liczba cyfr wymagana do zakończenia zbierania (domyślnie 1)
+ * @param maxDigits      maksymalna liczba cyfr – po osiągnięciu auto-zakończenie (domyślnie 1)
+ * @param finishOnKey    klawisz kończący zbieranie cyfr (domyślnie "#"; pusty string = auto po maxDigits)
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record IvrNode(
@@ -29,7 +33,11 @@ public record IvrNode(
         @JsonProperty("options") List<IvrOption> options,
         @JsonProperty("queue_id") String queueId,
         @JsonProperty("timeout_seconds") int timeoutSeconds,
-        @JsonProperty("max_retries") int maxRetries
+        @JsonProperty("max_retries") int maxRetries,
+        @JsonProperty("variable_name") String variableName,
+        @JsonProperty("min_digits") int minDigits,
+        @JsonProperty("max_digits") int maxDigits,
+        @JsonProperty("finish_on_key") String finishOnKey
 ) {
     /**
      * Wartości domyślne dla pól opcjonalnych.
@@ -37,6 +45,9 @@ public record IvrNode(
     public IvrNode {
         if (timeoutSeconds <= 0) timeoutSeconds = 10;
         if (maxRetries <= 0)     maxRetries = 3;
+        if (minDigits <= 0)      minDigits = 1;
+        if (maxDigits <= 0)      maxDigits = 1;
+        if (finishOnKey == null) finishOnKey = "#";
     }
 
     /**

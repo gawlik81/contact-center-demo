@@ -14,6 +14,10 @@ export interface IvrNode {
   queue_id?: string;
   timeout_seconds?: number;
   max_retries?: number;
+  variable_name?: string;
+  min_digits?: number;
+  max_digits?: number;
+  finish_on_key?: string;
 }
 
 export interface IvrNodeUI extends IvrNode {

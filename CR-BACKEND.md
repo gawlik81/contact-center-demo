@@ -693,3 +693,259 @@ I zmienić zapytanie na: `AND LOWER(email_address) = LOWER(:emailAddress::TEXT)`
 Logika routingu jest architektonicznie spójna i dobrze ustrukturyzowana, ale implementacja ma dwa krytyczne błędy funkcjonalne: (1) brak `email_address` w natywnych INSERT/UPDATE w repozytorium sprawia, że adres email kolejki nigdy nie jest zapisywany do bazy, co czyni całą funkcjonalność niedziałającą end-to-end; (2) split po przecinku bez obsługi formatu `"Name <email>"` sprawi, że routing po adresie nie zadziała dla typowego ruchu email z realnych klientów pocztowych.
 
 **Ocena: 2.5/5** — architektura prawidłowa, testy przyzwoite (choć brakuje kluczowego edge case), ale dwa błędy krytyczne blokują całą funkcjonalność w produkcji.
+
+---
+
+## Review: BE-021 (Wait Time Estimation) — 2026-03-26
+
+### Pliki: `WaitTimeEstimationService.java`, `QueueWaitUpdatePayload.java`, `QueueStatsResponse.java`, `ContactRepository.java` (nowe metody), `QueueController.java` (endpoint stats), `WaitTimeEstimationServiceTest.java`
+
+---
+
+### Bugs / Critical Issues
+
+**[WaitTimeEstimationService.java:96] `findAllByOrderByNameAsc()` wczytuje WSZYSTKICH tenantów do pamięci, w tym zawieszonych i usuniętych — brak filtrowania po stronie DB**
+
+```java
+List<Tenant> activeTenants = tenantRepository.findAllByOrderByNameAsc().stream()
+        .filter(t -> t.getStatus() == TenantStatus.ACTIVE)
+        .toList();
+```
+
+`findAllByOrderByNameAsc()` wykonuje `SELECT * FROM tenant ORDER BY name` bez żadnego filtra. Wszystkie encje tenantów (ACTIVE, SUSPENDED, INACTIVE) są materializowane do JVM, a następnie większość jest natychmiast odrzucana przez `.filter()`. Przy 1000 tenantach, z których 100 jest aktywnych, serwis ładuje 10x więcej danych niż potrzebuje. Scheduled job działa co 30 sekund — przy każdym przebudzeniu wykonuje ten sam wasteful SELECT.
+
+Dodatkowe ryzyko: `findAllByOrderByNameAsc()` jest zapytaniem Spring Data JPA bez `TenantContext` (zaplanowany wątek). Jeśli encja `Tenant` zawiera LAZY kolekcje lub pola JSONB, materializacja może być jeszcze droższa.
+
+Sugestia: dodać do `TenantRepository` dedykowaną metodę:
+```java
+List<Tenant> findAllByStatusOrderByNameAsc(TenantStatus status);
+```
+i zastąpić wywołanie `tenantRepository.findAllByStatusOrderByNameAsc(TenantStatus.ACTIVE)`. Eliminuje to filtrowanie w Javie i redukuje transfer danych O(N) do O(aktywni).
+
+---
+
+**[WaitTimeEstimationService.java:244–253] `scanAgentSessions()` — klucze Redis zdekodowane jako `new String(cursor.next())` bez określenia charset — potencjalne zniekształcenie kluczy z non-ASCII**
+
+```java
+keys.add(new String(cursor.next()));
+```
+
+`new String(byte[])` używa domyślnego charset JVM (zazwyczaj UTF-8 na nowoczesnych JDKach, ale zależy od `file.encoding` / `stdout.encoding` / `-Dfile.encoding`). Klucze sesji agentów mają format `session:agent:{UUID}` — UUID zawiera tylko ASCII, więc w praktyce jest to bezpieczne. Ale wzorzec jest kruchy: jeśli kiedykolwiek klucze będą zawierać non-ASCII (np. tenant name wbudowany w klucz), dekodowanie może dawać różne wyniki na różnych JVM.
+
+Sugestia: użyć `new String(cursor.next(), StandardCharsets.UTF_8)` dla explicite i przenośnej konwersji.
+
+---
+
+**[ContactRepository.java:873–886] `getAvgHandleTimeSeconds` — `NOW() - INTERVAL '7 days'` w zapytaniu nie pomija kontaktów z `is_deleted = true`**
+
+```sql
+SELECT COALESCE(
+    AVG(EXTRACT(EPOCH FROM (ended_at - started_at))),
+    300
+)
+FROM contact
+WHERE tenant_id = CAST(:tenantId AS uuid)
+  AND queue_id  = CAST(:queueId  AS uuid)
+  AND started_at >= NOW() - INTERVAL '7 days'
+  AND ended_at IS NOT NULL
+```
+
+Zapytanie nie filtruje `is_deleted = false`. Tabela `contact` stosuje soft-delete (`is_deleted` kolumna, zgodnie z architekturą projektu). Kontakty oznaczone jako usunięte powinny być wykluczone z obliczeń AVG handle time — ich `ended_at - started_at` może odzwierciedlać czas do usunięcia, nie faktyczny czas obsługi.
+
+Sugestia: dodać `AND is_deleted = false` do obu zapytań (`getAvgHandleTimeSeconds` i `countWaitingByQueueId`). Dla `countWaitingByQueueId` jest to szczególnie ważne — kontakty usunięte ze statusem `QUEUED` (soft-deleted) zawyżałyby `waitingCount` i fałszowały EWT.
+
+---
+
+**[WaitTimeEstimationService.java:131–135] `processTenant` z hardkodowanym limitem paginacji 1000 — tenanci z ponad 1000 kolejkami nie dostaną broadcastu EWT dla wszystkich kolejek**
+
+```java
+List<Queue> queues = queueRepository.findAllByTenantId(tenantId, null, 0, 1000).content();
+```
+
+Komentarz `// zakładamy < 1000 kolejek` jest założeniem MVP, ale jest nieudokumentowanym silent truncation. Jeśli kiedykolwiek tenant będzie miał > 1000 kolejek (np. duże call center z kolejkami per kampania), serwis będzie broadcastował EWT tylko dla pierwszych 1000 kolejek bez żadnego loga WARNING ani alertu. Reszta kolejek będzie miała stale dane w UI supervisora.
+
+Sugestia: dodać log WARNING gdy `queues.size() == 1000`:
+```java
+if (queues.size() >= 1000) {
+    log.warn("[EWT] Tenant {} ma >= 1000 kolejek – paginacja może być niewystarczająca. " +
+             "Rozważ zwiększenie limitu lub paginację EWT.", tenantId);
+}
+```
+Docelowo zaimplementować paginację wewnątrz `processTenant` iterującą do wyczerpania stron.
+
+---
+
+**[QueueController.java:222–227] Rekonstrukcja encji `Queue` z DTO w kontrolerze — naruszenie separacji warstw i ryzyko utraty danych**
+
+```java
+com.contactcenter.domain.model.Queue queue = com.contactcenter.domain.model.Queue.builder()
+        .queueId(queueResponse.queueId())
+        .tenantId(queueResponse.tenantId())
+        .name(queueResponse.name())
+        .build();
+```
+
+Kontroler pobiera `QueueResponse` (DTO) z `queueService.getQueue()`, a następnie ręcznie buduje encję domenową `Queue` z podzbioru pól. Ta encja ma tylko 3 z ~10 pól ustawionych — `routingStrategy`, `requiredSkills`, `maxConcurrentContactsPerAgent` itd. są `null`. Encja jest przekazywana do `waitTimeEstimationService.getQueueStats()`, które używa tylko `queueId` i `name`, więc aktualnie nie rzuca NPE.
+
+Problemy z tym wzorcem:
+1. Jeśli `getQueueStats` zostanie rozszerzone o dostęp do `routingStrategy` lub innych pól, code review nie wykryje NPE — partial encja wygląda jak pełna.
+2. Kontroler importuje domenową encję `Queue` przez FQCN (`com.contactcenter.domain.model.Queue`) — to obejście, nie wzorzec.
+3. Poprawne podejście: przekazać `UUID queueId` i `UUID tenantId` do serwisu, który sam załaduje encję przez repozytorium.
+
+Sugestia: zmienić sygnaturę `getQueueStats` na `getQueueStats(UUID tenantId, UUID queueId)`. Serwis ładuje kolejkę wewnętrznie przez `queueRepository.findByIdAndTenantId`. Eliminuje to redundantny podwójny load (kontroler robi `queueService.getQueue` który już ładuje Queue, a następnie buduje sztuczną encję).
+
+---
+
+### Security Concerns
+
+**[WaitTimeEstimationService.java:316] `countAvailableAgents()` — weryfikacja cross-tenant opiera się na danych w Redis bez walidacji DB — analogiczny problem jak w `DefaultRoutingEngine`**
+
+```java
+String sessionTenantId = session.get("tenantId");
+if (!tenantIdStr.equals(sessionTenantId)) continue;
+```
+
+Jak zidentyfikowano w poprzednim CR (BE-019, Security Concern #1 — `DefaultRoutingEngine.java:137`), weryfikacja przynależności agenta do tenanta opiera się wyłącznie na danych zapisanych w Redis. Jeśli `UserService.updateStatus` zapisze błędny `tenantId` w sesji (błąd kodu, race condition), agent z tenanta A może być liczony jako dostępny dla tenanta B.
+
+W kontekście EWT skutek jest mniej krytyczny niż przy routingu (niepoprawna liczba agentów = niepoprawne EWT, ale brak wycieku danych). Jednak wzorzec jest ten sam co w BE-019 — oba serwisy (`DefaultRoutingEngine` i `WaitTimeEstimationService`) mają identyczny kod weryfikacji Redis-only. Jeśli zdecydujemy się dodać DB verification w jednym miejscu, należy to zrobić w obu.
+
+Uwaga: dla scheduled job (co 30s) koszt DB verification per agent byłby zbyt wysoki — N agentów * M tenantów zapytań per batch. Rozwiązanie systemowe to namespace per tenant w Redis (`session:agent:{tenantId}:{userId}`), co eliminuje potrzebę cross-tenant filtrowania po stronie Java.
+
+---
+
+**[QueueController.java:201–231] Endpoint `GET /api/queues/{id}/stats` — brak `@PreAuthorize` na poziomie metody, ale klasa-poziom `hasAnyRole('SUPERVISOR', 'ADMIN')` — AGENT może uzyskać dostęp przez curl z własnym tokenem**
+
+Klasa `QueueController` ma `@PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")` na poziomie klasy. Endpoint `/stats` nie ma własnej adnotacji `@PreAuthorize`. Agenci nie mają dostępu — jest to poprawne dla zarządzania kolejkami.
+
+Jednak `QueueStatsResponse` ujawnia `availableAgentsCount` — potencjalnie wrażliwą informację operacyjną. Rozważyć, czy `estimatedWaitSeconds` i `waitingCount` powinny być dostępne dla Agentów (aby wiedzielli jak długo klient czeka) — jeśli tak, endpoint wymaga osobnej, bardziej permisywnej adnotacji z ograniczonym DTO.
+
+To uwaga projektowa, nie luka bezpieczeństwa w obecnym kształcie (SUPERVISOR i ADMIN mają dostęp do tych informacji).
+
+---
+
+**[WaitTimeEstimationService.java:289–305] `getQueueStats()` wykonuje pełny Redis SCAN na żądanie HTTP — potencjalny wektor DoS**
+
+`getQueueStats` jest wywoływana z endpointu REST `GET /api/queues/{id}/stats`. Każde wywołanie HTTP triggeruje pełny `scanAgentSessions()` — iteratywny SCAN całego Redis przez cursor. Przy 10 000 kluczy sesji (duże środowisko) to dziesiątki round-tripów do Redis per żądanie HTTP. Złośliwy lub naiwny klient może wywołać endpoint w pętli, generując ciągłe obciążenie Redis.
+
+Sugestia: dodać Redis cache dla `getQueueStats` z krótkim TTL (np. 5–10 sekund) — wynik SCAN jest i tak przybliżony (agenci zmieniają status co kilka sekund). Alternatywnie użyć tego samego wyniku `scanAgentSessions()` co scheduled job (cache mapy agentów w pamięci, odświeżanej co 30s). Klucz cache: `cache:queue:stats:{queueId}` (zgodnie z istniejącą tabelą Redis namespaces w ARCHITECTURE).
+
+---
+
+### Architecture / Pattern Violations
+
+**[ContactRepository.java:862–864 i 900–901] Brak `setTenantContextInDb()` i świadome pominięcie RLS — wymaga udokumentowanej zasady**
+
+```java
+// Nie wywołuje setTenantContextInDb() – metoda wywoływana z kontekstu
+// scheduled job iterującego po tenantach. Filtr tenant_id zapewnia izolację.
+```
+
+Pominięcie RLS jest udokumentowane i uzasadnione (scheduled job bez TenantContext). Natomiast ta sama metoda `countWaitingByQueueId` i `getAvgHandleTimeSeconds` mogą być wywoływane z kontekstu HTTP (przez `getQueueStats` → endpoint REST), gdzie `TenantContext` jest ustawiony.
+
+W kontekście HTTP brak `setTenantContextInDb(tenantId)` oznacza, że `app.current_tenant_id` w PostgreSQL nie jest ustawiane dla tej transakcji — RLS pozostaje nieaktywne dla tych zapytań. Izolacja jest zapewniona przez jawny `tenant_id` w WHERE (co jest poprawne), ale niespójne z resztą repozytorium gdzie `setTenantContextInDb` jest standardem.
+
+To nie jest błąd (jawne `tenant_id` w WHERE wystarczy), ale warto ujednolicić wzorzec lub explicite udokumentować że te metody są "dual-use" (scheduled + HTTP) i świadomie omijają `setTenantContextInDb`.
+
+---
+
+**[WaitTimeEstimationService.java:92] `@Scheduled(fixedRate = 30_000)` — brak `@Async` i brak ochrony przed nakładaniem się wywołań**
+
+`broadcastWaitTimeUpdates` nie ma `@Async` ani `@ScheduledLock` (np. ShedLock). `fixedRate` znaczy: "uruchom co 30 sekund od poprzedniego startu" — jeśli poprzednie wywołanie trwa > 30s (np. 10 tenantów, 200 kolejek każdy, Redis wolny), Spring uruchomi kolejne wywołanie w nowym wątku podczas gdy poprzednie nadal działa. Dwa gleichzeitige broadcasty dla tych samych kolejek w tym samym czasie.
+
+W środowiskach wieloinstancyjnych (np. dwa pod-y w Kubernetes) oba wystartują scheduler i każdy z nich będzie broadcastował WebSocket eventy — supervisorzy dostaną zduplikowane eventy co 30s.
+
+Sugestia krótkoterminowa: zmień `fixedRate` na `fixedDelay` — następny broadcast zaczyna 30s po zakończeniu poprzedniego, nie po jego starcie. Rozwiązuje nakładanie się na jednej instancji.
+
+Sugestia długoterminowa: użyć ShedLock z Redis (`spring-integration-redis` lub `shedlock-provider-redis-spring`) dla distributed lock — tylko jedna instancja broadcastuje naraz.
+
+---
+
+**[WaitTimeEstimationService.java:163] `processQueue` i `getQueueStats` — dwa osobne wywołania DB (`countWaitingByQueueId` + `getAvgHandleTimeSeconds`) zamiast jednego zapytania**
+
+Każda kolejka wymaga 2 zapytań do bazy danych. Przy 10 tenantach z 50 kolejkami każdy, scheduled job wykonuje 1000 zapytań do DB co 30 sekund. Oba zapytania dotyczą tej samej tabeli `contact` z tymi samymi filtrami `tenant_id` i `queue_id`.
+
+Możliwa optymalizacja: jedno zapytanie zwracające obie wartości:
+```sql
+SELECT
+    COUNT(*) FILTER (WHERE status = 'QUEUED') AS waiting_count,
+    COALESCE(AVG(EXTRACT(EPOCH FROM (ended_at - started_at)))
+        FILTER (WHERE started_at >= NOW() - INTERVAL '7 days' AND ended_at IS NOT NULL), 300)
+        AS avg_handle_time
+FROM contact
+WHERE tenant_id = :tenantId AND queue_id = :queueId AND is_deleted = false
+```
+Redukcja liczby zapytań z 2N do N per batch. Przy obecnej skali (dev/staging) nie jest krytyczne, ale warto zaplanować przed skalowaniem.
+
+---
+
+### Improvements & Suggestions
+
+**[QueueWaitUpdatePayload.java:31] `estimatedWaitSeconds` jako `int` z wartością `Integer.MAX_VALUE` — frontend musi obsłużyć magic number**
+
+`Integer.MAX_VALUE` (2147483647) jako sentinel value dla "brak agentów" jest nieczytelne dla klientów API. Frontend JavaScript/TypeScript musi wiedzieć, że `2147483647` oznacza nieskończoność. Lepszym podejściem byłoby:
+1. Pole `Integer estimatedWaitSeconds` (boxed, nullable) gdzie `null` = "nieokreślony", lub
+2. Oddzielne pole `boolean agentsAvailable` + `int estimatedWaitSeconds` (0 gdy unavailable), lub
+3. Jawna stała w kontrakcie API z komentarzem Swagger `@Schema(description = "...; -1 when no agents available")`.
+
+Obecne rozwiązanie z `Integer.MAX_VALUE` jest udokumentowane w Javadoc rekordu, ale brak adnotacji `@Schema` w DTO powoduje że Swagger UI nie wyświetla tej semantyki.
+
+Sugestia: dodać `@Schema(description = "Szacowany czas oczekiwania w sekundach. Wartość 2147483647 (Integer.MAX_VALUE) oznacza brak dostępnych agentów.")` do pola.
+
+---
+
+**[WaitTimeEstimationServiceTest.java:57] `@MockitoSettings(strictness = Strictness.LENIENT)` — jak w BE-020 i BE-019, maskuje nieużywane stuby**
+
+Identyczny problem jak w poprzednich PR-ach. `LENIENT` wyłącza Mockito strict stubs i pozwala na definiowanie stubów których testy nigdy nie używają. W `setUp()` stub `when(redisTemplate.execute(...)).thenReturn(null)` — ustawiony dla wszystkich testów przez `@BeforeEach`, ale testy `calculateEwt` nie wywołują Redis w ogóle. Bez `LENIENT` Mockito zgłosiłoby "Unnecessary stubbing detected" i pomogło utrzymać czysty zestaw testów.
+
+Sugestia: przesunąć stub `redisTemplate.execute` do `@BeforeEach` tylko w klasach `BroadcastTests`, `GetQueueStatsTests` — tam gdzie Redis jest faktycznie potrzebny. Przywrócić `STRICT_STUBS` na poziomie klasy.
+
+---
+
+**[WaitTimeEstimationServiceTest.java — brak testów] Brakujące przypadki testowe**
+
+Następujące scenariusze nie są pokryte:
+1. `calculateEwt` z `avgHandleTime = 0.0` — `ceil(waiting * 0.0 / agents) = 0`. Czy jest to poprawne zachowanie? Możliwy edge case gdy AVG handle time obliczone z kontaktów o zerowym czasie obsługi.
+2. `scanAgentSessions()` — brak testu dla scenariusza gdy Redis rzuca wyjątek. Javadoc mówi o fallbacku na pustą mapę, ale brak testu weryfikującego to zachowanie.
+3. `broadcastWaitTimeUpdates()` — brak testu weryfikującego izolację cross-tenant: że kontakty tenanta A nie wpływają na EWT tenanta B przy jednoczesnym przetwarzaniu.
+4. `getQueueStats()` — test weryfikuje tylko scenariusz "brak agentów w Redis". Brak testu gdy Redis ma agentów AVAILABLE dla tenanta.
+
+---
+
+**[WaitTimeEstimationService.java:193–194] Log z `String.format` wewnątrz argumentów loggera — niepotrzebne formatowanie gdy poziom DEBUG jest wyłączony**
+
+```java
+log.debug("[EWT] Queue {}: waiting={}, agents={}, avgHT={}s, EWT={}s",
+        queueId, waitingCount, availableAgents, String.format("%.1f", avgHandleTime),
+        estimatedWaitSeconds == Integer.MAX_VALUE ? "∞" : estimatedWaitSeconds);
+```
+
+`String.format("%.1f", avgHandleTime)` jest ewaluowane zawsze — niezależnie od tego czy poziom DEBUG jest włączony. SLF4J lazy evaluation (przez `{}` placeholdery) działa tylko dla samych argumentów, ale jeśli argumentem jest wyrażenie które wymaga obliczenia (String.format, ternary), jest ono ewaluowane przed przekazaniem do loggera.
+
+Sugestia: dodać guard `if (log.isDebugEnabled())` lub użyć SLF4J lambda API (SLF4J 2.0+):
+```java
+log.debug("[EWT] Queue {}: waiting={}, agents={}, avgHT={}s, EWT={}s",
+        queueId, waitingCount, availableAgents,
+        () -> String.format("%.1f", avgHandleTime),
+        () -> estimatedWaitSeconds == Integer.MAX_VALUE ? "∞" : estimatedWaitSeconds);
+```
+
+---
+
+### Positive Observations
+
+- **Redis SCAN zamiast KEYS** — `scanAgentSessions()` używa cursor-based SCAN z `count(100)`, identycznie z poprawionym wzorcem z CR-019. Nie blokuje Redis event loop. Obsługa wyjątku z graceful fallback na pustą mapę i logiem WARNING.
+- **Cross-tenant filtrowanie w `countAvailableAgents()`** — sprawdzenie `tenantIdStr.equals(sessionTenantId)` przed zliczaniem AVAILABLE agentów skutecznie izoluje dane per-tenant w pamięci Java po SCAN.
+- **Jednorazowy SCAN dla wszystkich tenantów** — `agentSessions` jest skanowane raz w `broadcastWaitTimeUpdates()` i współdzielone przez wszystkich tenantów (linia 106). Eliminuje N skanowań Redis dla N tenantów. To ważna optymalizacja dobrze przemyślana.
+- **EWT formula poprawna i dobrze udokumentowana** — `ceil(waitingCount / availableAgents * avgHandleTime)` z obsługą edge case (0 waiting → 0, 0 agents → MAX_VALUE, brak historii → 300s fallback). Dokumentacja w Javadoc i komentarzach spójna z implementacją.
+- **Izolacja błędów per-kolejka i per-tenant** — `try/catch` w pętli `processTenant` (linia 148) i `broadcastWaitTimeUpdates` (linia 111) sprawia, że błąd jednej kolejki nie przerywa broadcastu dla pozostałych. Wzorzec resilience poprawnie zastosowany.
+- **`ContactRepository extends TenantAwareRepository`** — nowe metody `countWaitingByQueueId` i `getAvgHandleTimeSeconds` nie łamią dziedziczenia architektonicznego. Brak `setTenantContextInDb` jest świadomą decyzją udokumentowaną w Javadoc.
+- **`@Scheduled(fixedRate = 30_000)` udokumentowane w Javadoc** — komentarz wyjaśnia dlaczego nie ma `@Transactional`, że błąd per-tenant nie przerywa pętli, co jest cenną wskazówką dla przyszłych maintainerów.
+- **Testy pokrywają kluczowe graniczne przypadki** — 6 testów `calculateEwt`, pozytywne i negatywne dla `countAvailableAgents`, weryfikacja cross-tenant guard, broadcast dla wielu kolejek. Podejście `@Nested` + `@DisplayName` zachowane spójnie z resztą projektu.
+
+---
+
+### Summary
+
+Implementacja EWT jest architektonicznie spójna i demonstruje dobre decyzje projektowe (jednorazowy SCAN, izolacja błędów per-kolejka, fallback 300s). Trzy problemy wymagają uwagi przed merge: (1) brak `is_deleted = false` w SQL zawyża `waitingCount` dla soft-deleted kontaktów QUEUED, (2) rekonstrukcja encji `Queue` z DTO w kontrolerze to anty-wzorzec tworzący partial object podatny na NPE przy rozszerzeniu, (3) `GET /api/queues/{id}/stats` triggeruje pełny Redis SCAN per żądanie HTTP bez cache — wektor DoS. Pominięcie `findAllByStatusOrderByNameAsc` (wczytywanie wszystkich tenantów zamiast aktywnych) to niepotrzebny narzut przy każdym ticku schedulera. Problem z `fixedRate` (nakładanie się wywołań) i brak ShedLock (multi-instancja) to znany dług techniczny wymagający adresowania przed wdrożeniem produkcyjnym.
+
+**Ocena: 3.5/5** — solidna logika biznesowa i dobra odporność na błędy, ale bug soft-delete w SQL i anty-wzorzec partial-entity w kontrolerze muszą być naprawione przed merge.

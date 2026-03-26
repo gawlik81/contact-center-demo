@@ -849,6 +849,85 @@ public class ContactRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // BE-021: Wait Time Estimation – zapytania agregujące
+    // =========================================================================
+
+    /**
+     * Oblicza średni czas obsługi kontaktu (handle time) w sekundach dla danej kolejki
+     * na podstawie zakończonych kontaktów z ostatnich 7 dni.
+     *
+     * <p>Używa EXTRACT(EPOCH FROM (ended_at - started_at)) do obliczenia czasu w sekundach.
+     * COALESCE zwraca wartość domyślną 300s (5 minut) gdy brak danych historycznych.
+     *
+     * <p>Nie wywołuje {@code setTenantContextInDb()} – metoda wywoływana z kontekstu
+     * scheduled job iterującego po tenantach. Filtr {@code tenant_id} zapewnia izolację.
+     *
+     * @param tenantId UUID tenanta
+     * @param queueId  UUID kolejki
+     * @return średni czas obsługi w sekundach (domyślnie 300 jeśli brak danych)
+     */
+    @Transactional(readOnly = true)
+    public double getAvgHandleTimeSeconds(UUID tenantId, UUID queueId) {
+        log.debug("[ContactRepo] AVG handle time: tenant={}, queue={}", tenantId, queueId);
+
+        Number result = (Number) em.createNativeQuery(
+                        """
+                        SELECT COALESCE(
+                            AVG(EXTRACT(EPOCH FROM (ended_at - started_at))),
+                            300
+                        )
+                        FROM contact
+                        WHERE tenant_id  = CAST(:tenantId AS uuid)
+                          AND queue_id   = CAST(:queueId  AS uuid)
+                          AND is_deleted = false
+                          AND started_at >= NOW() - INTERVAL '7 days'
+                          AND ended_at IS NOT NULL
+                        """)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("queueId", queueId.toString())
+                .getSingleResult();
+
+        double avg = result != null ? result.doubleValue() : 300.0;
+        log.debug("[ContactRepo] AVG handle time dla queue={}: {}s", queueId, avg);
+        return avg;
+    }
+
+    /**
+     * Zlicza kontakty w statusie QUEUED dla danej kolejki tenanta.
+     *
+     * <p>Używane przez {@link com.contactcenter.domain.service.WaitTimeEstimationService}
+     * do wyznaczania liczby oczekujących kontaktów przy obliczaniu EWT.
+     *
+     * <p>Nie wywołuje {@code setTenantContextInDb()} – analogicznie do
+     * {@link #getAvgHandleTimeSeconds}, izolacja zapewniana przez jawny filtr tenant_id.
+     *
+     * @param tenantId UUID tenanta
+     * @param queueId  UUID kolejki
+     * @return liczba kontaktów ze statusem QUEUED
+     */
+    @Transactional(readOnly = true)
+    public int countWaitingByQueueId(UUID tenantId, UUID queueId) {
+        log.debug("[ContactRepo] Liczba oczekujących: tenant={}, queue={}", tenantId, queueId);
+
+        Number count = (Number) em.createNativeQuery(
+                        """
+                        SELECT COUNT(*)
+                        FROM contact
+                        WHERE tenant_id  = CAST(:tenantId AS uuid)
+                          AND queue_id   = CAST(:queueId  AS uuid)
+                          AND status     = 'QUEUED'
+                          AND is_deleted = false
+                        """)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("queueId", queueId.toString())
+                .getSingleResult();
+
+        int waiting = count != null ? count.intValue() : 0;
+        log.debug("[ContactRepo] Oczekujących w queue={}: {}", queueId, waiting);
+        return waiting;
+    }
+
+    // =========================================================================
     // Inner record
     // =========================================================================
 

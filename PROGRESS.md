@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-26 (V029 email_address w QUEUE + EmailRoutingService routing po adresie kolejki + FE-012 EmailContactComponent + EmailSettingsComponent; łączny stan: DB 20/20, BE 25/33, FE 22/25)
+**Ostatnia aktualizacja:** 2026-03-26 (BE-021 poprawki code review: B1 AND is_deleted=false w countWaitingByQueueId i getAvgHandleTimeSeconds, B2 partial entity usunięte z kontrolera, B3 ConcurrentHashMap cache zamiast Redis SCAN per HTTP, fixedRate→fixedDelay; 644 testów PASS; łączny stan: DB 20/20, BE 26/33, FE 22/25)
 
 ---
 
@@ -74,7 +74,7 @@
 | BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ⬜ | |
 | BE-019 | Routing Engine: skill-based, round-robin, sticky agent | ✅ | RoutingEngine (interfejs), DefaultRoutingEngine (skill-based, round-robin, sticky agent), RoutingService, AgentSessionData, RoutingRequest/Result, ContactQueuedMessage, ContactAssignedEvent. |
 | BE-020 | Queue API: CRUD kolejek i konfiguracja routingu | ✅ | QueueController (POST/GET/PATCH/DELETE /api/queues, GET /api/queues/{id}/stats), DTOs: CreateQueueRequest, UpdateQueueRequest, QueueResponse. Routing strategy enum: ROUND_ROBIN/FIRST_AVAILABLE/SKILL_BASED. |
-| BE-021 | Wait time estimation: informacja o czasie oczekiwania | ⬜ | |
+| BE-021 | Wait time estimation: informacja o czasie oczekiwania | ✅ | WaitTimeEstimationService (@Scheduled fixedDelay=30s), QueueWaitUpdatePayload (DTO eventu QUEUE_WAIT_UPDATE), QueueStatsResponse (z avgHandleTimeSeconds), ContactRepository +2 native SQL (countWaitingByQueueId, getAvgHandleTimeSeconds fallback 300s), QueueController GET /api/queues/{id}/stats. EWT = ceil(waiting/agents*avg), edge cases: waiting=0→0, agents=0→MAX_VALUE. Poprawki CR: B1 AND is_deleted=false dodane do obu zapytań SQL, B2 partial entity usunięte z kontrolera (serwis ładuje encję sam przez getQueueStats(tenantId, queueId)), B3 ConcurrentHashMap zamiast Redis SCAN per HTTP. 644 testów PASS. |
 | BE-022 | Campaign CRUD API i harmonogram | ✅ | Campaign.java, CampaignRepository, CampaignService, CampaignController + DTOs, V026 migracja. Odblokowuje BE-023, FE-015 |
 | BE-023 | Import CSV kontaktów kampanii (async job) | ✅ | CampaignImportController (POST import + GET status), CampaignImportService (@Async, OpenCSV, batch JdbcTemplate chunk 1000, deduplikacja ON CONFLICT), Redis TTL 1h dla statusu joba, V027 unikalny indeks (campaign_id, phone). 25 nowych testów, 467 PASS |
 | BE-024 | Progressive Dialer: silnik automatycznego dzwonienia | ⬜ | |
@@ -126,9 +126,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 20/20 | 0 | 0 | 20 |
-| Backend (BE) | 25/33 | 0 | 8 | 33 |
+| Backend (BE) | 26/33 | 0 | 7 | 33 |
 | Frontend (FE) | 22/25 | 0 | 3 | 25 |
-| **RAZEM** | **67/78** | **0** | **11** | **78** |
+| **RAZEM** | **68/78** | **0** | **10** | **78** |
 
 ---
 
@@ -172,7 +172,7 @@
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 20/20 ✅ | BE: 25/33 (BE-001 ✅, BE-001b ✅, BE-002 ✅, BE-003 ✅, BE-004 ✅, BE-005 ✅, BE-006 ✅, BE-007 ✅, BE-008 ✅, BE-009 ✅, BE-010 ✅, BE-011 ✅, BE-012 ✅, BE-013 ✅, BE-015 ✅, BE-016 ✅, BE-019 ✅, BE-020 ✅, BE-022 ✅, BE-023 ✅, BE-025 ✅, BE-026 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 22/25 (FE-001..FE-012 ✅, FE-014 ✅, FE-015 ✅, FE-016 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-020 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
+**Stan na:** DB: 20/20 ✅ | BE: 26/33 (BE-001 ✅, BE-001b ✅, BE-002 ✅, BE-003 ✅, BE-004 ✅, BE-005 ✅, BE-006 ✅, BE-007 ✅, BE-008 ✅, BE-009 ✅, BE-010 ✅, BE-011 ✅, BE-012 ✅, BE-013 ✅, BE-015 ✅, BE-016 ✅, BE-019 ✅, BE-020 ✅, BE-021 ✅, BE-022 ✅, BE-023 ✅, BE-025 ✅, BE-026 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 22/25 (FE-001..FE-012 ✅, FE-014 ✅, FE-015 ✅, FE-016 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-020 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
 
 ---
 

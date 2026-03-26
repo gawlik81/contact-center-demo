@@ -538,17 +538,20 @@ Endpointy: `POST /api/queues`, `GET /api/queues`, `GET /api/queues/{id}`, `PATCH
 **Priorytet:** Should Have
 **Zlozonosc:** M
 **Zależy od:** BE-019, BE-020
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-26
 **Blokuje:** brak
 **Odniesienie PRD:** US-07-04, EPIC-07
 
 **Opis:**
 Serwis kalkulujący szacowany czas oczekiwania w kolejce na podstawie: liczby oczekujących, dostępnych agentów, historycznego AVG handle time (z ostatnich 7 dni z data warehouse lub lokalna agregacja). Wynik zwracany w evencie QUEUE_WAIT_UPDATE przez RabbitMQ → WebSocket do klienta (np. przez IVR lub widget na stronie).
 
+Zrealizowane: `WaitTimeEstimationService` (@Scheduled fixedDelay=30s), `QueueWaitUpdatePayload` (DTO eventu QUEUE_WAIT_UPDATE), `QueueStatsResponse` (z avgHandleTimeSeconds), `ContactRepository` +2 native SQL (`countWaitingByQueueId` i `getAvgHandleTimeSeconds` z fallback 300s, oba z `AND is_deleted = false`), `QueueController` GET /api/queues/{id}/stats. EWT = ceil(waiting/agents*avg), edge cases: waiting=0→0, agents=0→MAX_VALUE. Cache: `ConcurrentHashMap` po stronie serwisu (nie Redis SCAN per HTTP). Partial entity usunięte z kontrolera – serwis ładuje encję sam przez `getQueueStats(tenantId, queueId)`. 644 testów PASS.
+
 **Kryteria akceptacji:**
-- [ ] Szacowany czas obliczany: (waiting_count / available_agents) * avg_handle_time_seconds
-- [ ] AVG handle time obliczany z ostatnich 7 dni z tabeli CONTACT
-- [ ] Wynik aktualizowany co 30s dla aktywnych kolejek
+- [x] Szacowany czas obliczany: (waiting_count / available_agents) * avg_handle_time_seconds
+- [x] AVG handle time obliczany z ostatnich 7 dni z tabeli CONTACT
+- [x] Wynik aktualizowany co 30s dla aktywnych kolejek
 
 ---
 

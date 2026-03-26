@@ -2,6 +2,7 @@ package com.contactcenter.api.queue;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.domain.service.QueueService;
+import com.contactcenter.domain.service.WaitTimeEstimationService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -52,6 +53,7 @@ import java.util.UUID;
 public class QueueController {
 
     private final QueueService queueService;
+    private final WaitTimeEstimationService waitTimeEstimationService;
 
     // =========================================================================
     // Lista kolejek
@@ -190,6 +192,34 @@ public class QueueController {
 
         QueueResponse response = queueService.updateQueue(id, request, tenantId);
         return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Statystyki RT kolejki (EWT)
+    // =========================================================================
+
+    @GetMapping("/{id}/stats")
+    @Operation(
+        summary = "Statystyki RT kolejki",
+        description = "Zwraca statystyki real-time kolejki: liczba oczekujących, " +
+                      "dostępnych agentów i szacowany czas oczekiwania (EWT). " +
+                      "EWT = Integer.MAX_VALUE gdy brak dostępnych agentów.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Statystyki kolejki"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "422", description = "Kolejka nie istnieje")
+        }
+    )
+    public ResponseEntity<QueueStatsResponse> getQueueStats(
+            @Parameter(description = "UUID kolejki", required = true)
+            @PathVariable UUID id
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        log.debug("[QueueController] Statystyki RT kolejki: queueId={}, tenant={}", id, tenantId);
+
+        QueueStatsResponse stats = waitTimeEstimationService.getQueueStats(tenantId, id);
+        return ResponseEntity.ok(stats);
     }
 
     // =========================================================================

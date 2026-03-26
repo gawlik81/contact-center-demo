@@ -107,6 +107,28 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 
 **Test gap pattern:** Missing test for RFC 5322 address format `"Name <email>"` — a format universally produced by real email servers. Any email routing test suite must include this case.
 
+## BE-021 (Wait Time Estimation / EWT) — new issues found 2026-03-26
+
+**Critical bugs — must fix before merge:**
+- `countWaitingByQueueId` and `getAvgHandleTimeSeconds` in `ContactRepository` do not filter `is_deleted = false`. Soft-deleted contacts with status QUEUED inflate `waitingCount`, producing incorrect EWT. Same risk for AVG handle time if deleted contacts have anomalous durations.
+- `QueueController.getQueueStats` reconstructs a partial `Queue` entity from DTO fields (only 3 of ~10 fields set). Passed to `WaitTimeEstimationService.getQueueStats`. If service is ever extended to access `routingStrategy` or other fields on the partial entity, NPE at runtime. Anti-pattern: controller should pass UUIDs, let service load entity from repository.
+- `GET /api/queues/{id}/stats` triggers full Redis SCAN on every HTTP request without caching — potential DoS vector. Cache result with short TTL (5–10s) using Redis key `cache:queue:stats:{queueId}`.
+
+**Architecture violations:**
+- `broadcastWaitTimeUpdates` uses `fixedRate` (not `fixedDelay`) — second invocation can start before first completes if processing takes > 30s. No ShedLock for multi-instance deployments. Two pod instances would double-broadcast EWT every 30s.
+- `tenantRepository.findAllByOrderByNameAsc()` fetches ALL tenants to Java, then filters ACTIVE in stream. Should use `findAllByStatusOrderByNameAsc(ACTIVE)` for DB-side filtering.
+- Hardcoded `1000` queue limit per tenant in `processTenant` — silent truncation with no WARNING log when limit is hit.
+
+**Pattern to check:** new ContactRepository query methods for `is_deleted = false` filter — three new queries in this PR all skip it. Establish rule: every new SQL query on `contact` table must include `AND is_deleted = false` unless explicitly querying deleted records.
+
+**Redis SCAN per-tenant pattern:** Both `DefaultRoutingEngine` (BE-019) and `WaitTimeEstimationService` (BE-021) scan `session:agent:*` (all tenants) and filter in Java. Root fix: change key namespace to `session:agent:{tenantId}:{userId}` in `UserService.updateStatus`. Both consumers would then SCAN `session:agent:{tenantId}:*`. Track as known tech debt.
+
+**Positive patterns in BE-021:**
+- Single Redis SCAN shared across all tenants in one scheduler tick — good N→1 optimization.
+- Resilient try/catch per-queue and per-tenant in scheduler — errors in one queue don't affect others.
+- EWT formula documented in Javadoc with all edge cases clearly stated.
+- `countAvailableAgents` cross-tenant isolation via `tenantId` field check in Redis session map.
+
 ## Architectural patterns observed in BE-027
 
 **Partitioned table pattern (new in BE-027):**

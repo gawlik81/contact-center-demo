@@ -55,3 +55,4 @@
   dependency
 - [BE-016 Email Templates CRUD API](project_be016_email_templates.md) – CRUD szablonów email, Mustache rendering, TemplateRenderException (HTTP 422), V028
   migracja, integracja z EmailSendService
+- [BE-021 Wait Time Estimation](project_be021_wait_time.md) – EWT co 30s, WaitTimeEstimationService, QUEUE_WAIT_UPDATE WebSocket, GET /api/queues/{id}/stats

@@ -1,8 +1,10 @@
-package com.contactcenter.domain.email;
+package com.contactcenter.domain.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -99,6 +101,7 @@ public class EmailMessage {
      * Metadane załączników jako JSON.
      * Format: [{"filename": "...", "content_type": "...", "size_bytes": N, "s3_url": "..."}]
      */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attachments", columnDefinition = "jsonb")
     @Builder.Default
     private String attachments = "[]";

@@ -1,5 +1,11 @@
 package com.contactcenter.domain.email;
 
+import com.contactcenter.domain.model.EmailMessage;
+import com.contactcenter.domain.model.EmailRoutingRule;
+import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.repository.EmailMessageRepository;
+import com.contactcenter.domain.repository.EmailRoutingRuleRepository;
+import com.contactcenter.domain.repository.QueueRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,6 +31,7 @@ import static org.mockito.Mockito.*;
  * <ul>
  *   <li>Dopasowanie reguły po subject (CONTAINS)</li>
  *   <li>Dopasowanie reguły po from_address (CONTAINS)</li>
+ *   <li>Fallback na kolejkę przypisaną do adresu email (to_address)</li>
  *   <li>Fallback na kolejkę domyślną z tenant.config</li>
  *   <li>Brak reguł i brak kolejki domyślnej – brak publikacji queued</li>
  * </ul>
@@ -33,11 +40,12 @@ import static org.mockito.Mockito.*;
 @DisplayName("EmailRoutingService – routing wiadomości do kolejek")
 class EmailRoutingServiceTest {
 
-    private static final UUID TENANT_ID     = UUID.fromString("11111111-1111-1111-1111-111111111111");
-    private static final UUID MESSAGE_ID    = UUID.fromString("22222222-2222-2222-2222-222222222222");
-    private static final UUID QUEUE_VIP     = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-    private static final UUID QUEUE_URGENT  = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-    private static final UUID QUEUE_DEFAULT = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static final UUID TENANT_ID      = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID MESSAGE_ID     = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    private static final UUID QUEUE_VIP      = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static final UUID QUEUE_URGENT   = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static final UUID QUEUE_DEFAULT  = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static final UUID QUEUE_BY_EMAIL = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
 
     @Mock
     private EmailMessageRepository emailMessageRepository;
@@ -45,13 +53,15 @@ class EmailRoutingServiceTest {
     private EmailEventPublisher emailEventPublisher;
     @Mock
     private EmailRoutingRuleRepository routingRuleRepository;
+    @Mock
+    private QueueRepository queueRepository;
 
     private EmailRoutingService routingService;
 
     @BeforeEach
     void setUp() {
         routingService = new EmailRoutingService(
-                emailMessageRepository, emailEventPublisher, routingRuleRepository);
+                emailMessageRepository, emailEventPublisher, routingRuleRepository, queueRepository);
     }
 
     // =========================================================================
@@ -224,12 +234,85 @@ class EmailRoutingServiceTest {
         }
 
         @Test
+        @DisplayName("powinien użyć kolejki przypisanej do adresu email gdy brak pasującej reguły")
+        void shouldFallbackToQueueByEmailAddress() {
+            EmailMessage message = buildMessageWithTo("Wiadomość na znany adres",
+                    "user@external.com", "sales@mycompany.com");
+
+            when(routingRuleRepository.findActiveByTenantId(TENANT_ID))
+                    .thenReturn(List.of()); // brak reguł
+
+            Queue salesQueue = Queue.builder()
+                    .queueId(QUEUE_BY_EMAIL)
+                    .tenantId(TENANT_ID)
+                    .name("Sales Queue")
+                    .emailAddress("sales@mycompany.com")
+                    .routingStrategy("ROUND_ROBIN")
+                    .active(true)
+                    .build();
+            when(queueRepository.findByEmailAddressAndTenantId("sales@mycompany.com", TENANT_ID))
+                    .thenReturn(java.util.Optional.of(salesQueue));
+
+            routingService.route(message, Map.of());
+
+            ArgumentCaptor<UUID> queueCaptor = ArgumentCaptor.forClass(UUID.class);
+            verify(emailEventPublisher).publishQueued(eq(message), queueCaptor.capture());
+            assertThat(queueCaptor.getValue()).isEqualTo(QUEUE_BY_EMAIL);
+        }
+
+        @Test
+        @DisplayName("powinien wziąć pierwszy adres z listy to_address gdy wiele adresów rozdzielonych przecinkiem")
+        void shouldUsePrimaryToAddressFromCommaList() {
+            EmailMessage message = buildMessageWithTo("Temat", "sender@ext.com",
+                    "sales@mycompany.com, info@mycompany.com");
+
+            when(routingRuleRepository.findActiveByTenantId(TENANT_ID))
+                    .thenReturn(List.of());
+
+            Queue salesQueue = Queue.builder()
+                    .queueId(QUEUE_BY_EMAIL)
+                    .tenantId(TENANT_ID)
+                    .name("Sales Queue")
+                    .emailAddress("sales@mycompany.com")
+                    .routingStrategy("ROUND_ROBIN")
+                    .active(true)
+                    .build();
+            when(queueRepository.findByEmailAddressAndTenantId("sales@mycompany.com", TENANT_ID))
+                    .thenReturn(java.util.Optional.of(salesQueue));
+
+            routingService.route(message, Map.of());
+
+            verify(emailEventPublisher).publishQueued(eq(message), eq(QUEUE_BY_EMAIL));
+        }
+
+        @Test
+        @DisplayName("reguły powinny mieć wyższy priorytet niż fallback po adresie email kolejki")
+        void shouldPreferRulesOverEmailAddressFallback() {
+            EmailMessage message = buildMessageWithTo("URGENT", "vip@vip.com", "sales@mycompany.com");
+
+            EmailRoutingRule urgentRule = buildRule(
+                    """
+                    [{"field": "subject", "operator": "CONTAINS", "value": "URGENT"}]
+                    """, QUEUE_URGENT);
+
+            when(routingRuleRepository.findActiveByTenantId(TENANT_ID))
+                    .thenReturn(List.of(urgentRule));
+
+            routingService.route(message, Map.of());
+
+            verify(emailEventPublisher).publishQueued(eq(message), eq(QUEUE_URGENT));
+            // queueRepository nie powinno być odpytywane – reguła wygrała wcześniej
+            verify(queueRepository, never()).findByEmailAddressAndTenantId(any(), any());
+        }
+
+        @Test
         @DisplayName("brak reguł i brak kolejki domyślnej – publishQueued NIE powinien być wywołany")
         void shouldNotPublishQueuedWhenNoRulesAndNoDefault() {
             EmailMessage message = buildMessage("Wiadomość bez routingu", "user@example.com");
 
             when(routingRuleRepository.findActiveByTenantId(TENANT_ID))
                     .thenReturn(List.of());
+            // queueRepository zwraca empty (domyślne zachowanie Mockito dla Optional)
 
             routingService.route(message, Map.of()); // brak email_default_queue_id
 

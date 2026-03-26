@@ -1,5 +1,6 @@
 package com.contactcenter.api.queue;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -35,6 +36,10 @@ public record CreateQueueRequest(
         String routingStrategy,
 
         List<String> requiredSkills,
+
+        @Email(message = "emailAddress musi być poprawnym adresem email")
+        @Size(max = 255, message = "emailAddress nie może przekraczać 255 znaków")
+        String emailAddress,
 
         @Min(value = 0, message = "stickyAgentTimeoutSeconds musi być >= 0")
         Integer stickyAgentTimeoutSeconds,

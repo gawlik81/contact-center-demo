@@ -75,6 +75,28 @@
         }
       </div>
 
+      <!-- Email address -->
+      <div class="form-field" [class.form-field--error]="emailAddressError">
+        <label class="form-label" for="queue-email">
+          Adres email kolejki (opcjonalnie)
+        </label>
+        <input
+          id="queue-email"
+          type="email"
+          class="form-input"
+          formControlName="emailAddress"
+          autocomplete="off"
+          placeholder="np. support@firma.pl"
+          [attr.aria-describedby]="emailAddressError ? 'queue-email-error' : 'queue-email-hint'"
+          [attr.aria-invalid]="emailAddressError ? 'true' : null"
+        />
+        @if (emailAddressError) {
+          <span id="queue-email-error" class="form-error" role="alert">{{ emailAddressError }}</span>
+        } @else {
+          <span id="queue-email-hint" class="form-hint">Emaile przychodzace na ten adres beda automatycznie kierowane do tej kolejki.</span>
+        }
+      </div>
+
       <!-- Required skills multi-select -->
       <div class="form-field">
         <label class="form-label" for="skill-input">Wymagane skills</label>
@@ -147,13 +169,13 @@
               id="queue-active"
               type="checkbox"
               class="toggle-input"
-              formControlName="isActive"
+              formControlName="active"
               role="switch"
-              [attr.aria-checked]="form.get('isActive')?.value"
+              [attr.aria-checked]="form.get('active')?.value"
             />
             <span class="toggle-track" aria-hidden="true"></span>
             <span class="toggle-text">
-              {{ form.get('isActive')?.value ? 'Aktywna' : 'Nieaktywna' }}
+              {{ form.get('active')?.value ? 'Aktywna' : 'Nieaktywna' }}
             </span>
           </label>
         </div>

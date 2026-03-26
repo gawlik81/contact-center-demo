@@ -1,0 +1,264 @@
+@if (loading()) {
+  <div class="email-loading" role="status" aria-label="Ladowanie wiadomosci email">
+    <span class="email-loading__spinner" aria-hidden="true"></span>
+    <span class="email-loading__text">Ladowanie wiadomosci...</span>
+  </div>
+} @else if (error() && !rootMessage()) {
+  <div class="email-error" role="alert">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="email-error__icon">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+    </svg>
+    <p>{{ error() }}</p>
+  </div>
+} @else if (rootMessage()) {
+  <div class="email-contact">
+    <!-- HEADER -->
+    <header class="email-header">
+      <div class="email-header__subject-row">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="email-header__icon">
+          <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+        </svg>
+        <h2 class="email-header__title" [title]="rootMessage()!.subject">
+          {{ rootMessage()!.subject }}
+        </h2>
+        <span
+          class="email-header__status"
+          [class.email-header__status--active]="rootMessage()!.status === 'ACTIVE'"
+        >
+          {{ rootMessage()!.status }}
+        </span>
+      </div>
+      <div class="email-header__meta">
+        <span class="email-header__from">
+          <strong>Od:</strong> {{ rootMessage()!.fromAddress }}
+        </span>
+        <span class="email-header__to">
+          <strong>Do:</strong> {{ rootMessage()!.toAddresses.join(', ') }}
+        </span>
+      </div>
+      @if (error()) {
+        <div class="email-header__error" role="alert" aria-live="polite">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+          </svg>
+          {{ error() }}
+        </div>
+      }
+    </header>
+
+    <!-- BODY -->
+    <div class="email-body">
+      <!-- LEFT: Thread -->
+      <section class="email-thread" role="region" aria-label="Watek wiadomosci email">
+        @if (hasMore()) {
+          <div class="email-thread__load-more">
+            <button
+              type="button"
+              class="email-thread__load-btn"
+              [disabled]="loadingMore()"
+              aria-label="Zaladuj starsze wiadomosci"
+              (click)="loadMoreMessages()"
+            >
+              @if (loadingMore()) {
+                <span class="btn-spinner" aria-hidden="true"></span>
+                <span>Ladowanie...</span>
+              } @else {
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7 14l5-5 5 5z" />
+                </svg>
+                <span>Zaladuj wiecej</span>
+              }
+            </button>
+          </div>
+        }
+
+        <div class="email-thread__messages">
+          @for (msg of thread(); track trackByMessageId($index, msg)) {
+            <cc-email-thread-message [message]="msg" />
+          }
+        </div>
+      </section>
+
+      <!-- RIGHT: Reply panel -->
+      <section class="email-reply" role="region" aria-label="Panel odpowiedzi">
+        <div class="email-reply__inner">
+
+          <!-- Template selector -->
+          <div class="email-reply__field-group">
+            <label class="field-label" for="template-search">Szablon odpowiedzi (opcjonalnie)</label>
+            <div class="autocomplete-wrapper">
+              <input
+                id="template-search"
+                type="text"
+                class="field-input"
+                placeholder="Zacznij pisac nazwe szablonu..."
+                [formControl]="templateSearchControl"
+                aria-label="Wyszukaj szablon odpowiedzi"
+                aria-autocomplete="list"
+                [attr.aria-expanded]="filteredTemplates().length > 0 && templateSearchControl.value !== ''"
+                aria-controls="template-list"
+              />
+              @if (filteredTemplates().length > 0 && templateSearchControl.value) {
+                <ul
+                  id="template-list"
+                  class="autocomplete-list"
+                  role="listbox"
+                  aria-label="Dostepne szablony"
+                >
+                  @for (tpl of filteredTemplates(); track trackByTemplateId($index, tpl)) {
+                    <li
+                      class="autocomplete-item"
+                      role="option"
+                      [attr.aria-selected]="selectedTemplate()?.id === tpl.id"
+                      (click)="onTemplateSelected(tpl)"
+                      (keydown.enter)="onTemplateSelected(tpl)"
+                      tabindex="0"
+                    >
+                      <span class="autocomplete-item__name">{{ tpl.name }}</span>
+                      @if (tpl.variables.length > 0) {
+                        <span class="autocomplete-item__vars">
+                          {{ tpl.variables.length }} zmiennych
+                        </span>
+                      }
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          </div>
+
+          <!-- Template variables form -->
+          @if (showVariableForm() && hasTemplateVariables()) {
+            <div class="email-reply__variables" role="group" aria-label="Zmienne szablonu">
+              <p class="email-reply__variables-title">Uzupelnij zmienne szablonu:</p>
+              @for (key of getVariableKeys(); track trackByKey($index, key)) {
+                <div class="email-reply__field-group">
+                  <label class="field-label" [for]="'var-' + key">{{ key }}</label>
+                  <input
+                    [id]="'var-' + key"
+                    type="text"
+                    class="field-input"
+                    [value]="templateVariables()[key]"
+                    [attr.aria-label]="'Wartosc zmiennej ' + key"
+                    (input)="onVariableChange(key, $any($event.target).value)"
+                  />
+                </div>
+              }
+              <button
+                type="button"
+                class="btn btn--secondary"
+                aria-label="Podgladnij szablon z uzupelnionymi zmiennymi"
+                (click)="previewTemplate()"
+              >
+                Podgladnij szablon
+              </button>
+            </div>
+          }
+
+          <!-- Subject -->
+          <div class="email-reply__field-group">
+            <label class="field-label" for="reply-subject">Temat odpowiedzi</label>
+            <input
+              id="reply-subject"
+              type="text"
+              class="field-input"
+              [value]="replySubject()"
+              aria-label="Temat odpowiedzi email"
+              (input)="replySubject.set($any($event.target).value)"
+            />
+          </div>
+
+          <!-- Rich text editor -->
+          <div class="email-reply__editor-wrapper">
+            <div
+              class="email-reply__toolbar"
+              role="toolbar"
+              aria-label="Pasek narzedzi edytora"
+            >
+              <button
+                type="button"
+                class="editor-btn"
+                title="Pogrubienie"
+                aria-label="Pogrubienie (Ctrl+B)"
+                (click)="execCommand('bold')"
+              >
+                <strong>B</strong>
+              </button>
+              <button
+                type="button"
+                class="editor-btn editor-btn--italic"
+                title="Kursywa"
+                aria-label="Kursywa (Ctrl+I)"
+                (click)="execCommand('italic')"
+              >
+                <em>I</em>
+              </button>
+              <button
+                type="button"
+                class="editor-btn editor-btn--underline"
+                title="Podkreslenie"
+                aria-label="Podkreslenie (Ctrl+U)"
+                (click)="execCommand('underline')"
+              >
+                <u>U</u>
+              </button>
+              <div class="editor-separator" aria-hidden="true"></div>
+              <button
+                type="button"
+                class="editor-btn"
+                title="Wstaw link"
+                aria-label="Wstaw hiperlink"
+                (click)="insertLink()"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" />
+                </svg>
+              </button>
+            </div>
+
+            <div
+              class="email-reply__editor"
+              contenteditable="true"
+              dir="ltr"
+              #editor
+              role="textbox"
+              aria-multiline="true"
+              aria-label="Tresc odpowiedzi"
+              data-placeholder="Wpisz odpowiedz..."
+              (input)="onEditorInput($event)"
+            ></div>
+          </div>
+
+          <!-- Actions -->
+          <div class="email-reply__actions">
+            <button
+              type="button"
+              class="btn btn--primary"
+              [disabled]="!canSend()"
+              aria-label="Wyslij odpowiedz email"
+              (click)="sendReply()"
+            >
+              @if (sending()) {
+                <span class="btn-spinner btn-spinner--light" aria-hidden="true"></span>
+                <span>Wysylanie...</span>
+              } @else {
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
+                <span>Wyslij odpowiedz</span>
+              }
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost"
+              aria-label="Anuluj i zamknij zakladke email"
+              (click)="cancelReply()"
+            >
+              Anuluj
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+}

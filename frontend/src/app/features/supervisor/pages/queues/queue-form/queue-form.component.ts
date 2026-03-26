@@ -59,7 +59,8 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly form = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(100)]],
     routingStrategy: ['', Validators.required],
-    isActive: [true],
+    emailAddress: ['', [Validators.email, Validators.maxLength(255)]],
+    active: [true],
   });
 
   ngOnInit(): void {
@@ -70,13 +71,14 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
       this.form.patchValue({
         name: editQueue.name,
         routingStrategy: editQueue.routingStrategy,
-        isActive: editQueue.isActive,
+        emailAddress: editQueue.emailAddress ?? '',
+        active: editQueue.active,
       });
       this.selectedSkills.set([...editQueue.requiredSkills]);
     }
 
     if (!this.isEditMode()) {
-      this.form.get('isActive')?.setValue(true);
+      this.form.get('active')?.setValue(true);
     }
   }
 
@@ -175,6 +177,14 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
     return null;
   }
 
+  get emailAddressError(): string | null {
+    const ctrl = this.form.get('emailAddress')!;
+    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
+    if (ctrl.hasError('email')) return 'Podaj prawidlowy adres email.';
+    if (ctrl.hasError('maxlength')) return 'Adres email nie moze przekraczac 255 znakow.';
+    return null;
+  }
+
   get isSaveDisabled(): boolean {
     return this.form.invalid || this.submitting();
   }
@@ -187,14 +197,16 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
     const raw = this.form.getRawValue();
     const skills = this.selectedSkills();
 
+    const emailAddress = raw.emailAddress?.trim() || null;
     const editQueue = this.queue();
     if (this.isEditMode() && editQueue) {
       this.queueService
-        .updateQueue(editQueue.id, {
+        .updateQueue(editQueue.queueId, {
           name: raw.name!.trim(),
           routingStrategy: raw.routingStrategy!,
           requiredSkills: skills,
-          isActive: raw.isActive ?? true,
+          emailAddress,
+          active: raw.active ?? true,
         })
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
@@ -214,6 +226,7 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
           name: raw.name!.trim(),
           routingStrategy: raw.routingStrategy!,
           requiredSkills: skills,
+          emailAddress,
         })
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({

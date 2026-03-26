@@ -82,13 +82,20 @@ export const SUPERVISOR_ROUTES: Routes = [
           import('./pages/reports/reports-placeholder.component').then((m) => m.ReportsComponent),
       },
       {
-        // TODO FE-014: Replace placeholder with real Settings component
         path: 'settings',
-        data: { breadcrumb: 'Konfiguracja' },
-        loadComponent: () =>
-          import('./pages/settings/settings-placeholder.component').then(
-            (m) => m.SettingsPlaceholderComponent,
-          ),
+        data: { breadcrumb: 'Konfiguracja', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
+        children: [
+          { path: '', redirectTo: 'email', pathMatch: 'full' },
+          {
+            path: 'email',
+            data: { breadcrumb: 'Email' },
+            loadComponent: () =>
+              import('./pages/settings/email-settings.component').then(
+                (m) => m.EmailSettingsComponent,
+              ),
+          },
+        ],
       },
       {
         path: 'ivr',

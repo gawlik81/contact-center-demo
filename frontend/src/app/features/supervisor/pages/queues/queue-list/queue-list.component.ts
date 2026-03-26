@@ -133,7 +133,7 @@ export class QueueListComponent implements OnInit {
     this.deleting.set(true);
 
     this.queueService
-      .deleteQueue(queue.id)
+      .deleteQueue(queue.queueId)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError((err: { status?: number }) => {
@@ -158,10 +158,10 @@ export class QueueListComponent implements OnInit {
   }
 
   toggleActive(queue: Queue): void {
-    this.toggling.set(queue.id);
+    this.toggling.set(queue.queueId);
 
     this.queueService
-      .updateQueue(queue.id, { isActive: !queue.isActive })
+      .updateQueue(queue.queueId, { active: !queue.active })
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
@@ -172,7 +172,7 @@ export class QueueListComponent implements OnInit {
       )
       .subscribe((updated) => {
         if (updated) {
-          const label = updated.isActive ? 'aktywowana' : 'dezaktywowana';
+          const label = updated.active ? 'aktywowana' : 'dezaktywowana';
           this.notifications.success(`Kolejka "${updated.name}" zostala ${label}.`);
           this.loadQueues();
         }
@@ -198,6 +198,6 @@ export class QueueListComponent implements OnInit {
     Math.min((this.currentPage() + 1) * this.pageSize, this.totalElements());
 
   trackByQueueId(_index: number, queue: Queue): string {
-    return queue.id;
+    return queue.queueId;
   }
 }

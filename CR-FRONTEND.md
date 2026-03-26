@@ -642,3 +642,75 @@ Sugestia: usunąć `aria-live` z `<table>` i przenieść na informację o wynika
 Panel kolejek jest solidną implementacją z dobrym wzorcem sygnałów i właściwym użyciem `showModal()`. Jeden błąd logiczny jest krytyczny: porównanie `$event.target === dialogEl` w szablonie (typ `HTMLElement` vs `ElementRef`) sprawia, że zamknięcie modala kliknięciem w backdrop nigdy nie działa. Brakujący `roleGuard` na trasie `queues` to luka bezpieczeństwa po stronie UI. Problem z wieloma równoległymi żądaniami HTTP (`loadQueues` bez `switchMap`) może powodować niespójność stanu przy szybkiej paginacji. Pozostałe uwagi to ulepszenia jakości i dostępności.
 
 **Ocena: 3.5/5** — poprawny kod z jednym błędem logicznym (backdrop click), brakującym guard bezpieczeństwa i kilkoma wzorcami do dopracowania przed release.
+
+## Review: queue-form.component.ts, queue-form.component.html, queue.model.ts — 2026-03-26
+
+### Bugs / Critical Issues
+
+_None identified._
+
+### Security Concerns
+
+_None identified._
+
+### Architecture / Pattern Violations
+
+_None identified._
+
+### Improvements & Suggestions
+
+**[queue-form.component.ts:74] `emailAddress` inicjalizowany jako `''` w trybie edycji zamiast `null` — niespójna semantyka z modelem**
+
+```typescript
+emailAddress: editQueue.emailAddress ?? '',
+```
+
+Gdy `editQueue.emailAddress` jest `null` (kolejka bez adresu email), formularz inicjalizuje pole jako pusty string `''`. Po edycji kolejki bez zmiany emailAddress, `onSubmit()` wyśle `emailAddress: null` (linia 200: `raw.emailAddress?.trim() || null`). Wynik poprawny. Jednak jeśli użytkownik otworzy formularz, nie zmieni nic i kliknie Zapisz — formularz wyśle `null` zamiast `undefined`. Zależy od implementacji backendu (PATCH), czy `null` jest rozumiane jako "wyczyść pole" vs "nie zmieniaj". Warto ujednolicić inicjalizację do `null`:
+```typescript
+emailAddress: editQueue.emailAddress ?? null,
+```
+Co wymaga zmiany inicjalizacji FormControl z `['', [...]]` na `[null, [...]]`.
+
+**[queue-form.component.ts:62] `Validators.email` Angular nie obsługuje poprawnie adresów RFC 5322 z display name**
+
+```typescript
+emailAddress: ['', [Validators.email, Validators.maxLength(255)]],
+```
+
+`Validators.email` Angular stosuje uproszczoną walidację (sprawdza obecność `@` i strukturę domeny). Nie obsługuje jednak formatu `"Name <email@domain.com>"`. Jeśli użytkownik wklei adres w formacie z display name (co jest powszechne przy kopiowaniu z klientów email), Angular oznaczy pole jako invalid przez `Validators.email`. Jest to właściwe zachowanie — baza danych powinna przechowywać czysty adres email, nie RFC 5322 encoded. Warto jednak dodać hint w szablonie informujący, że format powinien być `email@domena.pl` (bez display name). Aktualny placeholder `"np. support@firma.pl"` jest dobrym startem, ale można dodać instrukcję do `form-hint`.
+
+**[queue-form.component.ts:80–83] Zbędny blok `if (!this.isEditMode())` — martwy kod**
+
+```typescript
+if (!this.isEditMode()) {
+  this.form.get('isActive')?.setValue(true);
+}
+```
+
+`isActive` jest inicjalizowane jako `[true]` w FormGroup (linia 63). Ten blok ustawia tę samą wartość, która jest już domyślna. Można go usunąć bez żadnego efektu na zachowanie.
+
+**[queue-form.component.html:87–88] Brak `aria-required="false"` lub dodatkowego tekstu dla screen readerów przy polu opcjonalnym**
+
+```html
+<label class="form-label" for="queue-email">
+  Adres email kolejki (opcjonalnie)
+</label>
+```
+
+Pole jest opisane jako "(opcjonalnie)" w etykiecie tekstowej — to dobra praktyka. Jednak screen readery nie rozróżniają wizualnie "Adres email kolejki (opcjonalnie)" od pola wymaganego. Brak `aria-required="false"` (choć wartość domyślna to `false`) i brak `aria-describedby` wskazującego na hint gdy nie ma błędu jest pominięciem. Aktualnie `aria-describedby` wskazuje na `queue-email-hint` gdy brak błędu — to jest właśnie prawidłowe i pokrywa ten przypadek. Obserwacja: wzorzec `[attr.aria-describedby]="emailAddressError ? 'queue-email-error' : 'queue-email-hint'"` zapewnia stały dostęp do opisu zarówno w stanie błędu jak i normalnym.
+
+### Positive Observations
+
+- **`emailAddress` poprawnie opcjonalne w obu DTO** — `CreateQueueRequest.emailAddress?: string | null` i `UpdateQueueRequest.emailAddress?: string | null` z typem union `string | null` poprawnie modeluje stan "nie podano" vs "wyczyść". 
+- **`raw.emailAddress?.trim() || null`** — prosta, poprawna konwersja pustego stringa na null przed wysłaniem do API. Zapewnia, że backend nigdy nie dostanie pustego stringa zamiast null.
+- **`Validators.email` + `Validators.maxLength(255)`** — walidacja klienta spójna z CHECK constraint w bazie (`email_address LIKE '%@%'` i `VARCHAR(255)`). 
+- **`get emailAddressError()` z pełną obsługą stanów** — sprawdza `invalid`, `dirty` i `touched` przed wyświetleniem błędu, co zapobiega przedwczesnemu wyświetlaniu błędów przy pustym formularzu.
+- **Pole email widoczne zarówno w trybie tworzenia jak i edycji** — brak warunku `@if (isEditMode())` wokół pola email, co jest prawidłowe (adres można ustawić przy obu operacjach).
+- **`type="email"` na `<input>`** — przeglądarka na mobile automatycznie wyświetli klawiaturę email z `@` i `.com`.
+- **Hint z opisem funkcjonalności** — "Emaile przychodzące na ten adres będą automatycznie kierowane do tej kolejki" bezpośrednio w formularzu edukuje użytkownika bez dokumentacji.
+
+### Summary
+
+Implementacja frontendowa jest wysokiej jakości: pole email jest poprawnie opcjonalne, walidacja działa, null/pusty string jest prawidłowo konwertowany, a ARIA jest zaimplementowane starannie. Jeden potencjalny problem z inicjalizacją `''` zamiast `null` w trybie edycji jest edge case bez realnego wpływu na działanie (bo `onSubmit` konwertuje oba na `null`). Martwy kod w bloku `if (!this.isEditMode())` powinien być usunięty dla czystości.
+
+**Ocena: 4.5/5** — poprawna implementacja z drobnymi usprawnieniami kosmetycznymi, brak błędów krytycznych.

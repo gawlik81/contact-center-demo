@@ -114,17 +114,21 @@ public record WebSocketEvent(
     /**
      * Tworzy event przydzielenia kontaktu do agenta.
      *
-     * @param tenantId  UUID tenanta
-     * @param agentId   UUID agenta
-     * @param contactId UUID kontaktu
-     * @param channel   kanał kontaktu (np. VOICE, CHAT, EMAIL)
+     * @param tenantId           UUID tenanta
+     * @param agentId            UUID agenta
+     * @param contactId          UUID kontaktu
+     * @param channel            kanał kontaktu (np. "PHONE", "CHAT", "EMAIL") – mapowany jako {@code type} w Angular
+     * @param customerName       nazwa wyświetlana klienta (adres email lub numer telefonu)
+     * @param customerIdentifier identyfikator klienta (adres email lub numer telefonu)
      */
     public static WebSocketEvent contactAssigned(UUID tenantId, UUID agentId,
-                                                  UUID contactId, String channel) {
+                                                  UUID contactId, String channel,
+                                                  String customerName, String customerIdentifier) {
         return new WebSocketEvent(
                 TYPE_CONTACT_ASSIGNED,
                 tenantId,
-                new ContactAssignedPayload(agentId.toString(), contactId.toString(), channel),
+                new ContactAssignedPayload(agentId.toString(), contactId.toString(), channel,
+                        customerName, customerIdentifier),
                 Instant.now()
         );
     }
@@ -263,11 +267,16 @@ public record WebSocketEvent(
 
     /**
      * Payload dla eventów przydzielenia kontaktu.
+     *
+     * <p>Pole {@code type} odpowiada interfejsowi Angular {@code ContactAssignedPayload.type}
+     * (wartości: "PHONE", "CHAT", "EMAIL") i pochodzi z pola {@code channel} encji Contact.
      */
     public record ContactAssignedPayload(
             String agentId,
             String contactId,
-            String channel
+            String type,
+            String customerName,
+            String customerIdentifier
     ) {}
 
     /**

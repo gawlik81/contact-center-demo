@@ -48,3 +48,4 @@
 - [IVR editor drag & drop (FE-014)](./project_fe014_ivr_editor.md) – IvrListComponent, IvrEditorComponent (HTML5 DnD + SVG Bezier), IvrService (localStorage
   positions), walidacja, mock audio upload
 - [FE-022 Reports module](./project_fe022_reports.md) – historical reports for SUPERVISOR/ADMIN; files created, conventions, decisions (2026-03-22)
+- [Email contact component (FE-012)](./project_fe012_email_contact.md) – EmailContactComponent (split-panel thread+reply), EmailThreadMessageComponent (iframe srcdoc), EmailService, contenteditable rich text editor, no Angular Material

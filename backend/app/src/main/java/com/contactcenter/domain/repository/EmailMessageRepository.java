@@ -1,6 +1,6 @@
-package com.contactcenter.domain.email;
+package com.contactcenter.domain.repository;
 
-import com.contactcenter.domain.repository.TenantAwareRepository;
+import com.contactcenter.domain.model.EmailMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -86,6 +86,29 @@ public class EmailMessageRepository extends TenantAwareRepository {
                         "WHERE m.messageIdHeader = :header AND m.tenantId = :tenantId",
                         EmailMessage.class)
                 .setParameter("header", messageIdHeader)
+                .setParameter("tenantId", tenantId)
+                .setMaxResults(1)
+                .getResultList();
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    /**
+     * Pobiera pierwszą wiadomość INBOUND powiązaną z kontaktem (root kontaktu email).
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     * @return Optional z wiadomością lub empty gdy brak
+     */
+    @Transactional(readOnly = true)
+    public Optional<EmailMessage> findFirstInboundByContactId(UUID contactId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        List<EmailMessage> results = em.createQuery(
+                        "SELECT m FROM EmailMessage m " +
+                        "WHERE m.contactId = :contactId AND m.tenantId = :tenantId " +
+                        "AND m.direction = 'INBOUND' " +
+                        "ORDER BY m.receivedAt ASC NULLS LAST",
+                        EmailMessage.class)
+                .setParameter("contactId", contactId)
                 .setParameter("tenantId", tenantId)
                 .setMaxResults(1)
                 .getResultList();

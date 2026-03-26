@@ -400,16 +400,16 @@ Serwis Python (FastAPI) integrujący ASR (Google Speech-to-Text lub Whisper) i p
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależy od:** BE-001, DB-007
+**Zależy od:** BE-001, DB-007, DB-020
 **Status:** ✅ Ukończone
-**Zrealizowane:** 2026-03-25
+**Zrealizowane:** 2026-03-26
 **Blokuje:** BE-016, FE-012
 **Odniesienie PRD:** US-05-01, US-05-02, US-05-04, EPIC-05
 
 **Opis:**
-Serwis emailowy: polling IMAP co 60s (konfiguracja per tenant: host, port, login, hasło zaszyfrowane), parsowanie wiadomości (JavaMail/Jakarta Mail), zapis do tabeli CONTACT. Routing emaila do kolejki przez `EmailRoutingEngine` (reguły: nadawca, temat, słowa kluczowe → kolejka). SMTP do wysyłki odpowiedzi. Linkowanie wątku po Message-ID / In-Reply-To.
+Serwis emailowy: polling IMAP co 60s (konfiguracja per tenant: host, port, login, hasło zaszyfrowane), parsowanie wiadomości (JavaMail/Jakarta Mail), zapis do tabeli CONTACT. Routing emaila do kolejki przez `EmailRoutingEngine` (reguły: nadawca, temat, słowa kluczowe → kolejka). SMTP do wysyłki odpowiedzi. Linkowanie wątku po Message-ID / In-Reply-To. Routing priorytetowy: najpierw po `email_address` kolejki (`queueRepository.findByEmailAddressAndTenantId()`), następnie po regułach routingu.
 
-Zrealizowane: `EmailPollingService` (@Scheduled, IMAP Jakarta Mail, parsowanie MimeMessage/MimeMultipart), `EmailSendService` (SMTP), `EmailRoutingService` (reguły per tenant), `EmailRoutingRule`/`EmailRoutingRuleRepository`, `EmailMessage`/`EmailMessageRepository`, `EmailAccountConfig`, `EmailEncryptionService` (AES-256), `EmailEventPublisher` (RabbitMQ), `EmailController` (GET /api/email/messages, PATCH /api/email/messages/{id}/read, POST /api/email/config, GET /api/email/config, POST /api/email/reply).
+Zrealizowane: `EmailPollingService` (@Scheduled, IMAP Jakarta Mail, parsowanie MimeMessage/MimeMultipart), `EmailSendService` (SMTP), `EmailRoutingService` (routing po email_address kolejki + reguły per tenant), `EmailRoutingRule`/`EmailRoutingRuleRepository`, `EmailMessage`/`EmailMessageRepository`, `EmailAccountConfig`, `EmailEncryptionService` (AES-256), `EmailEventPublisher` (RabbitMQ), `EmailController` (GET /api/email/messages, PATCH /api/email/messages/{id}/read, POST /api/email/config, GET /api/email/config, POST /api/email/reply). Encje przeniesione do `domain/model/`: `EmailMessage.java`, `EmailRoutingRule.java`, `EmailTemplate.java`; repozytoria do `domain/repository/`.
 
 **Kryteria akceptacji:**
 - [x] Nowe emaile odbierane w czasie < 2 min od wpłynięcia na skrzynkę
@@ -426,7 +426,8 @@ Zrealizowane: `EmailPollingService` (@Scheduled, IMAP Jakarta Mail, parsowanie M
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** BE-002, DB-007
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-26
 **Blokuje:** FE-012
 **Odniesienie PRD:** US-05-03, EPIC-05
 
@@ -434,9 +435,9 @@ Zrealizowane: `EmailPollingService` (@Scheduled, IMAP Jakarta Mail, parsowanie M
 Tabela `EMAIL_TEMPLATE` (template_id, tenant_id, name, subject_template, body_html, variables JSONB). Endpointy CRUD: `GET /api/email-templates`, `POST /api/email-templates`, `PATCH`, `DELETE`. Zmienne w szablonie jako `{{customer.first_name}}` – renderowanie przez silnik Mustache/Freemarker przed wysłaniem.
 
 **Kryteria akceptacji:**
-- [ ] Renderowanie szablonu z podstawieniem zmiennych
-- [ ] Walidacja: brak undefined zmiennych w szablonie zwraca HTTP 422 z listą brakujących pól
-- [ ] Szablony widoczne tylko w ramach tenanta (izolacja tenant_id)
+- [x] Renderowanie szablonu z podstawieniem zmiennych
+- [x] Walidacja: brak undefined zmiennych w szablonie zwraca HTTP 422 z listą brakujących pól
+- [x] Szablony widoczne tylko w ramach tenanta (izolacja tenant_id)
 
 ---
 

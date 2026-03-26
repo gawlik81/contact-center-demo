@@ -573,3 +573,123 @@ Jeśli inny komponent opublikuje `contact.queued` z dodatkowymi polami (np. `pri
 Implementacja ma solidną strukturę algorytmiczną i dobrą dokumentację, ale zawiera dwa krytyczne błędy architektoniczne: nieskończona pętla retry (`contact.queued` publikowany przez routing do samego siebie) oraz `@Async` + `@RabbitListener` bez obsługi `CompletableFuture` powodujący ciche ACK przy błędach. SCAN bez filtrowania per-tenant jest potencjalnym problemem wydajnościowym przy skali. Brak snapshot/restore TenantContext w wątku async narusza wzorzec architektoniczny projektu.
 
 **Ocena: 3/5** — algorytm routingu poprawny, ale dwa krytyczne błędy architektoniczne muszą być naprawione przed merge: nieskończona pętla retry i `@Async`/AMQP bez obsługi Future.
+
+## Review: EmailRoutingService.java, QueueRepository.java, Queue.java, EmailRoutingServiceTest.java — 2026-03-26
+
+### Bugs / Critical Issues
+
+**[EmailRoutingService.java:105] Split po przecinku nie obsługuje formatu RFC 5322 `"Name <email>"` — błędny adres przekazany do lookup**
+
+```java
+String primaryToAddress = message.getToAddress().split(",")[0].trim();
+```
+
+Gdy `to_address` zawiera RFC 5322-kompatybilne wartości jak `"Support Team <support@mycompany.com>"`, split po przecinku zwróci `"Support Team <support@mycompany.com>"` jako token (bez przecinka). Przekazanie tego do `findByEmailAddressAndTenantId` nigdy nie znajdzie kolejki, bo LOWER(`"Support Team <support@mycompany.com>"`) != LOWER(`"support@mycompany.com"`). Routing po adresie email cicho odpada i system przechodzi do fallbacku — bez loga wskazującego przyczynę.
+
+Format ten jest powszechny: większość klientów email i serwerów SMTP (Gmail, Outlook) umieszcza adresy w formacie `Display Name <addr>` w nagłówku `To:`. Efekt: funkcja routingu po adresie kolejki nigdy nie zadziała w realistycznym środowisku produkcyjnym.
+
+Sugestia — wyodrębnić adres z nawiasów ostrych przed przekazaniem do lookup:
+```java
+String raw = message.getToAddress().split(",")[0].trim();
+String primaryToAddress = extractEmailAddress(raw);
+// gdzie extractEmailAddress() stosuje regex: .*<(.+)>.*  lub zwraca raw gdy brak < >
+```
+
+**[QueueRepository.java:242–273] INSERT pominął nową kolumnę `email_address` — encja `Queue` ma pole `emailAddress`, ale INSERT go nie uwzględnia**
+
+```java
+em.createNativeQuery("""
+    INSERT INTO queue (
+        queue_id, tenant_id, name, routing_strategy,
+        required_skills, sticky_agent_timeout_seconds,
+        max_concurrent_contacts_per_agent, wait_config,
+        is_active, created_at, updated_at
+    ) VALUES (...)
+    """)
+```
+
+Migracja V029 dodała kolumnę `email_address` do tabeli `queue`. Encja `Queue.emailAddress` istnieje (linia 96). Jednak natywny INSERT w `QueueRepository.insert()` nie zawiera `email_address` w liście kolumn ani wartości. Skutek: każda nowo tworzona kolejka zawsze ma `email_address = NULL`, nawet jeśli użytkownik podał adres w formularzu. Pole jest zapisywane w encji Java, ale nigdy nie trafia do bazy danych.
+
+Natywny UPDATE w `QueueRepository.update()` (linia 301) ma ten sam błąd — brak `email_address = :emailAddress` w SET.
+
+Sugestia — dodać do INSERT:
+```sql
+INSERT INTO queue (
+    queue_id, tenant_id, name, routing_strategy,
+    required_skills, sticky_agent_timeout_seconds,
+    max_concurrent_contacts_per_agent, wait_config,
+    email_address,   -- <-- dodać
+    is_active, created_at, updated_at
+) VALUES (
+    ...,
+    :emailAddress,   -- <-- dodać
+    ...
+)
+```
+I analogicznie w UPDATE: `email_address = :emailAddress,` przed `is_active`.
+
+### Security Concerns
+
+_None identified._
+
+### Architecture / Pattern Violations
+
+_None identified._
+
+### Improvements & Suggestions
+
+**[EmailRoutingService.java:166] `new ObjectMapper()` wewnątrz `matchesRule()` — tworzenie instancji per-wywołanie**
+
+```java
+com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+conditions = mapper.readValue(rule.getConditions(), ...);
+```
+
+`ObjectMapper` jest thread-safe i drogi w inicjalizacji (rejestracja modułów, konfiguracja serializacji). Tworzenie nowej instancji przy każdym wywołaniu `matchesRule()` — a ten jest wywoływany per reguła per wiadomość — jest zbędnym narzutem. `EmailRoutingService` już ma `@RequiredArgsConstructor`, co oznacza że `ObjectMapper` można wstrzyknąć jako dependency i użyć wspólnej instancji.
+
+Sugestia — dodać `ObjectMapper` do pól klasy:
+```java
+private final ObjectMapper objectMapper;
+```
+I zastąpić `new ObjectMapper()` przez `objectMapper`.
+
+**[EmailRoutingServiceTest.java] Brak testu dla formatu `"Name <email>"` w `to_address`**
+
+Testy pokrywają:
+- brak reguł + fallback po adresie (linia 237),
+- wiele adresów rozdzielonych przecinkiem (linia 264),
+- pierwszeństwo reguł nad fallbackiem (linia 289).
+
+Brakuje testu dla `to_address = "Support Team <sales@mycompany.com>"` — formatu RFC 5322, który jest najpowszechniejszy w produkcji (jak opisano w błędzie krytycznym #1). Test powinien weryfikować, czy routing po adresie email działa z display-name w nagłówku.
+
+**[QueueRepository.java:175–184] `findByEmailAddressAndTenantId` nie skorzysta z partial index — predykat LOWER() blokuje użycie indeksu**
+
+```sql
+AND LOWER(email_address) = LOWER(CAST(:emailAddress AS TEXT))
+```
+
+Partial index `idx_queue_email_address` jest zdefiniowany na `(tenant_id, email_address)`. PostgreSQL może użyć tego indeksu przy warunku `email_address = ...` (equality), ale `LOWER(email_address) = LOWER(...)` wymaga pełnego przeskanowania kolumn bo LOWER() nie jest indeksowane. Dla małej liczby kolejek per tenant nie jest to problem, ale przy większej skali lookup będzie wolniejszy.
+
+Rozwiązanie — dodać funkcyjny indeks:
+```sql
+CREATE INDEX idx_queue_email_address_lower
+    ON queue (tenant_id, LOWER(email_address))
+    WHERE email_address IS NOT NULL;
+```
+I zmienić zapytanie na: `AND LOWER(email_address) = LOWER(:emailAddress::TEXT)` (bez CAST) lub bez LOWER w obu stronach jeśli adres jest już znormalizowany.
+
+### Positive Observations
+
+- **`assertSameTenant()` w `insert()` i `update()` przed `setTenantContextInDb()`** — kolejność jest prawidłowa: weryfikacja multi-tenancy zanim kontekst RLS zostanie aktywowany w bazie.
+- **`findByEmailAddressAndTenantId` jako `@Transactional(readOnly = true)`** — poprawne dla operacji odczytu.
+- **`QueueRepository extends TenantAwareRepository`** — zgodność z architekturą projektu.
+- **Trójstopniowa logika fallbacku w `findMatchingQueue()`** — czytelna, liniowa sekwencja: reguły → adres email → kolejka domyślna. Dobrze udokumentowana w logu warning (linia 72–73) z enumeracją wszystkich kroków.
+- **Obsługa `null` tenantConfig w `findMatchingQueue()`** — `tenantConfig != null ? tenantConfig.get(...) : null` chroni przed NPE gdy tenantConfig jest null (linia 115–117).
+- **Testy: `verify(queueRepository, never()).findByEmailAddressAndTenantId(any(), any())`** — test `shouldPreferRulesOverEmailAddressFallback` weryfikuje nie tylko wynik, ale też że repozytorium NIE zostało odpytane gdy reguła wygrała. Wysoka jakość weryfikacji zachowania.
+- **`buildRuleWithPriority` jako wspólna metoda pomocnicza** — eliminuje duplikację, czytelna kompozycja przez `buildRule()` delegujący do `buildRuleWithPriority()`.
+
+### Summary
+
+Logika routingu jest architektonicznie spójna i dobrze ustrukturyzowana, ale implementacja ma dwa krytyczne błędy funkcjonalne: (1) brak `email_address` w natywnych INSERT/UPDATE w repozytorium sprawia, że adres email kolejki nigdy nie jest zapisywany do bazy, co czyni całą funkcjonalność niedziałającą end-to-end; (2) split po przecinku bez obsługi formatu `"Name <email>"` sprawi, że routing po adresie nie zadziała dla typowego ruchu email z realnych klientów pocztowych.
+
+**Ocena: 2.5/5** — architektura prawidłowa, testy przyzwoite (choć brakuje kluczowego edge case), ale dwa błędy krytyczne blokują całą funkcjonalność w produkcji.

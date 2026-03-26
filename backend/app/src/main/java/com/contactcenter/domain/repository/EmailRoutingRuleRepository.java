@@ -1,6 +1,6 @@
-package com.contactcenter.domain.email;
+package com.contactcenter.domain.repository;
 
-import com.contactcenter.domain.repository.TenantAwareRepository;
+import com.contactcenter.domain.model.EmailRoutingRule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,8 +22,8 @@ public class EmailRoutingRuleRepository extends TenantAwareRepository {
     /**
      * Pobiera aktywne reguły routingu dla tenanta, posortowane po priorytecie rosnąco.
      *
-     * <p>Metoda wywoływana z kontekstu {@link EmailPollingService} – przekazuje tenantId
-     * jawnie zamiast polegać na TenantContext (polling jest @Scheduled, poza HTTP request).
+     * <p>Metoda wywoływana z kontekstu {@link com.contactcenter.domain.email.EmailPollingService} –
+     * przekazuje tenantId jawnie zamiast polegać na TenantContext (polling jest @Scheduled, poza HTTP request).
      *
      * @param tenantId UUID tenanta
      * @return lista aktywnych reguł posortowanych po priority ASC

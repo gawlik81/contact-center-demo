@@ -7,6 +7,7 @@ import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
+import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -110,7 +111,7 @@ public class RoutingService {
             assignContactToAgent(contact, agentId, tenantId);
 
             // 5b. Opublikuj event contact.assigned
-            publishAssignedEvent(contactId, agentId, queueId, tenantId, routing.strategy());
+            publishAssignedEvent(contactId, agentId, queueId, tenantId, routing.strategy(), contact);
 
             return Optional.of(agentId);
 
@@ -143,6 +144,9 @@ public class RoutingService {
         log.debug("[RoutingService] Odebrano event contact.queued: contactId={}, queueId={}",
                 event.contactId(), event.queueId());
 
+        TenantContext.Snapshot snapshot = new TenantContext.Snapshot(
+                event.tenantId(), null, null, "SYSTEM");
+        TenantContext.restore(snapshot);
         try {
             routeContact(event.contactId(), event.queueId(), event.tenantId());
         } catch (Exception e) {
@@ -150,6 +154,8 @@ public class RoutingService {
                     "contactId={}, error={}", event.contactId(), e.getMessage(), e);
             // Rzucamy wyjątek – Spring AMQP ponowi próbę, a po wyczerpaniu prób wyśle do DLQ
             throw new RuntimeException("Routing kontaktu " + event.contactId() + " zakończony błędem", e);
+        } finally {
+            TenantContext.clear();
         }
     }
 
@@ -182,6 +188,9 @@ public class RoutingService {
         log.info("[RoutingService] Agent stał się AVAILABLE, próbuję routować oczekujące kontakty: " +
                 "agentId={}, tenantId={}", event.userId(), event.tenantId());
 
+        TenantContext.Snapshot snapshot = new TenantContext.Snapshot(
+                event.tenantId(), event.userId(), null, "SYSTEM");
+        TenantContext.restore(snapshot);
         try {
             List<Contact> queuedContacts = contactRepository.findQueuedContacts(event.tenantId());
 
@@ -224,6 +233,8 @@ public class RoutingService {
             log.error("[RoutingService] Błąd pobierania oczekujących kontaktów dla tenanta={}: error={}",
                     event.tenantId(), e.getMessage(), e);
             throw new RuntimeException("Błąd retry routingu dla tenanta " + event.tenantId(), e);
+        } finally {
+            TenantContext.clear();
         }
     }
 
@@ -256,15 +267,23 @@ public class RoutingService {
     /**
      * Publikuje event {@code contact.assigned} do RabbitMQ.
      *
+     * <p>Pobiera z encji kontaktu kanał, identyfikator i nazwę klienta,
+     * aby frontend mógł poprawnie wyświetlić zakładkę kontaktu.
+     *
      * <p>Błąd publikacji nie przerywa operacji – logujemy error (agent już przypisany w DB).
      */
     private void publishAssignedEvent(UUID contactId, UUID agentId, UUID queueId,
-                                       UUID tenantId, String strategy) {
-        ContactAssignedEvent event = ContactAssignedEvent.of(contactId, agentId, queueId, tenantId, strategy);
+                                       UUID tenantId, String strategy, Contact contact) {
+        String channel            = contact.getChannel() != null ? contact.getChannel() : "UNKNOWN";
+        String customerIdentifier = contact.getRemoteAddress() != null ? contact.getRemoteAddress() : "";
+        String customerName       = customerIdentifier;
+
+        ContactAssignedEvent event = ContactAssignedEvent.of(contactId, agentId, queueId, tenantId, strategy,
+                channel, customerName, customerIdentifier);
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, RK_CONTACT_ASSIGNED, event);
-            log.debug("[RoutingService] Event contact.assigned opublikowany: contactId={}, agentId={}",
-                    contactId, agentId);
+            log.debug("[RoutingService] Event contact.assigned opublikowany: contactId={}, agentId={}, channel={}",
+                    contactId, agentId, channel);
         } catch (Exception e) {
             log.error("[RoutingService] Błąd publikacji contact.assigned: contactId={}, error={}",
                     contactId, e.getMessage());

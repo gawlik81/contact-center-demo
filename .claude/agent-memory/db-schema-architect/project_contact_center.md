@@ -10,7 +10,7 @@ Backend: Java Spring Boot (modularny monolit Faza 1). Frontend: Angular SPA.
 
 **Why:** PRD v1.0 z 2026-03-12. Faza 1 = MVP z kanałami PHONE/EMAIL/SOCIAL_MEDIA.
 
-**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V014 już istnieją. Numery migracji kontynuuj od V015+.
+**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V029 już istnieją. Numery migracji kontynuuj od V030+.
 
 Kluczowe decyzje architektoniczne:
 - Izolacja logiczna przez tenant_id (nie osobne schematy/bazy) + RLS jako dodatkowa warstwa
@@ -31,6 +31,9 @@ Lokalizacja migracji:
 - PostgreSQL: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\migration\
 - Seed DEV: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\seed\V999__dev_seed.sql
 - ClickHouse DW: D:\CloudeAI\contact-center-demo\dw\migrations\
+
+Stan migracji po V029 (2026-03-26):
+- V029__add_email_address_to_queue.sql: kolumna email_address VARCHAR(255) NULL w tabeli queue, UNIQUE (tenant_id, email_address), CHECK (IS NULL OR LIKE '%@%'), partial index idx_queue_email_address WHERE email_address IS NOT NULL
 
 Stan migracji po DB-002 (2026-03-13):
 - V001-V014: wykonane w ramach DB-001

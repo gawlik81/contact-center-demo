@@ -21,6 +21,7 @@ import { CustomerLookupService } from '../../services/customer-lookup.service';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
+import { EmailContactComponent } from './email-contact/email-contact.component';
 import {
   AgentStatus,
   ALL_AGENT_STATUSES,
@@ -44,6 +45,7 @@ import {
     SoftphoneComponent,
     CustomerPanelComponent,
     DispositionPanelComponent,
+    EmailContactComponent,
   ],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
@@ -241,6 +243,11 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
     if (tab) {
       this.tabStore.closeTab(tab.id);
     }
+  }
+
+  protected onEmailReplySent(tab: ContactTab): void {
+    this.tabStore.closeTab(tab.id);
+    this.notifications.success('Odpowiedz wyslana');
   }
 
   private showLimitMessage(reason: 'MAX_PHONE' | 'MAX_ASYNC' | 'MAX_TOTAL'): void {

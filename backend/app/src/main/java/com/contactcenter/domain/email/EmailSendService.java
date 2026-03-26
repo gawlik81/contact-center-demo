@@ -1,8 +1,10 @@
 package com.contactcenter.domain.email;
 
+import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.email.EmailTemplateService.RenderedEmailTemplate;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.security.TenantContext;
 import jakarta.mail.*;
@@ -237,13 +239,14 @@ public class EmailSendService {
             props.put("mail.smtp.host", config.getSmtpHost());
             props.put("mail.smtp.port", String.valueOf(config.getSmtpPort()));
             props.put("mail.smtp.ssl.enable", "true");
+            props.put("mail.smtp.ssl.trust", "*");
             props.put("mail.smtp.auth", "true");
-            props.put("mail.smtp.ssl.checkserveridentity", "true");
         } else {
             // STARTTLS (na porcie 587)
             props.put("mail.smtp.host", config.getSmtpHost());
             props.put("mail.smtp.port", String.valueOf(config.getSmtpPort()));
             props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.ssl.trust", "*");
             props.put("mail.smtp.auth", "true");
         }
         props.put("mail.smtp.timeout", "15000");

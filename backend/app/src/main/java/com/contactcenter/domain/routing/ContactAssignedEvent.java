@@ -17,23 +17,31 @@ public record ContactAssignedEvent(
         UUID queueId,
         UUID tenantId,
         String strategy,
-        Instant assignedAt
+        Instant assignedAt,
+        String channel,
+        String customerName,
+        String customerIdentifier
 ) {
 
     /**
      * Tworzy event przydzielenia kontaktu.
      *
-     * @param contactId UUID kontaktu
-     * @param agentId   UUID agenta
-     * @param queueId   UUID kolejki
-     * @param tenantId  UUID tenanta
-     * @param strategy  strategia routingu (np. "SKILL_BASED", "STICKY")
+     * @param contactId          UUID kontaktu
+     * @param agentId            UUID agenta
+     * @param queueId            UUID kolejki
+     * @param tenantId           UUID tenanta
+     * @param strategy           strategia routingu (np. "SKILL_BASED", "STICKY")
+     * @param channel            kanał kontaktu (np. "EMAIL", "PHONE", "CHAT")
+     * @param customerName       nazwa wyświetlana klienta (adres email lub numer telefonu)
+     * @param customerIdentifier identyfikator klienta (adres email lub numer telefonu)
      * @return nowy event z aktualnym timestampem
      */
     public static ContactAssignedEvent of(UUID contactId, UUID agentId,
                                            UUID queueId, UUID tenantId,
-                                           String strategy) {
+                                           String strategy,
+                                           String channel, String customerName,
+                                           String customerIdentifier) {
         return new ContactAssignedEvent(contactId, agentId, queueId, tenantId,
-                strategy, Instant.now());
+                strategy, Instant.now(), channel, customerName, customerIdentifier);
     }
 }

@@ -16,6 +16,7 @@ import java.util.UUID;
  * @param name                          nazwa kolejki
  * @param routingStrategy               strategia routingu: ROUND_ROBIN, FIRST_AVAILABLE, SKILL_BASED
  * @param requiredSkills                lista wymaganych umiejętności agenta
+ * @param emailAddress                  adres email przypisany do kolejki (opcjonalny)
  * @param stickyAgentTimeoutSeconds     czas oczekiwania na sticky agenta (sekundy)
  * @param maxConcurrentContactsPerAgent max jednoczesnych kontaktów per agent
  * @param waitConfig                    konfiguracja komunikatów oczekiwania (JSON)
@@ -29,6 +30,7 @@ public record QueueResponse(
         String name,
         String routingStrategy,
         List<String> requiredSkills,
+        String emailAddress,
         Integer stickyAgentTimeoutSeconds,
         Integer maxConcurrentContactsPerAgent,
         String waitConfig,
@@ -50,6 +52,7 @@ public record QueueResponse(
                 queue.getName(),
                 queue.getRoutingStrategy(),
                 queue.getRequiredSkills(),
+                queue.getEmailAddress(),
                 queue.getStickyAgentTimeoutSeconds(),
                 queue.getMaxConcurrentContactsPerAgent(),
                 queue.getWaitConfig(),

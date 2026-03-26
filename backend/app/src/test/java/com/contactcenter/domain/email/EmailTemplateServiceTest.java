@@ -1,5 +1,7 @@
 package com.contactcenter.domain.email;
 
+import com.contactcenter.domain.model.EmailTemplate;
+import com.contactcenter.domain.repository.EmailTemplateRepository;
 import com.contactcenter.api.email.dto.CreateEmailTemplateRequest;
 import com.contactcenter.api.email.dto.UpdateEmailTemplateRequest;
 import com.contactcenter.domain.exception.ConflictException;

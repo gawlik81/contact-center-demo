@@ -123,7 +123,13 @@
       "Bash(pkill -f \"contact-center\")",
       "Bash(find /e/ClaudAI/contact-center-demo/backend/src/main/resources/db/migration -name *.sql)",
       "Skill(update-config)",
-      "Bash(find E:ClaudAIcontact-center-demo -path */.m2/repository/com/twilio/sdk/twilio/10.1.5/*.jar)"
+      "Bash(find E:ClaudAIcontact-center-demo -path */.m2/repository/com/twilio/sdk/twilio/10.1.5/*.jar)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); t=d[''''projects''''][''''contact-center-frontend''''][''''architect''''][''''test'''']; print\\(json.dumps\\(t, indent=2\\)\\)\")",
+      "Bash(find /mnt/e/ClaudAI/contact-center-demo/backend -name EmailAccountConfig* -o -name EmailController* -o -name EmailConfig*)",
+      "Bash(find /mnt/e/ClaudAI/contact-center-demo/backend -name *.java)",
+      "Bash(dir \"E:/ClaudAI/contact-center-demo/backend/app/src/main/java/com/contactcenter/domain/\")",
+      "Bash(\"E:/ClaudAI/contact-center-demo/CR-DATABASE.md\":*)",
+      "Bash(\"E:/ClaudAI/contact-center-demo/CR-FRONTEND.md\":*)"
     ]
   }
 }

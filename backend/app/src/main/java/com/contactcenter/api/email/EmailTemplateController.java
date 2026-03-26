@@ -2,7 +2,7 @@ package com.contactcenter.api.email;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.email.dto.*;
-import com.contactcenter.domain.email.EmailTemplate;
+import com.contactcenter.domain.model.EmailTemplate;
 import com.contactcenter.domain.email.EmailTemplateService;
 import com.contactcenter.domain.email.EmailTemplateService.RenderedEmailTemplate;
 import io.swagger.v3.oas.annotations.Operation;

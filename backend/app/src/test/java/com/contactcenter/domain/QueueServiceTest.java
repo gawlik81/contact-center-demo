@@ -71,7 +71,7 @@ class QueueServiceTest {
             // given
             CreateQueueRequest request = new CreateQueueRequest(
                     "Kolejka testowa", "ROUND_ROBIN",
-                    List.of("SALES"), null, null, null, null
+                    List.of("SALES"), null, null, null, null, null
             );
 
             Queue savedQueue = buildQueue(QUEUE_ID, TENANT_ID, "Kolejka testowa", "ROUND_ROBIN");
@@ -97,7 +97,7 @@ class QueueServiceTest {
             // given
             CreateQueueRequest request = new CreateQueueRequest(
                     "Kolejka", "SKILL_BASED",
-                    null, null, null, null, null
+                    null, null, null, null, null, null
             );
 
             Queue savedQueue = buildQueue(QUEUE_ID, TENANT_ID, "Kolejka", "SKILL_BASED");
@@ -124,7 +124,7 @@ class QueueServiceTest {
         void shouldThrowWhenQueueLimitExceeded() {
             // given
             CreateQueueRequest request = new CreateQueueRequest(
-                    "Kolejka", "ROUND_ROBIN", null, null, null, null, null
+                    "Kolejka", "ROUND_ROBIN", null, null, null, null, null, null
             );
             doThrow(new ResourceLimitExceededException("queues", 5, 5))
                     .when(tenantResourceLimitService).checkQueueLimit(TENANT_ID);
@@ -257,7 +257,7 @@ class QueueServiceTest {
             when(queueRepository.update(any(Queue.class))).thenReturn(1);
 
             UpdateQueueRequest request = new UpdateQueueRequest(
-                    "Nowa nazwa", "SKILL_BASED", null, null, null, null, null
+                    "Nowa nazwa", "SKILL_BASED", null, null, null, null, null, null
             );
 
             // when
@@ -283,7 +283,7 @@ class QueueServiceTest {
 
             // tylko stickyAgentTimeoutSeconds zmienione, reszta null
             UpdateQueueRequest request = new UpdateQueueRequest(
-                    null, null, null, 120, null, null, null
+                    null, null, null, null, 120, null, null, null
             );
 
             // when
@@ -306,7 +306,7 @@ class QueueServiceTest {
                     .thenReturn(Optional.empty());
 
             UpdateQueueRequest request = new UpdateQueueRequest(
-                    "Nowa nazwa", null, null, null, null, null, null
+                    "Nowa nazwa", null, null, null, null, null, null, null
             );
 
             // when / then

@@ -289,19 +289,22 @@ Panel boczny wyświetlany podczas aktywnego kontaktu: dane klienta (imię, nazwi
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależy od:** FE-009, BE-015, BE-016
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-015, BE-016 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-26
+**Czeka na BE:** BE-015 ✅, BE-016 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-05-01, US-05-02, US-05-03, US-05-04, EPIC-05
 
 **Opis:**
 Widok obsługi wiadomości email: panel z treścią emaila (HTML render), edytor odpowiedzi z rich text (Quill lub TinyMCE), wybór szablonu odpowiedzi z listy rozwijanej, przeglądanie wątku (thread). Przypisanie wątku do profilu klienta (search + select).
 
+Zrealizowane: `EmailContactComponent` (cc-email-contact, sygnały, paginacja wątku load-more), `EmailThreadMessageComponent` (pojedyncza wiadomość w wątku), `EmailService` (agent, GET wiadomości, POST reply, GET templates), `EmailSettingsComponent` (supervisor settings – formularz konfiguracji IMAP/SMTP per tenant, test połączenia), `EmailConfigService` (supervisor, konfiguracja emaila), integracja z `agent-desktop.component` i `customer-panel.component`.
+
 **Kryteria akceptacji:**
-- [ ] HTML treść emaila renderowana w izolowanym iframe (ochrona XSS)
-- [ ] Szablony odpowiedzi ładowane z API i filtrowane autocomplete
-- [ ] Odpowiedź wysłana → zakładka kontaktu zamknięta, status zmieniony na "zamknięty"
-- [ ] Wątek emailowy paginowany (load more) dla konwersacji > 20 wiadomości
+- [x] HTML treść emaila renderowana w izolowanym iframe (ochrona XSS)
+- [x] Szablony odpowiedzi ładowane z API i filtrowane autocomplete
+- [x] Odpowiedź wysłana → zakładka kontaktu zamknięta, status zmieniony na "zamknięty"
+- [x] Wątek emailowy paginowany (load more) dla konwersacji > 20 wiadomości
 
 ---
 
@@ -587,12 +590,13 @@ Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, W
 **Odniesienie PRD:** US-07-01, US-07-02, US-07-03, EPIC-07
 
 **Opis:**
-Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first-available/skill-based), wymagane skills (multi-select), sticky agent timeout (input numeryczny, domyślnie 60s). Lista kolejek z liczbą agentów i aktualnym obciążeniem.
+Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first-available/skill-based), wymagane skills (multi-select), sticky agent timeout (input numeryczny, domyślnie 60s), adres email kolejki (opcjonalne pole `emailAddress` – walidacja formatu email, VARCHAR 255). Lista kolejek z liczbą agentów i aktualnym obciążeniem. Pole `emailAddress` w `queue.model.ts` jako `string | null`.
 
 **Kryteria akceptacji:**
 - [x] Zmiana strategii routingu na "skill-based" ujawnia sekcję wymaganych skills
 - [x] Sticky agent timeout tylko liczba całkowita > 0 (walidacja)
 - [x] Lista kolejek pokazuje aktualną liczbę oczekujących (polling co 10s)
+- [x] Pole adresu email kolejki walidowane jako format email (Validators.email), opcjonalne
 
 ---
 

@@ -1,0 +1,287 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { debounceTime, startWith } from 'rxjs';
+
+import {
+  EmailService,
+  EmailMessage,
+  EmailTemplate,
+  SendReplyRequest,
+} from '../../../services/email.service';
+import { EmailThreadMessageComponent } from './email-thread-message/email-thread-message.component';
+
+@Component({
+  selector: 'cc-email-contact',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ReactiveFormsModule, EmailThreadMessageComponent],
+  templateUrl: './email-contact.component.html',
+  styleUrl: './email-contact.component.scss',
+})
+export class EmailContactComponent implements OnInit {
+  contactId = input.required<string>();
+  replySent = output<void>();
+
+  @ViewChild('editor') private editorRef?: ElementRef<HTMLDivElement>;
+
+  private readonly emailService = inject(EmailService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly loading = signal(true);
+  protected readonly loadingMore = signal(false);
+  protected readonly sending = signal(false);
+  protected readonly error = signal<string | null>(null);
+
+  protected readonly rootMessage = signal<EmailMessage | null>(null);
+  protected readonly thread = signal<EmailMessage[]>([]);
+  protected readonly hasMore = signal(false);
+  protected readonly currentPage = signal(0);
+
+  protected readonly templates = signal<EmailTemplate[]>([]);
+  protected readonly selectedTemplate = signal<EmailTemplate | null>(null);
+  protected readonly templateVariables = signal<Record<string, string>>({});
+  protected readonly showVariableForm = signal(false);
+
+  protected readonly replyHtml = signal<string>('');
+  protected readonly replySubject = signal<string>('');
+
+  protected readonly templateSearchControl = new FormControl<string>('');
+  protected readonly filteredTemplates = signal<EmailTemplate[]>([]);
+
+  protected readonly hasTemplateVariables = computed(() => {
+    const tpl = this.selectedTemplate();
+    return tpl !== null && tpl.variables.length > 0;
+  });
+
+  protected readonly canSend = computed(() => {
+    const html = this.replyHtml();
+    return html.trim().length > 0 && !this.sending();
+  });
+
+  ngOnInit(): void {
+    this.loadMessage();
+    this.loadTemplates();
+
+    this.templateSearchControl.valueChanges
+      .pipe(startWith(''), debounceTime(150), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        const search = value ?? '';
+        const all = this.templates();
+        this.filteredTemplates.set(
+          search ? all.filter((t) => t.name.toLowerCase().includes(search.toLowerCase())) : all,
+        );
+      });
+  }
+
+  private loadMessage(): void {
+    this.loading.set(true);
+    this.error.set(null);
+
+    this.emailService
+      .getMessage(this.contactId())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (msg) => {
+          this.rootMessage.set(msg);
+          this.replySubject.set(
+            msg.subject.startsWith('Re:') ? msg.subject : `Re: ${msg.subject}`,
+          );
+          this.loadThread(msg.threadRootMessageId ?? msg.messageIdHeader ?? msg.id, 0, true);
+        },
+        error: () => {
+          this.error.set('Nie udalo sie zaladowac wiadomosci email.');
+          this.loading.set(false);
+        },
+      });
+  }
+
+  private loadThread(threadRootMessageId: string, page: number, initial: boolean): void {
+    if (!initial) {
+      this.loadingMore.set(true);
+    }
+
+    this.emailService
+      .getThread(threadRootMessageId, page, 20)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          if (initial) {
+            this.thread.set(
+              response.content.length > 0
+                ? response.content
+                : [this.rootMessage()].filter(Boolean) as EmailMessage[],
+            );
+          } else {
+            this.thread.update((current) => [...response.content, ...current]);
+          }
+          this.hasMore.set(!response.first);
+          this.currentPage.set(page);
+          this.loading.set(false);
+          this.loadingMore.set(false);
+        },
+        error: () => {
+          this.error.set('Nie udalo sie zaladowac watku email.');
+          this.loading.set(false);
+          this.loadingMore.set(false);
+        },
+      });
+  }
+
+  private loadTemplates(): void {
+    this.emailService
+      .getTemplates(0, 100)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.templates.set(response.content);
+          this.filteredTemplates.set(response.content);
+        },
+        error: () => {
+          // non-critical – templates are optional
+        },
+      });
+  }
+
+  protected loadMoreMessages(): void {
+    const root = this.rootMessage();
+    if (!root || this.loadingMore()) return;
+    this.loadThread(root.threadRootMessageId, this.currentPage() + 1, false);
+  }
+
+  protected onTemplateSelected(template: EmailTemplate): void {
+    this.selectedTemplate.set(template);
+    this.templateSearchControl.setValue(template.name, { emitEvent: false });
+
+    if (template.variables.length > 0) {
+      const vars: Record<string, string> = {};
+      template.variables.forEach((v) => (vars[v] = ''));
+      this.templateVariables.set(vars);
+      this.showVariableForm.set(true);
+    } else {
+      this.applyTemplate(template, {});
+    }
+  }
+
+  protected onVariableChange(variable: string, value: string): void {
+    this.templateVariables.update((current) => ({ ...current, [variable]: value }));
+  }
+
+  protected previewTemplate(): void {
+    const tpl = this.selectedTemplate();
+    if (!tpl) return;
+
+    this.emailService
+      .previewTemplate(tpl.id, this.templateVariables())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (preview) => {
+          this.setEditorHtml(preview.bodyHtml);
+          this.replySubject.set(preview.subject);
+          this.showVariableForm.set(false);
+        },
+        error: () => {
+          this.error.set('Nie udalo sie podgladnac szablonu.');
+        },
+      });
+  }
+
+  private applyTemplate(template: EmailTemplate, variables: Record<string, string>): void {
+    let html = template.bodyHtml;
+    Object.entries(variables).forEach(([key, val]) => {
+      html = html.replaceAll(`{{${key}}}`, val);
+    });
+    this.setEditorHtml(html);
+    this.showVariableForm.set(false);
+  }
+
+  private setEditorHtml(html: string): void {
+    if (this.editorRef) {
+      this.editorRef.nativeElement.innerHTML = html;
+    }
+    this.replyHtml.set(html);
+  }
+
+  protected onEditorInput(event: Event): void {
+    const div = event.target as HTMLDivElement;
+    this.replyHtml.set(div.innerHTML);
+  }
+
+  protected execCommand(command: string): void {
+    document.execCommand(command, false);
+  }
+
+  protected insertLink(): void {
+    const url = window.prompt('Podaj adres URL:');
+    if (url) {
+      document.execCommand('createLink', false, url);
+    }
+  }
+
+  protected sendReply(): void {
+    const root = this.rootMessage();
+    if (!root || !this.canSend()) return;
+
+    this.sending.set(true);
+    this.error.set(null);
+
+    const request: SendReplyRequest = {
+      bodyHtml: this.replyHtml(),
+      subject: this.replySubject(),
+    };
+
+    const tpl = this.selectedTemplate();
+    if (tpl) {
+      request.templateId = tpl.id;
+      const vars = this.templateVariables();
+      if (Object.keys(vars).length > 0) {
+        request.templateVariables = vars;
+      }
+    }
+
+    this.emailService
+      .sendReply(root.id, request)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.sending.set(false);
+          this.replySent.emit();
+        },
+        error: () => {
+          this.sending.set(false);
+          this.error.set('Nie udalo sie wyslac odpowiedzi. Sprobuj ponownie.');
+        },
+      });
+  }
+
+  protected cancelReply(): void {
+    this.replySent.emit();
+  }
+
+  protected getVariableKeys(): string[] {
+    return Object.keys(this.templateVariables());
+  }
+
+  protected trackByMessageId(_index: number, msg: EmailMessage): string {
+    return msg.id;
+  }
+
+  protected trackByTemplateId(_index: number, tpl: EmailTemplate): string {
+    return tpl.id;
+  }
+
+  protected trackByKey(_index: number, key: string): string {
+    return key;
+  }
+}

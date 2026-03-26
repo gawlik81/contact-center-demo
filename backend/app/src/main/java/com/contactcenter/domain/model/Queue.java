@@ -87,6 +87,14 @@ public class Queue {
     @Column(name = "wait_config", columnDefinition = "jsonb")
     private String waitConfig;
 
+    /**
+     * Adres email przypisany do kolejki.
+     * NULL oznacza brak obsługi emaili przez tę kolejkę.
+     * Unikalny w ramach tenanta (constraint {@code uq_queue_tenant_email_address}).
+     */
+    @Column(name = "email_address")
+    private String emailAddress;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean active = true;

@@ -2,6 +2,8 @@ package com.contactcenter.api.email;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.domain.email.*;
+import com.contactcenter.domain.model.EmailMessage;
+import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.TenantRepository;
@@ -84,6 +86,26 @@ public class EmailController {
     }
 
     /**
+     * Pobiera pierwszą wiadomość INBOUND powiązaną z kontaktem.
+     *
+     * <p>Używane przez AgentDesktop do załadowania widoku email po przydzieleniu kontaktu.
+     *
+     * @param contactId UUID kontaktu (z zakładki agenta)
+     */
+    @GetMapping("/contacts/{contactId}/message")
+    @Operation(summary = "Wiadomość email dla kontaktu",
+            description = "Zwraca pierwszą wiadomość INBOUND powiązaną z podanym contactId")
+    public ResponseEntity<EmailMessageResponse> getMessageByContactId(@PathVariable UUID contactId) {
+        UUID tenantId = TenantContext.getTenantId();
+
+        EmailMessage message = emailMessageRepository.findFirstInboundByContactId(contactId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Brak wiadomości email dla kontaktu: " + contactId));
+
+        return ResponseEntity.ok(EmailMessageResponse.from(message));
+    }
+
+    /**
      * Wątek emaila – oryginalna wiadomość + wszystkie odpowiedzi.
      *
      * @param messageIdHeader nagłówek RFC 2822 Message-ID wiadomości oryginalnej (URL-encoded)
@@ -152,7 +174,7 @@ public class EmailController {
         }
 
         boolean emailEnabled = Boolean.TRUE.equals(tenant.getConfig().get("email_enabled"));
-        return ResponseEntity.ok(EmailConfigResponse.from(config, emailEnabled));
+        return ResponseEntity.ok(EmailConfigResponse.from(config, emailEnabled, tenant.getConfig()));
     }
 
     /**
@@ -200,13 +222,20 @@ public class EmailController {
         config.putAll(emailConfig.toTenantConfig());
         config.put("email_enabled", request.emailEnabled());
 
+        // Ustaw lub usuń domyślną kolejkę email
+        if (request.defaultQueueId() != null) {
+            config.put("email_default_queue_id", request.defaultQueueId().toString());
+        } else {
+            config.remove("email_default_queue_id");
+        }
+
         tenant.setConfig(config);
         tenantRepository.save(tenant);
 
         log.info("[EmailController] Konfiguracja email zapisana: tenant={}, user={}, enabled={}",
                 tenantId, request.username(), request.emailEnabled());
 
-        return ResponseEntity.ok(EmailConfigResponse.from(emailConfig, request.emailEnabled()));
+        return ResponseEntity.ok(EmailConfigResponse.from(emailConfig, request.emailEnabled(), config));
     }
 
     /**

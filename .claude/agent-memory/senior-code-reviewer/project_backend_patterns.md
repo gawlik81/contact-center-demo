@@ -95,6 +95,18 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - Deterministic tie-breaking in ROUND_ROBIN and FIRST_AVAILABLE via UUID string sort — consistent across app instances.
 - `@Primary` on `DefaultRoutingEngine` follows established MockTelephonyAdapter pattern.
 
+## Email routing / Queue email address (V029 + EmailRoutingService) — 2026-03-26
+
+**Critical bugs found — not fixed at time of review:**
+- `QueueRepository.insert()` and `update()` — native SQL does NOT include `email_address` column. Despite V029 migration adding the column and `Queue.emailAddress` existing in entity, every queue INSERT and UPDATE silently drops the email address. The field is never persisted to the database. This makes the entire feature non-functional end-to-end.
+- `EmailRoutingService.findMatchingQueue()` — split by comma does not extract email from RFC 5322 format `"Name <email@domain.com>"`. Real email clients (Gmail, Outlook) always produce this format in `To:` headers. Routing by queue email address will silently fail in production for typical SMTP traffic.
+
+**Pattern to check in future:** When native SQL INSERT/UPDATE is extended for a new column, always cross-check that ALL columns in entity are represented. QueueRepository is particularly risky because it uses fully manual native SQL (not JPA save).
+
+**New ObjectMapper issue (recurring pattern):** `matchesRule()` creates `new ObjectMapper()` per invocation instead of injecting shared instance. Same anti-pattern was in `QueueRepository.skillsToJson` (BE-020). When reviewing new services — check for `new ObjectMapper()` inside methods.
+
+**Test gap pattern:** Missing test for RFC 5322 address format `"Name <email>"` — a format universally produced by real email servers. Any email routing test suite must include this case.
+
 ## Architectural patterns observed in BE-027
 
 **Partitioned table pattern (new in BE-027):**

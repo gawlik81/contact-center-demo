@@ -1,6 +1,6 @@
-package com.contactcenter.domain.email;
+package com.contactcenter.domain.repository;
 
-import com.contactcenter.domain.repository.TenantAwareRepository;
+import com.contactcenter.domain.model.EmailTemplate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;

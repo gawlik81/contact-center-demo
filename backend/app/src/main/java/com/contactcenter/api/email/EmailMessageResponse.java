@@ -1,8 +1,10 @@
 package com.contactcenter.api.email;
 
-import com.contactcenter.domain.email.EmailMessage;
+import com.contactcenter.domain.model.EmailMessage;
 
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -17,12 +19,13 @@ public record EmailMessageResponse(
         UUID contactId,
         String direction,
         String fromAddress,
-        String toAddress,
-        String ccAddress,
+        List<String> toAddresses,
+        List<String> ccAddresses,
         String subject,
         String bodyHtml,
         String bodyText,
         String messageIdHeader,
+        String threadRootMessageId,
         String inReplyTo,
         String deliveryStatus,
         Instant receivedAt,
@@ -36,17 +39,33 @@ public record EmailMessageResponse(
                 message.getContactId(),
                 message.getDirection(),
                 message.getFromAddress(),
-                message.getToAddress(),
-                message.getCcAddress(),
+                splitAddresses(message.getToAddress()),
+                splitAddresses(message.getCcAddress()),
                 message.getSubject(),
                 message.getBodyHtml(),
                 message.getBodyText(),
                 message.getMessageIdHeader(),
+                resolveThreadRoot(message),
                 message.getInReplyTo(),
                 message.getDeliveryStatus(),
                 message.getReceivedAt(),
                 message.getSentAt(),
                 message.getCreatedAt()
         );
+    }
+
+    private static List<String> splitAddresses(String raw) {
+        if (raw == null || raw.isBlank()) return List.of();
+        return Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+    }
+
+    /** Zwraca Message-ID korzenia wątku: dla reply = inReplyTo, dla root = własny messageIdHeader. */
+    private static String resolveThreadRoot(EmailMessage message) {
+        return message.getInReplyTo() != null && !message.getInReplyTo().isBlank()
+                ? message.getInReplyTo()
+                : message.getMessageIdHeader();
     }
 }

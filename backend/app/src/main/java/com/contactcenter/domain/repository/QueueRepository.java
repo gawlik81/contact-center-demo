@@ -68,29 +68,25 @@ public class QueueRepository extends TenantAwareRepository {
             dataSql = """
                     SELECT * FROM queue
                     WHERE tenant_id = CAST(:tenantId AS uuid)
-                      AND is_active = true
                       AND LOWER(name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')
-                    ORDER BY name ASC
+                    ORDER BY is_active DESC, name ASC
                     LIMIT :size OFFSET :offset
                     """;
             countSql = """
                     SELECT COUNT(*) FROM queue
                     WHERE tenant_id = CAST(:tenantId AS uuid)
-                      AND is_active = true
                       AND LOWER(name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')
                     """;
         } else {
             dataSql = """
                     SELECT * FROM queue
                     WHERE tenant_id = CAST(:tenantId AS uuid)
-                      AND is_active = true
-                    ORDER BY name ASC
+                    ORDER BY is_active DESC, name ASC
                     LIMIT :size OFFSET :offset
                     """;
             countSql = """
                     SELECT COUNT(*) FROM queue
                     WHERE tenant_id = CAST(:tenantId AS uuid)
-                      AND is_active = true
                     """;
         }
 
@@ -156,6 +152,35 @@ public class QueueRepository extends TenantAwareRepository {
     }
 
     /**
+     * Pobiera aktywną kolejkę przypisaną do danego adresu email.
+     *
+     * <p>Używane przez {@code EmailRoutingService} jako drugi krok routingu:
+     * po sprawdzeniu reguł routingu, przed fallbackiem na kolejkę domyślną.
+     *
+     * @param emailAddress adres email (case-insensitive)
+     * @param tenantId     UUID tenanta
+     * @return Optional z kolejką lub empty gdy brak dopasowania
+     */
+    @Transactional(readOnly = true)
+    public Optional<Queue> findByEmailAddressAndTenantId(String emailAddress, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Queue> results = em.createNativeQuery("""
+                SELECT * FROM queue
+                WHERE tenant_id    = CAST(:tenantId AS uuid)
+                  AND LOWER(email_address) = LOWER(CAST(:emailAddress AS TEXT))
+                  AND is_active    = true
+                LIMIT 1
+                """, Queue.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("emailAddress", emailAddress)
+                .getResultList();
+
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    /**
      * Sprawdza czy w kolejce istnieją aktywne kontakty.
      *
      * <p>Aktywne statusy kontaktów: QUEUED, ACTIVE, ON_HOLD.
@@ -215,6 +240,7 @@ public class QueueRepository extends TenantAwareRepository {
                     queue_id, tenant_id, name, routing_strategy,
                     required_skills, sticky_agent_timeout_seconds,
                     max_concurrent_contacts_per_agent, wait_config,
+                    email_address,
                     is_active, created_at, updated_at
                 ) VALUES (
                     CAST(:queueId AS uuid),
@@ -225,6 +251,7 @@ public class QueueRepository extends TenantAwareRepository {
                     :stickyAgentTimeoutSeconds,
                     :maxConcurrentContactsPerAgent,
                     CAST(:waitConfig AS jsonb),
+                    :emailAddress,
                     :isActive,
                     :createdAt,
                     :updatedAt
@@ -238,6 +265,7 @@ public class QueueRepository extends TenantAwareRepository {
                 .setParameter("stickyAgentTimeoutSeconds", queue.getStickyAgentTimeoutSeconds())
                 .setParameter("maxConcurrentContactsPerAgent", queue.getMaxConcurrentContactsPerAgent())
                 .setParameter("waitConfig", waitConfigJson)
+                .setParameter("emailAddress", queue.getEmailAddress())
                 .setParameter("isActive", queue.isActive())
                 .setParameter("createdAt", queue.getCreatedAt())
                 .setParameter("updatedAt", queue.getUpdatedAt())
@@ -257,6 +285,13 @@ public class QueueRepository extends TenantAwareRepository {
     @Transactional
     public int update(Queue queue) {
         assertSameTenant(queue.getTenantId());
+
+        // Detach PRZED setTenantContextInDb – ta metoda wykonuje SQL (SELECT set_tenant_context),
+        // co wyzwala auto-flush Hibernate przed detach. Musimy usunąć encję z persistence context
+        // zanim jakiekolwiek zapytanie zostanie wykonane, żeby Hibernate nie generował własnego UPDATE
+        // bez CAST dla kolumny routing_strategy (typ ENUM w PostgreSQL).
+        em.detach(queue);
+
         setTenantContextInDb(queue.getTenantId());
 
         log.debug("[QueueRepo] Aktualizacja kolejki: queueId={}, tenant={}",
@@ -277,6 +312,7 @@ public class QueueRepository extends TenantAwareRepository {
                     sticky_agent_timeout_seconds      = :stickyAgentTimeoutSeconds,
                     max_concurrent_contacts_per_agent = :maxConcurrentContactsPerAgent,
                     wait_config                       = CAST(:waitConfig AS jsonb),
+                    email_address                     = :emailAddress,
                     is_active                         = :isActive,
                     updated_at                        = NOW()
                 WHERE queue_id  = CAST(:queueId AS uuid)
@@ -288,6 +324,7 @@ public class QueueRepository extends TenantAwareRepository {
                 .setParameter("stickyAgentTimeoutSeconds", queue.getStickyAgentTimeoutSeconds())
                 .setParameter("maxConcurrentContactsPerAgent", queue.getMaxConcurrentContactsPerAgent())
                 .setParameter("waitConfig", waitConfigJson)
+                .setParameter("emailAddress", queue.getEmailAddress())
                 .setParameter("isActive", queue.isActive())
                 .setParameter("queueId", queue.getQueueId().toString())
                 .setParameter("tenantId", queue.getTenantId().toString())

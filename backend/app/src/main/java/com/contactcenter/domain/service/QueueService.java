@@ -83,6 +83,7 @@ public class QueueService {
                 .maxConcurrentContactsPerAgent(request.maxConcurrentContactsPerAgent() != null
                         ? request.maxConcurrentContactsPerAgent()
                         : 1)
+                .emailAddress(request.emailAddress())
                 .waitConfig(request.waitConfig())
                 .active(request.active() != null ? request.active() : true)
                 .build();
@@ -179,6 +180,9 @@ public class QueueService {
         }
         if (request.active() != null) {
             queue.setActive(request.active());
+        }
+        if (request.emailAddress() != null) {
+            queue.setEmailAddress(request.emailAddress().trim().toLowerCase());
         }
 
         int updated = queueRepository.update(queue);

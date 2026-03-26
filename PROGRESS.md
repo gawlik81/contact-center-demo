@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-25 (BE-015 Email Adapter potwierdzony w kodzie; łączny stan: DB 19/19, BE 24/33, FE 21/25)
+**Ostatnia aktualizacja:** 2026-03-26 (V029 email_address w QUEUE + EmailRoutingService routing po adresie kolejki + FE-012 EmailContactComponent + EmailSettingsComponent; łączny stan: DB 20/20, BE 25/33, FE 22/25)
 
 ---
 
@@ -38,6 +38,7 @@
 | DB-017 | Procedury RODO: funkcje anonimizacji i eksportu | ✅ | Zrealizowane w ramach DB-001 (V013__gdpr_functions.sql). Rozszerzone w DB-002 (V017__gdpr_archive_export.sql) |
 | DB-018 | Konfiguracja pg_cron: zadania scheduled | ✅ | Zrealizowane w ramach DB-001 (V014__pg_cron_jobs.sql). Rozszerzone w DB-002 (V015__campaign_contact_archive.sql) |
 | DB-019 | Seed danych testowych i migracje dla środowiska dev | ✅ | Zrealizowane w ramach DB-001 (V999__dev_seed.sql) |
+| DB-020 | Kolumna email_address w tabeli QUEUE: routing emaili | ✅ | V029__add_email_address_to_queue.sql: kolumna email_address VARCHAR(255) NULL, UNIQUE (tenant_id, email_address), CHECK '%@%', partial index WHERE IS NOT NULL. Używana przez EmailRoutingService do routingu priorytetowego. |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -68,7 +69,7 @@
 | BE-013 | IVR Engine: wykonanie drzewa IVR | ✅ | IvrController (7 endpointów CRUD + activate + DTMF simulate), IvrService, IvrEngineService, IvrCallListener, IvrDefinition/Node/NodeType/Option/SessionData w domain/ivr |
 | BE-014 | Voicebot Python: ASR + NLU + eskalacja do agenta | ⬜ | |
 | BE-015 | Email Adapter: IMAP polling + SMTP wysyłka | ✅ | EmailPollingService (IMAP @Scheduled), EmailSendService (SMTP), EmailRoutingService, EmailEncryptionService (AES-256), EmailController (5 endpointów), EmailMessage/EmailRoutingRule repozytoria, EmailEventPublisher (RabbitMQ) |
-| BE-016 | Szablony odpowiedzi email: CRUD API | ⬜ | |
+| BE-016 | Szablony odpowiedzi email: CRUD API | ✅ | EmailTemplateController (6 endpointów CRUD + preview), EmailTemplateService, EmailTemplate entity, EmailTemplateRepository, MustacheTemplateEngine (renderowanie zmiennych {{}}), DTOs: CreateEmailTemplateRequest/UpdateEmailTemplateRequest/EmailTemplateResponse |
 | BE-017 | OAuth flow i zarządzanie tokenami social media | ⬜ | |
 | BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ⬜ | |
 | BE-019 | Routing Engine: skill-based, round-robin, sticky agent | ✅ | RoutingEngine (interfejs), DefaultRoutingEngine (skill-based, round-robin, sticky agent), RoutingService, AgentSessionData, RoutingRequest/Result, ContactQueuedMessage, ContactAssignedEvent. |
@@ -103,7 +104,7 @@
 | FE-009 | Agent Desktop: główny layout i panel statusu agenta | ✅ | AgentDesktopComponent (layout, panel statusu agenta, zakładki kontaktów max 4, integracja WebSocket, baner reconnect). |
 | FE-010 | Komponent Softphone WebRTC | ✅ | Zrealizowane 2026-03-18. SIP.js/JsSIP WebRTC, odbieranie/rozłączanie połączeń, mute, hold, blind i attended transfer, wyświetlanie CLI. Wymaga FE-009 ✅, BE-009 ✅, BE-012 ✅ |
 | FE-011 | Panel profilu klienta podczas kontaktu | ✅ | Panel boczny w AgentDesktopComponent: dane klienta z CLI lookup, historia ostatnich kontaktów, CTA "Utwórz profil" dla nieznanych numerów. Integracja z BE-025 ✅ i BE-011 ✅. |
-| FE-012 | Komponent obsługi kontaktu email | ⬜ | |
+| FE-012 | Komponent obsługi kontaktu email | ✅ | EmailContactComponent (wątek email z paginacją load-more, edytor odpowiedzi, wybór szablonu autocomplete, signal-based, ChangeDetectionStrategy.OnPush), EmailThreadMessageComponent, EmailService (agent), EmailSettingsComponent (konfiguracja IMAP/SMTP + test połączenia dla supervisora w /supervisor/settings), EmailConfigService. Integracja z AgentDesktopComponent i customer-panel. Zrealizowane 2026-03-26. |
 | FE-013 | Komponent obsługi kontaktu social media | ⬜ | |
 | FE-014 | Graficzny edytor drzewa IVR (drag & drop) | ✅ | IvrListComponent (lista drzew IVR), IvrEditorComponent (edytor drag & drop SVG canvas: węzły PlayAudio/TTS/CollectDTMF/Menu/TransferToQueue/Hangup, krawędzie SVG path, panel boczny konfiguracji węzła, zapis JSONB). IvrService (frontend), ivr.model.ts. |
 | FE-015 | Zarządzanie kampaniami: lista i formularz tworzenia | ✅ | campaign.model.ts, campaign.service.ts, campaign-list.component (ts/html/scss), campaign-form.component (ts/html/scss), supervisor.routes.ts zaktualizowany. Odblokowuje FE-016. |
@@ -115,7 +116,7 @@
 | FE-021 | Dashboard RT supervisora | ✅ | Dashboard RT supervisora: KPI cards (aktywne połączenia, agenci online/przerwa/dostępni), tabela agentów z aktualnym statusem, wykres kolejek; WebSocket STOMP /topic/tenant/{tenantId}/supervisor, dane co 5s; tryb pełnoekranowy |
 | FE-022 | Raporty historyczne: filtry, tabele, eksport | ✅ | report.model.ts (AgentReportRow, AgentReportFilters), reports.service.ts (getAgentReport, exportCsv, exportXlsx blob), ReportsComponent (filtry URL sync, tabela badge'ami kanałów, paginacja, eksport Blob, skeleton, empty state), supervisor.routes.ts /reports z roleGuard, build 0 błędów |
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ | |
-| FE-024 | Panel konfiguracji kolejek i routingu | ✅ | QueueListComponent (tabela kolejek z liczbą oczekujących, polling co 10s), QueueFormComponent (formularz tworzenia/edycji: nazwa, strategia routingu, required skills multi-select, sticky agent timeout), QueueDeleteModalComponent. Integracja z BE-020 ✅. |
+| FE-024 | Panel konfiguracji kolejek i routingu | ✅ | QueueListComponent (tabela kolejek z liczbą oczekujących, polling co 10s), QueueFormComponent (formularz tworzenia/edycji: nazwa, strategia routingu, required skills multi-select, sticky agent timeout, adres email kolejki emailAddress z walidacją email + maxLength(255)), QueueDeleteModalComponent. Integracja z BE-020 ✅ + DB-020 ✅. |
 | FE-025 | Panel konfiguracji Twilio per tenant | ⬜ | Czeka na BE-032 |
 
 ---
@@ -124,10 +125,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 19/19 | 0 | 0 | 19 |
-| Backend (BE) | 24/33 | 0 | 9 | 33 |
-| Frontend (FE) | 21/25 | 0 | 4 | 25 |
-| **RAZEM** | **64/77** | **0** | **13** | **77** |
+| Database (DB) | 20/20 | 0 | 0 | 20 |
+| Backend (BE) | 25/33 | 0 | 8 | 33 |
+| Frontend (FE) | 22/25 | 0 | 3 | 25 |
+| **RAZEM** | **67/78** | **0** | **11** | **78** |
 
 ---
 
@@ -171,7 +172,7 @@
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 19/19 ✅ | BE: 24/33 (BE-001 ✅, BE-001b ✅, BE-002 ✅, BE-003 ✅, BE-004 ✅, BE-005 ✅, BE-006 ✅, BE-007 ✅, BE-008 ✅, BE-009 ✅, BE-010 ✅, BE-011 ✅, BE-012 ✅, BE-013 ✅, BE-015 ✅, BE-019 ✅, BE-020 ✅, BE-022 ✅, BE-023 ✅, BE-025 ✅, BE-026 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 21/25 (FE-001..FE-011 ✅, FE-014 ✅, FE-015 ✅, FE-016 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-020 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
+**Stan na:** DB: 20/20 ✅ | BE: 25/33 (BE-001 ✅, BE-001b ✅, BE-002 ✅, BE-003 ✅, BE-004 ✅, BE-005 ✅, BE-006 ✅, BE-007 ✅, BE-008 ✅, BE-009 ✅, BE-010 ✅, BE-011 ✅, BE-012 ✅, BE-013 ✅, BE-015 ✅, BE-016 ✅, BE-019 ✅, BE-020 ✅, BE-022 ✅, BE-023 ✅, BE-025 ✅, BE-026 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 22/25 (FE-001..FE-012 ✅, FE-014 ✅, FE-015 ✅, FE-016 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-020 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
 
 ---
 
@@ -187,6 +188,7 @@
 | Tabele EMAIL, SOCIAL, IVR, QUEUE | DB-007..DB-010 | ✅ |
 | Tabele CAMPAIGN, CAMPAIGN_CONTACT | DB-011 | ✅ |
 | Indeksy, RLS, RODO, pg_cron, DW | DB-013..DB-019 | ✅ |
+| Kolumna email_address w QUEUE (V029) | DB-020 | ✅ |
 
 Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm), funkcje RODO i schemat ClickHouse DW są zaimplementowane. BE i FE mogą budować na stabilnej bazie.
 
@@ -217,9 +219,9 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-023 | Import CSV kampanii: CampaignImportController, CampaignImportService (@Async, OpenCSV, batch 1000, ON CONFLICT), Redis TTL 1h, V027 indeks | ✅ |
 | BE-026 | Import klientów CSV: CustomerImportController, CustomerImportService (@Async, chunk 500, SKIP/OVERWRITE, E.164), 24 testy PASS | ✅ |
 | BE-001b | MinIO docker-compose: serwis minio + minio-init, bucket contact-center-recordings, S3Properties | ✅ |
-| BE-015 | Email Adapter: EmailPollingService (IMAP @Scheduled), EmailSendService (SMTP), EmailRoutingService, EmailEncryptionService (AES-256), EmailController (5 endpointów), EmailMessage/EmailRoutingRule repozytoria, EmailEventPublisher (RabbitMQ) | ✅ |
+| BE-015 | Email Adapter: EmailPollingService (IMAP @Scheduled), EmailSendService (SMTP), EmailRoutingService (routing priorytetowy po email_address kolejki + reguły), EmailEncryptionService (AES-256), EmailController (5 endpointów), EmailMessage/EmailRoutingRule/EmailTemplate repozytoria przeniesione do domain/model i domain/repository, EmailEventPublisher (RabbitMQ) | ✅ |
+| BE-016 | Szablony email: EmailTemplateController (6 endpointów CRUD + preview), EmailTemplateService, EmailTemplate entity, EmailTemplateRepository, MustacheTemplateEngine (renderowanie zmiennych), DTOs CreateEmailTemplateRequest/UpdateEmailTemplateRequest/EmailTemplateResponse | ✅ |
 | BE-014 | Voicebot Python: ASR + NLU + eskalacja do agenta | ⬜ |
-| BE-016 | Szablony odpowiedzi email: CRUD API | ⬜ |
 | BE-017 | OAuth flow i zarządzanie tokenami social media | ⬜ |
 | BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ⬜ |
 | BE-021 | Wait time estimation: informacja o czasie oczekiwania | ⬜ |
@@ -243,6 +245,7 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-009 | Agent Desktop: AgentDesktopComponent (layout z panelem statusu agenta AVAILABLE/BUSY/BREAK/AFTER_CONTACT, obszar zakładek kontaktów max 4: 1 telefon + 3 chat/email, integracja WebSocket z WebSocket.service.ts, baner "Utracono połączenie – próba reconnect"). Czeka na BE-012 ✅. | ✅ |
 | FE-010 | Softphone WebRTC: SIP.js/JsSIP, odbieranie/rozłączanie, mute, hold, blind i attended transfer, CLi. Czeka na FE-009 ✅, BE-009 ✅, BE-012 ✅. | ✅ |
 | FE-011 | Panel profilu klienta: panel boczny w AgentDesktopComponent z danymi klienta (CLI lookup), historia ostatnich kontaktów, CTA "Utwórz profil" dla nieznanych numerów. Integracja z BE-025 ✅ i BE-011 ✅. | ✅ |
+| FE-012 | Komponent email: EmailContactComponent (wątek email z paginacją, edytor odpowiedzi, wybór szablonu autocomplete), EmailThreadMessageComponent, EmailService, EmailSettingsComponent (konfiguracja IMAP/SMTP supervisora w /supervisor/settings), EmailConfigService. Integracja z AgentDesktopComponent. | ✅ |
 | FE-017 | Disposition panel: DispositionPanelComponent (modal ACW, timer MM:SS, dropdown 6 kodów, textarea notatka), ContactService.setDisposition() → PATCH /api/contacts/{id}/disposition, contact-tab.store.ts (stan WRAPPING), effect() na session.state=ENDED w agent-desktop. | ✅ |
 | FE-018 | Lista klientów: CustomerListComponent (tabela PagedResponse, wyszukiwanie debounce 300ms, skeleton loading), CustomerDeleteModalComponent (modal RODO), CustomerService (frontend). Czeka na BE-025 ✅. | ✅ |
 | FE-019 | Profil klienta: CustomerDetailComponent (dane podstawowe, chips telefon/email, custom_fields, oś czasu kontaktów, badge RODO). Czeka na FE-018 ✅ + BE-025 ✅ + BE-027 ✅. | ✅ |
@@ -253,7 +256,6 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-015 | Kampanie: CampaignListComponent (tabela + polling 10s, akcje inline start/pause/stop), CampaignFormComponent (harmonogram, walidacja) | ✅ |
 | FE-016 | Import CSV kampanii: CampaignImportComponent (4-krokowy wizard, drag&drop, mapowanie kolumn, polling 3s, raport) | ✅ |
 | FE-020 | Import klientów CSV: CustomerImportComponent (4-krokowy wizard, deduplikacja radio, auto-mapowanie, pobieranie błędów CSV) | ✅ |
-| FE-012 | Komponent obsługi kontaktu email | ⬜ |
 | FE-013 | Komponent obsługi kontaktu social media | ⬜ |
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ |
 | FE-025 | Panel konfiguracji Twilio per tenant | ⬜ |
@@ -328,7 +330,7 @@ FE-005 → FE-023                                  (Integracje social media)
 | FE-009 | BE-012 ✅ | Agent Desktop: WebSocket hub dla statusów i kontaktów RT. FE-009 ✅ ukończone. | ✅ Gotowe |
 | FE-010 | BE-009 ✅, BE-012 ✅ | Softphone WebRTC: adapter VoIP + WebSocket sygnalizacja | ✅ Gotowe |
 | FE-011 | BE-025 ✅, BE-011 ✅ | Panel klienta podczas kontaktu: CLI lookup + Customer API | ✅ Gotowe |
-| FE-012 | BE-015, BE-016 | Obsługa emaila: adapter IMAP/SMTP + szablony | 🔵 Tak – MSW mock |
+| FE-012 | BE-015 ✅, BE-016 ✅ | Obsługa emaila: adapter IMAP/SMTP + szablony | ✅ Gotowe |
 | FE-013 | BE-018 | Obsługa social media: webhooks i wysyłka | 🔵 Tak – MSW mock |
 | FE-014 | BE-020 ✅, BE-013 ✅ | Edytor IVR: Queue API + IVR Engine (zapis JSONB). Oba gotowe. | ✅ Gotowe |
 | FE-015 | BE-022 ✅ | Zarządzanie kampaniami: CRUD + akcje start/pause/stop | ✅ Gotowe |
@@ -434,14 +436,15 @@ BE-009 (VoIP Adapter) ────────┐
 | 2 | 🟢 BE-010 | ✅ | Ukończone – RecordingService S3, RetentionJob, RecordingController |
 | 3 | 🟢 BE-011 | ✅ | Ukończone – CliLookupService, CallEventEnricher, CustomerCliResult |
 | 4 | 🟢 BE-012 | ✅ | WebSocket STOMP, JWT interceptor, RabbitMQ relay |
-| 5 | 🟢 BE-015 | ⬜ | Kanał email – niezależny od BE-009 |
-| 6 | 🟢 BE-017 | ⬜ | OAuth social – niezależny od BE-009 |
-| 7 | FE-009 | ✅ | Agent Desktop layout, panel statusu, zakładki kontaktów, integracja WS |
-| 8 | 🟢 FE-010 | ✅ | Wymaga FE-009 ✅ + BE-009 ✅, BE-012 ✅ |
-| 9 | 🟢 FE-011 | ✅ | Ukończone – panel boczny CLI lookup, integracja z BE-025 ✅ + BE-011 ✅ |
-| 10 | 🟢 FE-012 | ⬜ | Wymaga FE-009 ✅ + BE-015, BE-016 (lub MSW) |
-| 11 | 🟢 FE-013 | ⬜ | Wymaga FE-009 ✅ + BE-018 (lub MSW) |
-| 12 | 🟢 FE-017 | ✅ | Ukończone – DispositionPanelComponent, ContactService, stan WRAPPING |
+| 5 | 🟢 BE-015 | ✅ | Ukończone – EmailPollingService (IMAP), EmailSendService (SMTP), EmailController |
+| 6 | 🟢 BE-016 | ✅ | Ukończone – EmailTemplateController, MustacheTemplateEngine, EmailTemplateService |
+| 7 | 🟢 BE-017 | ⬜ | OAuth social – niezależny od BE-009 |
+| 8 | FE-009 | ✅ | Agent Desktop layout, panel statusu, zakładki kontaktów, integracja WS |
+| 9 | 🟢 FE-010 | ✅ | Wymaga FE-009 ✅ + BE-009 ✅, BE-012 ✅ |
+| 10 | 🟢 FE-011 | ✅ | Ukończone – panel boczny CLI lookup, integracja z BE-025 ✅ + BE-011 ✅ |
+| 11 | 🟢 FE-012 | ✅ | Ukończone – EmailContactComponent, EmailThreadMessageComponent, EmailService, EmailSettingsComponent |
+| 12 | 🟢 FE-013 | ⬜ | Wymaga FE-009 ✅ + BE-018 (lub MSW) |
+| 13 | 🟢 FE-017 | ✅ | Ukończone – DispositionPanelComponent, ContactService, stan WRAPPING |
 
 ---
 
@@ -455,11 +458,11 @@ BE-009 (VoIP Adapter) ───┴──> BE-024 (Progressive Dialer)
 
 | Kolejność | Zadanie | Status | Warunek |
 |-----------|---------|--------|---------|
-| 1 | BE-022 | ⬜ | Wymaga BE-002 ✅ + DB-011 ✅ |
-| 2 | 🟢 BE-023 | ⬜ | Wymaga BE-022 + DB-011 ✅ |
-| 3 | 🟢 FE-015 | ⬜ | Wymaga BE-022 (lub MSW) |
-| 4 | BE-024 | ⬜ | Wymaga BE-009 + BE-022 (bloker: BE-009 musi być gotowe) |
-| 5 | FE-016 | ⬜ | Wymaga FE-015 + BE-023 (lub MSW) |
+| 1 | BE-022 | ✅ | Ukończone – CampaignController, CampaignService, V026 migracja |
+| 2 | 🟢 BE-023 | ✅ | Ukończone – CampaignImportController, @Async batch 1000, V027 indeks |
+| 3 | 🟢 FE-015 | ✅ | Ukończone – CampaignListComponent, CampaignFormComponent |
+| 4 | BE-024 | ⬜ | Wymaga BE-009 ✅ + BE-022 ✅ |
+| 5 | FE-016 | ✅ | Ukończone – CampaignImportComponent (4-krokowy wizard) |
 
 ---
 
@@ -474,11 +477,11 @@ BE-025 (Customer CRUD) ──┬──> BE-026 (Import CSV async)
 | Kolejność | Zadanie | Status | Warunek |
 |-----------|---------|--------|---------|
 | 1 | BE-025 | ✅ | Ukończone – CustomerController, CustomerService, fuzzy search |
-| 2 | 🟢 BE-026 | ⬜ | Wymaga BE-025 ✅ |
+| 2 | 🟢 BE-026 | ✅ | Ukończone – CustomerImportController, @Async chunk 500, SKIP/OVERWRITE, E.164 |
 | 3 | 🟢 BE-031 | ⬜ | Wymaga BE-025 ✅ + BE-027 ✅ |
 | 4 | FE-018 | ✅ | Ukończone – CustomerListComponent, CustomerDeleteModalComponent |
 | 5 | 🟢 FE-019 | ✅ | Ukończone – CustomerDetailComponent, oś czasu kontaktów, badge RODO |
-| 6 | 🟢 FE-020 | ⬜ | Wymaga FE-018 ✅ + BE-026 (lub MSW) |
+| 6 | 🟢 FE-020 | ✅ | Ukończone – CustomerImportComponent (4-krokowy wizard, deduplikacja) |
 
 ---
 
@@ -496,11 +499,11 @@ BE-027 ────────────────┴──> BE-030 (ETL �
 | Kolejność | Zadanie | Status | Warunek |
 |-----------|---------|--------|---------|
 | 1 | BE-027 | ✅ | Ukończone – ContactController, ContactService, ContactRepository |
-| 2 | 🟢 BE-028 | ⬜ | Wymaga BE-027 ✅ + DB-013 ✅ |
-| 3 | 🟢 BE-029 | ⬜ | Wymaga BE-012 ✅ + BE-019 ✅ – odblokowane |
+| 2 | 🟢 BE-028 | ✅ | Ukończone – ReportsService (Redis cache MD5 5min, CSV + XLSX Apache POI), ReportsController (4 endpointy) |
+| 3 | 🟢 BE-029 | ✅ | Ukończone – SupervisorMetricsService (@Scheduled 5s, Redis SCAN, broadcast WS) |
 | 4 | 🟢 BE-030 | ⬜ | Wymaga BE-027 ✅ + DB-013 ✅ + DB-014 ✅ (schemat DW gotowy) |
-| 5 | 🟢 FE-021 | ⬜ | Wymaga BE-029 (lub MSW WebSocket mock) |
-| 6 | 🟢 FE-022 | ⬜ | Wymaga BE-028 (lub MSW) |
+| 5 | 🟢 FE-021 | ✅ | Ukończone – Dashboard RT supervisora, KPI cards, WebSocket STOMP |
+| 6 | 🟢 FE-022 | ✅ | Ukończone – ReportsComponent, filtry URL sync, eksport CSV/XLSX Blob |
 
 ---
 
@@ -567,7 +570,10 @@ Poniższe grupy zadań są od siebie niezależne i mogą być realizowane przez 
 | ✅ Rozwiązany | BE-020 (Queue API) | Ukończone – QueueController, DTOs, cache Redis TTL 5s; odblokowane FE-024 |
 | ✅ Rozwiązany | FE-019 (Profil klienta) | Ukończone – CustomerDetailComponent, oś czasu kontaktów, chips telefon/email, badge RODO |
 | ✅ Rozwiązany | FE-024 (Konfiguracja kolejek) | Ukończone – QueueListComponent, QueueFormComponent (strategia routingu, skills, sticky timeout), QueueDeleteModalComponent |
-| 🟡 Średni | BE-029 (RT Metrics WebSocket) | Wymaga BE-012 ✅ + BE-019 ✅ – wszystkie zależności spełnione; gotowe do implementacji |
+| ✅ Rozwiązany | BE-029 (RT Metrics WebSocket) | Ukończone – SupervisorMetricsService @Scheduled 5s, Redis SCAN, broadcast WS |
+| ✅ Rozwiązany | BE-015 (Email Adapter) | Ukończone – routing po email_address kolejki (V029), IMAP, SMTP, szyfrowanie AES-256 |
+| ✅ Rozwiązany | BE-016 (Szablony email) | Ukończone – MustacheTemplateEngine, EmailTemplateController (6 endpointów CRUD + preview) |
+| ✅ Rozwiązany | FE-012 (Email contact UI) | Ukończone – EmailContactComponent, EmailSettingsComponent (supervisor), EmailService |
 | 🟡 Średni | BE-021 (Wait Time Estimation) | Wymaga BE-019 ✅ + BE-020 ✅ – odblokowane |
 
 ---

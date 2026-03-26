@@ -1,0 +1,322 @@
+<div class="email-settings">
+  <div class="email-settings__header">
+    <h1 class="email-settings__title">Konfiguracja kanalu email</h1>
+    <p class="email-settings__subtitle">Skonfiguruj serwery IMAP i SMTP do obslugi wiadomosci email.</p>
+  </div>
+
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-label="Ladowanie konfiguracji...">
+      <div class="skeleton skeleton--title"></div>
+      <div class="skeleton skeleton--field"></div>
+      <div class="skeleton skeleton--field"></div>
+      <div class="skeleton skeleton--field"></div>
+      <div class="skeleton skeleton--field"></div>
+      <div class="skeleton skeleton--field"></div>
+    </div>
+  } @else if (loadError()) {
+    <div class="error-state" role="alert">
+      <p class="error-state__message">Nie udalo sie zaladowac konfiguracji. Sprawdz polaczenie i odswierz strone.</p>
+    </div>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="email-settings__form">
+
+      <!-- Section: Enable/Disable email -->
+      <section class="form-section">
+        <div class="form-field form-field--toggle">
+          <div class="form-field__label-group">
+            <label class="form-label" for="email-enabled">Obsluga email</label>
+            <span class="form-hint">Wlacz lub wylacz odbieranie i wysylanie wiadomosci email.</span>
+          </div>
+          <label class="toggle-label" aria-label="Wlacz obsluge email">
+            <input
+              id="email-enabled"
+              type="checkbox"
+              class="toggle-input"
+              formControlName="emailEnabled"
+              role="switch"
+              [attr.aria-checked]="form.get('emailEnabled')?.value"
+            />
+            <span class="toggle-track" aria-hidden="true"></span>
+            <span class="toggle-text">
+              {{ form.get('emailEnabled')?.value ? 'Wlaczona' : 'Wylaczona' }}
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Section: IMAP -->
+      <section class="form-section">
+        <h2 class="form-section__title">Serwer IMAP (odbieranie)</h2>
+
+        <div class="form-row">
+          <div class="form-field form-field--grow" [class.form-field--error]="imapHostError">
+            <label class="form-label" for="imap-host">
+              Host IMAP <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="imap-host"
+              type="text"
+              class="form-input"
+              formControlName="imapHost"
+              placeholder="np. imap.gmail.com"
+              autocomplete="off"
+              [attr.aria-describedby]="imapHostError ? 'imap-host-error' : null"
+              [attr.aria-invalid]="imapHostError ? 'true' : null"
+            />
+            @if (imapHostError) {
+              <span id="imap-host-error" class="form-error" role="alert">{{ imapHostError }}</span>
+            }
+          </div>
+
+          <div class="form-field form-field--port" [class.form-field--error]="imapPortError">
+            <label class="form-label" for="imap-port">
+              Port <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="imap-port"
+              type="number"
+              class="form-input"
+              formControlName="imapPort"
+              min="1"
+              max="65535"
+              [attr.aria-describedby]="imapPortError ? 'imap-port-error' : null"
+              [attr.aria-invalid]="imapPortError ? 'true' : null"
+            />
+            @if (imapPortError) {
+              <span id="imap-port-error" class="form-error" role="alert">{{ imapPortError }}</span>
+            }
+          </div>
+        </div>
+
+        <div class="form-field form-field--toggle form-field--toggle-inline">
+          <label class="form-label" for="imap-ssl">SSL/TLS</label>
+          <label class="toggle-label" aria-label="IMAP SSL">
+            <input
+              id="imap-ssl"
+              type="checkbox"
+              class="toggle-input"
+              formControlName="imapSsl"
+              role="switch"
+              [attr.aria-checked]="form.get('imapSsl')?.value"
+            />
+            <span class="toggle-track" aria-hidden="true"></span>
+            <span class="toggle-text">
+              {{ form.get('imapSsl')?.value ? 'Wlaczone' : 'Wylaczone' }}
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Section: SMTP -->
+      <section class="form-section">
+        <h2 class="form-section__title">Serwer SMTP (wysylanie)</h2>
+
+        <div class="form-row">
+          <div class="form-field form-field--grow" [class.form-field--error]="smtpHostError">
+            <label class="form-label" for="smtp-host">
+              Host SMTP <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="smtp-host"
+              type="text"
+              class="form-input"
+              formControlName="smtpHost"
+              placeholder="np. smtp.gmail.com"
+              autocomplete="off"
+              [attr.aria-describedby]="smtpHostError ? 'smtp-host-error' : null"
+              [attr.aria-invalid]="smtpHostError ? 'true' : null"
+            />
+            @if (smtpHostError) {
+              <span id="smtp-host-error" class="form-error" role="alert">{{ smtpHostError }}</span>
+            }
+          </div>
+
+          <div class="form-field form-field--port" [class.form-field--error]="smtpPortError">
+            <label class="form-label" for="smtp-port">
+              Port <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="smtp-port"
+              type="number"
+              class="form-input"
+              formControlName="smtpPort"
+              min="1"
+              max="65535"
+              [attr.aria-describedby]="smtpPortError ? 'smtp-port-error' : null"
+              [attr.aria-invalid]="smtpPortError ? 'true' : null"
+            />
+            @if (smtpPortError) {
+              <span id="smtp-port-error" class="form-error" role="alert">{{ smtpPortError }}</span>
+            }
+          </div>
+        </div>
+
+        <div class="form-field form-field--toggle form-field--toggle-inline">
+          <label class="form-label" for="smtp-ssl">SSL/TLS</label>
+          <label class="toggle-label" aria-label="SMTP SSL">
+            <input
+              id="smtp-ssl"
+              type="checkbox"
+              class="toggle-input"
+              formControlName="smtpSsl"
+              role="switch"
+              [attr.aria-checked]="form.get('smtpSsl')?.value"
+            />
+            <span class="toggle-track" aria-hidden="true"></span>
+            <span class="toggle-text">
+              {{ form.get('smtpSsl')?.value ? 'Wlaczone' : 'Wylaczone' }}
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Section: Account credentials -->
+      <section class="form-section">
+        <h2 class="form-section__title">Dane konta</h2>
+
+        <div class="form-field" [class.form-field--error]="usernameError">
+          <label class="form-label" for="username">
+            Adres email <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="username"
+            type="email"
+            class="form-input"
+            formControlName="username"
+            placeholder="np. kontakt@firma.pl"
+            autocomplete="email"
+            [attr.aria-describedby]="usernameError ? 'username-error' : null"
+            [attr.aria-invalid]="usernameError ? 'true' : null"
+          />
+          @if (usernameError) {
+            <span id="username-error" class="form-error" role="alert">{{ usernameError }}</span>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="password">Haslo</label>
+          @if (hasPassword()) {
+            <span class="password-badge" aria-label="Haslo jest skonfigurowane">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              </svg>
+              Haslo skonfigurowane
+            </span>
+          }
+          <input
+            id="password"
+            type="password"
+            class="form-input"
+            formControlName="password"
+            placeholder="Pozostaw puste aby zachowac aktualne haslo"
+            autocomplete="new-password"
+          />
+          <span class="form-hint">Podaj nowe haslo tylko jesli chcesz je zmienic.</span>
+        </div>
+      </section>
+
+      <!-- Section: Routing wiadomosci -->
+      <section class="form-section">
+        <h2 class="form-section__title">Routing wiadomosci</h2>
+
+        <div class="form-field">
+          <label class="form-label" for="default-queue">Domyslna kolejka</label>
+          <select
+            id="default-queue"
+            class="form-input"
+            formControlName="defaultQueueId"
+          >
+            <option [value]="null">— brak (wiadomosci bez kolejki) —</option>
+            @for (queue of queues(); track queue.queueId) {
+              <option [value]="queue.queueId">{{ queue.name }}</option>
+            }
+          </select>
+          <span class="form-hint">Przychodzace emaile trafia do tej kolejki gdy zadna regula routingu nie pasuje.</span>
+        </div>
+      </section>
+
+      <!-- Section: Polling interval -->
+      <section class="form-section">
+        <h2 class="form-section__title">Harmonogram sprawdzania</h2>
+
+        <div class="form-field" [class.form-field--error]="pollIntervalError">
+          <label class="form-label" for="poll-interval">
+            Interwal sprawdzania (sekundy) <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="poll-interval"
+            type="number"
+            class="form-input form-input--short"
+            formControlName="pollIntervalSeconds"
+            min="10"
+            max="3600"
+            [attr.aria-describedby]="pollIntervalError ? 'poll-interval-error' : 'poll-interval-hint'"
+            [attr.aria-invalid]="pollIntervalError ? 'true' : null"
+          />
+          @if (pollIntervalError) {
+            <span id="poll-interval-error" class="form-error" role="alert">{{ pollIntervalError }}</span>
+          } @else {
+            <span id="poll-interval-hint" class="form-hint">Zakres: 10–3600 sekund (domyslnie 60).</span>
+          }
+        </div>
+      </section>
+
+      <!-- Test connection result -->
+      @if (testResult(); as result) {
+        <div
+          class="test-result"
+          [class.test-result--success]="result.success"
+          [class.test-result--error]="!result.success"
+          role="status"
+          aria-live="polite"
+        >
+          @if (result.success) {
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+          } @else {
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+          }
+          <span>{{ result.message }}</span>
+        </div>
+      }
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="onTestConnection()"
+          [disabled]="isTestDisabled()"
+          [attr.aria-disabled]="isTestDisabled()"
+          aria-label="Testuj polaczenie IMAP"
+        >
+          @if (testing()) {
+            <span class="spinner spinner--dark" aria-hidden="true"></span>
+            Testowanie...
+          } @else {
+            Testuj polaczenie IMAP
+          }
+        </button>
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="isSaveDisabled()"
+          [attr.aria-disabled]="isSaveDisabled()"
+          aria-label="Zapisz konfiguracje email"
+        >
+          @if (submitting()) {
+            <span class="spinner" aria-hidden="true"></span>
+            Zapisywanie...
+          } @else {
+            Zapisz konfiguracje
+          }
+        </button>
+      </div>
+
+    </form>
+  }
+</div>

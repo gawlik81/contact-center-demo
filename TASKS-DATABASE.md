@@ -455,6 +455,29 @@ Migracja `V999__dev_seed.sql` (uruchamiana tylko w profilu `dev` przez Flyway lo
 
 ---
 
+### DB-020 – Kolumna email_address w tabeli QUEUE: routing emaili
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-010
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-03-26
+**Blokuje:** brak
+**Odniesienie PRD:** US-05-01, EPIC-05
+
+**Opis:**
+Migracja `V029__add_email_address_to_queue.sql`. Dodanie kolumny `email_address VARCHAR(255) NULL` do tabeli `QUEUE`. Umożliwia przypisanie adresu email do kolejki, tak aby przychodzące wiadomości email na ten adres były automatycznie routowane do tej kolejki. UNIQUE constraint na `(tenant_id, email_address)` (NULL nie narusza UNIQUE w PostgreSQL). CHECK constraint: `email_address IS NULL OR email_address LIKE '%@%'`. Partial index `idx_queue_email_address` na `(tenant_id, email_address) WHERE email_address IS NOT NULL` dla szybkiego lookup w `EmailPollingService`.
+
+**Kryteria akceptacji:**
+- [x] Kolumna `email_address` nullable – zachowanie backward-compatible (istniejące kolejki bez zmian)
+- [x] UNIQUE constraint na `(tenant_id, email_address)` zapobiega duplikatom adresów w tenantcie
+- [x] CHECK constraint weryfikuje obecność `@` w adresie (podstawowa walidacja formatu)
+- [x] Partial index (WHERE IS NOT NULL) zoptymalizowany dla lookup w EmailRoutingService
+- [x] EmailRoutingService używa `queueRepository.findByEmailAddressAndTenantId()` do routingu przed regułami
+
+---
+
 ---
 
 ## Zależności między zadaniami
@@ -469,6 +492,7 @@ DB-006 → DB-007 (EMAIL)
 DB-006 → DB-008 (SOCIAL)
 DB-002 → DB-009 (IVR_TREE)
 DB-002 → DB-010 (QUEUE)
+DB-010 → DB-020 (email_address w QUEUE)
 DB-002 + DB-012 → DB-011 (CAMPAIGN)
 DB-002 → DB-012 (CUSTOMER)
 DB-006 + DB-011 + DB-003 → DB-013 (indeksy raportowe)
@@ -503,6 +527,7 @@ Wszystkie → DB-019 (seed dev)
 | BE-017, BE-018 | DB-008 (SOCIAL_INTEGRATION) |
 | BE-013, BE-014 | DB-009 (tabela IVR_TREE) |
 | BE-019, BE-020 | DB-010 (tabela QUEUE) |
+| BE-015 (email routing po adresie) | DB-020 (email_address w QUEUE) |
 | BE-022, BE-023, BE-024 | DB-011 (tabela CAMPAIGN) |
 | BE-025, BE-026, BE-031 | DB-012 (tabela CUSTOMER) |
 | BE-028, BE-030 | DB-013 + DB-014 |
@@ -516,12 +541,12 @@ Wszystkie → DB-019 (seed dev)
 | Kategoria | Liczba zadań | Must Have | Should Have |
 |-----------|-------------|-----------|-------------|
 | Infrastruktura / Fundament | 3 | 3 | 0 |
-| Encje domenowe (PostgreSQL) | 11 | 11 | 0 |
+| Encje domenowe (PostgreSQL) | 12 | 12 | 0 |
 | Bezpieczenstwo / Izolacja | 2 | 1 | 1 |
 | Redis | 1 | 1 | 0 |
 | RODO / Funkcje | 1 | 1 | 0 |
 | Narzedzia operacyjne | 2 | 2 | 0 |
-| **RAZEM** | **19** | **18** | **1** |
+| **RAZEM** | **20** | **19** | **1** |
 
 ---
 
@@ -538,7 +563,7 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | Nagrywanie rozmów | DB-006 | BE-010 | FE-019 (historia) |
 | IVR editor | DB-009 | BE-013 | FE-014 |
 | Voicebot | DB-009 | BE-014 | – (brak widoku FE) |
-| Email handling | DB-006, DB-007 | BE-015 | FE-012 |
+| Email handling | DB-006, DB-007, DB-020 | BE-015 | FE-012 |
 | Social media | DB-006, DB-008 | BE-017, BE-018 | FE-013, FE-023 |
 | Routing | DB-010 | BE-019, BE-020 | FE-024 |
 | Kampanie outbound | DB-011 | BE-022, BE-023, BE-024 | FE-015, FE-016 |

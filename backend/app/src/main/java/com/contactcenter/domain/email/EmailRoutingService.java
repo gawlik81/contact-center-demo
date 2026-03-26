@@ -1,5 +1,11 @@
 package com.contactcenter.domain.email;
 
+import com.contactcenter.domain.model.EmailMessage;
+import com.contactcenter.domain.model.EmailRoutingRule;
+import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.repository.EmailMessageRepository;
+import com.contactcenter.domain.repository.EmailRoutingRuleRepository;
+import com.contactcenter.domain.repository.QueueRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,9 +38,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EmailRoutingService {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private final EmailMessageRepository emailMessageRepository;
     private final EmailEventPublisher emailEventPublisher;
     private final EmailRoutingRuleRepository routingRuleRepository;
+    private final QueueRepository queueRepository;
 
     // =========================================================================
     // Główna metoda routingu
@@ -61,8 +71,10 @@ public class EmailRoutingService {
             log.info("[EmailRouting] Wiadomość {} przypisana do kolejki {}", message.getId(), queueId.get());
             emailEventPublisher.publishQueued(message, queueId.get());
         } else {
-            log.warn("[EmailRouting] Brak pasującej kolejki dla wiadomości {}. " +
-                     "Skonfiguruj email_default_queue_id w tenant.config.", message.getId());
+            log.warn("[EmailRouting] Brak pasującej kolejki dla wiadomości {} " +
+                     "(sprawdzono: reguły routingu → adres email kolejki → email_default_queue_id). " +
+                     "Skonfiguruj email_default_queue_id w tenant.config lub przypisz email_address do kolejki.",
+                     message.getId());
         }
     }
 
@@ -91,7 +103,18 @@ public class EmailRoutingService {
             }
         }
 
-        // 2. Fallback: kolejka domyślna z tenant.config
+        // 2. Fallback: kolejka przypisana do adresu email (to_address)
+        if (message.getToAddress() != null && !message.getToAddress().isBlank()) {
+            String primaryToAddress = extractEmailAddress(message.getToAddress().split(",")[0]);
+            Optional<UUID> queueByEmail = findQueueByEmailAddress(primaryToAddress, tenantId);
+            if (queueByEmail.isPresent()) {
+                log.info("[EmailRouting] Wiadomość {} przypisana do kolejki {} przez adres email {}",
+                        message.getId(), queueByEmail.get(), primaryToAddress);
+                return queueByEmail;
+            }
+        }
+
+        // 3. Ostatni fallback: kolejka domyślna z tenant.config["email_default_queue_id"]
         Object defaultQueueIdObj = tenantConfig != null
                 ? tenantConfig.get("email_default_queue_id")
                 : null;
@@ -108,6 +131,44 @@ public class EmailRoutingService {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * Ekstrahuje czysty adres email z wartości nagłówka, obsługując format RFC 5322.
+     *
+     * <p>Przykłady wejścia:
+     * <ul>
+     *   <li>{@code "support@mycompany.com"} → {@code "support@mycompany.com"}</li>
+     *   <li>{@code "Support Team <support@mycompany.com>"} → {@code "support@mycompany.com"}</li>
+     * </ul>
+     *
+     * @param address surowa wartość adresu (pojedynczy wpis, nie lista)
+     * @return czysty adres email małymi literami lub null gdy wejście null
+     */
+    private String extractEmailAddress(String address) {
+        if (address == null) return null;
+        String trimmed = address.trim();
+        // Format: "Display Name <email@domain.com>"
+        int start = trimmed.lastIndexOf('<');
+        int end   = trimmed.lastIndexOf('>');
+        if (start >= 0 && end > start) {
+            return trimmed.substring(start + 1, end).trim().toLowerCase();
+        }
+        return trimmed.toLowerCase();
+    }
+
+    /**
+     * Wyszukuje aktywną kolejkę przypisaną do podanego adresu email.
+     *
+     * <p>Porównanie case-insensitive – delegowane do bazy danych.
+     *
+     * @param emailAddress adres email (to_address wiadomości przychodzacej)
+     * @param tenantId     UUID tenanta
+     * @return Optional z UUID kolejki lub empty gdy brak dopasowania
+     */
+    private Optional<UUID> findQueueByEmailAddress(String emailAddress, UUID tenantId) {
+        return queueRepository.findByEmailAddressAndTenantId(emailAddress, tenantId)
+                .map(Queue::getQueueId);
     }
 
     /**
@@ -129,9 +190,8 @@ public class EmailRoutingService {
 
         List<Map<String, String>> conditions;
         try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            conditions = mapper.readValue(rule.getConditions(),
-                    mapper.getTypeFactory().constructCollectionType(List.class, Map.class));
+            conditions = MAPPER.readValue(rule.getConditions(),
+                    MAPPER.getTypeFactory().constructCollectionType(List.class, Map.class));
         } catch (Exception e) {
             log.warn("[EmailRouting] Błąd parsowania warunków reguły {}: {}", rule.getRuleId(), e.getMessage());
             return false;

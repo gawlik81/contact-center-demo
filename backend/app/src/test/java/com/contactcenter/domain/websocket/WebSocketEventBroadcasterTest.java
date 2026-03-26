@@ -229,7 +229,8 @@ class WebSocketEventBroadcasterTest {
         @DisplayName("contactAssigned tworzy event z poprawnymi danymi agenta i kontaktu")
         void shouldCreateContactAssignedEvent() {
             UUID contactId = UUID.randomUUID();
-            WebSocketEvent event = WebSocketEvent.contactAssigned(TENANT_ID, USER_ID, contactId, "VOICE");
+            WebSocketEvent event = WebSocketEvent.contactAssigned(
+                    TENANT_ID, USER_ID, contactId, "PHONE", "Jan Kowalski", "+48123456789");
 
             assertThat(event.eventType()).isEqualTo(WebSocketEvent.TYPE_CONTACT_ASSIGNED);
             assertThat(event.payload()).isInstanceOf(WebSocketEvent.ContactAssignedPayload.class);
@@ -238,7 +239,9 @@ class WebSocketEventBroadcasterTest {
                     (WebSocketEvent.ContactAssignedPayload) event.payload();
             assertThat(payload.agentId()).isEqualTo(USER_ID.toString());
             assertThat(payload.contactId()).isEqualTo(contactId.toString());
-            assertThat(payload.channel()).isEqualTo("VOICE");
+            assertThat(payload.type()).isEqualTo("PHONE");
+            assertThat(payload.customerName()).isEqualTo("Jan Kowalski");
+            assertThat(payload.customerIdentifier()).isEqualTo("+48123456789");
         }
     }
 }

@@ -1,6 +1,8 @@
 package com.contactcenter.domain.email;
 
+import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.security.TenantContext;
 import jakarta.mail.*;
@@ -293,12 +295,14 @@ public class EmailPollingService {
             props.put("mail.imaps.host", config.getImapHost());
             props.put("mail.imaps.port", String.valueOf(config.getImapPort()));
             props.put("mail.imaps.ssl.enable", "true");
+            props.put("mail.imaps.ssl.trust", "*");
             props.put("mail.imaps.timeout", "10000");
             props.put("mail.imaps.connectiontimeout", "10000");
         } else {
             props.put("mail.store.protocol", "imap");
             props.put("mail.imap.host", config.getImapHost());
             props.put("mail.imap.port", String.valueOf(config.getImapPort()));
+            props.put("mail.imap.ssl.trust", "*");
             props.put("mail.imap.timeout", "10000");
             props.put("mail.imap.connectiontimeout", "10000");
         }

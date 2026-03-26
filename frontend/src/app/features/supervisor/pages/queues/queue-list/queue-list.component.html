@@ -75,7 +75,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (queue of queues(); track queue.id) {
+            @for (queue of queues(); track queue.queueId) {
               <tr class="queue-row">
                 <td class="queue-name">{{ queue.name }}</td>
                 <td class="queue-secondary hide-sm">{{ queue.routingStrategy }}</td>
@@ -93,11 +93,11 @@
                 <td>
                   <span
                     class="status-badge"
-                    [class.status-badge--active]="queue.isActive"
-                    [class.status-badge--inactive]="!queue.isActive"
-                    [attr.aria-label]="queue.isActive ? 'Kolejka aktywna' : 'Kolejka nieaktywna'"
+                    [class.status-badge--active]="queue.active"
+                    [class.status-badge--inactive]="!queue.active"
+                    [attr.aria-label]="queue.active ? 'Kolejka aktywna' : 'Kolejka nieaktywna'"
                   >
-                    {{ queue.isActive ? 'Aktywna' : 'Nieaktywna' }}
+                    {{ queue.active ? 'Aktywna' : 'Nieaktywna' }}
                   </span>
                 </td>
                 <td class="queue-actions">
@@ -118,19 +118,21 @@
                     class="btn btn-icon-outline"
                     type="button"
                     (click)="toggleActive(queue)"
-                    [disabled]="toggling() === queue.id"
-                    [attr.aria-label]="(queue.isActive ? 'Dezaktywuj' : 'Aktywuj') + ' kolejke ' + queue.name"
-                    [title]="queue.isActive ? 'Dezaktywuj' : 'Aktywuj'"
+                    [disabled]="toggling() === queue.queueId"
+                    [attr.aria-label]="(queue.active ? 'Dezaktywuj' : 'Aktywuj') + ' kolejke ' + queue.name"
+                    [title]="queue.active ? 'Dezaktywuj' : 'Aktywuj'"
                   >
-                    @if (toggling() === queue.id) {
+                    @if (toggling() === queue.queueId) {
                       <span class="spinner" aria-hidden="true"></span>
-                    } @else if (queue.isActive) {
-                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
-                      </svg>
-                    } @else {
+                    } @else if (queue.active) {
+                      <!-- pause icon: kliknij aby dezaktywować -->
                       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
+                      </svg>
+                    } @else {
+                      <!-- play icon: kliknij aby aktywować -->
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
                       </svg>
                     }
                   </button>

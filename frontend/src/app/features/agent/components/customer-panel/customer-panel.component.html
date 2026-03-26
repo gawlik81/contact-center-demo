@@ -126,7 +126,7 @@
     <div class="cp__history">
       <h4 class="cp__history-title">Ostatnie kontakty</h4>
 
-      @if (profile()!.recentContacts.length === 0) {
+      @if (!profile()!.recentContacts || profile()!.recentContacts.length === 0) {
         <p class="cp__history-empty">Brak historii kontakt&oacute;w</p>
       } @else {
         <ul class="cp__history-list" role="list">

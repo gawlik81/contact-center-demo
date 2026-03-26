@@ -168,6 +168,89 @@ $breakpoint-desktop: 1280px;
     flex: 1;
   }
 
+  // Section toggle button (nav item with children)
+  &__link--section {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+  }
+
+  &__link--section-active {
+    color: #ffffff;
+
+    .sidenav__icon {
+      color: rgba(255, 255, 255, 0.9);
+    }
+  }
+
+  &__chevron {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: rgba(226, 232, 240, 0.5);
+    transition: transform 0.2s ease;
+    margin-left: auto;
+
+    &--open {
+      transform: rotate(180deg);
+    }
+  }
+
+  // Submenu
+  &__submenu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  &__subitem {
+    margin: 0;
+    padding: 0 0.5rem 0 1rem;
+  }
+
+  &__sublink {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    text-decoration: none;
+    color: rgba(226, 232, 240, 0.8);
+    font-size: 0.875rem;
+    font-weight: 400;
+    transition:
+      background 0.15s,
+      color 0.15s;
+    position: relative;
+
+    &:hover {
+      background: $sidenav-hover-bg;
+      color: $sidenav-text;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #60a5fa;
+      outline-offset: 2px;
+    }
+
+    &--active {
+      background: $sidenav-active-bg;
+      color: #ffffff;
+      font-weight: 500;
+
+      .sidenav__icon {
+        color: #ffffff;
+      }
+    }
+  }
+
+  &__icon--sm {
+    width: 18px;
+    height: 18px;
+  }
+
   &__alert-badge {
     display: inline-flex;
     align-items: center;

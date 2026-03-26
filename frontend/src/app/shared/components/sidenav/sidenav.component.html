@@ -14,39 +14,93 @@
 
   <ul class="sidenav__list" role="list">
     @for (item of navItems(); track item.route) {
-      <li class="sidenav__item" role="listitem">
-        <a
-          class="sidenav__link"
-          [routerLink]="item.route"
-          routerLinkActive="sidenav__link--active"
-          [routerLinkActiveOptions]="{ exact: true }"
-          [attr.aria-label]="item.ariaLabel"
-          (click)="onLinkClick()"
-          #rla="routerLinkActive"
-          [attr.aria-current]="rla.isActive ? 'page' : null"
-        >
-          <svg class="sidenav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
-            <path [attr.d]="item.svgPath" />
-          </svg>
-          <span class="sidenav__label">{{ item.label }}</span>
+      @if (item.children && item.children.length > 0) {
+        <!-- Expandable section header -->
+        <li class="sidenav__item" role="listitem">
+          <button
+            type="button"
+            class="sidenav__link sidenav__link--section"
+            [class.sidenav__link--section-active]="isChildActive(item)"
+            [attr.aria-label]="item.ariaLabel"
+            [attr.aria-expanded]="isSectionExpanded(item.route) || isChildActive(item)"
+            (click)="toggleSection(item.route)"
+          >
+            <svg class="sidenav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+              <path [attr.d]="item.svgPath" />
+            </svg>
+            <span class="sidenav__label">{{ item.label }}</span>
+            <svg
+              class="sidenav__chevron"
+              [class.sidenav__chevron--open]="isSectionExpanded(item.route) || isChildActive(item)"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
+            </svg>
+          </button>
 
-          <!--
-            Alert badge is rendered ONLY for the Dashboard nav item.
-            Condition 1: `item.route === '/admin/dashboard'` short-circuits
-            the @if early for every non-dashboard item in the @for loop,
-            so the signal read in condition 2 is skipped entirely for those.
-            Condition 2: showAlertBadge() additionally checks:
-              - user is ADMIN
-              - alertCount > 0
-            Both conditions must be true simultaneously.
-          -->
-          @if (item.route === '/admin/dashboard' && showAlertBadge()) {
-            <span class="sidenav__alert-badge" [attr.aria-label]="alertCount() + ' alertow systemowych'">{{
-              alertBadgeLabel()
-            }}</span>
+          @if (isSectionExpanded(item.route) || isChildActive(item)) {
+            <ul class="sidenav__submenu" role="list">
+              @for (child of item.children; track child.route) {
+                <li class="sidenav__subitem" role="listitem">
+                  <a
+                    class="sidenav__sublink"
+                    [routerLink]="child.route"
+                    routerLinkActive="sidenav__sublink--active"
+                    [routerLinkActiveOptions]="{ exact: true }"
+                    [attr.aria-label]="child.ariaLabel"
+                    (click)="onLinkClick()"
+                    #crla="routerLinkActive"
+                    [attr.aria-current]="crla.isActive ? 'page' : null"
+                  >
+                    <svg class="sidenav__icon sidenav__icon--sm" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+                      <path [attr.d]="child.svgPath" />
+                    </svg>
+                    <span class="sidenav__label">{{ child.label }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
           }
-        </a>
-      </li>
+        </li>
+      } @else {
+        <!-- Regular nav link -->
+        <li class="sidenav__item" role="listitem">
+          <a
+            class="sidenav__link"
+            [routerLink]="item.route"
+            routerLinkActive="sidenav__link--active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            [attr.aria-label]="item.ariaLabel"
+            (click)="onLinkClick()"
+            #rla="routerLinkActive"
+            [attr.aria-current]="rla.isActive ? 'page' : null"
+          >
+            <svg class="sidenav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+              <path [attr.d]="item.svgPath" />
+            </svg>
+            <span class="sidenav__label">{{ item.label }}</span>
+
+            <!--
+              Alert badge is rendered ONLY for the Dashboard nav item.
+              Condition 1: `item.route === '/admin/dashboard'` short-circuits
+              the @if early for every non-dashboard item in the @for loop,
+              so the signal read in condition 2 is skipped entirely for those.
+              Condition 2: showAlertBadge() additionally checks:
+                - user is ADMIN
+                - alertCount > 0
+              Both conditions must be true simultaneously.
+            -->
+            @if (item.route === '/admin/dashboard' && showAlertBadge()) {
+              <span class="sidenav__alert-badge" [attr.aria-label]="alertCount() + ' alertow systemowych'">{{
+                alertBadgeLabel()
+              }}</span>
+            }
+          </a>
+        </li>
+      }
     }
   </ul>
 </nav>

@@ -1,12 +1,18 @@
 package com.contactcenter.api.email;
 
+import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.*;
+
+import java.util.UUID;
 
 /**
  * DTO żądania zapisu konfiguracji IMAP/SMTP per-tenant.
  *
  * <p>Pole {@code password} jest opcjonalne przy aktualizacji –
  * gdy null, istniejące hasło zostaje zachowane.
+ *
+ * <p>Pole {@code defaultQueueId} jest opcjonalne – gdy null, klucz
+ * {@code email_default_queue_id} jest usuwany z konfiguracji tenanta.
  */
 public record EmailConfigRequest(
 
@@ -47,5 +53,12 @@ public record EmailConfigRequest(
         int pollIntervalSeconds,
 
         /** Włącza/wyłącza obsługę email dla tenanta. */
-        boolean emailEnabled
+        boolean emailEnabled,
+
+        /**
+         * UUID domyślnej kolejki dla przychodzących emaili.
+         * Opcjonalne – gdy null, klucz {@code email_default_queue_id} jest usuwany.
+         */
+        @Nullable
+        UUID defaultQueueId
 ) {}

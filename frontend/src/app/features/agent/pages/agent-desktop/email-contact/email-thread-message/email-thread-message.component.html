@@ -1,0 +1,45 @@
+<article
+  class="thread-message"
+  [class.thread-message--inbound]="message().direction === 'INBOUND'"
+  [class.thread-message--outbound]="message().direction === 'OUTBOUND'"
+  [attr.aria-label]="(message().direction === 'INBOUND' ? 'Wiadomosc przychodzaca od ' : 'Wiadomosc wychodzaca do ') + message().fromAddress"
+>
+  <div class="thread-message__meta">
+    <div class="thread-message__meta-left">
+      <span
+        class="thread-message__direction-badge"
+        [class.thread-message__direction-badge--inbound]="message().direction === 'INBOUND'"
+        [class.thread-message__direction-badge--outbound]="message().direction === 'OUTBOUND'"
+      >
+        {{ message().direction === 'INBOUND' ? 'Przychodzaca' : 'Wychodzaca' }}
+      </span>
+      <span class="thread-message__from">
+        <strong>Od:</strong> {{ message().fromAddress }}
+      </span>
+      @if (message().toAddresses.length) {
+        <span class="thread-message__to">
+          <strong>Do:</strong> {{ message().toAddresses.join(', ') }}
+        </span>
+      }
+    </div>
+    <time
+      class="thread-message__time"
+      [attr.datetime]="message().receivedAt || message().sentAt || message().createdAt"
+    >
+      {{ (message().receivedAt || message().sentAt || message().createdAt) | date: 'dd.MM.yyyy HH:mm' }}
+    </time>
+  </div>
+
+  <div class="thread-message__body">
+    <iframe
+      #iframe
+      class="thread-message__iframe"
+      [srcdoc]="getSrcdoc(message().bodyHtml, message().bodyText)"
+      [style.height.px]="iframeHeight()"
+      title="Tresc wiadomosci email"
+      sandbox="allow-same-origin"
+      (load)="onIframeLoad($event)"
+      aria-label="Tresc wiadomosci"
+    ></iframe>
+  </div>
+</article>

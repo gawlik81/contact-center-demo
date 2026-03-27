@@ -26,6 +26,9 @@ export class AppShellComponent implements OnInit {
   private readonly document = inject(DOCUMENT);
   protected readonly sidenavOpen = signal(false);
 
+  /** Whether the sidenav is in collapsed (icon-only) mode */
+  protected readonly sidenavCollapsed = signal(false);
+
   /** On desktop (>=1280px) the sidenav is always visible */
   private readonly DESKTOP_BREAKPOINT = 1280;
 
@@ -62,5 +65,10 @@ export class AppShellComponent implements OnInit {
     if (this.windowWidth < this.DESKTOP_BREAKPOINT && this.sidenavOpen()) {
       this.sidenavOpen.set(false);
     }
+  }
+
+  /** Called by sidenav when collapsed state changes */
+  onSidenavCollapsedChange(collapsed: boolean): void {
+    this.sidenavCollapsed.set(collapsed);
   }
 }

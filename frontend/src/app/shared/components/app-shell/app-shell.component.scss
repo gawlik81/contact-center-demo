@@ -1,4 +1,5 @@
 $sidenav-width: 240px;
+$sidenav-collapsed-width: 60px;
 $navbar-height: 60px;
 $breakpoint-tablet: 1024px;
 $breakpoint-desktop: 1280px;
@@ -49,11 +50,9 @@ $breakpoint-desktop: 1280px;
     min-width: 0; // prevent overflow in flex container
     min-height: 0; // allow flex children to control height
     overflow: hidden; // constrain children – scroll is handled by __content
-
-    // Shift main content to the right on desktop when sidenav is visible
-    @media (min-width: $breakpoint-desktop) {
-      margin-left: $sidenav-width;
-    }
+    // Smooth transition when sidenav collapses/expands – the flex layout
+    // handles width automatically but we add transition for smoothness
+    transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &__breadcrumbs {
@@ -69,6 +68,11 @@ $breakpoint-desktop: 1280px;
     min-height: 0; // allow child height: 100% to resolve against flex-allocated height
     overflow-y: auto; // regular pages scroll here
     padding: 1.5rem;
+    // display: flex so that full-bleed children (e.g. agent-desktop) can use flex: 1 + negative
+    // margins to escape the padding. Regular block children are unaffected — they still flow
+    // normally; the flex container just means height is available as a definite value.
+    display: flex;
+    flex-direction: column;
 
     @media (max-width: 600px) {
       padding: 1rem;

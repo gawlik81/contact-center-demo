@@ -1,7 +1,11 @@
 <!-- Skip link for WCAG keyboard navigation -->
 <a href="#main-content" class="skip-link">Przejdz do tresci</a>
 
-<div class="shell" [class.shell--sidenav-open]="sidenavOpen()">
+<div
+  class="shell"
+  [class.shell--sidenav-open]="sidenavOpen()"
+  [class.shell--sidenav-collapsed]="sidenavCollapsed()"
+>
   <!-- Top Navbar -->
   <cc-top-navbar
     class="shell__navbar"
@@ -14,6 +18,7 @@
     <cc-sidenav
       [isOpen]="sidenavOpen()"
       (closeRequest)="onCloseSidenav()"
+      (collapsedChange)="onSidenavCollapsedChange($event)"
     />
 
     <!-- Main content area -->

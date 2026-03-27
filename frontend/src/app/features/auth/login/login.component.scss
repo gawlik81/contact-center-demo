@@ -19,7 +19,10 @@ $transition-speed: 0.35s;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: $bg-page;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(21, 101, 192, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 80%, rgba(107, 70, 193, 0.06) 0%, transparent 60%),
+    $bg-page;
   padding: 1rem;
 }
 
@@ -28,12 +31,14 @@ $transition-speed: 0.35s;
   background: $bg-card;
   border-radius: 12px;
   box-shadow:
-    0 4px 6px rgba(0, 0, 0, 0.07),
-    0 10px 24px rgba(0, 0, 0, 0.1);
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 4px 8px rgba(0, 0, 0, 0.08),
+    0 16px 48px rgba(0, 0, 0, 0.12);
   width: 100%;
   max-width: 420px;
   padding: 2.5rem 2rem;
   overflow: hidden;
+  animation: card-enter 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 
   @media (max-width: 480px) {
     padding: 2rem 1.25rem;
@@ -41,6 +46,18 @@ $transition-speed: 0.35s;
     min-height: 100vh;
     box-shadow: none;
     max-width: 100%;
+    animation: none;
+  }
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -55,7 +72,8 @@ $transition-speed: 0.35s;
 .brand-icon {
   width: 44px;
   height: 44px;
-  background: $brand-blue;
+  background: linear-gradient(135deg, #1976d2 0%, #1a56db 100%);
+  box-shadow: 0 2px 8px rgba(21, 86, 219, 0.4);
   color: #fff;
   border-radius: 10px;
   display: flex;
@@ -77,8 +95,8 @@ $transition-speed: 0.35s;
 // ── Step animation ────────────────────────────────────────────────────────────
 .step-wrapper {
   transition:
-    opacity $transition-speed ease,
-    transform $transition-speed ease;
+    opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 
   &.step-visible {
     opacity: 1;

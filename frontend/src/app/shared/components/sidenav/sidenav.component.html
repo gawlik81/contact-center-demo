@@ -7,7 +7,13 @@
 ></div>
 
 <!-- Sidebar -->
-<nav class="sidenav" [class.sidenav--open]="isOpen()" role="navigation" aria-label="Nawigacja glowna">
+<nav
+  class="sidenav"
+  [class.sidenav--open]="isOpen()"
+  [class.sidenav--collapsed]="isCollapsed()"
+  role="navigation"
+  aria-label="Nawigacja glowna"
+>
   <div class="sidenav__header">
     <span class="sidenav__title">Menu</span>
   </div>
@@ -22,7 +28,9 @@
             class="sidenav__link sidenav__link--section"
             [class.sidenav__link--section-active]="isChildActive(item)"
             [attr.aria-label]="item.ariaLabel"
-            [attr.aria-expanded]="isSectionExpanded(item.route) || isChildActive(item)"
+            [attr.aria-expanded]="isCollapsed() ? null : (isSectionExpanded(item.route) || isChildActive(item))"
+            [attr.title]="isCollapsed() ? item.label : null"
+            [attr.data-tooltip]="isCollapsed() ? item.label : null"
             (click)="toggleSection(item.route)"
           >
             <svg class="sidenav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
@@ -41,7 +49,7 @@
             </svg>
           </button>
 
-          @if (isSectionExpanded(item.route) || isChildActive(item)) {
+          @if (!isCollapsed() && (isSectionExpanded(item.route) || isChildActive(item))) {
             <ul class="sidenav__submenu" role="list">
               @for (child of item.children; track child.route) {
                 <li class="sidenav__subitem" role="listitem">
@@ -74,6 +82,8 @@
             routerLinkActive="sidenav__link--active"
             [routerLinkActiveOptions]="{ exact: true }"
             [attr.aria-label]="item.ariaLabel"
+            [attr.title]="isCollapsed() ? item.label : null"
+            [attr.data-tooltip]="isCollapsed() ? item.label : null"
             (click)="onLinkClick()"
             #rla="routerLinkActive"
             [attr.aria-current]="rla.isActive ? 'page' : null"
@@ -83,16 +93,6 @@
             </svg>
             <span class="sidenav__label">{{ item.label }}</span>
 
-            <!--
-              Alert badge is rendered ONLY for the Dashboard nav item.
-              Condition 1: `item.route === '/admin/dashboard'` short-circuits
-              the @if early for every non-dashboard item in the @for loop,
-              so the signal read in condition 2 is skipped entirely for those.
-              Condition 2: showAlertBadge() additionally checks:
-                - user is ADMIN
-                - alertCount > 0
-              Both conditions must be true simultaneously.
-            -->
             @if (item.route === '/admin/dashboard' && showAlertBadge()) {
               <span class="sidenav__alert-badge" [attr.aria-label]="alertCount() + ' alertow systemowych'">{{
                 alertBadgeLabel()
@@ -103,4 +103,29 @@
       }
     }
   </ul>
+
+  <!-- Collapse toggle button – visible on desktop only -->
+  <div class="sidenav__footer">
+    <button
+      type="button"
+      class="sidenav__collapse-btn"
+      [attr.aria-label]="isCollapsed() ? 'Rozwin nawigacje' : 'Zwij nawigacje'"
+      [attr.title]="isCollapsed() ? 'Rozwin nawigacje' : 'Zwij nawigacje'"
+      [attr.data-tooltip]="isCollapsed() ? 'Rozwin' : null"
+      (click)="toggleCollapsed()"
+    >
+      <svg
+        class="sidenav__collapse-icon"
+        [class.sidenav__collapse-icon--flipped]="isCollapsed()"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <!-- Double chevron left -->
+        <path d="M11.41 7.41L10 6l-6 6 6 6 1.41-1.41L6.83 12l4.58-4.59zm6 0L16 6l-6 6 6 6 1.41-1.41L12.83 12l4.58-4.59z" />
+      </svg>
+      <span class="sidenav__collapse-label">Zwij</span>
+    </button>
+  </div>
 </nav>

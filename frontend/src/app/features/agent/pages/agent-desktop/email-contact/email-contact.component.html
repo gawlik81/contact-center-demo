@@ -12,7 +12,8 @@
   </div>
 } @else if (rootMessage()) {
   <div class="email-contact">
-    <!-- HEADER -->
+
+    <!-- ===== HEADER: subject + metadata ===== -->
     <header class="email-header">
       <div class="email-header__subject-row">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="email-header__icon">
@@ -46,9 +47,10 @@
       }
     </header>
 
-    <!-- BODY -->
+    <!-- ===== BODY: thread + reply ===== -->
     <div class="email-body">
-      <!-- LEFT: Thread -->
+
+      <!-- LEFT: message thread -->
       <section class="email-thread" role="region" aria-label="Watek wiadomosci email">
         @if (hasMore()) {
           <div class="email-thread__load-more">
@@ -79,8 +81,10 @@
         </div>
       </section>
 
-      <!-- RIGHT: Reply panel -->
+      <!-- RIGHT: reply panel -->
       <section class="email-reply" role="region" aria-label="Panel odpowiedzi">
+
+        <!-- Scrollable form fields -->
         <div class="email-reply__inner">
 
           <!-- Template selector -->
@@ -127,7 +131,7 @@
             </div>
           </div>
 
-          <!-- Template variables form -->
+          <!-- Template variable form -->
           @if (showVariableForm() && hasTemplateVariables()) {
             <div class="email-reply__variables" role="group" aria-label="Zmienne szablonu">
               <p class="email-reply__variables-title">Uzupelnij zmienne szablonu:</p>
@@ -155,7 +159,7 @@
             </div>
           }
 
-          <!-- Subject -->
+          <!-- Subject line -->
           <div class="email-reply__field-group">
             <label class="field-label" for="reply-subject">Temat odpowiedzi</label>
             <input
@@ -229,36 +233,39 @@
             ></div>
           </div>
 
-          <!-- Actions -->
-          <div class="email-reply__actions">
-            <button
-              type="button"
-              class="btn btn--primary"
-              [disabled]="!canSend()"
-              aria-label="Wyslij odpowiedz email"
-              (click)="sendReply()"
-            >
-              @if (sending()) {
-                <span class="btn-spinner btn-spinner--light" aria-hidden="true"></span>
-                <span>Wysylanie...</span>
-              } @else {
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                </svg>
-                <span>Wyslij odpowiedz</span>
-              }
-            </button>
-            <button
-              type="button"
-              class="btn btn--ghost"
-              aria-label="Anuluj i zamknij zakladke email"
-              (click)="cancelReply()"
-            >
-              Anuluj
-            </button>
-          </div>
+        </div><!-- /.email-reply__inner -->
+
+        <!-- Sticky action bar — always visible at bottom of reply pane -->
+        <div class="email-reply__actions">
+          <button
+            type="button"
+            class="btn btn--primary"
+            [disabled]="!canSend()"
+            aria-label="Wyslij odpowiedz email"
+            (click)="sendReply()"
+          >
+            @if (sending()) {
+              <span class="btn-spinner btn-spinner--light" aria-hidden="true"></span>
+              <span>Wysylanie...</span>
+            } @else {
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+              <span>Wyslij odpowiedz</span>
+            }
+          </button>
+          <button
+            type="button"
+            class="btn btn--ghost"
+            aria-label="Anuluj i zamknij zakladke email"
+            (click)="cancelReply()"
+          >
+            Anuluj
+          </button>
         </div>
+
       </section>
-    </div>
-  </div>
+    </div><!-- /.email-body -->
+
+  </div><!-- /.email-contact -->
 }

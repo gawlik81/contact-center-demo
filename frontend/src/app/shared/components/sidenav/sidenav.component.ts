@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  PLATFORM_ID,
   computed,
   effect,
   inject,
@@ -10,6 +11,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -139,6 +141,9 @@ const AGENT_NAV: NavItem[] = [
 /** Route that owns the alert badge – must be an exact string match against router.url */
 const ALERT_BADGE_ROUTE = '/admin/dashboard';
 
+/** localStorage key for the collapsed state */
+const COLLAPSED_STORAGE_KEY = 'cc_sidenav_collapsed';
+
 @Component({
   selector: 'cc-sidenav',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -151,12 +156,19 @@ export class SidenavComponent implements OnInit {
   private readonly metricsService = inject(AdminMetricsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
+  private readonly platformId = inject(PLATFORM_ID);
 
   /** Controls visibility on mobile/tablet */
   readonly isOpen = input<boolean>(false);
 
   /** Emits when an overlay click should close the nav */
   readonly closeRequest = output<void>();
+
+  /** Emits the current collapsed state so AppShell can adjust layout */
+  readonly collapsedChange = output<boolean>();
+
+  /** Whether the sidenav is in icon-only collapsed mode (desktop only) */
+  readonly isCollapsed = signal<boolean>(this._loadCollapsedState());
 
   readonly navItems = computed<NavItem[]>(() => {
     const role: UserRole | null = this.auth.currentRole();
@@ -180,11 +192,6 @@ export class SidenavComponent implements OnInit {
 
   /**
    * Reactive signal tracking the current URL after every completed navigation.
-   *
-   * Derived from NavigationEnd events so it is always updated after each
-   * successful navigation, regardless of component reuse strategy. The
-   * initialValue seeds the signal synchronously from router.url so the very
-   * first render is already correct even before any NavigationEnd fires.
    */
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
@@ -195,14 +202,10 @@ export class SidenavComponent implements OnInit {
   );
 
   /**
-   * Computed signal: true only when ALL four conditions hold simultaneously.
+   * Computed signal: true only when ALL conditions hold simultaneously:
    *  1. Current user is ADMIN
    *  2. There is at least one active system alert
    *  3. The active URL is exactly '/admin/dashboard'
-   *
-   * This signal is used ONLY on the Dashboard list item (not inside the @for
-   * loop for every item) so condition 3 alone guarantees it never appears on
-   * Uzytkownicy, Tenants, or any other nav entry.
    */
   readonly showAlertBadge = computed(
     () => this.isAdmin() && this.alertCount() > 0 && this.currentUrl() === ALERT_BADGE_ROUTE,
@@ -210,8 +213,6 @@ export class SidenavComponent implements OnInit {
 
   /**
    * Auto-expands any nav section whose child route matches the current URL.
-   * Reactive to navigation changes so the correct section stays open when
-   * the user navigates directly to a child route.
    */
   private readonly _autoExpandEffect = effect(() => {
     const url = this.currentUrl();
@@ -237,19 +238,25 @@ export class SidenavComponent implements OnInit {
     });
   });
 
+  /** Persist collapsed state and notify parent whenever it changes */
+  private readonly _persistCollapsedEffect = effect(() => {
+    const collapsed = this.isCollapsed();
+    this._saveCollapsedState(collapsed);
+    this.collapsedChange.emit(collapsed);
+  });
+
   ngOnInit(): void {
-    // Only subscribe to the alert count stream for ADMIN users.
-    // For SUPERVISOR and AGENT the badge is hidden by the isAdmin computed
-    // signal in the template, but we also skip the subscription entirely so
-    // the metrics service is not unnecessarily kept alive by this component.
-    // Note: AdminMetricsService._poll$ is already role-gated and will never
-    // issue HTTP calls for non-ADMIN users, but this guard is defense-in-depth.
     if (this.auth.currentRole() !== 'ADMIN') {
       return;
     }
     this.metricsService.alertCount$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((count) => this.alertCount.set(count));
+  }
+
+  /** Toggle between expanded and collapsed (icon-only) modes */
+  toggleCollapsed(): void {
+    this.isCollapsed.update((v) => !v);
   }
 
   /** Badge label capped at 99+ for display */
@@ -300,5 +307,27 @@ export class SidenavComponent implements OnInit {
         }),
       ) ?? false
     );
+  }
+
+  private _loadCollapsedState(): boolean {
+    if (!isPlatformBrowser(this.platformId)) {
+      return false;
+    }
+    try {
+      return localStorage.getItem(COLLAPSED_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  private _saveCollapsedState(collapsed: boolean): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+    try {
+      localStorage.setItem(COLLAPSED_STORAGE_KEY, String(collapsed));
+    } catch {
+      // Storage unavailable – fail silently
+    }
   }
 }

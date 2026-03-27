@@ -1,4 +1,5 @@
 $sidenav-width: 240px;
+$sidenav-collapsed-width: 60px;
 $sidenav-bg: #1e2a3a;
 $sidenav-text: #e2e8f0;
 $sidenav-active-bg: #2d6cdf;
@@ -7,6 +8,9 @@ $sidenav-border: rgba(255, 255, 255, 0.08);
 
 $breakpoint-tablet: 1024px;
 $breakpoint-desktop: 1280px;
+
+$transition-sidenav: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+$transition-label: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 
 // Overlay (mobile/tablet only)
 .sidenav-overlay {
@@ -43,8 +47,10 @@ $breakpoint-desktop: 1280px;
   z-index: 200;
   overflow-y: auto;
   overflow-x: hidden;
-  transition: transform 0.25s ease;
-  will-change: transform;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, width;
 
   // Mobile: hidden by default, slides in when open
   @media (max-width: #{$breakpoint-tablet - 1px}) {
@@ -78,6 +84,11 @@ $breakpoint-desktop: 1280px;
     transform: none !important;
     flex-shrink: 0;
     height: 100%;
+
+    // Collapsed state – icon-only mode
+    &--collapsed {
+      width: $sidenav-collapsed-width;
+    }
   }
 
   &__header {
@@ -87,11 +98,6 @@ $breakpoint-desktop: 1280px;
     padding: 0 1.25rem;
     border-bottom: 1px solid $sidenav-border;
     flex-shrink: 0;
-
-    @media (min-width: $breakpoint-tablet) {
-      // On tablet/desktop the header is hidden (navbar covers it)
-      // But we keep it for mobile where sidenav overlaps navbar
-    }
 
     @media (min-width: $breakpoint-desktop) {
       display: none; // on desktop the global navbar already shows brand
@@ -116,6 +122,11 @@ $breakpoint-desktop: 1280px;
   &__item {
     margin: 0;
     padding: 0 0.5rem;
+
+    // In collapsed mode reduce horizontal padding so icon fits centred
+    .sidenav--collapsed & {
+      padding: 0 0.25rem;
+    }
   }
 
   &__link {
@@ -129,12 +140,15 @@ $breakpoint-desktop: 1280px;
     font-size: 0.9375rem;
     font-weight: 400;
     transition:
-      background 0.15s,
-      color 0.15s;
+      background 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
+      color 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
+      transform 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     position: relative;
+    overflow: hidden;
 
     &:hover {
       background: $sidenav-hover-bg;
+      transform: translateX(2px);
     }
 
     &:focus-visible {
@@ -142,10 +156,31 @@ $breakpoint-desktop: 1280px;
       outline-offset: 2px;
     }
 
+    // Collapsed mode: center icon, hide text elements
+    .sidenav--collapsed & {
+      padding: 0.625rem;
+      justify-content: center;
+      gap: 0;
+      transform: none !important;
+    }
+
     &--active {
       background: $sidenav-active-bg;
       color: #ffffff;
       font-weight: 500;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: -0.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 60%;
+        background: #ffffff;
+        border-radius: 0 2px 2px 0;
+        opacity: 0.9;
+      }
 
       .sidenav__icon {
         color: #ffffff;
@@ -166,6 +201,16 @@ $breakpoint-desktop: 1280px;
     overflow: hidden;
     text-overflow: ellipsis;
     flex: 1;
+    transition: $transition-label;
+    transform-origin: left center;
+
+    // Hide text in collapsed mode with fade+slide
+    .sidenav--collapsed & {
+      opacity: 0;
+      width: 0;
+      flex: 0;
+      pointer-events: none;
+    }
   }
 
   // Section toggle button (nav item with children)
@@ -190,11 +235,18 @@ $breakpoint-desktop: 1280px;
     height: 18px;
     flex-shrink: 0;
     color: rgba(226, 232, 240, 0.5);
-    transition: transform 0.2s ease;
+    transition:
+      transform 0.2s ease,
+      opacity 0.15s ease;
     margin-left: auto;
 
     &--open {
       transform: rotate(180deg);
+    }
+
+    // Hide chevron in collapsed mode
+    .sidenav--collapsed & {
+      display: none;
     }
   }
 
@@ -251,6 +303,40 @@ $breakpoint-desktop: 1280px;
     height: 18px;
   }
 
+  // CSS tooltip shown in collapsed mode via data-tooltip attribute
+  // Positioned to the right of the icon
+  [data-tooltip] {
+    position: relative;
+
+    &::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: calc(100% + 10px);
+      top: 50%;
+      transform: translateY(-50%) translateX(-4px);
+      background: #0f172a;
+      color: #f1f5f9;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      white-space: nowrap;
+      padding: 0.3rem 0.65rem;
+      border-radius: 6px;
+      pointer-events: none;
+      opacity: 0;
+      transition:
+        opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 300;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    &:hover::after,
+    &:focus-visible::after {
+      opacity: 1;
+      transform: translateY(-50%) translateX(0);
+    }
+  }
+
   &__alert-badge {
     display: inline-flex;
     align-items: center;
@@ -266,5 +352,89 @@ $breakpoint-desktop: 1280px;
     line-height: 1;
     flex-shrink: 0;
     margin-left: auto;
+    animation: badge-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+    .sidenav--collapsed & {
+      display: none;
+    }
+  }
+
+  // Footer with collapse toggle – desktop only
+  &__footer {
+    flex-shrink: 0;
+    padding: 0.5rem;
+    border-top: 1px solid $sidenav-border;
+
+    @media (max-width: #{$breakpoint-desktop - 1px}) {
+      display: none;
+    }
+  }
+
+  &__collapse-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    color: rgba(226, 232, 240, 0.5);
+    font-size: 0.875rem;
+    font-weight: 400;
+    cursor: pointer;
+    transition:
+      background 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
+      color 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+    overflow: hidden;
+
+    &:hover {
+      background: $sidenav-hover-bg;
+      color: $sidenav-text;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #60a5fa;
+      outline-offset: 2px;
+    }
+
+    .sidenav--collapsed & {
+      justify-content: center;
+      padding: 0.5rem;
+    }
+  }
+
+  &__collapse-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &--flipped {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__collapse-label {
+    white-space: nowrap;
+    overflow: hidden;
+    transition: $transition-label;
+
+    .sidenav--collapsed & {
+      opacity: 0;
+      width: 0;
+      flex: 0;
+      pointer-events: none;
+    }
+  }
+}
+
+@keyframes badge-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
   }
 }

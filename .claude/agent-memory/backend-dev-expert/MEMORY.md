@@ -7,6 +7,8 @@
   odróżniania HTTP vs async (2026-03-22)
 - [project_campaign_crud.md](project_campaign_crud.md) – BE-022 Campaign CRUD API: encja, repo, serwis, kontroler, migracja V026 (konwersja ENUM kampanii na
   VARCHAR)
+- [IVR Architecture](project_ivr_architecture.md) — Architektura silnika IVR: tryby twimlMode vs mock, sesje Redis, tworzenie rekordu contact przy webhook
+  Twilio
 
 ## Znane pułapki
 

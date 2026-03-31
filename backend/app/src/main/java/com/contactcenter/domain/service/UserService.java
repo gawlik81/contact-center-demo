@@ -62,6 +62,7 @@ public class UserService {
     private final TenantResourceLimitService tenantResourceLimitService;
     private final RabbitTemplate rabbitTemplate;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ContactService contactService;
 
     // =========================================================================
     // Tworzenie użytkownika
@@ -370,6 +371,19 @@ public class UserService {
 
         log.info("[UserService] Status agenta zmieniony: userId={}, {} -> {}",
                 userId, oldStatus, request.status());
+
+        // Przy przejściu na AVAILABLE: oczyść błędne/przeterminowane kontakty w kolejce,
+        // żeby agent nie dostał do obsługi martwych kontaktów.
+        if (request.status() == UserStatus.AVAILABLE) {
+            try {
+                contactService.terminateStaleQueuedContacts(tenantId);
+            } catch (Exception e) {
+                // Cleanup failure is non-critical – log warning and continue.
+                // Agent status change must succeed regardless.
+                log.warn("[UserService] Błąd cleanup przeterminowanych kontaktów: tenantId={}, error={}",
+                        tenantId, e.getMessage());
+            }
+        }
 
         return UserResponse.from(saved);
     }

@@ -27,6 +27,7 @@ export interface ContactAssignedPayload {
   type: ContactType;
   customerName: string;
   customerIdentifier: string;
+  queueName?: string;
 }
 
 export interface AgentStatusChangedPayload {

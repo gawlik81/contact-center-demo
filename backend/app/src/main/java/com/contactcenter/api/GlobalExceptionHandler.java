@@ -2,6 +2,7 @@ package com.contactcenter.api;
 
 import com.contactcenter.domain.email.TemplateRenderException;
 import com.contactcenter.domain.exception.ConflictException;
+import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.RateLimitExceededException;
@@ -429,6 +430,27 @@ public class GlobalExceptionHandler {
 
         log.debug("[API] Brakujące zmienne szablonu: {}", ex.getMissingVariables());
         return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * Sesja połączenia telefonicznego nie istnieje lub operacja niedozwolona – HTTP 404.
+     *
+     * <p>Rzucany przez {@code TwilioTelephonyAdapter} i {@code MockTelephonyAdapter}
+     * gdy callId nie odpowiada żadnej aktywnej sesji lub sesja jest w złym stanie.
+     * Zwracamy 404 (nie 500) – to błąd po stronie klienta (nieistniejące/wygasłe callId).
+     */
+    @ExceptionHandler(TelephonyAdapter.TelephonyException.class)
+    public ResponseEntity<ProblemDetail> handleTelephonyException(
+            TelephonyAdapter.TelephonyException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setType(URI.create(ERROR_BASE_URI + "telephony-session-not-found"));
+        problem.setTitle("Sesja połączenia nie istnieje");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API][Telephony] Sesja połączenia nie znaleziona: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
     /**

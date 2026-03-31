@@ -10,6 +10,12 @@
 spring:
 
   # ---------------------------------------------------------------------------
+  # Lifecycle – w dev skracamy timeout wyłączania (nie potrzebujemy 30s jak w prod)
+  # ---------------------------------------------------------------------------
+  lifecycle:
+    timeout-per-shutdown-phase: 5s
+
+  # ---------------------------------------------------------------------------
   # DataSource – lokalna baza PostgreSQL
   # Domyślnie: postgres://localhost:5432/contact_center_dev
   # Nadpisywalne przez zmienne ENV (przydatne w CI)
@@ -146,8 +152,10 @@ server:
 
 # =============================================================================
 # Spring DevTools – wyłączamy auto-restart (powoduje "port already in use"
-# gdy Tomcat nie zdąży zwolnić portu przed ponownym startem kontekstu)
+# gdy Tomcat nie zdąży zwolnić portu przed ponownym startem kontekstu).
+# additional-exclude: wyklucza pliki logów z obserwacji zmian (bez wpływu na restart).
 # =============================================================================
 spring.devtools:
   restart:
     enabled: false
+    additional-exclude: "logs/**,*.log"

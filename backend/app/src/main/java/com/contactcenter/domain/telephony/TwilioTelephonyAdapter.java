@@ -1,6 +1,11 @@
 package com.contactcenter.domain.telephony;
 
+import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.infrastructure.config.TwilioProperties;
+import com.contactcenter.security.TenantContext;
 import com.twilio.Twilio;
 import com.twilio.exception.ApiException;
 import com.twilio.rest.api.v2010.account.Call;
@@ -16,6 +21,7 @@ import org.springframework.util.StringUtils;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -55,6 +61,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
   private final TwilioProperties twilioProperties;
   private final TelephonyEventPublisher eventPublisher;
+  private final ContactRepository contactRepository;
+  private final CustomerRepository customerRepository;
 
   /**
    * Lokalny cache sesji: callId (Twilio SID) → CallSession.
@@ -238,6 +246,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         .withStatus(CallSession.CallStatus.ENDED)
         .withEndedAt(endedAt);
     sessions.put(callId, updated);
+
+    if (updated.getContactId() != null) {
+      contactRepository.updateContactStatusOnTelephonyEvent(
+          updated.getContactId(), updated.getTenantId(), "COMPLETED", endedAt);
+    }
 
     eventPublisher.publishHangup(callId, updated.getContactId(),
         updated.getTenantId(), updated.getAgentId(),
@@ -446,7 +459,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     CallSession existing = sessions.get(callSid);
 
     if (existing == null) {
-      // Pierwsze powiadomienie o połączeniu przychodzącym – tworzymy sesję
+      // Pierwsze powiadomienie o połączeniu przychodzącym – tworzymy rekord contact w DB
+      // i sesję połączenia. contactId z DB jest kluczowy dla frontendu (PATCH /api/contacts/{contactId}/...).
+      // Sprawdzamy czy contact nie został już utworzony przez webhook /voice (unikamy duplikatów).
+      UUID contactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+          .orElseGet(() -> persistContact(tenantId, from, to, callSid));
       existing = CallSession.builder()
           .callId(callSid)
           .tenantId(tenantId)
@@ -454,9 +471,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .to(to)
           .status(mappedStatus)
           .startedAt(Instant.now())
+          .contactId(contactId)
           .build();
       sessions.put(callSid, existing);
-      log.debug("[TwilioAdapter] Nowa sesja z webhooka: callSid={}, status={}", callSid, mappedStatus);
+      log.debug("[TwilioAdapter] Nowa sesja z webhooka: callSid={}, contactId={}, status={}",
+          callSid, contactId, mappedStatus);
     }
     else {
       // Aktualizacja istniejącej sesji
@@ -464,10 +483,17 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       if (mappedStatus == CallSession.CallStatus.ACTIVE && existing.getAnsweredAt() == null) {
         updated = updated.withAnsweredAt(Instant.now());
       }
+      Instant webhookEndedAt = null;
       if (mappedStatus == CallSession.CallStatus.ENDED && existing.getEndedAt() == null) {
-        updated = updated.withEndedAt(Instant.now());
+        webhookEndedAt = Instant.now();
+        updated = updated.withEndedAt(webhookEndedAt);
       }
       sessions.put(callSid, updated);
+
+      if (webhookEndedAt != null && updated.getContactId() != null) {
+        contactRepository.updateContactStatusOnTelephonyEvent(
+            updated.getContactId(), updated.getTenantId(), "COMPLETED", webhookEndedAt);
+      }
     }
 
     if (eventType != null) {
@@ -484,6 +510,37 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         .filter(s -> s.getStatus() != CallSession.CallStatus.ENDED
             && s.getStatus() != CallSession.CallStatus.TRANSFERRED)
         .count();
+  }
+
+  /**
+   * Rejestruje połączenie przychodzące w lokalnym cache sesji.
+   *
+   * <p>Idempotentne – jeśli sesja dla danego callSid już istnieje, nie nadpisuje jej.
+   * Wywoływane przez {@code TwilioWebhookController.handleVoiceWebhook()} bezpośrednio
+   * po utworzeniu rekordu contact w DB, zanim StatusCallback od Twilio dotrze do serwera.
+   *
+   * @param callSid   Twilio Call SID (np. CAxxxxxxxx)
+   * @param from      numer dzwoniącego w formacie E.164
+   * @param to        numer docelowy (Twilio phone number)
+   * @param tenantId  UUID tenanta powiązanego z połączeniem
+   * @param contactId UUID rekordu contact utworzonego w DB
+   */
+  public void registerIncomingCall(String callSid, String from, String to,
+                                    UUID tenantId, UUID contactId) {
+    sessions.computeIfAbsent(callSid, sid -> {
+      CallSession session = CallSession.builder()
+          .callId(callSid)
+          .tenantId(tenantId)
+          .from(from)
+          .to(to)
+          .status(CallSession.CallStatus.RINGING)
+          .startedAt(Instant.now())
+          .contactId(contactId)
+          .build();
+      log.info("[TwilioAdapter] Zarejestrowano połączenie przychodzące: callSid={}, " +
+               "contactId={}, tenant={}", callSid, contactId, tenantId);
+      return session;
+    });
   }
 
   // =========================================================================
@@ -573,9 +630,65 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private CallSession requireSession(String callId) {
     CallSession session = sessions.get(callId);
     if (session == null) {
+      // Fallback: callId may be a contactId (UUID from DB) sent by the frontend.
+      // The sessions map is keyed by Twilio callSid (CA...), so we scan values.
+      try {
+        UUID contactId = UUID.fromString(callId);
+        session = sessions.values().stream()
+            .filter(s -> contactId.equals(s.getContactId()))
+            .findFirst()
+            .orElse(null);
+      } catch (IllegalArgumentException ignored) {
+        // callId is not a valid UUID — not a contactId, skip fallback
+      }
+    }
+    // Fallback: sesja może nie istnieć w pamięci JVM gdy StatusCallback nie dotarł jeszcze.
+    // Próbujemy odtworzyć sesję na podstawie callSid z DB (tabela contact, pole channelMetadata).
+    if (session == null && callId.startsWith("CA")) {
+      session = tryRestoreSessionFromDb(callId);
+    }
+    if (session == null) {
       throw new TelephonyException(callId, "Sesja połączenia nie istnieje: " + callId);
     }
     return session;
+  }
+
+  /**
+   * Próbuje odtworzyć sesję połączenia z bazy danych gdy nie ma jej w pamięci JVM.
+   *
+   * <p>Sytuacja może wystąpić gdy:
+   * <ul>
+   *   <li>StatusCallback od Twilio nie dotarł jeszcze przed akcją agenta</li>
+   *   <li>Aplikacja została zrestartowana po nawiązaniu połączenia (sesja utracona z ConcurrentHashMap)</li>
+   * </ul>
+   *
+   * @param callSid Twilio Call SID (CA...)
+   * @return odtworzona {@link CallSession} lub {@code null} gdy nie znaleziono w DB
+   */
+  private CallSession tryRestoreSessionFromDb(String callSid) {
+    try {
+      UUID tenantId = TenantContext.getTenantId();
+      if (tenantId == null) return null;
+      return contactRepository.findContactIdByCallSid(callSid, tenantId)
+          .map(contactId -> {
+            CallSession restored = CallSession.builder()
+                .callId(callSid)
+                .tenantId(tenantId)
+                .status(CallSession.CallStatus.RINGING)
+                .startedAt(Instant.now())
+                .contactId(contactId)
+                .build();
+            sessions.put(callSid, restored);
+            log.warn("[TwilioAdapter] Sesja odtworzona z DB (brak w pamięci): callSid={}, " +
+                     "contactId={}, tenant={}", callSid, contactId, tenantId);
+            return restored;
+          })
+          .orElse(null);
+    } catch (Exception e) {
+      log.debug("[TwilioAdapter] Nie udało się odtworzyć sesji z DB: callSid={}, error={}",
+                callSid, e.getMessage());
+      return null;
+    }
   }
 
   private void validateBridgeable(CallSession session) {
@@ -652,6 +765,106 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       case CALL_ANSWERED -> eventPublisher.publishAnswered(callSid, tenantId, agentId, from, to);
       case CALL_HANGUP -> eventPublisher.publishHangup(callSid, contactId, tenantId, agentId, from, to);
       default -> log.debug("[TwilioAdapter] Brak publikacji dla eventType={}", eventType);
+    }
+  }
+
+  /**
+   * Creates a contact record in the database for an incoming Twilio call.
+   *
+   * <p>Analogous to {@link MockTelephonyAdapter#persistMockContact}.
+   * The returned UUID is stored in the {@link CallSession} and sent to the frontend
+   * via WebSocket as {@code contactId}, enabling {@code PATCH /api/contacts/{contactId}/disposition}.
+   *
+   * <p>On DB error: logs ERROR and returns {@code null} – the call is not blocked,
+   * but the frontend will receive the Twilio Call SID instead of a UUID,
+   * causing 422 when the agent tries to save a disposition.
+   *
+   * @param tenantId UUID of the tenant
+   * @param from     caller number (CLI)
+   * @param to       called number (Twilio phone number)
+   * @param callSid  Twilio Call SID – stored in channelMetadata.sip_call_id
+   * @return UUID of the newly created contact record, or null on DB error
+   */
+  private UUID persistContact(UUID tenantId, String from, String to, String callSid) {
+    try {
+      UUID contactId = UUID.randomUUID();
+      Instant now = Instant.now();
+
+      HashMap<String, Object> metadata = new HashMap<>();
+      metadata.put("sip_call_id", callSid);
+
+      // Twilio webhooks hit a public endpoint — TenantFilter does not set TenantContext.
+      // ContactRepository.insert() calls assertSameTenant() which reads TenantContext from
+      // ThreadLocal and throws IllegalStateException when it is empty.
+      // Solution: temporarily populate TenantContext for the duration of the DB write,
+      // then restore the previous state (empty snapshot) in the finally block.
+      // resolveCustomerId must also run inside this block so RLS is active during the lookup.
+      TenantContext.Snapshot snapshot = TenantContext.snapshot();
+      try {
+        TenantContext.setTenantId(tenantId);
+        // Lookup customer by caller phone number to link the contact to a customer profile
+        UUID customerId = resolveCustomerId(from, tenantId);
+
+        Contact contact = Contact.builder()
+            .contactId(contactId)
+            .tenantId(tenantId)
+            .customerId(customerId)
+            .channel("PHONE")
+            .direction("INBOUND")
+            .status("QUEUED")
+            .remoteAddress(from)
+            .queuedAt(now)
+            .startedAt(now)
+            .channelMetadata(metadata)
+            .createdAt(now)
+            .build();
+
+        contactRepository.insert(contact);
+      } finally {
+        TenantContext.clear();
+        TenantContext.restore(snapshot);
+      }
+
+      log.debug("[TwilioAdapter] Rekord contact utworzony: contactId={}, callSid={}, tenant={}",
+          contactId, callSid, tenantId);
+
+      return contactId;
+
+    } catch (Exception e) {
+      log.error("[TwilioAdapter] Błąd tworzenia rekordu contact dla callSid={}: {}. " +
+                "Frontend otrzyma callSid zamiast UUID – setDisposition zwróci 422.",
+          callSid, e.getMessage(), e);
+      return null;
+    }
+  }
+
+  /**
+   * Looks up the customer UUID by caller phone number.
+   *
+   * <p>Defensive – returns {@code null} on any error so that the call is never blocked
+   * by a failed customer lookup.
+   *
+   * @param phoneNumber caller CLI
+   * @param tenantId    tenant UUID
+   * @return customer UUID or null if not found / lookup failed
+   */
+  private UUID resolveCustomerId(String phoneNumber, UUID tenantId) {
+    if (phoneNumber == null || phoneNumber.isBlank()) {
+      log.debug("[TwilioAdapter] Pominięto lookup klienta – pusty numer telefonu");
+      return null;
+    }
+    try {
+      return customerRepository.findByPhoneNumber(phoneNumber, tenantId)
+          .map(Customer::getCustomerId)
+          .orElseGet(() -> {
+            log.debug("[TwilioAdapter] Klient nie znaleziony dla phone={}, tenant={} – customerId=null",
+                phoneNumber, tenantId);
+            return null;
+          });
+    } catch (Exception e) {
+      log.debug("[TwilioAdapter] Błąd lookup klienta dla phone={}, tenant={}: {} – kontynuuję bez customerId",
+          phoneNumber, tenantId, e.getMessage());
+      return null;
     }
   }
 

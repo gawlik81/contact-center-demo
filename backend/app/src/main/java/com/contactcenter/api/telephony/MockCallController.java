@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ import java.util.UUID;
 @RequestMapping("/api/dev/telephony")
 @RequiredArgsConstructor
 @Profile("dev")
+@ConditionalOnProperty(name = "telephony.provider", havingValue = "mock", matchIfMissing = true)
 @Tag(name = "Dev: Telephony Simulator", description = "Symulacja zdarzeń telefonicznych (tylko dev)")
 public class MockCallController {
 

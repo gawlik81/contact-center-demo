@@ -225,15 +225,16 @@ class RoutingServiceTest {
         }
 
         @Test
-        @DisplayName("powinien rzucić EntityNotFoundException gdy kontakt nie istnieje")
+        @DisplayName("powinien zwrócić Optional.empty() gdy kontakt nie istnieje (graceful – nie rzuca wyjątku)")
         void shouldThrowWhenContactNotFound() {
             Queue queue = buildQueue("FIRST_AVAILABLE", List.of());
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> routingService.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID))
-                    .isInstanceOf(EntityNotFoundException.class)
-                    .hasMessageContaining(CONTACT_ID.toString());
+            // Fix: brak kontaktu nie rzuca wyjątku – RoutingService loguje ERROR i zwraca empty,
+            // żeby wiadomość RabbitMQ nie trafiała do DLQ po exhausted retries.
+            Optional<UUID> result = routingService.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
+            assertThat(result).isEmpty();
         }
 
         @Test

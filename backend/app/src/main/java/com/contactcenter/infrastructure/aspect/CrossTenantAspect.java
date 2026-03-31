@@ -2,6 +2,7 @@ package com.contactcenter.infrastructure.aspect;
 
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.security.TenantContext;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterThrowing;
@@ -10,6 +11,7 @@ import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.UUID;
 
@@ -131,11 +133,20 @@ public class CrossTenantAspect {
             boolean isHttpRequestThread = RequestContextHolder.getRequestAttributes() != null;
 
             if (isHttpRequestThread) {
-                // Brak TenantContext w wątku HTTP = błąd konfiguracji (TenantFilter pominięty)
-                log.error("[CrossTenant][Config] TenantContext NIE JEST ustawiony dla metody {}.{} " +
-                        "w wątku HTTP. Sprawdź czy TenantFilter jest poprawnie zarejestrowany " +
-                        "w SecurityConfig.",
-                        className, methodName);
+                // Sprawdź URI – webhooks Twilio są publiczne i celowo nie mają TenantContext.
+                // Logowanie ERROR dla tych ścieżek byłoby fałszywym alarmem.
+                String requestUri = resolveRequestUri();
+                if (requestUri != null && requestUri.startsWith("/api/telephony/webhook")) {
+                    log.trace("[CrossTenant][Webhook] TenantContext nie ustawiony dla publicznego "
+                            + "webhooka {}.{} (URI={}; oczekiwane – TenantFilter pomija webhooks)",
+                            className, methodName, requestUri);
+                } else {
+                    // Brak TenantContext w wątku HTTP = błąd konfiguracji (TenantFilter pominięty)
+                    log.error("[CrossTenant][Config] TenantContext NIE JEST ustawiony dla metody {}.{} " +
+                            "w wątku HTTP. Sprawdź czy TenantFilter jest poprawnie zarejestrowany " +
+                            "w SecurityConfig.",
+                            className, methodName);
+                }
             } else {
                 // Wątek async (RabbitMQ, @Scheduled) – brak TenantContext jest oczekiwany.
                 // Serwisy domenowe wywołane z tych wątków powinny przyjmować tenantId jako
@@ -147,6 +158,22 @@ public class CrossTenantAspect {
 
             // Nie rzucamy wyjątku – pozwalamy na propagację ISE z TenantContext.getTenantId()
             // gdy metoda domeny spróbuje go użyć bez jawnego parametru tenantId.
+        }
+    }
+
+    /**
+     * Bezpiecznie pobiera URI aktualnego żądania HTTP.
+     *
+     * @return URI żądania lub null gdy nie można odczytać (np. wątek async)
+     */
+    private String resolveRequestUri() {
+        try {
+            ServletRequestAttributes attrs =
+                    (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            HttpServletRequest request = attrs.getRequest();
+            return request.getRequestURI();
+        } catch (Exception e) {
+            return null;
         }
     }
 }

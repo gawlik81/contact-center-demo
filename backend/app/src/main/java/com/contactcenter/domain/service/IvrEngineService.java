@@ -7,6 +7,7 @@ import com.contactcenter.domain.ivr.IvrSessionData;
 import com.contactcenter.domain.model.IvrAudio;
 import com.contactcenter.domain.model.IvrTree;
 import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.IvrAudioRepository;
 import com.contactcenter.domain.repository.IvrTreeRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -28,7 +29,6 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ScheduledFuture;
 
 /**
  * Silnik IVR – orkiestruje przepływ połączenia przez drzewo IVR.
@@ -65,6 +65,7 @@ public class IvrEngineService {
     private final IvrTreeRepository ivrTreeRepository;
     private final IvrAudioRepository ivrAudioRepository;
     private final QueueRepository queueRepository;
+    private final ContactRepository contactRepository;
     private final TelephonyAdapter telephonyAdapter;
     private final RabbitTemplate rabbitTemplate;
     private final StringRedisTemplate stringRedisTemplate;
@@ -92,10 +93,23 @@ public class IvrEngineService {
      * @param ivrId    UUID konkretnego drzewa IVR (null = użyj aktywnego dla tenanta)
      */
     public void startIvrSession(String callId, UUID tenantId, UUID ivrId) {
-        log.info("[IVR] Startowanie sesji IVR: callId={}, tenantId={}, ivrId={}", callId, tenantId, ivrId);
+        startIvrSession(callId, tenantId, ivrId, false);
+    }
+
+    /**
+     * Startuje sesję IVR z możliwością wyboru trybu TwiML.
+     *
+     * @param callId    identyfikator sesji połączenia
+     * @param tenantId  UUID tenanta
+     * @param ivrId     UUID konkretnego drzewa IVR (null = użyj aktywnego dla tenanta)
+     * @param twimlMode gdy true, wewnętrzny timer DTMF nie jest planowany –
+     *                  Twilio zarządza timeoutem przez {@code <Gather timeout="N">}
+     */
+    public void startIvrSession(String callId, UUID tenantId, UUID ivrId, boolean twimlMode) {
+        log.info("[IVR] Startowanie sesji IVR: callId={}, tenantId={}, ivrId={}, twimlMode={}",
+            callId, tenantId, ivrId, twimlMode);
 
         try {
-            // Pobierz drzewo IVR (konkretne lub aktywne)
             Optional<IvrTree> ivrOpt = resolveIvrTree(tenantId, ivrId);
 
             if (ivrOpt.isEmpty()) {
@@ -104,35 +118,51 @@ public class IvrEngineService {
                 return;
             }
 
-            IvrTree ivr = ivrOpt.get();
-            IvrDefinition definition = ivr.getDefinition();
+            startIvrSessionWithTree(callId, tenantId, ivrOpt.get(), twimlMode);
 
-            if (definition == null || definition.entryNodeId() == null) {
-                log.warn("[IVR] Nieprawidłowa definicja IVR: ivrId={}", ivr.getIvrId());
-                fallbackToDefaultQueue(callId, tenantId);
-                return;
-            }
-
-            // Utwórz sesję w Redis
-            IvrSessionData session = new IvrSessionData(callId, ivr.getIvrId(),
-                    definition.entryNodeId(), tenantId);
-            saveSession(session);
-
-            // Wykonaj węzeł wejściowy
-            IvrNode entryNode = definition.findNode(definition.entryNodeId()).orElse(null);
-            if (entryNode == null) {
-                log.error("[IVR] Węzeł wejściowy nie istnieje: entryNodeId={}, ivrId={}",
-                        definition.entryNodeId(), ivr.getIvrId());
-                fallbackToDefaultQueue(callId, tenantId);
-                return;
-            }
-
-            executeNode(callId, entryNode, session);
-
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             log.error("[IVR] Błąd podczas startowania sesji IVR: callId={}, error={}", callId, e.getMessage(), e);
             fallbackToDefaultQueue(callId, tenantId);
         }
+    }
+
+    /**
+     * Startuje sesję IVR na podstawie już załadowanego drzewa IVR.
+     *
+     * <p>Wydzielona z {@link #startIvrSession} aby uniknąć podwójnego wywołania
+     * {@link #resolveIvrTree} w metodach TwiML (np. {@link #startIvrSessionAndBuildTwiml}).
+     *
+     * @param callId    identyfikator sesji połączenia
+     * @param tenantId  UUID tenanta
+     * @param ivr       już załadowane drzewo IVR (nie woła resolveIvrTree)
+     * @param twimlMode gdy true, wewnętrzny timer DTMF nie jest planowany
+     */
+    private void startIvrSessionWithTree(String callId, UUID tenantId, IvrTree ivr, boolean twimlMode) {
+        IvrDefinition definition = ivr.getDefinition();
+
+        if (definition == null || definition.entryNodeId() == null) {
+            log.warn("[IVR] Nieprawidłowa definicja IVR: ivrId={}", ivr.getIvrId());
+            fallbackToDefaultQueue(callId, tenantId);
+            return;
+        }
+
+        // Utwórz sesję w Redis
+        IvrSessionData session = new IvrSessionData(callId, ivr.getIvrId(),
+            definition.entryNodeId(), tenantId);
+        session.setTwimlMode(twimlMode);
+        saveSession(session);
+
+        // Wykonaj węzeł wejściowy
+        IvrNode entryNode = definition.findNode(definition.entryNodeId()).orElse(null);
+        if (entryNode == null) {
+            log.error("[IVR] Węzeł wejściowy nie istnieje: entryNodeId={}, ivrId={}",
+                definition.entryNodeId(), ivr.getIvrId());
+            fallbackToDefaultQueue(callId, tenantId);
+            return;
+        }
+
+        executeNode(callId, entryNode, session, twimlMode);
     }
 
     /**
@@ -201,8 +231,8 @@ public class IvrEngineService {
                     log.debug("[IVR] Nieznany klawisz '{}' dla węzła: nodeId={}, retry={}",
                             dtmfKey, currentNode.nodeId(), session.getRetryCount());
                     saveSession(session);
-                    // Ponów ten sam węzeł (odtwórz komunikat ponownie)
-                    executeNode(callId, currentNode, session);
+                    // Ponów ten sam węzeł (odtwórz komunikat ponownie) – propaguj twimlMode z sesji
+                    executeNode(callId, currentNode, session, session.isTwimlMode());
                 }
                 return;
             }
@@ -219,6 +249,229 @@ public class IvrEngineService {
                 fallbackToDefaultQueue(callId, tenantId);
             }
         }
+    }
+
+    // =========================================================================
+    // TwiML – generowanie odpowiedzi XML dla Twilio webhook
+    // =========================================================================
+
+    /**
+     * Startuje sesję IVR i zwraca TwiML reprezentujący aktualny węzeł IVR.
+     *
+     * <p>Wywołaj z Voice URL endpointu Twilio zamiast hardkodowanego TwiML.
+     * Metoda wewnętrznie wywołuje {@link #startIvrSession} (zarządzanie sesją Redis),
+     * następnie odczytuje sesję i buduje dynamiczny TwiML dla bieżącego węzła.
+     *
+     * @param callId   Twilio Call SID (identyfikator połączenia)
+     * @param tenantId UUID tenanta
+     * @param baseUrl  publiczny bazowy URL aplikacji (np. https://example.ngrok.io)
+     *                 – używany do budowania {@code action} URL w {@code <Gather>}
+     * @return TwiML string gotowy do zwrotu jako {@code application/xml}
+     */
+    public String startIvrSessionAndBuildTwiml(String callId, UUID tenantId, String baseUrl) {
+        return startIvrSessionAndBuildTwiml(callId, tenantId, baseUrl, null);
+    }
+
+    /**
+     * Startuje sesję IVR w trybie TwiML i zwraca TwiML reprezentujący aktualny węzeł IVR.
+     *
+     * <p>Przekazuje {@code twimlMode=true} do {@link #startIvrSession} aby wewnętrzny timer
+     * DTMF nie był planowany – Twilio zarządza timeoutem przez {@code <Gather timeout="N">}.
+     *
+     * @param callId    Twilio Call SID
+     * @param tenantId  UUID tenanta
+     * @param baseUrl   publiczny bazowy URL aplikacji
+     * @param contactId UUID rekordu contact w DB (może być null jeśli nie udało się utworzyć)
+     * @return TwiML string
+     */
+    public String startIvrSessionAndBuildTwiml(String callId, UUID tenantId, String baseUrl, UUID contactId) {
+        // Ładuj drzewo IVR raz – przekazywane do startIvrSessionWithTree i do budowania TwiML
+        IvrTree ivr = resolveIvrTree(tenantId, null).orElse(null);
+        if (ivr == null || ivr.getDefinition() == null) {
+            log.warn("[IVR] Brak aktywnego drzewa IVR dla TwiML: tenantId={}", tenantId);
+            return buildFallbackTwiml();
+        }
+
+        startIvrSessionWithTree(callId, tenantId, ivr, true);
+
+        IvrSessionData session = loadSession(callId);
+        // Zapisz contactId w sesji (może być null – w trybie mock brak rekordu contact)
+        if (session != null && contactId != null) {
+            session.setContactId(contactId);
+            saveSession(session);
+        }
+        if (session == null) {
+            // Sesja nie istnieje – fallback musiał usunąć sesję i przekazać do kolejki
+            return buildFallbackTwiml();
+        }
+
+        // Użyj już załadowanego drzewa – brak drugiego wywołania resolveIvrTree()
+        IvrNode currentNode = ivr.getDefinition().findNode(session.getCurrentNodeId()).orElse(null);
+        if (currentNode == null) {
+            return buildFallbackTwiml();
+        }
+        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl);
+    }
+
+    /**
+     * Przetwarza wejście DTMF i zwraca TwiML dla następnego węzła IVR.
+     *
+     * <p>Wywołaj z DTMF action URL (endpoint {@code /dtmf}).
+     * Metoda wewnętrznie wywołuje {@link #handleDtmfInput} (aktualizacja stanu sesji),
+     * następnie odczytuje zaktualizowaną sesję i buduje TwiML dla nowego bieżącego węzła.
+     *
+     * @param callId    Twilio Call SID
+     * @param dtmfInput naciśnięte klawisze DTMF (np. "1", "2", "#")
+     * @param tenantId  UUID tenanta (potrzebny do budowania action URL)
+     * @param baseUrl   publiczny bazowy URL aplikacji
+     * @return TwiML string gotowy do zwrotu jako {@code application/xml}
+     */
+    public String handleDtmfAndBuildTwiml(String callId, String dtmfInput, UUID tenantId, String baseUrl) {
+        handleDtmfInput(callId, dtmfInput);
+        IvrSessionData session = loadSession(callId);
+        if (session == null) {
+            // Sesja usunięta – przepływ zakończony (QUEUE_TRANSFER lub HANGUP)
+            return buildCompletedTwiml();
+        }
+        IvrTree ivr = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
+        if (ivr == null || ivr.getDefinition() == null) {
+            return buildFallbackTwiml();
+        }
+        IvrNode currentNode = ivr.getDefinition().findNode(session.getCurrentNodeId()).orElse(null);
+        if (currentNode == null) {
+            return buildFallbackTwiml();
+        }
+        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl);
+    }
+
+    /**
+     * Buduje TwiML dla podanego węzła IVR.
+     *
+     * <p>Mapowanie typów węzłów na TwiML:
+     * <ul>
+     *   <li>MENU / COLLECT_DTMF → {@code <Gather>} z promptem i action URL wskazującym na endpoint DTMF</li>
+     *   <li>PLAY_AUDIO → {@code <Play>} (URL audio) lub {@code <Say>} (tekst TTS/prompt)</li>
+     *   <li>QUEUE_TRANSFER / SET / IF / SWITCH / HANGUP → {@code <Say>} + {@code <Hangup>}
+     *       (węzeł już przetworzony przez silnik, sesja może być usunięta)</li>
+     * </ul>
+     *
+     * @param node     węzeł IVR do wyrenderowania jako TwiML
+     * @param callId   identyfikator połączenia (przekazywany do action URL)
+     * @param tenantId UUID tenanta (przekazywany do action URL)
+     * @param baseUrl  bazowy URL aplikacji (np. https://example.ngrok.io)
+     * @return TwiML string
+     */
+    private String buildTwimlForNode(IvrNode node, String callId, UUID tenantId, String baseUrl) {
+        String dtmfActionUrl = baseUrl
+            + "/api/telephony/webhook/twilio/dtmf?tenantId=" + tenantId
+            + "&callId=" + callId;
+
+        return switch (node.type()) {
+            case MENU -> buildGatherTwiml(node, dtmfActionUrl, false);
+            case COLLECT_DTMF -> buildGatherTwiml(node, dtmfActionUrl, true);
+            case PLAY_AUDIO -> buildPlayAudioTwiml(node);
+            case HANGUP -> "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Hangup/></Response>";
+            // SET / IF / SWITCH / QUEUE_TRANSFER są węzłami przejściowymi – silnik przetwarza je
+            // synchronicznie i przechodzi do kolejnego węzła. Gdy sesja wciąż istnieje po ich
+            // wywołaniu, currentNode wskazuje już na następny węzeł. Ten case jest safety net.
+            default -> buildFallbackTwiml();
+        };
+    }
+
+    /**
+     * Buduje TwiML z {@code <Gather>} dla węzłów MENU i COLLECT_DTMF.
+     *
+     * @param node          węzeł IVR
+     * @param dtmfActionUrl URL do wywołania po zebraniu DTMF
+     * @param multiDigit    true = zbieranie wielu cyfr (COLLECT_DTMF), false = jeden klawisz (MENU)
+     * @return TwiML string
+     */
+    private String buildGatherTwiml(IvrNode node, String dtmfActionUrl, boolean multiDigit) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
+        sb.append("<Gather action=\"").append(escapeXml(dtmfActionUrl)).append("\"");
+        sb.append(" method=\"POST\"");
+        // Minimalny timeout to 10s – Twilio musi mieć wystarczająco czasu aby odebrać odpowiedź
+        sb.append(" timeout=\"").append(Math.max(node.timeoutSeconds(), 10)).append("\"");
+        if (multiDigit) {
+            sb.append(" numDigits=\"").append(node.maxDigits()).append("\"");
+            if (node.finishOnKey() != null && !node.finishOnKey().isEmpty()) {
+                sb.append(" finishOnKey=\"").append(node.finishOnKey()).append("\"");
+            }
+        }
+        else {
+            sb.append(" numDigits=\"1\"");
+        }
+        sb.append(">");
+        // Prompt: preferuj tekst prompt, fallback na pusty (TTS z audioId obsługiwany osobno)
+        if (node.prompt() != null && !node.prompt().isBlank()) {
+            sb.append("<Say language=\"pl-PL\">")
+                .append(escapeXml(node.prompt()))
+                .append("</Say>");
+        }
+        sb.append("</Gather>");
+        // Twilio wywołuje action URL gdy zbieranie zakończy się timeoutem
+        // Jeśli <Gather> nie zbierze żadnego wejścia, Twilio kontynuuje za <Gather>
+        // – dodajemy fallback Say (cichy timeout zostanie obsłużony przez scheduleTimeoutForDtmf)
+        sb.append("</Response>");
+        return sb.toString();
+    }
+
+    /**
+     * Buduje TwiML z {@code <Say>} lub {@code <Play>} dla węzła PLAY_AUDIO.
+     */
+    private String buildPlayAudioTwiml(IvrNode node) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
+        if (node.prompt() != null && !node.prompt().isBlank()) {
+            sb.append("<Say language=\"pl-PL\">")
+                .append(escapeXml(node.prompt()))
+                .append("</Say>");
+        }
+        else {
+            // Brak promptu – krótka cisza, żeby Twilio nie rozłączyło od razu
+            sb.append("<Pause length=\"1\"/>");
+        }
+        sb.append("</Response>");
+        return sb.toString();
+    }
+
+    /**
+     * TwiML fallback – informuje o błędzie technicznym i rozłącza.
+     */
+    private String buildFallbackTwiml() {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            + "<Response>"
+            + "<Say language=\"pl-PL\">Przepraszamy, wystąpił błąd techniczny. "
+            + "Spróbuj ponownie później.</Say>"
+            + "<Hangup/>"
+            + "</Response>";
+    }
+
+    /**
+     * TwiML sygnalizujący zakończenie przepływu IVR (połączenie przekazane do kolejki).
+     * Twilio utrzyma połączenie – Enqueue lub inny mechanizm będzie je obsługiwał.
+     */
+    private String buildCompletedTwiml() {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            + "<Response>"
+            + "<Say language=\"pl-PL\">Łączymy z konsultantem. Proszę czekać.</Say>"
+            + "<Pause length=\"30\"/>"
+            + "</Response>";
+    }
+
+    /**
+     * Escapuje znaki specjalne XML w wartościach atrybutów i treści elementów.
+     */
+    private String escapeXml(String text) {
+        if (text == null)
+            return "";
+        return text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&apos;");
     }
 
     /**
@@ -333,7 +586,8 @@ public class IvrEngineService {
         session.setRetryCount(0);
         saveSession(session);
 
-        executeNode(callId, nextNode, session);
+        // Propaguj twimlMode z sesji – zachowuje tryb przez cały przepływ IVR
+        executeNode(callId, nextNode, session, session.isTwimlMode());
     }
 
     // =========================================================================
@@ -348,12 +602,26 @@ public class IvrEngineService {
      * @param session aktualny stan sesji IVR
      */
     void executeNode(String callId, IvrNode node, IvrSessionData session) {
-        log.debug("[IVR] Wykonywanie węzła: callId={}, nodeId={}, type={}", callId, node.nodeId(), node.type());
+        executeNode(callId, node, session, false);
+    }
+
+    /**
+     * Wykonuje logikę węzła IVR w zależności od jego typu.
+     *
+     * @param callId    identyfikator sesji połączenia
+     * @param node      węzeł do wykonania
+     * @param session   aktualny stan sesji IVR
+     * @param twimlMode gdy true, węzły MENU/COLLECT_DTMF nie planują wewnętrznego timera DTMF
+     *                  (Twilio zarządza timeoutem przez {@code <Gather timeout="N">})
+     */
+    void executeNode(String callId, IvrNode node, IvrSessionData session, boolean twimlMode) {
+        log.debug("[IVR] Wykonywanie węzła: callId={}, nodeId={}, type={}, twimlMode={}",
+            callId, node.nodeId(), node.type(), twimlMode);
 
         switch (node.type()) {
             case PLAY_AUDIO -> executePlayAudio(callId, node, session);
-            case MENU -> executeMenu(callId, node, session);
-            case COLLECT_DTMF -> executeCollectDtmf(callId, node, session);
+            case MENU -> executeMenu(callId, node, session, twimlMode);
+            case COLLECT_DTMF -> executeCollectDtmf(callId, node, session, twimlMode);
             case QUEUE_TRANSFER -> executeQueueTransfer(callId, node, session);
             case HANGUP -> executeHangup(callId, session);
             case SET -> executeSet(callId, node, session);
@@ -415,15 +683,23 @@ public class IvrEngineService {
      * </ol>
      */
     private void executeMenu(String callId, IvrNode node, IvrSessionData session) {
+        executeMenu(callId, node, session, false);
+    }
+
+    private void executeMenu(String callId, IvrNode node, IvrSessionData session, boolean twimlMode) {
         // Odtwórz komunikat (jeśli istnieje)
         if (node.prompt() != null || node.audioId() != null) {
             executePlayAudio(callId, node, session);
         }
 
-        log.debug("[IVR] MENU: oczekiwanie na DTMF: callId={}, nodeId={}, timeout={}s",
-                callId, node.nodeId(), node.timeoutSeconds());
+        log.debug("[IVR] MENU: oczekiwanie na DTMF: callId={}, nodeId={}, timeout={}s, twimlMode={}",
+                callId, node.nodeId(), node.timeoutSeconds(), twimlMode);
 
-        scheduleTimeoutForDtmf(callId, node);
+        // W trybie TwiML Twilio zarządza timeoutem przez <Gather timeout="N">.
+        // Nie planujemy wewnętrznego timera – uniknięcie wyścigu dwóch timerów.
+        if (!twimlMode) {
+            scheduleTimeoutForDtmf(callId, node);
+        }
     }
 
     /**
@@ -438,25 +714,35 @@ public class IvrEngineService {
      * </ul>
      */
     private void executeCollectDtmf(String callId, IvrNode node, IvrSessionData session) {
+        executeCollectDtmf(callId, node, session, false);
+    }
+
+    private void executeCollectDtmf(String callId, IvrNode node, IvrSessionData session, boolean twimlMode) {
         // Odtwórz komunikat
         if (node.prompt() != null || node.audioId() != null) {
             executePlayAudio(callId, node, session);
         }
 
         log.debug("[IVR] COLLECT_DTMF: start zbierania cyfr: callId={}, nodeId={}, "
-                        + "variableName={}, minDigits={}, maxDigits={}, finishOnKey={}, timeout={}s",
+                        + "variableName={}, minDigits={}, maxDigits={}, finishOnKey={}, timeout={}s, twimlMode={}",
                 callId, node.nodeId(), node.variableName(),
-                node.minDigits(), node.maxDigits(), node.finishOnKey(), node.timeoutSeconds());
+            node.minDigits(), node.maxDigits(), node.finishOnKey(), node.timeoutSeconds(), twimlMode);
 
         // Ustaw tryb zbierania cyfr – bufor jest już "" po setCollectingDtmfForNodeId
         session.setDtmfBuffer("");
         session.setCollectingDtmfForNodeId(node.nodeId());
         saveSession(session);
 
-        scheduleTimeoutForDtmf(callId, node);
+        // W trybie TwiML Twilio zarządza timeoutem przez <Gather timeout="N">.
+        // Nie planujemy wewnętrznego timera – uniknięcie wyścigu dwóch timerów.
+        if (!twimlMode) {
+            scheduleTimeoutForDtmf(callId, node);
+        }
     }
 
-    /** Współdzielona logika planowania timeout-zadania DTMF dla MENU i COLLECT_DTMF. */
+    /**
+     * Współdzielona logika planowania timeout-zadania DTMF dla MENU i COLLECT_DTMF.
+     */
     private void scheduleTimeoutForDtmf(String callId, IvrNode node) {
         TenantContext.Snapshot snapshot = TenantContext.isSet() ? TenantContext.snapshot() : null;
 
@@ -500,12 +786,37 @@ public class IvrEngineService {
                 return;
             }
 
-            // Opublikuj ContactQueuedMessage – contact_id = callId jako UUID (mock)
-            // W prawdziwym przepływie contactId pochodzi z rekordu contact w DB
-            UUID contactId = deriveContactId(callId);
+            // Użyj contactId z sesji IVR (ustawionego przez TwilioWebhookController) lub
+            // wygeneruj deterministyczny UUID jako fallback dla trybu MockTelephonyAdapter
+            UUID contactId = session.getContactId() != null
+                ? session.getContactId()
+                : deriveContactId(callId);
+
+            // Zapisz queue_id do DB przed publikacją eventu.
+            // Bez tej aktualizacji kolumna queue_id pozostaje NULL, co trwale blokuje
+            // retry routingu w RoutingService.onAgentStatusChanged() (pomija kontakty z queue_id=NULL).
+            if (contactId != null) {
+                try {
+                    int rows = contactRepository.updateQueueId(contactId, session.getTenantId(), queueId);
+                    if (rows == 0) {
+                        log.warn("[IVR] updateQueueId: brak zaktualizowanych wierszy – " +
+                                "kontakt może nie istnieć lub mieć inny status: contactId={}, queueId={}",
+                                contactId, queueId);
+                    } else {
+                        log.debug("[IVR] Zaktualizowano queue_id w DB: contactId={}, queueId={}",
+                                contactId, queueId);
+                    }
+                } catch (Exception updateEx) {
+                    log.error("[IVR] Błąd aktualizacji queue_id w DB: contactId={}, queueId={}, error={}",
+                            contactId, queueId, updateEx.getMessage(), updateEx);
+                    // Kontynuuj – routing może działać z eventu RabbitMQ dla bieżącego wywołania,
+                    // ale retry (onAgentStatusChanged) będzie zablokowany jeśli nie ma agentów
+                }
+            }
+
             // Przekaż zmienne zebrane przez COLLECT_DTMF (mapa może być pusta, nigdy null)
             ContactQueuedMessage message = new ContactQueuedMessage(
-                    contactId, queueId, session.getTenantId(),
+                contactId, queueId, session.getTenantId(),
                     session.getVariables().isEmpty() ? null : session.getVariables());
 
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, ROUTING_KEY_CONTACT_QUEUED, message);
@@ -702,9 +1013,13 @@ public class IvrEngineService {
             Optional<Queue> defaultQueue = findDefaultQueue(tenantId);
 
             if (defaultQueue.isPresent()) {
-                UUID contactId = deriveContactId(callId);
+                // Wczytaj sesję aby pobrać contactId (może być null gdy sesja już usunięta)
+                IvrSessionData sessionForFallback = loadSession(callId);
+                UUID contactId = (sessionForFallback != null && sessionForFallback.getContactId() != null)
+                    ? sessionForFallback.getContactId()
+                    : deriveContactId(callId);
                 ContactQueuedMessage message = new ContactQueuedMessage(
-                        contactId, defaultQueue.get().getQueueId(), tenantId);
+                    contactId, defaultQueue.get().getQueueId(), tenantId);
 
                 rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, ROUTING_KEY_CONTACT_QUEUED, message);
 

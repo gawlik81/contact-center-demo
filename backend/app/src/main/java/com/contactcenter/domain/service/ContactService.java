@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -121,8 +122,10 @@ public class ContactService {
     public ContactResponse getContact(UUID contactId, UUID tenantId, UUID userId, boolean isAgent) {
         Contact contact = findContactOrThrow(contactId, tenantId);
 
-        // AGENT może widzieć tylko własne kontakty
-        if (isAgent && !userId.equals(contact.getAgentId())) {
+        // AGENT may only view their own contacts.
+        // Allow access when agentId is null – inbound Twilio calls have no agent assigned yet
+        // at the time the contact record is created (webhook fires before the agent answers).
+        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())) {
             throw new InvalidOperationException(
                     "Agent może przeglądać tylko kontakty przypisane do siebie: " + contactId);
         }
@@ -227,8 +230,9 @@ public class ContactService {
                                          UUID tenantId, UUID userId, boolean isAgent) {
         Contact contact = findContactOrThrow(contactId, tenantId);
 
-        // AGENT może modyfikować tylko własne kontakty
-        if (isAgent && !userId.equals(contact.getAgentId())) {
+        // AGENT may only modify their own contacts.
+        // Allow when agentId is null – inbound Twilio calls have no agent assigned at creation time.
+        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())) {
             throw new InvalidOperationException(
                     "Agent może aktualizować tylko kontakty przypisane do siebie: " + contactId);
         }
@@ -292,8 +296,10 @@ public class ContactService {
                                           UUID tenantId, UUID userId, boolean isAgent) {
         Contact contact = findContactOrThrow(contactId, tenantId);
 
-        // AGENT może ustawiać disposition tylko na własnych kontaktach
-        if (isAgent && !userId.equals(contact.getAgentId())) {
+        // AGENT may only set disposition on their own contacts.
+        // Allow when agentId is null – inbound Twilio calls have no agent assigned at creation time.
+        // The agent_id is populated later when the agent answers (POST /api/telephony/calls/{callId}/answer).
+        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())) {
             throw new InvalidOperationException(
                     "Agent może ustawiać disposition tylko na własnych kontaktach: " + contactId);
         }
@@ -313,6 +319,49 @@ public class ContactService {
 
         log.info("[ContactService] Disposition ustawiony: contactId={}, tenant={}, code={}",
                 contactId, tenantId, request.dispositionCode());
+
+        return getContactInternal(contactId, tenantId);
+    }
+
+    // =========================================================================
+    // Przypisanie agenta (odbieranie połączenia)
+    // =========================================================================
+
+    /**
+     * Assigns an agent to a contact that was created without one.
+     *
+     * <p>Called when an agent answers an inbound Twilio call. At webhook time the contact
+     * record is created with {@code agent_id = null}; the agent becomes known only when
+     * they explicitly answer. This method persists that assignment and transitions the
+     * contact status to ACTIVE.
+     *
+     * @param contactId  UUID of the contact
+     * @param tenantId   UUID of the tenant
+     * @param agentId    UUID of the agent who answered
+     * @return DTO of the updated contact
+     * @throws EntityNotFoundException   HTTP 404 when the contact does not exist
+     * @throws InvalidOperationException HTTP 409 when the contact is already assigned to a different agent
+     */
+    @Transactional
+    @Audited(action = "CONTACT_AGENT_ASSIGNED", entityType = "CONTACT")
+    public ContactResponse assignAgent(UUID contactId, UUID tenantId, UUID agentId) {
+        Contact contact = findContactOrThrow(contactId, tenantId);
+
+        // If already assigned to a different agent – reject (do not silently overwrite ownership)
+        if (contact.getAgentId() != null && !agentId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Kontakt jest już przypisany do innego agenta: " + contactId);
+        }
+
+        Instant assignedAt = Instant.now();
+        int updated = contactRepository.assignAgent(contactId, tenantId, agentId, assignedAt);
+        if (updated == 0) {
+            throw new EntityNotFoundException(
+                    "Nie udało się przypisać agenta do kontaktu (zły status lub brak rekordu): " + contactId);
+        }
+
+        log.info("[ContactService] Agent przypisany do kontaktu: contactId={}, agentId={}, tenant={}",
+                contactId, agentId, tenantId);
 
         return getContactInternal(contactId, tenantId);
     }
@@ -361,6 +410,55 @@ public class ContactService {
                 effectivePage == 0,
                 effectivePage >= totalPages - 1 || totalPages == 0
         );
+    }
+
+    // =========================================================================
+    // Cleanup – terminacja błędnych/przeterminowanych kontaktów w kolejce
+    // =========================================================================
+
+    /**
+     * Kończy kontakty w statusie QUEUED, które są uznawane za błędne.
+     *
+     * <p>Kontakt jest uznawany za błędny jeśli:
+     * <ul>
+     *   <li>Timeout: {@code queued_at} starsze niż 30 minut od chwili wywołania –
+     *       klient prawdopodobnie rozłączył się lub połączenie padło.</li>
+     *   <li>Błąd telefonii: {@code channel_metadata.callStatus} to
+     *       {@code 'failed'}, {@code 'busy'}, {@code 'no-answer'} lub {@code 'canceled'}.</li>
+     *   <li>Flaga błędu: {@code channel_metadata.error} = {@code true}.</li>
+     * </ul>
+     *
+     * <p>Wywoływana przy zmianie statusu agenta na AVAILABLE – zapewnia, że agent
+     * nie dostanie do obsługi kontaktów, które i tak są martwe.
+     *
+     * @param tenantId UUID tenanta (z TenantContext)
+     */
+    @Transactional
+    public void terminateStaleQueuedContacts(UUID tenantId) {
+        Instant threshold = Instant.now().minus(30, ChronoUnit.MINUTES);
+        List<Contact> staleContacts = contactRepository.findStaleQueuedContacts(tenantId, threshold);
+
+        if (staleContacts.isEmpty()) {
+            log.debug("[ContactService] Brak przeterminowanych kontaktów do zakończenia: tenant={}", tenantId);
+            return;
+        }
+
+        Instant now = Instant.now();
+        int terminated = 0;
+        for (Contact contact : staleContacts) {
+            contact.setStatus("ERROR");
+            contact.setEndedAt(now);
+            int updated = contactRepository.update(contact);
+            if (updated > 0) {
+                terminated++;
+            } else {
+                log.warn("[ContactService] Nie udało się zaktualizować kontaktu ERROR: contactId={}, tenant={}",
+                        contact.getContactId(), tenantId);
+            }
+        }
+
+        log.info("[ContactService] Zakończono {} przeterminowanych/błędnych kontaktów ze statusem ERROR: tenant={}",
+                terminated, tenantId);
     }
 
     // =========================================================================

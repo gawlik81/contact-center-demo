@@ -123,12 +123,13 @@ public record WebSocketEvent(
      */
     public static WebSocketEvent contactAssigned(UUID tenantId, UUID agentId,
                                                   UUID contactId, String channel,
-                                                  String customerName, String customerIdentifier) {
+                                                  String customerName, String customerIdentifier,
+                                                  String queueName) {
         return new WebSocketEvent(
                 TYPE_CONTACT_ASSIGNED,
                 tenantId,
                 new ContactAssignedPayload(agentId.toString(), contactId.toString(), channel,
-                        customerName, customerIdentifier),
+                        customerName, customerIdentifier, queueName),
                 Instant.now()
         );
     }
@@ -276,7 +277,8 @@ public record WebSocketEvent(
             String contactId,
             String type,
             String customerName,
-            String customerIdentifier
+            String customerIdentifier,
+            String queueName
     ) {}
 
     /**

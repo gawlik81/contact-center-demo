@@ -90,9 +90,14 @@ public class RoutingService {
                         "Kolejka nie istnieje: queueId=" + queueId + ", tenantId=" + tenantId));
 
         // 2. Pobierz kontakt
-        Contact contact = contactRepository.findById(contactId, tenantId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Kontakt nie istnieje: contactId=" + contactId + ", tenantId=" + tenantId));
+        Optional<Contact> contactOpt = contactRepository.findById(contactId, tenantId);
+        if (contactOpt.isEmpty()) {
+            log.error("[RoutingService] Kontakt {} nie istnieje w DB – pomijam routing (tenantId={}). " +
+                      "Sprawdź czy TwilioTelephonyAdapter tworzy rekord contact przy webhook.",
+                      contactId, tenantId);
+            return Optional.empty();
+        }
+        Contact contact = contactOpt.get();
 
         // 3. Zbuduj RoutingRequest
         RoutingRequest request = RoutingRequest.of(contact, queue, tenantId);
@@ -111,7 +116,7 @@ public class RoutingService {
             assignContactToAgent(contact, agentId, tenantId);
 
             // 5b. Opublikuj event contact.assigned
-            publishAssignedEvent(contactId, agentId, queueId, tenantId, routing.strategy(), contact);
+            publishAssignedEvent(contactId, agentId, queueId, tenantId, routing.strategy(), contact, queue.getName());
 
             return Optional.of(agentId);
 
@@ -204,8 +209,16 @@ public class RoutingService {
 
             for (Contact contact : queuedContacts) {
                 if (contact.getQueueId() == null) {
-                    log.warn("[RoutingService] Kontakt bez queueId, pomijam: contactId={}",
+                    log.warn("[RoutingService] Kontakt bez queueId – kończę ze statusem ERROR: contactId={}",
                             contact.getContactId());
+                    try {
+                        contact.setStatus("ERROR");
+                        contact.setEndedAt(Instant.now());
+                        contactRepository.update(contact);
+                    } catch (Exception ex) {
+                        log.error("[RoutingService] Błąd przy kończeniu kontaktu bez queueId: contactId={}, error={}",
+                                contact.getContactId(), ex.getMessage());
+                    }
                     continue;
                 }
 
@@ -273,13 +286,14 @@ public class RoutingService {
      * <p>Błąd publikacji nie przerywa operacji – logujemy error (agent już przypisany w DB).
      */
     private void publishAssignedEvent(UUID contactId, UUID agentId, UUID queueId,
-                                       UUID tenantId, String strategy, Contact contact) {
+                                       UUID tenantId, String strategy, Contact contact,
+                                       String queueName) {
         String channel            = contact.getChannel() != null ? contact.getChannel() : "UNKNOWN";
         String customerIdentifier = contact.getRemoteAddress() != null ? contact.getRemoteAddress() : "";
         String customerName       = customerIdentifier;
 
         ContactAssignedEvent event = ContactAssignedEvent.of(contactId, agentId, queueId, tenantId, strategy,
-                channel, customerName, customerIdentifier);
+                channel, customerName, customerIdentifier, queueName);
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, RK_CONTACT_ASSIGNED, event);
             log.debug("[RoutingService] Event contact.assigned opublikowany: contactId={}, agentId={}, channel={}",

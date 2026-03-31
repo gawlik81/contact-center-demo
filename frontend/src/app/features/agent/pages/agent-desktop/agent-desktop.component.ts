@@ -146,6 +146,9 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
         if (reason !== null) {
           this.showLimitMessage(reason);
         } else {
+          if (payload.type === 'PHONE') {
+            this.softphoneService.incomingCall(payload);
+          }
           this.notifications.info(`Nowy kontakt przydzielony: ${payload.customerName}`);
         }
       });

@@ -49,6 +49,20 @@ public class IvrSessionData {
     @JsonProperty("variables")
     private Map<String, String> variables;
 
+    /**
+     * UUID rekordu contact w DB – ustawiane przy starcie sesji IVR z webhookiem Twilio.
+     * Null w trybie MockTelephonyAdapter (brak rekordu contact w DB).
+     */
+    @JsonProperty("contact_id")
+    private UUID contactId;
+
+    /**
+     * Gdy true, sesja działa w trybie TwiML (Twilio webhook) – wewnętrzny timer DTMF nie jest
+     * planowany; Twilio zarządza timeoutem przez {@code <Gather timeout="N">}.
+     */
+    @JsonProperty("twiml_mode")
+    private boolean twimlMode;
+
     // Domyślny konstruktor dla Jackson
     public IvrSessionData() {}
 
@@ -77,6 +91,12 @@ public class IvrSessionData {
     public void setCurrentNodeId(String currentNodeId) { this.currentNodeId = currentNodeId; }
     public void setTenantId(UUID tenantId)             { this.tenantId = tenantId; }
     public void setRetryCount(int retryCount)          { this.retryCount = retryCount; }
+
+    public UUID getContactId() { return contactId; }
+    public void setContactId(UUID contactId) { this.contactId = contactId; }
+
+    public boolean isTwimlMode() { return twimlMode; }
+    public void setTwimlMode(boolean twimlMode) { this.twimlMode = twimlMode; }
 
     /** Inkrementuje licznik prób. */
     public void incrementRetryCount() {

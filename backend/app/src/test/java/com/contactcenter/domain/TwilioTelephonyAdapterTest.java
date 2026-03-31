@@ -1,5 +1,8 @@
 package com.contactcenter.domain;
 
+import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
@@ -55,6 +58,12 @@ class TwilioTelephonyAdapterTest {
     @Mock
     private TelephonyEventPublisher eventPublisher;
 
+    @Mock
+    private ContactRepository contactRepository;
+
+    @Mock
+    private CustomerRepository customerRepository;
+
     private TwilioProperties twilioProperties;
     private TwilioTelephonyAdapter adapter;
 
@@ -68,7 +77,8 @@ class TwilioTelephonyAdapterTest {
         twilioProperties.setStatusCallbackUrl("https://example.com/api/telephony/webhook/twilio");
 
         // Nie wywołujemy @PostConstruct init() – omijamy Twilio.init() w testach
-        adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher);
+        adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher,
+                contactRepository, customerRepository);
     }
 
     // =========================================================================

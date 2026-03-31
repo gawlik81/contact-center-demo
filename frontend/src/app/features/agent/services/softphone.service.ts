@@ -1,15 +1,13 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, of } from 'rxjs';
+import { Observable, catchError, of } from 'rxjs';
 import { CallSession } from '../models/call-session.model';
-import { CallIncomingPayload } from '../models/ws-event.model';
-import { AuthService } from '../../../core/services/auth.service';
+import { CallIncomingPayload, ContactAssignedPayload } from '../models/ws-event.model';
 import { environment } from '../../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class SoftphoneService {
   private readonly http = inject(HttpClient);
-  private readonly auth = inject(AuthService);
 
   readonly session = signal<CallSession | null>(null);
 
@@ -17,13 +15,17 @@ export class SoftphoneService {
   private cleanupTimeout: ReturnType<typeof setTimeout> | null = null;
   private transferTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  incomingCall(payload: CallIncomingPayload): void {
+  incomingCall(payload: CallIncomingPayload | ContactAssignedPayload): void {
+    const customerPhone = 'customerPhone' in payload
+      ? payload.customerPhone
+      : payload.customerIdentifier;
+    const queueName = 'queueName' in payload ? payload.queueName : '';
     this.clearTimers();
     this.session.set({
       contactId: payload.contactId,
       customerName: payload.customerName,
-      customerPhone: payload.customerPhone,
-      queueName: payload.queueName,
+      customerPhone,
+      queueName: queueName ?? '',
       state: 'RINGING',
       startedAt: null,
       duration: 0,
@@ -37,10 +39,11 @@ export class SoftphoneService {
   answerCall(): void {
     const s = this.session();
     if (!s || s.state !== 'RINGING') return;
-    this.simulateAction('ANSWER', s.contactId);
+    // Optimistically update UI state; fire-and-forget the HTTP request
     const now = new Date();
     this.session.set({ ...s, state: 'ACTIVE', startedAt: now });
     this.startDurationTimer();
+    this.answerCallHttp(s.contactId).pipe(catchError(() => of(null))).subscribe();
   }
 
   hangupCall(): void {
@@ -50,9 +53,10 @@ export class SoftphoneService {
       this.session.set(null);
       return;
     }
-    this.simulateAction('HANGUP', s.contactId);
+    // Optimistically update UI state; fire-and-forget the HTTP request
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'ENDED' });
+    this.hangupCallHttp(s.contactId).pipe(catchError(() => of(null))).subscribe();
     this.cleanupTimeout = setTimeout(() => {
       this.session.set(null);
     }, 2000);
@@ -61,26 +65,27 @@ export class SoftphoneService {
   rejectCall(): void {
     const s = this.session();
     if (!s || s.state !== 'RINGING') return;
-    this.simulateAction('HANGUP', s.contactId);
     this.clearTimers();
     this.session.set(null);
+    this.hangupCallHttp(s.contactId).pipe(catchError(() => of(null))).subscribe();
   }
 
   toggleMute(): void {
     const s = this.session();
     if (!s || (s.state !== 'ACTIVE' && s.state !== 'ON_HOLD')) return;
-    this.session.set({ ...s, isMuted: !s.isMuted });
+    const newMuted = !s.isMuted;
+    this.session.set({ ...s, isMuted: newMuted });
+    this.muteCallHttp(s.contactId, newMuted).pipe(catchError(() => of(null))).subscribe();
   }
 
   toggleHold(): void {
     const s = this.session();
     if (!s) return;
     if (s.state === 'ACTIVE') {
-      this.simulateAction('HOLD', s.contactId);
       this.stopDurationTimer();
       this.session.set({ ...s, state: 'ON_HOLD', holdStartedAt: new Date() });
+      this.holdCallHttp(s.contactId, true).pipe(catchError(() => of(null))).subscribe();
     } else if (s.state === 'ON_HOLD') {
-      this.simulateAction('UNHOLD', s.contactId);
       const holdMs = s.holdStartedAt ? new Date().getTime() - s.holdStartedAt.getTime() : 0;
       const addedHoldSec = Math.floor(holdMs / 1000);
       this.session.set({
@@ -90,15 +95,16 @@ export class SoftphoneService {
         holdDuration: s.holdDuration + addedHoldSec,
       });
       this.startDurationTimer();
+      this.holdCallHttp(s.contactId, false).pipe(catchError(() => of(null))).subscribe();
     }
   }
 
   initiateBlindTransfer(target: string): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') return;
-    this.simulateAction('BLIND_TRANSFER', s.contactId, target);
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: target });
+    // Blind transfer ends the call on this leg after a short delay
     this.transferTimeout = setTimeout(() => {
       const current = this.session();
       if (current) {
@@ -133,15 +139,40 @@ export class SoftphoneService {
     this.startDurationTimer();
   }
 
-  private simulateAction(action: string, callId: string, to?: string): void {
-    const tenantId = this.auth.currentTenantId();
-    if (!tenantId) return;
-    const body: Record<string, unknown> = { action, callId, tenantId };
-    if (to) body['to'] = to;
-    this.http
-      .post(`${environment.apiUrl}/dev/telephony/simulate`, body)
-      .pipe(catchError(() => of(null)))
-      .subscribe();
+  // ── Telephony HTTP API ──────────────────────────────────────────────────────
+
+  /** Answer an incoming call. callId is the Twilio Call SID (CA...). */
+  answerCallHttp(callId: string): Observable<void> {
+    return this.http.post<void>(
+      `${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/answer`,
+      null,
+    );
+  }
+
+  /** Hang up an active or ringing call. */
+  hangupCallHttp(callId: string): Observable<void> {
+    return this.http.post<void>(
+      `${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/hangup`,
+      null,
+    );
+  }
+
+  /** Place a call on hold or take it off hold. */
+  holdCallHttp(callId: string, hold: boolean): Observable<void> {
+    return this.http.post<void>(
+      `${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/hold`,
+      null,
+      { params: { hold: String(hold) } },
+    );
+  }
+
+  /** Mute or unmute the microphone for a call. */
+  muteCallHttp(callId: string, mute: boolean): Observable<void> {
+    return this.http.post<void>(
+      `${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/mute`,
+      null,
+      { params: { mute: String(mute) } },
+    );
   }
 
   private startDurationTimer(): void {

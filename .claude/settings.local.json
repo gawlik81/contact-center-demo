@@ -129,7 +129,17 @@
       "Bash(find /mnt/e/ClaudAI/contact-center-demo/backend -name *.java)",
       "Bash(dir \"E:/ClaudAI/contact-center-demo/backend/app/src/main/java/com/contactcenter/domain/\")",
       "Bash(\"E:/ClaudAI/contact-center-demo/CR-DATABASE.md\":*)",
-      "Bash(\"E:/ClaudAI/contact-center-demo/CR-FRONTEND.md\":*)"
+      "Bash(\"E:/ClaudAI/contact-center-demo/CR-FRONTEND.md\":*)",
+      "Bash(awk 'NR>=87462 && NR<=87700' \"E:/ClaudAI/contact-center-demo/logs/contact-center-demo-be.log\")",
+      "Bash(awk 'NR>=86771 && NR<=86951' \"E:/ClaudAI/contact-center-demo/logs/contact-center-demo-be.log\")",
+      "Bash(wait)",
+      "Read(//mnt/**)",
+      "Read(//mnt/c/**)",
+      "Read(//e//**)",
+      "Bash(cmd /c \"cd E:\\\\ClaudAI\\\\contact-center-demo\\\\backend && mvn package -pl app -DskipTests 2>&1\")",
+      "Read(//c/Users/**)",
+      "Bash(python3:*)",
+      "Bash(node:*)"
     ]
   }
 }

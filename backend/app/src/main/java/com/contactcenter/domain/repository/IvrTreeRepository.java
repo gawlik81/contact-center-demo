@@ -41,6 +41,7 @@ public class IvrTreeRepository extends TenantAwareRepository {
                 .setParameter("ivrId", ivrId)
                 .setParameter("tenantId", tenantId)
                 .setMaxResults(1)
+                .setHint("jakarta.persistence.query.timeout", 5000)
                 .getResultList();
 
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
@@ -81,6 +82,7 @@ public class IvrTreeRepository extends TenantAwareRepository {
                         IvrTree.class)
                 .setParameter("tenantId", tenantId)
                 .setMaxResults(1)
+                .setHint("jakarta.persistence.query.timeout", 5000)
                 .getResultList();
 
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));

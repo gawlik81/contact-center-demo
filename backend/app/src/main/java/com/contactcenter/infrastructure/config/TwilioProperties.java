@@ -58,4 +58,32 @@ public class TwilioProperties {
      * Przykład: https://example.com/api/telephony/webhook/twilio
      */
     private String statusCallbackUrl;
+
+    /**
+     * Włącza nagrywanie konferencji przez {@code <Conference record="record-from-start">}
+     * i obsługę webhooków recordingStatusCallback.
+     * Domyślnie {@code true} gdy Twilio jest włączone.
+     */
+    private boolean recordingEnabled = true;
+
+    /**
+     * Twilio API Key SID (zaczyna się od "SK") – wymagany do generowania Access Token
+     * dla Twilio Voice JS SDK. Tworzony w Twilio Console → Account → API Keys.
+     * NIGDY nie umieszczaj wartości bezpośrednio w YAML – używaj ENV var.
+     */
+    private String apiKeySid;
+
+    /**
+     * Twilio API Key Secret – sekret pary API Key.
+     * Wyświetlany tylko raz po utworzeniu klucza w Twilio Console.
+     * NIGDY nie umieszczaj wartości bezpośrednio w YAML – używaj ENV var.
+     */
+    private String apiKeySecret;
+
+    /**
+     * Twilio TwiML App SID (zaczyna się od "AP") – identyfikator aplikacji TwiML
+     * konfigurowanej w Twilio Console → Voice → TwiML Apps.
+     * Wymagany przez VoiceGrant do obsługi połączeń wychodzących przez SDK.
+     */
+    private String twimlAppSid;
 }

@@ -191,7 +191,7 @@ class TwilioTelephonyAdapterTest {
             adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "ringing", TENANT_ID);
 
             // Act
-            adapter.answerCall(CALL_SID);
+            adapter.answerCall(CALL_SID, null);
 
             // Assert
             CallSession session = adapter.getCallSession(CALL_SID);
@@ -206,7 +206,7 @@ class TwilioTelephonyAdapterTest {
         void shouldThrowForEndedCall() {
             adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "completed", TENANT_ID);
 
-            assertThatThrownBy(() -> adapter.answerCall(CALL_SID))
+            assertThatThrownBy(() -> adapter.answerCall(CALL_SID, null))
                     .isInstanceOf(TelephonyAdapter.TelephonyException.class)
                     .hasMessageContaining(CALL_SID);
         }
@@ -217,7 +217,7 @@ class TwilioTelephonyAdapterTest {
             adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID);
             clearInvocations(eventPublisher);
 
-            assertThatNoException().isThrownBy(() -> adapter.answerCall(CALL_SID));
+            assertThatNoException().isThrownBy(() -> adapter.answerCall(CALL_SID, null));
             // Nie publikujemy dublowanego eventu CALL_ANSWERED
             verify(eventPublisher, never()).publishAnswered(anyString(), any(), any(), anyString(), anyString());
         }
@@ -225,7 +225,7 @@ class TwilioTelephonyAdapterTest {
         @Test
         @DisplayName("wywołanie na nieistniejącej sesji powinno rzucić TelephonyException")
         void shouldThrowForUnknownCallId() {
-            assertThatThrownBy(() -> adapter.answerCall("NIEISTNIEJACY_SID"))
+            assertThatThrownBy(() -> adapter.answerCall("NIEISTNIEJACY_SID", null))
                     .isInstanceOf(TelephonyAdapter.TelephonyException.class);
         }
     }

@@ -249,11 +249,22 @@ twilio:
   # Format: https://<ngrok-domain>/api/telephony/webhook/twilio?tenantId=<UUID>
   # Konfiguracja w Twilio Console: Phone Numbers → Active Numbers → Voice & Fax → Status Callback URL
   status-callback-url: ${TWILIO_STATUS_CALLBACK_URL:https://rafaela-uncalumnious-refreshedly.ngrok-free.dev/api/telephony/webhook/twilio?tenantId=aaaaaaaa-0000-0000-0000-000000000001}
+  # Włącza nagrywanie konferencji przez <Conference record="record-from-start">
+  # i obsługę recordingStatusCallback (endpoint /api/telephony/webhook/twilio/recording)
+  recording-enabled: ${TWILIO_RECORDING_ENABLED:true}
   # Voice URL – wywoływany przez Twilio przy każdym połączeniu przychodzącym (fix błędu 12300).
   # Musi zwracać TwiML (XML). Konfiguracja w Twilio Console:
   # Phone Numbers → Active Numbers → Voice & Fax → A Call Comes In (Webhook, HTTP POST)
   # Format: https://<ngrok-domain>/api/telephony/webhook/twilio/voice?tenantId=<UUID>
   # Przykład: https://rafaela-uncalumnious-refreshedly.ngrok-free.dev/api/telephony/webhook/twilio/voice?tenantId=aaaaaaaa-0000-0000-0000-000000000001
+  # API Key SID – wymagany do generowania Twilio Access Token dla Voice JS SDK
+  # Tworzony w Twilio Console → Account → API Keys (zaczyna się od "SK")
+  api-key-sid: ${TWILIO_API_KEY_SID:}
+  # API Key Secret – sekret pary API Key
+  api-key-secret: ${TWILIO_API_KEY_SECRET:}
+  # TwiML App SID – identyfikator aplikacji TwiML dla połączeń wychodzących przez SDK
+  # Tworzony w Twilio Console → Voice → TwiML Apps (zaczyna się od "AP")
+  twiml-app-sid: ${TWILIO_TWIML_APP_SID:}
 
 # =============================================================================
 # Aplikacja – konfiguracja ogólna

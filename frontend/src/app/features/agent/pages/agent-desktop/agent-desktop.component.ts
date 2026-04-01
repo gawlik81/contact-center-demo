@@ -8,6 +8,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe, LowerCasePipe } from '@angular/common';
@@ -108,6 +109,24 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
         .find((t) => t.type === 'PHONE' && t.status !== 'WRAPPING');
       if (phoneTab) {
         this.tabStore.markAsWrapping(phoneTab.id);
+      }
+    }
+  });
+
+  /**
+   * Monitors agent status changes. Initializes the Twilio Voice Device
+   * when the agent transitions to AVAILABLE so incoming Twilio calls can
+   * be received in the browser.
+   */
+  private readonly twilioDeviceEffect = effect(() => {
+    const status = this.statusService.currentStatus();
+    if (status === 'AVAILABLE') {
+      // Read twilioDeviceReady inside untracked to avoid circular tracking
+      const alreadyReady = untracked(() => this.softphoneService.twilioDeviceReady());
+      if (!alreadyReady) {
+        this.softphoneService.initializeTwilioDevice().catch((err) => {
+          console.error('[AgentDesktop] initializeTwilioDevice failed:', err);
+        });
       }
     }
   });

@@ -102,6 +102,8 @@ public class SecurityConfig {
                 .requestMatchers("/webhooks/**").permitAll()
                 // Webhook VoIP od providera telefonii – publiczny, weryfikacja przez X-Webhook-Secret
                 .requestMatchers("/api/telephony/webhook/**").permitAll()
+                // Hold music TwiML – publiczny, wywoływany przez Twilio jako waitUrl w Conference
+                .requestMatchers("/api/telephony/hold-music").permitAll()
                 // WebSocket endpoint (SockJS) – publiczny (HTTP → WS upgrade); autentykacja przez JWT w STOMP CONNECT
                 .requestMatchers("/ws/**").permitAll()
                 // WebSocket endpoint (plain WS + STOMP, bez SockJS) – używany przez Angular Agent Desktop

@@ -78,6 +78,8 @@ public class TenantFilter extends OncePerRequestFilter {
             "/webhooks/",
             // Webhook VoIP – weryfikacja przez X-Webhook-Secret (nie przez JWT)
             "/api/telephony/webhook",
+            // Hold music TwiML – wywoływany przez Twilio jako waitUrl w Conference (bez JWT)
+            "/api/telephony/hold-music",
             // WebSocket/SockJS endpoint – autentykacja JWT dzieje się w STOMP CONNECT frame
             // przez WebSocketAuthInterceptor, nie przez HTTP filtr
             "/ws",

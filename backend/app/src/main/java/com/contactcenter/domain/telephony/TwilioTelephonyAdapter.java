@@ -172,14 +172,24 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   /**
    * {@inheritDoc}
    *
-   * <p>Odebranie połączenia w Twilio realizowane jest przez TwiML zwracany w odpowiedzi
-   * na webhook – ten adapter nie wysyła oddzielnego żądania "answer". Metoda aktualizuje
-   * wyłącznie lokalny stan sesji i publikuje event CALL_ANSWERED.
+   * <p>Odebranie połączenia realizowane jest dwuetapowo:
+   * <ol>
+   *   <li>Aktualizacja lokalnego stanu sesji na ACTIVE.</li>
+   *   <li>Wywołanie Twilio REST API – agent wchodzi do nazwanej konferencji Twilio
+   *       jako moderator ({@code startConferenceOnEnter="true"}), co powoduje start
+   *       konferencji i połączenie audio z klientem czekającym w tej samej konferencji.</li>
+   * </ol>
+   *
+   * <p>Nazwa konferencji: {@code contact-{contactId}} – zgodna z TwiML generowanym przez
+   * {@link com.contactcenter.domain.service.IvrEngineService#buildWaitInConferenceTwiml}.
+   *
+   * <p>Błąd zestawiania połączenia z agentem jest logowany jako ERROR, ale nie przerywa
+   * przepływu – lokalny stan sesji pozostaje ACTIVE.
    *
    * @throws TelephonyException gdy sesja nie istnieje lub połączenie jest już zakończone
    */
   @Override
-  public void answerCall(String callId) {
+  public void answerCall(String callId, UUID agentId) {
     CallSession session = requireSession(callId);
 
     if (session.getStatus() == CallSession.CallStatus.ENDED) {
@@ -190,16 +200,73 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       return;
     }
 
+    // Uzupełnij agentId w sesji – może być null dla połączeń przychodzących przed przydziałem
     CallSession updated = session
         .withStatus(CallSession.CallStatus.ACTIVE)
-        .withAnsweredAt(Instant.now());
+        .withAnsweredAt(Instant.now())
+        .withAgentId(agentId != null ? agentId : session.getAgentId());
     sessions.put(callId, updated);
 
-    log.info("[TwilioAdapter] Połączenie odebrane (lokalny stan): callId={}, tenant={}",
-        callId, updated.getTenantId());
+    log.info("[TwilioAdapter] Połączenie odebrane (lokalny stan): callId={}, tenant={}, agentId={}",
+        callId, updated.getTenantId(), updated.getAgentId());
+
+    // Zestawianie audio przez Twilio Conference – agent wchodzi do konferencji jako moderator.
+    // Wymaga contactId (do nazwy konferencji) i agentId (do tożsamości Twilio Client).
+    if (updated.getContactId() != null && updated.getAgentId() != null) {
+      dialAgentIntoConference(updated);
+    } else {
+      log.warn("[TwilioAdapter] Brak contactId lub agentId w sesji – pomijam dial agenta do konferencji: " +
+               "callId={}, contactId={}, agentId={}",
+          callId, updated.getContactId(), updated.getAgentId());
+    }
 
     eventPublisher.publishAnswered(callId, updated.getTenantId(),
         updated.getAgentId(), updated.getFrom(), updated.getTo());
+  }
+
+  /**
+   * Inicjuje połączenie Twilio do agenta (Twilio Client SDK) i wchodzi go do konferencji.
+   *
+   * <p>Agent dołącza jako moderator ({@code startConferenceOnEnter="true"}), co powoduje
+   * start konferencji i zestawienie audio z klientem czekającym z parametrem
+   * {@code startConferenceOnEnter="false"}.
+   *
+   * @param session aktywna sesja połączenia z ustawionym contactId i agentId
+   */
+  private void dialAgentIntoConference(CallSession session) {
+    String conferenceName = "contact-" + session.getContactId().toString();
+    String agentClientId = "agent-" + session.getAgentId().toString();
+
+    String agentTwiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        + "<Response><Dial>"
+        + "<Conference startConferenceOnEnter=\"true\" endConferenceOnExit=\"true\">"
+        + conferenceName
+        + "</Conference>"
+        + "</Dial></Response>";
+
+    log.info("[TwilioAdapter] Dzwonię do agenta przez Twilio Client: agentClientId={}, conference={}",
+        agentClientId, conferenceName);
+
+    try {
+      Call.creator(
+          new PhoneNumber("client:" + agentClientId),
+          new PhoneNumber(twilioProperties.getPhoneNumber()),
+          new Twiml(agentTwiml)
+      ).create();
+
+      log.info("[TwilioAdapter] Połączenie do agenta zainicjowane: agentClientId={}, conference={}",
+          agentClientId, conferenceName);
+    } catch (ApiException e) {
+      log.error("[TwilioAdapter] Błąd Twilio API przy zestawianiu połączenia do agenta: " +
+                "agentClientId={}, conference={}, code={}, message={}",
+          agentClientId, conferenceName, e.getCode(), e.getMessage(), e);
+      // Nie rzucamy wyjątku – lokalny stan sesji pozostaje ACTIVE,
+      // a błąd jest widoczny w logach dla diagnostyki
+    } catch (Exception e) {
+      log.error("[TwilioAdapter] Nieoczekiwany błąd przy dial agenta do konferencji: " +
+                "agentClientId={}, conference={}, error={}",
+          agentClientId, conferenceName, e.getMessage(), e);
+    }
   }
 
   /**

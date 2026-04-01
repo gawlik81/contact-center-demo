@@ -139,7 +139,13 @@
       "Bash(cmd /c \"cd E:\\\\ClaudAI\\\\contact-center-demo\\\\backend && mvn package -pl app -DskipTests 2>&1\")",
       "Read(//c/Users/**)",
       "Bash(python3:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(printf '%s' 'dev_secret_placeholder_32chars__')",
+      "WebFetch(domain:www.javadoc.io)",
+      "WebFetch(domain:central.sonatype.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

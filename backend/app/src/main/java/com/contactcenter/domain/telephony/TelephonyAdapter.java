@@ -37,10 +37,11 @@ public interface TelephonyAdapter {
     /**
      * Odbiera przychodzące połączenie.
      *
-     * @param callId identyfikator sesji połączenia
+     * @param callId  identyfikator sesji połączenia
+     * @param agentId UUID agenta odbierającego (wymagany do zestawienia audio w Twilio Conference)
      * @throws TelephonyException gdy połączenie nie istnieje lub jest w złym stanie
      */
-    void answerCall(String callId);
+    void answerCall(String callId, UUID agentId);
 
     /**
      * Rozłącza połączenie (hangup).

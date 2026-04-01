@@ -151,6 +151,15 @@ server:
   port: 8080
 
 # =============================================================================
+# Twilio Voice SDK – placeholders dla lokalnego developmentu
+# W prawdziwym dev ustaw zmienne ENV: TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET, TWILIO_TWIML_APP_SID
+# =============================================================================
+twilio:
+  api-key-sid: ${TWILIO_API_KEY_SID:SK_DEV_PLACEHOLDER}
+  api-key-secret: ${TWILIO_API_KEY_SECRET:dev_secret_placeholder_32chars__}
+  twiml-app-sid: ${TWILIO_TWIML_APP_SID:AP_DEV_PLACEHOLDER}
+
+# =============================================================================
 # Spring DevTools – wyłączamy auto-restart (powoduje "port already in use"
 # gdy Tomcat nie zdąży zwolnić portu przed ponownym startem kontekstu).
 # additional-exclude: wyklucza pliki logów z obserwacji zmian (bez wpływu na restart).

@@ -107,7 +107,7 @@ public class AgentCallController {
 
         // Step 1 – notify the telephony adapter (updates session state, publishes CALL_ANSWERED event)
         try {
-            telephonyAdapter.answerCall(resolvedCallSid);
+            telephonyAdapter.answerCall(resolvedCallSid, agentId);
         } catch (TelephonyAdapter.TelephonyException e) {
             log.warn("[AgentCallController] Adapter answerCall failed for callId={}: {}", callId, e.getMessage());
             // Do not abort – the call may already be ACTIVE (idempotent scenario).

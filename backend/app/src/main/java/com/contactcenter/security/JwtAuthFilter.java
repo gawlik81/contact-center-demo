@@ -66,7 +66,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             "/api/auth/login",
             "/api/auth/refresh",
             "/api/public/",
-            "/webhooks/"
+            "/webhooks/",
+            // Webhook VoIP – weryfikacja przez X-Webhook-Secret (nie przez JWT)
+            "/api/telephony/webhook",
+            // Hold music TwiML – wywoływany przez Twilio jako waitUrl w Conference (bez JWT)
+            "/api/telephony/hold-music"
     );
 
     private final JwtParser jwtParser;

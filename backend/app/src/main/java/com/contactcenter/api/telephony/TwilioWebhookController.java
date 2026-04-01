@@ -2,6 +2,7 @@ package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.IvrEngineService;
@@ -66,6 +67,7 @@ public class TwilioWebhookController {
   private final IvrEngineService ivrEngineService;
   private final ContactService contactService;
   private final CustomerRepository customerRepository;
+  private final ContactRepository contactRepository;
 
   /**
    * Publiczny bazowy URL aplikacji używany do budowania action URL w TwiML.
@@ -84,11 +86,13 @@ public class TwilioWebhookController {
       @Autowired(required = false) TwilioTelephonyAdapter twilioAdapter,
       IvrEngineService ivrEngineService,
       ContactService contactService,
-      CustomerRepository customerRepository) {
+      CustomerRepository customerRepository,
+      ContactRepository contactRepository) {
     this.twilioAdapter = twilioAdapter;
     this.ivrEngineService = ivrEngineService;
     this.contactService = contactService;
     this.customerRepository = customerRepository;
+    this.contactRepository = contactRepository;
   }
 
   // =========================================================================
@@ -335,6 +339,111 @@ public class TwilioWebhookController {
       // przy błędach przetwarzania po naszej stronie
       log.error("[TwilioWebhook] Błąd przetwarzania statusu: callSid={}, status={}, error={}",
           callSid, callStatus, e.getMessage(), e);
+    }
+
+    return ResponseEntity.noContent().build();
+  }
+
+  // =========================================================================
+  // Recording callback endpoint
+  // =========================================================================
+
+  /**
+   * Odbiera callback nagrania konferencji od Twilio (recordingStatusCallback).
+   *
+   * <p>Twilio wysyła POST na ten URL po zakończeniu nagrania konferencji.
+   * Endpoint jest <strong>publiczny</strong> – objęty przez prefix
+   * {@code /api/telephony/webhook} w SecurityConfig i TenantFilter.
+   *
+   * <p>Logika:
+   * <ol>
+   *   <li>Loguje odbiór nagrania.</li>
+   *   <li>Gdy {@code RecordingStatus=completed} i {@code RecordingUrl} != null,
+   *       wyszukuje kontakt po {@code callSid} lub {@code ConferenceSid} przez
+   *       {@code channel_metadata->>'sip_call_id'} i zapisuje URL nagrania.</li>
+   *   <li>Zwraca 204 No Content – Twilio nie ponawia callbacku przy 2xx.</li>
+   * </ol>
+   *
+   * @param callSid           Twilio Call SID (może być null dla nagrań konferencji)
+   * @param recordingSid      Twilio Recording SID
+   * @param recordingUrl      URL nagrania (bez rozszerzenia); Twilio zwraca .mp3 po dopisaniu
+   * @param recordingDuration czas trwania nagrania w sekundach
+   * @param recordingStatus   status nagrania (np. "completed", "failed")
+   * @param conferenceSid     SID konferencji (gdy nagranie pochodzi z konferencji)
+   * @param tenantIdParam     UUID tenanta z parametru query string
+   * @return 204 No Content
+   */
+  @PostMapping(value = "/recording", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+  @Operation(
+      summary = "Odbierz callback nagrania konferencji od Twilio",
+      description = "Twilio wysyła POST po zakończeniu nagrania. Endpoint zapisuje RecordingUrl do tabeli contact.",
+      responses = {
+          @ApiResponse(responseCode = "204", description = "Callback przetworzony")
+      }
+  )
+  public ResponseEntity<Void> handleRecordingCallback(
+      @RequestParam(value = "CallSid", required = false) String callSid,
+      @RequestParam(value = "RecordingSid", required = false) String recordingSid,
+      @RequestParam(value = "RecordingUrl", required = false) String recordingUrl,
+      @RequestParam(value = "RecordingDuration", required = false) String recordingDuration,
+      @RequestParam(value = "RecordingStatus", required = false) String recordingStatus,
+      @RequestParam(value = "ConferenceSid", required = false) String conferenceSid,
+      @RequestParam(value = "tenantId", required = false) String tenantIdParam
+  ) {
+    log.info("[TwilioRecording] Odebrano callback nagrania: callSid={}, recordingSid={}, " +
+             "recordingStatus={}, recordingDuration={}s, conferenceSid={}",
+        callSid, recordingSid, recordingStatus, recordingDuration, conferenceSid);
+
+    if (!"completed".equalsIgnoreCase(recordingStatus)) {
+      log.debug("[TwilioRecording] Status nagrania != completed ({}), pomijam.", recordingStatus);
+      return ResponseEntity.noContent().build();
+    }
+
+    if (!StringUtils.hasText(recordingUrl)) {
+      log.warn("[TwilioRecording] Brak RecordingUrl przy status=completed. callSid={}", callSid);
+      return ResponseEntity.noContent().build();
+    }
+
+    UUID tenantId = parseTenantId(tenantIdParam, callSid != null ? callSid : conferenceSid);
+    if (tenantId == null) {
+      log.warn("[TwilioRecording] Brak tenantId – nie można zaktualizować recording_url. " +
+               "callSid={}, conferenceSid={}", callSid, conferenceSid);
+      return ResponseEntity.noContent().build();
+    }
+
+    try {
+      TenantContext.setTenantId(tenantId);
+
+      // Szukaj contactId po callSid przez channel_metadata->>'sip_call_id'
+      String sidToLookup = StringUtils.hasText(callSid) ? callSid : conferenceSid;
+      if (!StringUtils.hasText(sidToLookup)) {
+        log.warn("[TwilioRecording] Brak callSid i conferenceSid – nie można znaleźć kontaktu.");
+        return ResponseEntity.noContent().build();
+      }
+
+      java.util.Optional<UUID> contactIdOpt = contactRepository.findContactIdByCallSid(sidToLookup, tenantId);
+
+      if (contactIdOpt.isEmpty()) {
+        log.warn("[TwilioRecording] Nie znaleziono kontaktu dla sid={}, tenantId={}. " +
+                 "Nagranie nie zostanie zapisane.", sidToLookup, tenantId);
+        return ResponseEntity.noContent().build();
+      }
+
+      UUID contactId = contactIdOpt.get();
+      // Twilio zwraca URL bez rozszerzenia – dopisz .mp3
+      String finalRecordingUrl = recordingUrl.endsWith(".mp3") ? recordingUrl : recordingUrl + ".mp3";
+
+      contactRepository.updateRecordingUrl(contactId, tenantId, finalRecordingUrl);
+
+      log.info("[TwilioRecording] Nagranie zapisane: contactId={}, recordingUrl={}, duration={}s",
+          contactId, finalRecordingUrl, recordingDuration);
+
+    } catch (Exception e) {
+      log.error("[TwilioRecording] Błąd zapisu recording_url: callSid={}, tenantId={}, error={}",
+          callSid, tenantId, e.getMessage(), e);
+      // Zwracamy 204 – Twilio nie powinno ponawiać callbacku przy błędzie po naszej stronie
+    } finally {
+      TenantContext.clear();
     }
 
     return ResponseEntity.noContent().build();

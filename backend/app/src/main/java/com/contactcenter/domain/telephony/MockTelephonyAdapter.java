@@ -94,7 +94,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     }
 
     @Override
-    public void answerCall(String callId) {
+    public void answerCall(String callId, UUID agentId) {
         CallSession session = requireSession(callId);
 
         if (session.getStatus() == CallSession.CallStatus.ENDED) {
@@ -107,7 +107,8 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
 
         CallSession updated = session
                 .withStatus(CallSession.CallStatus.ACTIVE)
-                .withAnsweredAt(Instant.now());
+                .withAnsweredAt(Instant.now())
+                .withAgentId(agentId != null ? agentId : session.getAgentId());
 
         sessions.put(callId, updated);
 

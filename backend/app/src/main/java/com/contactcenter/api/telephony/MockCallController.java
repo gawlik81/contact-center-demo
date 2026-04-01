@@ -131,7 +131,7 @@ public class MockCallController {
     private ResponseEntity<Map<String, Object>> handleAnswer(SimulateCallRequest request) {
         requireCallId(request);
         String callId = mockAdapter.resolveCallId(request.callId());
-        mockAdapter.answerCall(callId);
+        mockAdapter.answerCall(callId, null);
         return ResponseEntity.ok(Map.of(
                 "callId", callId,
                 "message", "Połączenie odebrane"

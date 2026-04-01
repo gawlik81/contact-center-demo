@@ -125,7 +125,7 @@ class MockTelephonyAdapterTest {
         void shouldTransitionToActiveAndSetAnsweredAt() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
 
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
 
             CallSession updated = adapter.getCallSession(session.getCallId());
             assertThat(updated.getStatus()).isEqualTo(CallSession.CallStatus.ACTIVE);
@@ -137,7 +137,7 @@ class MockTelephonyAdapterTest {
         void shouldPublishAnsweredEvent() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
 
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
 
             verify(eventPublisher).publishAnswered(
                     session.getCallId(), TENANT_ID, AGENT_ID, FROM, TO
@@ -150,7 +150,7 @@ class MockTelephonyAdapterTest {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
             adapter.hangupCall(session.getCallId());
 
-            assertThatThrownBy(() -> adapter.answerCall(session.getCallId()))
+            assertThatThrownBy(() -> adapter.answerCall(session.getCallId(), null))
                     .isInstanceOf(TelephonyAdapter.TelephonyException.class);
         }
 
@@ -158,10 +158,10 @@ class MockTelephonyAdapterTest {
         @DisplayName("wywołanie answerCall na już aktywnej sesji powinno być idempotentne")
         void shouldBeIdempotentForActiveCall() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
 
             // Drugie wywołanie nie rzuca wyjątku
-            assertThatNoException().isThrownBy(() -> adapter.answerCall(session.getCallId()));
+            assertThatNoException().isThrownBy(() -> adapter.answerCall(session.getCallId(), null));
             // Event publishAnswered wywołany tylko raz
             verify(eventPublisher, times(1)).publishAnswered(anyString(), any(), any(), anyString(), anyString());
         }
@@ -229,7 +229,7 @@ class MockTelephonyAdapterTest {
         @DisplayName("hold=true powinien przejść ACTIVE → ON_HOLD")
         void holdShouldTransitionActiveToOnHold() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
 
             adapter.holdCall(session.getCallId(), true);
 
@@ -241,7 +241,7 @@ class MockTelephonyAdapterTest {
         @DisplayName("hold=false powinien przejść ON_HOLD → ACTIVE")
         void unholdShouldTransitionOnHoldToActive() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
             adapter.holdCall(session.getCallId(), true);
 
             adapter.holdCall(session.getCallId(), false);
@@ -254,7 +254,7 @@ class MockTelephonyAdapterTest {
         @DisplayName("hold=true na sesji ON_HOLD powinien rzucić TelephonyException")
         void holdOnAlreadyHeldCallShouldThrow() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
             adapter.holdCall(session.getCallId(), true);
 
             assertThatThrownBy(() -> adapter.holdCall(session.getCallId(), true))
@@ -274,7 +274,7 @@ class MockTelephonyAdapterTest {
         @DisplayName("powinien ustawić status TRANSFERRED na oryginalnej sesji")
         void shouldMarkOriginalSessionAsTransferred() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
 
             adapter.transferCall(session.getCallId(), "+48111222333",
                     TelephonyAdapter.TransferType.BLIND);
@@ -287,7 +287,7 @@ class MockTelephonyAdapterTest {
         @DisplayName("powinien opublikować event CALL_TRANSFERRED")
         void shouldPublishTransferredEvent() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
             String target = "+48111222333";
 
             adapter.transferCall(session.getCallId(), target, TelephonyAdapter.TransferType.BLIND);
@@ -322,7 +322,7 @@ class MockTelephonyAdapterTest {
         @DisplayName("powinien wstrzymać oryginalne połączenie i zwrócić nową sesję (2nd leg)")
         void shouldPutOriginalOnHoldAndReturnSecondLeg() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
             String target = "+48111222333";
 
             CallSession secondLeg = adapter.transferCall(
@@ -342,7 +342,7 @@ class MockTelephonyAdapterTest {
         @DisplayName("powinien opublikować event CALL_INCOMING dla 2nd leg")
         void shouldPublishIncomingForSecondLeg() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(session.getCallId());
+            adapter.answerCall(session.getCallId(), null);
 
             CallSession secondLeg = adapter.transferCall(
                     session.getCallId(), "+48111222333", TelephonyAdapter.TransferType.ATTENDED);
@@ -366,11 +366,11 @@ class MockTelephonyAdapterTest {
         @DisplayName("powinien oznaczyć callId1 jako TRANSFERRED i callId2 jako ACTIVE")
         void shouldTransferFirstAndActivateSecond() {
             CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(s1.getCallId());
+            adapter.answerCall(s1.getCallId(), AGENT_ID);
 
             CallSession s2 = adapter.transferCall(s1.getCallId(), "+48111222333",
                     TelephonyAdapter.TransferType.ATTENDED);
-            adapter.answerCall(s2.getCallId());
+            adapter.answerCall(s2.getCallId(), AGENT_ID);
 
             adapter.bridgeCalls(s1.getCallId(), s2.getCallId());
 
@@ -384,7 +384,7 @@ class MockTelephonyAdapterTest {
         @DisplayName("bridge z nieistniejącym callId powinien rzucić TelephonyException")
         void shouldThrowForUnknownCallId() {
             CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            adapter.answerCall(s1.getCallId());
+            adapter.answerCall(s1.getCallId(), AGENT_ID);
 
             assertThatThrownBy(() -> adapter.bridgeCalls(s1.getCallId(), "nieistniejacy"))
                     .isInstanceOf(TelephonyAdapter.TelephonyException.class);
@@ -404,7 +404,7 @@ class MockTelephonyAdapterTest {
         void shouldCountOnlyNonTerminalSessions() {
             CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID); // RINGING
             CallSession s2 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID); // RINGING
-            adapter.answerCall(s2.getCallId()); // ACTIVE
+            adapter.answerCall(s2.getCallId(), AGENT_ID); // ACTIVE
             CallSession s3 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID); // RINGING
             adapter.hangupCall(s3.getCallId()); // ENDED – nie liczymy
 

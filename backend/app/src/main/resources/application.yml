@@ -248,7 +248,7 @@ twilio:
   # URL StatusCallback – publiczny URL do odbioru zdarzeń o statusie połączenia od Twilio
   # Format: https://<ngrok-domain>/api/telephony/webhook/twilio?tenantId=<UUID>
   # Konfiguracja w Twilio Console: Phone Numbers → Active Numbers → Voice & Fax → Status Callback URL
-  status-callback-url: ${TWILIO_STATUS_CALLBACK_URL:https://rafaela-uncalumnious-refreshedly.ngrok-free.dev/api/telephony/webhook/twilio?tenantId=aaaaaaaa-0000-0000-0000-000000000001}
+  status-callback-url: ${TWILIO_STATUS_CALLBACK_URL:https://rafaela-uncalumnious-refreshedly.ngrok-free.dev/api/telephony/webhook/twilio}
   # Włącza nagrywanie konferencji przez <Conference record="record-from-start">
   # i obsługę recordingStatusCallback (endpoint /api/telephony/webhook/twilio/recording)
   recording-enabled: ${TWILIO_RECORDING_ENABLED:true}

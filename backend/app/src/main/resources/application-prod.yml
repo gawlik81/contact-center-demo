@@ -149,6 +149,19 @@ springdoc:
     enabled: false
 
 # =============================================================================
+# Twilio – wymagane zmienne środowiskowe w produkcji:
+#   TWILIO_ACCOUNT_SID        – Account SID z Twilio Console (AC...)
+#   TWILIO_AUTH_TOKEN         – Auth Token z Twilio Console
+#   TWILIO_PHONE_NUMBER       – numer w formacie E.164 (np. +48732096332)
+#   TWILIO_API_KEY_SID        – API Key SID (SK...) do Access Token dla Voice JS SDK
+#   TWILIO_API_KEY_SECRET     – sekret pary API Key
+#   TWILIO_TWIML_APP_SID      – TwiML App SID (AP...) dla połączeń wychodzących
+#   TWILIO_STATUS_CALLBACK_URL – publiczny URL statusu: https://<domena>/api/telephony/webhook/twilio?tenantId=<UUID>
+#   APP_BASE_URL              – publiczny bazowy URL aplikacji (bez trailing slash)
+#   TWILIO_RECORDING_ENABLED  – true/false (domyślnie true)
+# =============================================================================
+
+# =============================================================================
 # Logowanie – prod: INFO (bez SQL dump, bez debug security)
 # =============================================================================
 logging:

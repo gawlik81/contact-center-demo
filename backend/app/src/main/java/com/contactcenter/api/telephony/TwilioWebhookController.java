@@ -6,8 +6,11 @@ import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.IvrEngineService;
+import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.TwilioTelephonyAdapter;
 import com.contactcenter.security.TenantContext;
+import com.twilio.exception.ApiException;
+import com.twilio.rest.api.v2010.account.Conference;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -68,6 +71,7 @@ public class TwilioWebhookController {
   private final ContactService contactService;
   private final CustomerRepository customerRepository;
   private final ContactRepository contactRepository;
+  private final TwilioRecordingDownloadService recordingDownloadService;
 
   /**
    * Publiczny bazowy URL aplikacji używany do budowania action URL w TwiML.
@@ -87,12 +91,14 @@ public class TwilioWebhookController {
       IvrEngineService ivrEngineService,
       ContactService contactService,
       CustomerRepository customerRepository,
-      ContactRepository contactRepository) {
+      ContactRepository contactRepository,
+      TwilioRecordingDownloadService recordingDownloadService) {
     this.twilioAdapter = twilioAdapter;
     this.ivrEngineService = ivrEngineService;
     this.contactService = contactService;
     this.customerRepository = customerRepository;
     this.contactRepository = contactRepository;
+    this.recordingDownloadService = recordingDownloadService;
   }
 
   // =========================================================================
@@ -308,6 +314,7 @@ public class TwilioWebhookController {
       @RequestParam(value = "To", required = false) String to,
       @RequestParam(value = "CallStatus", required = false) String callStatus,
       @RequestParam(value = "Direction", required = false) String direction,
+      @RequestParam(value = "ConferenceSid", required = false) String conferenceSid,
       @RequestParam(value = "tenantId", required = false) String tenantIdParam
   ) {
     // Walidacja wymaganych parametrów
@@ -328,8 +335,26 @@ public class TwilioWebhookController {
     UUID tenantId = parseTenantId(tenantIdParam, callSid);
 
     log.info("[TwilioWebhook] Odebrano StatusCallback: callSid={}, status={}, from={}, to={}, " +
-            "direction={}, tenantId={}",
-        callSid, callStatus, from, to, direction, tenantId);
+            "direction={}, conferenceSid={}, tenantId={}",
+        callSid, callStatus, from, to, direction, conferenceSid, tenantId);
+
+    // Gdy Twilio wysyła StatusCallback dla połączenia biorącego udział w konferencji,
+    // parametr ConferenceSid (CF...) pozwala powiązać nagranie konferencji z rekordem contact.
+    // Zapisujemy conference_sid do channel_metadata, żeby handleRecordingCallback mógł
+    // znaleźć kontakt po ConferenceSid (CallSid jest null w callbacku nagrania konferencji).
+    if (StringUtils.hasText(conferenceSid) && tenantId != null) {
+      try {
+        TenantContext.setTenantId(tenantId);
+        contactRepository.updateConferenceSidInMetadata(callSid, conferenceSid, tenantId);
+      }
+      catch (Exception e) {
+        log.warn("[TwilioWebhook] Nie udało się zapisać conference_sid do channel_metadata: " +
+                 "callSid={}, conferenceSid={}, error={}", callSid, conferenceSid, e.getMessage());
+      }
+      finally {
+        TenantContext.clear();
+      }
+    }
 
     try {
       twilioAdapter.handleWebhookStatusUpdate(callSid, from, to, callStatus, tenantId);
@@ -414,29 +439,38 @@ public class TwilioWebhookController {
     try {
       TenantContext.setTenantId(tenantId);
 
-      // Szukaj contactId po callSid przez channel_metadata->>'sip_call_id'
-      String sidToLookup = StringUtils.hasText(callSid) ? callSid : conferenceSid;
-      if (!StringUtils.hasText(sidToLookup)) {
+      // Szukaj contactId: gdy CallSid dostępny – po sip_call_id; gdy null (nagranie konferencji) –
+      // pobierz nazwę konferencji przez Twilio API i wyciągnij contactId z formatu "contact-{UUID}".
+      // Mechanizm przez conference_sid w channel_metadata jest zawodny, bo StatusCallback dla nogi
+      // agenta nie zawiera ConferenceSid i conference_sid nigdy nie jest zapisywany do DB.
+      java.util.Optional<UUID> contactIdOpt;
+      if (StringUtils.hasText(callSid)) {
+        contactIdOpt = contactRepository.findContactIdByCallSid(callSid, tenantId);
+      } else if (StringUtils.hasText(conferenceSid)) {
+        contactIdOpt = resolveContactIdFromConference(conferenceSid);
+      } else {
         log.warn("[TwilioRecording] Brak callSid i conferenceSid – nie można znaleźć kontaktu.");
         return ResponseEntity.noContent().build();
       }
 
-      java.util.Optional<UUID> contactIdOpt = contactRepository.findContactIdByCallSid(sidToLookup, tenantId);
-
       if (contactIdOpt.isEmpty()) {
+        String sidLogged = StringUtils.hasText(callSid) ? callSid : conferenceSid;
         log.warn("[TwilioRecording] Nie znaleziono kontaktu dla sid={}, tenantId={}. " +
-                 "Nagranie nie zostanie zapisane.", sidToLookup, tenantId);
+                 "Nagranie nie zostanie zapisane.", sidLogged, tenantId);
         return ResponseEntity.noContent().build();
       }
 
       UUID contactId = contactIdOpt.get();
+
       // Twilio zwraca URL bez rozszerzenia – dopisz .mp3
-      String finalRecordingUrl = recordingUrl.endsWith(".mp3") ? recordingUrl : recordingUrl + ".mp3";
+      String twilioMp3Url = recordingUrl.endsWith(".mp3") ? recordingUrl : recordingUrl + ".mp3";
 
-      contactRepository.updateRecordingUrl(contactId, tenantId, finalRecordingUrl);
-
-      log.info("[TwilioRecording] Nagranie zapisane: contactId={}, recordingUrl={}, duration={}s",
-          contactId, finalRecordingUrl, recordingDuration);
+      // Pobierz nagranie z Twilio i zapisz do S3/MinIO asynchronicznie.
+      // Webhook musi zwrócić 204 szybko – upload dzieje się w tle (wątek cc-async-*).
+      // Aktualizacja recording_url w DB następuje po zakończeniu uploadu w TwilioRecordingDownloadService.
+      log.info("[TwilioRecording] Zlecam async pobieranie nagrania: contactId={}, recordingSid={}, duration={}s",
+          contactId, recordingSid, recordingDuration);
+      recordingDownloadService.downloadAndStore(twilioMp3Url, recordingSid, contactId, tenantId);
 
     } catch (Exception e) {
       log.error("[TwilioRecording] Błąd zapisu recording_url: callSid={}, tenantId={}, error={}",
@@ -452,6 +486,48 @@ public class TwilioWebhookController {
   // =========================================================================
   // Metody pomocnicze
   // =========================================================================
+
+  /**
+   * Pobiera contactId z nazwy konferencji Twilio przez Twilio API.
+   *
+   * <p>Nazwa konferencji jest deterministyczna: {@code "contact-{contactId}"}.
+   * Twilio nie zwraca nazwy konferencji w recording callback – jedynym identyfikatorem
+   * jest {@code ConferenceSid} (CF...). Metoda pobiera {@code FriendlyName} przez
+   * {@link Conference#fetcher(String)} i parsuje z niego UUID kontaktu.
+   *
+   * <p>Używane gdy {@code CallSid=null} w recording callback (nagranie konferencji).
+   * Mechanizm przez {@code conference_sid} w {@code channel_metadata} jest zawodny,
+   * ponieważ StatusCallback nogi agenta nie zawiera {@code ConferenceSid}
+   * i to pole nigdy nie trafia do DB.
+   *
+   * @param conferenceSid Twilio Conference SID (CF...)
+   * @return Optional z UUID contactId lub empty przy błędzie Twilio API lub złym formacie nazwy
+   */
+  private java.util.Optional<UUID> resolveContactIdFromConference(String conferenceSid) {
+    try {
+      Conference conference = Conference.fetcher(conferenceSid).fetch();
+      String friendlyName = conference.getFriendlyName();
+      log.debug("[TwilioRecording] FriendlyName konferencji {}: {}", conferenceSid, friendlyName);
+
+      if (friendlyName == null || !friendlyName.startsWith("contact-")) {
+        log.warn("[TwilioRecording] Nieoczekiwany format FriendlyName konferencji: " +
+                 "conferenceSid={}, friendlyName={}", conferenceSid, friendlyName);
+        return java.util.Optional.empty();
+      }
+
+      UUID contactId = UUID.fromString(friendlyName.substring("contact-".length()));
+      return java.util.Optional.of(contactId);
+
+    } catch (ApiException e) {
+      log.warn("[TwilioRecording] Błąd Twilio API przy pobieraniu nazwy konferencji: " +
+               "conferenceSid={}, code={}, message={}", conferenceSid, e.getCode(), e.getMessage());
+      return java.util.Optional.empty();
+    } catch (IllegalArgumentException e) {
+      log.warn("[TwilioRecording] Nie można sparsować contactId z nazwy konferencji: " +
+               "conferenceSid={}, error={}", conferenceSid, e.getMessage());
+      return java.util.Optional.empty();
+    }
+  }
 
   /**
    * Parsuje tenantId z parametru query string.

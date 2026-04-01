@@ -132,7 +132,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       );
 
       if (StringUtils.hasText(callbackUrl)) {
-        creator.setStatusCallback(URI.create(callbackUrl));
+        creator.setStatusCallback(URI.create(callbackUrl + "?tenantId=" + tenantId));
         creator.setStatusCallbackMethod(com.twilio.http.HttpMethod.POST);
         creator.setStatusCallbackEvent(java.util.List.of(
             "initiated", "ringing", "answered", "completed"));
@@ -237,9 +237,37 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     String conferenceName = "contact-" + session.getContactId().toString();
     String agentClientId = "agent-" + session.getAgentId().toString();
 
+    // Buduj atrybuty <Conference> dynamicznie – nagrywanie jest opcjonalne.
+    // record="record-from-start" powoduje że Twilio nagrywa całą konferencję
+    // i po jej zakończeniu wysyła POST na recordingStatusCallback z ConferenceSid (CF...)
+    // i RecordingUrl. Bez tego atrybutu handleRecordingCallback nigdy nie dostanie
+    // CF... powiązanego z kontaktem i nie będzie mógł zapisać recording_url do DB.
+    StringBuilder conferenceAttrs = new StringBuilder();
+    conferenceAttrs.append("startConferenceOnEnter=\"true\" endConferenceOnExit=\"true\"");
+
+    if (twilioProperties.isRecordingEnabled()) {
+      conferenceAttrs.append(" record=\"record-from-start\"");
+      String callbackBase = buildStatusCallbackUrl();
+      if (StringUtils.hasText(callbackBase)) {
+        // URL musi zawierać tenantId – controller parsuje go z query param
+        String recordingCallbackUrl = callbackBase + "/recording?tenantId="
+            + session.getTenantId().toString();
+        conferenceAttrs.append(" recordingStatusCallback=\"")
+            .append(recordingCallbackUrl)
+            .append("\"");
+        conferenceAttrs.append(" recordingStatusCallbackMethod=\"POST\"");
+        log.debug("[TwilioAdapter] Nagrywanie konferencji włączone: conference={}, recordingCallbackUrl={}",
+            conferenceName, recordingCallbackUrl);
+      } else {
+        log.warn("[TwilioAdapter] recording-enabled=true, ale twilio.status-callback-url nie jest " +
+                 "skonfigurowany – nagranie nie będzie mogło być zapisane do DB. " +
+                 "Ustaw twilio.status-callback-url w konfiguracji.");
+      }
+    }
+
     String agentTwiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
         + "<Response><Dial>"
-        + "<Conference startConferenceOnEnter=\"true\" endConferenceOnExit=\"true\">"
+        + "<Conference " + conferenceAttrs + ">"
         + conferenceName
         + "</Conference>"
         + "</Dial></Response>";

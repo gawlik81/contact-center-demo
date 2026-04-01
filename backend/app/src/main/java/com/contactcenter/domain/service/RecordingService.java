@@ -5,10 +5,12 @@ import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.config.S3Properties;
+import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -66,6 +68,14 @@ public class RecordingService {
     private final S3Presigner s3Presigner;
     private final S3Properties s3Properties;
     private final ContactRepository contactRepository;
+
+    /**
+     * Konfiguracja Twilio – wstrzykiwana opcjonalnie (null gdy twilio.enabled=false).
+     * Używana do pominięcia tworzenia stub MP3 gdy aktywny jest provider Twilio
+     * (nagranie zarządzane po stronie Twilio przez recording callback).
+     */
+    @Autowired(required = false)
+    private TwilioProperties twilioProperties;
 
     // =========================================================================
     // Obsługa zdarzenia call.hangup
@@ -137,7 +147,15 @@ public class RecordingService {
         boolean isStub = audioFile == null;
 
         if (isStub) {
-            // Tryb DEV: stwórz pusty stub MP3 do testów
+            // Gdy Twilio jest aktywne – nagranie jest zarządzane przez Twilio Recording API
+            // i dostarczane przez callback POST /api/telephony/webhook/twilio/recording.
+            // RecordingService nie powinien tworzyć stub MP3 ani nadpisywać recording_url.
+            if (twilioProperties != null && twilioProperties.isEnabled()) {
+                log.debug("[Recording] Twilio provider aktywny – pomijam stub MP3 dla callId={}. " +
+                          "Nagranie przyjdzie przez /recording webhook.", event.getCallId());
+                return;
+            }
+            // Tryb DEV (MockTelephonyAdapter): stwórz pusty stub MP3 do testów
             audioFile = createStubAudioFile(contactId);
             log.debug("[Recording] Tryb DEV: Stworzono stub MP3 dla contactId={}", contactId);
         }
@@ -160,6 +178,31 @@ public class RecordingService {
             if (isStub) {
                 Files.deleteIfExists(audioFile);
             }
+        }
+    }
+
+    // =========================================================================
+    // Zapis URL nagrania do kontaktu (używane przez TwilioRecordingDownloadService)
+    // =========================================================================
+
+    /**
+     * Zapisuje klucz S3 nagrania do tabeli {@code contact}.
+     *
+     * <p>Wywoływana przez {@link TwilioRecordingDownloadService} po pomyślnym uploadzie
+     * nagrania do S3/MinIO. Ustawia {@code TenantContext} ręcznie, bo wątek pochodzi
+     * z puli {@code @Async} i nie przechodzi przez {@code TenantFilter}.
+     *
+     * @param contactId    UUID kontaktu
+     * @param tenantId     UUID tenanta (wymagany dla RLS)
+     * @param s3Key        klucz obiektu w S3 (np. recordings/{tenantId}/{contactId}/{sid}.mp3)
+     */
+    public void saveRecordingUrlToContact(UUID contactId, UUID tenantId, String s3Key) {
+        TenantContext.setTenantId(tenantId);
+        try {
+            contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
+            log.info("[Recording] Zapisano recording_url w DB: contactId={}, s3Key={}", contactId, s3Key);
+        } finally {
+            TenantContext.clear();
         }
     }
 

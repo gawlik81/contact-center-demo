@@ -86,4 +86,19 @@ public class TwilioProperties {
      * Wymagany przez VoiceGrant do obsługi połączeń wychodzących przez SDK.
      */
     private String twimlAppSid;
+
+    /**
+     * Włącza weryfikację podpisu HMAC {@code X-Twilio-Signature} na webhookach.
+     *
+     * <p>W środowisku produkcyjnym MUSI być {@code true} – brak weryfikacji pozwala
+     * atakującemu wysłać fałszywy recording callback z dowolnym {@code RecordingUrl},
+     * co prowadzi do SSRF z Basic Auth credentials Twilio.
+     *
+     * <p>W środowisku dev można wyłączyć ({@code false}) gdy Twilio nie może dotrzeć
+     * do lokalnego serwera (brak ngrok z poprawnym URL), aby nie blokować testowania
+     * webhooków przez narzędzia lokalne (np. curl, Postman).
+     *
+     * <p>Wartość domyślna: {@code true}. Nadpisywana przez profil dev ({@code false}).
+     */
+    private boolean signatureValidationEnabled = true;
 }

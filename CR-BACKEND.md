@@ -366,6 +366,169 @@ Implementacja poprawnie stosuje wzorce multi-tenancy i zawiera solidną dokument
 
 - **`@Operation` / `@ApiResponse` na wszystkich endpointach** — Swagger UI dokumentuje wszystkie kody odpowiedzi, łącznie z 409 dla naruszeń reguł biznesowych.
 
+---
+
+## Review: Twilio Recording Pipeline — 2026-04-01
+
+### Pliki: `TwilioWebhookController.java`, `TwilioRecordingDownloadService.java`, `RecordingService.java`, `ContactRepository.java`
+
+---
+
+### Bugs / Critical Issues
+
+**[TwilioWebhookController.java:506–529] `resolveContactIdFromConference` wywołuje synchroniczne Twilio REST API w wątku HTTP webhooka — ryzyko timeoutu i podwójnego 12100**
+
+`Conference.fetcher(conferenceSid).fetch()` jest wywołaniem blokującym (HTTP do Twilio API) bezpośrednio w ścieżce obsługi webhooka. Recording callback jest oczekiwany przez Twilio, ale zdarzenie to nie wymaga odpowiedzi TwiML — Twilio oczekuje jedynie 2xx. Problemem jest czas: domyślny timeout Java SDK Twilio wynosi 30s. Jeśli Twilio API odpowie wolno (np. przeciążenie), wątek HTTP serwera jest blokowany przez cały ten czas. W środowisku produkcyjnym z wieloma równoczesnymi callbackami może to wyczerpać pulę wątków Tomcata i zablokować wszystkie webhooki, w tym połączenia głosowe (12100). Brak jakiegokolwiek timeoutu po stronie kodu.
+
+Sugestia: Przenieść logikę `resolveContactIdFromConference` do metody `@Async` w `TwilioRecordingDownloadService`. Webhook powinien zwrócić 204 natychmiast i zlecić rozwiązanie contactId asynchronicznie — analogicznie do sposobu w jaki `recordingDownloadService.downloadAndStore()` jest zlecane bez blokowania.
+
+---
+
+**[TwilioWebhookController.java:450] `resolveContactIdFromConference` jest wywoływane wewnątrz bloku `try` z aktywnym `TenantContext`, ale nie wykonuje żadnych operacji DB — `TenantContext` jest ustawiany zbędnie przed Twilio API call**
+
+`TenantContext.setTenantId(tenantId)` jest wywoływane w linii 440 przed blokiem `if (StringUtils.hasText(callSid))`. Gdy `callSid` jest null a `conferenceSid` jest dostępny, metoda `resolveContactIdFromConference` jest wywoływana (linia 450) z aktywnym `TenantContext`. Sama metoda nie używa `TenantContext`, ale wywołuje `Conference.fetcher().fetch()` — synchroniczne żądanie HTTP do Twilio. Gdyby metoda rzuciła `RuntimeException` inną niż `ApiException` lub `IllegalArgumentException` (np. `NullPointerException` wewnątrz SDK), exception propagowałby do bloku `catch (Exception e)` w linii 475, a `TenantContext.clear()` w bloku `finally` w linii 480 poprawnie go wyczyści. Ten aspekt jest bezpieczny, ale logika jest myląca — wygląda jakby `TenantContext` był potrzebny dla `resolveContactIdFromConference`, a tak nie jest.
+
+---
+
+**[TwilioRecordingDownloadService.java:133] `buildS3Key` ignoruje timestamp — klucz S3 generowany z `Instant.now()` zamiast czasu kontaktu**
+
+`buildS3Key(tenantId, contactId)` (linia 248) deleguje do `recordingService.buildS3Key(tenantId, contactId, null)`. Gdy `timestamp == null`, `buildS3Key` używa `Instant.now()` (linia 330 w `RecordingService`). To oznacza, że klucz S3 dla nagrania konferencji Twilio jest generowany na podstawie czasu pobierania nagrania (po zakończeniu rozmowy + czas przetwarzania callbacku), a nie czasu rzeczywistego połączenia. Dla połączeń trwających przez północ (np. rozmowa zaczęta 23:58, callback o 00:05), nagranie trafi do folderu następnego miesiąca, podczas gdy rekord kontaktu wskazuje na poprzedni miesiąc. Powoduje to niezgodność między `recording_url` w DB a faktyczną lokalizacją w S3 tylko w edge-case'ach, ale nie powoduje utraty danych — S3 klucz jest zapisywany do DB po uploadzie.
+
+Sugestia: `TwilioWebhookController` powinien przekazywać timestamp z `contactRepository.findById` (pobrać `startedAt` kontaktu) do `TwilioRecordingDownloadService.downloadAndStore`, a ten przekazywać do `buildS3Key`. Alternatywnie: pobierać kontakt w `downloadAndStoreSync` i używać `contact.getStartedAt()`.
+
+---
+
+**[TwilioRecordingDownloadService.java:141–143] Log `Files.size(tempFile)` po `uploadToS3` — plik może być już usunięty**
+
+Sekwencja w `downloadAndStoreSync`:
+1. `uploadToS3(s3Key, tempFile)` — sukces
+2. `recordingService.saveRecordingUrlToContact(...)` — może rzucić wyjątek
+3. `log.info("... size={}B", contactId, s3Key, Files.size(tempFile))` — log z rozmiarem
+
+Blok `finally` usuwa `tempFile`. Jeśli `saveRecordingUrlToContact` rzuci wyjątek po kroku 2, exception propaguje do `catch` w `downloadAndStore` (linia 95), który loguje błąd. Następnie `finally` usuwa plik. Log z `Files.size(tempFile)` w kroku 3 może rzucić `IOException` jeśli plik jest już usunięty w środku innej sekwencji wywołań. W obecnym kodzie plik jest usuwany tylko w `finally` po zakończeniu `downloadAndStoreSync`, więc log w linii 141 jest osiągany tylko gdy upload i zapis do DB zakończą się sukcesem — plik jest wtedy jeszcze dostępny. Ale `Files.size()` może rzucić `IOException` jeśli plik jest niedostępny z innych powodów (np. antywirus, NFS). Ta `IOException` nie jest sprawdzana.
+
+Sugestia: Zalogować rozmiar pliku zaraz po `downloadToTempFile` (kiedy plik jest świeżo pobrany), nie po uploadzie.
+
+---
+
+**[ContactRepository.java:297–315] `findContactIdByConferenceSid` jest zdefiniowana ale nigdy wywoływana z `handleRecordingCallback`**
+
+Kontroler w `handleRecordingCallback` używa `resolveContactIdFromConference(conferenceSid)` (Twilio API call), a nie `contactRepository.findContactIdByConferenceSid(conferenceSid, tenantId)`. Tymczasem `findContactIdByConferenceSid` jest zaimplementowana i jej Javadoc opisuje dokładnie ten przypadek użycia (recording callback z ConferenceSid). Komentarz w kontrolerze (linia 444–445) explicite stwierdza, że `conference_sid` w `channel_metadata` jest "zawodny" i dlatego nie używa DB lookup. Jednak to twierdzenie jest wątpliwe — `updateConferenceSidInMetadata` jest wywoływana w `handleStatusCallback` gdy `ConferenceSid` jest obecny, więc dla typowego przebiegu konferencji `conference_sid` będzie w metadanych. Metoda DB lookup jest szybsza, tańsza i nie blokuje wątku HTTP.
+
+Brak spójności między implementacją a deklarowaną semantyką tych dwóch metod — jedna z nich (DB lookup lub Twilio API) jest nadmiarowa w stosunku do faktycznego użycia.
+
+Sugestia: Zmienić `handleRecordingCallback` na priorytetowe użycie `contactRepository.findContactIdByConferenceSid(conferenceSid, tenantId)` i dopiero przy braku wyniku (fallback) użyć `resolveContactIdFromConference`. Albo odwrotnie: jeśli DB lookup jest zawodny — usunąć `findContactIdByConferenceSid` jako martwy kod z odpowiednim komentarzem.
+
+---
+
+### Security Concerns
+
+**[TwilioWebhookController.java:409–484] Brak weryfikacji podpisu HMAC `X-Twilio-Signature` na endpointach webhook — każdy może wysłać fałszywy recording callback**
+
+Komentarz w Javadoc klasy (linia 40–41) wspomina o "opcjonalnej weryfikacji" przez `X-Twilio-Signature`. Żaden z endpointów (`/voice`, `/dtmf`, `/recording`, StatusCallback) nie weryfikuje podpisu. Endpoint `/recording` jest szczególnie narażony: fałszywy callback z dowolnym `recordingUrl` może spowodować, że serwis pobierze plik z atakującego serwera (SSRF). `TwilioRecordingDownloadService.downloadToTempFile` wykona HTTP GET na podany URL, uwierzytelniając się danymi Twilio Basic Auth — atakujący może spróbować przechwycić credentials (gdyby serwer atakującego odpowiedział przekierowaniem lub specjalnie skonstruowanym żądaniem).
+
+Weryfikacja podpisu jest funkcją standardową SDK Twilio (`RequestValidator`). Brak jej implementacji to luka bezpieczeństwa w publicznym endpoincie produkcyjnym.
+
+Sugestia: Dodać `@Component RequestValidator` (Twilio SDK) i walidować `X-Twilio-Signature` we wszystkich metodach webhook. Odrzucać żądania bez ważnego podpisu przez zwrot HTTP 403 lub 400. Twilio dokumentuje tę weryfikację jako obowiązkową dla produkcji.
+
+---
+
+**[TwilioWebhookController.java:506] `resolveContactIdFromConference` — brak walidacji formatu `conferenceSid` przed wywołaniem Twilio API**
+
+`conferenceSid` pochodzi bezpośrednio z parametru POST bez żadnej walidacji formatu (powinien zaczynać się od `CF` i mieć 34 znaki). Twilio API zwróci błąd 404 dla nieprawidłowego SID, który jest obsługiwany przez `catch (ApiException e)`. Nie jest to bezpośrednia podatność (SDK obsługuje błąd), ale brak walidacji formatu oznacza, że dowolny string jest przesyłany do zewnętrznego API. Przy braku weryfikacji podpisu HMAC (patrz wyżej), atakujący może wymusić wiele niepotrzebnych wywołań Twilio API, co generuje koszty.
+
+Sugestia: Dodać `pattern check` przed wywołaniem: `if (!conferenceSid.matches("CF[0-9a-f]{32}"))` → logować warning i zwrócić `Optional.empty()`.
+
+---
+
+### Architecture / Pattern Violations
+
+**[RecordingService.java:199–207] `saveRecordingUrlToContact` wywołuje `TenantContext.setTenantId` bez poprzedniego `snapshot/restore` — niezgodność z konwencją async thread boundaries**
+
+Architektura projektu wymaga dla wątków async wzorca `TenantContext.snapshot()` / `TenantContext.restore(snapshot)` / `TenantContext.clear()` w finally. Metoda `saveRecordingUrlToContact` jest wywoływana z wątku `@Async` (`cc-async-*`) i używa uproszczonego wzorca: `setTenantId` → `try/finally clear`. Wzorzec ten jest funkcjonalnie poprawny dla nowych wątków async (które startują z czystym TenantContext), jednak:
+
+1. Narusza ustalony wzorzec projektu dokumentowany w CLAUDE.md — różni deweloperzy zobaczą dwa różne sposoby ustawiania kontekstu w async i mogą wybrać zły.
+2. Metoda `processHangupEvent` w tym samym pliku (`RecordingService.java:168`) używa identycznego uproszczonego wzorca — komentarz dokumentuje to jako świadomy wybór.
+
+Jest to spójne wewnętrznie, ale warto zdecydować o jednym standardzie. `snapshot/restore` jest semantycznie bardziej precyzyjne (restore ustawia poprzedni stan, a nie czyści), co jest ważne gdy metoda byłaby wywołana z wątku, który już ma TenantContext (np. w testach lub przy zagnieżdżonych async).
+
+---
+
+**[TwilioRecordingDownloadService.java:176–184] Nowy `HttpClient` tworzony dla każdego żądania — brak reużycia klienta HTTP**
+
+`HttpClient.newBuilder().build()` tworzy nową instancję przy każdym wywołaniu `downloadToTempFile`. `HttpClient` jest ciężkim obiektem (zarządza pulą wątków, połączeń TCP, SSL session cache). Tworzenie nowej instancji dla każdego nagrania:
+- marnuje zasoby (nowa pula wątków przy każdym pobraniu)
+- uniemożliwia reużycie połączeń HTTP/1.1 keep-alive do Twilio
+- przy dużej liczbie równoległych nagrań może prowadzić do wyczerpania deskryptorów plików
+
+Sugestia: Przenieść `HttpClient` do pola `private final HttpClient httpClient` inicjalizowanego w konstruktorze lub `@PostConstruct`. `HttpClient` z Java 11+ jest thread-safe i może być współdzielony.
+
+---
+
+**[TwilioWebhookController.java:68] Brak `@ConditionalOnBean` na poziomie konstruktora dla `TwilioRecordingDownloadService`**
+
+`TwilioWebhookController` jest oznaczony `@ConditionalOnBean(TwilioTelephonyAdapter.class)`. `TwilioRecordingDownloadService` jest oznaczony `@ConditionalOnProperty(name = "twilio.enabled", havingValue = "true")`. Oba warunkowe beany powinny być aktywne w tych samych warunkach, ale mechanizm aktywacji jest inny (bean vs property). Jeśli `TwilioTelephonyAdapter` zostanie aktywowany inaczej, może dojść do sytuacji gdzie kontroler jest aktywny ale serwis nie — Spring rzuci `NoSuchBeanDefinitionException` przy starcie. W praktyce oba są spójne (Twilio włączone = oba aktywne), ale warto ujednolicić warunek lub dodać do kontrolera dodatkowy `@ConditionalOnBean(TwilioRecordingDownloadService.class)`.
+
+---
+
+### Improvements & Suggestions
+
+**[TwilioRecordingDownloadService.java:203] Nazwa pliku tymczasowego zawiera `recordingSid` — ryzyko path traversal przy nieprawidłowym SID**
+
+`Files.createTempFile("twilio_rec_" + recordingSid + "_", ".mp3")` — `recordingSid` pochodzi z parametru HTTP webhooka i nie jest walidowany. Jeśli `recordingSid` zawiera `..` lub `/`, metoda `createTempFile` może zachować się nieprzewidywalnie zależnie od implementacji JVM. W praktyce `Files.createTempFile` tworzy plik w `java.io.tmpdir` i ignoruje separatory ścieżek w prefiksie (JDK sanityzuje), ale jest to defensywna luka w kodzie — lepsza byłaby sanityzacja przed użyciem w nazwie pliku.
+
+Sugestia: Używać `recordingSid` po sanityzacji: `recordingSid.replaceAll("[^a-zA-Z0-9_-]", "_")` lub używać UUID jako nazwy pliku tymczasowego (ignorując SID).
+
+---
+
+**[ContactRepository.java:334] `updateConferenceSidInMetadata` nie wywołuje `assertSameTenant`**
+
+Metoda `updateConferenceSidInMetadata` wykonuje natywny UPDATE przez `jdbcTemplate` i nie wywołuje `assertSameTenant(tenantId, contactId)` przed modyfikacją. Wzorzec projektu wymaga `assertSameTenant()` przed każdym write. RLS pozostaje aktywne (`setTenantContextInDb` jest wywoływane), ale brakuje guard na poziomie aplikacji — analogicznie do uwagi C3 z poprzedniego review, która była naprawiona w `clearRecordingUrl`.
+
+Sugestia: Dodać `assertSameTenant(tenantId)` na początku `updateConferenceSidInMetadata`, przed `setTenantContextInDb`.
+
+---
+
+**[TwilioWebhookController.java:466–467] Sprawdzenie `.mp3` suffix przez `String.endsWith` — podatne na URL z query string**
+
+```java
+String twilioMp3Url = recordingUrl.endsWith(".mp3") ? recordingUrl : recordingUrl + ".mp3";
+```
+
+`recordingUrl` pochodzi bezpośrednio z parametru Twilio POST. Jeśli URL zawiera query string (np. `https://api.twilio.com/...?foo=bar`), warunek `endsWith(".mp3")` zwróci false i URL zostanie zmodyfikowany do `https://api.twilio.com/...?foo=bar.mp3` — nieprawidłowy URL który zwróci 404 lub błąd od Twilio. Twilio dokumentuje, że `RecordingUrl` nie zawiera rozszerzenia ani query string, więc jest to edge-case, ale defensywna walidacja powinna to obsłużyć.
+
+Sugestia: Użyć parsowania URI: `URI.create(recordingUrl).getPath().endsWith(".mp3")` do sprawdzenia rozszerzenia, lub zawsze dopisywać `.mp3` i sprawdzić czy wcześniej nie było już dodane przez prefix path.
+
+---
+
+**[application.yml:276] Ngrok URL jako wartość domyślna `app.base-url` — ryzyko niezamierzonej konfiguracji produkcyjnej**
+
+```yaml
+base-url: ${APP_BASE_URL:https://rafaela-uncalumnious-refreshedly.ngrok-free.dev}
+```
+
+Konkretny ngrok URL hardcoded jako domyślna wartość. W środowisku CI/CD lub stagingowym gdzie `APP_BASE_URL` nie jest ustawione, aplikacja będzie używać tego URL do budowania TwiML action URL. Twilio wyśle żądania do tunelu ngrok dewelopera zamiast do właściwej instancji. Ten sam problem dotyczy `status-callback-url` w sekcji `twilio`.
+
+Sugestia: Zmienić domyślną wartość na `http://localhost:8080` lub wymusić błąd startu gdy `APP_BASE_URL` nie jest ustawione w profilu prod (np. przez `@Value("${app.base-url}") @NotBlank`).
+
+---
+
+### Positive Observations
+
+- **`TwilioRecordingDownloadService` poprawnie używa pliku tymczasowego zamiast buforowania w pamięci.** `Files.copy(bodyStream, tempFile)` ze streamingiem unika OOM dla dużych nagrań. Plik usuwany w `finally` niezależnie od sukcesu/błędu.
+- **`@Async` w `downloadAndStore` z try/catch na całą metodę** — webhook zwraca 204 natychmiast, upload odbywa się w tle. Wyjątki logowane przez serwis, nie propagują do wątku HTTP.
+- **`buildBasicAuthCredentials` waliduje obecność credentials** przed Base64 enkodowaniem — `IllegalStateException` zamiast cichego wysłania pustego nagłówka.
+- **`handleRecordingCallback` zawiera prawidłowy fallback na `return noContent()`** gdy brakuje danych (status != completed, brak URL, brak tenantId, brak contactId) — nie rzuca wyjątków, Twilio nie ponawia callbacków przy 2xx.
+- **`TenantContext.clear()` w `finally`** w `handleRecordingCallback` (linia 480) — kontekst czyszczony niezależnie od sukcesu lub błędu. Wzorzec przestrzegany konsekwentnie we wszystkich metodach kontrolera.
+- **`resolveContactIdFromConference` łapie zarówno `ApiException` jak i `IllegalArgumentException`** oddzielnie — precyzyjna obsługa błędów Twilio API i błędów parsowania UUID z różnymi komunikatami logu.
+- **Usunięcie `AND is_deleted = FALSE` z `ContactRepository`** — poprawna korekta: tabela `contact` nie posiada kolumny `is_deleted` (brak soft-delete na kontaktach zgodnie ze schemą).
+
+### Summary
+
+Implementacja pipline'u nagrań Twilio ma solidną strukturę async i poprawną izolację tenant w wątkach async. Krytycznym problemem jest synchroniczne wywołanie Twilio REST API w ścieżce webhooka HTTP (`resolveContactIdFromConference`) — może blokować wątki Tomcata i degradować system przy obciążeniu. Poważną luką bezpieczeństwa jest brak weryfikacji `X-Twilio-Signature` we wszystkich endpointach webhooka, co otwiera wektory SSRF i fałszywych callbacków. `findContactIdByConferenceSid` w `ContactRepository` jest martwym kodem — kontroler jej nie używa mimo że Javadoc opisuje dokładnie ten scenariusz. Nieużyty `HttpClient` tworzony per-request to antywzorzec wydajnościowy.
+
+**Ocena: 3/5** — funkcjonalność działa, ale dwa istotne problemy (sync Twilio API call w webhook path, brak HMAC validation) wymagają naprawy przed deployem produkcyjnym.
+
 - **Testy jednostkowe pokrywają kluczowe ścieżki** — graniczne przypadki dla AGENT vs SUPERVISOR, maksymalny rozmiar strony, brakujące kontakty, metadane paginacji. Podejście `@Nested` + `@DisplayName` poprawia czytelność.
 
 - **Logowanie z kontekstem tenanta** — MDC jest już ustawiane przez `TenantFilter`. Logi w serwisie i repozytorium zawierają `tenantId` i `contactId` dla korelacji.

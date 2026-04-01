@@ -1,6 +1,6 @@
 ---
 name: Backend Java/Spring Boot patterns and known issues
-description: Spring Boot 3.3.5 / Java 21 backend: critical bugs, security issues, architecture violations, and positive patterns. Updated 2026-03-20 after BE-027 review.
+description: Spring Boot 3.3.5 / Java 21 backend: critical bugs, security issues, architecture violations, and positive patterns. Updated 2026-04-01 after Twilio Recording Pipeline review.
 type: project
 ---
 
@@ -128,6 +128,36 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - Resilient try/catch per-queue and per-tenant in scheduler — errors in one queue don't affect others.
 - EWT formula documented in Javadoc with all edge cases clearly stated.
 - `countAvailableAgents` cross-tenant isolation via `tenantId` field check in Redis session map.
+
+## Twilio Recording Pipeline — issues found 2026-04-01
+
+**Critical — must fix before production deploy:**
+- `resolveContactIdFromConference` in `TwilioWebhookController` makes a synchronous blocking Twilio REST API call (Conference.fetcher().fetch()) in the webhook HTTP thread. Default Twilio SDK timeout = 30s. Can exhaust Tomcat thread pool under load, blocking all webhooks including voice (error 12100). Must be moved to async method.
+- No HMAC-SHA256 signature verification (`X-Twilio-Signature`) on ANY webhook endpoint. Allows anyone to send fake recording callbacks, triggering arbitrary HTTP downloads in `TwilioRecordingDownloadService` (SSRF vector). Twilio `RequestValidator` (SDK) must be added.
+- `findContactIdByConferenceSid` in `ContactRepository` is dead code — controller never calls it, uses Twilio API call instead. Inconsistency: either the DB lookup is sufficient (use it, delete `resolveContactIdFromConference`) or document clearly why DB lookup is unreliable (and delete `findContactIdByConferenceSid`).
+- `updateConferenceSidInMetadata` in `ContactRepository` missing `assertSameTenant()` before native UPDATE — same pattern as C3 (clearRecordingUrl) fixed in BE-027 CR. Recurring violation.
+
+**Architecture violations:**
+- `saveRecordingUrlToContact` in `RecordingService` uses simplified `setTenantId` + try/finally pattern instead of project-standard `snapshot()/restore()/clear()` for async boundaries. Functionally correct (fresh async thread starts clean), but deviates from documented project standard.
+- `HttpClient` created per-call in `TwilioRecordingDownloadService.downloadToTempFile` — heavy object (thread pool + connection pool) instantiated for each recording download. Should be `private final` field.
+
+**Minor issues:**
+- `buildS3Key` in `TwilioRecordingDownloadService` passes `timestamp=null`, using `Instant.now()` instead of contact's `startedAt`. Edge case: calls crossing midnight will be stored in wrong month folder. S3 key saved to DB after upload, so data is not lost, but folder structure diverges from contact timestamp.
+- `recordingSid` used unvalidated in `Files.createTempFile("twilio_rec_" + recordingSid + "_", ".mp3")` — path component from untrusted input. JDK sanitizes in practice, but should be sanitized explicitly.
+- `recordingUrl.endsWith(".mp3")` check fails if URL has query string — should check `URI.getPath().endsWith(".mp3")`.
+- Hardcoded ngrok URL as default `app.base-url` and `status-callback-url` in `application.yml` — staging/CI without APP_BASE_URL set will route Twilio webhooks to developer's tunnel.
+
+**Positive patterns:**
+- Temp file + streaming download (no byte[] buffering) — correct approach for large audio files.
+- `@Async` for download task — webhook returns 204 immediately.
+- `buildBasicAuthCredentials()` validates non-blank credentials before encoding.
+- All endpoints correctly call `TenantContext.clear()` in `finally` blocks.
+
+**Check in future Twilio-related reviews:**
+- HMAC signature verification present? (`RequestValidator` from Twilio SDK)
+- Any synchronous Twilio API calls in webhook thread paths?
+- `HttpClient` / external HTTP clients instantiated as beans, not per-call?
+- `assertSameTenant()` present before every native UPDATE in `ContactRepository` and similar repos?
 
 ## Architectural patterns observed in BE-027
 

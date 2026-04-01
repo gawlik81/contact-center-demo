@@ -40,6 +40,7 @@
 
 - [feedback_twilio_sdk_api.md](feedback_twilio_sdk_api.md) – Twilio SDK 10.1.5: `CallCreator` (nie `Call.Creator`), `Call.UpdateStatus` (nie
   `CallUpdater.Status`), ambiguous mocks w testach
+- [feedback_twilio_webhook_async_pattern.md](feedback_twilio_webhook_async_pattern.md) – Webhook handler zwraca 204 natychmiast; logika Twilio REST API (Conference.fetcher) w @Async; X-Twilio-Signature walidacja przez RequestValidator; HttpClient jako pole
 
 ## Projekty
 

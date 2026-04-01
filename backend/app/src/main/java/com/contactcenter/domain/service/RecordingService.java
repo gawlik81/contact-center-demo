@@ -189,15 +189,25 @@ public class RecordingService {
      * Zapisuje klucz S3 nagrania do tabeli {@code contact}.
      *
      * <p>Wywoływana przez {@link TwilioRecordingDownloadService} po pomyślnym uploadzie
-     * nagrania do S3/MinIO. Ustawia {@code TenantContext} ręcznie, bo wątek pochodzi
-     * z puli {@code @Async} i nie przechodzi przez {@code TenantFilter}.
+     * nagrania do S3/MinIO. Wątek pochodzi z puli {@code @Async} i nie przechodzi przez
+     * {@code TenantFilter}, dlatego TenantContext ustawiany jest ręcznie wzorcem
+     * snapshot/restore (spójnym z resztą projektu).
+     *
+     * <p>Wzorzec snapshot/restore: tworzymy snapshot z tenantId przed wywołaniem
+     * (caller dostarcza tenantId jako argument), przywracamy w wątku async i czyścimy
+     * w {@code finally}.
      *
      * @param contactId    UUID kontaktu
      * @param tenantId     UUID tenanta (wymagany dla RLS)
      * @param s3Key        klucz obiektu w S3 (np. recordings/{tenantId}/{contactId}/{sid}.mp3)
      */
     public void saveRecordingUrlToContact(UUID contactId, UUID tenantId, String s3Key) {
-        TenantContext.setTenantId(tenantId);
+        // Wzorzec snapshot/restore dla wątku @Async: budujemy minimalny snapshot
+        // bezpośrednio z tenantId (wątek nie ma pełnego kontekstu HTTP – brak userId/role).
+        // restore() ustawia TenantContext, finally clear() gwarantuje oczyszczenie
+        // wątku po zakończeniu – zapobiega wyciekowi kontekstu w puli @Async.
+        TenantContext.Snapshot snapshot = new TenantContext.Snapshot(tenantId, null, null, null);
+        TenantContext.restore(snapshot);
         try {
             contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
             log.info("[Recording] Zapisano recording_url w DB: contactId={}, s3Key={}", contactId, s3Key);

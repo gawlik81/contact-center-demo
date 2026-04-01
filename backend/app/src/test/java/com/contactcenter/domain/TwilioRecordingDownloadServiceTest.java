@@ -1,5 +1,6 @@
 package com.contactcenter.domain;
 
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.infrastructure.config.S3Properties;
@@ -54,6 +55,8 @@ class TwilioRecordingDownloadServiceTest {
     private S3Client s3Client;
     @Mock
     private RecordingService recordingService;
+    @Mock
+    private ContactRepository contactRepository;
 
     private TwilioRecordingDownloadService service;
 
@@ -64,7 +67,7 @@ class TwilioRecordingDownloadServiceTest {
     @BeforeEach
     void setUp() throws IOException {
         service = new TwilioRecordingDownloadService(
-                twilioProperties, s3Properties, s3Client, recordingService);
+                twilioProperties, s3Properties, s3Client, recordingService, contactRepository);
 
         // Uruchom serwer HTTP na losowym porcie
         httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
@@ -92,18 +95,19 @@ class TwilioRecordingDownloadServiceTest {
     class BuildS3Key {
 
         @Test
-        @DisplayName("powinien zwrócić deterministyczny klucz S3 w formacie recordings/{tenantId}/{contactId}/{recordingSid}.mp3")
+        @DisplayName("powinien zwrócić klucz S3 w formacie {tenantId}/{year}/{month}/{contactId}.mp3")
         void shouldBuildDeterministicKey() {
-            UUID tenantId    = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
-            UUID contactId   = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002");
-            String recordingSid = "RE1234567890abcdef";
+            UUID tenantId  = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
+            UUID contactId = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002");
 
-            String key = service.buildS3Key(tenantId, contactId, recordingSid);
+            // RecordingService.buildS3Key deleguje do serwisu – stubujemy wynik
+            when(recordingService.buildS3Key(tenantId, contactId, null))
+                    .thenReturn("aaaaaaaa-0000-0000-0000-000000000001/2026/01/bbbbbbbb-0000-0000-0000-000000000002.mp3");
+
+            String key = service.buildS3Key(tenantId, contactId);
 
             assertThat(key).isEqualTo(
-                    "recordings/aaaaaaaa-0000-0000-0000-000000000001/" +
-                    "bbbbbbbb-0000-0000-0000-000000000002/" +
-                    "RE1234567890abcdef.mp3"
+                    "aaaaaaaa-0000-0000-0000-000000000001/2026/01/bbbbbbbb-0000-0000-0000-000000000002.mp3"
             );
         }
 
@@ -113,7 +117,10 @@ class TwilioRecordingDownloadServiceTest {
             UUID tenantId  = UUID.randomUUID();
             UUID contactId = UUID.randomUUID();
 
-            String key = service.buildS3Key(tenantId, contactId, "RE_sid");
+            when(recordingService.buildS3Key(tenantId, contactId, null))
+                    .thenReturn(tenantId + "/2026/01/" + contactId + ".mp3");
+
+            String key = service.buildS3Key(tenantId, contactId);
 
             assertThat(key).endsWith(".mp3");
         }
@@ -133,7 +140,6 @@ class TwilioRecordingDownloadServiceTest {
             // Arrange: serwer zwraca 200 z przykładowymi bajtami audio
             byte[] fakeAudio = "FAKE_MP3_CONTENT".getBytes(StandardCharsets.UTF_8);
             httpServer.createContext("/recordings/RE123.mp3", exchange -> {
-                // Weryfikacja Basic Auth (ACtest:authtoken123 → base64)
                 exchange.sendResponseHeaders(200, fakeAudio.length);
                 try (OutputStream os = exchange.getResponseBody()) {
                     os.write(fakeAudio);
@@ -145,7 +151,9 @@ class TwilioRecordingDownloadServiceTest {
             UUID contactId   = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002");
             String recordingSid = "RE123";
             String recordingUrl = "http://localhost:" + serverPort + "/recordings/RE123.mp3";
+            String expectedKey  = "aaaaaaaa-0000-0000-0000-000000000001/2026/04/bbbbbbbb-0000-0000-0000-000000000002.mp3";
 
+            when(recordingService.buildS3Key(tenantId, contactId, null)).thenReturn(expectedKey);
             when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                     .thenReturn(PutObjectResponse.builder().build());
 
@@ -158,17 +166,14 @@ class TwilioRecordingDownloadServiceTest {
 
             PutObjectRequest putRequest = putCaptor.getValue();
             assertThat(putRequest.bucket()).isEqualTo("test-bucket");
-            assertThat(putRequest.key()).isEqualTo(
-                    "recordings/aaaaaaaa-0000-0000-0000-000000000001/" +
-                    "bbbbbbbb-0000-0000-0000-000000000002/RE123.mp3"
-            );
+            assertThat(putRequest.key()).isEqualTo(expectedKey);
             assertThat(putRequest.contentType()).isEqualTo("audio/mpeg");
 
             // Assert: klucz S3 zapisany w DB przez RecordingService
             ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
             verify(recordingService).saveRecordingUrlToContact(
                     any(UUID.class), any(UUID.class), keyCaptor.capture());
-            assertThat(keyCaptor.getValue()).startsWith("recordings/");
+            assertThat(keyCaptor.getValue()).isEqualTo(expectedKey);
         }
     }
 

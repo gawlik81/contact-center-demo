@@ -158,6 +158,10 @@ twilio:
   api-key-sid: ${TWILIO_API_KEY_SID:SK_DEV_PLACEHOLDER}
   api-key-secret: ${TWILIO_API_KEY_SECRET:dev_secret_placeholder_32chars__}
   twiml-app-sid: ${TWILIO_TWIML_APP_SID:AP_DEV_PLACEHOLDER}
+  # DEV ONLY: wyłącz weryfikację X-Twilio-Signature – Twilio nie może podpisać żądań
+  # wysyłanych do lokalnego serwera (brak publicznego URL przy dev bez ngrok/tunelu).
+  # W prod musi być true (domyślne w application.yml).
+  signature-validation-enabled: false
 
 # =============================================================================
 # Spring DevTools – wyłączamy auto-restart (powoduje "port already in use"

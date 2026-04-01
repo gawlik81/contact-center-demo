@@ -1,12 +1,15 @@
 package com.contactcenter.domain.service;
 
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.infrastructure.config.TwilioProperties;
-import lombok.RequiredArgsConstructor;
+import com.twilio.exception.ApiException;
+import com.twilio.rest.api.v2010.account.Conference;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -23,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -30,24 +34,24 @@ import java.util.UUID;
  *
  * <p><strong>Przepływ:</strong>
  * <ol>
+ *   <li>Opcjonalnie: gdy brakuje callSid, pobierz contactId z nazwy konferencji przez Twilio API
+ *       (Conference.fetcher) – wykonywane asynchronicznie, nie blokuje wątku webhooka.</li>
  *   <li>Pobierz plik MP3 z Twilio przez HTTP GET z Basic Auth (AccountSid:AuthToken)</li>
  *   <li>Streamuj plik tymczasowo na dysk lokalny (unika ładowania całości do pamięci)</li>
  *   <li>Uploaduj plik z dysku do S3/MinIO przez AWS SDK v2</li>
  *   <li>Usuń plik tymczasowy</li>
- *   <li>Zwróć klucz S3 jako wynik</li>
  * </ol>
  *
  * <p><strong>Obsługa błędów:</strong> metoda {@link #downloadAndStore} jest oznaczona
- * {@code @Async} – wyjątki są logowane przez {@link AsyncConfig} i nie propagują
- * do wątku webhook HTTP. Wewnętrznie metoda jest podzielona na synchroniczną
- * {@link #downloadAndStoreSync} używaną w testach i asynchroniczną otoczkę.
+ * {@code @Async} – wyjątki są logowane i nie propagują do wątku webhook HTTP.
+ * Wewnętrznie metoda jest podzielona na synchroniczną {@link #downloadAndStoreSync}
+ * używaną w testach i asynchroniczną otoczkę.
  *
  * <p><strong>Naming S3:</strong>
  * {@code {tenantId}/{year}/{month}/{contactId}.mp3} – zgodnie z konwencją {@link RecordingService#buildS3Key}.
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "twilio.enabled", havingValue = "true")
 public class TwilioRecordingDownloadService {
 
@@ -57,11 +61,35 @@ public class TwilioRecordingDownloadService {
     /** Timeout HTTP na odczyt ciała odpowiedzi (nagrania mogą być duże). */
     private static final Duration HTTP_READ_TIMEOUT = Duration.ofSeconds(120);
 
-
     private final TwilioProperties twilioProperties;
     private final S3Properties s3Properties;
     private final S3Client s3Client;
     private final RecordingService recordingService;
+    private final ContactRepository contactRepository;
+
+    /**
+     * Klient HTTP współdzielony w obrębie serwisu – tworzony raz w konstruktorze.
+     *
+     * <p>Tworzenie {@link HttpClient} per-call jest kosztowne: alokuje pulę wątków
+     * i zasoby selektora NIO. Współdzielony klient jest bezpieczny wątkowo.
+     */
+    private final HttpClient httpClient;
+
+    public TwilioRecordingDownloadService(
+            TwilioProperties twilioProperties,
+            S3Properties s3Properties,
+            S3Client s3Client,
+            RecordingService recordingService,
+            ContactRepository contactRepository) {
+        this.twilioProperties = twilioProperties;
+        this.s3Properties = s3Properties;
+        this.s3Client = s3Client;
+        this.recordingService = recordingService;
+        this.contactRepository = contactRepository;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(HTTP_CONNECT_TIMEOUT)
+                .build();
+    }
 
     // =========================================================================
     // Publiczne API – używane przez TwilioWebhookController
@@ -69,6 +97,12 @@ public class TwilioRecordingDownloadService {
 
     /**
      * Asynchronicznie pobiera nagranie z Twilio i zapisuje do S3/MinIO.
+     *
+     * <p>Gdy {@code contactId} jest null (nagranie konferencji bez callSid),
+     * metoda samodzielnie pobiera contactId z nazwy konferencji przez Twilio API
+     * ({@link Conference#fetcher(String)}).
+     * Dzięki temu całe wywołanie Twilio REST API odbywa się w wątku {@code @Async},
+     * nie blokując puli wątków Tomcata obsługujących webhooki.
      *
      * <p>Po pomyślnym uploadzie aktualizuje {@code recording_url} w tabeli {@code contact}
      * delegując do {@link RecordingService#saveRecordingUrlToContact}.
@@ -78,25 +112,101 @@ public class TwilioRecordingDownloadService {
      *
      * @param twilioRecordingUrl URL nagrania z Twilio (z dopisanym .mp3)
      * @param recordingSid       Twilio Recording SID (do nazwy obiektu w S3)
-     * @param contactId          UUID kontaktu (do nazwy obiektu w S3 i aktualizacji DB)
+     * @param callSid            Twilio Call SID (CA...) – może być null dla nagrań konferencji
+     * @param conferenceSid      Twilio Conference SID (CF...) – używany gdy callSid jest null
+     * @param contactId          UUID kontaktu lub null gdy wymaga rozwiązania przez conferenceSid
      * @param tenantId           UUID tenanta (do nazwy obiektu i kontekstu DB)
      */
     @Async("applicationTaskExecutor")
     public void downloadAndStore(
             String twilioRecordingUrl,
             String recordingSid,
+            String callSid,
+            String conferenceSid,
             UUID contactId,
             UUID tenantId) {
 
-        log.info("[TwilioRecDownload] Start async pobierania: contactId={}, recordingSid={}, tenantId={}",
-                contactId, recordingSid, tenantId);
+        log.info("[TwilioRecDownload] Start async pobierania: contactId={}, callSid={}, " +
+                 "conferenceSid={}, recordingSid={}, tenantId={}",
+                contactId, callSid, conferenceSid, recordingSid, tenantId);
+
+        // Gdy contactId nie jest jeszcze znany (nagranie konferencji bez callSid),
+        // spróbuj odnaleźć go przez:
+        //   1. channel_metadata->>'sip_call_id' gdy mamy callSid
+        //   2. Twilio Conference API (FriendlyName = "contact-{UUID}") gdy mamy tylko conferenceSid
+        // Oba wywołania odbywają się tu, w wątku @Async – nie blokują Tomcata.
+        UUID resolvedContactId = contactId;
+        if (resolvedContactId == null) {
+            if (StringUtils.hasText(callSid)) {
+                resolvedContactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+                        .orElse(null);
+                if (resolvedContactId == null) {
+                    log.warn("[TwilioRecDownload] Nie znaleziono contactId dla callSid={}, tenantId={}. " +
+                             "Nagranie nie zostanie zapisane.", callSid, tenantId);
+                    return;
+                }
+            } else if (StringUtils.hasText(conferenceSid)) {
+                resolvedContactId = resolveContactIdFromConference(conferenceSid).orElse(null);
+                if (resolvedContactId == null) {
+                    log.warn("[TwilioRecDownload] Nie udało się rozwiązać contactId z conferenceSid={}. " +
+                             "Nagranie nie zostanie zapisane.", conferenceSid);
+                    return;
+                }
+            } else {
+                log.warn("[TwilioRecDownload] Brak callSid, conferenceSid i contactId – " +
+                         "nagranie nie może zostać powiązane z kontaktem. recordingSid={}",
+                        recordingSid);
+                return;
+            }
+        }
+
         try {
-            downloadAndStoreSync(twilioRecordingUrl, recordingSid, contactId, tenantId);
+            downloadAndStoreSync(twilioRecordingUrl, recordingSid, resolvedContactId, tenantId);
         } catch (Exception e) {
             log.error("[TwilioRecDownload] Błąd pobierania/uploadowania nagrania: " +
                       "contactId={}, recordingSid={}, tenantId={}, error={}",
-                    contactId, recordingSid, tenantId, e.getMessage(), e);
+                    resolvedContactId, recordingSid, tenantId, e.getMessage(), e);
             // Nie rzucamy dalej – AsyncUncaughtExceptionHandler loguje, ale wątek nie propaguje
+        }
+    }
+
+    /**
+     * Pobiera contactId z nazwy konferencji Twilio przez Twilio API.
+     *
+     * <p>Nazwa konferencji jest deterministyczna: {@code "contact-{contactId}"}.
+     * Twilio nie zwraca nazwy konferencji w recording callback – jedynym identyfikatorem
+     * jest {@code ConferenceSid} (CF...). Metoda pobiera {@code FriendlyName} przez
+     * {@link Conference#fetcher(String)} i parsuje z niego UUID kontaktu.
+     *
+     * <p>Wywoływana <strong>wyłącznie</strong> w wątku {@code @Async} –
+     * timeout Twilio SDK (30s) nie blokuje puli wątków Tomcata.
+     *
+     * @param conferenceSid Twilio Conference SID (CF...)
+     * @return Optional z UUID contactId lub empty przy błędzie Twilio API lub złym formacie nazwy
+     */
+    private Optional<UUID> resolveContactIdFromConference(String conferenceSid) {
+        try {
+            Conference conference = Conference.fetcher(conferenceSid).fetch();
+            String friendlyName = conference.getFriendlyName();
+            log.debug("[TwilioRecDownload] FriendlyName konferencji {}: {}", conferenceSid, friendlyName);
+
+            if (friendlyName == null || !friendlyName.startsWith("contact-")) {
+                log.warn("[TwilioRecDownload] Nieoczekiwany format FriendlyName konferencji: " +
+                         "conferenceSid={}, friendlyName={}", conferenceSid, friendlyName);
+                return Optional.empty();
+            }
+
+            UUID contactId = UUID.fromString(friendlyName.substring("contact-".length()));
+            return Optional.of(contactId);
+
+        } catch (ApiException e) {
+            log.warn("[TwilioRecDownload] Błąd Twilio API przy pobieraniu nazwy konferencji: " +
+                     "conferenceSid={}, code={}, message={}", conferenceSid, e.getCode(), e.getMessage());
+            return Optional.empty();
+        } catch (IllegalArgumentException e) {
+            log.warn("[TwilioRecDownload] Nie można sparsować contactId z nazwy konferencji: " +
+                     "conferenceSid={}, error={}", conferenceSid, e.getMessage());
+            return Optional.empty();
         }
     }
 
@@ -172,10 +282,6 @@ public class TwilioRecordingDownloadService {
             throws IOException, InterruptedException {
 
         String credentials = buildBasicAuthCredentials();
-
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(HTTP_CONNECT_TIMEOUT)
-                .build();
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(recordingUrl))

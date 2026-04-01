@@ -252,6 +252,10 @@ twilio:
   # Włącza nagrywanie konferencji przez <Conference record="record-from-start">
   # i obsługę recordingStatusCallback (endpoint /api/telephony/webhook/twilio/recording)
   recording-enabled: ${TWILIO_RECORDING_ENABLED:true}
+  # Weryfikacja podpisu HMAC X-Twilio-Signature na wszystkich webhookach Twilio.
+  # Domyślnie: true (wymagane w prod – zapobiega SSRF i fałszywym callbackom).
+  # Wyłączone w profilu dev (application-dev.yml): signature-validation-enabled: false
+  signature-validation-enabled: ${TWILIO_SIGNATURE_VALIDATION_ENABLED:true}
   # Voice URL – wywoływany przez Twilio przy każdym połączeniu przychodzącym (fix błędu 12300).
   # Musi zwracać TwiML (XML). Konfiguracja w Twilio Console:
   # Phone Numbers → Active Numbers → Voice & Fax → A Call Comes In (Webhook, HTTP POST)

@@ -280,48 +280,14 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   /**
-   * Zwraca contactId dla kontaktu z danym Twilio Conference SID w {@code channel_metadata->>'conference_sid'}.
-   *
-   * <p>Używane przez {@code TwilioWebhookController.handleRecordingCallback()} gdy callback nagrania
-   * konferencji zawiera {@code ConferenceSid} (CF...) zamiast {@code CallSid} (CA...).
-   * Twilio dla nagrań konferencji nie wysyła CallSid – jedynym identyfikatorem jest ConferenceSid.
-   *
-   * <p>Zakłada, że {@code conference_sid} został wcześniej zapisany do {@code channel_metadata}
-   * przez {@code updateConferenceSidInMetadata()} przy StatusCallback z {@code ConferenceSid}.
-   *
-   * @param conferenceSid Twilio Conference SID (CF...)
-   * @param tenantId      UUID tenanta
-   * @return Optional z UUID contactId lub empty gdy brak kontaktu dla tego conferenceSid
-   */
-  @Transactional(readOnly = true)
-  public Optional<UUID> findContactIdByConferenceSid(String conferenceSid, UUID tenantId) {
-    setTenantContextInDb(tenantId);
-
-    List<?> results = em.createNativeQuery("""
-            SELECT contact_id
-            FROM contact
-            WHERE channel_metadata->>'conference_sid' = :conferenceSid
-              AND tenant_id = CAST(:tenantId AS uuid)
-            """)
-        .setParameter("conferenceSid", conferenceSid)
-        .setParameter("tenantId", tenantId.toString())
-        .setMaxResults(1)
-        .getResultList();
-
-    if (results.isEmpty() || results.get(0) == null) {
-      return Optional.empty();
-    }
-    return Optional.of(UUID.fromString(results.get(0).toString()));
-  }
-
-  /**
    * Zapisuje Twilio Conference SID do {@code channel_metadata->>'conference_sid'} kontaktu
    * identyfikowanego przez {@code sip_call_id} (Call SID).
    *
    * <p>Wywoływane przez {@code TwilioWebhookController.handleStatusCallback()} gdy Twilio
    * wysyła StatusCallback z parametrem {@code ConferenceSid} dla połączenia biorącego udział
    * w konferencji. Dzięki temu nagranie konferencji może być później powiązane z kontaktem
-   * przez {@link #findContactIdByConferenceSid(String, UUID)}.
+   * przez {@code TwilioRecordingDownloadService}, który przy braku callSid odczytuje
+   * FriendlyName konferencji przez Twilio API w wątku {@code @Async}.
    *
    * <p>Operacja jest idempotentna – wielokrotne wywołanie z tym samym conferenceSid
    * nie zmienia wyniku (PostgreSQL jsonb {@code ||} operator nadpisuje klucz).

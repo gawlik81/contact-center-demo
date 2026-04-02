@@ -789,6 +789,145 @@ Endpoint `POST /api/customers/{id}/gdpr/export` – generuje ZIP z danymi klient
 
 ---
 
+## MODUL: Routing numerów telefonicznych (EPIC-11)
+
+### BE-033 – PhoneNumber CRUD API: zarządzanie numerami telefonów tenanta
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-021, BE-006
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-034, BE-035, FE-026
+**Odniesienie PRD:** EPIC-11
+
+**Opis:**
+CRUD API do zarządzania numerami telefonów przypisanymi do tenanta. Każdy tenant może mieć wiele numerów E.164. Numery są bazą dla reguł routingu (BE-034). Walidacja E.164 po stronie aplikacji uzupełnia CHECK constraint w DB.
+
+**Szczegóły implementacji:**
+- Encja `PhoneNumber` (JPA, tabela `phone_number`): `phoneNumberId`, `tenantId`, `number`, `displayName`, `isActive`, `isDeleted`, timestamps
+- `PhoneNumberRepository extends TenantAwareRepository<PhoneNumber>`
+- `PhoneNumberService`:
+  - `createPhoneNumber(tenantId, request)` – walidacja E.164 regex, sprawdzenie duplikatu w tenant → 409
+  - `listPhoneNumbers(tenantId)` – lista aktywnych (is_deleted=false)
+  - `getPhoneNumber(tenantId, id)` – 404 jeśli nie istnieje lub inny tenant
+  - `updatePhoneNumber(tenantId, id, request)` – aktualizacja `displayName`, `isActive`
+  - `deletePhoneNumber(tenantId, id)` – soft delete; 409 jeśli istnieją aktywne reguły routingu dla tego numeru
+- `PhoneNumberController` (`/api/phone-numbers`), `@PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")`
+  - `POST /api/phone-numbers` → 201
+  - `GET /api/phone-numbers` → lista
+  - `GET /api/phone-numbers/{id}` → szczegóły
+  - `PATCH /api/phone-numbers/{id}` → update
+  - `DELETE /api/phone-numbers/{id}` → soft delete
+
+**Kryteria akceptacji:**
+- [ ] Walidacja E.164 (`^\+[1-9]\d{6,14}$`) → HTTP 400 dla niepoprawnych numerów
+- [ ] Duplikat numeru w tenant → HTTP 409
+- [ ] Próba usunięcia numeru z aktywnymi regułami → HTTP 409 z komunikatem
+- [ ] RLS: SUPERVISOR widzi tylko numery swojego tenanta; ADMIN widzi wszystkie (omija RLS przez wywołanie `set_tenant_context`)
+- [ ] Testy jednostkowe: CRUD + walidacja + duplikat
+
+---
+
+### BE-034 – PhoneRoutingRule CRUD API: reguły routingu IVR per numer i harmonogram
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-033, BE-013 (IVR), BE-020 (Queue)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-035, FE-026
+**Odniesienie PRD:** EPIC-11
+
+**Opis:**
+CRUD API reguł routingu przypisujących IVR lub kolejkę do danego numeru telefonu w określonych dniach tygodnia i przedziale czasowym. Aplikacyjna walidacja kolizji (przed triggerem DB) zwraca czytelny HTTP 409 z detalem nakładających się reguł.
+
+**Szczegóły implementacji:**
+- Encja `PhoneRoutingRule`: `ruleId`, `tenantId`, `phoneNumberId`, `ivrTreeId` (nullable), `queueId` (nullable), `daysOfWeek` (`List<Integer>`, `@JdbcTypeCode(SqlTypes.JSON)` lub native array), `timeStart`, `timeEnd`, `isActive`, timestamps
+- `PhoneRoutingRuleRepository extends TenantAwareRepository`
+  - `findByPhoneNumberIdAndTenantId(UUID, UUID)` – lista reguł dla numeru
+  - `findOverlapping(UUID phoneNumberId, UUID excludeRuleId, List<Integer> days, LocalTime start, LocalTime end)` – native SQL z `days_of_week && ARRAY[...] AND time_start < :end AND time_end > :start`
+- `PhoneRoutingRuleService`:
+  - `createRule(tenantId, phoneNumberId, request)`:
+    1. Sprawdź właściwość numeru (assertSameTenant)
+    2. `findOverlapping(...)` → jeśli wynik niepusty → `ConflictException` (HTTP 409) z listą kolidujących ruleId
+    3. Persist
+  - `updateRule(tenantId, phoneNumberId, ruleId, request)` – analogicznie z wykluczeniem samej siebie
+  - `deleteRule(tenantId, phoneNumberId, ruleId)` – hard delete (reguły nie są auditowane jako dane użytkownika)
+  - `listRules(tenantId, phoneNumberId)` – posortowane po `time_start`
+- `PhoneRoutingRuleController` (`/api/phone-numbers/{numberId}/routing-rules`), `@PreAuthorize("hasAnyRole('ADMIN','SUPERVISOR')")`
+  - `POST` → 201 lub 409 z body `{ collidingRuleIds: [...] }`
+  - `GET` → lista
+  - `PATCH /{ruleId}` → update lub 409
+  - `DELETE /{ruleId}` → 204
+
+**DTO:**
+```java
+// CreatePhoneRoutingRuleRequest
+@NotNull List<@Min(1) @Max(7) Integer> daysOfWeek; // ISO: 1=Pon, 7=Nie
+@NotNull LocalTime timeStart;
+@NotNull LocalTime timeEnd;                         // walidacja: timeEnd > timeStart (cross-field)
+UUID ivrTreeId;                                     // exactly one of: ivrTreeId / queueId
+UUID queueId;
+```
+
+**Kryteria akceptacji:**
+- [ ] Kolizja (ten sam numer, nakładający się dzień+czas) → HTTP 409 z `collidingRuleIds` w body
+- [ ] Dokładnie jeden target (IVR xor kolejka) – walidacja → HTTP 400
+- [ ] `timeEnd > timeStart` – walidacja cross-field → HTTP 400
+- [ ] `daysOfWeek` min 1 element, wartości 1–7 → HTTP 400
+- [ ] Testy: kolizja, brak kolizji (różne dni), brak kolizji (przylegające godziny), update własnej reguły bez fałszywej kolizji
+
+---
+
+### BE-035 – Incoming call routing: wybór IVR/kolejki na podstawie reguł harmonogramu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-034, BE-009, BE-013
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-11
+
+**Opis:**
+Integracja reguł routingu z logiką obsługi połączenia przychodzącego w `TwilioWebhookController`. Gdy Twilio sygnalizuje przychodzące połączenie (`POST /api/telephony/webhook/twilio`), serwis wyszukuje numer docelowy w `phone_number`, sprawdza aktualne reguły harmonogramu i uruchamia odpowiedni IVR lub kieruje do kolejki. Brak pasującej reguły → TwiML `<Hangup/>`.
+
+**Szczegóły implementacji:**
+- `IncomingCallRoutingService`:
+  ```java
+  public RouteResult resolveRoute(UUID tenantId, String calledNumber, ZonedDateTime callTime) {
+      // 1. Znajdź phone_number WHERE number = calledNumber AND tenant_id = tenantId AND is_active
+      // 2. dayOfWeek = callTime.getDayOfWeek().getValue() (ISO: Mon=1)
+      // 3. timeOfDay = callTime.toLocalTime()
+      // 4. Znajdź regułę: phone_number_id pasuje, day w days_of_week, time_start <= timeOfDay < time_end, is_active
+      // 5. Brak reguły → RouteResult.reject()
+      // 6. Znaleziona → RouteResult.ivr(ivrTreeId) lub RouteResult.queue(queueId)
+  }
+  ```
+  `RouteResult` – value object: `{ type: IVR | QUEUE | REJECT, targetId: UUID }`
+
+- `TwilioWebhookController.handleIncomingCall()`:
+  - Pobiera `To` (numer docelowy) i `tenantId` z query param
+  - Wywołuje `IncomingCallRoutingService.resolveRoute()`
+  - `REJECT` → `<Response><Reject/></Response>` (Twilio odrzuca połączenie bez opłaty za polling)
+  - `IVR` → przekazuje do `IvrEngineService.startSession(ivrTreeId, callSid)`
+  - `QUEUE` → TwiML `<Dial><Queue>{queueId}</Queue></Dial>`
+
+- Strefa czasowa z `tenant.config.timezone` (domyślnie `Europe/Warsaw`)
+
+**Kryteria akceptacji:**
+- [ ] Połączenie na numer z pasującą regułą IVR → IVR uruchamia się
+- [ ] Połączenie na numer z pasującą regułą kolejki → połączenie trafia do kolejki
+- [ ] Brak pasującej reguły (poza godzinami, weekend) → TwiML Reject
+- [ ] Numer nieznany w tenantcie → TwiML Reject (nie 404 – Twilio wymaga zawsze 200 + TwiML)
+- [ ] Strefa czasowa tenanta uwzględniona przy porównaniu godzin
+- [ ] Testy: wszystkie 4 ścieżki + edge cases (dokładnie na granicy godziny)
+
+---
+
+---
+
 ## Zależności między zadaniami
 
 ### Kolejność obowiązkowa (blokery)
@@ -841,6 +980,7 @@ BE-009 + BE-006 → BE-032 (Twilio per-tenant)
 | Tenants | BE-006 → BE-007 |
 | Users | BE-008 |
 | Telephony | BE-009 → BE-010, BE-011, BE-012, BE-032 |
+| Routing telefoniczny | BE-033 → BE-034 → BE-035 |
 | IVR + Voicebot | BE-013 → BE-014 |
 | Email | BE-015 → BE-016 |
 | Social Media | BE-017 → BE-018 |
@@ -859,6 +999,7 @@ BE-009 + BE-006 → BE-032 (Twilio per-tenant)
 | Tenants (EPIC-01) | 2 | 2 | 0 |
 | Użytkownicy (EPIC-02) | 1 | 1 | 0 |
 | Telefonia (EPIC-03) | 5 | 4 | 1 |
+| Routing telefoniczny (EPIC-11) | 3 | 3 | 0 |
 | IVR + Voicebot (EPIC-04) | 2 | 2 | 0 |
 | Email (EPIC-05) | 2 | 2 | 0 |
 | Social Media (EPIC-06) | 2 | 2 | 0 |
@@ -867,4 +1008,4 @@ BE-009 + BE-006 → BE-032 (Twilio per-tenant)
 | Klienci (EPIC-09) | 2 | 2 | 0 |
 | Raporty (EPIC-10) | 4 | 4 | 0 |
 | RODO | 1 | 1 | 0 |
-| **RAZEM** | **33** | **30** | **3** |
+| **RAZEM** | **36** | **33** | **3** |

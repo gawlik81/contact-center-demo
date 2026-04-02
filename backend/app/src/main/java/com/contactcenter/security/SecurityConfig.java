@@ -114,6 +114,10 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/**").authenticated()
                 // Endpointy ADMIN – tylko rola ADMIN
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // Odczyt konfiguracji Twilio per-tenant – ADMIN lub SUPERVISOR (FE-025)
+                // Musi być przed ogólną regułą /api/tenants/** (Spring Security dopasowuje po kolei)
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/tenants/*/config").hasAnyRole("ADMIN", "SUPERVISOR")
+                .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/tenants/*/config").hasAnyRole("ADMIN", "SUPERVISOR")
                 // Tenant management – tylko ADMIN (BE-006)
                 .requestMatchers("/api/tenants/**").hasRole("ADMIN")
                 // Wszystkie pozostałe endpointy – wymagają autentykacji

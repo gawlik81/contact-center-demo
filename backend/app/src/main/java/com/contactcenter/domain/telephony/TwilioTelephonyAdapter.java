@@ -2,8 +2,10 @@ package com.contactcenter.domain.telephony;
 
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
 import com.twilio.Twilio;
@@ -63,6 +65,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final TelephonyEventPublisher eventPublisher;
   private final ContactRepository contactRepository;
   private final CustomerRepository customerRepository;
+  private final TenantRepository tenantRepository;
 
   /**
    * Lokalny cache sesji: callId (Twilio SID) → CallSession.
@@ -116,14 +119,12 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    */
   @Override
   public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId) {
-    validatePhoneNumber();
-
     log.info("[TwilioAdapter] Inicjuję połączenie wychodzące: tenantId={}, from={}, to={}, agentId={}",
         tenantId, from, to, agentId);
 
     try {
-      String twilioFrom = twilioProperties.getPhoneNumber();
-      String callbackUrl = buildStatusCallbackUrl();
+      String twilioFrom = resolvePhoneNumber(tenantId);
+      String callbackUrl = buildStatusCallbackUrl(tenantId);
 
       var creator = Call.creator(
           new PhoneNumber(to),
@@ -247,7 +248,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     if (twilioProperties.isRecordingEnabled()) {
       conferenceAttrs.append(" record=\"record-from-start\"");
-      String callbackBase = buildStatusCallbackUrl();
+      String callbackBase = buildStatusCallbackUrl(session.getTenantId());
       if (StringUtils.hasText(callbackBase)) {
         // URL musi zawierać tenantId – controller parsuje go z query param
         String recordingCallbackUrl = callbackBase + "/recording?tenantId="
@@ -278,7 +279,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     try {
       Call.creator(
           new PhoneNumber("client:" + agentClientId),
-          new PhoneNumber(twilioProperties.getPhoneNumber()),
+          new PhoneNumber(resolvePhoneNumber(session.getTenantId())),
           new Twiml(agentTwiml)
       ).create();
 
@@ -454,8 +455,6 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           "Przekazanie możliwe tylko dla połączenia ACTIVE lub ON_HOLD. Aktualny status: "
               + session.getStatus());
     }
-
-    validatePhoneNumber();
 
     log.info("[TwilioAdapter] Transfer: callId={}, target={}, type={}", callId, target, transferType);
 
@@ -683,7 +682,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Inicjuj nowe połączenie do target (druga noga)
       Call secondLegCall = Call.creator(
           new PhoneNumber(target),
-          new PhoneNumber(twilioProperties.getPhoneNumber()),
+          new PhoneNumber(resolvePhoneNumber(session.getTenantId())),
           new Twiml("<Response><Say>Attending transfer</Say></Response>")
       ).create();
 
@@ -794,16 +793,60 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     }
   }
 
-  private void validatePhoneNumber() {
-    if (!StringUtils.hasText(twilioProperties.getPhoneNumber())) {
-      throw new TelephonyException(
-          null, "Brak skonfigurowanego numeru Twilio (twilio.phone-number)");
+  /**
+   * Zwraca numer telefonu Twilio dla danego tenanta.
+   *
+   * <p>Priorytet: per-tenant (config JSONB {@code twilio_phone_number})
+   * → globalny fallback ({@code twilio.phone-number}).
+   *
+   * @param tenantId UUID tenanta
+   * @return numer telefonu w formacie E.164
+   * @throws TelephonyException gdy ani per-tenant, ani globalny numer nie jest skonfigurowany
+   */
+  public String resolvePhoneNumber(UUID tenantId) {
+    if (tenantId != null) {
+      try {
+        String perTenantNumber = tenantRepository.findById(tenantId)
+            .map(Tenant::getTwilioPhoneNumber)
+            .orElse(null);
+        if (StringUtils.hasText(perTenantNumber)) {
+          log.debug("[TwilioAdapter] Używam per-tenant numeru Twilio: tenantId={}", tenantId);
+          return perTenantNumber;
+        }
+      } catch (Exception e) {
+        log.warn("[TwilioAdapter] Błąd odczytu per-tenant numeru Twilio dla tenantId={}: {} – " +
+                 "fallback do konfiguracji globalnej", tenantId, e.getMessage());
+      }
     }
+
+    String globalNumber = twilioProperties.getPhoneNumber();
+    if (!StringUtils.hasText(globalNumber)) {
+      throw new TelephonyException(
+          null, "Brak skonfigurowanego numeru Twilio (twilio.phone-number) " +
+                "ani per-tenant (config.twilio_phone_number)");
+    }
+    log.debug("[TwilioAdapter] Używam globalnego numeru Twilio: tenantId={}", tenantId);
+    return globalNumber;
   }
 
-  private String buildStatusCallbackUrl() {
-    String url = twilioProperties.getStatusCallbackUrl();
-    return StringUtils.hasText(url) ? url : null;
+  private String buildStatusCallbackUrl(UUID tenantId) {
+    if (tenantId != null) {
+      try {
+        String perTenantUrl = tenantRepository.findById(tenantId)
+            .map(Tenant::getTwilioStatusCallbackUrl)
+            .orElse(null);
+        if (StringUtils.hasText(perTenantUrl)) {
+          log.debug("[TwilioAdapter] Używam per-tenant callback URL: tenantId={}", tenantId);
+          return perTenantUrl;
+        }
+      } catch (Exception e) {
+        log.warn("[TwilioAdapter] Błąd odczytu per-tenant callback URL dla tenantId={}: {} – " +
+                 "fallback do konfiguracji globalnej", tenantId, e.getMessage());
+      }
+    }
+
+    String globalUrl = twilioProperties.getStatusCallbackUrl();
+    return StringUtils.hasText(globalUrl) ? globalUrl : null;
   }
 
   /**

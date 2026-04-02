@@ -5,12 +5,15 @@ import com.contactcenter.api.tenant.dto.CreateTenantRequest;
 import com.contactcenter.api.tenant.dto.TenantFilterParams;
 import com.contactcenter.api.tenant.dto.TenantResourceLimitsDto;
 import com.contactcenter.api.tenant.dto.TenantResponse;
+import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
+import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.model.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.infrastructure.aspect.Audited;
+import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -174,6 +177,36 @@ public class TenantService {
     }
 
     /**
+     * Zwraca konfigurację tenanta dostępną dla SUPERVISOR i ADMIN.
+     *
+     * <p>SUPERVISOR może odczytywać wyłącznie konfigurację własnego tenanta
+     * (tenant_id z JWT musi zgadzać się z żądanym {@code tenantId}).
+     * ADMIN może odczytywać dowolnego tenanta (brak weryfikacji własności).
+     *
+     * <p>Autoryzacja roli (@PreAuthorize) jest wykonywana w warstwie kontrolera.
+     * Serwis weryfikuje własność tenanta dla roli SUPERVISOR.
+     *
+     * @param tenantId UUID tenanta do odczytu
+     * @return DTO z danymi tenanta (włącznie z config JSONB)
+     * @throws EntityNotFoundException   gdy tenant nie istnieje
+     * @throws CrossTenantAccessException gdy SUPERVISOR próbuje odczytać cudzego tenanta
+     */
+    @Transactional(readOnly = true)
+    public TenantResponse getTenantConfig(UUID tenantId) {
+        String role = TenantContext.getUserRole();
+        if ("SUPERVISOR".equals(role)) {
+            UUID callerTenantId = TenantContext.getTenantId();
+            if (!tenantId.equals(callerTenantId)) {
+                log.warn("[TenantService] SUPERVISOR {} próbuje odczytać config tenanta {}, własny tenant: {}",
+                        TenantContext.getUserIdOrNull(), tenantId, callerTenantId);
+                throw new CrossTenantAccessException(tenantId, callerTenantId);
+            }
+        }
+        Tenant tenant = findTenantOrThrow(tenantId);
+        return TenantResponse.from(tenant);
+    }
+
+    /**
      * Aktualizuje dane tenanta (PATCH semantics – null oznacza brak zmiany).
      *
      * <p>Dozwolone zmiany: name, status, limits (config JSONB).
@@ -278,6 +311,53 @@ public class TenantService {
 
         // Inwaliduj cache metryk admin – tenant zmienił status na INACTIVE
         adminMetricsService.evictGlobalMetricsCache();
+    }
+
+    /**
+     * Aktualizuje konfigurację Twilio per-tenant w JSONB.
+     *
+     * <p>Operacja PATCH semantics: pole {@code null} w żądaniu usuwa dany klucz
+     * z konfiguracji (powrót do globalnego fallbacku w {@code TwilioProperties}).
+     * Pole non-null zapisuje wartość pod odpowiednim kluczem JSONB.
+     *
+     * <p>Nie dotyka pozostałych kluczy konfiguracji (max_agents, max_queues itp.).
+     *
+     * @param tenantId UUID tenanta do aktualizacji
+     * @param request  nowa konfiguracja Twilio (pola nullable)
+     * @return DTO z zaktualizowanymi danymi tenanta
+     * @throws jakarta.persistence.EntityNotFoundException gdy tenant nie istnieje
+     */
+    @Audited(action = "TENANT_TWILIO_CONFIG_UPDATED", entityType = "TENANT")
+    @Transactional
+    public TenantResponse updateTwilioConfig(UUID tenantId, TenantTwilioConfigRequest request) {
+        log.info("[TenantService] Aktualizacja konfiguracji Twilio dla tenanta: id={}", tenantId);
+
+        Tenant tenant = findTenantOrThrow(tenantId);
+
+        Map<String, Object> config = tenant.getConfig() != null
+                ? new HashMap<>(tenant.getConfig())
+                : new HashMap<>();
+
+        if (request.twilioPhoneNumber() != null) {
+            config.put("twilio_phone_number", request.twilioPhoneNumber());
+            log.info("[TenantService] Ustawiono per-tenant numer Twilio dla tenantId={}", tenantId);
+        } else {
+            config.remove("twilio_phone_number");
+            log.info("[TenantService] Usunięto per-tenant numer Twilio dla tenantId={}", tenantId);
+        }
+
+        if (request.twilioStatusCallbackUrl() != null) {
+            config.put("twilio_status_callback_url", request.twilioStatusCallbackUrl());
+        } else {
+            config.remove("twilio_status_callback_url");
+        }
+
+        tenant.setConfig(config);
+        tenant.setUpdatedAt(Instant.now());
+        Tenant saved = tenantRepository.save(tenant);
+
+        log.info("[TenantService] Konfiguracja Twilio zaktualizowana: tenantId={}", tenantId);
+        return TenantResponse.from(saved);
     }
 
     /**

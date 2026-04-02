@@ -145,5 +145,54 @@
         }
       </button>
     </div>
+
+    <!-- Sekcja Twilio VoIP -->
+    <section class="tenant-edit-dialog__twilio">
+      <div class="form-section-title">Telefonia VoIP (Twilio)</div>
+      <form [formGroup]="twilioForm" (ngSubmit)="onSaveTwilio()" novalidate>
+        <div class="form-field" [class.form-field--error]="twilioPhoneNumberError">
+          <label class="form-label" for="twilioPhone">Numer telefonu Twilio</label>
+          <input
+            id="twilioPhone"
+            type="tel"
+            class="form-input"
+            formControlName="twilioPhoneNumber"
+            placeholder="+48123456789"
+            autocomplete="off"
+            [attr.aria-describedby]="twilioPhoneNumberError ? 'twilioPhone-error' : 'twilioPhone-hint'"
+            [attr.aria-invalid]="twilioPhoneNumberError ? 'true' : null"
+          />
+          @if (twilioPhoneNumberError) {
+            <span id="twilioPhone-error" class="form-error" role="alert">{{ twilioPhoneNumberError }}</span>
+          }
+          <span id="twilioPhone-hint" class="form-hint">Format E.164, np. +48123456789. Puste = globalny fallback.</span>
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="twilioCallbackUrl">URL webhooka statusow (opcjonalny)</label>
+          <input
+            id="twilioCallbackUrl"
+            type="url"
+            class="form-input"
+            formControlName="twilioStatusCallbackUrl"
+            placeholder="https://..."
+          />
+        </div>
+        <div class="tenant-edit-dialog__twilio-actions">
+          <button
+            type="submit"
+            class="btn btn-save"
+            [disabled]="twilioForm.invalid || twilioSubmitting()"
+            [attr.aria-disabled]="twilioForm.invalid || twilioSubmitting()"
+          >
+            @if (twilioSubmitting()) {
+              <span class="spinner" aria-hidden="true"></span>
+              Zapisywanie...
+            } @else {
+              Zapisz Twilio
+            }
+          </button>
+        </div>
+      </form>
+    </section>
   </div>
 </dialog>

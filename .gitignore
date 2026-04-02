@@ -9,3 +9,9 @@
 
 # Logi aplikacji
 logs/
+
+#Bugfix
+BUGFIX*
+
+#Documentation
+documentation/

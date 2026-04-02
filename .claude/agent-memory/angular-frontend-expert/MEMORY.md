@@ -49,3 +49,4 @@
   positions), walidacja, mock audio upload
 - [FE-022 Reports module](./project_fe022_reports.md) – historical reports for SUPERVISOR/ADMIN; files created, conventions, decisions (2026-03-22)
 - [Email contact component (FE-012)](./project_fe012_email_contact.md) – EmailContactComponent (split-panel thread+reply), EmailThreadMessageComponent (iframe srcdoc), EmailService, contenteditable rich text editor, no Angular Material
+- [Twilio settings panel per tenant (FE-025)](./project_fe025_twilio_settings.md) – TwilioSettingsComponent, TwilioConfigService, badge per-tenant vs fallback, E.164 walidacja, route settings/twilio

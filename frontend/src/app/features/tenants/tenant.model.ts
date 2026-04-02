@@ -6,6 +6,8 @@ export interface TenantConfig {
   max_campaigns: number;
   recording_retention_days?: number;
   timezone?: string;
+  twilio_phone_number?: string;
+  twilio_status_callback_url?: string;
 }
 
 export interface TenantLimits {

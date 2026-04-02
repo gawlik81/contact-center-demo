@@ -95,6 +95,14 @@ export const SUPERVISOR_ROUTES: Routes = [
                 (m) => m.EmailSettingsComponent,
               ),
           },
+          {
+            path: 'twilio',
+            data: { breadcrumb: 'Twilio VoIP' },
+            loadComponent: () =>
+              import('./pages/settings/twilio-settings.component').then(
+                (m) => m.TwilioSettingsComponent,
+              ),
+          },
         ],
       },
       {

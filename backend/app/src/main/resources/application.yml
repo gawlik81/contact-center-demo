@@ -244,11 +244,11 @@ twilio:
   # Auth Token z Twilio Console – NIGDY nie umieszczaj wartości w repozytorium
   auth-token: ${TWILIO_AUTH_TOKEN:}
   # Numer telefonu Twilio w formacie E.164 (np. +48123456789)
-  phone-number: ${TWILIO_PHONE_NUMBER:+48732096332}
+  phone-number: ${TWILIO_PHONE_NUMBER:}
   # URL StatusCallback – publiczny URL do odbioru zdarzeń o statusie połączenia od Twilio
   # Format: https://<ngrok-domain>/api/telephony/webhook/twilio?tenantId=<UUID>
   # Konfiguracja w Twilio Console: Phone Numbers → Active Numbers → Voice & Fax → Status Callback URL
-  status-callback-url: ${TWILIO_STATUS_CALLBACK_URL:https://rafaela-uncalumnious-refreshedly.ngrok-free.dev/api/telephony/webhook/twilio}
+  status-callback-url: ${TWILIO_STATUS_CALLBACK_URL:}
   # Włącza nagrywanie konferencji przez <Conference record="record-from-start">
   # i obsługę recordingStatusCallback (endpoint /api/telephony/webhook/twilio/recording)
   recording-enabled: ${TWILIO_RECORDING_ENABLED:true}

@@ -480,6 +480,108 @@ Migracja `V029__add_email_address_to_queue.sql`. Dodanie kolumny `email_address 
 
 ---
 
+## MODUL: Routing numerów telefonicznych (EPIC-11)
+
+### DB-021 – Tabele PHONE_NUMBER i PHONE_ROUTING_RULE: numery tenanta i harmonogram IVR
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-002 (TENANT), DB-009 (IVR_TREE), DB-010 (QUEUE), DB-015 (RLS)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-033, BE-034
+**Odniesienie PRD:** EPIC-11
+
+**Opis:**
+Dwie nowe tabele umożliwiające przypisanie wielu numerów telefonicznych do tenanta oraz konfigurację reguł routingu: który IVR (lub kolejka) ma obsługiwać połączenie przychodzące na dany numer w zależności od dnia tygodnia i przedziału czasowego. Kolizje reguł wykrywa trigger PostgreSQL. Gdy żadna reguła nie pasuje – połączenie jest odrzucane (hangup).
+
+**Schemat tabeli `phone_number`:**
+```sql
+CREATE TABLE phone_number (
+    phone_number_id  UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id        UUID        NOT NULL REFERENCES tenant(tenant_id),
+    number           VARCHAR(20) NOT NULL,           -- E.164, np. +48123456789
+    display_name     VARCHAR(100),                   -- opcjonalna etykieta, np. "Sprzedaż"
+    is_active        BOOLEAN     NOT NULL DEFAULT TRUE,
+    is_deleted       BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ,
+    CONSTRAINT uq_phone_number_tenant UNIQUE (tenant_id, number),
+    CONSTRAINT chk_phone_number_e164  CHECK (number ~ '^\+[1-9][0-9]{6,14}$')
+);
+CREATE INDEX idx_phone_number_tenant ON phone_number (tenant_id) WHERE NOT is_deleted;
+ALTER TABLE phone_number ENABLE ROW LEVEL SECURITY;
+CREATE POLICY phone_number_tenant_isolation ON phone_number
+    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+```
+
+**Schemat tabeli `phone_routing_rule`:**
+```sql
+CREATE TABLE phone_routing_rule (
+    rule_id          UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id        UUID        NOT NULL REFERENCES tenant(tenant_id),
+    phone_number_id  UUID        NOT NULL REFERENCES phone_number(phone_number_id),
+    ivr_tree_id      UUID        REFERENCES ivr_tree(ivr_tree_id),   -- NULL gdy target=queue
+    queue_id         UUID        REFERENCES queue(queue_id),          -- NULL gdy target=IVR
+    days_of_week     INTEGER[]   NOT NULL,  -- ISO: 1=Pon ... 7=Nie; min 1 element
+    time_start       TIME        NOT NULL,
+    time_end         TIME        NOT NULL,
+    is_active        BOOLEAN     NOT NULL DEFAULT TRUE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ,
+    CONSTRAINT chk_routing_rule_time   CHECK (time_start < time_end),
+    CONSTRAINT chk_routing_rule_target CHECK (
+        (ivr_tree_id IS NOT NULL AND queue_id IS NULL) OR
+        (ivr_tree_id IS NULL     AND queue_id IS NOT NULL)
+    ),
+    CONSTRAINT chk_routing_rule_days   CHECK (array_length(days_of_week, 1) >= 1)
+);
+CREATE INDEX idx_routing_rule_phone  ON phone_routing_rule (phone_number_id) WHERE is_active;
+CREATE INDEX idx_routing_rule_tenant ON phone_routing_rule (tenant_id)       WHERE is_active;
+ALTER TABLE phone_routing_rule ENABLE ROW LEVEL SECURITY;
+CREATE POLICY phone_routing_rule_tenant_isolation ON phone_routing_rule
+    USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+```
+
+**Trigger wykrywania kolizji:**
+```sql
+CREATE OR REPLACE FUNCTION check_routing_rule_collision() RETURNS TRIGGER AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM phone_routing_rule
+        WHERE phone_number_id = NEW.phone_number_id
+          AND rule_id        != COALESCE(NEW.rule_id, '00000000-0000-0000-0000-000000000000'::UUID)
+          AND is_active       = TRUE
+          AND days_of_week   && NEW.days_of_week
+          AND time_start      < NEW.time_end
+          AND time_end        > NEW.time_start
+    ) THEN
+        RAISE EXCEPTION 'routing_rule_collision'
+            USING DETAIL = 'Regula naklada sie na istniejaca regule dla tego numeru.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE CONSTRAINT TRIGGER trg_routing_rule_collision
+    AFTER INSERT OR UPDATE ON phone_routing_rule
+    DEFERRABLE INITIALLY IMMEDIATE
+    FOR EACH ROW EXECUTE FUNCTION check_routing_rule_collision();
+```
+
+**Seed dev (V999):** Dwa przykładowe numery dla tenant dev; reguły: pon-pt 8:00-17:00 → IVR „Powitanie", pon-pt 17:00-20:00 → kolejka „After Hours". Sob-nie brak reguł (odrzucenie).
+
+**Kryteria akceptacji:**
+- [ ] `phone_number`: UNIQUE(tenant_id, number), CHECK E.164, RLS, soft delete
+- [ ] `phone_routing_rule`: CHECK time_start < time_end, CHECK dokładnie jeden target (IVR xor kolejka), CHECK min 1 dzień
+- [ ] Trigger `trg_routing_rule_collision` blokuje INSERT/UPDATE gdy nakładają się przedziały czasu dla tego samego dnia i numeru
+- [ ] RLS na obu tabelach izoluje dane między tenantami
+- [ ] Migracja idempotentna (IF NOT EXISTS / DO blocks)
+
+---
+
+---
+
 ## Zależności między zadaniami
 
 ### Kolejność obowiązkowa (blokery)
@@ -546,7 +648,8 @@ Wszystkie → DB-019 (seed dev)
 | Redis | 1 | 1 | 0 |
 | RODO / Funkcje | 1 | 1 | 0 |
 | Narzedzia operacyjne | 2 | 2 | 0 |
-| **RAZEM** | **20** | **19** | **1** |
+| Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
+| **RAZEM** | **21** | **20** | **1** |
 
 ---
 
@@ -572,3 +675,4 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | Raporty historyczne | DB-013 | BE-028 | FE-022 |
 | Data Warehouse / ETL | DB-013, DB-014 | BE-030 | – |
 | RODO anonimizacja | DB-012, DB-017 | BE-031 | FE-018 (przycisk usuń) |
+| Routing numerów telefonicznych | DB-021 | BE-033, BE-034, BE-035 | FE-026 |

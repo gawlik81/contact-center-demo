@@ -1,0 +1,135 @@
+<div class="twilio-settings">
+  <div class="twilio-settings__header">
+    <div class="twilio-settings__title-row">
+      <h1 class="twilio-settings__title">Telefonia VoIP / Twilio</h1>
+      @if (!loading()) {
+        @if (hasPerTenantConfig()) {
+          <span class="badge badge--active" aria-label="Aktywna konfiguracja per-tenant">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" aria-hidden="true">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            Aktywna konfiguracja per-tenant
+          </span>
+        } @else {
+          <span class="badge badge--fallback" aria-label="Uzywany globalny numer fallback">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" aria-hidden="true">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            Uzywany globalny numer fallback
+          </span>
+        }
+      }
+    </div>
+    <p class="twilio-settings__subtitle">
+      Skonfiguruj numer telefonu Twilio i URL webhooka dla tego tenanta. Jesli nie skonfigurujesz numeru per-tenant, system uzyje globalnego numeru fallback.
+    </p>
+  </div>
+
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-label="Ladowanie konfiguracji...">
+      <div class="skeleton skeleton--title"></div>
+      <div class="skeleton skeleton--field"></div>
+      <div class="skeleton skeleton--field"></div>
+    </div>
+  } @else if (loadError()) {
+    <div class="error-state" role="alert">
+      <p class="error-state__message">Nie udalo sie zaladowac konfiguracji. Sprawdz polaczenie i odswierz strone.</p>
+    </div>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="twilio-settings__form">
+
+      <!-- Section: Numer Twilio -->
+      <section class="form-section">
+        <h2 class="form-section__title">Numer telefonu</h2>
+
+        <div class="form-field" [class.form-field--error]="phoneNumberError">
+          <label class="form-label" for="twilio-phone">Numer telefonu Twilio</label>
+          <input
+            id="twilio-phone"
+            type="tel"
+            class="form-input"
+            formControlName="twilioPhoneNumber"
+            placeholder="+48123456789"
+            autocomplete="off"
+            [attr.aria-describedby]="phoneNumberError ? 'phone-error' : 'phone-hint'"
+            [attr.aria-invalid]="phoneNumberError ? 'true' : null"
+          />
+          @if (phoneNumberError) {
+            <span id="phone-error" class="form-error" role="alert">{{ phoneNumberError }}</span>
+          } @else {
+            <span id="phone-hint" class="form-hint">
+              Format E.164 – np. +48123456789. Pozostaw puste aby uzywac globalnego numeru fallback.
+            </span>
+          }
+        </div>
+      </section>
+
+      <!-- Section: Webhook -->
+      <section class="form-section">
+        <h2 class="form-section__title">URL webhooka statusow</h2>
+
+        <div class="form-field" [class.form-field--error]="callbackUrlError">
+          <label class="form-label" for="twilio-callback">URL webhooka statusow (opcjonalny)</label>
+          <input
+            id="twilio-callback"
+            type="url"
+            class="form-input"
+            formControlName="twilioStatusCallbackUrl"
+            placeholder="https://your-domain.com/api/telephony/webhook/twilio"
+            autocomplete="off"
+            [attr.aria-describedby]="callbackUrlError ? 'callback-error' : 'callback-hint'"
+            [attr.aria-invalid]="callbackUrlError ? 'true' : null"
+          />
+          @if (callbackUrlError) {
+            <span id="callback-error" class="form-error" role="alert">{{ callbackUrlError }}</span>
+          }
+          @if (showCallbackUrlHint()) {
+            <div id="callback-hint" class="form-hint callback-preview" aria-live="polite">
+              <span class="callback-preview__label">Auto-generowany URL:</span>
+              <code class="callback-preview__url">{{ autoCallbackUrlPreview() }}</code>
+            </div>
+          } @else {
+            <span class="form-hint">Adres URL do odbierania statusow polaczen od Twilio.</span>
+          }
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="isSaveDisabled()"
+          [attr.aria-disabled]="isSaveDisabled()"
+          aria-label="Zapisz konfiguracje Twilio"
+        >
+          @if (submitting()) {
+            <span class="spinner" aria-hidden="true"></span>
+            Zapisywanie...
+          } @else {
+            Zapisz konfiguracje
+          }
+        </button>
+
+        @if (hasPerTenantConfig()) {
+          <button
+            type="button"
+            class="btn btn-danger"
+            [disabled]="isRemoveDisabled()"
+            [attr.aria-disabled]="isRemoveDisabled()"
+            (click)="onRemoveConfig()"
+            aria-label="Usun konfiguracje per-tenant Twilio"
+          >
+            @if (submitting()) {
+              <span class="spinner spinner--white" aria-hidden="true"></span>
+              Usuwanie...
+            } @else {
+              Usun konfiguracje per-tenant
+            }
+          </button>
+        }
+      </div>
+
+    </form>
+  }
+</div>

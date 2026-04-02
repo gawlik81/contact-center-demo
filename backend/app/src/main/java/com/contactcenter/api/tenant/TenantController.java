@@ -1,6 +1,7 @@
 package com.contactcenter.api.tenant;
 
 import com.contactcenter.api.tenant.dto.*;
+import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.domain.model.Tenant.TenantStatus;
 import com.contactcenter.domain.service.TenantService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -187,6 +188,57 @@ public class TenantController {
     ) {
         tenantService.deactivateTenant(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // =========================================================================
+    // Konfiguracja Twilio per-tenant
+    // =========================================================================
+
+    @GetMapping("/{id}/config")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
+    @Operation(
+        summary = "Pobierz konfigurację Twilio per-tenant",
+        description = "Zwraca pola konfiguracyjne Twilio dla tenanta. " +
+                      "ADMIN może pobierać konfigurację dowolnego tenanta. " +
+                      "SUPERVISOR może pobierać wyłącznie konfigurację swojego tenanta " +
+                      "(weryfikacja na podstawie tenant_id z JWT).",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Konfiguracja tenanta"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień lub próba dostępu do cudzego tenanta"),
+            @ApiResponse(responseCode = "422", description = "Tenant nie istnieje")
+        }
+    )
+    public ResponseEntity<TenantResponse> getTenantConfig(
+            @Parameter(description = "UUID tenanta", required = true)
+            @PathVariable UUID id
+    ) {
+        TenantResponse response = tenantService.getTenantConfig(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/config")
+    @Operation(
+        summary = "Aktualizuj konfigurację Twilio per-tenant",
+        description = "Zapisuje numer telefonu Twilio i/lub URL webhooka specyficzny dla tenanta " +
+                      "w polu config JSONB. Pola null usuwają konfigurację (fallback do globalnych " +
+                      "ustawień twilio.phone-number i twilio.status-callback-url). " +
+                      "Nie modyfikuje pozostałych kluczy konfiguracji (max_agents itp.).",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Konfiguracja zaktualizowana"),
+            @ApiResponse(responseCode = "400", description = "Błąd walidacji (np. nieprawidłowy format E.164)"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak roli ADMIN"),
+            @ApiResponse(responseCode = "422", description = "Tenant nie istnieje")
+        }
+    )
+    public ResponseEntity<TenantResponse> updateTwilioConfig(
+            @Parameter(description = "UUID tenanta", required = true)
+            @PathVariable UUID id,
+            @Valid @RequestBody TenantTwilioConfigRequest request
+    ) {
+        TenantResponse response = tenantService.updateTwilioConfig(id, request);
+        return ResponseEntity.ok(response);
     }
 
     // =========================================================================

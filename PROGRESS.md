@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-03-26 (BE-021 poprawki code review: B1 AND is_deleted=false w countWaitingByQueueId i getAvgHandleTimeSeconds, B2 partial entity usunięte z kontrolera, B3 ConcurrentHashMap cache zamiast Redis SCAN per HTTP, fixedRate→fixedDelay; 644 testów PASS; łączny stan: DB 20/20, BE 26/33, FE 22/25)
+**Ostatnia aktualizacja:** 2026-04-02 (FE-025 Panel Twilio: TwilioConfigService, TwilioSettingsComponent, route + sidenav, BUILD SUCCESS; łączny stan: DB 20/20, BE 27/33, FE 23/25)
 
 ---
 
@@ -85,7 +85,7 @@
 | BE-029 | RT Metrics API: WebSocket feed dla supervisora | ✅ | SupervisorMetricsPayload (rekord DTO), SupervisorMetricsService (@Scheduled fixedRate=5000, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor, eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów jednostkowych, 429 testów PASS |
 | BE-030 | ETL do data warehouse: CDC z PostgreSQL | ⬜ | |
 | BE-031 | RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17) | ⬜ | |
-| BE-032 | Twilio: konfiguracja numeru telefonu per tenant | ⬜ | |
+| BE-032 | Twilio: konfiguracja numeru telefonu per tenant | ✅ | Tenant.getTwilioPhoneNumber/getTwilioStatusCallbackUrl (JSONB), TenantTwilioConfigRequest (walidacja E.164), TenantService.updateTwilioConfig (@Audited), PATCH /api/tenants/{id}/config (ADMIN), TwilioTelephonyAdapter.resolvePhoneNumber (per-tenant > global fallback), buildStatusCallbackUrl(tenantId). 6 nowych testów resolvePhoneNumber. BUILD SUCCESS. |
 
 ---
 
@@ -117,7 +117,7 @@
 | FE-022 | Raporty historyczne: filtry, tabele, eksport | ✅ | report.model.ts (AgentReportRow, AgentReportFilters), reports.service.ts (getAgentReport, exportCsv, exportXlsx blob), ReportsComponent (filtry URL sync, tabela badge'ami kanałów, paginacja, eksport Blob, skeleton, empty state), supervisor.routes.ts /reports z roleGuard, build 0 błędów |
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ | |
 | FE-024 | Panel konfiguracji kolejek i routingu | ✅ | QueueListComponent (tabela kolejek z liczbą oczekujących, polling co 10s), QueueFormComponent (formularz tworzenia/edycji: nazwa, strategia routingu, required skills multi-select, sticky agent timeout, adres email kolejki emailAddress z walidacją email + maxLength(255)), QueueDeleteModalComponent. Integracja z BE-020 ✅ + DB-020 ✅. |
-| FE-025 | Panel konfiguracji Twilio per tenant | ⬜ | Czeka na BE-032 |
+| FE-025 | Panel konfiguracji Twilio per tenant | ✅ | TwilioConfigService (GET tenant + PATCH /api/tenants/{id}/config), TwilioSettingsComponent (formularz E.164, badge per-tenant/fallback, podgląd auto URL, usunięcie konfiguracji), route /supervisor/settings/twilio, wpis "Twilio VoIP" w sidenavie. BUILD SUCCESS. |
 
 ---
 
@@ -126,9 +126,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 20/20 | 0 | 0 | 20 |
-| Backend (BE) | 26/33 | 0 | 7 | 33 |
-| Frontend (FE) | 22/25 | 0 | 3 | 25 |
-| **RAZEM** | **68/78** | **0** | **10** | **78** |
+| Backend (BE) | 27/33 | 0 | 6 | 33 |
+| Frontend (FE) | 23/25 | 0 | 2 | 25 |
+| **RAZEM** | **70/78** | **0** | **8** | **78** |
 
 ---
 

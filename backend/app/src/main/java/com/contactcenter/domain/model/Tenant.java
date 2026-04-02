@@ -100,6 +100,38 @@ public class Tenant {
         return getConfigInt("max_campaigns", 20);
     }
 
+    /**
+     * Zwraca per-tenant numer telefonu Twilio z konfiguracji JSONB.
+     * Klucz: {@code twilio_phone_number}.
+     *
+     * @return numer w formacie E.164 lub {@code null} gdy nie skonfigurowano
+     */
+    public String getTwilioPhoneNumber() {
+        return getConfigString("twilio_phone_number");
+    }
+
+    /**
+     * Zwraca per-tenant URL webhooka Twilio z konfiguracji JSONB.
+     * Klucz: {@code twilio_status_callback_url}.
+     *
+     * @return URL callbacku lub {@code null} gdy nie skonfigurowano
+     */
+    public String getTwilioStatusCallbackUrl() {
+        return getConfigString("twilio_status_callback_url");
+    }
+
+    private String getConfigString(String key) {
+        if (config == null || !config.containsKey(key)) {
+            return null;
+        }
+        Object val = config.get(key);
+        if (val == null) {
+            return null;
+        }
+        String str = String.valueOf(val);
+        return str.isBlank() ? null : str;
+    }
+
     private int getConfigInt(String key, int defaultValue) {
         if (config == null || !config.containsKey(key)) {
             return defaultValue;

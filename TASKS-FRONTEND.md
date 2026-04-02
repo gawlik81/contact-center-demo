@@ -625,6 +625,106 @@ Sekcja „Telefonia VoIP" w panelu ustawień tenanta (dostępna dla ADMIN i SUPE
 
 ---
 
+## MODUL: Routing numerów telefonicznych (EPIC-11)
+
+### FE-026 – Panel zarządzania numerami telefonów i regułami routingu IVR (Supervisor)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** FE-005, FE-014 (IVR editor), BE-033, BE-034
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-033 (PhoneNumber API), BE-034 (RoutingRule API)
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-11
+
+**Opis:**
+Zastępuje usuniętą zakładkę „Twilio VoIP" w ustawieniach supervisora. Nowa strona `/supervisor/settings/phone-numbers` umożliwia zarządzanie numerami telefonów przypisanymi do tenanta oraz konfigurację reguł routingu: który IVR lub kolejka obsługuje połączenie przychodzące na dany numer w określonych dniach tygodnia i godzinach. System wizualnie sygnalizuje kolizje reguł.
+
+**Zmiany do istniejących plików:**
+- `sidenav.component.ts` – w sekcji „Konfiguracja": usunąć wpis „Twilio VoIP" (`/supervisor/settings/twilio`), dodać „Numery telefonów" (`/supervisor/settings/phone-numbers`)
+- `supervisor.routes.ts` – usunąć route `settings/twilio`, dodać `settings/phone-numbers` (lazy)
+
+**Nowe pliki:**
+```
+supervisor/services/phone-number.service.ts        – CRUD /api/phone-numbers
+supervisor/pages/settings/
+  phone-numbers/
+    phone-numbers.component.ts / .html / .scss     – lista numerów + akcje
+    routing-rules/
+      routing-rules.component.ts / .html / .scss   – reguły dla wybranego numeru
+      routing-rule-form/
+        routing-rule-form.component.ts / .html / .scss  – modal dodawania/edycji reguły
+```
+
+**Szczegóły komponentów:**
+
+`PhoneNumbersComponent` (strona główna `/supervisor/settings/phone-numbers`):
+- Lista numerów tenanta (number, displayName, isActive, liczba reguł)
+- Przycisk „Dodaj numer" → inline formularz lub modal (E.164, displayName)
+- Akcje per wiersz: edycja displayName/is_active, usunięcie (z potwierdzeniem; 409 → toast „Usuń najpierw reguły")
+- Kliknięcie w numer → rozwija/nawiguje do `RoutingRulesComponent` dla tego numeru
+- Stan pusty: „Brak numerów – dodaj pierwszy numer Twilio"
+
+`RoutingRulesComponent` (osadzony lub sub-route):
+- Wizualizacja reguł jako lista kart: dni tygodnia (checkboxy tylko do odczytu), zakres godzin, target (IVR/kolejka z nazwą)
+- Badge: brak reguł w jakimś przedziale → żółty „Połączenia poza harmonogramem będą odrzucane"
+- Przycisk „Dodaj regułę" → otwiera `RoutingRuleFormComponent` w trybie tworzenia
+- Akcje per regułę: edycja, usunięcie
+
+`RoutingRuleFormComponent` (modal):
+- Checkboxy dni tygodnia: Pon Wt Śr Czw Pt Sob Nie (min 1 wymagany)
+- Time pickery: „Od" i „Do" (walidacja: Do > Od)
+- Radio/select: „Target" → IVR (dropdown z listą drzew IVR tenanta) lub Kolejka (dropdown z listą kolejek)
+- Walidacja kolizji: przy submit → HTTP 409 → wyróżnij kolidujące reguły w tle + toast z opisem
+- Tryb edycji: pre-fill z istniejącej reguły
+
+`PhoneNumberService`:
+```ts
+listPhoneNumbers(): Observable<PhoneNumber[]>
+createPhoneNumber(req): Observable<PhoneNumber>
+updatePhoneNumber(id, req): Observable<PhoneNumber>
+deletePhoneNumber(id): Observable<void>
+listRoutingRules(phoneNumberId): Observable<PhoneRoutingRule[]>
+createRoutingRule(phoneNumberId, req): Observable<PhoneRoutingRule>
+updateRoutingRule(phoneNumberId, ruleId, req): Observable<PhoneRoutingRule>
+deleteRoutingRule(phoneNumberId, ruleId): Observable<void>
+```
+
+**Modele:**
+```ts
+interface PhoneNumber {
+  phoneNumberId: string;
+  number: string;           // E.164
+  displayName?: string;
+  isActive: boolean;
+}
+
+interface PhoneRoutingRule {
+  ruleId: string;
+  phoneNumberId: string;
+  ivrTreeId?: string;
+  queueId?: string;
+  daysOfWeek: number[];     // 1=Pon, 7=Nie
+  timeStart: string;        // "HH:mm"
+  timeEnd: string;
+  isActive: boolean;
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Lista numerów tenanta: dodawanie (E.164 walidacja), edycja displayName, soft delete (409 blokuje gdy są reguły)
+- [ ] Reguły routingu: dodawanie, edycja, usunięcie per numer
+- [ ] Kolizja → HTTP 409 → wizualne wyróżnienie kolidujących reguł + toast
+- [ ] Brak reguł w pewnych godzinach → badge ostrzegawczy
+- [ ] IVR dropdown ładuje drzewa IVR z `/api/ivr-trees`; kolejka dropdown z `/api/queues`
+- [ ] Dostępne tylko dla roli SUPERVISOR i ADMIN (roleGuard)
+- [ ] Usunięto route `settings/twilio` i sidenav entry „Twilio VoIP" z supervisora; zastąpiono „Numery telefonów"
+
+---
+
+---
+
 ## Zależności między zadaniami
 
 ### Kolejność obowiązkowa (blokery)
@@ -650,6 +750,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | Raporty | FE-021, FE-022 |
 | Integracje | FE-023 |
 | Twilio config | FE-025 (po BE-032) |
+| Routing telefoniczny | FE-026 (po BE-033, BE-034) |
 
 ### Blokery od Backendu (FE czeka na BE)
 
@@ -668,6 +769,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | FE-021 | BE-029 ✅ (RT metrics WebSocket – zrealizowane) |
 | FE-022 | BE-028 ✅ (reports API – zrealizowane) |
 | FE-025 | BE-032 (Twilio per-tenant config) |
+| FE-026 | BE-033 (PhoneNumber API), BE-034 (RoutingRule API) |
 
 > Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
 
@@ -686,4 +788,5 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | Klienci (EPIC-09) | 3 | 3 | 0 |
 | Raporty (EPIC-10) | 2 | 2 | 0 |
 | Konfiguracja | 3 | 2 | 1 |
-| **RAZEM** | **25** | **24** | **1** |
+| Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
+| **RAZEM** | **26** | **25** | **1** |

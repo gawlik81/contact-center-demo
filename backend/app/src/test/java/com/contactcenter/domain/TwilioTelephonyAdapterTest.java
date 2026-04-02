@@ -1,8 +1,10 @@
 package com.contactcenter.domain;
 
 import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
@@ -28,6 +30,7 @@ import java.util.UUID;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -64,6 +67,9 @@ class TwilioTelephonyAdapterTest {
     @Mock
     private CustomerRepository customerRepository;
 
+    @Mock
+    private TenantRepository tenantRepository;
+
     private TwilioProperties twilioProperties;
     private TwilioTelephonyAdapter adapter;
 
@@ -76,9 +82,12 @@ class TwilioTelephonyAdapterTest {
         twilioProperties.setPhoneNumber("+48111000111");
         twilioProperties.setStatusCallbackUrl("https://example.com/api/telephony/webhook/twilio");
 
+        // Domyślnie tenantRepository nie zwraca per-tenant konfiguracji
+        when(tenantRepository.findById(any())).thenReturn(Optional.empty());
+
         // Nie wywołujemy @PostConstruct init() – omijamy Twilio.init() w testach
         adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher,
-                contactRepository, customerRepository);
+                contactRepository, customerRepository, tenantRepository);
     }
 
     // =========================================================================
@@ -631,6 +640,93 @@ class TwilioTelephonyAdapterTest {
                         .isInstanceOf(TelephonyAdapter.TelephonyException.class)
                         .hasMessageContaining("Twilio");
             }
+        }
+    }
+
+    // =========================================================================
+    // resolvePhoneNumber – logika per-tenant > fallback globalny
+    // =========================================================================
+
+    @Nested
+    @DisplayName("resolvePhoneNumber() – priorytet per-tenant nad globalnym")
+    class ResolvePhoneNumber {
+
+        private static final String PER_TENANT_NUMBER = "+48222333444";
+        private static final String GLOBAL_NUMBER     = "+48111000111";
+
+        @Test
+        @DisplayName("tenant z per-tenant numerem → zwraca per-tenant numer")
+        void shouldReturnPerTenantNumberWhenConfigured() {
+            Tenant tenant = mock(Tenant.class);
+            when(tenant.getTwilioPhoneNumber()).thenReturn(PER_TENANT_NUMBER);
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+
+            String result = adapter.resolvePhoneNumber(TENANT_ID);
+
+            assertThat(result).isEqualTo(PER_TENANT_NUMBER);
+        }
+
+        @Test
+        @DisplayName("tenant bez per-tenant numeru → zwraca globalny fallback")
+        void shouldFallbackToGlobalNumberWhenPerTenantNotConfigured() {
+            Tenant tenant = mock(Tenant.class);
+            when(tenant.getTwilioPhoneNumber()).thenReturn(null);
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            twilioProperties.setPhoneNumber(GLOBAL_NUMBER);
+
+            String result = adapter.resolvePhoneNumber(TENANT_ID);
+
+            assertThat(result).isEqualTo(GLOBAL_NUMBER);
+        }
+
+        @Test
+        @DisplayName("tenant nieznaleziony → zwraca globalny fallback")
+        void shouldFallbackToGlobalNumberWhenTenantNotFound() {
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.empty());
+            twilioProperties.setPhoneNumber(GLOBAL_NUMBER);
+
+            String result = adapter.resolvePhoneNumber(TENANT_ID);
+
+            assertThat(result).isEqualTo(GLOBAL_NUMBER);
+        }
+
+        @Test
+        @DisplayName("brak per-tenant numeru i brak globalnego → rzuca TelephonyException")
+        void shouldThrowWhenNoPhoneNumberAvailable() {
+            Tenant tenant = mock(Tenant.class);
+            when(tenant.getTwilioPhoneNumber()).thenReturn(null);
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            twilioProperties.setPhoneNumber("");
+
+            assertThatThrownBy(() -> adapter.resolvePhoneNumber(TENANT_ID))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class)
+                    .hasMessageContaining("twilio.phone-number");
+        }
+
+        @Test
+        @DisplayName("per-tenant numer ma wyższy priorytet niż globalny")
+        void perTenantNumberTakesPrecedenceOverGlobal() {
+            Tenant tenant = mock(Tenant.class);
+            when(tenant.getTwilioPhoneNumber()).thenReturn(PER_TENANT_NUMBER);
+            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            // globalny numer jest też ustawiony – powinien być ignorowany
+            twilioProperties.setPhoneNumber(GLOBAL_NUMBER);
+
+            String result = adapter.resolvePhoneNumber(TENANT_ID);
+
+            assertThat(result).isEqualTo(PER_TENANT_NUMBER);
+            assertThat(result).isNotEqualTo(GLOBAL_NUMBER);
+        }
+
+        @Test
+        @DisplayName("null tenantId → pomija lookup i zwraca globalny fallback")
+        void nullTenantIdShouldReturnGlobalFallback() {
+            twilioProperties.setPhoneNumber(GLOBAL_NUMBER);
+
+            String result = adapter.resolvePhoneNumber(null);
+
+            assertThat(result).isEqualTo(GLOBAL_NUMBER);
+            verify(tenantRepository, never()).findById(any());
         }
     }
 }

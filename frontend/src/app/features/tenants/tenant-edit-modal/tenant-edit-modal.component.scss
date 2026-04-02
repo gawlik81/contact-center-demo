@@ -74,7 +74,27 @@ $radius: 8px;
     padding: 1rem 1.5rem;
     border-top: 1px solid $border-color;
     background: #fafafa;
+  }
+
+  &__twilio {
+    padding: 1.25rem 1.5rem 1.5rem;
+    border-top: 1px solid $border-color;
+    background: #f8faff;
     border-radius: 0 0 $radius $radius;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+  }
+
+  &__twilio-actions {
+    display: flex;
+    justify-content: flex-end;
   }
 }
 
@@ -190,6 +210,11 @@ $radius: 8px;
 .form-error {
   font-size: 0.8125rem;
   color: $error;
+}
+
+.form-hint {
+  font-size: 0.8125rem;
+  color: $text-secondary;
 }
 
 .form-validating {

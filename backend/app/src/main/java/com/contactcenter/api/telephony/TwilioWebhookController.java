@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -385,6 +386,122 @@ public class TwilioWebhookController {
       // przy błędach przetwarzania po naszej stronie
       log.error("[TwilioWebhook] Błąd przetwarzania statusu: callSid={}, status={}, error={}",
           callSid, callStatus, e.getMessage(), e);
+    }
+
+    return ResponseEntity.noContent().build();
+  }
+
+  // =========================================================================
+  // Conference StatusCallback endpoint
+  // =========================================================================
+
+  /**
+   * Odbiera callback zakończenia konferencji od Twilio (Conference StatusCallback).
+   *
+   * <p>Twilio wysyła POST na ten URL gdy konferencja kończy się ({@code statusCallbackEvent=end}).
+   * Konfigurowany w TwiML przez atrybut {@code statusCallback} elementu {@code <Conference>}
+   * generowanego przez {@link com.contactcenter.domain.service.IvrEngineService#buildWaitInConferenceTwiml}.
+   *
+   * <p>Używany do wykrycia porzucenia kolejki przez klienta (ABANDONED): jeśli konferencja
+   * zakończyła się ({@code ConferenceStatus=completed}) a kontakt nadal ma status {@code QUEUED},
+   * oznacza to że klient rozłączył się przed odebraniem przez agenta.
+   *
+   * <p>Zabezpieczenie przed duplikatami: jeśli kontakt ma już status {@code COMPLETED} lub
+   * {@code ABANDONED}, nie nadpisujemy go.
+   *
+   * @param friendlyName    nazwa konferencji (format: {@code contact-{contactId}})
+   * @param conferenceStatus status konferencji od Twilio (np. "completed")
+   * @param statusCallbackEvent typ zdarzenia (np. "conference-end")
+   * @param tenantIdParam   UUID tenanta z parametru query string
+   * @return 204 No Content
+   */
+  @PostMapping(value = "/conference", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+  @Operation(
+      summary = "Odbierz callback zakończenia konferencji od Twilio",
+      description = "Twilio wysyła POST gdy konferencja kończy działanie. " +
+          "Endpoint wykrywa ABANDONED – klient porzucił kolejkę przed odebraniem przez agenta.",
+      responses = {
+          @ApiResponse(responseCode = "204", description = "Callback przetworzony"),
+          @ApiResponse(responseCode = "403", description = "Nieprawidłowy podpis X-Twilio-Signature")
+      }
+  )
+  public ResponseEntity<Void> handleConferenceStatusCallback(
+      HttpServletRequest httpRequest,
+      @RequestParam(value = "FriendlyName", required = false) String friendlyName,
+      @RequestParam(value = "ConferenceStatus", required = false) String conferenceStatus,
+      @RequestParam(value = "StatusCallbackEvent", required = false) String statusCallbackEvent,
+      @RequestParam(value = "tenantId", required = false) String tenantIdParam
+  ) {
+    if (!validateTwilioSignature(httpRequest)) {
+      return ResponseEntity.status(403).build();
+    }
+
+    log.info("[TwilioConference] Callback zakończenia konferencji: friendlyName={}, " +
+             "conferenceStatus={}, event={}, tenantId={}",
+        friendlyName, conferenceStatus, statusCallbackEvent, tenantIdParam);
+
+    // Wymagamy nazwy konferencji w formacie contact-{UUID}
+    if (!org.springframework.util.StringUtils.hasText(friendlyName)
+        || !friendlyName.startsWith("contact-")) {
+      log.warn("[TwilioConference] FriendlyName nierozpoznany lub brakujący: {}", friendlyName);
+      return ResponseEntity.noContent().build();
+    }
+
+    // Przetwarzamy tylko zdarzenie zakończenia konferencji
+    boolean isConferenceEnd = "completed".equalsIgnoreCase(conferenceStatus)
+        || "conference-end".equalsIgnoreCase(statusCallbackEvent);
+    if (!isConferenceEnd) {
+      log.debug("[TwilioConference] Pomijam event inny niż zakończenie: status={}, event={}",
+          conferenceStatus, statusCallbackEvent);
+      return ResponseEntity.noContent().build();
+    }
+
+    UUID tenantId = parseTenantId(tenantIdParam, friendlyName);
+    if (tenantId == null) {
+      log.warn("[TwilioConference] Brak tenantId – nie można zaktualizować statusu kontaktu.");
+      return ResponseEntity.noContent().build();
+    }
+
+    // Wyciągnij contactId z nazwy konferencji "contact-{UUID}"
+    UUID contactId;
+    try {
+      contactId = UUID.fromString(friendlyName.substring("contact-".length()));
+    } catch (IllegalArgumentException e) {
+      log.warn("[TwilioConference] Nieprawidłowy format contactId w FriendlyName='{}': {}",
+          friendlyName, e.getMessage());
+      return ResponseEntity.noContent().build();
+    }
+
+    try {
+      TenantContext.setTenantId(tenantId);
+      // Pobierz aktualny status kontaktu – zabezpieczenie przed nadpisaniem COMPLETED/ABANDONED
+      contactRepository.findById(contactId, tenantId).ifPresentOrElse(
+          contact -> {
+            String currentStatus = contact.getStatus();
+            if ("COMPLETED".equals(currentStatus) || "ABANDONED".equals(currentStatus)) {
+              log.debug("[TwilioConference] Kontakt już zakończony (status={}), pomijam: contactId={}",
+                  currentStatus, contactId);
+              return;
+            }
+            if ("QUEUED".equals(currentStatus) || "ACTIVE".equals(currentStatus)
+                || "ON_HOLD".equals(currentStatus)) {
+              log.info("[TwilioConference] Konferencja zakończona, kontakt w statusie {} – " +
+                       "ustawiam ABANDONED: contactId={}", currentStatus, contactId);
+              contactRepository.updateContactStatusOnTelephonyEvent(
+                  contactId, tenantId, "ABANDONED", Instant.now());
+            } else {
+              log.debug("[TwilioConference] Kontakt w statusie {} – nie zmieniam: contactId={}",
+                  currentStatus, contactId);
+            }
+          },
+          () -> log.warn("[TwilioConference] Kontakt nie znaleziony: contactId={}, tenantId={}",
+              contactId, tenantId)
+      );
+    } catch (Exception e) {
+      log.error("[TwilioConference] Błąd aktualizacji statusu kontaktu: contactId={}, error={}",
+          contactId, e.getMessage(), e);
+    } finally {
+      TenantContext.clear();
     }
 
     return ResponseEntity.noContent().build();

@@ -11,6 +11,7 @@ import com.contactcenter.security.TenantContext;
 import com.twilio.Twilio;
 import com.twilio.exception.ApiException;
 import com.twilio.rest.api.v2010.account.Call;
+import com.twilio.rest.api.v2010.account.IncomingPhoneNumber;
 import com.twilio.type.PhoneNumber;
 import com.twilio.type.Twiml;
 import jakarta.annotation.PostConstruct;
@@ -24,6 +25,7 @@ import org.springframework.util.StringUtils;
 import java.net.URI;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -99,6 +101,105 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     log.info("[TwilioAdapter] Twilio SDK zainicjalizowany. accountSid={}..., phoneNumber={}",
         maskSid(twilioProperties.getAccountSid()),
         twilioProperties.getPhoneNumber());
+
+    configureStatusCallbacksForAllTenants();
+  }
+
+  /**
+   * Konfiguruje StatusCallback URL i StatusCallbackEvent dla wszystkich numerów Twilio
+   * przypisanych do aktywnych tenantów w bazie danych.
+   *
+   * <p>Wywoływana przy starcie beana, po inicjalizacji SDK. Operacja jest idempotentna –
+   * wielokrotne uruchomienie nadpisuje te same wartości w Twilio bez skutków ubocznych.
+   *
+   * <p>Błąd konfiguracji dla pojedynczego numeru jest logowany jako WARN i nie przerywa
+   * przetwarzania pozostałych numerów. Błąd krytyczny (np. utrata połączenia z Twilio API)
+   * jest logowany jako ERROR, ale nie blokuje startu aplikacji.
+   *
+   * <p>Metoda pobiera tenantów cross-tenant (bez filtrowania RLS), ponieważ operuje
+   * w kontekście startu aplikacji, a nie w kontekście konkretnego tenanta.
+   */
+  private void configureStatusCallbacksForAllTenants() {
+    if (!twilioProperties.isEnabled()) {
+      return;
+    }
+
+    log.info("[TwilioAdapter] Rozpoczynam konfigurację StatusCallback dla wszystkich aktywnych tenantów...");
+
+    try {
+      List<Tenant> activeTenants = tenantRepository.findAllByOptionalFilters(null,
+          Tenant.TenantStatus.ACTIVE.name());
+
+      if (activeTenants.isEmpty()) {
+        log.info("[TwilioAdapter] Brak aktywnych tenantów – pomijam konfigurację StatusCallback.");
+        return;
+      }
+
+      int configured = 0;
+      int skipped = 0;
+
+      for (Tenant tenant : activeTenants) {
+        String phoneNumber = tenant.getTwilioPhoneNumber();
+        if (!StringUtils.hasText(phoneNumber)) {
+          log.debug("[TwilioAdapter] Tenant {} nie ma skonfigurowanego numeru Twilio – pomijam.",
+              tenant.getId());
+          skipped++;
+          continue;
+        }
+
+        try {
+          String callbackUrl = buildStatusCallbackUrl(tenant.getId());
+          if (!StringUtils.hasText(callbackUrl)) {
+            log.warn("[TwilioAdapter] Brak StatusCallback URL dla tenanta {} (numer: {}) – pomijam.",
+                tenant.getId(), phoneNumber);
+            skipped++;
+            continue;
+          }
+
+          // Wyszukaj numer w koncie Twilio po numerze E.164
+          var phoneNumbers = IncomingPhoneNumber.reader()
+              .setPhoneNumber(new PhoneNumber(phoneNumber))
+              .read();
+
+          if (phoneNumbers == null || !phoneNumbers.iterator().hasNext()) {
+            log.warn("[TwilioAdapter] Numer {} (tenant {}) nie znaleziony w koncie Twilio – pomijam.",
+                phoneNumber, tenant.getId());
+            skipped++;
+            continue;
+          }
+
+          IncomingPhoneNumber found = phoneNumbers.iterator().next();
+          String sid = found.getSid();
+
+          // Twilio Java SDK (10.x) nie obsługuje StatusCallbackEvent na IncomingPhoneNumberUpdater.
+          // Ustawiamy URL przez SDK, a eventy przez bezpośrednie wywołanie REST API (Java HttpClient).
+          IncomingPhoneNumber.updater(sid)
+              .setStatusCallback(URI.create(callbackUrl))
+              .setStatusCallbackMethod(com.twilio.http.HttpMethod.POST)
+              .update();
+
+          setStatusCallbackEvents(sid, callbackUrl);
+
+          log.info("[TwilioAdapter] Skonfigurowano StatusCallback + StatusCallbackEvents dla numeru {}, tenant {}",
+              phoneNumber, tenant.getId());
+          configured++;
+
+        } catch (ApiException e) {
+          log.warn("[TwilioAdapter] Błąd Twilio API dla numeru {} (tenant {}): code={}, message={} – kontynuuję.",
+              phoneNumber, tenant.getId(), e.getCode(), e.getMessage());
+        } catch (Exception e) {
+          log.warn("[TwilioAdapter] Nieoczekiwany błąd dla numeru {} (tenant {}): {} – kontynuuję.",
+              phoneNumber, tenant.getId(), e.getMessage());
+        }
+      }
+
+      log.info("[TwilioAdapter] Konfiguracja StatusCallback zakończona: skonfigurowano={}, pominięto={}",
+          configured, skipped);
+
+    } catch (Exception e) {
+      log.error("[TwilioAdapter] Krytyczny błąd podczas konfiguracji StatusCallback – start aplikacji kontynuowany: {}",
+          e.getMessage(), e);
+    }
   }
 
   // =========================================================================
@@ -136,7 +237,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         creator.setStatusCallback(URI.create(callbackUrl + "?tenantId=" + tenantId));
         creator.setStatusCallbackMethod(com.twilio.http.HttpMethod.POST);
         creator.setStatusCallbackEvent(java.util.List.of(
-            "initiated", "ringing", "answered", "completed"));
+            "initiated", "ringing", "answered", "completed", "canceled"));
       }
 
       Call call = creator.create();
@@ -570,6 +671,16 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       sessions.put(callSid, existing);
       log.debug("[TwilioAdapter] Nowa sesja z webhooka: callSid={}, contactId={}, status={}",
           callSid, contactId, mappedStatus);
+
+      // Jeśli webhook przyszedł gdy sesja nie istniała w mapie i status jest już końcowy
+      // (np. klient rozłączył się przed rejestracją sesji lub callback dotarł po restarcie),
+      // zapisujemy ABANDONED – agent nigdy nie odebrał, skoro nie było aktywnej sesji.
+      if (mappedStatus == CallSession.CallStatus.ENDED && contactId != null) {
+        log.info("[TwilioAdapter] Sesja nieznana – webhook ENDED bez wcześniejszej sesji, " +
+                 "zapisuję ABANDONED: callSid={}, contactId={}", callSid, contactId);
+        contactRepository.updateContactStatusOnTelephonyEvent(
+            contactId, tenantId, "ABANDONED", Instant.now());
+      }
     }
     else {
       // Aktualizacja istniejącej sesji
@@ -585,8 +696,13 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       sessions.put(callSid, updated);
 
       if (webhookEndedAt != null && updated.getContactId() != null) {
+        // Jeśli klient rozłączył się zanim agent odebrał (answeredAt == null),
+        // status kontaktu to ABANDONED (porzucenie kolejki), a nie COMPLETED.
+        String contactDbStatus = updated.getAnsweredAt() == null ? "ABANDONED" : "COMPLETED";
+        log.info("[TwilioAdapter] Aktualizacja statusu kontaktu na {}: contactId={}, answeredAt={}",
+            contactDbStatus, updated.getContactId(), updated.getAnsweredAt());
         contactRepository.updateContactStatusOnTelephonyEvent(
-            updated.getContactId(), updated.getTenantId(), "COMPLETED", webhookEndedAt);
+            updated.getContactId(), updated.getTenantId(), contactDbStatus, webhookEndedAt);
       }
     }
 
@@ -1003,6 +1119,54 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       log.debug("[TwilioAdapter] Błąd lookup klienta dla phone={}, tenant={}: {} – kontynuuję bez customerId",
           phoneNumber, tenantId, e.getMessage());
       return null;
+    }
+  }
+
+  /**
+   * Ustawia StatusCallbackEvent dla numeru przychodzącego przez bezpośrednie wywołanie
+   * Twilio REST API. SDK 10.x nie udostępnia tej opcji przez {@code IncomingPhoneNumberUpdater},
+   * dlatego używamy {@link java.net.http.HttpClient} z Basic Auth (accountSid:authToken).
+   *
+   * <p>Eventy: initiated, ringing, answered, completed, canceled.
+   * {@code canceled} jest kluczowy – Twilio wysyła go gdy klient rozłączy się w trakcie
+   * oczekiwania w kolejce (przed odpowiedzią agenta), co pozwala ustawić status ABANDONED.
+   */
+  private void setStatusCallbackEvents(String phoneNumberSid, String callbackUrl) {
+    try {
+      String accountSid = twilioProperties.getAccountSid();
+      String authToken  = twilioProperties.getAuthToken();
+
+      String body = "StatusCallback=" + java.net.URLEncoder.encode(callbackUrl, java.nio.charset.StandardCharsets.UTF_8)
+          + "&StatusCallbackMethod=POST"
+          + "&StatusCallbackEvent=initiated"
+          + "&StatusCallbackEvent=ringing"
+          + "&StatusCallbackEvent=answered"
+          + "&StatusCallbackEvent=completed"
+          + "&StatusCallbackEvent=canceled";
+
+      String credentials = java.util.Base64.getEncoder()
+          .encodeToString((accountSid + ":" + authToken).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+      java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+          .uri(URI.create("https://api.twilio.com/2010-04-01/Accounts/" + accountSid
+              + "/IncomingPhoneNumbers/" + phoneNumberSid + ".json"))
+          .header("Authorization", "Basic " + credentials)
+          .header("Content-Type", "application/x-www-form-urlencoded")
+          .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
+          .build();
+
+      java.net.http.HttpResponse<String> response = java.net.http.HttpClient.newHttpClient()
+          .send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+
+      if (response.statusCode() == 200) {
+        log.debug("[TwilioAdapter] StatusCallbackEvent skonfigurowany dla SID {}", maskSid(phoneNumberSid));
+      } else {
+        log.warn("[TwilioAdapter] Nieoczekiwany status HTTP {} przy ustawianiu StatusCallbackEvent dla SID {}: {}",
+            response.statusCode(), maskSid(phoneNumberSid), response.body());
+      }
+    } catch (Exception e) {
+      log.warn("[TwilioAdapter] Błąd przy ustawianiu StatusCallbackEvent dla SID {}: {}",
+          maskSid(phoneNumberSid), e.getMessage());
     }
   }
 

@@ -12,3 +12,4 @@
 - [IvrEngineService — & w URL atrybutu action TwiML (Error 12100)](pattern_ivr_twiml_xml_ampersand.md) — buildGatherTwiml wstawia dtmfActionUrl bez escapeXml(); & → &amp; wymagane w XML; Twilio 12100 Document parse failure
 - [TwilioVoiceWebhook — brak sesji adaptera przy odbieraniu](pattern_voice_webhook_no_adapter_session.md) — handleVoiceWebhook nie rejestruje sesji w sessions map adaptera; answerCall rzuca TelephonyException mimo poprawnego contact w DB
 - [Twilio recording — brak conference_sid w channel_metadata](pattern_twilio_recording_conference_sid_missing.md) — recording callback z CF... zawsze gubi się; conference_sid nie jest zapisywany bo brak StatusCallback na nodze agenta
+- [TwilioTelephonyAdapter — brak logiki ABANDONED; hardkodowane COMPLETED](pattern_twilio_abandoned_status_missing.md) — handleWebhookStatusUpdate zawsze zapisuje COMPLETED; status ABANDONED istnieje w DB ale nigdy nie jest ustawiany

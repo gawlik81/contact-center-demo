@@ -498,6 +498,8 @@ public class IvrEngineService {
         String conferenceName = "contact-" + contactId.toString();
         String recordingCallbackUrl = baseUrl
             + "/api/telephony/webhook/twilio/recording?tenantId=" + tenantId.toString();
+        String conferenceStatusCallbackUrl = baseUrl
+            + "/api/telephony/webhook/twilio/conference?tenantId=" + tenantId.toString();
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             + "<Response>"
             + "<Say language=\"pl-PL\">Łączymy z konsultantem, proszę czekać.</Say>"
@@ -508,6 +510,9 @@ public class IvrEngineService {
             + " record=\"record-from-start\""
             + " recordingStatusCallback=\"" + recordingCallbackUrl + "\""
             + " recordingStatusCallbackMethod=\"POST\""
+            + " statusCallback=\"" + conferenceStatusCallbackUrl + "\""
+            + " statusCallbackEvent=\"end\""
+            + " statusCallbackMethod=\"POST\""
             + " waitUrl=\"" + appBaseUrl + "/api/telephony/hold-music\""
             + " waitMethod=\"GET\">"
             + conferenceName

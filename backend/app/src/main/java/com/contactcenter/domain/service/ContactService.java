@@ -446,18 +446,20 @@ public class ContactService {
         Instant now = Instant.now();
         int terminated = 0;
         for (Contact contact : staleContacts) {
-            contact.setStatus("ERROR");
+            // Przeterminowane kontakty QUEUED to klienci którzy się rozłączyli bez obsługi –
+            // właściwy status to ABANDONED, a nie ERROR.
+            contact.setStatus("ABANDONED");
             contact.setEndedAt(now);
             int updated = contactRepository.update(contact);
             if (updated > 0) {
                 terminated++;
             } else {
-                log.warn("[ContactService] Nie udało się zaktualizować kontaktu ERROR: contactId={}, tenant={}",
+                log.warn("[ContactService] Nie udało się zaktualizować kontaktu ABANDONED: contactId={}, tenant={}",
                         contact.getContactId(), tenantId);
             }
         }
 
-        log.info("[ContactService] Zakończono {} przeterminowanych/błędnych kontaktów ze statusem ERROR: tenant={}",
+        log.info("[ContactService] Zakończono {} przeterminowanych kontaktów ze statusem ABANDONED: tenant={}",
                 terminated, tenantId);
     }
 

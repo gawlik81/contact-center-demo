@@ -162,6 +162,11 @@ twilio:
   # wysyłanych do lokalnego serwera (brak publicznego URL przy dev bez ngrok/tunelu).
   # W prod musi być true (domyślne w application.yml).
   signature-validation-enabled: false
+  # Aby automatycznie skonfigurować StatusCallback URL dla wszystkich numerów Twilio
+  # przypisanych do tenantów przy starcie aplikacji (Opcja C), ustaw:
+  #   twilio.enabled: true
+  # oraz zmienne ENV: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_STATUS_CALLBACK_URL
+  # i opcjonalnie per-tenant: config.twilio_phone_number, config.twilio_status_callback_url
 
 # =============================================================================
 # Spring DevTools – wyłączamy auto-restart (powoduje "port already in use"

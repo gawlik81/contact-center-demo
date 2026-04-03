@@ -14,19 +14,24 @@ import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
+import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -83,6 +88,23 @@ public class IvrEngineService {
     private final StringRedisTemplate stringRedisTemplate;
     private final TaskScheduler taskScheduler;
     private final ObjectMapper objectMapper;
+
+    /**
+     * Opcjonalne właściwości Twilio – wstrzykiwane gdy Twilio jest dostępne w kontekście.
+     * Używane wyłącznie przez {@link #handleVoicebotRecordingAndBuildTwiml} do Basic Auth
+     * przy pobieraniu nagrania z Twilio Recording API.
+     * Może być null w środowiskach bez Twilio (mock adapter, testy).
+     */
+    @Autowired(required = false)
+    TwilioProperties twilioProperties;
+
+    /**
+     * Opcjonalny klient voicebota – aktywny tylko gdy {@code voicebot.enabled=true}.
+     * Package-private żeby umożliwić wstrzyknięcie w testach jednostkowych.
+     * Wstrzykiwany przez setter, żeby nie blokować startu aplikacji gdy serwis Python jest wyłączony.
+     */
+    @Autowired(required = false)
+    VoicebotClient voicebotClient;
 
     // =========================================================================
     // Publiczne API
@@ -364,6 +386,161 @@ public class IvrEngineService {
     }
 
     /**
+     * Obsługuje callback nagrania voicebota i zwraca TwiML dla kolejnego węzła IVR.
+     *
+     * <p>Wywoływany przez endpoint {@code POST /voicebot-recording} po tym jak Twilio
+     * zakończy nagranie wypowiedzi dzwoniącego. Przepływ:
+     * <ol>
+     *   <li>Ładuje sesję IVR z Redis.</li>
+     *   <li>Pobiera plik WAV z URL nagrania Twilio (Basic Auth: AccountSid:AuthToken).</li>
+     *   <li>Koduje bajty do Base64 i zapisuje jako zmienną sesji {@code voicebot_audio_base64}.</li>
+     *   <li>Wywołuje {@link #executeVoicebot} który kontaktuje się z serwisem Python ASR+NLU.</li>
+     *   <li>Odczytuje zaktualizowaną sesję i zwraca TwiML dla nowego bieżącego węzła.</li>
+     * </ol>
+     *
+     * <p>Graceful degradation: gdy brak {@code recordingUrl}, brak sesji, błąd pobierania
+     * lub wyjątek – metoda zwraca {@link #buildFallbackTwiml()} i kieruje do domyślnej kolejki.
+     * Twilio nie powiadamia o błędach HTTP 5xx z action URL – dlatego każdy wyjątek musi
+     * być obsłużony tutaj i zwrócić prawidłowy TwiML.
+     *
+     * @param callId            Twilio Call SID
+     * @param tenantId          UUID tenanta
+     * @param baseUrl           publiczny bazowy URL aplikacji
+     * @param recordingUrl      URL nagrania Twilio (bez rozszerzenia lub z .wav/.mp3)
+     * @param recordingDuration czas trwania nagrania w sekundach (informacyjny)
+     * @return TwiML string gotowy do zwrotu jako {@code application/xml}
+     */
+    public String handleVoicebotRecordingAndBuildTwiml(
+            String callId, UUID tenantId, String baseUrl,
+            String recordingUrl, String recordingDuration) {
+
+        log.info("[IVR] VOICEBOT recording callback: callId={}, recordingUrl={}, duration={}s",
+                callId, recordingUrl, recordingDuration);
+
+        // 1. Załaduj sesję
+        IvrSessionData session = loadSession(callId);
+        if (session == null) {
+            log.warn("[IVR] VOICEBOT recording: brak sesji IVR dla callId={}", callId);
+            return buildFallbackTwiml();
+        }
+
+        // 2. Pobierz nagranie HTTP → bajty → Base64
+        if (org.springframework.util.StringUtils.hasText(recordingUrl)) {
+            try {
+                String wavUrl = recordingUrl.endsWith(".wav") ? recordingUrl : recordingUrl + ".wav";
+                byte[] audioBytes = downloadRecording(wavUrl);
+                String audioBase64 = Base64.getEncoder().encodeToString(audioBytes);
+                session.setVariable("voicebot_audio_base64", audioBase64);
+                log.debug("[IVR] VOICEBOT recording: pobrano {} bajtów, zakodowano do Base64; callId={}",
+                        audioBytes.length, callId);
+            } catch (Exception ex) {
+                log.warn("[IVR] VOICEBOT recording: błąd pobierania nagrania (graceful degradation); " +
+                         "callId={}, url={}, error={}", callId, recordingUrl, ex.getMessage());
+                // Brak audio – executeVoicebot zastosuje fallback przez brak zmiennej sesji
+            }
+        } else {
+            log.warn("[IVR] VOICEBOT recording: brak RecordingUrl w callbacku; callId={}", callId);
+        }
+
+        // 3. Zapisz sesję z nową zmienną (lub bez – graceful degradation w executeVoicebot)
+        saveSession(session);
+
+        // 4. Znajdź bieżący węzeł VOICEBOT i wykonaj
+        IvrTree ivr = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
+        if (ivr == null || ivr.getDefinition() == null) {
+            log.error("[IVR] VOICEBOT recording: brak drzewa IVR; callId={}", callId);
+            return buildFallbackTwiml();
+        }
+
+        IvrNode voicebotNode = ivr.getDefinition().findNode(session.getCurrentNodeId()).orElse(null);
+        if (voicebotNode == null) {
+            log.error("[IVR] VOICEBOT recording: węzeł nie istnieje: nodeId={}, callId={}",
+                    session.getCurrentNodeId(), callId);
+            return buildFallbackTwiml();
+        }
+
+        executeVoicebot(callId, voicebotNode, session);
+
+        // 5. Załaduj sesję po execucie (stan mógł się zmienić)
+        IvrSessionData updatedSession = loadSession(callId);
+
+        if (updatedSession == null) {
+            // Sesja usunięta przez QUEUE_TRANSFER lub HANGUP
+            UUID pendingContactId = pendingConferenceContactId.remove(callId);
+            if (pendingContactId != null) {
+                log.info("[IVR] VOICEBOT QUEUE_TRANSFER – kieruję klienta do konferencji: callId={}, contactId={}",
+                        callId, pendingContactId);
+                return buildWaitInConferenceTwiml(pendingContactId, tenantId, baseUrl);
+            }
+            return buildCompletedTwiml();
+        }
+
+        IvrTree updatedIvr = resolveIvrTree(updatedSession.getTenantId(), updatedSession.getIvrId()).orElse(null);
+        if (updatedIvr == null || updatedIvr.getDefinition() == null) {
+            return buildFallbackTwiml();
+        }
+
+        IvrNode nextNode = updatedIvr.getDefinition().findNode(updatedSession.getCurrentNodeId()).orElse(null);
+        if (nextNode == null) {
+            return buildFallbackTwiml();
+        }
+
+        // Wykryj multi-turn: jeśli nadal jesteśmy w węźle VOICEBOT i mamy odpowiedź do odtworzenia
+        if (nextNode.type() == com.contactcenter.domain.ivr.IvrNodeType.VOICEBOT) {
+            String pendingResponseText = updatedSession.getVariable("voicebot_pending_response_text");
+            if (pendingResponseText != null && !pendingResponseText.isBlank()) {
+                // Wyczyść zmienną – już użyta
+                updatedSession.setVariable("voicebot_pending_response_text", null);
+                saveSession(updatedSession);
+                log.info("[IVR] VOICEBOT multi-turn: generuję TwiML dla kolejnej tury z responseText; callId={}", callId);
+                return buildVoicebotRecordTwiml(nextNode, callId, tenantId, baseUrl, pendingResponseText);
+            }
+        }
+
+        return buildTwimlForNode(nextNode, callId, tenantId, baseUrl);
+    }
+
+    /**
+     * Pobiera plik audio z Twilio Recording API przez HTTP GET z Basic Auth.
+     *
+     * <p>Twilio wymaga autentykacji AccountSid:AuthToken dla endpointów API.
+     * Timeout: connectTimeout=5s, readTimeout=10s (nagranie może mieć do 30s, ale transfer
+     * po zserializowaniu jest szybki – plik WAV ~2MB przy 30s 16kHz mono).
+     *
+     * <p>Gdy {@code twilioProperties} jest null (mock adapter, środowisko testowe),
+     * wykonuje GET bez nagłówka Authorization – przydatne w testach integracyjnych
+     * z lokalnym serwisem.
+     *
+     * @param recordingUrl pełny URL pliku nagrania (np. https://api.twilio.com/…/Recordings/RE….wav)
+     * @return bajty pliku audio
+     * @throws RuntimeException gdy HTTP request się nie powiedzie
+     */
+    private byte[] downloadRecording(String recordingUrl) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5_000);
+        factory.setReadTimeout(10_000);
+
+        RestClient.Builder builder = RestClient.builder()
+                .requestFactory(factory);
+
+        // Dodaj Basic Auth gdy TwilioProperties są dostępne (środowisko prod/Twilio)
+        if (twilioProperties != null
+                && org.springframework.util.StringUtils.hasText(twilioProperties.getAccountSid())
+                && org.springframework.util.StringUtils.hasText(twilioProperties.getAuthToken())) {
+            String credentials = twilioProperties.getAccountSid() + ":" + twilioProperties.getAuthToken();
+            String basicAuth = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
+            builder.defaultHeader("Authorization", basicAuth);
+        }
+
+        RestClient restClient = builder.build();
+
+        return restClient.get()
+                .uri(recordingUrl)
+                .retrieve()
+                .body(byte[].class);
+    }
+
+    /**
      * Buduje TwiML dla podanego węzła IVR.
      *
      * <p>Mapowanie typów węzłów na TwiML:
@@ -390,11 +567,82 @@ public class IvrEngineService {
             case COLLECT_DTMF -> buildGatherTwiml(node, dtmfActionUrl, true);
             case PLAY_AUDIO -> buildPlayAudioTwiml(node);
             case HANGUP -> "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Hangup/></Response>";
+            case VOICEBOT -> buildVoicebotRecordTwiml(node, callId, tenantId, baseUrl);
             // SET / IF / SWITCH / QUEUE_TRANSFER są węzłami przejściowymi – silnik przetwarza je
             // synchronicznie i przechodzi do kolejnego węzła. Gdy sesja wciąż istnieje po ich
             // wywołaniu, currentNode wskazuje już na następny węzeł. Ten case jest safety net.
             default -> buildFallbackTwiml();
         };
+    }
+
+    /**
+     * Buduje TwiML {@code <Record>} dla węzła VOICEBOT.
+     *
+     * <p>Twilio nagrywa wypowiedź dzwoniącego (max 30s, beep na początku) i wysyła
+     * nagranie jako callback POST na endpoint {@code /voicebot-recording}.
+     * Silnik IVR kontynuuje przepływ dopiero po odebraniu callbacku nagrania –
+     * nigdy wcześniej. Odpowiedź TwiML z tego endpointu decyduje co Twilio zrobi dalej.
+     *
+     * <p>Uwaga: {@code recordingStatusCallback} kieruje do istniejącego endpointu
+     * {@code /recording} który obsługuje zapis nagrania konferencji. Voicebot używa
+     * oddzielnego parametru {@code action} – to jest główny callback po zakończeniu nagrania.
+     *
+     * @param node     węzeł VOICEBOT
+     * @param callId   Twilio Call SID
+     * @param tenantId UUID tenanta
+     * @param baseUrl  publiczny bazowy URL aplikacji
+     * @return TwiML string z {@code <Record>}
+     */
+    private String buildVoicebotRecordTwiml(IvrNode node, String callId, UUID tenantId, String baseUrl) {
+        return buildVoicebotRecordTwiml(node, callId, tenantId, baseUrl, null);
+    }
+
+    /**
+     * Buduje TwiML dla węzła VOICEBOT z opcjonalną odpowiedzią voicebota przed {@code <Record>}.
+     *
+     * <p>Gdy {@code responseText} nie jest null/blank, dodaje {@code <Say>} z odpowiedzią
+     * voicebota PRZED nowym {@code <Record>} (kolejna tura multi-turn dialogu).
+     * Gdy {@code responseText} jest null/blank, dodaje {@code <Say>} z promptem węzła
+     * (pierwsza tura – standardowe zachowanie).
+     *
+     * @param node         węzeł VOICEBOT z konfiguracją
+     * @param callId       Twilio Call SID
+     * @param tenantId     UUID tenanta
+     * @param baseUrl      publiczny bazowy URL aplikacji
+     * @param responseText opcjonalna odpowiedź voicebota (kolejne tury); null → użyj promptu
+     * @return TwiML string z {@code <Say>} + {@code <Record>}
+     */
+    private String buildVoicebotRecordTwiml(IvrNode node, String callId, UUID tenantId, String baseUrl,
+                                             String responseText) {
+        String voicebotRecordingActionUrl = baseUrl
+            + "/api/telephony/webhook/twilio/voicebot-recording?tenantId=" + tenantId
+            + "&callId=" + callId;
+        String recordingStatusCallbackUrl = baseUrl
+            + "/api/telephony/webhook/twilio/recording?tenantId=" + tenantId;
+
+        // Pierwsza tura: użyj promptu węzła; kolejne tury: użyj odpowiedzi voicebota
+        String sayText = (responseText != null && !responseText.isBlank())
+            ? responseText
+            : ((node.prompt() != null && !node.prompt().isBlank()) ? node.prompt() : "Proszę mówić po sygnale.");
+
+        int maxLength = node.timeoutSeconds() > 0 ? Math.min(node.timeoutSeconds(), 120) : 30;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
+        sb.append("<Say voice=\"Polly.Ewa\" language=\"pl-PL\">")
+            .append(escapeXml(sayText))
+            .append("</Say>");
+        sb.append("<Record");
+        sb.append(" action=\"").append(escapeXml(voicebotRecordingActionUrl)).append("\"");
+        sb.append(" method=\"POST\"");
+        sb.append(" maxLength=\"").append(maxLength).append("\"");
+        sb.append(" playBeep=\"true\"");
+        sb.append(" timeout=\"5\"");
+        sb.append(" recordingStatusCallback=\"").append(escapeXml(recordingStatusCallbackUrl)).append("\"");
+        sb.append(" recordingStatusCallbackMethod=\"POST\"");
+        sb.append("/>");
+        sb.append("</Response>");
+        return sb.toString();
     }
 
     /**
@@ -688,6 +936,9 @@ public class IvrEngineService {
             case SET -> executeSet(callId, node, session);
             case IF -> executeIf(callId, node, session);
             case SWITCH -> executeSwitch(callId, node, session);
+            // Węzeł interaktywny – czeka na callback nagrania Twilio (/voicebot-recording).
+            // executeVoicebot wywoływane jest w handleVoicebotRecordingAndBuildTwiml po odebraniu audio.
+            case VOICEBOT -> log.debug("[IVR] VOICEBOT: węzeł interaktywny – oczekiwanie na recording callback; callId={}", callId);
             default -> {
                 log.error("[IVR] Nieznany typ węzła: type={}, callId={}", node.type(), callId);
                 fallbackToDefaultQueue(callId, session.getTenantId());
@@ -1008,6 +1259,148 @@ public class IvrEngineService {
         log.info("[IVR] SWITCH: var='{}' value='{}' → opcja='{}'; callId={}",
                 varName, varValue, matched.key(), callId);
         transitionToNextNode(callId, matched.nextNodeId(), session, ivr);
+    }
+
+    /**
+     * Wykonuje węzeł VOICEBOT – wywołuje serwis Python ASR+NLU i podejmuje decyzję
+     * o eskalacji do kolejki lub kontynuacji przepływu IVR.
+     *
+     * <p>Opcje węzła:
+     * <ul>
+     *   <li>{@code next}     – następny węzeł gdy voicebot zwraca {@code escalate=false}</li>
+     *   <li>{@code escalate} – węzeł (lub queueId w {@code node.queueId()}) gdy {@code escalate=true};
+     *                          brak opcji "escalate" → używa {@code node.queueId()} do QUEUE_TRANSFER</li>
+     *   <li>{@code fallback} – węzeł gdy voicebot wyłączony lub niedostępny (graceful degradation)</li>
+     * </ul>
+     *
+     * <p>Dane audio pobierane są ze zmiennej sesji {@code voicebot_audio_base64}.
+     * Jeśli voicebot jest wyłączony ({@code voicebotClient == null}) lub rzuca wyjątek,
+     * silnik przechodzi do węzła {@code fallback}. Brak węzła fallback → domyślna kolejka.
+     */
+    void executeVoicebot(String callId, IvrNode node, IvrSessionData session) {
+        IvrTree ivr = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
+        if (ivr == null) { fallbackToDefaultQueue(callId, session.getTenantId()); return; }
+
+        // Graceful degradation – voicebot wyłączony lub niedostępny
+        if (voicebotClient == null) {
+            log.info("[IVR] VOICEBOT: klient wyłączony (voicebot.enabled=false) – graceful degradation; callId={}", callId);
+            goToFallbackOrDefaultQueue(callId, node, session, ivr);
+            return;
+        }
+
+        String audioBase64 = session.getVariable("voicebot_audio_base64");
+        if (audioBase64 == null || audioBase64.isBlank()) {
+            log.warn("[IVR] VOICEBOT: brak zmiennej sesji 'voicebot_audio_base64'; callId={}", callId);
+            goToFallbackOrDefaultQueue(callId, node, session, ivr);
+            return;
+        }
+
+        // Pobierz numer bieżącej tury z sesji (domyślnie 1)
+        int turnNumber = parseTurnNumber(session.getVariable("voicebot_turn_number"));
+
+        VoicebotClient.TurnRequest turnRequest = new VoicebotClient.TurnRequest(
+                callId,
+                session.getTenantId().toString(),
+                session.getVariable("contact_id") != null ? session.getVariable("contact_id") : callId,
+                audioBase64,
+                "wav",
+                turnNumber
+        );
+
+        Optional<VoicebotClient.TurnResponse> responseOpt = voicebotClient.processTurn(turnRequest);
+
+        // Wyczyść audio z sesji po każdej turze – nie akumulować starych nagrań
+        session.setVariable("voicebot_audio_base64", null);
+
+        if (responseOpt.isEmpty()) {
+            log.warn("[IVR] VOICEBOT: brak odpowiedzi (timeout/błąd) – graceful degradation; callId={}", callId);
+            goToFallbackOrDefaultQueue(callId, node, session, ivr);
+            return;
+        }
+
+        VoicebotClient.TurnResponse resp = responseOpt.get();
+
+        // Zapisz wynik w zmiennych sesji (dostępny dla kolejnych węzłów)
+        session.setVariable("voicebot_transcript", resp.transcript());
+        session.setVariable("voicebot_intent", resp.intent());
+        session.setVariable("voicebot_confidence", String.valueOf(resp.confidence()));
+
+        log.info("[IVR] VOICEBOT: intent={}, confidence={}, escalate={}, continueConversation={}, turn={}/{}; callId={}",
+                resp.intent(), resp.confidence(), resp.escalate(), resp.continueConversation(),
+                turnNumber, node.maxRetries(), callId);
+
+        if (resp.continueConversation() && turnNumber < node.maxRetries()) {
+            // Multi-turn: voicebot chce kolejnej tury – zwiększ licznik i zostań w węźle VOICEBOT
+            int nextTurn = turnNumber + 1;
+            session.setVariable("voicebot_turn_number", String.valueOf(nextTurn));
+            // Zapisz sesję z nowym licznikiem – handleVoicebotRecordingAndBuildTwiml
+            // załaduje sesję i wywoła buildVoicebotRecordTwiml z response_text
+            session.setVariable("voicebot_pending_response_text", resp.responseText());
+            saveSession(session);
+            log.info("[IVR] VOICEBOT multi-turn: tura {}/{}, kontynuacja dialogu; callId={}",
+                    nextTurn, node.maxRetries(), callId);
+            // NIE przechodzimy do kolejnego węzła – pozostajemy w VOICEBOT
+            // handleVoicebotRecordingAndBuildTwiml wykryje brak zmiany currentNodeId
+            // i wygeneruje TwiML dla kolejnej tury przez buildVoicebotRecordTwiml
+        } else if (resp.escalate()) {
+            // Eskalacja: opcja "escalate" → węzeł, lub queueId → QUEUE_TRANSFER
+            IvrOption escalateOpt = node.findOption("escalate");
+            if (escalateOpt != null && escalateOpt.nextNodeId() != null) {
+                transitionToNextNode(callId, escalateOpt.nextNodeId(), session, ivr);
+            } else if (node.queueId() != null && !node.queueId().isBlank()) {
+                // Przekaż do kolejki zdefiniowanej bezpośrednio w węźle VOICEBOT
+                IvrNode queueNode = new IvrNode(
+                        "voicebot_auto_transfer",
+                        com.contactcenter.domain.ivr.IvrNodeType.QUEUE_TRANSFER,
+                        null, null, null,
+                        node.queueId(),
+                        0, 0, null, 0, 0, null, null, null, null
+                );
+                executeQueueTransfer(callId, queueNode, session);
+            } else {
+                log.warn("[IVR] VOICEBOT: eskalacja bez docelowego węzła/kolejki – fallback; callId={}", callId);
+                fallbackToDefaultQueue(callId, session.getTenantId());
+            }
+        } else {
+            // Kontynuacja zakończona (continueConversation=false, brak eskalacji) – opcja "next"
+            // Odtwórz odpowiedź voicebota jeśli nie pusta (potwierdzenie zakończenia dialogu)
+            if (resp.responseText() != null && !resp.responseText().isBlank()) {
+                session.setVariable("voicebot_final_response_text", resp.responseText());
+            }
+            IvrOption nextOpt = node.findOption("next");
+            if (nextOpt == null || nextOpt.nextNodeId() == null || nextOpt.nextNodeId().isBlank()) {
+                log.warn("[IVR] VOICEBOT: brak opcji 'next'; callId={}", callId);
+                fallbackToDefaultQueue(callId, session.getTenantId());
+                return;
+            }
+            transitionToNextNode(callId, nextOpt.nextNodeId(), session, ivr);
+        }
+    }
+
+    /**
+     * Parsuje numer tury z wartości zmiennej sesji.
+     * Zwraca 1 gdy wartość jest null, pusta lub nie jest liczbą całkowitą.
+     */
+    private int parseTurnNumber(String value) {
+        if (value == null || value.isBlank()) return 1;
+        try {
+            return Math.max(1, Integer.parseInt(value));
+        } catch (NumberFormatException ex) {
+            return 1;
+        }
+    }
+
+    /**
+     * Przechodzi do węzła {@code fallback} lub – gdy brak – do domyślnej kolejki.
+     * Używany przez executeVoicebot przy błędzie/braku dostępności voicebota.
+     */
+    private void goToFallbackOrDefaultQueue(String callId, IvrNode node, IvrSessionData session, IvrTree ivr) {
+        IvrOption fallbackOpt = node.findOption("fallback");
+        if (fallbackOpt != null && fallbackOpt.nextNodeId() != null && !fallbackOpt.nextNodeId().isBlank()) {
+            transitionToNextNode(callId, fallbackOpt.nextNodeId(), session, ivr);
+        } else {
+            fallbackToDefaultQueue(callId, session.getTenantId());
+        }
     }
 
     /**

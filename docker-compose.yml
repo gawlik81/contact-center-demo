@@ -138,6 +138,33 @@ services:
     networks:
       - cc-network
 
+  # ---------------------------------------------------------------------------
+  # Voicebot – mikrousługa Python ASR+NLU (BE-014)
+  # Uruchamiana tylko z profilem ai: docker compose --profile ai up -d
+  # Whisper model "base" (~140MB RAM) – nie blokuj normalnego docker compose up -d
+  # ---------------------------------------------------------------------------
+  voicebot:
+    build:
+      context: ./voicebot
+      dockerfile: Dockerfile
+    container_name: cc-voicebot
+    ports:
+      - "8001:8001"
+    environment:
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      WHISPER_MODEL: small
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cc-network
+    profiles:
+      - ai
+
 # =============================================================================
 # Volumes – persystencja danych między restartami
 # =============================================================================

@@ -101,6 +101,7 @@
           <div class="legend-item"><span class="legend-dot legend-dot--SET"></span>Ustaw zmienn.</div>
           <div class="legend-item"><span class="legend-dot legend-dot--IF"></span>Warunek</div>
           <div class="legend-item"><span class="legend-dot legend-dot--SWITCH"></span>Przełącznik</div>
+          <div class="legend-item"><span class="legend-dot legend-dot--VOICEBOT"></span>Voicebot</div>
         </div>
       </aside>
 
@@ -186,6 +187,11 @@
                   <span class="node-var-label">{{ node.variable_name || '?' }}</span>
                 </div>
               }
+              @if (node.type === 'VOICEBOT') {
+                <div class="node-var-badge">
+                  <span class="node-var-label">ASR + NLU</span>
+                </div>
+              }
               <!-- Input port (top-center) -->
               <div
                 class="node-port node-input-port"
@@ -259,6 +265,29 @@
                   @for (opt of node.options ?? []; track trackByIndex($index)) {
                     <div class="node-option">
                       <span class="node-option__key">{{ opt.key || '?' }}</span>
+                      <span class="node-option__arrow">→</span>
+                      <span class="node-option__target">{{
+                        opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
+                      }}</span>
+                      <div
+                        class="node-port node-output-port"
+                        [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
+                        (click)="onOutputPortClick($event, node.node_id, opt.key)"
+                        [attr.aria-label]="'Port wyjściowy dla opcji ' + opt.key"
+                        title="Kliknij, by połączyć"
+                        role="button"
+                        tabindex="0"
+                      ></div>
+                    </div>
+                  }
+                </div>
+              }
+              <!-- Output: VOICEBOT – fixed ports: next / escalate / fallback -->
+              @if (node.type === 'VOICEBOT') {
+                <div class="node-options">
+                  @for (opt of node.options ?? []; track trackByIndex($index)) {
+                    <div class="node-option">
+                      <span class="node-option__key">{{ opt.key }}</span>
                       <span class="node-option__arrow">→</span>
                       <span class="node-option__target">{{
                         opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
@@ -755,6 +784,68 @@
                   }
                 </div>
                 <button class="btn btn-sm btn-secondary" type="button" (click)="addOption()">+ Dodaj przypadek</button>
+              </div>
+            }
+
+            <!-- VOICEBOT: queue_id (opcjonalne) + stały routing next/escalate/fallback -->
+            @if (node.type === 'VOICEBOT') {
+              <div class="form-group">
+                <label class="form-label" [for]="'vb-queue-' + node.node_id">Kolejka eskalacji (opcjonalnie)</label>
+                @if (queues().length > 0) {
+                  <select
+                    [id]="'vb-queue-' + node.node_id"
+                    class="form-control"
+                    [ngModel]="node.queue_id ?? ''"
+                    (ngModelChange)="updateSelectedNodeProp('queue_id', $event)"
+                    aria-label="Wybierz kolejkę eskalacji"
+                  >
+                    <option value="">— brak (użyj węzła escalate) —</option>
+                    @for (q of queues(); track q.id) {
+                      <option [value]="q.id">{{ q.name }}</option>
+                    }
+                  </select>
+                } @else {
+                  <input
+                    [id]="'vb-queue-' + node.node_id"
+                    class="form-control"
+                    type="text"
+                    [value]="node.queue_id ?? ''"
+                    (input)="updateSelectedNodeProp('queue_id', $any($event.target).value)"
+                    placeholder="UUID kolejki..."
+                  />
+                }
+                <p class="form-hint">
+                  Gdy voicebot zdecyduje o eskalacji i opcja "escalate" ma węzeł docelowy – engine użyje węzła.
+                  Jeśli nie – engine przekaże bezpośrednio do tej kolejki.
+                </p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Routing</label>
+                <div class="options-list">
+                  @for (opt of node.options ?? []; track opt.key) {
+                    <div class="option-row option-row--fixed">
+                      <span class="option-key option-key--fixed">{{ opt.key }}</span>
+                      <select
+                        class="form-control option-target"
+                        [ngModel]="opt.next_node_id"
+                        (ngModelChange)="updateOption($index, 'next_node_id', $event)"
+                        [attr.aria-label]="'Węzeł docelowy dla ' + opt.key"
+                      >
+                        <option value="">— brak —</option>
+                        @for (n of otherNodes(node.node_id); track n.node_id) {
+                          <option [value]="n.node_id">
+                            {{ nodeLabels[n.type] }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
+                          </option>
+                        }
+                      </select>
+                    </div>
+                  }
+                </div>
+                <p class="form-hint">
+                  <b>next</b> – konwersacja zakończona pomyślnie •
+                  <b>escalate</b> – voicebot zdecydował o eskalacji do agenta •
+                  <b>fallback</b> – voicebot niedostępny lub błąd
+                </p>
               </div>
             }
 

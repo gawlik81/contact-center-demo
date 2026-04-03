@@ -12,6 +12,8 @@ package com.contactcenter.domain.ivr;
  *   <li>{@code SET}            – ustawia zmienną sesji na podaną wartość, natychmiast przechodzi do {@code next}</li>
  *   <li>{@code IF}             – testuje zmienną warunkowo; wyjścia: {@code true} / {@code false}</li>
  *   <li>{@code SWITCH}         – routing wielowariantowy na podstawie wartości zmiennej; fallback: {@code default}</li>
+ *   <li>{@code VOICEBOT}       – węzeł voicebota ASR+NLU; eskalacja do {@code queueTransferNodeId}
+ *                                lub kontynuacja do {@code next}; przy błędzie: {@code fallback}</li>
  * </ul>
  */
 public enum IvrNodeType {
@@ -22,5 +24,6 @@ public enum IvrNodeType {
     HANGUP,
     SET,
     IF,
-    SWITCH
+    SWITCH,
+    VOICEBOT
 }

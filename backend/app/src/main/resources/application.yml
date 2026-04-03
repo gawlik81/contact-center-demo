@@ -331,3 +331,12 @@ logging:
 # =============================================================================
 server:
   shutdown: graceful
+
+# =============================================================================
+# Voicebot – mikrousługa Python ASR+NLU (BE-014)
+# Aktywna tylko gdy voicebot.enabled=true (domyślnie false – Whisper jest ciężki)
+# Uruchomienie serwisu: docker compose --profile ai up -d
+# =============================================================================
+voicebot:
+  enabled: ${VOICEBOT_ENABLED:true}
+  url: ${VOICEBOT_URL:http://localhost:8001}

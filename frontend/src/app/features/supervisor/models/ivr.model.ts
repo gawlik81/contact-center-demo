@@ -6,7 +6,8 @@ export type IvrNodeType =
   | 'HANGUP'
   | 'SET'
   | 'IF'
-  | 'SWITCH';
+  | 'SWITCH'
+  | 'VOICEBOT';
 
 export interface IvrOption {
   key: string;
@@ -75,6 +76,7 @@ export const IVR_NODE_LABELS: Record<IvrNodeType, string> = {
   SET: 'Ustaw zmienną',
   IF: 'Warunek',
   SWITCH: 'Przełącznik',
+  VOICEBOT: 'Voicebot ASR/NLU',
 };
 
 export const IVR_NODE_ICONS: Record<IvrNodeType, string> = {
@@ -86,6 +88,7 @@ export const IVR_NODE_ICONS: Record<IvrNodeType, string> = {
   SET: 'S',
   IF: '?',
   SWITCH: '⊞',
+  VOICEBOT: 'VB',
 };
 
 export const DEMO_IVR: IvrDefinition = {

@@ -206,6 +206,9 @@
   &--SWITCH {
     border-left-color: #10b981;
   }
+  &--VOICEBOT {
+    border-left-color: #4f46e5;
+  }
 }
 
 .toolbar-node__icon {
@@ -283,6 +286,9 @@
   }
   &--SWITCH {
     background: #10b981;
+  }
+  &--VOICEBOT {
+    background: #4f46e5;
   }
 }
 
@@ -389,6 +395,9 @@
   }
   &--SWITCH {
     border-top: 4px solid #10b981;
+  }
+  &--VOICEBOT {
+    border-top: 4px solid #4f46e5;
   }
 
   &--selected {

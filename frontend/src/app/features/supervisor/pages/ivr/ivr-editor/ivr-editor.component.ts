@@ -134,6 +134,7 @@ export class IvrEditorComponent implements OnInit {
     'SET',
     'IF',
     'SWITCH',
+    'VOICEBOT',
   ];
 
   readonly nodeTypeIcons: Record<IvrNodeType, string> = {
@@ -145,6 +146,7 @@ export class IvrEditorComponent implements OnInit {
     SET: 'S',
     IF: '?',
     SWITCH: '⊞',
+    VOICEBOT: 'VB',
   };
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -286,6 +288,14 @@ export class IvrEditorComponent implements OnInit {
           warnings.push(`Wezel SWITCH "${node.node_id}" nie ma opcji "default".`);
         }
       }
+      if (node.type === 'VOICEBOT') {
+        const hasNext = (node.options ?? []).some((o) => o.key === 'next');
+        const hasEscalate = (node.options ?? []).some((o) => o.key === 'escalate');
+        const hasFallback = (node.options ?? []).some((o) => o.key === 'fallback');
+        if (!hasNext) warnings.push(`Wezel VOICEBOT "${node.node_id}" nie ma opcji "next".`);
+        if (!hasEscalate) warnings.push(`Wezel VOICEBOT "${node.node_id}" nie ma opcji "escalate".`);
+        if (!hasFallback) warnings.push(`Wezel VOICEBOT "${node.node_id}" nie ma opcji "fallback".`);
+      }
       for (const opt of node.options ?? []) {
         if (opt.next_node_id && !nodeIds.has(opt.next_node_id)) {
           warnings.push(
@@ -371,7 +381,13 @@ export class IvrEditorComponent implements OnInit {
                   ]
                 : type === 'SWITCH'
                   ? [{ key: 'default', next_node_id: '' }]
-                  : [],
+                  : type === 'VOICEBOT'
+                    ? [
+                        { key: 'next', next_node_id: '' },
+                        { key: 'escalate', next_node_id: '' },
+                        { key: 'fallback', next_node_id: '' },
+                      ]
+                    : [],
       x: Math.max(0, x),
       y: Math.max(0, y),
       timeout_seconds: type === 'MENU' || type === 'COLLECT_DTMF' ? 10 : undefined,
@@ -546,8 +562,8 @@ export class IvrEditorComponent implements OnInit {
     const id = this.selectedNodeId();
     if (!id) return;
     const node = this.selectedNode();
-    // SET and IF have fixed routing – cannot add options
-    if (node?.type === 'SET' || node?.type === 'IF') return;
+    // SET, IF and VOICEBOT have fixed routing – cannot add options
+    if (node?.type === 'SET' || node?.type === 'IF' || node?.type === 'VOICEBOT') return;
     // For SWITCH: insert new option before the "default" entry
     if (node?.type === 'SWITCH') {
       const options = node.options ?? [];

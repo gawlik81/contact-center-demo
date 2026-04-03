@@ -600,6 +600,92 @@ public class TwilioWebhookController {
   }
 
   // =========================================================================
+  // Voicebot recording endpoint
+  // =========================================================================
+
+  /**
+   * Odbiera callback nagrania voicebota od Twilio ({@code <Record action="...">}).
+   *
+   * <p>Twilio wysyła POST na ten URL po zakończeniu nagrania wypowiedzi dzwoniącego
+   * w węźle VOICEBOT. Endpoint pobiera nagranie, koduje do Base64, wywołuje serwis
+   * Python ASR+NLU przez {@link IvrEngineService#handleVoicebotRecordingAndBuildTwiml}
+   * i zwraca TwiML z instrukcją dla Twilio co zrobić dalej.
+   *
+   * <p>Endpoint jest <strong>publiczny</strong> – objęty przez prefix
+   * {@code /api/telephony/webhook} w SecurityConfig i TenantFilter.
+   *
+   * <p>Odpowiedź musi być XML (TwiML) z {@code Content-Type: application/xml}.
+   * Błąd (np. 5xx lub JSON) skutkuje rozłączeniem połączenia przez Twilio.
+   *
+   * @param callSid           Twilio Call SID
+   * @param recordingUrl      URL nagrania (bez rozszerzenia); dopisywane jest {@code .wav}
+   * @param recordingDuration czas trwania nagrania w sekundach
+   * @param tenantIdParam     UUID tenanta z parametru query string (przekazany w action URL)
+   * @param callId            Twilio Call SID powtórzony jako query param (dla spójności z action URL)
+   * @return TwiML dla kolejnego kroku IVR lub TwiML fallback przy błędzie
+   */
+  @PostMapping(value = "/voicebot-recording",
+      consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE,
+      produces = MediaType.APPLICATION_XML_VALUE)
+  @Operation(
+      summary = "Voicebot recording callback – przetwarza nagranie wypowiedzi przez ASR+NLU",
+      description = "Twilio wywołuje ten endpoint po zakończeniu nagrania dzwoniącego w węźle VOICEBOT. " +
+          "Endpoint pobiera nagranie, uruchamia silnik voicebota i zwraca TwiML dla następnego węzła IVR.",
+      responses = {
+          @ApiResponse(responseCode = "200", description = "TwiML zwrócony poprawnie"),
+          @ApiResponse(responseCode = "403", description = "Nieprawidłowy podpis X-Twilio-Signature")
+      }
+  )
+  public ResponseEntity<String> handleVoicebotRecording(
+      HttpServletRequest httpRequest,
+      @RequestParam(value = "CallSid", required = false) String callSid,
+      @RequestParam(value = "RecordingUrl", required = false) String recordingUrl,
+      @RequestParam(value = "RecordingDuration", required = false) String recordingDuration,
+      @RequestParam(value = "tenantId") String tenantIdParam,
+      @RequestParam(value = "callId") String callId
+  ) {
+    if (!validateTwilioSignature(httpRequest)) {
+      String forbidden = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Reject/></Response>";
+      return ResponseEntity.status(403).contentType(MediaType.APPLICATION_XML).body(forbidden);
+    }
+
+    // Użyj callSid z form-body jako canoniczny identyfikator;
+    // query param callId jest fallbackiem gdy Twilio nie wyśle CallSid w POST body
+    String resolvedCallId = org.springframework.util.StringUtils.hasText(callSid) ? callSid : callId;
+
+    log.info("[TwilioVoicebot] Odebrano callback nagrania: callSid={}, callId={}, " +
+             "recordingUrl={}, duration={}s, tenantId={}",
+        callSid, callId, recordingUrl, recordingDuration, tenantIdParam);
+
+    UUID tenantId;
+    try {
+      tenantId = UUID.fromString(tenantIdParam);
+    } catch (IllegalArgumentException e) {
+      log.warn("[TwilioVoicebot] Nieprawidłowy tenantId='{}' w callbacku nagrania voicebota.", tenantIdParam);
+      String fallback = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          + "<Response><Say language=\"pl-PL\">Przepraszamy, wystąpił błąd. Spróbuj ponownie.</Say><Hangup/></Response>";
+      return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(fallback);
+    }
+
+    try {
+      TenantContext.setTenantId(tenantId);
+      String twiml = ivrEngineService.handleVoicebotRecordingAndBuildTwiml(
+          resolvedCallId, tenantId, appBaseUrl, recordingUrl, recordingDuration);
+      return ResponseEntity.ok()
+          .contentType(MediaType.APPLICATION_XML)
+          .body(twiml);
+    } catch (Exception e) {
+      log.error("[TwilioVoicebot] Błąd obsługi nagrania voicebota: callId={}, error={}",
+          resolvedCallId, e.getMessage(), e);
+      String fallback = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          + "<Response><Say language=\"pl-PL\">Przepraszamy, wystąpił błąd techniczny.</Say><Hangup/></Response>";
+      return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(fallback);
+    } finally {
+      TenantContext.clear();
+    }
+  }
+
+  // =========================================================================
   // Metody pomocnicze
   // =========================================================================
 

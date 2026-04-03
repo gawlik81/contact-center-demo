@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-02 (FE-025 Panel Twilio: TwilioConfigService, TwilioSettingsComponent, route + sidenav, BUILD SUCCESS; łączny stan: DB 20/20, BE 27/33, FE 23/25)
+**Ostatnia aktualizacja:** 2026-04-02 (BE-014 Voicebot Python FastAPI: Whisper ASR, NLU, Redis session, RabbitMQ escalation, IvrNodeType.VOICEBOT, 661 testów Java PASS; łączny stan: DB 20/20, BE 28/33, FE 23/25)
 
 ---
 
@@ -67,7 +67,7 @@
 | BE-011 | CLI lookup: wzbogacenie połączenia o dane klienta | ✅ | Customer.java (entity, JSONB phone[] via @JdbcTypeCode), CustomerRepository (findByPhoneNumber JSONB @> operator + GIN index, findLastContactsForCustomer native SQL na partycjonowanej tabeli), CustomerCliResult (record DTO + ContactSummary), CliLookupService (Redis cache TTL 5min, null sentinel anti-stampede, fallback do DB, invalidateCacheForCustomer), CallEvent rozszerzony o pole customerInfo, CallEventEnricher (@RabbitListener call.incoming, dedykowana kolejka cc.queue.cli-enricher, unicast przez WebSocketEventBroadcaster), WebSocketEvent.CallIncomingPayload rozszerzony o customerId + lastContacts. Naprawiono pre-istniejące błędy: AuthServiceChangePasswordTest (kolejność argumentów konstruktora) i UserServiceTest.listUsers (sygnatura metody). 299 testów PASS |
 | BE-012 | WebSocket hub: real-time events do Agent Desktop | ✅ | WebSocketConfig (STOMP), WebSocketAuthInterceptor (JWT przy handshake), WebSocketController, RabbitToWebSocketRelay, WebSocketEventBroadcaster, StompPrincipal. Topics per user i per tenant. |
 | BE-013 | IVR Engine: wykonanie drzewa IVR | ✅ | IvrController (7 endpointów CRUD + activate + DTMF simulate), IvrService, IvrEngineService, IvrCallListener, IvrDefinition/Node/NodeType/Option/SessionData w domain/ivr |
-| BE-014 | Voicebot Python: ASR + NLU + eskalacja do agenta | ⬜ | |
+| BE-014 | Voicebot Python: ASR + NLU + eskalacja do agenta | ✅ | FastAPI mikrousługa (voicebot/): Whisper ASR (lazy-load, confidence z avg_logprob), keyword-based NLU (6 intencji PL), Redis session TTL 15min, RabbitMQ publisher (cc.events, voicebot.escalate, priority=9). Spring Boot: VoicebotClient (RestClient, @ConditionalOnProperty), IvrNodeType.VOICEBOT, IvrEngineService obsługuje węzeł VOICEBOT. Docker profile ai. 40 testów Python, 661 testów Java PASS. |
 | BE-015 | Email Adapter: IMAP polling + SMTP wysyłka | ✅ | EmailPollingService (IMAP @Scheduled), EmailSendService (SMTP), EmailRoutingService, EmailEncryptionService (AES-256), EmailController (5 endpointów), EmailMessage/EmailRoutingRule repozytoria, EmailEventPublisher (RabbitMQ) |
 | BE-016 | Szablony odpowiedzi email: CRUD API | ✅ | EmailTemplateController (6 endpointów CRUD + preview), EmailTemplateService, EmailTemplate entity, EmailTemplateRepository, MustacheTemplateEngine (renderowanie zmiennych {{}}), DTOs: CreateEmailTemplateRequest/UpdateEmailTemplateRequest/EmailTemplateResponse |
 | BE-017 | OAuth flow i zarządzanie tokenami social media | ⬜ | |
@@ -126,7 +126,7 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 20/20 | 0 | 0 | 20 |
-| Backend (BE) | 27/33 | 0 | 6 | 33 |
+| Backend (BE) | 28/33 | 0 | 5 | 33 |
 | Frontend (FE) | 23/25 | 0 | 2 | 25 |
 | **RAZEM** | **70/78** | **0** | **8** | **78** |
 

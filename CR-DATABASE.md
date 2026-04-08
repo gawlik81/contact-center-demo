@@ -1,3 +1,98 @@
+## Review: V031__add_dialer_indexes.sql — 2026-04-08
+
+### Bugs / Critical Issues
+
+_None identified._
+
+### Security Concerns
+
+_None identified._
+
+### Architecture / Pattern Violations
+
+**[V031:17] Partial index `idx_campaign_contact_dialer_tenant` — predykat `WHERE status = 'PENDING'` na kolumnie VARCHAR**
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_campaign_contact_dialer_tenant
+    ON campaign_contact (tenant_id, campaign_id, status, next_attempt_at)
+    WHERE status = 'PENDING';
+```
+
+Predykat `WHERE status = 'PENDING'` jest poprawny składniowo — stała tekstowa jest IMMUTABLE. Jednak kolumna `status` jest już włączona w klucz indeksu `(tenant_id, campaign_id, status, next_attempt_at)`. Oznacza to, że kolumna `status` jest zarówno w predykacie filtra jak i w kolumnach indeksu. To jest redundancja: skoro indeks dotyczy wyłącznie wierszy z `status = 'PENDING'`, kolumna `status` w kluczu zawsze będzie miała tę samą wartość i nie wnosi informacji porządkującej. Należy usunąć `status` z listy kolumn klucza, zostawiając go tylko w predykacie:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_campaign_contact_dialer_tenant
+    ON campaign_contact (tenant_id, campaign_id, next_attempt_at)
+    WHERE status = 'PENDING';
+```
+
+Taki indeks jest mniejszy (3 kolumny zamiast 4) i nadal obsługuje zapytania filtrujące po `tenant_id`, `campaign_id` i sortujące/filtrujące po `next_attempt_at` wśród wierszy PENDING.
+
+---
+
+**[V031:22] Partial index `idx_campaign_running_tenant` — ta sama redundancja kolumny**
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_campaign_running_tenant
+    ON campaign (tenant_id, status)
+    WHERE status = 'RUNNING';
+```
+
+Identyczny problem: `status` w predykacie i w kluczu. Poprawna forma:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_campaign_running_tenant
+    ON campaign (tenant_id)
+    WHERE status = 'RUNNING';
+```
+
+---
+
+**[V031:27] Partial index `idx_callback_ready` — brak kolumny `scheduled_at` w kluczu mimo jej filtrowania w zapytaniach**
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_callback_ready
+    ON scheduled_callback (tenant_id, scheduled_at)
+    WHERE status = 'PENDING';
+```
+
+Ten indeks jest poprawny — `status` nie jest w kluczu, tylko w predykacie. Jednak w `ScheduledCallbackRepository.findDueCallbacks` (linia 133) zapytanie filtruje `scheduled_at <= NOW()` i sortuje `ORDER BY scheduled_at ASC`. Indeks na `(tenant_id, scheduled_at)` przy predykacie `status = 'PENDING'` dobrze obsługuje to zapytanie. Brak uwag.
+
+---
+
+**[V031] Brak migracji tworzącej tabelę `scheduled_callback`**
+
+Plik `V031__add_dialer_indexes.sql` zakłada istnienie tabeli `scheduled_callback` (z zależności na V009), ale `V009__create_campaign.sql` nie tworzy tabeli `scheduled_callback` — nowa encja `ScheduledCallback.java` mapuje na tę tabelę. W codebase brak migracji tworzące tę tabelę. Flyway uruchomi V031 i padnie z błędem `relation "scheduled_callback" does not exist` jeśli tabela nie istnieje. Należy sprawdzić, czy tabela `scheduled_callback` faktycznie istnieje w V009 lub innej migracji, i ewentualnie dodać brakującą migrację `V030__create_scheduled_callback.sql` (lub dodać CREATE TABLE do V031 z odpowiednim komentarzem).
+
+**Krytyczne: brak tej tabeli spowoduje błąd startu aplikacji.**
+
+---
+
+### Improvements & Suggestions
+
+**[V031] Brak `COMMENT ON INDEX` dla `idx_callback_ready`**
+
+Dwa pierwsze indeksy mają `COMMENT ON INDEX`, trzeci (`idx_callback_ready`) nie ma. Drobny brak spójności.
+
+**[V031] Brak `COMMENT ON INDEX` dla nowo dodanego indeksu `idx_callback_ready`**
+
+Indeksy `idx_campaign_contact_dialer_tenant` i `idx_campaign_running_tenant` mają `COMMENT ON INDEX`. `idx_callback_ready` nie ma — drobna niespójność, warto dodać dla kompletności.
+
+### Positive Observations
+
+- **`CREATE INDEX IF NOT EXISTS`** — migracja jest idempotentna; bezpieczna do ponownego uruchomienia.
+- **Komentarze `COMMENT ON INDEX`** dla dwóch z trzech indeksów — dobra praktyka dokumentowania celu indeksu bezpośrednio w bazie.
+- **Uzasadnienie wyboru indeksów** w komentarzu SQL (linie 9–16) wyjaśnia wzorzec zapytania, który indeks obsługuje — cenne dla przyszłych deweloperów.
+- **Dedykowane indeksy dla dialera** zamiast polegania na istniejących — świadczy o analizie wzorców dostępu.
+
+### Summary
+
+Migracja jest bezpieczna formalnie, ale zawiera redundancję kolumny `status` w dwóch partial indexach (kolumna w predykacie i w kluczu jednocześnie), co zwiększa rozmiar indeksów bez korzyści. Krytycznym potencjalnym problemem jest brak migracji tworzącej tabelę `scheduled_callback` — bez niej V031 i aplikacja nie uruchomią się. Wymaga weryfikacji, czy tabela jest tworzona przez inną migrację.
+
+**Ocena: 3/5** — poprawna intencja, wymagana weryfikacja istnienia tworzonej tabeli i korekta redundancji w predykatach.
+
+---
+
 ## Review: V029__add_email_address_to_queue.sql — 2026-03-26
 
 ### Bugs / Critical Issues

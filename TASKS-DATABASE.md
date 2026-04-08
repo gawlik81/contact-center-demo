@@ -582,6 +582,36 @@ CREATE CONSTRAINT TRIGGER trg_routing_rule_collision
 
 ---
 
+## MODUL: Prezentacja Kontaktów (EPIC-12)
+
+### DB-022 – Indeksy wyszukiwania kontaktów dla Raportów > Kontakty
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-006 (tabela CONTACT)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** BE-036
+**Odniesienie PRD:** EPIC-12
+
+**Opis:**
+Tabela `contact` ma indeksy raportowe z DB-013, jednak filtrowanie w widoku „Raporty > Kontakty" (BE-036) wymaga dodatkowego indeksu pokrywającego kolumny `queue_id`, `campaign_id` oraz `duration_seconds`. Istniejące indeksy `idx_contact_agent_history` i `idx_contact_customer_history` obsługują lookup po agencie i kliencie. Brakuje:
+- indeksu do filtrowania po kolejce (raport kontaktów: filtr `queue_id`)
+- indeksu do filtrowania po kampanii z uwzględnieniem zakresu dat (inny niż `idx_contact_campaign` — tu potrzebna kolejność `tenant_id, campaign_id, started_at` z kolumną `status` jako include)
+- indeksu na `duration_seconds` (filtr min/max — rzadko używany, tylko jeśli selectivity wysoka; dodać jako indeks warunkowy tylko dla COMPLETED)
+
+Migracja: `V035__contact_report_indexes.sql`
+
+**Kryteria akceptacji:**
+- [ ] `idx_contact_queue_date` na `(tenant_id, queue_id, started_at DESC) WHERE queue_id IS NOT NULL` — nowa migracja V035
+- [ ] `idx_contact_duration` na `(tenant_id, duration_seconds) WHERE status = 'COMPLETED' AND duration_seconds IS NOT NULL` — warunkowy indeks dla filtrów min/max czasu trwania
+- [ ] Skrypt idempotentny: `CREATE INDEX IF NOT EXISTS`
+- [ ] `EXPLAIN ANALYZE` dla zapytania z filtrem `queue_id + dateFrom + dateTo` pokazuje Index Scan (nie Seq Scan) na zbiorze > 10k wierszy
+
+---
+
+---
+
 ## Zależności między zadaniami
 
 ### Kolejność obowiązkowa (blokery)
@@ -649,7 +679,8 @@ Wszystkie → DB-019 (seed dev)
 | RODO / Funkcje | 1 | 1 | 0 |
 | Narzedzia operacyjne | 2 | 2 | 0 |
 | Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
-| **RAZEM** | **21** | **20** | **1** |
+| Prezentacja Kontaktów (EPIC-12) | 1 | 1 | 0 |
+| **RAZEM** | **22** | **21** | **1** |
 
 ---
 
@@ -676,3 +707,4 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | Data Warehouse / ETL | DB-013, DB-014 | BE-030 | – |
 | RODO anonimizacja | DB-012, DB-017 | BE-031 | FE-018 (przycisk usuń) |
 | Routing numerów telefonicznych | DB-021 | BE-033, BE-034, BE-035 | FE-026 |
+| Prezentacja Kontaktów (raporty) | DB-022 | BE-036, BE-037 | FE-028, FE-029, FE-030 |

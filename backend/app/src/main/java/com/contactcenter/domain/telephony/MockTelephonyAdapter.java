@@ -61,13 +61,13 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     // =========================================================================
 
     @Override
-    public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId) {
+    public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId) {
         String callId = generateCallId();
         Instant now = Instant.now();
 
-        // Tworzy rekord contact w DB – UUID z rekordu jest wysyłany do frontendu jako contactId,
-        // żeby REST API (PATCH /api/contacts/{contactId}/disposition) działało poprawnie.
-        UUID contactId = persistMockContact(tenantId, agentId, from, now, callId);
+        // Tworzy rekord contact w DB – UUID z rekordu jest wysyłany do frontendu jako contactId.
+        // Dla połączenia wychodzącego klientem jest strona docelowa (to), stąd direction=OUTBOUND.
+        UUID contactId = persistMockContact(tenantId, agentId, to, now, callId, "OUTBOUND");
 
         CallSession session = CallSession.builder()
                 .callId(callId)
@@ -85,10 +85,11 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
             contactIdToCallId.put(contactId, callId);
         }
 
-        log.info("[MockTelephony] Połączenie inicjowane: callId={}, contactId={}, from={}, to={}, tenant={}",
+        log.info("[MockTelephony] Połączenie wychodzące inicjowane: callId={}, contactId={}, from={}, to={}, tenant={}",
                 callId, contactId, from, to, tenantId);
 
-        eventPublisher.publishIncoming(callId, contactId, tenantId, agentId, from, to);
+        // Outbound: publishOutbound zamiast publishIncoming, żeby frontend mógł odróżnić kierunek
+        eventPublisher.publishOutbound(callId, contactId, tenantId, agentId, from, to);
 
         return session;
     }
@@ -235,9 +236,9 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
             String secondLegCallId = generateCallId();
             Instant now = Instant.now();
 
-            // Tworzy rekord contact dla drugiej nogi transferu
+            // Tworzy rekord contact dla drugiej nogi transferu (agent dzwoni do target → OUTBOUND)
             UUID secondLegContactId = persistMockContact(
-                    session.getTenantId(), session.getAgentId(), session.getTo(), now, secondLegCallId);
+                    session.getTenantId(), session.getAgentId(), session.getTo(), now, secondLegCallId, "OUTBOUND");
 
             CallSession secondLeg = CallSession.builder()
                     .callId(secondLegCallId)
@@ -322,7 +323,8 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
 
         // Tworzy rekord contact w DB – UUID z rekordu jest wysyłany do frontendu jako contactId,
         // żeby REST API (PATCH /api/contacts/{contactId}/disposition) działało poprawnie.
-        UUID contactId = persistMockContact(tenantId, agentId, from, now, callId);
+        // Dla przychodzącego: numer klienta to from, direction=INBOUND.
+        UUID contactId = persistMockContact(tenantId, agentId, from, now, callId, "INBOUND");
 
         CallSession session = CallSession.builder()
                 .callId(callId)
@@ -427,19 +429,22 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
      * (frontend dostanie callId jako fallback, co powoduje 422 przy setDisposition,
      * ale nie blokuje samego połączenia).
      *
-     * @param tenantId UUID tenanta
-     * @param agentId  UUID agenta (może być null gdy brak przypisania)
-     * @param from     numer dzwoniącego (CLI)
-     * @param now      czas zdarzenia
-     * @param callId   surowy callId providera (np. "mock-N") – przechowywany w channelMetadata
+     * @param tenantId      UUID tenanta
+     * @param agentId       UUID agenta (może być null gdy brak przypisania)
+     * @param customerPhone numer telefonu klienta: dla INBOUND to numer dzwoniącego (from),
+     *                      dla OUTBOUND to numer docelowy (to)
+     * @param now           czas zdarzenia
+     * @param callId        surowy callId providera (np. "mock-N") – przechowywany w channelMetadata
+     * @param direction     kierunek połączenia: {@code "INBOUND"} lub {@code "OUTBOUND"}
      * @return UUID nowo utworzonego rekordu contact lub null przy błędzie DB
      */
-    private UUID persistMockContact(UUID tenantId, UUID agentId, String from, Instant now, String callId) {
+    private UUID persistMockContact(UUID tenantId, UUID agentId, String customerPhone,
+                                    Instant now, String callId, String direction) {
         try {
             UUID contactId = UUID.randomUUID();
 
             // Lookup klienta po numerze telefonu – powiązanie kontaktu z profilem klienta
-            UUID customerId = resolveCustomerId(from, tenantId);
+            UUID customerId = resolveCustomerId(customerPhone, tenantId);
 
             HashMap<String, Object> metadata = new HashMap<>();
             metadata.put("sip_call_id", callId);
@@ -451,9 +456,9 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     .agentId(agentId)
                     .customerId(customerId)
                     .channel("PHONE")
-                    .direction("INBOUND")
+                    .direction(direction)
                     .status("QUEUED")
-                    .remoteAddress(from)
+                    .remoteAddress(customerPhone)
                     .queuedAt(now)
                     .startedAt(now)
                     .channelMetadata(metadata)
@@ -462,15 +467,15 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
 
             contactRepository.insert(contact);
 
-            log.debug("[MockTelephony] Rekord contact utworzony: contactId={}, customerId={}, callId={}, tenant={}",
-                    contactId, customerId, callId, tenantId);
+            log.debug("[MockTelephony] Rekord contact utworzony: contactId={}, customerId={}, direction={}, callId={}, tenant={}",
+                    contactId, customerId, direction, callId, tenantId);
 
             // Inwalidacja cache CLI lookup – nowy kontakt musi być widoczny przy następnym lookup
             try {
-                cliLookupService.invalidateCacheForPhone(from);
+                cliLookupService.invalidateCacheForPhone(customerPhone);
             } catch (Exception cacheEx) {
-                log.warn("[MockTelephony] Błąd inwalidacji cache CLI dla from={}: {}",
-                        from, cacheEx.getMessage());
+                log.warn("[MockTelephony] Błąd inwalidacji cache CLI dla phone={}: {}",
+                        customerPhone, cacheEx.getMessage());
             }
 
             return contactId;

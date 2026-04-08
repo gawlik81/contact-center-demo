@@ -57,6 +57,15 @@ public class CallSession {
     /** Moment zakończenia połączenia (null gdy aktywne). */
     private final Instant endedAt;
 
+    /**
+     * Kierunek połączenia: {@code "OUTBOUND"} dla wychodzących (dialer/agent initiates),
+     * {@code "INBOUND"} dla przychodzących (customer calls in).
+     *
+     * <p>Null dla sesji odtworzonych z DB lub połączeń zarejestrowanych przed tym polem –
+     * traktuj null jako INBOUND (bezpieczny fallback zachowujący dotychczasowe zachowanie).
+     */
+    private final String direction;
+
     // =========================================================================
     // Enum statusów
     // =========================================================================

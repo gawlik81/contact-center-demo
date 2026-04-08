@@ -10,7 +10,7 @@ Backend: Java Spring Boot (modularny monolit Faza 1). Frontend: Angular SPA.
 
 **Why:** PRD v1.0 z 2026-03-12. Faza 1 = MVP z kanałami PHONE/EMAIL/SOCIAL_MEDIA.
 
-**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V029 już istnieją. Numery migracji kontynuuj od V030+.
+**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V033 już istnieją. Numery migracji kontynuuj od V034+.
 
 Kluczowe decyzje architektoniczne:
 - Izolacja logiczna przez tenant_id (nie osobne schematy/bazy) + RLS jako dodatkowa warstwa
@@ -31,6 +31,12 @@ Lokalizacja migracji:
 - PostgreSQL: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\migration\
 - Seed DEV: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\seed\V999__dev_seed.sql
 - ClickHouse DW: D:\CloudeAI\contact-center-demo\dw\migrations\
+
+Stan migracji po V033 (2026-04-08):
+- V030__add_error_contact_status.sql: dodanie statusu ERROR do tabeli contact
+- V031__add_dialer_indexes.sql: indeksy dla Progressive Dialer (BE-024) – zawierała błędy redundancji naprawione w V033
+- V032__create_scheduled_callback.sql: tabela scheduled_callback (klucz: callback_id, statusy: PENDING/PROCESSING/COMPLETED/CANCELLED, agent_id i campaign_id opcjonalne, is_deleted soft-delete, RLS policy)
+- V033__fix_dialer_indexes.sql: naprawa redundantnych indeksów z V031 (status usunięty z klucza, zachowany tylko w WHERE), + odbudowa idx_callback_ready na scheduled_callback
 
 Stan migracji po V029 (2026-03-26):
 - V029__add_email_address_to_queue.sql: kolumna email_address VARCHAR(255) NULL w tabeli queue, UNIQUE (tenant_id, email_address), CHECK (IS NULL OR LIKE '%@%'), partial index idx_queue_email_address WHERE email_address IS NOT NULL

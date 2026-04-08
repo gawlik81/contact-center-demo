@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,9 +74,7 @@ public class CampaignContactRepository extends TenantAwareRepository {
         setTenantContextInDb(tenantId);
 
         // Wymuszamy kontekst RLS dla JdbcTemplate (ta sama sesja/transakcja)
-        jdbcTemplate.execute(
-                "SELECT set_tenant_context('" + tenantId + "'::uuid)"
-        );
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
 
         String sql = buildInsertSql(skipDuplicates);
 
@@ -150,9 +149,7 @@ public class CampaignContactRepository extends TenantAwareRepository {
     @Transactional(readOnly = true)
     public Set<String> findExistingPhones(UUID tenantId, UUID campaignId) {
         setTenantContextInDb(tenantId);
-        jdbcTemplate.execute(
-                "SELECT set_tenant_context('" + tenantId + "'::uuid)"
-        );
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
 
         List<String> phones = jdbcTemplate.queryForList(
                 "SELECT phone FROM campaign_contact WHERE campaign_id = ?::uuid AND tenant_id = ?::uuid AND phone IS NOT NULL",
@@ -162,6 +159,256 @@ public class CampaignContactRepository extends TenantAwareRepository {
         );
 
         return new java.util.HashSet<>(phones);
+    }
+
+    // =========================================================================
+    // Odczyt – zliczanie statusów per kampania (dialer status, jedno zapytanie GROUP BY)
+    // =========================================================================
+
+    /**
+     * Zlicza rekordy campaign_contact pogrupowane po (campaign_id, status) jednym zapytaniem SQL.
+     *
+     * <p>Zastępuje wzorzec N+1 w {@code DialerController.getDialerStatus()}, gdzie dla każdej
+     * kampanii i każdego statusu wykonywano osobne zapytanie COUNT. Teraz jedno zapytanie
+     * GROUP BY obsługuje wszystkie kampanie i statusy naraz.
+     *
+     * <p>Zwraca mapę {@code campaign_id → (status → count)}.
+     *
+     * @param tenantId    UUID tenanta (do RLS)
+     * @param campaignIds lista UUID kampanii (musi być niepusta)
+     * @param statuses    lista statusów do filtrowania (np. PENDING, DIALING, COMPLETED, NO_ANSWER, FAILED)
+     * @return mapa campaign_id → mapa status → liczba rekordów
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, Map<String, Long>> countByStatusGroupedByCampaign(
+            UUID tenantId, List<UUID> campaignIds, List<String> statuses) {
+        if (campaignIds == null || campaignIds.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+
+        setTenantContextInDb(tenantId);
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
+
+        // Buduj placeholdery dla campaign_id IN (...)
+        String campaignPlaceholders = campaignIds.stream()
+                .map(id -> "?::uuid")
+                .collect(java.util.stream.Collectors.joining(", "));
+
+        // Buduj placeholdery dla status IN (...)
+        String statusPlaceholders = statuses.stream()
+                .map(s -> "?")
+                .collect(java.util.stream.Collectors.joining(", "));
+
+        String sql = "SELECT campaign_id::text, status, COUNT(*) AS cnt " +
+                     "FROM campaign_contact " +
+                     "WHERE tenant_id = ?::uuid " +
+                     "  AND campaign_id IN (" + campaignPlaceholders + ") " +
+                     "  AND status IN (" + statusPlaceholders + ") " +
+                     "GROUP BY campaign_id, status";
+
+        List<Object> params = new ArrayList<>();
+        params.add(tenantId.toString());
+        campaignIds.forEach(id -> params.add(id.toString()));
+        params.addAll(statuses);
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, params.toArray());
+
+        Map<UUID, Map<String, Long>> result = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            UUID cid = UUID.fromString((String) row.get("campaign_id"));
+            String status = (String) row.get("status");
+            long count = ((Number) row.get("cnt")).longValue();
+            result.computeIfAbsent(cid, k -> new java.util.LinkedHashMap<>()).put(status, count);
+        }
+
+        log.debug("[CampaignContactRepo] countByStatusGroupedByCampaign: tenant={}, kampanie={}, statuses={}",
+                tenantId, campaignIds.size(), statuses);
+
+        return result;
+    }
+
+    // =========================================================================
+    // Odczyt – weryfikacja i aktualizacja rekordu przy manualnym połączeniu
+    // =========================================================================
+
+    /**
+     * Pobiera rekord campaign_contact z weryfikacją tenanta.
+     *
+     * <p>Używane przez logikę manualnego dialera do weryfikacji statusu PENDING
+     * przed zainicjowaniem połączenia.
+     *
+     * @param recordId   UUID rekordu
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     * @return Optional z mapą kolumn (record_id, phone, status) lub empty gdy nie znaleziono
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<Map<String, Object>> findRecordForManualDial(
+            UUID recordId, UUID campaignId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                """
+                SELECT record_id::text, phone, status
+                FROM campaign_contact
+                WHERE record_id = ?::uuid
+                  AND campaign_id = ?::uuid
+                  AND tenant_id = ?::uuid
+                """,
+                recordId.toString(),
+                campaignId.toString(),
+                tenantId.toString()
+        );
+
+        return rows.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(rows.get(0));
+    }
+
+    /**
+     * Aktualizuje status rekordu campaign_contact na DIALING (przy starcie połączenia).
+     *
+     * @param recordId   UUID rekordu
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     */
+    @Transactional
+    public void markAsDialing(UUID recordId, UUID campaignId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
+
+        jdbcTemplate.update(
+                """
+                UPDATE campaign_contact
+                SET status = 'DIALING',
+                    last_attempt_at = NOW(),
+                    attempt_count = attempt_count + 1,
+                    updated_at = NOW()
+                WHERE record_id = ?::uuid
+                  AND campaign_id = ?::uuid
+                  AND tenant_id = ?::uuid
+                """,
+                recordId.toString(),
+                campaignId.toString(),
+                tenantId.toString()
+        );
+    }
+
+    /**
+     * Oznacza rekord campaign_contact jako ERROR (trwały błąd techniczny adaptera telefonii).
+     *
+     * <p>Używane gdy Twilio API rzuci {@code ApiException} podczas {@code initiateCall()}
+     * (np. kod 21219 – niezweryfikowany numer). Rekord nie wraca do PENDING, ponieważ
+     * błąd konfiguracyjny nie ustąpi przy kolejnej próbie.
+     *
+     * @param recordId   UUID rekordu
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     */
+    @Transactional
+    public void markAsError(UUID recordId, UUID campaignId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        jdbcTemplate.update(
+                """
+                UPDATE campaign_contact
+                SET status = 'ERROR',
+                    updated_at = NOW()
+                WHERE record_id = ?::uuid
+                  AND campaign_id = ?::uuid
+                  AND tenant_id = ?::uuid
+                """,
+                recordId.toString(),
+                campaignId.toString(),
+                tenantId.toString()
+        );
+    }
+
+    /**
+     * Wycofuje status rekordu z DIALING z powrotem na PENDING (rollback przy błędzie telefonii).
+     *
+     * @param recordId   UUID rekordu
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     */
+    @Transactional
+    public void revertDialingToPending(UUID recordId, UUID campaignId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
+
+        jdbcTemplate.update(
+                """
+                UPDATE campaign_contact
+                SET status = 'PENDING',
+                    attempt_count = GREATEST(attempt_count - 1, 0),
+                    updated_at = NOW()
+                WHERE record_id = ?::uuid
+                  AND campaign_id = ?::uuid
+                  AND tenant_id = ?::uuid
+                """,
+                recordId.toString(),
+                campaignId.toString(),
+                tenantId.toString()
+        );
+    }
+
+    // =========================================================================
+    // Odczyt – rekordy PENDING dla kampanii manualnych (widok agenta)
+    // =========================================================================
+
+    /**
+     * Pobiera rekordy PENDING dla podanych kampanii (batch – jedno zapytanie SQL).
+     *
+     * <p>Używane przez endpoint GET /api/dialer/manual/records: po pobraniu listy kampanii
+     * MANUAL+RUNNING jeden SELECT z IN pobiera wszystkie rekordy PENDING dla tenanta.
+     * Unika N+1 queries (po jednym na kampanię).
+     *
+     * <p>Wyniki posortowane po campaign_id ASC, created_at ASC – ułatwia grupowanie
+     * po stronie serwisu.
+     *
+     * <p>Brak limitu wyników: kampanie manualne zakłada się małe (&lt; 100 rekordów PENDING per kampania).
+     * Przy większych zbiorach należy dodać LIMIT przekazywany jako parametr.
+     *
+     * @param tenantId    UUID tenanta (do RLS)
+     * @param campaignIds lista UUID kampanii do sprawdzenia (musi być niepusta)
+     * @return lista map kolumn: record_id, campaign_id, phone, first_name, last_name, status
+     * @throws IllegalArgumentException gdy campaignIds jest pusta
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> findPendingByCampaignIds(UUID tenantId, List<UUID> campaignIds) {
+        if (campaignIds == null || campaignIds.isEmpty()) {
+            throw new IllegalArgumentException("campaignIds nie może być pusta");
+        }
+
+        setTenantContextInDb(tenantId);
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
+
+        // Budujemy listę placeholderów dla IN: ?::uuid, ?::uuid, ...
+        String placeholders = campaignIds.stream()
+                .map(id -> "?::uuid")
+                .collect(java.util.stream.Collectors.joining(", "));
+
+        String sql = """
+                SELECT record_id::text, campaign_id::text,
+                       phone, first_name, last_name, status
+                FROM campaign_contact
+                WHERE tenant_id = ?::uuid
+                  AND campaign_id IN (""" + placeholders + """
+                )
+                  AND status = 'PENDING'
+                ORDER BY campaign_id ASC, created_at ASC
+                """;
+
+        // Parametry: tenantId + wszystkie campaignId
+        List<Object> params = new ArrayList<>();
+        params.add(tenantId.toString());
+        campaignIds.forEach(id -> params.add(id.toString()));
+
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, params.toArray());
+
+        log.debug("[CampaignContactRepo] findPendingByCampaignIds: tenant={}, kampanie={}, znaleziono={}",
+                tenantId, campaignIds.size(), results.size());
+
+        return results;
     }
 
     // =========================================================================
@@ -208,9 +455,7 @@ public class CampaignContactRepository extends TenantAwareRepository {
 
         // Ustawienie kontekstu RLS (dwa sposoby: EntityManager + JdbcTemplate w tej samej transakcji)
         setTenantContextInDb(tenantId);
-        jdbcTemplate.execute(
-                "SELECT set_tenant_context('" + tenantId + "'::uuid)"
-        );
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
 
         boolean hasStatusFilter = statusFilter != null && !statusFilter.isBlank();
 

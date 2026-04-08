@@ -55,6 +55,9 @@
             <div class="skeleton-cell skeleton-cell--badge"></div>
             <div class="skeleton-cell skeleton-cell--error"></div>
             <div class="skeleton-cell skeleton-cell--date"></div>
+            @if (isAgent() && isManualCampaign()) {
+              <div class="skeleton-cell skeleton-cell--action"></div>
+            }
           </div>
         }
       </div>
@@ -73,6 +76,9 @@
                 <th scope="col">Status</th>
                 <th scope="col">Blad</th>
                 <th scope="col">Data importu</th>
+                @if (isAgent() && isManualCampaign()) {
+                  <th scope="col" class="col-action">Akcja</th>
+                }
               </tr>
             </thead>
             <tbody>
@@ -85,6 +91,7 @@
                     <span
                       class="contact-status-badge"
                       [class.contact-status-badge--pending]="contact.status === 'PENDING'"
+                      [class.contact-status-badge--dialing]="contact.status === 'DIALING'"
                       [class.contact-status-badge--called]="contact.status === 'CALLED'"
                       [class.contact-status-badge--failed]="contact.status === 'FAILED'"
                       [class.contact-status-badge--skipped]="contact.status === 'SKIPPED'"
@@ -103,6 +110,31 @@
                     }
                   </td>
                   <td class="contact-date">{{ formatDate(contact.createdAt) }}</td>
+                  @if (isAgent() && isManualCampaign()) {
+                    <td class="col-action">
+                      @if (contact.status === 'PENDING') {
+                        <button
+                          class="btn btn-call"
+                          type="button"
+                          [disabled]="callingRecordId() !== null"
+                          [class.btn-call--loading]="callingRecordId() === contact.recordId"
+                          (click)="callRecord(contact)"
+                          [attr.aria-label]="'Zadzwon do ' + contact.phone"
+                          [attr.aria-busy]="callingRecordId() === contact.recordId"
+                        >
+                          @if (callingRecordId() === contact.recordId) {
+                            <span class="btn-call__spinner" aria-hidden="true"></span>
+                            Dzwonie...
+                          } @else {
+                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="15" height="15">
+                              <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                            </svg>
+                            Zadzwon
+                          }
+                        </button>
+                      }
+                    </td>
+                  }
                 </tr>
               }
             </tbody>

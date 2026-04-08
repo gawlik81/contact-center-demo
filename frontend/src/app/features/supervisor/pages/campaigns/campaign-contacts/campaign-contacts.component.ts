@@ -11,8 +11,11 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, of } from 'rxjs';
+import { catchError, finalize, of } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
+import { DialerService } from '../../../../../features/agent/services/dialer.service';
+import { AuthService } from '../../../../../core/services/auth.service';
+import { NotificationService } from '../../../../../core/services/notification.service';
 import {
   Campaign,
   CampaignContact,
@@ -42,6 +45,9 @@ export class CampaignContactsComponent implements AfterViewInit {
   readonly closed = output<void>();
 
   private readonly campaignService = inject(CampaignService);
+  private readonly dialerService = inject(DialerService);
+  private readonly authService = inject(AuthService);
+  private readonly notificationService = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
@@ -53,10 +59,15 @@ export class CampaignContactsComponent implements AfterViewInit {
   readonly totalPages = signal(0);
   readonly currentPage = signal(0);
   readonly selectedStatus = signal<string>('');
+  readonly callingRecordId = signal<string | null>(null);
+
+  readonly isAgent = (): boolean => this.authService.currentRole() === 'AGENT';
+  readonly isManualCampaign = (): boolean => this.campaign().dialerType === 'MANUAL';
 
   readonly statusOptions: StatusOption[] = [
     { value: '', label: 'Wszystkie' },
     { value: 'PENDING', label: 'Oczekujace' },
+    { value: 'DIALING', label: 'Dzwoni' },
     { value: 'CALLED', label: 'Zadzwonione' },
     { value: 'FAILED', label: 'Blad' },
     { value: 'SKIPPED', label: 'Pominiete' },
@@ -152,6 +163,8 @@ export class CampaignContactsComponent implements AfterViewInit {
     switch (status) {
       case 'PENDING':
         return 'Oczekujacy';
+      case 'DIALING':
+        return 'Dzwoni';
       case 'CALLED':
         return 'Zadzwoniony';
       case 'FAILED':
@@ -161,6 +174,38 @@ export class CampaignContactsComponent implements AfterViewInit {
       default:
         return status;
     }
+  }
+
+  callRecord(contact: CampaignContact): void {
+    if (this.callingRecordId() !== null) return;
+
+    this.callingRecordId.set(contact.recordId);
+    this.dialerService
+      .manualCall(this.campaign().campaignId, contact.recordId)
+      .pipe(
+        finalize(() => this.callingRecordId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.contacts.update((list) =>
+            list.map((c) =>
+              c.recordId === contact.recordId ? { ...c, status: 'DIALING' as CampaignContactStatus } : c,
+            ),
+          );
+        },
+        error: (err) => {
+          if (err.status === 409) {
+            const msg: string =
+              err.error?.message ?? 'Rekord nie moze byc wydzwoniony (konflikt stanu).';
+            this.notificationService.error(msg);
+          } else if (err.status === 404) {
+            this.notificationService.error('Rekord nie zostal znaleziony.');
+          } else {
+            this.notificationService.error('Nie udalo sie zainicjowac polaczenia. Sprobuj ponownie.');
+          }
+        },
+      });
   }
 
   readonly firstItemIndex = (): number => this.currentPage() * PAGE_SIZE + 1;

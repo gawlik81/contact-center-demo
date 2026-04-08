@@ -18,6 +18,7 @@ import java.util.UUID;
  * <p>Typy eventów (pole {@code eventType}):
  * <ul>
  *   <li>{@code CALL_INCOMING} – przychodzące połączenie (→ agentowi)</li>
+ *   <li>{@code CALL_OUTBOUND} – wychodzące połączenie kampanijne zainicjowane przez dialer (→ agentowi)</li>
  *   <li>{@code CALL_ANSWERED} – połączenie odebrane</li>
  *   <li>{@code CALL_HANGUP} – połączenie zakończone</li>
  *   <li>{@code AGENT_STATUS_CHANGED} – zmiana statusu agenta (→ supervisorom)</li>
@@ -44,6 +45,7 @@ public record WebSocketEvent(
     // =========================================================================
 
     public static final String TYPE_CALL_INCOMING         = "CALL_INCOMING";
+    public static final String TYPE_CALL_OUTBOUND         = "CALL_OUTBOUND";
     public static final String TYPE_CALL_ANSWERED         = "CALL_ANSWERED";
     public static final String TYPE_CALL_HANGUP           = "CALL_HANGUP";
     public static final String TYPE_AGENT_STATUS_CHANGED  = "AGENT_STATUS_CHANGED";
@@ -65,6 +67,23 @@ public record WebSocketEvent(
     public static WebSocketEvent callIncoming(CallEvent callEvent) {
         return new WebSocketEvent(
                 TYPE_CALL_INCOMING,
+                callEvent.getTenantId(),
+                CallIncomingPayload.from(callEvent),
+                callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event CALL_OUTBOUND z domenowego CallEvent.
+     *
+     * <p>Wysyłany do konkretnego agenta (unicast) gdy inicjowane jest połączenie wychodzące
+     * (kampanijne lub manualne). Payload jest tożsamy z {@link CallIncomingPayload} —
+     * agent widzi numer docelowy klienta w polu {@code customerPhone} i może go odebrać
+     * w softphonie gdy telefon klienta zacznie dzwonić.
+     */
+    public static WebSocketEvent callOutbound(CallEvent callEvent) {
+        return new WebSocketEvent(
+                TYPE_CALL_OUTBOUND,
                 callEvent.getTenantId(),
                 CallIncomingPayload.from(callEvent),
                 callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
@@ -187,7 +206,12 @@ public record WebSocketEvent(
             List<CustomerCliResult.ContactSummary> lastContacts
     ) {
         public static CallIncomingPayload from(CallEvent callEvent) {
-            String from = callEvent.getFrom();
+            // Numer telefonu klienta: dla OUTBOUND klientem jest strona docelowa (to),
+            // dla INCOMING klientem jest dzwoniący (from).
+            String customerPhone = (callEvent.getEventType() == CallEvent.EventType.CALL_OUTBOUND)
+                    ? callEvent.getTo()
+                    : callEvent.getFrom();
+
             String queueName = callEvent.getMetadata() != null
                     ? callEvent.getMetadata().getOrDefault("queueName", "")
                     : "";
@@ -203,12 +227,12 @@ public record WebSocketEvent(
                 String lastName  = cli.lastName()  != null ? cli.lastName()  : "";
                 customerName = (firstName + " " + lastName).trim();
                 if (customerName.isBlank()) {
-                    customerName = "Nieznany (" + (from != null ? from : "?") + ")";
+                    customerName = "Nieznany (" + (customerPhone != null ? customerPhone : "?") + ")";
                 }
                 customerId   = cli.customerId() != null ? cli.customerId().toString() : null;
                 lastContacts = cli.lastContacts();
             } else {
-                customerName = "Nieznany (" + (from != null ? from : "?") + ")";
+                customerName = "Nieznany (" + (customerPhone != null ? customerPhone : "?") + ")";
             }
 
             // Gdy dostępny contactId z DB – użyj go jako identyfikatora kontaktu,
@@ -229,7 +253,7 @@ public record WebSocketEvent(
             return new CallIncomingPayload(
                     contactId,
                     customerName,
-                    from,
+                    customerPhone,
                     queueName,
                     customerId,
                     lastContacts

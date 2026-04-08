@@ -1,6 +1,8 @@
 package com.contactcenter.api.campaign.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -20,9 +22,17 @@ public record CreateCampaignRequest(
         String name,
 
         /** Typ kampanii: OUTBOUND_VOICE, OUTBOUND_EMAIL. Domyślnie: OUTBOUND_VOICE. */
+        @Pattern(
+            regexp = "^(OUTBOUND_VOICE|OUTBOUND_EMAIL)$",
+            message = "Typ kampanii musi być jednym z: OUTBOUND_VOICE, OUTBOUND_EMAIL"
+        )
         String type,
 
         /** Typ dialera: PROGRESSIVE, PREDICTIVE, MANUAL. Domyślnie: PROGRESSIVE. */
+        @Pattern(
+            regexp = "^(PROGRESSIVE|PREDICTIVE|MANUAL)$",
+            message = "Typ dialera musi być jednym z: PROGRESSIVE, PREDICTIVE, MANUAL"
+        )
         String dialerType,
 
         /**
@@ -31,7 +41,11 @@ public record CreateCampaignRequest(
          */
         Map<String, Object> schedule,
 
-        /** UUID kolejki agentów (nullable). */
+        /**
+         * UUID kolejki agentów. Wymagane – kampania musi być przypisana do kolejki
+         * należącej do tego samego tenanta.
+         */
+        @NotNull(message = "queueId jest wymagany")
         UUID queueId,
 
         /** Lista kodów dyspozycji (nullable = pusta lista). */

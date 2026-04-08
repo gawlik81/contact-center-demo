@@ -159,6 +159,44 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - `HttpClient` / external HTTP clients instantiated as beans, not per-call?
 - `assertSameTenant()` present before every native UPDATE in `ContactRepository` and similar repos?
 
+## BE-024 (Progressive Dialer) — issues found 2026-04-08
+
+**Critical:**
+- `@Transactional` self-invocation bug: `ProgressiveDialerService.initiateDialForAgent` is `@Transactional` but called directly (line 131: `this.initiateDialForAgent(...)`) — Spring AOP proxy bypassed, transaction never starts. `FOR UPDATE SKIP LOCKED` lock is immediately released, race condition protection is non-functional. Fix: call through self-injected proxy or extract to separate `@Service` bean.
+- `TenantContext.clear()` in `DialerCallbackHandler.handleCallbackDisposition` `finally` block clears context set by `TenantFilter` for HTTP thread — `handleCallbackDisposition` is called from `DialerController` (HTTP) and from potential RabbitMQ paths. Clearing HTTP context corrupts request lifecycle.
+- N+1 queries in `DialerController.getDialerStatus`: 3×N separate `countContactsByStatus` calls (each with `set_tenant_context`) per running campaign. Fix: single GROUP BY query.
+- String concatenation `"SELECT set_tenant_context('" + tenantId + "'::uuid)"` in 6+ places: `DialerController`, `ScheduledCallbackRepository`, `ProgressiveDialerService`, `DialerCallbackHandler`. **Recurring violation from previous reviews** — never fixed. Must use prepared statement or `setTenantContextInDb()`.
+
+**Security:**
+- `POST /api/dialer/manual/call` allows ADMIN and SUPERVISOR despite being agent-only operation — SUPERVISOR has no softphone, allocates DIALING record with no agent to answer. Should be `hasRole('AGENT')` only.
+- `POST /api/dialer/callbacks` allows any AGENT to set `agentId` from request body to another agent's UUID — missing tenant validation of `request.agentId()`.
+
+**Architecture violations:**
+- `JdbcTemplate` injected directly in `DialerController` — controller executes raw SQL. Violates layered architecture, makes controller untestable without DB. Move to `CampaignContactRepository`.
+- Business logic (record grouping, campaign filtering) in `DialerController.getManualCampaignRecords` — should be in service layer.
+- `cc.queue.dialer-hangup` queue declared inline in `@QueueBinding` annotation, not in `RabbitMQConfig` — breaks centralized queue management pattern.
+- `CreateCampaignRequest.dialerType` and `type` are unvalidated strings — should have `@Pattern`.
+
+**Minor:**
+- Redis call state stored as CSV (`a,b,c,d`) — should be JSON for robustness.
+- `DEFAULT_ZONE` hardcoded as `Europe/Warsaw` — should be configurable per tenant.
+- `findPendingByCampaignIds` has no result LIMIT — can return 10k+ rows for large manual campaigns.
+- `isCalledTooRecently` redundant with `next_attempt_at <= NOW()` SQL filter in same method.
+
+**Positive:**
+- Separate `cc.queue.dialer-agent-status` queue correctly solves consumer competition (each event consumed by both routing and dialer).
+- Redis agent lock with TTL 60s — correct race condition guard for multi-instance deployment.
+- `FOR UPDATE SKIP LOCKED` in `fetchNextPendingContact` — correct job queue pattern (when transaction works).
+- Rollback DIALING→PENDING on telephony error in manual call flow.
+- `@ConditionalOnProperty(name = "dialer.enabled")` on both beans — environment-controlled feature flag.
+- `ScheduledCallbackRepository` correctly extends `TenantAwareRepository` and calls `assertSameTenant()` before write.
+- Phone number masking in logs.
+
+**Check in future Dialer-related reviews:**
+- Does `initiateDialForAgent` run inside a real Spring-managed transaction?
+- Is `set_tenant_context` called via prepared statement or string concat?
+- Is `DialerController` free of `JdbcTemplate` calls?
+
 ## Architectural patterns observed in BE-027
 
 **Partitioned table pattern (new in BE-027):**

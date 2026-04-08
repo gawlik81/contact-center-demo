@@ -44,6 +44,30 @@ The frontend is Angular 21 with standalone components, Signals, OnPush everywher
 - softphoneEndedEffect uses effect() as class field (preferred Angular 21 pattern), with WRAPPING guard to prevent double-transition.
 - canSave computed() correctly combines code selection + isSaving for double-submit prevention.
 
+## FE-027 (Manual Dialer Panel) — new findings 2026-04-08
+
+**Bugs:**
+- `ManualCampaignPanelComponent.refresh()` does not reset `error` signal before calling API — after an error, manual refresh shows stale error message until response arrives.
+- `refresh()` method duplicates `ngOnInit` switchMap logic — DRY violation and inconsistent error handling paths.
+
+**Architecture violations:**
+- `DialerService` is in `supervisor/services/` but is used exclusively by agent component (`ManualCampaignPanelComponent`). Correct location: `agent/services/` or `core/services/`.
+
+**Recurring anti-pattern confirmed:**
+- Missing Polish diacritics in all user-facing strings (TS and HTML): "rekordow" → "rekordów", "Zmien" → "Zmień", "Dostepny" → "Dostępny", "polaczenia" → "połączenia", "Nie udalo sie" → "Nie udało się". **Fourth occurrence across reviews.**
+
+**Minor:**
+- Notification message for success call uses `.trim()` but leaves double-space when firstName/lastName both null. Should use `[name, phone].filter(Boolean).join(' ')` pattern.
+
+**Positive patterns (new in FE-027):**
+- OnPush + signals throughout.
+- `takeUntilDestroyed(this.destroyRef)` on all subscriptions.
+- Preserved `expanded` state on poll refresh — good agent UX.
+- Optimistic record removal after manualCall success.
+- Full WCAG AA: aria-label, aria-expanded, aria-controls, aria-busy, role="list/status/alert", aria-live on error.
+- Skeleton loading for initial state.
+- HTTP error status discrimination (409 vs 404 vs generic).
+
 ## FE-019 (Customer Detail) — new findings 2026-03-21
 
 **Architecture violations:**

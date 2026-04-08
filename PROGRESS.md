@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-02 (BE-014 Voicebot Python FastAPI: Whisper ASR, NLU, Redis session, RabbitMQ escalation, IvrNodeType.VOICEBOT, 661 testów Java PASS; łączny stan: DB 20/20, BE 28/33, FE 23/25)
+**Ostatnia aktualizacja:** 2026-04-08 (zaplanowano EPIC-12 Prezentacja Kontaktów: DB-022, BE-036, BE-037, FE-028, FE-029, FE-030; łączny stan: DB 20/22, BE 29/38, FE 25/30)
 
 ---
 
@@ -39,6 +39,8 @@
 | DB-018 | Konfiguracja pg_cron: zadania scheduled | ✅ | Zrealizowane w ramach DB-001 (V014__pg_cron_jobs.sql). Rozszerzone w DB-002 (V015__campaign_contact_archive.sql) |
 | DB-019 | Seed danych testowych i migracje dla środowiska dev | ✅ | Zrealizowane w ramach DB-001 (V999__dev_seed.sql) |
 | DB-020 | Kolumna email_address w tabeli QUEUE: routing emaili | ✅ | V029__add_email_address_to_queue.sql: kolumna email_address VARCHAR(255) NULL, UNIQUE (tenant_id, email_address), CHECK '%@%', partial index WHERE IS NOT NULL. Używana przez EmailRoutingService do routingu priorytetowego. |
+| DB-021 | Tabele PHONE_NUMBER i PHONE_ROUTING_RULE: numery tenanta i harmonogram IVR | ⬜ | Brak migracji w repozytorium – zadanie nie rozpoczęte. Odblokuje BE-033 → BE-034 → BE-035 → FE-026. |
+| DB-022 | Indeksy wyszukiwania kontaktów dla Raportów > Kontakty | ⬜ | Migracja V035: idx_contact_queue_date + idx_contact_duration (warunkowy). Odblokuje BE-036 |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -77,7 +79,7 @@
 | BE-021 | Wait time estimation: informacja o czasie oczekiwania | ✅ | WaitTimeEstimationService (@Scheduled fixedDelay=30s), QueueWaitUpdatePayload (DTO eventu QUEUE_WAIT_UPDATE), QueueStatsResponse (z avgHandleTimeSeconds), ContactRepository +2 native SQL (countWaitingByQueueId, getAvgHandleTimeSeconds fallback 300s), QueueController GET /api/queues/{id}/stats. EWT = ceil(waiting/agents*avg), edge cases: waiting=0→0, agents=0→MAX_VALUE. Poprawki CR: B1 AND is_deleted=false dodane do obu zapytań SQL, B2 partial entity usunięte z kontrolera (serwis ładuje encję sam przez getQueueStats(tenantId, queueId)), B3 ConcurrentHashMap zamiast Redis SCAN per HTTP. 644 testów PASS. |
 | BE-022 | Campaign CRUD API i harmonogram | ✅ | Campaign.java, CampaignRepository, CampaignService, CampaignController + DTOs, V026 migracja. Odblokowuje BE-023, FE-015 |
 | BE-023 | Import CSV kontaktów kampanii (async job) | ✅ | CampaignImportController (POST import + GET status), CampaignImportService (@Async, OpenCSV, batch JdbcTemplate chunk 1000, deduplikacja ON CONFLICT), Redis TTL 1h dla statusu joba, V027 unikalny indeks (campaign_id, phone). 25 nowych testów, 467 PASS |
-| BE-024 | Progressive Dialer: silnik automatycznego dzwonienia | ⬜ | |
+| BE-024 | Progressive Dialer: silnik automatycznego dzwonienia | ✅ | ProgressiveDialerService (@RabbitListener agent.status.changed, Redis guard SET NX, FOR UPDATE SKIP LOCKED), DialerCallbackHandler (NO_ANSWER +4h, ANSWERED→CONNECTED, CALLBACK→ScheduledCallback), ScheduledCallback entity + ScheduledCallbackRepository, DialerController (GET /api/dialer/status, GET/POST /api/dialer/callbacks), V031 indeksy dialera, harmonogram kampanii JSONB (start/end date, active_days, active_hours, timezone). 662 testów PASS. |
 | BE-025 | Customer CRUD API i fuzzy search | ✅ | CustomerController (POST/GET/GET{id}/PATCH/DELETE /api/customers, PagedResponse, fuzzy search ILIKE + word_similarity), CustomerService (CRUD + soft-delete anonimizacja RODO + invalidateCacheForCustomer), CustomerRepository (searchCustomers natywny SQL, findById), Customer entity (JSONB phone[], email[], custom_fields, gdpr_consent), migracje V023 (funkcja set_tenant_context) + V024 (fix prefix search ILIKE). |
 | BE-026 | Import klientów z CSV (async job) | ✅ | Zrealizowane 2026-03-24. CustomerImportController (POST /api/customers/import 202+jobId, GET status polling, GET errors CSV blob), CustomerImportService (@Async, OpenCSV, batch chunk 500, deduplikacja SKIP/OVERWRITE, walidacja E.164, Redis TTL 1h), CustomerRepository (findByEmail JSONB @>). 24 testy, 506 PASS |
 | BE-027 | Contact API: zapis i odczyt historii kontaktów | ✅ | ContactController (6 endp.), ContactService (CRUD + uprawnienia AGENT/SUPERVISOR/ADMIN), ContactRepository (native INSERT/UPDATE, partycjonowana tabela), ContactId.java, DTOs: ContactResponse/CreateContactRequest/UpdateContactRequest/DispositionRequest/ContactFilterParams. 22 testy PASS. |
@@ -86,6 +88,11 @@
 | BE-030 | ETL do data warehouse: CDC z PostgreSQL | ⬜ | |
 | BE-031 | RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17) | ⬜ | |
 | BE-032 | Twilio: konfiguracja numeru telefonu per tenant | ✅ | Tenant.getTwilioPhoneNumber/getTwilioStatusCallbackUrl (JSONB), TenantTwilioConfigRequest (walidacja E.164), TenantService.updateTwilioConfig (@Audited), PATCH /api/tenants/{id}/config (ADMIN), TwilioTelephonyAdapter.resolvePhoneNumber (per-tenant > global fallback), buildStatusCallbackUrl(tenantId). 6 nowych testów resolvePhoneNumber. BUILD SUCCESS. |
+| BE-033 | PhoneNumber CRUD API: zarządzanie numerami telefonów tenanta | ⬜ | Czeka na DB-021 |
+| BE-034 | PhoneRoutingRule CRUD API: reguły routingu IVR per numer i harmonogram | ⬜ | Czeka na BE-033, BE-013, BE-020 |
+| BE-035 | Incoming call routing: wybór IVR/kolejki na podstawie reguł harmonogramu | ⬜ | Czeka na BE-034, BE-009, BE-013 |
+| BE-036 | Rozszerzenie Contact API o filtry zaawansowane (queueId, campaignId, remoteAddress, durationMin/Max) | ⬜ | Rozszerzenie BE-027: nowe query params w GET /api/contacts. Czeka na DB-022 |
+| BE-037 | Endpoint streamowania nagrania z MinIO/S3: presigned URL | ⬜ | GET /api/contacts/{id}/recording → RecordingUrlResponse z presignedUrl (TTL 15min). Czeka na BE-010 ✅ |
 
 ---
 
@@ -118,6 +125,11 @@
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ | |
 | FE-024 | Panel konfiguracji kolejek i routingu | ✅ | QueueListComponent (tabela kolejek z liczbą oczekujących, polling co 10s), QueueFormComponent (formularz tworzenia/edycji: nazwa, strategia routingu, required skills multi-select, sticky agent timeout, adres email kolejki emailAddress z walidacją email + maxLength(255)), QueueDeleteModalComponent. Integracja z BE-020 ✅ + DB-020 ✅. |
 | FE-025 | Panel konfiguracji Twilio per tenant | ✅ | TwilioConfigService (GET tenant + PATCH /api/tenants/{id}/config), TwilioSettingsComponent (formularz E.164, badge per-tenant/fallback, podgląd auto URL, usunięcie konfiguracji), route /supervisor/settings/twilio, wpis "Twilio VoIP" w sidenavie. BUILD SUCCESS. |
+| FE-026 | Panel zarządzania numerami telefonów i regułami routingu IVR (Supervisor) | ⬜ | Czeka na BE-033 (PhoneNumber API) i BE-034 (RoutingRule API) |
+| FE-027 | Przycisk „Zadzwoń" dla dialera manualnego | ✅ | ManualCampaignPanelComponent (polling 30s, lista kampanii manualnych RUNNING z rekordami PENDING, przycisk „Zadzwoń" ze spinner + disabled guard), DialerService (getManualCampaignRecords, callRecord → POST /api/dialer/manual/call), integracja z AgentDesktopComponent. Obsługa błędów 409/404 przez toast. |
+| FE-028 | Komponent szczegółów kontaktu z odtwarzaczem nagrania (modal) | ⬜ | ContactDetailModalComponent + AudioPlayerComponent (HTML5 Audio API). Rozszerza contact.model.ts o brakujące pola. Czeka na BE-037 |
+| FE-029 | Strona „Raporty > Kontakty" z tabelą, filtrami i eksportem CSV | ⬜ | Nowa zakładka w /supervisor/reports/contacts, 7 filtrów, tabela z paginacją server-side, eksport CSV. Czeka na BE-036 i FE-028 |
+| FE-030 | Integracja szczegółów kontaktu w panelu klienta (CustomerDetailComponent) | ⬜ | Kliknięcie w wiersz historii kontaktów klienta → otwiera ContactDetailModalComponent (FE-028). Zmiana w customer-detail.component.ts |
 
 ---
 
@@ -125,10 +137,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 20/20 | 0 | 0 | 20 |
-| Backend (BE) | 28/33 | 0 | 5 | 33 |
-| Frontend (FE) | 23/25 | 0 | 2 | 25 |
-| **RAZEM** | **70/78** | **0** | **8** | **78** |
+| Database (DB) | 20/22 | 0 | 2 | 22 |
+| Backend (BE) | 29/38 | 0 | 9 | 38 |
+| Frontend (FE) | 25/30 | 0 | 5 | 30 |
+| **RAZEM** | **74/90** | **0** | **16** | **90** |
 
 ---
 
@@ -221,14 +233,14 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-001b | MinIO docker-compose: serwis minio + minio-init, bucket contact-center-recordings, S3Properties | ✅ |
 | BE-015 | Email Adapter: EmailPollingService (IMAP @Scheduled), EmailSendService (SMTP), EmailRoutingService (routing priorytetowy po email_address kolejki + reguły), EmailEncryptionService (AES-256), EmailController (5 endpointów), EmailMessage/EmailRoutingRule/EmailTemplate repozytoria przeniesione do domain/model i domain/repository, EmailEventPublisher (RabbitMQ) | ✅ |
 | BE-016 | Szablony email: EmailTemplateController (6 endpointów CRUD + preview), EmailTemplateService, EmailTemplate entity, EmailTemplateRepository, MustacheTemplateEngine (renderowanie zmiennych), DTOs CreateEmailTemplateRequest/UpdateEmailTemplateRequest/EmailTemplateResponse | ✅ |
-| BE-014 | Voicebot Python: ASR + NLU + eskalacja do agenta | ⬜ |
+| BE-014 | Voicebot Python FastAPI: Whisper ASR (lazy-load, confidence z avg_logprob), keyword NLU (6 intencji PL), Redis session TTL 15min, RabbitMQ publisher (voicebot.escalate, priority=9), VoicebotClient (RestClient), IvrNodeType.VOICEBOT, Docker profile ai. 40 testów Python, 661 testów Java PASS. | ✅ |
 | BE-017 | OAuth flow i zarządzanie tokenami social media | ⬜ |
 | BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ⬜ |
-| BE-021 | Wait time estimation: informacja o czasie oczekiwania | ⬜ |
-| BE-024 | Progressive Dialer: silnik automatycznego dzwonienia | ⬜ |
+| BE-021 | Wait time estimation: WaitTimeEstimationService (@Scheduled 30s), QueueWaitUpdatePayload, EWT = ceil(waiting/agents*avg), edge cases. 644 testów PASS. | ✅ |
+| BE-024 | Progressive Dialer: ProgressiveDialerService (@RabbitListener, Redis guard SET NX, FOR UPDATE SKIP LOCKED), DialerCallbackHandler, ScheduledCallback entity, ScheduledCallbackRepository, DialerController, V031 indeksy, harmonogram JSONB. 662 testów PASS. | ✅ |
 | BE-030 | ETL do data warehouse: CDC z PostgreSQL | ⬜ |
 | BE-031 | RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17) | ⬜ |
-| BE-032 | Twilio: konfiguracja numeru telefonu per tenant | ⬜ |
+| BE-032 | Twilio per-tenant: TwilioPhoneNumber/TwilioStatusCallbackUrl w Tenant JSONB, TenantTwilioConfigRequest, TenantService.updateTwilioConfig (@Audited), PATCH /api/tenants/{id}/config, resolvePhoneNumber (per-tenant > fallback). BUILD SUCCESS. | ✅ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
 
@@ -258,7 +270,7 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-020 | Import klientów CSV: CustomerImportComponent (4-krokowy wizard, deduplikacja radio, auto-mapowanie, pobieranie błędów CSV) | ✅ |
 | FE-013 | Komponent obsługi kontaktu social media | ⬜ |
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ |
-| FE-025 | Panel konfiguracji Twilio per tenant | ⬜ |
+| FE-025 | TwilioConfigService (GET tenant + PATCH /api/tenants/{id}/config), TwilioSettingsComponent (formularz E.164, badge per-tenant/fallback, podgląd auto URL, usunięcie konfiguracji), route /supervisor/settings/twilio, wpis w sidenavie. BUILD SUCCESS. | ✅ |
 
 ---
 
@@ -343,6 +355,7 @@ FE-005 → FE-023                                  (Integracje social media)
 | FE-022 | BE-028 ✅ | Raporty historyczne: agregacje + eksport CSV/XLSX | ✅ Gotowe |
 | FE-023 | BE-017 | Panel integracji social media: OAuth flow callback | 🔴 OAuth wymaga prawdziwego backendu |
 | FE-024 | BE-020 ✅ | Konfiguracja kolejek: CRUD + stats `/api/queues` | ✅ Gotowe |
+| FE-025 | BE-032 ✅ | Konfiguracja Twilio per tenant: PATCH `/api/tenants/{id}/config` | ✅ Gotowe |
 
 ---
 

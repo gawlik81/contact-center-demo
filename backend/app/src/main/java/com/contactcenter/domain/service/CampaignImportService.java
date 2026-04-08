@@ -20,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PushbackReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -266,7 +267,7 @@ public class CampaignImportService {
         // Wyznacz znak cytowania – pusty string = '\0' (brak cytowania)
         char quote = (quoteChar == null || quoteChar.isEmpty()) ? '\0' : quoteChar.charAt(0);
 
-        try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)) {
+        try (Reader reader = stripBom(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
 
             CSVParserBuilder parserBuilder = new CSVParserBuilder().withSeparator(sep);
             if (quote != '\0') {
@@ -595,6 +596,34 @@ public class CampaignImportService {
             return false;
         }
         return E164_PATTERN.matcher(phone.trim()).matches();
+    }
+
+    /**
+     * Zwraca Reader ze stripowanym BOM (U+FEFF) na początku strumienia.
+     *
+     * <p>Pliki CSV zapisane w "UTF-8 with BOM" (np. przez Microsoft Excel) zawierają
+     * na początku bajty EF BB BF, które Java dekoduje jako znak U+FEFF. Bez stripowania
+     * BOM trafia do pierwszego tokena (nazwę kolumny nagłówka lub wartość pierwszego pola),
+     * co powoduje niepoprawną detekcję nagłówka i odrzucenie numeru telefonu przez walidację E.164.
+     *
+     * <p>Metoda używa {@link PushbackReader} – odczytuje jeden znak i, jeśli to BOM,
+     * pomija go; w przeciwnym razie cofa go z powrotem do strumienia. Nie wymaga żadnych
+     * dodatkowych zależności ani buforowania całego pliku w pamięci.
+     *
+     * @param reader oryginalny reader (np. InputStreamReader)
+     * @return reader bez wiodącego BOM
+     */
+    private Reader stripBom(Reader reader) throws IOException {
+        PushbackReader pbr = new PushbackReader(reader, 1);
+        int firstChar = pbr.read();
+        if (firstChar != '\uFEFF') {
+            // Nie BOM – wróć znak do strumienia
+            if (firstChar != -1) {
+                pbr.unread(firstChar);
+            }
+        }
+        // Jeśli firstChar == '\uFEFF', po prostu go pomijamy
+        return pbr;
     }
 
     // =========================================================================

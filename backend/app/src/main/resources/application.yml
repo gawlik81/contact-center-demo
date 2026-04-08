@@ -229,6 +229,9 @@ telephony:
     # Shared secret weryfikowany w nagłówku X-Webhook-Secret przez TelephonyWebhookController
     # W prod: ustaw mocny losowy secret przez ENV var TELEPHONY_WEBHOOK_SECRET
     secret: ${TELEPHONY_WEBHOOK_SECRET:dev-secret}
+  # Domyślny numer wychodzący (fallback gdy kampania nie ma skonfigurowanego numeru).
+  # Nadpisywany przez TELEPHONY_OUTBOUND_NUMBER ENV var lub twilio.phone-number.
+  outbound-number: ${TELEPHONY_OUTBOUND_NUMBER:+48732096332}
 
 # =============================================================================
 # Twilio – adapter telefonii Programmable Voice (BE-029)
@@ -340,3 +343,11 @@ server:
 voicebot:
   enabled: ${VOICEBOT_ENABLED:true}
   url: ${VOICEBOT_URL:http://localhost:8001}
+
+# =============================================================================
+# Progressive Dialer – silnik automatycznego dzwonienia (BE-024)
+# =============================================================================
+dialer:
+  # Włącza/wyłącza Progressive Dialer. Domyślnie true.
+  # Wyłącz przez DIALER_ENABLED=false w ENV vars (np. w środowiskach testowych).
+  enabled: ${DIALER_ENABLED:true}

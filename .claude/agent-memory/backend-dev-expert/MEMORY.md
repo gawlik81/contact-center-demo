@@ -10,6 +10,13 @@
 - [IVR Architecture](project_ivr_architecture.md) — Architektura silnika IVR: tryby twimlMode vs mock, sesje Redis, tworzenie rekordu contact przy webhook
   Twilio
 
+## Wzorce/konwencje
+
+- [feedback_self_invocation_transactional.md](feedback_self_invocation_transactional.md) – @Transactional self-invocation: fix przez `@Autowired @Lazy NazwaSerwisu self` + wywołanie `self.metoda()`
+- [feedback_jdbc_set_tenant_context.md](feedback_jdbc_set_tenant_context.md) – JdbcTemplate set_tenant_context: `jdbcTemplate.update("SELECT set_tenant_context(?::uuid)", id)` nie string concat
+- [feedback_tenant_context_http_vs_async.md](feedback_tenant_context_http_vs_async.md) – TenantContext.clear() tylko w ścieżce async (RabbitMQ), NIE w metodach wywoływanych z HTTP
+- [feedback_rabbitmq_queue_bean_vs_binding_annotation.md](feedback_rabbitmq_queue_bean_vs_binding_annotation.md) – Kolejki RabbitMQ jako @Bean w RabbitMQConfig + stała QUEUE_NAME; @RabbitListener(queues = STAŁA)
+
 ## Znane pułapki
 
 - [feedback_stomp_mutable_headers.md](feedback_stomp_mutable_headers.md) – ChannelInterceptor.preSend(): `getAccessor()` zwraca immutable; fix:

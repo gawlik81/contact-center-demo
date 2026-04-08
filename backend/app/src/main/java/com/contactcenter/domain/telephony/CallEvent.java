@@ -73,6 +73,14 @@ public class CallEvent {
     public enum EventType {
         /** Przychodzące połączenie – agent jeszcze nie odebrał. */
         CALL_INCOMING,
+        /**
+         * Wychodzące połączenie kampanijne (outbound dialer) – klient jeszcze nie odebrał.
+         *
+         * <p>Routing key: {@code call.outbound} – pozwala frontendowi odróżnić
+         * połączenie wychodzące od przychodzącego i wyświetlić właściwy UI agenta
+         * (brak IVR, kierunek OUTBOUND, powiązana kampania).
+         */
+        CALL_OUTBOUND,
         /** Połączenie odebrane przez agenta. */
         CALL_ANSWERED,
         /** Połączenie zakończone (rozłączenie przez którąkolwiek ze stron). */

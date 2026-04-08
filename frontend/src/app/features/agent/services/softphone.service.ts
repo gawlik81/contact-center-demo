@@ -197,6 +197,35 @@ export class SoftphoneService implements OnDestroy {
     }, 2000);
   }
 
+  /**
+   * Handles a remote hangup initiated by the customer (CALL_HANGUP WebSocket event).
+   *
+   * Unlike hangupCall() (agent-initiated), this does NOT fire an HTTP hangup request
+   * because Twilio has already ended the call. It only transitions the local session
+   * to ENDED so the disposition panel (ACW) appears automatically.
+   *
+   * Safe to call when session is null or already ENDED (no-op in those cases).
+   */
+  remoteHangup(): void {
+    const s = this.session();
+    if (!s || s.state === 'ENDED') {
+      return;
+    }
+    this.stopDurationTimer();
+    // Disconnect the Twilio call leg on the agent side if still active
+    if (this.activeCall) {
+      try {
+        this.activeCall.disconnect();
+      } catch {
+        // ignore — call may already be disconnected
+      }
+    }
+    this.session.set({ ...s, state: 'ENDED' });
+    this.cleanupTimeout = setTimeout(() => {
+      this.activeCall = null;
+    }, 2000);
+  }
+
   rejectCall(): void {
     const s = this.session();
     if (!s || s.state !== 'RINGING') return;

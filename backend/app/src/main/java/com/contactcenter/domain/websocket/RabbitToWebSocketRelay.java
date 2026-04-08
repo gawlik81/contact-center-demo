@@ -90,6 +90,7 @@ public class RabbitToWebSocketRelay {
 
             switch (routingKey) {
                 case "call.incoming" -> handleCallIncoming(callEvent);
+                case "call.outbound" -> handleCallOutbound(callEvent);
                 case "call.answered" -> handleCallAnswered(callEvent);
                 case "call.hangup"   -> handleCallHangup(callEvent);
                 default -> log.debug("[WS-Relay] Nieobsługiwany routing key call: {}", routingKey);
@@ -292,6 +293,19 @@ public class RabbitToWebSocketRelay {
         broadcaster.sendToUser(callEvent.getAgentId(), WebSocketEvent.callIncoming(callEvent));
         // Supervisorzy też widzą przychodzące połączenia
         broadcaster.sendToTenantSupervisors(callEvent.getTenantId(), WebSocketEvent.callIncoming(callEvent));
+    }
+
+    private void handleCallOutbound(CallEvent callEvent) {
+        if (callEvent.getAgentId() == null) {
+            log.warn("[WS-Relay] CALL_OUTBOUND bez agentId – pomijam (outbound zawsze ma agenta): callId={}",
+                    callEvent.getCallId());
+            return;
+        }
+        // Połączenie wychodzące przypisane do konkretnego agenta → unicast
+        broadcaster.sendToUser(callEvent.getAgentId(), WebSocketEvent.callOutbound(callEvent));
+        // Supervisorzy widzą połączenia wychodzące (jak przychodzące)
+        broadcaster.sendToTenantSupervisors(callEvent.getTenantId(), WebSocketEvent.callOutbound(callEvent));
+        log.debug("[WS-Relay] CALL_OUTBOUND → agentId={}, callId={}", callEvent.getAgentId(), callEvent.getCallId());
     }
 
     private void handleCallAnswered(CallEvent callEvent) {

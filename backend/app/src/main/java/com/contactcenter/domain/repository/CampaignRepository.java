@@ -128,6 +128,101 @@ public class CampaignRepository extends TenantAwareRepository {
         return count.longValue();
     }
 
+    /**
+     * Pobiera wszystkie kampanie w statusie RUNNING dla danego tenanta.
+     *
+     * <p>Używane przez {@link com.contactcenter.api.dialer.DialerController} (widok stanu dialera)
+     * oraz legacy. Zwraca kampanie wszystkich typów dialera.
+     * Indeks {@code idx_campaign_running_tenant} (V031) zapewnia wydajność.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista kampanii w statusie RUNNING (wszystkie typy dialera)
+     */
+    @Transactional(readOnly = true)
+    public List<Campaign> findRunningByTenantId(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Campaign> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM campaign
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND status = 'RUNNING'
+                        ORDER BY created_at ASC
+                        """,
+                        Campaign.class)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        log.debug("[CampaignRepo] Kampanie RUNNING (wszystkie typy): tenant={}, znaleziono={}", tenantId, results.size());
+        return results;
+    }
+
+    /**
+     * Pobiera kampanie RUNNING z typem dialera PROGRESSIVE dla danego tenanta.
+     *
+     * <p>Używane wyłącznie przez {@link com.contactcenter.domain.service.ProgressiveDialerService}
+     * przy automatycznym wybieraniu. Kampanie MANUAL i PREDICTIVE są świadomie wykluczone:
+     * MANUAL wymaga ręcznej inicjacji połączenia przez agenta (endpoint POST /api/dialer/manual/call),
+     * a PREDICTIVE nie jest jeszcze zaimplementowany.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista kampanii RUNNING z dialer_type = 'PROGRESSIVE'
+     */
+    @Transactional(readOnly = true)
+    public List<Campaign> findRunningProgressiveByTenantId(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Campaign> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM campaign
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND status = 'RUNNING'
+                          AND dialer_type = 'PROGRESSIVE'
+                        ORDER BY created_at ASC
+                        """,
+                        Campaign.class)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        log.debug("[CampaignRepo] Kampanie RUNNING+PROGRESSIVE: tenant={}, znaleziono={}", tenantId, results.size());
+        return results;
+    }
+
+    /**
+     * Pobiera kampanie RUNNING z typem dialera MANUAL dla danego tenanta.
+     *
+     * <p>Używane przez endpoint GET /api/dialer/manual/records – widok agenta w panelu
+     * desktopowym pokazujący kampanie manualne z rekordami PENDING do ręcznego wybierania.
+     * Kampanie PROGRESSIVE i PREDICTIVE są świadomie wykluczone (obsługiwane automatycznie).
+     *
+     * <p>Indeks {@code idx_campaign_running_tenant} (V031) zapewnia wydajność.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista kampanii RUNNING z dialer_type = 'MANUAL'
+     */
+    @Transactional(readOnly = true)
+    public List<Campaign> findRunningManualByTenantId(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Campaign> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM campaign
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND status = 'RUNNING'
+                          AND dialer_type = 'MANUAL'
+                        ORDER BY created_at ASC
+                        """,
+                        Campaign.class)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        log.debug("[CampaignRepo] Kampanie RUNNING+MANUAL: tenant={}, znaleziono={}", tenantId, results.size());
+        return results;
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

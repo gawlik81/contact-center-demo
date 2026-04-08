@@ -323,7 +323,8 @@ Implementacja WebSocket server (Spring WebSocket + STOMP) lub Server-Sent Events
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** BE-009, BE-006
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-01
 **Blokuje:** FE-025
 **Odniesienie PRD:** EPIC-03
 
@@ -338,12 +339,12 @@ Rozszerzenie adaptera Twilio o obsługę wielu numerów telefonów – po jednym
 - Endpoint `PATCH /api/tenants/{id}/config` z DTO `TenantTwilioConfigRequest { twilioPhoneNumber, twilioStatusCallbackUrl }`; dostępny dla ADMIN i SUPERVISOR swojego tenanta
 
 **Kryteria akceptacji:**
-- [ ] Dwa tenanci z różnymi numerami Twilio – połączenia wychodzące używają właściwego numeru per tenant
-- [ ] Brak konfiguracji per tenant → fallback do `twilio.phone-number` z `application.yml`
-- [ ] Webhook URL zawiera `tenantId` jako query param (automatycznie lub z konfiguracji)
-- [ ] Walidacja E.164 zwraca HTTP 400 dla niepoprawnego numeru
-- [ ] Zapis nowego numeru nie wymaga restartu aplikacji (brak cache bez TTL)
-- [ ] Test jednostkowy: `resolvePhoneNumber()` – priorytet: per-tenant > globalny fallback
+- [x] Dwa tenanci z różnymi numerami Twilio – połączenia wychodzące używają właściwego numeru per tenant
+- [x] Brak konfiguracji per tenant → fallback do `twilio.phone-number` z `application.yml`
+- [x] Webhook URL zawiera `tenantId` jako query param (automatycznie lub z konfiguracji)
+- [x] Walidacja E.164 zwraca HTTP 400 dla niepoprawnego numeru
+- [x] Zapis nowego numeru nie wymaga restartu aplikacji (brak cache bez TTL)
+- [x] Test jednostkowy: `resolvePhoneNumber()` – priorytet: per-tenant > globalny fallback
 
 ---
 
@@ -378,7 +379,8 @@ Silnik IVR interpretujący JSONB definicję drzewa (`IVR_TREE.definition`). Prze
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależy od:** BE-013, DB-009
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-02
 **Blokuje:** brak
 **Odniesienie PRD:** US-04-02, EPIC-04
 
@@ -386,10 +388,10 @@ Silnik IVR interpretujący JSONB definicję drzewa (`IVR_TREE.definition`). Prze
 Serwis Python (FastAPI) integrujący ASR (Google Speech-to-Text lub Whisper) i prosty NLU (reguły lub fine-tuned model). Logika: jeśli confidence < 0.70 → eskalacja do kolejki agentów (event na RabbitMQ z priority=HIGH). API: `POST /voicebot/turn` (audio chunk → intent + confidence). Sesja konwersacji w Redis (TTL 15 min).
 
 **Kryteria akceptacji:**
-- [ ] Confidence < 0.70 zawsze skutkuje eskalacją (test: mock ASR z confidence=0.69 → event ESCALATE)
-- [ ] Eskalacja zawiera transcript rozmowy jako kontekst dla agenta
-- [ ] Sesja voicebot w Redis TTL 15 min, czyszczona po hangup
-- [ ] `POST /voicebot/turn` odpowiada < 2s (p95) dla audio do 5s
+- [x] Confidence < 0.70 zawsze skutkuje eskalacją (test: mock ASR z confidence=0.69 → event ESCALATE)
+- [x] Eskalacja zawiera transcript rozmowy jako kontekst dla agenta
+- [x] Sesja voicebot w Redis TTL 15 min, czyszczona po hangup
+- [x] `POST /voicebot/turn` odpowiada < 2s (p95) dla audio do 5s
 
 ---
 
@@ -609,7 +611,8 @@ Zrealizowane: CampaignImportController (POST import + GET status), CampaignImpor
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależy od:** BE-009, BE-022, DB-011
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-03
 **Blokuje:** brak
 **Odniesienie PRD:** US-08-03, US-08-05, EPIC-08
 
@@ -617,11 +620,11 @@ Zrealizowane: CampaignImportController (POST import + GET status), CampaignImpor
 Serwis `ProgressiveDialer`: po zmianie statusu agenta na AVAILABLE (event RabbitMQ) i aktywnej kampanii → pobierz następny kontakt z CAMPAIGN_CONTACT (status=PENDING), inicjuj połączenie przez TelephonyAdapter. Po odpowiedzi klienta – bridging do agenta. Po disposition code CALLBACK → zaplanuj ponowne wywołanie w harmonogramie.
 
 **Kryteria akceptacji:**
-- [ ] Połączenie inicjowane w < 5s od zmiany statusu agenta na AVAILABLE
-- [ ] Brak odpowiedzi (timeout 30s) → status CAMPAIGN_CONTACT = NO_ANSWER, next attempt +4h
-- [ ] Disposition CALLBACK tworzy rekord w SCHEDULED_CALLBACKS z datą/godziną
-- [ ] Dialer respektuje godziny kampanii (nie dzwoni poza harmonogramem)
-- [ ] Wstrzymanie kampanii (PAUSED) natychmiast zatrzymuje nowe inicjowania połączeń
+- [x] Połączenie inicjowane w < 5s od zmiany statusu agenta na AVAILABLE
+- [x] Brak odpowiedzi (timeout 30s) → status CAMPAIGN_CONTACT = NO_ANSWER, next attempt +4h
+- [x] Disposition CALLBACK tworzy rekord w SCHEDULED_CALLBACKS z datą/godziną
+- [x] Dialer respektuje godziny kampanii (nie dzwoni poza harmonogramem)
+- [x] Wstrzymanie kampanii (PAUSED) natychmiast zatrzymuje nowe inicjowania połączeń
 
 ---
 
@@ -928,6 +931,104 @@ Integracja reguł routingu z logiką obsługi połączenia przychodzącego w `Tw
 
 ---
 
+## MODUL: Prezentacja Kontaktów (EPIC-12)
+
+### BE-036 – Rozszerzenie Contact API o filtry zaawansowane (queueId, campaignId, remoteAddress, durationMin/Max)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-027, DB-022
+**Status:** 🔲 Do zrobienia
+**Blokuje:** FE-029
+**Odniesienie PRD:** EPIC-12
+
+**Opis:**
+Istniejący `GET /api/contacts` (BE-027) obsługuje filtry: `agentId`, `customerId`, `status`, `channel`, `dateFrom`, `dateTo`. Brakuje filtrów potrzebnych dla widoku „Raporty > Kontakty": `queueId`, `campaignId`, `remoteAddress` (numer telefonu klienta), `durationMin` (sekundy), `durationMax` (sekundy). Rozszerzenie jest addytywne — nie łamie kompatybilności z istniejącymi wywołaniami.
+
+**Szczegóły implementacji:**
+- `ContactFilterParams` — dodać pola: `UUID queueId`, `UUID campaignId`, `String remoteAddress`, `Integer durationMin`, `Integer durationMax`
+- `ContactController.listContacts()` — dodać `@RequestParam(required = false)` dla nowych parametrów; zaktualizować tworzenie `ContactFilterParams`
+- `ContactRepository` (metoda `findFiltered` lub native query) — rozszerzyć klauzulę WHERE o nowe predykaty:
+  - `queue_id = :queueId` (jeśli podane)
+  - `campaign_id = :campaignId` (jeśli podane)
+  - `LOWER(remote_address) LIKE LOWER(:remoteAddress || '%')` (jeśli podane — prefix search)
+  - `duration_seconds >= :durationMin` (jeśli podane)
+  - `duration_seconds <= :durationMax` (jeśli podane)
+- Walidacja: `durationMin >= 0`, `durationMax >= durationMin` jeśli oba podane → HTTP 400
+- OpenAPI: zaktualizować `@Parameter` dla nowych query params
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/contacts?queueId=UUID` zwraca tylko kontakty z danej kolejki danego tenanta
+- [ ] `GET /api/contacts?campaignId=UUID` zwraca tylko kontakty powiązane z kampanią
+- [ ] `GET /api/contacts?remoteAddress=+48123` zwraca kontakty z `remote_address` zaczynającym się od podanej wartości (case-insensitive)
+- [ ] `GET /api/contacts?durationMin=60&durationMax=300` zwraca kontakty z `duration_seconds` w zakresie [60, 300]
+- [ ] `durationMin > durationMax` → HTTP 400 z czytelnym komunikatem
+- [ ] Istniejące filtry (agentId, status, channel, dateFrom, dateTo) działają bez zmian
+- [ ] SUPERVISOR/ADMIN: filtry działają dla całego tenanta; AGENT: filtr `agentId` nadal wymuszony na własne ID
+- [ ] Nowe filtry nie spowalniają zapytań na tabeli z 10k+ wierszy powyżej 200ms (indeksy z DB-022)
+
+---
+
+### BE-037 – Endpoint streamowania nagrania z MinIO/S3: GET /api/contacts/{id}/recording
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-027, BE-010
+**Status:** 🔲 Do zrobienia
+**Blokuje:** FE-028, FE-029
+**Odniesienie PRD:** EPIC-12
+
+**Opis:**
+Frontend potrzebuje możliwości odtwarzania nagrania rozmowy bezpośrednio w przeglądarce (Audio Player) oraz pobierania pliku. Nagranie jest przechowywane w MinIO/S3, a `recording_url` w tabeli `contact` zawiera wewnętrzny URL (`s3://bucket/...`). Frontend nie może bezpośrednio wywołać MinIO (CORS, credentiale). Backend pełni rolę proxy: generuje presigned URL lub streamuje dane przez HTTP.
+
+Podejście: **presigned URL (krótkotrwały, 15 min)** — bezpieczniejsze i nie obciąża JVM streamingiem dużych plików audio.
+
+**Szczegóły implementacji:**
+
+Nowy endpoint w `ContactController`:
+```java
+@GetMapping("/{id}/recording")
+@PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+public ResponseEntity<RecordingUrlResponse> getRecordingUrl(@PathVariable String id)
+```
+
+`RecordingUrlResponse` (record):
+```java
+public record RecordingUrlResponse(
+    String presignedUrl,   // URL do MinIO z podpisem HMAC, ważny 15 min
+    Instant expiresAt,     // czas wygaśnięcia
+    String filename,       // np. "nagranie-2026-04-08-12-30.mp3"
+    Long contentLength     // rozmiar w bajtach (z metadata S3)
+) {}
+```
+
+`RecordingService` (nowy lub rozszerzenie `S3Service`/`RecordingStorageService`):
+- Pobiera kontakt z `ContactRepository.findById(contactId, tenantId)` → 404 jeśli nie istnieje
+- Sprawdza `contact.getRecordingUrl() != null` → 404 z body `{"error": "NO_RECORDING"}` jeśli brak
+- Parsuje `recording_url` (format `s3://bucket/path/file.mp3`) → wyciąga bucket i key
+- Generuje presigned URL przez `S3Presigner` (AWS SDK lub MinIO SDK): TTL = 15 min
+- Zwraca `RecordingUrlResponse`
+
+Warunki bezpieczeństwa:
+- `assertSameTenant(contact.getTenantId())` przed zwróceniem URL
+- AGENT może pobrać URL tylko dla kontaktu, w którym był przypisanym agentem (`agentId == userId`)
+- Presigned URL nie zawiera credentiali na stałe — wygasa po 15 min
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/contacts/{id}/recording` zwraca 200 z `presignedUrl` dla kontaktu z `recording_url != null`
+- [ ] `GET /api/contacts/{id}/recording` zwraca 404 z `{"error": "NO_RECORDING"}` gdy `recording_url` jest null
+- [ ] `GET /api/contacts/{id}/recording` zwraca 404 gdy kontakt nie istnieje lub należy do innego tenanta
+- [ ] AGENT wywołujący endpoint dla kontaktu innego agenta otrzymuje 403
+- [ ] Presigned URL jest ważny dokładnie 15 minut (weryfikowalne przez `expiresAt` w response)
+- [ ] Presigned URL pozwala na pobranie pliku bez dodatkowego uwierzytelnienia (weryfikacja w środowisku dev z MinIO)
+- [ ] Testy: brak nagrania → 404, inny tenant → 404, AGENT cudzy kontakt → 403, sukces → 200
+
+---
+
+---
+
 ## Zależności między zadaniami
 
 ### Kolejność obowiązkowa (blokery)
@@ -951,6 +1052,8 @@ BE-012 + BE-019 → BE-029
 BE-027 + DB-013 + DB-014 → BE-030 (ETL)
 BE-025 + BE-027 + DB-012 → BE-031 (RODO)
 BE-009 + BE-006 → BE-032 (Twilio per-tenant)
+BE-027 + DB-022 → BE-036 (Contact API filtry zaawansowane)
+BE-027 + BE-010 → BE-037 (Recording presigned URL)
 ```
 
 ### Blokery od Bazy Danych (BE czeka na DB)
@@ -988,6 +1091,7 @@ BE-009 + BE-006 → BE-032 (Twilio per-tenant)
 | Kampanie | BE-022 → BE-023, BE-024 |
 | Klienci | BE-025 → BE-026, BE-031 |
 | Raporty | BE-027 → BE-028, BE-029, BE-030 |
+| Prezentacja kontaktów | BE-036, BE-037 (równolegle po BE-027) |
 
 ---
 
@@ -1008,4 +1112,5 @@ BE-009 + BE-006 → BE-032 (Twilio per-tenant)
 | Klienci (EPIC-09) | 2 | 2 | 0 |
 | Raporty (EPIC-10) | 4 | 4 | 0 |
 | RODO | 1 | 1 | 0 |
-| **RAZEM** | **36** | **33** | **3** |
+| Prezentacja Kontaktów (EPIC-12) | 2 | 2 | 0 |
+| **RAZEM** | **38** | **35** | **3** |

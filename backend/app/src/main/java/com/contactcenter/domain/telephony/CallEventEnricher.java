@@ -18,15 +18,16 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 /**
- * Wzbogaca zdarzenie CALL_INCOMING o dane klienta z CLI lookup.
+ * Wzbogaca zdarzenia CALL_INCOMING i CALL_OUTBOUND o dane klienta z CLI lookup.
  *
- * <p>Słucha na exchange {@code cc.events} (routing key {@code call.incoming}).
- * Używa dedykowanej kolejki {@code cc.queue.cli-enricher}, niezależnej od
- * kolejki WS relay i call events, by nie blokować innych konsumentów.
+ * <p>Słucha na exchange {@code cc.events}, routing keys: {@code call.incoming}
+ * oraz {@code call.outbound}. Używa dedykowanej kolejki {@code cc.queue.cli-enricher},
+ * niezależnej od kolejki WS relay i call events, by nie blokować innych konsumentów.
  *
  * <p>Flow:
  * <ol>
- *   <li>Odbierz {@link CallEvent} (CALL_INCOMING) z RabbitMQ</li>
+ *   <li>Odbierz {@link CallEvent} (CALL_INCOMING lub CALL_OUTBOUND) z RabbitMQ</li>
+ *   <li>Wyznacz numer klienta: dla OUTBOUND to jest {@code to}, dla INCOMING to jest {@code from}</li>
  *   <li>Wywołaj {@link CliLookupService#lookupCustomer(String, java.util.UUID)}</li>
  *   <li>Zbuduj wzbogacony {@link CallEvent} z {@code customerInfo}</li>
  *   <li>Wyślij {@link WebSocketEvent#callIncoming(CallEvent)} bezpośrednio do agenta
@@ -49,35 +50,65 @@ public class CallEventEnricher {
     private final WebSocketEventBroadcaster broadcaster;
 
     /**
-     * Obsługuje zdarzenia CALL_INCOMING z CLI lookup.
+     * Obsługuje zdarzenia CALL_INCOMING i CALL_OUTBOUND z CLI lookup.
      *
      * <p>Dedykowana kolejka {@code cc.queue.cli-enricher} z DLX na wypadek błędu.
+     * Binding na oba routing keys ({@code call.incoming} i {@code call.outbound})
+     * pozwala wzbogacić oba typy połączeń o dane klienta.
      */
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(
-                    value = "cc.queue.cli-enricher",
-                    durable = "true",
-                    arguments = {
-                            @org.springframework.amqp.rabbit.annotation.Argument(
-                                    name = "x-dead-letter-exchange",
-                                    value = RabbitMQConfig.EXCHANGE_DLX
-                            ),
-                            @org.springframework.amqp.rabbit.annotation.Argument(
-                                    name = "x-dead-letter-routing-key",
-                                    value = "dlq"
-                            )
-                    }
+    @RabbitListener(bindings = {
+            @QueueBinding(
+                    value = @Queue(
+                            value = "cc.queue.cli-enricher",
+                            durable = "true",
+                            arguments = {
+                                    @org.springframework.amqp.rabbit.annotation.Argument(
+                                            name = "x-dead-letter-exchange",
+                                            value = RabbitMQConfig.EXCHANGE_DLX
+                                    ),
+                                    @org.springframework.amqp.rabbit.annotation.Argument(
+                                            name = "x-dead-letter-routing-key",
+                                            value = "dlq"
+                                    )
+                            }
+                    ),
+                    exchange = @Exchange(
+                            value = RabbitMQConfig.EXCHANGE_EVENTS,
+                            type = "topic"
+                    ),
+                    key = "call.incoming"
             ),
-            exchange = @Exchange(
-                    value = RabbitMQConfig.EXCHANGE_EVENTS,
-                    type = "topic"
-            ),
-            key = "call.incoming"
-    ))
-    public void onCallIncoming(CallEvent callEvent,
-                                @Header(AmqpHeaders.RECEIVED_ROUTING_KEY) String routingKey) {
-        log.debug("[CliEnricher] Otrzymano CALL_INCOMING: callId={}, from={}, tenant={}",
-                callEvent.getCallId(), callEvent.getFrom(), callEvent.getTenantId());
+            @QueueBinding(
+                    value = @Queue(
+                            value = "cc.queue.cli-enricher",
+                            durable = "true",
+                            arguments = {
+                                    @org.springframework.amqp.rabbit.annotation.Argument(
+                                            name = "x-dead-letter-exchange",
+                                            value = RabbitMQConfig.EXCHANGE_DLX
+                                    ),
+                                    @org.springframework.amqp.rabbit.annotation.Argument(
+                                            name = "x-dead-letter-routing-key",
+                                            value = "dlq"
+                                    )
+                            }
+                    ),
+                    exchange = @Exchange(
+                            value = RabbitMQConfig.EXCHANGE_EVENTS,
+                            type = "topic"
+                    ),
+                    key = "call.outbound"
+            )
+    })
+    public void onCallEvent(CallEvent callEvent,
+                            @Header(AmqpHeaders.RECEIVED_ROUTING_KEY) String routingKey) {
+        boolean isOutbound = callEvent.getEventType() == CallEvent.EventType.CALL_OUTBOUND;
+
+        // Dla OUTBOUND klientem jest strona docelowa (to), dla INCOMING – dzwoniący (from).
+        String customerPhoneNumber = isOutbound ? callEvent.getTo() : callEvent.getFrom();
+
+        log.debug("[CliEnricher] Otrzymano {}: callId={}, customerPhone={}, tenant={}",
+                callEvent.getEventType(), callEvent.getCallId(), customerPhoneNumber, callEvent.getTenantId());
 
         if (callEvent.getTenantId() == null) {
             log.warn("[CliEnricher] CallEvent bez tenantId – pomijam: callId={}", callEvent.getCallId());
@@ -93,7 +124,7 @@ public class CallEventEnricher {
         try {
             // CLI lookup – Redis hit < 100ms, DB miss < 500ms
             Optional<CustomerCliResult> customerOpt =
-                    cliLookupService.lookupCustomer(callEvent.getFrom(), callEvent.getTenantId());
+                    cliLookupService.lookupCustomer(customerPhoneNumber, callEvent.getTenantId());
 
             // Zbuduj wzbogacony CallEvent z customerInfo (może być null gdy nieznany numer).
             // contactId musi być przepisany – frontend go używa do PATCH /api/contacts/{contactId}/disposition.
@@ -113,12 +144,12 @@ public class CallEventEnricher {
             // Unicast do agenta z danymi klienta (nadpisuje wcześniejszy event bez danych)
             broadcaster.sendToUser(callEvent.getAgentId(), WebSocketEvent.callIncoming(enrichedEvent));
 
-            log.info("[CliEnricher] Wzbogacony CALL_INCOMING wysłany: callId={}, agentId={}, customerFound={}",
-                    callEvent.getCallId(), callEvent.getAgentId(), customerOpt.isPresent());
+            log.info("[CliEnricher] Wzbogacony {} wysłany: callId={}, agentId={}, customerFound={}",
+                    callEvent.getEventType(), callEvent.getCallId(), callEvent.getAgentId(), customerOpt.isPresent());
 
         } catch (Exception e) {
-            log.error("[CliEnricher] Błąd wzbogacania CALL_INCOMING: callId={}: {}",
-                    callEvent.getCallId(), e.getMessage(), e);
+            log.error("[CliEnricher] Błąd wzbogacania {}: callId={}: {}",
+                    callEvent.getEventType(), callEvent.getCallId(), e.getMessage(), e);
             // Nie propagujemy wyjątku – pozwalamy wiadomości trafić do DLQ
         }
     }

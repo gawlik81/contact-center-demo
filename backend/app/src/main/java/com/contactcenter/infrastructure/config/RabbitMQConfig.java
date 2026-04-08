@@ -64,8 +64,21 @@ public class RabbitMQConfig {
     public static final String QUEUE_UNKNOWN_CALLER         = "cc.queue.unknown-caller";
     /** Kolejka dla przychodzących połączeń obsługiwanych przez silnik IVR (BE-013). */
     public static final String QUEUE_IVR_HANDLER            = "cc.queue.ivr-handler";
+    /**
+     * Dedykowana kolejka dla DialerCallbackHandler – eventy zakończenia połączeń kampanijnych.
+     * Oddzielna od QUEUE_CALL_EVENTS (używanej przez RabbitToWebSocketRelay) – każdy consumer
+     * musi otrzymać każdy event call.hangup niezależnie (brak round-robin).
+     */
+    public static final String QUEUE_DIALER_HANGUP           = "cc.queue.dialer-hangup";
     /** Kolejka dla eventów email – BE-015: IMAP polling + SMTP. */
     public static final String QUEUE_EMAIL_EVENTS           = "cc.queue.email-events";
+    /**
+     * Dedykowana kolejka dla Progressive Dialer – eventy zmiany statusu agenta.
+     * Oddzielna od QUEUE_AGENT_STATUS (używanej przez RoutingService), bo RabbitMQ
+     * przy zwykłej kolejce dostarcza każdą wiadomość tylko jednemu konsumentowi
+     * (round-robin). Dialer i routing muszą każdy otrzymać KAŻDY event AVAILABLE.
+     */
+    public static final String QUEUE_DIALER_AGENT_STATUS    = "cc.queue.dialer-agent-status";
 
     // =========================================================================
     // Routing keys
@@ -253,6 +266,33 @@ public class RabbitMQConfig {
     }
 
     /**
+     * Dedykowana kolejka dla DialerCallbackHandler – eventy call.hangup.
+     *
+     * <p>Oddzielna od {@link #QUEUE_CALL_EVENTS} używanej przez RabbitToWebSocketRelay.
+     * RabbitMQ przy zwykłej kolejce dostarcza każdą wiadomość tylko JEDNEMU konsumentowi
+     * (round-robin). DialerCallbackHandler i WebSocket relay muszą każdy otrzymać każdy event
+     * call.hangup niezależnie.
+     */
+    @Bean
+    public Queue dialerHangupQueue() {
+        return QueueBuilder.durable(QUEUE_DIALER_HANGUP)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", "dlq")
+                .build();
+    }
+
+    /**
+     * Binding kolejki dialer-hangup do exchange cc.events z routing key call.hangup.
+     * DialerCallbackHandler otrzymuje eventy zakończenia połączeń kampanijnych.
+     */
+    @Bean
+    public Binding bindingDialerHangup(Queue dialerHangupQueue, TopicExchange eventsExchange) {
+        return BindingBuilder.bind(dialerHangupQueue)
+                .to(eventsExchange)
+                .with("call.hangup");
+    }
+
+    /**
      * Kolejka dla silnika IVR – nasłuchuje przychodzących połączeń.
      * BE-013: IVR Engine – przechwytuje call.incoming przed routingiem do agenta.
      */
@@ -296,6 +336,34 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(emailEventsQueue)
                 .to(eventsExchange)
                 .with("email.#");
+    }
+
+    /**
+     * Dedykowana kolejka dla Progressive Dialer – eventy zmiany statusu agenta.
+     *
+     * <p>Oddzielna od {@link #QUEUE_AGENT_STATUS} używanej przez RoutingService.
+     * RabbitMQ przy zwykłej kolejce dostarcza każdą wiadomość tylko JEDNEMU
+     * konsumentowi (round-robin). Gdyby dialer i routing service słuchały na tej
+     * samej kolejce, każdy event AVAILABLE trafiałby do losowo wybranego konsumenta –
+     * dialer otrzymywałby ~50% eventów i nie inicjował połączeń dla połowy agentów.
+     */
+    @Bean
+    public Queue dialerAgentStatusQueue() {
+        return QueueBuilder.durable(QUEUE_DIALER_AGENT_STATUS)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", "dlq")
+                .build();
+    }
+
+    /**
+     * Binding kolejki dialer-agent-status do exchange cc.events z routing key agent.status.#.
+     * Progressive Dialer otrzymuje KAŻDY event zmiany statusu agenta niezależnie od RoutingService.
+     */
+    @Bean
+    public Binding bindingDialerAgentStatus(Queue dialerAgentStatusQueue, TopicExchange eventsExchange) {
+        return BindingBuilder.bind(dialerAgentStatusQueue)
+                .to(eventsExchange)
+                .with(RK_AGENT_STATUS);
     }
 
     // =========================================================================

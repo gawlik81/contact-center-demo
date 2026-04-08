@@ -606,8 +606,9 @@ Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-005, BE-032
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-032 (endpoint PATCH `/api/tenants/{id}/config`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-01
+**Czeka na BE:** BE-032 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-03
 
@@ -615,11 +616,11 @@ Formularz tworzenia/edycji kolejki: nazwa, strategia routingu (round-robin/first
 Sekcja „Telefonia VoIP" w panelu ustawień tenanta (dostępna dla ADMIN i SUPERVISOR). Formularz z dwoma polami: numer telefonu Twilio (walidacja E.164) i URL webhooka statusów (opcjonalny, generowany automatycznie gdy pusty). Przycisk „Zapisz" wywołuje `PATCH /api/tenants/{id}/config`. Status aktualnej konfiguracji wyświetlany inline (numer aktywny / brak konfiguracji – fallback globalny).
 
 **Kryteria akceptacji:**
-- [ ] Pole numeru telefonu walidowane po stronie klienta (regex E.164: `^\+[1-9]\d{6,14}$`) przed wysłaniem
-- [ ] Przy pustym URL webhooka wyświetlany jest podgląd automatycznie generowanego URL (`baseUrl + ?tenantId=UUID`)
-- [ ] Po zapisie toast „Konfiguracja Twilio zaktualizowana"
-- [ ] Przy braku konfiguracji per-tenant widoczna informacja „Używany globalny numer fallback"
-- [ ] Formularz dostępny tylko dla roli ADMIN i SUPERVISOR (guard RoleGuard)
+- [x] Pole numeru telefonu walidowane po stronie klienta (regex E.164: `^\+[1-9]\d{6,14}$`) przed wysłaniem
+- [x] Przy pustym URL webhooka wyświetlany jest podgląd automatycznie generowanego URL (`baseUrl + ?tenantId=UUID`)
+- [x] Po zapisie toast „Konfiguracja Twilio zaktualizowana"
+- [x] Przy braku konfiguracji per-tenant widoczna informacja „Używany globalny numer fallback"
+- [x] Formularz dostępny tylko dla roli ADMIN i SUPERVISOR (guard RoleGuard)
 
 ---
 
@@ -725,6 +726,221 @@ interface PhoneRoutingRule {
 
 ---
 
+### FE-027 – Przycisk „Zadzwoń" dla dialera manualnego na liście rekordów kampanii
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-015, FE-016
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-08
+**Czeka na BE:** brak (endpoint `POST /api/dialer/manual/call` zrealizowany)
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-08 (Kampanie wychodzące)
+
+**Opis:**
+Na liście rekordów kampanii manualnej (`dialer_type = MANUAL`) każdy rekord ze statusem `PENDING` powinien mieć przycisk „Zadzwoń". Kliknięcie inicjuje połączenie wychodzące przez endpoint `POST /api/dialer/manual/call` z `campaignId` i `recordId`. Przycisk niewidoczny / disabled dla kampanii progresywnych oraz rekordów w statusie innym niż `PENDING`.
+
+Zrealizowane: `ManualCampaignPanelComponent` (polling co 30s, lista kampanii manualnych z rekordami PENDING, przycisk „Zadzwoń" z spinner i disabled guard), `DialerService` (getManualCampaignRecords → GET /api/dialer/manual/records, callRecord → POST /api/dialer/manual/call), integracja z `AgentDesktopComponent`. Obsługa błędów 409/404 przez toast. Przycisk disabled gdy agent nie jest AVAILABLE lub trwa inne połączenie.
+
+**Kryteria akceptacji:**
+- [x] Przycisk „Zadzwoń" widoczny tylko dla rekordów PENDING w kampanii z `dialerType = MANUAL`
+- [x] Kliknięcie wywołuje `POST /api/dialer/manual/call { campaignId, recordId }`
+- [x] Po sukcesie (200 OK) rekord zmienia status na DIALING w UI (optymistyczna aktualizacja lub odświeżenie listy)
+- [x] Podczas trwania żądania przycisk pokazuje spinner i jest disabled (zapobiega podwójnemu kliknięciu)
+- [x] Błąd 409 (np. rekord nie PENDING, kampania nie RUNNING) → toast z komunikatem z backendu
+- [x] Błąd 404 (rekord/kampania nie istnieje) → toast „Rekord nie został znaleziony"
+- [x] Przycisk niewidoczny dla kampanii `dialerType = PROGRESSIVE` (dialer automatyczny)
+- [x] Dostępne tylko dla roli AGENT (agent inicjuje połączenie)
+
+---
+
+---
+
+## MODUL: Prezentacja Kontaktów (EPIC-12)
+
+### FE-028 – Komponent szczegółów kontaktu z odtwarzaczem nagrania (modal)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-005, BE-037
+**Status:** 🔲 Do zrobienia
+**Czeka na BE:** BE-037 (presigned URL nagrania)
+**Blokuje:** FE-029, FE-030
+**Odniesienie PRD:** EPIC-12
+
+**Opis:**
+Reużywalny modal wyświetlający pełne szczegóły jednego kontaktu oraz — jeśli nagranie istnieje — wbudowany odtwarzacz audio. Modal jest wywoływany z dwóch miejsc: panelu klienta (`CustomerDetailComponent`, FE-030) oraz raportu kontaktów (`ContactsReportComponent`, FE-029). Dane kontaktu przekazywane przez `@Input` lub jako argument `open(contactId)`.
+
+**Nowe pliki:**
+```
+shared/components/contact-detail-modal/
+  contact-detail-modal.component.ts / .html / .scss
+shared/components/audio-player/
+  audio-player.component.ts / .html / .scss
+core/models/contact.model.ts  (rozszerzenie istniejącego)
+```
+
+**Szczegóły komponentu `ContactDetailModalComponent`:**
+- Otwierany metodą `open(contactId: string)` lub `openWithData(contact: ContactResponse)`
+- Nagłówek: kanał (ikona + label), kierunek (INBOUND / OUTBOUND), status (badge kolorowy)
+- Sekcja „Szczegóły":
+  - Data i czas rozpoczęcia (`startedAt`) — sformatowane jako lokalny czas
+  - Czas trwania — `durationSeconds` skonwertowany na format `MM:SS` (funkcja `secondsToTime`)
+  - Agent — nazwa agenta (lookup po `agentId` jeśli brak nazwy w danych) lub „—" jeśli brak
+  - Kolejka — nazwa kolejki (lookup po `queueId`) lub „—"
+  - Kampania — nazwa kampanii (lookup po `campaignId`) lub „—" dla kontaktów inbound
+  - Dyspozycja (`dispositionCode`) lub „Brak dyspozycji"
+  - Numer klienta (`remoteAddress`)
+- Sekcja „Nagranie" (widoczna tylko gdy `recordingUrl != null`):
+  - Wywołuje `GET /api/contacts/{id}/recording` → otrzymuje `presignedUrl`
+  - Komponent `AudioPlayerComponent` z wbudowanym `<audio>` elementem
+  - Przycisk „Pobierz" (`<a [href]="presignedUrl" download>`) otwierający pobieranie
+
+**Szczegóły komponentu `AudioPlayerComponent`:**
+- `@Input() src: string` — presigned URL do pliku audio
+- `@Input() filename?: string` — nazwa pliku do pobrania
+- Kontrolki: play/pause (ikona toggle), progress bar (`<input type="range">`), wyświetlony czas `aktualny / całkowity` w formacie `MM:SS`
+- Obsługa zdarzeń HTML5 Audio API: `timeupdate`, `loadedmetadata`, `ended`, `error`
+- Stan błędu: gdy audio nie może się załadować → komunikat „Nie można załadować nagrania"
+- Standalone component, nie wymaga żadnych zewnętrznych bibliotek (czysty HTML5 Audio)
+
+**Rozszerzenie `contact.model.ts`:**
+Aktualny interfejs `ContactResponse` w `core/models/contact.model.ts` jest niekompletny (brakuje `queueId`, `campaignId`, `durationSeconds`, `recordingUrl`, `remoteAddress`, `assignedAt`, `queuedAt`, `channelMetadata`). Zaktualizować do pełnego mapowania z backendu.
+
+**Kryteria akceptacji:**
+- [ ] Modal otwiera się z pełnymi danymi kontaktu (wszystkie pola wymienione w sekcji Szczegóły)
+- [ ] Sekcja nagrania widoczna tylko gdy `recordingUrl` nie jest null w danych kontaktu
+- [ ] Kliknięcie „Play" → `AudioPlayerComponent` pobiera presigned URL (`GET /api/contacts/{id}/recording`) i zaczyna odtwarzanie
+- [ ] Progress bar aktualizuje się w czasie rzeczywistym podczas odtwarzania; kliknięcie na progress bar przewija audio
+- [ ] Czas wyświetlany w formacie `MM:SS / MM:SS` (aktualny / całkowity)
+- [ ] Przycisk „Pobierz" otwiera pobieranie pliku przez link z `download` attribute
+- [ ] Błąd ładowania audio (np. presigned URL wygasł) → komunikat inline „Nie można załadować nagrania. Odśwież stronę."
+- [ ] `contact.model.ts` zaktualizowany o pola `queueId`, `campaignId`, `durationSeconds`, `recordingUrl`, `remoteAddress`, `assignedAt`, `queuedAt`, `channelMetadata`
+- [ ] Dostępność: przyciski play/pause mają `aria-label`, progress bar ma `aria-valuenow`/`aria-valuemax`
+
+---
+
+### FE-029 – Strona „Raporty > Kontakty" z tabelą, filtrami i eksportem CSV
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** L
+**Zależy od:** FE-005, FE-022, FE-028, BE-036
+**Status:** 🔲 Do zrobienia
+**Czeka na BE:** BE-036 (Contact API filtry zaawansowane)
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-12
+
+**Opis:**
+Nowa zakładka „Kontakty" w sekcji Raporty supervisora. Dostępna pod ścieżką `/supervisor/reports/contacts`. Wyświetla paginowaną tabelę wszystkich kontaktów tenanta z rozbudowanym formularzem filtrowania. Kliknięcie w wiersz otwiera `ContactDetailModalComponent` (FE-028). Eksport widocznych danych do CSV.
+
+**Zmiany do istniejących plików:**
+- `supervisor.routes.ts` — zmienić route `reports` z `loadComponent: ReportsComponent` na children z podzakładkami: `reports/agents` (istniejący `ReportsComponent`) i `reports/contacts` (nowy `ContactsReportComponent`); `reports` → redirect do `reports/agents`
+- `reports-placeholder.component.ts` / `.html` — dodać nawigację między zakładkami (linki lub tabs: „Agenci" / „Kontakty")
+- `sidenav.component.ts` — zaktualizować link „Raporty" żeby wskazywał na `/supervisor/reports` (bez zmian w anchor, redirect zadziała)
+
+**Nowe pliki:**
+```
+supervisor/pages/reports/contacts/
+  contacts-report.component.ts / .html / .scss
+supervisor/services/contact-report.service.ts
+```
+
+**Szczegóły `ContactsReportComponent`:**
+
+Formularz filtrów (wszystkie opcjonalne):
+- `dateFrom` / `dateTo` — date picker, domyślnie ostatnie 7 dni; walidacja: dateTo >= dateFrom, max 90 dni
+- `agentId` — dropdown z listą agentów tenanta (pobierana z `UserService.getUsers({role:'AGENT'})`)
+- `queueId` — dropdown z listą kolejek tenanta (pobierana z `QueueService.listQueues()`)
+- `campaignId` — dropdown z listą kampanii tenanta (pobierana z `CampaignService.listCampaigns()`)
+- `status` — select: wszystkie / QUEUED / ACTIVE / COMPLETED / ABANDONED
+- `remoteAddress` — input tekstowy (numer telefonu, prefix search)
+- `durationMin` / `durationMax` — pola numeryczne (sekundy), opcjonalne
+- Przyciski: „Szukaj", „Wyczyść filtry"
+
+Tabela kontaktów (kolumny):
+- Data (`startedAt` sformatowana `YYYY-MM-DD HH:mm`)
+- Kanał (ikona + skrót: tel/email/social)
+- Kierunek (IN / OUT)
+- Klient (`remoteAddress`)
+- Agent (imię i nazwisko — z pomocniczej mapy `agentId → name` pobranej przy inicjalizacji)
+- Kolejka (nazwa — z pomocniczej mapy `queueId → name`)
+- Status (badge)
+- Czas trwania (`durationSeconds` jako `MM:SS`)
+- Dyspozycja
+- Kliknięcie w wiersz → `ContactDetailModalComponent.open(contactId)`
+
+Paginacja: serwer-side, rozmiar strony 20, przyciski Poprzednia/Następna + info „X-Y z N".
+
+Eksport CSV:
+- Przycisk „Eksport CSV" — wywołuje `GET /api/contacts` z bieżącymi filtrami i `size=10000` (max eksport)
+- Mapuje wynik na wiersze CSV (separator `;`) i pobiera plik przez `URL.createObjectURL`
+- Kolumny CSV: data, kanał, kierunek, telefon_klienta, agent_id, kolejka_id, status, czas_trwania_s, dyspozycja
+
+**`ContactReportService`:**
+```ts
+interface ContactFilters {
+  dateFrom?: string;         // ISO 8601
+  dateTo?: string;
+  agentId?: string;
+  queueId?: string;
+  campaignId?: string;
+  status?: string;
+  remoteAddress?: string;
+  durationMin?: number;
+  durationMax?: number;
+}
+
+listContacts(filters: ContactFilters, page: number, size: number): Observable<PagedResponse<ContactResponse>>
+exportCsv(filters: ContactFilters): Blob  // synchroniczny — dane pobrane przez listContacts z size=10000
+```
+
+**Kryteria akceptacji:**
+- [ ] Strona dostępna pod `/supervisor/reports/contacts` (roleGuard: SUPERVISOR, ADMIN)
+- [ ] Nawigacja między zakładkami „Agenci" i „Kontakty" w widoku Raportów (zakładki lub linki)
+- [ ] Tabela wyświetla paginowaną listę kontaktów tenanta posortowaną od najnowszych
+- [ ] Każdy z 7 filtrów (data od-do, agent, kolejka, kampania, status, telefon, czas trwania) działa samodzielnie i w kombinacji
+- [ ] Walidacja zakresu dat: `dateTo >= dateFrom` i max 90 dni → komunikat inline (nie toast)
+- [ ] Paginacja server-side: zmiana strony nie resetuje filtrów; parametry filtrów zachowane w URL (queryParams)
+- [ ] Kliknięcie w wiersz otwiera `ContactDetailModalComponent` z danymi kontaktu
+- [ ] Przycisk „Eksport CSV" pobiera plik z aktualnie zastosowanymi filtrami
+- [ ] Stan pusty (brak wyników) → komunikat „Brak kontaktów spełniających kryteria"
+- [ ] Skeleton loader podczas ładowania danych
+- [ ] Dostępne tylko dla SUPERVISOR i ADMIN (roleGuard)
+
+---
+
+### FE-030 – Integracja szczegółów kontaktu w panelu klienta (CustomerDetailComponent)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-019, FE-028
+**Status:** 🔲 Do zrobienia
+**Czeka na BE:** BE-037 (nagranie), BE-027 ✅ (contact API gotowe)
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-12
+
+**Opis:**
+`CustomerDetailComponent` już wyświetla listę kontaktów klienta (paginacja działa), ale kliknięcie w wiersz kontaktu nie robi nic. Zadanie polega na dodaniu interakcji: kliknięcie w wiersz historii kontaktów otwiera `ContactDetailModalComponent` (FE-028) z pełnymi szczegółami i odtwarzaczem nagrania.
+
+**Zmiany do istniejących plików:**
+- `customer-detail.component.ts` — dodać `ContactDetailModalComponent` do `imports[]`; dodać metodę `onContactRowClick(contact: ContactResponse)` wywołującą modal
+- `customer-detail.component.html` — na wierszach tabeli kontaktów dodać `(click)="onContactRowClick(contact)"` i styl `cursor: pointer`; dodać `<app-contact-detail-modal>` w szablonie
+- `core/models/contact.model.ts` — zaktualizowany w FE-028 (zależność)
+
+**Kryteria akceptacji:**
+- [ ] Kliknięcie w wiersz historii kontaktów klienta otwiera modal ze szczegółami kontaktu
+- [ ] Modal wyświetla wszystkie pola: czas trwania, status, agent, kolejka, kampania, dyspozycja, daty
+- [ ] Jeśli kontakt ma nagranie (`recordingUrl != null`) — widoczna sekcja nagrania z odtwarzaczem
+- [ ] Jeśli kontakt nie ma nagrania — sekcja nagrania ukryta (nie wyświetla się)
+- [ ] Wiersze kontaktów mają wizualny sygnał klikalności (`cursor: pointer`, hover state)
+- [ ] Zamknięcie modala nie resetuje paginacji listy kontaktów klienta
+
+---
+
 ## Zależności między zadaniami
 
 ### Kolejność obowiązkowa (blokery)
@@ -751,6 +967,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | Integracje | FE-023 |
 | Twilio config | FE-025 (po BE-032) |
 | Routing telefoniczny | FE-026 (po BE-033, BE-034) |
+| Prezentacja kontaktów | FE-028 (modal + audio player), FE-029 (raport), FE-030 (panel klienta) |
 
 ### Blokery od Backendu (FE czeka na BE)
 
@@ -763,13 +980,17 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | FE-010 | BE-009 ✅, BE-012 ✅ (WebRTC/SIP signaling – zrealizowane) |
 | FE-012 | BE-015 (email API) |
 | FE-013 | BE-018 (social media API) |
-| FE-014 | BE-020 ✅ (Queue API – gotowe), BE-013 (IVR Engine – brakuje) |
+| FE-014 | BE-020 ✅ (Queue API – gotowe), BE-013 ✅ (IVR Engine – zrealizowane) |
 | FE-015, FE-016 | BE-022 ✅ (campaign API – zrealizowane) |
 | FE-018, FE-019 | BE-025 ✅, BE-027 ✅ (customer API + contact API – gotowe) |
 | FE-021 | BE-029 ✅ (RT metrics WebSocket – zrealizowane) |
 | FE-022 | BE-028 ✅ (reports API – zrealizowane) |
-| FE-025 | BE-032 (Twilio per-tenant config) |
+| FE-025 | BE-032 ✅ (Twilio per-tenant config – zrealizowane) |
 | FE-026 | BE-033 (PhoneNumber API), BE-034 (RoutingRule API) |
+| FE-027 | brak (`POST /api/dialer/manual/call` gotowe) |
+| FE-028 | BE-037 (recording presigned URL) |
+| FE-029 | BE-036 (Contact API filtry zaawansowane) |
+| FE-030 | BE-037 (nagranie), FE-028 (modal komponent) |
 
 > Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
 
@@ -789,4 +1010,6 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | Raporty (EPIC-10) | 2 | 2 | 0 |
 | Konfiguracja | 3 | 2 | 1 |
 | Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
-| **RAZEM** | **26** | **25** | **1** |
+| Dialer manualny | 1 | 1 | 0 |
+| Prezentacja Kontaktów (EPIC-12) | 3 | 3 | 0 |
+| **RAZEM** | **30** | **29** | **1** |

@@ -1,35 +1,12 @@
-import {
-  AfterViewInit,
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  ElementRef,
-  OnInit,
-  inject,
-  input,
-  output,
-  signal,
-  viewChild,
-} from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import {
-  AbstractControl,
-  FormBuilder,
-  ReactiveFormsModule,
-  ValidationErrors,
-  ValidatorFn,
-  Validators,
-} from '@angular/forms';
-import { catchError, of } from 'rxjs';
-import { CampaignService } from '../../../services/campaign.service';
-import { NotificationService } from '../../../../../core/services/notification.service';
-import {
-  ActiveDay,
-  Campaign,
-  CampaignSchedule,
-  CampaignType,
-  DialerType,
-} from '../../../models/campaign.model';
+import {AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, input, OnInit, output, signal, viewChild,} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators,} from '@angular/forms';
+import {catchError, of} from 'rxjs';
+import {CampaignService} from '../../../services/campaign.service';
+import {QueueService} from '../../../services/queue.service';
+import {NotificationService} from '../../../../../core/services/notification.service';
+import {ActiveDay, Campaign, CampaignSchedule, CampaignType, DialerType,} from '../../../models/campaign.model';
+import {Queue} from '../../../models/queue.model';
 
 /** Validates HH:MM time format */
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -89,6 +66,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   readonly cancelled = output<void>();
 
   private readonly campaignService = inject(CampaignService);
+  private readonly queueService = inject(QueueService);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
@@ -96,6 +74,8 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
 
   readonly submitting = signal(false);
+  readonly queuesLoading = signal(false);
+  readonly queues = signal<Queue[]>([]);
   readonly allDays = ALL_DAYS;
 
   readonly typeOptions: { value: CampaignType; label: string }[] = [
@@ -132,6 +112,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     name: ['', [Validators.required, Validators.maxLength(255)]],
     type: ['OUTBOUND_VOICE' as CampaignType, Validators.required],
     dialerType: ['PROGRESSIVE' as DialerType, Validators.required],
+    queueId: ['', Validators.required],
     maxAttempts: [3, [Validators.required, Validators.min(1)]],
     retryDelayMinutes: [60, [Validators.required, Validators.min(0)]],
     schedule: this.scheduleGroup,
@@ -141,12 +122,15 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   readonly selectedDays = signal<Set<ActiveDay>>(new Set());
 
   ngOnInit(): void {
+    this.loadQueues();
+
     const editCampaign = this.campaign();
     if (this.isEditMode() && editCampaign) {
       this.form.patchValue({
         name: editCampaign.name,
         type: editCampaign.type,
         dialerType: editCampaign.dialerType,
+        queueId: editCampaign.queueId ?? '',
         maxAttempts: editCampaign.maxAttempts,
         retryDelayMinutes: editCampaign.retryDelayMinutes,
       });
@@ -168,6 +152,25 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         this.form.disable();
       }
     }
+  }
+
+  private loadQueues(): void {
+    this.queuesLoading.set(true);
+    this.queueService
+      .getQueues(0, 100)
+      .pipe(
+        catchError(() => {
+          this.notifications.error('Nie udalo sie pobrac listy kolejek.');
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((result) => {
+        this.queuesLoading.set(false);
+        if (result) {
+          this.queues.set(result.content.filter((q) => q.active));
+        }
+      });
   }
 
   ngAfterViewInit(): void {
@@ -266,6 +269,13 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     return null;
   }
 
+  get queueIdError(): string | null {
+    const ctrl = this.form.get('queueId')!;
+    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
+    if (ctrl.hasError('required')) return 'Kolejka jest wymagana.';
+    return null;
+  }
+
   get scheduleDateRangeError(): string | null {
     if (this.scheduleGroup.hasError('endDateBeforeStart') && this.scheduleGroup.touched) {
       return 'Data konca nie moze byc wczesniej niz data startu.';
@@ -316,6 +326,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
           name: raw.name!.trim(),
           type: raw.type as CampaignType,
           dialerType: raw.dialerType as DialerType,
+          queueId: raw.queueId!,
           maxAttempts: raw.maxAttempts!,
           retryDelayMinutes: raw.retryDelayMinutes!,
           schedule,

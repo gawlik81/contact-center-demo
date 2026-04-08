@@ -1,4 +1,171 @@
 # CR-BACKEND.md – Code Review Backend
+
+---
+
+## Review: BE-024 Progressive Dialer (DialerController, ProgressiveDialerService, DialerCallbackHandler, ScheduledCallbackRepository, zmiany w CampaignRepository / CampaignContactRepository) — 2026-04-08
+
+### Bugs / Critical Issues
+
+**[DialerController.java:411–412] SQL injection przez string concatenation w `set_tenant_context`**
+
+Linie 411–412 (i analogicznie 515, DialerCallbackHandler.java:358, 440, ProgressiveDialerService.java:329, 365):
+
+```java
+jdbcTemplate.execute("SELECT set_tenant_context('" + tenantId + "'::uuid)");
+```
+
+`tenantId` pochodzi z `TenantContext.getTenantId()` — wartości ustawionej przez `TenantFilter` z JWT claims. W obecnej implementacji nie ma wektora ataku (JWT jest weryfikowany RS256, a UUID ma format regex-walidowany przez Hibernate UuidGenerator). Niemniej wzorzec string-concat w surowym SQL jest fundamentalnie błędny i niezgodny z zasadami bezpiecznego kodowania: wystarczy jeden refaktor (np. zmiana źródła `tenantId` na dane z requestu użytkownika), by uzyskać SQL injection. Wzorzec ten pojawia się w kilku miejscach w kodzie i był zgłaszany we wcześniejszych review — nadal nie naprawiony.
+
+Prawidłowe wywołanie: `jdbcTemplate.update("SELECT set_tenant_context(?::uuid)", tenantId.toString())` lub dedykowana metoda `setTenantContextInDb(tenantId)` z `TenantAwareRepository`, która korzysta z EntityManager z parametrem. Tam gdzie używany jest `JdbcTemplate` (poza EM), należy użyć `jdbcTemplate.update("SELECT set_tenant_context(?)", tenantId)` z JDBC PreparedStatement.
+
+---
+
+**[DialerController.java:241–242] `TenantContext.setTenantId` / `setUserId` wywoływane wewnątrz żądania HTTP — zbędne i mylące**
+
+```java
+TenantContext.setTenantId(tenantId);
+TenantContext.setUserId(agentId);
+```
+
+W ścieżce `POST /api/dialer/callbacks` (standalone callback) kontroler ponownie ustawia `TenantContext`, który jest już ustawiony przez `TenantFilter` na początku każdego żądania HTTP. To nadpisanie jest zbędne i sugeruje, że autor próbował naprawić brak kontekstu — ale w wątku HTTP kontekst jest zawsze obecny. Wywołanie to może maskować przyszłe błędy, jeśli wartość kontekstu zostałaby zmodyfikowana wcześniej. Należy usunąć te dwie linie.
+
+---
+
+**[DialerController.java:107–114] N+1 zapytań SQL w `getDialerStatus`**
+
+Metoda `getDialerStatus` iteruje po liście `runningCampaigns` i dla każdej kampanii wywołuje `countContactsByStatus` trzy razy (PENDING, DIALING, COMPLETED/NO_ANSWER/FAILED), co przekłada się na `3 * N + 1` zapytań do bazy dla N kampanii RUNNING. Każde wywołanie `countContactsByStatus` (linia 513) wykonuje osobno `set_tenant_context` + `COUNT(*)`. Przy 10 kampaniach RUNNING = 31 zapytań per request.
+
+Poprawka: jedno zapytanie `SELECT campaign_id, status, COUNT(*) FROM campaign_contact WHERE tenant_id = ? AND campaign_id = ANY(?) AND status IN ('PENDING','DIALING','COMPLETED','NO_ANSWER','FAILED') GROUP BY campaign_id, status` zwróci wszystkie potrzebne dane.
+
+---
+
+**[DialerCallbackHandler.java:307–309] `TenantContext.clear()` w `finally` wywołane gdy kontekst może być już aktywny dla wątku HTTP**
+
+`handleCallbackDisposition` jest wywoływane z kontrolera HTTP (przez `DialerController.createCallback`). W bloku `finally` na linii 307 czyści `TenantContext`, który był ustawiony przez `TenantFilter`. Po powrocie do kontrolera HTTP dalszy kod (linie 259–268 `DialerController`) próbuje użyć danych ze zwróconego obiektu (co jest OK), ale gdyby gdziekolwiek po wywołaniu `handleCallbackDisposition` nastąpiło odwołanie do `TenantContext.getTenantId()`, zwróciłoby `null`. To jest naruszenie wzorca: `TenantContext.clear()` WOLNO wywoływać tylko w tym samym wątku i tylko gdy ten wątek samodzielnie ustawił kontekst (wątki async). W wątku HTTP kontekst zarządza `TenantFilter` i tylko `TenantFilter` powinien go czyścić.
+
+---
+
+**[ProgressiveDialerService.java:154] `@Transactional` na metodzie wywołanej z `@RabbitListener` — niezarządzana transakcja**
+
+Metoda `initiateDialForAgent` jest oznaczona `@Transactional` i wywoływana bezpośrednio (nie przez Spring proxy) z `onAgentStatusChanged` w tym samym beanie (linia 131: `initiateDialForAgent(agentId, tenantId)`). Self-invocation omija Spring AOP, czyli `@Transactional` jest całkowicie ignorowane. Metoda `fetchNextPendingContact` zawiera `FOR UPDATE SKIP LOCKED` — bez transakcji blokada jest natychmiast zwalniana, co niweluje ochronę przed race condition. Należy wywołać `initiateDialForAgent` przez Spring proxy — np. wstrzykując sam serwis przez `@Self` lub wydzielając do osobnego beana.
+
+---
+
+### Security Concerns
+
+**[DialerController.java:375–377] `POST /api/dialer/manual/call` dostępny dla ADMIN i SUPERVISOR — nie tylko AGENT**
+
+```java
+@PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+```
+
+Javadoc endpointu i opis operacji `@Operation` mówią, że endpoint jest "dostępny wyłącznie dla agentów" i że agent "wskazuje konkretny rekord kampanii". ADMIN i SUPERVISOR nie posiadają softphone'a w przeglądarce i nie są w stanie faktycznie obsłużyć połączenia — inicjacja połączenia przez SUPERVISOR zaalokuje rekord DIALING bez faktycznego agenta gotowego do odebrania. Należy ograniczyć do `hasRole('AGENT')`.
+
+---
+
+**[DialerController.java:232] Agent może podstawić inny `agentId` w request body**
+
+```java
+request.agentId() != null ? request.agentId() : agentId
+```
+
+W endpoincie `POST /api/dialer/callbacks` (standalone callback) pole `agentId` z request body nadpisuje `agentId` z tokenu JWT, gdy `request.agentId() != null`. Każdy uwierzytelniony AGENT może więc przypisać callback do innego agenta (przez podanie UUID innego agenta). Brak weryfikacji, czy `request.agentId()` należy do tego samego tenanta. Może to być zamierzone (supervisor przypisuje callback do wybranego agenta), ale wtedy to `AGENT` nie powinien mieć możliwości podania `agentId` innego agenta. Należy albo usunąć pole `agentId` z `CreateCallbackRequest` dla roli `AGENT`, albo dodać weryfikację że `request.agentId()` należy do tego samego tenanta.
+
+---
+
+### Architecture / Pattern Violations
+
+**[DialerController.java:74] `JdbcTemplate` wstrzykniętyw kontrolerze — naruszenie architektury warstwowej**
+
+Kontroler bezpośrednio wstrzykuje `JdbcTemplate` i wykonuje SQL (linie 411–460, 513–530). Kontrolery powinny delegować do serwisów lub repozytoriów; wykonywanie zapytań SQL w warstwie API narusza SRP, utrudnia testowanie i omija spójną obsługę błędów. Logika zapytań do `campaign_contact` powinna być w `CampaignContactRepository.findByRecordId(...)` lub dedykowanej metodzie.
+
+---
+
+**[DialerController.java:292–354] Logika domenowa (grupowanie rekordów, filtrowanie kampanii) w kontrolerze**
+
+Metoda `getManualCampaignRecords` zawiera pętlę grupującą rekordy po `campaignId` (linie 324–339) oraz mapowanie na DTO (linie 343–349). To jest logika domenowa, która powinna być w serwisie (np. `DialerService.getManualCampaignRecords(tenantId)`), a kontroler powinien tylko delegować wywołanie.
+
+---
+
+**[ScheduledCallbackRepository.java:187] String concatenation w `updateStatus` — ten sam problem co powyżej**
+
+```java
+jdbcTemplate.execute("SELECT set_tenant_context('" + tenantId + "'::uuid)");
+```
+
+Identyczny problem jak w `DialerController`. Należy stosować `setTenantContextInDb(tenantId)` z `TenantAwareRepository` (jeśli dostępny w kontekście) lub prepared statement.
+
+---
+
+**[DialerCallbackHandler.java:280–309] `TenantContext.setTenantId/setUserId` bez `snapshot/restore` — naruszenie wzorca async propagacji**
+
+`handleCallbackDisposition` jest wywoływana zarówno z wątku HTTP (`DialerController`) jak i potencjalnie z wątku RabbitMQ (poprzez inne handlery). Bezpośrednie ustawianie `TenantContext.setTenantId` i czyszczenie w `finally` bez sprawdzenia, czy kontekst był wcześniej ustawiony, może zniszczyć istniejący kontekst wątku HTTP. Wymagany wzorzec dla kodu wywoływanego z wielu kontekstów: `TenantContext.snapshot()` przed ustawieniem własnych wartości i `TenantContext.restore(snapshot)` w `finally`, lub — lepiej — nie manipulować `TenantContext` w metodach domenowych.
+
+---
+
+**[RabbitMQConfig.java] Brak bean dla kolejki `cc.queue.dialer-hangup`**
+
+`DialerCallbackHandler.onCallHangup` używa inline `@QueueBinding` z `@Queue(value = "cc.queue.dialer-hangup", durable = "true", ...)`. Kolejka powstaje przez auto-declare przy starcie listenera. Brak odpowiadającego `@Bean Queue dialerHangupQueue()` w `RabbitMQConfig` oznacza, że ta kolejka nie jest zarządzana spójnie z pozostałymi — nie ma zdefiniowanego bindingu w konfiguracji centralnej i jest niewidoczna w RabbitMQConfig (stanowi wyjątek od wzorca projektu). Należy przenieść deklarację kolejki i bindingu do `RabbitMQConfig`.
+
+---
+
+**[CreateCampaignRequest.java] Brak walidacji wartości `dialerType` i `type`**
+
+Pola `dialerType` i `type` są `String` bez `@Pattern` lub `@NotNull`. Przy wartości `dialerType = "PREDICTIVE"` (wartość technicznie możliwa, ale nieimplementowana wg komentarza w `ProgressiveDialerService`) lub `dialerType = null` — kod w serwisie kampanii musi te przypadki obsługiwać. Lepiej walidować na poziomie DTO: `@Pattern(regexp = "PROGRESSIVE|MANUAL|PREDICTIVE")`.
+
+---
+
+### Improvements & Suggestions
+
+**[ProgressiveDialerService.java:200] Logika `isCalledTooRecently` duplicuje logikę `next_attempt_at`**
+
+Filtr `next_attempt_at <= NOW()` w SQL (linia 339 `fetchNextPendingContact`) już wyklucza kontakty, które nie powinny być dzwonione. Dodatkowe sprawdzenie `isCalledTooRecently` (4h od `last_attempt_at`) jest redundantne — jeśli `handleNoAnswer` poprawnie ustawia `next_attempt_at = NOW() + 4h`, SQL już to obsłuży. Brak spójności między dwoma mechanizmami może prowadzić do nieprzewidywalnego zachowania (np. gdy `next_attempt_at` jest null ale `last_attempt_at` jest ustawione).
+
+**[ProgressiveDialerService.java:419–423] Redis state jako CSV — kruche i nierozszerzalne**
+
+```java
+String value = campaignContactId + "," + campaignId + "," + agentId + "," + tenantId;
+```
+
+CSV bez escapowania jest kruche (pola mogą zawierać `,`). Jeśli w przyszłości dodane zostanie pole zawierające przecinek, parser `split(",")` zwróci błędne dane bez wyraźnego błędu. Użyj JSON (`ObjectMapper.writeValueAsString(map)`) lub struktury `Hash` Redis.
+
+**[ProgressiveDialerService.java:64] Hardcoded `DEFAULT_ZONE = ZoneId.of("Europe/Warsaw")`**
+
+Domyślna strefa czasowa kampanii zakodowana na stałe jako `Europe/Warsaw`. W multi-tenant SaaS klientami mogą być firmy z innych stref czasowych. Docelowo strefa powinna być konfigurowalna per tenant (np. pole w tabeli `tenant`) lub per kampania. Tymczasowo powinna być co najmniej konfigurowana przez `application.yml`.
+
+**[CampaignContactRepository.java:190] Brak górnego limitu wyników w `findPendingByCampaignIds`**
+
+Komentarz na linii 183 mówi: "Brak limitu wyników: kampanie manualne zakłada się małe (< 100 rekordów PENDING per kampania)". Przyjęte założenie bez wymuszenia na poziomie kodu. Przy dużych kampaniach manualnych (np. 10 000 rekordów) endpoint `GET /api/dialer/manual/records` zwróci ogromną odpowiedź bez paginacji. Należy dodać parametr `limit` lub stały limit (np. 500) z dokumentacją.
+
+**[DialerController.java:186] Obliczanie `totalPages` — błąd przy `total=0`**
+
+```java
+int totalPages = size > 0 ? (int) Math.ceil((double) total / size) : 0;
+```
+
+Gdy `total = 0`, `Math.ceil(0.0 / size) = 0.0` → `totalPages = 0`. Wtedy `page >= totalPages - 1` = `0 >= -1` = `true` → `isLast = true`. To jest poprawne zachowanie, ale brak komentarza. Wzorzec jest jednak niespójny z `CampaignContactRepository.findByCampaign` (linia 365) gdzie `totalPages = (int) Math.ceil(...)` bez dodatkowego sprawdzenia `size > 0` — obie implementacje powinny być spójne.
+
+---
+
+### Positive Observations
+
+- **`ScheduledCallbackRepository` poprawnie rozszerza `TenantAwareRepository`** i wywołuje `assertSameTenant()` przed zapisem — zgodnie z architektonicznym wymogiem projektu.
+- **Osobna kolejka `cc.queue.dialer-agent-status`** oddzielona od `QUEUE_AGENT_STATUS` — prawidłowe rozwiązanie problemu consumer competition. Komentarz w `RabbitMQConfig` i `ProgressiveDialerService` dobrze wyjaśnia powód.
+- **Redis lock `dialer:agent:{agentId}` z TTL** — elegancka ochrona przed race condition przy jednoczesnym wyzwalaniu dialera dla tego samego agenta z wielu węzłów.
+- **`FOR UPDATE SKIP LOCKED`** w `fetchNextPendingContact` — prawidłowe użycie pessimistic lock dla multi-instance dialer; SKIP LOCKED zapobiega blokowaniu i jest standardem w job queue patterns.
+- **Rollback statusu DIALING → PENDING** przy błędzie telefonii (linie 469–485 `DialerController`) — dobra praktyka; rekord nie utyka w stanie DIALING.
+- **Maskowanie numeru telefonu w logach** (`maskPhone`) — prawidłowe podejście do ochrony danych osobowych (GDPR).
+- **`@ConditionalOnProperty(name = "dialer.enabled")`** na obu serwisach — umożliwia wyłączenie dialera bez zmian kodu, co jest pożądane w środowiskach testowych.
+- **`isInSchedule` odporny na brak harmonogramu** — brak pola schedule traktowany jako "zawsze aktywny", co jest intuicyjnym domyślnym zachowaniem.
+
+### Summary
+
+Implementacja BE-024 wprowadza kompletny Progressive Dialer z rozsądnymi decyzjami architektonicznymi (oddzielna kolejka RabbitMQ, Redis lock, pessimistic lock SQL). Główne problemy to: naruszenie warstwy architektonicznej (SQL w kontrolerze), krytyczny błąd `@Transactional` self-invocation w `ProgressiveDialerService` (blokada `FOR UPDATE` działa bez transakcji), błędne zarządzanie `TenantContext` w metodach wywoływanych z kontekstów HTTP i async, oraz N+1 queries w `getDialerStatus`. Wzorzec string-concat dla `set_tenant_context` pojawia się w 6+ miejscach i jest recydywą z poprzednich review.
+
+**Ocena: 2.5/5** — solidna koncepcja, poważne problemy implementacyjne w krytycznych obszarach (transakcyjność, N+1, architektura warstw).
+
+---
+
 **Data:** 2026-03-20
 **Reviewer:** Senior Code Reviewer (AI)
 **Zakres:** BE-027 (Contact API) + weryfikacja poprzednich uwag (CR z 2026-03-17)

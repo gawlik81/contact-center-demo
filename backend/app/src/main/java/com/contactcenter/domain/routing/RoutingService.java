@@ -208,6 +208,17 @@ public class RoutingService {
                     queuedContacts.size(), event.tenantId());
 
             for (Contact contact : queuedContacts) {
+                // Kontakty OUTBOUND z kampanii mają agentId ustawiony przez dialer w momencie
+                // inicjowania połączenia. RoutingService nie powinien ich dotykać – agent jest
+                // już przypisany, a połączenie czeka na odebranie przez klienta.
+                // Próba routingu skończyłaby się ERROR (brak queueId gdy kampania go nie ma)
+                // lub duplikacją przypisania.
+                if ("OUTBOUND".equals(contact.getDirection()) && contact.getAgentId() != null) {
+                    log.debug("[RoutingService] Pomijam kontakt OUTBOUND z przypisanym agentem: " +
+                            "contactId={}, agentId={}", contact.getContactId(), contact.getAgentId());
+                    continue;
+                }
+
                 if (contact.getQueueId() == null) {
                     log.warn("[RoutingService] Kontakt bez queueId – kończę ze statusem ERROR: contactId={}",
                             contact.getContactId());

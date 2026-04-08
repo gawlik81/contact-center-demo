@@ -6,7 +6,9 @@ import com.contactcenter.api.campaign.dto.CreateCampaignRequest;
 import com.contactcenter.api.campaign.dto.UpdateCampaignRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Campaign;
+import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.CampaignRepository;
+import com.contactcenter.domain.repository.QueueRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +58,7 @@ public class CampaignService {
     private static final String STATUS_COMPLETED = "COMPLETED";
 
     private final CampaignRepository campaignRepository;
+    private final QueueRepository queueRepository;
 
     // =========================================================================
     // CRUD
@@ -72,6 +75,7 @@ public class CampaignService {
     @Transactional
     public CampaignResponse createCampaign(CreateCampaignRequest request, UUID tenantId, UUID userId) {
         validateSchedule(request.schedule());
+        validateQueue(request.queueId(), tenantId);
 
         Campaign campaign = Campaign.builder()
                 .tenantId(tenantId)
@@ -456,6 +460,28 @@ public class CampaignService {
         } catch (Exception e) {
             log.warn("[CampaignService] Nieznana strefa czasowa '{}', używam Europe/Warsaw", timezone);
             return ZoneId.of("Europe/Warsaw");
+        }
+    }
+
+    /**
+     * Waliduje istnienie kolejki i jej przynależność do tenanta.
+     *
+     * <p>Zapobiega sytuacji, w której kampania jednego tenanta odwoływałaby się
+     * do kolejki innego tenanta (atak cross-tenant).
+     *
+     * @param queueId  UUID kolejki (nie może być null)
+     * @param tenantId UUID tenanta tworzącego kampanię
+     * @throws EntityNotFoundException   gdy kolejka nie istnieje lub należy do innego tenanta
+     * @throws InvalidOperationException gdy kolejka jest nieaktywna
+     */
+    private void validateQueue(UUID queueId, UUID tenantId) {
+        Queue queue = queueRepository.findByIdAndTenantId(queueId, tenantId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        String.format("Kolejka o ID %s nie istnieje lub brak dostępu.", queueId)));
+        if (!queue.isActive()) {
+            throw new InvalidOperationException(
+                    String.format("Kolejka '%s' (ID: %s) jest nieaktywna. " +
+                            "Przypisz kampanię do aktywnej kolejki.", queue.getName(), queueId));
         }
     }
 

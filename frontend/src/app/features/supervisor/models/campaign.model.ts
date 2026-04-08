@@ -37,6 +37,7 @@ export interface CreateCampaignRequest {
   name: string;
   type: CampaignType;
   dialerType: DialerType;
+  queueId: string;
   maxAttempts: number;
   retryDelayMinutes: number;
   schedule?: CampaignSchedule;
@@ -81,7 +82,13 @@ export interface ImportJobStartResponse {
   status: ImportJobStatusType;
 }
 
-export type CampaignContactStatus = 'PENDING' | 'CALLED' | 'FAILED' | 'SKIPPED';
+export type CampaignContactStatus = 'PENDING' | 'CALLED' | 'FAILED' | 'SKIPPED' | 'DIALING';
+
+export interface ManualCallResponse {
+  callId: string;
+  recordId: string;
+  status: 'DIALING';
+}
 
 export interface CampaignContact {
   recordId: string;
@@ -92,4 +99,18 @@ export interface CampaignContact {
   status: CampaignContactStatus;
   dispositionCode: string | null;
   createdAt: string;
+}
+
+export interface ManualCampaignRecord {
+  recordId: string;
+  phone: string;
+  firstName: string | null;
+  lastName: string | null;
+  status: string;
+}
+
+export interface ManualCampaignGroup {
+  campaignId: string;
+  campaignName: string;
+  records: ManualCampaignRecord[];
 }

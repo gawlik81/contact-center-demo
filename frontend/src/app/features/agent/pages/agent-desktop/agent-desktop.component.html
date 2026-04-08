@@ -121,8 +121,8 @@
 
   <!-- ===== BODY: sidebar + main ===== -->
   <div class="desktop__body">
-    <!-- SIDEBAR: queue -->
-    <aside class="desktop__sidebar" aria-label="Kolejka kontaktow">
+    <!-- SIDEBAR: queue + manual campaigns -->
+    <aside class="desktop__sidebar" aria-label="Kolejka kontaktow i kampanie manualne">
       <div class="queue-panel">
         <div class="queue-panel__header">
           <h2 class="queue-panel__title">Kolejka</h2>
@@ -157,6 +157,9 @@
           </ul>
         }
       </div>
+
+      <!-- Manual campaign dialer panel -->
+      <app-manual-campaign-panel [agentStatus]="statusService.currentStatus()" />
     </aside>
 
     <!-- MAIN: contact tabs + customer panel -->

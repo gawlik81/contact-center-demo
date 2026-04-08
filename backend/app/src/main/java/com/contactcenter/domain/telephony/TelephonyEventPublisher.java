@@ -88,6 +88,34 @@ public class TelephonyEventPublisher {
     }
 
     /**
+     * Publikuje zdarzenie CALL_OUTBOUND (wychodzące połączenie kampanijne zainicjowane przez dialer).
+     *
+     * <p>Routing key: {@code call.outbound}.
+     * Używane przez {@code TwilioTelephonyAdapter.initiateCall()} zamiast {@code publishIncoming},
+     * aby frontend mógł odróżnić połączenie wychodzące od przychodzącego.
+     *
+     * @param callId    identyfikator sesji połączenia (Twilio Call SID)
+     * @param contactId UUID rekordu kontaktu w tabeli {@code contact}
+     * @param tenantId  UUID tenanta
+     * @param agentId   UUID agenta inicjującego połączenie
+     * @param from      numer wychodzący (Twilio phone number)
+     * @param to        numer docelowy (numer klienta)
+     */
+    public void publishOutbound(String callId, UUID contactId, UUID tenantId, UUID agentId,
+                                String from, String to) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_OUTBOUND)
+                .callId(callId)
+                .contactId(contactId)
+                .tenantId(tenantId)
+                .agentId(agentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    /**
      * Publikuje zdarzenie CALL_ANSWERED (połączenie odebrane).
      */
     public void publishAnswered(String callId, UUID tenantId, UUID agentId,

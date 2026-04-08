@@ -80,7 +80,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien zwrócić sesję ze statusem RINGING i wygenerować callId")
         void shouldReturnRingingSessionWithGeneratedCallId() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
 
             assertThat(session.getCallId()).startsWith("mock-");
             assertThat(session.getStatus()).isEqualTo(CallSession.CallStatus.RINGING);
@@ -94,7 +94,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien opublikować event CALL_INCOMING z contactId z DB")
         void shouldPublishIncomingEvent() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
 
             // contactId jest UUID wygenerowanym przez adapter przed wstawieniem do DB
             verify(eventPublisher).publishIncoming(
@@ -105,8 +105,8 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("każde wywołanie powinno generować unikalny callId")
         void shouldGenerateUniqueCallIds() {
-            CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
-            CallSession s2 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
+            CallSession s2 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
 
             assertThat(s1.getCallId()).isNotEqualTo(s2.getCallId());
         }
@@ -123,7 +123,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien przejść sesję do stanu ACTIVE i ustawić answeredAt")
         void shouldTransitionToActiveAndSetAnsweredAt() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
 
             adapter.answerCall(session.getCallId(), null);
 
@@ -135,7 +135,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien opublikować event CALL_ANSWERED")
         void shouldPublishAnsweredEvent() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
 
             adapter.answerCall(session.getCallId(), null);
 
@@ -147,7 +147,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("wywołanie answerCall na zakończonej sesji powinno rzucić TelephonyException")
         void shouldThrowWhenAnsweringEndedCall() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.hangupCall(session.getCallId());
 
             assertThatThrownBy(() -> adapter.answerCall(session.getCallId(), null))
@@ -157,7 +157,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("wywołanie answerCall na już aktywnej sesji powinno być idempotentne")
         void shouldBeIdempotentForActiveCall() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(session.getCallId(), null);
 
             // Drugie wywołanie nie rzuca wyjątku
@@ -178,7 +178,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien przejść sesję do stanu ENDED i ustawić endedAt")
         void shouldTransitionToEndedAndSetEndedAt() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
 
             adapter.hangupCall(session.getCallId());
 
@@ -190,7 +190,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien opublikować event CALL_HANGUP")
         void shouldPublishHangupEvent() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.hangupCall(session.getCallId());
 
             verify(eventPublisher).publishHangup(
@@ -201,7 +201,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("wywołanie na zakończonej sesji powinno być idempotentne (bez wyjątku)")
         void shouldBeIdempotentForEndedCall() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.hangupCall(session.getCallId());
 
             assertThatNoException().isThrownBy(() -> adapter.hangupCall(session.getCallId()));
@@ -228,7 +228,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("hold=true powinien przejść ACTIVE → ON_HOLD")
         void holdShouldTransitionActiveToOnHold() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(session.getCallId(), null);
 
             adapter.holdCall(session.getCallId(), true);
@@ -240,7 +240,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("hold=false powinien przejść ON_HOLD → ACTIVE")
         void unholdShouldTransitionOnHoldToActive() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(session.getCallId(), null);
             adapter.holdCall(session.getCallId(), true);
 
@@ -253,7 +253,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("hold=true na sesji ON_HOLD powinien rzucić TelephonyException")
         void holdOnAlreadyHeldCallShouldThrow() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(session.getCallId(), null);
             adapter.holdCall(session.getCallId(), true);
 
@@ -273,7 +273,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien ustawić status TRANSFERRED na oryginalnej sesji")
         void shouldMarkOriginalSessionAsTransferred() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(session.getCallId(), null);
 
             adapter.transferCall(session.getCallId(), "+48111222333",
@@ -286,7 +286,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien opublikować event CALL_TRANSFERRED")
         void shouldPublishTransferredEvent() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(session.getCallId(), null);
             String target = "+48111222333";
 
@@ -302,7 +302,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("transfer ze stanu RINGING powinien rzucić TelephonyException")
         void shouldThrowWhenTransferringRingingCall() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
 
             assertThatThrownBy(() -> adapter.transferCall(
                     session.getCallId(), "+48111222333", TelephonyAdapter.TransferType.BLIND))
@@ -321,7 +321,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien wstrzymać oryginalne połączenie i zwrócić nową sesję (2nd leg)")
         void shouldPutOriginalOnHoldAndReturnSecondLeg() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(session.getCallId(), null);
             String target = "+48111222333";
 
@@ -341,7 +341,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien opublikować event CALL_INCOMING dla 2nd leg")
         void shouldPublishIncomingForSecondLeg() {
-            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(session.getCallId(), null);
 
             CallSession secondLeg = adapter.transferCall(
@@ -365,7 +365,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien oznaczyć callId1 jako TRANSFERRED i callId2 jako ACTIVE")
         void shouldTransferFirstAndActivateSecond() {
-            CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(s1.getCallId(), AGENT_ID);
 
             CallSession s2 = adapter.transferCall(s1.getCallId(), "+48111222333",
@@ -383,7 +383,7 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("bridge z nieistniejącym callId powinien rzucić TelephonyException")
         void shouldThrowForUnknownCallId() {
-            CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID);
+            CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(s1.getCallId(), AGENT_ID);
 
             assertThatThrownBy(() -> adapter.bridgeCalls(s1.getCallId(), "nieistniejacy"))
@@ -402,10 +402,10 @@ class MockTelephonyAdapterTest {
         @Test
         @DisplayName("powinien liczyć tylko aktywne sesje (RINGING, ACTIVE, ON_HOLD)")
         void shouldCountOnlyNonTerminalSessions() {
-            CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID); // RINGING
-            CallSession s2 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID); // RINGING
+            CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null); // RINGING
+            CallSession s2 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null); // RINGING
             adapter.answerCall(s2.getCallId(), AGENT_ID); // ACTIVE
-            CallSession s3 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID); // RINGING
+            CallSession s3 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null); // RINGING
             adapter.hangupCall(s3.getCallId()); // ENDED – nie liczymy
 
             assertThat(adapter.getActiveSessionCount()).isEqualTo(2);

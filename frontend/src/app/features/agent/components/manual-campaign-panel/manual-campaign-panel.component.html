@@ -1,0 +1,143 @@
+<section class="manual-panel" aria-label="Kampanie manualne do wydzwonienia">
+  <!-- Panel header -->
+  <div class="manual-panel__header">
+    <h2 class="manual-panel__title">
+      Kampanie manualne
+      @if (totalPending() > 0) {
+        <span class="manual-panel__badge" aria-label="{{ totalPending() }} rekordów do wydzwonienia">
+          {{ totalPending() }}
+        </span>
+      }
+    </h2>
+    <button
+      type="button"
+      class="manual-panel__refresh"
+      [class.manual-panel__refresh--spinning]="loading()"
+      [disabled]="loading()"
+      (click)="refresh()"
+      aria-label="Odswiezenie listy kampanii manualnych"
+      title="Odswiez"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="14" height="14">
+        <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Status nieaktywny agenta -->
+  @if (!isAvailable()) {
+    <div class="manual-panel__status-notice" role="status">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="14" height="14">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+      </svg>
+      Zmień status na Dostępny aby dzwonić
+    </div>
+  }
+
+  <!-- Error state -->
+  @if (error()) {
+    <div class="manual-panel__error" role="alert">
+      {{ error() }}
+    </div>
+  }
+
+  <!-- Loading skeleton (initial load) -->
+  @if (loading() && campaignRows().length === 0) {
+    <div class="manual-panel__skeleton" aria-busy="true" aria-label="Wczytywanie kampanii...">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="skeleton-campaign">
+          <div class="skeleton-line skeleton-line--title"></div>
+          <div class="skeleton-line skeleton-line--sub"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Empty state (po zaladowaniu brak aktywnych kampanii manualnych) -->
+  @if (!loading() && !error() && campaignRows().length === 0) {
+    <div class="manual-panel__empty" role="status">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="28" height="28">
+        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+      </svg>
+      <p>Brak aktywnych kampanii manualnych</p>
+    </div>
+  }
+
+  <!-- Lista kampanii z rekordami -->
+  @for (row of campaignRows(); track trackByCampaignId($index, row)) {
+    <div class="campaign-section">
+      <!-- Naglowek kampanii (kliknij aby zwinac/rozwinac) -->
+      <button
+        type="button"
+        class="campaign-section__header"
+        [class.campaign-section__header--expanded]="row.expanded"
+        [attr.aria-expanded]="row.expanded"
+        [attr.aria-controls]="'campaign-contacts-' + row.group.campaignId"
+        (click)="toggleExpanded(row.group.campaignId)"
+      >
+        <svg
+          class="campaign-section__chevron"
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          width="12"
+          height="12"
+        >
+          <path d="M7 10l5 5 5-5z" />
+        </svg>
+        <span class="campaign-section__name" [title]="row.group.campaignName">{{ row.group.campaignName }}</span>
+        @if (row.group.records.length > 0) {
+          <span class="campaign-section__count" aria-label="{{ row.group.records.length }} rekordów PENDING">
+            {{ row.group.records.length }}
+          </span>
+        }
+      </button>
+
+      <!-- Lista rekordow kampanii -->
+      @if (row.expanded) {
+        <div
+          [id]="'campaign-contacts-' + row.group.campaignId"
+          role="region"
+          [attr.aria-label]="'Rekordy kampanii ' + row.group.campaignName"
+        >
+          @if (row.group.records.length === 0) {
+            <p class="contacts-empty">Brak rekordów do wydzwonienia</p>
+          } @else {
+            <ul class="contact-records" role="list" aria-label="Rekordy do wydzwonienia">
+              @for (record of row.group.records; track trackByRecordId($index, record)) {
+                <li class="contact-record">
+                  <div class="contact-record__info">
+                    <span class="contact-record__phone">{{ record.phone }}</span>
+                    @if (record.firstName || record.lastName) {
+                      <span class="contact-record__name">
+                        {{ record.firstName ?? '' }} {{ record.lastName ?? '' }}
+                      </span>
+                    }
+                  </div>
+                  <button
+                    type="button"
+                    class="btn-call"
+                    [class.btn-call--loading]="callingRecordId() === record.recordId"
+                    [disabled]="!isAvailable() || callingRecordId() !== null"
+                    (click)="callRecord(row.group, record)"
+                    [attr.aria-label]="'Zadzwon do ' + record.phone"
+                    [attr.aria-busy]="callingRecordId() === record.recordId"
+                    [title]="isAvailable() ? 'Zadzwoń' : 'Zmień status na Dostępny'"
+                  >
+                    @if (callingRecordId() === record.recordId) {
+                      <span class="btn-call__spinner" aria-hidden="true"></span>
+                    } @else {
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="13" height="13">
+                        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                      </svg>
+                    }
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </div>
+  }
+</section>

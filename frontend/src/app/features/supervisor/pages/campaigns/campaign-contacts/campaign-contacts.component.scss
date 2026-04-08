@@ -264,6 +264,11 @@ $radius: 6px;
     background: $warning-bg;
     color: $warning;
   }
+
+  &--dialing {
+    background: $blue-bg;
+    color: $brand-blue;
+  }
 }
 
 // ── Buttons ───────────────────────────────────────────────────────────────────
@@ -333,6 +338,50 @@ $radius: 6px;
     background: $blue-bg;
     border-color: $brand-blue;
   }
+}
+
+.btn-call {
+  padding: 0.375rem 0.75rem;
+  background: $brand-blue;
+  color: #fff;
+  border: none;
+  border-radius: $radius;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  min-width: 100px;
+
+  &:hover:not(:disabled) {
+    background: $brand-blue-dark;
+  }
+
+  &--loading {
+    background: color.adjust($brand-blue, $lightness: 10%);
+    cursor: wait;
+  }
+
+  &__spinner {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.65s linear infinite;
+    flex-shrink: 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.col-action {
+  width: 120px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 // ── Pagination ────────────────────────────────────────────────────────────────
@@ -413,6 +462,11 @@ $radius: 6px;
 
   &--date {
     width: 140px;
+    flex-shrink: 0;
+  }
+
+  &--action {
+    width: 100px;
     flex-shrink: 0;
   }
 }

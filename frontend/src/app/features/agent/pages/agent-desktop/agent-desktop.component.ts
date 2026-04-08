@@ -23,6 +23,7 @@ import { SoftphoneComponent } from '../../components/softphone/softphone.compone
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
 import { EmailContactComponent } from './email-contact/email-contact.component';
+import { ManualCampaignPanelComponent } from '../../components/manual-campaign-panel/manual-campaign-panel.component';
 import {
   AgentStatus,
   ALL_AGENT_STATUSES,
@@ -33,6 +34,7 @@ import { QueueItem } from '../../models/queue-item.model';
 import {
   WsEvent,
   CallIncomingPayload,
+  CallOutboundPayload,
   ContactAssignedPayload,
   QueueUpdatePayload,
 } from '../../models/ws-event.model';
@@ -47,6 +49,7 @@ import {
     CustomerPanelComponent,
     DispositionPanelComponent,
     EmailContactComponent,
+    ManualCampaignPanelComponent,
   ],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
@@ -157,6 +160,27 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
     this.ws.events$
       .pipe(
         takeUntilDestroyed(this.destroyRef),
+        filter((e: WsEvent) => e.eventType === 'CALL_OUTBOUND'),
+      )
+      .subscribe((e) => {
+        const payload = e.payload as CallOutboundPayload;
+        this.lookupService.evict(payload.customerPhone);
+        // Otwieramy zakładkę jak dla połączenia przychodzącego — ta sama struktura payloadu
+        const reason = this.tabStore.openFromCallIncoming(payload);
+        if (reason !== null) {
+          this.showLimitMessage(reason);
+        } else {
+          // Softphone w stanie RINGING — agent czeka aż klient odbierze
+          this.softphoneService.incomingCall(payload);
+          this.notifications.info(
+            `Polaczenie wychodzace do ${payload.customerName} (${payload.customerPhone})`,
+          );
+        }
+      });
+
+    this.ws.events$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
         filter((e: WsEvent) => e.eventType === 'CONTACT_ASSIGNED'),
       )
       .subscribe((e) => {
@@ -180,6 +204,18 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
       .subscribe((e) => {
         const payload = e.payload as QueueUpdatePayload;
         this.queueItems.set(payload.items ?? []);
+      });
+
+    // Gdy klient rozłączy połączenie wychodzące (lub przychodzące) po stronie Twilio,
+    // backend wysyła CALL_HANGUP przez WebSocket. Przekazujemy to do softphoneService
+    // aby softphone przeszedł w stan ENDED i uruchomił panel dyspozycji (ACW).
+    this.ws.events$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        filter((e: WsEvent) => e.eventType === 'CALL_HANGUP'),
+      )
+      .subscribe(() => {
+        this.softphoneService.remoteHangup();
       });
   }
 

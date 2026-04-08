@@ -29,10 +29,13 @@ public interface TelephonyAdapter {
      * @param from      numer dzwoniącego w formacie E.164 (np. +48123456789)
      * @param to        numer docelowy w formacie E.164
      * @param agentId   agent inicjujący połączenie
+     * @param queueId   UUID kolejki przypisanej do kampanii (nullable – ustawiany na rekordzie
+     *                  contact aby RoutingService mógł przeprowadzić routing ACW; null gdy
+     *                  połączenie wychodzące nie pochodzi z kampanii)
      * @return sesja połączenia ze statusem {@code RINGING}
      * @throws TelephonyException gdy nie można zainicjować połączenia
      */
-    CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId);
+    CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId);
 
     /**
      * Odbiera przychodzące połączenie.

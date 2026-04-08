@@ -322,6 +322,57 @@ public class ContactRepository extends TenantAwareRepository {
     }
   }
 
+  /**
+   * Uzupełnia {@code channel_metadata->>'sip_call_id'} dla kontaktu wychodzącego (OUTBOUND),
+   * który został utworzony przed inicjacją połączenia Twilio i nie ma jeszcze callSid.
+   *
+   * <p>Dla połączeń wychodzących inicjowanych przez dialer rekord {@code contact} jest tworzony
+   * przez {@code TwilioTelephonyAdapter.persistOutboundContact()} PRZED wywołaniem Twilio API,
+   * więc {@code sip_call_id} jest null. Gdy pierwszy StatusCallback (initiated/ringing) dotrze
+   * z Twilio, callSid jest już znany i należy go backfillować, aby:
+   * <ul>
+   *   <li>{@code findContactIdByCallSid} mógł znaleźć kontakt po callSid</li>
+   *   <li>{@code updateConferenceSidInMetadata} mógł powiązać nagranie konferencji</li>
+   *   <li>Inne ścieżki korzystające z sip_call_id działały poprawnie</li>
+   * </ul>
+   *
+   * <p>Identyfikuje rekord kontaktu wychodzącego przez jego UUID (contactId) przekazany
+   * z sesji połączenia. Operacja jest idempotentna – wielokrotne wywołanie z tym samym
+   * callSid nie zmienia wyniku.
+   *
+   * @param contactId UUID rekordu contact (z sesji połączenia)
+   * @param callSid   Twilio Call SID (CA...) do zapisania jako sip_call_id
+   * @param tenantId  UUID tenanta
+   */
+  @Transactional
+  public void backfillCallSidInMetadata(UUID contactId, String callSid, UUID tenantId) {
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update(
+        """
+            UPDATE contact
+            SET channel_metadata = COALESCE(channel_metadata, '{}'::jsonb)
+                                   || jsonb_build_object('sip_call_id', CAST(? AS text)),
+                updated_at = NOW()
+            WHERE contact_id = CAST(? AS uuid)
+              AND tenant_id  = CAST(? AS uuid)
+              AND (channel_metadata->>'sip_call_id' IS NULL
+                   OR channel_metadata->>'sip_call_id' = '')
+            """,
+        callSid,
+        contactId.toString(),
+        tenantId.toString()
+    );
+
+    if (updated > 0) {
+      log.info("[ContactRepository] Backfill sip_call_id: contactId={}, callSid={}, tenant={}",
+          contactId, callSid, tenantId);
+    } else {
+      log.debug("[ContactRepository] Backfill sip_call_id pominięty (już ustawiony lub brak rekordu): " +
+                "contactId={}, callSid={}", contactId, callSid);
+    }
+  }
+
   // =========================================================================
   // BE-027: Zapis – natywny INSERT (wymagany dla tabel partycjonowanych)
   // =========================================================================

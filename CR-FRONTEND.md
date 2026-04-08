@@ -1,4 +1,105 @@
 # CR-FRONTEND.md – Code Review Frontend
+
+---
+
+## Review: FE-027 Manual Dialer Panel (ManualCampaignPanelComponent, DialerService, AgentDesktopComponent) — 2026-04-08
+
+### Bugs / Critical Issues
+
+**[manual-campaign-panel.component.ts:53–83] Polling timer nie jest zatrzymywany gdy komponent jest niszczony — potencjalny memory leak przy szybkiej nawigacji**
+
+`timer(0, POLL_INTERVAL_MS).pipe(switchMap(...), takeUntilDestroyed(this.destroyRef))` — `takeUntilDestroyed` poprawnie anuluje subskrypcję przy niszczeniu. Jednak `switchMap` po każdym tyknięciu timera tworzy wewnętrzną subskrypcję HTTP. Jeśli podczas trwającego zapytania HTTP (np. powolne API) nastąpi destroy komponentu, `takeUntilDestroyed` zakończy zewnętrzną Observable, ale wewnętrzne Observable z `switchMap` może dokończyć. Dodatkowo, `loading.set(true)` jest wywoływane wewnątrz `switchMap` przed zapytaniem, ale `loading.set(false)` jest w `subscribe` — po `takeUntilDestroyed`. Jeśli komponent zostanie zniszczony w trakcie oczekiwania na HTTP, `loading.set(false)` nigdy nie zostanie wywołane (sygnał na zniszczonym komponencie). W praktyce Angular ignoruje aktualizacje sygnałów zniszczonych komponentów, ale jest to nieoczywiste. Zalecane dodanie `finalize(() => this.loading.set(false))` wewnątrz pipeline `switchMap`, przed `catchError`.
+
+---
+
+**[manual-campaign-panel.component.ts:86–112] Duplikacja logiki `refresh` vs timer — DRY violation i różne ścieżki obsługi błędów**
+
+Metoda `refresh()` (linie 86–112) jest niemal identyczna z logiką wewnątrz `switchMap` w `ngOnInit` (linie 56–83). Jedyna różnica to brak `this.error.set(null)` resetowania błędu w `refresh` przed `loading.set(true)` — co jest niespójnością: po błędzie, ręczne kliknięcie "Odśwież" nie czyści komunikatu błędu przed wywołaniem API. Należy wyodrębnić metodę prywatną `private loadCampaigns()` i używać jej w obu miejscach.
+
+---
+
+### Security Concerns
+
+_None identified._
+
+### Architecture / Pattern Violations
+
+**[dialer.service.ts] `DialerService` zdefiniowany w `supervisor/services/` — błędna lokalizacja**
+
+`DialerService` jest serwisem używanym przez komponent agenta (`ManualCampaignPanelComponent` w `agent/components/`), ale plik leży w `supervisor/services/dialer.service.ts`. Serwis dotyczy funkcjonalności agenta (manualny dialer), nie supervisora. Prawidłowa lokalizacja: `agent/services/dialer.service.ts` lub `core/services/dialer.service.ts` (jeśli używany przez obie role). Obecne umiejscowienie narusza zasadę organizacji kodu per-feature i utrudni przyszłą nawigację po projekcie.
+
+---
+
+**[manual-campaign-panel.component.ts:35] `imports: []` — komponent nie importuje żadnych modułów Angular**
+
+`ManualCampaignPanelComponent` używa w szablonie `@for`, `@if`, interpolacji, bindingów `[class.*]`, `[attr.*]`, `[disabled]` — wszystkie są częścią składni szablonów Angular i nie wymagają importów. Jednak `[disabled]` w Angular 17+ dla `<button>` może wymagać `CommonModule` lub `NgOptimizedImage` w zależności od wersji. Warto upewnić się, że brak importów jest faktycznie prawidłowy dla Angular 21 standalone (nie jest to błąd krytyczny, ale warto zweryfikować).
+
+---
+
+**[manual-campaign-panel.component.ts:122] Brak ochrony przed concurrent calls — user może kliknąć wiele razy przed odpowiedzią API**
+
+```typescript
+if (this.callingRecordId() !== null) return;
+```
+
+Guard `callingRecordId !== null` zapobiega jednoczesnemu wywołaniu dla **dowolnego** rekordu, ale sygnał jest ustawiany dopiero w następnej linii (`this.callingRecordId.set(record.recordId)`). W teorii między sprawdzeniem a ustawieniem (mimo że synchroniczne w JS) istnieje okno, gdyby Angular change detection uruchomił template re-render. W praktyce JS jest single-threaded i `callRecord` jest synchroniczne do linii `this.callingRecordId.set(...)`, więc race condition jest niemożliwy. Jednak wyłączenie przycisku w szablonie `[disabled]="!isAvailable() || callingRecordId() !== null"` jest prawidłowe i stanowi warstwę UI guard.
+
+---
+
+### Improvements & Suggestions
+
+**[manual-campaign-panel.component.html:7–9] Brak polskich znaków diakrytycznych w komunikatach użytkownika**
+
+```html
+<span ... aria-label="{{ totalPending() }} rekordow do wydzwonienia">
+```
+```
+Zmien status na Dostepny aby dzwonic
+```
+
+Komunikaty użytkownika w HTML zawierają słowa bez polskich diakrytyk: "rekordow" (powinno być "rekordów"), "wydzwonienia" ("wydzwonienia" — poprawne), "Zmien" ("Zmień"), "Dostepny" ("Dostępny"), "dzwonic" ("dzwonić"). W pliku `.ts` (linie 150–155): "Nie udalo sie pobrac kampanii." → "Nie udało się pobrać kampanii.", "polaczenia" → "połączenia" itp. Brak diakrytyk był wcześniej zgłoszony jako recurring anti-pattern (CR-FRONTEND 2026-03-20, pozycja #17).
+
+**[manual-campaign-panel.component.ts:149–151] Komunikat sukcesu nie jest przycinany — może wyświetlić "Inicjowanie polaczenia do   ()"**
+
+```typescript
+`Inicjowanie polaczenia do ${record.firstName ?? ''} ${record.lastName ?? ''} (${record.phone})`.trim()
+```
+
+`.trim()` usuwa spacje tylko z początku i końca stringa. Gdy `firstName` i `lastName` są `null/undefined`, rezultat to `"Inicjowanie polaczenia do   (phone)"` (z podwójną spacją między "do" i "(phone)"). Należy zbudować wyświetlaną nazwę warunkow: `const name = [record.firstName, record.lastName].filter(Boolean).join(' ') || record.phone`.
+
+**[agent-desktop.component.ts:124–135] `untracked` w `twilioDeviceEffect` — poprawna praktyka, ale wartościowy komentarz**
+
+Użycie `untracked(() => this.softphoneService.twilioDeviceReady())` zapobiega circular tracking (efekt śledzi `currentStatus` i `twilioDeviceReady` jednocześnie, co mogłoby powodować podwójne wywołania). To jest prawidłowy i nieoczywisty wzorzec Angular signals — komentarz w kodzie dobrze to wyjaśnia.
+
+**[manual-campaign-panel.component.html:67] `trackByCampaignId` wywołany z argumentami `($index, row)`**
+
+```html
+@for (row of campaignRows(); track trackByCampaignId($index, row))
+```
+
+W Angular 17+ `@for` z `track` przyjmuje wyrażenie trackBy jako `track <wyrażenie>`. Użycie `trackByCampaignId($index, row)` wywołuje funkcję dla każdego elementu, co jest poprawne. Jednak konwencja w projekcie (sprawdzone w `AgentDesktopComponent`: `trackByTabId`) używa `(_i, tab) => tab.id` jako arrow function bez osobnej nazwanej metody. Styl z dedykowaną protected readonly function jest bardziej czytelny — brak problemu.
+
+---
+
+### Positive Observations
+
+- **`ChangeDetectionStrategy.OnPush`** na `ManualCampaignPanelComponent` — zgodne z konwencją projektu i dobrą praktyką wydajnościową.
+- **`takeUntilDestroyed(this.destroyRef)`** konsekwentnie używane dla wszystkich subskrypcji — brak memory leaków z zapomnianych subskrypcji.
+- **Zachowanie stanu `expanded` przy odświeżeniu** (linie 74–79) — przemyślana UX: lista nie zwija się po każdym poll, co byłoby irytujące dla agenta pracującego z listą.
+- **Optimistic update** przy `callRecord` (linie 136–147) — rekord znika z listy natychmiast po kliknięciu, nie czekając na potwierdzenie z backendu, co poprawia responsywność UI.
+- **Obsługa błędów HTTP ze statusami 409 i 404** z dedykowanymi komunikatami — agent dostaje zrozumiały feedback zamiast generycznego "coś poszło nie tak".
+- **Skeleton loading** dla pierwszego ładowania (`loading() && campaignRows().length === 0`) — profesjonalne UX, nie blankuje ekranu.
+- **`aria-label`, `aria-expanded`, `aria-controls`, `aria-busy`, `role="list"`, `role="status"`, `role="alert"`** — kompletna dostępność WCAG AA na komponencie.
+- **`DialerService` jako `providedIn: 'root'`** singleton — prawidłowe dla serwisu HTTP bez stanu.
+
+### Summary
+
+Komponent `ManualCampaignPanelComponent` jest dobrze napisany pod kątem UX, dostępności i zarządzania subskrypcjami. Główne zastrzeżenia: duplikacja logiki ładowania (DRY), błędna lokalizacja `DialerService` w module `supervisor/` zamiast `agent/`, brak polskich diakrytyk w komunikatach (recurring pattern) oraz drobna niespójność w obsłudze `loading` przy destroy. Brak krytycznych bugów w samym komponencie.
+
+**Ocena: 3.5/5** — solidny komponent agenta z drobnymi uchybieniami organizacyjnymi i UX.
+
+---
+
 **Data:** 2026-03-20
 **Reviewer:** Senior Code Reviewer (AI)
 **Zakres:** FE-011 (Panel profilu klienta), FE-017 (Disposition Panel) + weryfikacja poprzednich uwag

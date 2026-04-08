@@ -249,8 +249,16 @@
                 </tr>
               </thead>
               <tbody>
-                @for (contact of contacts(); track contact.id; let i = $index) {
-                  <tr [class.contacts-table__row--even]="i % 2 === 0">
+                @for (contact of contacts(); track contact.contactId; let i = $index) {
+                  <tr
+                    [class.contacts-table__row--even]="i % 2 === 0"
+                    class="contacts-table__row--clickable"
+                    (click)="selectedContactId.set(contact.contactId)"
+                    [attr.aria-label]="'Otworz szczegoly kontaktu z ' + (contact.startedAt | date: 'dd.MM.yyyy HH:mm')"
+                    tabindex="0"
+                    (keydown.enter)="selectedContactId.set(contact.contactId)"
+                    (keydown.space)="selectedContactId.set(contact.contactId)"
+                  >
                     <td>{{ contact.startedAt | date: 'dd.MM.yyyy HH:mm' }}</td>
                     <td class="text-secondary">{{ formatDuration(contact.startedAt, contact.endedAt) }}</td>
                     <td>
@@ -327,3 +335,9 @@
   }
 
 </div>
+
+<!-- Contact detail modal -->
+<app-contact-detail-modal
+  [contactId]="selectedContactId()"
+  (closed)="selectedContactId.set(null)"
+/>

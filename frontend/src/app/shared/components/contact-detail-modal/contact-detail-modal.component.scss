@@ -1,0 +1,423 @@
+$text-primary: #212121;
+$text-secondary: #616161;
+$border-color: #e2e8f0;
+$bg-white: #ffffff;
+$bg-light: #f8fafc;
+$brand-blue: #1565c0;
+$brand-blue-dark: #0d47a1;
+$blue-bg: #e3f2fd;
+$radius: 8px;
+$danger: #c62828;
+$danger-bg: #ffebee;
+$success: #2e7d32;
+$success-bg: #e8f5e9;
+$neutral-bg: #f5f5f5;
+$warning-text: #e65100;
+$warning-bg: #fff3e0;
+
+.contact-dialog {
+  border: none;
+  border-radius: $radius;
+  padding: 0;
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.12),
+    0 24px 48px rgba(0, 0, 0, 0.18);
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  background: $bg-white;
+  color: $text-primary;
+  overflow: hidden;
+
+  &[open] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+  }
+
+  @media (max-width: 600px) {
+    max-width: 100%;
+    max-height: 95vh;
+    border-radius: $radius $radius 0 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid $border-color;
+    flex-shrink: 0;
+  }
+
+  &__title {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    margin: 0;
+    color: $text-primary;
+  }
+
+  &__close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: $text-secondary;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: $bg-light;
+      color: $text-primary;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand-blue;
+      outline-offset: 2px;
+    }
+  }
+
+  &__body {
+    padding: 1.25rem 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  &__footer {
+    padding: 0.875rem 1.5rem;
+    border-top: 1px solid $border-color;
+    background: $bg-light;
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    border-radius: 0 0 $radius $radius;
+  }
+}
+
+// ── Sections ──────────────────────────────────────────────────────────────
+.contact-section {
+  &__title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 0.875rem;
+  }
+}
+
+// ── Definition list ───────────────────────────────────────────────────────
+.contact-dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+
+  &__row {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 0.75rem;
+    align-items: baseline;
+
+    &--tall {
+      align-items: flex-start;
+    }
+
+    @media (max-width: 420px) {
+      grid-template-columns: 1fr;
+      gap: 0.2rem;
+    }
+  }
+
+  &__term {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: $text-secondary;
+  }
+
+  &__desc {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: $text-primary;
+    word-break: break-word;
+
+    &--mono {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.875rem;
+    }
+
+    &--notes {
+      white-space: pre-wrap;
+      font-size: 0.875rem;
+      color: $text-secondary;
+      line-height: 1.5;
+      background: $bg-light;
+      border: 1px solid $border-color;
+      border-radius: 4px;
+      padding: 0.5rem 0.625rem;
+    }
+  }
+}
+
+// ── Badges ────────────────────────────────────────────────────────────────
+.channel-badge {
+  display: inline-block;
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+
+  &--phone {
+    background: $blue-bg;
+    color: $brand-blue;
+  }
+
+  &--email {
+    background: #f3e5f5;
+    color: #6a1b9a;
+  }
+
+  &--chat {
+    background: $success-bg;
+    color: $success;
+  }
+
+  &--social {
+    background: $warning-bg;
+    color: $warning-text;
+  }
+}
+
+.direction-badge {
+  display: inline-block;
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+
+  &--inbound {
+    background: $success-bg;
+    color: $success;
+  }
+
+  &--outbound {
+    background: $blue-bg;
+    color: $brand-blue;
+  }
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+
+  &--queued {
+    background: $warning-bg;
+    color: $warning-text;
+  }
+
+  &--active {
+    background: $success-bg;
+    color: $success;
+  }
+
+  &--on-hold {
+    background: $blue-bg;
+    color: $brand-blue;
+  }
+
+  &--completed {
+    background: $neutral-bg;
+    color: $text-secondary;
+  }
+
+  &--abandoned {
+    background: $danger-bg;
+    color: $danger;
+  }
+
+  &--failed {
+    background: $danger-bg;
+    color: $danger;
+  }
+}
+
+// ── Recording section ─────────────────────────────────────────────────────
+.recording-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0 0 0.625rem;
+
+  &__name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: $text-primary;
+    font-family: 'Courier New', Courier, monospace;
+  }
+
+  &__expires {
+    font-size: 0.75rem;
+    color: $text-secondary;
+  }
+}
+
+.recording-player {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.recording-loading {
+  padding: 0.5rem 0;
+}
+
+// ── Inline error ──────────────────────────────────────────────────────────
+.inline-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: $danger;
+  font-size: 0.875rem;
+  background: $danger-bg;
+  border: 1px solid #ef9a9a;
+  border-radius: 6px;
+  padding: 0.625rem 0.875rem;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: $brand-blue;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  margin-left: 0.25rem;
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+// ── Buttons ───────────────────────────────────────────────────────────────
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  line-height: 1;
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+.btn-close {
+  padding: 0.5625rem 1.25rem;
+  background: $bg-white;
+  color: $text-secondary;
+  border: 1.5px solid $border-color;
+
+  &:hover {
+    background: $bg-light;
+    border-color: #b0bec5;
+    color: $text-primary;
+  }
+}
+
+.btn-load-recording {
+  padding: 0.5rem 1rem;
+  background: $brand-blue;
+  color: #fff;
+
+  &:hover {
+    background: $brand-blue-dark;
+  }
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────
+.skeleton-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.skeleton-block {
+  height: 16px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+
+  &--label {
+    width: 110px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  &--value {
+    flex: 1;
+    max-width: 220px;
+  }
+
+  &--short {
+    max-width: 100px;
+  }
+
+  &--player {
+    width: 100%;
+    height: 56px;
+    border-radius: 10px;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

@@ -96,6 +96,20 @@ const SUPERVISOR_NAV: NavItem[] = [
     route: '/supervisor/reports',
     ariaLabel: 'Raporty historyczne',
     svgPath: 'M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z',
+    children: [
+      {
+        label: 'Historyczne',
+        route: '/supervisor/reports',
+        ariaLabel: 'Raporty historyczne agentow',
+        svgPath: 'M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z',
+      },
+      {
+        label: 'Kontakty',
+        route: '/supervisor/reports/contacts',
+        ariaLabel: 'Raport kontaktow',
+        svgPath: 'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z',
+      },
+    ],
   },
   {
     label: 'IVR',

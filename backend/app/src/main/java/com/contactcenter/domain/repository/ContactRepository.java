@@ -85,32 +85,42 @@ public class ContactRepository extends TenantAwareRepository {
    *
    * <p>Sortowanie: {@code started_at DESC} – najnowsze kontakty pierwsze.
    *
-   * @param tenantId   UUID tenanta
-   * @param agentId    filtr po agencie (null = wszystkie)
-   * @param customerId filtr po kliencie (null = wszystkie)
-   * @param status     filtr po statusie (null = wszystkie)
-   * @param channel    filtr po kanale (null = wszystkie)
-   * @param dateFrom   filtr od daty started_at (null = bez ograniczenia)
-   * @param dateTo     filtr do daty started_at (null = bez ograniczenia)
-   * @param page       numer strony (0-based)
-   * @param size       rozmiar strony
+   * @param tenantId      UUID tenanta
+   * @param agentId       filtr po agencie (null = wszystkie)
+   * @param customerId    filtr po kliencie (null = wszystkie)
+   * @param status        filtr po statusie (null = wszystkie)
+   * @param channel       filtr po kanale (null = wszystkie)
+   * @param dateFrom      filtr od daty started_at (null = bez ograniczenia)
+   * @param dateTo        filtr do daty started_at (null = bez ograniczenia)
+   * @param queueId       filtr po kolejce – UUID jako String (null = wszystkie)
+   * @param campaignId    filtr po kampanii – UUID jako String (null = wszystkie)
+   * @param remoteAddress filtr ILIKE '%value%' po numerze telefonu (null = bez ograniczenia)
+   * @param durationMin   filtr duration_seconds >= durationMin (null = bez ograniczenia)
+   * @param durationMax   filtr duration_seconds <= durationMax (null = bez ograniczenia)
+   * @param page          numer strony (0-based)
+   * @param size          rozmiar strony
    * @return lista kontaktów spełniających kryteria
    */
   @Transactional(readOnly = true)
   public List<Contact> findContacts(UUID tenantId, UUID agentId, UUID customerId,
       String status, String channel,
-      Instant dateFrom, Instant dateTo,
+      java.time.LocalDate dateFrom, java.time.LocalDate dateTo,
+      String queueId, String campaignId, String remoteAddress,
+      Integer durationMin, Integer durationMax,
       int page, int size) {
     setTenantContextInDb(tenantId);
 
     int offset = page * size;
     log.debug("[ContactRepo] Lista kontaktów: tenant={}, agentId={}, customerId={}, status={}, " +
-            "channel={}, page={}, size={}",
-        tenantId, agentId, customerId, status, channel, page, size);
+            "channel={}, queueId={}, campaignId={}, remoteAddress={}, durationMin={}, durationMax={}, " +
+            "page={}, size={}",
+        tenantId, agentId, customerId, status, channel,
+        queueId, campaignId, remoteAddress, durationMin, durationMax, page, size);
 
     StringBuilder sql = buildBaseSelectSql();
     Map<String, Object> params = buildBaseParams(tenantId);
-    appendFilterConditions(sql, params, agentId, customerId, status, channel, dateFrom, dateTo);
+    appendFilterConditions(sql, params, agentId, customerId, status, channel, dateFrom, dateTo,
+        queueId, campaignId, remoteAddress, durationMin, durationMax);
     sql.append(" ORDER BY started_at DESC LIMIT :size OFFSET :offset");
     params.put("size", size);
     params.put("offset", offset);
@@ -125,24 +135,32 @@ public class ContactRepository extends TenantAwareRepository {
   /**
    * Zlicza kontakty tenanta z opcjonalnymi filtrami – do metadanych paginacji.
    *
-   * @param tenantId   UUID tenanta
-   * @param agentId    filtr po agencie (null = wszystkie)
-   * @param customerId filtr po kliencie (null = wszystkie)
-   * @param status     filtr po statusie (null = wszystkie)
-   * @param channel    filtr po kanale (null = wszystkie)
-   * @param dateFrom   filtr od daty started_at (null = bez ograniczenia)
-   * @param dateTo     filtr do daty started_at (null = bez ograniczenia)
+   * @param tenantId      UUID tenanta
+   * @param agentId       filtr po agencie (null = wszystkie)
+   * @param customerId    filtr po kliencie (null = wszystkie)
+   * @param status        filtr po statusie (null = wszystkie)
+   * @param channel       filtr po kanale (null = wszystkie)
+   * @param dateFrom      filtr od daty started_at (null = bez ograniczenia)
+   * @param dateTo        filtr do daty started_at (null = bez ograniczenia)
+   * @param queueId       filtr po kolejce – UUID jako String (null = wszystkie)
+   * @param campaignId    filtr po kampanii – UUID jako String (null = wszystkie)
+   * @param remoteAddress filtr ILIKE '%value%' po numerze telefonu (null = bez ograniczenia)
+   * @param durationMin   filtr duration_seconds >= durationMin (null = bez ograniczenia)
+   * @param durationMax   filtr duration_seconds <= durationMax (null = bez ograniczenia)
    * @return łączna liczba kontaktów spełniających kryteria
    */
   @Transactional(readOnly = true)
   public long countContacts(UUID tenantId, UUID agentId, UUID customerId,
       String status, String channel,
-      Instant dateFrom, Instant dateTo) {
+      java.time.LocalDate dateFrom, java.time.LocalDate dateTo,
+      String queueId, String campaignId, String remoteAddress,
+      Integer durationMin, Integer durationMax) {
     setTenantContextInDb(tenantId);
 
     StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM contact WHERE tenant_id = CAST(:tenantId AS uuid)");
     Map<String, Object> params = buildBaseParams(tenantId);
-    appendFilterConditions(sql, params, agentId, customerId, status, channel, dateFrom, dateTo);
+    appendFilterConditions(sql, params, agentId, customerId, status, channel, dateFrom, dateTo,
+        queueId, campaignId, remoteAddress, durationMin, durationMax);
 
     Number count = (Number)buildTypedNativeQuery(sql.toString(), null, params).getSingleResult();
     return count.longValue();
@@ -639,7 +657,9 @@ public class ContactRepository extends TenantAwareRepository {
   private void appendFilterConditions(StringBuilder sql, Map<String, Object> params,
       UUID agentId, UUID customerId,
       String status, String channel,
-      Instant dateFrom, Instant dateTo) {
+      java.time.LocalDate dateFrom, java.time.LocalDate dateTo,
+      String queueId, String campaignId, String remoteAddress,
+      Integer durationMin, Integer durationMax) {
     if (agentId != null) {
       sql.append(" AND agent_id = CAST(:agentId AS uuid)");
       params.put("agentId", agentId.toString());
@@ -658,11 +678,31 @@ public class ContactRepository extends TenantAwareRepository {
     }
     if (dateFrom != null) {
       sql.append(" AND started_at >= :dateFrom");
-      params.put("dateFrom", dateFrom);
+      params.put("dateFrom", java.sql.Date.valueOf(dateFrom));
     }
     if (dateTo != null) {
-      sql.append(" AND started_at <= :dateTo");
-      params.put("dateTo", dateTo);
+      sql.append(" AND started_at < :dateTo");
+      params.put("dateTo", java.sql.Date.valueOf(dateTo.plusDays(1)));
+    }
+    if (queueId != null && !queueId.isBlank()) {
+      sql.append(" AND queue_id = CAST(:queueId AS uuid)");
+      params.put("queueId", queueId);
+    }
+    if (campaignId != null && !campaignId.isBlank()) {
+      sql.append(" AND campaign_id = CAST(:campaignId AS uuid)");
+      params.put("campaignId", campaignId);
+    }
+    if (remoteAddress != null && !remoteAddress.isBlank()) {
+      sql.append(" AND remote_address ILIKE '%' || :remoteAddress || '%'");
+      params.put("remoteAddress", remoteAddress);
+    }
+    if (durationMin != null) {
+      sql.append(" AND duration_seconds IS NOT NULL AND duration_seconds >= :durationMin");
+      params.put("durationMin", durationMin);
+    }
+    if (durationMax != null) {
+      sql.append(" AND duration_seconds IS NOT NULL AND duration_seconds <= :durationMax");
+      params.put("durationMax", durationMax);
     }
   }
 

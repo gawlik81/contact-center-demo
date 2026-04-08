@@ -764,14 +764,15 @@ Zrealizowane: `ManualCampaignPanelComponent` (polling co 30s, lista kampanii man
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależy od:** FE-005, BE-037
-**Status:** 🔲 Do zrobienia
-**Czeka na BE:** BE-037 (presigned URL nagrania)
+**Zależy od:** FE-005, BE-037 ✅
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-08
+**Czeka na BE:** ~~BE-037~~ ✅ zrealizowane (`GET /api/contacts/{id}/recording` → `ContactRecordingUrlResponse`)
 **Blokuje:** FE-029, FE-030
 **Odniesienie PRD:** EPIC-12
 
 **Opis:**
-Reużywalny modal wyświetlający pełne szczegóły jednego kontaktu oraz — jeśli nagranie istnieje — wbudowany odtwarzacz audio. Modal jest wywoływany z dwóch miejsc: panelu klienta (`CustomerDetailComponent`, FE-030) oraz raportu kontaktów (`ContactsReportComponent`, FE-029). Dane kontaktu przekazywane przez `@Input` lub jako argument `open(contactId)`.
+Reużywalny modal wyświetlający pełne szczegóły jednego kontaktu oraz — jeśli nagranie istnieje — wbudowany odtwarzacz audio. Modal jest wywoływany z dwóch miejsc: panelu klienta (`CustomerDetailComponent`, FE-030) oraz raportu kontaktów (`ContactsReportComponent`, FE-029). Dane kontaktu przekazywane przez input signal `contactId: string | null`.
 
 **Nowe pliki:**
 ```
@@ -827,9 +828,10 @@ Aktualny interfejs `ContactResponse` w `core/models/contact.model.ts` jest nieko
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** L
-**Zależy od:** FE-005, FE-022, FE-028, BE-036
-**Status:** 🔲 Do zrobienia
-**Czeka na BE:** BE-036 (Contact API filtry zaawansowane)
+**Zależy od:** FE-005, FE-022, FE-028 ✅, BE-036 ✅
+**Status:** 🔲 Do zrobienia — wszystkie zależności spełnione, gotowe do realizacji
+**Czeka na BE:** ~~BE-036~~ ✅ zrealizowane (GET /api/contacts z filtrami queueId, campaignId, remoteAddress, durationMin/Max)
+**Czeka na FE:** ~~FE-028~~ ✅ zrealizowane (ContactDetailModalComponent gotowy)
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-12
 
@@ -917,9 +919,10 @@ exportCsv(filters: ContactFilters): Blob  // synchroniczny — dane pobrane prze
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależy od:** FE-019, FE-028
-**Status:** 🔲 Do zrobienia
-**Czeka na BE:** BE-037 (nagranie), BE-027 ✅ (contact API gotowe)
+**Zależy od:** FE-019, FE-028 ✅
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-08 (zrealizowane przy okazji FE-028)
+**Czeka na BE:** ~~BE-037~~ ✅ zrealizowane, ~~BE-027~~ ✅ (contact API gotowe)
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-12
 
@@ -988,9 +991,9 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | FE-025 | BE-032 ✅ (Twilio per-tenant config – zrealizowane) |
 | FE-026 | BE-033 (PhoneNumber API), BE-034 (RoutingRule API) |
 | FE-027 | brak (`POST /api/dialer/manual/call` gotowe) |
-| FE-028 | BE-037 (recording presigned URL) |
-| FE-029 | BE-036 (Contact API filtry zaawansowane) |
-| FE-030 | BE-037 (nagranie), FE-028 (modal komponent) |
+| FE-028 | BE-037 ✅ (recording presigned URL – zrealizowane) |
+| FE-029 | ~~BE-036~~ ✅ zrealizowane (Contact API filtry zaawansowane); czeka jeszcze na FE-028 (modal) |
+| FE-030 | BE-037 ✅ (nagranie – zrealizowane), FE-028 (modal komponent – do zrobienia) |
 
 > Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
 

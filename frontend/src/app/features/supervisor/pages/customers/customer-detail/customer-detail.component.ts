@@ -15,6 +15,7 @@ import { CustomerService } from '../services/customer.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerResponse } from '../../../models/customer.model';
 import { ContactResponse } from '../../../../../core/models/contact.model';
+import { ContactDetailModalComponent } from '../../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
 
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
 type ContactsLoadState = 'loading' | 'loaded' | 'error';
@@ -22,7 +23,7 @@ type ContactsLoadState = 'loading' | 'loaded' | 'error';
 @Component({
   selector: 'app-customer-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, KeyValuePipe],
+  imports: [DatePipe, KeyValuePipe, ContactDetailModalComponent],
   templateUrl: './customer-detail.component.html',
   styleUrl: './customer-detail.component.scss',
 })
@@ -35,6 +36,7 @@ export class CustomerDetailComponent implements OnInit {
 
   readonly loadState = signal<LoadState>('loading');
   readonly customer = signal<CustomerResponse | null>(null);
+  readonly selectedContactId = signal<string | null>(null);
 
   readonly contactsLoadState = signal<ContactsLoadState>('loading');
   readonly contacts = signal<ContactResponse[]>([]);
@@ -187,6 +189,6 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   trackByContactId(_index: number, contact: ContactResponse): string {
-    return contact.id;
+    return contact.contactId;
   }
 }

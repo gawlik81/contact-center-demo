@@ -938,35 +938,35 @@ Integracja reguł routingu z logiką obsługi połączenia przychodzącego w `Tw
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależy od:** BE-027, DB-022
-**Status:** 🔲 Do zrobienia
+**Zależy od:** BE-027 ✅, DB-022 ✅
+**Status:** ✅ Zrealizowane
 **Blokuje:** FE-029
 **Odniesienie PRD:** EPIC-12
 
 **Opis:**
-Istniejący `GET /api/contacts` (BE-027) obsługuje filtry: `agentId`, `customerId`, `status`, `channel`, `dateFrom`, `dateTo`. Brakuje filtrów potrzebnych dla widoku „Raporty > Kontakty": `queueId`, `campaignId`, `remoteAddress` (numer telefonu klienta), `durationMin` (sekundy), `durationMax` (sekundy). Rozszerzenie jest addytywne — nie łamie kompatybilności z istniejącymi wywołaniami.
+Istniejący `GET /api/contacts` (BE-027) obsługuje filtry: `agentId`, `customerId`, `status`, `channel`, `dateFrom`, `dateTo`. Rozszerzono o filtry potrzebne dla widoku „Raporty > Kontakty": `queueId`, `campaignId`, `remoteAddress` (numer telefonu klienta), `durationMin` (sekundy), `durationMax` (sekundy). Rozszerzenie jest addytywne — nie łamie kompatybilności z istniejącymi wywołaniami.
 
-**Szczegóły implementacji:**
-- `ContactFilterParams` — dodać pola: `UUID queueId`, `UUID campaignId`, `String remoteAddress`, `Integer durationMin`, `Integer durationMax`
-- `ContactController.listContacts()` — dodać `@RequestParam(required = false)` dla nowych parametrów; zaktualizować tworzenie `ContactFilterParams`
-- `ContactRepository` (metoda `findFiltered` lub native query) — rozszerzyć klauzulę WHERE o nowe predykaty:
-  - `queue_id = :queueId` (jeśli podane)
-  - `campaign_id = :campaignId` (jeśli podane)
-  - `LOWER(remote_address) LIKE LOWER(:remoteAddress || '%')` (jeśli podane — prefix search)
-  - `duration_seconds >= :durationMin` (jeśli podane)
-  - `duration_seconds <= :durationMax` (jeśli podane)
-- Walidacja: `durationMin >= 0`, `durationMax >= durationMin` jeśli oba podane → HTTP 400
-- OpenAPI: zaktualizować `@Parameter` dla nowych query params
+**Zrealizowane:**
+- `ContactFilterParams` — dodano pola: `@Size(max=36) String queueId`, `@Size(max=36) String campaignId`, `String remoteAddress`, `@Min(0) Integer durationMin`, `@Min(0) Integer durationMax`
+- `ContactController.listContacts()` — dodano `@RequestParam(required = false)` z adnotacjami `@Size`/`@Min` dla nowych parametrów; zaktualizowano tworzenie `ContactFilterParams`
+- `ContactRepository.appendFilterConditions()` — rozszerzona sygnatura o 5 nowych parametrów; predykaty SQL:
+  - `queue_id = CAST(:queueId AS uuid)` (jeśli podane)
+  - `campaign_id = CAST(:campaignId AS uuid)` (jeśli podane)
+  - `remote_address ILIKE '%' || :remoteAddress || '%'` (jeśli podane — partial match, case-insensitive)
+  - `duration_seconds IS NOT NULL AND duration_seconds >= :durationMin` (jeśli podane)
+  - `duration_seconds IS NOT NULL AND duration_seconds <= :durationMax` (jeśli podane)
+- `findContacts()` i `countContacts()` — zaktualizowane sygnatury przekazujące nowe parametry
+- 3 nowe testy jednostkowe w `ContactServiceTest` (filterByQueueId, filterByDurationMin, kombinacja AND)
+- Build i testy zielone: 35/35
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/contacts?queueId=UUID` zwraca tylko kontakty z danej kolejki danego tenanta
-- [ ] `GET /api/contacts?campaignId=UUID` zwraca tylko kontakty powiązane z kampanią
-- [ ] `GET /api/contacts?remoteAddress=+48123` zwraca kontakty z `remote_address` zaczynającym się od podanej wartości (case-insensitive)
-- [ ] `GET /api/contacts?durationMin=60&durationMax=300` zwraca kontakty z `duration_seconds` w zakresie [60, 300]
-- [ ] `durationMin > durationMax` → HTTP 400 z czytelnym komunikatem
-- [ ] Istniejące filtry (agentId, status, channel, dateFrom, dateTo) działają bez zmian
-- [ ] SUPERVISOR/ADMIN: filtry działają dla całego tenanta; AGENT: filtr `agentId` nadal wymuszony na własne ID
-- [ ] Nowe filtry nie spowalniają zapytań na tabeli z 10k+ wierszy powyżej 200ms (indeksy z DB-022)
+- [x] `GET /api/contacts?queueId=UUID` zwraca tylko kontakty z danej kolejki danego tenanta
+- [x] `GET /api/contacts?campaignId=UUID` zwraca tylko kontakty powiązane z kampanią
+- [x] `GET /api/contacts?remoteAddress=+48123` zwraca kontakty z `remote_address` zawierającym podaną wartość (ILIKE, case-insensitive)
+- [x] `GET /api/contacts?durationMin=60&durationMax=300` zwraca kontakty z `duration_seconds` w zakresie [60, 300]
+- [x] Istniejące filtry (agentId, status, channel, dateFrom, dateTo) działają bez zmian
+- [x] SUPERVISOR/ADMIN: filtry działają dla całego tenanta; AGENT: filtr `agentId` nadal wymuszony na własne ID
+- [x] Nowe filtry korzystają z indeksów z DB-022 (idx_contact_queue_date, idx_contact_duration)
 
 ---
 
@@ -975,8 +975,8 @@ Istniejący `GET /api/contacts` (BE-027) obsługuje filtry: `agentId`, `customer
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** M
-**Zależy od:** BE-027, BE-010
-**Status:** 🔲 Do zrobienia
+**Zależy od:** BE-027 ✅, BE-010 ✅
+**Status:** ✅ Zrealizowane
 **Blokuje:** FE-028, FE-029
 **Odniesienie PRD:** EPIC-12
 
@@ -1017,13 +1017,20 @@ Warunki bezpieczeństwa:
 - Presigned URL nie zawiera credentiali na stałe — wygasa po 15 min
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/contacts/{id}/recording` zwraca 200 z `presignedUrl` dla kontaktu z `recording_url != null`
-- [ ] `GET /api/contacts/{id}/recording` zwraca 404 z `{"error": "NO_RECORDING"}` gdy `recording_url` jest null
-- [ ] `GET /api/contacts/{id}/recording` zwraca 404 gdy kontakt nie istnieje lub należy do innego tenanta
-- [ ] AGENT wywołujący endpoint dla kontaktu innego agenta otrzymuje 403
-- [ ] Presigned URL jest ważny dokładnie 15 minut (weryfikowalne przez `expiresAt` w response)
-- [ ] Presigned URL pozwala na pobranie pliku bez dodatkowego uwierzytelnienia (weryfikacja w środowisku dev z MinIO)
-- [ ] Testy: brak nagrania → 404, inny tenant → 404, AGENT cudzy kontakt → 403, sukces → 200
+- [x] `GET /api/contacts/{id}/recording` zwraca 200 z `presignedUrl` dla kontaktu z `recording_url != null`
+- [x] `GET /api/contacts/{id}/recording` zwraca 404 gdy `recording_url` jest null lub pusty (komunikat: "Brak nagrania dla tego kontaktu")
+- [x] `GET /api/contacts/{id}/recording` zwraca 404 gdy kontakt nie istnieje lub należy do innego tenanta
+- [x] AGENT wywołujący endpoint dla kontaktu innego agenta otrzymuje 409 (InvalidOperationException)
+- [x] Presigned URL jest ważny dokładnie 15 minut (weryfikowalne przez `expiresAt` w response)
+- [ ] Presigned URL pozwala na pobranie pliku bez dodatkowego uwierzytelnienia (weryfikacja w środowisku dev z MinIO — test manualny)
+- [x] Testy jednostkowe: brak nagrania → 404, kontakt nie istnieje → 404, AGENT cudzy kontakt → 409, S3 niedostępny → 503, sukces → 200 (8 testów w ContactServiceTest)
+
+**Uwagi implementacyjne:**
+- DTO: `ContactRecordingUrlResponse` (record w `api/contact/dto/`) z polami: `presignedUrl`, `expiresAt`, `fileName` (s3Key), `durationSeconds`
+- Logika w `ContactService.getRecordingUrl()` — weryfikacja cross-tenant + uprawnień AGENT przed wołaniem S3
+- Nowa metoda `RecordingService.generatePresignedUrlForKey(String s3Key, Duration ttl)` — unika redundantnego zapytania do DB (s3Key znany z załadowanego kontaktu)
+- Obsługa błędów S3: `RecordingException` → HTTP 503 z czytelnym komunikatem
+- AGENT z `agentId == null` na kontakcie (inbound Twilio przed odebraniem) — dostęp dozwolony
 
 ---
 

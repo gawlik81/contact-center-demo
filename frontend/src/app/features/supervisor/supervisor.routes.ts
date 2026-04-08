@@ -82,6 +82,15 @@ export const SUPERVISOR_ROUTES: Routes = [
           import('./pages/reports/reports-placeholder.component').then((m) => m.ReportsComponent),
       },
       {
+        path: 'reports/contacts',
+        data: { breadcrumb: 'Kontakty', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
+        loadComponent: () =>
+          import('./pages/contacts-report/contacts-report.component').then(
+            (m) => m.ContactsReportComponent,
+          ),
+      },
+      {
         path: 'settings',
         data: { breadcrumb: 'Konfiguracja', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],

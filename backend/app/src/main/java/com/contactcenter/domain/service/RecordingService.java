@@ -221,6 +221,45 @@ public class RecordingService {
     // =========================================================================
 
     /**
+     * Generuje presigned URL dla podanego klucza S3 z określonym TTL.
+     *
+     * <p>Wywoływana przez {@link com.contactcenter.domain.service.ContactService#getRecordingUrl}
+     * (BE-037), gdzie kontakt jest już załadowany z DB i znamy klucz S3.
+     * Unika dodatkowego zapytania do bazy danych.
+     *
+     * @param s3Key klucz obiektu w S3 (np. tenantId/year/month/contactId.mp3)
+     * @param ttl   czas ważności presigned URL
+     * @return presigned URL jako String
+     * @throws RecordingException gdy S3/MinIO jest niedostępny
+     */
+    public String generatePresignedUrlForKey(String s3Key, Duration ttl) {
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(s3Properties.getBucket())
+                    .key(s3Key)
+                    .build();
+
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(ttl)
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+            String url = presignedRequest.url().toString();
+
+            log.info("[Recording] Wygenerowano presigned URL (BE-037): s3Key={}, ttlMinutes={}",
+                    s3Key, ttl.toMinutes());
+
+            return url;
+
+        } catch (S3Exception e) {
+            log.error("[Recording] Błąd generowania presigned URL dla s3Key={}: {}",
+                    s3Key, e.getMessage(), e);
+            throw new RecordingException("Nie udało się wygenerować URL nagrania dla: " + s3Key, e);
+        }
+    }
+
+    /**
      * Generuje presigned URL ważny przez {@link S3Properties#getPresignedUrlExpirationMinutes()} minut.
      *
      * <p>Nie zwraca pliku bezpośrednio – klient pobiera nagranie przez wygenerowany URL.

@@ -2,6 +2,7 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.contact.dto.ContactFilterParams;
+import com.contactcenter.api.contact.dto.ContactRecordingUrlResponse;
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.api.contact.dto.DispositionRequest;
@@ -14,9 +15,12 @@ import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -51,8 +55,10 @@ import java.util.UUID;
 public class ContactService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int RECORDING_URL_TTL_MINUTES = 15;
 
     private final ContactRepository contactRepository;
+    private final RecordingService recordingService;
 
     // =========================================================================
     // Tworzenie kontaktu
@@ -171,21 +177,27 @@ public class ContactService {
         UUID effectiveAgentId = isAgent ? userId : params.agentId();
 
         log.debug("[ContactService] Lista kontaktów: tenant={}, agentId={}, customerId={}, status={}, " +
-                  "channel={}, page={}, size={}, isAgent={}",
+                  "channel={}, queueId={}, campaignId={}, remoteAddress={}, durationMin={}, durationMax={}, " +
+                  "page={}, size={}, isAgent={}",
                   tenantId, effectiveAgentId, params.customerId(), params.status(),
-                  params.channel(), effectivePage, effectiveSize, isAgent);
+                  params.channel(), params.queueId(), params.campaignId(), params.remoteAddress(),
+                  params.durationMin(), params.durationMax(), effectivePage, effectiveSize, isAgent);
 
         List<Contact> contacts = contactRepository.findContacts(
                 tenantId, effectiveAgentId, params.customerId(),
                 params.status(), params.channel(),
                 params.dateFrom(), params.dateTo(),
+                params.queueId(), params.campaignId(), params.remoteAddress(),
+                params.durationMin(), params.durationMax(),
                 effectivePage, effectiveSize
         );
 
         long totalElements = contactRepository.countContacts(
                 tenantId, effectiveAgentId, params.customerId(),
                 params.status(), params.channel(),
-                params.dateFrom(), params.dateTo()
+                params.dateFrom(), params.dateTo(),
+                params.queueId(), params.campaignId(), params.remoteAddress(),
+                params.durationMin(), params.durationMax()
         );
 
         int totalPages = (int) Math.ceil((double) totalElements / effectiveSize);
@@ -409,6 +421,75 @@ public class ContactService {
                 totalPages,
                 effectivePage == 0,
                 effectivePage >= totalPages - 1 || totalPages == 0
+        );
+    }
+
+    // =========================================================================
+    // Nagranie kontaktu – presigned URL (BE-037)
+    // =========================================================================
+
+    /**
+     * Generuje presigned URL do nagrania kontaktu (TTL 15 minut).
+     *
+     * <p>Weryfikuje przynależność kontaktu do tenanta zalogowanego użytkownika.
+     * AGENT może pobierać URL nagrania tylko dla kontaktów przypisanych do siebie.
+     * SUPERVISOR i ADMIN mają dostęp do wszystkich nagrań tenanta.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta z TenantContext
+     * @param userId    UUID zalogowanego użytkownika (weryfikacja dla AGENT)
+     * @param isAgent   true gdy zalogowany użytkownik jest AGENT
+     * @return DTO z presigned URL, datą wygaśnięcia, nazwą pliku i czasem trwania
+     * @throws EntityNotFoundException   HTTP 404 gdy kontakt nie istnieje lub inny tenant
+     * @throws ResponseStatusException   HTTP 404 gdy kontakt nie ma nagrania;
+     *                                   HTTP 503 gdy MinIO/S3 jest niedostępny
+     * @throws InvalidOperationException HTTP 409 gdy AGENT próbuje pobrać nagranie cudzego kontaktu
+     */
+    @Transactional(readOnly = true)
+    @Audited(action = "RECORDING_URL_REQUESTED", entityType = "CONTACT")
+    public ContactRecordingUrlResponse getRecordingUrl(UUID contactId, UUID tenantId,
+                                                        UUID userId, boolean isAgent) {
+        Contact contact = findContactOrThrow(contactId, tenantId);
+
+        // AGENT może pobierać nagrania tylko własnych kontaktów.
+        // Wyjątek: brak agentId (kontakt inbound Twilio przed odebraniem) – dostęp dozwolony.
+        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Agent może pobierać nagrania tylko własnych kontaktów: " + contactId);
+        }
+
+        // Sprawdź czy kontakt ma nagranie
+        if (contact.getRecordingUrl() == null || contact.getRecordingUrl().isBlank()) {
+            log.debug("[ContactService] Brak nagrania dla contactId={}, tenant={}", contactId, tenantId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Brak nagrania dla tego kontaktu: " + contactId);
+        }
+
+        String s3Key = contact.getRecordingUrl();
+
+        // Generuj presigned URL przez RecordingService (TTL 15 minut, znamy już s3Key z kontaktu)
+        Duration ttl = Duration.ofMinutes(RECORDING_URL_TTL_MINUTES);
+        String presignedUrl;
+        try {
+            presignedUrl = recordingService.generatePresignedUrlForKey(s3Key, ttl);
+        } catch (RecordingService.RecordingException e) {
+            log.error("[ContactService] Błąd generowania presigned URL: contactId={}, s3Key={}, error={}",
+                    contactId, s3Key, e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Usługa nagrań jest chwilowo niedostępna. Spróbuj ponownie za chwilę.");
+        }
+
+        Instant expiresAt = Instant.now().plus(ttl);
+
+        log.info("[ContactService] Wygenerowano presigned URL do nagrania: contactId={}, tenant={}, " +
+                 "ttlMinutes={}, durationSeconds={}",
+                contactId, tenantId, RECORDING_URL_TTL_MINUTES, contact.getDurationSeconds());
+
+        return new ContactRecordingUrlResponse(
+                presignedUrl,
+                expiresAt,
+                s3Key,
+                contact.getDurationSeconds()
         );
     }
 

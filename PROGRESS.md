@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-08 (zaplanowano EPIC-12 Prezentacja Kontaktów: DB-022, BE-036, BE-037, FE-028, FE-029, FE-030; łączny stan: DB 20/22, BE 29/38, FE 25/30)
+**Ostatnia aktualizacja:** 2026-04-08 (FE-029 ✅ ContactsReportComponent – strona Raporty > Kontakty (7 filtrów, tabela z badgami, paginacja server-side 25/str, eksport CSV client-side, skeleton 10 wierszy, integracja ContactDetailModal, URL sync, rozszerzony ContactService.getContacts(), nowa trasa /supervisor/reports/contacts, submenu Raporty w sidenavie); łączny stan: DB 21/22, BE 30/38, FE 28/30)
 
 ---
 
@@ -40,7 +40,7 @@
 | DB-019 | Seed danych testowych i migracje dla środowiska dev | ✅ | Zrealizowane w ramach DB-001 (V999__dev_seed.sql) |
 | DB-020 | Kolumna email_address w tabeli QUEUE: routing emaili | ✅ | V029__add_email_address_to_queue.sql: kolumna email_address VARCHAR(255) NULL, UNIQUE (tenant_id, email_address), CHECK '%@%', partial index WHERE IS NOT NULL. Używana przez EmailRoutingService do routingu priorytetowego. |
 | DB-021 | Tabele PHONE_NUMBER i PHONE_ROUTING_RULE: numery tenanta i harmonogram IVR | ⬜ | Brak migracji w repozytorium – zadanie nie rozpoczęte. Odblokuje BE-033 → BE-034 → BE-035 → FE-026. |
-| DB-022 | Indeksy wyszukiwania kontaktów dla Raportów > Kontakty | ⬜ | Migracja V035: idx_contact_queue_date + idx_contact_duration (warunkowy). Odblokuje BE-036 |
+| DB-022 | Indeksy wyszukiwania kontaktów dla Raportów > Kontakty | ✅ | V035__contact_search_indexes.sql: idx_contact_queue_date (tenant_id, queue_id, started_at) + idx_contact_duration warunkowy WHERE duration_seconds IS NOT NULL. Odblokowano BE-036 |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -91,8 +91,8 @@
 | BE-033 | PhoneNumber CRUD API: zarządzanie numerami telefonów tenanta | ⬜ | Czeka na DB-021 |
 | BE-034 | PhoneRoutingRule CRUD API: reguły routingu IVR per numer i harmonogram | ⬜ | Czeka na BE-033, BE-013, BE-020 |
 | BE-035 | Incoming call routing: wybór IVR/kolejki na podstawie reguł harmonogramu | ⬜ | Czeka na BE-034, BE-009, BE-013 |
-| BE-036 | Rozszerzenie Contact API o filtry zaawansowane (queueId, campaignId, remoteAddress, durationMin/Max) | ⬜ | Rozszerzenie BE-027: nowe query params w GET /api/contacts. Czeka na DB-022 |
-| BE-037 | Endpoint streamowania nagrania z MinIO/S3: presigned URL | ⬜ | GET /api/contacts/{id}/recording → RecordingUrlResponse z presignedUrl (TTL 15min). Czeka na BE-010 ✅ |
+| BE-036 | Rozszerzenie Contact API o filtry zaawansowane (queueId, campaignId, remoteAddress, durationMin/Max) | ✅ | Rozszerzenie BE-027 (zależy od DB-022): ContactFilterParams +5 pól (@Min/@Size), ContactRepository.appendFilterConditions rozszerzona, ContactService + ContactController zaktualizowane. ILIKE dla remoteAddress, IS NOT NULL guard dla durationMin/Max. 3 nowe testy jednostkowe. Odblokowano FE-029. |
+| BE-037 | Endpoint streamowania nagrania z MinIO/S3: presigned URL | ✅ | GET /api/contacts/{id}/recording → ContactRecordingUrlResponse (presignedUrl TTL 15min, expiresAt, fileName, durationSeconds). Dodano do ContactController + ContactService. Nowa metoda generatePresignedUrlForKey(s3Key, Duration) w RecordingService. 8 nowych testów jednostkowych w ContactServiceTest. |
 
 ---
 
@@ -127,9 +127,9 @@
 | FE-025 | Panel konfiguracji Twilio per tenant | ✅ | TwilioConfigService (GET tenant + PATCH /api/tenants/{id}/config), TwilioSettingsComponent (formularz E.164, badge per-tenant/fallback, podgląd auto URL, usunięcie konfiguracji), route /supervisor/settings/twilio, wpis "Twilio VoIP" w sidenavie. BUILD SUCCESS. |
 | FE-026 | Panel zarządzania numerami telefonów i regułami routingu IVR (Supervisor) | ⬜ | Czeka na BE-033 (PhoneNumber API) i BE-034 (RoutingRule API) |
 | FE-027 | Przycisk „Zadzwoń" dla dialera manualnego | ✅ | ManualCampaignPanelComponent (polling 30s, lista kampanii manualnych RUNNING z rekordami PENDING, przycisk „Zadzwoń" ze spinner + disabled guard), DialerService (getManualCampaignRecords, callRecord → POST /api/dialer/manual/call), integracja z AgentDesktopComponent. Obsługa błędów 409/404 przez toast. |
-| FE-028 | Komponent szczegółów kontaktu z odtwarzaczem nagrania (modal) | ⬜ | ContactDetailModalComponent + AudioPlayerComponent (HTML5 Audio API). Rozszerza contact.model.ts o brakujące pola. Czeka na BE-037 |
-| FE-029 | Strona „Raporty > Kontakty" z tabelą, filtrami i eksportem CSV | ⬜ | Nowa zakładka w /supervisor/reports/contacts, 7 filtrów, tabela z paginacją server-side, eksport CSV. Czeka na BE-036 i FE-028 |
-| FE-030 | Integracja szczegółów kontaktu w panelu klienta (CustomerDetailComponent) | ⬜ | Kliknięcie w wiersz historii kontaktów klienta → otwiera ContactDetailModalComponent (FE-028). Zmiana w customer-detail.component.ts |
+| FE-028 | Komponent szczegółów kontaktu z odtwarzaczem nagrania (modal) | ✅ | ContactDetailModalComponent (natywny <dialog>, 3 sekcje: info/status/nagranie, lazy load presigned URL) + AudioPlayerComponent (HTML5 Audio API, własny UI play/pause/seek/pobieranie, OnPush). contact.model.ts rozszerzony o queueId, campaignId, remoteAddress, durationSeconds, answeredAt, recordingPath + RecordingUrlResponse. ContactService.getContact() + getRecordingUrl(). Zrealizowane 2026-04-08. Czekało na BE-037 ✅ |
+| FE-029 | Strona „Raporty > Kontakty" z tabelą, filtrami i eksportem CSV | ✅ | ContactsReportComponent: 7 filtrów (data od/do, kanał, status, kolejka, numer/adres, min/maks czas), debounce 400ms na polach tekstowych/numerycznych, URL query params sync. Tabela z 9 kolumnami: datetime, kanał badge (VOICE/EMAIL/CHAT/SOCIAL), kierunek (Przych./Wych.), adres, kolejka (nazwa lookup), czas MM:SS, status badge (COMPLETED/ABANDONED/FAILED/ACTIVE/QUEUED), dyspozycja, akcja oko→ContactDetailModal. Paginacja server-side 25/str. Skeleton 10 wierszy. Eksport CSV client-side z BOM (UTF-8). ContactService.getContacts() + ContactFilterParams dodane do agent/services/contact.service.ts. Trasa /supervisor/reports/contacts + submenu Raporty > Historyczne/Kontakty w sidenavie. |
+| FE-030 | Integracja szczegółów kontaktu w panelu klienta (CustomerDetailComponent) | ✅ | selectedContactId signal, klikalne wiersze tabeli (click + keydown.enter/space, cursor:pointer, hover), <app-contact-detail-modal> w template, ContactDetailModalComponent w imports[]. Zrealizowane przy okazji FE-028 2026-04-08. Czekało na FE-028 ✅ |
 
 ---
 
@@ -137,10 +137,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 20/22 | 0 | 2 | 22 |
-| Backend (BE) | 29/38 | 0 | 9 | 38 |
-| Frontend (FE) | 25/30 | 0 | 5 | 30 |
-| **RAZEM** | **74/90** | **0** | **16** | **90** |
+| Database (DB) | 21/22 | 0 | 1 | 22 |
+| Backend (BE) | 30/38 | 0 | 8 | 38 |
+| Frontend (FE) | 28/30 | 0 | 2 | 30 |
+| **RAZEM** | **79/90** | **0** | **11** | **90** |
 
 ---
 

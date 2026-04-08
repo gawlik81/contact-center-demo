@@ -2,6 +2,7 @@ package com.contactcenter.api.contact;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.contact.dto.ContactFilterParams;
+import com.contactcenter.api.contact.dto.ContactRecordingUrlResponse;
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.api.contact.dto.DispositionRequest;
@@ -14,7 +15,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -25,7 +28,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -118,6 +121,7 @@ public class ContactController {
                       "SUPERVISOR/ADMIN mogą filtrować po dowolnym agencie lub widzieć wszystkie.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Lista kontaktów"),
+            @ApiResponse(responseCode = "400", description = "Błąd walidacji parametrów"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
             @ApiResponse(responseCode = "403", description = "Brak uprawnień")
         }
@@ -134,16 +138,35 @@ public class ContactController {
                      message = "status musi być jednym z: QUEUED, ACTIVE, ON_HOLD, COMPLETED, ABANDONED, TRANSFERRED")
             @RequestParam(required = false) String status,
 
-            @Parameter(description = "Filtr po kanale: VOICE, EMAIL, CHAT, SOCIAL")
-            @Pattern(regexp = "VOICE|EMAIL|CHAT|SOCIAL",
-                     message = "channel musi być jednym z: VOICE, EMAIL, CHAT, SOCIAL")
+            @Parameter(description = "Filtr po kanale: PHONE, EMAIL, CHAT, SOCIAL")
+            @Pattern(regexp = "PHONE|EMAIL|CHAT|SOCIAL",
+                     message = "channel musi być jednym z: PHONE, EMAIL, CHAT, SOCIAL")
             @RequestParam(required = false) String channel,
 
-            @Parameter(description = "Filtr od daty started_at (ISO 8601, np. 2026-03-01T00:00:00Z)")
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant dateFrom,
+            @Parameter(description = "Filtr od daty started_at (format YYYY-MM-DD, np. 2026-04-01)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
 
-            @Parameter(description = "Filtr do daty started_at (ISO 8601)")
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant dateTo,
+            @Parameter(description = "Filtr do daty started_at (format YYYY-MM-DD, włącznie)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+
+            @Parameter(description = "Filtr po ID kolejki (UUID)")
+            @Size(max = 36, message = "queueId nie może przekraczać 36 znaków")
+            @RequestParam(required = false) String queueId,
+
+            @Parameter(description = "Filtr po ID kampanii (UUID)")
+            @Size(max = 36, message = "campaignId nie może przekraczać 36 znaków")
+            @RequestParam(required = false) String campaignId,
+
+            @Parameter(description = "Filtr po numerze telefonu (częściowe dopasowanie, case-insensitive)")
+            @RequestParam(required = false) String remoteAddress,
+
+            @Parameter(description = "Minimalna długość rozmowy w sekundach (włącznie)")
+            @Min(value = 0, message = "durationMin nie może być ujemny")
+            @RequestParam(required = false) Integer durationMin,
+
+            @Parameter(description = "Maksymalna długość rozmowy w sekundach (włącznie)")
+            @Min(value = 0, message = "durationMax nie może być ujemny")
+            @RequestParam(required = false) Integer durationMax,
 
             @Parameter(description = "Numer strony (0-based)")
             @RequestParam(defaultValue = "0") int page,
@@ -156,7 +179,9 @@ public class ContactController {
         boolean isAgent = currentUserIsAgent();
 
         ContactFilterParams params = new ContactFilterParams(
-                agentId, customerId, status, channel, dateFrom, dateTo, page, size);
+                agentId, customerId, status, channel, dateFrom, dateTo,
+                queueId, campaignId, remoteAddress, durationMin, durationMax,
+                page, size);
 
         log.debug("[ContactController] Lista kontaktów: tenant={}, isAgent={}", tenantId, isAgent);
 
@@ -332,6 +357,55 @@ public class ContactController {
 
         PagedResponse<ContactResponse> response = contactService.getCustomerHistory(
                 customerId, tenantId, page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Presigned URL do nagrania kontaktu (BE-037)
+    // =========================================================================
+
+    @GetMapping("/{id}/recording")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Pobierz presigned URL nagrania kontaktu",
+        description = "Generuje jednorazowy presigned URL do pobrania/odtworzenia nagrania kontaktu. " +
+                      "URL jest ważny przez 15 minut od wygenerowania. " +
+                      "AGENT może pobierać nagrania tylko własnych kontaktów. " +
+                      "SUPERVISOR i ADMIN mają dostęp do nagrań wszystkich kontaktów tenanta.",
+        parameters = {
+            @Parameter(
+                name = "id",
+                description = "UUID kontaktu",
+                required = true,
+                example = "22222222-2222-2222-2222-222222222222"
+            )
+        },
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Presigned URL wygenerowany pomyślnie"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "404",
+                         description = "Kontakt nie istnieje lub nie posiada nagrania"),
+            @ApiResponse(responseCode = "409",
+                         description = "AGENT próbuje pobrać nagranie cudzego kontaktu"),
+            @ApiResponse(responseCode = "503",
+                         description = "Usługa MinIO/S3 jest niedostępna")
+        }
+    )
+    public ResponseEntity<ContactRecordingUrlResponse> getRecordingUrl(
+            @Parameter(description = "UUID kontaktu", required = true)
+            @PathVariable String id
+    ) {
+        UUID contactId = parseContactId(id);
+        UUID tenantId = TenantContext.getTenantId();
+        UUID userId = TenantContext.getUserId();
+        boolean isAgent = currentUserIsAgent();
+
+        log.debug("[ContactController] Żądanie nagrania: contactId={}, tenant={}, isAgent={}",
+                contactId, tenantId, isAgent);
+
+        ContactRecordingUrlResponse response = contactService.getRecordingUrl(
+                contactId, tenantId, userId, isAgent);
         return ResponseEntity.ok(response);
     }
 }

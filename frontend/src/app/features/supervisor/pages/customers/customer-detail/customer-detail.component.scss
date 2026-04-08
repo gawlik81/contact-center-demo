@@ -234,6 +234,20 @@ $radius-lg: 10px;
     color: $text-secondary;
     font-size: 0.875rem;
   }
+
+  &__row--clickable {
+    cursor: pointer;
+    transition: background 0.12s ease;
+
+    &:hover {
+      background: $blue-bg;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand-blue;
+      outline-offset: -2px;
+    }
+  }
 }
 
 .text-secondary {

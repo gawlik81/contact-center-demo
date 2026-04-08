@@ -10,7 +10,7 @@ Backend: Java Spring Boot (modularny monolit Faza 1). Frontend: Angular SPA.
 
 **Why:** PRD v1.0 z 2026-03-12. Faza 1 = MVP z kanałami PHONE/EMAIL/SOCIAL_MEDIA.
 
-**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V033 już istnieją. Numery migracji kontynuuj od V034+.
+**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V035 już istnieją. Numery migracji kontynuuj od V036+.
 
 Kluczowe decyzje architektoniczne:
 - Izolacja logiczna przez tenant_id (nie osobne schematy/bazy) + RLS jako dodatkowa warstwa
@@ -31,6 +31,14 @@ Lokalizacja migracji:
 - PostgreSQL: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\migration\
 - Seed DEV: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\seed\V999__dev_seed.sql
 - ClickHouse DW: D:\CloudeAI\contact-center-demo\dw\migrations\
+
+Stan migracji po V035 (2026-04-08):
+- V034__add_error_status_to_campaign_contact.sql: status ERROR dla campaign_contact
+- V035__contact_search_indexes.sql (DB-022): indeksy wyszukiwania kontaktów dla EPIC-12 Raporty > Kontakty
+  - idx_contact_queue_date: (tenant_id, queue_id, started_at) – filtrowanie po kolejce i zakresie dat (BE-036)
+  - idx_contact_duration: (tenant_id, duration_seconds) WHERE duration_seconds IS NOT NULL – filtrowanie po czasie trwania (BE-036)
+  - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
+  - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
 
 Stan migracji po V033 (2026-04-08):
 - V030__add_error_contact_status.sql: dodanie statusu ERROR do tabeli contact

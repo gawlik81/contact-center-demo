@@ -1,0 +1,327 @@
+<div class="contacts-report">
+  <div class="contacts-report__header">
+    <h1 class="contacts-report__title">Raporty &gt; Kontakty</h1>
+  </div>
+
+  <!-- Filters -->
+  <section
+    class="contacts-report__filters"
+    [formGroup]="filterForm"
+    role="search"
+    aria-label="Filtry kontaktow"
+  >
+    <div class="filters__row">
+      <!-- Date from -->
+      <div class="filter-field">
+        <label for="dateFrom" class="filter-label">Od</label>
+        <input
+          id="dateFrom"
+          type="date"
+          class="filter-input"
+          formControlName="dateFrom"
+          aria-label="Data od"
+        />
+      </div>
+
+      <!-- Date to -->
+      <div class="filter-field">
+        <label for="dateTo" class="filter-label">Do</label>
+        <input
+          id="dateTo"
+          type="date"
+          class="filter-input"
+          formControlName="dateTo"
+          aria-label="Data do"
+        />
+      </div>
+
+      <!-- Channel -->
+      <div class="filter-field">
+        <label for="channel" class="filter-label">Kanal</label>
+        <select id="channel" class="filter-select" formControlName="channel" aria-label="Filtruj po kanale">
+          <option value="">Wszystkie</option>
+          @for (ch of channels; track ch.value) {
+            <option [value]="ch.value">{{ ch.label }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Status -->
+      <div class="filter-field">
+        <label for="status" class="filter-label">Status</label>
+        <select id="status" class="filter-select" formControlName="status" aria-label="Filtruj po statusie">
+          <option value="">Wszystkie</option>
+          @for (st of statuses; track st) {
+            <option [value]="st">{{ st }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Queue -->
+      <div class="filter-field">
+        <label for="queueId" class="filter-label">Kolejka</label>
+        <select id="queueId" class="filter-select" formControlName="queueId" aria-label="Filtruj po kolejce">
+          <option value="">Wszystkie kolejki</option>
+          @for (q of queues(); track q.queueId) {
+            <option [value]="q.queueId">{{ q.name }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Remote address -->
+      <div class="filter-field">
+        <label for="remoteAddress" class="filter-label">Numer / adres</label>
+        <input
+          id="remoteAddress"
+          type="text"
+          class="filter-input filter-input--wide"
+          formControlName="remoteAddress"
+          placeholder="np. +48123..."
+          aria-label="Filtruj po numerze lub adresie"
+        />
+      </div>
+
+      <!-- Duration min -->
+      <div class="filter-field">
+        <label for="durationMin" class="filter-label">Min czas (s)</label>
+        <input
+          id="durationMin"
+          type="number"
+          class="filter-input filter-input--narrow"
+          formControlName="durationMin"
+          min="0"
+          placeholder="0"
+          aria-label="Minimalny czas trwania w sekundach"
+        />
+      </div>
+
+      <!-- Duration max -->
+      <div class="filter-field">
+        <label for="durationMax" class="filter-label">Maks czas (s)</label>
+        <input
+          id="durationMax"
+          type="number"
+          class="filter-input filter-input--narrow"
+          formControlName="durationMax"
+          min="0"
+          placeholder="3600"
+          aria-label="Maksymalny czas trwania w sekundach"
+        />
+      </div>
+
+      <div class="filters__actions">
+        <button
+          class="btn btn-primary"
+          type="button"
+          (click)="onSearch()"
+          aria-label="Zastosuj filtry i wyszukaj"
+        >
+          Szukaj
+        </button>
+        <button
+          class="btn btn-secondary"
+          type="button"
+          (click)="onClearFilters()"
+          aria-label="Wyczysc filtry i przywroc domyslne"
+          title="Wyczysc filtry"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+          Wyczysc
+        </button>
+      </div>
+    </div>
+
+    <!-- Export -->
+    <div class="filters__export">
+      <button
+        class="btn btn-export"
+        type="button"
+        (click)="onExportCsv()"
+        [disabled]="exportingCsv() || rows().length === 0"
+        aria-label="Eksportuj kontakty do CSV"
+      >
+        @if (exportingCsv()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Eksportowanie...
+        } @else {
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          </svg>
+          Eksport CSV
+        }
+      </button>
+    </div>
+  </section>
+
+  <!-- Table anchor -->
+  <div #tableTop></div>
+
+  <!-- Skeleton loading -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie kontaktow...">
+      @for (i of skeletonRows; track i) {
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--narrow"></div>
+          <div class="skeleton-cell skeleton-cell--icon"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading()) {
+    @if (rows().length > 0) {
+      <div class="table-wrapper" role="region" aria-label="Lista kontaktow">
+        <table class="report-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">Data i czas</th>
+              <th scope="col">Kanal</th>
+              <th scope="col">Kierunek</th>
+              <th scope="col">Numer / adres</th>
+              <th scope="col">Kolejka</th>
+              <th scope="col">Czas trwania</th>
+              <th scope="col">Status</th>
+              <th scope="col">Dyspozycja</th>
+              <th scope="col" class="th-actions">Akcje</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track trackByContact($index, row)) {
+              <tr class="report-row">
+                <td class="report-cell report-cell--datetime">{{ formatDateTime(row.startedAt) }}</td>
+
+                <td class="report-cell">
+                  <span
+                    class="channel-badge"
+                    [class.channel-badge--phone]="row.channel === 'PHONE'"
+                    [class.channel-badge--email]="row.channel === 'EMAIL'"
+                    [class.channel-badge--chat]="row.channel === 'CHAT'"
+                    [class.channel-badge--social]="row.channel === 'SOCIAL'"
+                    [attr.aria-label]="'Kanal: ' + getChannelLabel(row.channel)"
+                  >
+                    {{ getChannelLabel(row.channel) }}
+                  </span>
+                </td>
+
+                <td class="report-cell">
+                  <span
+                    class="direction-label"
+                    [class.direction-label--inbound]="row.direction === 'INBOUND'"
+                    [class.direction-label--outbound]="row.direction === 'OUTBOUND'"
+                    [attr.aria-label]="row.direction === 'INBOUND' ? 'Przychodzacy' : 'Wychodzacy'"
+                  >
+                    @if (row.direction === 'INBOUND') {
+                      &#8600; Przych.
+                    } @else {
+                      &#8599; Wych.
+                    }
+                  </span>
+                </td>
+
+                <td class="report-cell report-cell--address">{{ row.remoteAddress ?? '—' }}</td>
+
+                <td class="report-cell">{{ getQueueName(row.queueId) }}</td>
+
+                <td class="report-cell report-cell--number">{{ formatDuration(row.durationSeconds) }}</td>
+
+                <td class="report-cell">
+                  <span
+                    class="status-badge"
+                    [class.status-badge--completed]="row.status === 'COMPLETED'"
+                    [class.status-badge--abandoned]="row.status === 'ABANDONED'"
+                    [class.status-badge--failed]="row.status === 'FAILED'"
+                    [class.status-badge--active]="row.status === 'ACTIVE'"
+                    [class.status-badge--queued]="row.status === 'QUEUED'"
+                    [attr.aria-label]="'Status: ' + row.status"
+                  >
+                    {{ row.status }}
+                  </span>
+                </td>
+
+                <td class="report-cell">{{ row.dispositionCode ?? '—' }}</td>
+
+                <td class="report-cell report-cell--actions">
+                  <button
+                    class="btn-icon"
+                    type="button"
+                    (click)="selectedContactId.set(row.contactId)"
+                    [attr.aria-label]="'Szczegoly kontaktu ' + row.contactId"
+                    title="Szczegoly kontaktu"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18">
+                      <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <nav class="pagination" aria-label="Nawigacja stron kontaktow">
+        <span class="pagination__info" aria-live="polite">
+          Wyswietlanie
+          {{ currentPage() * pageSize + 1 }}&ndash;{{ (currentPage() + 1) * pageSize > totalElements() ? totalElements() : (currentPage() + 1) * pageSize }}
+          z {{ totalElements() }} kontaktow
+        </span>
+        <div class="pagination__controls">
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onPrevPage()"
+            [disabled]="currentPage() === 0"
+            aria-label="Poprzednia strona"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+            Poprzednia
+          </button>
+          <span class="pagination__pages" aria-current="page">
+            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+          </span>
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onNextPage()"
+            [disabled]="currentPage() + 1 >= totalPages()"
+            aria-label="Nastepna strona"
+          >
+            Nastepna
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+            </svg>
+          </button>
+        </div>
+      </nav>
+
+    } @else {
+      <!-- Empty state -->
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+        </svg>
+        <p class="empty-state__message">Brak kontaktow spelniajacych kryteria.</p>
+        <p class="empty-state__hint">Sprobuj zmienic zakres dat lub filtry wyszukiwania.</p>
+      </div>
+    }
+  }
+</div>
+
+<!-- Contact detail modal -->
+<app-contact-detail-modal
+  [contactId]="selectedContactId()"
+  (closed)="selectedContactId.set(null)"
+/>

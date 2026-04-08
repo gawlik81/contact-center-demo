@@ -2,6 +2,7 @@ package com.contactcenter.domain;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.contact.dto.ContactFilterParams;
+import com.contactcenter.api.contact.dto.ContactRecordingUrlResponse;
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.api.contact.dto.DispositionRequest;
@@ -10,6 +11,7 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.service.ContactService;
+import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.*;
@@ -18,7 +20,9 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -47,6 +51,7 @@ class ContactServiceTest {
     private static final UUID OTHER_AGENT  = UUID.fromString("55555555-5555-5555-5555-555555555555");
 
     @Mock private ContactRepository contactRepository;
+    @Mock private RecordingService recordingService;
 
     @InjectMocks
     private ContactService contactService;
@@ -218,16 +223,27 @@ class ContactServiceTest {
     @DisplayName("listContacts")
     class ListContactsTests {
 
+        private static final UUID QUEUE_ID    = UUID.fromString("66666666-6666-6666-6666-666666666666");
+        private static final UUID CAMPAIGN_ID = UUID.fromString("77777777-7777-7777-7777-777777777777");
+
+        /** Tworzy ContactFilterParams bez nowych filtrów BE-036 (wartości null). */
+        private ContactFilterParams basicParams(int page, int size) {
+            return new ContactFilterParams(null, null, null, null, null, null,
+                    null, null, null, null, null, page, size);
+        }
+
         @Test
         @DisplayName("SUPERVISOR widzi wszystkie kontakty – brak wymuszenia filtra agentId")
         void listContacts_supervisorSeesAllContacts() {
             // given
-            ContactFilterParams params = new ContactFilterParams(null, null, null, null, null, null, 0, 20);
+            ContactFilterParams params = basicParams(0, 20);
             List<Contact> contacts = List.of(buildContact(CONTACT_ID, "COMPLETED"));
             when(contactRepository.findContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                isNull(), isNull(), isNull(), isNull(), isNull(),
                                                 isNull(), isNull(), eq(0), eq(20)))
                     .thenReturn(contacts);
             when(contactRepository.countContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                  isNull(), isNull(), isNull(), isNull(), isNull(),
                                                   isNull(), isNull()))
                     .thenReturn(1L);
 
@@ -239,6 +255,7 @@ class ContactServiceTest {
             assertThat(result.content()).hasSize(1);
             assertThat(result.totalElements()).isEqualTo(1L);
             verify(contactRepository).findContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                   isNull(), isNull(), isNull(), isNull(), isNull(),
                                                    isNull(), isNull(), eq(0), eq(20));
         }
 
@@ -246,12 +263,14 @@ class ContactServiceTest {
         @DisplayName("AGENT widzi tylko własne kontakty – agentId wymuszony na userId")
         void listContacts_agentOnlySeesOwnContacts() {
             // given
-            ContactFilterParams params = new ContactFilterParams(null, null, null, null, null, null, 0, 20);
+            ContactFilterParams params = basicParams(0, 20);
             List<Contact> contacts = List.of(buildContact(CONTACT_ID, "ACTIVE"));
             when(contactRepository.findContacts(eq(TENANT_ID), eq(AGENT_ID), isNull(), isNull(), isNull(),
+                                                isNull(), isNull(), isNull(), isNull(), isNull(),
                                                 isNull(), isNull(), eq(0), eq(20)))
                     .thenReturn(contacts);
             when(contactRepository.countContacts(eq(TENANT_ID), eq(AGENT_ID), isNull(), isNull(), isNull(),
+                                                  isNull(), isNull(), isNull(), isNull(), isNull(),
                                                   isNull(), isNull()))
                     .thenReturn(1L);
 
@@ -261,8 +280,8 @@ class ContactServiceTest {
 
             // then
             assertThat(result.content()).hasSize(1);
-            // AGENT: filtr agentId wymuszony na AGENT_ID – nie na null
             verify(contactRepository).findContacts(eq(TENANT_ID), eq(AGENT_ID), isNull(), isNull(), isNull(),
+                                                   isNull(), isNull(), isNull(), isNull(), isNull(),
                                                    isNull(), isNull(), eq(0), eq(20));
         }
 
@@ -270,10 +289,12 @@ class ContactServiceTest {
         @DisplayName("rozmiar strony ograniczony do max 100")
         void listContacts_capsPageSizeAtHundred() {
             // given
-            ContactFilterParams params = new ContactFilterParams(null, null, null, null, null, null, 0, 999);
-            when(contactRepository.findContacts(any(), any(), any(), any(), any(), any(), any(), anyInt(), eq(100)))
+            ContactFilterParams params = basicParams(0, 999);
+            when(contactRepository.findContacts(any(), any(), any(), any(), any(), any(), any(),
+                                                any(), any(), any(), any(), any(), anyInt(), eq(100)))
                     .thenReturn(List.of());
-            when(contactRepository.countContacts(any(), any(), any(), any(), any(), any(), any()))
+            when(contactRepository.countContacts(any(), any(), any(), any(), any(), any(), any(),
+                                                  any(), any(), any(), any(), any()))
                     .thenReturn(0L);
 
             // when
@@ -281,18 +302,20 @@ class ContactServiceTest {
 
             // then
             verify(contactRepository).findContacts(any(), any(), any(), any(), any(), any(), any(),
-                                                   anyInt(), eq(100));
+                                                   any(), any(), any(), any(), any(), anyInt(), eq(100));
         }
 
         @Test
         @DisplayName("zwraca metadane paginacji")
         void listContacts_returnsPaginationMetadata() {
             // given
-            ContactFilterParams params = new ContactFilterParams(null, null, null, null, null, null, 0, 10);
+            ContactFilterParams params = basicParams(0, 10);
             List<Contact> contacts = List.of(buildContact(CONTACT_ID, "COMPLETED"));
-            when(contactRepository.findContacts(any(), any(), any(), any(), any(), any(), any(), eq(0), eq(10)))
+            when(contactRepository.findContacts(any(), any(), any(), any(), any(), any(), any(),
+                                                any(), any(), any(), any(), any(), eq(0), eq(10)))
                     .thenReturn(contacts);
-            when(contactRepository.countContacts(any(), any(), any(), any(), any(), any(), any()))
+            when(contactRepository.countContacts(any(), any(), any(), any(), any(), any(), any(),
+                                                  any(), any(), any(), any(), any()))
                     .thenReturn(35L);
 
             // when
@@ -306,6 +329,101 @@ class ContactServiceTest {
             assertThat(result.totalPages()).isEqualTo(4);
             assertThat(result.first()).isTrue();
             assertThat(result.last()).isFalse();
+        }
+
+        // =====================================================================
+        // BE-036: testy nowych filtrów
+        // =====================================================================
+
+        @Test
+        @DisplayName("BE-036: filtrowanie po queueId przekazuje UUID do repozytorium")
+        void listContacts_filterByQueueId_passesQueueIdToRepository() {
+            // given
+            String queueIdStr = QUEUE_ID.toString();
+            ContactFilterParams params = new ContactFilterParams(
+                    null, null, null, null, null, null,
+                    queueIdStr, null, null, null, null, 0, 20);
+            List<Contact> contacts = List.of(buildContact(CONTACT_ID, "COMPLETED"));
+            when(contactRepository.findContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                isNull(), isNull(), eq(queueIdStr), isNull(), isNull(),
+                                                isNull(), isNull(), eq(0), eq(20)))
+                    .thenReturn(contacts);
+            when(contactRepository.countContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                  isNull(), isNull(), eq(queueIdStr), isNull(), isNull(),
+                                                  isNull(), isNull()))
+                    .thenReturn(1L);
+
+            // when
+            PagedResponse<ContactResponse> result = contactService.listContacts(
+                    params, TENANT_ID, AGENT_ID, false);
+
+            // then
+            assertThat(result.content()).hasSize(1);
+            verify(contactRepository).findContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                   isNull(), isNull(), eq(queueIdStr), isNull(), isNull(),
+                                                   isNull(), isNull(), eq(0), eq(20));
+        }
+
+        @Test
+        @DisplayName("BE-036: filtrowanie po durationMin przekazuje wartość do repozytorium")
+        void listContacts_filterByDurationMin_passesValueToRepository() {
+            // given
+            Integer durationMin = 60;
+            ContactFilterParams params = new ContactFilterParams(
+                    null, null, null, null, null, null,
+                    null, null, null, durationMin, null, 0, 20);
+            List<Contact> contacts = List.of(buildContact(CONTACT_ID, "COMPLETED"));
+            when(contactRepository.findContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                isNull(), isNull(), isNull(), isNull(), isNull(),
+                                                eq(durationMin), isNull(), eq(0), eq(20)))
+                    .thenReturn(contacts);
+            when(contactRepository.countContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                  isNull(), isNull(), isNull(), isNull(), isNull(),
+                                                  eq(durationMin), isNull()))
+                    .thenReturn(1L);
+
+            // when
+            PagedResponse<ContactResponse> result = contactService.listContacts(
+                    params, TENANT_ID, AGENT_ID, false);
+
+            // then
+            assertThat(result.content()).hasSize(1);
+            verify(contactRepository).findContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                   isNull(), isNull(), isNull(), isNull(), isNull(),
+                                                   eq(durationMin), isNull(), eq(0), eq(20));
+        }
+
+        @Test
+        @DisplayName("BE-036: kombinacja filtrów queueId + campaignId + durationMin przekazywana łącznie (AND)")
+        void listContacts_combinedFilters_passedToRepositoryTogether() {
+            // given
+            String queueIdStr    = QUEUE_ID.toString();
+            String campaignIdStr = CAMPAIGN_ID.toString();
+            Integer durationMin  = 30;
+            ContactFilterParams params = new ContactFilterParams(
+                    null, null, null, null, null, null,
+                    queueIdStr, campaignIdStr, null, durationMin, null, 0, 20);
+            when(contactRepository.findContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                isNull(), isNull(), eq(queueIdStr), eq(campaignIdStr), isNull(),
+                                                eq(durationMin), isNull(), eq(0), eq(20)))
+                    .thenReturn(List.of());
+            when(contactRepository.countContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                  isNull(), isNull(), eq(queueIdStr), eq(campaignIdStr), isNull(),
+                                                  eq(durationMin), isNull()))
+                    .thenReturn(0L);
+
+            // when
+            PagedResponse<ContactResponse> result = contactService.listContacts(
+                    params, TENANT_ID, AGENT_ID, false);
+
+            // then – wszystkie trzy filtry przekazane jednocześnie do repozytorium
+            assertThat(result.totalElements()).isEqualTo(0L);
+            verify(contactRepository).findContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                   isNull(), isNull(), eq(queueIdStr), eq(campaignIdStr), isNull(),
+                                                   eq(durationMin), isNull(), eq(0), eq(20));
+            verify(contactRepository).countContacts(eq(TENANT_ID), isNull(), isNull(), isNull(), isNull(),
+                                                    isNull(), isNull(), eq(queueIdStr), eq(campaignIdStr), isNull(),
+                                                    eq(durationMin), isNull());
         }
     }
 
@@ -562,6 +680,172 @@ class ContactServiceTest {
 
             // then
             verify(contactRepository).findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 100);
+        }
+    }
+
+    // =========================================================================
+    // Nagranie kontaktu – presigned URL (BE-037)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getRecordingUrl")
+    class GetRecordingUrlTests {
+
+        private static final String S3_KEY =
+                "11111111-1111-1111-1111-111111111111/2026/04/22222222-2222-2222-2222-222222222222.mp3";
+        private static final String PRESIGNED_URL =
+                "https://minio.example.com/" + S3_KEY + "?X-Amz-Expires=900&X-Amz-Signature=abc";
+
+        @Test
+        @DisplayName("zwraca ContactRecordingUrlResponse gdy kontakt ma nagranie")
+        void getRecordingUrl_returnsResponseWhenRecordingExists() {
+            // given
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED");
+            contact.setAgentId(AGENT_ID);
+            contact.setRecordingUrl(S3_KEY);
+            contact.setDurationSeconds(185);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(recordingService.generatePresignedUrlForKey(eq(S3_KEY), any(Duration.class)))
+                    .thenReturn(PRESIGNED_URL);
+
+            // when – SUPERVISOR (isAgent=false)
+            ContactRecordingUrlResponse response =
+                    contactService.getRecordingUrl(CONTACT_ID, TENANT_ID, AGENT_ID, false);
+
+            // then
+            assertThat(response.presignedUrl()).isEqualTo(PRESIGNED_URL);
+            assertThat(response.fileName()).isEqualTo(S3_KEY);
+            assertThat(response.durationSeconds()).isEqualTo(185);
+            assertThat(response.expiresAt()).isAfter(Instant.now());
+            assertThat(response.expiresAt()).isBefore(Instant.now().plusSeconds(16 * 60));
+
+            verify(recordingService).generatePresignedUrlForKey(eq(S3_KEY), any(Duration.class));
+        }
+
+        @Test
+        @DisplayName("AGENT może pobrać URL nagrania własnego kontaktu")
+        void getRecordingUrl_agentCanGetOwnContactRecording() {
+            // given
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED");
+            contact.setAgentId(AGENT_ID); // ten sam agent
+            contact.setRecordingUrl(S3_KEY);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(recordingService.generatePresignedUrlForKey(eq(S3_KEY), any(Duration.class)))
+                    .thenReturn(PRESIGNED_URL);
+
+            // when
+            ContactRecordingUrlResponse response =
+                    contactService.getRecordingUrl(CONTACT_ID, TENANT_ID, AGENT_ID, true);
+
+            // then
+            assertThat(response.presignedUrl()).isEqualTo(PRESIGNED_URL);
+        }
+
+        @Test
+        @DisplayName("AGENT rzuca InvalidOperationException przy próbie pobrania nagrania cudzego kontaktu")
+        void getRecordingUrl_agentCannotGetOtherAgentContactRecording() {
+            // given
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED");
+            contact.setAgentId(OTHER_AGENT); // inny agent
+            contact.setRecordingUrl(S3_KEY);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+
+            // when / then
+            assertThatThrownBy(() ->
+                    contactService.getRecordingUrl(CONTACT_ID, TENANT_ID, AGENT_ID, true))
+                    .isInstanceOf(InvalidOperationException.class)
+                    .hasMessageContaining(CONTACT_ID.toString());
+
+            verifyNoInteractions(recordingService);
+        }
+
+        @Test
+        @DisplayName("rzuca ResponseStatusException 404 gdy kontakt nie ma nagrania")
+        void getRecordingUrl_throwsNotFoundWhenNoRecording() {
+            // given – kontakt bez nagrania (recordingUrl = null)
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED");
+            contact.setAgentId(AGENT_ID);
+            contact.setRecordingUrl(null);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+
+            // when / then
+            assertThatThrownBy(() ->
+                    contactService.getRecordingUrl(CONTACT_ID, TENANT_ID, AGENT_ID, false))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("Brak nagrania");
+
+            verifyNoInteractions(recordingService);
+        }
+
+        @Test
+        @DisplayName("rzuca ResponseStatusException 404 gdy recordingUrl jest pustym stringiem")
+        void getRecordingUrl_throwsNotFoundWhenRecordingUrlIsBlank() {
+            // given
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED");
+            contact.setRecordingUrl("   ");
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+
+            // when / then
+            assertThatThrownBy(() ->
+                    contactService.getRecordingUrl(CONTACT_ID, TENANT_ID, AGENT_ID, false))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("Brak nagrania");
+
+            verifyNoInteractions(recordingService);
+        }
+
+        @Test
+        @DisplayName("rzuca ResponseStatusException 503 gdy MinIO/S3 jest niedostępny")
+        void getRecordingUrl_throwsServiceUnavailableWhenS3Fails() {
+            // given
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED");
+            contact.setRecordingUrl(S3_KEY);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(recordingService.generatePresignedUrlForKey(eq(S3_KEY), any(Duration.class)))
+                    .thenThrow(new RecordingService.RecordingException("S3 connection failed",
+                            new RuntimeException("Connection refused")));
+
+            // when / then
+            assertThatThrownBy(() ->
+                    contactService.getRecordingUrl(CONTACT_ID, TENANT_ID, AGENT_ID, false))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("niedostępna");
+        }
+
+        @Test
+        @DisplayName("rzuca EntityNotFoundException gdy kontakt nie istnieje")
+        void getRecordingUrl_throwsWhenContactNotFound() {
+            // given
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
+
+            // when / then
+            assertThatThrownBy(() ->
+                    contactService.getRecordingUrl(CONTACT_ID, TENANT_ID, AGENT_ID, false))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining(CONTACT_ID.toString());
+
+            verifyNoInteractions(recordingService);
+        }
+
+        @Test
+        @DisplayName("expiresAt jest ustawiony na ~15 minut od teraz")
+        void getRecordingUrl_setsExpiresAtToFifteenMinutes() {
+            // given
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED");
+            contact.setRecordingUrl(S3_KEY);
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(recordingService.generatePresignedUrlForKey(eq(S3_KEY), any(Duration.class)))
+                    .thenReturn(PRESIGNED_URL);
+
+            Instant before = Instant.now().plusSeconds(14 * 60);
+            Instant after  = Instant.now().plusSeconds(16 * 60);
+
+            // when
+            ContactRecordingUrlResponse response =
+                    contactService.getRecordingUrl(CONTACT_ID, TENANT_ID, AGENT_ID, false);
+
+            // then
+            assertThat(response.expiresAt()).isBetween(before, after);
         }
     }
 

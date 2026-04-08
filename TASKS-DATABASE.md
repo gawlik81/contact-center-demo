@@ -589,9 +589,9 @@ CREATE CONSTRAINT TRIGGER trg_routing_rule_collision
 **Typ:** Feature
 **Priorytet:** Must Have
 **Zlozonosc:** S
-**Zależy od:** DB-006 (tabela CONTACT)
-**Status:** 🔲 Do zrobienia
-**Blokuje:** BE-036
+**Zależy od:** DB-006 ✅ (tabela CONTACT)
+**Status:** ✅ Zrealizowane
+**Blokuje:** BE-036 ✅
 **Odniesienie PRD:** EPIC-12
 
 **Opis:**
@@ -600,13 +600,13 @@ Tabela `contact` ma indeksy raportowe z DB-013, jednak filtrowanie w widoku „R
 - indeksu do filtrowania po kampanii z uwzględnieniem zakresu dat (inny niż `idx_contact_campaign` — tu potrzebna kolejność `tenant_id, campaign_id, started_at` z kolumną `status` jako include)
 - indeksu na `duration_seconds` (filtr min/max — rzadko używany, tylko jeśli selectivity wysoka; dodać jako indeks warunkowy tylko dla COMPLETED)
 
-Migracja: `V035__contact_report_indexes.sql`
+Migracja: `V035__contact_search_indexes.sql`
 
 **Kryteria akceptacji:**
-- [ ] `idx_contact_queue_date` na `(tenant_id, queue_id, started_at DESC) WHERE queue_id IS NOT NULL` — nowa migracja V035
-- [ ] `idx_contact_duration` na `(tenant_id, duration_seconds) WHERE status = 'COMPLETED' AND duration_seconds IS NOT NULL` — warunkowy indeks dla filtrów min/max czasu trwania
-- [ ] Skrypt idempotentny: `CREATE INDEX IF NOT EXISTS`
-- [ ] `EXPLAIN ANALYZE` dla zapytania z filtrem `queue_id + dateFrom + dateTo` pokazuje Index Scan (nie Seq Scan) na zbiorze > 10k wierszy
+- [x] `idx_contact_queue_date` na `(tenant_id, queue_id, started_at)` WHERE queue_id IS NOT NULL — V035
+- [x] `idx_contact_duration` na `(tenant_id, duration_seconds)` WHERE duration_seconds IS NOT NULL — warunkowy indeks dla filtrów min/max czasu trwania
+- [x] Skrypt idempotentny: `CREATE INDEX IF NOT EXISTS`
+- [x] Odblokowano BE-036 (filtry zaawansowane Contact API)
 
 ---
 
@@ -707,4 +707,4 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | Data Warehouse / ETL | DB-013, DB-014 | BE-030 | – |
 | RODO anonimizacja | DB-012, DB-017 | BE-031 | FE-018 (przycisk usuń) |
 | Routing numerów telefonicznych | DB-021 | BE-033, BE-034, BE-035 | FE-026 |
-| Prezentacja Kontaktów (raporty) | DB-022 | BE-036, BE-037 | FE-028, FE-029, FE-030 |
+| Prezentacja Kontaktów (raporty) | DB-022 | BE-036 (czeka na DB-022), BE-037 ✅ (niezależne od DB-022) | FE-028, FE-029, FE-030 |

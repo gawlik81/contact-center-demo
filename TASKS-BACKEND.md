@@ -1099,6 +1099,180 @@ BE-027 + BE-010 → BE-037 (Recording presigned URL)
 | Klienci | BE-025 → BE-026, BE-031 |
 | Raporty | BE-027 → BE-028, BE-029, BE-030 |
 | Prezentacja kontaktów | BE-036, BE-037 (równolegle po BE-027) |
+| Zaplanowane oddzwonienia | BE-038 → BE-039, BE-040 (równolegle po BE-038) |
+
+---
+
+## MODUL: Zaplanowane oddzwonienia (EPIC-13)
+
+### BE-038 – Executor zaplanowanych callbacków (`ScheduledCallbackExecutor`)
+
+**Typ:** Feature – Scheduler
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-009 (TelephonyAdapter), DB-023 (scheduled_callback z source_type), BE-024 (DialerCallbackHandler)
+**Status:** ⬜ Do zrobienia
+**Epic:** EPIC-13 Zaplanowane oddzwonienia
+
+**Opis:**
+Tabela `scheduled_callback` ma metodę `findDueCallbacks()` w repozytorium, ale **brakuje schedulera**, który ją wywoła. Ten task implementuje `ScheduledCallbackExecutor` — komponent uruchamiający co minutę zaplanowane callbacki.
+
+**Zakres implementacji:**
+
+1. **`ScheduledCallbackExecutor`** (`domain/service/ScheduledCallbackExecutor.java`):
+   - `@Scheduled(fixedDelay = 60_000)` – co minutę
+   - Pobiera listę aktywnych tenantów z callbackami PENDING i `scheduled_at <= NOW()` (jedno zapytanie cross-tenant przez JDBC bez RLS – dostęp przez service account)
+   - Dla każdego callbacku:
+     - Ustawia TenantContext (snapshot pattern dla `@Async`)
+     - Aktualizuje status PENDING → PROCESSING (optimistic lock przez UPDATE WHERE status='PENDING')
+     - Wywołuje `TelephonyAdapter.initiateCall()` z numerem z callbacku
+     - Po sukcesie: zapisuje callState w Redis (dialer:call:{callSid}), status → COMPLETED
+     - Po błędzie Twilio: status → FAILED, loguje przyczynę
+   - Limit per iterację: 50 callbacków (konfigurowalny przez `dialer.callback-executor.batch-size`)
+   - `@ConditionalOnProperty(name = "dialer.enabled", havingValue = "true", matchIfMissing = true)`
+
+2. **`ScheduledCallbackRepository.findDueCallbacksAllTenants(int limit)`** – nowe zapytanie cross-tenant (JDBC bez RLS, dla schedulera):
+   ```sql
+   SELECT * FROM scheduled_callback
+   WHERE status = 'PENDING' AND scheduled_at <= NOW() AND is_deleted = FALSE
+   ORDER BY scheduled_at ASC
+   LIMIT ?
+   ```
+
+3. **Konfiguracja** w `application.yml`:
+   ```yaml
+   dialer:
+     enabled: true
+     callback-executor:
+       batch-size: 50
+   ```
+
+**Endpointy:** brak (scheduler wewnętrzny)
+
+**Kryteria akceptacji:**
+- [ ] Scheduler uruchamia się co minutę (weryfikacja przez logi)
+- [ ] Callbacki z `scheduled_at <= NOW()` i status=PENDING są inicjowane (wywołanie TelephonyAdapter)
+- [ ] Brak double-processing: UPDATE WHERE status='PENDING' gwarantuje atomowość
+- [ ] Błąd Twilio → status FAILED + log ERROR (nie przerywa pętli dla innych callbacków)
+- [ ] Scheduler nie uruchamia się gdy `dialer.enabled=false`
+- [ ] Test: `ScheduledCallbackExecutorTest` – mockuje TelephonyAdapter, weryfikuje zmianę statusów
+- [ ] Obsługa TenantContext.snapshot()/restore() dla przekazania kontekstu do przetwarzania
+
+**Uwagi implementacyjne:**
+- Zapytanie cross-tenant (bez RLS) musi używać konta z uprawnieniami `bypass_rls` lub bezpośrednio JdbcTemplate z osobnym datasource
+- Alternatywnie: RLS bypass przez `SET LOCAL row_security TO off` w ramach transakcji (wymaga superuser lub uprawnienia BYPASSRLS)
+- Jeśli nie ma dostępu bypass: dodać kolumnę `next_execution_tenant_ids` do dedykowanej tabeli scheduler lub wykonywać per-tenant przez pobranie listy tenantów z tabeli `tenant`
+
+---
+
+### BE-039 – API przełożenia zaplanowanego callbacku
+
+**Typ:** Feature – REST API
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-024 (ScheduledCallbackRepository, DialerController), DB-023
+**Status:** ⬜ Do zrobienia
+**Epic:** EPIC-13 Zaplanowane oddzwonienia
+
+**Opis:**
+Agent może przełożyć istniejące zaplanowane oddzwonienie (PENDING) na inną godzinę. Dotyczy zarówno callbacków po kampaniach (`CAMPAIGN_CALLBACK`) jak i oddzwonień z rozmów przychodzących (`INBOUND_CALLBACK`).
+
+**Nowe endpointy w `DialerController`:**
+
+```
+PUT /api/dialer/callbacks/{callbackId}
+```
+- Role: `AGENT`, `SUPERVISOR`, `ADMIN`
+- Request body: `RescheduleCallbackRequest { scheduledAt: Instant (wymagane), notes: String (opcjonalne) }`
+- Logika:
+  1. Pobierz callback `findById(callbackId, tenantId)` → 404 jeśli nie istnieje
+  2. Zweryfikuj status == 'PENDING' → 409 jeśli już nie PENDING
+  3. Dla roli AGENT: zweryfikuj że `callback.agentId == jwtAgentId` → 403 jeśli cudzy callback
+  4. Zaktualizuj `scheduledAt` (i opcjonalnie `notes`), zapisz
+  5. Zwróć `ScheduledCallbackResponse` (HTTP 200)
+- Response: `ScheduledCallbackResponse` (istniejące DTO)
+
+**DTO** (`api/dialer/dto/RescheduleCallbackRequest.java`):
+```java
+public record RescheduleCallbackRequest(
+    @NotNull @Future Instant scheduledAt,
+    String notes  // nullable
+) {}
+```
+
+**Walidacja:**
+- `scheduledAt` musi być w przyszłości (`@Future`)
+- Callback musi być PENDING (nie PROCESSING/COMPLETED/CANCELLED)
+- AGENT może przełożyć tylko swoje callbacki (`agentId == jwtAgentId`)
+
+**Kryteria akceptacji:**
+- [ ] PENDING callback → zmiana scheduledAt → HTTP 200 z zaktualizowanym DTO
+- [ ] Callback nie-PENDING → HTTP 409 z czytelnym komunikatem
+- [ ] AGENT próbuje przełożyć cudzy callback → HTTP 403
+- [ ] scheduledAt w przeszłości → HTTP 400 (walidacja Bean Validation)
+- [ ] Nieistniejący callbackId → HTTP 404
+- [ ] Test jednostkowy: `DialerCallbackRescheduleTest` (5 przypadków)
+
+---
+
+### BE-040 – API dodania oddzwonienia podczas rozmowy przychodzącej
+
+**Typ:** Feature – REST API
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-009 (Contact model), BE-024 (ScheduledCallbackRepository), DB-023
+**Status:** ⬜ Do zrobienia
+**Epic:** EPIC-13 Zaplanowane oddzwonienia
+
+**Opis:**
+Podczas lub po zakończeniu rozmowy przychodzącej agent może zaplanować oddzwonienie do klienta na konkretną godzinę. Callback jest powiązany z kontaktem źródłowym (`origin_contact_id`) i ma `source_type = 'INBOUND_CALLBACK'`.
+
+**Nowy endpoint w `DialerController`:**
+
+```
+POST /api/contacts/{contactId}/callback
+```
+- Role: `AGENT`, `SUPERVISOR`, `ADMIN`
+- Path param: `contactId` UUID
+- Request body: `CreateInboundCallbackRequest`
+- Logika:
+  1. Pobierz kontakt `contactRepository.findById(contactId, tenantId)` → 404 jeśli nie istnieje
+  2. Dla roli AGENT: zweryfikuj że `contact.agentId == jwtAgentId` → 403 (agent może planować tylko ze swoich rozmów)
+  3. Utwórz `ScheduledCallback` z:
+     - `source_type = 'INBOUND_CALLBACK'`
+     - `origin_contact_id = contactId`
+     - `agentId` z JWT (AGENT) lub z request (SUPERVISOR/ADMIN)
+     - `phone`, `firstName`, `lastName` z request (jeśli null – użyj danych z kontaktu/klienta)
+     - `scheduledAt`, `notes` z request
+  4. Zapisz i zwróć HTTP 201 Created z `ScheduledCallbackResponse`
+
+**DTO** (`api/dialer/dto/CreateInboundCallbackRequest.java`):
+```java
+public record CreateInboundCallbackRequest(
+    @NotBlank String phone,           // numer docelowy (E.164)
+    String firstName,                  // nullable – opcjonalne dane klienta
+    String lastName,                   // nullable
+    @NotNull @Future Instant scheduledAt,
+    String notes,                      // nullable
+    UUID agentId                       // ignorowane dla roli AGENT (zawsze jwtAgentId)
+) {}
+```
+
+**Uwaga dot. autoryzacji:** Dla AGENT – `contact.agentId` może być null (np. kontakt przyszedł przez IVR, zanim agent odebrał). W takim przypadku zezwól na tworzenie callbacku (agent jest przypisany do kontaktu w sesji, nawet jeśli DB jeszcze nie zaktualizowana).
+
+**Kryteria akceptacji:**
+- [ ] Poprawne żądanie → HTTP 201, `source_type='INBOUND_CALLBACK'`, `origin_contact_id=contactId`
+- [ ] Nieistniejący contactId → HTTP 404
+- [ ] AGENT dla cudzego kontaktu (agentId != null i różny) → HTTP 403
+- [ ] scheduledAt w przeszłości → HTTP 400
+- [ ] phone null/blank → HTTP 400
+- [ ] Test: `InboundCallbackCreationTest` (5 przypadków)
+- [ ] Endpoint widoczny w Swagger UI
+
+**Uwagi implementacyjne:**
+- Endpoint w `DialerController` (nie ContactController) – logika dotyczy schedulowania połączeń
+- Alternatywnie można dodać do ContactController jeśli PR review uzna to za bardziej spójne
+- `ScheduledCallbackResponse` wymaga nowego pola `sourceType` i `originContactId` do pełnego odzwierciedlenia danych (aktualizacja istniejącego DTO)
 
 ---
 
@@ -1120,4 +1294,5 @@ BE-027 + BE-010 → BE-037 (Recording presigned URL)
 | Raporty (EPIC-10) | 4 | 4 | 0 |
 | RODO | 1 | 1 | 0 |
 | Prezentacja Kontaktów (EPIC-12) | 2 | 2 | 0 |
-| **RAZEM** | **38** | **35** | **3** |
+| Zaplanowane oddzwonienia (EPIC-13) | 3 | 3 | 0 |
+| **RAZEM** | **41** | **38** | **3** |

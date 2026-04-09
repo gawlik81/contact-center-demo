@@ -19,13 +19,18 @@ Odpowiadaj użytkownikowi **po polsku**. Kod, komentarze w kodzie i nazwy techni
 - Agentów można uruchamiać **równolegle** gdy zadania są niezależne — zawsze preferuj równoległe uruchomienie.
 - Po zakończeniu pracy przez agenta/skill — podsumuj wynik użytkownikowi po polsku.
 
-| Typ zmiany                              | Agent                     |
-|-----------------------------------------|---------------------------|
-| Angular (komponenty, serwisy, szablony) | `angular-frontend-expert` |
-| Spring Boot / Java                      | `backend-dev-expert`      |
-| Obie warstwy jednocześnie               | OBA agenty **równolegle** |
-| Code review po implementacji            | `senior-code-reviewer`    |
-| Migracja / schemat DB                   | `db-schema-architect`     |
+| Typ zmiany                                                             | Agent                                |
+|------------------------------------------------------------------------|--------------------------------------|
+| Angular (komponenty, serwisy, szablony)                                | `angular-frontend-expert`            |
+| Spring Boot / Java                                                     | `backend-dev-expert`                 |
+| Obie warstwy jednocześnie                                              | OBA agenty **równolegle**            |
+| Code review po implementacji                                           | `senior-code-reviewer`               |
+| Migracja / schemat DB                                                  | `db-schema-architect`                |
+| Debugowanie, analiza błędów                                            | `debug-specialist`                   |
+| Projektowanie architektury oprogramowania                              | `architecture-designer`              |
+| Planowania produktów i tworzenia dokumentów wymagań projektowych (PRD) | `prd-planner`                        |
+| Dekonstrukcja wymagań na zadania                                       | `product-requirements-deconstructor` |
+| Projektowania UI premium                                               | `ui-premium-designer`                |
 
 ---
 

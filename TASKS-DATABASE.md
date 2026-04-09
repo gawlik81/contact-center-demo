@@ -666,6 +666,75 @@ Wszystkie → DB-019 (seed dev)
 | BE-003, BE-004 | DB-016 (Redis config) |
 | BE-031 (RODO API) | DB-017 (RODO funkcje) |
 
+| BE-038 (Callback Executor) | DB-023 (rozszerzenie scheduled_callback) |
+| BE-039 (Reschedule API) | DB-023 |
+| BE-040 (Inbound Callback API) | DB-023 |
+
+---
+
+## MODUL: Zaplanowane oddzwonienia (EPIC-13)
+
+### DB-023 – Rozszerzenie tabeli `scheduled_callback` o kontekst źródłowy
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-006 (tabela CONTACT), V032 (scheduled_callback już istnieje)
+**Status:** ⬜ Do zrobienia
+**Epic:** EPIC-13 Zaplanowane oddzwonienia
+**Flyway:** V036__scheduled_callback_source_context.sql
+
+**Opis:**
+Tabela `scheduled_callback` obsługuje dotychczas tylko callbacki po kampaniach (dyspozycja CALLBACK). Nowa funkcjonalność wymaga rozróżnienia źródła callbacku oraz powiązania z kontaktem przychodzącym.
+
+**Zmiany schematu (V036):**
+
+```sql
+-- 1. Kolumna source_type: skąd pochodzi callback
+ALTER TABLE scheduled_callback
+    ADD COLUMN IF NOT EXISTS source_type VARCHAR(30) NOT NULL DEFAULT 'CAMPAIGN_CALLBACK';
+
+ALTER TABLE scheduled_callback
+    ADD CONSTRAINT chk_scheduled_callback_source_type
+        CHECK (source_type IN ('CAMPAIGN_CALLBACK', 'INBOUND_CALLBACK'));
+
+-- 2. Powiązanie z kontaktem źródłowym (rozmowa przychodząca, z której pochodzi callback)
+ALTER TABLE scheduled_callback
+    ADD COLUMN IF NOT EXISTS origin_contact_id UUID;
+
+-- FK z deferrable (nie blokuje operacji batchowych)
+ALTER TABLE scheduled_callback
+    ADD CONSTRAINT fk_scheduled_callback_origin_contact
+        FOREIGN KEY (origin_contact_id) REFERENCES contact(contact_id) DEFERRABLE INITIALLY DEFERRED;
+
+-- 3. Indeks dla widoku supervisora: callbacki z rozmów przychodzących
+CREATE INDEX IF NOT EXISTS idx_scheduled_callback_inbound
+    ON scheduled_callback (tenant_id, source_type, scheduled_at)
+    WHERE source_type = 'INBOUND_CALLBACK' AND status = 'PENDING' AND is_deleted = FALSE;
+
+-- 4. Indeks po origin_contact_id (lookup: wszystkie callbacki z danego kontaktu)
+CREATE INDEX IF NOT EXISTS idx_scheduled_callback_origin_contact
+    ON scheduled_callback (tenant_id, origin_contact_id)
+    WHERE origin_contact_id IS NOT NULL AND is_deleted = FALSE;
+```
+
+**Wartości `source_type`:**
+- `CAMPAIGN_CALLBACK` – dyspozycja CALLBACK po rozmowie kampanijnej (dotychczasowe zachowanie)
+- `INBOUND_CALLBACK` – oddzwonienie zaplanowane podczas rozmowy przychodzącej przez agenta
+
+**Kryteria akceptacji:**
+- [ ] Migracja uruchamia się bez błędów na dev i test
+- [ ] Istniejące rekordy mają `source_type = 'CAMPAIGN_CALLBACK'` (DEFAULT)
+- [ ] CHECK constraint odrzuca nieznane wartości `source_type`
+- [ ] FK `origin_contact_id → contact.contact_id` działa (NULL jest dozwolone)
+- [ ] Oba nowe indeksy są widoczne w `pg_indexes`
+- [ ] RLS dla `scheduled_callback` pokrywa nowe kolumny (polityka per-tenant już istnieje z V032)
+
+**Uwagi implementacyjne:**
+- Migracja jest addytywna – żadna istniejąca kolumna nie jest modyfikowana
+- `origin_contact_id` jest nullable – nie łamie kompatybilności z istniejącymi callbackami kampanijnymi
+- FK jest DEFERRABLE INITIALLY DEFERRED, aby nie blokować importów bulk
+
 ---
 
 ## Podsumowanie zadań Baza Danych
@@ -680,7 +749,8 @@ Wszystkie → DB-019 (seed dev)
 | Narzedzia operacyjne | 2 | 2 | 0 |
 | Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
 | Prezentacja Kontaktów (EPIC-12) | 1 | 1 | 0 |
-| **RAZEM** | **22** | **21** | **1** |
+| Zaplanowane oddzwonienia (EPIC-13) | 1 | 1 | 0 |
+| **RAZEM** | **23** | **22** | **1** |
 
 ---
 
@@ -708,3 +778,4 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | RODO anonimizacja | DB-012, DB-017 | BE-031 | FE-018 (przycisk usuń) |
 | Routing numerów telefonicznych | DB-021 | BE-033, BE-034, BE-035 | FE-026 |
 | Prezentacja Kontaktów (raporty) | DB-022 | BE-036 (czeka na DB-022), BE-037 ✅ (niezależne od DB-022) | FE-028, FE-029, FE-030 |
+| Zaplanowane oddzwonienia | DB-023 | BE-038 (executor), BE-039 (reschedule API), BE-040 (inbound callback API) | FE-031 (reschedule modal), FE-032 (inbound callback modal) |

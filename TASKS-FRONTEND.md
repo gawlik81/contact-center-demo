@@ -994,8 +994,139 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | FE-028 | BE-037 ✅ (recording presigned URL – zrealizowane) |
 | FE-029 | ~~BE-036~~ ✅ zrealizowane (Contact API filtry zaawansowane); czeka jeszcze na FE-028 (modal) |
 | FE-030 | BE-037 ✅ (nagranie – zrealizowane), FE-028 (modal komponent – do zrobienia) |
+| FE-031 | BE-039 ✅ (reschedule callback API) |
+| FE-032 | BE-040 ✅ (inbound callback API) |
 
 > Do czasu gotowości backendu zadania FE mogą używać MSW (Mock Service Worker) do mockowania odpowiedzi API zgodnie z kontraktem OpenAPI.
+
+---
+
+## MODUL: Zaplanowane oddzwonienia (EPIC-13)
+
+### FE-031 – Modal przełożenia rozmowy wychodzącej (Agent Desktop)
+
+**Typ:** Feature – UI Component
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-009 (Agent Desktop), BE-039 (PUT /api/dialer/callbacks/{id})
+**Status:** ⬜ Do zrobienia
+**Epic:** EPIC-13 Zaplanowane oddzwonienia
+
+**Opis:**
+Agent podczas rozmowy wychodzącej (kampania lub manualny dialer) lub po jej zakończeniu może przełożyć planowane oddzwonienie na inną godzinę. UI wyświetla przycisk "Przesuń oddzwonienie" dostępny gdy agent ma aktywny callback PENDING.
+
+**Komponenty do stworzenia:**
+
+1. **`RescheduleCallbackModalComponent`** (`features/agent-desktop/components/reschedule-callback-modal/`):
+   - Standalone component, selector: `app-reschedule-callback-modal`
+   - Input: `callbackId: string`, `currentScheduledAt: Date`
+   - Output: `rescheduled: EventEmitter<ScheduledCallbackDto>`, `cancelled: EventEmitter<void>`
+   - Formularz z polami:
+     - `scheduledAt` – date-time picker (Angular Material `<mat-datetime-picker>` lub PrimeNG `<p-calendar>`) z walidacją: wartość w przyszłości, wymagana
+     - `notes` – textarea opcjonalna (max 500 znaków)
+   - Submit wywołuje `DialerService.rescheduleCallback(callbackId, { scheduledAt, notes })`
+   - Po sukcesie: emituje `rescheduled`, pokazuje toast "Oddzwonienie przełożone na [data]"
+   - Loading state podczas wysyłki (disabled submit + spinner)
+   - Error handling: wyświetla komunikat błędu API przy 409/403/404
+
+2. **`DialerService.rescheduleCallback(callbackId: string, req: RescheduleCallbackRequest): Observable<ScheduledCallbackDto>`**:
+   - `PUT /api/dialer/callbacks/{callbackId}`
+   - Metoda do dodania do istniejącego `DialerService`
+
+3. **Integracja w Agent Desktop:**
+   - Przycisk "Przesuń oddzwonienie" widoczny gdy aktywna karta (tab) agenta pokazuje callback PENDING
+   - Kliknięcie otwiera `RescheduleCallbackModalComponent` w overlay/dialog
+   - Po zamknięciu modalu: odśwież listę callbacków
+
+**Typy** (`features/agent-desktop/models/callback.model.ts`):
+```typescript
+export interface RescheduleCallbackRequest {
+  scheduledAt: string; // ISO 8601
+  notes?: string;
+}
+
+export interface ScheduledCallbackDto {
+  callbackId: string;
+  phone: string;
+  firstName?: string;
+  lastName?: string;
+  scheduledAt: string;
+  notes?: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
+  sourceType: 'CAMPAIGN_CALLBACK' | 'INBOUND_CALLBACK';
+  agentId?: string;
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Modal otwiera się po kliknięciu przycisku "Przesuń oddzwonienie"
+- [ ] Pole daty nie pozwala wybrać czasu w przeszłości (walidacja min date)
+- [ ] Submit jest zablokowany gdy formularz niepoprawny
+- [ ] Po sukcesie: modal zamknięty, toast z nową datą, lista callbacków odświeżona
+- [ ] Błąd API 409 → komunikat "Oddzwonienie nie jest już oczekujące"
+- [ ] Błąd API 403 → komunikat "Brak uprawnień do zmiany tego oddzwonienia"
+- [ ] Loading spinner podczas wysyłki (brak podwójnego submitu)
+
+---
+
+### FE-032 – Modal dodania oddzwonienia podczas rozmowy przychodzącej
+
+**Typ:** Feature – UI Component
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-009 (Agent Desktop), BE-040 (POST /api/contacts/{contactId}/callback)
+**Status:** ⬜ Do zrobienia
+**Epic:** EPIC-13 Zaplanowane oddzwonienia
+
+**Opis:**
+Podczas aktywnej rozmowy przychodzącej agent może zaplanować oddzwonienie do klienta. Opcja dostępna w panelu aktywnego połączenia – przycisk "Zaplanuj oddzwonienie" otwiera modal z formularzem.
+
+**Komponenty do stworzenia:**
+
+1. **`ScheduleInboundCallbackModalComponent`** (`features/agent-desktop/components/schedule-inbound-callback-modal/`):
+   - Standalone component, selector: `app-schedule-inbound-callback-modal`
+   - Input: `contactId: string`, `prefillPhone?: string`, `prefillFirstName?: string`, `prefillLastName?: string`
+   - Output: `scheduled: EventEmitter<ScheduledCallbackDto>`, `cancelled: EventEmitter<void>`
+   - Formularz z polami:
+     - `phone` – wstępnie uzupełniony z danych kontaktu, edytowalny, walidacja E.164 pattern
+     - `firstName` – opcjonalne, wstępnie uzupełnione z danych klienta
+     - `lastName` – opcjonalne
+     - `scheduledAt` – date-time picker z walidacją: wartość w przyszłości, wymagana
+     - `notes` – textarea opcjonalna (max 500 znaków)
+   - Submit wywołuje `DialerService.createInboundCallback(contactId, request)`
+   - Po sukcesie: emituje `scheduled`, toast "Oddzwonienie zaplanowane na [data]"
+   - Loading state + disable submit podczas wysyłki
+
+2. **`DialerService.createInboundCallback(contactId: string, req: CreateInboundCallbackRequest): Observable<ScheduledCallbackDto>`**:
+   - `POST /api/contacts/{contactId}/callback`
+   - Metoda do dodania do istniejącego `DialerService`
+
+3. **Integracja w Agent Desktop:**
+   - Przycisk "Zaplanuj oddzwonienie" widoczny w panelu aktywnego połączenia przychodzącej rozmowy
+   - Dane kontaktu (telefon, imię, nazwisko) pre-fill z aktywnej sesji rozmowy
+   - Po zaplanowaniu: badge/wskaźnik w UI informujący że oddzwonienie zostało zaplanowane
+
+**Typy** (dodać do `callback.model.ts`):
+```typescript
+export interface CreateInboundCallbackRequest {
+  phone: string;
+  firstName?: string;
+  lastName?: string;
+  scheduledAt: string; // ISO 8601
+  notes?: string;
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Przycisk "Zaplanuj oddzwonienie" widoczny tylko podczas aktywnej rozmowy przychodzącej
+- [ ] Pola phone/imię/nazwisko pre-uzupełnione danymi z aktywnego kontaktu
+- [ ] Pole phone jest edytowalne (agent może zmienić numer)
+- [ ] Pole daty nie pozwala wybrać czasu w przeszłości
+- [ ] Po sukcesie: toast z potwierdzenem, modal zamknięty
+- [ ] Błąd 404 (kontakt nie istnieje) → komunikat błędu
+- [ ] Błąd 403 → "Brak uprawnień"
+- [ ] Formularz zablokowany podczas wysyłki (brak podwójnego submitu)
+- [ ] Walidacja phone: format E.164 lub akceptowalny lokalny format
 
 ---
 
@@ -1015,4 +1146,5 @@ FE-018 (Lista klientów) → FE-019, FE-020
 | Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
 | Dialer manualny | 1 | 1 | 0 |
 | Prezentacja Kontaktów (EPIC-12) | 3 | 3 | 0 |
-| **RAZEM** | **30** | **29** | **1** |
+| Zaplanowane oddzwonienia (EPIC-13) | 2 | 2 | 0 |
+| **RAZEM** | **32** | **31** | **1** |

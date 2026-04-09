@@ -10,17 +10,19 @@ import java.util.UUID;
  *
  * <p>Mapowany z encji {@link ScheduledCallback} metodą fabryczną {@link #from(ScheduledCallback)}.
  *
- * @param callbackId  UUID callbacku
- * @param tenantId    UUID tenanta
- * @param campaignId  UUID kampanii źródłowej (może być null)
- * @param agentId     UUID preferowanego agenta (może być null)
- * @param phone       numer telefonu do oddzwonienia
- * @param firstName   imię klienta (może być null)
- * @param lastName    nazwisko klienta (może być null)
- * @param scheduledAt zaplanowany moment wykonania oddzwonienia
- * @param notes       notatka agenta (może być null)
- * @param status      aktualny status callbacku (PENDING, PROCESSING, COMPLETED, CANCELLED)
- * @param createdAt   moment utworzenia rekordu
+ * @param callbackId      UUID callbacku
+ * @param tenantId        UUID tenanta
+ * @param campaignId      UUID kampanii źródłowej (może być null)
+ * @param agentId         UUID preferowanego agenta (może być null)
+ * @param phone           numer telefonu do oddzwonienia
+ * @param firstName       imię klienta (może być null)
+ * @param lastName        nazwisko klienta (może być null)
+ * @param scheduledAt     zaplanowany moment wykonania oddzwonienia
+ * @param notes           notatka agenta (może być null)
+ * @param status          aktualny status callbacku (PENDING, PROCESSING, COMPLETED, CANCELLED)
+ * @param createdAt       moment utworzenia rekordu
+ * @param sourceType      źródło callbacku (CAMPAIGN_CALLBACK, INBOUND_CALLBACK)
+ * @param originContactId UUID kontaktu źródłowego dla INBOUND_CALLBACK (może być null)
  */
 public record ScheduledCallbackResponse(
         UUID callbackId,
@@ -33,7 +35,9 @@ public record ScheduledCallbackResponse(
         Instant scheduledAt,
         String notes,
         String status,
-        Instant createdAt
+        Instant createdAt,
+        String sourceType,
+        UUID originContactId
 ) {
 
     /**
@@ -54,7 +58,9 @@ public record ScheduledCallbackResponse(
                 callback.getScheduledAt(),
                 callback.getNotes(),
                 callback.getStatus(),
-                callback.getCreatedAt()
+                callback.getCreatedAt(),
+                callback.getSourceType(),
+                callback.getOriginContactId()
         );
     }
 }

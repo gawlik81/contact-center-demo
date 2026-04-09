@@ -73,6 +73,21 @@ public class ScheduledCallback {
     @Builder.Default
     private String status = "PENDING";
 
+    /**
+     * Źródło callbacku. Wartości: CAMPAIGN_CALLBACK (domyślne), INBOUND_CALLBACK.
+     * INBOUND_CALLBACK oznacza callback zaplanowany podczas/po rozmowie przychodzącej.
+     */
+    @Column(name = "source_type", nullable = false, length = 30)
+    @Builder.Default
+    private String sourceType = "CAMPAIGN_CALLBACK";
+
+    /**
+     * UUID kontaktu źródłowego (rozmowy przychodzącej), z której pochodzi callback.
+     * Ustawiany gdy sourceType = INBOUND_CALLBACK. Może być null dla CAMPAIGN_CALLBACK.
+     */
+    @Column(name = "origin_contact_id")
+    private UUID originContactId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

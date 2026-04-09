@@ -834,7 +834,8 @@ Schemat ClickHouse gotowy: `dw/migrations/V001__create_contacts_dw.sql` (tabele 
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** BE-025, BE-027, DB-012
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
 **Blokuje:** brak
 **Odniesienie PRD:** US-09-06, wymagania RODO
 
@@ -1170,7 +1171,8 @@ BE-027 + BE-010 → BE-037 (Recording presigned URL)
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** BE-009 (TelephonyAdapter), DB-023 (scheduled_callback z source_type), BE-024 (DialerCallbackHandler)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1230,7 +1232,8 @@ Tabela `scheduled_callback` ma metodę `findDueCallbacks()` w repozytorium, ale 
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** BE-024 (ScheduledCallbackRepository, DialerController), DB-023
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1280,7 +1283,8 @@ public record RescheduleCallbackRequest(
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** BE-009 (Contact model), BE-024 (ScheduledCallbackRepository), DB-023
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**

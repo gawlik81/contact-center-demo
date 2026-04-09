@@ -174,6 +174,42 @@ public class ScheduledCallbackRepository extends TenantAwareRepository {
     }
 
     /**
+     * Atomowa zmiana statusu callbacku z PENDING na podany status.
+     *
+     * <p>Używane przez {@code ScheduledCallbackExecutor} do ochrony przed double-processing.
+     * Klauzula {@code AND status = 'PENDING'} gwarantuje, że tylko jeden wątek/węzeł
+     * przejmie callback – pozostałe otrzymają 0 i pominą rekord.
+     *
+     * @param callbackId UUID callbacku
+     * @param tenantId   UUID tenanta
+     * @param newStatus  nowy status (np. PROCESSING)
+     * @return liczba zaktualizowanych wierszy: 1 = sukces, 0 = inny wątek już przejął
+     */
+    @Transactional
+    public int updateStatusIfPending(UUID callbackId, UUID tenantId, String newStatus) {
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
+
+        int updated = jdbcTemplate.update(
+                """
+                UPDATE scheduled_callback
+                SET status = ?, updated_at = NOW()
+                WHERE callback_id = ?::uuid AND tenant_id = ?::uuid AND status = 'PENDING'
+                """,
+                newStatus,
+                callbackId.toString(),
+                tenantId.toString()
+        );
+
+        if (updated > 0) {
+            log.debug("[CallbackRepo] updateStatusIfPending: callbackId={}, newStatus={}", callbackId, newStatus);
+        } else {
+            log.debug("[CallbackRepo] updateStatusIfPending: pominięto (już przetworzone) callbackId={}", callbackId);
+        }
+
+        return updated;
+    }
+
+    /**
      * Aktualizuje status callbacku przez natywny SQL (bez potrzeby ładowania encji).
      *
      * <p>Używane przez dialer przy zmianie statusu PENDING → PROCESSING lub COMPLETED.

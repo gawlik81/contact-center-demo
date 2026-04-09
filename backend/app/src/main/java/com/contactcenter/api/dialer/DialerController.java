@@ -2,23 +2,29 @@ package com.contactcenter.api.dialer;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.dialer.dto.CreateCallbackRequest;
+import com.contactcenter.api.dialer.dto.CreateInboundCallbackRequest;
 import com.contactcenter.api.dialer.dto.DialerStatusResponse;
 import com.contactcenter.api.dialer.dto.ManualCallRequest;
 import com.contactcenter.api.dialer.dto.ManualCallResponse;
 import com.contactcenter.api.dialer.dto.ManualCampaignRecordsResponse;
+import com.contactcenter.api.dialer.dto.RescheduleCallbackRequest;
 import com.contactcenter.api.dialer.dto.ScheduledCallbackResponse;
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.Campaign;
+import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.repository.CampaignRepository;
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.service.DialerCallbackHandler;
 import com.contactcenter.domain.service.ProgressiveDialerService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;
+import org.springframework.security.access.AccessDeniedException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -74,6 +80,7 @@ public class DialerController {
     private final CampaignContactRepository campaignContactRepository;
     private final ScheduledCallbackRepository scheduledCallbackRepository;
     private final TelephonyAdapter telephonyAdapter;
+    private final ContactRepository contactRepository;
 
     // Statusy uwzględniane w podsumowaniu dialera
     private static final List<String> DIALER_STATUSES =
@@ -297,6 +304,76 @@ public class DialerController {
         return ResponseEntity.created(location).body(ScheduledCallbackResponse.from(callback));
     }
 
+    /**
+     * Przekłada zaplanowane oddzwonienie na nowy termin (BE-039).
+     *
+     * <p>Reguły dostępu:
+     * <ul>
+     *   <li>Callback musi istnieć i należeć do tenanta → 404 jeśli nie</li>
+     *   <li>Status musi być PENDING → 409 jeśli COMPLETED/CANCELLED/PROCESSING</li>
+     *   <li>Dla roli AGENT: tylko własne callbacki (agentId z JWT) → 403 dla cudzych</li>
+     *   <li>scheduledAt w przeszłości → 422 (Bean Validation @Future)</li>
+     * </ul>
+     *
+     * @param callbackId UUID callbacku do przełożenia
+     * @param request    nowy termin i opcjonalna notatka
+     * @return zaktualizowane DTO callbacku
+     */
+    @PutMapping("/callbacks/{callbackId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Przełóż zaplanowane oddzwonienie",
+        description = "Zmienia termin oddzwonienia PENDING na nowy. " +
+                      "Dla roli AGENT dozwolone tylko dla własnych callbacków (sticky agent). " +
+                      "Callback musi być w statusie PENDING – w przeciwnym razie HTTP 409.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Callback przełożony"),
+            @ApiResponse(responseCode = "400", description = "scheduledAt w przeszłości lub brakujące pole"),
+            @ApiResponse(responseCode = "403", description = "AGENT próbuje przełożyć cudzy callback"),
+            @ApiResponse(responseCode = "404", description = "Callback nie istnieje"),
+            @ApiResponse(responseCode = "409", description = "Callback nie jest w statusie PENDING")
+        }
+    )
+    public ResponseEntity<ScheduledCallbackResponse> rescheduleCallback(
+            @Parameter(description = "UUID callbacku") @PathVariable UUID callbackId,
+            @Valid @RequestBody RescheduleCallbackRequest request
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID jwtAgentId = TenantContext.getUserId();
+        String role = TenantContext.getUserRole();
+
+        // 1. Pobierz callback – 404 jeśli nie istnieje lub inny tenant
+        ScheduledCallback callback = scheduledCallbackRepository.findById(callbackId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Callback nie istnieje: " + callbackId));
+
+        // 2. Weryfikacja statusu – tylko PENDING można przełożyć
+        if (!"PENDING".equals(callback.getStatus())) {
+            throw new ConflictException(
+                    "Nie można przełożyć callbacku w statusie " + callback.getStatus() +
+                    ". Dozwolone tylko dla statusu PENDING.");
+        }
+
+        // 3. AGENT może przełożyć tylko własny callback (sticky agent)
+        if ("AGENT".equals(role) && !jwtAgentId.equals(callback.getAgentId())) {
+            throw new AccessDeniedException(
+                    "Agent może przełożyć tylko własne callbacki");
+        }
+
+        // 4. Zaktualizuj termin i opcjonalną notatkę
+        callback.setScheduledAt(request.scheduledAt());
+        if (request.notes() != null) {
+            callback.setNotes(request.notes());
+        }
+
+        ScheduledCallback updated = scheduledCallbackRepository.save(callback);
+
+        log.info("[DialerController] Callback przełożony: callbackId={}, tenant={}, scheduledAt={}, role={}",
+                callbackId, tenantId, request.scheduledAt(), role);
+
+        return ResponseEntity.ok(ScheduledCallbackResponse.from(updated));
+    }
+
     // =========================================================================
     // Dialer manualny – widok agenta
     // =========================================================================
@@ -498,6 +575,90 @@ public class DialerController {
                 agentId,
                 phone
         ));
+    }
+
+    // =========================================================================
+    // Callback z rozmowy przychodzącej (BE-040)
+    // =========================================================================
+
+    /**
+     * Planuje oddzwonienie do klienta podczas/po rozmowie przychodzącej.
+     *
+     * <p>Endpoint dostępny dla ról AGENT, SUPERVISOR i ADMIN.
+     * Tworzy rekord {@link ScheduledCallback} z {@code sourceType = "INBOUND_CALLBACK"}
+     * i powiązaniem do oryginalnego kontaktu przez {@code originContactId}.
+     *
+     * <p>Reguły dostępu dla roli AGENT:
+     * <ul>
+     *   <li>Jeśli {@code contact.agentId != null} i różny od JWT agentId → 403 Forbidden</li>
+     *   <li>Jeśli {@code contact.agentId == null} → zezwól (agent mógł odebrać połączenie,
+     *       baza danych jeszcze nie zaktualizowana)</li>
+     * </ul>
+     *
+     * @param contactId UUID kontaktu źródłowego (rozmowy przychodzącej)
+     * @param request   dane oddzwonienia
+     * @return DTO utworzonego callbacku z HTTP 201 Created
+     */
+    @PostMapping("/api/contacts/{contactId}/callback")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Zaplanuj oddzwonienie z rozmowy przychodzącej",
+        description = "Tworzy zaplanowane oddzwonienie powiązane z kontaktem przychodzącym. " +
+                      "Dla roli AGENT dozwolone tylko dla własnego kontaktu (agentId z JWT). " +
+                      "sourceType ustawiane na INBOUND_CALLBACK automatycznie.",
+        responses = {
+            @ApiResponse(responseCode = "201", description = "Callback zaplanowany"),
+            @ApiResponse(responseCode = "400", description = "Błąd walidacji – brakujące pola"),
+            @ApiResponse(responseCode = "403", description = "AGENT próbuje zaplanować callback z cudzej rozmowy"),
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje"),
+            @ApiResponse(responseCode = "422", description = "scheduledAt w przeszłości")
+        }
+    )
+    public ResponseEntity<ScheduledCallbackResponse> createInboundCallback(
+            @Parameter(description = "UUID kontaktu źródłowego") @PathVariable UUID contactId,
+            @Valid @RequestBody CreateInboundCallbackRequest request
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID jwtAgentId = TenantContext.getUserId();
+        String role = TenantContext.getUserRole();
+
+        // 1. Pobierz kontakt – 404 jeśli nie istnieje lub inny tenant
+        Contact contact = contactRepository.findById(contactId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Kontakt nie istnieje: " + contactId));
+
+        // 2. AGENT może planować callback tylko z własnej rozmowy
+        if ("AGENT".equals(role) && contact.getAgentId() != null
+                && !contact.getAgentId().equals(jwtAgentId)) {
+            throw new AccessDeniedException(
+                    "Agent może planować oddzwonienie tylko z własnej rozmowy przychodzącej");
+        }
+
+        // 3. Efektywny agentId: AGENT zawsze z JWT, SUPERVISOR/ADMIN z żądania lub JWT
+        UUID effectiveAgentId = resolveAgentId(request.agentId(), jwtAgentId, role);
+
+        // 4. Utwórz ScheduledCallback z sourceType = INBOUND_CALLBACK
+        ScheduledCallback callback = ScheduledCallback.builder()
+                .tenantId(tenantId)
+                .agentId(effectiveAgentId)
+                .phone(request.phone())
+                .firstName(request.firstName())
+                .lastName(request.lastName())
+                .scheduledAt(request.scheduledAt())
+                .notes(request.notes())
+                .sourceType("INBOUND_CALLBACK")
+                .originContactId(contactId)
+                .status("PENDING")
+                .build();
+
+        ScheduledCallback saved = scheduledCallbackRepository.save(callback);
+
+        log.info("[DialerController] Inbound callback zaplanowany: callbackId={}, contactId={}, tenant={}, scheduledAt={}",
+                saved.getCallbackId(), contactId, tenantId, saved.getScheduledAt());
+
+        URI location = URI.create("/api/dialer/callbacks/" + saved.getCallbackId());
+
+        return ResponseEntity.created(location).body(ScheduledCallbackResponse.from(saved));
     }
 
     // =========================================================================

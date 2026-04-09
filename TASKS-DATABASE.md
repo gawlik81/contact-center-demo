@@ -680,9 +680,10 @@ Wszystkie → DB-019 (seed dev)
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** DB-006 (tabela CONTACT), V032 (scheduled_callback już istnieje)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
-**Flyway:** V036__scheduled_callback_source_context.sql
+**Flyway:** V037__scheduled_callback_source_context.sql
 
 **Opis:**
 Tabela `scheduled_callback` obsługuje dotychczas tylko callbacki po kampaniach (dyspozycja CALLBACK). Nowa funkcjonalność wymaga rozróżnienia źródła callbacku oraz powiązania z kontaktem przychodzącym.

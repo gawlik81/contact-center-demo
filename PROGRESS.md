@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-08 (FE-029 ✅ ContactsReportComponent – strona Raporty > Kontakty (7 filtrów, tabela z badgami, paginacja server-side 25/str, eksport CSV client-side, skeleton 10 wierszy, integracja ContactDetailModal, URL sync, rozszerzony ContactService.getContacts(), nowa trasa /supervisor/reports/contacts, submenu Raporty w sidenavie); łączny stan: DB 21/22, BE 30/38, FE 28/30)
+**Ostatnia aktualizacja:** 2026-04-09 (DB-023 ✅ V037 scheduled_callback source_type/origin_contact_id; BE-031 ✅ GdprService+GdprController (Art.15 ZIP eksport, Art.17 anonimizacja); BE-038 ✅ ScheduledCallbackExecutor @Scheduled 60s; BE-039 ✅ PUT /api/dialer/callbacks/{id} reschedule; BE-040 ✅ POST /api/contacts/{contactId}/callback inbound; FE-033 ✅ panel RODO w CustomerDetailComponent; łączny stan: DB 22/23, BE 35/41, FE 29/32)
 
 ---
 
@@ -41,6 +41,7 @@
 | DB-020 | Kolumna email_address w tabeli QUEUE: routing emaili | ✅ | V029__add_email_address_to_queue.sql: kolumna email_address VARCHAR(255) NULL, UNIQUE (tenant_id, email_address), CHECK '%@%', partial index WHERE IS NOT NULL. Używana przez EmailRoutingService do routingu priorytetowego. |
 | DB-021 | Tabele PHONE_NUMBER i PHONE_ROUTING_RULE: numery tenanta i harmonogram IVR | ⬜ | Brak migracji w repozytorium – zadanie nie rozpoczęte. Odblokuje BE-033 → BE-034 → BE-035 → FE-026. |
 | DB-022 | Indeksy wyszukiwania kontaktów dla Raportów > Kontakty | ✅ | V035__contact_search_indexes.sql: idx_contact_queue_date (tenant_id, queue_id, started_at) + idx_contact_duration warunkowy WHERE duration_seconds IS NOT NULL. Odblokowano BE-036 |
+| DB-023 | Rozszerzenie tabeli scheduled_callback o kontekst źródłowy | ✅ | V037__scheduled_callback_source_context.sql: kolumna source_type VARCHAR(30) NOT NULL DEFAULT 'CAMPAIGN_CALLBACK' + CHECK constraint, origin_contact_id UUID nullable FK do contact (DEFERRABLE INITIALLY DEFERRED), indeksy idx_scheduled_callback_inbound i idx_scheduled_callback_origin_contact. Odblokowano BE-038, BE-039, BE-040 |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -86,11 +87,14 @@
 | BE-028 | Raporty historyczne: agregacje per agent i kampania | ✅ | AgentReportRow/AgentReportParams DTOs (Bean Validation), ContactRepository +2 native SQL GROUP BY, ReportsService (Redis cache MD5 5min, walidacja 90 dni, CSV + XLSX Apache POI 5.2.5), ReportsController (4 endpointy: /api/reports/agents, /agents/export, /agents/export/xlsx, /campaigns 501), 13 testów, 442 PASS |
 | BE-029 | RT Metrics API: WebSocket feed dla supervisora | ✅ | SupervisorMetricsPayload (rekord DTO), SupervisorMetricsService (@Scheduled fixedRate=5000, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor, eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów jednostkowych, 429 testów PASS |
 | BE-030 | ETL do data warehouse: EtlSyncService (@Scheduled 60s, FOR UPDATE lock, batch upsert contacts_dw, RODO filter NOT EXISTS ANONYMIZED, RabbitMQ lag alert >30min), DataWarehouseWriter interfejs, PostgresDwWriter (ON CONFLICT upsert), EtlStatusController (GET /api/admin/etl/status, POST /api/admin/etl/trigger ADMIN), V036 migracja (etl_sync_state + contacts_dw). 16 testów PASS. | ✅ |
-| BE-031 | RODO: GdprService (exportCustomerData → ZIP z customer/contacts/audit_log JSON, anonymizeCustomer → anonimizacja PII + S3 best-effort delete + GDPR_ANONYMIZE audit), GdprController (POST /api/customers/{id}/gdpr/export, POST /api/customers/{id}/gdpr/anonymize SUPERVISOR+ADMIN). 11 testów PASS. | ✅ |
+| BE-031 | RODO: GdprService (exportCustomerData → ZIP z customer/contacts/audit_log JSON, anonymizeCustomer → anonimizacja PII + S3 best-effort delete + GDPR_ANONYMIZE audit), GdprController (POST /api/customers/{id}/gdpr/export, POST /api/customers/{id}/gdpr/anonymize SUPERVISOR+ADMIN). 11 testów PASS. | ✅ | Zrealizowane 2026-04-09 |
 | BE-032 | Twilio: konfiguracja numeru telefonu per tenant | ✅ | Tenant.getTwilioPhoneNumber/getTwilioStatusCallbackUrl (JSONB), TenantTwilioConfigRequest (walidacja E.164), TenantService.updateTwilioConfig (@Audited), PATCH /api/tenants/{id}/config (ADMIN), TwilioTelephonyAdapter.resolvePhoneNumber (per-tenant > global fallback), buildStatusCallbackUrl(tenantId). 6 nowych testów resolvePhoneNumber. BUILD SUCCESS. |
 | BE-033 | PhoneNumber CRUD API: zarządzanie numerami telefonów tenanta | ⬜ | Czeka na DB-021 |
 | BE-034 | PhoneRoutingRule CRUD API: reguły routingu IVR per numer i harmonogram | ⬜ | Czeka na BE-033, BE-013, BE-020 |
 | BE-035 | Incoming call routing: wybór IVR/kolejki na podstawie reguł harmonogramu | ⬜ | Czeka na BE-034, BE-009, BE-013 |
+| BE-038 | ScheduledCallbackExecutor: @Scheduled fixedDelay=60s, batch-size=50, atomowa zmiana statusu PENDING→PROCESSING (UPDATE WHERE status='PENDING'), TenantContext per-tenant, błąd TelephonyAdapter→FAILED, @ConditionalOnProperty(dialer.enabled). 4 testy. 714 PASS. | ✅ | Zrealizowane 2026-04-09 |
+| BE-039 | PUT /api/dialer/callbacks/{callbackId} – reschedule: RescheduleCallbackRequest {scheduledAt @Future, notes}, 409 gdy nie-PENDING, 403 gdy AGENT cudzy callback, 404 gdy brak. 5 testów. | ✅ | Zrealizowane 2026-04-09 |
+| BE-040 | POST /api/contacts/{contactId}/callback – inbound callback: CreateInboundCallbackRequest, sourceType=INBOUND_CALLBACK, originContactId=contactId, 403 dla AGENT przy cudzym kontakcie. 5 testów. | ✅ | Zrealizowane 2026-04-09 |
 | BE-036 | Rozszerzenie Contact API o filtry zaawansowane (queueId, campaignId, remoteAddress, durationMin/Max) | ✅ | Rozszerzenie BE-027 (zależy od DB-022): ContactFilterParams +5 pól (@Min/@Size), ContactRepository.appendFilterConditions rozszerzona, ContactService + ContactController zaktualizowane. ILIKE dla remoteAddress, IS NOT NULL guard dla durationMin/Max. 3 nowe testy jednostkowe. Odblokowano FE-029. |
 | BE-037 | Endpoint streamowania nagrania z MinIO/S3: presigned URL | ✅ | GET /api/contacts/{id}/recording → ContactRecordingUrlResponse (presignedUrl TTL 15min, expiresAt, fileName, durationSeconds). Dodano do ContactController + ContactService. Nowa metoda generatePresignedUrlForKey(s3Key, Duration) w RecordingService. 8 nowych testów jednostkowych w ContactServiceTest. |
 
@@ -130,6 +134,9 @@
 | FE-028 | Komponent szczegółów kontaktu z odtwarzaczem nagrania (modal) | ✅ | ContactDetailModalComponent (natywny <dialog>, 3 sekcje: info/status/nagranie, lazy load presigned URL) + AudioPlayerComponent (HTML5 Audio API, własny UI play/pause/seek/pobieranie, OnPush). contact.model.ts rozszerzony o queueId, campaignId, remoteAddress, durationSeconds, answeredAt, recordingPath + RecordingUrlResponse. ContactService.getContact() + getRecordingUrl(). Zrealizowane 2026-04-08. Czekało na BE-037 ✅ |
 | FE-029 | Strona „Raporty > Kontakty" z tabelą, filtrami i eksportem CSV | ✅ | ContactsReportComponent: 7 filtrów (data od/do, kanał, status, kolejka, numer/adres, min/maks czas), debounce 400ms na polach tekstowych/numerycznych, URL query params sync. Tabela z 9 kolumnami: datetime, kanał badge (VOICE/EMAIL/CHAT/SOCIAL), kierunek (Przych./Wych.), adres, kolejka (nazwa lookup), czas MM:SS, status badge (COMPLETED/ABANDONED/FAILED/ACTIVE/QUEUED), dyspozycja, akcja oko→ContactDetailModal. Paginacja server-side 25/str. Skeleton 10 wierszy. Eksport CSV client-side z BOM (UTF-8). ContactService.getContacts() + ContactFilterParams dodane do agent/services/contact.service.ts. Trasa /supervisor/reports/contacts + submenu Raporty > Historyczne/Kontakty w sidenavie. |
 | FE-030 | Integracja szczegółów kontaktu w panelu klienta (CustomerDetailComponent) | ✅ | selectedContactId signal, klikalne wiersze tabeli (click + keydown.enter/space, cursor:pointer, hover), <app-contact-detail-modal> w template, ContactDetailModalComponent w imports[]. Zrealizowane przy okazji FE-028 2026-04-08. Czekało na FE-028 ✅ |
+| FE-031 | Modal przełożenia rozmowy wychodzącej (Agent Desktop) | ⬜ | Czeka na BE-039 ✅ |
+| FE-032 | Modal dodania oddzwonienia podczas rozmowy przychodzącej | ⬜ | Czeka na BE-040 ✅ |
+| FE-033 | Panel RODO w profilu klienta: eksport danych i anonimizacja | ✅ | Sekcja "Prawa RODO" w CustomerDetailComponent, GdprAnonymizeModalComponent (wymaga wpisania "ANONIMIZUJ", ostrzeżenie o nieodwracalności), GdprService (exportData → blob download, anonymize), widoczne tylko dla SUPERVISOR/ADMIN. Zrealizowane 2026-04-09 |
 
 ---
 
@@ -137,10 +144,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 21/22 | 0 | 1 | 22 |
-| Backend (BE) | 30/38 | 0 | 8 | 38 |
-| Frontend (FE) | 28/30 | 0 | 2 | 30 |
-| **RAZEM** | **79/90** | **0** | **11** | **90** |
+| Database (DB) | 22/23 | 0 | 1 | 23 |
+| Backend (BE) | 35/41 | 0 | 6 | 41 |
+| Frontend (FE) | 29/32 | 0 | 3 | 32 |
+| **RAZEM** | **86/96** | **0** | **10** | **96** |
 
 ---
 
@@ -179,6 +186,58 @@
 | 2026-03-22 | ReportsService.java + ContactRepository.java | `ReportsServiceTest` – 6 błędów kompilacji: `u.id` zamiast `u.user_id` w native SQL GROUP BY JOIN na tabeli `app_user`; `StringRedisTemplate` wstrzykiwany zamiast `RedisTemplate<String, String>` (niezgodność typów przy serializacji klucza cache MD5) | Poprawiono alias kolumny na `u.user_id` w zapytaniach natywnych `ContactRepository`; zmieniono typ pola na `StringRedisTemplate` w `ReportsService`. 442 testy PASS. |
 | 2026-03-22 | supervisor-dashboard.component.ts | Czas przerwy agenta wyświetlał się jako `undefined` (zamiast HH:MM od startu przerwy) – frontend obliczał czas lokalnie, ale backend nie wysyłał pola `breakStartedAt` | Dodano pole `breakStartedAt` do `SupervisorMetricsPayload` (BE) i obsługę w komponencie (FE). |
 | 2026-03-22 | supervisor-dashboard.component.ts | Badge statusu OFFLINE nie był wyświetlany (brak case w ngSwitch) – agenci OFFLINE byli widoczni bez etykiety statusu | Dodano case 'OFFLINE' do przełącznika statusów w szablonie. |
+
+---
+
+## Sesja 2026-04-09
+
+### DB-023 ✅
+Migracja V037__scheduled_callback_source_context.sql:
+- Kolumna source_type VARCHAR(30) NOT NULL DEFAULT 'CAMPAIGN_CALLBACK' + CHECK constraint
+- Kolumna origin_contact_id UUID (nullable, FK do contact, DEFERRABLE INITIALLY DEFERRED)
+- Indeksy: idx_scheduled_callback_inbound, idx_scheduled_callback_origin_contact
+
+### BE-031 ✅
+GdprService + GdprController:
+- POST /api/customers/{id}/gdpr/export → ZIP z danymi klienta (CUSTOMER + CONTACT history + AUDIT_LOG)
+- POST /api/customers/{id}/gdpr/anonymize → anonimizacja PII, is_deleted=true, usunięcie nagrań S3
+- Obie operacje wymagają SUPERVISOR/ADMIN, logowane w AUDIT_LOG
+- 11 testów jednostkowych
+
+### BE-038 ✅
+ScheduledCallbackExecutor:
+- @Scheduled(fixedDelay=60s), batch-size=50 (konfigurowalny)
+- Atomowa zmiana statusu PENDING→PROCESSING (UPDATE WHERE status='PENDING' → race-condition safe)
+- TenantContext ustawiany per-tenant ręcznie (scheduler bez kontekstu HTTP)
+- Błąd TelephonyAdapter → status FAILED, log ERROR (pętla kontynuuje)
+- @ConditionalOnProperty(dialer.enabled)
+- 4 testy jednostkowe
+
+### BE-039 ✅
+PUT /api/dialer/callbacks/{callbackId} — przełożenie zaplanowanego callbacku:
+- RescheduleCallbackRequest { scheduledAt (@Future), notes (nullable) }
+- 409 gdy callback nie-PENDING
+- 403 gdy AGENT próbuje przełożyć cudzy callback
+- 404 gdy nie istnieje
+- 5 testów jednostkowych
+
+### BE-040 ✅
+POST /api/contacts/{contactId}/callback — oddzwonienie z rozmowy przychodzącej:
+- CreateInboundCallbackRequest { phone (@NotBlank), firstName, lastName, scheduledAt (@Future), notes, agentId }
+- Ustawia sourceType=INBOUND_CALLBACK, originContactId=contactId
+- 403 gdy AGENT dla cudzego kontaktu (agentId!=null i różny)
+- Zezwala gdy contact.agentId==null (DB jeszcze nie zaktualizowana)
+- 5 testów jednostkowych
+
+### FE-033 ✅
+Panel RODO w CustomerDetailComponent:
+- Sekcja "Prawa RODO" z przyciskiem eksportu (ZIP) i anonimizacji
+- GdprAnonymizeModalComponent: wymaga wpisania "ANONIMIZUJ", ostrzeżenie o nieodwracalności
+- GdprService: exportData (blob download), anonymize
+- Widoczne tylko dla SUPERVISOR/ADMIN
+
+### Testy
+714/714 testów, BUILD SUCCESS
 
 ---
 

@@ -357,6 +357,12 @@ voicebot:
 # Progressive Dialer – silnik automatycznego dzwonienia (BE-024)
 # =============================================================================
 dialer:
-  # Włącza/wyłącza Progressive Dialer. Domyślnie true.
+  # Włącza/wyłącza Progressive Dialer i ScheduledCallbackExecutor. Domyślnie true.
   # Wyłącz przez DIALER_ENABLED=false w ENV vars (np. w środowiskach testowych).
   enabled: ${DIALER_ENABLED:true}
+  callback-executor:
+    # Opóźnienie między zakończeniem jednego cyklu a startem kolejnego (ms).
+    # fixedDelay: co 60s po zakończeniu poprzedniego cyklu.
+    interval-ms: ${DIALER_CALLBACK_EXECUTOR_INTERVAL_MS:60000}
+    # Maksymalna liczba callbacków przetwarzanych w jednym cyklu per tenant.
+    batch-size: ${DIALER_CALLBACK_EXECUTOR_BATCH_SIZE:50}

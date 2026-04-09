@@ -1138,7 +1138,8 @@ export interface CreateInboundCallbackRequest {
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** FE-019 (CustomerDetailComponent), BE-031
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
 **Czeka na BE:** BE-031
 **Blokuje:** brak
 **Odniesienie PRD:** US-09-06, wymagania RODO Art. 15, Art. 17

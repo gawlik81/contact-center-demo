@@ -1130,6 +1130,58 @@ export interface CreateInboundCallbackRequest {
 
 ---
 
+## MODUL: RODO / GDPR (EPIC-09, przekrojowe)
+
+### FE-033 – Panel RODO w profilu klienta: eksport danych i anonimizacja
+
+**Typ:** Feature – UI Component
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-019 (CustomerDetailComponent), BE-031
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-031
+**Blokuje:** brak
+**Odniesienie PRD:** US-09-06, wymagania RODO Art. 15, Art. 17
+
+**Opis:**
+Rozszerzenie istniejącego `CustomerDetailComponent` (FE-019) o sekcję RODO z dwoma akcjami:
+- **Eksport danych (Art. 15):** pobiera plik ZIP z danymi klienta
+- **Anonimizacja (Art. 17):** anonimizuje wszystkie PII klienta z potwierdzeniem modal
+
+Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
+
+**Komponenty do stworzenia/modyfikacji:**
+
+1. **Rozszerzenie `CustomerDetailComponent`** (`features/customers/customer-detail/`):
+   - Sekcja „Prawa RODO" na dole strony profilu (po historii kontaktów)
+   - Przycisk „Eksportuj dane (Art. 15)" – wywołuje `GdprService.exportData(customerId)`, pobiera ZIP przez `URL.createObjectURL`
+   - Przycisk „Anonimizuj klienta (Art. 17)" – widoczny tylko dla ADMIN/SUPERVISOR, otwiera `GdprAnonymizeModalComponent`
+   - Oba przyciski ukryte gdy klient ma już `is_deleted=true` (wyświetlić zamiast tego badge "Dane zanonimizowane")
+
+2. **`GdprAnonymizeModalComponent`** (`features/customers/gdpr-anonymize-modal/`):
+   - Standalone component, selector: `app-gdpr-anonymize-modal`
+   - Input: `customerId: string`, `customerName: string`
+   - Output: `confirmed: EventEmitter<void>`, `cancelled: EventEmitter<void>`
+   - Treść: ostrzeżenie "Ta operacja jest nieodwracalna. Wszystkie dane osobowe klienta [name] zostaną trwale zanonimizowane."
+   - Wymaga wpisania słowa "ANONIMIZUJ" w pole tekstowe (potwierdzenie)
+   - Submit wywołuje `GdprService.anonymize(customerId)` → po sukcesie: toast + przekierowanie na listę klientów
+
+3. **`GdprService`** (`features/customers/services/gdpr.service.ts`):
+   - `exportData(customerId: string): Observable<Blob>` → `POST /api/customers/{id}/gdpr/export`, responseType: 'blob'
+   - `anonymize(customerId: string): Observable<void>` → `POST /api/customers/{id}/gdpr/anonymize`
+
+**Kryteria akceptacji:**
+- [ ] Przycisk eksportu pobiera plik ZIP o nazwie `gdpr_export_{id}.zip`
+- [ ] Przycisk anonimizacji widoczny tylko dla ról SUPERVISOR i ADMIN (RoleGuard / `*ngIf`)
+- [ ] Modal anonimizacji wymaga wpisania "ANONIMIZUJ" przed zatwierdzeniem
+- [ ] Po anonimizacji profil klienta pokazuje badge "Dane zanonimizowane" zamiast danych PII
+- [ ] Loading state na obu przyciskach podczas operacji
+- [ ] Błąd 403 → toast "Brak uprawnień"
+- [ ] Błąd 404 → toast "Klient nie istnieje"
+- [ ] Sekcja RODO ukryta gdy klient już zanonimizowany (`is_deleted=true`)
+
+---
+
 ## Podsumowanie zadań Frontend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -1141,6 +1193,7 @@ export interface CreateInboundCallbackRequest {
 | IVR (EPIC-04) | 1 | 1 | 0 |
 | Kampanie (EPIC-08) | 3 | 3 | 0 |
 | Klienci (EPIC-09) | 3 | 3 | 0 |
+| RODO / GDPR | 1 | 1 | 0 |
 | Raporty (EPIC-10) | 2 | 2 | 0 |
 | Konfiguracja | 3 | 2 | 1 |
 | Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |

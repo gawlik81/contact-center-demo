@@ -752,18 +752,77 @@ WebSocket topic `/tenant/{tenantId}/supervisor/metrics` z payloadem: {agents: [{
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależy od:** BE-027, DB-013, DB-014
+**Status:** ✅ Ukończone (PostgreSQL fallback)
+**Zrealizowane:** 2026-04-09
+**Blokuje:** BE-030b
+**Odniesienie PRD:** US-10-06, EPIC-10
+
+**Opis:**
+Zaimplementowany jako polling-based ETL z PostgreSQL fallback DW. EtlSyncService (@Scheduled 60s, FOR UPDATE lock), DataWarehouseWriter interfejs, PostgresDwWriter (ON CONFLICT upsert), EtlStatusController (GET /api/admin/etl/status, POST /api/admin/etl/trigger), V036 migracja (etl_sync_state + contacts_dw w PostgreSQL). 16 testów PASS.
+
+**Kryteria akceptacji:**
+- [x] Nowy rekord CONTACT pojawia się w contacts_dw (PostgreSQL fallback) w czasie < 1h
+- [x] ETL idempotentny: ON CONFLICT (contact_id) DO UPDATE
+- [x] Alert monitoringowy gdy lag > 30 min (RabbitMQ + WARN log)
+- [x] Transformacje zachowują anonimizację RODO (NOT EXISTS gdzie first_name='ANONYMIZED')
+
+---
+
+### BE-030b – ETL ClickHouse: docelowy Data Warehouse
+
+**Typ:** Feature – Infrastructure
+**Priorytet:** Should Have
+**Złożoność:** L
+**Zależy od:** BE-030 ✅, DB-014 (dw/migrations/V001__create_contacts_dw.sql)
 **Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 **Odniesienie PRD:** US-10-06, EPIC-10
 
 **Opis:**
-Pipeline replikacji danych: PostgreSQL CDC przez Debezium (logical replication) → RabbitMQ (lub Kafka topic) → Python ETL serwis transformujący i ładujący do ClickHouse/BigQuery. Opóźnienie < 1h (wymóg PRD). Tabele docelowe: contacts_dw, agents_performance_dw, campaigns_dw. Idempotentne ładowanie (upsert po event_id).
+Podpięcie ClickHouse jako docelowego DW zamiast PostgreSQL fallback. Interfejs `DataWarehouseWriter` już istnieje – wystarczy zaimplementować `ClickHouseDwWriter` i skonfigurować datasource.
+
+Schemat ClickHouse gotowy: `dw/migrations/V001__create_contacts_dw.sql` (tabele `contacts_dw`, `agent_performance_dw`, `campaigns_dw` z `ReplacingMergeTree`; widoki `v_agent_kpi_daily`, `v_campaign_conversion`).
+
+**Szczegóły implementacji:**
+
+1. **Docker Compose** – dodaj serwis `clickhouse` do `docker-compose.yml`:
+   ```yaml
+   clickhouse:
+     image: clickhouse/clickhouse-server:latest
+     ports:
+       - "8123:8123"
+       - "9000:9000"
+     ulimits:
+       nofile: { soft: 262144, hard: 262144 }
+   ```
+
+2. **Inicjalizacja schematu ClickHouse** – uruchom `dw/migrations/V001__create_contacts_dw.sql` przez ClickHouse CLI lub init container:
+   ```bash
+   docker exec -i clickhouse clickhouse-client \
+     < dw/migrations/V001__create_contacts_dw.sql
+   ```
+
+3. **ClickHouseDataSourceConfig** – `@Configuration` z `@Bean @Qualifier("clickhouse") DataSource clickhouseDataSource`:
+   - Właściwości: `spring.datasource.clickhouse.url=jdbc:clickhouse://localhost:8123/contact_center_dw`
+   - Zależność Maven: `com.clickhouse:clickhouse-jdbc:0.6.x` + `org.apache.httpcomponents.client5:httpclient5`
+
+4. **`ClickHouseDwWriter implements DataWarehouseWriter`** (`infrastructure/etl/`):
+   - `writeContacts(List<ContactDwRow> rows)` → INSERT INTO contacts_dw (ClickHouse wspiera batch insert natywnie)
+   - ClickHouse `ReplacingMergeTree` zapewnia idempotentność (upsert po `contact_id`)
+   - Zastąp `@Primary` z `PostgresDwWriter` na `ClickHouseDwWriter` (lub użyj `@ConditionalOnProperty etl.dw.type=clickhouse`)
+
+5. **EtlSyncService** – bez zmian w logice; podmiana tylko bean `DataWarehouseWriter`
+
+6. **application-dev.yml** – dodaj właściwości ClickHouse datasource
 
 **Kryteria akceptacji:**
-- [ ] Nowy rekord CONTACT w PostgreSQL pojawia się w ClickHouse w czasie < 1h
-- [ ] ETL idempotentny: ponowne przetworzenie tego samego eventu nie tworzy duplikatów
-- [ ] Alert monitoringowy gdy lag replikacji > 30 min
-- [ ] Transformacje zachowują anonimizację RODO (pola anonymized nie trafiają do DW)
+- [ ] Docker Compose startuje serwis `clickhouse` razem z PostgreSQL/Redis/RabbitMQ
+- [ ] `dw/migrations/V001__create_contacts_dw.sql` wykonany – tabele istnieją w ClickHouse
+- [ ] `ClickHouseDwWriter` zapisuje wiersze do `contacts_dw` w ClickHouse (nie PostgreSQL)
+- [ ] ETL nadal idempotentny (ReplacingMergeTree deduplikuje po `contact_id`)
+- [ ] `GET /api/admin/etl/status` nadal działa
+- [ ] `PostgresDwWriter` pozostaje jako fallback (profil `etl.dw.type=postgres`)
+- [ ] Testy integracyjne weryfikują zapis do ClickHouse (testcontainers lub mock)
 
 ---
 

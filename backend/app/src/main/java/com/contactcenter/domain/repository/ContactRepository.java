@@ -1021,6 +1021,37 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   /**
+   * Pobiera listę kluczy S3 nagrań dla wszystkich kontaktów danego klienta.
+   *
+   * <p>Używane przez {@code GdprService} do usuwania nagrań z S3 podczas
+   * anonimizacji klienta (prawo do bycia zapomnianym, RODO Art. 17).
+   *
+   * @param customerId UUID klienta
+   * @param tenantId   UUID tenanta
+   * @return lista kluczy S3 (recording_url) – może być pusta gdy brak nagrań
+   */
+  @Transactional(readOnly = true)
+  public java.util.List<String> findRecordingUrlsByCustomer(UUID customerId, UUID tenantId) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepository] Pobieranie recording_url dla klienta: customerId={}, tenant={}",
+        customerId, tenantId);
+
+    return jdbcTemplate.query(
+        """
+            SELECT recording_url
+            FROM contact
+            WHERE tenant_id   = ?
+              AND customer_id = ?
+              AND recording_url IS NOT NULL
+            """,
+        (rs, rowNum) -> rs.getString("recording_url"),
+        tenantId,
+        customerId
+    );
+  }
+
+  /**
    * Pobiera wszystkie tenantId, które posiadają kontakty z nagraniami.
    *
    * <p><strong>WYŁĄCZNIE DLA SCHEDULED JOB ({@code RecordingRetentionJob}) – POMIJA RLS.</strong>

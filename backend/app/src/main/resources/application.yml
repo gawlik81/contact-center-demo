@@ -283,6 +283,15 @@ app:
   base-url: ${APP_BASE_URL:https://rafaela-uncalumnious-refreshedly.ngrok-free.dev}
 
 # =============================================================================
+# ETL – pipeline synchronizacji danych do Data Warehouse (BE-030)
+# =============================================================================
+etl:
+  sync:
+    # Opóźnienie między zakończeniem jednego cyklu a startem kolejnego (ms).
+    # fixedDelay: 60000 = 60 sekund. W prod możesz wydłużyć do 300000 (5 min).
+    fixed-delay-ms: ${ETL_SYNC_FIXED_DELAY_MS:60000}
+
+# =============================================================================
 # S3-compatible Storage – nagrania rozmów (BE-010)
 # Obsługuje zarówno AWS S3 jak i MinIO (path-style access)
 # =============================================================================

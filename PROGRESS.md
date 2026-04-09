@@ -85,8 +85,8 @@
 | BE-027 | Contact API: zapis i odczyt historii kontaktów | ✅ | ContactController (6 endp.), ContactService (CRUD + uprawnienia AGENT/SUPERVISOR/ADMIN), ContactRepository (native INSERT/UPDATE, partycjonowana tabela), ContactId.java, DTOs: ContactResponse/CreateContactRequest/UpdateContactRequest/DispositionRequest/ContactFilterParams. 22 testy PASS. |
 | BE-028 | Raporty historyczne: agregacje per agent i kampania | ✅ | AgentReportRow/AgentReportParams DTOs (Bean Validation), ContactRepository +2 native SQL GROUP BY, ReportsService (Redis cache MD5 5min, walidacja 90 dni, CSV + XLSX Apache POI 5.2.5), ReportsController (4 endpointy: /api/reports/agents, /agents/export, /agents/export/xlsx, /campaigns 501), 13 testów, 442 PASS |
 | BE-029 | RT Metrics API: WebSocket feed dla supervisora | ✅ | SupervisorMetricsPayload (rekord DTO), SupervisorMetricsService (@Scheduled fixedRate=5000, Redis SCAN cursor-based, broadcast /topic/tenant/{tenantId}/supervisor, eventType="SUPERVISOR_METRICS", izolacja cross-tenant, graceful degradation), 15 testów jednostkowych, 429 testów PASS |
-| BE-030 | ETL do data warehouse: CDC z PostgreSQL | ⬜ | |
-| BE-031 | RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17) | ⬜ | |
+| BE-030 | ETL do data warehouse: EtlSyncService (@Scheduled 60s, FOR UPDATE lock, batch upsert contacts_dw, RODO filter NOT EXISTS ANONYMIZED, RabbitMQ lag alert >30min), DataWarehouseWriter interfejs, PostgresDwWriter (ON CONFLICT upsert), EtlStatusController (GET /api/admin/etl/status, POST /api/admin/etl/trigger ADMIN), V036 migracja (etl_sync_state + contacts_dw). 16 testów PASS. | ✅ |
+| BE-031 | RODO: GdprService (exportCustomerData → ZIP z customer/contacts/audit_log JSON, anonymizeCustomer → anonimizacja PII + S3 best-effort delete + GDPR_ANONYMIZE audit), GdprController (POST /api/customers/{id}/gdpr/export, POST /api/customers/{id}/gdpr/anonymize SUPERVISOR+ADMIN). 11 testów PASS. | ✅ |
 | BE-032 | Twilio: konfiguracja numeru telefonu per tenant | ✅ | Tenant.getTwilioPhoneNumber/getTwilioStatusCallbackUrl (JSONB), TenantTwilioConfigRequest (walidacja E.164), TenantService.updateTwilioConfig (@Audited), PATCH /api/tenants/{id}/config (ADMIN), TwilioTelephonyAdapter.resolvePhoneNumber (per-tenant > global fallback), buildStatusCallbackUrl(tenantId). 6 nowych testów resolvePhoneNumber. BUILD SUCCESS. |
 | BE-033 | PhoneNumber CRUD API: zarządzanie numerami telefonów tenanta | ⬜ | Czeka na DB-021 |
 | BE-034 | PhoneRoutingRule CRUD API: reguły routingu IVR per numer i harmonogram | ⬜ | Czeka na BE-033, BE-013, BE-020 |
@@ -238,8 +238,9 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ⬜ |
 | BE-021 | Wait time estimation: WaitTimeEstimationService (@Scheduled 30s), QueueWaitUpdatePayload, EWT = ceil(waiting/agents*avg), edge cases. 644 testów PASS. | ✅ |
 | BE-024 | Progressive Dialer: ProgressiveDialerService (@RabbitListener, Redis guard SET NX, FOR UPDATE SKIP LOCKED), DialerCallbackHandler, ScheduledCallback entity, ScheduledCallbackRepository, DialerController, V031 indeksy, harmonogram JSONB. 662 testów PASS. | ✅ |
-| BE-030 | ETL do data warehouse: CDC z PostgreSQL | ⬜ |
-| BE-031 | RODO: eksport danych klienta (Art. 15) i anonimizacja (Art. 17) | ⬜ |
+| BE-030 | ETL do data warehouse: EtlSyncService, DataWarehouseWriter, PostgresDwWriter, EtlStatusController, V036 migracja. 16 testów PASS. | ✅ |
+| BE-030b | ETL ClickHouse: docelowy DW – ClickHouseDwWriter, docker-compose serwis clickhouse, ClickHouseDataSourceConfig, schemat z dw/migrations/V001__create_contacts_dw.sql | ⬜ |
+| BE-031 | RODO: GdprService, GdprController, 11 testów PASS. | ✅ |
 | BE-032 | Twilio per-tenant: TwilioPhoneNumber/TwilioStatusCallbackUrl w Tenant JSONB, TenantTwilioConfigRequest, TenantService.updateTwilioConfig (@Audited), PATCH /api/tenants/{id}/config, resolvePhoneNumber (per-tenant > fallback). BUILD SUCCESS. | ✅ |
 
 ### Warstwa Frontend – fundament gotowy, widoki do realizacji
@@ -270,6 +271,7 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-020 | Import klientów CSV: CustomerImportComponent (4-krokowy wizard, deduplikacja radio, auto-mapowanie, pobieranie błędów CSV) | ✅ |
 | FE-013 | Komponent obsługi kontaktu social media | ⬜ |
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ |
+| FE-033 | Panel RODO w profilu klienta: GdprAnonymizeModalComponent (native dialog, wymóg wpisania "ANONIMIZUJ", loading state, 403 handling), rozszerzenie CustomerDetailComponent (computed canAccessGdprPanel, eksport ZIP blob download, badge "Dane zanonimizowane" gdy is_deleted). BUILD SUCCESS. | ✅ |
 | FE-025 | TwilioConfigService (GET tenant + PATCH /api/tenants/{id}/config), TwilioSettingsComponent (formularz E.164, badge per-tenant/fallback, podgląd auto URL, usunięcie konfiguracji), route /supervisor/settings/twilio, wpis w sidenavie. BUILD SUCCESS. | ✅ |
 
 ---

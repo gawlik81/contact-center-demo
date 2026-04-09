@@ -92,12 +92,12 @@ class MockTelephonyAdapterTest {
         }
 
         @Test
-        @DisplayName("powinien opublikować event CALL_INCOMING z contactId z DB")
-        void shouldPublishIncomingEvent() {
+        @DisplayName("powinien opublikować event CALL_OUTBOUND z contactId z DB")
+        void shouldPublishOutboundEvent() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
 
-            // contactId jest UUID wygenerowanym przez adapter przed wstawieniem do DB
-            verify(eventPublisher).publishIncoming(
+            // initiateCall to połączenie wychodzące – agent inicjuje rozmowę do klienta
+            verify(eventPublisher).publishOutbound(
                     eq(session.getCallId()), any(UUID.class), eq(TENANT_ID), eq(AGENT_ID), eq(FROM), eq(TO)
             );
         }
@@ -339,18 +339,18 @@ class MockTelephonyAdapterTest {
         }
 
         @Test
-        @DisplayName("powinien opublikować event CALL_INCOMING dla 2nd leg")
-        void shouldPublishIncomingForSecondLeg() {
+        @DisplayName("powinien opublikować event CALL_OUTBOUND dla 2nd leg (agent dzwoni do celu transferu)")
+        void shouldPublishOutboundForSecondLeg() {
             CallSession session = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null);
             adapter.answerCall(session.getCallId(), null);
 
             CallSession secondLeg = adapter.transferCall(
                     session.getCallId(), "+48111222333", TelephonyAdapter.TransferType.ATTENDED);
 
-            // Dwa razy publishIncoming: pierwsze dla initiateCall, drugie dla 2nd leg
-            // Nowa sygnatura: (callId, contactId, tenantId, agentId, from, to)
+            // initiateCall → publishOutbound (połączenie wychodzące agenta do klienta)
+            // transferCall(ATTENDED) 2nd leg → publishOutbound (agent dzwoni do celu transferu)
             verify(eventPublisher, times(2))
-                    .publishIncoming(anyString(), any(), eq(TENANT_ID), any(), anyString(), anyString());
+                    .publishOutbound(anyString(), any(), eq(TENANT_ID), any(), anyString(), anyString());
         }
     }
 

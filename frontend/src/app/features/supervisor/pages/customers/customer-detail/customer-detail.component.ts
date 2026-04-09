@@ -12,10 +12,13 @@ import { DatePipe, KeyValuePipe } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, finalize, of, switchMap } from 'rxjs';
 import { CustomerService } from '../services/customer.service';
+import { GdprService } from '../services/gdpr.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
+import { AuthService } from '../../../../../core/services/auth.service';
 import { CustomerResponse } from '../../../models/customer.model';
 import { ContactResponse } from '../../../../../core/models/contact.model';
 import { ContactDetailModalComponent } from '../../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
+import { GdprAnonymizeModalComponent } from '../gdpr-anonymize-modal/gdpr-anonymize-modal.component';
 
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
 type ContactsLoadState = 'loading' | 'loaded' | 'error';
@@ -23,13 +26,15 @@ type ContactsLoadState = 'loading' | 'loaded' | 'error';
 @Component({
   selector: 'app-customer-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, KeyValuePipe, ContactDetailModalComponent],
+  imports: [DatePipe, KeyValuePipe, ContactDetailModalComponent, GdprAnonymizeModalComponent],
   templateUrl: './customer-detail.component.html',
   styleUrl: './customer-detail.component.scss',
 })
 export class CustomerDetailComponent implements OnInit {
   private readonly customerService = inject(CustomerService);
+  private readonly gdprService = inject(GdprService);
   private readonly notifications = inject(NotificationService);
+  private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -37,6 +42,8 @@ export class CustomerDetailComponent implements OnInit {
   readonly loadState = signal<LoadState>('loading');
   readonly customer = signal<CustomerResponse | null>(null);
   readonly selectedContactId = signal<string | null>(null);
+  readonly showAnonymizeModal = signal(false);
+  readonly gdprExportLoading = signal(false);
 
   readonly contactsLoadState = signal<ContactsLoadState>('loading');
   readonly contacts = signal<ContactResponse[]>([]);
@@ -54,13 +61,18 @@ export class CustomerDetailComponent implements OnInit {
     return full || c.phone[0] || c.email[0] || c.customerId;
   });
 
+  readonly canAccessGdprPanel = computed(() => {
+    const role = this.authService.currentRole();
+    return role === 'SUPERVISOR' || role === 'ADMIN';
+  });
+
   readonly hasCustomFields = computed(() => {
     const c = this.customer();
     return c ? Object.keys(c.customFields).length > 0 : false;
   });
 
-  readonly contactsFirstIndex = computed(() =>
-    this.contactsCurrentPage() * this.contactsPageSize + 1,
+  readonly contactsFirstIndex = computed(
+    () => this.contactsCurrentPage() * this.contactsPageSize + 1,
   );
   readonly contactsLastIndex = computed(() =>
     Math.min(
@@ -186,6 +198,61 @@ export class CustomerDetailComponent implements OnInit {
       WRAP_UP: 'Po kontakcie',
     };
     return labels[status] ?? status;
+  }
+
+  onGdprExport(): void {
+    const id = this.customer()?.customerId;
+    if (!id) return;
+
+    this.gdprExportLoading.set(true);
+    this.gdprService
+      .exportData(id)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError((err: { status?: number }) => {
+          if (err.status === 403) {
+            this.notifications.error('Brak uprawnień do eksportu danych.');
+          } else {
+            this.notifications.error('Nie udało się wyeksportować danych klienta.');
+          }
+          this.gdprExportLoading.set(false);
+          return of(null);
+        }),
+        finalize(() => this.gdprExportLoading.set(false)),
+      )
+      .subscribe((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `gdpr_export_${id}.zip`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      });
+  }
+
+  onGdprAnonymizeConfirmed(): void {
+    this.showAnonymizeModal.set(false);
+    // Reload customer data to reflect anonymized state
+    const id = this.customer()?.customerId;
+    if (!id) return;
+    this.loadState.set('loading');
+    this.customerService
+      .getCustomer(id)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError(() => {
+          // If customer is now returning 404 or error after anonymization, go back to list
+          void this.router.navigate(['/supervisor/customers']);
+          return of(null);
+        }),
+      )
+      .subscribe((customer) => {
+        if (customer) {
+          this.customer.set(customer);
+          this.loadState.set('loaded');
+        }
+      });
   }
 
   trackByContactId(_index: number, contact: ContactResponse): string {

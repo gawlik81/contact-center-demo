@@ -1,0 +1,78 @@
+<dialog
+  #dialogEl
+  class="anonymize-dialog"
+  aria-labelledby="anonymize-title"
+  aria-describedby="anonymize-desc"
+  (click)="$event.target === dialogEl ? onCancel() : null"
+>
+  <div class="anonymize-dialog__content" role="document">
+    <div class="anonymize-dialog__header">
+      <svg
+        class="anonymize-dialog__warning-icon"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+        width="28"
+        height="28"
+      >
+        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+      </svg>
+      <h2 id="anonymize-title" class="anonymize-dialog__title">Anonimizacja danych klienta (Art. 17 RODO)</h2>
+    </div>
+
+    <div class="anonymize-dialog__body">
+      <p id="anonymize-desc" class="anonymize-dialog__message">
+        Ta operacja jest <strong>nieodwracalna</strong>. Wszystkie dane osobowe klienta
+        <strong>{{ customerName() }}</strong> zostaną trwale zanonimizowane i nie będzie możliwości ich przywrócenia.
+      </p>
+      <ul class="anonymize-dialog__effects" aria-label="Skutki anonimizacji">
+        <li>Imię i nazwisko zostaną zastąpione wartością <code>ANONYMIZED</code></li>
+        <li>Wszystkie numery telefonów zostaną usunięte</li>
+        <li>Wszystkie adresy e-mail zostaną usunięte</li>
+        <li>Historia kontaktów zostanie zachowana bez danych osobowych</li>
+      </ul>
+
+      <div class="anonymize-dialog__confirm-field">
+        <label for="confirm-input" class="anonymize-dialog__confirm-label">
+          Aby potwierdzić, wpisz <strong>ANONIMIZUJ</strong>:
+        </label>
+        <input
+          id="confirm-input"
+          type="text"
+          class="anonymize-dialog__confirm-input"
+          [ngModel]="confirmText()"
+          (ngModelChange)="confirmText.set($event)"
+          [disabled]="isLoading()"
+          autocomplete="off"
+          spellcheck="false"
+          aria-required="true"
+          [attr.aria-invalid]="confirmText().length > 0 && confirmText() !== 'ANONIMIZUJ'"
+        />
+        @if (confirmText().length > 0 && confirmText() !== 'ANONIMIZUJ') {
+          <p class="anonymize-dialog__confirm-hint" role="alert" aria-live="polite">Wpisz dokładnie: ANONIMIZUJ</p>
+        }
+      </div>
+    </div>
+
+    <div class="anonymize-dialog__footer">
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" [disabled]="isLoading()" autofocus>
+        Anuluj
+      </button>
+      <button
+        class="btn btn-anonymize"
+        type="button"
+        (click)="onConfirm()"
+        [disabled]="!isConfirmEnabled()"
+        [attr.aria-label]="'Potwierdź anonimizację danych klienta ' + customerName()"
+        [attr.aria-busy]="isLoading()"
+      >
+        @if (isLoading()) {
+          <span class="btn-spinner" aria-hidden="true"></span>
+          Anonimizowanie...
+        } @else {
+          Potwierdź anonimizację
+        }
+      </button>
+    </div>
+  </div>
+</dialog>

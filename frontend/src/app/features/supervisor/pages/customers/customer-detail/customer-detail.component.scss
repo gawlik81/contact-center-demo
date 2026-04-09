@@ -586,6 +586,123 @@ $radius-lg: 10px;
   }
 }
 
+// ── GDPR section ──────────────────────────────────────────────────────────
+
+.gdpr-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid $border-color;
+
+  &__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0 0 1.25rem;
+  }
+
+  &__actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+  }
+}
+
+.gdpr-anonymized-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.75rem 1.125rem;
+  background: $neutral-bg;
+  border: 1px solid #bdbdbd;
+  border-radius: $radius;
+  font-size: 0.9375rem;
+  color: $text-secondary;
+  font-weight: 500;
+}
+
+.gdpr-action-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: $bg-white;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  flex-wrap: wrap;
+
+  &--danger {
+    border-color: $danger-border;
+    background: $danger-bg;
+  }
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 160px;
+  }
+
+  &__title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0;
+  }
+
+  &__desc {
+    font-size: 0.875rem;
+    color: $text-secondary;
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+.btn-gdpr-export {
+  padding: 0.5625rem 1rem;
+  background: $brand-blue;
+  color: #fff;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    background: $brand-blue-dark;
+  }
+}
+
+.btn-gdpr-anonymize {
+  padding: 0.5625rem 1rem;
+  background: $danger;
+  color: #fff;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    background: color.adjust($danger, $lightness: -8%);
+  }
+}
+
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+
+  &--dark {
+    border-color: rgba(21, 101, 192, 0.25);
+    border-top-color: $brand-blue;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 // ── Accessibility ──────────────────────────────────────────────────────────
 .sr-only {
   position: absolute;

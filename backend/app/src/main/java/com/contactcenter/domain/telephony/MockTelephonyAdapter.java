@@ -260,7 +260,8 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                      "secondLegContactId={}, target={}",
                     callId, secondLegCallId, secondLegContactId, target);
 
-            eventPublisher.publishIncoming(
+            // Druga noga attended transfer to połączenie wychodzące – agent dzwoni do celu transferu
+            eventPublisher.publishOutbound(
                     secondLegCallId, secondLegContactId, session.getTenantId(), session.getAgentId(),
                     secondLeg.getFrom(), target
             );

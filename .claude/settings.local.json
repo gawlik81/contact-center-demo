@@ -146,7 +146,11 @@
       "WebFetch(domain:github.com)",
       "Bash(gh api:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(ls -d \"E:/ClaudAI/contact-center-demo\"/*/)",
+      "Bash(where jq:*)",
+      "Bash(where gh:*)",
+      "Bash(git -C \"E:/ClaudAI/contact-center-demo\" remote -v)"
     ]
   }
 }

@@ -12,5 +12,20 @@
       "Bash(npx ng serve*)",
       "Write"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const f=(j.tool_input||{}).file_path||'';if(f&&/\\\\.(ts|html|scss)$/.test(f)){const {execSync}=require('child_process');try{execSync('npx prettier --write '+JSON.stringify(f),{cwd:'E:/ClaudAI/contact-center-demo/frontend',stdio:'inherit'});}catch(e){}}});\" 2>/dev/null || true",
+            "timeout": 30,
+            "statusMessage": "Formatting with Prettier..."
+          }
+        ]
+      }
+    ]
   }
 }

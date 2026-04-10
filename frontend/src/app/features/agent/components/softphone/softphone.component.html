@@ -129,6 +129,34 @@
           </button>
         </div>
 
+        <!-- Callback button – for all PHONE calls (INBOUND and OUTBOUND) -->
+        @if (canScheduleCallback()) {
+          <div class="softphone__callback-row">
+            @if (_callbackScheduled()) {
+              <span class="softphone__callback-badge" role="status" aria-live="polite">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                </svg>
+                Oddzwonienie zaplanowane
+              </span>
+            } @else {
+              <button
+                type="button"
+                class="softphone__ctrl-btn softphone__ctrl-btn--callback"
+                aria-label="Zaplanuj oddzwonienie"
+                (click)="openCallbackModal()"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                  />
+                </svg>
+                <span>Zaplanuj oddzwonienie</span>
+              </button>
+            }
+          </div>
+        }
+
         <button type="button" class="softphone__hangup-btn" aria-label="Rozlacz polaczenie" (click)="hangup()">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path
@@ -384,4 +412,14 @@
     </svg>
     <p class="softphone__idle-text">Oczekiwanie na polaczenie...</p>
   </div>
+}
+
+<!-- ===== SCHEDULE CALLBACK MODAL (INBOUND and OUTBOUND calls) ===== -->
+@if (_showCallbackModal()) {
+  <app-schedule-inbound-callback-modal
+    [contactId]="tab.contactId"
+    [prefillPhone]="tab.customerIdentifier"
+    (scheduled)="onCallbackScheduled($event)"
+    (cancelled)="onCallbackCancelled()"
+  />
 }

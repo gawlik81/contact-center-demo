@@ -27,21 +27,17 @@ COMMENT ON COLUMN scheduled_callback.source_type
     IS 'Zrodlo callbacku: CAMPAIGN_CALLBACK (dyspozycja po kampanii) lub INBOUND_CALLBACK (zaplanowane przez agenta podczas rozmowy przychodz.).';
 
 -- =============================================================================
--- 2. Kolumna origin_contact_id (FK do kontaktu zrodlowego)
+-- 2. Kolumna origin_contact_id (plain UUID — bez FK)
 -- =============================================================================
+-- UWAGA: tabela contact ma composite PK (contact_id, started_at) — partycjonowanie.
+-- PostgreSQL nie pozwala na FK do kolumny bez samodzielnego UNIQUE constraintu.
+-- Integralnosc zapewniana przez warstwe aplikacji (ContactRepository.findById przed zapisem).
 
 ALTER TABLE scheduled_callback
     ADD COLUMN IF NOT EXISTS origin_contact_id UUID;
 
--- FK z DEFERRABLE aby nie blokowac operacji batchowych
-ALTER TABLE scheduled_callback
-    ADD CONSTRAINT fk_scheduled_callback_origin_contact
-        FOREIGN KEY (origin_contact_id)
-        REFERENCES contact(contact_id)
-        DEFERRABLE INITIALLY DEFERRED;
-
 COMMENT ON COLUMN scheduled_callback.origin_contact_id
-    IS 'FK do kontaktu zrodlowego (wypelniane dla INBOUND_CALLBACK). NULL dla callbackow kampanijnych.';
+    IS 'UUID kontaktu zrodlowego (INBOUND_CALLBACK). Brak FK — contact ma composite PK. NULL dla callbackow kampanijnych.';
 
 -- =============================================================================
 -- 3. Indeksy

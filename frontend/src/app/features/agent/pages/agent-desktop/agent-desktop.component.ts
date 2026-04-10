@@ -165,8 +165,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
       .subscribe((e) => {
         const payload = e.payload as CallOutboundPayload;
         this.lookupService.evict(payload.customerPhone);
-        // Otwieramy zakładkę jak dla połączenia przychodzącego — ta sama struktura payloadu
-        const reason = this.tabStore.openFromCallIncoming(payload);
+        const reason = this.tabStore.openFromCallOutbound(payload);
         if (reason !== null) {
           this.showLimitMessage(reason);
         } else {

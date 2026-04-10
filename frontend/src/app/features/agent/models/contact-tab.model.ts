@@ -1,5 +1,6 @@
 export type ContactType = 'PHONE' | 'CHAT' | 'EMAIL';
 export type ContactTabStatus = 'ACTIVE' | 'HOLD' | 'WRAPPING';
+export type CallDirection = 'INBOUND' | 'OUTBOUND';
 
 /** Extended tab data used when the tab enters ACW (After Contact Work) state */
 export interface WrappingContactTab extends ContactTab {
@@ -15,4 +16,6 @@ export interface ContactTab {
   status: ContactTabStatus;
   isActive: boolean;
   startedAt: Date;
+  /** Only set for PHONE tabs; undefined for CHAT/EMAIL */
+  direction?: CallDirection;
 }

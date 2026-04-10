@@ -1009,7 +1009,8 @@ FE-018 (Lista klientów) → FE-019, FE-020
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-009 (Agent Desktop), BE-039 (PUT /api/dialer/callbacks/{id})
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1075,7 +1076,8 @@ export interface ScheduledCallbackDto {
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-009 (Agent Desktop), BE-040 (POST /api/contacts/{contactId}/callback)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**

@@ -150,7 +150,8 @@
       "Bash(ls -d \"E:/ClaudAI/contact-center-demo\"/*/)",
       "Bash(where jq:*)",
       "Bash(where gh:*)",
-      "Bash(git -C \"E:/ClaudAI/contact-center-demo\" remote -v)"
+      "Bash(git -C \"E:/ClaudAI/contact-center-demo\" remote -v)",
+      "Bash(npx prettier:*)"
     ]
   }
 }

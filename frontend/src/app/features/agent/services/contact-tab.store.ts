@@ -1,5 +1,10 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { ContactTab, ContactTabStatus, ContactType } from '../models/contact-tab.model';
+import {
+  CallDirection,
+  ContactTab,
+  ContactTabStatus,
+  ContactType,
+} from '../models/contact-tab.model';
 import { ContactAssignedPayload, CallIncomingPayload } from '../models/ws-event.model';
 
 export const MAX_PHONE_TABS = 1;
@@ -38,6 +43,21 @@ export class ContactTabStore {
       status: 'ACTIVE',
       isActive: false,
       startedAt: new Date(),
+      direction: 'INBOUND' as CallDirection,
+    });
+  }
+
+  openFromCallOutbound(payload: CallIncomingPayload): TabLimitReason {
+    return this.openTab({
+      id: crypto.randomUUID(),
+      type: 'PHONE',
+      contactId: payload.contactId,
+      customerName: payload.customerName,
+      customerIdentifier: payload.customerPhone,
+      status: 'ACTIVE',
+      isActive: false,
+      startedAt: new Date(),
+      direction: 'OUTBOUND' as CallDirection,
     });
   }
 
@@ -51,6 +71,8 @@ export class ContactTabStore {
       status: 'ACTIVE',
       isActive: false,
       startedAt: new Date(),
+      // PHONE contacts assigned via routing engine are always inbound
+      direction: payload.type === 'PHONE' ? ('INBOUND' as CallDirection) : undefined,
     });
   }
 

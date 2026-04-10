@@ -1,18 +1,14 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.api.dialer.DialerController;
+import com.contactcenter.api.contact.ContactController;
 import com.contactcenter.api.dialer.dto.CreateInboundCallbackRequest;
 import com.contactcenter.api.dialer.dto.ScheduledCallbackResponse;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.repository.CampaignContactRepository;
-import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
-import com.contactcenter.domain.service.DialerCallbackHandler;
-import com.contactcenter.domain.service.ProgressiveDialerService;
-import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.security.TenantContext;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
@@ -44,7 +40,8 @@ import static org.mockito.Mockito.*;
  *
  * <p>Scenariusze:
  * <ol>
- *   <li>Poprawne żądanie → HTTP 201, sourceType=INBOUND_CALLBACK, originContactId=contactId</li>
+ *   <li>Poprawne żądanie (INBOUND) → HTTP 201, sourceType=INBOUND_CALLBACK, originContactId=contactId</li>
+ *   <li>Poprawne żądanie (OUTBOUND) → HTTP 201, sourceType=OUTBOUND_CALLBACK</li>
  *   <li>Nieistniejący contactId → ResourceNotFoundException (HTTP 404)</li>
  *   <li>AGENT dla cudzego kontaktu (contact.agentId != null i różny) → AccessDeniedException (HTTP 403)</li>
  *   <li>AGENT dla kontaktu bez agenta (contact.agentId=null) → HTTP 201 (zezwól)</li>
@@ -55,28 +52,16 @@ import static org.mockito.Mockito.*;
 class InboundCallbackCreationTest {
 
     @Mock
-    private ScheduledCallbackRepository scheduledCallbackRepository;
-
-    @Mock
-    private ProgressiveDialerService progressiveDialerService;
-
-    @Mock
-    private DialerCallbackHandler dialerCallbackHandler;
-
-    @Mock
-    private CampaignRepository campaignRepository;
-
-    @Mock
-    private CampaignContactRepository campaignContactRepository;
-
-    @Mock
-    private TelephonyAdapter telephonyAdapter;
+    private ContactService contactService;
 
     @Mock
     private ContactRepository contactRepository;
 
+    @Mock
+    private ScheduledCallbackRepository scheduledCallbackRepository;
+
     @InjectMocks
-    private DialerController dialerController;
+    private ContactController contactController;
 
     private static final UUID TENANT_ID   = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
     private static final UUID CONTACT_ID  = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002");
@@ -125,7 +110,7 @@ class InboundCallbackCreationTest {
 
         // when
         ResponseEntity<ScheduledCallbackResponse> response =
-                dialerController.createInboundCallback(CONTACT_ID, request);
+                contactController.createInboundCallback(CONTACT_ID, request);
 
         // then
         assertThat(response.getStatusCode().value()).isEqualTo(201);
@@ -138,7 +123,44 @@ class InboundCallbackCreationTest {
     }
 
     // =========================================================================
-    // Test 2: Nieistniejący contactId → 404
+    // Test 2: Poprawne żądanie OUTBOUND → 201, sourceType=OUTBOUND_CALLBACK
+    // =========================================================================
+
+    @Test
+    @DisplayName("Poprawne żądanie dla rozmowy OUTBOUND → HTTP 201, sourceType=OUTBOUND_CALLBACK")
+    void createCallback_outboundContact_returns201WithOutboundCallbackSourceType() {
+        // given
+        Instant scheduledAt = Instant.now().plusSeconds(3600);
+
+        TenantContext.setUserId(AGENT_ID);
+        TenantContext.setUserRole("AGENT");
+
+        // Kontakt WYCHODZĄCY przypisany do tego samego agenta
+        Contact contact = buildContact(CONTACT_ID, TENANT_ID, AGENT_ID, "OUTBOUND");
+        ScheduledCallback saved = buildSavedCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, scheduledAt, CONTACT_ID,
+                "OUTBOUND_CALLBACK");
+
+        when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+        when(scheduledCallbackRepository.save(any(ScheduledCallback.class))).thenReturn(saved);
+
+        CreateInboundCallbackRequest request = new CreateInboundCallbackRequest(
+                "+48123456789", "Jan", "Kowalski", scheduledAt, "Oddzwonic po 15:00", null);
+
+        // when
+        ResponseEntity<ScheduledCallbackResponse> response =
+                contactController.createInboundCallback(CONTACT_ID, request);
+
+        // then
+        assertThat(response.getStatusCode().value()).isEqualTo(201);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().sourceType()).isEqualTo("OUTBOUND_CALLBACK");
+        assertThat(response.getBody().originContactId()).isEqualTo(CONTACT_ID);
+
+        verify(scheduledCallbackRepository).save(any(ScheduledCallback.class));
+    }
+
+    // =========================================================================
+    // Test (orig 2): Nieistniejący contactId → 404
     // =========================================================================
 
     @Test
@@ -157,7 +179,7 @@ class InboundCallbackCreationTest {
                 "+48123456789", null, null, scheduledAt, null, null);
 
         // when / then
-        assertThatThrownBy(() -> dialerController.createInboundCallback(unknownContactId, request))
+        assertThatThrownBy(() -> contactController.createInboundCallback(unknownContactId, request))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(unknownContactId.toString());
 
@@ -185,7 +207,7 @@ class InboundCallbackCreationTest {
                 "+48123456789", null, null, scheduledAt, null, null);
 
         // when / then
-        assertThatThrownBy(() -> dialerController.createInboundCallback(CONTACT_ID, request))
+        assertThatThrownBy(() -> contactController.createInboundCallback(CONTACT_ID, request))
                 .isInstanceOf(AccessDeniedException.class);
 
         verify(scheduledCallbackRepository, never()).save(any());
@@ -216,7 +238,7 @@ class InboundCallbackCreationTest {
 
         // when
         ResponseEntity<ScheduledCallbackResponse> response =
-                dialerController.createInboundCallback(CONTACT_ID, request);
+                contactController.createInboundCallback(CONTACT_ID, request);
 
         // then
         assertThat(response.getStatusCode().value()).isEqualTo(201);
@@ -252,12 +274,16 @@ class InboundCallbackCreationTest {
     // =========================================================================
 
     private Contact buildContact(UUID contactId, UUID tenantId, UUID agentId) {
+        return buildContact(contactId, tenantId, agentId, "INBOUND");
+    }
+
+    private Contact buildContact(UUID contactId, UUID tenantId, UUID agentId, String direction) {
         return Contact.builder()
                 .contactId(contactId)
                 .tenantId(tenantId)
                 .agentId(agentId)
                 .channel("PHONE")
-                .direction("INBOUND")
+                .direction(direction)
                 .status("ACTIVE")
                 .queuedAt(Instant.now().minusSeconds(300))
                 .startedAt(Instant.now().minusSeconds(300))
@@ -266,6 +292,11 @@ class InboundCallbackCreationTest {
 
     private ScheduledCallback buildSavedCallback(UUID callbackId, UUID tenantId, UUID agentId,
                                                   Instant scheduledAt, UUID originContactId) {
+        return buildSavedCallback(callbackId, tenantId, agentId, scheduledAt, originContactId, "INBOUND_CALLBACK");
+    }
+
+    private ScheduledCallback buildSavedCallback(UUID callbackId, UUID tenantId, UUID agentId,
+                                                  Instant scheduledAt, UUID originContactId, String sourceType) {
         return ScheduledCallback.builder()
                 .callbackId(callbackId)
                 .tenantId(tenantId)
@@ -274,7 +305,7 @@ class InboundCallbackCreationTest {
                 .firstName("Jan")
                 .lastName("Kowalski")
                 .scheduledAt(scheduledAt)
-                .sourceType("INBOUND_CALLBACK")
+                .sourceType(sourceType)
                 .originContactId(originContactId)
                 .status("PENDING")
                 .createdAt(Instant.now())

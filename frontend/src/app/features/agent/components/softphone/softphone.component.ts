@@ -12,6 +12,8 @@ import { FormsModule } from '@angular/forms';
 import { SoftphoneService } from '../../services/softphone.service';
 import { ContactTab } from '../../models/contact-tab.model';
 import { CallSession } from '../../models/call-session.model';
+import { ScheduleInboundCallbackModalComponent } from '../schedule-inbound-callback-modal/schedule-inbound-callback-modal.component';
+import { ScheduledCallbackDto } from '../../models/callback.model';
 
 type TransferMode = 'BLIND' | 'ATTENDED';
 
@@ -19,7 +21,7 @@ type TransferMode = 'BLIND' | 'ATTENDED';
   selector: 'app-softphone',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, ScheduleInboundCallbackModalComponent],
   templateUrl: './softphone.component.html',
   styleUrl: './softphone.component.scss',
 })
@@ -143,6 +145,35 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   }
 
   protected readonly _showTransferPanel = signal(false);
+
+  /** Whether the schedule-callback modal is open */
+  protected readonly _showCallbackModal = signal(false);
+
+  /** Set after a callback is successfully scheduled – shows a badge */
+  protected readonly _callbackScheduled = signal(false);
+
+  /**
+   * True when active PHONE tab is a call (INBOUND or OUTBOUND) that can have a callback scheduled.
+   * The same ScheduleInboundCallbackModalComponent handles both directions.
+   */
+  protected readonly canScheduleCallback = computed(
+    () =>
+      this.tab.type === 'PHONE' &&
+      (this.tab.direction === 'INBOUND' || this.tab.direction === 'OUTBOUND'),
+  );
+
+  protected openCallbackModal(): void {
+    this._showCallbackModal.set(true);
+  }
+
+  protected onCallbackScheduled(_dto: ScheduledCallbackDto): void {
+    this._showCallbackModal.set(false);
+    this._callbackScheduled.set(true);
+  }
+
+  protected onCallbackCancelled(): void {
+    this._showCallbackModal.set(false);
+  }
 
   protected formatSeconds(total: number): string {
     const h = Math.floor(total / 3600);

@@ -625,4 +625,44 @@
     color: #9e9e9e;
     margin: 0;
   }
+
+  // ── Callback row (inbound only) ───────────────────────────
+  &__callback-row {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  &__ctrl-btn--callback {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1.5px solid #90caf9;
+
+    &:hover {
+      background: #bbdefb;
+    }
+
+    svg {
+      color: #1565c0;
+    }
+  }
+
+  &__callback-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border: 1px solid #a5d6a7;
+
+    svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+  }
 }

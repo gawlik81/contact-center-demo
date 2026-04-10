@@ -350,7 +350,7 @@ server:
 # Uruchomienie serwisu: docker compose --profile ai up -d
 # =============================================================================
 voicebot:
-  enabled: ${VOICEBOT_ENABLED:true}
+  enabled: ${VOICEBOT_ENABLED:false}
   url: ${VOICEBOT_URL:http://localhost:8001}
 
 # =============================================================================

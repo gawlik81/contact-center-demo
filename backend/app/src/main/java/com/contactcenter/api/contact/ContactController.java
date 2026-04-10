@@ -7,8 +7,16 @@ import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.api.contact.dto.DispositionRequest;
 import com.contactcenter.api.contact.dto.UpdateContactRequest;
+import com.contactcenter.api.dialer.dto.CreateInboundCallbackRequest;
+import com.contactcenter.api.dialer.dto.ScheduledCallbackResponse;
+import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.ScheduledCallback;
+import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.security.TenantContext;
+import org.springframework.security.access.AccessDeniedException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -65,6 +73,8 @@ import java.util.UUID;
 public class ContactController {
 
     private final ContactService contactService;
+    private final ContactRepository contactRepository;
+    private final ScheduledCallbackRepository scheduledCallbackRepository;
 
     /**
      * Sprawdza czy zalogowany użytkownik ma rolę AGENT.
@@ -407,5 +417,69 @@ public class ContactController {
         ContactRecordingUrlResponse response = contactService.getRecordingUrl(
                 contactId, tenantId, userId, isAgent);
         return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Oddzwonienie z rozmowy przychodzącej (BE-040)
+    // =========================================================================
+
+    @PostMapping("/{contactId}/callback")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Zaplanuj oddzwonienie z rozmowy",
+        description = "Tworzy zaplanowane oddzwonienie powiązane z kontaktem. " +
+                      "sourceType ustawiany automatycznie na podstawie kierunku rozmowy: " +
+                      "INBOUND_CALLBACK (rozmowa przychodząca) lub OUTBOUND_CALLBACK (wychodząca). " +
+                      "Dla roli AGENT dozwolone tylko dla własnej rozmowy.",
+        responses = {
+            @ApiResponse(responseCode = "201", description = "Callback zaplanowany"),
+            @ApiResponse(responseCode = "403", description = "AGENT – cudza rozmowa"),
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje"),
+            @ApiResponse(responseCode = "422", description = "scheduledAt w przeszłości")
+        }
+    )
+    public ResponseEntity<ScheduledCallbackResponse> createInboundCallback(
+            @Parameter(description = "UUID kontaktu") @PathVariable UUID contactId,
+            @Valid @RequestBody CreateInboundCallbackRequest request
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID jwtAgentId = TenantContext.getUserId();
+        String role = TenantContext.getUserRole();
+
+        Contact contact = contactRepository.findById(contactId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Kontakt nie istnieje: " + contactId));
+
+        if ("AGENT".equals(role) && contact.getAgentId() != null
+                && !contact.getAgentId().equals(jwtAgentId)) {
+            throw new AccessDeniedException("Agent może planować oddzwonienie tylko z własnej rozmowy");
+        }
+
+        UUID effectiveAgentId = "AGENT".equals(role) ? jwtAgentId
+                : (request.agentId() != null ? request.agentId() : jwtAgentId);
+
+        String sourceType = "OUTBOUND".equalsIgnoreCase(contact.getDirection())
+                ? "OUTBOUND_CALLBACK"
+                : "INBOUND_CALLBACK";
+
+        ScheduledCallback callback = ScheduledCallback.builder()
+                .tenantId(tenantId)
+                .agentId(effectiveAgentId)
+                .phone(request.phone())
+                .firstName(request.firstName())
+                .lastName(request.lastName())
+                .scheduledAt(request.scheduledAt())
+                .notes(request.notes())
+                .sourceType(sourceType)
+                .originContactId(contactId)
+                .status("PENDING")
+                .build();
+
+        ScheduledCallback saved = scheduledCallbackRepository.save(callback);
+
+        log.info("[ContactController] Callback zaplanowany: callbackId={}, contactId={}, sourceType={}, tenant={}",
+                saved.getCallbackId(), contactId, sourceType, tenantId);
+
+        URI location = URI.create("/api/dialer/callbacks/" + saved.getCallbackId());
+        return ResponseEntity.created(location).body(ScheduledCallbackResponse.from(saved));
     }
 }

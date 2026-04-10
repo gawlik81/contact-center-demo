@@ -1185,6 +1185,229 @@ Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
 
 ---
 
+### FE-034 – Panel Agenta: lista własnych callbacków z edycją i usunięciem
+
+**Typ:** Feature – UI Component
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-041, BE-042, FE-031 (RescheduleCallbackModalComponent – reużycie)
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-041, BE-042
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-13 Zaplanowane oddzwonienia
+
+**Opis:**
+Nowa strona w panelu agenta wyświetlająca listę jego własnych zaplanowanych oddzwonień. Agent widzi wyłącznie swoje callbacki (izolacja po `agentId` realizowana po stronie backendu – BE-041). Strona dostępna z nawigacji Agent Desktop jako osobna trasa.
+
+**Nowy komponent strony:**
+
+`features/agent/pages/callbacks/agent-callbacks-page.component.ts`
+- Selektor: `app-agent-callbacks-page`
+- Standalone component, `ChangeDetectionStrategy.OnPush`
+- Ładuje dane przez `CallbackService` przy inicjalizacji (`ngOnInit` → `loadCallbacks()`)
+
+**Nowy serwis `CallbackService`:**
+
+`features/agent/services/callback.service.ts`
+
+```typescript
+@Injectable({ providedIn: 'root' })
+export class CallbackService {
+  listCallbacks(params: CallbackListParams): Observable<PagedResponse<CallbackListItem>>;
+  updateCallback(callbackId: string, req: UpdateCallbackRequest): Observable<CallbackListItem>;
+  cancelCallback(callbackId: string): Observable<void>;
+}
+```
+
+gdzie `CallbackListParams`:
+```typescript
+interface CallbackListParams {
+  status?: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'PROCESSING' | null;
+  sortDir?: 'ASC' | 'DESC';
+  page?: number;
+  size?: number;
+}
+```
+
+i `CallbackListItem` odpowiada `CallbackListItemResponse` z backendu (dodaj do `features/agent/models/callback.model.ts`).
+
+**Widok strony — elementy UI:**
+
+1. **Pasek filtrów** (u góry):
+   - Select "Status": opcje All / Pending / Completed / Cancelled (domyślnie: All)
+   - Select "Sortowanie": Najwcześniejsze / Najpóźniejsze (domyślnie: Najwcześniejsze)
+   - Zmiana filtra → odświeżenie listy (page=0, zachowaj size)
+
+2. **Tabela callbacków** (kolumny):
+   - Numer telefonu
+   - Imię i nazwisko klienta (firstName + lastName, fallback: "—")
+   - Data i godzina oddzwonienia (`scheduledAt` formatowane `dd.MM.yyyy HH:mm`)
+   - Notatka (skrócona do 60 znaków, tooltip z pełną treścią)
+   - Status (chip/badge kolorowany: PENDING=niebieski, COMPLETED=zielony, CANCELLED=szary, PROCESSING=pomarańczowy)
+   - Kolumna Akcje: ikony edytuj / usuń (disabled gdy status != PENDING)
+
+3. **Paginacja** pod tabelą: page size selector (10/20/50), numery stron
+
+4. **Stan pusty**: komunikat "Nie masz żadnych zaplanowanych oddzwonień" gdy lista pusta
+
+5. **Akcja Edytuj**: otwiera istniejący `RescheduleCallbackModalComponent` (FE-031) z prefillowanymi danymi; po zapisaniu odświeża listę. Uwaga: istniejący modal obsługuje tylko reschedule (data + notatka) — wystarczy dla roli AGENT
+
+6. **Akcja Usuń**: otwiera `ConfirmDeleteCallbackModalComponent` (nowy, inline lub dedykowany) z pytaniem "Czy na pewno chcesz anulować to oddzwonienie?" → po potwierdzeniu wywołuje `CallbackService.cancelCallback(callbackId)` → toast sukcesu + odświeżenie listy
+
+**Routing:**
+
+Dodaj trasę `/agent/callbacks` w `agent.routes.ts`:
+```typescript
+{
+  path: 'callbacks',
+  component: AgentCallbacksPageComponent,
+  canActivate: [AuthGuard, RoleGuard],
+  data: { roles: ['AGENT'] }
+}
+```
+
+**Zarządzanie stanem (signals):**
+
+```typescript
+callbacks = signal<CallbackListItem[]>([]);
+total = signal<number>(0);
+loading = signal<boolean>(false);
+selectedStatus = signal<string | null>(null);
+sortDir = signal<'ASC' | 'DESC'>('ASC');
+page = signal<number>(0);
+pageSize = signal<number>(20);
+```
+
+**Kryteria akceptacji:**
+- [ ] Strona ładuje się pod `/agent/callbacks` i wyświetla wyłącznie callbacki zalogowanego agenta
+- [ ] Filtr statusu "Pending" → lista zawiera wyłącznie rekordy PENDING
+- [ ] Filtr statusu "All" → lista zawiera rekordy wszystkich statusów
+- [ ] Sortowanie "Najpóźniejsze" → lista posortowana `scheduledAt DESC`
+- [ ] Akcja "Edytuj" (przycisk aktywny tylko dla PENDING) otwiera modal z prefillowaną datą i notatką
+- [ ] Po zapisaniu w modalu edycji lista odświeża się bez przeładowania strony
+- [ ] Akcja "Usuń" dla callbacku PENDING otwiera dialog potwierdzenia
+- [ ] Po potwierdzeniu usunięcia: callback znika z listy (lub zmienia status na CANCELLED przy sortDir=All), toast "Oddzwonienie anulowane"
+- [ ] Przyciski edytuj/usuń są zablokowane (disabled) dla callbacków w statusie COMPLETED, CANCELLED, PROCESSING
+- [ ] Paginacja działa poprawnie: zmiana strony odświeża listę
+- [ ] Stan pusty: widoczny komunikat gdy brak callbacków
+- [ ] Loading spinner widoczny podczas ładowania danych
+- [ ] Błąd sieciowy → toast z komunikatem błędu
+
+---
+
+### FE-035 – Panel Supervisora: lista wszystkich callbacków z reassign agenta
+
+**Typ:** Feature – UI Component
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-041, BE-042, FE-034 (CallbackService – reużycie)
+**Status:** ⬜ Nie rozpoczęte
+**Czeka na BE:** BE-041, BE-042
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-13 Zaplanowane oddzwonienia
+
+**Opis:**
+Nowa strona w panelu supervisora wyświetlająca wszystkie callbacki tenanta. Rozszerza możliwości FE-034 o widok wieloagentowy, filtr po agencie i opcję reassign. Supervisor może edytować każdy callback i przepisać go do innego agenta.
+
+**Nowy komponent strony:**
+
+`features/supervisor/pages/callbacks/supervisor-callbacks-page.component.ts`
+- Selektor: `app-supervisor-callbacks-page`
+- Standalone component, `ChangeDetectionStrategy.OnPush`
+- Reużywa `CallbackService` z FE-034 (ten sam serwis, inne parametry HTTP)
+
+**Rozszerzenie `CallbackService`:**
+
+```typescript
+// Dodaj do istniejącego serwisu:
+updateCallbackFull(callbackId: string, req: UpdateCallbackRequest): Observable<CallbackListItem>;
+// PATCH /api/dialer/callbacks/{callbackId}
+// UpdateCallbackRequest: { phone?, firstName?, lastName?, scheduledAt?, notes?, agentId? }
+```
+
+gdzie `UpdateCallbackRequest` dodaj do `features/agent/models/callback.model.ts`.
+
+**Widok strony — elementy UI:**
+
+1. **Pasek filtrów** (u góry):
+   - Select "Status": All / Pending / Completed / Cancelled
+   - Select "Agent": lista wszystkich agentów tenanta załadowana z `GET /api/users?role=AGENT` (reużyj istniejącego serwisu użytkowników); opcja "Wszyscy agenci" (domyślna)
+   - Select "Sortowanie": Najwcześniejsze / Najpóźniejsze
+   - Zmiana filtra → odświeżenie listy (page=0)
+
+2. **Tabela callbacków** (kolumny — identyczne jak FE-034 plus dodatkowa):
+   - Numer telefonu
+   - Imię i nazwisko klienta
+   - Data i godzina oddzwonienia
+   - Notatka (skrócona, tooltip)
+   - **Agent** (imię i nazwisko z pola `agentName`; "—" gdy brak agenta)
+   - Status (chip/badge)
+   - Kolumna Akcje: ikona edytuj / usuń
+
+3. **Paginacja** identyczna jak FE-034
+
+4. **Modal edycji — `EditCallbackModalComponent`:**
+
+   Nowy komponent: `features/supervisor/components/edit-callback-modal/edit-callback-modal.component.ts`
+   - Selektor: `app-edit-callback-modal`
+   - Standalone, `ChangeDetectionStrategy.OnPush`
+   - Input signals: `callback: CallbackListItem` (dane do prefill), `agents: AgentOption[]` (lista agentów do reassign)
+   - Output: `saved: EventEmitter<CallbackListItem>`, `cancelled: EventEmitter<void>`
+   - Formularz reaktywny z polami:
+     - Numer telefonu (wymagane, walidacja E.164: `+[cyfry]`, min 7 max 15 cyfr po `+`)
+     - Imię (opcjonalne)
+     - Nazwisko (opcjonalne)
+     - Data i godzina oddzwonienia (datetime-local input, wymagane, min=teraz)
+     - Notatka (textarea, opcjonalna, max 500 znaków)
+     - Agent (select z listy agentów; opcja "Brak przypisania" ustawia `agentId=null`)
+   - Submit wywołuje `CallbackService.updateCallbackFull(callbackId, req)`
+   - Po sukcesie: emituje `saved` z zaktualizowanym callbackiem
+
+5. **Akcja Usuń**: identyczna logika jak FE-034 (dialog potwierdzenia + `CallbackService.cancelCallback`)
+
+**Routing:**
+
+Dodaj trasę `/supervisor/callbacks` w `supervisor.routes.ts`:
+```typescript
+{
+  path: 'callbacks',
+  component: SupervisorCallbacksPageComponent,
+  canActivate: [AuthGuard, RoleGuard],
+  data: { roles: ['SUPERVISOR', 'ADMIN'] }
+}
+```
+
+**Zarządzanie stanem (signals):**
+
+```typescript
+callbacks = signal<CallbackListItem[]>([]);
+total = signal<number>(0);
+loading = signal<boolean>(false);
+agents = signal<AgentOption[]>([]);
+selectedStatus = signal<string | null>(null);
+selectedAgentId = signal<string | null>(null);
+sortDir = signal<'ASC' | 'DESC'>('ASC');
+page = signal<number>(0);
+pageSize = signal<number>(20);
+editingCallback = signal<CallbackListItem | null>(null);
+```
+
+**Kryteria akceptacji:**
+- [ ] Strona ładuje się pod `/supervisor/callbacks` i wyświetla callbacki wszystkich agentów tenanta
+- [ ] Kolumna "Agent" wyświetla imię i nazwisko agenta (z pola `agentName` zwróconego przez BE-041)
+- [ ] Filtr "Agent" zawęża listę do callbacków wybranego agenta
+- [ ] Filtr "Status" działa analogicznie jak w FE-034
+- [ ] Akcja "Edytuj" otwiera `EditCallbackModalComponent` z prefillowanymi danymi
+- [ ] W modalu edycji: select "Agent" zawiera listę wszystkich agentów tenanta
+- [ ] Po zmianie agenta w modalu i zapisaniu: kolumna "Agent" w wierszu aktualizuje się na nową wartość (bez przeładowania całej listy)
+- [ ] Akcja "Usuń" działa identycznie jak w FE-034 (dialog potwierdzenia, toast, odświeżenie)
+- [ ] Supervisor może usunąć callback dowolnego agenta
+- [ ] Strona niedostępna dla roli AGENT (RoleGuard przekierowuje)
+- [ ] Loading spinner podczas ładowania danych i podczas operacji save/delete
+- [ ] Błąd sieciowy → toast z komunikatem błędu
+
+---
+
 ## Podsumowanie zadań Frontend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -1202,5 +1425,5 @@ Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
 | Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
 | Dialer manualny | 1 | 1 | 0 |
 | Prezentacja Kontaktów (EPIC-12) | 3 | 3 | 0 |
-| Zaplanowane oddzwonienia (EPIC-13) | 2 | 2 | 0 |
-| **RAZEM** | **32** | **31** | **1** |
+| Zaplanowane oddzwonienia (EPIC-13) | 4 | 4 | 0 |
+| **RAZEM** | **34** | **33** | **1** |

@@ -1339,6 +1339,188 @@ public record CreateInboundCallbackRequest(
 
 ---
 
+### BE-041 – Callback List API: filtrowana lista callbacków dla agenta i supervisora
+
+**Typ:** Feature – REST API
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-024 (ScheduledCallbackRepository), BE-008 (AppUser – do rozwiązania nazwy agenta)
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-13 Zaplanowane oddzwonienia
+**Blokuje:** FE-034, FE-035
+
+**Opis:**
+Rozszerzenie istniejącego endpointu `GET /api/dialer/callbacks` o obsługę ról z izolacją danych oraz nowe filtry. Aktualnie endpoint zwraca wyłącznie callbacki w statusie PENDING bez filtrowania po `agentId` — agent widzi callbacki wszystkich agentów. Zadanie naprawia to zachowanie i dodaje filtry wymagane przez panele listy.
+
+**Zmiany w `ScheduledCallbackRepository`:**
+
+Dodaj dwie nowe metody natywnym SQL:
+
+```java
+// Dla AGENT: stronicowana lista własnych callbacków z filtrem statusu
+List<ScheduledCallback> findByAgentId(
+    UUID tenantId, UUID agentId,
+    String status,          // null = wszystkie statusy
+    String sortDirection,   // "ASC" | "DESC" po scheduledAt
+    int page, int size);
+
+long countByAgentId(UUID tenantId, UUID agentId, String status);
+
+// Dla SUPERVISOR/ADMIN: stronicowana lista wszystkich callbacków tenanta z filtrem statusu i agentId
+List<ScheduledCallback> findByTenantIdWithFilters(
+    UUID tenantId,
+    String status,          // null = wszystkie statusy
+    UUID agentIdFilter,     // null = wszyscy agenci
+    String sortDirection,   // "ASC" | "DESC" po scheduledAt
+    int page, int size);
+
+long countByTenantIdWithFilters(UUID tenantId, String status, UUID agentIdFilter);
+```
+
+Zapytania SQL muszą uwzględniać `AND tenant_id = CAST(:tenantId AS uuid)` jako warunek bazowy (RLS + eksplicytny filtr).
+
+**Zmiany w `DialerController`:**
+
+Rozszerz istniejący `GET /api/dialer/callbacks` o parametry:
+
+```
+GET /api/dialer/callbacks?status=PENDING&agentId={uuid}&sortDir=ASC&page=0&size=20
+```
+
+| Parametr | Typ | Domyślnie | Opis |
+|---|---|---|---|
+| `status` | String | `null` (wszystkie) | Filtr statusu: PENDING / COMPLETED / CANCELLED / PROCESSING |
+| `agentId` | UUID | `null` | Tylko SUPERVISOR/ADMIN; AGENT ignoruje ten parametr |
+| `sortDir` | String | `ASC` | Kierunek sortowania po `scheduled_at` |
+| `page` | int | 0 | Numer strony |
+| `size` | int | 20 | Rozmiar strony (max 100) |
+
+**Logika izolacji ról:**
+- `AGENT`: zawsze `findByAgentId(tenantId, jwtAgentId, status, sortDir, page, size)` — parametr `agentId` z zapytania jest ignorowany
+- `SUPERVISOR` / `ADMIN`: `findByTenantIdWithFilters(tenantId, status, agentIdFilter, sortDir, page, size)`
+
+**Rozszerzenie `ScheduledCallbackResponse`:**
+
+Dodaj pole `agentName: String` (może być null gdy `agentId` jest null). Wartość rozwiązywana przez `AppUserRepository.findById(agentId, tenantId)` → `firstName + " " + lastName`. Używaj cache (jeden SELECT IN dla wszystkich unikalnych `agentId` na stronie, nie N zapytań).
+
+**Nowy DTO dla odpowiedzi rozszerzonej:**
+
+Zamiast modyfikować istniejący `ScheduledCallbackResponse`, stwórz `CallbackListItemResponse` z dodatkowym polem `agentName`:
+
+```java
+public record CallbackListItemResponse(
+    UUID callbackId,
+    UUID agentId,
+    String agentName,      // null gdy agentId == null
+    String phone,
+    String firstName,
+    String lastName,
+    Instant scheduledAt,
+    String notes,
+    String status,
+    String sourceType,
+    UUID originContactId,
+    Instant createdAt
+) {}
+```
+
+**Kryteria akceptacji:**
+- [ ] AGENT wywołujący `GET /api/dialer/callbacks` widzi wyłącznie callbacki przypisane do swojego `agentId` (weryfikacja: brak callbacków innych agentów w odpowiedzi)
+- [ ] SUPERVISOR wywołujący `GET /api/dialer/callbacks` widzi callbacki wszystkich agentów w ramach tenanta
+- [ ] Filtr `?status=COMPLETED` zwraca wyłącznie rekordy w statusie COMPLETED
+- [ ] Filtr `?status=` (pusty) lub brak parametru zwraca callbacki wszystkich statusów
+- [ ] SUPERVISOR może filtrować po `?agentId={uuid}` i widzi tylko callbacki danego agenta
+- [ ] AGENT wywołujący `?agentId={cudzuuid}` — parametr jest ignorowany, widzi tylko własne callbacki
+- [ ] `?sortDir=DESC` sortuje po `scheduled_at` malejąco
+- [ ] Pole `agentName` zawiera imię i nazwisko agenta (jeden SELECT IN, nie N zapytań)
+- [ ] Paginacja: `totalElements`, `totalPages`, `first`, `last` zgodne z faktyczną liczbą wyników
+- [ ] Brak callbacków → HTTP 200 z pustą listą
+- [ ] Testy jednostkowe: filtrowanie AGENT vs SUPERVISOR (min. 6 przypadków)
+- [ ] Endpoint widoczny w Swagger UI z opisem parametrów
+
+---
+
+### BE-042 – Callback Management API: edycja pełna i usunięcie callbacku
+
+**Typ:** Feature – REST API
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-024 (ScheduledCallbackRepository), BE-041
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-13 Zaplanowane oddzwonienia
+**Blokuje:** FE-034, FE-035
+
+**Opis:**
+Dwa nowe endpointy w `DialerController` umożliwiające pełną edycję callbacku (zmiana numeru telefonu, daty, notatki, a dla supervisora również reassign agenta) oraz usunięcie callbacku.
+
+Istniejący `PUT /api/dialer/callbacks/{callbackId}` (BE-039) obsługuje tylko reschedule (zmiana daty + notatka). Nowe zadanie dodaje endpoint PATCH do pełnej edycji i DELETE do usunięcia.
+
+**Endpoint 1 – Pełna edycja callbacku:**
+
+```
+PATCH /api/dialer/callbacks/{callbackId}
+```
+
+Request DTO `UpdateCallbackRequest`:
+
+```java
+public record UpdateCallbackRequest(
+    @Pattern(regexp = "\\+[1-9]\\d{6,14}") String phone,   // nullable – bez zmiany gdy null
+    String firstName,                                         // nullable
+    String lastName,                                          // nullable
+    @Future Instant scheduledAt,                             // nullable – bez zmiany gdy null
+    String notes,                                            // nullable
+    UUID agentId                                             // nullable; ignorowane dla roli AGENT
+) {}
+```
+
+Logika:
+1. Pobierz callback → 404 jeśli nie istnieje
+2. Weryfikacja statusu: PATCH dozwolony tylko dla statusu PENDING → 409 gdy COMPLETED / CANCELLED / PROCESSING
+3. Autoryzacja:
+   - AGENT: może edytować wyłącznie własny callback (`agentId z JWT == callback.agentId`) → 403 dla cudzych; pole `agentId` z requestu ignorowane
+   - SUPERVISOR / ADMIN: może edytować każdy callback w ramach tenanta; jeśli `agentId` w requescie niepusty — wykonuje reassign
+4. Patch semantics: aktualizuj tylko pola niepuste (null = bez zmiany)
+5. Zapisz i zwróć HTTP 200 z `CallbackListItemResponse`
+
+**Endpoint 2 – Usunięcie callbacku:**
+
+```
+DELETE /api/dialer/callbacks/{callbackId}
+```
+
+Logika:
+1. Pobierz callback → 404 jeśli nie istnieje
+2. AGENT: tylko własne callbacki → 403 dla cudzych
+3. Callbacki w statusie PROCESSING nie mogą być usunięte → 409 "Callback jest aktualnie przetwarzany"
+4. Zmień status na CANCELLED (soft-delete; nie usuwaj wiersza z DB — zachowuje historię dla raportów)
+5. Zwróć HTTP 204 No Content
+
+**Dodaj do `ScheduledCallbackRepository`:**
+
+```java
+// Soft-delete: zmiana statusu na CANCELLED
+int cancelCallback(UUID callbackId, UUID tenantId);
+```
+
+Implementacja przez `updateStatus(callbackId, "CANCELLED", tenantId)` — reużywa istniejącej metody.
+
+**Kryteria akceptacji:**
+- [ ] PATCH z `phone` → numer telefonu zaktualizowany w DB
+- [ ] PATCH z `agentId` przez SUPERVISOR → callback przypisany do nowego agenta
+- [ ] PATCH z `agentId` przez AGENT → pole ignorowane, agentId bez zmian
+- [ ] PATCH dla callbacku w statusie COMPLETED → HTTP 409
+- [ ] PATCH przez AGENT dla cudzego callbacku → HTTP 403
+- [ ] DELETE własnego callbacku przez AGENT → HTTP 204, status=CANCELLED w DB
+- [ ] DELETE cudzego callbacku przez AGENT → HTTP 403
+- [ ] DELETE callbacku w statusie PROCESSING → HTTP 409
+- [ ] DELETE przez SUPERVISOR dla callbacku dowolnego agenta → HTTP 204
+- [ ] Wiersz w tabeli `scheduled_callback` nie jest fizycznie usuwany (status=CANCELLED)
+- [ ] Testy jednostkowe: min. 8 przypadków (edycja + usunięcie, oba role)
+- [ ] Oba endpointy widoczne w Swagger UI
+
+---
+
 ## Podsumowanie zadań Backend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -1357,5 +1539,5 @@ public record CreateInboundCallbackRequest(
 | Raporty (EPIC-10) | 4 | 4 | 0 |
 | RODO | 1 | 1 | 0 |
 | Prezentacja Kontaktów (EPIC-12) | 2 | 2 | 0 |
-| Zaplanowane oddzwonienia (EPIC-13) | 3 | 3 | 0 |
-| **RAZEM** | **41** | **38** | **3** |
+| Zaplanowane oddzwonienia (EPIC-13) | 5 | 5 | 0 |
+| **RAZEM** | **43** | **40** | **3** |

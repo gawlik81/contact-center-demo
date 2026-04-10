@@ -5,6 +5,7 @@ import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
@@ -25,7 +26,12 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import java.net.URI;
@@ -70,8 +76,17 @@ class TwilioTelephonyAdapterTest {
     @Mock
     private TenantRepository tenantRepository;
 
+    @Mock
+    private TwilioRecordingDownloadService recordingDownloadService;
+
     private TwilioProperties twilioProperties;
     private TwilioTelephonyAdapter adapter;
+
+    /**
+     * In-memory backing store symulujący Redis.
+     * Współdzielony między setSession / getSession mockowanymi przez ValueOperations.
+     */
+    private final Map<String, Object> redisStore = new HashMap<>();
 
     @BeforeEach
     void setUp() {
@@ -85,9 +100,34 @@ class TwilioTelephonyAdapterTest {
         // Domyślnie tenantRepository nie zwraca per-tenant konfiguracji
         when(tenantRepository.findById(any())).thenReturn(Optional.empty());
 
+        // Mock RedisTemplate z in-memory HashMap jako backing store.
+        // Adapter korzysta wyłącznie z opsForValue().set/get i delete(),
+        // więc symulujemy tylko te operacje.
+        @SuppressWarnings("unchecked")
+        RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, Object> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+
+        doAnswer(inv -> {
+            redisStore.put(inv.getArgument(0), inv.getArgument(1));
+            return null;
+        }).when(valueOps).set(anyString(), any(), any(Duration.class));
+
+        when(valueOps.get(anyString()))
+                .thenAnswer(inv -> redisStore.get(inv.getArgument(0)));
+
+        doAnswer(inv -> {
+            redisStore.remove(inv.getArgument(0));
+            return true;
+        }).when(redisTemplate).delete(anyString());
+
+        redisStore.clear();
+
         // Nie wywołujemy @PostConstruct init() – omijamy Twilio.init() w testach
         adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher,
-                contactRepository, customerRepository, tenantRepository);
+                contactRepository, customerRepository, tenantRepository,
+                redisTemplate, recordingDownloadService);
     }
 
     // =========================================================================
@@ -481,7 +521,8 @@ class TwilioTelephonyAdapterTest {
 
             assertThat(adapter.getCallSession(CALL_SID).getStatus())
                     .isEqualTo(CallSession.CallStatus.ACTIVE);
-            assertThat(adapter.getActiveSessionCount()).isEqualTo(1);
+            // Redis backing store powinien mieć dokładnie 1 klucz (sesja zaktualizowana in-place)
+            assertThat(redisStore).hasSize(1);
         }
 
         @Test
@@ -588,19 +629,14 @@ class TwilioTelephonyAdapterTest {
     class ActiveSessionCount {
 
         @Test
-        @DisplayName("powinien liczyć tylko nieukończone sesje")
-        void shouldCountOnlyActiveSessions() {
-            adapter.handleWebhookStatusUpdate("CA001", FROM, TO, "ringing",     TENANT_ID); // RINGING
-            adapter.handleWebhookStatusUpdate("CA002", FROM, TO, "in-progress", TENANT_ID); // ACTIVE
-            adapter.handleWebhookStatusUpdate("CA003", FROM, TO, "completed",   TENANT_ID); // ENDED – nie liczymy
+        @DisplayName("po migracji na Redis zwraca -1 (skanowanie keyspace wyłączone ze względu na wydajność)")
+        void shouldReturnMinusOneAfterRedisMigration() {
+            adapter.handleWebhookStatusUpdate("CA001", FROM, TO, "ringing",     TENANT_ID);
+            adapter.handleWebhookStatusUpdate("CA002", FROM, TO, "in-progress", TENANT_ID);
 
-            assertThat(adapter.getActiveSessionCount()).isEqualTo(2);
-        }
-
-        @Test
-        @DisplayName("pusta mapa sesji zwraca 0")
-        void shouldReturnZeroForEmptyState() {
-            assertThat(adapter.getActiveSessionCount()).isEqualTo(0);
+            // getActiveSessionCount() zwraca -1 po migracji na Redis.
+            // Skanowanie wszystkich kluczy call-session:* byłoby operacją O(N) na keyspace.
+            assertThat(adapter.getActiveSessionCount()).isEqualTo(-1);
         }
     }
 

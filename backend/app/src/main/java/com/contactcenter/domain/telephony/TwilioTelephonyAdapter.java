@@ -6,12 +6,15 @@ import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.service.TwilioRecordingDownloadService;
+import com.contactcenter.infrastructure.config.RedisConfig;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
 import com.twilio.Twilio;
 import com.twilio.exception.ApiException;
 import com.twilio.rest.api.v2010.account.Call;
 import com.twilio.rest.api.v2010.account.IncomingPhoneNumber;
+import com.twilio.rest.api.v2010.account.call.Recording;
 import com.twilio.type.PhoneNumber;
 import com.twilio.type.Twiml;
 import jakarta.annotation.PostConstruct;
@@ -19,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -27,7 +31,8 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Implementacja adaptera telefonii oparta na Twilio Programmable Voice REST API.
@@ -38,14 +43,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * a {@link MockTelephonyAdapter} pozostaje jedyną implementacją.
  *
  * <h2>Stan sesji</h2>
- * <p>Stan sesji połączeń jest przechowywany lokalnie w {@link ConcurrentHashMap}.
+ * <p>Stan sesji połączeń jest przechowywany w Redis (klucz: {@code call-session:{callSid}}, TTL 24h).
  * Twilio jest źródłem prawdy o statusie połączenia – zmiany statusu docierają
- * przez webhook ({@code POST /api/telephony/webhook/twilio}) i aktualizują
- * lokalny stan. Mapa pełni rolę cache'a do szybkiego odczytu przez {@link #getCallSession}.
+ * przez webhook ({@code POST /api/telephony/webhook/twilio}) i aktualizują sesję w Redis.
+ * Przechowywanie w Redis zapewnia przeżycie restartu aplikacji i poprawną obsługę
+ * callbacków Twilio docierających do ~2 min po zakończeniu rozmowy.
  *
  * <h2>Hold/Mute</h2>
  * <p>Hold realizowany przez modyfikację TwiML (wstrzymanie strumienia audio).
- * Mute realizowany przez {@link CallUpdater} z parametrem {@code muted=true}.
+ * Mute realizowany przez {@link com.twilio.rest.api.v2010.account.CallUpdater} z parametrem {@code muted=true}.
  *
  * <h2>Transfer</h2>
  * <p>Blind transfer: przekierowanie przez aktualizację TwiML z {@code <Dial>}.
@@ -53,8 +59,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * następnie {@link #bridgeCalls} łączy obie nogi przez {@code <Conference>}.
  *
  * <h2>Bezpieczeństwo wątków</h2>
- * <p>Twilio SDK jest thread-safe. Lokalny {@code sessions} ConcurrentHashMap
- * zapewnia bezpieczeństwo współbieżnych odczytów i zapisów.
+ * <p>Twilio SDK jest thread-safe. Operacje Redis przez {@code RedisTemplate} są thread-safe.
  */
 @Slf4j
 @Primary
@@ -63,17 +68,16 @@ import java.util.concurrent.ConcurrentHashMap;
 @ConditionalOnProperty(name = "twilio.enabled", havingValue = "true")
 public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
+  /** Prefix klucza Redis dla sesji połączeń: {@code call-session:{callSid}}. */
+  private static final String SESSION_KEY_PREFIX = "call-session:";
+
   private final TwilioProperties twilioProperties;
   private final TelephonyEventPublisher eventPublisher;
   private final ContactRepository contactRepository;
   private final CustomerRepository customerRepository;
   private final TenantRepository tenantRepository;
-
-  /**
-   * Lokalny cache sesji: callId (Twilio SID) → CallSession.
-   * Aktualizowany przez operacje adaptera i przez webhook handler.
-   */
-  private final ConcurrentHashMap<String, CallSession> sessions = new ConcurrentHashMap<>();
+  private final RedisTemplate<String, Object> redisTemplate;
+  private final TwilioRecordingDownloadService recordingDownloadService;
 
   // =========================================================================
   // Inicjalizacja
@@ -249,7 +253,10 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
       String callbackBase = StringUtils.hasText(callbackUrl) ? callbackUrl : null;
       StringBuilder conferenceAttrs = new StringBuilder();
-      conferenceAttrs.append("startConferenceOnEnter=\"false\"");
+      // endConferenceOnExit="true" – klient rozłączając się (lub po rozłączeniu przez hangupCall)
+      // kończy konferencję, co wyzwala callbacki /conference i /recording po stronie Twilio.
+      // Bez tego atrybutu konferencja trwałaby do czasu wyjścia ostatniego uczestnika.
+      conferenceAttrs.append("startConferenceOnEnter=\"false\" endConferenceOnExit=\"true\"");
       if (callbackBase != null) {
         String confStatusCallbackUrl = callbackBase + "/conference?tenantId=" + tenantId;
         conferenceAttrs.append(" statusCallback=\"").append(confStatusCallbackUrl).append("\"");
@@ -298,7 +305,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .direction("OUTBOUND")
           .build();
 
-      sessions.put(callSid, session);
+      saveSession(session);
 
       // Publikuj CALL_OUTBOUND (nie CALL_INCOMING) – frontend odróżnia kierunek po typie eventu
       eventPublisher.publishOutbound(callSid, contactId, tenantId, agentId, from, to);
@@ -362,7 +369,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         .withStatus(CallSession.CallStatus.ACTIVE)
         .withAnsweredAt(Instant.now())
         .withAgentId(agentId != null ? agentId : session.getAgentId());
-    sessions.put(callId, updated);
+    saveSession(updated);
 
     log.info("[TwilioAdapter] Połączenie odebrane (lokalny stan): callId={}, tenant={}, agentId={}",
         callId, updated.getTenantId(), updated.getAgentId());
@@ -462,14 +469,17 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         agentClientId, conferenceName);
 
     try {
-      Call.creator(
+      String agentCallSid = Call.creator(
           new PhoneNumber("client:" + agentClientId),
           new PhoneNumber(resolvePhoneNumber(session.getTenantId())),
           new Twiml(agentTwiml)
-      ).create();
+      ).create().getSid();
 
-      log.info("[TwilioAdapter] Połączenie do agenta zainicjowane: agentClientId={}, conference={}",
-          agentClientId, conferenceName);
+      log.info("[TwilioAdapter] Połączenie do agenta zainicjowane: agentClientId={}, conference={}, agentCallSid={}",
+          agentClientId, conferenceName, agentCallSid);
+
+      // Zapisz SID nogi agenta w sesji Redis – wymagany do rozłączenia CA_agent przez REST API w hangupCall()
+      saveSession(session.withAgentCallSid(agentCallSid));
     } catch (ApiException e) {
       log.error("[TwilioAdapter] Błąd Twilio API przy zestawianiu połączenia do agenta: " +
                 "agentClientId={}, conference={}, code={}, message={}",
@@ -522,11 +532,34 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       }
     }
 
+    // Rozłącz nogę agenta (CA_agent) – noga klienta (CA_klient) jest już zakończona powyżej.
+    // CA_agent ma endConferenceOnExit="true", więc bez jej jawnego zakończenia konferencja
+    // pozostałaby aktywna po stronie Twilio i callbacki /conference + /recording nigdy by nie dotarły.
+    String agentCallSid = session.getAgentCallSid();
+    if (agentCallSid != null) {
+      try {
+        Call.updater(agentCallSid)
+            .setStatus(Call.UpdateStatus.COMPLETED)
+            .update();
+        log.info("[TwilioAdapter] Noga agenta rozłączona: agentCallSid={}, contactId={}",
+            agentCallSid, session.getContactId());
+      } catch (ApiException e) {
+        if (e.getCode() == 20404 || e.getStatusCode() == 404) {
+          log.debug("[TwilioAdapter] Noga agenta {} już zakończona ({})", agentCallSid, e.getCode());
+        } else {
+          log.warn("[TwilioAdapter] Błąd przy rozłączeniu nogi agenta: agentCallSid={}, code={}, msg={}",
+              agentCallSid, e.getCode(), e.getMessage());
+        }
+      }
+    } else {
+      log.warn("[TwilioAdapter] Brak agentCallSid w sesji – noga agenta nie zostanie rozłączona przez REST API. callId={}", callId);
+    }
+
     Instant endedAt = Instant.now();
     CallSession updated = session
         .withStatus(CallSession.CallStatus.ENDED)
         .withEndedAt(endedAt);
-    sessions.put(callId, updated);
+    saveSession(updated);
 
     if (updated.getContactId() != null) {
       contactRepository.updateContactStatusOnTelephonyEvent(
@@ -536,6 +569,14 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     eventPublisher.publishHangup(callId, updated.getContactId(),
         updated.getTenantId(), updated.getAgentId(),
         updated.getFrom(), updated.getTo());
+
+    // Naprawa 3: Fallback pobierania nagrania po 90 sekundach.
+    // Twilio wysyła recordingStatusCallback asynchronicznie (~2 min po zakończeniu).
+    // Jeśli callback nie dotrze (restart, 502, timeout), nagranie nigdy nie trafia do DB.
+    // Rozwiązanie: po hangup planujemy sprawdzenie nagrania przez Twilio REST API po 90s.
+    if (twilioProperties.isRecordingEnabled() && updated.getContactId() != null) {
+      scheduleRecordingFallback(callId, updated.getContactId(), updated.getTenantId());
+    }
   }
 
   /**
@@ -583,7 +624,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     CallSession.CallStatus newStatus = hold
         ? CallSession.CallStatus.ON_HOLD
         : CallSession.CallStatus.ACTIVE;
-    sessions.put(callId, session.withStatus(newStatus));
+    saveSession(session.withStatus(newStatus));
   }
 
   /**
@@ -691,8 +732,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         .withEndedAt(now);
     CallSession active = session2.withStatus(CallSession.CallStatus.ACTIVE);
 
-    sessions.put(callId1, transferred);
-    sessions.put(callId2, active);
+    saveSession(transferred);
+    saveSession(active);
 
     eventPublisher.publishTransferred(
         callId1, session1.getTenantId(), session1.getAgentId(),
@@ -734,9 +775,9 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     CallSession.CallStatus mappedStatus = mapTwilioStatus(callStatus);
 
-    CallSession existing = sessions.get(callSid);
+    CallSession existing = getSession(callSid);
 
-    // Połączenie wychodzące = sesja istniała w mapie przed nadejściem webhooka
+    // Połączenie wychodzące = sesja istniała w Redis przed nadejściem webhooka
     // (wstawiona przez initiateCall). Dla przychodzących sesja jest tworzona tutaj.
     boolean isOutbound = existing != null;
 
@@ -757,7 +798,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .startedAt(Instant.now())
           .contactId(contactId)
           .build();
-      sessions.put(callSid, existing);
+      saveSession(existing);
       log.debug("[TwilioAdapter] Nowa sesja z webhooka: callSid={}, contactId={}, status={}",
           callSid, contactId, mappedStatus);
 
@@ -782,7 +823,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         webhookEndedAt = Instant.now();
         updated = updated.withEndedAt(webhookEndedAt);
       }
-      sessions.put(callSid, updated);
+      saveSession(updated);
 
       // OUTBOUND race condition fix:
       // Gdy klient odbierze telefon, Twilio wysyła StatusCallback z CallStatus=in-progress.
@@ -823,7 +864,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
               .orElse(null);
           if (recoveredContactId != null) {
             updated = updated.withContactId(recoveredContactId);
-            sessions.put(callSid, updated);
+            saveSession(updated);
             log.info("[TwilioAdapter] Odtworzono contactId z DB dla outbound: callSid={}, contactId={}",
                 callSid, recoveredContactId);
           }
@@ -857,12 +898,14 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
   /**
    * Zwraca liczbę aktywnych sesji (dla testów i monitoringu).
+   *
+   * <p>Po migracji na Redis skanowanie wszystkich kluczy {@code call-session:*} byłoby
+   * kosztowną operacją O(N) na całym keyspace. Metoda zwraca -1 jako sygnał że
+   * metryka nie jest dostępna po stronie aplikacji – monitoring powinien używać
+   * dedykowanego endpointu lub Redis SCAN na potrzeby testów.
    */
   public int getActiveSessionCount() {
-    return (int)sessions.values().stream()
-        .filter(s -> s.getStatus() != CallSession.CallStatus.ENDED
-            && s.getStatus() != CallSession.CallStatus.TRANSFERRED)
-        .count();
+    return -1;
   }
 
   /**
@@ -880,7 +923,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    */
   public void registerIncomingCall(String callSid, String from, String to,
                                     UUID tenantId, UUID contactId) {
-    sessions.computeIfAbsent(callSid, sid -> {
+    // Idempotentne – nie nadpisujemy istniejącej sesji (computeIfAbsent semantics przez Redis)
+    if (getSession(callSid) == null) {
       CallSession session = CallSession.builder()
           .callId(callSid)
           .tenantId(tenantId)
@@ -890,15 +934,134 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .startedAt(Instant.now())
           .contactId(contactId)
           .build();
+      saveSession(session);
       log.info("[TwilioAdapter] Zarejestrowano połączenie przychodzące: callSid={}, " +
                "contactId={}, tenant={}", callSid, contactId, tenantId);
-      return session;
-    });
+    }
   }
 
   // =========================================================================
   // Prywatne metody pomocnicze
   // =========================================================================
+
+  // =========================================================================
+  // Fallback nagrania (Naprawa 3)
+  // =========================================================================
+
+  /**
+   * Planuje asynchroniczne sprawdzenie nagrania przez Twilio REST API po 90 sekundach.
+   *
+   * <p>Twilio wysyła {@code recordingStatusCallback} asynchronicznie (~2 min po zakończeniu).
+   * Jeśli callback nie dotrze (restart aplikacji, 502, timeout sieci), nagranie nigdy
+   * nie trafi do DB. Ta metoda stanowi zabezpieczenie fallback: po 90s odpytuje
+   * Twilio Recording API i jeśli znajdzie nagranie a {@code recording_url} w DB jest null,
+   * pobiera je i zapisuje.
+   *
+   * <p>TenantContext jest przechwytywany przed fork wątku (snapshot), a odtwarzany
+   * w wątku roboczym ({@code restore}) z obowiązkowym {@code clear()} w {@code finally}.
+   *
+   * @param callSid   Twilio Call SID
+   * @param contactId UUID kontaktu powiązanego z połączeniem
+   * @param tenantId  UUID tenanta
+   */
+  private void scheduleRecordingFallback(String callSid, UUID contactId, UUID tenantId) {
+    TenantContext.Snapshot snapshot = TenantContext.snapshot();
+
+    CompletableFuture.delayedExecutor(90, TimeUnit.SECONDS).execute(() -> {
+      TenantContext.restore(snapshot);
+      try {
+        log.info("[TwilioAdapter] Fallback nagrania: sprawdzam Twilio Recording API dla callSid={}, " +
+                 "contactId={}, tenantId={}", callSid, contactId, tenantId);
+
+        // Sprawdź czy nagranie nie zostało już zapisane przez normalny webhook
+        boolean alreadySaved = contactRepository.findRecordingUrl(contactId, tenantId)
+            .filter(url -> url != null && !url.isBlank())
+            .isPresent();
+        if (alreadySaved) {
+          log.info("[TwilioAdapter] Fallback nagrania: recording_url już istnieje, pomijam. " +
+                   "callSid={}, contactId={}", callSid, contactId);
+          return;
+        }
+
+        // Pobierz nagrania przez Twilio call.Recording REST API
+        Iterable<Recording> recordings;
+        try {
+          recordings = Recording.reader(callSid).read();
+        } catch (ApiException e) {
+          // Nagranie może nie istnieć gdy rozmowa trwała <1s lub nagrywanie było wyłączone
+          log.info("[TwilioAdapter] Fallback nagrania: brak nagrań w Twilio API dla callSid={} " +
+                   "(code={}, message={})", callSid, e.getCode(), e.getMessage());
+          return;
+        }
+
+        if (recordings == null || !recordings.iterator().hasNext()) {
+          log.info("[TwilioAdapter] Fallback nagrania: Twilio nie zwrócił nagrań dla callSid={}. " +
+                   "Rozmowa była zbyt krótka lub nagrywanie wyłączone.", callSid);
+          return;
+        }
+
+        Recording recording = recordings.iterator().next();
+        String recordingSid = recording.getSid();
+        // Twilio Recording URL – dopisanie .mp3 daje bezpośredni link do pliku audio
+        String recordingUrl = "https://api.twilio.com/2010-04-01/Accounts/"
+            + twilioProperties.getAccountSid()
+            + "/Recordings/" + recordingSid + ".mp3";
+
+        log.info("[TwilioAdapter] Fallback nagrania: znaleziono nagranie – pobieranie. " +
+                 "callSid={}, recordingSid={}, contactId={}", callSid, recordingSid, contactId);
+
+        // Deleguj pobranie i upload do istniejącego serwisu (ten sam flow co normalny webhook)
+        recordingDownloadService.downloadAndStore(
+            recordingUrl, recordingSid, callSid, null, contactId, tenantId);
+
+      } catch (Exception e) {
+        log.error("[TwilioAdapter] Fallback nagrania: nieoczekiwany błąd dla callSid={}, " +
+                  "contactId={}: {}", callSid, contactId, e.getMessage(), e);
+      } finally {
+        TenantContext.clear();
+      }
+    });
+  }
+
+  // =========================================================================
+  // Metody zarządzania sesjami w Redis
+  // =========================================================================
+
+  /**
+   * Zapisuje sesję połączenia w Redis z TTL 24h.
+   *
+   * <p>TTL 24h pokrywa najdłuższe możliwe połączenie (Twilio max ~4h) plus bufor
+   * na callbacki docierające do ~2 min po zakończeniu rozmowy.
+   *
+   * @param session sesja do zapisania
+   */
+  private void saveSession(CallSession session) {
+    String key = SESSION_KEY_PREFIX + session.getCallId();
+    redisTemplate.opsForValue().set(key, session, RedisConfig.TTL_CALL_SESSION);
+  }
+
+  /**
+   * Odczytuje sesję połączenia z Redis.
+   *
+   * @param callId Twilio Call SID
+   * @return sesja lub {@code null} gdy nie istnieje
+   */
+  private CallSession getSession(String callId) {
+    Object raw = redisTemplate.opsForValue().get(SESSION_KEY_PREFIX + callId);
+    if (raw instanceof CallSession session) {
+      return session;
+    }
+    return null;
+  }
+
+  /**
+   * Usuwa sesję z Redis.
+   *
+   * @param callId Twilio Call SID
+   */
+  private void deleteSession(String callId) {
+    redisTemplate.delete(SESSION_KEY_PREFIX + callId);
+  }
 
   private CallSession executeBlindTransfer(String callId, String target, CallSession session) {
     try {
@@ -921,7 +1084,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     CallSession transferred = session
         .withStatus(CallSession.CallStatus.TRANSFERRED)
         .withEndedAt(now);
-    sessions.put(callId, transferred);
+    saveSession(transferred);
 
     log.info("[TwilioAdapter] Blind transfer wykonany: callId={}, target={}", callId, target);
 
@@ -935,7 +1098,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
   private CallSession executeAttendedTransfer(String callId, String target, CallSession session) {
     // Wstrzymaj oryginalne połączenie
-    sessions.put(callId, session.withStatus(CallSession.CallStatus.ON_HOLD));
+    saveSession(session.withStatus(CallSession.CallStatus.ON_HOLD));
 
     try {
       // Inicjuj nowe połączenie do target (druga noga)
@@ -958,7 +1121,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .startedAt(now)
           .build();
 
-      sessions.put(secondLegSid, secondLeg);
+      saveSession(secondLeg);
 
       log.info("[TwilioAdapter] Attended transfer – 2nd leg: callId={}, secondLegSid={}, target={}",
           callId, secondLegSid, target);
@@ -972,7 +1135,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     }
     catch (ApiException e) {
       // Przywróć oryginalne połączenie do ACTIVE gdy inicjacja 2nd leg się nie udała
-      sessions.put(callId, session.withStatus(CallSession.CallStatus.ACTIVE));
+      saveSession(session.withStatus(CallSession.CallStatus.ACTIVE));
       log.error("[TwilioAdapter] Błąd Twilio API przy attended transfer callId={}: {}",
           callId, e.getMessage(), e);
       throw new TelephonyException(callId,
@@ -981,21 +1144,27 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   }
 
   private CallSession requireSession(String callId) {
-    CallSession session = sessions.get(callId);
+    CallSession session = getSession(callId);
     if (session == null) {
       // Fallback: callId may be a contactId (UUID from DB) sent by the frontend.
-      // The sessions map is keyed by Twilio callSid (CA...), so we scan values.
+      // After Redis migration we cannot scan values efficiently.
+      // Instead, resolve callSid from DB via contactId, then look up by callSid.
       try {
         UUID contactId = UUID.fromString(callId);
-        session = sessions.values().stream()
-            .filter(s -> contactId.equals(s.getContactId()))
-            .findFirst()
-            .orElse(null);
+        UUID tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+          session = contactRepository.findCallSidByContactId(contactId, tenantId)
+              .map(this::getSession)
+              .orElse(null);
+        }
       } catch (IllegalArgumentException ignored) {
         // callId is not a valid UUID — not a contactId, skip fallback
+      } catch (Exception e) {
+        log.debug("[TwilioAdapter] Błąd lookup callSid po contactId: callId={}, error={}",
+            callId, e.getMessage());
       }
     }
-    // Fallback: sesja może nie istnieć w pamięci JVM gdy StatusCallback nie dotarł jeszcze.
+    // Fallback: sesja może nie istnieć w Redis gdy StatusCallback nie dotarł jeszcze.
     // Próbujemy odtworzyć sesję na podstawie callSid z DB (tabela contact, pole channelMetadata).
     if (session == null && callId.startsWith("CA")) {
       session = tryRestoreSessionFromDb(callId);
@@ -1007,12 +1176,12 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   }
 
   /**
-   * Próbuje odtworzyć sesję połączenia z bazy danych gdy nie ma jej w pamięci JVM.
+   * Próbuje odtworzyć sesję połączenia z bazy danych gdy nie ma jej w Redis.
    *
    * <p>Sytuacja może wystąpić gdy:
    * <ul>
    *   <li>StatusCallback od Twilio nie dotarł jeszcze przed akcją agenta</li>
-   *   <li>Aplikacja została zrestartowana po nawiązaniu połączenia (sesja utracona z ConcurrentHashMap)</li>
+   *   <li>Redis był niedostępny przez krótki czas i sesja wygasła (TTL 24h)</li>
    * </ul>
    *
    * @param callSid Twilio Call SID (CA...)
@@ -1031,8 +1200,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
                 .startedAt(Instant.now())
                 .contactId(contactId)
                 .build();
-            sessions.put(callSid, restored);
-            log.warn("[TwilioAdapter] Sesja odtworzona z DB (brak w pamięci): callSid={}, " +
+            saveSession(restored);
+            log.warn("[TwilioAdapter] Sesja odtworzona z DB (brak w Redis): callSid={}, " +
                      "contactId={}, tenant={}", callSid, contactId, tenantId);
             return restored;
           })

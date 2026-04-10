@@ -1,8 +1,10 @@
 package com.contactcenter.domain.telephony;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.With;
+import lombok.extern.jackson.Jacksonized;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -15,9 +17,17 @@ import java.util.UUID;
  *
  * <p>Immutable (Lombok @With do tworzenia zmodyfikowanych kopii).
  */
+/**
+ * Adnotacje JSON wymagane do serializacji/deserializacji przez Jackson w Redis.
+ * {@code @Jacksonized} generuje kompatybilny z Jackson builder (wymagany przy @Builder).
+ * {@code @JsonIgnoreProperties(ignoreUnknown = true)} zabezpiecza deserializację
+ * gdy schemat klasy zmieni się między wersjami aplikacji (stara sesja w Redis).
+ */
 @Getter
 @Builder
 @With
+@Jacksonized
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CallSession {
 
     /** Unikalny identyfikator sesji połączenia. */
@@ -65,6 +75,14 @@ public class CallSession {
      * traktuj null jako INBOUND (bezpieczny fallback zachowujący dotychczasowe zachowanie).
      */
     private final String direction;
+
+    /**
+     * Twilio Call SID nogi agenta (CA_...) tworzonej przez {@code dialAgentIntoConference()}.
+     *
+     * <p>Wymagany do rozłączenia nogi agenta przez REST API w {@code hangupCall()}.
+     * Null dopóki agent nie dołączył do konferencji lub gdy adapter jest mock.
+     */
+    private final String agentCallSid;
 
     // =========================================================================
     // Enum statusów

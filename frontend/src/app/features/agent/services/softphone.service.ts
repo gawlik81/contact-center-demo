@@ -1,6 +1,14 @@
 import { Injectable, inject, signal, OnDestroy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, catchError, of, interval, switchMap, Subscription, firstValueFrom } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  of,
+  interval,
+  switchMap,
+  Subscription,
+  firstValueFrom,
+} from 'rxjs';
 import { Device, Call as TwilioCall } from '@twilio/voice-sdk';
 import { CallSession } from '../models/call-session.model';
 import { CallIncomingPayload, ContactAssignedPayload } from '../models/ws-event.model';
@@ -50,7 +58,10 @@ export class SoftphoneService implements OnDestroy {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn('[SoftphoneService] Nie udało się pobrać voice-token — Twilio Device nie zostanie zainicjalizowany.', msg);
+      console.warn(
+        '[SoftphoneService] Nie udało się pobrać voice-token — Twilio Device nie zostanie zainicjalizowany.',
+        msg,
+      );
       this.twilioDeviceError.set(`Brak tokenu: ${msg}`);
       return;
     }
@@ -109,10 +120,15 @@ export class SoftphoneService implements OnDestroy {
       session !== null && (session.state === 'RINGING' || session.state === 'ACTIVE');
 
     if (shouldAutoAccept) {
-      console.log('[SoftphoneService] Auto-accepting Twilio incoming call for contact:', session?.contactId);
+      console.log(
+        '[SoftphoneService] Auto-accepting Twilio incoming call for contact:',
+        session?.contactId,
+      );
       call.accept();
     } else {
-      console.warn('[SoftphoneService] Incoming Twilio call received but no active softphone session — rejecting.');
+      console.warn(
+        '[SoftphoneService] Incoming Twilio call received but no active softphone session — rejecting.',
+      );
       call.reject();
     }
   }
@@ -143,9 +159,8 @@ export class SoftphoneService implements OnDestroy {
   // ── Call state machine ─────────────────────────────────────────────────────
 
   incomingCall(payload: CallIncomingPayload | ContactAssignedPayload): void {
-    const customerPhone = 'customerPhone' in payload
-      ? payload.customerPhone
-      : payload.customerIdentifier;
+    const customerPhone =
+      'customerPhone' in payload ? payload.customerPhone : payload.customerIdentifier;
     const queueName = 'queueName' in payload ? payload.queueName : '';
     this.clearTimers();
     this.session.set({
@@ -177,7 +192,9 @@ export class SoftphoneService implements OnDestroy {
       this.acceptIncomingCall();
     }
 
-    this.answerCallHttp(s.contactId).pipe(catchError(() => of(null))).subscribe();
+    this.answerCallHttp(s.contactId)
+      .pipe(catchError(() => of(null)))
+      .subscribe();
   }
 
   hangupCall(): void {
@@ -190,7 +207,9 @@ export class SoftphoneService implements OnDestroy {
     // Optimistically update UI state; fire-and-forget the HTTP request
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'ENDED' });
-    this.hangupCallHttp(s.contactId).pipe(catchError(() => of(null))).subscribe();
+    this.hangupCallHttp(s.contactId)
+      .pipe(catchError(() => of(null)))
+      .subscribe();
     this.cleanupTimeout = setTimeout(() => {
       this.session.set(null);
       this.activeCall = null;
@@ -212,8 +231,16 @@ export class SoftphoneService implements OnDestroy {
       return;
     }
     this.stopDurationTimer();
-    // Disconnect the Twilio call leg on the agent side if still active
-    if (this.activeCall) {
+    // Disconnect the Twilio call leg on the agent side if still active.
+    // disconnectAll() covers outbound calls where activeCall reference may be null
+    // (the outbound leg is owned by the Device, not stored in activeCall).
+    if (this.twilioDevice) {
+      try {
+        this.twilioDevice.disconnectAll();
+      } catch {
+        // ignore — device may already be in a disconnected state
+      }
+    } else if (this.activeCall) {
       try {
         this.activeCall.disconnect();
       } catch {
@@ -232,7 +259,9 @@ export class SoftphoneService implements OnDestroy {
     this.clearTimers();
     this.session.set(null);
     this.rejectIncomingCall();
-    this.hangupCallHttp(s.contactId).pipe(catchError(() => of(null))).subscribe();
+    this.hangupCallHttp(s.contactId)
+      .pipe(catchError(() => of(null)))
+      .subscribe();
   }
 
   toggleMute(): void {
@@ -240,7 +269,9 @@ export class SoftphoneService implements OnDestroy {
     if (!s || (s.state !== 'ACTIVE' && s.state !== 'ON_HOLD')) return;
     const newMuted = !s.isMuted;
     this.session.set({ ...s, isMuted: newMuted });
-    this.muteCallHttp(s.contactId, newMuted).pipe(catchError(() => of(null))).subscribe();
+    this.muteCallHttp(s.contactId, newMuted)
+      .pipe(catchError(() => of(null)))
+      .subscribe();
   }
 
   toggleHold(): void {
@@ -249,7 +280,9 @@ export class SoftphoneService implements OnDestroy {
     if (s.state === 'ACTIVE') {
       this.stopDurationTimer();
       this.session.set({ ...s, state: 'ON_HOLD', holdStartedAt: new Date() });
-      this.holdCallHttp(s.contactId, true).pipe(catchError(() => of(null))).subscribe();
+      this.holdCallHttp(s.contactId, true)
+        .pipe(catchError(() => of(null)))
+        .subscribe();
     } else if (s.state === 'ON_HOLD') {
       const holdMs = s.holdStartedAt ? new Date().getTime() - s.holdStartedAt.getTime() : 0;
       const addedHoldSec = Math.floor(holdMs / 1000);
@@ -260,7 +293,9 @@ export class SoftphoneService implements OnDestroy {
         holdDuration: s.holdDuration + addedHoldSec,
       });
       this.startDurationTimer();
-      this.holdCallHttp(s.contactId, false).pipe(catchError(() => of(null))).subscribe();
+      this.holdCallHttp(s.contactId, false)
+        .pipe(catchError(() => of(null)))
+        .subscribe();
     }
   }
 

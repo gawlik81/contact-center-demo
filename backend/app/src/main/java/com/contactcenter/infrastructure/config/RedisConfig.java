@@ -56,6 +56,8 @@ public class RedisConfig {
     public static final Duration TTL_RATE_LIMIT       = Duration.ofMinutes(15);
     public static final Duration TTL_VOICEBOT_SESSION = Duration.ofMinutes(15);
     public static final Duration TTL_REPORT_CACHE     = Duration.ofMinutes(5);
+    /** TTL sesji połączeń Twilio: 24h pokrywa najdłuższe połączenie + 2 min bufor na callbacki. */
+    public static final Duration TTL_CALL_SESSION     = Duration.ofHours(24);
 
     /**
      * StringRedisTemplate – klucze i wartości serializowane jako String (UTF-8).

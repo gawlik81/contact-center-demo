@@ -9,8 +9,8 @@ $text-primary: #1e293b;
 $text-secondary: #64748b;
 $text-muted: #94a3b8;
 $brand: #1a56db;
-$danger: #ef4444;
-$success: #22c55e;
+$danger: #c62828;
+$success: #2e7d32;
 
 // ===== WS / Limit Banners =====
 
@@ -44,8 +44,12 @@ $success: #22c55e;
     span {
       animation: blink 1.2s infinite;
 
-      &:nth-child(2) { animation-delay: 0.2s; }
-      &:nth-child(3) { animation-delay: 0.4s; }
+      &:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      &:nth-child(3) {
+        animation-delay: 0.4s;
+      }
     }
   }
 }
@@ -82,8 +86,14 @@ $success: #22c55e;
 }
 
 @keyframes blink {
-  0%, 80%, 100% { opacity: 0; }
-  40% { opacity: 1; }
+  0%,
+  80%,
+  100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
 }
 
 // ===== Host element fills the entire shell__content area =====
@@ -127,7 +137,7 @@ $success: #22c55e;
     justify-content: space-between;
     padding: 0 1.5rem;
     background: $surface;
-    border-bottom: 2px solid $border;
+    border-bottom: 1px solid $border;
     flex-shrink: 0;
     gap: 1rem;
     height: 44px; // fixed compact height — more space for contacts below
@@ -158,8 +168,12 @@ $success: #22c55e;
     scrollbar-width: thin;
     scrollbar-color: $border transparent;
 
-    &::-webkit-scrollbar { width: 4px; }
-    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
     &::-webkit-scrollbar-thumb {
       background: $border;
       border-radius: 2px;
@@ -205,8 +219,12 @@ $success: #22c55e;
     scrollbar-width: thin;
     scrollbar-color: $border transparent;
 
-    &::-webkit-scrollbar { width: 4px; }
-    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
     &::-webkit-scrollbar-thumb {
       background: $border;
       border-radius: 2px;
@@ -279,7 +297,8 @@ $success: #22c55e;
     width: 1rem;
     height: 1rem;
     flex-shrink: 0;
-    transition: transform var(--duration-fast, 120ms) var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+    transition: transform var(--duration-fast, 120ms)
+      var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   }
 
   &__spinner {
@@ -332,7 +351,7 @@ $success: #22c55e;
     }
 
     &--active {
-      background: #eff6ff;
+      background: #e3f2fd;
       font-weight: 600;
     }
   }
@@ -367,8 +386,8 @@ $success: #22c55e;
   color: $text-secondary;
 
   &__ws-indicator {
-    width: 7px;
-    height: 7px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
     background: $danger;
     flex-shrink: 0;
@@ -410,7 +429,7 @@ $success: #22c55e;
     min-width: 18px;
     height: 18px;
     padding: 0 4px;
-    background: $danger;
+    background: #1565c0;
     color: #fff;
     font-size: 0.6875rem;
     font-weight: 700;
@@ -443,7 +462,9 @@ $success: #22c55e;
   background: $surface-2;
   border: 1px solid $border;
   border-radius: var(--radius-md, 6px);
-  transition: background var(--duration-fast, 120ms), box-shadow var(--duration-fast, 120ms);
+  transition:
+    background var(--duration-fast, 120ms),
+    box-shadow var(--duration-fast, 120ms);
   cursor: default;
 
   &:hover {
@@ -494,7 +515,7 @@ $success: #22c55e;
   }
 
   &__queue {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: $text-muted;
   }
 
@@ -568,7 +589,9 @@ $success: #22c55e;
     height: 42px;
     scrollbar-width: none;
 
-    &::-webkit-scrollbar { display: none; }
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   // Tab content area — fills all remaining space
@@ -634,9 +657,15 @@ $success: #22c55e;
   }
 
   // Channel-specific active indicator color
-  &--phone#{&}--active::after { background: #2563eb; }
-  &--chat#{&}--active::after   { background: #16a34a; }
-  &--email#{&}--active::after  { background: #9333ea; }
+  &--phone#{&}--active::after {
+    background: #2563eb;
+  }
+  &--chat#{&}--active::after {
+    background: #16a34a;
+  }
+  &--email#{&}--active::after {
+    background: #9333ea;
+  }
 
   &__icon {
     width: 0.9375rem;
@@ -645,14 +674,16 @@ $success: #22c55e;
     opacity: 0.55;
     transition: opacity var(--duration-fast, 120ms);
 
-    .contact-tab--active & { opacity: 1; }
+    .contact-tab--active & {
+      opacity: 1;
+    }
   }
 
   &__name {
     flex: 0 1 auto;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100px;
+    max-width: 140px;
   }
 
   &__type-badge {
@@ -664,9 +695,18 @@ $success: #22c55e;
     text-transform: uppercase;
     flex-shrink: 0;
 
-    .contact-tab--phone & { background: #dbeafe; color: #1d4ed8; }
-    .contact-tab--chat &  { background: #dcfce7; color: #15803d; }
-    .contact-tab--email & { background: #f3e8ff; color: #7e22ce; }
+    .contact-tab--phone & {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+    .contact-tab--chat & {
+      background: #dcfce7;
+      color: #15803d;
+    }
+    .contact-tab--email & {
+      background: #f3e8ff;
+      color: #7e22ce;
+    }
   }
 
   &__close {
@@ -855,7 +895,9 @@ $success: #22c55e;
 // ===== Animations =====
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes menu-enter {
@@ -866,5 +908,12 @@ $success: #22c55e;
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

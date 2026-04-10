@@ -146,8 +146,13 @@ $warning: #f59e0b;
 
 // ===== Skeleton =====
 @keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 .skeleton-campaign {
@@ -197,7 +202,7 @@ $warning: #f59e0b;
     align-items: center;
     gap: 0.375rem;
     width: 100%;
-    padding: 0.4375rem 0.5625rem;
+    padding: 0.5rem 0.75rem;
     background: $surface-2;
     border: none;
     cursor: pointer;
@@ -323,8 +328,8 @@ $warning: #f59e0b;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 2.25rem;
+  height: 2.25rem;
   flex-shrink: 0;
   background: rgba(26, 86, 219, 0.1);
   color: $brand;
@@ -368,5 +373,14 @@ $warning: #f59e0b;
 
 // ===== Animations =====
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

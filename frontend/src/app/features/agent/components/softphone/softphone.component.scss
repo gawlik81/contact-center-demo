@@ -12,12 +12,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 24px 20px;
+  padding: 1.5rem 1.25rem;
   height: 100%;
   box-sizing: border-box;
   background: #fafafa;
   border-radius: 8px;
-  gap: 16px;
+  gap: 1rem;
   font-family: inherit;
 
   // ── State colour accents ────────────────────────────────
@@ -43,7 +43,7 @@
 
   &--idle {
     justify-content: center;
-    color: #9e9e9e;
+    color: #64748b;
   }
 
   // ── State icon ──────────────────────────────────────────
@@ -72,10 +72,10 @@
   &__state-label {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
+    gap: 0.5rem;
+    font-size: 0.875rem;
     font-weight: 600;
-    color: #424242;
+    color: #1e293b;
     margin: 0;
   }
 
@@ -84,7 +84,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 1rem;
     width: 100%;
   }
 
@@ -96,8 +96,8 @@
 
   // ── Avatar ───────────────────────────────────────────────
   &__avatar {
-    width: 72px;
-    height: 72px;
+    width: 4.5rem;
+    height: 4.5rem;
     border-radius: 50%;
     background: linear-gradient(135deg, #42a5f5 0%, #1565c0 100%);
     color: #fff;
@@ -138,26 +138,26 @@
 
   &__caller-name {
     margin: 0;
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 600;
-    color: #212121;
+    color: #1e293b;
   }
 
   &__caller-phone {
     margin: 4px 0 0;
-    font-size: 14px;
-    color: #616161;
+    font-size: 0.875rem;
+    color: #64748b;
     font-variant-numeric: tabular-nums;
   }
 
   &__caller-queue {
     margin: 4px 0 0;
-    font-size: 12px;
-    color: #9e9e9e;
+    font-size: 0.75rem;
+    color: #64748b;
 
     &--sm {
-      font-size: 12px;
-      color: #9e9e9e;
+      font-size: 0.75rem;
+      color: #64748b;
       margin: 0;
       width: 100%;
       text-align: left;
@@ -166,8 +166,8 @@
 
   // ── Action buttons (answer/reject) ───────────────────────
   &__btn {
-    width: 64px;
-    height: 64px;
+    width: 4rem;
+    height: 4rem;
     border-radius: 50%;
     border: none;
     cursor: pointer;
@@ -176,11 +176,11 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 600;
     transition:
-      transform 0.1s,
-      box-shadow 0.1s;
+      transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 120ms cubic-bezier(0.4, 0, 0.2, 1);
 
     svg {
       width: 28px;
@@ -223,13 +223,13 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    gap: 12px;
+    gap: 0.75rem;
   }
 
   &__active-header {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 0.625rem;
     width: 100%;
   }
 
@@ -255,9 +255,9 @@
   &__timer {
     font-size: 20px;
     font-weight: 700;
-    color: #212121;
+    color: #1e293b;
     font-variant-numeric: tabular-nums;
-    min-width: 64px;
+    min-width: 4rem;
     flex-shrink: 0;
   }
 
@@ -268,7 +268,7 @@
     overflow: hidden;
 
     .softphone__caller-name {
-      font-size: 14px;
+      font-size: 0.875rem;
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
@@ -276,7 +276,7 @@
     }
 
     .softphone__caller-phone {
-      font-size: 12px;
+      font-size: 0.75rem;
       margin: 0;
     }
   }
@@ -284,7 +284,7 @@
   // ── Control buttons ──────────────────────────────────────
   &__controls {
     display: flex;
-    gap: 12px;
+    gap: 0.75rem;
     width: 100%;
     justify-content: flex-start;
   }
@@ -295,17 +295,17 @@
     align-items: center;
     gap: 4px;
     padding: 10px 14px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid #e2e8f0;
     background: #fff;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 11px;
-    color: #424242;
+    font-size: 0.6875rem;
+    color: #1e293b;
     transition:
-      background 0.15s,
-      border-color 0.15s,
-      color 0.15s;
-    min-width: 64px;
+      background 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 4rem;
 
     svg {
       width: 20px;
@@ -313,8 +313,8 @@
     }
 
     &:hover {
-      background: #f5f5f5;
-      border-color: #bdbdbd;
+      background: #f8fafc;
+      border-color: #cbd5e1;
     }
 
     &--active {
@@ -367,29 +367,30 @@
   }
 
   // ── Hold ────────────────────────────────────────────────
+
   &__hold {
     display: flex;
     flex-direction: column;
     width: 100%;
-    gap: 12px;
+    gap: 0.75rem;
   }
 
   &__hold-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
     width: 100%;
   }
 
   &__hold-label {
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 600;
     color: #e65100;
     flex: 1;
   }
 
   &__hold-timer {
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 700;
     color: #f57c00;
     font-variant-numeric: tabular-nums;
@@ -406,13 +407,13 @@
   &__transfer-header {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.75rem;
   }
 
   &__transfer-title {
     font-size: 15px;
     font-weight: 600;
-    color: #212121;
+    color: #1e293b;
     flex: 1;
   }
 
@@ -440,30 +441,30 @@
 
   &__transfer-modes {
     display: flex;
-    gap: 8px;
+    gap: 0.5rem;
   }
 
   &__mode-btn {
     flex: 1;
     padding: 8px;
-    background: #f5f5f5;
-    border: 1px solid #e0e0e0;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
-    color: #616161;
-    transition: all 0.15s;
+    color: #64748b;
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
     &--active {
       background: #e3f2fd;
-      border-color: #1976d2;
+      border-color: #1565c0;
       color: #1565c0;
       font-weight: 600;
     }
 
     &:hover:not(&--active) {
-      background: #eeeeee;
+      background: #f1f5f9;
     }
   }
 
@@ -474,55 +475,55 @@
   }
 
   &__transfer-label {
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
-    color: #616161;
+    color: #64748b;
   }
 
   &__transfer-input {
     padding: 10px 12px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid #e2e8f0;
     border-radius: 6px;
-    font-size: 14px;
-    color: #212121;
+    font-size: 0.875rem;
+    color: #1e293b;
     width: 100%;
     box-sizing: border-box;
     outline: none;
-    transition: border-color 0.15s;
+    transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
     &:focus {
-      border-color: #1976d2;
-      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+      border-color: #1565c0;
+      box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.18);
     }
 
     &[aria-invalid='true'] {
-      border-color: #e53935;
+      border-color: #c62828;
     }
   }
 
   &__transfer-hint {
-    font-size: 11px;
-    color: #9e9e9e;
+    font-size: 0.6875rem;
+    color: #64748b;
   }
 
   &__transfer-submit {
     width: 100%;
     padding: 10px;
-    background: #1976d2;
+    background: #1565c0;
     color: #fff;
     border: none;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
     &:hover {
-      background: #1565c0;
+      background: #0d47a1;
     }
 
     &:disabled {
-      background: #bdbdbd;
+      background: #cbd5e1;
       cursor: not-allowed;
     }
 
@@ -535,10 +536,10 @@
     }
 
     &--cancel {
-      background: #757575;
+      background: #64748b;
 
       &:hover {
-        background: #616161;
+        background: #475569;
       }
     }
   }
@@ -557,19 +558,19 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 0.75rem;
     width: 100%;
     padding-top: 16px;
   }
 
   &__transferring-label {
-    font-size: 14px;
-    color: #616161;
+    font-size: 0.875rem;
+    color: #64748b;
     margin: 0;
   }
 
   &__transferring-target {
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 700;
     color: #7b1fa2;
     margin: 0;
@@ -578,7 +579,7 @@
   &__transferring-spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid #e0e0e0;
+    border: 3px solid #e2e8f0;
     border-top-color: #7b1fa2;
     border-radius: 50%;
     animation: softphone-spin 0.8s linear infinite;
@@ -596,7 +597,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
     padding-top: 16px;
   }
 
@@ -608,8 +609,8 @@
   }
 
   &__ended-duration {
-    font-size: 14px;
-    color: #616161;
+    font-size: 0.875rem;
+    color: #64748b;
     margin: 0;
   }
 
@@ -617,12 +618,12 @@
   &__idle-icon {
     width: 48px;
     height: 48px;
-    color: #bdbdbd;
+    color: #cbd5e1;
   }
 
   &__idle-text {
-    font-size: 14px;
-    color: #9e9e9e;
+    font-size: 0.875rem;
+    color: #64748b;
     margin: 0;
   }
 
@@ -664,5 +665,12 @@
       height: 16px;
       flex-shrink: 0;
     }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -1521,6 +1521,316 @@ Implementacja przez `updateStatus(callbackId, "CANCELLED", tenantId)` — reuży
 
 ---
 
+## MODUL: Zarządzanie przypisaniem agentów do kolejek (EPIC-14)
+
+### BE-043 – Model i repozytorium grup agentów (`AgentGroup`, `AgentGroupRepository`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** M
+**Zależy od:** DB-024
+
+**Opis:**
+Encja domenowa `AgentGroup` mapująca tabelę `agent_group` oraz repozytorium `AgentGroupRepository` z operacjami CRUD i zarządzaniem członkostwem.
+
+Nowy pakiet: `com.contactcenter.domain.agentgroup`
+
+Klasy do stworzenia:
+
+```java
+// Encja
+@Entity @Table(name = "agent_group")
+public class AgentGroup {
+    @Id UUID groupId;
+    UUID tenantId;
+    String name;
+    Instant createdAt;
+    Instant updatedAt;
+}
+```
+
+`AgentGroupRepository extends TenantAwareRepository` — natywny SQL (wzorzec zgodny z `QueueRepository`):
+- `PagedResponse<AgentGroup> findAllByTenantId(UUID tenantId, String name, int page, int size)` — z opcjonalnym filtrem ILIKE po `name`
+- `Optional<AgentGroup> findByIdAndTenantId(UUID groupId, UUID tenantId)`
+- `boolean existsByNameAndTenantId(String name, UUID tenantId)` — walidacja unikalności nazwy
+- `AgentGroup insert(AgentGroup group)`
+- `int update(AgentGroup group)` — aktualizuje `name` i `updated_at`
+- `int delete(UUID groupId, UUID tenantId)` — fizyczne usunięcie (grupy nie mają soft-delete; kaskada w DB usuwa `agent_group_member` i `queue_agent_group`)
+
+Zarządzanie członkostwem (operacje na `agent_group_member`):
+- `List<UUID> findMemberIds(UUID groupId, UUID tenantId)` — lista agentId w grupie
+- `void addMember(UUID groupId, UUID agentId)` — INSERT OR IGNORE (idempotentne)
+- `void removeMember(UUID groupId, UUID agentId)` — DELETE
+- `void replaceMembers(UUID groupId, UUID tenantId, List<UUID> agentIds)` — atomowy DELETE + INSERT w jednej transakcji
+
+Każda metoda wywołuje `assertSameTenant` i `setTenantContextInDb`.
+
+**Kryteria akceptacji:**
+- [ ] `findAllByTenantId` zwraca stronicowaną listę grup tenanta
+- [ ] `insert` z duplikatem nazwy w tym samym tenancie rzuca `DataIntegrityViolationException` (unique constraint z DB)
+- [ ] `delete` grupy kaskadowo usuwa z `agent_group_member` i `queue_agent_group` (weryfikacja przez test integracyjny)
+- [ ] `replaceMembers` jest atomowy: jeśli INSERT failduje, DELETE też się cofa
+- [ ] Brak cross-tenant leakage: `findByIdAndTenantId` z obcym `tenantId` zwraca `Optional.empty()`
+- [ ] Testy jednostkowe pokrywają: CRUD, duplikat nazwy, `replaceMembers`, cross-tenant
+
+---
+
+### BE-044 – CRUD REST API grup agentów (`AgentGroupController`, `AgentGroupService`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** M
+**Zależy od:** BE-043
+
+**Opis:**
+Warstwa serwisowa i REST controller zarządzania grupami agentów dla Supervisora.
+
+**Serwis:** `AgentGroupService` w pakiecie `com.contactcenter.domain.agentgroup`:
+- `PagedResponse<AgentGroupResponse> listGroups(UUID tenantId, String name, int page, int size)`
+- `AgentGroupResponse createGroup(UUID tenantId, CreateAgentGroupRequest req)`
+- `AgentGroupResponse updateGroup(UUID tenantId, UUID groupId, UpdateAgentGroupRequest req)`
+- `void deleteGroup(UUID tenantId, UUID groupId)`
+- `AgentGroupMembersResponse getMembers(UUID tenantId, UUID groupId)`
+- `AgentGroupMembersResponse replaceMembers(UUID tenantId, UUID groupId, List<UUID> agentIds)` — weryfikuje że każdy agentId należy do tenanta i ma rolę AGENT
+
+**DTO:**
+
+```java
+record CreateAgentGroupRequest(@NotBlank @Size(max=255) String name) {}
+record UpdateAgentGroupRequest(@NotBlank @Size(max=255) String name) {}
+record AgentGroupResponse(UUID groupId, String name, int memberCount, Instant createdAt, Instant updatedAt) {}
+record AgentGroupMembersResponse(UUID groupId, String groupName, List<AgentSummary> members) {}
+record AgentSummary(UUID agentId, String firstName, String lastName, String email) {}
+```
+
+**Controller:** `AgentGroupController` w pakiecie `com.contactcenter.api.agentgroup`:
+
+```
+GET    /api/agent-groups                      → listGroups (SUPERVISOR, ADMIN)
+POST   /api/agent-groups                      → createGroup (SUPERVISOR, ADMIN)
+PUT    /api/agent-groups/{groupId}            → updateGroup (SUPERVISOR, ADMIN)
+DELETE /api/agent-groups/{groupId}            → deleteGroup (SUPERVISOR, ADMIN)
+GET    /api/agent-groups/{groupId}/members    → getMembers (SUPERVISOR, ADMIN)
+PUT    /api/agent-groups/{groupId}/members    → replaceMembers (SUPERVISOR, ADMIN) — body: {"agentIds": [...]}
+```
+
+Uwagi:
+- Endpointy chronione `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")`
+- `deleteGroup` zwraca 409 jeśli grupa jest przypisana do jakiejkolwiek kolejki (sprawdź `queue_agent_group`)
+- `replaceMembers` używa semantyki PUT (pełna podmiana listy), nie PATCH
+- Wszystkie endpointy wymagają rejestracji w `SecurityConfig` i `TenantFilter.PUBLIC_PATH_PREFIXES` (nie są publiczne — nie dodawaj do public paths)
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/agent-groups` zwraca paginowaną listę z `memberCount`
+- [ ] `POST` z duplikatem nazwy → HTTP 409
+- [ ] `DELETE` grupy przypisanej do kolejki → HTTP 409
+- [ ] `PUT /members` z `agentId` spoza tenanta → HTTP 400
+- [ ] `PUT /members` z `agentId` roli SUPERVISOR → HTTP 400 (tylko AGENT dozwolony)
+- [ ] Wszystkie endpointy widoczne w Swagger UI
+- [ ] Testy jednostkowe serwisu: min. 6 przypadków
+
+---
+
+### BE-045 – Repozytorium przypisań kolejki: `QueueAssignmentRepository`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** M
+**Zależy od:** DB-025
+
+**Opis:**
+Nowe repozytorium zarządzające przypisaniem agentów i grup do kolejki. Oddzielne od `QueueRepository` — separacja odpowiedzialności.
+
+Klasa: `QueueAssignmentRepository extends TenantAwareRepository` w pakiecie `com.contactcenter.domain.repository`.
+
+Metody:
+
+```java
+// Odczyt flagi all_agents
+boolean isAllAgents(UUID queueId, UUID tenantId);
+
+// Odczyt przypisanych agentów (bezpośrednio przez queue_agent)
+List<UUID> findDirectAgentIds(UUID queueId, UUID tenantId);
+
+// Odczyt przypisanych grup
+List<UUID> findGroupIds(UUID queueId, UUID tenantId);
+
+// Kluczowe dla silnika routingu: pełna lista agentId uprawnionych do obsługi kolejki
+// UNION: bezpośredni (queue_agent) + przez grupy (queue_agent_group → agent_group_member)
+Set<UUID> resolveEligibleAgentIds(UUID queueId, UUID tenantId);
+
+// Aktualizacja trybu przypisania
+void setAllAgents(UUID queueId, UUID tenantId, boolean allAgents);
+
+// Podmiana bezpośrednich agentów (atomowe DELETE + INSERT)
+void replaceDirectAgents(UUID queueId, UUID tenantId, List<UUID> agentIds);
+
+// Podmiana grup (atomowe DELETE + INSERT do queue_agent_group)
+void replaceGroups(UUID queueId, UUID tenantId, List<UUID> groupIds);
+```
+
+SQL dla `resolveEligibleAgentIds`:
+```sql
+SELECT agent_id FROM queue_agent WHERE queue_id = CAST(:queueId AS uuid)
+UNION
+SELECT agm.agent_id FROM queue_agent_group qag
+    JOIN agent_group_member agm ON agm.group_id = qag.group_id
+WHERE qag.queue_id = CAST(:queueId AS uuid)
+```
+
+Wynik `resolveEligibleAgentIds` jest używany przez `DefaultRoutingEngine` — metoda musi być odpowiednio wydajna (jedno złożone zapytanie, nie N zapytań).
+
+**Kryteria akceptacji:**
+- [ ] `resolveEligibleAgentIds` zwraca UNION agentów bezpośrednich i przez grupy (brak duplikatów)
+- [ ] `replaceDirectAgents` jest atomowy (transakcja)
+- [ ] `replaceGroups` jest atomowy (transakcja)
+- [ ] Cross-tenant: `resolveEligibleAgentIds` z obcym `tenantId` zwraca puste zbiory
+- [ ] Testy jednostkowe: UNION scenario (agent w obu źródłach pojawia się raz), cross-tenant
+
+---
+
+### BE-046 – REST API zarządzania przypisaniem agentów do kolejki
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Zależy od:** BE-044, BE-045
+
+**Opis:**
+Nowe endpointy w istniejącym `QueueController` (lub osobny `QueueAssignmentController`) do odczytu i aktualizacji konfiguracji przypisania dla kolejki.
+
+**Nowe endpointy:**
+
+```
+GET  /api/queues/{queueId}/assignment
+     → QueueAssignmentResponse
+     Zwraca: { allAgents: bool, directAgentIds: [UUID], groupIds: [UUID] }
+
+PUT  /api/queues/{queueId}/assignment
+     body: UpdateQueueAssignmentRequest
+     → QueueAssignmentResponse
+```
+
+**DTO:**
+
+```java
+record QueueAssignmentResponse(
+    UUID queueId,
+    boolean allAgents,
+    List<AgentSummary> directAgents,    // imię + nazwisko + email
+    List<AgentGroupSummary> groups      // groupId + name + memberCount
+) {}
+
+record UpdateQueueAssignmentRequest(
+    @NotNull Boolean allAgents,
+    List<UUID> directAgentIds,   // nullable; ignorowane gdy allAgents=true
+    List<UUID> groupIds          // nullable; ignorowane gdy allAgents=true
+) {}
+
+record AgentGroupSummary(UUID groupId, String name, int memberCount) {}
+```
+
+**Logika PUT:**
+1. Pobierz kolejkę → 404 jeśli nie istnieje
+2. `assertSameTenant`
+3. Jeśli `allAgents = true` → wywołaj `setAllAgents(true)`, wyczyść `directAgentIds` i `groupIds` (opcjonalnie — nie usuwa historycznych rekordów, ale flaga `all_agents` przesłania je w routingu)
+4. Jeśli `allAgents = false` → wywołaj `setAllAgents(false)`, `replaceDirectAgents(directAgentIds ?: [])`, `replaceGroups(groupIds ?: [])`
+5. Walidacja: każdy `directAgentId` musi należeć do tenanta i mieć rolę AGENT; każdy `groupId` musi należeć do tenanta
+6. Zwróć HTTP 200 z `QueueAssignmentResponse`
+
+Role wymagane: SUPERVISOR, ADMIN.
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/queues/{queueId}/assignment` zwraca aktualny stan przypisania z danymi agentów i grup
+- [ ] `PUT` z `allAgents=true` ustawia flagę i zwraca `directAgents=[], groups=[]`
+- [ ] `PUT` z `allAgents=false` i listami → agenci i grupy zapisane w DB
+- [ ] `PUT` z `directAgentId` spoza tenanta → HTTP 400
+- [ ] `PUT` z `groupId` spoza tenanta → HTTP 400
+- [ ] `PUT` przez AGENT → HTTP 403
+- [ ] Testy jednostkowe: min. 5 scenariuszy
+
+---
+
+### BE-047 – Aktualizacja `DefaultRoutingEngine`: filtrowanie agentów po przypisaniu do kolejki
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** M
+**Zależy od:** BE-045
+
+**Opis:**
+Kluczowa zmiana: `DefaultRoutingEngine.findBestAgent()` musi uwzględniać konfigurację przypisania kolejki. Obecnie `scanAvailableAgents(tenantId)` zwraca wszystkich dostępnych agentów tenanta — co pozostaje poprawne jako pierwszy krok. Drugi krok to filtrowanie po `eligibleAgentIds` gdy kolejka nie ma flagi `all_agents`.
+
+**Zmiany w `RoutingRequest`:**
+Dodaj pole `Set<UUID> eligibleAgentIds` (może być null = brak filtru):
+
+```java
+public record RoutingRequest(
+    UUID tenantId,
+    UUID queueId,
+    String routingStrategy,
+    List<String> requiredSkills,
+    UUID preferredAgentId,
+    String contactChannel,
+    Set<UUID> eligibleAgentIds   // null = all_agents=TRUE (brak filtru)
+) {
+    public boolean hasAgentFilter() {
+        return eligibleAgentIds != null;
+    }
+
+    // Aktualizacja fabryki:
+    public static RoutingRequest of(Contact contact, Queue queue, UUID tenantId,
+                                    Set<UUID> eligibleAgentIds) { ... }
+}
+```
+
+**Zmiany w `DefaultRoutingEngine.findBestAgent()`:**
+Po wywołaniu `scanAvailableAgents(tenantId)` dodaj krok filtrowania:
+
+```java
+List<AgentSessionData> availableAgents = scanAvailableAgents(request.tenantId());
+
+// Filtruj po przypisaniu do kolejki (gdy all_agents=FALSE)
+if (request.hasAgentFilter() && !request.eligibleAgentIds().isEmpty()) {
+    availableAgents = availableAgents.stream()
+        .filter(a -> request.eligibleAgentIds().contains(a.agentId()))
+        .toList();
+    log.debug("[RoutingEngine] Po filtrze przypisania: {}/{} agentów uprawnionych dla queue={}",
+        availableAgents.size(), /* przed filtrem */, request.queueId());
+} else if (request.hasAgentFilter() && request.eligibleAgentIds().isEmpty()) {
+    log.warn("[RoutingEngine] Kolejka {} ma all_agents=FALSE ale brak przypisanych agentów — kontakt nie zostanie obsłużony",
+        request.queueId());
+    return Optional.empty();
+}
+```
+
+**Zmiany w `RoutingService`:**
+Przed budowaniem `RoutingRequest`, pobierz `eligibleAgentIds` z `QueueAssignmentRepository`:
+
+```java
+// W RoutingService.routeContact() lub odpowiedniej metodzie:
+Set<UUID> eligibleAgentIds = null;
+if (!queueAssignmentRepository.isAllAgents(queue.getQueueId(), tenantId)) {
+    eligibleAgentIds = queueAssignmentRepository.resolveEligibleAgentIds(
+        queue.getQueueId(), tenantId);
+}
+RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAgentIds);
+```
+
+**Sticky agent:** gdy `hasAgentFilter() = true`, weryfikuj też czy `preferredAgentId` należy do `eligibleAgentIds`. Jeśli nie — pomiń sticky i przejdź do strategii.
+
+**Kryteria akceptacji:**
+- [ ] Kolejka z `all_agents=TRUE` → silnik zachowuje się identycznie jak przed zmianą (żaden test regresji nie może failować)
+- [ ] Kolejka z `all_agents=FALSE` i przypisanymi agentami → tylko przypisani agenci są kandydatami
+- [ ] Kolejka z `all_agents=FALSE` i pusta lista → `findBestAgent` zwraca `Optional.empty()` + log WARNING
+- [ ] Sticky agent spoza listy eligibleAgentIds → pominięty, fallback na strategię
+- [ ] Sticky agent z listy eligibleAgentIds → wybrany normalnie
+- [ ] Zmiana `RoutingRequest` nie łamie żadnych istniejących testów jednostkowych
+- [ ] Testy jednostkowe `DefaultRoutingEngine`: min. 4 nowe przypadki (all_agents on/off, pusta lista, sticky filter)
+- [ ] `RoutingService` pobiera `eligibleAgentIds` jednym zapytaniem DB (nie N zapytań)
+
+---
+
 ## Podsumowanie zadań Backend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -1540,4 +1850,5 @@ Implementacja przez `updateStatus(callbackId, "CANCELLED", tenantId)` — reuży
 | RODO | 1 | 1 | 0 |
 | Prezentacja Kontaktów (EPIC-12) | 2 | 2 | 0 |
 | Zaplanowane oddzwonienia (EPIC-13) | 5 | 5 | 0 |
-| **RAZEM** | **43** | **40** | **3** |
+| Zarządzanie przypisaniem agentów (EPIC-14) | 5 | 5 | 0 |
+| **RAZEM** | **48** | **45** | **3** |

@@ -738,6 +738,151 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_callback_origin_contact
 
 ---
 
+## MODUL: Zarządzanie przypisaniem agentów do kolejek (EPIC-14)
+
+### DB-024 – Tabele `agent_group` i `agent_group_member`: grupy agentów
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-002 (tabela `app_user`), DB-001 (tabela `tenant`)
+**Status:** Do zrobienia
+**Epic:** EPIC-14 Zarządzanie przypisaniem agentów do kolejek
+**Flyway:** V039__create_agent_groups.sql
+
+**Opis:**
+Wprowadza koncepcję nazwanych grup agentów. Agent może należeć do wielu grup (many-to-many). Grupy są zasobem tenanta — izolacja RLS analogiczna do pozostałych tabel.
+
+**DDL migracji:**
+
+```sql
+CREATE TABLE agent_group (
+    group_id   UUID        NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id  UUID        NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE,
+    name       VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_agent_group PRIMARY KEY (group_id),
+    CONSTRAINT uq_agent_group_tenant_name UNIQUE (tenant_id, name)
+);
+
+CREATE INDEX idx_agent_group_tenant ON agent_group (tenant_id);
+
+CREATE TABLE agent_group_member (
+    group_id    UUID NOT NULL REFERENCES agent_group(group_id) ON DELETE CASCADE,
+    agent_id    UUID NOT NULL REFERENCES app_user(user_id)    ON DELETE CASCADE,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_agent_group_member PRIMARY KEY (group_id, agent_id)
+);
+
+CREATE INDEX idx_agent_group_member_agent ON agent_group_member (agent_id);
+CREATE INDEX idx_agent_group_member_group ON agent_group_member (group_id);
+
+-- RLS: tenant_id na agent_group (agent_group_member nie ma tenant_id — izolacja przez JOIN)
+ALTER TABLE agent_group ENABLE ROW LEVEL SECURITY;
+CREATE POLICY agent_group_tenant_isolation ON agent_group
+    USING (tenant_id = current_setting('app.tenant_id', TRUE)::uuid);
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja uruchamia się bez błędów na dev i test
+- [ ] Constraint `uq_agent_group_tenant_name` zapobiega duplikatom nazw w ramach tenanta
+- [ ] FK `agent_group_member.group_id → agent_group.group_id` kaskaduje usunięcie grupy
+- [ ] FK `agent_group_member.agent_id → app_user.user_id` kaskaduje usunięcie agenta
+- [ ] RLS na `agent_group` blokuje dostęp do rekordów innego tenanta
+- [ ] Indeksy widoczne w `pg_indexes`
+
+---
+
+### DB-025 – Rozszerzenie tabeli `queue` o flagę `all_agents` i tabelę `queue_agent_group`
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-024 (tabela `agent_group`), DB-010 (tabela `queue`)
+**Status:** Do zrobienia
+**Epic:** EPIC-14 Zarządzanie przypisaniem agentów do kolejek
+**Flyway:** V040__queue_agent_assignment.sql
+
+**Opis:**
+Dodaje flagę `all_agents` do tabeli `queue` (tryb "wszyscy agenci tenanta") oraz tabelę `queue_agent_group` łączącą kolejkę z grupą agentów. Istniejąca tabela `queue_agent` (kolejka ↔ konkretni agenci) pozostaje bez zmian — jej semantyka jest teraz jawna: "ręcznie wybrani agenci".
+
+**DDL migracji:**
+
+```sql
+-- 1. Flaga na kolejce: obsługiwana przez wszystkich agentów tenanta
+ALTER TABLE queue
+    ADD COLUMN IF NOT EXISTS all_agents BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- 2. Powiązanie kolejki z grupą agentów
+CREATE TABLE queue_agent_group (
+    queue_id    UUID NOT NULL REFERENCES queue(queue_id)       ON DELETE CASCADE,
+    group_id    UUID NOT NULL REFERENCES agent_group(group_id) ON DELETE CASCADE,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_queue_agent_group PRIMARY KEY (queue_id, group_id)
+);
+
+CREATE INDEX idx_queue_agent_group_queue ON queue_agent_group (queue_id);
+CREATE INDEX idx_queue_agent_group_group ON queue_agent_group (group_id);
+
+-- 3. Domyślna wartość dla istniejących kolejek:
+--    kolejki bez konfiguracji queue_agent → zachowaj obecne zachowanie (all_agents = TRUE)
+--    Jest to decyzja migracyjna — supervisor może potem zmienić na konkretnych agentów.
+UPDATE queue SET all_agents = TRUE WHERE all_agents = FALSE;
+```
+
+**Semantyka trybów przypisania:**
+- `all_agents = TRUE` → silnik routingu filtruje tylko po `tenantId` (obecne zachowanie, brak zmian w logice)
+- `all_agents = FALSE` + rekordy w `queue_agent` i/lub `queue_agent_group` → silnik filtruje tylko do przypisanych agentów
+- `all_agents = FALSE` + brak rekordów → kolejka nie obsłuży żadnego kontaktu (logowanie WARNING w RoutingEngine)
+
+**Kryteria akceptacji:**
+- [ ] Migracja uruchamia się bez błędów; istniejące kolejki mają `all_agents = TRUE`
+- [ ] FK `queue_agent_group.queue_id → queue.queue_id` kaskaduje
+- [ ] FK `queue_agent_group.group_id → agent_group.group_id` kaskaduje
+- [ ] Dodanie `all_agents` nie łamie istniejących INSERT/UPDATE w `QueueRepository` (kolumna ma DEFAULT)
+
+---
+
+### DB-026 – Indeksy wydajnościowe dla rozwiązania łączonego: kolejka + agenci/grupy
+
+**Typ:** Schema migration
+**Priorytet:** Should Have
+**Zlozonosc:** XS
+**Zależy od:** DB-024, DB-025
+**Status:** Do zrobienia
+**Epic:** EPIC-14 Zarządzanie przypisaniem agentów do kolejek
+**Flyway:** V041__queue_agent_assignment_indexes.sql
+
+**Opis:**
+Zapytanie "pobierz wszystkich agentów przypisanych do kolejki Q (przez grupy LUB bezpośrednio)" jest wykonywane przy każdym wywołaniu `findBestAgent()` gdy `all_agents = FALSE`. Indeks wspiera UNION obu źródeł.
+
+**DDL migracji:**
+
+```sql
+-- Compound index: queue_agent (już istnieje, ale sprawdź czy ma pokrycie na agent_id)
+CREATE INDEX IF NOT EXISTS idx_queue_agent_queue
+    ON queue_agent (queue_id, agent_id);
+
+-- Lookup: wszystkie grupy kolejki → agenci
+-- Pokrywa JOIN: queue_agent_group → agent_group_member
+CREATE INDEX IF NOT EXISTS idx_queue_agent_group_lookup
+    ON queue_agent_group (queue_id)
+    INCLUDE (group_id);
+
+-- Lookup: wszystkie grupy, do których należy agent (potrzebny dla UI "moje kolejki")
+CREATE INDEX IF NOT EXISTS idx_agent_group_member_lookup
+    ON agent_group_member (agent_id)
+    INCLUDE (group_id);
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja idempotentna (IF NOT EXISTS)
+- [ ] `EXPLAIN ANALYZE` dla zapytania "agenci kolejki przez grupy + bezpośrednio" używa index scan
+- [ ] Indeksy widoczne w `pg_indexes`
+
+---
+
 ## Podsumowanie zadań Baza Danych
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -751,7 +896,8 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_callback_origin_contact
 | Routing telefoniczny (EPIC-11) | 1 | 1 | 0 |
 | Prezentacja Kontaktów (EPIC-12) | 1 | 1 | 0 |
 | Zaplanowane oddzwonienia (EPIC-13) | 1 | 1 | 0 |
-| **RAZEM** | **23** | **22** | **1** |
+| Zarządzanie przypisaniem agentów (EPIC-14) | 3 | 2 | 1 |
+| **RAZEM** | **26** | **24** | **2** |
 
 ---
 
@@ -780,3 +926,4 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | Routing numerów telefonicznych | DB-021 | BE-033, BE-034, BE-035 | FE-026 |
 | Prezentacja Kontaktów (raporty) | DB-022 | BE-036 (czeka na DB-022), BE-037 ✅ (niezależne od DB-022) | FE-028, FE-029, FE-030 |
 | Zaplanowane oddzwonienia | DB-023 | BE-038 (executor), BE-039 (reschedule API), BE-040 (inbound callback API) | FE-031 (reschedule modal), FE-032 (inbound callback modal) |
+| Zarządzanie przypisaniem agentów | DB-024, DB-025, DB-026 | BE-043, BE-044, BE-045, BE-046, BE-047 | FE-036, FE-037, FE-038, FE-039 |

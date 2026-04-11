@@ -1408,6 +1408,231 @@ editingCallback = signal<CallbackListItem | null>(null);
 
 ---
 
+## MODUL: Zarządzanie przypisaniem agentów do kolejek (EPIC-14)
+
+### FE-036 – Serwis `AgentGroupService` i typy DTO dla grup agentów
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Zależy od:** BE-044
+
+**Opis:**
+Warstwa serwisowa Angular do komunikacji z API grup agentów. Serwis wstrzykiwany jako `providedIn: 'root'`.
+
+Plik: `frontend/src/app/core/services/agent-group.service.ts`
+
+**Typy** (plik: `frontend/src/app/core/models/agent-group.model.ts`):
+
+```typescript
+export interface AgentGroup {
+  groupId: string;
+  name: string;
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentGroupMember {
+  agentId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export interface AgentGroupMembers {
+  groupId: string;
+  groupName: string;
+  members: AgentGroupMember[];
+}
+
+export interface AgentGroupSummary {
+  groupId: string;
+  name: string;
+  memberCount: number;
+}
+
+export interface QueueAssignment {
+  queueId: string;
+  allAgents: boolean;
+  directAgents: AgentGroupMember[];
+  groups: AgentGroupSummary[];
+}
+```
+
+**Metody serwisu** (wszystkie zwracają `Observable`):
+- `listGroups(params: { name?: string; page?: number; size?: number }): Observable<PagedResponse<AgentGroup>>`
+- `createGroup(name: string): Observable<AgentGroup>`
+- `updateGroup(groupId: string, name: string): Observable<AgentGroup>`
+- `deleteGroup(groupId: string): Observable<void>`
+- `getGroupMembers(groupId: string): Observable<AgentGroupMembers>`
+- `replaceGroupMembers(groupId: string, agentIds: string[]): Observable<AgentGroupMembers>`
+- `getQueueAssignment(queueId: string): Observable<QueueAssignment>`
+- `updateQueueAssignment(queueId: string, req: UpdateQueueAssignmentRequest): Observable<QueueAssignment>`
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie metody wywołują poprawne endpointy HTTP (metoda + ścieżka zgodna z BE-044 i BE-046)
+- [ ] Błędy HTTP propagowane jako Observable error (nie swallowane)
+- [ ] Serwis dostępny przez DI we wszystkich komponentach feature
+
+---
+
+### FE-037 – Panel zarządzania grupami agentów (`AgentGroupsPageComponent`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** L
+**Zależy od:** FE-036
+
+**Opis:**
+Nowa strona w panelu supervisora: lista grup agentów z możliwością tworzenia, edycji, usuwania i zarządzania składem grupy.
+
+**Komponenty:**
+
+1. `AgentGroupsPageComponent` (`features/supervisor/agent-groups/agent-groups-page/`)
+   - Selektor: `app-agent-groups-page`
+   - Standalone, `ChangeDetectionStrategy.OnPush`
+   - Signals: `groups = signal<AgentGroup[]>([])`, `total = signal<number>(0)`, `loading = signal<boolean>(false)`, `editingGroup = signal<AgentGroup | null>(null)`, `managingMembersGroup = signal<AgentGroup | null>(null)`
+   - Tabela z kolumnami: Nazwa, Liczba agentów, Akcje (Edytuj nazwę / Zarządzaj agentami / Usuń)
+   - Przycisk "Utwórz grupę" otwiera `CreateEditGroupModalComponent`
+
+2. `CreateEditGroupModalComponent` (`features/supervisor/agent-groups/create-edit-group-modal/`)
+   - Selektor: `app-create-edit-group-modal`
+   - Input signal: `group: AgentGroup | null` (null = tryb tworzenia)
+   - Output: `saved: EventEmitter<AgentGroup>`, `cancelled: EventEmitter<void>`
+   - Formularz z jednym polem: Nazwa (wymagane, max 255, unikalne — błąd 409 z BE wyświetl jako błąd pola)
+
+3. `GroupMembersModalComponent` (`features/supervisor/agent-groups/group-members-modal/`)
+   - Selektor: `app-group-members-modal`
+   - Input signal: `group: AgentGroup`
+   - Wyświetla aktualnych członków grupy
+   - Multi-select: lista dostępnych agentów tenanta (pobierana przy otwarciu z `AppUserService` — filtr rola=AGENT)
+   - Submit wywołuje `AgentGroupService.replaceGroupMembers(groupId, selectedAgentIds)`
+   - Agenci niezaznaczeni a będący w grupie → usunięci; zaznaczeni a nieobecni → dodani
+   - Output: `saved: EventEmitter<void>`, `cancelled: EventEmitter<void>`
+
+**Routing** — dodaj w `supervisor.routes.ts`:
+```typescript
+{
+  path: 'agent-groups',
+  component: AgentGroupsPageComponent,
+  canActivate: [AuthGuard, RoleGuard],
+  data: { roles: ['SUPERVISOR', 'ADMIN'] }
+}
+```
+
+**Usunięcie grupy:**
+- Dialog potwierdzenia (wzorzec jak w FE-034)
+- Błąd 409 (grupa przypisana do kolejki) → toast z komunikatem: "Nie można usunąć grupy przypisanej do kolejki. Usuń najpierw powiązanie z kolejką."
+
+**Kryteria akceptacji:**
+- [ ] Strona ładuje się pod `/supervisor/agent-groups` z paginowaną listą grup
+- [ ] "Utwórz grupę" otwiera modal; po sukcesie nowa grupa pojawia się na liście
+- [ ] Edycja nazwy: modal prefillowany, po sukcesie tabela odświeżona
+- [ ] "Zarządzaj agentami" otwiera `GroupMembersModal`; multi-select zawiera agentów tenanta z rolą AGENT; bieżący skład grupy jest preselektowany
+- [ ] Po zapisie składu: `memberCount` w tabeli aktualizuje się
+- [ ] Usunięcie grupy nieprzypisanej → znika z listy
+- [ ] Usunięcie grupy przypisanej do kolejki → toast z błędem 409, brak usunięcia
+- [ ] Strona niedostępna dla roli AGENT (RoleGuard)
+- [ ] Loading spinner przy każdej operacji
+
+---
+
+### FE-038 – Komponent przypisania agentów do kolejki (`QueueAssignmentPanelComponent`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** L
+**Zależy od:** FE-036, FE-037
+
+**Opis:**
+Komponent wbudowany w istniejący formularz konfiguracji kolejki (strona edycji kolejki). Supervisor konfiguruje tryb przypisania agentów bez opuszczania formularza kolejki.
+
+**Komponent:** `QueueAssignmentPanelComponent` (`features/supervisor/queues/queue-assignment-panel/`)
+- Selektor: `app-queue-assignment-panel`
+- Standalone, `ChangeDetectionStrategy.OnPush`
+- Input signal: `queueId: string`
+
+**Struktura UI:**
+
+Sekcja "Przypisanie agentów" wyświetlona pod podstawowymi danymi kolejki:
+
+1. **Radio group** wyboru trybu:
+   - "Wszyscy agenci tenanta" — gdy zaznaczony, sekcje 2 i 3 są zwinięte/wyłączone
+   - "Wybrane grupy lub agenci" — gdy zaznaczony, sekcje 2 i 3 są aktywne
+
+2. **Sekcja Grupy** (widoczna gdy tryb = "Wybrane"):
+   - Multi-select lub lista z checkboxami — dostępne grupy (z `AgentGroupService.listGroups`)
+   - Zaznaczone grupy = przypisane do kolejki
+
+3. **Sekcja Indywidualni agenci** (widoczna gdy tryb = "Wybrane"):
+   - Multi-select lub lista z checkboxami — dostępni agenci tenanta (rola AGENT)
+   - Podsumowanie: "X grup + Y agentów indywidualnych"
+   - Informacja, gdy agenci z grup pokrywają się z indywidualnymi — wyświetl badge "Pokrycie X agentów łącznie"
+
+4. **Przycisk "Zapisz przypisanie"** — osobny od głównego formularza kolejki (nie wymaga zapisania całej kolejki)
+
+**Zachowanie:**
+- Przy wejściu na stronę: `ngOnInit` pobiera `getQueueAssignment(queueId)` i ustawia stan
+- Zapis wywołuje `AgentGroupService.updateQueueAssignment(queueId, { allAgents, directAgentIds, groupIds })`
+- Po zapisie: toast "Przypisanie zaktualizowane"
+
+**Signals:**
+```typescript
+assignment = signal<QueueAssignment | null>(null);
+allAgents = signal<boolean>(true);
+availableGroups = signal<AgentGroupSummary[]>([]);
+availableAgents = signal<AgentGroupMember[]>([]);
+selectedGroupIds = signal<string[]>([]);
+selectedAgentIds = signal<string[]>([]);
+saving = signal<boolean>(false);
+```
+
+**Kryteria akceptacji:**
+- [ ] Przy wejściu na stronę edycji kolejki: komponent pobiera aktualną konfigurację i ustawia radio + checkboxy
+- [ ] Przełączenie na "Wszyscy agenci" → checkboxy grup i agentów nieaktywne
+- [ ] Przełączenie na "Wybrane" → checkboxy aktywne; przy braku zaznaczenia wyświetl ostrzeżenie "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu"
+- [ ] Zapisanie z `allAgents=true` → API PUT z `allAgents: true`
+- [ ] Zapisanie z grupami i agentami → API PUT z poprawnymi listami ID
+- [ ] Po zapisie toast "Przypisanie zaktualizowane"
+- [ ] Błąd walidacji (agentId spoza tenanta) → toast z komunikatem błędu z BE
+- [ ] Komponent wyświetla łączną liczbę agentów objętych konfiguracją (computed z grup + indywidualnych)
+
+---
+
+### FE-039 – Integracja panelu przypisania z formularzem edycji kolejki
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Zależy od:** FE-038
+
+**Opis:**
+Osadzenie `QueueAssignmentPanelComponent` w istniejącej stronie edycji kolejki. Zadanie dotyczy wyłącznie integracji — nie modyfikuje logiki głównego formularza kolejki.
+
+**Lokalizacja istniejącego komponentu edycji kolejki:**
+Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-page` lub `queue-form`). Dodaj sekcję "Przypisanie agentów" po sekcji z ustawieniami routingu.
+
+**Zmiany:**
+1. Zaimportuj `QueueAssignmentPanelComponent` w standalone imports edytora kolejki
+2. Dodaj do szablonu:
+   ```html
+   <app-queue-assignment-panel [queueId]="queueId()" />
+   ```
+   — komponent jest samowystarczalny (pobiera i zapisuje dane niezależnie od głównego formularza)
+3. Dodaj link "Grupy agentów" w nawigacji panelu supervisora (sidebar lub header) prowadzący do `/supervisor/agent-groups`
+
+**Uwaga:** Sekcja przypisania jest aktywna tylko dla istniejących kolejek (po zapisaniu). Przy tworzeniu nowej kolejki — sekcja niewidoczna lub wyświetla informację "Zapisz kolejkę, aby skonfigurować przypisanie agentów".
+
+**Kryteria akceptacji:**
+- [ ] Sekcja "Przypisanie agentów" widoczna na stronie edycji istniejącej kolejki
+- [ ] Sekcja niewidoczna (lub z komunikatem) przy tworzeniu nowej kolejki
+- [ ] Zapis głównego formularza kolejki NIE resetuje konfiguracji przypisania
+- [ ] Link "Grupy agentów" widoczny w nawigacji supervisora
+- [ ] Brak regresji: istniejące formularze kolejki działają jak przed zmianą
+
+---
+
 ## Podsumowanie zadań Frontend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -1426,4 +1651,5 @@ editingCallback = signal<CallbackListItem | null>(null);
 | Dialer manualny | 1 | 1 | 0 |
 | Prezentacja Kontaktów (EPIC-12) | 3 | 3 | 0 |
 | Zaplanowane oddzwonienia (EPIC-13) | 4 | 4 | 0 |
-| **RAZEM** | **34** | **33** | **1** |
+| Zarządzanie przypisaniem agentów (EPIC-14) | 4 | 4 | 0 |
+| **RAZEM** | **38** | **37** | **1** |

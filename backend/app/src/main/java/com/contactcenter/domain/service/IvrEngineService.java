@@ -76,6 +76,13 @@ public class IvrEngineService {
      */
     private final ConcurrentHashMap<String, UUID> pendingConferenceContactId = new ConcurrentHashMap<>();
 
+    /**
+     * Tymczasowy kontekst konferencji – queueId dla klienta czekającego w kolejce.
+     * Wypełniany przez executeQueueTransfer, odczytywany przez handleDtmfAndBuildTwiml.
+     * Klucz: callId. Wartość: queueId kolejki, do której przypisano kontakt.
+     */
+    private final ConcurrentHashMap<String, UUID> pendingConferenceQueueId = new ConcurrentHashMap<>();
+
     @Value("${app.base-url:http://localhost:8080}")
     private String appBaseUrl;
 
@@ -366,10 +373,11 @@ public class IvrEngineService {
         if (session == null) {
             // Sesja usunięta przez QUEUE_TRANSFER – sprawdź czy klient powinien czekać w konferencji
             UUID conferencContactId = pendingConferenceContactId.remove(callId);
+            UUID conferenceQueueId = pendingConferenceQueueId.remove(callId);
             if (conferencContactId != null) {
-                log.info("[IVR] QUEUE_TRANSFER zakończony – kieruję klienta do konferencji: callId={}, contactId={}",
-                    callId, conferencContactId);
-                return buildWaitInConferenceTwiml(conferencContactId, tenantId, baseUrl);
+                log.info("[IVR] QUEUE_TRANSFER zakończony – kieruję klienta do konferencji: callId={}, contactId={}, queueId={}",
+                    callId, conferencContactId, conferenceQueueId);
+                return buildWaitInConferenceTwiml(conferencContactId, conferenceQueueId, tenantId, baseUrl);
             }
             // Sesja usunięta przez HANGUP lub brak konferencji
             return buildCompletedTwiml();
@@ -467,10 +475,11 @@ public class IvrEngineService {
         if (updatedSession == null) {
             // Sesja usunięta przez QUEUE_TRANSFER lub HANGUP
             UUID pendingContactId = pendingConferenceContactId.remove(callId);
+            UUID pendingQueueId = pendingConferenceQueueId.remove(callId);
             if (pendingContactId != null) {
-                log.info("[IVR] VOICEBOT QUEUE_TRANSFER – kieruję klienta do konferencji: callId={}, contactId={}",
-                        callId, pendingContactId);
-                return buildWaitInConferenceTwiml(pendingContactId, tenantId, baseUrl);
+                log.info("[IVR] VOICEBOT QUEUE_TRANSFER – kieruję klienta do konferencji: callId={}, contactId={}, queueId={}",
+                        callId, pendingContactId, pendingQueueId);
+                return buildWaitInConferenceTwiml(pendingContactId, pendingQueueId, tenantId, baseUrl);
             }
             return buildCompletedTwiml();
         }
@@ -737,17 +746,23 @@ public class IvrEngineService {
      * <p>Agent wchodzi do tej samej konferencji przez {@link com.contactcenter.domain.telephony.TwilioTelephonyAdapter#answerCall}
      * z parametrem {@code startConferenceOnEnter="true"}.
      *
+     * <p>Parametr {@code queueId} jest dołączany do {@code waitUrl} jako query param, co pozwala
+     * endpointowi hold-music odczytać EWT z Redis i odtwarzać dzwoniącemu szacowany czas oczekiwania.
+     *
      * @param contactId UUID kontaktu – podstawa nazwy konferencji
+     * @param queueId   UUID kolejki – przekazywany do waitUrl dla odczytu EWT z Redis (może być null)
      * @param tenantId  UUID tenanta – przekazywany jako parametr do recordingStatusCallback
      * @param baseUrl   publiczny bazowy URL aplikacji
      * @return TwiML z {@code <Conference>} w trybie oczekiwania
      */
-    private String buildWaitInConferenceTwiml(UUID contactId, UUID tenantId, String baseUrl) {
+    private String buildWaitInConferenceTwiml(UUID contactId, UUID queueId, UUID tenantId, String baseUrl) {
         String conferenceName = "contact-" + contactId.toString();
         String recordingCallbackUrl = baseUrl
             + "/api/telephony/webhook/twilio/recording?tenantId=" + tenantId.toString();
         String conferenceStatusCallbackUrl = baseUrl
             + "/api/telephony/webhook/twilio/conference?tenantId=" + tenantId.toString();
+        String waitUrl = baseUrl + "/api/telephony/hold-music"
+            + (queueId != null ? "?queueId=" + queueId.toString() : "");
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             + "<Response>"
             + "<Say language=\"pl-PL\">Łączymy z konsultantem, proszę czekać.</Say>"
@@ -761,7 +776,7 @@ public class IvrEngineService {
             + " statusCallback=\"" + conferenceStatusCallbackUrl + "\""
             + " statusCallbackEvent=\"end\""
             + " statusCallbackMethod=\"POST\""
-            + " waitUrl=\"" + appBaseUrl + "/api/telephony/hold-music\""
+            + " waitUrl=\"" + waitUrl + "\""
             + " waitMethod=\"GET\">"
             + conferenceName
             + "</Conference>"
@@ -1136,9 +1151,10 @@ public class IvrEngineService {
             log.info("[IVR] Przekazano do kolejki: callId={}, queueId={}, contactId={}",
                     callId, queueId, contactId);
 
-            // Zapisz contactId dla handleDtmfAndBuildTwiml – klient będzie skierowany do konferencji
+            // Zapisz contactId i queueId dla handleDtmfAndBuildTwiml – klient będzie skierowany do konferencji
             if (contactId != null) {
                 pendingConferenceContactId.put(callId, contactId);
+                pendingConferenceQueueId.put(callId, queueId);
             }
 
             // Usuń sesję IVR – IVR przepływ zakończony

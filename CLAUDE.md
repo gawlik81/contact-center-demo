@@ -99,12 +99,11 @@ Lokalne usługi po `docker compose up -d`:
 1. `SecurityConfig` – lista `requestMatchers` (permit)
 2. `TenantFilter.PUBLIC_PATH_PREFIXES` – pomija weryfikację JWT
 
-### Flyway — tylko dla dev
+### Flyway — zasady migracji
 
-Poniższe ustawienia w `application-dev.yml` **nigdy nie mogą trafić na prod**:
-
-- `clean-on-validation-error: true`
-- `clean-disabled: false`
+- **Nigdy nie edytuj pliku migracji, który już został zastosowany.** Zamiast tego zawsze twórz nowy plik `V0xx__fix_something.sql`.
+- Automatyczne czyszczenie DB jest wyłączone (`clean-on-validation-error: false`, `clean-disabled: true`) — błąd walidacji zablokuje start aplikacji, co jest sygnałem, że naruszono powyższą zasadę.
+- Poniższe ustawienia **nigdy nie mogą trafić na prod**: `clean-on-validation-error: true`, `clean-disabled: false`.
 
 ---
 

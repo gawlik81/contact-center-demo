@@ -54,14 +54,10 @@ spring:
       - classpath:db/seed
     # Umożliwia powtórzenie migracji repeatable (R__) – przydatne w dev
     out-of-order: false
-    # DEV ONLY: przy błędzie walidacji (np. nowe migracje nie zastosowane na istniejącej DB)
-    # Flyway wyczyści schemat i zastosuje wszystkie migracje od nowa.
-    # NIGDY nie ustawiać na true w profilu prod!
-    clean-on-validation-error: true
-    # DEV ONLY: Flyway 9+ domyślnie blokuje operację clean (cleanDisabled=true).
-    # Musi być false, aby clean-on-validation-error mogło działać.
-    # NIGDY nie ustawiać na false w profilu prod!
-    clean-disabled: false
+    # Automatyczne czyszczenie wyłączone – nigdy nie edytuj pliku migracji,
+    # który już został zastosowany. Zamiast tego twórz nowy plik V0xx__fix.sql.
+    clean-on-validation-error: false
+    clean-disabled: true
     # Placeholder dla seed: aktywny tylko w dev
     placeholders:
       seed_enabled: "true"

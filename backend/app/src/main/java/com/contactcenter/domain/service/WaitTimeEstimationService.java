@@ -19,6 +19,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -69,6 +70,12 @@ public class WaitTimeEstimationService {
     /** Prefix kluczy sesji agenta w Redis. */
     private static final String AGENT_SESSION_KEY_PREFIX = "session:agent:";
 
+    /** Prefix kluczy statystyk kolejek w Redis. Pełny klucz: {@code cache:queue:stats:{queueId}}. */
+    private static final String QUEUE_STATS_KEY_PREFIX = "cache:queue:stats:";
+
+    /** TTL dla kluczy statystyk kolejek – 2× interwał schedulera (60s). */
+    private static final Duration QUEUE_STATS_TTL = Duration.ofSeconds(60);
+
     /** Pattern do SCAN kluczy sesji agentów. */
     private static final String AGENT_SESSION_SCAN_PATTERN = AGENT_SESSION_KEY_PREFIX + "*";
 
@@ -100,7 +107,7 @@ public class WaitTimeEstimationService {
      *
      * <p>Błąd dla pojedynczej kolejki / tenanta nie przerywa przetwarzania pozostałych.
      */
-    @Scheduled(fixedDelay = 30_000)
+    @Scheduled(fixedDelay = 30_000, initialDelay = 5_000)
     public void broadcastWaitTimeUpdates() {
         log.debug("[EWT] Rozpoczęcie obliczania szacowanego czasu oczekiwania");
 
@@ -201,6 +208,25 @@ public class WaitTimeEstimationService {
         );
 
         webSocketEventBroadcaster.sendToTenantSupervisors(tenantId, event);
+
+        // Zapisz statystyki kolejki do Redis, żeby SupervisorMetricsService mógł je odczytać.
+        // Pola muszą być spójne z buildQueueMetrics(): tenantId, queueId, name, waiting.
+        try {
+            Map<String, Object> queueStats = new HashMap<>();
+            queueStats.put("tenantId", tenantId.toString());
+            queueStats.put("queueId", queueId.toString());
+            queueStats.put("name", queue.getName());
+            queueStats.put("waiting", waitingCount);
+            queueStats.put("availableAgents", availableAgents);
+            queueStats.put("ewtSeconds", estimatedWaitSeconds == Integer.MAX_VALUE ? -1 : estimatedWaitSeconds);
+
+            String statsKey = QUEUE_STATS_KEY_PREFIX + queueId;
+            redisTemplate.opsForValue().set(statsKey, queueStats, QUEUE_STATS_TTL);
+
+            log.trace("[EWT] Zapisano statystyki kolejki {} do Redis (klucz: {})", queueId, statsKey);
+        } catch (Exception e) {
+            log.warn("[EWT] Błąd zapisu statystyk kolejki {} do Redis: {}", queueId, e.getMessage());
+        }
 
         log.debug("[EWT] Queue {}: waiting={}, agents={}, avgHT={}s, EWT={}s",
                 queueId, waitingCount, availableAgents, String.format("%.1f", avgHandleTime),

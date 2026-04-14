@@ -151,7 +151,9 @@
       "Bash(where jq:*)",
       "Bash(where gh:*)",
       "Bash(git -C \"E:/ClaudAI/contact-center-demo\" remote -v)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Java/jdk-21\" 2)",
+      "Bash(export JAVA_HOME=$\\(find /c/Users -name \"jdk*\" -maxdepth 4 -type d)"
     ]
   }
 }

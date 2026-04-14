@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-09 (DB-023 ✅ V037 scheduled_callback source_type/origin_contact_id; BE-031 ✅ GdprService+GdprController (Art.15 ZIP eksport, Art.17 anonimizacja); BE-038 ✅ ScheduledCallbackExecutor @Scheduled 60s; BE-039 ✅ PUT /api/dialer/callbacks/{id} reschedule; BE-040 ✅ POST /api/contacts/{contactId}/callback inbound; FE-033 ✅ panel RODO w CustomerDetailComponent; łączny stan: DB 22/23, BE 35/41, FE 29/32)
+**Ostatnia aktualizacja:** 2026-04-14 (DB-021 ✅ V039 tabele phone_number + phone_routing_rule, trigger kolizji reguł, RLS, seed dev; łączny stan: DB 23/23, BE 35/41, FE 29/32)
 
 ---
 
@@ -39,7 +39,7 @@
 | DB-018 | Konfiguracja pg_cron: zadania scheduled | ✅ | Zrealizowane w ramach DB-001 (V014__pg_cron_jobs.sql). Rozszerzone w DB-002 (V015__campaign_contact_archive.sql) |
 | DB-019 | Seed danych testowych i migracje dla środowiska dev | ✅ | Zrealizowane w ramach DB-001 (V999__dev_seed.sql) |
 | DB-020 | Kolumna email_address w tabeli QUEUE: routing emaili | ✅ | V029__add_email_address_to_queue.sql: kolumna email_address VARCHAR(255) NULL, UNIQUE (tenant_id, email_address), CHECK '%@%', partial index WHERE IS NOT NULL. Używana przez EmailRoutingService do routingu priorytetowego. |
-| DB-021 | Tabele PHONE_NUMBER i PHONE_ROUTING_RULE: numery tenanta i harmonogram IVR | ⬜ | Brak migracji w repozytorium – zadanie nie rozpoczęte. Odblokuje BE-033 → BE-034 → BE-035 → FE-026. |
+| DB-021 | Tabele PHONE_NUMBER i PHONE_ROUTING_RULE: numery tenanta i harmonogram IVR | ✅ | V039__create_phone_number_routing.sql: tabela phone_number (UNIQUE tenant+number, CHECK E.164, RLS, partial index), tabela phone_routing_rule (CHECK time_start<time_end, CHECK IVR xor queue, CHECK min 1 dzień, RLS, 2 indeksy), trigger trg_routing_rule_collision (CONSTRAINT TRIGGER DEFERRABLE), seed dev: 2 numery Acme + 2 reguły (pon-pt 08-17→IVR, 17-20→Wsparcie Tech). BUILD SUCCESS. Odblokowano BE-033 → BE-034 → BE-035 → FE-026. |
 | DB-022 | Indeksy wyszukiwania kontaktów dla Raportów > Kontakty | ✅ | V035__contact_search_indexes.sql: idx_contact_queue_date (tenant_id, queue_id, started_at) + idx_contact_duration warunkowy WHERE duration_seconds IS NOT NULL. Odblokowano BE-036 |
 | DB-023 | Rozszerzenie tabeli scheduled_callback o kontekst źródłowy | ✅ | V037__scheduled_callback_source_context.sql: kolumna source_type VARCHAR(30) NOT NULL DEFAULT 'CAMPAIGN_CALLBACK' + CHECK constraint, origin_contact_id UUID nullable FK do contact (DEFERRABLE INITIALLY DEFERRED), indeksy idx_scheduled_callback_inbound i idx_scheduled_callback_origin_contact. Odblokowano BE-038, BE-039, BE-040 |
 
@@ -144,10 +144,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 22/23 | 0 | 1 | 23 |
+| Database (DB) | 23/23 | 0 | 0 | 23 |
 | Backend (BE) | 35/41 | 0 | 6 | 41 |
 | Frontend (FE) | 29/32 | 0 | 3 | 32 |
-| **RAZEM** | **86/96** | **0** | **10** | **96** |
+| **RAZEM** | **87/96** | **0** | **9** | **96** |
 
 ---
 

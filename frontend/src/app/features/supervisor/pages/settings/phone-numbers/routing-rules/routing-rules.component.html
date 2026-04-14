@@ -1,0 +1,153 @@
+<div class="routing-rules">
+  <div class="routing-rules__header">
+    <div class="routing-rules__header-left">
+      <h3 class="routing-rules__title">
+        Reguły routingu
+        @if (phoneNumber()) {
+          <span class="routing-rules__phone">{{ phoneNumber() }}</span>
+        }
+      </h3>
+      @if (!loading() && hasGaps() && rules().length > 0) {
+        <div class="warning-badge" role="alert" aria-live="polite">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15" aria-hidden="true">
+            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+          </svg>
+          Połączenia poza harmonogramem będą odrzucane
+        </div>
+      }
+    </div>
+    <button
+      type="button"
+      class="btn btn-primary btn--sm"
+      (click)="openAddForm()"
+      [disabled]="loading()"
+      aria-label="Dodaj regułę routingu"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      Dodaj regułę
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="skeleton-list" aria-label="Ładowanie reguł...">
+      <div class="skeleton skeleton--card"></div>
+      <div class="skeleton skeleton--card"></div>
+    </div>
+  } @else if (loadError()) {
+    <div class="error-state" role="alert">
+      <p class="error-state__message">Nie udało się załadować reguł routingu.</p>
+    </div>
+  } @else if (rules().length === 0) {
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="40" height="40" class="empty-state__icon" aria-hidden="true">
+        <path
+          d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z"
+        />
+      </svg>
+      <p class="empty-state__text">Brak reguł routingu dla tego numeru.</p>
+      <p class="empty-state__hint">Dodaj regułę aby kierować przychodzące połączenia.</p>
+    </div>
+  } @else {
+    <div class="rules-list" role="list">
+      @for (rule of rules(); track rule.ruleId; let i = $index) {
+        <div
+          class="rule-card"
+          [class.rule-card--conflict]="isConflicting(rule.ruleId)"
+          role="listitem"
+          [attr.aria-label]="'Reguła ' + (i + 1)"
+        >
+          <div class="rule-card__body">
+            <!-- Days -->
+            <div class="rule-card__days">
+              @for (day of allDays; track day) {
+                <span
+                  class="day-chip"
+                  [class.day-chip--active]="rule.daysOfWeek.includes(day)"
+                  [attr.aria-label]="dayLabels[day] + (rule.daysOfWeek.includes(day) ? ' (aktywny)' : '')"
+                >
+                  {{ dayLabels[day] }}
+                </span>
+              }
+            </div>
+
+            <!-- Time and target -->
+            <div class="rule-card__meta">
+              <span class="rule-card__time">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+                  <path
+                    d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"
+                  />
+                </svg>
+                {{ rule.timeStart }} – {{ rule.timeEnd }}
+              </span>
+
+              @if (rule.ivrTreeId) {
+                <span class="rule-card__target rule-card__target--ivr">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" aria-hidden="true">
+                    <path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z" />
+                  </svg>
+                  IVR: {{ getIvrName(rule.ivrTreeId) }}
+                </span>
+              } @else if (rule.queueId) {
+                <span class="rule-card__target rule-card__target--queue">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" aria-hidden="true">
+                    <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
+                  </svg>
+                  Kolejka: {{ getQueueName(rule.queueId) }}
+                </span>
+              }
+
+              @if (isConflicting(rule.ruleId)) {
+                <span class="conflict-badge" role="alert">Kolizja reguł</span>
+              }
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="rule-card__actions">
+            <button
+              type="button"
+              class="icon-btn"
+              (click)="openEditForm(rule)"
+              aria-label="Edytuj regułę"
+              title="Edytuj"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                <path
+                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="icon-btn icon-btn--danger"
+              (click)="deleteRule(rule)"
+              [disabled]="deletingRuleId() === rule.ruleId"
+              aria-label="Usuń regułę"
+              title="Usuń"
+            >
+              @if (deletingRuleId() === rule.ruleId) {
+                <span class="spinner spinner--dark" aria-hidden="true"></span>
+              } @else {
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                </svg>
+              }
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<!-- Rule form modal -->
+<app-routing-rule-form
+  #ruleFormRef
+  [phoneNumberId]="phoneNumberId()"
+  [editRule]="editingRule()"
+  (saved)="onRuleSaved($event)"
+  (cancelled)="onFormCancelled()"
+/>

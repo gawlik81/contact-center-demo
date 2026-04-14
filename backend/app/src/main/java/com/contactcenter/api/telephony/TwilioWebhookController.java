@@ -4,7 +4,9 @@ import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.routing.RouteResult;
 import com.contactcenter.domain.service.ContactService;
+import com.contactcenter.domain.service.IncomingCallRoutingService;
 import com.contactcenter.domain.service.IvrEngineService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.TwilioTelephonyAdapter;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -71,6 +74,7 @@ public class TwilioWebhookController {
 
   private final TwilioTelephonyAdapter twilioAdapter;
   private final IvrEngineService ivrEngineService;
+  private final IncomingCallRoutingService incomingCallRoutingService;
   private final ContactService contactService;
   private final CustomerRepository customerRepository;
   private final ContactRepository contactRepository;
@@ -94,6 +98,7 @@ public class TwilioWebhookController {
   public TwilioWebhookController(
       @Autowired(required = false) TwilioTelephonyAdapter twilioAdapter,
       IvrEngineService ivrEngineService,
+      IncomingCallRoutingService incomingCallRoutingService,
       ContactService contactService,
       CustomerRepository customerRepository,
       ContactRepository contactRepository,
@@ -101,6 +106,7 @@ public class TwilioWebhookController {
       TwilioProperties twilioProperties) {
     this.twilioAdapter = twilioAdapter;
     this.ivrEngineService = ivrEngineService;
+    this.incomingCallRoutingService = incomingCallRoutingService;
     this.contactService = contactService;
     this.customerRepository = customerRepository;
     this.contactRepository = contactRepository;
@@ -216,8 +222,24 @@ public class TwilioWebhookController {
         TenantContext.clear();
       }
 
-      // Uruchom sesję IVR – zwraca dynamiczny TwiML z aktywnego drzewa IVR tenanta
-      String twiml = ivrEngineService.startIvrSessionAndBuildTwiml(callSid, tenantId, appBaseUrl, contactId);
+      // Rozwiąż trasę na podstawie reguł harmonogramu (phone_number + phone_routing_rule)
+      RouteResult route = incomingCallRoutingService.resolveRoute(tenantId, to, ZonedDateTime.now());
+      log.info("[TwilioVoiceWebhook] Wynik routingu: callSid={}, route={}/{}", callSid, route.type(), route.targetId());
+
+      String twiml;
+      if (route.isReject() || to == null) {
+        // Brak pasującej reguły lub nieznany numer – odrzuć połączenie
+        twiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Reject/></Response>";
+      } else if (route.isQueue()) {
+        // Bezpośrednie przekierowanie do kolejki (bez IVR)
+        twiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Dial><Queue>"
+            + route.targetId() + "</Queue></Dial></Response>";
+      } else {
+        // IVR – uruchom konkretne drzewo IVR wskazane przez regułę routingu
+        twiml = ivrEngineService.startIvrSessionAndBuildTwiml(
+            callSid, tenantId, appBaseUrl, contactId, route.targetId());
+      }
+
       return ResponseEntity.ok()
           .contentType(MediaType.APPLICATION_XML)
           .body(twiml);

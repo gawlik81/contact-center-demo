@@ -326,10 +326,32 @@ public class IvrEngineService {
      * @return TwiML string
      */
     public String startIvrSessionAndBuildTwiml(String callId, UUID tenantId, String baseUrl, UUID contactId) {
+        return startIvrSessionAndBuildTwiml(callId, tenantId, baseUrl, contactId, null);
+    }
+
+    /**
+     * Startuje sesję IVR w trybie TwiML dla konkretnego drzewa IVR i zwraca TwiML.
+     *
+     * <p>Wariant z jawnym {@code ivrTreeId} – używany przez silnik routingu połączeń przychodzących
+     * ({@link IncomingCallRoutingService}) gdy reguła harmonogramu wskazuje konkretne drzewo IVR
+     * zamiast domyślnego aktywnego drzewa tenanta.
+     *
+     * <p>Gdy {@code ivrTreeId} jest {@code null}, zachowuje się identycznie jak
+     * {@link #startIvrSessionAndBuildTwiml(String, UUID, String, UUID)} – używa aktywnego drzewa tenanta.
+     *
+     * @param callId    Twilio Call SID
+     * @param tenantId  UUID tenanta
+     * @param baseUrl   publiczny bazowy URL aplikacji
+     * @param contactId UUID rekordu contact w DB (może być null)
+     * @param ivrTreeId UUID konkretnego drzewa IVR (null = użyj aktywnego dla tenanta)
+     * @return TwiML string gotowy do zwrotu jako {@code application/xml}
+     */
+    public String startIvrSessionAndBuildTwiml(String callId, UUID tenantId, String baseUrl, UUID contactId,
+                                               UUID ivrTreeId) {
         // Ładuj drzewo IVR raz – przekazywane do startIvrSessionWithTree i do budowania TwiML
-        IvrTree ivr = resolveIvrTree(tenantId, null).orElse(null);
+        IvrTree ivr = resolveIvrTree(tenantId, ivrTreeId).orElse(null);
         if (ivr == null || ivr.getDefinition() == null) {
-            log.warn("[IVR] Brak aktywnego drzewa IVR dla TwiML: tenantId={}", tenantId);
+            log.warn("[IVR] Brak aktywnego drzewa IVR dla TwiML: tenantId={}, ivrTreeId={}", tenantId, ivrTreeId);
             return buildFallbackTwiml();
         }
 

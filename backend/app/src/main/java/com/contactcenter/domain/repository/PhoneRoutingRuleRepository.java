@@ -154,7 +154,7 @@ public class PhoneRoutingRuleRepository extends TenantAwareRepository {
                         SELECT r.rule_id::text FROM phone_routing_rule r
                         WHERE r.phone_number_id = CAST(:phoneNumberId AS uuid)
                           AND r.is_active       = TRUE
-                          AND (:excludeRuleId IS NULL OR r.rule_id != CAST(:excludeRuleId AS uuid))
+                          AND (CAST(:excludeRuleId AS uuid) IS NULL OR r.rule_id != CAST(:excludeRuleId AS uuid))
                           AND r.days_of_week   && CAST(:days AS integer[])
                           AND r.time_start      < CAST(:timeEnd AS time)
                           AND r.time_end        > CAST(:timeStart AS time)

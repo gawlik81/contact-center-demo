@@ -105,11 +105,11 @@ export const SUPERVISOR_ROUTES: Routes = [
               ),
           },
           {
-            path: 'twilio',
-            data: { breadcrumb: 'Twilio VoIP' },
+            path: 'phone-numbers',
+            data: { breadcrumb: 'Numery telefonów' },
             loadComponent: () =>
-              import('./pages/settings/twilio-settings.component').then(
-                (m) => m.TwilioSettingsComponent,
+              import('./pages/settings/phone-numbers/phone-numbers.component').then(
+                (m) => m.PhoneNumbersComponent,
               ),
           },
         ],

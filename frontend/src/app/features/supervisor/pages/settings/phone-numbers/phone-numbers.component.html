@@ -1,0 +1,320 @@
+<div class="phone-numbers">
+  <!-- Page header -->
+  <div class="phone-numbers__header">
+    <div>
+      <h1 class="phone-numbers__title">Numery telefonów</h1>
+      <p class="phone-numbers__subtitle">
+        Zarządzaj numerami telefonów tenanta i regułami routingu przychodzących połączeń.
+      </p>
+    </div>
+    <button
+      type="button"
+      class="btn btn-primary"
+      (click)="openAddDialog()"
+      [disabled]="loading()"
+      aria-label="Dodaj numer telefonu"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      Dodaj numer
+    </button>
+  </div>
+
+  <!-- Loading skeleton -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-label="Ładowanie numerów...">
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+      <div class="skeleton skeleton--row"></div>
+    </div>
+  } @else if (loadError()) {
+    <div class="error-state" role="alert">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32" class="error-state__icon" aria-hidden="true">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+      </svg>
+      <p class="error-state__message">Nie udało się załadować numerów telefonów. Odśwież stronę i spróbuj ponownie.</p>
+    </div>
+  } @else if (phoneNumbers().length === 0) {
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48" class="empty-state__icon" aria-hidden="true">
+        <path
+          d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+        />
+      </svg>
+      <p class="empty-state__title">Brak numerów – dodaj pierwszy numer Twilio</p>
+      <p class="empty-state__hint">Numery telefonów umożliwiają odbieranie połączeń przychodzących przez Twilio.</p>
+      <button type="button" class="btn btn-primary" (click)="openAddDialog()">Dodaj pierwszy numer</button>
+    </div>
+  } @else {
+    <!-- Numbers table -->
+    <div class="numbers-table" role="table" aria-label="Lista numerów telefonów">
+      <div class="numbers-table__head" role="row">
+        <span role="columnheader" class="col-number">Numer</span>
+        <span role="columnheader" class="col-name">Nazwa</span>
+        <span role="columnheader" class="col-status">Status</span>
+        <span role="columnheader" class="col-rules">Reguły</span>
+        <span role="columnheader" class="col-actions">Akcje</span>
+      </div>
+
+      @for (number of phoneNumbers(); track number.phoneNumberId) {
+        <!-- Row -->
+        <div role="rowgroup">
+          <div
+            class="numbers-table__row"
+            role="row"
+            [class.numbers-table__row--expanded]="isExpanded(number.phoneNumberId)"
+          >
+            <!-- Number -->
+            <div role="cell" class="col-number">
+              <button
+                type="button"
+                class="expand-btn"
+                (click)="toggleExpand(number.phoneNumberId)"
+                [attr.aria-expanded]="isExpanded(number.phoneNumberId)"
+                [attr.aria-label]="
+                  (isExpanded(number.phoneNumberId) ? 'Zwiń' : 'Rozwiń') + ' reguły dla ' + number.number
+                "
+              >
+                <svg
+                  class="expand-btn__chevron"
+                  [class.expand-btn__chevron--open]="isExpanded(number.phoneNumberId)"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  width="16"
+                  height="16"
+                  aria-hidden="true"
+                >
+                  <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                </svg>
+                <span class="number-text">{{ number.number }}</span>
+              </button>
+            </div>
+
+            <!-- Display name -->
+            <div role="cell" class="col-name">
+              <span class="display-name">{{ number.displayName || '—' }}</span>
+            </div>
+
+            <!-- Status -->
+            <div role="cell" class="col-status">
+              @if (number.isActive) {
+                <span class="status-badge status-badge--active">Aktywny</span>
+              } @else {
+                <span class="status-badge status-badge--inactive">Nieaktywny</span>
+              }
+            </div>
+
+            <!-- Rule count -->
+            <div role="cell" class="col-rules">
+              <span class="rules-count">{{ getRuleCount(number.phoneNumberId) }}</span>
+            </div>
+
+            <!-- Actions -->
+            <div role="cell" class="col-actions">
+              <button
+                type="button"
+                class="icon-btn"
+                (click)="openEditDialog(number)"
+                aria-label="Edytuj numer {{ number.number }}"
+                title="Edytuj"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                  <path
+                    d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn icon-btn--danger"
+                (click)="openDeleteDialog(number)"
+                [disabled]="deletingId() === number.phoneNumberId"
+                aria-label="Usuń numer {{ number.number }}"
+                title="Usuń"
+              >
+                @if (deletingId() === number.phoneNumberId) {
+                  <span class="spinner" aria-hidden="true"></span>
+                } @else {
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                  </svg>
+                }
+              </button>
+            </div>
+          </div>
+
+          <!-- Expanded routing rules -->
+          @if (isExpanded(number.phoneNumberId)) {
+            <div class="routing-rules-panel" role="region" [attr.aria-label]="'Reguły routingu ' + number.number">
+              <app-routing-rules
+                [phoneNumberId]="number.phoneNumberId"
+                [phoneNumber]="number.number"
+                (ruleCountChange)="onRuleCountChange(number.phoneNumberId, $event)"
+              />
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<!-- Add number dialog -->
+<dialog #addDialogRef class="num-dialog" aria-labelledby="add-dialog-title">
+  <div class="num-dialog__header">
+    <h2 id="add-dialog-title" class="num-dialog__title">Dodaj numer telefonu</h2>
+    <button type="button" class="num-dialog__close" (click)="closeAddDialog()" aria-label="Zamknij dialog">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+        <path
+          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+        />
+      </svg>
+    </button>
+  </div>
+
+  <form [formGroup]="addForm" (ngSubmit)="onAddSubmit()" novalidate class="num-dialog__body">
+    <div class="form-field" [class.form-field--error]="!!addNumberError">
+      <label class="form-label" for="add-number">Numer telefonu *</label>
+      <input
+        id="add-number"
+        type="tel"
+        class="form-input"
+        formControlName="number"
+        placeholder="+48123456789"
+        autocomplete="off"
+        [attr.aria-describedby]="addNumberError ? 'add-number-error' : 'add-number-hint'"
+        [attr.aria-invalid]="addNumberError ? 'true' : null"
+      />
+      @if (addNumberError) {
+        <span id="add-number-error" class="form-error" role="alert">{{ addNumberError }}</span>
+      } @else {
+        <span id="add-number-hint" class="form-hint">Format E.164, np. +48123456789</span>
+      }
+    </div>
+
+    <div class="form-field">
+      <label class="form-label" for="add-display-name">Nazwa wyświetlana (opcjonalna)</label>
+      <input
+        id="add-display-name"
+        type="text"
+        class="form-input"
+        formControlName="displayName"
+        placeholder="np. Infolinia główna"
+        autocomplete="off"
+      />
+    </div>
+
+    <div class="num-dialog__actions">
+      <button type="button" class="btn btn-secondary" (click)="closeAddDialog()">Anuluj</button>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="isAddSaveDisabled()"
+        [attr.aria-disabled]="isAddSaveDisabled()"
+      >
+        @if (submitting()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Zapisywanie...
+        } @else {
+          Dodaj numer
+        }
+      </button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Edit number dialog -->
+<dialog #editDialogRef class="num-dialog" aria-labelledby="edit-dialog-title">
+  <div class="num-dialog__header">
+    <h2 id="edit-dialog-title" class="num-dialog__title">Edytuj numer telefonu</h2>
+    <button type="button" class="num-dialog__close" (click)="closeEditDialog()" aria-label="Zamknij dialog">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+        <path
+          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+        />
+      </svg>
+    </button>
+  </div>
+
+  <form [formGroup]="editForm" (ngSubmit)="onEditSubmit()" novalidate class="num-dialog__body">
+    @if (editingNumber()) {
+      <p class="editing-number-label">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+          <path
+            d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+          />
+        </svg>
+        {{ editingNumber()!.number }}
+      </p>
+    }
+
+    <div class="form-field">
+      <label class="form-label" for="edit-display-name">Nazwa wyświetlana</label>
+      <input
+        id="edit-display-name"
+        type="text"
+        class="form-input"
+        formControlName="displayName"
+        placeholder="np. Infolinia główna"
+        autocomplete="off"
+      />
+    </div>
+
+    <div class="form-field">
+      <label class="toggle-label">
+        <input type="checkbox" formControlName="isActive" class="toggle-checkbox" />
+        <span class="toggle-track">
+          <span class="toggle-thumb"></span>
+        </span>
+        <span>Aktywny</span>
+      </label>
+    </div>
+
+    <div class="num-dialog__actions">
+      <button type="button" class="btn btn-secondary" (click)="closeEditDialog()">Anuluj</button>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="isEditSaveDisabled()"
+        [attr.aria-disabled]="isEditSaveDisabled()"
+      >
+        @if (submitting()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Zapisywanie...
+        } @else {
+          Zapisz zmiany
+        }
+      </button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Delete confirmation dialog -->
+<dialog #deleteDialogRef class="num-dialog num-dialog--sm" aria-labelledby="delete-dialog-title">
+  <div class="num-dialog__header">
+    <h2 id="delete-dialog-title" class="num-dialog__title">Usuń numer telefonu</h2>
+  </div>
+  <div class="num-dialog__body">
+    @if (pendingDeleteNumber()) {
+      <p class="delete-confirm-text">
+        Czy na pewno chcesz usunąć numer
+        <strong>{{ pendingDeleteNumber()!.number }}</strong
+        >?
+        <br />
+        Ta operacja jest nieodwracalna. Jeśli numer ma przypisane reguły routingu, musisz je najpierw usunąć.
+      </p>
+    }
+    <div class="num-dialog__actions">
+      <button type="button" class="btn btn-secondary" (click)="closeDeleteDialog()">Anuluj</button>
+      <button type="button" class="btn btn-danger" (click)="confirmDelete()" [disabled]="!!deletingId()">
+        @if (deletingId()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Usuwanie...
+        } @else {
+          Usuń numer
+        }
+      </button>
+    </div>
+  </div>
+</dialog>

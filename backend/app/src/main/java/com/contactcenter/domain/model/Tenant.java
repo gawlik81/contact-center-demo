@@ -120,6 +120,17 @@ public class Tenant {
         return getConfigString("twilio_status_callback_url");
     }
 
+    /**
+     * Zwraca strefę czasową tenanta z konfiguracji JSONB.
+     * Klucz: {@code timezone}. Domyślnie {@code Europe/Warsaw}.
+     *
+     * @return identyfikator strefy czasowej zgodny z java.time.ZoneId (np. "Europe/Warsaw")
+     */
+    public String getTimezone() {
+        String tz = getConfigString("timezone");
+        return tz != null ? tz : "Europe/Warsaw";
+    }
+
     private String getConfigString(String key) {
         if (config == null || !config.containsKey(key)) {
             return null;

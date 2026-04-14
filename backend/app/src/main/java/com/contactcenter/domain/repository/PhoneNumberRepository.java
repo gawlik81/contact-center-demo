@@ -75,6 +75,37 @@ public class PhoneNumberRepository extends TenantAwareRepository {
     }
 
     /**
+     * Pobiera aktywny (nie usunięty) numer telefonu po wartości numeru i tenantId.
+     *
+     * <p>Używane przez silnik routingu przychodzących połączeń ({@code IncomingCallRoutingService})
+     * do wyszukania konfiguracji numeru na podstawie parametru {@code To} z Twilio.
+     *
+     * @param number   numer E.164 (np. "+48221234567")
+     * @param tenantId UUID tenanta
+     * @return Optional z encją lub empty gdy numer nie istnieje / usunięty
+     */
+    @Transactional(readOnly = true)
+    public Optional<PhoneNumber> findByNumberAndTenantId(String number, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<PhoneNumber> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM phone_number
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND number = :number
+                          AND is_deleted = false
+                        LIMIT 1
+                        """,
+                        PhoneNumber.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("number", number)
+                .getResultList();
+
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    /**
      * Sprawdza czy istnieje aktywny (nie usunięty) numer o podanej wartości w obrębie tenanta.
      *
      * <p>Używane do detekcji duplikatów przy tworzeniu.

@@ -377,6 +377,74 @@ public class IvrEngineService {
     }
 
     /**
+     * Kieruje przychodzące połączenie bezpośrednio do kolejki bez przechodzenia przez IVR.
+     *
+     * <p>Odpowiednik węzła {@code QUEUE_TRANSFER} w IVR, ale synchroniczny – zwraca TwiML
+     * bezpośrednio. Używany gdy reguła routingu wskazuje kolejkę bez skonfigurowanego IVR.
+     *
+     * <p>Przepływ:
+     * <ol>
+     *   <li>Weryfikuje istnienie kolejki w bazie danych</li>
+     *   <li>Aktualizuje {@code contact.queue_id} w DB (wymagane dla retry-routingu agentów)</li>
+     *   <li>Publikuje {@link ContactQueuedMessage} do RabbitMQ</li>
+     *   <li>Zwraca TwiML kierujący dzwoniącego do konferencji Twilio (czeka na agenta)</li>
+     * </ol>
+     *
+     * @param callSid   Twilio Call SID
+     * @param tenantId  UUID tenanta
+     * @param queueId   UUID kolejki (z reguły routingu)
+     * @param contactId UUID rekordu contact (może być null jeśli nie udało się utworzyć)
+     * @param baseUrl   publiczny bazowy URL aplikacji
+     * @return TwiML string gotowy do zwrotu jako {@code application/xml}
+     */
+    public String routeDirectlyToQueue(String callSid, UUID tenantId, UUID queueId,
+                                       UUID contactId, String baseUrl) {
+        log.info("[DirectQueue] Kierowanie do kolejki: callSid={}, queueId={}, contactId={}",
+            callSid, queueId, contactId);
+        try {
+            Optional<Queue> queueOpt = queueRepository.findByIdAndTenantId(queueId, tenantId);
+            if (queueOpt.isEmpty()) {
+                log.warn("[DirectQueue] Kolejka nie istnieje: queueId={}, tenantId={}", queueId, tenantId);
+                return buildFallbackTwiml();
+            }
+
+            // Fallback na deterministyczny UUID gdy brak rekordu contact (tryb mock)
+            UUID resolvedContactId = contactId != null ? contactId : deriveContactId(callSid);
+
+            // Zapisz queue_id do DB – wymagane dla retry-routingu w RoutingService
+            if (contactId != null) {
+                try {
+                    TenantContext.setTenantId(tenantId);
+                    int rows = contactRepository.updateQueueId(contactId, tenantId, queueId);
+                    if (rows == 0) {
+                        log.warn("[DirectQueue] updateQueueId: brak zaktualizowanych wierszy: contactId={}, queueId={}",
+                            contactId, queueId);
+                    }
+                } catch (Exception e) {
+                    log.error("[DirectQueue] Błąd aktualizacji queue_id: contactId={}, queueId={}, error={}",
+                        contactId, queueId, e.getMessage(), e);
+                } finally {
+                    TenantContext.clear();
+                }
+            }
+
+            // Opublikuj event – agenci w kolejce zostaną powiadomieni
+            ContactQueuedMessage message = new ContactQueuedMessage(resolvedContactId, queueId, tenantId, null);
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, ROUTING_KEY_CONTACT_QUEUED, message);
+
+            log.info("[DirectQueue] Opublikowano ContactQueuedMessage: callSid={}, queueId={}, contactId={}",
+                callSid, queueId, resolvedContactId);
+
+            return buildWaitInConferenceTwiml(resolvedContactId, queueId, tenantId, baseUrl);
+
+        } catch (Exception e) {
+            log.error("[DirectQueue] Błąd kierowania do kolejki: callSid={}, queueId={}, error={}",
+                callSid, queueId, e.getMessage(), e);
+            return buildFallbackTwiml();
+        }
+    }
+
+    /**
      * Przetwarza wejście DTMF i zwraca TwiML dla następnego węzła IVR.
      *
      * <p>Wywołaj z DTMF action URL (endpoint {@code /dtmf}).

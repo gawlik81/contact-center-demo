@@ -231,9 +231,9 @@ public class TwilioWebhookController {
         // Brak pasującej reguły lub nieznany numer – odrzuć połączenie
         twiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Reject/></Response>";
       } else if (route.isQueue()) {
-        // Bezpośrednie przekierowanie do kolejki (bez IVR)
-        twiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Dial><Queue>"
-            + route.targetId() + "</Queue></Dial></Response>";
+        // Bezpośrednie przekierowanie do kolejki (bez IVR):
+        // publikuje ContactQueuedMessage i kieruje dzwoniącego do konferencji Twilio
+        twiml = ivrEngineService.routeDirectlyToQueue(callSid, tenantId, route.targetId(), contactId, appBaseUrl);
       } else {
         // IVR – uruchom konkretne drzewo IVR wskazane przez regułę routingu
         twiml = ivrEngineService.startIvrSessionAndBuildTwiml(

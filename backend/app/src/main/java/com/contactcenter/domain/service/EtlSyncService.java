@@ -1,5 +1,8 @@
-package com.contactcenter.domain.etl;
+package com.contactcenter.domain.service;
 
+import com.contactcenter.domain.etl.ContactDwRow;
+import com.contactcenter.domain.etl.DataWarehouseWriter;
+import com.contactcenter.domain.etl.EtlTableStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -14,7 +17,6 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

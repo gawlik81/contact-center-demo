@@ -1,4 +1,4 @@
-package com.contactcenter.domain.routing;
+package com.contactcenter.domain.service;
 
 import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.model.AppUser.UserStatus;
@@ -6,6 +6,11 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.routing.ContactAssignedEvent;
+import com.contactcenter.domain.routing.ContactQueuedMessage;
+import com.contactcenter.domain.routing.RoutingEngine;
+import com.contactcenter.domain.routing.RoutingRequest;
+import com.contactcenter.domain.routing.RoutingResult;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;

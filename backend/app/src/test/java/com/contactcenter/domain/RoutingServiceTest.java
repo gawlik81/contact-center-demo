@@ -6,7 +6,12 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.QueueRepository;
-import com.contactcenter.domain.routing.*;
+import com.contactcenter.domain.routing.ContactAssignedEvent;
+import com.contactcenter.domain.routing.ContactQueuedMessage;
+import com.contactcenter.domain.routing.RoutingEngine;
+import com.contactcenter.domain.routing.RoutingRequest;
+import com.contactcenter.domain.routing.RoutingResult;
+import com.contactcenter.domain.service.RoutingService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,9 +29,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Testy jednostkowe dla {@link RoutingService}.

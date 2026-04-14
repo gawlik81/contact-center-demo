@@ -1,6 +1,7 @@
 package com.contactcenter.domain.repository;
 
 import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.service.RoutingService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -754,7 +755,7 @@ public class ContactRepository extends TenantAwareRepository {
   /**
    * Pobiera kontakty ze statusem QUEUED dla danego tenanta (oczekujące na przydzielenie agenta).
    *
-   * <p>Używane przez {@link com.contactcenter.domain.routing.RoutingService#onAgentStatusChanged}
+   * <p>Używane przez {@link RoutingService#onAgentStatusChanged}
    * do retry routingu gdy agent staje się AVAILABLE. Posortowane od najstarszych (FIFO).
    *
    * <p>Limit 50 – chroni przed zbyt dużym batche'm w jednym wywołaniu listenera.

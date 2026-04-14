@@ -1,5 +1,7 @@
 package com.contactcenter.domain.routing;
 
+import com.contactcenter.domain.service.RoutingService;
+
 import java.util.Map;
 import java.util.UUID;
 

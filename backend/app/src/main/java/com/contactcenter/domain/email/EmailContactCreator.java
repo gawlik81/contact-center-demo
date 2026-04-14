@@ -5,6 +5,7 @@ import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
+import com.contactcenter.domain.service.RoutingService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ import java.util.UUID;
  *
  * <p>Nasłuchuje eventu {@code email.queued} (publikowanego przez {@link EmailRoutingService})
  * i tworzy kontakt kanału EMAIL w bazie danych, a następnie publikuje event
- * {@code contact.queued} do {@link com.contactcenter.domain.routing.RoutingService}.
+ * {@code contact.queued} do {@link RoutingService}.
  *
  * <p>Pozostałe typy eventów ({@code email.received}, {@code email.sent}, {@code email.assigned})
  * są logowane i ignorowane – nie wymagają tworzenia kontaktu.
@@ -51,7 +52,7 @@ public class EmailContactCreator {
      *   <li>Tworzy {@link Contact} z kanałem EMAIL i statusem QUEUED</li>
      *   <li>Aktualizuje {@link EmailMessage#getContactId()} powiązując wiadomość z kontaktem</li>
      *   <li>Publikuje {@link ContactQueuedMessage} do {@code cc.queue.contact-routing},
-     *       gdzie {@link com.contactcenter.domain.routing.RoutingService} przydzieli agenta</li>
+     *       gdzie {@link RoutingService} przydzieli agenta</li>
      * </ol>
      *
      * @param event event email z RabbitMQ (Jackson deserializacja)

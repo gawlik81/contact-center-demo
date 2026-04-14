@@ -488,7 +488,8 @@ Migracja `V029__add_email_address_to_queue.sql`. Dodanie kolumny `email_address 
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-002 (TENANT), DB-009 (IVR_TREE), DB-010 (QUEUE), DB-015 (RLS)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-14
 **Blokuje:** BE-033, BE-034
 **Odniesienie PRD:** EPIC-11
 
@@ -572,11 +573,11 @@ CREATE CONSTRAINT TRIGGER trg_routing_rule_collision
 **Seed dev (V999):** Dwa przykładowe numery dla tenant dev; reguły: pon-pt 8:00-17:00 → IVR „Powitanie", pon-pt 17:00-20:00 → kolejka „After Hours". Sob-nie brak reguł (odrzucenie).
 
 **Kryteria akceptacji:**
-- [ ] `phone_number`: UNIQUE(tenant_id, number), CHECK E.164, RLS, soft delete
-- [ ] `phone_routing_rule`: CHECK time_start < time_end, CHECK dokładnie jeden target (IVR xor kolejka), CHECK min 1 dzień
-- [ ] Trigger `trg_routing_rule_collision` blokuje INSERT/UPDATE gdy nakładają się przedziały czasu dla tego samego dnia i numeru
-- [ ] RLS na obu tabelach izoluje dane między tenantami
-- [ ] Migracja idempotentna (IF NOT EXISTS / DO blocks)
+- [x] `phone_number`: UNIQUE(tenant_id, number), CHECK E.164, RLS, soft delete
+- [x] `phone_routing_rule`: CHECK time_start < time_end, CHECK dokładnie jeden target (IVR xor kolejka), CHECK min 1 dzień
+- [x] Trigger `trg_routing_rule_collision` blokuje INSERT/UPDATE gdy nakładają się przedziały czasu dla tego samego dnia i numeru
+- [x] RLS na obu tabelach izoluje dane między tenantami
+- [x] Migracja idempotentna (IF NOT EXISTS / DO blocks)
 
 ---
 

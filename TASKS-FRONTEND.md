@@ -634,8 +634,9 @@ Sekcja „Telefonia VoIP" w panelu ustawień tenanta (dostępna dla ADMIN i SUPE
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** FE-005, FE-014 (IVR editor), BE-033, BE-034
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-033 (PhoneNumber API), BE-034 (RoutingRule API)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-14
+**Czeka na BE:** ~~BE-033~~ ✅, ~~BE-034~~ ✅
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-11
 
@@ -714,13 +715,13 @@ interface PhoneRoutingRule {
 ```
 
 **Kryteria akceptacji:**
-- [ ] Lista numerów tenanta: dodawanie (E.164 walidacja), edycja displayName, soft delete (409 blokuje gdy są reguły)
-- [ ] Reguły routingu: dodawanie, edycja, usunięcie per numer
-- [ ] Kolizja → HTTP 409 → wizualne wyróżnienie kolidujących reguł + toast
-- [ ] Brak reguł w pewnych godzinach → badge ostrzegawczy
-- [ ] IVR dropdown ładuje drzewa IVR z `/api/ivr-trees`; kolejka dropdown z `/api/queues`
-- [ ] Dostępne tylko dla roli SUPERVISOR i ADMIN (roleGuard)
-- [ ] Usunięto route `settings/twilio` i sidenav entry „Twilio VoIP" z supervisora; zastąpiono „Numery telefonów"
+- [x] Lista numerów tenanta: dodawanie (E.164 walidacja), edycja displayName, soft delete (409 blokuje gdy są reguły)
+- [x] Reguły routingu: dodawanie, edycja, usunięcie per numer
+- [x] Kolizja → HTTP 409 → wizualne wyróżnienie kolidujących reguł + toast
+- [x] Brak reguł w pewnych godzinach → badge ostrzegawczy
+- [x] IVR dropdown ładuje drzewa IVR z `/api/ivr-trees`; kolejka dropdown z `/api/queues`
+- [x] Dostępne tylko dla roli SUPERVISOR i ADMIN (roleGuard)
+- [x] Usunięto route `settings/twilio` i sidenav entry „Twilio VoIP" z supervisora; zastąpiono „Numery telefonów"
 
 ---
 
@@ -811,15 +812,15 @@ core/models/contact.model.ts  (rozszerzenie istniejącego)
 Aktualny interfejs `ContactResponse` w `core/models/contact.model.ts` jest niekompletny (brakuje `queueId`, `campaignId`, `durationSeconds`, `recordingUrl`, `remoteAddress`, `assignedAt`, `queuedAt`, `channelMetadata`). Zaktualizować do pełnego mapowania z backendu.
 
 **Kryteria akceptacji:**
-- [ ] Modal otwiera się z pełnymi danymi kontaktu (wszystkie pola wymienione w sekcji Szczegóły)
-- [ ] Sekcja nagrania widoczna tylko gdy `recordingUrl` nie jest null w danych kontaktu
-- [ ] Kliknięcie „Play" → `AudioPlayerComponent` pobiera presigned URL (`GET /api/contacts/{id}/recording`) i zaczyna odtwarzanie
-- [ ] Progress bar aktualizuje się w czasie rzeczywistym podczas odtwarzania; kliknięcie na progress bar przewija audio
-- [ ] Czas wyświetlany w formacie `MM:SS / MM:SS` (aktualny / całkowity)
-- [ ] Przycisk „Pobierz" otwiera pobieranie pliku przez link z `download` attribute
-- [ ] Błąd ładowania audio (np. presigned URL wygasł) → komunikat inline „Nie można załadować nagrania. Odśwież stronę."
-- [ ] `contact.model.ts` zaktualizowany o pola `queueId`, `campaignId`, `durationSeconds`, `recordingUrl`, `remoteAddress`, `assignedAt`, `queuedAt`, `channelMetadata`
-- [ ] Dostępność: przyciski play/pause mają `aria-label`, progress bar ma `aria-valuenow`/`aria-valuemax`
+- [x] Modal otwiera się z pełnymi danymi kontaktu (wszystkie pola wymienione w sekcji Szczegóły)
+- [x] Sekcja nagrania widoczna tylko gdy `recordingUrl` nie jest null w danych kontaktu
+- [x] Kliknięcie „Play" → `AudioPlayerComponent` pobiera presigned URL (`GET /api/contacts/{id}/recording`) i zaczyna odtwarzanie
+- [x] Progress bar aktualizuje się w czasie rzeczywistym podczas odtwarzania; kliknięcie na progress bar przewija audio
+- [x] Czas wyświetlany w formacie `MM:SS / MM:SS` (aktualny / całkowity)
+- [x] Przycisk „Pobierz" otwiera pobieranie pliku przez link z `download` attribute
+- [x] Błąd ładowania audio (np. presigned URL wygasł) → komunikat inline „Nie można załadować nagrania. Odśwież stronę."
+- [x] `contact.model.ts` zaktualizowany o pola `queueId`, `campaignId`, `durationSeconds`, `recordingUrl`, `remoteAddress`, `assignedAt`, `queuedAt`, `channelMetadata`
+- [x] Dostępność: przyciski play/pause mają `aria-label`, progress bar ma `aria-valuenow`/`aria-valuemax`
 
 ---
 
@@ -829,7 +830,8 @@ Aktualny interfejs `ContactResponse` w `core/models/contact.model.ts` jest nieko
 **Priorytet:** Must Have
 **Zlozonosc:** L
 **Zależy od:** FE-005, FE-022, FE-028 ✅, BE-036 ✅
-**Status:** 🔲 Do zrobienia — wszystkie zależności spełnione, gotowe do realizacji
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-14
 **Czeka na BE:** ~~BE-036~~ ✅ zrealizowane (GET /api/contacts z filtrami queueId, campaignId, remoteAddress, durationMin/Max)
 **Czeka na FE:** ~~FE-028~~ ✅ zrealizowane (ContactDetailModalComponent gotowy)
 **Blokuje:** brak
@@ -900,17 +902,17 @@ exportCsv(filters: ContactFilters): Blob  // synchroniczny — dane pobrane prze
 ```
 
 **Kryteria akceptacji:**
-- [ ] Strona dostępna pod `/supervisor/reports/contacts` (roleGuard: SUPERVISOR, ADMIN)
-- [ ] Nawigacja między zakładkami „Agenci" i „Kontakty" w widoku Raportów (zakładki lub linki)
-- [ ] Tabela wyświetla paginowaną listę kontaktów tenanta posortowaną od najnowszych
-- [ ] Każdy z 7 filtrów (data od-do, agent, kolejka, kampania, status, telefon, czas trwania) działa samodzielnie i w kombinacji
-- [ ] Walidacja zakresu dat: `dateTo >= dateFrom` i max 90 dni → komunikat inline (nie toast)
-- [ ] Paginacja server-side: zmiana strony nie resetuje filtrów; parametry filtrów zachowane w URL (queryParams)
-- [ ] Kliknięcie w wiersz otwiera `ContactDetailModalComponent` z danymi kontaktu
-- [ ] Przycisk „Eksport CSV" pobiera plik z aktualnie zastosowanymi filtrami
-- [ ] Stan pusty (brak wyników) → komunikat „Brak kontaktów spełniających kryteria"
-- [ ] Skeleton loader podczas ładowania danych
-- [ ] Dostępne tylko dla SUPERVISOR i ADMIN (roleGuard)
+- [x] Strona dostępna pod `/supervisor/reports/contacts` (roleGuard: SUPERVISOR, ADMIN)
+- [x] Nawigacja między zakładkami „Agenci" i „Kontakty" w widoku Raportów (zakładki lub linki)
+- [x] Tabela wyświetla paginowaną listę kontaktów tenanta posortowaną od najnowszych
+- [x] Każdy z 7 filtrów (data od-do, agent, kolejka, kampania, status, telefon, czas trwania) działa samodzielnie i w kombinacji
+- [x] Walidacja zakresu dat: `dateTo >= dateFrom` i max 90 dni → komunikat inline (nie toast)
+- [x] Paginacja server-side: zmiana strony nie resetuje filtrów; parametry filtrów zachowane w URL (queryParams)
+- [x] Kliknięcie w wiersz otwiera `ContactDetailModalComponent` z danymi kontaktu
+- [x] Przycisk „Eksport CSV" pobiera plik z aktualnie zastosowanymi filtrami
+- [x] Stan pusty (brak wyników) → komunikat „Brak kontaktów spełniających kryteria"
+- [x] Skeleton loader podczas ładowania danych
+- [x] Dostępne tylko dla SUPERVISOR i ADMIN (roleGuard)
 
 ---
 
@@ -935,12 +937,12 @@ exportCsv(filters: ContactFilters): Blob  // synchroniczny — dane pobrane prze
 - `core/models/contact.model.ts` — zaktualizowany w FE-028 (zależność)
 
 **Kryteria akceptacji:**
-- [ ] Kliknięcie w wiersz historii kontaktów klienta otwiera modal ze szczegółami kontaktu
-- [ ] Modal wyświetla wszystkie pola: czas trwania, status, agent, kolejka, kampania, dyspozycja, daty
-- [ ] Jeśli kontakt ma nagranie (`recordingUrl != null`) — widoczna sekcja nagrania z odtwarzaczem
-- [ ] Jeśli kontakt nie ma nagrania — sekcja nagrania ukryta (nie wyświetla się)
-- [ ] Wiersze kontaktów mają wizualny sygnał klikalności (`cursor: pointer`, hover state)
-- [ ] Zamknięcie modala nie resetuje paginacji listy kontaktów klienta
+- [x] Kliknięcie w wiersz historii kontaktów klienta otwiera modal ze szczegółami kontaktu
+- [x] Modal wyświetla wszystkie pola: czas trwania, status, agent, kolejka, kampania, dyspozycja, daty
+- [x] Jeśli kontakt ma nagranie (`recordingUrl != null`) — widoczna sekcja nagrania z odtwarzaczem
+- [x] Jeśli kontakt nie ma nagrania — sekcja nagrania ukryta (nie wyświetla się)
+- [x] Wiersze kontaktów mają wizualny sygnał klikalności (`cursor: pointer`, hover state)
+- [x] Zamknięcie modala nie resetuje paginacji listy kontaktów klienta
 
 ---
 

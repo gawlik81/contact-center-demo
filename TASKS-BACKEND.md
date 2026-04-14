@@ -860,7 +860,8 @@ Endpoint `POST /api/customers/{id}/gdpr/export` – generuje ZIP z danymi klient
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-021, BE-006
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-14
 **Blokuje:** BE-034, BE-035, FE-026
 **Odniesienie PRD:** EPIC-11
 
@@ -884,11 +885,11 @@ CRUD API do zarządzania numerami telefonów przypisanymi do tenanta. Każdy ten
   - `DELETE /api/phone-numbers/{id}` → soft delete
 
 **Kryteria akceptacji:**
-- [ ] Walidacja E.164 (`^\+[1-9]\d{6,14}$`) → HTTP 400 dla niepoprawnych numerów
-- [ ] Duplikat numeru w tenant → HTTP 409
-- [ ] Próba usunięcia numeru z aktywnymi regułami → HTTP 409 z komunikatem
-- [ ] RLS: SUPERVISOR widzi tylko numery swojego tenanta; ADMIN widzi wszystkie (omija RLS przez wywołanie `set_tenant_context`)
-- [ ] Testy jednostkowe: CRUD + walidacja + duplikat
+- [x] Walidacja E.164 (`^\+[1-9]\d{6,14}$`) → HTTP 400 dla niepoprawnych numerów
+- [x] Duplikat numeru w tenant → HTTP 409
+- [x] Próba usunięcia numeru z aktywnymi regułami → HTTP 409 z komunikatem
+- [x] RLS: SUPERVISOR widzi tylko numery swojego tenanta; ADMIN widzi wszystkie (omija RLS przez wywołanie `set_tenant_context`)
+- [x] Testy jednostkowe: CRUD + walidacja + duplikat
 
 ---
 
@@ -898,7 +899,8 @@ CRUD API do zarządzania numerami telefonów przypisanymi do tenanta. Każdy ten
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-033, BE-013 (IVR), BE-020 (Queue)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-14
 **Blokuje:** BE-035, FE-026
 **Odniesienie PRD:** EPIC-11
 
@@ -935,11 +937,11 @@ UUID queueId;
 ```
 
 **Kryteria akceptacji:**
-- [ ] Kolizja (ten sam numer, nakładający się dzień+czas) → HTTP 409 z `collidingRuleIds` w body
-- [ ] Dokładnie jeden target (IVR xor kolejka) – walidacja → HTTP 400
-- [ ] `timeEnd > timeStart` – walidacja cross-field → HTTP 400
-- [ ] `daysOfWeek` min 1 element, wartości 1–7 → HTTP 400
-- [ ] Testy: kolizja, brak kolizji (różne dni), brak kolizji (przylegające godziny), update własnej reguły bez fałszywej kolizji
+- [x] Kolizja (ten sam numer, nakładający się dzień+czas) → HTTP 409 z `collidingRuleIds` w body
+- [x] Dokładnie jeden target (IVR xor kolejka) – walidacja → HTTP 400
+- [x] `timeEnd > timeStart` – walidacja cross-field → HTTP 400
+- [x] `daysOfWeek` min 1 element, wartości 1–7 → HTTP 400
+- [x] Testy: kolizja, brak kolizji (różne dni), brak kolizji (przylegające godziny), update własnej reguły bez fałszywej kolizji
 
 ---
 
@@ -949,7 +951,8 @@ UUID queueId;
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-034, BE-009, BE-013
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-14
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-11
 
@@ -980,12 +983,12 @@ Integracja reguł routingu z logiką obsługi połączenia przychodzącego w `Tw
 - Strefa czasowa z `tenant.config.timezone` (domyślnie `Europe/Warsaw`)
 
 **Kryteria akceptacji:**
-- [ ] Połączenie na numer z pasującą regułą IVR → IVR uruchamia się
-- [ ] Połączenie na numer z pasującą regułą kolejki → połączenie trafia do kolejki
-- [ ] Brak pasującej reguły (poza godzinami, weekend) → TwiML Reject
-- [ ] Numer nieznany w tenantcie → TwiML Reject (nie 404 – Twilio wymaga zawsze 200 + TwiML)
-- [ ] Strefa czasowa tenanta uwzględniona przy porównaniu godzin
-- [ ] Testy: wszystkie 4 ścieżki + edge cases (dokładnie na granicy godziny)
+- [x] Połączenie na numer z pasującą regułą IVR → IVR uruchamia się
+- [x] Połączenie na numer z pasującą regułą kolejki → połączenie trafia do kolejki
+- [x] Brak pasującej reguły (poza godzinami, weekend) → TwiML Reject
+- [x] Numer nieznany w tenantcie → TwiML Reject (nie 404 – Twilio wymaga zawsze 200 + TwiML)
+- [x] Strefa czasowa tenanta uwzględniona przy porównaniu godzin
+- [x] Testy: wszystkie 4 ścieżki + edge cases (dokładnie na granicy godziny)
 
 ---
 

@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-14 (DB-021 ✅ V039 tabele phone_number + phone_routing_rule, trigger kolizji reguł, RLS, seed dev; łączny stan: DB 23/23, BE 35/41, FE 29/32)
+**Ostatnia aktualizacja:** 2026-04-14 (EPIC-11 ukończone: DB-021 ✅ V039, BE-033 ✅ PhoneNumber CRUD API, BE-034 ✅ PhoneRoutingRule CRUD API, BE-035 ✅ IncomingCallRoutingService, FE-026 ✅ panel Phone Numbers + Routing Rules; łączny stan: DB 23/23, BE 38/41, FE 32/33)
 
 ---
 
@@ -89,9 +89,9 @@
 | BE-030 | ETL do data warehouse: EtlSyncService (@Scheduled 60s, FOR UPDATE lock, batch upsert contacts_dw, RODO filter NOT EXISTS ANONYMIZED, RabbitMQ lag alert >30min), DataWarehouseWriter interfejs, PostgresDwWriter (ON CONFLICT upsert), EtlStatusController (GET /api/admin/etl/status, POST /api/admin/etl/trigger ADMIN), V036 migracja (etl_sync_state + contacts_dw). 16 testów PASS. | ✅ |
 | BE-031 | RODO: GdprService (exportCustomerData → ZIP z customer/contacts/audit_log JSON, anonymizeCustomer → anonimizacja PII + S3 best-effort delete + GDPR_ANONYMIZE audit), GdprController (POST /api/customers/{id}/gdpr/export, POST /api/customers/{id}/gdpr/anonymize SUPERVISOR+ADMIN). 11 testów PASS. | ✅ | Zrealizowane 2026-04-09 |
 | BE-032 | Twilio: konfiguracja numeru telefonu per tenant | ✅ | Tenant.getTwilioPhoneNumber/getTwilioStatusCallbackUrl (JSONB), TenantTwilioConfigRequest (walidacja E.164), TenantService.updateTwilioConfig (@Audited), PATCH /api/tenants/{id}/config (ADMIN), TwilioTelephonyAdapter.resolvePhoneNumber (per-tenant > global fallback), buildStatusCallbackUrl(tenantId). 6 nowych testów resolvePhoneNumber. BUILD SUCCESS. |
-| BE-033 | PhoneNumber CRUD API: zarządzanie numerami telefonów tenanta | ⬜ | Czeka na DB-021 |
-| BE-034 | PhoneRoutingRule CRUD API: reguły routingu IVR per numer i harmonogram | ⬜ | Czeka na BE-033, BE-013, BE-020 |
-| BE-035 | Incoming call routing: wybór IVR/kolejki na podstawie reguł harmonogramu | ⬜ | Czeka na BE-034, BE-009, BE-013 |
+| BE-033 | PhoneNumber CRUD API: zarządzanie numerami telefonów tenanta | ✅ | PhoneNumber entity (JPA, tabela phone_number), PhoneNumberRepository extends TenantAwareRepository, PhoneNumberService (CRUD + walidacja E.164 + duplicate 409 + soft-delete guard), PhoneNumberController (/api/phone-numbers, ADMIN+SUPERVISOR). DTOs: CreatePhoneNumberRequest, UpdatePhoneNumberRequest, PhoneNumberResponse. |
+| BE-034 | PhoneRoutingRule CRUD API: reguły routingu IVR per numer i harmonogram | ✅ | PhoneRoutingRule entity, PhoneRoutingRuleRepository (findByPhoneNumberIdAndTenantId, findOverlapping native SQL z days_of_week && ARRAY[...]), PhoneRoutingRuleService (createRule z detekcją kolizji aplikacyjną, updateRule, deleteRule, listRules), PhoneRoutingRuleController (/api/phone-numbers/{numberId}/routing-rules). HTTP 409 z collidingRuleIds gdy kolizja. |
+| BE-035 | Incoming call routing: wybór IVR/kolejki na podstawie reguł harmonogramu | ✅ | IncomingCallRoutingService.resolveRoute(tenantId, calledNumber, callTime): lookup phone_number → match reguł harmonogramu → RouteResult(IVR/QUEUE/REJECT). TwilioWebhookController.handleIncomingCall() zintegrowany: REJECT→TwiML Reject, IVR→IvrEngineService.startSession(), QUEUE→TwiML Dial Queue. Strefa czasowa z tenant.config.timezone. RouteResult value object w domain/routing/. |
 | BE-038 | ScheduledCallbackExecutor: @Scheduled fixedDelay=60s, batch-size=50, atomowa zmiana statusu PENDING→PROCESSING (UPDATE WHERE status='PENDING'), TenantContext per-tenant, błąd TelephonyAdapter→FAILED, @ConditionalOnProperty(dialer.enabled). 4 testy. 714 PASS. | ✅ | Zrealizowane 2026-04-09 |
 | BE-039 | PUT /api/dialer/callbacks/{callbackId} – reschedule: RescheduleCallbackRequest {scheduledAt @Future, notes}, 409 gdy nie-PENDING, 403 gdy AGENT cudzy callback, 404 gdy brak. 5 testów. | ✅ | Zrealizowane 2026-04-09 |
 | BE-040 | POST /api/contacts/{contactId}/callback – inbound callback: CreateInboundCallbackRequest, sourceType=INBOUND_CALLBACK, originContactId=contactId, 403 dla AGENT przy cudzym kontakcie. 5 testów. | ✅ | Zrealizowane 2026-04-09 |
@@ -129,10 +129,10 @@
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ | |
 | FE-024 | Panel konfiguracji kolejek i routingu | ✅ | QueueListComponent (tabela kolejek z liczbą oczekujących, polling co 10s), QueueFormComponent (formularz tworzenia/edycji: nazwa, strategia routingu, required skills multi-select, sticky agent timeout, adres email kolejki emailAddress z walidacją email + maxLength(255)), QueueDeleteModalComponent. Integracja z BE-020 ✅ + DB-020 ✅. |
 | FE-025 | Panel konfiguracji Twilio per tenant | ✅ | TwilioConfigService (GET tenant + PATCH /api/tenants/{id}/config), TwilioSettingsComponent (formularz E.164, badge per-tenant/fallback, podgląd auto URL, usunięcie konfiguracji), route /supervisor/settings/twilio, wpis "Twilio VoIP" w sidenavie. BUILD SUCCESS. |
-| FE-026 | Panel zarządzania numerami telefonów i regułami routingu IVR (Supervisor) | ⬜ | Czeka na BE-033 (PhoneNumber API) i BE-034 (RoutingRule API) |
+| FE-026 | Panel zarządzania numerami telefonów i regułami routingu IVR (Supervisor) | ✅ | PhoneNumbersComponent (lista numerów tenanta, formularz dodawania E.164, edycja displayName/isActive, soft-delete z 409 guard), RoutingRulesComponent (lista kart reguł, badge ostrzegawczy przy braku pokrycia godzinowego), RoutingRuleFormComponent (modal: checkboxy dni tygodnia, time pickery, dropdown IVR/Queue, wizualna detekcja kolizji 409), PhoneNumberService (8 metod CRUD + routing-rules). Modele: PhoneNumber, PhoneRoutingRule. Route /supervisor/settings/phone-numbers; sidenav zaktualizowany (usunięto „Twilio VoIP", dodano „Numery telefonów"). Zrealizowane 2026-04-14. |
 | FE-027 | Przycisk „Zadzwoń" dla dialera manualnego | ✅ | ManualCampaignPanelComponent (polling 30s, lista kampanii manualnych RUNNING z rekordami PENDING, przycisk „Zadzwoń" ze spinner + disabled guard), DialerService (getManualCampaignRecords, callRecord → POST /api/dialer/manual/call), integracja z AgentDesktopComponent. Obsługa błędów 409/404 przez toast. |
 | FE-028 | Komponent szczegółów kontaktu z odtwarzaczem nagrania (modal) | ✅ | ContactDetailModalComponent (natywny <dialog>, 3 sekcje: info/status/nagranie, lazy load presigned URL) + AudioPlayerComponent (HTML5 Audio API, własny UI play/pause/seek/pobieranie, OnPush). contact.model.ts rozszerzony o queueId, campaignId, remoteAddress, durationSeconds, answeredAt, recordingPath + RecordingUrlResponse. ContactService.getContact() + getRecordingUrl(). Zrealizowane 2026-04-08. Czekało na BE-037 ✅ |
-| FE-029 | Strona „Raporty > Kontakty" z tabelą, filtrami i eksportem CSV | ✅ | ContactsReportComponent: 7 filtrów (data od/do, kanał, status, kolejka, numer/adres, min/maks czas), debounce 400ms na polach tekstowych/numerycznych, URL query params sync. Tabela z 9 kolumnami: datetime, kanał badge (VOICE/EMAIL/CHAT/SOCIAL), kierunek (Przych./Wych.), adres, kolejka (nazwa lookup), czas MM:SS, status badge (COMPLETED/ABANDONED/FAILED/ACTIVE/QUEUED), dyspozycja, akcja oko→ContactDetailModal. Paginacja server-side 25/str. Skeleton 10 wierszy. Eksport CSV client-side z BOM (UTF-8). ContactService.getContacts() + ContactFilterParams dodane do agent/services/contact.service.ts. Trasa /supervisor/reports/contacts + submenu Raporty > Historyczne/Kontakty w sidenavie. |
+| FE-029 | Strona „Raporty > Kontakty" z tabelą, filtrami i eksportem CSV | ✅ | ContactsReportComponent: 7 filtrów (data od/do, kanał, status, kolejka, numer/adres, min/maks czas), debounce 400ms na polach tekstowych/numerycznych, URL query params sync. Tabela z 9 kolumnami: datetime, kanał badge (VOICE/EMAIL/CHAT/SOCIAL), kierunek (Przych./Wych.), adres, kolejka (nazwa lookup), czas MM:SS, status badge (COMPLETED/ABANDONED/FAILED/ACTIVE/QUEUED), dyspozycja, akcja oko→ContactDetailModal. Paginacja server-side 25/str. Skeleton 10 wierszy. Eksport CSV client-side z BOM (UTF-8). ContactService.getContacts() + ContactFilterParams dodane do agent/services/contact.service.ts. Trasa /supervisor/reports/contacts + submenu Raporty > Historyczne/Kontakty w sidenavie. Zrealizowane 2026-04-14. |
 | FE-030 | Integracja szczegółów kontaktu w panelu klienta (CustomerDetailComponent) | ✅ | selectedContactId signal, klikalne wiersze tabeli (click + keydown.enter/space, cursor:pointer, hover), <app-contact-detail-modal> w template, ContactDetailModalComponent w imports[]. Zrealizowane przy okazji FE-028 2026-04-08. Czekało na FE-028 ✅ |
 | FE-031 | Modal przełożenia rozmowy wychodzącej (Agent Desktop) | ⬜ | Czeka na BE-039 ✅ |
 | FE-032 | Modal dodania oddzwonienia podczas rozmowy przychodzącej | ⬜ | Czeka na BE-040 ✅ |
@@ -145,9 +145,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 23/23 | 0 | 0 | 23 |
-| Backend (BE) | 35/41 | 0 | 6 | 41 |
-| Frontend (FE) | 29/32 | 0 | 3 | 32 |
-| **RAZEM** | **87/96** | **0** | **9** | **96** |
+| Backend (BE) | 38/41 | 0 | 3 | 41 |
+| Frontend (FE) | 32/33 | 0 | 1 | 33 |
+| **RAZEM** | **93/97** | **0** | **4** | **97** |
 
 ---
 

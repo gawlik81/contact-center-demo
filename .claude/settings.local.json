@@ -155,7 +155,8 @@
       "Bash(export JAVA_HOME=\"/c/Program Files/Java/jdk-21\" 2)",
       "Bash(export JAVA_HOME=$\\(find /c/Users -name \"jdk*\" -maxdepth 4 -type d)",
       "Bash(export JAVA_HOME=\"/c/Program Files/Eclipse Adoptium/jdk-21.0.6.7-hotspot\")",
-      "Bash(export JAVA_HOME=\"/c/Users/pawelm/.jdks/corretto-21.0.10\")"
+      "Bash(export JAVA_HOME=\"/c/Users/pawelm/.jdks/corretto-21.0.10\")",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Java/jdk-21\")"
     ]
   }
 }

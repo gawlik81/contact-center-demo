@@ -2,6 +2,7 @@ package com.contactcenter.api;
 
 import com.contactcenter.domain.email.TemplateRenderException;
 import com.contactcenter.domain.exception.ConflictException;
+import com.contactcenter.domain.exception.RoutingRuleConflictException;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.InvalidOperationException;
@@ -11,6 +12,8 @@ import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.service.AuthService;
 import com.contactcenter.security.MfaService;
 import jakarta.persistence.EntityNotFoundException;
+import org.hibernate.exception.GenericJDBCException;
+import org.springframework.dao.DataIntegrityViolationException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -370,6 +373,62 @@ public class GlobalExceptionHandler {
 
         log.debug("[API] Nieprawidłowy argument: {}", ex.getMessage());
         return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * Kolizja harmonogramów reguł routingu – HTTP 409 Conflict.
+     *
+     * <p>Rzucany przez {@code PhoneRoutingRuleService} gdy nowa / modyfikowana reguła
+     * nakłada się na istniejące aktywne reguły dla tego samego numeru telefonu (BE-034).
+     * Odpowiedź zawiera listę {@code collidingRuleIds}.
+     */
+    @ExceptionHandler(RoutingRuleConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleRoutingRuleConflictException(
+            RoutingRuleConflictException ex, WebRequest request) {
+
+        log.warn("[API][RoutingRule] Kolizja harmonogramów: {}", ex.getMessage());
+
+        Map<String, Object> body = Map.of(
+                "collidingRuleIds", ex.getCollidingRuleIds(),
+                "message", ex.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
+     * Kolizja harmonogramów wykryta przez trigger PostgreSQL – HTTP 409 Conflict (fallback).
+     *
+     * <p>Trigger {@code trg_routing_rule_collision} rzuca {@code RAISE EXCEPTION 'routing_rule_collision'}.
+     * Aplikacja wykrywa kolizje przed zapisem, ale trigger działa jako last-resort safeguard.
+     * DataIntegrityViolationException owija PSQLException z komunikatem zawierającym
+     * {@code routing_rule_collision}.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> handleDataIntegrityViolationException(
+            DataIntegrityViolationException ex, WebRequest request) {
+
+        String msg = ex.getMessage() != null ? ex.getMessage() : "";
+        Throwable cause = ex.getCause();
+        String causeMsg = cause != null && cause.getMessage() != null ? cause.getMessage() : "";
+
+        if (msg.contains("routing_rule_collision") || causeMsg.contains("routing_rule_collision")) {
+            log.warn("[API][RoutingRule][DB] Trigger wykrył kolizję harmonogramów: {}", causeMsg);
+            ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+            problem.setType(URI.create(ERROR_BASE_URI + "routing-rule-collision"));
+            problem.setTitle("Kolizja harmonogramów reguł routingu");
+            problem.setDetail("Reguła routingu nakłada się na istniejącą regułę dla tego numeru telefonu");
+            problem.setProperty("timestamp", Instant.now());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+        }
+
+        // Inne naruszenia integralności danych → 409 Generic
+        log.warn("[API] Naruszenie integralności danych: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setType(URI.create(ERROR_BASE_URI + "data-integrity-violation"));
+        problem.setTitle("Naruszenie integralności danych");
+        problem.setDetail("Operacja narusza ograniczenia danych");
+        problem.setProperty("timestamp", Instant.now());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     /**

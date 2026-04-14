@@ -25,7 +25,7 @@ export class PhoneNumberService {
   }
 
   updatePhoneNumber(id: string, req: UpdatePhoneNumberRequest): Observable<PhoneNumber> {
-    return this.http.put<PhoneNumber>(`${this.baseUrl}/${id}`, req);
+    return this.http.patch<PhoneNumber>(`${this.baseUrl}/${id}`, req);
   }
 
   deletePhoneNumber(id: string): Observable<void> {

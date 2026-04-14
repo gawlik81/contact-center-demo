@@ -11,18 +11,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import {
-  catchError,
-  debounceTime,
-  distinctUntilChanged,
-  finalize,
-  of,
-  switchMap,
-} from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, finalize, of, switchMap } from 'rxjs';
 import { CustomerService } from '../services/customer.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerDeleteModalComponent } from '../customer-delete-modal/customer-delete-modal.component';
 import { CustomerCreateModalComponent } from '../customer-create-modal/customer-create-modal.component';
+import { CustomerEditComponent } from '../customer-edit/customer-edit.component';
 import { CustomerResponse } from '../../../models/customer.model';
 
 type SortField = 'firstName' | 'lastName' | 'createdAt';
@@ -31,7 +25,13 @@ type SortDir = 'asc' | 'desc';
 @Component({
   selector: 'app-customer-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, ReactiveFormsModule, CustomerDeleteModalComponent, CustomerCreateModalComponent],
+  imports: [
+    DatePipe,
+    ReactiveFormsModule,
+    CustomerDeleteModalComponent,
+    CustomerCreateModalComponent,
+    CustomerEditComponent,
+  ],
   templateUrl: './customer-list.component.html',
   styleUrl: './customer-list.component.scss',
 })
@@ -55,6 +55,7 @@ export class CustomerListComponent implements OnInit {
 
   readonly selectedCustomer = signal<CustomerResponse | null>(null);
   readonly showDeleteModal = signal(false);
+  readonly showEditModal = signal(false);
 
   private readonly createModalRef = viewChild(CustomerCreateModalComponent);
 
@@ -64,11 +65,7 @@ export class CustomerListComponent implements OnInit {
 
   ngOnInit(): void {
     this.searchForm.controls.query.valueChanges
-      .pipe(
-        debounceTime(300),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef),
-      )
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.currentPage.set(0);
         this.loadCustomers();
@@ -156,8 +153,19 @@ export class CustomerListComponent implements OnInit {
     void this.router.navigate(['/supervisor/customers', customer.customerId]);
   }
 
-  navigateToEdit(customer: CustomerResponse): void {
-    void this.router.navigate(['/supervisor/customers', customer.customerId, 'edit']);
+  openEditModal(customer: CustomerResponse): void {
+    this.selectedCustomer.set(customer);
+    this.showEditModal.set(true);
+  }
+
+  closeEditModal(): void {
+    this.showEditModal.set(false);
+    this.selectedCustomer.set(null);
+  }
+
+  onEditSaved(): void {
+    this.closeEditModal();
+    this.loadCustomers();
   }
 
   navigateToImport(): void {

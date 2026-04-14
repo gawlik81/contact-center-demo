@@ -65,6 +65,11 @@ export class PhoneNumbersComponent implements OnInit {
   readonly isAddSaveDisabled = computed(() => this.submitting());
   readonly isEditSaveDisabled = computed(() => this.submitting());
 
+  /** Returns true when the phone number has at least one routing rule */
+  hasActiveRules(phoneNumberId: string): boolean {
+    return (this.ruleCounts()[phoneNumberId] ?? 0) > 0;
+  }
+
   ngOnInit(): void {
     this.loadPhoneNumbers();
   }
@@ -257,13 +262,11 @@ export class PhoneNumbersComponent implements OnInit {
         }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((result) => {
-        if (result !== null) {
-          const id = number.phoneNumberId;
-          this.phoneNumbers.update((list) => list.filter((n) => n.phoneNumberId !== id));
-          if (this.expandedNumberId() === id) this.expandedNumberId.set(null);
-          this.notifications.success('Numer telefonu usunięty.');
-        }
+      .subscribe(() => {
+        const id = number.phoneNumberId;
+        this.phoneNumbers.update((list) => list.filter((n) => n.phoneNumberId !== id));
+        if (this.expandedNumberId() === id) this.expandedNumberId.set(null);
+        this.notifications.success('Numer telefonu usunięty.');
         this.deletingId.set(null);
         this.deleteDialogRef.nativeElement.close();
         this.pendingDeleteNumber.set(null);

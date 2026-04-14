@@ -1,7 +1,4 @@
 {
-  "enabledPlugins": {
-    "frontend-design@claude-code-plugins": true
-  },
   "permissions": {
     "allow": [
       "Bash(mvn:*)",
@@ -27,5 +24,14 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-code-plugins": true,
+    "iac-terraform@devops-skills": true,
+    "k8s-troubleshooter@devops-skills": true,
+    "aws-cost-optimization@devops-skills": true,
+    "ci-cd@devops-skills": true,
+    "gitops-workflows@devops-skills": true,
+    "monitoring-observability@devops-skills": true
   }
 }

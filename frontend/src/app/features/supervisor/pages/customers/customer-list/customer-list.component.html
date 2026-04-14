@@ -13,12 +13,7 @@
         </svg>
         Importuj CSV
       </button>
-      <button
-        class="btn btn-primary"
-        type="button"
-        (click)="openCreateModal()"
-        aria-label="Dodaj nowego klienta"
-      >
+      <button class="btn btn-primary" type="button" (click)="openCreateModal()" aria-label="Dodaj nowego klienta">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
           <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
         </svg>
@@ -30,13 +25,7 @@
   <!-- Search bar -->
   <div class="customer-list__search" [formGroup]="searchForm" role="search" aria-label="Wyszukaj klienta">
     <div class="search-field">
-      <svg
-        class="search-field__icon"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        aria-hidden="true"
-        focusable="false"
-      >
+      <svg class="search-field__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
         <path
           d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
         />
@@ -83,7 +72,9 @@
                   (click)="onSort('firstName')"
                   [class.sort-btn--active]="isSortActive('firstName')"
                   [attr.aria-label]="'Imię - ' + getSortAriaLabel('firstName')"
-                  aria-sort="{{ isSortActive('firstName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                  aria-sort="{{
+                    isSortActive('firstName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }}"
                 >
                   Imię
                   <span class="sort-icon" aria-hidden="true">
@@ -102,7 +93,9 @@
                   (click)="onSort('lastName')"
                   [class.sort-btn--active]="isSortActive('lastName')"
                   [attr.aria-label]="'Nazwisko - ' + getSortAriaLabel('lastName')"
-                  aria-sort="{{ isSortActive('lastName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                  aria-sort="{{
+                    isSortActive('lastName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }}"
                 >
                   Nazwisko
                   <span class="sort-icon" aria-hidden="true">
@@ -123,7 +116,9 @@
                   (click)="onSort('createdAt')"
                   [class.sort-btn--active]="isSortActive('createdAt')"
                   [attr.aria-label]="'Data dodania - ' + getSortAriaLabel('createdAt')"
-                  aria-sort="{{ isSortActive('createdAt') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                  aria-sort="{{
+                    isSortActive('createdAt') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }}"
                 >
                   Data dodania
                   <span class="sort-icon" aria-hidden="true">
@@ -165,7 +160,7 @@
                   <button
                     class="btn btn-icon-outline"
                     type="button"
-                    (click)="navigateToEdit(customer)"
+                    (click)="openEditModal(customer)"
                     [attr.aria-label]="'Edytuj klienta ' + getCustomerName(customer)"
                     title="Edytuj"
                   >
@@ -273,6 +268,9 @@
 }
 
 <!-- Create customer modal -->
-<app-customer-create-modal
-  (customerCreated)="onCustomerCreated()"
-/>
+<app-customer-create-modal (customerCreated)="onCustomerCreated()" />
+
+<!-- Edit customer modal -->
+@if (showEditModal() && selectedCustomer()) {
+  <app-customer-edit [customer]="selectedCustomer()!" (saved)="onEditSaved()" (cancelled)="closeEditModal()" />
+}

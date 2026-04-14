@@ -19,6 +19,7 @@ import { CustomerResponse } from '../../../models/customer.model';
 import { ContactResponse } from '../../../../../core/models/contact.model';
 import { ContactDetailModalComponent } from '../../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
 import { GdprAnonymizeModalComponent } from '../gdpr-anonymize-modal/gdpr-anonymize-modal.component';
+import { CustomerEditComponent } from '../customer-edit/customer-edit.component';
 
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
 type ContactsLoadState = 'loading' | 'loaded' | 'error';
@@ -26,7 +27,13 @@ type ContactsLoadState = 'loading' | 'loaded' | 'error';
 @Component({
   selector: 'app-customer-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, KeyValuePipe, ContactDetailModalComponent, GdprAnonymizeModalComponent],
+  imports: [
+    DatePipe,
+    KeyValuePipe,
+    ContactDetailModalComponent,
+    GdprAnonymizeModalComponent,
+    CustomerEditComponent,
+  ],
   templateUrl: './customer-detail.component.html',
   styleUrl: './customer-detail.component.scss',
 })
@@ -43,6 +50,7 @@ export class CustomerDetailComponent implements OnInit {
   readonly customer = signal<CustomerResponse | null>(null);
   readonly selectedContactId = signal<string | null>(null);
   readonly showAnonymizeModal = signal(false);
+  readonly showEditModal = signal(false);
   readonly gdprExportLoading = signal(false);
 
   readonly contactsLoadState = signal<ContactsLoadState>('loading');
@@ -164,9 +172,35 @@ export class CustomerDetailComponent implements OnInit {
     void this.router.navigate(['/supervisor/customers']);
   }
 
-  goToEdit(): void {
+  openEditModal(): void {
+    this.showEditModal.set(true);
+  }
+
+  closeEditModal(): void {
+    this.showEditModal.set(false);
+  }
+
+  onEditSaved(): void {
+    this.closeEditModal();
     const id = this.customer()?.customerId;
-    void this.router.navigate(['/supervisor/customers', id, 'edit']);
+    if (!id) return;
+    this.loadState.set('loading');
+    this.customerService
+      .getCustomer(id)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError(() => {
+          this.notifications.error('Nie udało się odświeżyć danych klienta.');
+          this.loadState.set('error');
+          return of(null);
+        }),
+      )
+      .subscribe((customer) => {
+        if (customer) {
+          this.customer.set(customer);
+          this.loadState.set('loaded');
+        }
+      });
   }
 
   formatDuration(startedAt: string, endedAt: string | null): string {

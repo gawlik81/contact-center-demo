@@ -63,6 +63,18 @@ export class CustomerService {
     return this.http.post<CustomerResponse>(this.baseUrl, payload);
   }
 
+  updateCustomer(
+    id: string,
+    payload: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string[];
+      email?: string[];
+    },
+  ): Observable<CustomerResponse> {
+    return this.http.patch<CustomerResponse>(`${this.baseUrl}/${id}`, payload);
+  }
+
   deleteCustomer(id: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }

@@ -62,7 +62,7 @@
         <button
           class="btn btn-primary"
           type="button"
-          (click)="goToEdit()"
+          (click)="openEditModal()"
           aria-label="Edytuj dane klienta {{ customerName() }}"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="btn__icon">
@@ -405,4 +405,9 @@
     (confirmed)="onGdprAnonymizeConfirmed()"
     (cancelled)="showAnonymizeModal.set(false)"
   />
+}
+
+<!-- Customer edit modal -->
+@if (showEditModal() && customer()) {
+  <app-customer-edit [customer]="customer()!" (saved)="onEditSaved()" (cancelled)="closeEditModal()" />
 }

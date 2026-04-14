@@ -129,9 +129,18 @@
                 type="button"
                 class="icon-btn icon-btn--danger"
                 (click)="openDeleteDialog(number)"
-                [disabled]="deletingId() === number.phoneNumberId"
-                aria-label="Usuń numer {{ number.number }}"
-                title="Usuń"
+                [disabled]="deletingId() === number.phoneNumberId || hasActiveRules(number.phoneNumberId)"
+                [title]="
+                  hasActiveRules(number.phoneNumberId)
+                    ? 'Usuń wszystkie reguły routingu przed usunięciem numeru'
+                    : 'Usuń'
+                "
+                [attr.aria-label]="
+                  hasActiveRules(number.phoneNumberId)
+                    ? 'Nie można usunąć – numer ' + number.number + ' ma aktywne reguły routingu'
+                    : 'Usuń numer ' + number.number
+                "
+                [attr.aria-disabled]="hasActiveRules(number.phoneNumberId) || deletingId() === number.phoneNumberId"
               >
                 @if (deletingId() === number.phoneNumberId) {
                   <span class="spinner" aria-hidden="true"></span>
@@ -302,12 +311,32 @@
         <strong>{{ pendingDeleteNumber()!.number }}</strong
         >?
         <br />
-        Ta operacja jest nieodwracalna. Jeśli numer ma przypisane reguły routingu, musisz je najpierw usunąć.
+        Ta operacja jest nieodwracalna.
       </p>
+      @if (hasActiveRules(pendingDeleteNumber()!.phoneNumberId)) {
+        <p class="delete-rules-warning" role="alert">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            />
+          </svg>
+          Dezaktywuj lub usuń wszystkie reguły routingu, aby usunąć numer.
+        </p>
+      }
     }
     <div class="num-dialog__actions">
       <button type="button" class="btn btn-secondary" (click)="closeDeleteDialog()">Anuluj</button>
-      <button type="button" class="btn btn-danger" (click)="confirmDelete()" [disabled]="!!deletingId()">
+      <button
+        type="button"
+        class="btn btn-danger"
+        (click)="confirmDelete()"
+        [disabled]="!!deletingId() || (!!pendingDeleteNumber() && hasActiveRules(pendingDeleteNumber()!.phoneNumberId))"
+        [title]="
+          pendingDeleteNumber() && hasActiveRules(pendingDeleteNumber()!.phoneNumberId)
+            ? 'Dezaktywuj lub usuń wszystkie reguły routingu, aby usunąć numer'
+            : ''
+        "
+      >
         @if (deletingId()) {
           <span class="spinner" aria-hidden="true"></span>
           Usuwanie...

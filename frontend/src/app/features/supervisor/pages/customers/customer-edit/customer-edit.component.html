@@ -1,0 +1,191 @@
+<dialog
+  #dialogEl
+  class="customer-edit-dialog"
+  aria-labelledby="customer-edit-title"
+  (click)="$event.target === dialogEl ? onCancel() : null"
+>
+  <div class="customer-edit-dialog__content" role="document">
+    <div class="customer-edit-dialog__header">
+      <h2 id="customer-edit-title" class="customer-edit-dialog__title">
+        Edycja klienta
+        @if (customerName()) {
+          <span class="customer-edit-dialog__subtitle">{{ customerName() }}</span>
+        }
+      </h2>
+      <button class="btn-close" type="button" (click)="onCancel()" aria-label="Zamknij formularz edycji klienta">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </div>
+
+    <form
+      class="customer-edit-dialog__body"
+      [formGroup]="form"
+      (ngSubmit)="onSubmit()"
+      novalidate
+      id="customer-edit-form"
+    >
+      <!-- Dane osobowe -->
+      <section class="form-section" aria-labelledby="section-basic">
+        <h3 id="section-basic" class="form-section__title">Dane osobowe</h3>
+
+        <div class="form-field">
+          <label class="form-label" for="firstName">Imię</label>
+          <input
+            id="firstName"
+            class="form-input"
+            [class.form-input--invalid]="form.get('firstName')?.invalid && form.get('firstName')?.touched"
+            type="text"
+            formControlName="firstName"
+            placeholder="Wprowadź imię"
+            autocomplete="given-name"
+            maxlength="100"
+          />
+          @if (form.get('firstName')?.hasError('maxlength') && form.get('firstName')?.touched) {
+            <span class="form-error" role="alert">Imię nie może przekraczać 100 znaków.</span>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="lastName">Nazwisko</label>
+          <input
+            id="lastName"
+            class="form-input"
+            [class.form-input--invalid]="form.get('lastName')?.invalid && form.get('lastName')?.touched"
+            type="text"
+            formControlName="lastName"
+            placeholder="Wprowadź nazwisko"
+            autocomplete="family-name"
+            maxlength="100"
+          />
+          @if (form.get('lastName')?.hasError('maxlength') && form.get('lastName')?.touched) {
+            <span class="form-error" role="alert">Nazwisko nie może przekraczać 100 znaków.</span>
+          }
+        </div>
+      </section>
+
+      <!-- Numery telefonów -->
+      <section class="form-section" aria-labelledby="section-phones">
+        <h3 id="section-phones" class="form-section__title">Numery telefonów</h3>
+
+        <div formArrayName="phones" class="array-fields">
+          @for (ctrl of phonesArray.controls; track $index) {
+            <div class="array-field">
+              <input
+                class="form-input"
+                [class.form-input--invalid]="
+                  getControl(phonesArray, $index).invalid && getControl(phonesArray, $index).touched
+                "
+                type="tel"
+                [formControlName]="$index"
+                [placeholder]="'Numer telefonu ' + ($index + 1)"
+                autocomplete="tel"
+                maxlength="30"
+              />
+              <button
+                class="btn-remove"
+                type="button"
+                (click)="removePhone($index)"
+                [disabled]="phonesArray.length <= 1"
+                [attr.aria-label]="'Usuń numer telefonu ' + ($index + 1)"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                  <path
+                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  />
+                </svg>
+              </button>
+              @if (getControl(phonesArray, $index).hasError('required') && getControl(phonesArray, $index).touched) {
+                <span class="form-error array-field__error" role="alert">Numer telefonu jest wymagany.</span>
+              }
+              @if (getControl(phonesArray, $index).hasError('maxlength') && getControl(phonesArray, $index).touched) {
+                <span class="form-error array-field__error" role="alert">Numer nie może przekraczać 30 znaków.</span>
+              }
+            </div>
+          }
+        </div>
+
+        <button class="btn-add" type="button" (click)="addPhone()">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+          </svg>
+          Dodaj numer
+        </button>
+      </section>
+
+      <!-- Adresy e-mail -->
+      <section class="form-section" aria-labelledby="section-emails">
+        <h3 id="section-emails" class="form-section__title">Adresy e-mail</h3>
+
+        <div formArrayName="emails" class="array-fields">
+          @for (ctrl of emailsArray.controls; track $index) {
+            <div class="array-field">
+              <input
+                class="form-input"
+                [class.form-input--invalid]="
+                  getControl(emailsArray, $index).invalid && getControl(emailsArray, $index).touched
+                "
+                type="email"
+                [formControlName]="$index"
+                [placeholder]="'Adres e-mail ' + ($index + 1)"
+                autocomplete="email"
+                maxlength="200"
+              />
+              <button
+                class="btn-remove"
+                type="button"
+                (click)="removeEmail($index)"
+                [attr.aria-label]="'Usuń adres e-mail ' + ($index + 1)"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                  <path
+                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  />
+                </svg>
+              </button>
+              @if (getControl(emailsArray, $index).hasError('email') && getControl(emailsArray, $index).touched) {
+                <span class="form-error array-field__error" role="alert">Podaj prawidłowy adres e-mail.</span>
+              }
+              @if (getControl(emailsArray, $index).hasError('maxlength') && getControl(emailsArray, $index).touched) {
+                <span class="form-error array-field__error" role="alert">Adres nie może przekraczać 200 znaków.</span>
+              }
+            </div>
+          }
+          @if (emailsArray.length === 0) {
+            <p class="array-empty">Brak adresów e-mail. Kliknij "Dodaj e-mail" aby dodać.</p>
+          }
+        </div>
+
+        <button class="btn-add" type="button" (click)="addEmail()">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+          </svg>
+          Dodaj e-mail
+        </button>
+      </section>
+    </form>
+
+    <div class="customer-edit-dialog__footer">
+      <button class="btn btn-cancel" type="button" (click)="onCancel()">Anuluj</button>
+      <button
+        class="btn btn-save"
+        type="submit"
+        form="customer-edit-form"
+        [disabled]="form.invalid || saving()"
+        [attr.aria-disabled]="form.invalid || saving()"
+        [attr.aria-busy]="saving()"
+        aria-label="Zapisz zmiany klienta"
+      >
+        @if (saving()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Zapisywanie...
+        } @else {
+          Zapisz zmiany
+        }
+      </button>
+    </div>
+  </div>
+</dialog>

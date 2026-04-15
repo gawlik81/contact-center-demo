@@ -113,6 +113,181 @@ public class ScheduledCallbackRepository extends TenantAwareRepository {
     }
 
     /**
+     * Stronicowana lista callbacków przypisanych do konkretnego agenta z opcjonalnym filtrem statusu.
+     *
+     * <p>Używana przez endpoint GET /api/dialer/callbacks dla roli AGENT – agent widzi tylko swoje callbacki.
+     *
+     * @param tenantId      UUID tenanta
+     * @param agentId       UUID agenta
+     * @param status        filtr statusu (null = wszystkie statusy)
+     * @param sortDirection kierunek sortowania po scheduled_at: "ASC" lub "DESC"
+     * @param page          numer strony (0-based)
+     * @param size          rozmiar strony
+     * @return lista callbacków agenta
+     */
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public List<ScheduledCallback> findByAgentId(
+            UUID tenantId, UUID agentId, String status, String sortDirection, int page, int size) {
+        setTenantContextInDb(tenantId);
+
+        String order = "DESC".equalsIgnoreCase(sortDirection) ? "DESC" : "ASC";
+        int offset = page * size;
+
+        String sql = status != null
+                ? String.format("""
+                        SELECT * FROM scheduled_callback
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND agent_id  = CAST(:agentId AS uuid)
+                          AND status    = :status
+                        ORDER BY scheduled_at %s
+                        LIMIT :size OFFSET :offset
+                        """, order)
+                : String.format("""
+                        SELECT * FROM scheduled_callback
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND agent_id  = CAST(:agentId AS uuid)
+                        ORDER BY scheduled_at %s
+                        LIMIT :size OFFSET :offset
+                        """, order);
+
+        var query = em.createNativeQuery(sql, ScheduledCallback.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("agentId", agentId.toString())
+                .setParameter("size", size)
+                .setParameter("offset", offset);
+
+        if (status != null) {
+            query.setParameter("status", status);
+        }
+
+        return query.getResultList();
+    }
+
+    /**
+     * Zlicza callbacki agenta (do metadanych paginacji).
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  UUID agenta
+     * @param status   filtr statusu (null = wszystkie statusy)
+     * @return liczba callbacków
+     */
+    @Transactional(readOnly = true)
+    public long countByAgentId(UUID tenantId, UUID agentId, String status) {
+        setTenantContextInDb(tenantId);
+
+        String sql = status != null
+                ? """
+                    SELECT COUNT(*) FROM scheduled_callback
+                    WHERE tenant_id = CAST(:tenantId AS uuid)
+                      AND agent_id  = CAST(:agentId AS uuid)
+                      AND status    = :status
+                    """
+                : """
+                    SELECT COUNT(*) FROM scheduled_callback
+                    WHERE tenant_id = CAST(:tenantId AS uuid)
+                      AND agent_id  = CAST(:agentId AS uuid)
+                    """;
+
+        var query = em.createNativeQuery(sql)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("agentId", agentId.toString());
+
+        if (status != null) {
+            query.setParameter("status", status);
+        }
+
+        return ((Number) query.getSingleResult()).longValue();
+    }
+
+    /**
+     * Stronicowana lista wszystkich callbacków tenanta z opcjonalnymi filtrami statusu i agentId.
+     *
+     * <p>Używana przez endpoint GET /api/dialer/callbacks dla ról SUPERVISOR/ADMIN.
+     *
+     * @param tenantId      UUID tenanta
+     * @param status        filtr statusu (null = wszystkie statusy)
+     * @param agentIdFilter filtr po agentId (null = wszyscy agenci)
+     * @param sortDirection kierunek sortowania po scheduled_at: "ASC" lub "DESC"
+     * @param page          numer strony (0-based)
+     * @param size          rozmiar strony
+     * @return lista callbacków tenanta
+     */
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public List<ScheduledCallback> findByTenantIdWithFilters(
+            UUID tenantId, String status, UUID agentIdFilter, String sortDirection, int page, int size) {
+        setTenantContextInDb(tenantId);
+
+        String order = "DESC".equalsIgnoreCase(sortDirection) ? "DESC" : "ASC";
+        int offset = page * size;
+
+        StringBuilder sqlBuilder = new StringBuilder(String.format("""
+                SELECT * FROM scheduled_callback
+                WHERE tenant_id = CAST(:tenantId AS uuid)
+                """));
+
+        if (status != null) {
+            sqlBuilder.append("  AND status = :status\n");
+        }
+        if (agentIdFilter != null) {
+            sqlBuilder.append("  AND agent_id = CAST(:agentId AS uuid)\n");
+        }
+        sqlBuilder.append(String.format("ORDER BY scheduled_at %s\nLIMIT :size OFFSET :offset\n", order));
+
+        var query = em.createNativeQuery(sqlBuilder.toString(), ScheduledCallback.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("size", size)
+                .setParameter("offset", offset);
+
+        if (status != null) {
+            query.setParameter("status", status);
+        }
+        if (agentIdFilter != null) {
+            query.setParameter("agentId", agentIdFilter.toString());
+        }
+
+        return query.getResultList();
+    }
+
+    /**
+     * Zlicza callbacki tenanta z opcjonalnymi filtrami statusu i agentId (do metadanych paginacji).
+     *
+     * @param tenantId      UUID tenanta
+     * @param status        filtr statusu (null = wszystkie statusy)
+     * @param agentIdFilter filtr po agentId (null = wszyscy agenci)
+     * @return liczba callbacków
+     */
+    @Transactional(readOnly = true)
+    public long countByTenantIdWithFilters(UUID tenantId, String status, UUID agentIdFilter) {
+        setTenantContextInDb(tenantId);
+
+        StringBuilder sqlBuilder = new StringBuilder("""
+                SELECT COUNT(*) FROM scheduled_callback
+                WHERE tenant_id = CAST(:tenantId AS uuid)
+                """);
+
+        if (status != null) {
+            sqlBuilder.append("  AND status = :status\n");
+        }
+        if (agentIdFilter != null) {
+            sqlBuilder.append("  AND agent_id = CAST(:agentId AS uuid)\n");
+        }
+
+        var query = em.createNativeQuery(sqlBuilder.toString())
+                .setParameter("tenantId", tenantId.toString());
+
+        if (status != null) {
+            query.setParameter("status", status);
+        }
+        if (agentIdFilter != null) {
+            query.setParameter("agentId", agentIdFilter.toString());
+        }
+
+        return ((Number) query.getSingleResult()).longValue();
+    }
+
+    /**
      * Pobiera listę callbacków gotowych do realizacji (scheduledAt <= teraz).
      *
      * <p>Używane przez dialer lub pg_cron do iniciowania zaplanowanych połączeń.

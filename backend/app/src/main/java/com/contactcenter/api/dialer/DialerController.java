@@ -1,6 +1,7 @@
 package com.contactcenter.api.dialer;
 
 import com.contactcenter.api.PagedResponse;
+import com.contactcenter.api.dialer.dto.CallbackListItemResponse;
 import com.contactcenter.api.dialer.dto.CreateCallbackRequest;
 import com.contactcenter.api.dialer.dto.CreateInboundCallbackRequest;
 import com.contactcenter.api.dialer.dto.DialerStatusResponse;
@@ -13,9 +14,11 @@ import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.ScheduledCallback;
+import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
@@ -44,7 +47,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Kontroler REST dla Progressive Dialer.
@@ -81,6 +86,7 @@ public class DialerController {
     private final ScheduledCallbackRepository scheduledCallbackRepository;
     private final TelephonyAdapter telephonyAdapter;
     private final ContactRepository contactRepository;
+    private final AppUserRepository appUserRepository;
 
     // Statusy uwzględniane w podsumowaniu dialera
     private static final List<String> DIALER_STATUSES =
@@ -172,53 +178,113 @@ public class DialerController {
     // =========================================================================
 
     /**
-     * Zwraca stronicowaną listę zaplanowanych oddzwonień (status=PENDING) dla tenanta.
+     * Zwraca stronicowaną listę zaplanowanych oddzwonień z obsługą ról i filtrami (BE-041).
      *
-     * @param page numer strony (0-based, domyślnie 0)
-     * @param size rozmiar strony (domyślnie 20, max 100)
+     * <p>Logika izolacji ról:
+     * <ul>
+     *   <li>AGENT – widzi tylko swoje callbacki (agentId z JWT); parametr {@code agentId} z query jest ignorowany</li>
+     *   <li>SUPERVISOR/ADMIN – widzi wszystkie callbacki tenanta; może filtrować po {@code agentId}</li>
+     * </ul>
+     *
+     * <p>Pole {@code agentName} jest rozwiązywane przez jeden batch SELECT po wszystkich unikalnych
+     * agentId na stronie – brak problemu N+1.
+     *
+     * @param status  filtr statusu (null = wszystkie statusy: PENDING/PROCESSING/COMPLETED/CANCELLED)
+     * @param agentId filtr po agentId (tylko SUPERVISOR/ADMIN); AGENT ignoruje ten parametr
+     * @param sortDir kierunek sortowania po scheduled_at (ASC/DESC, domyślnie ASC)
+     * @param page    numer strony (0-based, domyślnie 0)
+     * @param size    rozmiar strony (domyślnie 20, max 100)
      * @return stronicowana lista callbacków
      */
     @GetMapping("/callbacks")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
     @Operation(
         summary = "Lista zaplanowanych oddzwonień",
-        description = "Zwraca stronicowaną listę callbacków o statusie PENDING dla tenanta. " +
-                      "Sortowanie: scheduledAt ASC (najwcześniejsze pierwsze).",
+        description = "Zwraca stronicowaną listę callbacków z obsługą ról i filtrami. " +
+                      "AGENT widzi tylko własne callbacki. SUPERVISOR/ADMIN widzą wszystkie callbacki tenanta. " +
+                      "Pole agentName rozwiązywane batch'owo (jeden SELECT na stronę).",
         responses = {
             @ApiResponse(responseCode = "200", description = "Lista callbacków"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia")
         }
     )
-    public ResponseEntity<PagedResponse<ScheduledCallbackResponse>> listCallbacks(
-            @Parameter(description = "Numer strony (0-based)") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Rozmiar strony (max 100)") @RequestParam(defaultValue = "20") int size
+    public ResponseEntity<PagedResponse<CallbackListItemResponse>> listCallbacks(
+            @Parameter(description = "Filtr statusu: PENDING, PROCESSING, COMPLETED, CANCELLED (null = wszystkie)")
+            @RequestParam(required = false) String status,
+            @Parameter(description = "Filtr po agentId – tylko SUPERVISOR/ADMIN; AGENT ignoruje ten parametr")
+            @RequestParam(required = false) UUID agentId,
+            @Parameter(description = "Kierunek sortowania po scheduledAt: ASC lub DESC")
+            @RequestParam(defaultValue = "ASC") String sortDir,
+            @Parameter(description = "Numer strony (0-based)")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Rozmiar strony (max 100)")
+            @RequestParam(defaultValue = "20") int size
     ) {
-        if (size > 100) {
-            size = 100;
-        }
-        if (size < 1) {
-            size = 1;
-        }
-        if (page < 0) {
-            page = 0;
+        // Normalizacja parametrów
+        if (size > 100) size = 100;
+        if (size < 1)   size = 1;
+        if (page < 0)   page = 0;
+        String effectiveSortDir = "DESC".equalsIgnoreCase(sortDir) ? "DESC" : "ASC";
+        String effectiveStatus  = (status != null && !status.isBlank()) ? status.trim() : null;
+
+        UUID tenantId   = TenantContext.getTenantId();
+        UUID jwtAgentId = TenantContext.getUserId();
+        String role     = TenantContext.getUserRole();
+
+        List<ScheduledCallback> callbacks;
+        long total;
+
+        if ("AGENT".equals(role)) {
+            // AGENT widzi wyłącznie własne callbacki – parametr agentId z query jest ignorowany
+            callbacks = scheduledCallbackRepository.findByAgentId(
+                    tenantId, jwtAgentId, effectiveStatus, effectiveSortDir, page, size);
+            total = scheduledCallbackRepository.countByAgentId(tenantId, jwtAgentId, effectiveStatus);
+        } else {
+            // SUPERVISOR / ADMIN – widok wszystkich callbacków tenanta z opcjonalnym filtrem agentId
+            callbacks = scheduledCallbackRepository.findByTenantIdWithFilters(
+                    tenantId, effectiveStatus, agentId, effectiveSortDir, page, size);
+            total = scheduledCallbackRepository.countByTenantIdWithFilters(tenantId, effectiveStatus, agentId);
         }
 
-        UUID tenantId = TenantContext.getTenantId();
+        // Batch lookup agentów – jeden SELECT dla wszystkich unikalnych agentId na stronie
+        Set<UUID> agentIds = callbacks.stream()
+                .map(ScheduledCallback::getAgentId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
 
-        List<ScheduledCallback> callbacks = scheduledCallbackRepository.findPendingByTenantId(tenantId, page, size);
-        long total = scheduledCallbackRepository.countPendingByTenantId(tenantId);
+        Map<UUID, String> agentNames = agentIds.isEmpty()
+                ? Map.of()
+                : appUserRepository.findAllById(agentIds).stream()
+                        .collect(Collectors.toMap(
+                                AppUser::getId,
+                                u -> u.getFirstName() + " " + u.getLastName()
+                        ));
 
-        List<ScheduledCallbackResponse> content = callbacks.stream()
-                .map(ScheduledCallbackResponse::from)
+        List<CallbackListItemResponse> content = callbacks.stream()
+                .map(cb -> new CallbackListItemResponse(
+                        cb.getCallbackId(),
+                        cb.getAgentId(),
+                        cb.getAgentId() != null ? agentNames.get(cb.getAgentId()) : null,
+                        cb.getPhone(),
+                        cb.getFirstName(),
+                        cb.getLastName(),
+                        cb.getScheduledAt(),
+                        cb.getNotes(),
+                        cb.getStatus(),
+                        cb.getSourceType(),
+                        cb.getOriginContactId(),
+                        cb.getCreatedAt()
+                ))
                 .toList();
 
         int totalPages = size > 0 ? (int) Math.ceil((double) total / size) : 0;
 
-        PagedResponse<ScheduledCallbackResponse> response = new PagedResponse<>(
+        PagedResponse<CallbackListItemResponse> response = new PagedResponse<>(
                 content, page, size, total, totalPages, page == 0, page >= totalPages - 1
         );
 
-        log.debug("[DialerController] Lista callbacków: tenant={}, total={}, page={}", tenantId, total, page);
+        log.debug("[DialerController] Lista callbacków: tenant={}, role={}, total={}, page={}, status={}",
+                tenantId, role, total, page, effectiveStatus);
 
         return ResponseEntity.ok(response);
     }

@@ -12,6 +12,7 @@ export interface CallbackListItem {
   notes?: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
   agentId?: string;
+  agentName?: string;
 }
 
 export interface CallbackListParams {
@@ -19,12 +20,16 @@ export interface CallbackListParams {
   sortDir?: 'ASC' | 'DESC';
   page?: number;
   size?: number;
+  agentId?: string | null;
 }
 
 export interface UpdateCallbackRequest {
+  phone?: string;
+  firstName?: string;
+  lastName?: string;
   scheduledAt?: string;
   notes?: string;
-  agentId?: string;
+  agentId?: string | null;
 }
 
 export interface CreateInboundCallbackRequest {

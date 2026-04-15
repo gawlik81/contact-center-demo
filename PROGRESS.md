@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-15 (FE-034 ✅ Panel Agenta: lista callbacków z edycją i usunięciem; łączny stan: DB 23/23, BE 41/49, FE 32/39)
+**Ostatnia aktualizacja:** 2026-04-15 (FE-035 ✅ Panel Supervisora: lista callbacków z reassign agenta + EditCallbackModalComponent; łączny stan: DB 23/23, BE 41/49, FE 33/39)
 
 ---
 
@@ -140,6 +140,7 @@
 | FE-032 | Modal dodania oddzwonienia podczas rozmowy przychodzącej | ✅ | AddInboundCallbackModalComponent (formularz telefon/imię/data, DialerService.createInboundCallback). Zrealizowane 2026-04-09. |
 | FE-033 | Panel RODO w profilu klienta: eksport danych i anonimizacja | ✅ | Sekcja "Prawa RODO" w CustomerDetailComponent, GdprAnonymizeModalComponent (wymaga wpisania "ANONIMIZUJ", ostrzeżenie o nieodwracalności), GdprService (exportData → blob download, anonymize), widoczne tylko dla SUPERVISOR/ADMIN. Zrealizowane 2026-04-09 |
 | FE-034 | Panel Agenta: lista własnych callbacków z edycją i usunięciem | ✅ | Strona `/agent/callbacks` z CallbackService (listCallbacks, updateCallback, cancelCallback), tabela callbacków z filtrami statusu i sortowania, paginacja (10/20/50), modal edycji reużywający RescheduleCallbackModalComponent (FE-031), dialog potwierdzenia usunięcia. CallbackListItem/CallbackListParams/UpdateCallbackRequest dodane do callback.model.ts. Trasa /agent/callbacks w agent.routes.ts. Pozycja "Oddzwonienia" dodana do AGENT_NAV w sidenav. Zrealizowane 2026-04-15. |
+| FE-035 | Panel Supervisora: lista wszystkich callbacków z reassign agenta | ✅ | Zaimplementowano stronę `/supervisor/callbacks` z tabelą wszystkich callbacków tenanta, filtrem po agencie/statusie, EditCallbackModalComponent (pełna edycja + reassign agenta), in-place update wiersza po zapisaniu. Trasa /supervisor/callbacks w supervisor.routes.ts. Pozycja "Oddzwonienia" dodana do SUPERVISOR_NAV w sidenav. Zrealizowane 2026-04-15. |
 
 ---
 
@@ -149,8 +150,8 @@
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 23/23 | 0 | 0 | 23 |
 | Backend (BE) | 41/49 | 0 | 8 | 49 |
-| Frontend (FE) | 32/39 | 0 | 7 | 39 |
-| **RAZEM** | **96/111** | **0** | **15** | **111** |
+| Frontend (FE) | 33/39 | 0 | 6 | 39 |
+| **RAZEM** | **97/111** | **0** | **14** | **111** |
 
 ---
 

@@ -19,6 +19,7 @@ export class CallbackService {
     if (params.sortDir) httpParams = httpParams.set('sortDir', params.sortDir);
     if (params.page !== undefined) httpParams = httpParams.set('page', params.page.toString());
     if (params.size !== undefined) httpParams = httpParams.set('size', params.size.toString());
+    if (params.agentId) httpParams = httpParams.set('agentId', params.agentId);
     return this.http.get<PagedResponse<CallbackListItem>>(
       `${environment.apiUrl}/dialer/callbacks`,
       {

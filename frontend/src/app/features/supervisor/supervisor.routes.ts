@@ -115,6 +115,15 @@ export const SUPERVISOR_ROUTES: Routes = [
         ],
       },
       {
+        path: 'callbacks',
+        data: { breadcrumb: 'Oddzwonienia', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
+        loadComponent: () =>
+          import('./pages/callbacks/supervisor-callbacks-page.component').then(
+            (m) => m.SupervisorCallbacksPageComponent,
+          ),
+      },
+      {
         path: 'ivr',
         data: { breadcrumb: 'Edytor IVR', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],

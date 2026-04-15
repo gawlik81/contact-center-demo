@@ -1306,7 +1306,8 @@ pageSize = signal<number>(20);
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-041, BE-042, FE-034 (CallbackService – reużycie)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Ukończono:** 2026-04-15
 **Czeka na BE:** ~~BE-041~~ ✅, ~~BE-042~~ ✅ (backend gotowy)
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-13 Zaplanowane oddzwonienia

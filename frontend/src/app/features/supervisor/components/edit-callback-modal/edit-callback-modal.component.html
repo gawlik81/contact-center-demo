@@ -1,0 +1,225 @@
+<dialog #dialogEl class="edit-cb-dialog" aria-labelledby="edit-cb-dialog-title">
+  <div class="edit-cb-dialog__backdrop" (click)="cancel()" aria-hidden="true"></div>
+
+  <div class="edit-cb-dialog__panel" role="document">
+    <!-- Header -->
+    <header class="edit-cb-dialog__header">
+      <div class="edit-cb-dialog__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+          />
+        </svg>
+      </div>
+      <div class="edit-cb-dialog__title-block">
+        <h2 id="edit-cb-dialog-title" class="edit-cb-dialog__title">Edytuj oddzwonienie</h2>
+        <p class="edit-cb-dialog__subtitle">{{ callback().phone }}</p>
+      </div>
+      <button
+        type="button"
+        class="edit-cb-dialog__close-btn"
+        [disabled]="loading()"
+        aria-label="Zamknij dialog"
+        (click)="cancel()"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </header>
+
+    <!-- Body -->
+    <div class="edit-cb-dialog__body">
+      <form [formGroup]="form" (ngSubmit)="submit()" id="edit-cb-form" novalidate>
+        <!-- Phone -->
+        <div class="form-field">
+          <label class="form-field__label" for="edit-cb-phone">
+            Numer telefonu
+            <span class="form-field__required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="edit-cb-phone"
+            type="tel"
+            class="form-field__input"
+            formControlName="phone"
+            placeholder="+48123456789"
+            [class.form-field__input--error]="form.controls.phone.invalid && form.controls.phone.touched"
+            [attr.aria-invalid]="form.controls.phone.invalid && form.controls.phone.touched"
+            aria-required="true"
+            aria-describedby="edit-cb-phone-error"
+          />
+          @if (form.controls.phone.touched && form.controls.phone.hasError('required')) {
+            <span id="edit-cb-phone-error" class="form-field__hint" role="alert">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                />
+              </svg>
+              Numer telefonu jest wymagany.
+            </span>
+          } @else if (form.controls.phone.touched && form.controls.phone.hasError('pattern')) {
+            <span id="edit-cb-phone-error" class="form-field__hint" role="alert">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                />
+              </svg>
+              Format: +48123456789 (E.164, 7–15 cyfr po +).
+            </span>
+          }
+        </div>
+
+        <!-- First name & Last name – two-column grid -->
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-field__label" for="edit-cb-firstName">
+              Imię
+              <span class="form-field__optional">(opcjonalne)</span>
+            </label>
+            <input
+              id="edit-cb-firstName"
+              type="text"
+              class="form-field__input"
+              formControlName="firstName"
+              placeholder="Jan"
+            />
+          </div>
+
+          <div class="form-field">
+            <label class="form-field__label" for="edit-cb-lastName">
+              Nazwisko
+              <span class="form-field__optional">(opcjonalne)</span>
+            </label>
+            <input
+              id="edit-cb-lastName"
+              type="text"
+              class="form-field__input"
+              formControlName="lastName"
+              placeholder="Kowalski"
+            />
+          </div>
+        </div>
+
+        <!-- Scheduled At -->
+        <div class="form-field">
+          <label class="form-field__label" for="edit-cb-scheduledAt">
+            Data i godzina
+            <span class="form-field__required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="edit-cb-scheduledAt"
+            type="datetime-local"
+            class="form-field__input"
+            formControlName="scheduledAt"
+            [class.form-field__input--error]="form.controls.scheduledAt.invalid && form.controls.scheduledAt.touched"
+            [attr.aria-invalid]="form.controls.scheduledAt.invalid && form.controls.scheduledAt.touched"
+            aria-required="true"
+            aria-describedby="edit-cb-scheduledAt-error"
+          />
+          @if (form.controls.scheduledAt.touched && form.controls.scheduledAt.hasError('required')) {
+            <span id="edit-cb-scheduledAt-error" class="form-field__hint" role="alert">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                />
+              </svg>
+              Data i czas są wymagane.
+            </span>
+          } @else if (form.controls.scheduledAt.touched && form.controls.scheduledAt.hasError('pastDate')) {
+            <span id="edit-cb-scheduledAt-error" class="form-field__hint" role="alert">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                />
+              </svg>
+              Wybierz datę w przyszłości.
+            </span>
+          }
+        </div>
+
+        <!-- Agent -->
+        <div class="form-field">
+          <label class="form-field__label" for="edit-cb-agentId">
+            Agent
+            <span class="form-field__optional">(opcjonalne)</span>
+          </label>
+          <select id="edit-cb-agentId" class="form-field__select" formControlName="agentId">
+            <option [ngValue]="null">Brak przypisania</option>
+            @for (agent of agents(); track agent.id) {
+              <option [value]="agent.id">{{ agent.name }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-field">
+          <label class="form-field__label" for="edit-cb-notes">
+            Notatka
+            <span class="form-field__optional">(opcjonalne)</span>
+          </label>
+          <textarea
+            id="edit-cb-notes"
+            class="form-field__textarea"
+            rows="3"
+            maxlength="500"
+            placeholder="Dodaj notatkę..."
+            formControlName="notes"
+            aria-multiline="true"
+            [attr.aria-invalid]="form.controls.notes.invalid && form.controls.notes.touched"
+            aria-describedby="edit-cb-notes-count"
+          ></textarea>
+          <span id="edit-cb-notes-count" class="form-field__char-count" aria-live="polite">
+            {{ form.controls.notes.value?.length ?? 0 }}&nbsp;/&nbsp;500
+          </span>
+        </div>
+      </form>
+
+      <!-- Error banner -->
+      @if (errorMessage()) {
+        <div class="edit-cb-dialog__error" role="alert" aria-live="assertive">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            />
+          </svg>
+          <span>{{ errorMessage() }}</span>
+        </div>
+      }
+    </div>
+
+    <!-- Footer -->
+    <footer class="edit-cb-dialog__footer">
+      <button
+        type="button"
+        class="btn btn--secondary"
+        [disabled]="loading()"
+        aria-label="Anuluj i zamknij modal"
+        (click)="cancel()"
+      >
+        Anuluj
+      </button>
+
+      <button
+        type="submit"
+        form="edit-cb-form"
+        class="btn btn--primary"
+        [disabled]="form.invalid || loading()"
+        [class.btn--loading]="loading()"
+        [attr.aria-busy]="loading()"
+        aria-label="Zapisz zmiany oddzwonienia"
+      >
+        @if (loading()) {
+          <span class="btn__spinner" aria-hidden="true"></span>
+          <span>Zapisywanie...</span>
+        } @else {
+          <svg class="btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </svg>
+          <span>Zapisz</span>
+        }
+      </button>
+    </footer>
+  </div>
+</dialog>

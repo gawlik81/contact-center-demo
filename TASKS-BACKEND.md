@@ -1348,7 +1348,8 @@ public record CreateInboundCallbackRequest(
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** BE-024 (ScheduledCallbackRepository), BE-008 (AppUser – do rozwiązania nazwy agenta)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-15
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 **Blokuje:** FE-034, FE-035
 
@@ -1449,7 +1450,8 @@ public record CallbackListItemResponse(
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** BE-024 (ScheduledCallbackRepository), BE-041
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-15
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 **Blokuje:** FE-034, FE-035
 

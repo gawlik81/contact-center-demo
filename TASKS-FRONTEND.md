@@ -1194,7 +1194,7 @@ Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
 **Złożoność:** M
 **Zależy od:** BE-041, BE-042, FE-031 (RescheduleCallbackModalComponent – reużycie)
 **Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-041, BE-042
+**Czeka na BE:** ~~BE-041~~ ✅, ~~BE-042~~ ✅ (backend gotowy)
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-13 Zaplanowane oddzwonienia
 
@@ -1304,7 +1304,7 @@ pageSize = signal<number>(20);
 **Złożoność:** M
 **Zależy od:** BE-041, BE-042, FE-034 (CallbackService – reużycie)
 **Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-041, BE-042
+**Czeka na BE:** ~~BE-041~~ ✅, ~~BE-042~~ ✅ (backend gotowy)
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-13 Zaplanowane oddzwonienia
 

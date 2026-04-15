@@ -46,7 +46,7 @@ export class SupervisorCallbacksPageComponent implements OnInit {
   readonly agents = signal<AgentOption[]>([]);
 
   readonly filterForm = this.fb.group({
-    status: [null as string | null],
+    status: ['PENDING' as string | null],
     agentId: [null as string | null],
     sortDir: ['ASC'],
   });

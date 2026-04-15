@@ -11,7 +11,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { SlicePipe } from '@angular/common';
 import {
   ReactiveFormsModule,
@@ -64,7 +64,10 @@ export class RescheduleCallbackModalComponent implements OnInit {
     notes: ['', [Validators.maxLength(500)]],
   });
 
-  readonly canSubmit = computed(() => this.form.valid && !this.loading());
+  private readonly formStatus = toSignal(this.form.statusChanges, {
+    initialValue: this.form.status,
+  });
+  readonly canSubmit = computed(() => this.formStatus() === 'VALID' && !this.loading());
 
   /** Format Date to datetime-local input value: "YYYY-MM-DDTHH:mm" */
   readonly currentScheduledAtFormatted = computed(() => {

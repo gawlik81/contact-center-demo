@@ -38,7 +38,7 @@ export class AgentCallbacksPageComponent implements OnInit {
   readonly pageSize = signal<number>(20);
 
   readonly filterForm = this.fb.group({
-    status: [null as string | null],
+    status: ['PENDING' as string | null],
     sortDir: ['ASC'],
   });
 

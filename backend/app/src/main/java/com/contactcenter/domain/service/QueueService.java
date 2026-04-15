@@ -1,9 +1,9 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.api.PagedResponse;
-import com.contactcenter.api.queue.CreateQueueRequest;
-import com.contactcenter.api.queue.QueueResponse;
-import com.contactcenter.api.queue.UpdateQueueRequest;
+import com.contactcenter.api.queue.dto.CreateQueueRequest;
+import com.contactcenter.api.queue.dto.QueueResponse;
+import com.contactcenter.api.queue.dto.UpdateQueueRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.QueueRepository;

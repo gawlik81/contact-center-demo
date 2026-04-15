@@ -1,4 +1,4 @@
-package com.contactcenter.api.telemetry;
+package com.contactcenter.api.telemetry.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

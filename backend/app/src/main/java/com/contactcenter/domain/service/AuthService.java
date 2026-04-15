@@ -1,6 +1,12 @@
 package com.contactcenter.domain.service;
 
-import com.contactcenter.api.auth.*;
+import com.contactcenter.api.auth.dto.ChangePasswordRequest;
+import com.contactcenter.api.auth.dto.LoginRequest;
+import com.contactcenter.api.auth.dto.LoginResponse;
+import com.contactcenter.api.auth.dto.LogoutRequest;
+import com.contactcenter.api.auth.dto.MfaSetupResponse;
+import com.contactcenter.api.auth.dto.MfaVerifyRequest;
+import com.contactcenter.api.auth.dto.RefreshRequest;
 import com.contactcenter.api.user.dto.UpdateStatusRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.AppUser;

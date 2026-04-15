@@ -1,5 +1,12 @@
 package com.contactcenter.api.auth;
 
+import com.contactcenter.api.auth.dto.ChangePasswordRequest;
+import com.contactcenter.api.auth.dto.LoginRequest;
+import com.contactcenter.api.auth.dto.LoginResponse;
+import com.contactcenter.api.auth.dto.LogoutRequest;
+import com.contactcenter.api.auth.dto.MfaSetupResponse;
+import com.contactcenter.api.auth.dto.MfaVerifyRequest;
+import com.contactcenter.api.auth.dto.RefreshRequest;
 import com.contactcenter.domain.service.AuthService;
 import com.contactcenter.security.AppUserDetails;
 import io.swagger.v3.oas.annotations.Operation;

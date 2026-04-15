@@ -1,4 +1,4 @@
-package com.contactcenter.api.telephony;
+package com.contactcenter.api.telephony.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

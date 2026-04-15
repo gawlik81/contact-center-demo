@@ -1,4 +1,4 @@
-package com.contactcenter.api.email;
+package com.contactcenter.api.email.dto;
 
 import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.*;

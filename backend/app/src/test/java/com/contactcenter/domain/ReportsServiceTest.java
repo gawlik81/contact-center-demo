@@ -1,8 +1,8 @@
 package com.contactcenter.domain;
 
 import com.contactcenter.api.PagedResponse;
-import com.contactcenter.api.reports.AgentReportParams;
-import com.contactcenter.api.reports.AgentReportRow;
+import com.contactcenter.api.reports.dto.AgentReportParams;
+import com.contactcenter.api.reports.dto.AgentReportRow;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.service.ReportsService;
 import com.fasterxml.jackson.databind.ObjectMapper;

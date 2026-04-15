@@ -1,6 +1,10 @@
 package com.contactcenter.api.queue;
 
 import com.contactcenter.api.PagedResponse;
+import com.contactcenter.api.queue.dto.CreateQueueRequest;
+import com.contactcenter.api.queue.dto.QueueResponse;
+import com.contactcenter.api.queue.dto.QueueStatsResponse;
+import com.contactcenter.api.queue.dto.UpdateQueueRequest;
 import com.contactcenter.domain.service.QueueService;
 import com.contactcenter.domain.service.WaitTimeEstimationService;
 import com.contactcenter.security.TenantContext;

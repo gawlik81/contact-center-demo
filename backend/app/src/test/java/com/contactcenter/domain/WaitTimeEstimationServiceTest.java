@@ -1,6 +1,6 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.api.queue.QueueStatsResponse;
+import com.contactcenter.api.queue.dto.QueueStatsResponse;
 import com.contactcenter.api.queue.QueueWaitUpdatePayload;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.model.Tenant;

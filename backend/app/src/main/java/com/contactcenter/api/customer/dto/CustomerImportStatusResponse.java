@@ -1,4 +1,4 @@
-package com.contactcenter.api.customer;
+package com.contactcenter.api.customer.dto;
 
 /**
  * DTO statusu asynchronicznego joba importu klientów z CSV (BE-026).

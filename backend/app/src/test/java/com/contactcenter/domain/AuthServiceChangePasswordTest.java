@@ -1,7 +1,7 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.api.auth.ChangePasswordRequest;
-import com.contactcenter.api.auth.LoginResponse;
+import com.contactcenter.api.auth.dto.ChangePasswordRequest;
+import com.contactcenter.api.auth.dto.LoginResponse;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;

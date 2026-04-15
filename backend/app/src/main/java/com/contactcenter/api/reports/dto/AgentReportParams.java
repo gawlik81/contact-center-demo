@@ -1,4 +1,4 @@
-package com.contactcenter.api.reports;
+package com.contactcenter.api.reports.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

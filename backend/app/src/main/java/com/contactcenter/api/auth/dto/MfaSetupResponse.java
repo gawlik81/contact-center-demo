@@ -1,4 +1,4 @@
-package com.contactcenter.api.auth;
+package com.contactcenter.api.auth.dto;
 
 /**
  * Response DTO dla endpointu GET /api/auth/mfa/setup.

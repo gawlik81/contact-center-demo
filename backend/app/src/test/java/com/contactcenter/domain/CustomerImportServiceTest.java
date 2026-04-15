@@ -1,6 +1,6 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.api.customer.CustomerImportStatusResponse;
+import com.contactcenter.api.customer.dto.CustomerImportStatusResponse;
 import com.contactcenter.api.customer.DeduplicationMode;
 import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.repository.CustomerRepository;

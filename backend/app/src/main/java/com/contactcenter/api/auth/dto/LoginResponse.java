@@ -1,4 +1,4 @@
-package com.contactcenter.api.auth;
+package com.contactcenter.api.auth.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

@@ -1,6 +1,10 @@
 package com.contactcenter.api.email;
 
 import com.contactcenter.api.PagedResponse;
+import com.contactcenter.api.email.dto.EmailConfigRequest;
+import com.contactcenter.api.email.dto.EmailConfigResponse;
+import com.contactcenter.api.email.dto.EmailMessageResponse;
+import com.contactcenter.api.email.dto.EmailReplyRequest;
 import com.contactcenter.domain.email.*;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.EmailMessageRepository;

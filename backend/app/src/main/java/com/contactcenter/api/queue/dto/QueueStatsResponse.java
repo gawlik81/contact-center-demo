@@ -1,4 +1,4 @@
-package com.contactcenter.api.queue;
+package com.contactcenter.api.queue.dto;
 
 import java.time.Instant;
 import java.util.UUID;

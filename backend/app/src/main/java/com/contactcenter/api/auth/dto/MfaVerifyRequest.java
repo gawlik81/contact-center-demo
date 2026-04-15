@@ -1,4 +1,4 @@
-package com.contactcenter.api.auth;
+package com.contactcenter.api.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;

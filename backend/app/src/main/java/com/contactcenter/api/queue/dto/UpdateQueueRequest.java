@@ -1,4 +1,4 @@
-package com.contactcenter.api.queue;
+package com.contactcenter.api.queue.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;

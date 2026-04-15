@@ -1,8 +1,8 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.api.PagedResponse;
-import com.contactcenter.api.reports.AgentReportParams;
-import com.contactcenter.api.reports.AgentReportRow;
+import com.contactcenter.api.reports.dto.AgentReportParams;
+import com.contactcenter.api.reports.dto.AgentReportRow;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -29,7 +29,6 @@ import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 

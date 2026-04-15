@@ -1,4 +1,4 @@
-package com.contactcenter.api.email;
+package com.contactcenter.api.email.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

@@ -1,5 +1,6 @@
 package com.contactcenter.api.telephony;
 
+import com.contactcenter.api.telephony.dto.WebhookRequest;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
 import io.swagger.v3.oas.annotations.Operation;

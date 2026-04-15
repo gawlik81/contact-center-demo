@@ -1,4 +1,6 @@
-package com.contactcenter.api.reports;
+package com.contactcenter.api.reports.dto;
+
+import com.contactcenter.api.reports.ReportsController;
 
 import java.time.LocalDate;
 import java.util.UUID;

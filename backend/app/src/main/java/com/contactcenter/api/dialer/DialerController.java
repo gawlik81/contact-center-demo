@@ -9,6 +9,7 @@ import com.contactcenter.api.dialer.dto.ManualCallRequest;
 import com.contactcenter.api.dialer.dto.ManualCallResponse;
 import com.contactcenter.api.dialer.dto.ManualCampaignRecordsResponse;
 import com.contactcenter.api.dialer.dto.RescheduleCallbackRequest;
+import com.contactcenter.api.dialer.dto.UpdateCallbackRequest;
 import com.contactcenter.api.dialer.dto.ScheduledCallbackResponse;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.repository.CampaignContactRepository;
@@ -438,6 +439,180 @@ public class DialerController {
                 callbackId, tenantId, request.scheduledAt(), role);
 
         return ResponseEntity.ok(ScheduledCallbackResponse.from(updated));
+    }
+
+    /**
+     * Pełna edycja zaplanowanego oddzwonienia (BE-042).
+     *
+     * <p>Semantyka PATCH: aktualizowane są wyłącznie pola niepuste (null = bez zmiany).
+     *
+     * <p>Reguły dostępu:
+     * <ul>
+     *   <li>Callback musi istnieć → 404</li>
+     *   <li>Status musi być PENDING → 409 dla COMPLETED / CANCELLED / PROCESSING</li>
+     *   <li>AGENT: może edytować tylko własny callback → 403 dla cudzych; {@code agentId} ignorowany</li>
+     *   <li>SUPERVISOR/ADMIN: może edytować każdy callback; {@code agentId} niepuste → reassign</li>
+     * </ul>
+     *
+     * @param callbackId UUID callbacku do edycji
+     * @param request    pola do zaktualizowania (null = bez zmiany)
+     * @return zaktualizowany callback jako {@link CallbackListItemResponse}
+     */
+    @PatchMapping("/callbacks/{callbackId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Edytuj zaplanowane oddzwonienie",
+        description = "PATCH semantics: pola null = bez zmiany. " +
+                      "Dozwolone tylko dla callbacków w statusie PENDING. " +
+                      "AGENT może edytować tylko własne callbacki; pole agentId jest ignorowane dla roli AGENT. " +
+                      "SUPERVISOR/ADMIN mogą wykonać reassign przez podanie agentId.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Callback zaktualizowany"),
+            @ApiResponse(responseCode = "400", description = "Błąd walidacji – scheduledAt w przeszłości lub nieprawidłowy numer"),
+            @ApiResponse(responseCode = "403", description = "AGENT próbuje edytować cudzy callback"),
+            @ApiResponse(responseCode = "404", description = "Callback nie istnieje"),
+            @ApiResponse(responseCode = "409", description = "Callback nie jest w statusie PENDING")
+        }
+    )
+    public ResponseEntity<CallbackListItemResponse> updateCallback(
+            @Parameter(description = "UUID callbacku") @PathVariable UUID callbackId,
+            @Valid @RequestBody UpdateCallbackRequest request
+    ) {
+        UUID tenantId   = TenantContext.getTenantId();
+        UUID jwtAgentId = TenantContext.getUserId();
+        String role     = TenantContext.getUserRole();
+
+        // 1. Pobierz callback – 404 jeśli nie istnieje lub inny tenant
+        ScheduledCallback callback = scheduledCallbackRepository.findById(callbackId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Callback nie istnieje: " + callbackId));
+
+        // 2. Weryfikacja statusu – PATCH dozwolony tylko dla PENDING
+        if (!"PENDING".equals(callback.getStatus())) {
+            throw new ConflictException(
+                    "Nie można edytować callbacku w statusie " + callback.getStatus() +
+                    ". Edycja dozwolona tylko dla statusu PENDING.");
+        }
+
+        // 3. Autoryzacja
+        if ("AGENT".equals(role) && !jwtAgentId.equals(callback.getAgentId())) {
+            throw new AccessDeniedException(
+                    "Agent może edytować tylko własne callbacki");
+        }
+
+        // 4. Patch semantics – aktualizuj tylko pola niepuste
+        if (request.phone() != null) {
+            callback.setPhone(request.phone());
+        }
+        if (request.firstName() != null) {
+            callback.setFirstName(request.firstName());
+        }
+        if (request.lastName() != null) {
+            callback.setLastName(request.lastName());
+        }
+        if (request.scheduledAt() != null) {
+            callback.setScheduledAt(request.scheduledAt());
+        }
+        if (request.notes() != null) {
+            callback.setNotes(request.notes());
+        }
+        // agentId – reassign: tylko dla SUPERVISOR/ADMIN
+        if (!"AGENT".equals(role) && request.agentId() != null) {
+            callback.setAgentId(request.agentId());
+        }
+
+        // 5. Zapisz i zwróć
+        ScheduledCallback updated = scheduledCallbackRepository.save(callback);
+
+        log.info("[DialerController] Callback zaktualizowany (PATCH): callbackId={}, tenant={}, role={}",
+                callbackId, tenantId, role);
+
+        // Batch lookup agentName (może być po reassign)
+        String agentName = null;
+        if (updated.getAgentId() != null) {
+            agentName = appUserRepository.findById(updated.getAgentId())
+                    .map(u -> u.getFirstName() + " " + u.getLastName())
+                    .orElse(null);
+        }
+
+        CallbackListItemResponse responseBody = new CallbackListItemResponse(
+                updated.getCallbackId(),
+                updated.getAgentId(),
+                agentName,
+                updated.getPhone(),
+                updated.getFirstName(),
+                updated.getLastName(),
+                updated.getScheduledAt(),
+                updated.getNotes(),
+                updated.getStatus(),
+                updated.getSourceType(),
+                updated.getOriginContactId(),
+                updated.getCreatedAt()
+        );
+
+        return ResponseEntity.ok(responseBody);
+    }
+
+    /**
+     * Soft-delete zaplanowanego oddzwonienia przez zmianę statusu na CANCELLED (BE-042).
+     *
+     * <p>Wiersz pozostaje w bazie – historia dla raportów.
+     *
+     * <p>Reguły dostępu:
+     * <ul>
+     *   <li>Callback musi istnieć → 404</li>
+     *   <li>AGENT: tylko własne callbacki → 403 dla cudzych</li>
+     *   <li>Callbacki w statusie PROCESSING nie mogą być anulowane → 409</li>
+     * </ul>
+     *
+     * @param callbackId UUID callbacku do anulowania
+     * @return HTTP 204 No Content
+     */
+    @DeleteMapping("/callbacks/{callbackId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Anuluj zaplanowane oddzwonienie (soft-delete)",
+        description = "Zmienia status callbacku na CANCELLED. Wiersz pozostaje w bazie – historia dla raportów. " +
+                      "AGENT może anulować tylko własne callbacki. " +
+                      "Callbacki w statusie PROCESSING nie mogą być anulowane.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Callback anulowany"),
+            @ApiResponse(responseCode = "403", description = "AGENT próbuje anulować cudzy callback"),
+            @ApiResponse(responseCode = "404", description = "Callback nie istnieje"),
+            @ApiResponse(responseCode = "409", description = "Callback jest aktualnie przetwarzany (status=PROCESSING)")
+        }
+    )
+    public ResponseEntity<Void> cancelCallback(
+            @Parameter(description = "UUID callbacku") @PathVariable UUID callbackId
+    ) {
+        UUID tenantId   = TenantContext.getTenantId();
+        UUID jwtAgentId = TenantContext.getUserId();
+        String role     = TenantContext.getUserRole();
+
+        // 1. Pobierz callback – 404 jeśli nie istnieje lub inny tenant
+        ScheduledCallback callback = scheduledCallbackRepository.findById(callbackId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Callback nie istnieje: " + callbackId));
+
+        // 2. Autoryzacja – AGENT może anulować tylko własny callback
+        if ("AGENT".equals(role) && !jwtAgentId.equals(callback.getAgentId())) {
+            throw new AccessDeniedException(
+                    "Agent może anulować tylko własne callbacki");
+        }
+
+        // 3. Callbacki w statusie PROCESSING nie mogą być anulowane
+        if ("PROCESSING".equals(callback.getStatus())) {
+            throw new ConflictException(
+                    "Callback jest aktualnie przetwarzany i nie może być anulowany");
+        }
+
+        // 4. Soft-delete: zmiana statusu na CANCELLED
+        scheduledCallbackRepository.cancelCallback(callbackId, tenantId);
+
+        log.info("[DialerController] Callback anulowany (soft-delete): callbackId={}, tenant={}, role={}",
+                callbackId, tenantId, role);
+
+        return ResponseEntity.noContent().build();
     }
 
     // =========================================================================

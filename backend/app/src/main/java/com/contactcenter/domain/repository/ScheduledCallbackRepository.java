@@ -385,6 +385,23 @@ public class ScheduledCallbackRepository extends TenantAwareRepository {
     }
 
     /**
+     * Soft-delete callbacku przez zmianę statusu na CANCELLED.
+     *
+     * <p>Wiersz pozostaje w bazie (historia dla raportów). Callbacki w statusie PROCESSING
+     * nie mogą być anulowane tą metodą – sprawdzenie statusu należy do warstwy serwisowej
+     * (kontrolera). Metoda deleguje do {@link #updateStatus(UUID, String, UUID)}.
+     *
+     * @param callbackId UUID callbacku
+     * @param tenantId   UUID tenanta (walidacja cross-tenant)
+     * @return liczba zaktualizowanych wierszy (0 gdy callback nie istnieje lub inny tenant)
+     */
+    @Transactional
+    public int cancelCallback(UUID callbackId, UUID tenantId) {
+        log.info("[CallbackRepo] Anulowanie callbacku (soft-delete): callbackId={}, tenant={}", callbackId, tenantId);
+        return updateStatus(callbackId, "CANCELLED", tenantId);
+    }
+
+    /**
      * Aktualizuje status callbacku przez natywny SQL (bez potrzeby ładowania encji).
      *
      * <p>Używane przez dialer przy zmianie statusu PENDING → PROCESSING lub COMPLETED.

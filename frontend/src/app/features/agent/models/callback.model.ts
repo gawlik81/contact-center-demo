@@ -3,6 +3,30 @@ export interface RescheduleCallbackRequest {
   notes?: string;
 }
 
+export interface CallbackListItem {
+  callbackId: string;
+  phone: string;
+  firstName?: string;
+  lastName?: string;
+  scheduledAt: string; // ISO 8601
+  notes?: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
+  agentId?: string;
+}
+
+export interface CallbackListParams {
+  status?: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'PROCESSING' | null;
+  sortDir?: 'ASC' | 'DESC';
+  page?: number;
+  size?: number;
+}
+
+export interface UpdateCallbackRequest {
+  scheduledAt?: string;
+  notes?: string;
+  agentId?: string;
+}
+
 export interface CreateInboundCallbackRequest {
   phone: string;
   firstName?: string;

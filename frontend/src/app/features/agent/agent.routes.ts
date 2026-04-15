@@ -3,8 +3,7 @@ import { Routes } from '@angular/router';
 export const AGENT_ROUTES: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./agent-shell.component').then((m) => m.AgentShellComponent),
+    loadComponent: () => import('./agent-shell.component').then((m) => m.AgentShellComponent),
     data: { breadcrumb: 'Agent' },
     children: [
       {
@@ -27,6 +26,14 @@ export const AGENT_ROUTES: Routes = [
         loadComponent: () =>
           import('./pages/customers/agent-customers-placeholder.component').then(
             (m) => m.AgentCustomersPlaceholderComponent,
+          ),
+      },
+      {
+        path: 'callbacks',
+        data: { breadcrumb: 'Oddzwonienia' },
+        loadComponent: () =>
+          import('./pages/callbacks/agent-callbacks-page.component').then(
+            (m) => m.AgentCallbacksPageComponent,
           ),
       },
     ],

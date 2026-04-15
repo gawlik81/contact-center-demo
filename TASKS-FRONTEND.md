@@ -1013,6 +1013,7 @@ FE-018 (Lista klientów) → FE-019, FE-020
 **Zależy od:** FE-009 (Agent Desktop), BE-039 (PUT /api/dialer/callbacks/{id})
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
+**Blokuje:** FE-034 (RescheduleCallbackModalComponent – reużycie)
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1080,6 +1081,7 @@ export interface ScheduledCallbackDto {
 **Zależy od:** FE-009 (Agent Desktop), BE-040 (POST /api/contacts/{contactId}/callback)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
+**Blokuje:** brak
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1193,9 +1195,10 @@ Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-041, BE-042, FE-031 (RescheduleCallbackModalComponent – reużycie)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Ukończono:** 2026-04-15
 **Czeka na BE:** ~~BE-041~~ ✅, ~~BE-042~~ ✅ (backend gotowy)
-**Blokuje:** brak
+**Blokuje:** FE-035
 **Odniesienie PRD:** EPIC-13 Zaplanowane oddzwonienia
 
 **Opis:**
@@ -1418,6 +1421,8 @@ editingCallback = signal<CallbackListItem | null>(null);
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Zależy od:** BE-044
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-037, FE-038
 
 **Opis:**
 Warstwa serwisowa Angular do komunikacji z API grup agentów. Serwis wstrzykiwany jako `providedIn: 'root'`.
@@ -1485,6 +1490,8 @@ export interface QueueAssignment {
 **Priorytet:** Must Have
 **Szacowany rozmiar:** L
 **Zależy od:** FE-036
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-038
 
 **Opis:**
 Nowa strona w panelu supervisora: lista grup agentów z możliwością tworzenia, edycji, usuwania i zarządzania składem grupy.
@@ -1546,6 +1553,8 @@ Nowa strona w panelu supervisora: lista grup agentów z możliwością tworzenia
 **Priorytet:** Must Have
 **Szacowany rozmiar:** L
 **Zależy od:** FE-036, FE-037
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-039
 
 **Opis:**
 Komponent wbudowany w istniejący formularz konfiguracji kolejki (strona edycji kolejki). Supervisor konfiguruje tryb przypisania agentów bez opuszczania formularza kolejki.
@@ -1608,6 +1617,8 @@ saving = signal<boolean>(false);
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Zależy od:** FE-038
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
 
 **Opis:**
 Osadzenie `QueueAssignmentPanelComponent` w istniejącej stronie edycji kolejki. Zadanie dotyczy wyłącznie integracji — nie modyfikuje logiki głównego formularza kolejki.

@@ -1534,6 +1534,7 @@ Implementacja przez `updateStatus(callbackId, "CANCELLED", tenantId)` — reuży
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** DB-024
+**Blokuje:** BE-044
 
 **Opis:**
 Encja domenowa `AgentGroup` mapująca tabelę `agent_group` oraz repozytorium `AgentGroupRepository` z operacjami CRUD i zarządzaniem członkostwem.
@@ -1586,6 +1587,7 @@ Każda metoda wywołuje `assertSameTenant` i `setTenantContextInDb`.
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** BE-043
+**Blokuje:** BE-046, FE-036
 
 **Opis:**
 Warstwa serwisowa i REST controller zarządzania grupami agentów dla Supervisora.
@@ -1642,6 +1644,7 @@ Uwagi:
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** DB-025
+**Blokuje:** BE-046, BE-047
 
 **Opis:**
 Nowe repozytorium zarządzające przypisaniem agentów i grup do kolejki. Oddzielne od `QueueRepository` — separacja odpowiedzialności.
@@ -1700,6 +1703,7 @@ Wynik `resolveEligibleAgentIds` jest używany przez `DefaultRoutingEngine` — m
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Zależy od:** BE-044, BE-045
+**Blokuje:** FE-036 (API contract), FE-038
 
 **Opis:**
 Nowe endpointy w istniejącym `QueueController` (lub osobny `QueueAssignmentController`) do odczytu i aktualizacji konfiguracji przypisania dla kolejki.
@@ -1762,6 +1766,7 @@ Role wymagane: SUPERVISOR, ADMIN.
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** BE-045
+**Blokuje:** brak
 
 **Opis:**
 Kluczowa zmiana: `DefaultRoutingEngine.findBestAgent()` musi uwzględniać konfigurację przypisania kolejki. Obecnie `scanAvailableAgents(tenantId)` zwraca wszystkich dostępnych agentów tenanta — co pozostaje poprawne jako pierwszy krok. Drugi krok to filtrowanie po `eligibleAgentIds` gdy kolejka nie ma flagi `all_agents`.

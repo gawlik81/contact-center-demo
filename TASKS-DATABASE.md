@@ -683,6 +683,7 @@ Wszystkie → DB-019 (seed dev)
 **Zależy od:** DB-006 (tabela CONTACT), V032 (scheduled_callback już istnieje)
 **Status:** ✅ Ukończone
 **Zrealizowane:** 2026-04-09
+**Blokuje:** BE-038, BE-039, BE-040
 **Epic:** EPIC-13 Zaplanowane oddzwonienia
 **Flyway:** V037__scheduled_callback_source_context.sql
 
@@ -748,6 +749,7 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_callback_origin_contact
 **Zlozonosc:** S
 **Zależy od:** DB-002 (tabela `app_user`), DB-001 (tabela `tenant`)
 **Status:** Do zrobienia
+**Blokuje:** DB-025, DB-026, BE-043
 **Epic:** EPIC-14 Zarządzanie przypisaniem agentów do kolejek
 **Flyway:** V039__create_agent_groups.sql
 
@@ -802,6 +804,7 @@ CREATE POLICY agent_group_tenant_isolation ON agent_group
 **Zlozonosc:** S
 **Zależy od:** DB-024 (tabela `agent_group`), DB-010 (tabela `queue`)
 **Status:** Do zrobienia
+**Blokuje:** DB-026, BE-045
 **Epic:** EPIC-14 Zarządzanie przypisaniem agentów do kolejek
 **Flyway:** V040__queue_agent_assignment.sql
 
@@ -852,6 +855,7 @@ UPDATE queue SET all_agents = TRUE WHERE all_agents = FALSE;
 **Zlozonosc:** XS
 **Zależy od:** DB-024, DB-025
 **Status:** Do zrobienia
+**Blokuje:** brak
 **Epic:** EPIC-14 Zarządzanie przypisaniem agentów do kolejek
 **Flyway:** V041__queue_agent_assignment_indexes.sql
 

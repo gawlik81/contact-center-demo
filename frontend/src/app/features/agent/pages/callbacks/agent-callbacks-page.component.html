@@ -1,0 +1,228 @@
+<div class="callbacks-page">
+  <!-- Page header -->
+  <div class="callbacks-page__header">
+    <h1 class="callbacks-page__title">
+      Moje oddzwonienia
+      @if (!loading() && total() > 0) {
+        <span class="callbacks-page__count">({{ total() }})</span>
+      }
+    </h1>
+  </div>
+
+  <!-- Filters bar -->
+  <div class="callbacks-page__filters" [formGroup]="filterForm" role="search" aria-label="Filtry listy oddzwonień">
+    <div class="filter-group">
+      <label class="filter-label" for="filter-status">Status</label>
+      <select
+        id="filter-status"
+        class="filter-select"
+        formControlName="status"
+        (change)="onFilterChange()"
+        aria-label="Filtruj po statusie"
+      >
+        <option [ngValue]="null">Wszystkie</option>
+        <option value="PENDING">Oczekujące</option>
+        <option value="PROCESSING">W trakcie</option>
+        <option value="COMPLETED">Zakończone</option>
+        <option value="CANCELLED">Anulowane</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label" for="filter-sort">Sortowanie</label>
+      <select
+        id="filter-sort"
+        class="filter-select"
+        formControlName="sortDir"
+        (change)="onFilterChange()"
+        aria-label="Sortuj oddzwonienia"
+      >
+        <option value="ASC">Najwcześniejsze</option>
+        <option value="DESC">Najpóźniejsze</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Loading skeleton -->
+  @if (loading()) {
+    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--wide hide-sm"></div>
+          <div class="skeleton-cell skeleton-cell--medium"></div>
+          <div class="skeleton-cell skeleton-cell--wide hide-xs"></div>
+          <div class="skeleton-cell skeleton-cell--status"></div>
+          <div class="skeleton-cell skeleton-cell--action"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  @if (!loading()) {
+    @if (callbacks().length > 0) {
+      <div class="table-wrapper" role="region" aria-label="Lista oddzwonień">
+        <table class="callbacks-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">Telefon</th>
+              <th scope="col" class="hide-sm">Imię i nazwisko</th>
+              <th scope="col">Data i godzina</th>
+              <th scope="col" class="hide-xs">Notatka</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span class="sr-only">Akcje</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (cb of callbacks(); track trackById($index, cb)) {
+              <tr class="callbacks-row">
+                <td class="cell-phone">{{ cb.phone }}</td>
+                <td class="cell-secondary hide-sm">{{ getClientName(cb) }}</td>
+                <td class="cell-date">
+                  {{ cb.scheduledAt | date: 'dd.MM.yyyy HH:mm' }}
+                </td>
+                <td class="cell-note hide-xs" [title]="cb.notes ?? ''">
+                  {{ truncateNote(cb.notes) }}
+                </td>
+                <td class="cell-status">
+                  <span
+                    class="badge"
+                    [class]="getStatusClass(cb.status)"
+                    [attr.aria-label]="'Status: ' + getStatusLabel(cb.status)"
+                  >
+                    {{ getStatusLabel(cb.status) }}
+                  </span>
+                </td>
+                <td class="cell-actions">
+                  <button
+                    class="btn btn-icon-outline"
+                    type="button"
+                    (click)="openEditModal(cb)"
+                    [disabled]="!isEditable(cb.status)"
+                    [attr.aria-label]="'Edytuj oddzwonienie dla ' + cb.phone"
+                    title="Przełóż oddzwonienie"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path
+                        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="btn btn-icon-danger"
+                    type="button"
+                    (click)="openDeleteModal(cb)"
+                    [disabled]="!isEditable(cb.status)"
+                    [attr.aria-label]="'Anuluj oddzwonienie dla ' + cb.phone"
+                    title="Anuluj oddzwonienie"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <nav class="pagination" aria-label="Nawigacja stron">
+        <span class="pagination__info" aria-live="polite">
+          @if (total() > 0) {
+            Wyświetlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ total() }} oddzwonień
+          }
+        </span>
+        <div class="pagination__controls">
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onPrevPage()"
+            [disabled]="page() === 0"
+            aria-label="Poprzednia strona"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+            Poprzednia
+          </button>
+          <span class="pagination__pages" aria-current="page"> Strona {{ page() + 1 }} z {{ totalPages() }} </span>
+          <button
+            class="btn btn-pagination"
+            type="button"
+            (click)="onNextPage()"
+            [disabled]="page() + 1 >= totalPages()"
+            aria-label="Następna strona"
+          >
+            Następna
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          </button>
+        </div>
+      </nav>
+    } @else {
+      <!-- Empty state -->
+      <div class="empty-state" role="status" aria-live="polite">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+          />
+        </svg>
+        <p class="empty-state__message">Nie masz żadnych zaplanowanych oddzwonień.</p>
+        <p class="empty-state__hint">Oddzwonienia pojawią się tutaj, gdy zostaną zaplanowane.</p>
+      </div>
+    }
+  }
+</div>
+
+<!-- Edit / reschedule modal -->
+@if (showEditModal() && editingCallback()) {
+  <app-reschedule-callback-modal
+    [callbackId]="editingCallback()!.callbackId"
+    [currentScheduledAt]="getScheduledDate(editingCallback()!)"
+    (rescheduled)="onRescheduled()"
+    (cancelled)="closeEditModal()"
+  />
+}
+
+<!-- Delete confirmation modal -->
+@if (showDeleteModal() && deletingCallback()) {
+  <dialog class="confirm-dialog" open aria-modal="true" aria-labelledby="confirm-dialog-title">
+    <div class="confirm-dialog__content">
+      <h2 class="confirm-dialog__title" id="confirm-dialog-title">Anuluj oddzwonienie</h2>
+      <p class="confirm-dialog__body">
+        Czy na pewno chcesz anulować oddzwonienie do
+        <strong>{{ deletingCallback()!.phone }}</strong>
+        @if (getClientName(deletingCallback()!) !== '—') {
+          ({{ getClientName(deletingCallback()!) }})
+        }
+        zaplanowane na
+        <strong>{{ deletingCallback()!.scheduledAt | date: 'dd.MM.yyyy HH:mm' }}</strong
+        >?
+      </p>
+      <p class="confirm-dialog__warning">Tej operacji nie można cofnąć.</p>
+      <div class="confirm-dialog__actions">
+        <button class="btn btn-secondary" type="button" (click)="closeDeleteModal()" [disabled]="deleteLoading()">
+          Wróć
+        </button>
+        <button
+          class="btn btn-danger"
+          type="button"
+          (click)="confirmDelete()"
+          [disabled]="deleteLoading()"
+          aria-live="polite"
+        >
+          @if (deleteLoading()) {
+            Anulowanie...
+          } @else {
+            Anuluj oddzwonienie
+          }
+        </button>
+      </div>
+    </div>
+  </dialog>
+  <div class="confirm-dialog__overlay" (click)="closeDeleteModal()" aria-hidden="true"></div>
+}

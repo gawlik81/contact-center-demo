@@ -198,7 +198,8 @@ public class TwilioWebhookController {
             "INBOUND",
             from,   // remoteAddress – numer dzwoniącego CLI
             null,   // startedAt – domyślnie NOW()
-            metadata    // channelMetadata
+            metadata,   // channelMetadata
+            null    // callbackId – połączenie inbound, nie realizacja callbacku
         );
         ContactResponse contactResponse = contactService.createContact(contactRequest, tenantId);
         contactId = contactResponse.contactId();

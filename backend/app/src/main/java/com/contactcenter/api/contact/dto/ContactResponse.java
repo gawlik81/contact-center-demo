@@ -34,7 +34,8 @@ public record ContactResponse(
         String recordingUrl,
         Map<String, Object> channelMetadata,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        UUID callbackId
 ) {
 
     /**
@@ -64,7 +65,8 @@ public record ContactResponse(
                 contact.getRecordingUrl(),
                 contact.getChannelMetadata(),
                 contact.getCreatedAt(),
-                contact.getUpdatedAt()
+                contact.getUpdatedAt(),
+                contact.getCallbackId()
         );
     }
 }

@@ -14,7 +14,11 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { catchError, of } from 'rxjs';
-import { ContactResponse, RecordingUrlResponse } from '../../../core/models/contact.model';
+import {
+  ContactResponse,
+  RecordingUrlResponse,
+  RelatedItem,
+} from '../../../core/models/contact.model';
 import { ContactService } from '../../../features/agent/services/contact.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { AudioPlayerComponent } from '../audio-player/audio-player.component';
@@ -40,10 +44,16 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   private readonly contactService = inject(ContactService);
   private readonly notifications = inject(NotificationService);
 
+  /** Wewnętrzny sygnał aktualnie wyświetlanego kontaktu — umożliwia nawigację między powiązanymi. */
+  private readonly currentContactId = signal<string | null>(null);
+
   readonly loadState = signal<ModalLoadState>('idle');
   readonly contact = signal<ContactResponse | null>(null);
   readonly recordingState = signal<RecordingState>('idle');
   readonly recordingUrl = signal<RecordingUrlResponse | null>(null);
+
+  readonly relatedContacts = signal<RelatedItem[]>([]);
+  readonly relatedLoading = signal(false);
 
   readonly hasRecording = computed(() => {
     const c = this.contact();
@@ -84,6 +94,7 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
       if (!dialog.open) {
         dialog.showModal();
       }
+      this.currentContactId.set(id);
       this.fetchContact(id);
     } else {
       if (dialog.open) {
@@ -98,6 +109,7 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     this.contact.set(null);
     this.recordingState.set('idle');
     this.recordingUrl.set(null);
+    this.relatedContacts.set([]);
 
     this.contactService
       .getContact(id)
@@ -112,12 +124,30 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
         if (c) {
           this.contact.set(c);
           this.loadState.set('loaded');
+          this.loadRelatedContacts(id);
         }
       });
   }
 
+  private loadRelatedContacts(id: string): void {
+    this.relatedLoading.set(true);
+
+    this.contactService
+      .getRelatedContacts(id)
+      .pipe(catchError(() => of([])))
+      .subscribe((related) => {
+        this.relatedContacts.set(related);
+        this.relatedLoading.set(false);
+      });
+  }
+
+  openRelatedContact(relatedId: string): void {
+    this.currentContactId.set(relatedId);
+    this.fetchContact(relatedId);
+  }
+
   loadRecording(): void {
-    const id = this.contactId();
+    const id = this.currentContactId();
     if (!id || this.recordingState() === 'loading') return;
     this.recordingState.set('loading');
 
@@ -143,6 +173,9 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     this.contact.set(null);
     this.recordingState.set('idle');
     this.recordingUrl.set(null);
+    this.relatedContacts.set([]);
+    this.relatedLoading.set(false);
+    this.currentContactId.set(null);
   }
 
   onEscapeKey(event: Event): void {
@@ -192,6 +225,16 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
 
   getDirectionLabel(direction: string): string {
     return direction === 'INBOUND' ? 'Przychodzacy' : 'Wychodzacy';
+  }
+
+  getCallbackStatusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      PENDING: 'Oczekujące',
+      PROCESSING: 'W trakcie',
+      COMPLETED: 'Zakończone',
+      CANCELLED: 'Anulowane',
+    };
+    return labels[status] ?? status;
   }
 
   private formatDurationSeconds(totalSeconds: number): string {

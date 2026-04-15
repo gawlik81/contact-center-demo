@@ -82,7 +82,7 @@ class ContactServiceTest {
             // given
             CreateContactRequest request = new CreateContactRequest(
                     CUSTOMER_ID, AGENT_ID, null, null,
-                    "PHONE", "INBOUND", "+48501234567", null, null
+                    "PHONE", "INBOUND", "+48501234567", null, null, null
             );
             Contact saved = buildContact(CONTACT_ID, "QUEUED");
             when(contactRepository.insert(any(Contact.class))).thenReturn(saved);
@@ -113,7 +113,7 @@ class ContactServiceTest {
             Instant providedStartedAt = Instant.parse("2026-03-15T10:00:00Z");
             CreateContactRequest request = new CreateContactRequest(
                     null, null, null, null,
-                    "EMAIL", "INBOUND", null, providedStartedAt, null
+                    "EMAIL", "INBOUND", null, providedStartedAt, null, null
             );
             Contact saved = buildContact(CONTACT_ID, "QUEUED");
             saved.setStartedAt(providedStartedAt);
@@ -133,7 +133,7 @@ class ContactServiceTest {
         void createContact_initializesEmptyChannelMetadataWhenNull() {
             // given
             CreateContactRequest request = new CreateContactRequest(
-                    null, null, null, null, "PHONE", "OUTBOUND", null, null, null
+                    null, null, null, null, "PHONE", "OUTBOUND", null, null, null, null
             );
             Contact saved = buildContact(CONTACT_ID, "QUEUED");
             when(contactRepository.insert(any(Contact.class))).thenReturn(saved);

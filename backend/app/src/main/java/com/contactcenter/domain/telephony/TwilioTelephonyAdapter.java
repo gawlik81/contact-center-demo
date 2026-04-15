@@ -223,9 +223,9 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * @throws TelephonyException gdy Twilio API zwróci błąd lub brak numeru telefonu w konfiguracji
    */
   @Override
-  public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId) {
-    log.info("[TwilioAdapter] Inicjuję połączenie wychodzące: tenantId={}, from={}, to={}, agentId={}, queueId={}",
-        tenantId, from, to, agentId, queueId);
+  public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId) {
+    log.info("[TwilioAdapter] Inicjuję połączenie wychodzące: tenantId={}, from={}, to={}, agentId={}, queueId={}, callbackId={}",
+        tenantId, from, to, agentId, queueId, callbackId);
 
     // contactId wyciągnięte poza try – potrzebne w catch do oznaczenia Contact jako ERROR
     // gdy Twilio API rzuci ApiException po tym jak rekord kontaktu już istnieje w DB.
@@ -240,7 +240,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // 2. Webhook handleWebhookStatusUpdate() znajdzie contactId w DB i nie próbował
       //    tworzyć duplikatu przez persistContact() (która i tak zapisuje direction=INBOUND).
       // 3. Agent desktop mógł od razu wyświetlić kartę kontaktu po odebraniu przez klienta.
-      contactId = persistOutboundContact(tenantId, from, to, agentId, queueId);
+      contactId = persistOutboundContact(tenantId, from, to, agentId, queueId, callbackId);
 
       // TwiML dla połączeń wychodzących: klient czeka w konferencji na dołączenie agenta.
       // Nazwa konferencji zgodna z konwencją dialAgentIntoConference(): "contact-{contactId}".
@@ -1376,7 +1376,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * @param agentId  UUID of the agent assigned to the call
    * @return UUID of the newly created contact record, or null on DB error
    */
-  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID queueId) {
+  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId) {
     try {
       UUID contactId = UUID.randomUUID();
       Instant now = Instant.now();
@@ -1396,7 +1396,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .tenantId(tenantId)
             .customerId(customerId)
             .agentId(agentId)
-            .queueId(queueId)   // Kolejka kampanii – wymagana przez RoutingService do ACW
+            .queueId(queueId)       // Kolejka kampanii – wymagana przez RoutingService do ACW
+            .callbackId(callbackId) // UUID oddzwonienia – null gdy połączenie nie jest callbackiem
             .channel("PHONE")
             .direction("OUTBOUND")
             .status("QUEUED")

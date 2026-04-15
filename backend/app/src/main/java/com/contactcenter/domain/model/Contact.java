@@ -149,4 +149,12 @@ public class Contact {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    /**
+     * UUID callbacku (scheduled_callback.callback_id), z którego powstał ten kontakt.
+     * Nullable – brak FK ze względu na composite PK tabeli contact.
+     * Wypełniany przez DialerService przy tworzeniu kontaktu dla realizacji callbacku.
+     */
+    @Column(name = "callback_id")
+    private UUID callbackId;
 }

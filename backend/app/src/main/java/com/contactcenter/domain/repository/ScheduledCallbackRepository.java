@@ -318,6 +318,38 @@ public class ScheduledCallbackRepository extends TenantAwareRepository {
         return results;
     }
 
+    /**
+     * Zwraca listę callbacków, dla których dany kontakt jest kontaktem źródłowym.
+     *
+     * <p>Callback ma {@code origin_contact_id} wskazujący na kontakt, podczas którego
+     * klient poprosił o oddzwonienie. Metoda ta zwraca wszystkie takie callbacki –
+     * używana przez endpoint GET /api/contacts/{id}/related do znalezienia "dzieci"
+     * danego kontaktu.
+     *
+     * @param originContactId UUID kontaktu źródłowego
+     * @param tenantId        UUID tenanta
+     * @return lista callbacków powiązanych z danym kontaktem jako origin
+     */
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public List<ScheduledCallback> findByOriginContactId(UUID originContactId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        log.debug("[CallbackRepo] findByOriginContactId: originContactId={}, tenant={}",
+                originContactId, tenantId);
+
+        return em.createNativeQuery("""
+                        SELECT * FROM scheduled_callback
+                        WHERE tenant_id         = CAST(:tenantId AS uuid)
+                          AND origin_contact_id = CAST(:originContactId AS uuid)
+                        ORDER BY created_at DESC
+                        """,
+                        ScheduledCallback.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("originContactId", originContactId.toString())
+                .getResultList();
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

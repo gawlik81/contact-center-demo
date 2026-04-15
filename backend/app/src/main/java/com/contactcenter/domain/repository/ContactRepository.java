@@ -428,7 +428,7 @@ public class ContactRepository extends TenantAwareRepository {
                 channel, direction, status, remote_address,
                 queued_at, assigned_at, started_at, ended_at,
                 duration_seconds, disposition_code, recording_url,
-                channel_metadata, created_at, updated_at
+                channel_metadata, created_at, updated_at, callback_id
             ) VALUES (
                 CAST(:contactId AS uuid),
                 CAST(:tenantId AS uuid),
@@ -449,7 +449,8 @@ public class ContactRepository extends TenantAwareRepository {
                 :recordingUrl,
                 CAST(:channelMetadata AS jsonb),
                 :createdAt,
-                :updatedAt
+                :updatedAt,
+                CAST(:callbackId AS uuid)
             )
             """)
         .setParameter("contactId", contact.getContactId().toString())
@@ -472,6 +473,7 @@ public class ContactRepository extends TenantAwareRepository {
         .setParameter("channelMetadata", channelMetadataToJson(contact.getChannelMetadata()))
         .setParameter("createdAt", contact.getCreatedAt())
         .setParameter("updatedAt", contact.getUpdatedAt())
+        .setParameter("callbackId", uuidToString(contact.getCallbackId()))
         .executeUpdate();
 
     log.info("[ContactRepo] Kontakt utworzony: contactId={}, tenant={}",
@@ -639,6 +641,40 @@ public class ContactRepository extends TenantAwareRepository {
     log.info("[ContactRepo] updateQueueId: contactId={}, queueId={}, rows={}",
         contactId, queueId, updated);
     return updated;
+  }
+
+  // =========================================================================
+  // Powiązania z callbackami (BE-043)
+  // =========================================================================
+
+  /**
+   * Zwraca listę kontaktów powiązanych z danym callbackiem.
+   *
+   * <p>Kontakt jest powiązany z callbackiem gdy pole {@code callback_id} wskazuje
+   * na UUID danego callbacku. Są to kontakty realizacji – tworzone przez dialer
+   * przy dzwonieniu do klienta w ramach obsługi callbacku.
+   *
+   * @param callbackId UUID callbacku (scheduled_callback.callback_id)
+   * @param tenantId   UUID tenanta
+   * @return lista kontaktów z ustawionym callback_id równym podanemu callbackId
+   */
+  @Transactional(readOnly = true)
+  @SuppressWarnings("unchecked")
+  public List<Contact> findByCallbackId(UUID callbackId, UUID tenantId) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepo] findByCallbackId: callbackId={}, tenant={}", callbackId, tenantId);
+
+    return em.createNativeQuery("""
+            SELECT * FROM contact
+            WHERE tenant_id  = CAST(:tenantId AS uuid)
+              AND callback_id = CAST(:callbackId AS uuid)
+            ORDER BY started_at DESC
+            """,
+            Contact.class)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("callbackId", callbackId.toString())
+        .getResultList();
   }
 
   // =========================================================================

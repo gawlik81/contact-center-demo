@@ -96,6 +96,7 @@ public class ContactService {
                 .channelMetadata(request.channelMetadata() != null
                         ? new HashMap<>(request.channelMetadata()) : new HashMap<>())
                 .createdAt(now)
+                .callbackId(request.callbackId())
                 .build();
 
         Contact saved = contactRepository.insert(contact);

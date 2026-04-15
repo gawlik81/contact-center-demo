@@ -653,7 +653,7 @@ class TwilioTelephonyAdapterTest {
         void shouldThrowWhenPhoneNumberMissing() {
             twilioProperties.setPhoneNumber("");
 
-            assertThatThrownBy(() -> adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null))
+            assertThatThrownBy(() -> adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null, null))
                     .isInstanceOf(TelephonyAdapter.TelephonyException.class)
                     .hasMessageContaining("twilio.phone-number");
         }
@@ -672,7 +672,7 @@ class TwilioTelephonyAdapterTest {
                 mockedCall.when(() -> Call.creator(any(), any(), (Twiml) any()))
                         .thenReturn(mockCreator);
 
-                assertThatThrownBy(() -> adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null))
+                assertThatThrownBy(() -> adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null, null))
                         .isInstanceOf(TelephonyAdapter.TelephonyException.class)
                         .hasMessageContaining("Twilio");
             }

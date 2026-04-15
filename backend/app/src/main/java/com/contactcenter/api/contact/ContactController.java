@@ -35,8 +35,12 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.contactcenter.api.contact.dto.RelatedItem;
+
 import java.net.URI;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -481,5 +485,116 @@ public class ContactController {
 
         URI location = URI.create("/api/dialer/callbacks/" + saved.getCallbackId());
         return ResponseEntity.created(location).body(ScheduledCallbackResponse.from(saved));
+    }
+
+    // =========================================================================
+    // Powiązane kontakty przez callback
+    // =========================================================================
+
+    /**
+     * Zwraca listę kontaktów powiązanych z danym kontaktem przez callback.
+     *
+     * <p>Powiązania są dwukierunkowe:
+     * <ul>
+     *   <li><strong>PARENT</strong> – ten kontakt ma ustawiony {@code callback_id};
+     *       szukamy kontaktu źródłowego, z którego callback powstał
+     *       (callback.origin_contact_id → kontakt PARENT).</li>
+     *   <li><strong>CHILD</strong> – ten kontakt jest kontaktem źródłowym jakiegoś callbacku
+     *       (callback.origin_contact_id = contactId); zwracamy kontakty realizacji
+     *       tych callbacków (contact.callback_id = callback.callbackId).</li>
+     * </ul>
+     *
+     * <p>Uprawnienia: ADMIN/SUPERVISOR/AGENT – AGENT dostaje 200 z pustą listą
+     * jeśli kontakt nie należy do niego (poglądowy widok pomocniczy).
+     *
+     * @param id UUID kontaktu (path variable)
+     * @return lista powiązanych kontaktów z typem powiązania (PARENT/CHILD)
+     */
+    @GetMapping("/{id}/related")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Powiązane kontakty i callbacki",
+        description = "Zwraca listę elementów powiązanych z danym kontaktem przez scheduled_callback. " +
+                      "Każdy element ma itemType (CONTACT lub CALLBACK) i relationType (PARENT lub CHILD). " +
+                      "PARENT = kontakt źródłowy (ten kontakt powstał z callbacku zaplanowanego przez inny kontakt). " +
+                      "CHILD = callback zaplanowany z tego kontaktu oraz kontakty jego realizacji.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Lista powiązanych elementów (może być pusta)"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje")
+        }
+    )
+    public ResponseEntity<List<RelatedItem>> getRelatedContacts(
+            @PathVariable String id) {
+
+        UUID tenantId = TenantContext.getTenantId();
+        UUID contactId = parseContactId(id);
+
+        Contact contact = contactRepository.findById(contactId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Kontakt nie istnieje: " + contactId));
+
+        List<RelatedItem> related = new ArrayList<>();
+
+        // --- Kierunek A: ten kontakt ma callback_id (jest "dzieckiem" realizacji callbacku) ---
+        // Szukamy callbacku i przez niego kontaktu źródłowego (origin_contact_id)
+        if (contact.getCallbackId() != null) {
+            scheduledCallbackRepository.findById(contact.getCallbackId(), tenantId)
+                    .ifPresent(callback -> {
+                        if (callback.getOriginContactId() != null) {
+                            contactRepository.findById(callback.getOriginContactId(), tenantId)
+                                    .ifPresent(parent -> related.add(RelatedItem.ofContact(
+                                            parent.getContactId(),
+                                            parent.getStartedAt(),
+                                            parent.getChannel(),
+                                            parent.getDirection(),
+                                            parent.getStatus(),
+                                            parent.getRemoteAddress(),
+                                            "PARENT"
+                                    )));
+                        }
+                    });
+        }
+
+        // --- Kierunek B: ten kontakt jest origin_contact_id jakiegoś callbacku ---
+        // Pobieramy wszystkie callbacki zaplanowane z tego kontaktu.
+        // Dla każdego callbacku: dodajemy sam callback jako CHILD (typ CALLBACK),
+        // a następnie szukamy kontaktów realizacji (contact.callback_id = callback.callbackId)
+        // i dodajemy je jako CHILD (typ CONTACT).
+        List<ScheduledCallback> originCallbacks =
+                scheduledCallbackRepository.findByOriginContactId(contactId, tenantId);
+
+        for (ScheduledCallback callback : originCallbacks) {
+            // Dodaj sam callback jako element CHILD
+            related.add(RelatedItem.ofCallback(
+                    callback.getCallbackId(),
+                    callback.getScheduledAt(),
+                    callback.getStatus(),
+                    callback.getPhone(),
+                    callback.getFirstName(),
+                    callback.getLastName(),
+                    "CHILD"
+            ));
+
+            // Dodaj kontakty realizacji tego callbacku (jeśli dialer już go obsłużył)
+            List<Contact> childContacts =
+                    contactRepository.findByCallbackId(callback.getCallbackId(), tenantId);
+            for (Contact child : childContacts) {
+                related.add(RelatedItem.ofContact(
+                        child.getContactId(),
+                        child.getStartedAt(),
+                        child.getChannel(),
+                        child.getDirection(),
+                        child.getStatus(),
+                        child.getRemoteAddress(),
+                        "CHILD"
+                ));
+            }
+        }
+
+        log.debug("[ContactController] getRelatedContacts: contactId={}, powiązanych={}, tenant={}",
+                contactId, related.size(), tenantId);
+
+        return ResponseEntity.ok(related);
     }
 }

@@ -16,6 +16,26 @@ export interface ContactResponse {
   dispositionCode: string | null;
   notes?: string | null;
   recordingUrl?: string | null;
+  callbackId?: string | null;
+}
+
+export interface RelatedItem {
+  itemType: 'CONTACT' | 'CALLBACK';
+  relationType: 'PARENT' | 'CHILD';
+  // Fields for CONTACT items
+  contactId?: string;
+  startedAt?: string;
+  channel?: string;
+  direction?: string;
+  status?: string;
+  remoteAddress?: string;
+  // Fields for CALLBACK items
+  callbackId?: string;
+  scheduledAt?: string;
+  callbackStatus?: string;
+  phone?: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 export interface SetDispositionRequest {

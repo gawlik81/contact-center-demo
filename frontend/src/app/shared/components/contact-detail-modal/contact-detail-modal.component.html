@@ -1,24 +1,13 @@
-<dialog
-  #dialogEl
-  class="contact-dialog"
-  aria-labelledby="contact-dialog-title"
-  (click)="onBackdropClick($event)"
->
+<dialog #dialogEl class="contact-dialog" aria-labelledby="contact-dialog-title" (click)="onBackdropClick($event)">
   <div class="contact-dialog__content" role="document">
-
     <!-- ── Header ───────────────────────────────────────────────────── -->
     <div class="contact-dialog__header">
-      <h2 id="contact-dialog-title" class="contact-dialog__title">
-        Szczegoly kontaktu
-      </h2>
-      <button
-        class="contact-dialog__close-btn"
-        type="button"
-        aria-label="Zamknij szczegoly kontaktu"
-        (click)="close()"
-      >
+      <h2 id="contact-dialog-title" class="contact-dialog__title">Szczegoly kontaktu</h2>
+      <button class="contact-dialog__close-btn" type="button" aria-label="Zamknij szczegoly kontaktu" (click)="close()">
         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
-          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
         </svg>
       </button>
     </div>
@@ -50,7 +39,9 @@
       <div class="contact-dialog__body">
         <div class="inline-error" role="alert">
           <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            />
           </svg>
           <span>Nie udalo sie zaladowac danych kontaktu.</span>
         </div>
@@ -60,12 +51,10 @@
     <!-- ── Loaded ────────────────────────────────────────────────────── -->
     @if (loadState() === 'loaded' && contact(); as c) {
       <div class="contact-dialog__body">
-
         <!-- Section 1: Header info -->
         <section class="contact-section" aria-labelledby="contact-section-info">
           <h3 id="contact-section-info" class="contact-section__title">Informacje ogolne</h3>
           <dl class="contact-dl">
-
             <div class="contact-dl__row">
               <dt class="contact-dl__term">Kanal</dt>
               <dd class="contact-dl__desc">
@@ -109,7 +98,6 @@
                 <dd class="contact-dl__desc">{{ c.endedAt | date: 'HH:mm:ss' }}</dd>
               </div>
             }
-
           </dl>
         </section>
 
@@ -117,7 +105,6 @@
         <section class="contact-section" aria-labelledby="contact-section-status">
           <h3 id="contact-section-status" class="contact-section__title">Status i czas trwania</h3>
           <dl class="contact-dl">
-
             <div class="contact-dl__row">
               <dt class="contact-dl__term">Status</dt>
               <dd class="contact-dl__desc">
@@ -145,7 +132,6 @@
                 <dd class="contact-dl__desc contact-dl__desc--notes">{{ c.notes }}</dd>
               </div>
             }
-
           </dl>
         </section>
 
@@ -155,13 +141,9 @@
             <h3 id="contact-section-recording" class="contact-section__title">Nagranie rozmowy</h3>
 
             @if (recordingState() === 'idle') {
-              <button
-                class="btn btn-load-recording"
-                type="button"
-                (click)="loadRecording()"
-              >
+              <button class="btn btn-load-recording" type="button" (click)="loadRecording()">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-                  <path d="M8 5v14l11-7z"/>
+                  <path d="M8 5v14l11-7z" />
                 </svg>
                 Zaladuj nagranie
               </button>
@@ -176,7 +158,9 @@
             @if (recordingState() === 'error') {
               <div class="inline-error" role="alert">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  />
                 </svg>
                 <span>Nie udalo sie pobrac nagrania.</span>
                 <button class="btn-link" type="button" (click)="loadRecording()">Sprobuj ponownie</button>
@@ -191,24 +175,94 @@
                     Link wazny do: {{ rec.expiresAt | date: 'dd.MM.yyyy HH:mm' }}
                   </span>
                 </p>
-                <app-audio-player
-                  [src]="rec.presignedUrl"
-                  [durationSeconds]="rec.durationSeconds"
-                />
+                <app-audio-player [src]="rec.presignedUrl" [durationSeconds]="rec.durationSeconds" />
               </div>
             }
           </section>
         }
 
+        <!-- Section 4: Powiazane kontakty -->
+        @if (relatedLoading()) {
+          <section class="contact-section" aria-labelledby="contact-section-related">
+            <h3 id="contact-section-related" class="contact-section__title">Powiazane kontakty</h3>
+            <div class="related-contacts-loading" aria-busy="true" aria-label="Wczytywanie powiazanych kontaktow...">
+              @for (i of [1, 2]; track i) {
+                <div class="skeleton-block skeleton-block--related"></div>
+              }
+            </div>
+          </section>
+        }
+
+        @if (!relatedLoading() && relatedContacts().length > 0) {
+          <section class="contact-section" aria-labelledby="contact-section-related">
+            <h3 id="contact-section-related" class="contact-section__title">Powiązania</h3>
+            <ul class="related-contacts-list">
+              @for (item of relatedContacts(); track item.contactId ?? item.callbackId) {
+                <li class="related-contact-item">
+                  <span
+                    [class]="
+                      'related-contact-item__badge related-contact-item__badge--' + item.relationType.toLowerCase()
+                    "
+                  >
+                    @if (item.relationType === 'PARENT') {
+                      Kontakt źródłowy
+                    } @else if (item.itemType === 'CALLBACK') {
+                      Oddzwonienie
+                    } @else {
+                      Kontakt wynikowy
+                    }
+                  </span>
+
+                  <span class="related-contact-item__info">
+                    @if (item.itemType === 'CONTACT') {
+                      {{ getChannelLabel(item.channel!) }} · {{ getDirectionLabel(item.direction!) }}
+                      @if (item.remoteAddress) {
+                        · {{ item.remoteAddress }}
+                      }
+                      · {{ item.startedAt | date: 'dd.MM.yyyy HH:mm' }}
+                    } @else {
+                      {{ item.phone }}
+                      @if (item.firstName || item.lastName) {
+                        · {{ item.firstName }} {{ item.lastName }}
+                      }
+                      · {{ item.scheduledAt | date: 'dd.MM.yyyy HH:mm' }} ·
+                      {{ getCallbackStatusLabel(item.callbackStatus!) }}
+                    }
+                  </span>
+
+                  @if (item.itemType === 'CONTACT' && item.contactId) {
+                    <button
+                      type="button"
+                      class="related-contact-item__nav-btn"
+                      [attr.aria-label]="
+                        item.relationType === 'PARENT'
+                          ? 'Przejdź do kontaktu źródłowego'
+                          : 'Przejdź do kontaktu wynikowego'
+                      "
+                      (click)="openRelatedContact(item.contactId!)"
+                    >
+                      @if (item.relationType === 'PARENT') {
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                          <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" />
+                        </svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z" />
+                        </svg>
+                      }
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+        }
       </div>
     }
 
     <!-- ── Footer ────────────────────────────────────────────────────── -->
     <div class="contact-dialog__footer">
-      <button class="btn btn-close" type="button" (click)="close()" autofocus>
-        Zamknij
-      </button>
+      <button class="btn btn-close" type="button" (click)="close()" autofocus>Zamknij</button>
     </div>
-
   </div>
 </dialog>

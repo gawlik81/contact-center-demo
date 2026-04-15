@@ -114,7 +114,7 @@ class ScheduledCallbackExecutorTest {
 
         CallSession mockSession = mock(CallSession.class);
         when(mockSession.getCallId()).thenReturn("call-sid-001");
-        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), eq(AGENT_ID), isNull()))
+        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), eq(AGENT_ID), isNull(), eq(CALLBACK_ID)))
                 .thenReturn(mockSession);
 
         // when
@@ -122,7 +122,7 @@ class ScheduledCallbackExecutorTest {
 
         // then
         verify(callbackRepository).updateStatusIfPending(CALLBACK_ID, TENANT_ID, "PROCESSING");
-        verify(telephonyAdapter).initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), eq(AGENT_ID), isNull());
+        verify(telephonyAdapter).initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), eq(AGENT_ID), isNull(), eq(CALLBACK_ID));
         verify(callbackRepository).updateStatus(CALLBACK_ID, "COMPLETED", TENANT_ID);
     }
 
@@ -148,13 +148,13 @@ class ScheduledCallbackExecutorTest {
                 .thenReturn(1);
 
         // Pierwszy callback rzuca wyjątek telefonii
-        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48111111111"), eq(AGENT_ID), isNull()))
+        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48111111111"), eq(AGENT_ID), isNull(), eq(CALLBACK_ID)))
                 .thenThrow(new TelephonyAdapter.TelephonyException("call-1", "Twilio API error"));
 
         // Drugi callback działa poprawnie
         CallSession mockSession = mock(CallSession.class);
         when(mockSession.getCallId()).thenReturn("call-sid-002");
-        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48222222222"), eq(AGENT_ID), isNull()))
+        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48222222222"), eq(AGENT_ID), isNull(), eq(callbackId2)))
                 .thenReturn(mockSession);
 
         // when
@@ -165,7 +165,7 @@ class ScheduledCallbackExecutorTest {
         verify(callbackRepository).updateStatus(callbackId2, "COMPLETED", TENANT_ID);
 
         // Weryfikujemy że oba callbacki zostały przetworzone (pętla nie przerwana)
-        verify(telephonyAdapter, times(2)).initiateCall(eq(TENANT_ID), any(), any(), eq(AGENT_ID), isNull());
+        verify(telephonyAdapter, times(2)).initiateCall(eq(TENANT_ID), any(), any(), eq(AGENT_ID), isNull(), any());
     }
 
     // =========================================================================

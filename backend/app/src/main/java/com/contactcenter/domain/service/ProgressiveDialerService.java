@@ -224,7 +224,7 @@ public class ProgressiveDialerService {
                 markContactStatus(recordId, campaign.getCampaignId(), tenantId, "DIALING", agentId);
 
                 CallSession session = telephonyAdapter.initiateCall(tenantId, defaultOutboundNumber, phone, agentId,
-                        campaign.getQueueId());
+                        campaign.getQueueId(), null); // callbackId null – połączenie z kampanii, nie oddzwonienie
 
                 // Zapisz stan w Redis
                 saveCallState(session.getCallId(), recordId, campaign.getCampaignId(), agentId, tenantId);

@@ -23,6 +23,7 @@ import java.util.UUID;
  * @param remoteAddress   numer CLI lub email nadawcy (opcjonalny)
  * @param startedAt       czas rozpoczęcia (opcjonalny – domyślnie NOW())
  * @param channelMetadata metadane kanałowe JSONB (opcjonalny)
+ * @param callbackId      UUID callbacku (scheduled_callback), z którego powstaje ten kontakt (opcjonalny)
  */
 public record CreateContactRequest(
         UUID customerId,
@@ -42,6 +43,7 @@ public record CreateContactRequest(
 
         String remoteAddress,
         Instant startedAt,
-        Map<String, Object> channelMetadata
+        Map<String, Object> channelMetadata,
+        UUID callbackId
 ) {
 }

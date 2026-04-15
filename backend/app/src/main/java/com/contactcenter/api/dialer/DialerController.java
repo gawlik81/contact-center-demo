@@ -785,7 +785,7 @@ public class DialerController {
         CallSession session;
         try {
             session = telephonyAdapter.initiateCall(
-                    tenantId, defaultOutboundNumber, phone, agentId, campaign.getQueueId());
+                    tenantId, defaultOutboundNumber, phone, agentId, campaign.getQueueId(), null);
         } catch (TelephonyAdapter.TelephonyException e) {
             // Oznacz rekord jako ERROR – błąd Twilio API jest trwały (np. niezweryfikowany numer)
             // i nie ma sensu wracać do PENDING, bo kolejna próba da ten sam błąd.

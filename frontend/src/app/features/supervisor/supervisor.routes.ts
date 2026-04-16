@@ -112,6 +112,12 @@ export const SUPERVISOR_ROUTES: Routes = [
                 (m) => m.PhoneNumbersComponent,
               ),
           },
+          {
+            path: 'integrations',
+            data: { breadcrumb: 'Integracje Social Media' },
+            loadChildren: () =>
+              import('../integrations/integrations.routes').then((m) => m.INTEGRATIONS_ROUTES),
+          },
         ],
       },
       {

@@ -164,7 +164,11 @@
       "Bash(export JAVA_HOME=\"/c/Program Files/Eclipse Adoptium/jdk-11.0.16.8-hotspot\")",
       "Bash(where java:*)",
       "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" mvn verify -pl app)",
-      "Bash(JAVA_HOME=\"/c/Users/pawelm/.jdks/corretto-21.0.10\" JAVA_HOME=\"/c/Users/pawelm/.jdks/corretto-21.0.10\" mvn verify -pl app)"
+      "Bash(JAVA_HOME=\"/c/Users/pawelm/.jdks/corretto-21.0.10\" JAVA_HOME=\"/c/Users/pawelm/.jdks/corretto-21.0.10\" mvn verify -pl app)",
+      "Bash(mkdir -p \"D:\\\\CloudeAI\\\\contact-center-demo\\\\frontend\\\\src\\\\app\\\\features\\\\integrations\\\\models\")",
+      "Bash(mkdir -p \"D:\\\\CloudeAI\\\\contact-center-demo\\\\frontend\\\\src\\\\app\\\\features\\\\integrations\\\\services\")",
+      "Bash(mkdir -p \"D:\\\\CloudeAI\\\\contact-center-demo\\\\frontend\\\\src\\\\app\\\\features\\\\integrations\\\\pages\\\\social-integrations\")",
+      "Bash(mkdir -p \"D:\\\\CloudeAI\\\\contact-center-demo\\\\frontend\\\\src\\\\app\\\\features\\\\integrations\\\\pages\\\\oauth-callback\")"
     ]
   }
 }

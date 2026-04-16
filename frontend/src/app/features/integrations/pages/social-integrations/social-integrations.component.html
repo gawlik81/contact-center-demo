@@ -1,0 +1,210 @@
+<div class="integrations-page">
+  <header class="page-header">
+    <div class="page-header__title-row">
+      <h1 class="page-header__title">Integracje Social Media</h1>
+      <button
+        class="btn btn--icon"
+        type="button"
+        [disabled]="loading()"
+        (click)="loadIntegrations()"
+        aria-label="Odśwież listę integracji"
+        title="Odśwież"
+      >
+        <svg
+          class="btn-icon"
+          [class.spinning]="loading()"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+          />
+        </svg>
+      </button>
+    </div>
+    <p class="page-header__subtitle">
+      Zarządzaj połączeniami z platformami social media, aby odbierać wiadomości bezpośrednio w systemie Contact Center.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <div class="skeleton-grid">
+      @for (card of platformCards; track card.platform) {
+        <div class="skeleton-card"></div>
+      }
+    </div>
+  } @else {
+    <div class="platform-grid">
+      @for (card of platformCards; track card.platform) {
+        @let integration = integrationMap().get(card.platform);
+        @let isConnected = !!integration;
+        @let isConnecting = connectingPlatform() === card.platform;
+
+        <article class="platform-card" [class.platform-card--connected]="isConnected">
+          <div class="platform-card__header">
+            <div class="platform-card__icon-wrapper" [style.background-color]="card.color + '18'">
+              <svg
+                class="platform-card__icon"
+                [style.fill]="card.color"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path [attr.d]="card.svgPath" />
+              </svg>
+            </div>
+            <div class="platform-card__title-group">
+              <h2 class="platform-card__name">{{ card.label }}</h2>
+              @if (isConnected) {
+                <span
+                  class="status-badge"
+                  [class.status-badge--active]="integration!.webhookStatus === 'ACTIVE'"
+                  [class.status-badge--error]="integration!.webhookStatus === 'ERROR'"
+                  [class.status-badge--expired]="integration!.webhookStatus === 'EXPIRED_TOKEN'"
+                  [class.status-badge--inactive]="integration!.webhookStatus === 'INACTIVE'"
+                >
+                  Połączony
+                </span>
+              } @else {
+                <span class="status-badge status-badge--disconnected">Niepołączony</span>
+              }
+            </div>
+          </div>
+
+          <div class="platform-card__body">
+            @if (isConnected) {
+              <dl class="info-list">
+                <div class="info-list__row">
+                  <dt class="info-list__label">Nazwa strony</dt>
+                  <dd class="info-list__value">{{ integration!.displayName }}</dd>
+                </div>
+                <div class="info-list__row">
+                  <dt class="info-list__label">Page ID</dt>
+                  <dd class="info-list__value info-list__value--mono">{{ integration!.pageId }}</dd>
+                </div>
+                <div class="info-list__row">
+                  <dt class="info-list__label">Status webhooka</dt>
+                  <dd class="info-list__value">
+                    <span
+                      class="webhook-badge"
+                      [class.webhook-badge--active]="integration!.webhookStatus === 'ACTIVE'"
+                      [class.webhook-badge--error]="
+                        integration!.webhookStatus === 'ERROR' || integration!.webhookStatus === 'EXPIRED_TOKEN'
+                      "
+                      [class.webhook-badge--inactive]="integration!.webhookStatus === 'INACTIVE'"
+                    >
+                      {{ getWebhookStatusLabel(integration!.webhookStatus) }}
+                    </span>
+                  </dd>
+                </div>
+                @if (integration!.tokenExpiresAt) {
+                  <div class="info-list__row">
+                    <dt class="info-list__label">Token wygasa</dt>
+                    <dd class="info-list__value">{{ formatDate(integration!.tokenExpiresAt) }}</dd>
+                  </div>
+                }
+                <div class="info-list__row">
+                  <dt class="info-list__label">Połączono</dt>
+                  <dd class="info-list__value">{{ formatDate(integration!.createdAt) }}</dd>
+                </div>
+              </dl>
+            } @else {
+              <p class="platform-card__description">{{ card.description }}</p>
+              @if (card.platform === 'WHATSAPP') {
+                <div class="whatsapp-notice" role="note">
+                  <svg
+                    class="whatsapp-notice__icon"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+                    />
+                  </svg>
+                  <p class="whatsapp-notice__text">
+                    WhatsApp Business API jest konfigurowany przez Meta Business Suite – nie używa standardowego OAuth.
+                    Kliknij przycisk poniżej, aby przejść do konfiguracji.
+                  </p>
+                </div>
+              }
+            }
+          </div>
+
+          <div class="platform-card__footer">
+            @if (isConnected) {
+              <button
+                class="btn btn--danger"
+                type="button"
+                (click)="openDisconnectDialog(integration!)"
+                [disabled]="disconnecting()"
+              >
+                Rozłącz
+              </button>
+            } @else if (card.platform === 'WHATSAPP') {
+              <a
+                class="btn btn--primary"
+                href="https://business.facebook.com/settings/whatsapp-business-accounts"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Konfiguruj w Meta Business Suite
+              </a>
+            } @else {
+              <button
+                class="btn btn--primary"
+                type="button"
+                [disabled]="isConnecting || connectingPlatform() !== null"
+                (click)="connectPlatform(card.platform)"
+              >
+                @if (isConnecting) {
+                  <span class="btn-spinner" aria-hidden="true"></span>
+                  Łączenie...
+                } @else {
+                  Połącz
+                }
+              </button>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  }
+</div>
+
+<!-- Disconnect confirmation dialog -->
+<dialog
+  #disconnectDialogRef
+  class="cc-dialog"
+  aria-labelledby="disconnect-dialog-title"
+  aria-describedby="disconnect-dialog-desc"
+>
+  <div class="cc-dialog__content">
+    <h2 id="disconnect-dialog-title" class="cc-dialog__title">Potwierdź rozłączenie</h2>
+    @if (pendingDisconnect(); as integration) {
+      <p id="disconnect-dialog-desc" class="cc-dialog__body">
+        Czy na pewno chcesz rozłączyć
+        <strong>{{ integration.displayName }}</strong>
+        ({{ integration.platform }})?
+        <br />
+        Ta operacja usunie token autoryzacyjny z serwera.
+      </p>
+    }
+    <div class="cc-dialog__actions">
+      <button class="btn btn--ghost" type="button" [disabled]="disconnecting()" (click)="closeDisconnectDialog()">
+        Anuluj
+      </button>
+      <button class="btn btn--danger" type="button" [disabled]="disconnecting()" (click)="confirmDisconnect()">
+        @if (disconnecting()) {
+          <span class="btn-spinner" aria-hidden="true"></span>
+          Rozłączanie...
+        } @else {
+          Rozłącz
+        }
+      </button>
+    </div>
+  </div>
+</dialog>

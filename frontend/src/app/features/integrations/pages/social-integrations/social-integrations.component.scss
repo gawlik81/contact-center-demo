@@ -1,0 +1,383 @@
+.integrations-page {
+  padding: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+// ---- Page header ----
+.page-header {
+  margin-bottom: 2rem;
+
+  &__title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  &__title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--cc-text-primary, #1a1a2e);
+    margin: 0;
+  }
+
+  &__subtitle {
+    font-size: 0.875rem;
+    color: var(--cc-text-secondary, #6b7280);
+    margin: 0;
+    max-width: 600px;
+  }
+}
+
+// ---- Platform grid ----
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.skeleton-card {
+  height: 320px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+// ---- Platform card ----
+.platform-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  }
+
+  &--connected {
+    border-color: #d1fae5;
+    background: #f0fdf4;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.25rem 0;
+  }
+
+  &__icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+
+  &__icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  &__title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  &__name {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+  }
+
+  &__body {
+    flex: 1;
+    padding: 1rem 1.25rem;
+  }
+
+  &__description {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0 0 0.75rem;
+    line-height: 1.5;
+  }
+
+  &__footer {
+    padding: 0.75rem 1.25rem 1.25rem;
+    display: flex;
+    justify-content: flex-end;
+    border-top: 1px solid #f3f4f6;
+  }
+}
+
+// ---- Status badges ----
+.status-badge {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+
+  &--active {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  &--error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  &--expired {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  &--inactive {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+
+  &--disconnected {
+    background: #f3f4f6;
+    color: #9ca3af;
+  }
+}
+
+// ---- Webhook badge ----
+.webhook-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+
+  &--active {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  &--error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  &--inactive {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+}
+
+// ---- Info list ----
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+
+  &__row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  &__label {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    min-width: 100px;
+    flex-shrink: 0;
+  }
+
+  &__value {
+    font-size: 0.875rem;
+    color: #111827;
+    margin: 0;
+    word-break: break-all;
+
+    &--mono {
+      font-family: monospace;
+      font-size: 0.8125rem;
+      color: #374151;
+    }
+  }
+}
+
+// ---- WhatsApp notice ----
+.whatsapp-notice {
+  display: flex;
+  gap: 0.5rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 0.625rem 0.75rem;
+  margin-top: 0.5rem;
+
+  &__icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    fill: #0284c7;
+    margin-top: 1px;
+  }
+
+  &__text {
+    font-size: 0.8125rem;
+    color: #0c4a6e;
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+// ---- Buttons ----
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    opacity 0.15s ease;
+  line-height: 1.25;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &--primary {
+    background: #2563eb;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: #1d4ed8;
+    }
+  }
+
+  &--danger {
+    background: #dc2626;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: #b91c1c;
+    }
+  }
+
+  &--ghost {
+    background: transparent;
+    color: #374151;
+    border: 1px solid #d1d5db;
+
+    &:hover:not(:disabled) {
+      background: #f9fafb;
+    }
+  }
+
+  &--icon {
+    background: transparent;
+    color: #6b7280;
+    padding: 0.375rem;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+
+    &:hover:not(:disabled) {
+      background: #f3f4f6;
+      color: #111827;
+    }
+  }
+}
+
+.btn-icon {
+  width: 20px;
+  height: 20px;
+
+  &.spinning {
+    animation: spin 1s linear infinite;
+  }
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ---- Dialog ----
+.cc-dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.18),
+    0 4px 16px rgba(0, 0, 0, 0.1);
+  max-width: 440px;
+  width: 100%;
+
+  &::backdrop {
+    background: rgba(0, 0, 0, 0.45);
+  }
+
+  &__content {
+    padding: 1.5rem;
+  }
+
+  &__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 0.75rem;
+  }
+
+  &__body {
+    font-size: 0.9375rem;
+    color: #374151;
+    line-height: 1.6;
+    margin: 0 0 1.5rem;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+}

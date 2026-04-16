@@ -102,6 +102,9 @@ public class SecurityConfig {
                 .requestMatchers("/webhooks/**").permitAll()
                 // Webhook VoIP od providera telefonii – publiczny, weryfikacja przez X-Webhook-Secret
                 .requestMatchers("/api/telephony/webhook/**").permitAll()
+                // OAuth callback – wywoływany przez serwer Facebook/Instagram bez JWT
+                // Bezpieczeństwo przez weryfikację parametru 'state' (OAuth CSRF protection)
+                .requestMatchers("/api/oauth/*/callback").permitAll()
                 // Hold music TwiML – publiczny, wywoływany przez Twilio jako waitUrl w Conference
                 .requestMatchers("/api/telephony/hold-music").permitAll()
                 // WebSocket endpoint (SockJS) – publiczny (HTTP → WS upgrade); autentykacja przez JWT w STOMP CONNECT

@@ -332,6 +332,26 @@ email:
   enabled: ${EMAIL_ENABLED:true}
 
 # =============================================================================
+# Social Media OAuth – integracje Facebook Messenger, Instagram, WhatsApp Business (BE-017)
+# Klucz szyfrowania tokenów: 64-znakowy hex (32 bajty AES-256)
+# PROD: ustaw przez ENV var SOCIAL_TOKEN_ENCRYPTION_KEY (mocny losowy klucz)
+# DEV: domyślny fallback (SHA-256 z podanego stringa) – NIGDY nie używaj w produkcji
+# =============================================================================
+social:
+  token-encryption-key: ${SOCIAL_TOKEN_ENCRYPTION_KEY:default-dev-key-change-in-prod-32b!}
+  facebook:
+    app-id: ${FACEBOOK_APP_ID:}
+    app-secret: ${FACEBOOK_APP_SECRET:}
+    oauth-redirect-uri: ${FACEBOOK_REDIRECT_URI:http://localhost:8080/api/oauth/FACEBOOK/callback}
+  instagram:
+    app-id: ${INSTAGRAM_APP_ID:}
+    app-secret: ${INSTAGRAM_APP_SECRET:}
+    oauth-redirect-uri: ${INSTAGRAM_REDIRECT_URI:http://localhost:8080/api/oauth/INSTAGRAM/callback}
+  whatsapp:
+    phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+    access-token: ${WHATSAPP_ACCESS_TOKEN:}
+
+# =============================================================================
 # Logowanie – poziomy logowania czytane przez logback-spring.xml przez <springProperty>
 # Pattern konsoli i konfiguracja appenderów w logback-spring.xml
 # =============================================================================

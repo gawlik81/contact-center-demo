@@ -58,6 +58,8 @@
 - [feedback_twilio_sdk_api.md](feedback_twilio_sdk_api.md) – Twilio SDK 10.1.5: `CallCreator` (nie `Call.Creator`), `Call.UpdateStatus` (nie
   `CallUpdater.Status`), ambiguous mocks w testach
 - [feedback_twilio_webhook_async_pattern.md](feedback_twilio_webhook_async_pattern.md) – Webhook handler zwraca 204 natychmiast; logika Twilio REST API (Conference.fetcher) w @Async; X-Twilio-Signature walidacja przez RequestValidator; HttpClient jako pole
+- [feedback_oauth_csrf_state_redis.md](feedback_oauth_csrf_state_redis.md) – OAuth state w Redis: klucz `oauth:state:{state}` → tenantId, TTL 10min, single-use; ustawia TenantContext w publicznym callbacku
+- [feedback_transactional_no_external_io.md](feedback_transactional_no_external_io.md) – @Transactional bez blokującego HTTP I/O: podziel na readOnly→delete→external-call; metody pomocnicze muszą być protected (nie private)
 
 ## Projekty
 
@@ -79,3 +81,4 @@
 - [BE-036 Contact API Advanced Filters](project_be036_contact_filters.md) – rozszerzenie GET /api/contacts: queueId, campaignId, remoteAddress (ILIKE), durationMin/Max; ContactFilterParams record, appendFilterConditions pattern
 - [BE-030 ETL Pipeline](project_be030_etl_pipeline.md) – polling CDC PostgreSQL→DW, EtlSyncService @Scheduled, PostgresDwWriter (upsert), alert RabbitMQ cc.events/etl.lag.alert, GET /api/admin/etl/status
 - [BE-033 PhoneNumber CRUD API](project_be033_phonenumber_api.md) – CRUD numerów telefonu E.164, PhoneNumber encja, PhoneNumberRepository, PhoneRoutingRuleRepository (stub dla BE-034), soft delete blokowany przez aktywne reguły routingu
+- [BE-017 Social OAuth](project_be017_social_oauth.md) – OAuth flow i szyfrowanie tokenów AES-256-GCM (BYTEA), SocialIntegration encja, callback publiczny w SecurityConfig+TenantFilter, @Scheduled refresh co 1h

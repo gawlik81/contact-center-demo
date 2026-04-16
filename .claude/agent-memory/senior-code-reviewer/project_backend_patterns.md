@@ -197,6 +197,46 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - Is `set_tenant_context` called via prepared statement or string concat?
 - Is `DialerController` free of `JdbcTemplate` calls?
 
+## BE-017 (OAuth / Social Media Tokens) — issues found 2026-04-16
+
+**Critical — must fix before production deploy:**
+- OAuth `state` parameter generated in `initiateOAuth()` but NEVER persisted (Redis/session) nor verified in `oauthCallback()` — OAuth CSRF protection is completely non-functional. state must be stored in Redis with TTL and consumed once in callback.
+- Access token in URL query string in `revokeTokenAtProvider()`: `access_token=%s` — token leaks into proxy/nginx access logs and load balancer logs. Must use `Authorization: Bearer` header instead.
+- Blocking `HttpClient.send()` inside `@Transactional` method `deleteIntegration()` — holds DB connection/lock while waiting for external Graph API response. Move revoke call outside transaction.
+- `oauthCallback()` is PUBLIC (no JWT) but calls `saveIntegration()` which reads `TenantContext.getTenantId()` — TenantContext is empty for public endpoints, so getTenantId() returns null. Entire save flow always fails. tenantId must be embedded in `state` parameter.
+- `InterruptedException` swallowed in `catch (Exception e)` in `revokeTokenAtProvider()` — must re-interrupt thread.
+
+**Architecture violations:**
+- `refreshToken()` uses `TenantContext.setTenantId()` directly instead of project-standard `snapshot()/restore()/clear()` pattern. Also sets only tenantId, not tenantName — downstream consumers of TenantContext.getTenantName() get null.
+- `findAllExpiringBefore()` is `public` but bypasses RLS (no setTenantContextInDb) — should be package-private or guarded by assertion that TenantContext is empty.
+- `exchangeForLongLivedToken()` stub silently returns same token but writes 60-day future expiry — scheduler logs success and updates DB despite doing nothing. Should throw `UnsupportedOperationException`.
+- `exchangeCodeForToken()` stub returns authorization code as token — saves invalid token to DB without error.
+
+**Database issues:**
+- `social_integration` table missing `is_deleted` column — hard delete used, violates project soft-delete convention.
+- V012 RLS policy for `social_integration` is SELECT-only — no INSERT/UPDATE/DELETE policies. Write isolation relies only on application-level `assertSameTenant()`. Fix: new migration V041 with write policies.
+
+**Minor / recurring:**
+- `facebookRedirectUri` and `instagramRedirectUri` not URL-encoded in `buildAuthorizationUrl()` — special characters in redirect URI break OAuth URL parsing.
+- `HttpClient` created as field without `connectTimeout` — unbounded wait on Graph API unavailability.
+- Error message from exception appended to audit log details — potential info leakage.
+
+**Positive patterns:**
+- AES-256-GCM implementation is textbook-correct: 12-byte random IV per encryption, 128-bit GCM tag, `[IV|ciphertext+tag]` format, `SecureRandom`, `SecretKeySpec`.
+- No token in any log line — all logs explicitly redact or omit access tokens.
+- `SocialIntegrationRepository` extends `TenantAwareRepository`, `assertSameTenant()` called before every write, `setTenantContextInDb()` before every read.
+- `finally { TenantContext.clear() }` present in scheduler loop.
+- DTO never exposes `accessTokenEncrypted` field.
+- SecurityConfig + TenantFilter.PUBLIC_PATH_PREFIXES both updated for `/api/oauth/*/callback`.
+- `SocialTokenEncryptionServiceTest` covers round-trip, IV uniqueness, Unicode, tampering, null/empty — solid unit test coverage.
+
+**Check in future social/OAuth related reviews:**
+- Is `state` stored in Redis and consumed once in callback?
+- Is `tenantId` propagated through `state` parameter for public OAuth callbacks?
+- Are tokens never in URL query strings (must use Authorization header)?
+- Is `exchangeForLongLivedToken()` fully implemented (not stub)?
+- Are RLS write policies present for any new table with `ENABLE ROW LEVEL SECURITY`?
+
 ## Architectural patterns observed in BE-027
 
 **Partitioned table pattern (new in BE-027):**

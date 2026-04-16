@@ -87,7 +87,10 @@ public class TenantFilter extends OncePerRequestFilter {
             // Ta sama zasada: auth dzieje się w warstwie STOMP CONNECT, nie HTTP
             "/ws-native",
             // Endpoint przyjmowania logów z frontendu – publiczny (FE wysyła logi przed zalogowaniem)
-            "/api/logs"
+            "/api/logs",
+            // OAuth callback social media – wywoływany przez serwer OAuth bez JWT
+            // Bezpieczeństwo przez weryfikację parametru 'state' (OAuth CSRF protection)
+            "/api/oauth/"
     );
 
     private final JwtParser jwtParser;

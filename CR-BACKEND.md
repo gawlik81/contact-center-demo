@@ -2,6 +2,226 @@
 
 ---
 
+## Review: BE-017 – OAuth flow i zarządzanie tokenami social media — 2026-04-16
+
+Przejrzane pliki:
+- `domain/model/SocialPlatform.java`
+- `domain/model/SocialIntegration.java`
+- `domain/repository/SocialIntegrationRepository.java`
+- `domain/service/SocialTokenEncryptionService.java`
+- `domain/service/SocialIntegrationService.java`
+- `api/social/SocialOAuthController.java`
+- `api/social/dto/SocialIntegrationDto.java`
+- `api/social/dto/SocialIntegrationListResponse.java`
+- `api/social/dto/OAuthInitiateResponse.java`
+- `security/SecurityConfig.java` (fragment)
+- `security/TenantFilter.java` (fragment)
+- `resources/application.yml` (fragment)
+- `db/migration/V010__create_email_social.sql` (schema)
+- `db/migration/V012__row_level_security.sql` (RLS)
+- `test/.../SocialTokenEncryptionServiceTest.java`
+
+---
+
+### CRITICAL
+
+**[SocialOAuthController.java:81-86] Parametr `state` generowany, ale nigdy nie weryfikowany w callbacku — OAuth CSRF protection jest fikcyjna.**
+
+`initiateOAuth()` generuje `state = UUID.randomUUID()` i zwraca go do klienta, ale ten `state` nie jest nigdzie zapamiętany (Redis, sesja, baza). Endpoint `oauthCallback()` (linia 117) przyjmuje `state` jako parametr, loguje go, lecz go nie waliduje — nie porównuje z wartością zapisaną przy inicjacji.
+
+Skutek: dowolny atakujący może skonstruować fałszywy URL callbacku z dowolnym `code` i poprawnym `platform`, a serwer wykona wymianę tokenu i zapisze integrację dla tenanta ofiary. To pełny CSRF na flow OAuth 2.0.
+
+Wymagana naprawa: przy wywołaniu `initiateOAuth()` zapisać `state` w Redis z TTL np. 10 minut pod kluczem `oauth:state:{tenantId}:{state}`. W callbacku sprawdzić istnienie i jednokrotność tego klucza (natychmiast usunąć po weryfikacji — prevent replay). Callback bez JWT nie ma TenantContext, więc `state` musi zawierać `tenantId` (np. `{tenantId}:{randomUUID}`) lub być przechowywany per-sesja po stronie frontendu z przekazaniem przez fragment URL.
+
+---
+
+**[SocialIntegrationService.java:317-318] Token dostępu w plaintext w URL żądania HTTP do Graph API — wyciek tokenu do logów i infrastruktury.**
+
+Metoda `revokeTokenAtProvider()` buduje URL:
+```
+String url = String.format("%s/%s/permissions?access_token=%s", GRAPH_API_BASE, integration.getPageId(), token);
+```
+Token w query stringu URL trafia do:
+1. Logów HTTP klienta (JDK HttpClient domyślnie nie loguje, ale jest to niebezpieczna praktyka)
+2. Potencjalnie do logów load balancera, CDN, reverse proxy — URL z tokenem w query string jest w access logu nginx/haproxy
+3. Serverowych logów TLS inspection w środowiskach korporacyjnych
+
+Wymóg Graph API dla revoke to DELETE z tokenem w nagłówku `Authorization: Bearer {token}` lub jako parametr POST body, nie w URL. Poprawna implementacja:
+```java
+HttpRequest request = HttpRequest.newBuilder()
+    .uri(URI.create(String.format("%s/%s/permissions", GRAPH_API_BASE, integration.getPageId())))
+    .DELETE()
+    .header("Authorization", "Bearer " + token)
+    .build();
+```
+
+---
+
+**[SocialIntegrationService.java:325] Blokujące wywołanie HTTP `httpClient.send()` wewnątrz metody `@Transactional` — ryzyko deadlocku puli połączeń.**
+
+`deleteIntegration()` jest oznaczona `@Transactional` (linia 155). Wywołuje `revokeTokenAtProvider()` (linia 167), która wykonuje synchroniczne (`send()`, nie `sendAsync()`) wywołanie zewnętrznego Graph API. Transakcja bazy danych trzyma blokadę przez cały czas oczekiwania na odpowiedź z zewnętrznego API (domyślny timeout HttpClient = brak). Przy dużym ruchu lub niedostępności FB API pula połączeń HikariCP ulega wyczerpaniu.
+
+Naprawa: wykonać `revokeTokenAtProvider()` POZA transakcją — wydzielić metodę z `@Transactional(propagation = NEVER)` lub wykonać najpierw commit (pobierz i zapisz token przed transakcją), a revoke wykonaj asynchronicznie po commicie DB.
+
+---
+
+**[SocialIntegrationService.java:325] `httpClient.send()` łapie `InterruptedException` przez generyczne `catch (Exception e)` — wątek schedulera może tracić interrupt flag.**
+
+W `revokeTokenAtProvider()` linia 334: `catch (Exception e)`. Metoda `HttpClient.send()` deklaruje `throws InterruptedException`. Połknięcie `InterruptedException` bez przywrócenia flagi przerywa mechanizm kooperatywnego zatrzymywania wątku. W wątku `@Scheduled` schedulera Springa może to blokować graceful shutdown.
+
+Naprawa:
+```java
+} catch (InterruptedException e) {
+    Thread.currentThread().interrupt();
+    log.warn("[SocialIntegration] Revoke przerwany: {}", e.getMessage());
+} catch (Exception e) {
+    log.warn(...);
+}
+```
+
+---
+
+**[V010__create_email_social.sql] Tabela `social_integration` nie ma kolumny `is_deleted` — brak soft delete wymaganego przez konwencje projektu.**
+
+Schemat tabeli (linie 215-258) nie definiuje `is_deleted BOOLEAN NOT NULL DEFAULT FALSE`. Wszystkie pozostałe encje w projekcie stosują soft delete. Implementacja wykonuje `em.remove()` (twarde usunięcie), co:
+1. Narusza konwencję projektu
+2. Usuwa ślad audytowy w DB (jest tylko AuditLog w osobnej tabeli, ale rekord integration_id nie jest archiwizowany)
+3. Blokuje FK z `social_message.integration_id` — aktualnie ON DELETE SET NULL, ale po hard delete historyczne wiadomości tracą powiązanie z integracją
+
+Jeśli decyzja o hard delete dla tej tabeli jest świadoma (tokeny nie powinny zostawać w DB po revoke), to należy to udokumentować jako jawny wyjątek od konwencji i upewnić się, że `social_message.integration_id` ON DELETE SET NULL jest właściwym zachowaniem dla zachowania historii wiadomości.
+
+---
+
+**[SocialIntegrationService.java:233-295] `refreshToken()` wywołuje `TenantContext.setTenantId()` bez `snapshot()/restore()` — wzorzec niezgodny z wymaganiami projektu dla async/scheduler.**
+
+Metoda używa bezpośrednio `TenantContext.setTenantId(tenantId)` zamiast wymaganego wzorca `snapshot()/restore()`. Wątek schedulera Spring może być współdzielony (pula `TaskScheduler`). Chociaż `finally { TenantContext.clear() }` czyści kontekst, bezpośrednie `setTenantId` zamiast restore z snapshota jest niezgodne z konwencją projektu dla przekraczania granic wątków.
+
+Poważniejszy problem: `TenantContext.setTenantId()` ustawia tylko `tenantId`, ale nie `tenantName`. Jeśli serwisy downstream (`auditLogService.publishAuditEvent()`) używają `TenantContext.getTenantName()` wewnętrznie, dostają `null`.
+
+Wymagana naprawa zgodna z CLAUDE.md: stworzyć `TenantContext.Snapshot` przed pętlą (lub per-integracja), użyć `restore()` i `clear()` w finally.
+
+---
+
+### WARNING
+
+**[SocialIntegrationService.java:350-362] `exchangeForLongLivedToken()` jest stubem zwracającym ten sam token — scheduler odświeżający tokeny nie działa produkcyjnie, ale działa jak gdyby działał (błędnie zapisuje 60-dniową datę wygaśnięcia).**
+
+Linia 362: `return shortLivedToken;`. Scheduler w `refreshToken()` (linia 249) zapisuje `Instant.now().plus(60, ChronoUnit.DAYS)` jako nową datę wygaśnięcia, mimo że token nie został faktycznie wymieniony. Oznacza to, że wygasłe tokeny będą udawać, że są świeże przez kolejne 60 dni. Integracja nie będzie oznaczona jako `EXPIRED_TOKEN` dopóki rzeczywista operacja API (np. wysłanie wiadomości) nie zwróci błędu auth.
+
+Stub powinien rzucać `UnsupportedOperationException` lub `NotImplementedException` zamiast udawać sukces, albo być wyraźnie wyłączony conditionally przez feature flag.
+
+---
+
+**[SocialOAuthController.java:239-243] `exchangeCodeForToken()` jest stubem zwracającym `code` jako token — w środowiskach innych niż dev/test stub zapisze nieprawidłowy token do bazy.**
+
+Linia 243: `return code;`. OAuth authorization code jest jednorazowy i krótkotrwały (typowo 10 minut). Stub zwraca go jako access token. Jeśli ta gałąź kodu zostanie wdrożona bez implementacji produkcyjnej, wywołania API z tym "tokenem" będą się natychmiast kończyć błędem 400 od Graph API, ale token zostanie zaszyfrowany i zapisany w DB.
+
+Ta sama uwaga co powyżej: stub powinien rzucać `NotImplementedException` zamiast cicho zwracać nieprawidłowe dane.
+
+---
+
+**[SocialIntegrationRepository.java:94-101] `findAllExpiringBefore()` pomija `setTenantContextInDb()` — zapytanie cross-tenant bez RLS.**
+
+To jest intentional (komentarz w kodzie mówi "BYPASSES RLS"), ale brakuje zabezpieczenia przed przypadkowym wywołaniem tej metody spoza kontekstu schedulera. Metoda jest `public` i może być wywołana z dowolnego serwisu. Brak jest żadnego mechanizmu (np. dedykowana adnotacja, package-private visibility, lub sprawdzenie że `TenantContext` jest pusty) wymuszającego, że ta metoda jest wyłącznie dla użycia przez scheduler systemowy.
+
+Rekomendacja: zmienić widoczność na package-private lub dodać asercję `Assert.isNull(TenantContext.getTenantId(), "findAllExpiringBefore() nie może być wywołane w kontekście tenanta")`.
+
+---
+
+**[SocialOAuthController.java:112-168] Callback OAuth jest publiczny i zwraca `SocialIntegrationDto` z `pageId` — brak TenantContext w momencie zapisu.**
+
+Endpoint `/api/oauth/{platform}/callback` jest publiczny (bez JWT). Wywołuje `integrationService.saveIntegration()`, które wewnętrznie wywołuje `TenantContext.getTenantId()` (linia 85 w serwisie). Ponieważ callback nie ma JWT, `TenantContext` nie jest ustawiony przez `JwtAuthFilter`/`TenantFilter` — `getTenantId()` zwróci `null`.
+
+Skutek: `repository.save(integration)` wywoła `assertSameTenant(null)`, co powinno rzucić wyjątek (zależy od implementacji `assertSameTenant`). W najlepszym razie callback zawsze kończy się błędem 500. W najgorszym — jeśli `assertSameTenant(null)` przepuszcza null — integracja z `tenant_id = null` trafi do bazy (blokada przez NOT NULL constraint).
+
+Architektura callbacku OAuth wymaga przeprojektowania: `tenantId` musi być zawarty w parametrze `state` lub przekazany przez bezpieczny mechanizm sesji, aby callback wiedział do którego tenanta zapisać integrację.
+
+---
+
+**[SocialIntegrationService.java:56] `HttpClient` jako pole instancji zamiast wstrzykiwanego beana — utrudnia testowanie i brakuje konfiguracji timeoutów.**
+
+`private final HttpClient httpClient = HttpClient.newHttpClient();` — HttpClient bez zdefiniowanego `connectTimeout` i bez `executor`. W środowisku produkcyjnym wywołanie do niedostępnego Graph API będzie czekać domyślnie bez ograniczeń (lub do timeout systemu operacyjnego). HttpClient powinien być stworzony z:
+```java
+HttpClient.newBuilder()
+    .connectTimeout(Duration.ofSeconds(5))
+    .build()
+```
+lub wstrzykiwany jako `@Bean` dla możliwości mockowania w testach.
+
+---
+
+**[V012__row_level_security.sql:127-129] RLS dla `social_integration` ma tylko politykę SELECT — brak INSERT/UPDATE/DELETE policy.**
+
+Tabela ma `ENABLE ROW LEVEL SECURITY` i politykę SELECT (linia 127-129), ale brak polis dla INSERT/UPDATE/DELETE. Bez nich operacje zapisu nie są ograniczone przez RLS na poziomie DB — ochrona istnieje wyłącznie na poziomie aplikacji (via `assertSameTenant()`). Porównaj z tabelą `customer` (linie 143-159) która ma pełny zestaw polis.
+
+Wymagana naprawa — nowa migracja `V041__social_integration_rls_write_policies.sql`:
+```sql
+CREATE POLICY pol_social_integration_insert ON social_integration
+    FOR INSERT
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+
+CREATE POLICY pol_social_integration_update ON social_integration
+    FOR UPDATE
+    USING  (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+
+CREATE POLICY pol_social_integration_delete ON social_integration
+    FOR DELETE
+    USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+```
+
+---
+
+**[SocialIntegrationService.java:268] Wiadomość błędu z zewnętrznego wyjątku w audit logu — potencjalny wyciek informacji o stanie tokenów / ścieżkach kodu.**
+
+Linia 288: `String.format("{\"platform\":\"%s\",\"error\":\"%s\"}", integration.getPlatform(), e.getMessage())`. Wiadomość wyjątku (np. z biblioteki kryptograficznej lub sieciowej) może zawierać szczegóły techniczne, które trafiają do `audit_log`. Audit log jest dostępny dla ADMIN roli przez API — to akceptowalne, ale warto przycinać/sanityzować wiadomość błędu do rozsądnej długości i bez stack trace detali.
+
+---
+
+### INFO
+
+**[SocialTokenEncryptionService.java:41] Default value klucza w `@Value` — klucz dev nie jest wystarczająco różny od produkcyjnego.**
+
+`@Value("${social.token-encryption-key:default-dev-key-change-in-prod-32b!}")` — wartość domyślna to stały string znany z kodu źródłowego. Jeśli `SOCIAL_TOKEN_ENCRYPTION_KEY` nie jest ustawiony na produkcji, fallback SHA-256 z tego stringa wygeneruje deterministyczny klucz AES. Lepiej byłoby na starcie aplikacji weryfikować czy klucz jest podany w trybie produkcyjnym (np. przez `@Profile("prod")` i brak wartości domyślnej, co spowoduje błąd startu Spring).
+
+**[SocialIntegration.java:81-92] `@PrePersist` jest redundantny dla pól z `@Builder.Default`.**
+
+Pola `platformConfig` i `webhookStatus` mają `@Builder.Default`, więc nigdy nie będą null przy użyciu buildera. Sprawdzenie `if (platformConfig == null)` w `@PrePersist` jest defensive programming, ale może maskować błędy w tworzeniu encji przez konstruktor `@NoArgsConstructor` + settery. Warto albo usunąć nadmiarowe sprawdzenia (przy pełnym użyciu buildera) albo dodać adnotację `@Column(columnDefinition = ... DEFAULT ...)` i polegać na DB defaults.
+
+**[SocialIntegrationRepository.java:107-111] `em.merge()` w metodzie `save()` — nie rozróżnia CREATE od UPDATE w logowaniu.**
+
+`em.merge()` obsługuje zarówno nowe jak i istniejące encje, ale serwis sam określa `isNew` przed wywołaniem save. Logowanie w repozytorium (linia 127 w delete) jest prawidłowe, ale brak jest loga dla operacji `save()` na poziomie repozytorium. Serwis loguje na poziomie INFO — wystarczające dla tej warstwy.
+
+**[SocialOAuthController.java:205-228] URL OAuth nie jest URL-encoded.**
+
+`facebookRedirectUri` i `instagramAppId` są wstawiane do URL przez `String.format()` bez enkodowania. Jeśli `redirect_uri` zawiera znaki specjalne (np. `&`, `=`), URL autoryzacji zostanie błędnie sparsowany przez serwer OAuth. Należy użyć `URLEncoder.encode(facebookRedirectUri, StandardCharsets.UTF_8)`.
+
+**[SocialIntegrationDto.java] DTO jest rekordem Java — poprawna separacja warstw.**
+
+DTO nie zawiera tokenu, klucza ani żadnych danych wrażliwych. Dobry wzorzec.
+
+---
+
+### PASSED
+
+- **Szyfrowanie AES-256-GCM**: poprawna implementacja — losowe 12-bajtowe IV per każde szyfrowanie, GCM tag 128-bit, format `[IV|ciphertext+tag]`, `SecureRandom`, klucz jako `SecretKeySpec`. Implementacja jest wzorcowa.
+- **Brak tokenu w logach**: żaden log w `SocialIntegrationService` i `SocialOAuthController` nie wypisuje tokenu w plaintext. Code jest redacted (`code=[REDACTED]`). Pozytywnie oceniane.
+- **TenantAwareRepository**: `SocialIntegrationRepository` poprawnie rozszerza `TenantAwareRepository`, wszystkie metody zapisu wywołują `assertSameTenant()` przed operacją, a następnie `setTenantContextInDb()`.
+- **`finally { TenantContext.clear() }`**: scheduler wywołuje clear() w finally — context nie wycieka między iteracjami.
+- **DTO bez zaszyfrowanych danych**: `SocialIntegrationDto` nie zwraca `accessTokenEncrypted` ani żadnego pola tokenu — poprawna ochrona przed wyciekiem klucza przez API.
+- **Obsługa błędu revoke**: błąd wywołania Graph API nie blokuje usunięcia integracji z DB — prawidłowy wzorzec dla operacji na zewnętrznych API.
+- **Testy jednostkowe szyfrowania**: `SocialTokenEncryptionServiceTest` pokrywa round-trip, unikalność IV, znaki specjalne, tampering (GCM tag), walidację null/empty. Dobry zestaw testów.
+- **SecurityConfig + TenantFilter**: endpoint `/api/oauth/*/callback` jest prawidłowo dodany w obu miejscach (`SecurityConfig.java` i `TenantFilter.PUBLIC_PATH_PREFIXES`).
+- **RLS SELECT policy**: tabela `social_integration` ma prawidłową politykę RLS SELECT w V012.
+
+---
+
+### Summary
+
+**2/5** — Implementacja zawiera solidne fundamenty (szyfrowanie AES-GCM, brak wycieków tokenu w logach, TenantAwareRepository), ale ma krytyczne luki bezpieczeństwa, które blokują produkcyjne wdrożenie: OAuth state CSRF jest fikcyjny (state nie jest zapisywany ani weryfikowany), token w URL przy revoke trafia do logów infrastruktury, blokujące HTTP wewnątrz transakcji grozi deadlockiem puli połączeń, a callback OAuth nie ma mechanizmu pobrania TenantContext co powoduje, że cały flow zapisu po callbacku zawsze kończy się błędem. Dodatkowo scheduler pozoruje odświeżanie tokenów (stub zwraca stary token z nową datą). Przed merge wymagana naprawa co najmniej pozycji CRITICAL.
+
+---
+
 ## Review: BE-024 Progressive Dialer (DialerController, ProgressiveDialerService, DialerCallbackHandler, ScheduledCallbackRepository, zmiany w CampaignRepository / CampaignContactRepository) — 2026-04-08
 
 ### Bugs / Critical Issues

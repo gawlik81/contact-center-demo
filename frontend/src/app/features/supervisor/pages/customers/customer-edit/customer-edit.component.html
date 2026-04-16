@@ -166,6 +166,30 @@
           Dodaj e-mail
         </button>
       </section>
+
+      <!-- Zgody RODO -->
+      <section class="form-section" aria-labelledby="section-gdpr" formGroupName="gdprConsent">
+        <h3 id="section-gdpr" class="form-section__title">Zgody RODO</h3>
+
+        <div class="form-field form-field--checkbox">
+          <label class="form-checkbox">
+            <input class="form-checkbox__input" type="checkbox" formControlName="consent_given" id="consent_given" />
+            <span class="form-checkbox__label">Zgoda na przetwarzanie danych</span>
+          </label>
+        </div>
+
+        <div class="form-field form-field--checkbox">
+          <label class="form-checkbox">
+            <input
+              class="form-checkbox__input"
+              type="checkbox"
+              formControlName="marketing_consent"
+              id="marketing_consent"
+            />
+            <span class="form-checkbox__label">Zgoda marketingowa</span>
+          </label>
+        </div>
+      </section>
     </form>
 
     <div class="customer-edit-dialog__footer">

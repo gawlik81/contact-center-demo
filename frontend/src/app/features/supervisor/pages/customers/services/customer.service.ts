@@ -70,6 +70,7 @@ export class CustomerService {
       lastName?: string;
       phone?: string[];
       email?: string[];
+      gdprConsent?: Record<string, unknown>;
     },
   ): Observable<CustomerResponse> {
     return this.http.patch<CustomerResponse>(`${this.baseUrl}/${id}`, payload);

@@ -63,6 +63,10 @@ export class CustomerEditComponent implements OnInit, AfterViewInit {
     lastName: ['', [Validators.maxLength(100)]],
     phones: this.fb.array<string>([]),
     emails: this.fb.array<string>([]),
+    gdprConsent: this.fb.group({
+      consent_given: [false],
+      marketing_consent: [false],
+    }),
   });
 
   get phonesArray(): FormArray {
@@ -93,6 +97,10 @@ export class CustomerEditComponent implements OnInit, AfterViewInit {
     this.form.patchValue({
       firstName: customer.firstName ?? '',
       lastName: customer.lastName ?? '',
+      gdprConsent: {
+        consent_given: customer.gdprConsent?.['consent_given'] ?? false,
+        marketing_consent: customer.gdprConsent?.['marketing_consent'] ?? false,
+      },
     });
 
     this.phonesArray.clear();
@@ -148,6 +156,11 @@ export class CustomerEditComponent implements OnInit, AfterViewInit {
         lastName: raw.lastName?.trim() || undefined,
         phone: phones,
         email: emails,
+        gdprConsent: {
+          ...(this.customer().gdprConsent ?? {}),
+          consent_given: raw.gdprConsent.consent_given,
+          marketing_consent: raw.gdprConsent.marketing_consent,
+        },
       })
       .pipe(
         takeUntilDestroyed(this.destroyRef),

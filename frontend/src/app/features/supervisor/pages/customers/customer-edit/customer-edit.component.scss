@@ -328,6 +328,54 @@ $radius: 8px;
   }
 }
 
+// ── Checkbox fields ────────────────────────────────────────────────────────────
+.form-field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+}
+
+.form-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  cursor: pointer;
+
+  &__input {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    border: 1.5px solid $border-color;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    transition:
+      border-color 0.15s ease,
+      background 0.15s ease;
+
+    &:checked {
+      background: $brand-blue;
+      border-color: $brand-blue;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 5l3.5 3.5L11 1' stroke='%23fff' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 10px 8px;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand-blue;
+      outline-offset: 2px;
+    }
+  }
+
+  &__label {
+    font-size: 0.9375rem;
+    color: $text-primary;
+    user-select: none;
+  }
+}
+
 // ── Spinner ────────────────────────────────────────────────────────────────────
 .spinner {
   width: 16px;

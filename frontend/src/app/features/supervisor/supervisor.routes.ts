@@ -118,6 +118,15 @@ export const SUPERVISOR_ROUTES: Routes = [
             loadChildren: () =>
               import('../integrations/integrations.routes').then((m) => m.INTEGRATIONS_ROUTES),
           },
+          {
+            path: 'email-templates',
+            data: { breadcrumb: 'Szablony email', roles: ['SUPERVISOR', 'ADMIN'] },
+            canActivate: [roleGuard],
+            loadComponent: () =>
+              import('./pages/settings/email-templates/email-templates.component').then(
+                (m) => m.EmailTemplatesComponent,
+              ),
+          },
         ],
       },
       {

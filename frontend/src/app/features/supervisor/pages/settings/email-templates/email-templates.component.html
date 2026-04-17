@@ -1,0 +1,367 @@
+<div class="et-page">
+  <header class="et-header">
+    <div class="et-header__title">
+      <h1>Szablony email</h1>
+      <span class="et-badge" [class.et-badge--hidden]="loading()">
+        {{ totalElements() }} {{ totalElements() === 1 ? 'szablon' : totalElements() < 5 ? 'szablony' : 'szablonów' }}
+      </span>
+    </div>
+    <button class="et-btn et-btn--primary" (click)="openCreateModal()" [disabled]="loading()">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
+      Nowy szablon
+    </button>
+  </header>
+
+  @if (loading()) {
+    <div class="et-skeleton-wrapper">
+      @for (item of [1, 2, 3, 4, 5]; track item) {
+        <div class="et-skeleton-row">
+          <div class="et-skeleton et-skeleton--name"></div>
+          <div class="et-skeleton et-skeleton--subject"></div>
+          <div class="et-skeleton et-skeleton--vars"></div>
+          <div class="et-skeleton et-skeleton--actions"></div>
+        </div>
+      }
+    </div>
+  } @else if (templates().length === 0) {
+    <div class="et-empty">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"
+        />
+      </svg>
+      <p>Brak szablonów email. Utwórz pierwszy szablon klikając „Nowy szablon".</p>
+    </div>
+  } @else {
+    <div class="et-table-wrapper">
+      <table class="et-table" role="table">
+        <thead>
+          <tr>
+            <th scope="col">Nazwa</th>
+            <th scope="col">Temat</th>
+            <th scope="col">Zmienne</th>
+            <th scope="col" class="et-col-actions">Akcje</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (template of templates(); track template.id) {
+            <tr>
+              <td class="et-cell-name">{{ template.name }}</td>
+              <td class="et-cell-subject">{{ template.subjectTemplate }}</td>
+              <td class="et-cell-vars">
+                @if (template.variables.length === 0) {
+                  <span class="et-no-vars">brak</span>
+                } @else {
+                  <div class="et-chips">
+                    @for (v of template.variables; track v) {
+                      <span class="et-chip">{{ '{{' + v + '}}' }}</span>
+                    }
+                  </div>
+                }
+              </td>
+              <td class="et-cell-actions">
+                <button
+                  class="et-btn et-btn--ghost et-btn--sm"
+                  (click)="openPreviewModal(template)"
+                  title="Podgląd szablonu"
+                  [attr.aria-label]="'Podgląd szablonu ' + template.name"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
+                    />
+                  </svg>
+                  Podgląd
+                </button>
+                <button
+                  class="et-btn et-btn--ghost et-btn--sm"
+                  (click)="openEditModal(template)"
+                  title="Edytuj szablon"
+                  [attr.aria-label]="'Edytuj szablon ' + template.name"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                    />
+                  </svg>
+                  Edytuj
+                </button>
+                <button
+                  class="et-btn et-btn--danger-ghost et-btn--sm"
+                  (click)="openDeleteModal(template)"
+                  title="Usuń szablon"
+                  [attr.aria-label]="'Usuń szablon ' + template.name"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                  </svg>
+                  Usuń
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (totalPages() > 1) {
+      <nav class="et-pagination" aria-label="Paginacja szablonów">
+        <button
+          class="et-btn et-btn--ghost et-btn--sm"
+          [disabled]="!hasPrevPage()"
+          (click)="goToPage(currentPage() - 1)"
+          aria-label="Poprzednia strona"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg>
+        </button>
+        <span class="et-pagination__info"> {{ currentPage() + 1 }} / {{ totalPages() }} </span>
+        <button
+          class="et-btn et-btn--ghost et-btn--sm"
+          [disabled]="!hasNextPage()"
+          (click)="goToPage(currentPage() + 1)"
+          aria-label="Następna strona"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
+        </button>
+      </nav>
+    }
+  }
+</div>
+
+<!-- Form modal (create / edit) -->
+<dialog #formDialog class="et-dialog" (close)="closeFormModal()">
+  <div class="et-dialog__inner">
+    <header class="et-dialog__header">
+      <h2>{{ modalMode() === 'create' ? 'Nowy szablon email' : 'Edytuj szablon email' }}</h2>
+      <button class="et-dialog__close" (click)="closeFormModal()" aria-label="Zamknij">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="saveTemplate()" class="et-form" novalidate>
+      <div class="et-field">
+        <label class="et-label" for="field-name">Nazwa szablonu <span class="et-required">*</span></label>
+        <input
+          id="field-name"
+          class="et-input"
+          [class.et-input--error]="isFieldInvalid('name')"
+          type="text"
+          formControlName="name"
+          placeholder="np. Podziękowanie za kontakt"
+          autocomplete="off"
+        />
+        @if (isFieldInvalid('name')) {
+          <span class="et-error-msg" role="alert">Nazwa jest wymagana (maks. 200 znaków).</span>
+        }
+      </div>
+
+      <div class="et-field">
+        <label class="et-label" for="field-subject">Temat wiadomości <span class="et-required">*</span></label>
+        <input
+          id="field-subject"
+          class="et-input"
+          [class.et-input--error]="isFieldInvalid('subjectTemplate')"
+          type="text"
+          formControlName="subjectTemplate"
+          placeholder="np. Odpowiedź na Twoje zgłoszenie #[[ ticketId ]]"
+          autocomplete="off"
+        />
+        @if (isFieldInvalid('subjectTemplate')) {
+          <span class="et-error-msg" role="alert">Temat jest wymagany (maks. 500 znaków).</span>
+        }
+      </div>
+
+      <div class="et-field">
+        <label class="et-label" for="field-body">Treść (HTML) <span class="et-required">*</span></label>
+        <textarea
+          id="field-body"
+          class="et-textarea"
+          [class.et-textarea--error]="isFieldInvalid('bodyHtml')"
+          formControlName="bodyHtml"
+          rows="10"
+          placeholder="np. &lt;p&gt;Dzień dobry [[ customerName ]],&lt;/p&gt;"
+        ></textarea>
+        @if (isFieldInvalid('bodyHtml')) {
+          <span class="et-error-msg" role="alert">Treść jest wymagana.</span>
+        }
+        <p class="et-hint">
+          Używaj składni <code>{{ curlyOpen }}nazwaZmiennej{{ curlyClose }}</code> aby wstawiać dynamiczne wartości.
+        </p>
+      </div>
+
+      <div class="et-field">
+        <div class="et-field-row">
+          <span class="et-label">Zmienne szablonu</span>
+          <button type="button" class="et-btn et-btn--ghost et-btn--sm" (click)="addVariable()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
+            Dodaj zmienną
+          </button>
+        </div>
+        <div formArrayName="variables" class="et-variables-list">
+          @for (ctrl of variablesArray.controls; track $index) {
+            <div class="et-variable-row">
+              <span class="et-variable-prefix">{{ curlyOpen }}</span>
+              <input
+                class="et-input et-input--variable"
+                [class.et-input--error]="ctrl.invalid && ctrl.touched"
+                type="text"
+                [formControlName]="$index"
+                placeholder="nazwaZmiennej"
+                autocomplete="off"
+              />
+              <span class="et-variable-suffix">{{ curlyClose }}</span>
+              <button
+                type="button"
+                class="et-btn et-btn--danger-ghost et-btn--icon"
+                (click)="removeVariable($index)"
+                [attr.aria-label]="'Usuń zmienną ' + ($index + 1)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  />
+                </svg>
+              </button>
+            </div>
+          }
+          @if (variablesArray.length === 0) {
+            <p class="et-variables-empty">Brak zdefiniowanych zmiennych.</p>
+          }
+        </div>
+      </div>
+
+      <footer class="et-dialog__footer">
+        <button type="button" class="et-btn et-btn--ghost" (click)="closeFormModal()">Anuluj</button>
+        <button type="submit" class="et-btn et-btn--primary" [disabled]="saving()">
+          @if (saving()) {
+            <span class="et-spinner" aria-hidden="true"></span>
+            Zapisywanie...
+          } @else {
+            {{ modalMode() === 'create' ? 'Utwórz szablon' : 'Zapisz zmiany' }}
+          }
+        </button>
+      </footer>
+    </form>
+  </div>
+</dialog>
+
+<!-- Delete confirmation modal -->
+<dialog #deleteDialog class="et-dialog et-dialog--sm" (close)="closeDeleteModal()">
+  <div class="et-dialog__inner">
+    <header class="et-dialog__header">
+      <h2>Usuń szablon</h2>
+      <button class="et-dialog__close" (click)="closeDeleteModal()" aria-label="Zamknij">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </header>
+    <div class="et-dialog__body">
+      <p>
+        Czy na pewno chcesz usunąć szablon
+        <strong>„{{ selectedTemplate()?.name }}"</strong>? Tej operacji nie można cofnąć.
+      </p>
+    </div>
+    <footer class="et-dialog__footer">
+      <button type="button" class="et-btn et-btn--ghost" (click)="closeDeleteModal()">Anuluj</button>
+      <button type="button" class="et-btn et-btn--danger" (click)="confirmDelete()" [disabled]="deleting()">
+        @if (deleting()) {
+          <span class="et-spinner" aria-hidden="true"></span>
+          Usuwanie...
+        } @else {
+          Usuń szablon
+        }
+      </button>
+    </footer>
+  </div>
+</dialog>
+
+<!-- Preview modal -->
+<dialog #previewDialog class="et-dialog et-dialog--wide" (close)="closePreviewModal()">
+  <div class="et-dialog__inner">
+    <header class="et-dialog__header">
+      <h2>Podgląd szablonu: {{ selectedTemplate()?.name }}</h2>
+      <button class="et-dialog__close" (click)="closePreviewModal()" aria-label="Zamknij">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </header>
+
+    <div class="et-dialog__body et-preview-body">
+      @if ((selectedTemplate()?.variables?.length ?? 0) > 0) {
+        <form [formGroup]="previewForm" (ngSubmit)="runPreview()" class="et-preview-vars" novalidate>
+          <p class="et-preview-vars__label">Podaj wartości zmiennych:</p>
+          <div class="et-preview-vars__fields">
+            @for (key of previewVariableKeys(); track key) {
+              <div class="et-field et-field--inline">
+                <label class="et-label" [for]="'pv-' + key">
+                  <code>{{ '{{' + key + '}}' }}</code>
+                </label>
+                <input
+                  [id]="'pv-' + key"
+                  class="et-input"
+                  type="text"
+                  [formControlName]="key"
+                  [placeholder]="key"
+                  autocomplete="off"
+                />
+              </div>
+            }
+          </div>
+          <button type="submit" class="et-btn et-btn--primary et-btn--sm" [disabled]="previewLoading()">
+            @if (previewLoading()) {
+              <span class="et-spinner" aria-hidden="true"></span>
+              Generowanie...
+            } @else {
+              Generuj podgląd
+            }
+          </button>
+        </form>
+      } @else {
+        <button
+          type="button"
+          class="et-btn et-btn--primary et-btn--sm"
+          (click)="runPreview()"
+          [disabled]="previewLoading()"
+        >
+          @if (previewLoading()) {
+            <span class="et-spinner" aria-hidden="true"></span>
+            Generowanie...
+          } @else {
+            Generuj podgląd
+          }
+        </button>
+      }
+
+      @if (previewResult()) {
+        <div class="et-preview-result">
+          <div class="et-preview-subject">
+            <span class="et-preview-subject__label">Temat:</span>
+            <span class="et-preview-subject__value">{{ previewResult()!.subject }}</span>
+          </div>
+          <div class="et-preview-frame-wrapper">
+            <iframe
+              class="et-preview-frame"
+              title="Podgląd treści email"
+              sandbox="allow-same-origin"
+              [srcdoc]="previewResult()!.bodyHtml"
+            ></iframe>
+          </div>
+        </div>
+      }
+    </div>
+
+    <footer class="et-dialog__footer">
+      <button type="button" class="et-btn et-btn--ghost" (click)="closePreviewModal()">Zamknij</button>
+    </footer>
+  </div>
+</dialog>

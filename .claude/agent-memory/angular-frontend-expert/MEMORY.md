@@ -55,3 +55,4 @@
 - [Contacts report page (FE-029)](./project_fe029_contacts_report.md) – ContactsReportComponent (/supervisor/reports/contacts), 7 filtrów, tabela 9 kolumn z badgami, paginacja 25/str, eksport CSV client-side, ContactService.getContacts(), submenu Raporty w sidenavie
 - [Phone numbers and routing rules (FE-026)](./project_fe026_phone_numbers.md) – PhoneNumbersComponent, RoutingRulesComponent, RoutingRuleFormComponent, PhoneNumberService, route settings/phone-numbers zastąpiło settings/twilio
 - [Social Media integrations panel (FE-023)](./project_fe023_social_integrations.md) – OAuth redirect flow, 3 karty platform, dialog rozłączenia, OauthCallbackComponent, route supervisor/settings/integrations
+- [Email templates management (FE-031)](./project_fe031_email_templates.md) – EmailTemplatesComponent (CRUD, 3 native dialogs, preview iframe), EmailService extensions, route settings/email-templates, sidenav Konfiguracja

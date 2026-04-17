@@ -42,6 +42,20 @@ export interface SendReplyRequest {
   templateVariables?: Record<string, string>;
 }
 
+export interface CreateTemplateRequest {
+  name: string;
+  subjectTemplate: string;
+  bodyHtml: string;
+  variables: string[];
+}
+
+export interface UpdateTemplateRequest {
+  name?: string;
+  subjectTemplate?: string;
+  bodyHtml?: string;
+  variables?: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class EmailService {
   private readonly http = inject(HttpClient);
@@ -56,9 +70,7 @@ export class EmailService {
     page: number,
     size: number,
   ): Observable<PagedResponse<EmailMessage>> {
-    const params = new HttpParams()
-      .set('page', page.toString())
-      .set('size', size.toString());
+    const params = new HttpParams().set('page', page.toString()).set('size', size.toString());
     return this.http.get<PagedResponse<EmailMessage>>(
       `/api/email/threads/${encodeURIComponent(threadRootMessageId)}`,
       { params },
@@ -66,16 +78,11 @@ export class EmailService {
   }
 
   sendReply(messageId: string, request: SendReplyRequest): Observable<EmailMessage> {
-    return this.http.post<EmailMessage>(
-      `${this.baseUrl}/messages/${messageId}/reply`,
-      request,
-    );
+    return this.http.post<EmailMessage>(`${this.baseUrl}/messages/${messageId}/reply`, request);
   }
 
   getTemplates(page: number, size: number): Observable<PagedResponse<EmailTemplate>> {
-    const params = new HttpParams()
-      .set('page', page.toString())
-      .set('size', size.toString());
+    const params = new HttpParams().set('page', page.toString()).set('size', size.toString());
     return this.http.get<PagedResponse<EmailTemplate>>(`/api/email-templates`, { params });
   }
 
@@ -87,5 +94,17 @@ export class EmailService {
       `/api/email-templates/${templateId}/preview`,
       { variables },
     );
+  }
+
+  createTemplate(request: CreateTemplateRequest): Observable<EmailTemplate> {
+    return this.http.post<EmailTemplate>(`/api/email-templates`, request);
+  }
+
+  updateTemplate(id: string, request: UpdateTemplateRequest): Observable<EmailTemplate> {
+    return this.http.patch<EmailTemplate>(`/api/email-templates/${id}`, request);
+  }
+
+  deleteTemplate(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/email-templates/${id}`);
   }
 }

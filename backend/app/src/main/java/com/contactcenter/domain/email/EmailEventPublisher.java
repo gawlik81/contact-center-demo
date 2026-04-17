@@ -126,9 +126,10 @@ public class EmailEventPublisher {
      * Publikuje event {@code email.sent} – odpowiedź wysłana przez SMTP.
      *
      * @param message wysłana wiadomość
+     * @param agentId UUID agenta wysyłającego odpowiedź
      */
-    public void publishSent(EmailMessage message) {
-        publish(buildEvent(EventType.SENT, message, null, null));
+    public void publishSent(EmailMessage message, UUID agentId) {
+        publish(buildEvent(EventType.SENT, message, null, agentId));
     }
 
     /**

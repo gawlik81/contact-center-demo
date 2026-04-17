@@ -127,7 +127,7 @@ public class EmailSendService {
         EmailMessage saved = emailMessageRepository.save(reply);
 
         // 7. Publikuj event
-        emailEventPublisher.publishSent(saved);
+        emailEventPublisher.publishSent(saved, agentId);
 
         log.info("[EmailSend] Odpowiedź wysłana i zapisana: replyId={}, originalId={}, agent={}",
                 saved.getId(), originalMessageId, agentId);

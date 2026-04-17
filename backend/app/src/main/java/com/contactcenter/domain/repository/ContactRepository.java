@@ -1273,6 +1273,45 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
+  // EMAIL INBOUND↔OUTBOUND – powiązania przez channelMetadata (BE-040 follow-up)
+  // =========================================================================
+
+  /**
+   * Zwraca listę kontaktów, w których {@code channel_metadata->>'key' = value}.
+   *
+   * <p>Używane przez {@code ContactController.getRelatedContacts()} do znajdowania
+   * odpowiedzi OUTBOUND powiązanych z danym kontaktem INBOUND EMAIL poprzez
+   * {@code channel_metadata->>'inboundContactId'}.
+   *
+   * <p>Zapytanie natywne – JSONB operator {@code ->>} zwraca wartość jako TEXT,
+   * więc porównanie z parametrem String jest bezpieczne bez castowania.
+   *
+   * @param key      klucz JSON w channel_metadata (np. {@code "inboundContactId"})
+   * @param value    oczekiwana wartość tekstowa
+   * @param tenantId UUID tenanta (cross-tenant safety)
+   * @return lista kontaktów spełniających kryterium (posortowana od najnowszych)
+   */
+  @Transactional(readOnly = true)
+  @SuppressWarnings("unchecked")
+  public List<Contact> findByChannelMetadataValue(String key, String value, UUID tenantId) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepo] findByChannelMetadataValue: key={}, value={}, tenant={}", key, value, tenantId);
+
+    return em.createNativeQuery("""
+            SELECT * FROM contact
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND channel_metadata->>:key = :value
+            ORDER BY started_at DESC
+            """,
+            Contact.class)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("key", key)
+        .setParameter("value", value)
+        .getResultList();
+  }
+
+  // =========================================================================
   // BE-021: Wait Time Estimation – zapytania agregujące
   // =========================================================================
 

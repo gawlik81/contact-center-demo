@@ -592,6 +592,50 @@ public class ContactController {
             }
         }
 
+        // --- Kierunek C: EMAIL OUTBOUND z inboundContactId → szukamy kontaktu macierzystego (PARENT) ---
+        // Kontakt OUTBOUND EMAIL zawiera w channelMetadata klucz "inboundContactId" wskazujący
+        // na kontakt INBOUND, w odpowiedzi na który wysłano wiadomość.
+        if ("EMAIL".equals(contact.getChannel()) && "OUTBOUND".equals(contact.getDirection())) {
+            Object inboundIdObj = contact.getChannelMetadata().get("inboundContactId");
+            if (inboundIdObj instanceof String inboundIdStr && !inboundIdStr.isBlank()) {
+                try {
+                    UUID inboundContactId = UUID.fromString(inboundIdStr);
+                    contactRepository.findById(inboundContactId, tenantId)
+                            .ifPresent(parent -> related.add(RelatedItem.ofContact(
+                                    parent.getContactId(),
+                                    parent.getStartedAt(),
+                                    parent.getChannel(),
+                                    parent.getDirection(),
+                                    parent.getStatus(),
+                                    parent.getRemoteAddress(),
+                                    "PARENT"
+                            )));
+                } catch (IllegalArgumentException e) {
+                    log.warn("[ContactController] Nieprawidłowy UUID w channelMetadata.inboundContactId: " +
+                            "contactId={}, wartość={}", contactId, inboundIdObj);
+                }
+            }
+        }
+
+        // --- Kierunek D: EMAIL INBOUND → szukamy odpowiedzi OUTBOUND (CHILD) ---
+        // Kontakty OUTBOUND EMAIL mają w channelMetadata klucz "inboundContactId" = this.contactId.
+        // Pobieramy wszystkie takie kontakty jako elementy CHILD.
+        if ("EMAIL".equals(contact.getChannel()) && "INBOUND".equals(contact.getDirection())) {
+            List<Contact> outboundReplies = contactRepository.findByChannelMetadataValue(
+                    "inboundContactId", contactId.toString(), tenantId);
+            for (Contact reply : outboundReplies) {
+                related.add(RelatedItem.ofContact(
+                        reply.getContactId(),
+                        reply.getStartedAt(),
+                        reply.getChannel(),
+                        reply.getDirection(),
+                        reply.getStatus(),
+                        reply.getRemoteAddress(),
+                        "CHILD"
+                ));
+            }
+        }
+
         log.debug("[ContactController] getRelatedContacts: contactId={}, powiązanych={}, tenant={}",
                 contactId, related.size(), tenantId);
 

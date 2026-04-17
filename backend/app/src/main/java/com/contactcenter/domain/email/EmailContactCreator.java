@@ -230,7 +230,7 @@ public class EmailContactCreator {
      */
     private void handleEmailSent(EmailEventPublisher.EmailEvent event) {
         if (event.contactId() == null) {
-            log.debug("[EmailContact] email.sent bez contactId – pomijam: messageId={}", event.messageId());
+            log.warn("[EmailContact] email.sent bez contactId – kontakt OUTBOUND nie zostanie utworzony: messageId={}, tenant={}", event.messageId(), event.tenantId());
             return;
         }
 
@@ -251,8 +251,81 @@ public class EmailContactCreator {
                     log.info("[EmailContact] Kontakt EMAIL zakończony po wysłaniu odpowiedzi: contactId={}", contactId);
                 }
             });
+
+            // Utwórz kontakt OUTBOUND EMAIL
+            createOutboundContact(tenantId, contactId, event);
+
         } finally {
             TenantContext.clear();
+        }
+    }
+
+    /**
+     * Tworzy kontakt OUTBOUND EMAIL po wysłaniu odpowiedzi przez agenta.
+     *
+     * <p>Nowy kontakt dziedziczy {@code customerId} i {@code queueId} z kontaktu przychodzącego
+     * i jest od razu oznaczony jako COMPLETED.
+     *
+     * @param tenantId        UUID tenanta
+     * @param inboundContactId UUID kontaktu przychodzącego (powiązanego z oryginalną wiadomością)
+     * @param event           event email.sent z RabbitMQ
+     */
+    private void createOutboundContact(UUID tenantId, UUID inboundContactId,
+                                        EmailEventPublisher.EmailEvent event) {
+        Optional<Contact> inboundOpt = contactRepository.findById(inboundContactId, tenantId);
+        if (inboundOpt.isEmpty()) {
+            log.warn("[EmailContact] Nie można utworzyć kontaktu OUTBOUND – brak kontaktu przychodzącego: {}",
+                    inboundContactId);
+            return;
+        }
+        Contact inbound = inboundOpt.get();
+
+        UUID customerId = inbound.getCustomerId();
+
+        // Pobierz adres odbiorcy z wiadomości OUTBOUND
+        String recipientAddress = null;
+        if (event.messageId() != null) {
+            Optional<EmailMessage> outboundMsgOpt = emailMessageRepository.findById(event.messageId());
+            recipientAddress = outboundMsgOpt
+                    .map(EmailMessage::getToAddress)
+                    .orElse(null);
+        }
+
+        Instant now = Instant.now();
+        UUID outboundContactId = UUID.randomUUID();
+
+        Map<String, Object> channelMetadata = new HashMap<>();
+        channelMetadata.put("emailMessageId",   event.messageId() != null ? event.messageId().toString() : null);
+        channelMetadata.put("subject",          event.subject());
+        channelMetadata.put("fromAddress",      event.fromAddress());
+        channelMetadata.put("inboundContactId", inboundContactId.toString());
+
+        Contact outbound = Contact.builder()
+                .contactId(outboundContactId)
+                .tenantId(tenantId)
+                .customerId(customerId)
+                .queueId(inbound.getQueueId())
+                .channel("EMAIL")
+                .direction("OUTBOUND")
+                .status("COMPLETED")
+                .agentId(event.agentId())
+                .remoteAddress(recipientAddress)
+                .queuedAt(now)
+                .startedAt(now)
+                .endedAt(now)
+                .channelMetadata(channelMetadata)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        contactRepository.insert(outbound);
+
+        log.info("[EmailContact] Kontakt EMAIL OUTBOUND utworzony: contactId={}, inboundContactId={}, customer={}",
+                outboundContactId, inboundContactId, customerId);
+
+        // Generuj EML dla wiadomości OUTBOUND i zapisz klucz S3 w recording_url
+        if (event.messageId() != null) {
+            generateAndStoreEml(event.messageId(), outboundContactId, tenantId);
         }
     }
 

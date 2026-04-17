@@ -451,7 +451,8 @@ Tabela `EMAIL_TEMPLATE` (template_id, tenant_id, name, subject_template, body_ht
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** BE-002, DB-008
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone (stub token exchange)
+**Zrealizowane:** 2026-04-17
 **Blokuje:** BE-018, FE-023
 **Odniesienie PRD:** US-06-02, EPIC-06
 
@@ -1214,13 +1215,13 @@ Tabela `scheduled_callback` ma metodę `findDueCallbacks()` w repozytorium, ale 
 **Endpointy:** brak (scheduler wewnętrzny)
 
 **Kryteria akceptacji:**
-- [ ] Scheduler uruchamia się co minutę (weryfikacja przez logi)
-- [ ] Callbacki z `scheduled_at <= NOW()` i status=PENDING są inicjowane (wywołanie TelephonyAdapter)
-- [ ] Brak double-processing: UPDATE WHERE status='PENDING' gwarantuje atomowość
-- [ ] Błąd Twilio → status FAILED + log ERROR (nie przerywa pętli dla innych callbacków)
-- [ ] Scheduler nie uruchamia się gdy `dialer.enabled=false`
-- [ ] Test: `ScheduledCallbackExecutorTest` – mockuje TelephonyAdapter, weryfikuje zmianę statusów
-- [ ] Obsługa TenantContext.snapshot()/restore() dla przekazania kontekstu do przetwarzania
+- [x] Scheduler uruchamia się co minutę (weryfikacja przez logi)
+- [x] Callbacki z `scheduled_at <= NOW()` i status=PENDING są inicjowane (wywołanie TelephonyAdapter)
+- [x] Brak double-processing: UPDATE WHERE status='PENDING' gwarantuje atomowość
+- [x] Błąd Twilio → status FAILED + log ERROR (nie przerywa pętli dla innych callbacków)
+- [x] Scheduler nie uruchamia się gdy `dialer.enabled=false`
+- [x] Test: `ScheduledCallbackExecutorTest` – mockuje TelephonyAdapter, weryfikuje zmianę statusów
+- [x] Obsługa TenantContext.snapshot()/restore() dla przekazania kontekstu do przetwarzania
 
 **Uwagi implementacyjne:**
 - Zapytanie cross-tenant (bez RLS) musi używać konta z uprawnieniami `bypass_rls` lub bezpośrednio JdbcTemplate z osobnym datasource
@@ -1271,12 +1272,12 @@ public record RescheduleCallbackRequest(
 - AGENT może przełożyć tylko swoje callbacki (`agentId == jwtAgentId`)
 
 **Kryteria akceptacji:**
-- [ ] PENDING callback → zmiana scheduledAt → HTTP 200 z zaktualizowanym DTO
-- [ ] Callback nie-PENDING → HTTP 409 z czytelnym komunikatem
-- [ ] AGENT próbuje przełożyć cudzy callback → HTTP 403
-- [ ] scheduledAt w przeszłości → HTTP 400 (walidacja Bean Validation)
-- [ ] Nieistniejący callbackId → HTTP 404
-- [ ] Test jednostkowy: `DialerCallbackRescheduleTest` (5 przypadków)
+- [x] PENDING callback → zmiana scheduledAt → HTTP 200 z zaktualizowanym DTO
+- [x] Callback nie-PENDING → HTTP 409 z czytelnym komunikatem
+- [x] AGENT próbuje przełożyć cudzy callback → HTTP 403
+- [x] scheduledAt w przeszłości → HTTP 400 (walidacja Bean Validation)
+- [x] Nieistniejący callbackId → HTTP 404
+- [x] Test jednostkowy: `DialerCallbackRescheduleTest` (5 przypadków)
 
 ---
 
@@ -1327,13 +1328,13 @@ public record CreateInboundCallbackRequest(
 **Uwaga dot. autoryzacji:** Dla AGENT – `contact.agentId` może być null (np. kontakt przyszedł przez IVR, zanim agent odebrał). W takim przypadku zezwól na tworzenie callbacku (agent jest przypisany do kontaktu w sesji, nawet jeśli DB jeszcze nie zaktualizowana).
 
 **Kryteria akceptacji:**
-- [ ] Poprawne żądanie → HTTP 201, `source_type='INBOUND_CALLBACK'`, `origin_contact_id=contactId`
-- [ ] Nieistniejący contactId → HTTP 404
-- [ ] AGENT dla cudzego kontaktu (agentId != null i różny) → HTTP 403
-- [ ] scheduledAt w przeszłości → HTTP 400
-- [ ] phone null/blank → HTTP 400
-- [ ] Test: `InboundCallbackCreationTest` (5 przypadków)
-- [ ] Endpoint widoczny w Swagger UI
+- [x] Poprawne żądanie → HTTP 201, `source_type='INBOUND_CALLBACK'`, `origin_contact_id=contactId`
+- [x] Nieistniejący contactId → HTTP 404
+- [x] AGENT dla cudzego kontaktu (agentId != null i różny) → HTTP 403
+- [x] scheduledAt w przeszłości → HTTP 400
+- [x] phone null/blank → HTTP 400
+- [x] Test: `InboundCallbackCreationTest` (5 przypadków)
+- [x] Endpoint widoczny w Swagger UI
 
 **Uwagi implementacyjne:**
 - Endpoint w `DialerController` (nie ContactController) – logika dotyczy schedulowania połączeń
@@ -1429,18 +1430,18 @@ public record CallbackListItemResponse(
 ```
 
 **Kryteria akceptacji:**
-- [ ] AGENT wywołujący `GET /api/dialer/callbacks` widzi wyłącznie callbacki przypisane do swojego `agentId` (weryfikacja: brak callbacków innych agentów w odpowiedzi)
-- [ ] SUPERVISOR wywołujący `GET /api/dialer/callbacks` widzi callbacki wszystkich agentów w ramach tenanta
-- [ ] Filtr `?status=COMPLETED` zwraca wyłącznie rekordy w statusie COMPLETED
-- [ ] Filtr `?status=` (pusty) lub brak parametru zwraca callbacki wszystkich statusów
-- [ ] SUPERVISOR może filtrować po `?agentId={uuid}` i widzi tylko callbacki danego agenta
-- [ ] AGENT wywołujący `?agentId={cudzuuid}` — parametr jest ignorowany, widzi tylko własne callbacki
-- [ ] `?sortDir=DESC` sortuje po `scheduled_at` malejąco
-- [ ] Pole `agentName` zawiera imię i nazwisko agenta (jeden SELECT IN, nie N zapytań)
-- [ ] Paginacja: `totalElements`, `totalPages`, `first`, `last` zgodne z faktyczną liczbą wyników
-- [ ] Brak callbacków → HTTP 200 z pustą listą
-- [ ] Testy jednostkowe: filtrowanie AGENT vs SUPERVISOR (min. 6 przypadków)
-- [ ] Endpoint widoczny w Swagger UI z opisem parametrów
+- [x] AGENT wywołujący `GET /api/dialer/callbacks` widzi wyłącznie callbacki przypisane do swojego `agentId` (weryfikacja: brak callbacków innych agentów w odpowiedzi)
+- [x] SUPERVISOR wywołujący `GET /api/dialer/callbacks` widzi callbacki wszystkich agentów w ramach tenanta
+- [x] Filtr `?status=COMPLETED` zwraca wyłącznie rekordy w statusie COMPLETED
+- [x] Filtr `?status=` (pusty) lub brak parametru zwraca callbacki wszystkich statusów
+- [x] SUPERVISOR może filtrować po `?agentId={uuid}` i widzi tylko callbacki danego agenta
+- [x] AGENT wywołujący `?agentId={cudzuuid}` — parametr jest ignorowany, widzi tylko własne callbacki
+- [x] `?sortDir=DESC` sortuje po `scheduled_at` malejąco
+- [x] Pole `agentName` zawiera imię i nazwisko agenta (jeden SELECT IN, nie N zapytań)
+- [x] Paginacja: `totalElements`, `totalPages`, `first`, `last` zgodne z faktyczną liczbą wyników
+- [x] Brak callbacków → HTTP 200 z pustą listą
+- [x] Testy jednostkowe: filtrowanie AGENT vs SUPERVISOR (min. 6 przypadków)
+- [x] Endpoint widoczny w Swagger UI z opisem parametrów
 
 ---
 
@@ -1511,18 +1512,18 @@ int cancelCallback(UUID callbackId, UUID tenantId);
 Implementacja przez `updateStatus(callbackId, "CANCELLED", tenantId)` — reużywa istniejącej metody.
 
 **Kryteria akceptacji:**
-- [ ] PATCH z `phone` → numer telefonu zaktualizowany w DB
-- [ ] PATCH z `agentId` przez SUPERVISOR → callback przypisany do nowego agenta
-- [ ] PATCH z `agentId` przez AGENT → pole ignorowane, agentId bez zmian
-- [ ] PATCH dla callbacku w statusie COMPLETED → HTTP 409
-- [ ] PATCH przez AGENT dla cudzego callbacku → HTTP 403
-- [ ] DELETE własnego callbacku przez AGENT → HTTP 204, status=CANCELLED w DB
-- [ ] DELETE cudzego callbacku przez AGENT → HTTP 403
-- [ ] DELETE callbacku w statusie PROCESSING → HTTP 409
-- [ ] DELETE przez SUPERVISOR dla callbacku dowolnego agenta → HTTP 204
-- [ ] Wiersz w tabeli `scheduled_callback` nie jest fizycznie usuwany (status=CANCELLED)
-- [ ] Testy jednostkowe: min. 8 przypadków (edycja + usunięcie, oba role)
-- [ ] Oba endpointy widoczne w Swagger UI
+- [x] PATCH z `phone` → numer telefonu zaktualizowany w DB
+- [x] PATCH z `agentId` przez SUPERVISOR → callback przypisany do nowego agenta
+- [x] PATCH z `agentId` przez AGENT → pole ignorowane, agentId bez zmian
+- [x] PATCH dla callbacku w statusie COMPLETED → HTTP 409
+- [x] PATCH przez AGENT dla cudzego callbacku → HTTP 403
+- [x] DELETE własnego callbacku przez AGENT → HTTP 204, status=CANCELLED w DB
+- [x] DELETE cudzego callbacku przez AGENT → HTTP 403
+- [x] DELETE callbacku w statusie PROCESSING → HTTP 409
+- [x] DELETE przez SUPERVISOR dla callbacku dowolnego agenta → HTTP 204
+- [x] Wiersz w tabeli `scheduled_callback` nie jest fizycznie usuwany (status=CANCELLED)
+- [x] Testy jednostkowe: min. 8 przypadków (edycja + usunięcie, oba role)
+- [x] Oba endpointy widoczne w Swagger UI
 
 ---
 
@@ -1534,6 +1535,7 @@ Implementacja przez `updateStatus(callbackId, "CANCELLED", tenantId)` — reuży
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** DB-024
+**Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-044
 
 **Opis:**
@@ -1587,6 +1589,7 @@ Każda metoda wywołuje `assertSameTenant` i `setTenantContextInDb`.
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** BE-043
+**Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-046, FE-036
 
 **Opis:**
@@ -1644,6 +1647,7 @@ Uwagi:
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** DB-025
+**Status:** ⬜ Nie rozpoczęte
 **Blokuje:** BE-046, BE-047
 
 **Opis:**
@@ -1703,6 +1707,7 @@ Wynik `resolveEligibleAgentIds` jest używany przez `DefaultRoutingEngine` — m
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Zależy od:** BE-044, BE-045
+**Status:** ⬜ Nie rozpoczęte
 **Blokuje:** FE-036 (API contract), FE-038
 
 **Opis:**
@@ -1766,6 +1771,7 @@ Role wymagane: SUPERVISOR, ADMIN.
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** BE-045
+**Status:** ⬜ Nie rozpoczęte
 **Blokuje:** brak
 
 **Opis:**

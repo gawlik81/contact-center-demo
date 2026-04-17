@@ -561,19 +561,22 @@ Zrealizowane: `report.model.ts` – interfejsy `AgentReportRow`, `AgentReportFil
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-005, BE-017
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-017 (OAuth wymaga prawdziwego BE)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-17
+**Czeka na BE:** BE-017 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-06-02, EPIC-06
 
 **Opis:**
 Widok konfiguracji integracji per tenant: lista platform (Facebook, Instagram, WhatsApp) ze statusem połączenia. Przycisk "Połącz" inicjuje OAuth 2.0 flow (redirect → callback → token zapis). Przycisk "Rozłącz" (z potwierdzeniem). Status webhook (aktywny/błąd).
 
+**Zrealizowane:** SocialIntegrationsComponent (lista platform FACEBOOK/INSTAGRAM/WHATSAPP ze statusem, przycisk "Połącz" inicjujący OAuth redirect, `OAuthCallbackComponent` przechwytujący callback i zapisujący token, przycisk "Rozłącz" z modalem potwierdzenia, wyświetlanie statusu webhooka), SocialIntegrationService (initiateOAuth, disconnect, list), social-integration.model.ts, integrations.routes.ts.
+
 **Kryteria akceptacji:**
-- [ ] OAuth flow działa przez redirect z powrotem do aplikacji (callback URL skonfigurowany)
-- [ ] Po udanym połączeniu status zmienia się na "Połączony" z datą autoryzacji
-- [ ] Błąd OAuth wyświetla czytelny komunikat (np. "Odmowa dostępu przez użytkownika")
-- [ ] Rozłączenie usuwa token z backendu i zmienia status na "Niepołączony"
+- [x] OAuth flow działa przez redirect z powrotem do aplikacji (callback URL skonfigurowany)
+- [x] Po udanym połączeniu status zmienia się na "Połączony" z datą autoryzacji
+- [x] Błąd OAuth wyświetla czytelny komunikat (np. "Odmowa dostępu przez użytkownika")
+- [x] Rozłączenie usuwa token z backendu i zmienia status na "Niepołączony"
 
 ---
 
@@ -1063,13 +1066,13 @@ export interface ScheduledCallbackDto {
 ```
 
 **Kryteria akceptacji:**
-- [ ] Modal otwiera się po kliknięciu przycisku "Przesuń oddzwonienie"
-- [ ] Pole daty nie pozwala wybrać czasu w przeszłości (walidacja min date)
-- [ ] Submit jest zablokowany gdy formularz niepoprawny
-- [ ] Po sukcesie: modal zamknięty, toast z nową datą, lista callbacków odświeżona
-- [ ] Błąd API 409 → komunikat "Oddzwonienie nie jest już oczekujące"
-- [ ] Błąd API 403 → komunikat "Brak uprawnień do zmiany tego oddzwonienia"
-- [ ] Loading spinner podczas wysyłki (brak podwójnego submitu)
+- [x] Modal otwiera się po kliknięciu przycisku "Przesuń oddzwonienie"
+- [x] Pole daty nie pozwala wybrać czasu w przeszłości (walidacja min date)
+- [x] Submit jest zablokowany gdy formularz niepoprawny
+- [x] Po sukcesie: modal zamknięty, toast z nową datą, lista callbacków odświeżona
+- [x] Błąd API 409 → komunikat "Oddzwonienie nie jest już oczekujące"
+- [x] Błąd API 403 → komunikat "Brak uprawnień do zmiany tego oddzwonienia"
+- [x] Loading spinner podczas wysyłki (brak podwójnego submitu)
 
 ---
 
@@ -1124,15 +1127,15 @@ export interface CreateInboundCallbackRequest {
 ```
 
 **Kryteria akceptacji:**
-- [ ] Przycisk "Zaplanuj oddzwonienie" widoczny tylko podczas aktywnej rozmowy przychodzącej
-- [ ] Pola phone/imię/nazwisko pre-uzupełnione danymi z aktywnego kontaktu
-- [ ] Pole phone jest edytowalne (agent może zmienić numer)
-- [ ] Pole daty nie pozwala wybrać czasu w przeszłości
-- [ ] Po sukcesie: toast z potwierdzenem, modal zamknięty
-- [ ] Błąd 404 (kontakt nie istnieje) → komunikat błędu
-- [ ] Błąd 403 → "Brak uprawnień"
-- [ ] Formularz zablokowany podczas wysyłki (brak podwójnego submitu)
-- [ ] Walidacja phone: format E.164 lub akceptowalny lokalny format
+- [x] Przycisk "Zaplanuj oddzwonienie" widoczny tylko podczas aktywnej rozmowy przychodzącej
+- [x] Pola phone/imię/nazwisko pre-uzupełnione danymi z aktywnego kontaktu
+- [x] Pole phone jest edytowalne (agent może zmienić numer)
+- [x] Pole daty nie pozwala wybrać czasu w przeszłości
+- [x] Po sukcesie: toast z potwierdzenem, modal zamknięty
+- [x] Błąd 404 (kontakt nie istnieje) → komunikat błędu
+- [x] Błąd 403 → "Brak uprawnień"
+- [x] Formularz zablokowany podczas wysyłki (brak podwójnego submitu)
+- [x] Walidacja phone: format E.164 lub akceptowalny lokalny format
 
 ---
 
@@ -1178,14 +1181,14 @@ Akcje widoczne tylko dla ról SUPERVISOR i ADMIN.
    - `anonymize(customerId: string): Observable<void>` → `POST /api/customers/{id}/gdpr/anonymize`
 
 **Kryteria akceptacji:**
-- [ ] Przycisk eksportu pobiera plik ZIP o nazwie `gdpr_export_{id}.zip`
-- [ ] Przycisk anonimizacji widoczny tylko dla ról SUPERVISOR i ADMIN (RoleGuard / `*ngIf`)
-- [ ] Modal anonimizacji wymaga wpisania "ANONIMIZUJ" przed zatwierdzeniem
-- [ ] Po anonimizacji profil klienta pokazuje badge "Dane zanonimizowane" zamiast danych PII
-- [ ] Loading state na obu przyciskach podczas operacji
-- [ ] Błąd 403 → toast "Brak uprawnień"
-- [ ] Błąd 404 → toast "Klient nie istnieje"
-- [ ] Sekcja RODO ukryta gdy klient już zanonimizowany (`is_deleted=true`)
+- [x] Przycisk eksportu pobiera plik ZIP o nazwie `gdpr_export_{id}.zip`
+- [x] Przycisk anonimizacji widoczny tylko dla ról SUPERVISOR i ADMIN (RoleGuard / `*ngIf`)
+- [x] Modal anonimizacji wymaga wpisania "ANONIMIZUJ" przed zatwierdzeniem
+- [x] Po anonimizacji profil klienta pokazuje badge "Dane zanonimizowane" zamiast danych PII
+- [x] Loading state na obu przyciskach podczas operacji
+- [x] Błąd 403 → toast "Brak uprawnień"
+- [x] Błąd 404 → toast "Klient nie istnieje"
+- [x] Sekcja RODO ukryta gdy klient już zanonimizowany (`is_deleted=true`)
 
 ---
 
@@ -1284,19 +1287,19 @@ pageSize = signal<number>(20);
 ```
 
 **Kryteria akceptacji:**
-- [ ] Strona ładuje się pod `/agent/callbacks` i wyświetla wyłącznie callbacki zalogowanego agenta
-- [ ] Filtr statusu "Pending" → lista zawiera wyłącznie rekordy PENDING
-- [ ] Filtr statusu "All" → lista zawiera rekordy wszystkich statusów
-- [ ] Sortowanie "Najpóźniejsze" → lista posortowana `scheduledAt DESC`
-- [ ] Akcja "Edytuj" (przycisk aktywny tylko dla PENDING) otwiera modal z prefillowaną datą i notatką
-- [ ] Po zapisaniu w modalu edycji lista odświeża się bez przeładowania strony
-- [ ] Akcja "Usuń" dla callbacku PENDING otwiera dialog potwierdzenia
-- [ ] Po potwierdzeniu usunięcia: callback znika z listy (lub zmienia status na CANCELLED przy sortDir=All), toast "Oddzwonienie anulowane"
-- [ ] Przyciski edytuj/usuń są zablokowane (disabled) dla callbacków w statusie COMPLETED, CANCELLED, PROCESSING
-- [ ] Paginacja działa poprawnie: zmiana strony odświeża listę
-- [ ] Stan pusty: widoczny komunikat gdy brak callbacków
-- [ ] Loading spinner widoczny podczas ładowania danych
-- [ ] Błąd sieciowy → toast z komunikatem błędu
+- [x] Strona ładuje się pod `/agent/callbacks` i wyświetla wyłącznie callbacki zalogowanego agenta
+- [x] Filtr statusu "Pending" → lista zawiera wyłącznie rekordy PENDING
+- [x] Filtr statusu "All" → lista zawiera rekordy wszystkich statusów
+- [x] Sortowanie "Najpóźniejsze" → lista posortowana `scheduledAt DESC`
+- [x] Akcja "Edytuj" (przycisk aktywny tylko dla PENDING) otwiera modal z prefillowaną datą i notatką
+- [x] Po zapisaniu w modalu edycji lista odświeża się bez przeładowania strony
+- [x] Akcja "Usuń" dla callbacku PENDING otwiera dialog potwierdzenia
+- [x] Po potwierdzeniu usunięcia: callback znika z listy (lub zmienia status na CANCELLED przy sortDir=All), toast "Oddzwonienie anulowane"
+- [x] Przyciski edytuj/usuń są zablokowane (disabled) dla callbacków w statusie COMPLETED, CANCELLED, PROCESSING
+- [x] Paginacja działa poprawnie: zmiana strony odświeża listę
+- [x] Stan pusty: widoczny komunikat gdy brak callbacków
+- [x] Loading spinner widoczny podczas ładowania danych
+- [x] Błąd sieciowy → toast z komunikatem błędu
 
 ---
 

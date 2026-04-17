@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-15 (FE-035 ✅ Panel Supervisora: lista callbacków z reassign agenta + EditCallbackModalComponent; łączny stan: DB 23/23, BE 41/49, FE 33/39)
+**Ostatnia aktualizacja:** 2026-04-17 (EPIC-14 dodane do rejestru zadań: DB-024/025/026, BE-043–047, FE-036–039; łączny stan: DB 23/26, BE 41/54, FE 33/43)
 
 ---
 
@@ -42,6 +42,9 @@
 | DB-021 | Tabele PHONE_NUMBER i PHONE_ROUTING_RULE: numery tenanta i harmonogram IVR | ✅ | V039__create_phone_number_routing.sql: tabela phone_number (UNIQUE tenant+number, CHECK E.164, RLS, partial index), tabela phone_routing_rule (CHECK time_start<time_end, CHECK IVR xor queue, CHECK min 1 dzień, RLS, 2 indeksy), trigger trg_routing_rule_collision (CONSTRAINT TRIGGER DEFERRABLE), seed dev: 2 numery Acme + 2 reguły (pon-pt 08-17→IVR, 17-20→Wsparcie Tech). BUILD SUCCESS. Odblokowano BE-033 → BE-034 → BE-035 → FE-026. |
 | DB-022 | Indeksy wyszukiwania kontaktów dla Raportów > Kontakty | ✅ | V035__contact_search_indexes.sql: idx_contact_queue_date (tenant_id, queue_id, started_at) + idx_contact_duration warunkowy WHERE duration_seconds IS NOT NULL. Odblokowano BE-036 |
 | DB-023 | Rozszerzenie tabeli scheduled_callback o kontekst źródłowy | ✅ | V037__scheduled_callback_source_context.sql: kolumna source_type VARCHAR(30) NOT NULL DEFAULT 'CAMPAIGN_CALLBACK' + CHECK constraint, origin_contact_id UUID nullable FK do contact (DEFERRABLE INITIALLY DEFERRED), indeksy idx_scheduled_callback_inbound i idx_scheduled_callback_origin_contact. Odblokowano BE-038, BE-039, BE-040 |
+| DB-024 | Tabele `agent_group` i `agent_group_member`: grupy agentów | ⬜ | Flyway V039__create_agent_groups.sql. Zależy od: DB-001, DB-002. Blokuje: DB-025, DB-026, BE-043 |
+| DB-025 | Rozszerzenie tabeli `queue` o flagę `all_agents` i tabelę `queue_agent_group` | ⬜ | Flyway V040__queue_agent_assignment.sql. Zależy od: DB-024, DB-010. Blokuje: DB-026, BE-045 |
+| DB-026 | Indeksy wydajnościowe dla rozwiązania łączonego: kolejka + agenci/grupy | ⬜ | Flyway V041__queue_agent_assignment_indexes.sql. Zależy od: DB-024, DB-025. Blokuje: brak |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -98,6 +101,11 @@
 | BE-041 | Callback List API: filtrowana lista callbacków dla agenta i supervisora | ✅ | ScheduledCallbackRepository +4 metody natywny SQL (findByAgentId, countByAgentId, findByTenantIdWithFilters, countByTenantIdWithFilters); nowy DTO CallbackListItemResponse z agentName; GET /api/dialer/callbacks rozszerzony o status/agentId/sortDir/page/size; izolacja ról AGENT/SUPERVISOR/ADMIN; batch lookup agentName (SELECT IN). 6 testów jednostkowych. Zrealizowane 2026-04-15. |
 | BE-042 | Callback Management API: edycja pełna i usunięcie callbacku | ✅ | Nowy DTO UpdateCallbackRequest (patch semantics, nullable pola); PATCH /api/dialer/callbacks/{callbackId} (edycja telefon/data/notatka/agentId; reassign przez SUPERVISOR); DELETE /api/dialer/callbacks/{callbackId} (soft-delete: status→CANCELLED); cancelCallback() w ScheduledCallbackRepository. 10 testów jednostkowych (757 PASS łącznie). Zrealizowane 2026-04-15. |
 | BE-036 | Rozszerzenie Contact API o filtry zaawansowane (queueId, campaignId, remoteAddress, durationMin/Max) | ✅ | Rozszerzenie BE-027 (zależy od DB-022): ContactFilterParams +5 pól (@Min/@Size), ContactRepository.appendFilterConditions rozszerzona, ContactService + ContactController zaktualizowane. ILIKE dla remoteAddress, IS NOT NULL guard dla durationMin/Max. 3 nowe testy jednostkowe. Odblokowano FE-029. |
+| BE-043 | Model i repozytorium grup agentów (`AgentGroup`, `AgentGroupRepository`) | ⬜ | Zależy od: DB-024. Blokuje: BE-044 |
+| BE-044 | CRUD REST API grup agentów (`AgentGroupController`, `AgentGroupService`) | ⬜ | Zależy od: BE-043. Blokuje: BE-046, FE-036 |
+| BE-045 | Repozytorium przypisań kolejki: `QueueAssignmentRepository` | ⬜ | Zależy od: DB-025. Blokuje: BE-046, BE-047 |
+| BE-046 | REST API zarządzania przypisaniem agentów do kolejki | ⬜ | Zależy od: BE-044, BE-045. Blokuje: FE-036, FE-038 |
+| BE-047 | Aktualizacja `DefaultRoutingEngine`: filtrowanie agentów po przypisaniu do kolejki | ⬜ | Zależy od: BE-045. Blokuje: brak |
 | BE-037 | Endpoint streamowania nagrania z MinIO/S3: presigned URL | ✅ | GET /api/contacts/{id}/recording → ContactRecordingUrlResponse (presignedUrl TTL 15min, expiresAt, fileName, durationSeconds). Dodano do ContactController + ContactService. Nowa metoda generatePresignedUrlForKey(s3Key, Duration) w RecordingService. 8 nowych testów jednostkowych w ContactServiceTest. |
 
 ---
@@ -141,6 +149,10 @@
 | FE-033 | Panel RODO w profilu klienta: eksport danych i anonimizacja | ✅ | Sekcja "Prawa RODO" w CustomerDetailComponent, GdprAnonymizeModalComponent (wymaga wpisania "ANONIMIZUJ", ostrzeżenie o nieodwracalności), GdprService (exportData → blob download, anonymize), widoczne tylko dla SUPERVISOR/ADMIN. Zrealizowane 2026-04-09 |
 | FE-034 | Panel Agenta: lista własnych callbacków z edycją i usunięciem | ✅ | Strona `/agent/callbacks` z CallbackService (listCallbacks, updateCallback, cancelCallback), tabela callbacków z filtrami statusu i sortowania, paginacja (10/20/50), modal edycji reużywający RescheduleCallbackModalComponent (FE-031), dialog potwierdzenia usunięcia. CallbackListItem/CallbackListParams/UpdateCallbackRequest dodane do callback.model.ts. Trasa /agent/callbacks w agent.routes.ts. Pozycja "Oddzwonienia" dodana do AGENT_NAV w sidenav. Zrealizowane 2026-04-15. |
 | FE-035 | Panel Supervisora: lista wszystkich callbacków z reassign agenta | ✅ | Zaimplementowano stronę `/supervisor/callbacks` z tabelą wszystkich callbacków tenanta, filtrem po agencie/statusie, EditCallbackModalComponent (pełna edycja + reassign agenta), in-place update wiersza po zapisaniu. Trasa /supervisor/callbacks w supervisor.routes.ts. Pozycja "Oddzwonienia" dodana do SUPERVISOR_NAV w sidenav. Zrealizowane 2026-04-15. |
+| FE-036 | Serwis `AgentGroupService` i typy DTO dla grup agentów | ⬜ | Zależy od: BE-044. Blokuje: FE-037, FE-038 |
+| FE-037 | Panel zarządzania grupami agentów (`AgentGroupsPageComponent`) | ⬜ | Zależy od: FE-036. Blokuje: FE-038 |
+| FE-038 | Komponent przypisania agentów do kolejki (`QueueAssignmentPanelComponent`) | ⬜ | Zależy od: FE-036, FE-037. Blokuje: FE-039 |
+| FE-039 | Integracja panelu przypisania z formularzem edycji kolejki | ⬜ | Zależy od: FE-038. Blokuje: brak |
 
 ---
 
@@ -148,10 +160,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 23/23 | 0 | 0 | 23 |
-| Backend (BE) | 41/49 | 0 | 8 | 49 |
-| Frontend (FE) | 33/39 | 0 | 6 | 39 |
-| **RAZEM** | **97/111** | **0** | **14** | **111** |
+| Database (DB) | 23/26 | 0 | 3 | 26 |
+| Backend (BE) | 41/54 | 0 | 13 | 54 |
+| Frontend (FE) | 33/43 | 0 | 10 | 43 |
+| **RAZEM** | **97/123** | **0** | **26** | **123** |
 
 ---
 

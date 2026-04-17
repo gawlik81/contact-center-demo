@@ -34,6 +34,9 @@ export class CustomerPanelComponent implements OnChanges {
   /** Phone number (CLI) of the active contact. Pass empty string when no contact is active. */
   readonly cli = input<string>('');
 
+  /** Email address of the active contact (EMAIL channel). Pass empty string when not applicable. */
+  readonly email = input<string>('');
+
   private readonly lookupService = inject(CustomerLookupService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -42,14 +45,16 @@ export class CustomerPanelComponent implements OnChanges {
   protected readonly state = signal<PanelState>('empty');
   protected readonly profile = signal<CustomerProfile | null>(null);
 
-  /** Tracks the in-flight lookup subscription so it can be cancelled on the next CLI change. */
+  /** Tracks the in-flight lookup subscription so it can be cancelled on the next input change. */
   private lookupSub: Subscription | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['cli']) return;
+    if (!changes['cli'] && !changes['email']) return;
 
     const phone = this.cli();
-    if (!phone) {
+    const emailAddr = this.email();
+
+    if (!phone && !emailAddr) {
       this.lookupSub?.unsubscribe();
       this.lookupSub = null;
       this.state.set('empty');
@@ -57,14 +62,17 @@ export class CustomerPanelComponent implements OnChanges {
       return;
     }
 
-    // Cancel any in-flight request for the previous CLI
+    // Cancel any in-flight request for the previous input
     this.lookupSub?.unsubscribe();
 
     this.state.set('loading');
     this.profile.set(null);
 
-    this.lookupSub = this.lookupService
-      .lookupByPhone(phone)
+    const lookup$ = phone
+      ? this.lookupService.lookupByPhone(phone)
+      : this.lookupService.lookupByEmail(emailAddr);
+
+    this.lookupSub = lookup$
       .pipe(
         catchError((err: HttpErrorResponse) => {
           // 404 is handled inside CustomerLookupService (returns null).

@@ -41,6 +41,13 @@ public record ContactRecordingUrlResponse(
         example = "185",
         nullable = true
     )
-    Integer durationSeconds
+    Integer durationSeconds,
+
+    @Schema(
+        description = "Typ MIME pliku nagrania. 'audio/mpeg' dla rozmów telefonicznych, " +
+                      "'message/rfc822' dla wiadomości email (EML).",
+        example = "message/rfc822"
+    )
+    String contentType
 
 ) {}

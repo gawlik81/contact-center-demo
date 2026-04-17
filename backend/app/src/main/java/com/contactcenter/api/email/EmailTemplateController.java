@@ -33,14 +33,14 @@ import java.util.UUID;
  *   <li>POST   /api/email-templates/{id}/preview – podgląd wyrenderowanego szablonu</li>
  * </ul>
  *
- * <p>Dostęp: SUPERVISOR i ADMIN (przez @PreAuthorize).
+ * <p>Dostęp do odczytu (lista, szczegóły, podgląd): AGENT, SUPERVISOR, ADMIN.
+ * Zarządzanie szablonami (tworzenie, edycja, usuwanie): SUPERVISOR, ADMIN.
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/email-templates")
 @RequiredArgsConstructor
 @Tag(name = "Email Templates", description = "Zarządzanie szablonami odpowiedzi email")
-@PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
 public class EmailTemplateController {
 
     private final EmailTemplateService emailTemplateService;
@@ -53,6 +53,7 @@ public class EmailTemplateController {
      * Paginowana lista aktywnych szablonów email dla bieżącego tenanta.
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
     @Operation(summary = "Lista szablonów email",
                description = "Zwraca paginowaną listę aktywnych szablonów email dla bieżącego tenanta")
     public ResponseEntity<PagedResponse<EmailTemplateResponse>> list(
@@ -74,6 +75,7 @@ public class EmailTemplateController {
      * Szczegóły szablonu email.
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
     @Operation(summary = "Szczegóły szablonu email")
     public ResponseEntity<EmailTemplateResponse> getById(@PathVariable UUID id) {
         EmailTemplate template = emailTemplateService.getById(id);
@@ -90,6 +92,7 @@ public class EmailTemplateController {
      * <p>Zwraca HTTP 201 Created z URL zasobu w nagłówku Location.
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
     @Operation(summary = "Utwórz szablon email",
                description = "Tworzy nowy szablon email; zwraca 409 gdy nazwa jest już zajęta")
     public ResponseEntity<EmailTemplateResponse> create(
@@ -113,6 +116,7 @@ public class EmailTemplateController {
      * <p>Pola null w ciele żądania są ignorowane.
      */
     @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
     @Operation(summary = "Aktualizuj szablon email",
                description = "Częściowa aktualizacja szablonu; pola null są ignorowane")
     public ResponseEntity<EmailTemplateResponse> update(
@@ -136,6 +140,7 @@ public class EmailTemplateController {
      * <p>Zwraca HTTP 204 No Content po pomyślnym usunięciu.
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
     @Operation(summary = "Usuń szablon email",
                description = "Soft delete szablonu; wiersz zostaje w bazie z is_deleted=true")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
@@ -157,6 +162,7 @@ public class EmailTemplateController {
      * Zwraca HTTP 422 gdy brakuje wymaganych zmiennych.
      */
     @PostMapping("/{id}/preview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
     @Operation(summary = "Podgląd wyrenderowanego szablonu",
                description = "Renderuje szablon z podanymi zmiennymi; zwraca 422 gdy brakuje wymaganych zmiennych")
     public ResponseEntity<PreviewResponse> preview(

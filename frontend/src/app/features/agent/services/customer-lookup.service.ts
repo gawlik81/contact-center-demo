@@ -54,12 +54,44 @@ export class CustomerLookupService {
       );
   }
 
+  lookupByEmail(email: string): Observable<CustomerProfile | null> {
+    const normalised = email.trim().toLowerCase();
+    if (!normalised) {
+      return of(null);
+    }
+
+    const cacheKey = 'email:' + normalised;
+    const cached = this.cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return of(cached.data);
+    }
+
+    return this.http
+      .get<CustomerProfile>(`/api/customers/lookup/email`, { params: { email: normalised } })
+      .pipe(
+        tap((profile) => this.setCache(cacheKey, profile)),
+        catchError((err: HttpErrorResponse) => {
+          if (err.status === 404) {
+            this.setCache(cacheKey, null);
+            return of(null);
+          }
+          this.notifications.error('Nie udało się pobrać danych klienta.');
+          return throwError(() => err);
+        }),
+      );
+  }
+
   /** Evict a cached entry (e.g. after creating a new customer profile). */
   evict(cli: string): void {
     this.cache.delete(cli.trim());
   }
 
-  private setCache(cli: string, data: CustomerProfile | null): void {
-    this.cache.set(cli, { data, timestamp: Date.now() });
+  /** Evict a cached email entry. */
+  evictEmail(email: string): void {
+    this.cache.delete('email:' + email.trim().toLowerCase());
+  }
+
+  private setCache(key: string, data: CustomerProfile | null): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
   }
 }

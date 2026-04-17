@@ -1,8 +1,10 @@
 package com.contactcenter.domain.email;
 
 import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.service.RoutingService;
@@ -37,8 +39,10 @@ import java.util.UUID;
 public class EmailContactCreator {
 
     private final ContactRepository contactRepository;
+    private final CustomerRepository customerRepository;
     private final EmailMessageRepository emailMessageRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final EmailEmlService emailEmlService;
 
     // =========================================================================
     // RabbitMQ Listener
@@ -60,6 +64,10 @@ public class EmailContactCreator {
     @Transactional
     @RabbitListener(queues = RabbitMQConfig.QUEUE_EMAIL_EVENTS)
     public void onEmailEvent(EmailEventPublisher.EmailEvent event) {
+        if (event.eventType() == EmailEventPublisher.EventType.SENT) {
+            handleEmailSent(event);
+            return;
+        }
         if (event.eventType() != EmailEventPublisher.EventType.QUEUED) {
             log.debug("[EmailContact] Ignoruję event: type={}, messageId={}",
                     event.eventType(), event.messageId());
@@ -86,6 +94,7 @@ public class EmailContactCreator {
         try {
             UUID contactId = createContact(tenantId, queueId, event);
             linkMessageToContact(messageId, contactId, tenantId);
+            generateAndStoreEml(messageId, contactId, tenantId);
             publishContactQueued(contactId, queueId, tenantId);
 
             log.info("[EmailContact] Kontakt EMAIL gotowy do routingu: contactId={}, queueId={}, messageId={}",
@@ -112,6 +121,21 @@ public class EmailContactCreator {
         UUID contactId = UUID.randomUUID();
         Instant now = Instant.now();
 
+        // Szukaj klienta po adresie email nadawcy
+        UUID customerId = null;
+        String rawFrom = event.fromAddress();
+        if (rawFrom != null) {
+            String emailAddr = extractEmailAddress(rawFrom);
+            if (emailAddr != null) {
+                customerId = customerRepository.findByEmail(emailAddr, tenantId)
+                        .map(Customer::getCustomerId)
+                        .orElse(null);
+                if (customerId != null) {
+                    log.info("[EmailContact] Znaleziono klienta: customerId={}, emailAddr={}", customerId, emailAddr);
+                }
+            }
+        }
+
         Map<String, Object> channelMetadata = new HashMap<>();
         channelMetadata.put("emailMessageId", event.messageId() != null ? event.messageId().toString() : null);
         channelMetadata.put("subject",        event.subject());
@@ -120,6 +144,7 @@ public class EmailContactCreator {
         Contact contact = Contact.builder()
                 .contactId(contactId)
                 .tenantId(tenantId)
+                .customerId(customerId)
                 .queueId(queueId)
                 .channel("EMAIL")
                 .direction("INBOUND")
@@ -156,6 +181,32 @@ public class EmailContactCreator {
     }
 
     /**
+     * Generuje plik EML z wiadomości email i zapisuje klucz S3 w kolumnie {@code recording_url} kontaktu.
+     *
+     * <p>Operacja jest "best-effort" – błąd generowania EML nie blokuje routingu kontaktu.
+     * Wyjątki są tylko logowane.
+     *
+     * @param messageId UUID wiadomości email
+     * @param contactId UUID powiązanego kontaktu
+     * @param tenantId  UUID tenanta
+     */
+    private void generateAndStoreEml(UUID messageId, UUID contactId, UUID tenantId) {
+        try {
+            Optional<EmailMessage> msgOpt = emailMessageRepository.findById(messageId);
+            if (msgOpt.isEmpty()) {
+                log.warn("[EmailContact] Nie znaleziono wiadomości do generowania EML: messageId={}", messageId);
+                return;
+            }
+            String s3Key = emailEmlService.generateAndUpload(msgOpt.get(), contactId, tenantId);
+            contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
+            log.info("[EmailContact] EML zapisany w S3: contactId={}, s3Key={}", contactId, s3Key);
+        } catch (Exception e) {
+            // EML jest best-effort – nie blokuje routingu kontaktu
+            log.error("[EmailContact] Błąd generowania EML: contactId={}, error={}", contactId, e.getMessage(), e);
+        }
+    }
+
+    /**
      * Publikuje event {@code contact.queued} do kolejki routingu kontaktów.
      *
      * @param contactId UUID kontaktu
@@ -166,5 +217,60 @@ public class EmailContactCreator {
         ContactQueuedMessage msg = new ContactQueuedMessage(contactId, queueId, tenantId);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, "contact.queued", msg);
         log.debug("[EmailContact] Opublikowano contact.queued: contactId={}", contactId);
+    }
+
+    /**
+     * Obsługuje event {@code email.sent} – zamyka kontakt EMAIL po wysłaniu odpowiedzi.
+     *
+     * <p>Zmienia status kontaktu na COMPLETED i ustawia {@code ended_at}, o ile kontakt
+     * nie jest już w stanie końcowym (COMPLETED lub ABANDONED).
+     * TenantContext jest ustawiany ręcznie (wątek RabbitMQ nie ma aktywnego kontekstu HTTP).
+     *
+     * @param event event email.sent z RabbitMQ
+     */
+    private void handleEmailSent(EmailEventPublisher.EmailEvent event) {
+        if (event.contactId() == null) {
+            log.debug("[EmailContact] email.sent bez contactId – pomijam: messageId={}", event.messageId());
+            return;
+        }
+
+        UUID tenantId  = event.tenantId();
+        UUID contactId = event.contactId();
+
+        TenantContext.Snapshot snapshot = new TenantContext.Snapshot(tenantId, null, null, "SYSTEM");
+        TenantContext.restore(snapshot);
+
+        try {
+            contactRepository.findById(contactId, tenantId).ifPresent(contact -> {
+                if (!"COMPLETED".equals(contact.getStatus()) && !"ABANDONED".equals(contact.getStatus())) {
+                    Instant now = Instant.now();
+                    contact.setStatus("COMPLETED");
+                    contact.setEndedAt(now);
+                    contact.setUpdatedAt(now);
+                    contactRepository.update(contact);
+                    log.info("[EmailContact] Kontakt EMAIL zakończony po wysłaniu odpowiedzi: contactId={}", contactId);
+                }
+            });
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    /**
+     * Parsuje adres email z formatu RFC 2822 {@code Display Name <email@domain>}.
+     *
+     * @param raw surowy string adresu (może być w formacie RFC 2822 lub czysty email)
+     * @return adres email bez nawiasów trójkątnych lub surowy string po trim(); null gdy raw jest null
+     */
+    private String extractEmailAddress(String raw) {
+        if (raw == null) return null;
+        // Format "Display Name <email@domain>"
+        int lt = raw.lastIndexOf('<');
+        int gt = raw.lastIndexOf('>');
+        if (lt >= 0 && gt > lt) {
+            return raw.substring(lt + 1, gt).trim();
+        }
+        // Czysty adres email
+        return raw.trim();
     }
 }

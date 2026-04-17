@@ -230,7 +230,7 @@ class WebSocketEventBroadcasterTest {
         void shouldCreateContactAssignedEvent() {
             UUID contactId = UUID.randomUUID();
             WebSocketEvent event = WebSocketEvent.contactAssigned(
-                    TENANT_ID, USER_ID, contactId, "PHONE", "Jan Kowalski", "+48123456789", "Support");
+                    TENANT_ID, USER_ID, contactId, "PHONE", "Jan Kowalski", "+48123456789", "Support", null);
 
             assertThat(event.eventType()).isEqualTo(WebSocketEvent.TYPE_CONTACT_ASSIGNED);
             assertThat(event.payload()).isInstanceOf(WebSocketEvent.ContactAssignedPayload.class);

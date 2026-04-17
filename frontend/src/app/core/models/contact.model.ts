@@ -48,4 +48,5 @@ export interface RecordingUrlResponse {
   expiresAt: string;
   fileName: string;
   durationSeconds?: number;
+  contentType?: string; // 'audio/mpeg' | 'message/rfc822'
 }

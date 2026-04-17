@@ -328,6 +328,7 @@ public class RabbitToWebSocketRelay {
         String customerName       = payload.getOrDefault("customerName", "");
         String customerIdentifier = payload.getOrDefault("customerIdentifier", "");
         String queueName          = payload.getOrDefault("queueName", "");
+        String customerId         = payload.get("customerId");
 
         if (agentIdStr == null || contactIdStr == null) {
             log.warn("[WS-Relay] contact.assigned bez agentId lub contactId: payload={}", payload);
@@ -338,7 +339,7 @@ public class RabbitToWebSocketRelay {
         UUID contactId = UUID.fromString(contactIdStr);
 
         WebSocketEvent event = WebSocketEvent.contactAssigned(tenantId, agentId, contactId,
-                channel, customerName, customerIdentifier, queueName);
+                channel, customerName, customerIdentifier, queueName, customerId);
         // Unicast do konkretnego agenta
         broadcaster.sendToUser(agentId, event);
     }

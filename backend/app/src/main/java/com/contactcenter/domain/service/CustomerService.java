@@ -321,6 +321,41 @@ public class CustomerService {
     }
 
     // =========================================================================
+    // Wyszukiwanie klienta po adresie email (lookup)
+    // =========================================================================
+
+    /**
+     * Wyszukuje klienta po adresie email bez auto-tworzenia profilu.
+     *
+     * <p>Używane przez agenta do identyfikacji klienta przy obsłudze wiadomości email.
+     * Analogicznie do {@link #lookupByPhone} – zwraca pusty Optional gdy klient nie istnieje.
+     *
+     * @param email    adres email do wyszukania
+     * @param tenantId UUID tenanta
+     * @return Optional z DTO klienta lub empty gdy nie znaleziono
+     */
+    @Transactional(readOnly = true)
+    public Optional<CustomerLookupResponse> lookupByEmail(String email, UUID tenantId) {
+        // Defensywne parsowanie RFC 2822 "Display Name <email@domain>" — na wypadek gdyby
+        // klient API przekazał surowy nagłówek From: zamiast czystego adresu.
+        String cleanEmail = extractEmailAddress(email);
+        log.debug("[CustomerService] Lookup po adresie email: email={}, tenant={}", cleanEmail, tenantId);
+        return customerRepository.findByEmail(cleanEmail, tenantId)
+                .map(customer -> {
+                    List<CustomerLookupResponse.ContactSummaryDto> contacts =
+                            fetchRecentContactsForLookup(customer.getCustomerId(), tenantId);
+                    return new CustomerLookupResponse(
+                            customer.getCustomerId(),
+                            customer.getFirstName(),
+                            customer.getLastName(),
+                            customer.getPhone() != null ? customer.getPhone() : List.of(),
+                            customer.getEmail() != null ? customer.getEmail() : List.of(),
+                            contacts
+                    );
+                });
+    }
+
+    // =========================================================================
     // Auto-tworzenie z UNKNOWN_CALLER (RabbitMQ event)
     // =========================================================================
 
@@ -418,5 +453,19 @@ public class CustomerService {
             log.error("[CustomerService] Błąd publikacji eventu customer.created: customerId={}, error={}",
                     customer.getCustomerId(), e.getMessage());
         }
+    }
+
+    /**
+     * Wyodrębnia czysty adres email z formatu RFC 2822 "Display Name &lt;email@domain&gt;".
+     * Jeśli format nie pasuje, zwraca oryginalny ciąg po przycięciu białych znaków.
+     */
+    private String extractEmailAddress(String raw) {
+        if (raw == null || raw.isBlank()) return "";
+        int lt = raw.lastIndexOf('<');
+        int gt = raw.lastIndexOf('>');
+        if (lt >= 0 && gt > lt) {
+            return raw.substring(lt + 1, gt).trim();
+        }
+        return raw.trim();
     }
 }

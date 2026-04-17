@@ -21,7 +21,8 @@ public record ContactAssignedEvent(
         String channel,
         String customerName,
         String customerIdentifier,
-        String queueName
+        String queueName,
+        String customerId
 ) {
 
     /**
@@ -36,6 +37,7 @@ public record ContactAssignedEvent(
      * @param customerName       nazwa wyświetlana klienta (adres email lub numer telefonu)
      * @param customerIdentifier identyfikator klienta (adres email lub numer telefonu)
      * @param queueName          nazwa kolejki
+     * @param customerId         UUID klienta jako String (nullable – gdy klient nieznany)
      * @return nowy event z aktualnym timestampem
      */
     public static ContactAssignedEvent of(UUID contactId, UUID agentId,
@@ -43,8 +45,10 @@ public record ContactAssignedEvent(
                                            String strategy,
                                            String channel, String customerName,
                                            String customerIdentifier,
-                                           String queueName) {
+                                           String queueName,
+                                           String customerId) {
         return new ContactAssignedEvent(contactId, agentId, queueId, tenantId,
-                strategy, Instant.now(), channel, customerName, customerIdentifier, queueName);
+                strategy, Instant.now(), channel, customerName, customerIdentifier, queueName,
+                customerId);
     }
 }

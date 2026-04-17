@@ -163,6 +163,37 @@ public class CustomerController {
     }
 
     // =========================================================================
+    // Lookup klienta po adresie email (dla agenta)
+    // =========================================================================
+
+    @GetMapping("/lookup/email")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Znajdź klienta po adresie email",
+        description = "Wyszukuje profil klienta po dokładnym adresie email. " +
+                      "Dostępne dla agentów – używane do identyfikacji klienta przy obsłudze wiadomości email. " +
+                      "Nie tworzy nowego profilu gdy klient nie istnieje. " +
+                      "Zwraca 404 gdy klient z podanym adresem email nie istnieje.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Profil klienta znaleziony"),
+            @ApiResponse(responseCode = "400", description = "Brak parametru email"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "404", description = "Klient z tym adresem email nie istnieje")
+        }
+    )
+    public ResponseEntity<CustomerLookupResponse> lookupByEmail(
+            @Parameter(description = "Adres email klienta", required = true)
+            @RequestParam String email
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        log.debug("[CustomerController] Lookup klienta po email: email={}, tenant={}", email, tenantId);
+        return customerService.lookupByEmail(email, tenantId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // =========================================================================
     // Szczegóły klienta
     // =========================================================================
 

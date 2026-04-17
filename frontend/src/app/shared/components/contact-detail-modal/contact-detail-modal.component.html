@@ -135,22 +135,35 @@
           </dl>
         </section>
 
-        <!-- Section 3: Recording (VOICE only, when recordingPath set) -->
+        <!-- Section 3: Recording (PHONE) or EML download (EMAIL) -->
         @if (hasRecording()) {
           <section class="contact-section" aria-labelledby="contact-section-recording">
-            <h3 id="contact-section-recording" class="contact-section__title">Nagranie rozmowy</h3>
+            <h3 id="contact-section-recording" class="contact-section__title">
+              {{ isEmailRecording() ? 'Wiadomosc email (EML)' : 'Nagranie rozmowy' }}
+            </h3>
 
             @if (recordingState() === 'idle') {
               <button class="btn btn-load-recording" type="button" (click)="loadRecording()">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                Zaladuj nagranie
+                @if (isEmailRecording()) {
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                  </svg>
+                  Pobierz wiadomosc EML
+                } @else {
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  Zaladuj nagranie
+                }
               </button>
             }
 
             @if (recordingState() === 'loading') {
-              <div class="recording-loading" aria-busy="true" aria-label="Pobieranie nagrania...">
+              <div
+                class="recording-loading"
+                aria-busy="true"
+                [attr.aria-label]="isEmailRecording() ? 'Pobieranie pliku EML...' : 'Pobieranie nagrania...'"
+              >
                 <div class="skeleton-block skeleton-block--player"></div>
               </div>
             }
@@ -162,7 +175,7 @@
                     d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                   />
                 </svg>
-                <span>Nie udalo sie pobrac nagrania.</span>
+                <span>Nie udalo sie pobrac {{ isEmailRecording() ? 'wiadomosci EML' : 'nagrania' }}.</span>
                 <button class="btn-link" type="button" (click)="loadRecording()">Sprobuj ponownie</button>
               </div>
             }
@@ -175,7 +188,16 @@
                     Link wazny do: {{ rec.expiresAt | date: 'dd.MM.yyyy HH:mm' }}
                   </span>
                 </p>
-                <app-audio-player [src]="rec.presignedUrl" [durationSeconds]="rec.durationSeconds" />
+                @if (isEmailRecording()) {
+                  <a class="btn btn-load-recording" [href]="rec.presignedUrl" download target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                    </svg>
+                    Pobierz plik EML
+                  </a>
+                } @else {
+                  <app-audio-player [src]="rec.presignedUrl" [durationSeconds]="rec.durationSeconds" />
+                }
               </div>
             }
           </section>

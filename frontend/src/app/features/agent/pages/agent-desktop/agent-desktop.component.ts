@@ -84,14 +84,22 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
 
   /**
    * CLI (phone number) of the active contact tab.
-   * Used to drive the CustomerPanelComponent.
-   * Only PHONE tabs carry a meaningful CLI – for CHAT/EMAIL we pass the customerIdentifier,
-   * which may be an email address; the lookup service will return null gracefully.
+   * Used to drive the CustomerPanelComponent for PHONE contacts.
    */
   protected readonly activeCli = computed<string>(() => {
     const tab = this.activeTab();
-    if (!tab) return '';
-    return tab.type === 'PHONE' ? tab.customerIdentifier : '';
+    if (!tab || tab.type !== 'PHONE') return '';
+    return tab.customerIdentifier;
+  });
+
+  /**
+   * Email address of the active contact tab.
+   * Used to drive the CustomerPanelComponent for EMAIL contacts.
+   */
+  protected readonly activeEmail = computed<string>(() => {
+    const tab = this.activeTab();
+    if (!tab || tab.type !== 'EMAIL') return '';
+    return tab.customerIdentifier;
   });
 
   /** Active tab in ACW/WRAPPING state – drives DispositionPanelComponent visibility */

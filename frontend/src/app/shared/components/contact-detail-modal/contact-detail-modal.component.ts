@@ -57,7 +57,14 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
 
   readonly hasRecording = computed(() => {
     const c = this.contact();
-    return c !== null && c.channel === 'PHONE' && !!c.recordingUrl;
+    if (!c) return false;
+    if (c.channel === 'EMAIL') return !!c.recordingUrl;
+    return c.channel === 'PHONE' && !!c.recordingUrl;
+  });
+
+  readonly isEmailRecording = computed(() => {
+    const c = this.contact();
+    return c?.channel === 'EMAIL';
   });
 
   readonly durationFormatted = computed(() => {

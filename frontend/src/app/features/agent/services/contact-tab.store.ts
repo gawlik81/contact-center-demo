@@ -73,6 +73,7 @@ export class ContactTabStore {
       startedAt: new Date(),
       // PHONE contacts assigned via routing engine are always inbound
       direction: payload.type === 'PHONE' ? ('INBOUND' as CallDirection) : undefined,
+      customerId: payload.customerId,
     });
   }
 

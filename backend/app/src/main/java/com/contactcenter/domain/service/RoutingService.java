@@ -304,12 +304,17 @@ public class RoutingService {
     private void publishAssignedEvent(UUID contactId, UUID agentId, UUID queueId,
                                        UUID tenantId, String strategy, Contact contact,
                                        String queueName) {
-        String channel            = contact.getChannel() != null ? contact.getChannel() : "UNKNOWN";
-        String customerIdentifier = contact.getRemoteAddress() != null ? contact.getRemoteAddress() : "";
+        String channel    = contact.getChannel() != null ? contact.getChannel() : "UNKNOWN";
+        String rawAddress = contact.getRemoteAddress() != null ? contact.getRemoteAddress() : "";
+
+        // Dla kanału EMAIL remoteAddress może być w formacie RFC 2822 "Display Name <email@domain>".
+        // Wyodrębniamy czysty adres email, żeby frontend mógł go użyć do lookup klienta.
+        String customerIdentifier = "EMAIL".equals(channel) ? extractEmailAddress(rawAddress) : rawAddress;
         String customerName       = customerIdentifier;
+        String customerId         = contact.getCustomerId() != null ? contact.getCustomerId().toString() : null;
 
         ContactAssignedEvent event = ContactAssignedEvent.of(contactId, agentId, queueId, tenantId, strategy,
-                channel, customerName, customerIdentifier, queueName);
+                channel, customerName, customerIdentifier, queueName, customerId);
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, RK_CONTACT_ASSIGNED, event);
             log.debug("[RoutingService] Event contact.assigned opublikowany: contactId={}, agentId={}, channel={}",
@@ -318,5 +323,19 @@ public class RoutingService {
             log.error("[RoutingService] Błąd publikacji contact.assigned: contactId={}, error={}",
                     contactId, e.getMessage());
         }
+    }
+
+    /**
+     * Wyodrębnia czysty adres email z formatu RFC 2822 "Display Name &lt;email@domain&gt;".
+     * Jeśli format nie pasuje, zwraca oryginalny ciąg po przycięciu białych znaków.
+     */
+    private String extractEmailAddress(String raw) {
+        if (raw == null || raw.isBlank()) return "";
+        int lt = raw.lastIndexOf('<');
+        int gt = raw.lastIndexOf('>');
+        if (lt >= 0 && gt > lt) {
+            return raw.substring(lt + 1, gt).trim();
+        }
+        return raw.trim();
     }
 }

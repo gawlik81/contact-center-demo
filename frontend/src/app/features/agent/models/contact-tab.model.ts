@@ -18,4 +18,6 @@ export interface ContactTab {
   startedAt: Date;
   /** Only set for PHONE tabs; undefined for CHAT/EMAIL */
   direction?: CallDirection;
+  /** Customer UUID – propagated from ContactAssignedPayload when available */
+  customerId?: string;
 }

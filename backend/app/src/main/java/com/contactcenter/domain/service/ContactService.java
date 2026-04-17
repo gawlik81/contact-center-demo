@@ -482,15 +482,20 @@ public class ContactService {
 
         Instant expiresAt = Instant.now().plus(ttl);
 
+        // Wykryj kanał i ustaw odpowiedni contentType
+        // s3Key zawiera już właściwe rozszerzenie (.eml lub .mp3)
+        String contentType = "EMAIL".equals(contact.getChannel()) ? "message/rfc822" : "audio/mpeg";
+
         log.info("[ContactService] Wygenerowano presigned URL do nagrania: contactId={}, tenant={}, " +
-                 "ttlMinutes={}, durationSeconds={}",
-                contactId, tenantId, RECORDING_URL_TTL_MINUTES, contact.getDurationSeconds());
+                 "ttlMinutes={}, durationSeconds={}, contentType={}",
+                contactId, tenantId, RECORDING_URL_TTL_MINUTES, contact.getDurationSeconds(), contentType);
 
         return new ContactRecordingUrlResponse(
                 presignedUrl,
                 expiresAt,
                 s3Key,
-                contact.getDurationSeconds()
+                contact.getDurationSeconds(),
+                contentType
         );
     }
 

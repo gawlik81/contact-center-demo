@@ -44,6 +44,7 @@ export interface ContactAssignedPayload {
   customerName: string;
   customerIdentifier: string;
   queueName?: string;
+  customerId?: string;
 }
 
 export interface AgentStatusChangedPayload {

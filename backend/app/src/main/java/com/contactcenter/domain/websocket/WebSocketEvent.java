@@ -139,16 +139,18 @@ public record WebSocketEvent(
      * @param channel            kanał kontaktu (np. "PHONE", "CHAT", "EMAIL") – mapowany jako {@code type} w Angular
      * @param customerName       nazwa wyświetlana klienta (adres email lub numer telefonu)
      * @param customerIdentifier identyfikator klienta (adres email lub numer telefonu)
+     * @param queueName          nazwa kolejki
+     * @param customerId         UUID klienta jako String (nullable – gdy klient nieznany)
      */
     public static WebSocketEvent contactAssigned(UUID tenantId, UUID agentId,
                                                   UUID contactId, String channel,
                                                   String customerName, String customerIdentifier,
-                                                  String queueName) {
+                                                  String queueName, String customerId) {
         return new WebSocketEvent(
                 TYPE_CONTACT_ASSIGNED,
                 tenantId,
                 new ContactAssignedPayload(agentId.toString(), contactId.toString(), channel,
-                        customerName, customerIdentifier, queueName),
+                        customerName, customerIdentifier, queueName, customerId),
                 Instant.now()
         );
     }
@@ -295,6 +297,10 @@ public record WebSocketEvent(
      *
      * <p>Pole {@code type} odpowiada interfejsowi Angular {@code ContactAssignedPayload.type}
      * (wartości: "PHONE", "CHAT", "EMAIL") i pochodzi z pola {@code channel} encji Contact.
+     *
+     * <p>Pole {@code customerId} jest nullable – ustawiane gdy kontakt ma przypisanego klienta
+     * (po naprawie Problemu 1: EmailContactCreator lookup po emailu). Używane przez frontend
+     * do wyświetlenia panelu klienta bez osobnego wywołania API.
      */
     public record ContactAssignedPayload(
             String agentId,
@@ -302,7 +308,8 @@ public record WebSocketEvent(
             String type,
             String customerName,
             String customerIdentifier,
-            String queueName
+            String queueName,
+            String customerId
     ) {}
 
     /**

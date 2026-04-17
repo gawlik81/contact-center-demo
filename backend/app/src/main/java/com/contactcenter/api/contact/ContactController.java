@@ -35,6 +35,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.contactcenter.api.contact.dto.EmailPreviewResponse;
 import com.contactcenter.api.contact.dto.RelatedItem;
 
 import java.net.URI;
@@ -420,6 +421,46 @@ public class ContactController {
 
         ContactRecordingUrlResponse response = contactService.getRecordingUrl(
                 contactId, tenantId, userId, isAgent);
+        return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Podgląd treści wiadomości email kontaktu
+    // =========================================================================
+
+    @GetMapping("/{id}/email-preview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Podgląd treści wiadomości email",
+        description = "Zwraca nagłówki i treść (HTML/text) pierwszej wiadomości email powiązanej z kontaktem. " +
+                      "Kontakt musi być kanałem EMAIL, w przeciwnym razie zwracany jest HTTP 400. " +
+                      "Dostępny dla wszystkich ról (ADMIN, SUPERVISOR, AGENT).",
+        parameters = {
+            @Parameter(
+                name = "id",
+                description = "UUID kontaktu",
+                required = true,
+                example = "33333333-3333-3333-3333-333333333333"
+            )
+        },
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Podgląd wiadomości email"),
+            @ApiResponse(responseCode = "400", description = "Kontakt nie jest kanałem EMAIL"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje lub brak wiadomości email")
+        }
+    )
+    public ResponseEntity<EmailPreviewResponse> getEmailPreview(
+            @Parameter(description = "UUID kontaktu", required = true)
+            @PathVariable String id
+    ) {
+        UUID contactId = parseContactId(id);
+        UUID tenantId = TenantContext.getTenantId();
+
+        log.debug("[ContactController] Podgląd email: contactId={}, tenant={}", contactId, tenantId);
+
+        EmailPreviewResponse response = contactService.getEmailPreview(contactId, tenantId);
         return ResponseEntity.ok(response);
     }
 

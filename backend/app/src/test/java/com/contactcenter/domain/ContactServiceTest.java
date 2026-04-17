@@ -9,7 +9,9 @@ import com.contactcenter.api.contact.dto.DispositionRequest;
 import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.security.TenantContext;
@@ -20,6 +22,10 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import com.contactcenter.api.contact.dto.EmailPreviewResponse;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -52,6 +58,7 @@ class ContactServiceTest {
 
     @Mock private ContactRepository contactRepository;
     @Mock private RecordingService recordingService;
+    @Mock private EmailMessageRepository emailMessageRepository;
 
     @InjectMocks
     private ContactService contactService;
@@ -846,6 +853,161 @@ class ContactServiceTest {
 
             // then
             assertThat(response.expiresAt()).isBetween(before, after);
+        }
+    }
+
+    // =========================================================================
+    // Podgląd treści wiadomości email
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getEmailPreview")
+    class GetEmailPreviewTests {
+
+        private static final UUID MESSAGE_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        private static final Instant RECEIVED_AT = Instant.parse("2026-04-17T10:30:00Z");
+
+        @Test
+        @DisplayName("zwraca EmailPreviewResponse gdy kontakt EMAIL ma wiadomość")
+        void getEmailPreview_returnsResponseWhenEmailContactAndMessageExists() {
+            // given
+            Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
+            EmailMessage message = buildEmailMessage(MESSAGE_ID, contactId -> contact.getContactId());
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(message)));
+
+            // when
+            EmailPreviewResponse response = contactService.getEmailPreview(CONTACT_ID, TENANT_ID);
+
+            // then
+            assertThat(response.from()).isEqualTo("klient@example.com");
+            assertThat(response.to()).isEqualTo("support@firma.pl");
+            assertThat(response.subject()).isEqualTo("Prośba o pomoc");
+            assertThat(response.bodyHtml()).isEqualTo("<p>Treść HTML</p>");
+            assertThat(response.bodyText()).isEqualTo("Treść tekstowa");
+            assertThat(response.receivedAt()).isEqualTo(RECEIVED_AT);
+            assertThat(response.direction()).isEqualTo("INBOUND");
+        }
+
+        @Test
+        @DisplayName("rzuca ResponseStatusException 400 gdy kontakt nie jest kanałem EMAIL")
+        void getEmailPreview_throwsBadRequestWhenNotEmailChannel() {
+            // given
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED"); // kanał PHONE
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+
+            // when / then
+            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .satisfies(ex -> {
+                        ResponseStatusException rse = (ResponseStatusException) ex;
+                        assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                        assertThat(rse.getReason()).contains("EMAIL");
+                    });
+
+            verifyNoInteractions(emailMessageRepository);
+        }
+
+        @Test
+        @DisplayName("rzuca ResponseStatusException 404 gdy kontakt EMAIL nie ma wiadomości")
+        void getEmailPreview_throwsNotFoundWhenNoEmailMessages() {
+            // given
+            Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            // when / then
+            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .satisfies(ex -> {
+                        ResponseStatusException rse = (ResponseStatusException) ex;
+                        assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                        assertThat(rse.getReason()).contains(CONTACT_ID.toString());
+                    });
+        }
+
+        @Test
+        @DisplayName("rzuca EntityNotFoundException gdy kontakt nie istnieje")
+        void getEmailPreview_throwsWhenContactNotFound() {
+            // given
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
+
+            // when / then
+            assertThatThrownBy(() -> contactService.getEmailPreview(CONTACT_ID, TENANT_ID))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining(CONTACT_ID.toString());
+
+            verifyNoInteractions(emailMessageRepository);
+        }
+
+        @Test
+        @DisplayName("zwraca null dla pól cc i bodyHtml gdy są null w encji")
+        void getEmailPreview_returnsNullFieldsWhenAbsentInMessage() {
+            // given
+            Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
+            EmailMessage message = EmailMessage.builder()
+                    .id(MESSAGE_ID)
+                    .tenantId(TENANT_ID)
+                    .contactId(CONTACT_ID)
+                    .direction("INBOUND")
+                    .fromAddress("klient@example.com")
+                    .toAddress("support@firma.pl")
+                    .ccAddress(null)
+                    .subject("Test")
+                    .bodyHtml(null)
+                    .bodyText("Tylko tekst")
+                    .receivedAt(RECEIVED_AT)
+                    .createdAt(Instant.now())
+                    .build();
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(message)));
+
+            // when
+            EmailPreviewResponse response = contactService.getEmailPreview(CONTACT_ID, TENANT_ID);
+
+            // then
+            assertThat(response.cc()).isNull();
+            assertThat(response.bodyHtml()).isNull();
+            assertThat(response.bodyText()).isEqualTo("Tylko tekst");
+        }
+
+        private Contact buildEmailContact(UUID contactId, String status) {
+            Instant now = Instant.now();
+            return Contact.builder()
+                    .contactId(contactId)
+                    .tenantId(TENANT_ID)
+                    .customerId(CUSTOMER_ID)
+                    .agentId(AGENT_ID)
+                    .channel("EMAIL")
+                    .direction("INBOUND")
+                    .status(status)
+                    .remoteAddress("klient@example.com")
+                    .queuedAt(now)
+                    .startedAt(now)
+                    .channelMetadata(new HashMap<>())
+                    .createdAt(now)
+                    .build();
+        }
+
+        private EmailMessage buildEmailMessage(UUID messageId,
+                java.util.function.Function<UUID, UUID> contactIdSupplier) {
+            return EmailMessage.builder()
+                    .id(messageId)
+                    .tenantId(TENANT_ID)
+                    .contactId(contactIdSupplier.apply(messageId))
+                    .direction("INBOUND")
+                    .fromAddress("klient@example.com")
+                    .toAddress("support@firma.pl")
+                    .ccAddress(null)
+                    .subject("Prośba o pomoc")
+                    .bodyHtml("<p>Treść HTML</p>")
+                    .bodyText("Treść tekstowa")
+                    .receivedAt(RECEIVED_AT)
+                    .createdAt(Instant.now())
+                    .build();
         }
     }
 

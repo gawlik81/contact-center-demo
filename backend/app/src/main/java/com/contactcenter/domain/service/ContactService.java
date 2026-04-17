@@ -6,15 +6,20 @@ import com.contactcenter.api.contact.dto.ContactRecordingUrlResponse;
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.api.contact.dto.DispositionRequest;
+import com.contactcenter.api.contact.dto.EmailPreviewResponse;
 import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +64,7 @@ public class ContactService {
 
     private final ContactRepository contactRepository;
     private final RecordingService recordingService;
+    private final EmailMessageRepository emailMessageRepository;
 
     // =========================================================================
     // Tworzenie kontaktu
@@ -496,6 +502,74 @@ public class ContactService {
                 s3Key,
                 contact.getDurationSeconds(),
                 contentType
+        );
+    }
+
+    // =========================================================================
+    // Podgląd treści wiadomości email dla kontaktu
+    // =========================================================================
+
+    /**
+     * Pobiera podgląd wiadomości email powiązanej z kontaktem.
+     *
+     * <p>Kontakt musi być kanałem EMAIL. Pobiera pierwszą wiadomość posortowaną
+     * malejąco po {@code received_at} z tabeli {@code email_message}.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta z TenantContext
+     * @return DTO z nagłówkami i treścią wiadomości
+     * @throws ResponseStatusException HTTP 400 gdy kontakt nie jest kanałem EMAIL;
+     *                                 HTTP 404 gdy kontakt nie istnieje lub brak wiadomości email
+     */
+    @Transactional(readOnly = true)
+    public EmailPreviewResponse getEmailPreview(UUID contactId, UUID tenantId) {
+        Contact contact = findContactOrThrow(contactId, tenantId);
+
+        if (!"EMAIL".equals(contact.getChannel())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Kontakt nie jest kanałem EMAIL");
+        }
+
+        // Próba 1: szukaj po contact_id (działa dla INBOUND – EmailMessage ma contact_id ustawione)
+        Page<EmailMessage> page = emailMessageRepository.findByContactId(
+                contactId, tenantId, Pageable.ofSize(1));
+
+        EmailMessage message = page.getContent().stream().findFirst().orElse(null);
+
+        // Próba 2: dla OUTBOUND – EmailMessage.contact_id nie jest aktualizowane;
+        // zamiast tego kontakt ma w channelMetadata klucz "emailMessageId" z UUID wiadomości.
+        if (message == null) {
+            Object emailMsgIdObj = contact.getChannelMetadata() != null
+                    ? contact.getChannelMetadata().get("emailMessageId")
+                    : null;
+            if (emailMsgIdObj instanceof String emailMsgIdStr && !emailMsgIdStr.isBlank()) {
+                try {
+                    UUID emailMsgId = UUID.fromString(emailMsgIdStr);
+                    message = emailMessageRepository.findById(emailMsgId).orElse(null);
+                } catch (IllegalArgumentException e) {
+                    log.warn("[ContactService] Nieprawidłowy UUID w channelMetadata.emailMessageId: " +
+                            "contactId={}, wartość={}", contactId, emailMsgIdObj);
+                }
+            }
+        }
+
+        if (message == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Brak wiadomości email dla kontaktu: " + contactId);
+        }
+
+        log.debug("[ContactService] Podgląd email: contactId={}, messageId={}, direction={}",
+                contactId, message.getId(), message.getDirection());
+
+        return new EmailPreviewResponse(
+                message.getFromAddress(),
+                message.getToAddress(),
+                message.getCcAddress(),
+                message.getSubject(),
+                message.getBodyHtml(),
+                message.getBodyText(),
+                message.getReceivedAt(),
+                message.getDirection()
         );
     }
 

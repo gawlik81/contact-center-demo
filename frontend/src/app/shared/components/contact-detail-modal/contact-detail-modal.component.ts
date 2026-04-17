@@ -13,9 +13,11 @@ import {
   viewChild,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { catchError, of } from 'rxjs';
 import {
   ContactResponse,
+  EmailPreviewResponse,
   RecordingUrlResponse,
   RelatedItem,
 } from '../../../core/models/contact.model';
@@ -43,6 +45,7 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
   private readonly contactService = inject(ContactService);
   private readonly notifications = inject(NotificationService);
+  private readonly sanitizer = inject(DomSanitizer);
 
   /** Wewnętrzny sygnał aktualnie wyświetlanego kontaktu — umożliwia nawigację między powiązanymi. */
   private readonly currentContactId = signal<string | null>(null);
@@ -55,6 +58,9 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   readonly relatedContacts = signal<RelatedItem[]>([]);
   readonly relatedLoading = signal(false);
 
+  readonly emailPreviewState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+  readonly emailPreview = signal<EmailPreviewResponse | null>(null);
+
   readonly hasRecording = computed(() => {
     const c = this.contact();
     if (!c) return false;
@@ -65,6 +71,12 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   readonly isEmailRecording = computed(() => {
     const c = this.contact();
     return c?.channel === 'EMAIL';
+  });
+
+  readonly safeEmailHtml = computed((): SafeHtml | null => {
+    const ep = this.emailPreview();
+    if (!ep?.bodyHtml) return null;
+    return this.sanitizer.bypassSecurityTrustHtml(ep.bodyHtml);
   });
 
   readonly durationFormatted = computed(() => {
@@ -117,6 +129,8 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     this.recordingState.set('idle');
     this.recordingUrl.set(null);
     this.relatedContacts.set([]);
+    this.emailPreviewState.set('idle');
+    this.emailPreview.set(null);
 
     this.contactService
       .getContact(id)
@@ -175,6 +189,27 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
       });
   }
 
+  loadEmailPreview(): void {
+    const id = this.currentContactId();
+    if (!id || this.emailPreviewState() === 'loading') return;
+    this.emailPreviewState.set('loading');
+    this.contactService
+      .getEmailPreview(id)
+      .pipe(
+        catchError(() => {
+          this.emailPreviewState.set('error');
+          this.notifications.error('Nie udalo sie pobrac podgladu wiadomosci.');
+          return of(null);
+        }),
+      )
+      .subscribe((preview) => {
+        if (preview) {
+          this.emailPreview.set(preview);
+          this.emailPreviewState.set('loaded');
+        }
+      });
+  }
+
   private reset(): void {
     this.loadState.set('idle');
     this.contact.set(null);
@@ -182,6 +217,8 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     this.recordingUrl.set(null);
     this.relatedContacts.set([]);
     this.relatedLoading.set(false);
+    this.emailPreviewState.set('idle');
+    this.emailPreview.set(null);
     this.currentContactId.set(null);
   }
 

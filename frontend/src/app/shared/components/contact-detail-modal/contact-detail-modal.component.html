@@ -189,12 +189,62 @@
                   </span>
                 </p>
                 @if (isEmailRecording()) {
-                  <a class="btn btn-load-recording" [href]="rec.presignedUrl" download target="_blank" rel="noopener">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-                      <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                    </svg>
-                    Pobierz plik EML
-                  </a>
+                  <div class="email-actions">
+                    <a class="btn btn-load-recording" [href]="rec.presignedUrl" download target="_blank" rel="noopener">
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                      </svg>
+                      Pobierz plik EML
+                    </a>
+                    @if (emailPreviewState() === 'idle') {
+                      <button class="btn btn-secondary" type="button" (click)="loadEmailPreview()">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                          <path
+                            d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
+                          />
+                        </svg>
+                        Podglad HTML
+                      </button>
+                    }
+                  </div>
+                  @if (emailPreviewState() === 'loading') {
+                    <div class="recording-loading" aria-busy="true" aria-label="Ladowanie podgladu...">
+                      <div class="skeleton-block skeleton-block--player"></div>
+                    </div>
+                  }
+                  @if (emailPreviewState() === 'error') {
+                    <div class="inline-error" role="alert" style="margin-top: 8px">
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                        <path
+                          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                        />
+                      </svg>
+                      <span>Nie udalo sie zaladowac podgladu.</span>
+                      <button class="btn-link" type="button" (click)="loadEmailPreview()">Sprobuj ponownie</button>
+                    </div>
+                  }
+                  @if (emailPreviewState() === 'loaded' && emailPreview(); as ep) {
+                    <div class="email-preview">
+                      <div class="email-preview__header">
+                        <div><strong>Od:</strong> {{ ep.from }}</div>
+                        <div><strong>Do:</strong> {{ ep.to }}</div>
+                        @if (ep.cc) {
+                          <div><strong>CC:</strong> {{ ep.cc }}</div>
+                        }
+                        @if (ep.subject) {
+                          <div><strong>Temat:</strong> {{ ep.subject }}</div>
+                        }
+                        <div><strong>Data:</strong> {{ ep.receivedAt | date: 'dd.MM.yyyy HH:mm' }}</div>
+                      </div>
+                      @if (safeEmailHtml()) {
+                        <div class="email-preview__body" [innerHTML]="safeEmailHtml()"></div>
+                      } @else if (ep.bodyText) {
+                        <pre class="email-preview__text">{{ ep.bodyText }}</pre>
+                      } @else {
+                        <p class="email-preview__empty">Brak tresci wiadomosci.</p>
+                      }
+                    </div>
+                  }
                 } @else {
                   <app-audio-player [src]="rec.presignedUrl" [durationSeconds]="rec.durationSeconds" />
                 }

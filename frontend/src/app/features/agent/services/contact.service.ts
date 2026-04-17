@@ -4,13 +4,20 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import {
   ContactResponse,
+  EmailPreviewResponse,
   RecordingUrlResponse,
   RelatedItem,
   SetDispositionRequest,
-} from '../models/contact.model';
+} from '../../../core/models/contact.model';
 import { PagedResponse } from '../../../core/models/paged-response.model';
 
-export type { ContactResponse, RecordingUrlResponse, RelatedItem, SetDispositionRequest };
+export type {
+  ContactResponse,
+  EmailPreviewResponse,
+  RecordingUrlResponse,
+  RelatedItem,
+  SetDispositionRequest,
+};
 
 export interface ContactFilterParams {
   dateFrom?: string;
@@ -47,6 +54,12 @@ export class ContactService {
   getRecordingUrl(contactId: string): Observable<RecordingUrlResponse> {
     return this.http.get<RecordingUrlResponse>(
       `${environment.apiUrl}/contacts/${contactId}/recording`,
+    );
+  }
+
+  getEmailPreview(contactId: string): Observable<EmailPreviewResponse> {
+    return this.http.get<EmailPreviewResponse>(
+      `${environment.apiUrl}/contacts/${contactId}/email-preview`,
     );
   }
 

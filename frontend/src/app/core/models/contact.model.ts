@@ -50,3 +50,14 @@ export interface RecordingUrlResponse {
   durationSeconds?: number;
   contentType?: string; // 'audio/mpeg' | 'message/rfc822'
 }
+
+export interface EmailPreviewResponse {
+  from: string;
+  to: string;
+  cc: string | null;
+  subject: string | null;
+  bodyHtml: string | null;
+  bodyText: string | null;
+  receivedAt: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+}

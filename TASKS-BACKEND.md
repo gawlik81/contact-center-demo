@@ -473,7 +473,8 @@ Endpointy OAuth 2.0 callback dla: Facebook Messenger API, Instagram API, WhatsAp
 **Priorytet:** Must Have
 **Zlozonosc:** XL
 **Zależy od:** BE-017, DB-008
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-17
 **Blokuje:** FE-013
 **Odniesienie PRD:** US-06-01, US-06-03, US-06-04, EPIC-06
 

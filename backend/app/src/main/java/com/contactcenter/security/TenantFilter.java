@@ -90,7 +90,10 @@ public class TenantFilter extends OncePerRequestFilter {
             "/api/logs",
             // OAuth callback social media – wywoływany przez serwer OAuth bez JWT
             // Bezpieczeństwo przez weryfikację parametru 'state' (OAuth CSRF protection)
-            "/api/oauth/"
+            "/api/oauth/",
+            // Webhooks social media (Facebook/Instagram/WhatsApp) – wywoływane przez platformy bez JWT
+            // Weryfikacja autentyczności przez HMAC X-Hub-Signature (TODO: produkcja)
+            "/api/webhooks/"
     );
 
     private final JwtParser jwtParser;

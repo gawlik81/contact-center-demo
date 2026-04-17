@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-17 (EPIC-14 dodane do rejestru zadań: DB-024/025/026, BE-043–047, FE-036–039; łączny stan: DB 23/26, BE 41/54, FE 33/43)
+**Ostatnia aktualizacja:** 2026-04-17 (BE-018 ✅ Social Media Adapter: webhooks, adaptery, RabbitMQ, SocialMessageService; łączny stan: DB 23/26, BE 42/54, FE 33/43)
 
 ---
 
@@ -76,8 +76,8 @@
 | BE-014 | Voicebot Python: ASR + NLU + eskalacja do agenta | ✅ | FastAPI mikrousługa (voicebot/): Whisper ASR (lazy-load, confidence z avg_logprob), keyword-based NLU (6 intencji PL), Redis session TTL 15min, RabbitMQ publisher (cc.events, voicebot.escalate, priority=9). Spring Boot: VoicebotClient (RestClient, @ConditionalOnProperty), IvrNodeType.VOICEBOT, IvrEngineService obsługuje węzeł VOICEBOT. Docker profile ai. 40 testów Python, 661 testów Java PASS. |
 | BE-015 | Email Adapter: IMAP polling + SMTP wysyłka | ✅ | EmailPollingService (IMAP @Scheduled), EmailSendService (SMTP), EmailRoutingService, EmailEncryptionService (AES-256), EmailController (5 endpointów), EmailMessage/EmailRoutingRule repozytoria, EmailEventPublisher (RabbitMQ) |
 | BE-016 | Szablony odpowiedzi email: CRUD API | ✅ | EmailTemplateController (6 endpointów CRUD + preview), EmailTemplateService, EmailTemplate entity, EmailTemplateRepository, MustacheTemplateEngine (renderowanie zmiennych {{}}), DTOs: CreateEmailTemplateRequest/UpdateEmailTemplateRequest/EmailTemplateResponse |
-| BE-017 | OAuth flow i zarządzanie tokenami social media | ⬜ | |
-| BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ⬜ | |
+| BE-017 | OAuth flow i zarządzanie tokenami social media | ✅ | SocialOAuthController (GET/POST /api/integrations, OAuth callback, DELETE), SocialIntegrationService (token AES-256, refresh @Scheduled), SocialTokenEncryptionService. Redis state CSRF protection. Stub token exchange. |
+| BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ✅ | SocialMessage entity (JPA, V010 schema), SocialMessageRepository, SocialMediaAdapter interfejs, FacebookAdapter/InstagramAdapter/WhatsAppAdapter (stuby), SocialAdapterRegistry, SocialMessageService (processIncoming: idempotentność + routing + Contact QUEUED), SocialMessagePublisher/Consumer (RabbitMQ cc.queue.social-incoming), SocialWebhookController (GET/POST /api/webhooks/facebook|instagram|whatsapp, publiczne), SocialContactController (POST /api/contacts/{id}/social/message). 776 testów PASS. |
 | BE-019 | Routing Engine: skill-based, round-robin, sticky agent | ✅ | RoutingEngine (interfejs), DefaultRoutingEngine (skill-based, round-robin, sticky agent), RoutingService, AgentSessionData, RoutingRequest/Result, ContactQueuedMessage, ContactAssignedEvent. |
 | BE-020 | Queue API: CRUD kolejek i konfiguracja routingu | ✅ | QueueController (POST/GET/PATCH/DELETE /api/queues, GET /api/queues/{id}/stats), DTOs: CreateQueueRequest, UpdateQueueRequest, QueueResponse. Routing strategy enum: ROUND_ROBIN/FIRST_AVAILABLE/SKILL_BASED. |
 | BE-021 | Wait time estimation: informacja o czasie oczekiwania | ✅ | WaitTimeEstimationService (@Scheduled fixedDelay=30s), QueueWaitUpdatePayload (DTO eventu QUEUE_WAIT_UPDATE), QueueStatsResponse (z avgHandleTimeSeconds), ContactRepository +2 native SQL (countWaitingByQueueId, getAvgHandleTimeSeconds fallback 300s), QueueController GET /api/queues/{id}/stats. EWT = ceil(waiting/agents*avg), edge cases: waiting=0→0, agents=0→MAX_VALUE. Poprawki CR: B1 AND is_deleted=false dodane do obu zapytań SQL, B2 partial entity usunięte z kontrolera (serwis ładuje encję sam przez getQueueStats(tenantId, queueId)), B3 ConcurrentHashMap zamiast Redis SCAN per HTTP. 644 testów PASS. |
@@ -161,9 +161,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 23/26 | 0 | 3 | 26 |
-| Backend (BE) | 41/54 | 0 | 13 | 54 |
+| Backend (BE) | 42/54 | 0 | 12 | 54 |
 | Frontend (FE) | 33/43 | 0 | 10 | 43 |
-| **RAZEM** | **97/123** | **0** | **26** | **123** |
+| **RAZEM** | **98/123** | **0** | **25** | **123** |
 
 ---
 

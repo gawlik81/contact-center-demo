@@ -79,6 +79,8 @@ public class RabbitMQConfig {
      * (round-robin). Dialer i routing muszą każdy otrzymać KAŻDY event AVAILABLE.
      */
     public static final String QUEUE_DIALER_AGENT_STATUS    = "cc.queue.dialer-agent-status";
+    /** Kolejka dla przychodzących zdarzeń social media – BE-018: Social Media Adapter. */
+    public static final String QUEUE_SOCIAL_INCOMING         = "cc.queue.social-incoming";
 
     // =========================================================================
     // Routing keys
@@ -364,6 +366,21 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(dialerAgentStatusQueue)
                 .to(eventsExchange)
                 .with(RK_AGENT_STATUS);
+    }
+
+    /**
+     * Kolejka dla przychodzących zdarzeń social media (Facebook/Instagram/WhatsApp webhooks).
+     * BE-018: Social Media Adapter.
+     *
+     * <p>Wzorzec async webhook: handler zwraca 200 natychmiast, wiadomości trafiają tu
+     * i są przetwarzane asynchronicznie przez SocialMessageConsumer.
+     */
+    @Bean
+    public Queue socialIncomingQueue() {
+        return QueueBuilder.durable(QUEUE_SOCIAL_INCOMING)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", "dlq")
+                .build();
     }
 
     // =========================================================================

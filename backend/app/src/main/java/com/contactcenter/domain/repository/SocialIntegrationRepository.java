@@ -101,6 +101,34 @@ public class SocialIntegrationRepository extends TenantAwareRepository {
     }
 
     /**
+     * Szuka integracji po platformie i page_id we WSZYSTKICH tenantach.
+     *
+     * <p><strong>UWAGA – pomija RLS celowo.</strong> Używana wyłącznie przez webhook handler,
+     * który nie posiada JWT (wywołanie pochodzi z zewnętrznej platformy social media).
+     * Identyfikacja tenanta następuje przez parę (platform, pageId) – każda strona może należeć
+     * tylko do jednego tenanta (constraint {@code uq_social_integration_platform_page}).
+     *
+     * <p>Brak wywołania {@code setTenantContextInDb()} – operacja globalna.
+     * Po znalezieniu integracji serwis ustawia TenantContext ręcznie.
+     *
+     * @param platform platforma social media
+     * @param pageId   ID strony/konta na platformie
+     * @return Optional z integrację lub empty gdy brak konfiguracji dla tej strony
+     */
+    @Transactional(readOnly = true)
+    public Optional<SocialIntegration> findByPlatformAndPageId(SocialPlatform platform, String pageId) {
+        // Celowo bez setTenantContextInDb() – cross-tenant lookup dla webhook handler
+        return em.createQuery(
+                        "SELECT si FROM SocialIntegration si WHERE si.platform = :platform AND si.pageId = :pageId",
+                        SocialIntegration.class)
+                .setParameter("platform", platform)
+                .setParameter("pageId", pageId)
+                .setMaxResults(1)
+                .getResultStream()
+                .findFirst();
+    }
+
+    /**
      * Zapisuje (tworzy lub aktualizuje) integrację.
      * Weryfikuje przynależność do tenanta przed zapisem.
      */

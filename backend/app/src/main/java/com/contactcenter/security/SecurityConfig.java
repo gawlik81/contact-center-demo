@@ -100,6 +100,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/public/**").permitAll()
                 // Webhooks zewnętrzne (Facebook, Instagram, WhatsApp) – weryfikacja przez HMAC
                 .requestMatchers("/webhooks/**").permitAll()
+                // Webhooks social media pod /api/webhooks/** – publiczne (brak JWT z platform zewnętrznych)
+                // Weryfikacja autentyczności przez HMAC signature (TODO: produkcja)
+                .requestMatchers("/api/webhooks/**").permitAll()
                 // Webhook VoIP od providera telefonii – publiczny, weryfikacja przez X-Webhook-Secret
                 .requestMatchers("/api/telephony/webhook/**").permitAll()
                 // OAuth callback – wywoływany przez serwer Facebook/Instagram bez JWT

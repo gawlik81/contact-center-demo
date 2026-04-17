@@ -51,6 +51,7 @@ Pisujesz czysty, produkcyjny kod, który:
 - Jest bezpieczny i odporny na typowe ataki (SQL Injection, XSS, CSRF itp.)
 - Zawiera logowanie (logging) istotnych operacji
 - Implementuje komplet testów jednostkowych
+- Zleca CodeReview
 
 **4. Weryfikacja i testy**
 Po implementacji:

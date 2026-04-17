@@ -1389,6 +1389,54 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
+  // BE-018: Social Media – wyszukiwanie aktywnych kontaktów
+  // =========================================================================
+
+  /**
+   * Szuka aktywnego kontaktu social media dla danego nadawcy.
+   *
+   * <p>Aktywny kontakt social to kontakt ze statusem QUEUED lub ACTIVE,
+   * z kanałem odpowiadającym platformie (SOCIAL_FACEBOOK, SOCIAL_INSTAGRAM, SOCIAL_WHATSAPP)
+   * i remote_address równym zewnętrznemu ID nadawcy.
+   *
+   * <p>Używane przez {@code SocialMessageService} do dołączania nowych wiadomości
+   * do istniejącej rozmowy zamiast tworzenia nowego kontaktu za każdym razem.
+   *
+   * @param tenantId          UUID tenanta
+   * @param senderExternalId  ID nadawcy na platformie (np. Facebook user ID)
+   * @param channel           kanał (np. "SOCIAL_FACEBOOK")
+   * @return Optional z aktywnym kontaktem lub empty gdy brak
+   */
+  @Transactional(readOnly = true)
+  public Optional<Contact> findActiveSocialContact(UUID tenantId, String senderExternalId, String channel) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepo] Szukam aktywnego kontaktu social: tenant={}, sender={}, channel={}",
+        tenantId, senderExternalId, channel);
+
+    @SuppressWarnings("unchecked")
+    List<Contact> results = em.createNativeQuery(
+            """
+                SELECT * FROM contact
+                WHERE tenant_id     = CAST(:tenantId AS uuid)
+                  AND channel       = CAST(:channel AS VARCHAR)
+                  AND remote_address = :senderExternalId
+                  AND status        IN ('QUEUED', 'ACTIVE')
+                LIMIT 1
+                """,
+            Contact.class)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("channel", channel)
+        .setParameter("senderExternalId", senderExternalId)
+        .getResultList();
+
+    log.debug("[ContactRepo] Aktywny kontakt social {}: {}",
+        senderExternalId, results.isEmpty() ? "nie znaleziono" : results.get(0).getContactId());
+
+    return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+  }
+
+  // =========================================================================
   // Inner record
   // =========================================================================
 

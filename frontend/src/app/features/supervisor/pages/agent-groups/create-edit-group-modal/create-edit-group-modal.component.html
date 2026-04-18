@@ -1,0 +1,58 @@
+<div class="modal-overlay" (click)="onCancel()" aria-hidden="true"></div>
+
+<dialog
+  class="modal-dialog"
+  open
+  aria-modal="true"
+  [attr.aria-labelledby]="isEditMode ? 'modal-title-edit' : 'modal-title-create'"
+>
+  <div class="modal-content">
+    <h2 class="modal-title" [id]="isEditMode ? 'modal-title-edit' : 'modal-title-create'">
+      {{ isEditMode ? 'Edytuj grupę' : 'Utwórz grupę' }}
+    </h2>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="form-field">
+        <label class="form-label" for="group-name">
+          Nazwa grupy <span class="form-required" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="group-name"
+          class="form-input"
+          [class.form-input--error]="nameControl.invalid && nameControl.touched"
+          type="text"
+          formControlName="name"
+          placeholder="Np. Wsparcie techniczne"
+          autocomplete="off"
+          maxlength="255"
+          aria-required="true"
+          [attr.aria-describedby]="nameControl.invalid && nameControl.touched ? 'group-name-error' : null"
+        />
+        @if (nameControl.invalid && nameControl.touched) {
+          <span class="form-error" id="group-name-error" role="alert">
+            @if (nameControl.hasError('required')) {
+              Nazwa grupy jest wymagana.
+            } @else if (nameControl.hasError('maxlength')) {
+              Nazwa nie może przekraczać 255 znaków.
+            } @else if (nameControl.hasError('conflict')) {
+              Nazwa jest już zajęta.
+            } @else if (nameControl.hasError('serverError')) {
+              Wystąpił błąd serwera. Spróbuj ponownie.
+            }
+          </span>
+        }
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" type="button" (click)="onCancel()" [disabled]="saving()">Anuluj</button>
+        <button class="btn btn-primary" type="submit" [disabled]="saving()">
+          @if (saving()) {
+            Zapisywanie...
+          } @else {
+            Zapisz
+          }
+        </button>
+      </div>
+    </form>
+  </div>
+</dialog>

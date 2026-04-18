@@ -56,7 +56,8 @@ public class AgentGroupRepository extends TenantAwareRepository {
 
         if (hasNameFilter) {
             dataSql = """
-                    SELECT * FROM agent_group
+                    SELECT group_id, tenant_id, name, created_at, updated_at
+                    FROM agent_group
                     WHERE tenant_id = CAST(:tenantId AS uuid)
                       AND LOWER(name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')
                     ORDER BY name ASC
@@ -69,7 +70,8 @@ public class AgentGroupRepository extends TenantAwareRepository {
                     """;
         } else {
             dataSql = """
-                    SELECT * FROM agent_group
+                    SELECT group_id, tenant_id, name, created_at, updated_at
+                    FROM agent_group
                     WHERE tenant_id = CAST(:tenantId AS uuid)
                     ORDER BY name ASC
                     LIMIT :size OFFSET :offset
@@ -80,28 +82,31 @@ public class AgentGroupRepository extends TenantAwareRepository {
                     """;
         }
 
-        @SuppressWarnings("unchecked")
         List<AgentGroup> content;
         long total;
 
         if (hasNameFilter) {
-            content = em.createNativeQuery(dataSql, AgentGroup.class)
+            @SuppressWarnings("unchecked")
+            List<Object[]> rows = em.createNativeQuery(dataSql)
                     .setParameter("tenantId", tenantId.toString())
                     .setParameter("name", name)
                     .setParameter("size", size)
                     .setParameter("offset", offset)
                     .getResultList();
+            content = rows.stream().map(this::mapRow).toList();
 
             total = ((Number) em.createNativeQuery(countSql)
                     .setParameter("tenantId", tenantId.toString())
                     .setParameter("name", name)
                     .getSingleResult()).longValue();
         } else {
-            content = em.createNativeQuery(dataSql, AgentGroup.class)
+            @SuppressWarnings("unchecked")
+            List<Object[]> rows = em.createNativeQuery(dataSql)
                     .setParameter("tenantId", tenantId.toString())
                     .setParameter("size", size)
                     .setParameter("offset", offset)
                     .getResultList();
+            content = rows.stream().map(this::mapRow).toList();
 
             total = ((Number) em.createNativeQuery(countSql)
                     .setParameter("tenantId", tenantId.toString())
@@ -130,17 +135,18 @@ public class AgentGroupRepository extends TenantAwareRepository {
         setTenantContextInDb(tenantId);
 
         @SuppressWarnings("unchecked")
-        List<AgentGroup> results = em.createNativeQuery("""
-                SELECT * FROM agent_group
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT group_id, tenant_id, name, created_at, updated_at
+                FROM agent_group
                 WHERE group_id  = CAST(:groupId AS uuid)
                   AND tenant_id = CAST(:tenantId AS uuid)
                 LIMIT 1
-                """, AgentGroup.class)
+                """)
                 .setParameter("groupId", groupId.toString())
                 .setParameter("tenantId", tenantId.toString())
                 .getResultList();
 
-        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+        return rows.isEmpty() ? Optional.empty() : Optional.of(mapRow(rows.get(0)));
     }
 
     /**
@@ -478,8 +484,15 @@ public class AgentGroupRepository extends TenantAwareRepository {
         ag.setGroupId(UUID.fromString(row[0].toString()));
         ag.setTenantId(UUID.fromString(row[1].toString()));
         ag.setName(row[2].toString());
-        ag.setCreatedAt(((java.sql.Timestamp) row[3]).toInstant());
-        ag.setUpdatedAt(((java.sql.Timestamp) row[4]).toInstant());
+        ag.setCreatedAt(toInstant(row[3]));
+        ag.setUpdatedAt(toInstant(row[4]));
         return ag;
+    }
+
+    private static java.time.Instant toInstant(Object value) {
+        if (value instanceof java.time.Instant instant) return instant;
+        if (value instanceof java.sql.Timestamp ts) return ts.toInstant();
+        if (value instanceof java.time.OffsetDateTime odt) return odt.toInstant();
+        throw new IllegalArgumentException("Cannot convert to Instant: " + value.getClass());
     }
 }

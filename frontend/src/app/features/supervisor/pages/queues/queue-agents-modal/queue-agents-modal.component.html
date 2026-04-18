@@ -1,0 +1,114 @@
+<div class="modal-overlay" (click)="onClose()" aria-hidden="true"></div>
+
+<dialog class="modal-dialog" open aria-modal="true" aria-labelledby="queue-agents-title">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-header__text">
+        <h2 class="modal-title" id="queue-agents-title">
+          Agenci kolejki: <span class="modal-title__queue">{{ queue().name }}</span>
+        </h2>
+        <p class="modal-subtitle">
+          @if (!loading() && totalAgentCount() !== null) {
+            {{ totalAgentCount() }} {{ totalAgentCount() === 1 ? 'agent' : 'agentów' }} przypisanych
+          } @else {
+            Agenci przypisani do obsługi tej kolejki
+          }
+        </p>
+      </div>
+      <button class="btn-close" type="button" (click)="onClose()" aria-label="Zamknij">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      @if (loading()) {
+        <div class="skeleton-wrapper" aria-busy="true">
+          <div class="skeleton skeleton--short"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton skeleton--medium"></div>
+        </div>
+      } @else if (notConfigured()) {
+        <p class="info-empty">Brak konfiguracji przypisania dla tej kolejki.</p>
+      } @else if (assignment()!.allAgents) {
+        <div class="all-agents-badge">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+            <path
+              d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+            />
+          </svg>
+          Wszyscy agenci tenanta
+        </div>
+      } @else {
+        @if (assignment()!.groups.length > 0) {
+          <section class="agents-section">
+            <h3 class="agents-section__title">Grupy agentów</h3>
+            <ul class="agents-list" aria-label="Przypisane grupy">
+              @for (group of assignment()!.groups; track group.groupId) {
+                <li class="agents-list__item">
+                  <svg
+                    class="item-icon"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    width="16"
+                    height="16"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                    />
+                  </svg>
+                  <span class="item-name">{{ group.name }}</span>
+                  <span class="item-count">{{ group.memberCount }} ag.</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
+        @if (assignment()!.directAgents.length > 0) {
+          <section class="agents-section">
+            <h3 class="agents-section__title">Indywidualni agenci</h3>
+            <ul class="agents-list" aria-label="Indywidualni agenci">
+              @for (agent of assignment()!.directAgents; track agent.agentId) {
+                <li class="agents-list__item">
+                  <svg
+                    class="item-icon"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    width="16"
+                    height="16"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                    />
+                  </svg>
+                  <span class="item-name">{{ agent.firstName }} {{ agent.lastName }}</span>
+                  <span class="item-email">{{ agent.email }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
+        @if (assignment()!.groups.length === 0 && assignment()!.directAgents.length === 0) {
+          <div class="info-warning">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+              <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+            </svg>
+            Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu.
+          </div>
+        }
+      }
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-close-footer" type="button" (click)="onClose()">Zamknij</button>
+    </div>
+  </div>
+</dialog>

@@ -1,4 +1,4 @@
-import { Routes } from '@angular/router';
+import {Routes} from '@angular/router';
 
 export const ADMIN_ROUTES: Routes = [
   {
@@ -26,7 +26,7 @@ export const ADMIN_ROUTES: Routes = [
       },
       {
         path: 'users',
-        data: { breadcrumb: 'Uzytkownicy' },
+        data: {breadcrumb: 'Użytkownicy'},
         loadComponent: () =>
           import('./pages/users/admin-users.component').then((m) => m.AdminUsersComponent),
       },

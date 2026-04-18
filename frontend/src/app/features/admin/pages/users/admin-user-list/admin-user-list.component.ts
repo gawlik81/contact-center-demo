@@ -1,21 +1,14 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { catchError, of } from 'rxjs';
-import { AdminUserService } from '../../../services/admin-user.service';
-import { TenantService } from '../../../../tenants/tenant.service';
-import { NotificationService } from '../../../../../core/services/notification.service';
-import { AdminPagedResponse, AdminUserResponse } from '../../../models/admin-user.model';
-import { Tenant } from '../../../../tenants/tenant.model';
-import { AdminUserFormComponent } from '../admin-user-form/admin-user-form.component';
-import { UserRole, UserStatus } from '../../../../supervisor/models/user.model';
+import {ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal,} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {FormBuilder, ReactiveFormsModule} from '@angular/forms';
+import {catchError, of} from 'rxjs';
+import {AdminUserService} from '../../../services/admin-user.service';
+import {TenantService} from '../../../../tenants/tenant.service';
+import {NotificationService} from '../../../../../core/services/notification.service';
+import {AdminPagedResponse, AdminUserResponse} from '../../../models/admin-user.model';
+import {Tenant} from '../../../../tenants/tenant.model';
+import {AdminUserFormComponent} from '../admin-user-form/admin-user-form.component';
+import {UserRole, UserStatus} from '../../../../supervisor/models/user.model';
 
 @Component({
   selector: 'cc-admin-user-list',
@@ -99,7 +92,7 @@ export class AdminUserListComponent implements OnInit {
       })
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac listy uzytkownikow. Sprobuj ponownie.');
+          this.notifications.error('Nie udało sie pobrać listy użytkowników. Spróbuj ponownie.');
           const empty: AdminPagedResponse<AdminUserResponse> = {
             content: [],
             page: 0,
@@ -171,7 +164,7 @@ export class AdminUserListComponent implements OnInit {
       .pipe(
         catchError(() => {
           this.deleteSubmitting.set(false);
-          this.notifications.error('Nie udalo sie usunac uzytkownika. Sprobuj ponownie.');
+          this.notifications.error('Nie udało sie usunąć użytkownika. Spróbuj ponownie.');
           return of(undefined);
         }),
         takeUntilDestroyed(this.destroyRef),

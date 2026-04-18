@@ -1,0 +1,128 @@
+<section class="assignment-panel">
+  @if (loading()) {
+    <div class="assignment-skeleton" aria-busy="true" aria-label="Ładowanie danych przypisania">
+      <div class="skeleton skeleton--line skeleton--short"></div>
+      <div class="skeleton skeleton--line"></div>
+      <div class="skeleton skeleton--line"></div>
+      <div class="skeleton skeleton--line skeleton--medium"></div>
+    </div>
+  } @else {
+    <div class="assignment-mode" role="radiogroup" aria-labelledby="assignment-mode-label">
+      <p id="assignment-mode-label" class="assignment-mode__label">Tryb przypisania agentów</p>
+      <label class="radio-option">
+        <input
+          type="radio"
+          name="assignment-mode"
+          [checked]="allAgents()"
+          (change)="allAgents.set(true)"
+          aria-label="Wszyscy agenci tenanta"
+        />
+        <span class="radio-option__text">Wszyscy agenci tenanta</span>
+      </label>
+      <label class="radio-option">
+        <input
+          type="radio"
+          name="assignment-mode"
+          [checked]="!allAgents()"
+          (change)="allAgents.set(false)"
+          aria-label="Wybrane grupy lub agenci"
+        />
+        <span class="radio-option__text">Wybrane grupy lub agenci</span>
+      </label>
+    </div>
+
+    @if (hasNoAssignment()) {
+      <div class="assignment-warning" role="alert">
+        <svg
+          class="assignment-warning__icon"
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu
+      </div>
+    }
+
+    @if (!allAgents()) {
+      <div class="assignment-section">
+        <h4 class="assignment-section__title">Grupy agentów</h4>
+        @if (availableGroups().length === 0) {
+          <p class="assignment-section__empty">Brak dostępnych grup.</p>
+        } @else {
+          <ul class="checkbox-list" aria-label="Lista grup agentów">
+            @for (group of availableGroups(); track group.groupId) {
+              <li class="checkbox-list__item">
+                <label class="checkbox-option">
+                  <input
+                    type="checkbox"
+                    [checked]="selectedGroupIds().includes(group.groupId)"
+                    (change)="toggleGroup(group.groupId)"
+                    [attr.aria-label]="group.name + ', ' + group.memberCount + ' agentów'"
+                  />
+                  <span class="checkbox-option__text">{{ group.name }}</span>
+                  <span class="count-badge">{{ group.memberCount }} agentów</span>
+                </label>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="assignment-section">
+        <h4 class="assignment-section__title">Indywidualni agenci</h4>
+        @if (availableAgents().length === 0) {
+          <p class="assignment-section__empty">Brak dostępnych agentów.</p>
+        } @else {
+          <ul class="checkbox-list" aria-label="Lista indywidualnych agentów">
+            @for (agent of availableAgents(); track agent.id) {
+              <li class="checkbox-list__item">
+                <label class="checkbox-option">
+                  <input
+                    type="checkbox"
+                    [checked]="selectedAgentIds().includes(agent.id)"
+                    (change)="toggleAgent(agent.id)"
+                    [attr.aria-label]="agent.firstName + ' ' + agent.lastName + ', ' + agent.email"
+                  />
+                  <span class="checkbox-option__text">{{ agent.firstName }} {{ agent.lastName }}</span>
+                  <span class="agent-email">{{ agent.email }}</span>
+                </label>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="assignment-summary" aria-live="polite">
+        {{ totalAgentsCount() }}
+      </div>
+    }
+
+    <div class="assignment-actions">
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="onSave()"
+        [disabled]="saving()"
+        [attr.aria-busy]="saving()"
+      >
+        @if (saving()) {
+          <span class="spinner" aria-hidden="true"></span>
+          Zapisywanie...
+        } @else {
+          Zapisz przypisanie
+        }
+      </button>
+    </div>
+  }
+</section>

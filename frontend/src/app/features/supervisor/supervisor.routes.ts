@@ -21,7 +21,7 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'agents',
-        data: { breadcrumb: 'Agenci' },
+        data: { breadcrumb: 'Użytkownicy' },
         loadComponent: () =>
           import('./pages/users/user-list/user-list.component').then((m) => m.UserListComponent),
       },
@@ -128,6 +128,15 @@ export const SUPERVISOR_ROUTES: Routes = [
               ),
           },
         ],
+      },
+      {
+        path: 'agent-groups',
+        data: { breadcrumb: 'Grupy agentów', roles: ['SUPERVISOR', 'ADMIN'] },
+        canActivate: [roleGuard],
+        loadComponent: () =>
+          import('./pages/agent-groups/agent-groups-page/agent-groups-page.component').then(
+            (m) => m.AgentGroupsPageComponent,
+          ),
       },
       {
         path: 'callbacks',

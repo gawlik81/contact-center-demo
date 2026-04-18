@@ -84,6 +84,16 @@ class AgentGroupRepositoryTest {
         return group;
     }
 
+    private Object[] toRow(AgentGroup group) {
+        return new Object[]{
+            group.getGroupId(),
+            group.getTenantId(),
+            group.getName(),
+            group.getCreatedAt(),
+            group.getUpdatedAt()
+        };
+    }
+
     private void stubTenantContextQuery() {
         when(entityManager.createNativeQuery(contains("set_tenant_context"))).thenReturn(mockQuery);
         when(mockQuery.setParameter(anyString(), anyString())).thenReturn(mockQuery);
@@ -111,16 +121,15 @@ class AgentGroupRepositoryTest {
             Query countQuery = mock(Query.class);
 
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql.contains("agent_group") && !sql.contains("LIKE")),
-                    eq(AgentGroup.class)
+                    argThat(sql -> sql != null && sql.contains("agent_group") && !sql.contains("LIKE"))
             )).thenReturn(dataQuery);
 
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql.contains("COUNT") && !sql.contains("LIKE"))
+                    argThat(sql -> sql != null && sql.contains("COUNT") && !sql.contains("LIKE"))
             )).thenReturn(countQuery);
 
             when(dataQuery.setParameter(anyString(), any())).thenReturn(dataQuery);
-            when(dataQuery.getResultList()).thenReturn(List.of(group1, group2));
+            when(dataQuery.getResultList()).thenReturn(java.util.Arrays.asList(toRow(group1), toRow(group2)));
 
             when(countQuery.setParameter(anyString(), any())).thenReturn(countQuery);
             when(countQuery.getSingleResult()).thenReturn(2L);
@@ -148,16 +157,17 @@ class AgentGroupRepositoryTest {
             Query countQuery = mock(Query.class);
 
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql.contains("LIKE")),
-                    eq(AgentGroup.class)
+                    argThat(sql -> sql != null && sql.contains("LIKE") && !sql.contains("COUNT"))
             )).thenReturn(dataQuery);
 
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql.contains("COUNT") && sql.contains("LIKE"))
+                    argThat(sql -> sql != null && sql.contains("COUNT") && sql.contains("LIKE"))
             )).thenReturn(countQuery);
 
             when(dataQuery.setParameter(anyString(), any())).thenReturn(dataQuery);
-            when(dataQuery.getResultList()).thenReturn(List.of(group));
+            List<Object[]> ilikeSingleRow = new java.util.ArrayList<>();
+            ilikeSingleRow.add(toRow(group));
+            when(dataQuery.getResultList()).thenReturn(ilikeSingleRow);
 
             when(countQuery.setParameter(anyString(), any())).thenReturn(countQuery);
             when(countQuery.getSingleResult()).thenReturn(1L);
@@ -181,12 +191,11 @@ class AgentGroupRepositoryTest {
             Query countQuery = mock(Query.class);
 
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql.contains("agent_group") && !sql.contains("LIKE")),
-                    eq(AgentGroup.class)
+                    argThat(sql -> sql != null && sql.contains("agent_group") && !sql.contains("LIKE") && !sql.contains("COUNT"))
             )).thenReturn(dataQuery);
 
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql.contains("COUNT") && !sql.contains("LIKE"))
+                    argThat(sql -> sql != null && sql.contains("COUNT") && !sql.contains("LIKE"))
             )).thenReturn(countQuery);
 
             when(dataQuery.setParameter(anyString(), any())).thenReturn(dataQuery);
@@ -223,11 +232,12 @@ class AgentGroupRepositoryTest {
             stubTenantContextQuery();
 
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql.contains("group_id") && sql.contains("tenant_id")),
-                    eq(AgentGroup.class)
+                    argThat(sql -> sql != null && sql.contains("group_id") && sql.contains("tenant_id"))
             )).thenReturn(mockQuery);
             when(mockQuery.setParameter(anyString(), anyString())).thenReturn(mockQuery);
-            when(mockQuery.getResultList()).thenReturn(List.of(group));
+            List<Object[]> foundRows = new java.util.ArrayList<>();
+            foundRows.add(toRow(group));
+            when(mockQuery.getResultList()).thenReturn(foundRows);
 
             // when
             Optional<AgentGroup> result = repository.findByIdAndTenantId(GROUP_ID, TENANT_A);
@@ -251,8 +261,7 @@ class AgentGroupRepositoryTest {
 
             Query findQuery = mock(Query.class);
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql.contains("group_id") && sql.contains("tenant_id")),
-                    eq(AgentGroup.class)
+                    argThat(sql -> sql.contains("group_id") && sql.contains("tenant_id"))
             )).thenReturn(findQuery);
             when(findQuery.setParameter(anyString(), anyString())).thenReturn(findQuery);
             when(findQuery.getResultList()).thenReturn(List.of()); // brak wyników dla obcego tenanta
@@ -271,8 +280,7 @@ class AgentGroupRepositoryTest {
             stubTenantContextQuery();
 
             when(entityManager.createNativeQuery(
-                    argThat(sql -> sql.contains("group_id") && sql.contains("tenant_id")),
-                    eq(AgentGroup.class)
+                    argThat(sql -> sql.contains("group_id") && sql.contains("tenant_id"))
             )).thenReturn(mockQuery);
             when(mockQuery.setParameter(anyString(), anyString())).thenReturn(mockQuery);
             when(mockQuery.getResultList()).thenReturn(List.of());

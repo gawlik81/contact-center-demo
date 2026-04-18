@@ -1,0 +1,91 @@
+<div class="modal-overlay" (click)="onCancel()" aria-hidden="true"></div>
+
+<dialog class="modal-dialog" open aria-modal="true" aria-labelledby="members-modal-title">
+  <div class="modal-content">
+    <h2 class="modal-title" id="members-modal-title">
+      Agenci grupy: <span class="modal-title__group">{{ group().name }}</span>
+    </h2>
+
+    @if (loading()) {
+      <div class="members-loading" aria-busy="true" aria-label="Wczytywanie agentów...">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <div class="skeleton-item"></div>
+        }
+      </div>
+    } @else {
+      @if (availableAgents().length === 0) {
+        <p class="members-empty">Brak agentów w systemie.</p>
+      } @else {
+        <p class="members-hint">
+          Zaznacz agentów, którzy mają należeć do tej grupy. Niezaznaczeni agenci zostaną usunięci z grupy.
+        </p>
+
+        <div class="members-search">
+          <svg
+            class="members-search__icon"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            width="16"
+            height="16"
+            aria-hidden="true"
+          >
+            <path
+              d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+            />
+          </svg>
+          <input
+            class="members-search__input"
+            type="search"
+            placeholder="Szukaj agenta..."
+            autocomplete="off"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="searchQuery.set($event)"
+            aria-label="Filtruj agentów"
+          />
+        </div>
+
+        <div class="agents-list-wrapper">
+          @if (filteredAgents().length === 0) {
+            <p class="members-no-results">Brak wyników dla „{{ searchQuery() }}"</p>
+          } @else {
+            <ul class="agents-list" role="list" aria-label="Lista agentów">
+              @for (agent of filteredAgents(); track trackByAgentId($index, agent)) {
+                <li class="agent-item">
+                  <label class="agent-label" [for]="'agent-' + agent.id">
+                    <input
+                      class="agent-checkbox"
+                      type="checkbox"
+                      [id]="'agent-' + agent.id"
+                      [checked]="isSelected(agent.id)"
+                      (change)="toggleAgent(agent.id)"
+                      [attr.aria-label]="'Dodaj ' + getAgentFullName(agent) + ' do grupy'"
+                    />
+                    <span class="agent-info">
+                      <span class="agent-name">{{ getAgentFullName(agent) }}</span>
+                      <span class="agent-email">{{ agent.email }}</span>
+                    </span>
+                  </label>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+
+      <div class="members-summary" aria-live="polite">
+        Wybrano {{ selectedAgentIds().size }} z {{ availableAgents().length }} agentów
+      </div>
+    }
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" type="button" (click)="onCancel()" [disabled]="saving()">Anuluj</button>
+      <button class="btn btn-primary" type="button" (click)="onSubmit()" [disabled]="saving() || loading()">
+        @if (saving()) {
+          Zapisywanie...
+        } @else {
+          Zapisz skład
+        }
+      </button>
+    </div>
+  </div>
+</dialog>

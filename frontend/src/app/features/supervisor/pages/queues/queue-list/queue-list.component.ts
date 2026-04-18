@@ -22,11 +22,17 @@ import { NotificationService } from '../../../../../core/services/notification.s
 import { Queue } from '../../../models/queue.model';
 import { QueueFormComponent } from '../queue-form/queue-form.component';
 import { QueueDeleteModalComponent } from '../queue-delete-modal/queue-delete-modal.component';
+import { QueueAgentsModalComponent } from '../queue-agents-modal/queue-agents-modal.component';
 
 @Component({
   selector: 'app-queue-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, QueueFormComponent, QueueDeleteModalComponent],
+  imports: [
+    ReactiveFormsModule,
+    QueueFormComponent,
+    QueueDeleteModalComponent,
+    QueueAgentsModalComponent,
+  ],
   templateUrl: './queue-list.component.html',
   styleUrl: './queue-list.component.scss',
 })
@@ -49,6 +55,8 @@ export class QueueListComponent implements OnInit {
   readonly showFormModal = signal(false);
   readonly isEditMode = signal(false);
   readonly showDeleteModal = signal(false);
+  readonly showAgentsModal = signal(false);
+  readonly selectedQueueForAgents = signal<Queue | null>(null);
 
   readonly searchForm = this.fb.group({
     name: [''],
@@ -65,7 +73,15 @@ export class QueueListComponent implements OnInit {
           return this.queueService.getQueues(this.currentPage(), this.pageSize, name).pipe(
             catchError(() => {
               this.notifications.error('Nie udalo sie pobrac listy kolejek. Sprobuj ponownie.');
-              return of({ content: [], totalElements: 0, totalPages: 0, page: 0, size: this.pageSize, first: true, last: true });
+              return of({
+                content: [],
+                totalElements: 0,
+                totalPages: 0,
+                page: 0,
+                size: this.pageSize,
+                first: true,
+                last: true,
+              });
             }),
             finalize(() => this.loading.set(false)),
           );
@@ -79,11 +95,7 @@ export class QueueListComponent implements OnInit {
       });
 
     this.searchForm.controls.name.valueChanges
-      .pipe(
-        debounceTime(300),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef),
-      )
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.currentPage.set(0);
         this.loadQueues();
@@ -114,6 +126,16 @@ export class QueueListComponent implements OnInit {
   onFormSaved(): void {
     this.closeFormModal();
     this.loadQueues();
+  }
+
+  openAgentsModal(queue: Queue): void {
+    this.selectedQueueForAgents.set(queue);
+    this.showAgentsModal.set(true);
+  }
+
+  closeAgentsModal(): void {
+    this.showAgentsModal.set(false);
+    this.selectedQueueForAgents.set(null);
   }
 
   openDeleteModal(queue: Queue): void {

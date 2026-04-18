@@ -170,7 +170,8 @@
       "Bash(mkdir -p \"D:\\\\CloudeAI\\\\contact-center-demo\\\\frontend\\\\src\\\\app\\\\features\\\\integrations\\\\pages\\\\social-integrations\")",
       "Bash(mkdir -p \"D:\\\\CloudeAI\\\\contact-center-demo\\\\frontend\\\\src\\\\app\\\\features\\\\integrations\\\\pages\\\\oauth-callback\")",
       "Bash(sort echo *)",
-      "Bash(find E:/ClaudAI/contact-center-demo/backend/app/src/test -name \"*.java\" -exec grep -l \"H2\\\\|DataJpaTest\\\\|TestEntityManager\\\\|createNativeQuery\\\\|JdbcTemplate\\\\|EmbeddedDatabase\" {} \\\\;)"
+      "Bash(find E:/ClaudAI/contact-center-demo/backend/app/src/test -name \"*.java\" -exec grep -l \"H2\\\\|DataJpaTest\\\\|TestEntityManager\\\\|createNativeQuery\\\\|JdbcTemplate\\\\|EmbeddedDatabase\" {} \\\\;)",
+      "Bash(npx @angular-eslint/builder lint --lint-file-patterns=\"src/app/features/supervisor/pages/agent-groups/**/*.ts,src/app/features/supervisor/pages/agent-groups/**/*.html\")"
     ]
   }
 }

@@ -2,30 +2,24 @@ import {
   AfterViewInit,
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   ElementRef,
-  OnInit,
-  computed,
   inject,
   input,
+  OnInit,
   output,
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import {
-  AbstractControl,
-  FormBuilder,
-  ReactiveFormsModule,
-  ValidationErrors,
-  Validators,
-} from '@angular/forms';
-import { catchError, of } from 'rxjs';
-import { AdminUserService } from '../../../services/admin-user.service';
-import { NotificationService } from '../../../../../core/services/notification.service';
-import { Tenant } from '../../../../tenants/tenant.model';
-import { AdminUserResponse } from '../../../models/admin-user.model';
-import { UserRole } from '../../../../supervisor/models/user.model';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators,} from '@angular/forms';
+import {catchError, of} from 'rxjs';
+import {AdminUserService} from '../../../services/admin-user.service';
+import {NotificationService} from '../../../../../core/services/notification.service';
+import {Tenant} from '../../../../tenants/tenant.model';
+import {AdminUserResponse} from '../../../models/admin-user.model';
+import {UserRole} from '../../../../supervisor/models/user.model';
 
 function passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
   const val: string = control.value ?? '';
@@ -239,7 +233,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
         .pipe(
           catchError(() => {
             this.submitting.set(false);
-            this.notifications.error('Nie udalo sie zaktualizowac uzytkownika. Sprobuj ponownie.');
+            this.notifications.error('Nie udało sie zaktualizować użytkownika. Spróbuj ponownie.');
             return of(null);
           }),
           takeUntilDestroyed(this.destroyRef),
@@ -268,7 +262,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
         .pipe(
           catchError(() => {
             this.submitting.set(false);
-            this.notifications.error('Nie udalo sie utworzyc uzytkownika. Sprobuj ponownie.');
+            this.notifications.error('Nie udało sie utworzyć użytkownika. Spróbuj ponownie.');
             return of(null);
           }),
           takeUntilDestroyed(this.destroyRef),

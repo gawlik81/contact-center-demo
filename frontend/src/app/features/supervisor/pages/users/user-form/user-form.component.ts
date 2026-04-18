@@ -2,28 +2,22 @@ import {
   AfterViewInit,
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   ElementRef,
-  OnInit,
-  computed,
   inject,
   input,
+  OnInit,
   output,
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import {
-  AbstractControl,
-  FormBuilder,
-  ReactiveFormsModule,
-  ValidationErrors,
-  Validators,
-} from '@angular/forms';
-import { catchError, of } from 'rxjs';
-import { UserService } from '../../../services/user.service';
-import { NotificationService } from '../../../../../core/services/notification.service';
-import { UserResponse, UserRole } from '../../../models/user.model';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators,} from '@angular/forms';
+import {catchError, of} from 'rxjs';
+import {UserService} from '../../../services/user.service';
+import {NotificationService} from '../../../../../core/services/notification.service';
+import {UserResponse, UserRole} from '../../../models/user.model';
 
 function passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
   const val: string = control.value ?? '';
@@ -259,10 +253,10 @@ export class UserFormComponent implements OnInit, AfterViewInit {
             this.submitting.set(false);
             if (err?.status === 403) {
               this.notifications.error(
-                'Supervisorzy moga tworzyc uzytkownikow tylko z rola Supervisor lub Agent.',
+                  'Supervisorzy moga tworzyć użytkowników tylko z rola Supervisor lub Agent.',
               );
             } else {
-              this.notifications.error('Nie udalo sie utworzyc uzytkownika. Sprobuj ponownie.');
+              this.notifications.error('Nie udało sie utworzyć użytkownika. Spróbuj ponownie.');
             }
           },
         });

@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { AdminUserListComponent } from './admin-user-list/admin-user-list.component';
+import {ChangeDetectionStrategy, Component} from '@angular/core';
+import {AdminUserListComponent} from './admin-user-list/admin-user-list.component';
 
 /**
- * Panel Admina – zakładka "Uzytkownicy".
+ * Panel Admina – zakładka "Użytkownicy".
  *
  * Wyswietla uzytkownikow ze WSZYSTKICH tenantow (cross-tenant).
  * Deleguje logike do AdminUserListComponent, ktory komunikuje sie

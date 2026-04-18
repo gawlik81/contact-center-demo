@@ -20,11 +20,12 @@ import { QueueService } from '../../../services/queue.service';
 import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { Queue } from '../../../models/queue.model';
+import { QueueAssignmentPanelComponent } from '../queue-assignment-panel/queue-assignment-panel.component';
 
 @Component({
   selector: 'app-queue-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, QueueAssignmentPanelComponent],
   templateUrl: './queue-form.component.html',
   styleUrl: './queue-form.component.scss',
   host: {
@@ -106,7 +107,11 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
         this.availableSkills.set(skills);
         this.loadingOptions.set(false);
 
-        if (!this.isEditMode() && strategies.length > 0 && !this.form.get('routingStrategy')?.value) {
+        if (
+          !this.isEditMode() &&
+          strategies.length > 0 &&
+          !this.form.get('routingStrategy')?.value
+        ) {
           this.form.get('routingStrategy')?.setValue(strategies[0]);
         }
       });

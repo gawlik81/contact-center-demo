@@ -1495,7 +1495,8 @@ export interface QueueAssignment {
 **Priorytet:** Must Have
 **Szacowany rozmiar:** L
 **Zależy od:** FE-036
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** FE-038
 
 **Opis:**
@@ -1558,7 +1559,8 @@ Nowa strona w panelu supervisora: lista grup agentów z możliwością tworzenia
 **Priorytet:** Must Have
 **Szacowany rozmiar:** L
 **Zależy od:** FE-036, FE-037
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** FE-039
 
 **Opis:**
@@ -1622,7 +1624,8 @@ saving = signal<boolean>(false);
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Zależy od:** FE-038
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** brak
 
 **Opis:**

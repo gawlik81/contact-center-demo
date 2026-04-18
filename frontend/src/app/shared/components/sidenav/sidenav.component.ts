@@ -1,23 +1,11 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  PLATFORM_ID,
-  computed,
-  effect,
-  inject,
-  input,
-  output,
-  signal,
-} from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
-import { filter, map } from 'rxjs';
-import { AuthService } from '../../../core/services/auth.service';
-import { UserRole } from '../../../core/models/jwt-payload.model';
-import { AdminMetricsService } from '../../../features/admin/services/admin-metrics.service';
+import {ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, OnInit, output, PLATFORM_ID, signal,} from '@angular/core';
+import {isPlatformBrowser} from '@angular/common';
+import {takeUntilDestroyed, toSignal} from '@angular/core/rxjs-interop';
+import {NavigationEnd, Router, RouterLink, RouterLinkActive} from '@angular/router';
+import {filter, map} from 'rxjs';
+import {AuthService} from '../../../core/services/auth.service';
+import {UserRole} from '../../../core/models/jwt-payload.model';
+import {AdminMetricsService} from '../../../features/admin/services/admin-metrics.service';
 
 export interface NavItem {
   label: string;
@@ -42,9 +30,9 @@ const ADMIN_NAV: NavItem[] = [
       'M3 21V7l9-4 9 4v14H3zm6-2h2v-4H9v4zm4 0h2v-4h-2v4zm4 0h2v-6h-2v6zm-8-6h2v-2H9v2zm4 0h2v-2h-2v2z',
   },
   {
-    label: 'Uzytkownicy',
+    label: 'Użytkownicy',
     route: '/admin/users',
-    ariaLabel: 'Zarzadzanie uzytkownikami',
+    ariaLabel: 'Zarządzanie użytkownikami',
     svgPath:
       'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
   },
@@ -64,11 +52,18 @@ const SUPERVISOR_NAV: NavItem[] = [
     svgPath: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
   },
   {
-    label: 'Agenci',
+    label: 'Użytkownicy',
     route: '/supervisor/agents',
-    ariaLabel: 'Lista agentow',
+    ariaLabel: 'Lista użytkowników',
     svgPath:
       'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
+  },
+  {
+    label: 'Grupy agentów',
+    route: '/supervisor/agent-groups',
+    ariaLabel: 'Grupy agentow',
+    svgPath:
+      'M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58C.48 14.9 0 15.62 0 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85A6.95 6.95 0 0 0 20 14c-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z',
   },
   {
     label: 'Kolejki',

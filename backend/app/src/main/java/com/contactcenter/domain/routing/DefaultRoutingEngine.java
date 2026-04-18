@@ -68,27 +68,50 @@ public class DefaultRoutingEngine implements RoutingEngine {
                 request.tenantId(), request.queueId(), request.routingStrategy(), request.requiredSkills());
 
         // 1. Sticky agent – sprawdź preferowanego agenta
+        // Gdy all_agents=FALSE i preferredAgentId nie należy do eligibleAgentIds,
+        // pomijamy sticky i przechodzimy od razu do strategii routingu.
         if (request.hasStickyAgent()) {
-            Optional<RoutingResult> stickyResult = tryStickyAgent(request);
-            if (stickyResult.isPresent()) {
-                log.info("[RoutingEngine] Sticky agent wybrany: agentId={}, queue={}",
-                        stickyResult.get().agentId(), request.queueId());
-                return stickyResult;
+            if (request.hasAgentFilter()
+                    && !request.eligibleAgentIds().contains(request.preferredAgentId())) {
+                log.debug("[RoutingEngine] Sticky agent {} spoza eligibleAgentIds kolejki {} – pomijam sticky",
+                        request.preferredAgentId(), request.queueId());
+            } else {
+                Optional<RoutingResult> stickyResult = tryStickyAgent(request);
+                if (stickyResult.isPresent()) {
+                    log.info("[RoutingEngine] Sticky agent wybrany: agentId={}, queue={}",
+                            stickyResult.get().agentId(), request.queueId());
+                    return stickyResult;
+                }
+                log.debug("[RoutingEngine] Sticky agent niedostępny, fallback na strategię: {}",
+                        request.routingStrategy());
             }
-            log.debug("[RoutingEngine] Sticky agent niedostępny, fallback na strategię: {}",
-                    request.routingStrategy());
         }
 
         // 2. Pobierz dostępnych agentów tenanta z Redis
         List<AgentSessionData> availableAgents = scanAvailableAgents(request.tenantId());
-        log.debug("[RoutingEngine] Dostępnych agentów w tenancie {}: {}", request.tenantId(), availableAgents.size());
+        int totalAvailable = availableAgents.size();
+        log.debug("[RoutingEngine] Dostępnych agentów w tenancie {}: {}", request.tenantId(), totalAvailable);
+
+        // 3. Filtruj po liście uprawnionych agentów (all_agents=FALSE)
+        if (request.hasAgentFilter()) {
+            if (request.eligibleAgentIds().isEmpty()) {
+                log.warn("[RoutingEngine] Kolejka {} ma all_agents=FALSE ale brak przypisanych agentów",
+                        request.queueId());
+                return Optional.empty();
+            }
+            availableAgents = availableAgents.stream()
+                    .filter(a -> request.eligibleAgentIds().contains(a.agentId()))
+                    .toList();
+            log.debug("[RoutingEngine] Po filtrze przypisania: {}/{} agentów uprawnionych dla queue={}",
+                    availableAgents.size(), totalAvailable, request.queueId());
+        }
 
         if (availableAgents.isEmpty()) {
             log.debug("[RoutingEngine] Brak dostępnych agentów dla tenant={}", request.tenantId());
             return Optional.empty();
         }
 
-        // 3. Routing według strategii
+        // 4. Routing według strategii
         return switch (request.routingStrategy()) {
             case "SKILL_BASED"    -> routeSkillBased(request, availableAgents);
             case "ROUND_ROBIN"    -> routeRoundRobin(request, availableAgents);

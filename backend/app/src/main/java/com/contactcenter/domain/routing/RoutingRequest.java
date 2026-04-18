@@ -6,6 +6,7 @@ import com.contactcenter.domain.service.RoutingService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -21,6 +22,8 @@ import java.util.UUID;
  * @param requiredSkills    lista wymaganych skills agenta (pusta = brak wymagań)
  * @param preferredAgentId  UUID preferowanego agenta (sticky agent) lub null
  * @param contactChannel    kanał kontaktu: VOICE, EMAIL, CHAT
+ * @param eligibleAgentIds  zbiór UUID agentów uprawnionych do obsługi kolejki;
+ *                          {@code null} oznacza all_agents=TRUE (brak filtru – wszyscy agenci tenanta)
  */
 public record RoutingRequest(
         UUID tenantId,
@@ -28,7 +31,8 @@ public record RoutingRequest(
         String routingStrategy,
         List<String> requiredSkills,
         UUID preferredAgentId,
-        String contactChannel
+        String contactChannel,
+        Set<UUID> eligibleAgentIds
 ) {
 
     /** Zwraca true gdy skonfigurowany jest sticky agent. */
@@ -42,24 +46,38 @@ public record RoutingRequest(
     }
 
     /**
+     * Zwraca true gdy kolejka ma all_agents=FALSE i routing musi filtrować po liście agentów.
+     * Gdy false (eligibleAgentIds==null) – all_agents=TRUE, wszyscy agenci tenanta są kandydatami.
+     */
+    public boolean hasAgentFilter() {
+        return eligibleAgentIds != null;
+    }
+
+    /**
      * Buduje {@link RoutingRequest} na podstawie encji kontaktu i kolejki.
      *
      * <p>Sticky agent: pobierany z {@code contact.agentId} (np. ustawiony przez IVR
      * lub poprzedni kontakt klienta w tej sesji).
      *
-     * @param contact  encja kontaktu
-     * @param queue    encja kolejki
-     * @param tenantId UUID tenanta
+     * <p>Gdy {@code eligibleAgentIds == null} oznacza all_agents=TRUE – silnik routingu
+     * nie stosuje filtru i bierze pod uwagę wszystkich dostępnych agentów tenanta.
+     *
+     * @param contact          encja kontaktu
+     * @param queue            encja kolejki
+     * @param tenantId         UUID tenanta
+     * @param eligibleAgentIds zbiór uprawnionych agentów lub null gdy all_agents=TRUE
      * @return żądanie routingu gotowe do przekazania do {@link RoutingEngine}
      */
-    public static RoutingRequest of(Contact contact, Queue queue, UUID tenantId) {
+    public static RoutingRequest of(Contact contact, Queue queue, UUID tenantId,
+                                    Set<UUID> eligibleAgentIds) {
         return new RoutingRequest(
                 tenantId,
                 queue.getQueueId(),
                 queue.getRoutingStrategy() != null ? queue.getRoutingStrategy() : "FIRST_AVAILABLE",
                 queue.getRequiredSkills() != null ? new ArrayList<>(queue.getRequiredSkills()) : List.of(),
                 contact.getAgentId(),   // sticky agent (może być null)
-                contact.getChannel()
+                contact.getChannel(),
+                eligibleAgentIds
         );
     }
 }

@@ -1776,7 +1776,8 @@ Role wymagane: SUPERVISOR, ADMIN.
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** BE-045
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** brak
 
 **Opis:**

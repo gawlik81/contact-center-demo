@@ -5,6 +5,7 @@ import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactAssignedEvent;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -57,6 +59,7 @@ public class RoutingService {
     private final QueueRepository queueRepository;
     private final ContactRepository contactRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final QueueAssignmentRepository queueAssignmentRepository;
 
     // =========================================================================
     // Główna metoda routingu
@@ -68,7 +71,10 @@ public class RoutingService {
      * <p>Przepływ:
      * <ol>
      *   <li>Pobierz kolejkę z bazy danych</li>
-     *   <li>Zbuduj {@link RoutingRequest} z konfiguracji kolejki</li>
+     *   <li>Pobierz kontakt z bazy danych</li>
+     *   <li>Wyznacz zbiór uprawnionych agentów: gdy {@code all_agents=FALSE} – jeden SELECT UNION
+     *       ({@code queue_agent} + grupy); gdy {@code all_agents=TRUE} – null (brak filtru)</li>
+     *   <li>Zbuduj {@link RoutingRequest} z konfiguracji kolejki + {@code eligibleAgentIds}</li>
      *   <li>Wywołaj {@link RoutingEngine#findBestAgent(RoutingRequest)}</li>
      *   <li>Jeśli znaleziono agenta: zaktualizuj kontakt (status ACTIVE, agent_id) i opublikuj
      *       event {@code contact.assigned}</li>
@@ -104,10 +110,21 @@ public class RoutingService {
         }
         Contact contact = contactOpt.get();
 
-        // 3. Zbuduj RoutingRequest
-        RoutingRequest request = RoutingRequest.of(contact, queue, tenantId);
+        // 3. Wyznacz listę uprawnionych agentów dla kolejki (jedno zapytanie DB)
+        // all_agents=TRUE → eligibleAgentIds=null (brak filtru, wszyscy agenci tenanta)
+        // all_agents=FALSE → pobierz UNION bezpośrednich agentów + agentów przez grupy
+        Set<UUID> eligibleAgentIds = null;
+        if (!queueAssignmentRepository.isAllAgents(queue.getQueueId(), tenantId)) {
+            eligibleAgentIds = queueAssignmentRepository.resolveEligibleAgentIds(
+                    queue.getQueueId(), tenantId);
+            log.debug("[RoutingService] Kolejka {} ma all_agents=FALSE, uprawnionych agentów: {}",
+                    queueId, eligibleAgentIds.size());
+        }
 
-        // 4. Wywołaj silnik routingu
+        // 4. Zbuduj RoutingRequest
+        RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAgentIds);
+
+        // 5. Wywołaj silnik routingu
         Optional<RoutingResult> result = routingEngine.findBestAgent(request);
 
         if (result.isPresent()) {
@@ -117,10 +134,10 @@ public class RoutingService {
             log.info("[RoutingService] Agent znaleziony: contactId={}, agentId={}, strategy={}",
                     contactId, agentId, routing.strategy());
 
-            // 5a. Aktualizuj kontakt – przypisz agenta i zmień status na ACTIVE
+            // 6a. Aktualizuj kontakt – przypisz agenta i zmień status na ACTIVE
             assignContactToAgent(contact, agentId, tenantId);
 
-            // 5b. Opublikuj event contact.assigned
+            // 6b. Opublikuj event contact.assigned
             publishAssignedEvent(contactId, agentId, queueId, tenantId, routing.strategy(), contact, queue.getName());
 
             return Optional.of(agentId);

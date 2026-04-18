@@ -14,6 +14,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -459,6 +460,112 @@ class DefaultRoutingEngineTest {
     }
 
     private RoutingRequest buildRequest(String strategy, List<String> skills, UUID preferredAgentId) {
-        return new RoutingRequest(TENANT_ID, QUEUE_ID, strategy, skills, preferredAgentId, "VOICE");
+        // eligibleAgentIds=null → all_agents=TRUE (brak filtru)
+        return new RoutingRequest(TENANT_ID, QUEUE_ID, strategy, skills, preferredAgentId, "VOICE", null);
+    }
+
+    private RoutingRequest buildRequestWithFilter(String strategy, List<String> skills,
+                                                   UUID preferredAgentId, Set<UUID> eligibleAgentIds) {
+        return new RoutingRequest(TENANT_ID, QUEUE_ID, strategy, skills, preferredAgentId, "VOICE",
+                eligibleAgentIds);
+    }
+
+    // =========================================================================
+    // Testy filtrowania eligibleAgentIds (BE-047)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Filtrowanie eligibleAgentIds – BE-047")
+    class EligibleAgentFilter {
+
+        @Test
+        @DisplayName("all_agents=TRUE (eligibleAgentIds=null) – wszyscy agenci są kandydatami")
+        void allAgentsTrueNoFilterApplied() {
+            // eligibleAgentIds=null → hasAgentFilter()=false → brak filtru
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B, AGENT_C));
+
+            RoutingRequest request = buildRequest("FIRST_AVAILABLE", List.of(), null);
+            // hasAgentFilter() musi być false
+            assertThat(request.hasAgentFilter()).isFalse();
+
+            Optional<RoutingResult> result = engine.findBestAgent(request);
+
+            assertThat(result).isPresent();
+            // deterministycznie: AGENT_A (najmniejszy UUID w sort)
+            assertThat(result.get().agentId()).isEqualTo(AGENT_A);
+            assertThat(result.get().strategy()).isEqualTo("FIRST_AVAILABLE");
+        }
+
+        @Test
+        @DisplayName("all_agents=FALSE + lista agentów – tylko przypisani agenci są kandydatami")
+        void allAgentsFalseWithListFiltersCorrectly() {
+            // Scan zwraca A, B, C – ale kolejka ma filter: tylko B i C
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B, AGENT_C));
+            Set<UUID> eligible = new HashSet<>(Set.of(AGENT_B, AGENT_C));
+
+            RoutingRequest request = buildRequestWithFilter("FIRST_AVAILABLE", List.of(), null, eligible);
+            assertThat(request.hasAgentFilter()).isTrue();
+
+            Optional<RoutingResult> result = engine.findBestAgent(request);
+
+            assertThat(result).isPresent();
+            // Kandydatami są B i C; AGENT_B < AGENT_C w UUID string sort → wybieramy B
+            assertThat(result.get().agentId()).isEqualTo(AGENT_B);
+        }
+
+        @Test
+        @DisplayName("all_agents=FALSE + pusta lista – Optional.empty() i log WARNING")
+        void allAgentsFalseEmptyListReturnsEmpty() {
+            stubScan(TENANT_ID, List.of(AGENT_A, AGENT_B));
+            Set<UUID> emptyEligible = new HashSet<>();
+
+            RoutingRequest request = buildRequestWithFilter("FIRST_AVAILABLE", List.of(), null, emptyEligible);
+            assertThat(request.hasAgentFilter()).isTrue();
+
+            Optional<RoutingResult> result = engine.findBestAgent(request);
+
+            // Silnik zwraca empty (brak przypisanych agentów)
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("sticky agent spoza eligibleAgentIds – pominięty, fallback na strategię")
+        void stickyAgentOutsideEligibleSkippedFallbackToStrategy() {
+            // AGENT_A jest sticky, ale nie należy do eligible; AGENT_B należy
+            Set<UUID> eligible = new HashSet<>(Set.of(AGENT_B));
+            stubScan(TENANT_ID, List.of(AGENT_B));
+
+            RoutingRequest request = buildRequestWithFilter("FIRST_AVAILABLE", List.of(), AGENT_A, eligible);
+            assertThat(request.hasAgentFilter()).isTrue();
+            assertThat(request.eligibleAgentIds()).doesNotContain(AGENT_A);
+
+            Optional<RoutingResult> result = engine.findBestAgent(request);
+
+            // Sticky pominięty; fallback wybiera AGENT_B
+            assertThat(result).isPresent();
+            assertThat(result.get().agentId()).isEqualTo(AGENT_B);
+            assertThat(result.get().isSticky()).isFalse();
+
+            // Sesja Redis dla sticky agenta NIE powinna być odpytana
+            verify(valueOps, never()).get(DefaultRoutingEngine.AGENT_SESSION_KEY_PREFIX + AGENT_A);
+        }
+
+        @Test
+        @DisplayName("sticky agent z listy eligibleAgentIds – wybrany normalnie")
+        void stickyAgentInsideEligibleSelectedNormally() {
+            // AGENT_A jest sticky I należy do eligible → sticky flow normalnie
+            Set<UUID> eligible = new HashSet<>(Set.of(AGENT_A, AGENT_B));
+            stubStickySession(AGENT_A, TENANT_ID, "AVAILABLE");
+            lenient().when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_A, TENANT_ID))
+                    .thenReturn(Optional.of(buildAgent(AGENT_A, List.of())));
+
+            RoutingRequest request = buildRequestWithFilter("FIRST_AVAILABLE", List.of(), AGENT_A, eligible);
+
+            Optional<RoutingResult> result = engine.findBestAgent(request);
+
+            assertThat(result).isPresent();
+            assertThat(result.get().agentId()).isEqualTo(AGENT_A);
+            assertThat(result.get().isSticky()).isTrue();
+        }
     }
 }

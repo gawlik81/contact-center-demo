@@ -5,6 +5,7 @@ import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactAssignedEvent;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
@@ -37,6 +38,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -69,11 +71,18 @@ class RoutingServiceTest {
     @Mock
     private RabbitTemplate rabbitTemplate;
 
+    @Mock
+    private QueueAssignmentRepository queueAssignmentRepository;
+
     private RoutingService routingService;
 
     @BeforeEach
     void setUp() {
-        routingService = new RoutingService(routingEngine, queueRepository, contactRepository, rabbitTemplate);
+        routingService = new RoutingService(routingEngine, queueRepository, contactRepository,
+                rabbitTemplate, queueAssignmentRepository);
+        // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047
+        lenient().when(queueAssignmentRepository.isAllAgents(any(UUID.class), any(UUID.class)))
+                .thenReturn(true);
     }
 
     // =========================================================================

@@ -4,7 +4,7 @@ description: Stan ukończenia zadań DB/BE/FE – scan 2026-04-18 po ukończeniu
 type: project
 ---
 
-Stan na 2026-04-18 po EPIC-14 (DB-024/025/026, BE-043/044/045): DB: 26/26 | BE: 45/54 | FE: 33/43 | RAZEM: 104/123
+Stan na 2026-04-18 po FE-036: DB: 26/26 | BE: 45/54 | FE: 34/43 | RAZEM: 105/123
 
 **Why:** Zaktualizowano po ukończeniu EPIC-14: migracje agent_group schema, queue_agent_group, indeksy wydajnościowe; AgentGroupRepository, AgentGroupController/Service, QueueAssignmentRepository.
 
@@ -26,12 +26,12 @@ Wszystkie 26 zadań DB ukończone.
 - FE-013 – Komponent obsługi kontaktu social media (czeka na BE-018)
 - FE-023 – Panel konfiguracji integracji social media OAuth (czeka na BE-017)
 - FE-035 – Panel Supervisora: lista wszystkich callbacków (odblokowany przez FE-034 ✅)
-- FE-036 – AgentGroupService i typy DTO (EPIC-14, czeka na BE-044 ✅ — odblokowane)
-- FE-037 – Panel zarządzania grupami agentów (czeka na FE-036)
-- FE-038 – Komponent przypisania agentów do kolejki (czeka na BE-046, FE-036)
+- FE-037 – Panel zarządzania grupami agentów (odblokowane przez FE-036 ✅)
+- FE-038 – Komponent przypisania agentów do kolejki (czeka na BE-046, odblokowane przez FE-036 ✅)
 - FE-039 – Integracja panelu przypisania z formularzem edycji kolejki (czeka na FE-038)
 
 ## Ostatnie ukończone (2026-04-18)
+- FE-036 ✅ agent-group.model.ts + AgentGroupService z 8 metodami HTTP (listGroups, createGroup, updateGroup, deleteGroup, getGroupMembers, replaceGroupMembers, getQueueAssignment, updateQueueAssignment)
 - DB-024 ✅ V042__create_agent_groups.sql: tabele agent_group + agent_group_member, RLS, indeksy, FK CASCADE
 - DB-025 ✅ V043__queue_agent_group.sql: flaga all_agents, tabela queue_agent_group, UPDATE istniejących kolejek
 - DB-026 ✅ V044__queue_agent_assignment_indexes.sql: 3 indeksy wydajnościowe IF NOT EXISTS

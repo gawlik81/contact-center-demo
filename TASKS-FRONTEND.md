@@ -1425,7 +1425,8 @@ editingCallback = signal<CallbackListItem | null>(null);
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Zależy od:** BE-044
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** FE-037, FE-038
 
 **Opis:**

@@ -149,9 +149,9 @@
 | FE-033 | Panel RODO w profilu klienta: eksport danych i anonimizacja | ✅ | Sekcja "Prawa RODO" w CustomerDetailComponent, GdprAnonymizeModalComponent (wymaga wpisania "ANONIMIZUJ", ostrzeżenie o nieodwracalności), GdprService (exportData → blob download, anonymize), widoczne tylko dla SUPERVISOR/ADMIN. Zrealizowane 2026-04-09 |
 | FE-034 | Panel Agenta: lista własnych callbacków z edycją i usunięciem | ✅ | Strona `/agent/callbacks` z CallbackService (listCallbacks, updateCallback, cancelCallback), tabela callbacków z filtrami statusu i sortowania, paginacja (10/20/50), modal edycji reużywający RescheduleCallbackModalComponent (FE-031), dialog potwierdzenia usunięcia. CallbackListItem/CallbackListParams/UpdateCallbackRequest dodane do callback.model.ts. Trasa /agent/callbacks w agent.routes.ts. Pozycja "Oddzwonienia" dodana do AGENT_NAV w sidenav. Zrealizowane 2026-04-15. |
 | FE-035 | Panel Supervisora: lista wszystkich callbacków z reassign agenta | ✅ | Zaimplementowano stronę `/supervisor/callbacks` z tabelą wszystkich callbacków tenanta, filtrem po agencie/statusie, EditCallbackModalComponent (pełna edycja + reassign agenta), in-place update wiersza po zapisaniu. Trasa /supervisor/callbacks w supervisor.routes.ts. Pozycja "Oddzwonienia" dodana do SUPERVISOR_NAV w sidenav. Zrealizowane 2026-04-15. |
-| FE-036 | Serwis `AgentGroupService` i typy DTO dla grup agentów | ⬜ | Zależy od: BE-044. Blokuje: FE-037, FE-038 |
-| FE-037 | Panel zarządzania grupami agentów (`AgentGroupsPageComponent`) | ⬜ | Zależy od: FE-036. Blokuje: FE-038 |
-| FE-038 | Komponent przypisania agentów do kolejki (`QueueAssignmentPanelComponent`) | ⬜ | Zależy od: FE-036, FE-037. Blokuje: FE-039 |
+| FE-036 | Serwis `AgentGroupService` i typy DTO dla grup agentów | ✅ | agent-group.model.ts (8 interfejsów DTO) + AgentGroupService (8 metod HTTP: listGroups, createGroup, updateGroup, deleteGroup, getGroupMembers, replaceGroupMembers, getQueueAssignment, updateQueueAssignment). Zrealizowane 2026-04-18. Odblokowało FE-037, FE-038 |
+| FE-037 | Panel zarządzania grupami agentów (`AgentGroupsPageComponent`) | ⬜ | Zależy od: FE-036 ✅. Blokuje: FE-038 |
+| FE-038 | Komponent przypisania agentów do kolejki (`QueueAssignmentPanelComponent`) | ⬜ | Zależy od: FE-036 ✅, FE-037. Blokuje: FE-039 |
 | FE-039 | Integracja panelu przypisania z formularzem edycji kolejki | ⬜ | Zależy od: FE-038. Blokuje: brak |
 
 ---
@@ -162,8 +162,8 @@
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 26/26 | 0 | 0 | 26 |
 | Backend (BE) | 45/54 | 0 | 9 | 54 |
-| Frontend (FE) | 33/43 | 0 | 10 | 43 |
-| **RAZEM** | **104/123** | **0** | **19** | **123** |
+| Frontend (FE) | 34/43 | 0 | 9 | 43 |
+| **RAZEM** | **105/123** | **0** | **18** | **123** |
 
 ---
 

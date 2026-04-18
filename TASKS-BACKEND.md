@@ -1536,7 +1536,8 @@ Implementacja przez `updateStatus(callbackId, "CANCELLED", tenantId)` — reuży
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** DB-024
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** BE-044
 
 **Opis:**
@@ -1575,12 +1576,12 @@ Zarządzanie członkostwem (operacje na `agent_group_member`):
 Każda metoda wywołuje `assertSameTenant` i `setTenantContextInDb`.
 
 **Kryteria akceptacji:**
-- [ ] `findAllByTenantId` zwraca stronicowaną listę grup tenanta
-- [ ] `insert` z duplikatem nazwy w tym samym tenancie rzuca `DataIntegrityViolationException` (unique constraint z DB)
-- [ ] `delete` grupy kaskadowo usuwa z `agent_group_member` i `queue_agent_group` (weryfikacja przez test integracyjny)
-- [ ] `replaceMembers` jest atomowy: jeśli INSERT failduje, DELETE też się cofa
-- [ ] Brak cross-tenant leakage: `findByIdAndTenantId` z obcym `tenantId` zwraca `Optional.empty()`
-- [ ] Testy jednostkowe pokrywają: CRUD, duplikat nazwy, `replaceMembers`, cross-tenant
+- [x] `findAllByTenantId` zwraca stronicowaną listę grup tenanta
+- [x] `insert` z duplikatem nazwy w tym samym tenancie rzuca `DataIntegrityViolationException` (unique constraint z DB)
+- [x] `delete` grupy kaskadowo usuwa z `agent_group_member` i `queue_agent_group` (weryfikacja przez test integracyjny)
+- [x] `replaceMembers` jest atomowy: jeśli INSERT failduje, DELETE też się cofa
+- [x] Brak cross-tenant leakage: `findByIdAndTenantId` z obcym `tenantId` zwraca `Optional.empty()`
+- [x] Testy jednostkowe pokrywają: CRUD, duplikat nazwy, `replaceMembers`, cross-tenant
 
 ---
 
@@ -1590,7 +1591,8 @@ Każda metoda wywołuje `assertSameTenant` i `setTenantContextInDb`.
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** BE-043
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** BE-046, FE-036
 
 **Opis:**
@@ -1632,13 +1634,13 @@ Uwagi:
 - Wszystkie endpointy wymagają rejestracji w `SecurityConfig` i `TenantFilter.PUBLIC_PATH_PREFIXES` (nie są publiczne — nie dodawaj do public paths)
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/agent-groups` zwraca paginowaną listę z `memberCount`
-- [ ] `POST` z duplikatem nazwy → HTTP 409
-- [ ] `DELETE` grupy przypisanej do kolejki → HTTP 409
-- [ ] `PUT /members` z `agentId` spoza tenanta → HTTP 400
-- [ ] `PUT /members` z `agentId` roli SUPERVISOR → HTTP 400 (tylko AGENT dozwolony)
-- [ ] Wszystkie endpointy widoczne w Swagger UI
-- [ ] Testy jednostkowe serwisu: min. 6 przypadków
+- [x] `GET /api/agent-groups` zwraca paginowaną listę z `memberCount`
+- [x] `POST` z duplikatem nazwy → HTTP 409
+- [x] `DELETE` grupy przypisanej do kolejki → HTTP 409
+- [x] `PUT /members` z `agentId` spoza tenanta → HTTP 400
+- [x] `PUT /members` z `agentId` roli SUPERVISOR → HTTP 400 (tylko AGENT dozwolony)
+- [x] Wszystkie endpointy widoczne w Swagger UI
+- [x] Testy jednostkowe serwisu: min. 6 przypadków
 
 ---
 
@@ -1648,7 +1650,8 @@ Uwagi:
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** DB-025
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** BE-046, BE-047
 
 **Opis:**
@@ -1694,11 +1697,11 @@ WHERE qag.queue_id = CAST(:queueId AS uuid)
 Wynik `resolveEligibleAgentIds` jest używany przez `DefaultRoutingEngine` — metoda musi być odpowiednio wydajna (jedno złożone zapytanie, nie N zapytań).
 
 **Kryteria akceptacji:**
-- [ ] `resolveEligibleAgentIds` zwraca UNION agentów bezpośrednich i przez grupy (brak duplikatów)
-- [ ] `replaceDirectAgents` jest atomowy (transakcja)
-- [ ] `replaceGroups` jest atomowy (transakcja)
-- [ ] Cross-tenant: `resolveEligibleAgentIds` z obcym `tenantId` zwraca puste zbiory
-- [ ] Testy jednostkowe: UNION scenario (agent w obu źródłach pojawia się raz), cross-tenant
+- [x] `resolveEligibleAgentIds` zwraca UNION agentów bezpośrednich i przez grupy (brak duplikatów)
+- [x] `replaceDirectAgents` jest atomowy (transakcja)
+- [x] `replaceGroups` jest atomowy (transakcja)
+- [x] Cross-tenant: `resolveEligibleAgentIds` z obcym `tenantId` zwraca puste zbiory
+- [x] Testy jednostkowe: UNION scenario (agent w obu źródłach pojawia się raz), cross-tenant
 
 ---
 

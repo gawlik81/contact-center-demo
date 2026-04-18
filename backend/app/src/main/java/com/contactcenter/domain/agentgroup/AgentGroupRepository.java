@@ -432,6 +432,39 @@ public class AgentGroupRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // Zliczanie członków
+    // =========================================================================
+
+    /**
+     * Zlicza liczbę agentów należących do danej grupy.
+     *
+     * <p>Weryfikacja przynależności grupy do tenanta odbywa się przez JOIN
+     * z tabelą {@code agent_group} objętą RLS. Zapobiega to cross-tenant
+     * odczytowi liczby członków grupy innego tenanta.
+     *
+     * @param groupId  UUID grupy
+     * @param tenantId UUID tenanta
+     * @return liczba agentów w grupie
+     */
+    @Transactional(readOnly = true)
+    public long countMembers(UUID groupId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        Number count = (Number) em.createNativeQuery("""
+                SELECT COUNT(*)
+                FROM agent_group_member agm
+                JOIN agent_group ag ON ag.group_id = agm.group_id
+                WHERE agm.group_id  = CAST(:groupId AS uuid)
+                  AND ag.tenant_id  = CAST(:tenantId AS uuid)
+                """)
+                .setParameter("groupId", groupId.toString())
+                .setParameter("tenantId", tenantId.toString())
+                .getSingleResult();
+
+        return count.longValue();
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 

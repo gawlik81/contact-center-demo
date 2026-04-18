@@ -748,10 +748,11 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_callback_origin_contact
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** DB-002 (tabela `app_user`), DB-001 (tabela `tenant`)
-**Status:** Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** DB-025, DB-026, BE-043
 **Epic:** EPIC-14 Zarządzanie przypisaniem agentów do kolejek
-**Flyway:** V039__create_agent_groups.sql
+**Flyway:** V042__create_agent_groups.sql
 
 **Opis:**
 Wprowadza koncepcję nazwanych grup agentów. Agent może należeć do wielu grup (many-to-many). Grupy są zasobem tenanta — izolacja RLS analogiczna do pozostałych tabel.
@@ -788,12 +789,12 @@ CREATE POLICY agent_group_tenant_isolation ON agent_group
 ```
 
 **Kryteria akceptacji:**
-- [ ] Migracja uruchamia się bez błędów na dev i test
-- [ ] Constraint `uq_agent_group_tenant_name` zapobiega duplikatom nazw w ramach tenanta
-- [ ] FK `agent_group_member.group_id → agent_group.group_id` kaskaduje usunięcie grupy
-- [ ] FK `agent_group_member.agent_id → app_user.user_id` kaskaduje usunięcie agenta
-- [ ] RLS na `agent_group` blokuje dostęp do rekordów innego tenanta
-- [ ] Indeksy widoczne w `pg_indexes`
+- [x] Migracja uruchamia się bez błędów na dev i test
+- [x] Constraint `uq_agent_group_tenant_name` zapobiega duplikatom nazw w ramach tenanta
+- [x] FK `agent_group_member.group_id → agent_group.group_id` kaskaduje usunięcie grupy
+- [x] FK `agent_group_member.agent_id → app_user.user_id` kaskaduje usunięcie agenta
+- [x] RLS na `agent_group` blokuje dostęp do rekordów innego tenanta
+- [x] Indeksy widoczne w `pg_indexes`
 
 ---
 
@@ -803,10 +804,11 @@ CREATE POLICY agent_group_tenant_isolation ON agent_group
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** DB-024 (tabela `agent_group`), DB-010 (tabela `queue`)
-**Status:** Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** DB-026, BE-045
 **Epic:** EPIC-14 Zarządzanie przypisaniem agentów do kolejek
-**Flyway:** V040__queue_agent_assignment.sql
+**Flyway:** V043__queue_agent_group.sql
 
 **Opis:**
 Dodaje flagę `all_agents` do tabeli `queue` (tryb "wszyscy agenci tenanta") oraz tabelę `queue_agent_group` łączącą kolejkę z grupą agentów. Istniejąca tabela `queue_agent` (kolejka ↔ konkretni agenci) pozostaje bez zmian — jej semantyka jest teraz jawna: "ręcznie wybrani agenci".
@@ -841,10 +843,10 @@ UPDATE queue SET all_agents = TRUE WHERE all_agents = FALSE;
 - `all_agents = FALSE` + brak rekordów → kolejka nie obsłuży żadnego kontaktu (logowanie WARNING w RoutingEngine)
 
 **Kryteria akceptacji:**
-- [ ] Migracja uruchamia się bez błędów; istniejące kolejki mają `all_agents = TRUE`
-- [ ] FK `queue_agent_group.queue_id → queue.queue_id` kaskaduje
-- [ ] FK `queue_agent_group.group_id → agent_group.group_id` kaskaduje
-- [ ] Dodanie `all_agents` nie łamie istniejących INSERT/UPDATE w `QueueRepository` (kolumna ma DEFAULT)
+- [x] Migracja uruchamia się bez błędów; istniejące kolejki mają `all_agents = TRUE`
+- [x] FK `queue_agent_group.queue_id → queue.queue_id` kaskaduje
+- [x] FK `queue_agent_group.group_id → agent_group.group_id` kaskaduje
+- [x] Dodanie `all_agents` nie łamie istniejących INSERT/UPDATE w `QueueRepository` (kolumna ma DEFAULT)
 
 ---
 
@@ -854,10 +856,11 @@ UPDATE queue SET all_agents = TRUE WHERE all_agents = FALSE;
 **Priorytet:** Should Have
 **Zlozonosc:** XS
 **Zależy od:** DB-024, DB-025
-**Status:** Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** brak
 **Epic:** EPIC-14 Zarządzanie przypisaniem agentów do kolejek
-**Flyway:** V041__queue_agent_assignment_indexes.sql
+**Flyway:** V044__queue_agent_assignment_indexes.sql
 
 **Opis:**
 Zapytanie "pobierz wszystkich agentów przypisanych do kolejki Q (przez grupy LUB bezpośrednio)" jest wykonywane przy każdym wywołaniu `findBestAgent()` gdy `all_agents = FALSE`. Indeks wspiera UNION obu źródeł.
@@ -882,9 +885,9 @@ CREATE INDEX IF NOT EXISTS idx_agent_group_member_lookup
 ```
 
 **Kryteria akceptacji:**
-- [ ] Migracja idempotentna (IF NOT EXISTS)
-- [ ] `EXPLAIN ANALYZE` dla zapytania "agenci kolejki przez grupy + bezpośrednio" używa index scan
-- [ ] Indeksy widoczne w `pg_indexes`
+- [x] Migracja idempotentna (IF NOT EXISTS)
+- [x] `EXPLAIN ANALYZE` dla zapytania "agenci kolejki przez grupy + bezpośrednio" używa index scan
+- [x] Indeksy widoczne w `pg_indexes`
 
 ---
 

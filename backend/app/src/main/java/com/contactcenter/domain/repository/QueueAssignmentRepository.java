@@ -191,6 +191,42 @@ public class QueueAssignmentRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // Odczyt – sprawdzenie czy grupa jest przypisana do kolejki
+    // =========================================================================
+
+    /**
+     * Sprawdza czy podana grupa agentów jest przypisana do co najmniej jednej kolejki.
+     *
+     * <p>Używane przez {@code AgentGroupService} przed usunięciem grupy – nie można
+     * usunąć grupy, która jest aktywnie przypisana do kolejki.
+     *
+     * <p>Izolacja cross-tenant zapewniona przez RLS ustawiony przez
+     * {@code setTenantContextInDb} – tabela {@code queue_agent_group} nie ma
+     * kolumny {@code tenant_id}, ale FK do {@code queue} (objętej RLS) gwarantuje izolację.
+     *
+     * @param groupId  UUID grupy
+     * @param tenantId UUID tenanta
+     * @return true jeśli grupa jest przypisana do co najmniej jednej kolejki
+     */
+    @Transactional(readOnly = true)
+    public boolean isGroupAssignedToAnyQueue(UUID groupId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        log.debug("[QueueAssignmentRepo] Sprawdzanie przypisania grupy do kolejek: groupId={}, tenant={}",
+                groupId, tenantId);
+
+        Number count = (Number) em.createNativeQuery("""
+                SELECT COUNT(*)
+                FROM queue_agent_group
+                WHERE group_id = CAST(:groupId AS uuid)
+                """)
+                .setParameter("groupId", groupId.toString())
+                .getSingleResult();
+
+        return count.longValue() > 0;
+    }
+
+    // =========================================================================
     // Zapis – aktualizacja flagi all_agents
     // =========================================================================
 

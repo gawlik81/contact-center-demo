@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-17 (BE-018 ✅ Social Media Adapter: webhooks, adaptery, RabbitMQ, SocialMessageService; łączny stan: DB 23/26, BE 42/54, FE 33/43)
+**Ostatnia aktualizacja:** 2026-04-18 (EPIC-14: DB-024 ✅ agent_group schema, DB-025 ✅ queue_agent_group, DB-026 ✅ indeksy; BE-043 ✅ AgentGroupRepository, BE-044 ✅ AgentGroupController/Service, BE-045 ✅ QueueAssignmentRepository; łączny stan: DB 26/26, BE 45/54, FE 33/43)
 
 ---
 
@@ -42,9 +42,9 @@
 | DB-021 | Tabele PHONE_NUMBER i PHONE_ROUTING_RULE: numery tenanta i harmonogram IVR | ✅ | V039__create_phone_number_routing.sql: tabela phone_number (UNIQUE tenant+number, CHECK E.164, RLS, partial index), tabela phone_routing_rule (CHECK time_start<time_end, CHECK IVR xor queue, CHECK min 1 dzień, RLS, 2 indeksy), trigger trg_routing_rule_collision (CONSTRAINT TRIGGER DEFERRABLE), seed dev: 2 numery Acme + 2 reguły (pon-pt 08-17→IVR, 17-20→Wsparcie Tech). BUILD SUCCESS. Odblokowano BE-033 → BE-034 → BE-035 → FE-026. |
 | DB-022 | Indeksy wyszukiwania kontaktów dla Raportów > Kontakty | ✅ | V035__contact_search_indexes.sql: idx_contact_queue_date (tenant_id, queue_id, started_at) + idx_contact_duration warunkowy WHERE duration_seconds IS NOT NULL. Odblokowano BE-036 |
 | DB-023 | Rozszerzenie tabeli scheduled_callback o kontekst źródłowy | ✅ | V037__scheduled_callback_source_context.sql: kolumna source_type VARCHAR(30) NOT NULL DEFAULT 'CAMPAIGN_CALLBACK' + CHECK constraint, origin_contact_id UUID nullable FK do contact (DEFERRABLE INITIALLY DEFERRED), indeksy idx_scheduled_callback_inbound i idx_scheduled_callback_origin_contact. Odblokowano BE-038, BE-039, BE-040 |
-| DB-024 | Tabele `agent_group` i `agent_group_member`: grupy agentów | ⬜ | Flyway V039__create_agent_groups.sql. Zależy od: DB-001, DB-002. Blokuje: DB-025, DB-026, BE-043 |
-| DB-025 | Rozszerzenie tabeli `queue` o flagę `all_agents` i tabelę `queue_agent_group` | ⬜ | Flyway V040__queue_agent_assignment.sql. Zależy od: DB-024, DB-010. Blokuje: DB-026, BE-045 |
-| DB-026 | Indeksy wydajnościowe dla rozwiązania łączonego: kolejka + agenci/grupy | ⬜ | Flyway V041__queue_agent_assignment_indexes.sql. Zależy od: DB-024, DB-025. Blokuje: brak |
+| DB-024 | Tabele `agent_group` i `agent_group_member`: grupy agentów | ✅ | V042__create_agent_groups.sql: tabela agent_group (UNIQUE tenant+name, RLS, soft-delete), tabela agent_group_member (PK (group_id,agent_id), FK CASCADE). Odblokowano: DB-025, DB-026, BE-043 |
+| DB-025 | Rozszerzenie tabeli `queue` o flagę `all_agents` i tabelę `queue_agent_group` | ✅ | V043__queue_agent_group.sql: kolumna all_agents BOOLEAN DEFAULT FALSE, tabela queue_agent_group (PK (queue_id,group_id), FK CASCADE), UPDATE istniejących kolejek → all_agents=TRUE. Odblokowano: DB-026, BE-045 |
+| DB-026 | Indeksy wydajnościowe dla rozwiązania łączonego: kolejka + agenci/grupy | ✅ | V044__queue_agent_assignment_indexes.sql: idx_queue_agent_queue, idx_queue_agent_group_lookup (INCLUDE group_id), idx_agent_group_member_lookup (INCLUDE group_id). Wszystkie idempotentne (IF NOT EXISTS) |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -101,9 +101,9 @@
 | BE-041 | Callback List API: filtrowana lista callbacków dla agenta i supervisora | ✅ | ScheduledCallbackRepository +4 metody natywny SQL (findByAgentId, countByAgentId, findByTenantIdWithFilters, countByTenantIdWithFilters); nowy DTO CallbackListItemResponse z agentName; GET /api/dialer/callbacks rozszerzony o status/agentId/sortDir/page/size; izolacja ról AGENT/SUPERVISOR/ADMIN; batch lookup agentName (SELECT IN). 6 testów jednostkowych. Zrealizowane 2026-04-15. |
 | BE-042 | Callback Management API: edycja pełna i usunięcie callbacku | ✅ | Nowy DTO UpdateCallbackRequest (patch semantics, nullable pola); PATCH /api/dialer/callbacks/{callbackId} (edycja telefon/data/notatka/agentId; reassign przez SUPERVISOR); DELETE /api/dialer/callbacks/{callbackId} (soft-delete: status→CANCELLED); cancelCallback() w ScheduledCallbackRepository. 10 testów jednostkowych (757 PASS łącznie). Zrealizowane 2026-04-15. |
 | BE-036 | Rozszerzenie Contact API o filtry zaawansowane (queueId, campaignId, remoteAddress, durationMin/Max) | ✅ | Rozszerzenie BE-027 (zależy od DB-022): ContactFilterParams +5 pól (@Min/@Size), ContactRepository.appendFilterConditions rozszerzona, ContactService + ContactController zaktualizowane. ILIKE dla remoteAddress, IS NOT NULL guard dla durationMin/Max. 3 nowe testy jednostkowe. Odblokowano FE-029. |
-| BE-043 | Model i repozytorium grup agentów (`AgentGroup`, `AgentGroupRepository`) | ⬜ | Zależy od: DB-024. Blokuje: BE-044 |
-| BE-044 | CRUD REST API grup agentów (`AgentGroupController`, `AgentGroupService`) | ⬜ | Zależy od: BE-043. Blokuje: BE-046, FE-036 |
-| BE-045 | Repozytorium przypisań kolejki: `QueueAssignmentRepository` | ⬜ | Zależy od: DB-025. Blokuje: BE-046, BE-047 |
+| BE-043 | Model i repozytorium grup agentów (`AgentGroup`, `AgentGroupRepository`) | ✅ | AgentGroup entity (JPA, agent_group), AgentGroupRepository (findAllByTenantId, findByIdAndTenantId, existsByNameAndTenantId, insert/update/delete, findMemberIds, addMember/removeMember/replaceMembers, countMembers). Testy jednostkowe mockujące EntityManager. Zależy od: DB-024. Zrealizowane 2026-04-18 |
+| BE-044 | CRUD REST API grup agentów (`AgentGroupController`, `AgentGroupService`) | ✅ | 6 endpointów GET/POST/PUT/DELETE /api/agent-groups, GET/PUT /api/agent-groups/{id}/members; AgentGroupService (walidacja duplikatów nazw 409, walidacja roli AGENT dla replaceMembers 400, guard 409 przy usuwaniu przypisanej grupy); DTOs: CreateAgentGroupRequest/UpdateAgentGroupRequest/AgentGroupResponse/AgentGroupMembersResponse/AgentSummary/ReplaceMembersRequest; 12 testów jednostkowych. Zależy od: BE-043. Zrealizowane 2026-04-18 |
+| BE-045 | Repozytorium przypisań kolejki: `QueueAssignmentRepository` | ✅ | QueueAssignmentRepository extends TenantAwareRepository: isAllAgents, findDirectAgentIds, findGroupIds, resolveEligibleAgentIds (UNION direct+groups), setAllAgents, replaceDirectAgents, replaceGroups, isGroupAssignedToAnyQueue; natywny SQL. Zależy od: DB-025. Zrealizowane 2026-04-18 |
 | BE-046 | REST API zarządzania przypisaniem agentów do kolejki | ⬜ | Zależy od: BE-044, BE-045. Blokuje: FE-036, FE-038 |
 | BE-047 | Aktualizacja `DefaultRoutingEngine`: filtrowanie agentów po przypisaniu do kolejki | ⬜ | Zależy od: BE-045. Blokuje: brak |
 | BE-037 | Endpoint streamowania nagrania z MinIO/S3: presigned URL | ✅ | GET /api/contacts/{id}/recording → ContactRecordingUrlResponse (presignedUrl TTL 15min, expiresAt, fileName, durationSeconds). Dodano do ContactController + ContactService. Nowa metoda generatePresignedUrlForKey(s3Key, Duration) w RecordingService. 8 nowych testów jednostkowych w ContactServiceTest. |
@@ -160,10 +160,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 23/26 | 0 | 3 | 26 |
-| Backend (BE) | 42/54 | 0 | 12 | 54 |
+| Database (DB) | 26/26 | 0 | 0 | 26 |
+| Backend (BE) | 45/54 | 0 | 9 | 54 |
 | Frontend (FE) | 33/43 | 0 | 10 | 43 |
-| **RAZEM** | **98/123** | **0** | **25** | **123** |
+| **RAZEM** | **104/123** | **0** | **19** | **123** |
 
 ---
 

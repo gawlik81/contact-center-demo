@@ -1711,7 +1711,8 @@ Wynik `resolveEligibleAgentIds` jest używany przez `DefaultRoutingEngine` — m
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Zależy od:** BE-044, BE-045
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-18
 **Blokuje:** FE-036 (API contract), FE-038
 
 **Opis:**

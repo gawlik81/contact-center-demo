@@ -28,7 +28,7 @@ USE contact_center_dw;
 -- ORDER BY: (tenant_id, contact_id) – zapewnia wydajne zlaczenia
 -- Brak PII: customer_id (UUID), agent_id (UUID) – bez imienia/nazwiska/telefonu
 
-CREATE TABLE IF NOT EXISTS contacts_dw (
+CREATE OR REPLACE TABLE contacts_dw (
     -- Identyfikatory
     contact_id          UUID,
     tenant_id           UUID,
@@ -60,10 +60,6 @@ PARTITION BY toYYYYMM(started_at)
 ORDER BY (tenant_id, contact_id)
 SETTINGS index_granularity = 8192;
 
-COMMENT ON TABLE contacts_dw IS
-    'Fakty kontaktow do raportowania. Brak PII klientow (RODO). '
-    'Zasilana przez CDC z PostgreSQL tabeli contact. '
-    'ENGINE=ReplacingMergeTree: deduplikacja po (tenant_id, contact_id) na podstawie updated_at.';
 
 -- ---------------------------------------------------------------------------
 -- 3. Tabela AGENT_PERFORMANCE_DW – preagregowane KPI agentow per dzien
@@ -72,22 +68,21 @@ COMMENT ON TABLE contacts_dw IS
 -- Granularnosc: 1 dzien per agent per kanal
 -- Zasilana przez: ETL batch (codziennie) lub Materialized View z contacts_dw
 
-CREATE TABLE IF NOT EXISTS agent_performance_dw (
+CREATE OR REPLACE TABLE agent_performance_dw (
     tenant_id               UUID,
     agent_id                UUID,
     contact_date            Date,
     channel                 LowCardinality(String),
 
-    -- Metryki (AggregateFunction – do uzywania z AggregateMergeTree)
-    total_contacts          AggregateFunction(count, UInt64),
-    completed_contacts      AggregateFunction(count, UInt64),
-    abandoned_contacts      AggregateFunction(count, UInt64),
+    total_contacts          UInt64  DEFAULT 0,
+    completed_contacts      UInt64  DEFAULT 0,
+    abandoned_contacts      UInt64  DEFAULT 0,
+    sum_handle_time_seconds Float64 DEFAULT 0,
+    sum_wait_time_seconds   Float64 DEFAULT 0,
 
-    avg_handle_time_seconds AggregateFunction(avg, Float64),
-    sum_handle_time_seconds AggregateFunction(sum, Float64),
-    avg_wait_time_seconds   AggregateFunction(avg, Float64)
+    updated_at              DateTime64(3, 'UTC') DEFAULT now64()
 
-) ENGINE = AggregatingMergeTree()
+) ENGINE = SummingMergeTree((total_contacts, completed_contacts, abandoned_contacts, sum_handle_time_seconds, sum_wait_time_seconds))
 PARTITION BY toYYYYMM(contact_date)
 ORDER BY (tenant_id, agent_id, contact_date, channel)
 SETTINGS index_granularity = 8192;
@@ -96,31 +91,39 @@ SETTINGS index_granularity = 8192;
 -- 4. Widok uproszczajacy odczyt agent_performance_dw
 -- ---------------------------------------------------------------------------
 
-CREATE VIEW IF NOT EXISTS v_agent_kpi_daily AS
+CREATE OR REPLACE VIEW v_agent_kpi_daily AS
 SELECT
     tenant_id,
     agent_id,
     contact_date,
     channel,
-    countMerge(total_contacts)              AS total_contacts,
-    countMerge(completed_contacts)          AS completed_contacts,
-    countMerge(abandoned_contacts)          AS abandoned_contacts,
-    avgMerge(avg_handle_time_seconds)       AS avg_handle_time_seconds,
-    sumMerge(sum_handle_time_seconds)       AS sum_handle_time_seconds,
-    avgMerge(avg_wait_time_seconds)         AS avg_wait_time_seconds,
-    -- Derived metrics
-    if(countMerge(total_contacts) > 0,
-       countMerge(completed_contacts) / countMerge(total_contacts),
-       0
-    )                                       AS completion_rate
-FROM agent_performance_dw
-GROUP BY tenant_id, agent_id, contact_date, channel;
+    total_contacts,
+    completed_contacts,
+    abandoned_contacts,
+    sum_handle_time_seconds,
+    if(total_contacts > 0, sum_handle_time_seconds / total_contacts, 0) AS avg_handle_time_seconds,
+    if(total_contacts > 0, sum_wait_time_seconds   / total_contacts, 0) AS avg_wait_time_seconds,
+    if(total_contacts > 0, completed_contacts      / total_contacts, 0) AS completion_rate
+FROM (
+    SELECT
+        tenant_id,
+        agent_id,
+        contact_date,
+        channel,
+        sum(total_contacts)          AS total_contacts,
+        sum(completed_contacts)      AS completed_contacts,
+        sum(abandoned_contacts)      AS abandoned_contacts,
+        sum(sum_handle_time_seconds) AS sum_handle_time_seconds,
+        sum(sum_wait_time_seconds)   AS sum_wait_time_seconds
+    FROM agent_performance_dw
+    GROUP BY tenant_id, agent_id, contact_date, channel
+);
 
 -- ---------------------------------------------------------------------------
 -- 5. Tabela CAMPAIGNS_DW – fakty kampanii outbound
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS campaigns_dw (
+CREATE OR REPLACE TABLE campaigns_dw (
     campaign_id         UUID,
     tenant_id           UUID,
     record_id           UUID,
@@ -149,7 +152,7 @@ SETTINGS index_granularity = 8192;
 -- 6. Widok: statystyki kampanii (US-10-03)
 -- ---------------------------------------------------------------------------
 
-CREATE VIEW IF NOT EXISTS v_campaign_conversion AS
+CREATE OR REPLACE VIEW v_campaign_conversion AS
 SELECT
     tenant_id,
     campaign_id,
@@ -173,7 +176,7 @@ GROUP BY tenant_id, campaign_id, campaign_type, dialer_type;
 -- Przechowuje imie/nazwisko agenta (pracownika, nie klienta)
 -- dla celow raportowych (identyfikacja w raportach supervisora)
 
-CREATE TABLE IF NOT EXISTS agent_dim (
+CREATE OR REPLACE TABLE agent_dim (
     agent_id        UUID,
     tenant_id       UUID,
     full_name       String,         -- first_name + last_name agenta (pracownika)
@@ -191,7 +194,7 @@ ORDER BY (tenant_id, agent_id);
 -- 8. Tabela wymiarowa QUEUE_DIM
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS queue_dim (
+CREATE OR REPLACE TABLE queue_dim (
     queue_id            UUID,
     tenant_id           UUID,
     name                String,

@@ -173,3 +173,25 @@ spring.devtools:
   restart:
     enabled: false
     additional-exclude: "logs/**,*.log"
+
+# =============================================================================
+# ETL – Data Warehouse (BE-030b)
+# Typ DW: clickhouse | postgres
+# Gdy clickhouse: EtlSyncService zapisuje do ClickHouse przez ClickHouseDwWriter.
+# Gdy postgres (lub brak property): fallback do PostgresDwWriter (tabela contacts_dw w PG).
+# =============================================================================
+etl:
+  dw:
+    type: clickhouse
+  sync:
+    # Interwał ETL w ms – 60s domyślnie (nadpisywalne przez ENV)
+    fixed-delay-ms: ${ETL_SYNC_DELAY_MS:60000}
+
+spring:
+  datasource:
+    # ClickHouse – dedykowany DataSource dla ETL DW (niezależny od głównego PG)
+    # Port 8123 – HTTP interface ClickHouse (używany przez clickhouse-jdbc)
+    clickhouse:
+      url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/contact_center_dw}
+      username: ${CLICKHOUSE_USERNAME:default}
+      password: ${CLICKHOUSE_PASSWORD:}

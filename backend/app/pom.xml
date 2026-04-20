@@ -249,6 +249,18 @@
         </dependency>
 
         <!-- =================================================================
+             ClickHouse JDBC – Data Warehouse writer (BE-030b)
+             Klasyfikator "all" zawiera shaded driver bez konfliktów z Hikari.
+             ClickHouse nie wspiera transakcji – nie opakowuj INSERT w @Transactional.
+             ================================================================= -->
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <version>0.6.5</version>
+            <classifier>all</classifier>
+        </dependency>
+
+        <!-- =================================================================
              Hot reload w trybie dev
              ================================================================= -->
         <dependency>

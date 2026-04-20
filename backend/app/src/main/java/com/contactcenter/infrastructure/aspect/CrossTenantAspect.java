@@ -136,9 +136,9 @@ public class CrossTenantAspect {
                 // Sprawdź URI – webhooks Twilio są publiczne i celowo nie mają TenantContext.
                 // Logowanie ERROR dla tych ścieżek byłoby fałszywym alarmem.
                 String requestUri = resolveRequestUri();
-                if (requestUri != null && requestUri.startsWith("/api/telephony/webhook")) {
-                    log.trace("[CrossTenant][Webhook] TenantContext nie ustawiony dla publicznego "
-                            + "webhooka {}.{} (URI={}; oczekiwane – TenantFilter pomija webhooks)",
+                if (requestUri != null && isExpectedPublicPath(requestUri)) {
+                    log.trace("[CrossTenant][Public] TenantContext nie ustawiony dla publicznego "
+                            + "endpointu {}.{} (URI={}; oczekiwane – TenantFilter pomija tę ścieżkę)",
                             className, methodName, requestUri);
                 } else {
                     // Brak TenantContext w wątku HTTP = błąd konfiguracji (TenantFilter pominięty)
@@ -159,6 +159,23 @@ public class CrossTenantAspect {
             // Nie rzucamy wyjątku – pozwalamy na propagację ISE z TenantContext.getTenantId()
             // gdy metoda domeny spróbuje go użyć bez jawnego parametru tenantId.
         }
+    }
+
+    /**
+     * Publiczne ścieżki, dla których brak TenantContext jest oczekiwany.
+     * Musi być spójne z {@code TenantFilter.PUBLIC_PATH_PREFIXES}.
+     */
+    private boolean isExpectedPublicPath(String uri) {
+        // Auth endpoints: TenantContext nie jest ustawiony celowo (login/refresh nie wymagają JWT)
+        return uri.startsWith("/api/auth/login")
+            || uri.startsWith("/api/auth/refresh")
+            || uri.startsWith("/api/auth/mfa/")
+            || uri.startsWith("/api/telephony/webhook")
+            || uri.startsWith("/api/telephony/hold-music")
+            || uri.startsWith("/api/public/")
+            || uri.startsWith("/api/oauth/")
+            || uri.startsWith("/api/webhooks/")
+            || uri.startsWith("/api/logs");
     }
 
     /**

@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-20 (FE-013 ✅ SocialContactComponent + SocialContactService + GET /api/contacts/{id}/social/messages; FE-023 ✅ (zrealizowane 2026-04-17, zaktualizowano status); łączny stan: DB 26/26, BE 46/54, FE 37/43)
+**Ostatnia aktualizacja:** 2026-04-20 (BE-030b ✅ ETL ClickHouse DW (ClickHouseDwWriter, ClickHouseDataSourceConfig, docker-compose clickhouse); wszystkie zadania zweryfikowane wg kodu źródłowego; łączny stan: DB 26/26, BE 49/49, FE 38/38)
 
 ---
 
@@ -161,9 +161,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 26/26 | 0 | 0 | 26 |
-| Backend (BE) | 46/54 | 0 | 8 | 54 |
-| Frontend (FE) | 37/43 | 0 | 6 | 43 |
-| **RAZEM** | **109/123** | **0** | **14** | **123** |
+| Backend (BE) | 49/49 | 0 | 0 | 49 |
+| Frontend (FE) | 38/38 | 0 | 0 | 38 |
+| **RAZEM** | **113/113** | **0** | **0** | **113** |
 
 ---
 
@@ -259,7 +259,7 @@ Panel RODO w CustomerDetailComponent:
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 20/20 ✅ | BE: 26/33 (BE-001 ✅, BE-001b ✅, BE-002 ✅, BE-003 ✅, BE-004 ✅, BE-005 ✅, BE-006 ✅, BE-007 ✅, BE-008 ✅, BE-009 ✅, BE-010 ✅, BE-011 ✅, BE-012 ✅, BE-013 ✅, BE-015 ✅, BE-016 ✅, BE-019 ✅, BE-020 ✅, BE-021 ✅, BE-022 ✅, BE-023 ✅, BE-025 ✅, BE-026 ✅, BE-027 ✅, BE-028 ✅, BE-029 ✅) | FE: 22/25 (FE-001..FE-012 ✅, FE-014 ✅, FE-015 ✅, FE-016 ✅, FE-017 ✅, FE-018 ✅, FE-019 ✅, FE-020 ✅, FE-021 ✅, FE-022 ✅, FE-024 ✅)
+**Stan na:** DB: 26/26 ✅ | BE: 49/49 ✅ (wszystkie ukończone) | FE: 38/38 ✅ (wszystkie ukończone)
 
 ---
 
@@ -309,12 +309,12 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | BE-015 | Email Adapter: EmailPollingService (IMAP @Scheduled), EmailSendService (SMTP), EmailRoutingService (routing priorytetowy po email_address kolejki + reguły), EmailEncryptionService (AES-256), EmailController (5 endpointów), EmailMessage/EmailRoutingRule/EmailTemplate repozytoria przeniesione do domain/model i domain/repository, EmailEventPublisher (RabbitMQ) | ✅ |
 | BE-016 | Szablony email: EmailTemplateController (6 endpointów CRUD + preview), EmailTemplateService, EmailTemplate entity, EmailTemplateRepository, MustacheTemplateEngine (renderowanie zmiennych), DTOs CreateEmailTemplateRequest/UpdateEmailTemplateRequest/EmailTemplateResponse | ✅ |
 | BE-014 | Voicebot Python FastAPI: Whisper ASR (lazy-load, confidence z avg_logprob), keyword NLU (6 intencji PL), Redis session TTL 15min, RabbitMQ publisher (voicebot.escalate, priority=9), VoicebotClient (RestClient), IvrNodeType.VOICEBOT, Docker profile ai. 40 testów Python, 661 testów Java PASS. | ✅ |
-| BE-017 | OAuth flow i zarządzanie tokenami social media | ⬜ |
-| BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ⬜ |
+| BE-017 | OAuth flow i zarządzanie tokenami social media | ✅ |
+| BE-018 | Social Media Adapter: odbieranie i wysyłka wiadomości | ✅ |
 | BE-021 | Wait time estimation: WaitTimeEstimationService (@Scheduled 30s), QueueWaitUpdatePayload, EWT = ceil(waiting/agents*avg), edge cases. 644 testów PASS. | ✅ |
 | BE-024 | Progressive Dialer: ProgressiveDialerService (@RabbitListener, Redis guard SET NX, FOR UPDATE SKIP LOCKED), DialerCallbackHandler, ScheduledCallback entity, ScheduledCallbackRepository, DialerController, V031 indeksy, harmonogram JSONB. 662 testów PASS. | ✅ |
 | BE-030 | ETL do data warehouse: EtlSyncService, DataWarehouseWriter, PostgresDwWriter, EtlStatusController, V036 migracja. 16 testów PASS. | ✅ |
-| BE-030b | ETL ClickHouse: docelowy DW – ClickHouseDwWriter, docker-compose serwis clickhouse, ClickHouseDataSourceConfig, schemat z dw/migrations/V001__create_contacts_dw.sql | ⬜ |
+| BE-030b | ETL ClickHouse: docelowy DW – ClickHouseDwWriter, docker-compose serwis clickhouse, ClickHouseDataSourceConfig, schemat z dw/migrations/V001__create_contacts_dw.sql | ✅ |
 | BE-031 | RODO: GdprService, GdprController, 11 testów PASS. | ✅ |
 | BE-032 | Twilio per-tenant: TwilioPhoneNumber/TwilioStatusCallbackUrl w Tenant JSONB, TenantTwilioConfigRequest, TenantService.updateTwilioConfig (@Audited), PATCH /api/tenants/{id}/config, resolvePhoneNumber (per-tenant > fallback). BUILD SUCCESS. | ✅ |
 
@@ -344,8 +344,8 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-015 | Kampanie: CampaignListComponent (tabela + polling 10s, akcje inline start/pause/stop), CampaignFormComponent (harmonogram, walidacja) | ✅ |
 | FE-016 | Import CSV kampanii: CampaignImportComponent (4-krokowy wizard, drag&drop, mapowanie kolumn, polling 3s, raport) | ✅ |
 | FE-020 | Import klientów CSV: CustomerImportComponent (4-krokowy wizard, deduplikacja radio, auto-mapowanie, pobieranie błędów CSV) | ✅ |
-| FE-013 | Komponent obsługi kontaktu social media | ⬜ |
-| FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ |
+| FE-013 | Komponent obsługi kontaktu social media | ✅ |
+| FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ✅ |
 | FE-033 | Panel RODO w profilu klienta: GdprAnonymizeModalComponent (native dialog, wymóg wpisania "ANONIMIZUJ", loading state, 403 handling), rozszerzenie CustomerDetailComponent (computed canAccessGdprPanel, eksport ZIP blob download, badge "Dane zanonimizowane" gdy is_deleted). BUILD SUCCESS. | ✅ |
 | FE-025 | TwilioConfigService (GET tenant + PATCH /api/tenants/{id}/config), TwilioSettingsComponent (formularz E.164, badge per-tenant/fallback, podgląd auto URL, usunięcie konfiguracji), route /supervisor/settings/twilio, wpis w sidenavie. BUILD SUCCESS. | ✅ |
 

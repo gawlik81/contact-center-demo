@@ -460,10 +460,10 @@ Tabela `EMAIL_TEMPLATE` (template_id, tenant_id, name, subject_template, body_ht
 Endpointy OAuth 2.0 callback dla: Facebook Messenger API, Instagram API, WhatsApp Business API. Zapis access_token i refresh_token (AES-256 encrypted) do tabeli SOCIAL_INTEGRATION. Mechanizm automatycznego odświeżenia tokenu przed wygaśnięciem (scheduled task co 1h sprawdzający tokeny wygasające w ciągu 24h).
 
 **Kryteria akceptacji:**
-- [ ] OAuth callback dla każdej z 3 platform zapisuje token do DB
-- [ ] Tokeny szyfrowane AES-256 w kolumnie (nie plaintext)
-- [ ] Automatyczne odświeżenie tokenu loguje sukces/błąd (AUDIT_LOG)
-- [ ] Endpoint `DELETE /api/integrations/{platform}` revoke'uje token u providera i usuwa z DB
+- [x] OAuth callback dla każdej z 3 platform zapisuje token do DB
+- [x] Tokeny szyfrowane AES-256 w kolumnie (nie plaintext)
+- [x] Automatyczne odświeżenie tokenu loguje sukces/błąd (AUDIT_LOG)
+- [x] Endpoint `DELETE /api/integrations/{platform}` revoke'uje token u providera i usuwa z DB
 
 ---
 
@@ -482,10 +482,10 @@ Endpointy OAuth 2.0 callback dla: Facebook Messenger API, Instagram API, WhatsAp
 Implementacja interfejsu `SocialMediaAdapter` z metodami: receiveMessage, sendMessage, getConversationHistory. Trzy implementacje: FacebookAdapter, InstagramAdapter, WhatsAppAdapter. Webhooki od platform (POST /webhooks/facebook, /webhooks/instagram, /webhooks/whatsapp) przetwarzane asynchronicznie przez RabbitMQ. Routing wiadomości do kolejki przez analogiczny mechanizm jak email.
 
 **Kryteria akceptacji:**
-- [ ] Webhook endpoint zwraca HTTP 200 w < 3s (szybkie ACK, przetwarzanie async)
-- [ ] Wiadomości od jednego użytkownika na jednej platformie grupowane w konwersację (CONTACT)
-- [ ] sendMessage obsługuje: tekst, emoji (Unicode), zdjęcia (URL) – dla WhatsApp i FB
-- [ ] Test integracyjny z mockiem webhooka Facebooka (weryfikacja parsowania payload)
+- [x] Webhook endpoint zwraca HTTP 200 w < 3s (szybkie ACK, przetwarzanie async)
+- [x] Wiadomości od jednego użytkownika na jednej platformie grupowane w konwersację (CONTACT)
+- [x] sendMessage obsługuje: tekst, emoji (Unicode), zdjęcia (URL) – dla WhatsApp i FB
+- [x] Test integracyjny z mockiem webhooka Facebooka (weryfikacja parsowania payload)
 
 ---
 
@@ -776,7 +776,8 @@ Zaimplementowany jako polling-based ETL z PostgreSQL fallback DW. EtlSyncService
 **Priorytet:** Should Have
 **Złożoność:** L
 **Zależy od:** BE-030 ✅, DB-014 (dw/migrations/V001__create_contacts_dw.sql)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-09
 **Blokuje:** brak
 **Odniesienie PRD:** US-10-06, EPIC-10
 
@@ -818,13 +819,13 @@ Schemat ClickHouse gotowy: `dw/migrations/V001__create_contacts_dw.sql` (tabele 
 6. **application-dev.yml** – dodaj właściwości ClickHouse datasource
 
 **Kryteria akceptacji:**
-- [ ] Docker Compose startuje serwis `clickhouse` razem z PostgreSQL/Redis/RabbitMQ
-- [ ] `dw/migrations/V001__create_contacts_dw.sql` wykonany – tabele istnieją w ClickHouse
-- [ ] `ClickHouseDwWriter` zapisuje wiersze do `contacts_dw` w ClickHouse (nie PostgreSQL)
-- [ ] ETL nadal idempotentny (ReplacingMergeTree deduplikuje po `contact_id`)
-- [ ] `GET /api/admin/etl/status` nadal działa
-- [ ] `PostgresDwWriter` pozostaje jako fallback (profil `etl.dw.type=postgres`)
-- [ ] Testy integracyjne weryfikują zapis do ClickHouse (testcontainers lub mock)
+- [x] Docker Compose startuje serwis `clickhouse` razem z PostgreSQL/Redis/RabbitMQ
+- [x] `dw/migrations/V001__create_contacts_dw.sql` wykonany – tabele istnieją w ClickHouse
+- [x] `ClickHouseDwWriter` zapisuje wiersze do `contacts_dw` w ClickHouse (nie PostgreSQL)
+- [x] ETL nadal idempotentny (ReplacingMergeTree deduplikuje po `contact_id`)
+- [x] `GET /api/admin/etl/status` nadal działa
+- [x] `PostgresDwWriter` pozostaje jako fallback (profil `etl.dw.type=postgres`)
+- [x] Testy integracyjne weryfikują zapis do ClickHouse (testcontainers lub mock)
 
 ---
 
@@ -845,10 +846,10 @@ Schemat ClickHouse gotowy: `dw/migrations/V001__create_contacts_dw.sql` (tabele 
 Endpoint `POST /api/customers/{id}/gdpr/export` – generuje ZIP z danymi klienta w JSON (CUSTOMER, CONTACT history, AUDIT_LOG). Endpoint `POST /api/customers/{id}/gdpr/anonymize` – anonimizuje pola PII, usuwa nagrania z S3, usuwa wątki email/social (lub anonimizuje treść). Oba działania logowane w AUDIT_LOG z userId wykonującego operację.
 
 **Kryteria akceptacji:**
-- [ ] Export ZIP zawiera wszystkie dane klienta w czytelnym JSON
-- [ ] Anonimizacja: wszystkie pola PII zastąpione, is_deleted=true, plik nagrania usunięty z S3
-- [ ] Obie operacje wymagają roli SUPERVISOR lub ADMIN
-- [ ] Operacje logowane w AUDIT_LOG z entity_type='CUSTOMER', action='GDPR_EXPORT'/'GDPR_ANONYMIZE'
+- [x] Export ZIP zawiera wszystkie dane klienta w czytelnym JSON
+- [x] Anonimizacja: wszystkie pola PII zastąpione, is_deleted=true, plik nagrania usunięty z S3
+- [x] Obie operacje wymagają roli SUPERVISOR lub ADMIN
+- [x] Operacje logowane w AUDIT_LOG z entity_type='CUSTOMER', action='GDPR_EXPORT'/'GDPR_ANONYMIZE'
 
 ---
 
@@ -1760,13 +1761,13 @@ record AgentGroupSummary(UUID groupId, String name, int memberCount) {}
 Role wymagane: SUPERVISOR, ADMIN.
 
 **Kryteria akceptacji:**
-- [ ] `GET /api/queues/{queueId}/assignment` zwraca aktualny stan przypisania z danymi agentów i grup
-- [ ] `PUT` z `allAgents=true` ustawia flagę i zwraca `directAgents=[], groups=[]`
-- [ ] `PUT` z `allAgents=false` i listami → agenci i grupy zapisane w DB
-- [ ] `PUT` z `directAgentId` spoza tenanta → HTTP 400
-- [ ] `PUT` z `groupId` spoza tenanta → HTTP 400
-- [ ] `PUT` przez AGENT → HTTP 403
-- [ ] Testy jednostkowe: min. 5 scenariuszy
+- [x] `GET /api/queues/{queueId}/assignment` zwraca aktualny stan przypisania z danymi agentów i grup
+- [x] `PUT` z `allAgents=true` ustawia flagę i zwraca `directAgents=[], groups=[]`
+- [x] `PUT` z `allAgents=false` i listami → agenci i grupy zapisane w DB
+- [x] `PUT` z `directAgentId` spoza tenanta → HTTP 400
+- [x] `PUT` z `groupId` spoza tenanta → HTTP 400
+- [x] `PUT` przez AGENT → HTTP 403
+- [x] Testy jednostkowe: min. 5 scenariuszy
 
 ---
 
@@ -1842,14 +1843,14 @@ RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAge
 **Sticky agent:** gdy `hasAgentFilter() = true`, weryfikuj też czy `preferredAgentId` należy do `eligibleAgentIds`. Jeśli nie — pomiń sticky i przejdź do strategii.
 
 **Kryteria akceptacji:**
-- [ ] Kolejka z `all_agents=TRUE` → silnik zachowuje się identycznie jak przed zmianą (żaden test regresji nie może failować)
-- [ ] Kolejka z `all_agents=FALSE` i przypisanymi agentami → tylko przypisani agenci są kandydatami
-- [ ] Kolejka z `all_agents=FALSE` i pusta lista → `findBestAgent` zwraca `Optional.empty()` + log WARNING
-- [ ] Sticky agent spoza listy eligibleAgentIds → pominięty, fallback na strategię
-- [ ] Sticky agent z listy eligibleAgentIds → wybrany normalnie
-- [ ] Zmiana `RoutingRequest` nie łamie żadnych istniejących testów jednostkowych
-- [ ] Testy jednostkowe `DefaultRoutingEngine`: min. 4 nowe przypadki (all_agents on/off, pusta lista, sticky filter)
-- [ ] `RoutingService` pobiera `eligibleAgentIds` jednym zapytaniem DB (nie N zapytań)
+- [x] Kolejka z `all_agents=TRUE` → silnik zachowuje się identycznie jak przed zmianą (żaden test regresji nie może failować)
+- [x] Kolejka z `all_agents=FALSE` i przypisanymi agentami → tylko przypisani agenci są kandydatami
+- [x] Kolejka z `all_agents=FALSE` i pusta lista → `findBestAgent` zwraca `Optional.empty()` + log WARNING
+- [x] Sticky agent spoza listy eligibleAgentIds → pominięty, fallback na strategię
+- [x] Sticky agent z listy eligibleAgentIds → wybrany normalnie
+- [x] Zmiana `RoutingRequest` nie łamie żadnych istniejących testów jednostkowych
+- [x] Testy jednostkowe `DefaultRoutingEngine`: min. 4 nowe przypadki (all_agents on/off, pusta lista, sticky filter)
+- [x] `RoutingService` pobiera `eligibleAgentIds` jednym zapytaniem DB (nie N zapytań)
 
 ---
 

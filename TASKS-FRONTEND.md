@@ -324,10 +324,10 @@ Zrealizowane: `EmailContactComponent` (cc-email-contact, sygnały, paginacja wą
 Widok obsługi wiadomości z social media (Facebook Messenger, Instagram, WhatsApp): chat UI z historią konwersacji, pole odpowiedzi z emoji picker, znaczniki czasu, wskaźnik "platforma" (ikona). Tryb read-only dla historii zamkniętych konwersacji.
 
 **Kryteria akceptacji:**
-- [ ] Ikona platformy widoczna obok każdej wiadomości
-- [ ] Nowe wiadomości w aktywnej zakładce wyświetlane natychmiast przez WebSocket push
-- [ ] Historia konwersacji scroll-paginowana (infinite scroll, load 20 wiadomości)
-- [ ] Pola odpowiedzi zablokowane gdy konwersacja jest w statusie "zamknięta"
+- [x] Ikona platformy widoczna obok każdej wiadomości
+- [x] Nowe wiadomości w aktywnej zakładce wyświetlane natychmiast przez WebSocket push
+- [x] Historia konwersacji scroll-paginowana (infinite scroll, load 20 wiadomości)
+- [x] Pola odpowiedzi zablokowane gdy konwersacja jest w statusie "zamknięta"
 
 ---
 
@@ -1403,18 +1403,18 @@ editingCallback = signal<CallbackListItem | null>(null);
 ```
 
 **Kryteria akceptacji:**
-- [ ] Strona ładuje się pod `/supervisor/callbacks` i wyświetla callbacki wszystkich agentów tenanta
-- [ ] Kolumna "Agent" wyświetla imię i nazwisko agenta (z pola `agentName` zwróconego przez BE-041)
-- [ ] Filtr "Agent" zawęża listę do callbacków wybranego agenta
-- [ ] Filtr "Status" działa analogicznie jak w FE-034
-- [ ] Akcja "Edytuj" otwiera `EditCallbackModalComponent` z prefillowanymi danymi
-- [ ] W modalu edycji: select "Agent" zawiera listę wszystkich agentów tenanta
-- [ ] Po zmianie agenta w modalu i zapisaniu: kolumna "Agent" w wierszu aktualizuje się na nową wartość (bez przeładowania całej listy)
-- [ ] Akcja "Usuń" działa identycznie jak w FE-034 (dialog potwierdzenia, toast, odświeżenie)
-- [ ] Supervisor może usunąć callback dowolnego agenta
-- [ ] Strona niedostępna dla roli AGENT (RoleGuard przekierowuje)
-- [ ] Loading spinner podczas ładowania danych i podczas operacji save/delete
-- [ ] Błąd sieciowy → toast z komunikatem błędu
+- [x] Strona ładuje się pod `/supervisor/callbacks` i wyświetla callbacki wszystkich agentów tenanta
+- [x] Kolumna "Agent" wyświetla imię i nazwisko agenta (z pola `agentName` zwróconego przez BE-041)
+- [x] Filtr "Agent" zawęża listę do callbacków wybranego agenta
+- [x] Filtr "Status" działa analogicznie jak w FE-034
+- [x] Akcja "Edytuj" otwiera `EditCallbackModalComponent` z prefillowanymi danymi
+- [x] W modalu edycji: select "Agent" zawiera listę wszystkich agentów tenanta
+- [x] Po zmianie agenta w modalu i zapisaniu: kolumna "Agent" w wierszu aktualizuje się na nową wartość (bez przeładowania całej listy)
+- [x] Akcja "Usuń" działa identycznie jak w FE-034 (dialog potwierdzenia, toast, odświeżenie)
+- [x] Supervisor może usunąć callback dowolnego agenta
+- [x] Strona niedostępna dla roli AGENT (RoleGuard przekierowuje)
+- [x] Loading spinner podczas ładowania danych i podczas operacji save/delete
+- [x] Błąd sieciowy → toast z komunikatem błędu
 
 ---
 
@@ -1484,9 +1484,9 @@ export interface QueueAssignment {
 - `updateQueueAssignment(queueId: string, req: UpdateQueueAssignmentRequest): Observable<QueueAssignment>`
 
 **Kryteria akceptacji:**
-- [ ] Wszystkie metody wywołują poprawne endpointy HTTP (metoda + ścieżka zgodna z BE-044 i BE-046)
-- [ ] Błędy HTTP propagowane jako Observable error (nie swallowane)
-- [ ] Serwis dostępny przez DI we wszystkich komponentach feature
+- [x] Wszystkie metody wywołują poprawne endpointy HTTP (metoda + ścieżka zgodna z BE-044 i BE-046)
+- [x] Błędy HTTP propagowane jako Observable error (nie swallowane)
+- [x] Serwis dostępny przez DI we wszystkich komponentach feature
 
 ---
 
@@ -1542,15 +1542,15 @@ Nowa strona w panelu supervisora: lista grup agentów z możliwością tworzenia
 - Błąd 409 (grupa przypisana do kolejki) → toast z komunikatem: "Nie można usunąć grupy przypisanej do kolejki. Usuń najpierw powiązanie z kolejką."
 
 **Kryteria akceptacji:**
-- [ ] Strona ładuje się pod `/supervisor/agent-groups` z paginowaną listą grup
-- [ ] "Utwórz grupę" otwiera modal; po sukcesie nowa grupa pojawia się na liście
-- [ ] Edycja nazwy: modal prefillowany, po sukcesie tabela odświeżona
-- [ ] "Zarządzaj agentami" otwiera `GroupMembersModal`; multi-select zawiera agentów tenanta z rolą AGENT; bieżący skład grupy jest preselektowany
-- [ ] Po zapisie składu: `memberCount` w tabeli aktualizuje się
-- [ ] Usunięcie grupy nieprzypisanej → znika z listy
-- [ ] Usunięcie grupy przypisanej do kolejki → toast z błędem 409, brak usunięcia
-- [ ] Strona niedostępna dla roli AGENT (RoleGuard)
-- [ ] Loading spinner przy każdej operacji
+- [x] Strona ładuje się pod `/supervisor/agent-groups` z paginowaną listą grup
+- [x] "Utwórz grupę" otwiera modal; po sukcesie nowa grupa pojawia się na liście
+- [x] Edycja nazwy: modal prefillowany, po sukcesie tabela odświeżona
+- [x] "Zarządzaj agentami" otwiera `GroupMembersModal`; multi-select zawiera agentów tenanta z rolą AGENT; bieżący skład grupy jest preselektowany
+- [x] Po zapisie składu: `memberCount` w tabeli aktualizuje się
+- [x] Usunięcie grupy nieprzypisanej → znika z listy
+- [x] Usunięcie grupy przypisanej do kolejki → toast z błędem 409, brak usunięcia
+- [x] Strona niedostępna dla roli AGENT (RoleGuard)
+- [x] Loading spinner przy każdej operacji
 
 ---
 
@@ -1608,14 +1608,14 @@ saving = signal<boolean>(false);
 ```
 
 **Kryteria akceptacji:**
-- [ ] Przy wejściu na stronę edycji kolejki: komponent pobiera aktualną konfigurację i ustawia radio + checkboxy
-- [ ] Przełączenie na "Wszyscy agenci" → checkboxy grup i agentów nieaktywne
-- [ ] Przełączenie na "Wybrane" → checkboxy aktywne; przy braku zaznaczenia wyświetl ostrzeżenie "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu"
-- [ ] Zapisanie z `allAgents=true` → API PUT z `allAgents: true`
-- [ ] Zapisanie z grupami i agentami → API PUT z poprawnymi listami ID
-- [ ] Po zapisie toast "Przypisanie zaktualizowane"
-- [ ] Błąd walidacji (agentId spoza tenanta) → toast z komunikatem błędu z BE
-- [ ] Komponent wyświetla łączną liczbę agentów objętych konfiguracją (computed z grup + indywidualnych)
+- [x] Przy wejściu na stronę edycji kolejki: komponent pobiera aktualną konfigurację i ustawia radio + checkboxy
+- [x] Przełączenie na "Wszyscy agenci" → checkboxy grup i agentów nieaktywne
+- [x] Przełączenie na "Wybrane" → checkboxy aktywne; przy braku zaznaczenia wyświetl ostrzeżenie "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu"
+- [x] Zapisanie z `allAgents=true` → API PUT z `allAgents: true`
+- [x] Zapisanie z grupami i agentami → API PUT z poprawnymi listami ID
+- [x] Po zapisie toast "Przypisanie zaktualizowane"
+- [x] Błąd walidacji (agentId spoza tenanta) → toast z komunikatem błędu z BE
+- [x] Komponent wyświetla łączną liczbę agentów objętych konfiguracją (computed z grup + indywidualnych)
 
 ---
 
@@ -1647,11 +1647,11 @@ Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-pa
 **Uwaga:** Sekcja przypisania jest aktywna tylko dla istniejących kolejek (po zapisaniu). Przy tworzeniu nowej kolejki — sekcja niewidoczna lub wyświetla informację "Zapisz kolejkę, aby skonfigurować przypisanie agentów".
 
 **Kryteria akceptacji:**
-- [ ] Sekcja "Przypisanie agentów" widoczna na stronie edycji istniejącej kolejki
-- [ ] Sekcja niewidoczna (lub z komunikatem) przy tworzeniu nowej kolejki
-- [ ] Zapis głównego formularza kolejki NIE resetuje konfiguracji przypisania
-- [ ] Link "Grupy agentów" widoczny w nawigacji supervisora
-- [ ] Brak regresji: istniejące formularze kolejki działają jak przed zmianą
+- [x] Sekcja "Przypisanie agentów" widoczna na stronie edycji istniejącej kolejki
+- [x] Sekcja niewidoczna (lub z komunikatem) przy tworzeniu nowej kolejki
+- [x] Zapis głównego formularza kolejki NIE resetuje konfiguracji przypisania
+- [x] Link "Grupy agentów" widoczny w nawigacji supervisora
+- [x] Brak regresji: istniejące formularze kolejki działają jak przed zmianą
 
 ---
 

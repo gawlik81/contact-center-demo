@@ -40,8 +40,14 @@ spring:
       max-lifetime: 1800000
       # Walidacja połączenia
       connection-test-query: SELECT 1
-      # Rejestracja MBeans (monitoring JMX)
-      register-mbeans: true
+      # Rejestracja MBeans (monitoring JMX) – wyłączone, by uniknąć konfliktu przy DevTools restart
+      register-mbeans: false
+    # ClickHouse – dedykowany DataSource dla ETL DW (niezależny od głównego PG)
+    # Port 8123 – HTTP interface ClickHouse (używany przez clickhouse-jdbc)
+    clickhouse:
+      url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/contact_center_dw}
+      username: ${CLICKHOUSE_USERNAME:default}
+      password: ${CLICKHOUSE_PASSWORD:}
 
   # ---------------------------------------------------------------------------
   # Flyway – migracje (profil DEV: włączone + seed danych testowych)
@@ -179,19 +185,15 @@ spring.devtools:
 # Typ DW: clickhouse | postgres
 # Gdy clickhouse: EtlSyncService zapisuje do ClickHouse przez ClickHouseDwWriter.
 # Gdy postgres (lub brak property): fallback do PostgresDwWriter (tabela contacts_dw w PG).
+#
+# DEV DEFAULT: postgres – ClickHouse nie jest uruchamiane przez docker-compose
+# w standardowym środowisku dev. Aby przetestować ETL z ClickHouse lokalnie:
+#   1. Uruchom: docker compose --profile dw up -d  (lub ręcznie kontener ClickHouse na :8123)
+#   2. Ustaw zmienną ENV: ETL_DW_TYPE=clickhouse  albo zmień poniżej na "clickhouse"
 # =============================================================================
 etl:
   dw:
-    type: clickhouse
+    type: ${ETL_DW_TYPE:postgres}
   sync:
     # Interwał ETL w ms – 60s domyślnie (nadpisywalne przez ENV)
     fixed-delay-ms: ${ETL_SYNC_DELAY_MS:60000}
-
-spring:
-  datasource:
-    # ClickHouse – dedykowany DataSource dla ETL DW (niezależny od głównego PG)
-    # Port 8123 – HTTP interface ClickHouse (używany przez clickhouse-jdbc)
-    clickhouse:
-      url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/contact_center_dw}
-      username: ${CLICKHOUSE_USERNAME:default}
-      password: ${CLICKHOUSE_PASSWORD:}

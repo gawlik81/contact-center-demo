@@ -250,14 +250,39 @@
 
         <!-- =================================================================
              ClickHouse JDBC – Data Warehouse writer (BE-030b)
-             Klasyfikator "all" zawiera shaded driver bez konfliktów z Hikari.
+             Używamy clickhouse-jdbc BEZ klasyfikatora "all" – Spring Boot Maven
+             Plugin nie rozpakowuje shaded jarów z klasyfikatorem do fat JAR
+             (BOOT-INF/lib), co powoduje NoClassDefFoundError na ClickHouseClient.
+             Zamiast tego deklarujemy jawnie trzy artefakty z tej samej wersji:
+               - clickhouse-jdbc        – sterownik JDBC
+               - clickhouse-client      – core client API (ClickHouseClient, etc.)
+               - clickhouse-http-client – transport HTTP (port 8123)
              ClickHouse nie wspiera transakcji – nie opakowuj INSERT w @Transactional.
              ================================================================= -->
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>clickhouse-jdbc</artifactId>
             <version>0.6.5</version>
-            <classifier>all</classifier>
+        </dependency>
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-client</artifactId>
+            <version>0.6.5</version>
+        </dependency>
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-http-client</artifactId>
+            <version>0.6.5</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>5.3.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
+            <version>1.8.0</version>
         </dependency>
 
         <!-- =================================================================

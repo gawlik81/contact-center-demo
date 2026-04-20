@@ -376,3 +376,60 @@ BEGIN
     RAISE NOTICE 'Kontakty: %', (SELECT COUNT(*) FROM contact);
     RAISE NOTICE '========================';
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Phone numbers i routing rules dla tenanta Acme Corporation
+--    Tenant: aaaaaaaa-0000-0000-0000-000000000001
+--    IVR:    dddddddd-0000-0000-0000-000000000001 (Menu glowne Acme)
+--    Queue:  cccccccc-0000-0000-0000-000000000002 (Wsparcie techniczne – after hours)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO phone_number (phone_number_id, tenant_id, number, display_name, is_active)
+VALUES
+(
+    'eeeeeeee-0000-0000-0000-000000000001',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    '+48221234567',
+    'Linia główna Acme',
+    TRUE
+),
+(
+    'eeeeeeee-0000-0000-0000-000000000002',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    '+48221234568',
+    'Linia sprzedaży Acme',
+    TRUE
+)
+ON CONFLICT DO NOTHING;
+
+-- Reguła 1: pon-pt 08:00-17:00 → IVR Menu główne
+INSERT INTO phone_routing_rule (rule_id, tenant_id, phone_number_id, ivr_tree_id, queue_id, days_of_week, time_start, time_end, is_active)
+VALUES
+(
+    'ffffffff-0000-0000-0000-000000000001',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'eeeeeeee-0000-0000-0000-000000000001',
+    'dddddddd-0000-0000-0000-000000000001',
+    NULL,
+    ARRAY[1,2,3,4,5],
+    '08:00',
+    '17:00',
+    TRUE
+)
+ON CONFLICT DO NOTHING;
+
+-- Reguła 2: pon-pt 17:00-20:00 → kolejka Wsparcie techniczne (after hours)
+INSERT INTO phone_routing_rule (rule_id, tenant_id, phone_number_id, ivr_tree_id, queue_id, days_of_week, time_start, time_end, is_active)
+VALUES
+(
+    'ffffffff-0000-0000-0000-000000000002',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'eeeeeeee-0000-0000-0000-000000000001',
+    NULL,
+    'cccccccc-0000-0000-0000-000000000002',
+    ARRAY[1,2,3,4,5],
+    '17:00',
+    '20:00',
+    TRUE
+)
+ON CONFLICT DO NOTHING;

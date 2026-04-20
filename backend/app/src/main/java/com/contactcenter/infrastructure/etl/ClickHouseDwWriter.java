@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -65,7 +66,7 @@ public class ClickHouseDwWriter implements DataWarehouseWriter {
                 ?, ?,
                 ?, ?, ?, ?,
                 ?,
-                now64()
+                ?
             )
             """;
 
@@ -97,7 +98,9 @@ public class ClickHouseDwWriter implements DataWarehouseWriter {
                 // UUID jako String – ClickHouse JDBC akceptuje String dla kolumny UUID
                 ps.setString(1, row.contactId() != null ? row.contactId().toString() : null);
                 ps.setString(2, row.tenantId() != null ? row.tenantId().toString() : null);
-                ps.setString(3, row.agentId() != null ? row.agentId().toString() : null);
+                ps.setString(3, row.agentId() != null
+                        ? row.agentId().toString()
+                        : "00000000-0000-0000-0000-000000000000");
                 // queue_id i campaign_id: ClickHouse ma DEFAULT toUUID('00000...') – podaj null-safe wartość
                 ps.setString(4, row.queueId() != null
                         ? row.queueId().toString()
@@ -119,6 +122,8 @@ public class ClickHouseDwWriter implements DataWarehouseWriter {
                 } else {
                     ps.setNull(12, java.sql.Types.INTEGER);
                 }
+                // updated_at – ClickHouse JDBC nie obsługuje now64() w VALUES prepared statement
+                ps.setTimestamp(13, Timestamp.from(Instant.now()));
             });
 
             log.debug("[ClickHouseDwWriter] INSERT zakończony sukcesem: {} wierszy", rows.size());

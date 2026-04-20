@@ -173,7 +173,8 @@
       "Bash(find E:/ClaudAI/contact-center-demo/backend/app/src/test -name \"*.java\" -exec grep -l \"H2\\\\|DataJpaTest\\\\|TestEntityManager\\\\|createNativeQuery\\\\|JdbcTemplate\\\\|EmbeddedDatabase\" {} \\\\;)",
       "Bash(npx @angular-eslint/builder lint --lint-file-patterns=\"src/app/features/supervisor/pages/agent-groups/**/*.ts,src/app/features/supervisor/pages/agent-groups/**/*.html\")",
       "Bash(dir \"D:\\\\CloudeAI\\\\contact-center-demo\\\\backend\\\\app\\\\src\\\\main\\\\resources\\\\db\\\\migration\")",
-      "Bash(cmd *)"
+      "Bash(cmd *)",
+      "Bash(export JAVA_HOME)"
     ]
   }
 }

@@ -1,0 +1,150 @@
+@if (loading()) {
+  <!-- Skeleton loading -->
+  <div class="social-loading" role="status" aria-label="Ladowanie historii wiadomosci">
+    <div class="social-skeleton">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="social-skeleton__row" [class.social-skeleton__row--right]="i % 2 === 0">
+          <div class="social-skeleton__bubble"></div>
+        </div>
+      }
+    </div>
+  </div>
+} @else if (error()) {
+  <div class="social-error" role="alert">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="social-error__icon">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+    </svg>
+    <p>{{ error() }}</p>
+  </div>
+} @else {
+  <div class="social-contact">
+    <!-- ===== MESSAGES AREA ===== -->
+    <div class="social-messages" #messagesContainer>
+      <!-- Load more button (top) -->
+      @if (hasMore()) {
+        <div class="social-messages__load-more">
+          <button
+            type="button"
+            class="load-more-btn"
+            [disabled]="loadingMore()"
+            aria-label="Zaladuj wczesniejsze wiadomosci"
+            (click)="loadMoreMessages()"
+          >
+            @if (loadingMore()) {
+              <span class="btn-spinner" aria-hidden="true"></span>
+              <span>Ladowanie...</span>
+            } @else {
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 14l5-5 5 5z" />
+              </svg>
+              <span>Zaladuj wczesniejsze</span>
+            }
+          </button>
+        </div>
+      }
+
+      <!-- Empty state -->
+      @if (messages().length === 0) {
+        <div class="social-empty" role="status">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="social-empty__icon">
+            <path
+              d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"
+            />
+          </svg>
+          <p class="social-empty__text">Brak wiadomosci w tej konwersacji</p>
+          <p class="social-empty__sub">Wyslij pierwsza wiadomosc ponizej</p>
+        </div>
+      } @else {
+        <!-- Message list -->
+        <ul class="message-list" role="list" aria-label="Historia wiadomosci">
+          @for (msg of messages(); track trackByMessageId($index, msg)) {
+            <li
+              class="message-item"
+              [class.message-item--inbound]="msg.direction === 'INBOUND'"
+              [class.message-item--outbound]="msg.direction === 'OUTBOUND'"
+            >
+              <!-- Platform badge -->
+              <span
+                class="platform-badge"
+                [style.background-color]="getPlatformColor(msg.platform)"
+                [attr.aria-label]="'Platforma: ' + msg.platform"
+                [title]="msg.platform"
+              >
+                {{ getPlatformLabel(msg.platform) }}
+              </span>
+
+              <!-- Bubble -->
+              <div class="message-bubble">
+                <p class="message-bubble__text">{{ msg.content }}</p>
+                <time
+                  class="message-bubble__time"
+                  [dateTime]="msg.sentAt"
+                  [title]="msg.sentAt | date: 'dd.MM.yyyy HH:mm:ss'"
+                >
+                  {{ msg.sentAt | date: 'HH:mm' }}
+                </time>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+
+    <!-- ===== REPLY AREA ===== -->
+    <div class="social-reply" [class.social-reply--readonly]="isReadOnly()">
+      @if (isReadOnly()) {
+        <div class="social-reply__readonly-banner" role="status" aria-live="polite">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"
+            />
+          </svg>
+          <span>Kontakt zakonczony — odpowiedzi sa zablokowane</span>
+        </div>
+      }
+
+      @if (sendError()) {
+        <div class="social-reply__send-error" role="alert" aria-live="polite">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            />
+          </svg>
+          {{ sendError() }}
+        </div>
+      }
+
+      <div class="social-reply__input-row">
+        <textarea
+          class="social-reply__textarea"
+          rows="3"
+          placeholder="{{
+            isReadOnly() ? 'Kontakt zakonczony' : 'Wpisz wiadomosc... (Enter = wyslij, Shift+Enter = nowa linia)'
+          }}"
+          [value]="replyText()"
+          [disabled]="isReadOnly() || sending()"
+          [attr.aria-label]="'Pole wiadomosci social media'"
+          [attr.aria-disabled]="isReadOnly()"
+          (input)="onReplyInput($event)"
+          (keydown)="onKeydown($event)"
+        ></textarea>
+
+        <button
+          type="button"
+          class="send-btn"
+          [disabled]="!canSend()"
+          aria-label="Wyslij wiadomosc"
+          (click)="sendMessage()"
+        >
+          @if (sending()) {
+            <span class="btn-spinner btn-spinner--light" aria-hidden="true"></span>
+          } @else {
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}

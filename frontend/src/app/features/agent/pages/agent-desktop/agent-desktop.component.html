@@ -188,6 +188,7 @@
                   [class.contact-tab--phone]="tab.type === 'PHONE'"
                   [class.contact-tab--chat]="tab.type === 'CHAT'"
                   [class.contact-tab--email]="tab.type === 'EMAIL'"
+                  [class.contact-tab--social]="tab.type === 'SOCIAL'"
                   [attr.aria-selected]="tab.isActive"
                   [attr.aria-controls]="'tab-panel-' + tab.id"
                   [id]="'tab-' + tab.id"
@@ -259,6 +260,9 @@
                           [contactId]="activeTab()!.contactId"
                           (replySent)="onEmailReplySent(activeTab()!)"
                         />
+                      }
+                      @case ('SOCIAL') {
+                        <cc-social-contact [contactId]="activeTab()!.contactId" [contactStatus]="activeTab()!.status" />
                       }
                     }
                   </div>

@@ -1,4 +1,4 @@
-export type ContactType = 'PHONE' | 'CHAT' | 'EMAIL';
+export type ContactType = 'PHONE' | 'CHAT' | 'EMAIL' | 'SOCIAL';
 export type ContactTabStatus = 'ACTIVE' | 'HOLD' | 'WRAPPING';
 export type CallDirection = 'INBOUND' | 'OUTBOUND';
 

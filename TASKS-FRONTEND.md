@@ -314,8 +314,9 @@ Zrealizowane: `EmailContactComponent` (cc-email-contact, sygnały, paginacja wą
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-009, BE-018
-**Status:** ⬜ Nie rozpoczęte
-**Czeka na BE:** BE-018 (lub MSW)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-20
+**Czeka na BE:** BE-018 ✅
 **Blokuje:** brak
 **Odniesienie PRD:** US-06-01, US-06-02, US-06-03, US-06-04, EPIC-06
 

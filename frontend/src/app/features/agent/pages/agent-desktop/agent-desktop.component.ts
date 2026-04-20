@@ -23,6 +23,7 @@ import { SoftphoneComponent } from '../../components/softphone/softphone.compone
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
 import { EmailContactComponent } from './email-contact/email-contact.component';
+import { SocialContactComponent } from './social-contact/social-contact.component';
 import { ManualCampaignPanelComponent } from '../../components/manual-campaign-panel/manual-campaign-panel.component';
 import {
   AgentStatus,
@@ -49,6 +50,7 @@ import {
     CustomerPanelComponent,
     DispositionPanelComponent,
     EmailContactComponent,
+    SocialContactComponent,
     ManualCampaignPanelComponent,
   ],
   templateUrl: './agent-desktop.component.html',
@@ -271,6 +273,8 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
         return 'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z';
       case 'EMAIL':
         return 'M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z';
+      case 'SOCIAL':
+        return 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z';
     }
   }
 
@@ -282,6 +286,8 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
         return 'Chat';
       case 'EMAIL':
         return 'Email';
+      case 'SOCIAL':
+        return 'Social';
     }
   }
 
@@ -293,6 +299,8 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
         return 'M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z';
       case 'EMAIL':
         return 'M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z';
+      case 'SOCIAL':
+        return 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z';
     }
   }
 

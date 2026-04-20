@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-18 (EPIC-14: DB-024 ✅ agent_group schema, DB-025 ✅ queue_agent_group, DB-026 ✅ indeksy; BE-043 ✅ AgentGroupRepository, BE-044 ✅ AgentGroupController/Service, BE-045 ✅ QueueAssignmentRepository; łączny stan: DB 26/26, BE 45/54, FE 33/43)
+**Ostatnia aktualizacja:** 2026-04-20 (FE-013 ✅ SocialContactComponent + SocialContactService + GET /api/contacts/{id}/social/messages; FE-023 ✅ (zrealizowane 2026-04-17, zaktualizowano status); łączny stan: DB 26/26, BE 46/54, FE 37/43)
 
 ---
 
@@ -126,7 +126,7 @@
 | FE-010 | Komponent Softphone WebRTC | ✅ | Zrealizowane 2026-03-18. SIP.js/JsSIP WebRTC, odbieranie/rozłączanie połączeń, mute, hold, blind i attended transfer, wyświetlanie CLI. Wymaga FE-009 ✅, BE-009 ✅, BE-012 ✅ |
 | FE-011 | Panel profilu klienta podczas kontaktu | ✅ | Panel boczny w AgentDesktopComponent: dane klienta z CLI lookup, historia ostatnich kontaktów, CTA "Utwórz profil" dla nieznanych numerów. Integracja z BE-025 ✅ i BE-011 ✅. |
 | FE-012 | Komponent obsługi kontaktu email | ✅ | EmailContactComponent (wątek email z paginacją load-more, edytor odpowiedzi, wybór szablonu autocomplete, signal-based, ChangeDetectionStrategy.OnPush), EmailThreadMessageComponent, EmailService (agent), EmailSettingsComponent (konfiguracja IMAP/SMTP + test połączenia dla supervisora w /supervisor/settings), EmailConfigService. Integracja z AgentDesktopComponent i customer-panel. Zrealizowane 2026-03-26. |
-| FE-013 | Komponent obsługi kontaktu social media | ⬜ | |
+| FE-013 | Komponent obsługi kontaktu social media | ✅ | SocialContactComponent (chat UI bąbelki INBOUND/OUTBOUND, ikona platformy FB/IG/WA, load-more starszych wiadomości, pole odpowiedzi zablokowane gdy COMPLETED, WebSocket SOCIAL_MESSAGE_RECEIVED), SocialContactService (GET /messages + POST /message), social-message.model.ts. Backend: GET /api/contacts/{id}/social/messages (paginacja ręczna), SocialMessageResponse + PagedSocialMessagesResponse DTO. Integracja z AgentDesktopComponent (@case SOCIAL). Zrealizowane 2026-04-20. |
 | FE-014 | Graficzny edytor drzewa IVR (drag & drop) | ✅ | IvrListComponent (lista drzew IVR), IvrEditorComponent (edytor drag & drop SVG canvas: węzły PlayAudio/TTS/CollectDTMF/Menu/TransferToQueue/Hangup, krawędzie SVG path, panel boczny konfiguracji węzła, zapis JSONB). IvrService (frontend), ivr.model.ts. |
 | FE-015 | Zarządzanie kampaniami: lista i formularz tworzenia | ✅ | campaign.model.ts, campaign.service.ts, campaign-list.component (ts/html/scss), campaign-form.component (ts/html/scss), supervisor.routes.ts zaktualizowany. Odblokowuje FE-016. |
 | FE-016 | Import listy kontaktów CSV do kampanii | ✅ | CampaignImportComponent: 4-krokowy wizard (upload drag&drop → mapowanie kolumn → progress bar polling 3s → raport), walidacja client-side 50MB, auto-mapowanie kolumn, integracja z campaign-list (przycisk dla DRAFT/SCHEDULED). |
@@ -136,7 +136,7 @@
 | FE-020 | Import klientów z CSV | ✅ | Zrealizowane 2026-03-24. customer-import.component (4-krokowy wizard: upload drag&drop + deduplikacja radio, mapowanie kolumn z auto-mapowaniem, progress bar polling 3s, raport z pobieraniem błędów CSV), customer-import.model.ts, customer.service.ts rozszerzony. Czeka na BE: BE-026 ✅ |
 | FE-021 | Dashboard RT supervisora | ✅ | Dashboard RT supervisora: KPI cards (aktywne połączenia, agenci online/przerwa/dostępni), tabela agentów z aktualnym statusem, wykres kolejek; WebSocket STOMP /topic/tenant/{tenantId}/supervisor, dane co 5s; tryb pełnoekranowy |
 | FE-022 | Raporty historyczne: filtry, tabele, eksport | ✅ | report.model.ts (AgentReportRow, AgentReportFilters), reports.service.ts (getAgentReport, exportCsv, exportXlsx blob), ReportsComponent (filtry URL sync, tabela badge'ami kanałów, paginacja, eksport Blob, skeleton, empty state), supervisor.routes.ts /reports z roleGuard, build 0 błędów |
-| FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ⬜ | |
+| FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ✅ | SocialIntegrationsComponent (lista platform FACEBOOK/INSTAGRAM/WHATSAPP ze statusem, przycisk "Połącz" OAuth redirect, OAuthCallbackComponent, przycisk "Rozłącz" z modalem, status webhooka), SocialIntegrationService, social-integration.model.ts, integrations.routes.ts. Zrealizowane 2026-04-17. |
 | FE-024 | Panel konfiguracji kolejek i routingu | ✅ | QueueListComponent (tabela kolejek z liczbą oczekujących, polling co 10s), QueueFormComponent (formularz tworzenia/edycji: nazwa, strategia routingu, required skills multi-select, sticky agent timeout, adres email kolejki emailAddress z walidacją email + maxLength(255)), QueueDeleteModalComponent. Integracja z BE-020 ✅ + DB-020 ✅. |
 | FE-025 | Panel konfiguracji Twilio per tenant | ✅ | TwilioConfigService (GET tenant + PATCH /api/tenants/{id}/config), TwilioSettingsComponent (formularz E.164, badge per-tenant/fallback, podgląd auto URL, usunięcie konfiguracji), route /supervisor/settings/twilio, wpis "Twilio VoIP" w sidenavie. BUILD SUCCESS. |
 | FE-026 | Panel zarządzania numerami telefonów i regułami routingu IVR (Supervisor) | ✅ | PhoneNumbersComponent (lista numerów tenanta, formularz dodawania E.164, edycja displayName/isActive, soft-delete z 409 guard), RoutingRulesComponent (lista kart reguł, badge ostrzegawczy przy braku pokrycia godzinowego), RoutingRuleFormComponent (modal: checkboxy dni tygodnia, time pickery, dropdown IVR/Queue, wizualna detekcja kolizji 409), PhoneNumberService (8 metod CRUD + routing-rules). Modele: PhoneNumber, PhoneRoutingRule. Route /supervisor/settings/phone-numbers; sidenav zaktualizowany (usunięto „Twilio VoIP", dodano „Numery telefonów"). Zrealizowane 2026-04-14. |
@@ -161,9 +161,9 @@
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 26/26 | 0 | 0 | 26 |
-| Backend (BE) | 45/54 | 0 | 9 | 54 |
-| Frontend (FE) | 34/43 | 0 | 9 | 43 |
-| **RAZEM** | **105/123** | **0** | **18** | **123** |
+| Backend (BE) | 46/54 | 0 | 8 | 54 |
+| Frontend (FE) | 37/43 | 0 | 6 | 43 |
+| **RAZEM** | **109/123** | **0** | **14** | **123** |
 
 ---
 

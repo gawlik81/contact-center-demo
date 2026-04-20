@@ -10,6 +10,7 @@ export type WsEventType =
   | 'CONTACT_ASSIGNED'
   | 'QUEUE_UPDATE'
   | 'SUPERVISOR_METRICS'
+  | 'SOCIAL_MESSAGE_RECEIVED'
   | 'PONG';
 
 export interface WsEvent {

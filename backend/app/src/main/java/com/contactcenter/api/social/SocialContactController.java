@@ -1,6 +1,10 @@
 package com.contactcenter.api.social;
 
+import com.contactcenter.api.social.dto.PagedSocialMessagesResponse;
 import com.contactcenter.api.social.dto.SendSocialMessageRequest;
+import com.contactcenter.api.social.dto.SocialMessageResponse;
+import com.contactcenter.domain.model.SocialMessage;
+import com.contactcenter.domain.repository.SocialMessageRepository;
 import com.contactcenter.domain.service.SocialMessageService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +31,7 @@ import java.util.UUID;
 public class SocialContactController {
 
     private final SocialMessageService socialMessageService;
+    private final SocialMessageRepository socialMessageRepository;
 
     /**
      * Wysyła wiadomość social media do klienta przez agenta.
@@ -60,5 +65,49 @@ public class SocialContactController {
             log.warn("[SocialContactCtrl] Brak integracji: contactId={}, error={}", contactId, e.getMessage());
             return ResponseEntity.badRequest().build();
         }
+    }
+
+    /**
+     * Pobiera historię wiadomości social media dla danego kontaktu z paginacją.
+     *
+     * <p>Repozytorium zwraca maksymalnie 50 rekordów posortowanych po {@code sentAt DESC}.
+     * Paginacja jest wykonywana ręcznie po stronie aplikacji (subList).
+     *
+     * @param contactId UUID kontaktu
+     * @param page      numer strony (domyślnie 0)
+     * @param size      rozmiar strony (domyślnie 20)
+     * @return strona wiadomości opakowana w {@link PagedSocialMessagesResponse}
+     */
+    @GetMapping("/{contactId}/social/messages")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    public ResponseEntity<PagedSocialMessagesResponse> getMessages(
+            @PathVariable UUID contactId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        UUID tenantId = TenantContext.getTenantId();
+        log.info("[SocialContactCtrl] Pobieranie wiadomości: contactId={}, tenant={}, page={}, size={}",
+                contactId, tenantId, page, size);
+
+        List<SocialMessage> all = socialMessageRepository.findByContactId(contactId, tenantId);
+
+        long totalElements = all.size();
+        int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+        int fromIndex = Math.min(page * size, (int) totalElements);
+        int toIndex = Math.min(fromIndex + size, (int) totalElements);
+
+        List<SocialMessageResponse> pageContent = all.subList(fromIndex, toIndex).stream()
+                .map(msg -> new SocialMessageResponse(
+                        msg.getMessageId(),
+                        msg.getPlatform() != null ? msg.getPlatform().name() : null,
+                        msg.getDirection(),
+                        msg.getContent(),
+                        msg.getAttachments(),
+                        msg.getSentAt(),
+                        msg.getSenderExternalId()
+                ))
+                .toList();
+
+        return ResponseEntity.ok(new PagedSocialMessagesResponse(pageContent, page, size, totalElements, totalPages));
     }
 }

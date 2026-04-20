@@ -174,7 +174,18 @@
       "Bash(npx @angular-eslint/builder lint --lint-file-patterns=\"src/app/features/supervisor/pages/agent-groups/**/*.ts,src/app/features/supervisor/pages/agent-groups/**/*.html\")",
       "Bash(dir \"D:\\\\CloudeAI\\\\contact-center-demo\\\\backend\\\\app\\\\src\\\\main\\\\resources\\\\db\\\\migration\")",
       "Bash(cmd *)",
-      "Bash(export JAVA_HOME)"
+      "Bash(export JAVA_HOME)",
+      "Bash(git checkout *)",
+      "Bash(python *)",
+      "Bash(git show *)",
+      "Read(//tmp/**)",
+      "Bash(git config *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git -C E:/ClaudAI/contact-center-demo log --oneline --all)",
+      "Bash(git -C E:/ClaudAI/contact-center-demo log --oneline -- backend/src/main/resources/db/migration/V039__create_phone_number_routing.sql)",
+      "Bash(git -C E:/ClaudAI/contact-center-demo show 75bb65c:backend/src/main/resources/db/migration/V039__create_phone_number_routing.sql)",
+      "Bash(git *)",
+      "Bash(PGPASSWORD=postgres psql *)"
     ]
   }
 }

@@ -184,6 +184,7 @@ services:
     entrypoint: >
       /bin/sh -c "
         clickhouse-client --host clickhouse --port 9000 --user default --password '' --multiquery < /migrations/V001__create_contacts_dw.sql &&
+        clickhouse-client --host clickhouse --port 9000 --user default --password '' --multiquery < /migrations/V002__add_agent_performance_mv.sql &&
         echo 'ClickHouse DW schema initialized.'
       "
     networks:

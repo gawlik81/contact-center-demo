@@ -1,8 +1,11 @@
 package com.contactcenter.infrastructure.etl;
 
+import com.contactcenter.domain.etl.AgentDimRow;
+import com.contactcenter.domain.etl.CampaignDwRow;
 import com.contactcenter.domain.etl.ContactDwRow;
 import com.contactcenter.domain.etl.DataWarehouseException;
 import com.contactcenter.domain.etl.DataWarehouseWriter;
+import com.contactcenter.domain.etl.QueueDimRow;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -104,5 +107,28 @@ public class PostgresDwWriter implements DataWarehouseWriter {
             log.error("[PostgresDwWriter] Błąd batch upsert do contacts_dw: {}", ex.getMessage(), ex);
             throw new DataWarehouseException("Upsert do contacts_dw nie powiódł się: " + ex.getMessage(), ex);
         }
+    }
+
+    /**
+     * Stub – PostgreSQL fallback nie obsługuje campaigns_dw / agent_dim / queue_dim.
+     *
+     * <p>Te tabele istnieją wyłącznie w ClickHouse. W środowisku dev (etl.dw.type=postgres)
+     * operacje są pomijane z logiem DEBUG, aby nie blokować uruchomienia aplikacji.
+     */
+    @Override
+    public void upsertCampaigns(List<CampaignDwRow> rows) {
+        log.debug("[PostgresDwWriter] upsertCampaigns pominięty – tylko ClickHouse ({} wierszy)", rows != null ? rows.size() : 0);
+    }
+
+    /** Stub – patrz {@link #upsertCampaigns(List)}. */
+    @Override
+    public void upsertAgentDim(List<AgentDimRow> rows) {
+        log.debug("[PostgresDwWriter] upsertAgentDim pominięty – tylko ClickHouse ({} wierszy)", rows != null ? rows.size() : 0);
+    }
+
+    /** Stub – patrz {@link #upsertCampaigns(List)}. */
+    @Override
+    public void upsertQueueDim(List<QueueDimRow> rows) {
+        log.debug("[PostgresDwWriter] upsertQueueDim pominięty – tylko ClickHouse ({} wierszy)", rows != null ? rows.size() : 0);
     }
 }

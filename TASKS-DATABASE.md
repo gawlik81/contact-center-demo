@@ -891,6 +891,61 @@ CREATE INDEX IF NOT EXISTS idx_agent_group_member_lookup
 
 ---
 
+---
+
+## MODUL: Zakładka Klienci w Agent Desktop (EPIC-15)
+
+### DB-027 – Rozszerzenie `scheduled_callback.source_type` o wartość `AGENT_MANUAL`
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Zlozonosc:** XS
+**Zależy od:** DB-023 (tabela `scheduled_callback`)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** BE-048
+**Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
+**Flyway:** V046__scheduled_callback_agent_manual_source.sql
+
+**Opis:**
+Tabela `scheduled_callback` ma CHECK constraint ograniczający `source_type` do wartości `CAMPAIGN_CALLBACK` i `INBOUND_CALLBACK`. Nowy scenariusz — agent zamawia oddzwonienie do klienta z własnej inicjatywy poza aktywną rozmową — wymaga trzeciej wartości `AGENT_MANUAL`. Przy okazji dodawana jest kolumna `notes` potrzebna dla BE-048.
+
+**DDL migracji (V046):**
+
+```sql
+-- Usunięcie starego CHECK constraint i dodanie rozszerzonego
+ALTER TABLE scheduled_callback
+    DROP CONSTRAINT IF EXISTS chk_scheduled_callback_source_type;
+
+ALTER TABLE scheduled_callback
+    ADD CONSTRAINT chk_scheduled_callback_source_type
+        CHECK (source_type IN ('CAMPAIGN_CALLBACK', 'INBOUND_CALLBACK', 'AGENT_MANUAL'));
+
+-- Kolumna notes dla manualnych callbacków inicjowanych przez agenta (BE-048)
+ALTER TABLE scheduled_callback
+    ADD COLUMN IF NOT EXISTS notes TEXT;
+
+-- Indeks dla widoku agenta: jego własne manualne callbacki
+CREATE INDEX IF NOT EXISTS idx_scheduled_callback_agent_manual
+    ON scheduled_callback (tenant_id, assigned_agent_id, scheduled_at)
+    WHERE source_type = 'AGENT_MANUAL'
+      AND status = 'PENDING'
+      AND is_deleted = FALSE;
+
+-- Indeks kalendarza agenta: wszystkie callbacki w zakresie dat (BE-051)
+CREATE INDEX IF NOT EXISTS idx_scheduled_callback_agent_calendar
+    ON scheduled_callback (tenant_id, assigned_agent_id, scheduled_at)
+    WHERE is_deleted = FALSE;
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja uruchamia się bez błędów na dev i test
+- [ ] Istniejące rekordy `CAMPAIGN_CALLBACK` i `INBOUND_CALLBACK` pozostają bez zmian
+- [ ] Nowy CHECK constraint akceptuje `AGENT_MANUAL` i nadal odrzuca inne wartości
+- [ ] Kolumna `notes TEXT` istnieje w tabeli `scheduled_callback`
+- [ ] Oba indeksy widoczne w `pg_indexes`
+
+---
+
 ## Podsumowanie zadań Baza Danych
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -905,7 +960,63 @@ CREATE INDEX IF NOT EXISTS idx_agent_group_member_lookup
 | Prezentacja Kontaktów (EPIC-12) | 1 | 1 | 0 |
 | Zaplanowane oddzwonienia (EPIC-13) | 1 | 1 | 0 |
 | Zarządzanie przypisaniem agentów (EPIC-14) | 3 | 2 | 1 |
-| **RAZEM** | **26** | **24** | **2** |
+| Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
+| **RAZEM** | **27** | **25** | **2** |
+
+---
+
+---
+
+## MODUŁ: Kalendarz Agenta (EPIC-16)
+
+### DB-028 – Tabela `agent_break`: zaplanowane przerwy agentów
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** DB-003 (tabela `app_user`)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-049, BE-050
+**Odniesienie PRD:** EPIC-16 – Agent Calendar
+
+**Opis:**
+Nowa migracja Flyway `V047__agent_break.sql`. Tabela przechowuje zaplanowane przerwy agentów widoczne w kalendarzu. Obsługuje typy przerw (obiad, krótka, szkolenie, inne) oraz statusy cyklu życia (PLANNED → ACTIVE → COMPLETED / CANCELLED).
+
+**Schema:**
+```sql
+CREATE TABLE agent_break (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL REFERENCES tenant(tenant_id) ON DELETE RESTRICT,
+  agent_id    UUID NOT NULL REFERENCES app_user(user_id) ON DELETE RESTRICT,
+  start_time  TIMESTAMPTZ NOT NULL,
+  end_time    TIMESTAMPTZ NOT NULL,
+  break_type  VARCHAR(50)  NOT NULL DEFAULT 'SHORT_BREAK',
+  notes       TEXT,
+  status      VARCHAR(20)  NOT NULL DEFAULT 'PLANNED',
+  created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ,
+  CONSTRAINT chk_agent_break_type CHECK (break_type IN ('LUNCH', 'SHORT_BREAK', 'TRAINING', 'OTHER')),
+  CONSTRAINT chk_agent_break_status CHECK (status IN ('PLANNED', 'ACTIVE', 'COMPLETED', 'CANCELLED')),
+  CONSTRAINT chk_agent_break_time CHECK (end_time > start_time)
+);
+
+CREATE INDEX idx_agent_break_tenant_agent_time ON agent_break (tenant_id, agent_id, start_time);
+
+ALTER TABLE agent_break ENABLE ROW LEVEL SECURITY;
+CREATE POLICY agent_break_tenant_isolation ON agent_break
+    USING (tenant_id = current_setting('app.tenant_id', TRUE)::uuid);
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V047 aplikuje się bez błędów
+- [ ] `break_type` CHECK IN ('LUNCH','SHORT_BREAK','TRAINING','OTHER')
+- [ ] `status` CHECK IN ('PLANNED','ACTIVE','COMPLETED','CANCELLED')
+- [ ] `end_time > start_time` CHECK constraint
+- [ ] FK `agent_id REFERENCES app_user(user_id) ON DELETE RESTRICT`
+- [ ] FK `tenant_id REFERENCES tenant(tenant_id) ON DELETE RESTRICT`
+- [ ] RLS włączone — policy izoluje po `app.tenant_id`
+- [ ] Indeks pokrywa filtrowanie po zakresie dat dla konkretnego agenta
+- [ ] `tenant_id` NOT NULL — izolacja multitenant
 
 ---
 
@@ -935,3 +1046,5 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | Prezentacja Kontaktów (raporty) | DB-022 | BE-036 (czeka na DB-022), BE-037 ✅ (niezależne od DB-022) | FE-028, FE-029, FE-030 |
 | Zaplanowane oddzwonienia | DB-023 | BE-038 (executor), BE-039 (reschedule API), BE-040 (inbound callback API) | FE-031 (reschedule modal), FE-032 (inbound callback modal) |
 | Zarządzanie przypisaniem agentów | DB-024, DB-025, DB-026 | BE-043, BE-044, BE-045, BE-046, BE-047 | FE-036 ✅, FE-037, FE-038, FE-039 |
+| Zakładka Klienci w Agent Desktop | DB-027 | BE-048 | FE-040, FE-041 |
+| Kalendarz Agenta (EPIC-16) | DB-028 | BE-049, BE-050, BE-051 | FE-042, FE-043, FE-044, FE-045 |

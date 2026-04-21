@@ -1854,6 +1854,193 @@ RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAge
 
 ---
 
+---
+
+## MODUL: Zakładka Klienci w Agent Desktop (EPIC-15)
+
+### BE-048 – API manualnego callbacku do klienta inicjowanego przez agenta
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Zależy od:** DB-027 (source_type AGENT_MANUAL), BE-025 (Customer API), BE-041 (Callback List API)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** FE-041
+**Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
+**Odniesienie PRD:** US-09-02 (historia kontaktów klienta), EPIC-13 (callbacki)
+
+**Opis:**
+Nowy endpoint umożliwiający agentowi zaplanowanie oddzwonienia do wybranego klienta bez aktywnej rozmowy. Różni się od `BE-040` (inbound callback — wymaga aktywnego kontaktu) i `BE-039` (reschedule istniejącego callbacku). Tu agent samodzielnie inicjuje callback do klienta z zakładki "Klienci" w Agent Desktop.
+
+**Endpoint:**
+`POST /api/callbacks/manual`
+
+**Request body:**
+```json
+{
+  "customerId": "uuid",
+  "phoneNumber": "+48123456789",
+  "scheduledAt": "2026-04-25T10:00:00Z",
+  "notes": "Klient prosi o info o ofercie X"
+}
+```
+
+**Response `201 Created`:**
+```json
+{
+  "callbackId": "uuid",
+  "customerId": "uuid",
+  "customerName": "Jan Kowalski",
+  "phoneNumber": "+48123456789",
+  "scheduledAt": "2026-04-25T10:00:00Z",
+  "status": "PENDING",
+  "sourceType": "AGENT_MANUAL",
+  "assignedAgentId": "uuid (zalogowany agent)",
+  "notes": "...",
+  "createdAt": "2026-04-21T12:00:00Z"
+}
+```
+
+**Logika serwisu:**
+1. Zweryfikuj że `customerId` należy do tenanta agenta
+2. Zweryfikuj że `phoneNumber` istnieje w `customer.phone` (JSONB array) — lub pozwól na dowolny numer (do decyzji — zalecane: walidacja przynależności do klienta, ale nie blokuj)
+3. Utwórz rekord w `scheduled_callback` z:
+   - `source_type = 'AGENT_MANUAL'`
+   - `customer_id = customerId`
+   - `phone = phoneNumber`
+   - `assigned_agent_id = zalogowany agent`
+   - `scheduled_at = scheduledAt`
+   - `notes = notes` (jeśli istnieje kolumna; alternatywnie `custom_fields JSONB`)
+   - `origin_contact_id = NULL`
+   - `campaign_id = NULL`
+4. Publikuj event na RabbitMQ (opcjonalnie, dla powiadomień RT w FE-034/FE-035)
+
+**Walidacje:**
+- `scheduledAt` musi być w przyszłości (min. 5 minut od teraz)
+- `phoneNumber` musi spełniać format E.164 (+[1-9][0-9]{6,14})
+- `customerId` wymagane i musi istnieć dla tenanta
+- Tylko agent może wywoływać (rola AGENT lub SUPERVISOR)
+
+**Klasy do implementacji:**
+- `ManualCallbackRequest` (record/DTO)
+- `ManualCallbackResponse` (record/DTO)
+- Logika w `ScheduledCallbackService.createManualCallback()`
+- Nowy handler w `ScheduledCallbackController` lub nowym `ManualCallbackController`
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/callbacks/manual` zwraca `201` z poprawnymi danymi
+- [ ] `source_type = 'AGENT_MANUAL'` zapisane w bazie
+- [ ] `assigned_agent_id` ustawiony na zalogowanego agenta (z JWT)
+- [ ] `scheduledAt` w przeszłości → `400 Bad Request` z komunikatem
+- [ ] `customerId` obcego tenanta → `403 Forbidden`
+- [ ] Niepoprawny format `phoneNumber` → `400 Bad Request`
+- [ ] Nowy callback pojawia się na liście callbacków agenta (`GET /api/callbacks?type=AGENT_MANUAL`)
+- [ ] OpenAPI dokumentacja dla endpointu
+
+---
+
+---
+
+## MODUŁ: Kalendarz Agenta (EPIC-16)
+
+### BE-049 – Model i repozytorium przerw agenta (`AgentBreak`, `AgentBreakRepository`)
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** DB-028
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-050, BE-051
+**Odniesienie PRD:** EPIC-16 – Agent Calendar
+
+**Opis:**
+JPA entity `AgentBreak` mapująca tabelę `agent_break`. Enum `BreakType` (LUNCH, SHORT_BREAK, TRAINING, OTHER) i `BreakStatus` (PLANNED, ACTIVE, COMPLETED, CANCELLED). Repozytorium `AgentBreakRepository extends TenantAwareRepository` z metodami wyszukiwania po zakresie dat i agentId.
+
+**Kryteria akceptacji:**
+- [ ] Entity poprawnie mapuje wszystkie kolumny tabeli DB-028
+- [ ] Repozytorium rozszerza `TenantAwareRepository`, metoda `findByAgentIdAndStartTimeBetween`
+- [ ] `assertSameTenant` wywołane przed każdym zapisem
+- [ ] Testy jednostkowe repozytorium (H2 in-memory)
+
+---
+
+### BE-050 – CRUD REST API przerw agenta (`AgentBreakController`, `AgentBreakService`)
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** M
+**Zależy od:** BE-049
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-045
+**Odniesienie PRD:** EPIC-16 – Agent Calendar
+
+**Opis:**
+REST API zarządzania zaplanowanymi przerwami agenta. Agent widzi i zarządza wyłącznie swoimi przerwami. Endpoint DELETE faktycznie zmienia status na CANCELLED (soft delete). Walidacja: `endTime > startTime`, czas w przyszłości przy tworzeniu.
+
+**Endpoints:**
+```
+GET    /api/agent/breaks?from={ISO}&to={ISO}   → lista przerw agenta w zakresie dat
+POST   /api/agent/breaks                        → dodaj przerwę
+PUT    /api/agent/breaks/{id}                   → edytuj przerwę (tylko PLANNED)
+DELETE /api/agent/breaks/{id}                   → anuluj przerwę (PLANNED → CANCELLED)
+```
+
+**Kryteria akceptacji:**
+- [ ] Agent pobiera tylko swoje przerwy (tenant + agent_id z tokenu JWT)
+- [ ] `POST` z `endTime <= startTime` → `400 Bad Request`
+- [ ] `POST` z `startTime` w przeszłości → `400 Bad Request`
+- [ ] `GET` bez parametrów `from`/`to` → domyślnie bieżący tydzień
+- [ ] `GET` z `from > to` → `400 Bad Request`
+- [ ] `PUT`/`DELETE` na przerwie innego agenta → `403 Forbidden`
+- [ ] `PUT` przerwy o statusie ACTIVE/COMPLETED → `409 Conflict`
+- [ ] OpenAPI dokumentacja dla wszystkich endpointów
+
+---
+
+### BE-051 – Agregujące API kalendarza agenta (`AgentCalendarController`)
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** M
+**Zależy od:** BE-049, BE-039, BE-022
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-042, FE-043
+**Odniesienie PRD:** EPIC-16 – Agent Calendar
+
+**Opis:**
+Jeden endpoint agregujący wszystkie zdarzenia kalendarza zalogowanego agenta w podanym zakresie dat. Łączy trzy źródła danych: zaplanowane callbacki (`scheduled_callback`), kampanie wychodzące do których agent jest przypisany (`campaign_agent`), oraz zaplanowane przerwy (`agent_break`). Odpowiedź zawiera trzy listy w jednym DTO.
+
+**Endpoint:**
+```
+GET /api/agent/calendar?from={ISO}&to={ISO}
+```
+
+**Response DTO:**
+```json
+{
+  "callbacks": [
+    { "id": "...", "customerName": "...", "scheduledAt": "...", "sourceType": "CAMPAIGN_CALLBACK|INBOUND_CALLBACK|AGENT_MANUAL", "status": "PENDING" }
+  ],
+  "campaigns": [
+    { "id": "...", "name": "...", "startDate": "...", "endDate": "...", "status": "SCHEDULED|ACTIVE" }
+  ],
+  "breaks": [
+    { "id": "...", "startTime": "...", "endTime": "...", "breakType": "LUNCH", "notes": "...", "status": "PLANNED" }
+  ]
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Dane z wszystkich trzech źródeł zwracane w jednym wywołaniu
+- [ ] Filtrowanie po zakresie dat (domyślnie bieżący tydzień gdy brak parametrów)
+- [ ] `from > to` → `400 Bad Request`
+- [ ] Zakres max 90 dni → `400 Bad Request`
+- [ ] Brak przypisanych kampanii → pusta lista `campaigns: []`
+- [ ] Tylko dane zalogowanego agenta — izolacja tenant + agent_id z JWT
+- [ ] OpenAPI dokumentacja
+
+---
+
 ## Podsumowanie zadań Backend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -1874,4 +2061,6 @@ RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAge
 | Prezentacja Kontaktów (EPIC-12) | 2 | 2 | 0 |
 | Zaplanowane oddzwonienia (EPIC-13) | 5 | 5 | 0 |
 | Zarządzanie przypisaniem agentów (EPIC-14) | 5 | 5 | 0 |
-| **RAZEM** | **48** | **45** | **3** |
+| Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
+| Kalendarz Agenta (EPIC-16) | 3 | 0 | 3 |
+| **RAZEM** | **52** | **46** | **6** |

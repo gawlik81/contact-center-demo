@@ -1655,6 +1655,272 @@ Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-pa
 
 ---
 
+---
+
+## MODUL: Zakładka Klienci w Agent Desktop (EPIC-15)
+
+### FE-040 – Zakładka „Klienci" w Agent Desktop (`AgentCustomersTabComponent`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** M
+**Zależy od:** FE-009 (Agent Desktop layout), FE-018 (CustomerService / Customer API)
+**Status:** 🔲 Do zrobienia
+**Czeka na BE:** BE-025 ✅ (Customer CRUD API)
+**Blokuje:** FE-041
+**Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
+
+**Opis:**
+Dodanie zakładki „Klienci" do głównego layoutu Agent Desktop (`AgentDesktopComponent`). Zakładka umożliwia agentowi wyszukiwanie i przeglądanie bazy klientów bez opuszczania panelu pracy. Widok jest osobny od strony `/clients` (CRM) — jest lżejszy i zoptymalizowany pod szybkie wyszukanie klienta.
+
+**Lokalizacja:**
+`features/agent-desktop/tabs/customers/`
+
+**Komponenty:**
+- `AgentCustomersTabComponent` — standalone, selector `app-agent-customers-tab`
+- `AgentCustomerCardComponent` — pojedynczy wiersz/kafelek wyniku wyszukiwania
+
+**Funkcjonalność:**
+
+1. **Pole wyszukiwania** (debounced 300ms):
+   - Fuzzy search po imieniu, nazwisku, numerze telefonu, emailu
+   - Wywołuje `GET /api/customers?search=...&limit=20` (reużywa `CustomerService`)
+   - Minimum 2 znaki przed wyszukaniem
+   - Stan „Wpisz minimum 2 znaki..." gdy poniżej progu
+
+2. **Lista wyników** (virtual scroll przy > 10 elementach):
+   - Avatar z inicjałami
+   - Imię i nazwisko (bold)
+   - Pierwszy numer telefonu z tablicy `phone[]`
+   - Pierwszy email z tablicy `email[]`
+   - Data ostatniego kontaktu (`lastContactAt` z API lub brak)
+   - Przycisk „Szczegóły" → otwiera `CustomerDetailDrawer` (reużywa FE-019/FE-030 logikę)
+   - Przycisk „Zamów oddzwonienie" → otwiera `ManualCallbackModalComponent` (FE-041)
+
+3. **Stan pustego wyniki:** komunikat „Nie znaleziono klientów"
+
+4. **Stan ładowania:** skeleton loader (3 wiersze)
+
+5. **Integracja z zakładkami Agent Desktop:**
+   - Zakładka wyświetlana zawsze (niezależnie od stanu kontaktu)
+   - Ikona: `person_search` (Material Icons)
+   - Badge z liczbą wyników (opcjonalnie)
+
+**Sygnały/state:**
+```typescript
+searchQuery = signal('');
+customers = signal<CustomerSummary[]>([]);
+isLoading = signal(false);
+selectedCustomer = signal<CustomerDetail | null>(null);
+```
+
+**Kryteria akceptacji:**
+- [ ] Zakładka „Klienci" widoczna w Agent Desktop obok istniejących zakładek
+- [ ] Wyszukiwanie działa z debounce 300ms, min. 2 znaki
+- [ ] Wyniki zawierają imię/nazwisko, telefon, email, datę ostatniego kontaktu
+- [ ] Skeleton loader podczas ładowania
+- [ ] Pusty stan gdy brak wyników
+- [ ] Przycisk „Zamów oddzwonienie" widoczny dla każdego wyniku
+- [ ] Przycisk „Szczegóły" otwiera panel szczegółów klienta
+- [ ] Komponent standalone, brak NgModules
+- [ ] Sygnały zamiast `BehaviorSubject` dla lokalnego stanu
+- [ ] Lint i testy przechodzą bez błędów
+
+---
+
+### FE-041 – Modal zamówienia manualnego oddzwonienia do klienta (`ManualCallbackModalComponent`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Zależy od:** FE-040 (AgentCustomersTabComponent)
+**Status:** 🔲 Do zrobienia
+**Czeka na BE:** BE-048 (Manual Callback API)
+**Blokuje:** brak
+**Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
+
+**Opis:**
+Modal otwierany z przycisku „Zamów oddzwonienie" na liście klientów w zakładce FE-040. Agent wybiera numer telefonu (spośród numerów przypisanych do klienta), datę i godzinę oddzwonienia oraz opcjonalne notatki. Po zatwierdzeniu wysyła żądanie do `POST /api/callbacks/manual` (BE-048).
+
+**Lokalizacja:**
+`features/agent-desktop/tabs/customers/manual-callback-modal/`
+
+**Komponent:** `ManualCallbackModalComponent` — standalone dialog (Angular CDK Dialog lub Material MatDialog)
+
+**Formularz (ReactiveFormsModule):**
+
+| Pole | Typ | Walidacja |
+|------|-----|-----------|
+| Numer telefonu | `<select>` / dropdown | wymagane; opcje z `customer.phone[]`; jeśli pusta lista — pole tekstowe z walidacją E.164 |
+| Data i godzina | datetime-local input | wymagane; min. teraz + 5 minut |
+| Notatki | textarea | opcjonalne; max 500 znaków |
+
+**Zachowanie:**
+1. Otwarcie: preload numerów telefonu z przekazanego obiektu klienta (input `customer: CustomerSummary`)
+2. Submit → `CallbackService.createManualCallback(request)` → `POST /api/callbacks/manual`
+3. Sukces: zamknij modal + snackbar „Oddzwonienie zaplanowane na [data]"
+4. Błąd 400: wyświetl komunikat przy konkretnym polu formularza
+5. Błąd serwera: snackbar z błędem, modal pozostaje otwarty
+
+**Typy:**
+```typescript
+interface ManualCallbackRequest {
+  customerId: string;
+  phoneNumber: string;
+  scheduledAt: string; // ISO 8601
+  notes?: string;
+}
+
+interface ManualCallbackResponse {
+  callbackId: string;
+  customerName: string;
+  phoneNumber: string;
+  scheduledAt: string;
+  status: 'PENDING';
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Modal otwiera się z preloaded numerami telefonu klienta
+- [ ] Walidacja: numer wymagany, data minimalna = teraz + 5 min, notatki max 500 znaków
+- [ ] Submit wywołuje `POST /api/callbacks/manual` z poprawnymi danymi
+- [ ] Sukces → snackbar + zamknięcie modala
+- [ ] Błąd serwera → snackbar, modal otwarty (dane zachowane)
+- [ ] Spinner na przycisku Submit podczas wysyłania
+- [ ] Przycisk „Anuluj" zamyka bez zapisu
+- [ ] Komponent standalone, ReactiveFormsModule
+- [ ] Lint i testy jednostkowe: walidacja formularza, submit success, submit error
+
+---
+
+---
+
+## MODUŁ: Kalendarz Agenta (EPIC-16)
+
+### FE-042 – `AgentCalendarService` i typy DTO dla kalendarza
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** BE-051
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-043, FE-044, FE-045
+**Odniesienie PRD:** EPIC-16 – Agent Calendar
+
+**Opis:**
+Serwis Angular i TypeScript interfaces dla modułu kalendarza agenta. Obsługuje pobieranie danych z API (BE-051) oraz CRUD przerw (BE-050).
+
+**Interfejsy:**
+```typescript
+interface CalendarCallback { id: string; customerName: string; scheduledAt: string; sourceType: 'CAMPAIGN_CALLBACK' | 'INBOUND_CALLBACK' | 'AGENT_MANUAL'; status: string }
+interface CalendarCampaign { id, name, startDate, endDate, status }
+interface CalendarBreak   { id, startTime, endTime, breakType, notes, status }
+interface AgentCalendarResponse { callbacks, campaigns, breaks }
+interface AgentBreakRequest { startTime, endTime, breakType, notes? }
+```
+
+**Metody serwisu:**
+```typescript
+getCalendar(from: Date, to: Date): Observable<AgentCalendarResponse>
+addBreak(req: AgentBreakRequest): Observable<CalendarBreak>
+updateBreak(id: string, req: AgentBreakRequest): Observable<CalendarBreak>
+cancelBreak(id: string): Observable<void>
+```
+
+**Kryteria akceptacji:**
+- [ ] Serwis `@Injectable({ providedIn: 'root' })`, standalone
+- [ ] Typy zgodne z OpenAPI BE-051 / BE-050
+- [ ] Testy jednostkowe z `HttpClientTestingModule`
+
+---
+
+### FE-043 – `AgentCalendarComponent`: widok kalendarza agenta
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** L
+**Zależy od:** FE-042
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-16 – Agent Calendar
+
+**Opis:**
+Główny widok kalendarza jako nowa zakładka w Agent Desktop. Wyświetla zdarzenia trzech typów w siatce tygodniowej/dziennej. Każdy typ zdarzenia ma odrębny kolor i ikonę. Kliknięcie callbacku otwiera `RescheduleCallbackModalComponent`, kliknięcie „Dodaj przerwę" otwiera `AddBreakModalComponent`. Widok przełączany między tygodniem a dniem.
+
+**Wymagania wizualne:**
+- Kampanie wychodzące: kolor niebieski, ikona `campaign`
+- Callbacki: kolor pomarańczowy, ikona `phone_callback`
+- Przerwy: kolor zielony, ikona `free_breakfast`
+- Przycisk FAB „+ Dodaj przerwę" w prawym dolnym rogu
+- Przełącznik Tydzień / Dzień w nagłówku
+- Strzałki nawigacji (poprzedni/następny tydzień lub dzień)
+- Spinner podczas ładowania, komunikat gdy brak zdarzeń
+
+**Kryteria akceptacji:**
+- [ ] Zakładka „Kalendarz" widoczna w `AgentDesktopComponent`
+- [ ] Zdarzenia z trzech źródeł wyświetlane z poprawnymi kolorami i ikonami
+- [ ] Klik callbacku → otwiera `RescheduleCallbackModalComponent` z wypełnioną datą
+- [ ] Klik kampanii → tooltip/panel boczny z detalami kampanii (read-only)
+- [ ] Klik własnej przerwy → otwiera `AddBreakModalComponent` (tryb edycji) lub opcję anulowania
+- [ ] Przełącznik tydzień/dzień działa poprawnie
+- [ ] Komponent standalone, `OnPush`, `signal()` dla stanu dat i zdarzeń
+- [ ] Responsywny: na wąskim ekranie fallback do widoku dziennego
+
+---
+
+### FE-044 – `RescheduleCallbackModalComponent`: zmiana daty callbacku z kalendarza
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-042, BE-039
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-16 – Agent Calendar
+
+**Opis:**
+Modal uruchamiany po kliknięciu zdarzenia typu callback w kalendarzu. Wyświetla bieżącą datę callbacku i pozwala wybrać nową. Po zatwierdzeniu wywołuje istniejący endpoint BE-039 (`PUT /api/callbacks/{id}/reschedule`). Po zapisie odświeża kalendarz.
+
+**Kryteria akceptacji:**
+- [ ] Modal otwiera się z aktualną datą callbacku wypełnioną w polu date-time picker
+- [ ] Data nie może być w przeszłości → walidacja inline
+- [ ] Submit → `PUT /api/callbacks/{id}/reschedule` z nową datą
+- [ ] Sukces → snackbar + zamknięcie modala + odświeżenie kalendarza
+- [ ] Błąd 4xx/5xx → snackbar z komunikatem, modal otwarty
+- [ ] Komponent standalone, `ReactiveFormsModule`
+
+---
+
+### FE-045 – `AddBreakModalComponent`: dodanie i edycja zaplanowanej przerwy
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-042
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-16 – Agent Calendar
+
+**Opis:**
+Modal do dodania nowej zaplanowanej przerwy lub edycji istniejącej (tryb przekazywany przez `data` injection). Formularz reaktywny z polami: typ przerwy (select), data i godzina rozpoczęcia, data i godzina zakończenia, notatki (opcjonalne). Przy edycji istniejącej przerwy wyświetla przycisk „Anuluj przerwę" (soft-delete).
+
+**Pola formularza:**
+- Typ przerwy: select (Lunch, Krótka przerwa, Szkolenie, Inne)
+- Czas rozpoczęcia: date-time picker
+- Czas zakończenia: date-time picker
+- Notatki: textarea, opcjonalne
+
+**Kryteria akceptacji:**
+- [ ] Walidacja: czas zakończenia > czas rozpoczęcia
+- [ ] Walidacja: czas w przyszłości (przy tworzeniu)
+- [ ] Tryb dodawania: Submit → `POST /api/agent/breaks`
+- [ ] Tryb edycji (dane wstrzyknięte): Submit → `PUT /api/agent/breaks/{id}`
+- [ ] Przycisk „Anuluj przerwę" w trybie edycji → `DELETE /api/agent/breaks/{id}` (dialog potwierdzenia)
+- [ ] Sukces → snackbar + zamknięcie modala + odświeżenie kalendarza
+- [ ] Komponent standalone, `ReactiveFormsModule`, cross-field validator `endAfterStart`
+
+---
+
 ## Podsumowanie zadań Frontend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -1674,4 +1940,6 @@ Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-pa
 | Prezentacja Kontaktów (EPIC-12) | 3 | 3 | 0 |
 | Zaplanowane oddzwonienia (EPIC-13) | 4 | 4 | 0 |
 | Zarządzanie przypisaniem agentów (EPIC-14) | 4 | 4 | 0 |
-| **RAZEM** | **38** | **37** | **1** |
+| Zakładka Klienci w Agent Desktop (EPIC-15) | 2 | 2 | 0 |
+| Kalendarz Agenta (EPIC-16) | 4 | 0 | 4 |
+| **RAZEM** | **44** | **39** | **5** |

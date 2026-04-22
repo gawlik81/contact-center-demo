@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
@@ -124,10 +125,16 @@ class TwilioTelephonyAdapterTest {
 
         redisStore.clear();
 
+        StringRedisTemplate stringRedisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> stringValueOps = mock(ValueOperations.class);
+        when(stringRedisTemplate.opsForValue()).thenReturn(stringValueOps);
+        when(stringValueOps.get(anyString())).thenReturn(null);
+
         // Nie wywołujemy @PostConstruct init() – omijamy Twilio.init() w testach
         adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher,
                 contactRepository, customerRepository, tenantRepository,
-                redisTemplate, recordingDownloadService);
+                redisTemplate, stringRedisTemplate, recordingDownloadService);
     }
 
     // =========================================================================

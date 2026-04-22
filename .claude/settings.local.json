@@ -187,7 +187,32 @@
       "Bash(git *)",
       "Bash(PGPASSWORD=postgres psql *)",
       "Read(//home/pawelm/contact-center/**)",
-      "Bash(sudo docker *)"
+      "Bash(sudo docker *)",
+      "Bash(node_modules/.bin/eslint src/app/core/services/websocket.service.ts src/app/features/agent/services/agent-recovery.service.ts src/app/features/agent/pages/agent-desktop/agent-desktop.component.ts)",
+      "Read(//opt/maven/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Read(//opt/**)",
+      "Bash(export PATH=\"$PATH:/usr/local/bin:/opt/node/bin:/home/pawelm/.nvm/versions/node/$\\(ls /home/pawelm/.nvm/versions/node)",
+      "Read(//usr/lib/**)",
+      "Read(//etc/**)",
+      "Bash(export PATH=\"$PATH:/home/pawelm/.nvm/versions/node/$\\(ls /home/pawelm/.nvm/versions/node/)",
+      "Read(//root/**)",
+      "Bash(env)",
+      "Bash(snap list *)",
+      "Bash(dpkg -l nodejs)",
+      "Bash(apt list *)",
+      "Bash(docker --version)",
+      "Bash(docker build *)",
+      "Bash(docker run *)",
+      "Bash(awk '/agent-recovery\\\\.service\\\\.ts/{found=1} found{print; if\\(/^$/ && found>0\\){found=0}}')",
+      "Bash(awk '/websocket\\\\.service\\\\.ts/{found=1} found{print; if\\(/^$/ && found>0\\){found=0}}')",
+      "Bash(docker rmi *)",
+      "Bash(psql *)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn compile -pl app -q)",
+      "Bash(javac -version)",
+      "Bash(/usr/lib/jvm/java-21-openjdk-amd64/bin/javac -version)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn package -f /home/pawelm/contact-center/backend/app/pom.xml -DskipTests -q)",
+      "Bash(awk 'NR>=250 && NR<=310' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)"
     ]
   }
 }

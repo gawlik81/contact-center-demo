@@ -19,6 +19,7 @@ import { ContactTabStore } from '../../services/contact-tab.store';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SoftphoneService } from '../../services/softphone.service';
 import { CustomerLookupService } from '../../services/customer-lookup.service';
+import { AgentRecoveryService } from '../../services/agent-recovery.service';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
@@ -64,6 +65,7 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   protected readonly softphoneService = inject(SoftphoneService);
   private readonly lookupService = inject(CustomerLookupService);
+  private readonly recoveryService = inject(AgentRecoveryService);
 
   protected readonly statusConfig = AGENT_STATUS_CONFIG;
   protected readonly allStatuses = ALL_AGENT_STATUSES;
@@ -147,6 +149,13 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.ws.connect();
     this.statusService.initStatus();
+
+    // Recovery after WS reconnect — checks for any pending PHONE contact in ASSIGNED state.
+    // Fires on every successful STOMP connect, including the initial one and all reconnects.
+    const unregisterRecovery = this.ws.onConnect(() => {
+      this.recoveryService.recoverAfterReconnect();
+    });
+    this.destroyRef.onDestroy(() => unregisterRecovery());
 
     this.ws.events$
       .pipe(

@@ -1437,6 +1437,68 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
+  // BE-046: ASSIGNED status monitoring (ContactAssignmentMonitor)
+  // =========================================================================
+
+  /**
+   * Zwraca kontakty ze statusem ASSIGNED, których assigned_at jest starsze niż podany próg.
+   *
+   * <p>Zapytanie cross-tenant (bez wywołania {@code setTenantContextInDb()}) – używane
+   * wyłącznie przez wewnętrzny scheduler {@code ContactAssignmentMonitor}. Aplikacja łączy
+   * się jako user {@code postgres} (superuser), który domyślnie omija RLS PostgreSQL.
+   * Nie wolno wywoływać tej metody ze ścieżki HTTP – ujawniłoby dane cross-tenant.
+   *
+   * @param assignedBefore próg czasowy – kontakty z assigned_at starszym od tego progu
+   * @return lista "przestarzałych" kontaktów ASSIGNED (posortowana od najstarszych)
+   */
+  @Transactional(readOnly = true)
+  @SuppressWarnings("unchecked")
+  public List<Contact> findStaleAssignedContacts(Instant assignedBefore) {
+    log.debug("[ContactRepo] findStaleAssignedContacts: assignedBefore={}", assignedBefore);
+
+    // Zapytanie JPQL bez setTenantContextInDb() – cross-tenant dla schedulera.
+    // Postgres superuser omija RLS, więc zwraca rekordy wszystkich tenantów.
+    List<Contact> results = em.createQuery(
+            "SELECT c FROM Contact c WHERE c.status = 'ASSIGNED' AND c.assignedAt < :cutoff",
+            Contact.class)
+        .setParameter("cutoff", assignedBefore)
+        .getResultList();
+
+    log.debug("[ContactRepo] findStaleAssignedContacts: znaleziono {} kontaktów", results.size());
+    return results;
+  }
+
+  /**
+   * Zwraca kontakt aktualnie przypisany (status ASSIGNED) do danego agenta.
+   *
+   * <p>Używane przez endpoint {@code GET /api/agent/me/assigned-contact} do recovery
+   * po reconnect WebSocket – agent może pobrać informacje o oczekującym połączeniu
+   * przydzielonym przez routing, jeśli WS event nie dotarł przy pierwszym połączeniu.
+   *
+   * @param agentId  UUID agenta
+   * @param tenantId UUID tenanta
+   * @return Optional z kontaktem ASSIGNED lub empty gdy brak
+   */
+  @Transactional(readOnly = true)
+  public Optional<Contact> findAssignedContactForAgent(UUID agentId, UUID tenantId) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepo] findAssignedContactForAgent: agentId={}, tenant={}", agentId, tenantId);
+
+    @SuppressWarnings("unchecked")
+    List<Contact> results = em.createQuery(
+            "SELECT c FROM Contact c WHERE c.agentId = :agentId AND c.tenantId = :tenantId " +
+            "AND c.status = 'ASSIGNED'",
+            Contact.class)
+        .setParameter("agentId", agentId)
+        .setParameter("tenantId", tenantId)
+        .setMaxResults(1)
+        .getResultList();
+
+    return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+  }
+
+  // =========================================================================
   // Inner record
   // =========================================================================
 

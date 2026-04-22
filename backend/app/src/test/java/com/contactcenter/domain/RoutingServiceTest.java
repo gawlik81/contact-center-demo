@@ -114,7 +114,7 @@ class RoutingServiceTest {
             verify(contactRepository).update(contactCaptor.capture());
             Contact updated = contactCaptor.getValue();
             assertThat(updated.getAgentId()).isEqualTo(AGENT_ID);
-            assertThat(updated.getStatus()).isEqualTo("ACTIVE");
+            assertThat(updated.getStatus()).isEqualTo("ASSIGNED");
             assertThat(updated.getAssignedAt()).isNotNull();
 
             // Weryfikuj event contact.assigned

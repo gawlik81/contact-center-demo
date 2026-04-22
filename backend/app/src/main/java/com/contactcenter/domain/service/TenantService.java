@@ -347,7 +347,7 @@ public class TenantService {
         }
 
         if (request.twilioStatusCallbackUrl() != null) {
-            config.put("twilio_status_callback_url", request.twilioStatusCallbackUrl());
+            config.put("twilio_status_callback_url", stripTenantIdParam(request.twilioStatusCallbackUrl()));
         } else {
             config.remove("twilio_status_callback_url");
         }
@@ -445,5 +445,10 @@ public class TenantService {
         }
 
         return config;
+    }
+
+    private String stripTenantIdParam(String url) {
+        if (url == null) return null;
+        return url.replaceAll("[?&]tenantId=[^&]*", "").replaceAll("\\?$", "");
     }
 }

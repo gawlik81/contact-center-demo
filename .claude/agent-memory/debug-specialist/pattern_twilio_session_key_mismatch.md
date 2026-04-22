@@ -1,17 +1,29 @@
 ---
 name: TwilioTelephonyAdapter — niezgodność klucza sesji callSid vs contactId
-description: sessions indeksowane po callSid (CA...), ale frontend wysyła contactId (UUID) jako callId do AgentCallController
+description: sessions indeksowane po callSid (CA...), ale frontend wysyła contactId (UUID); findCallSidByContactId zwraca empty gdy sip_call_id null w DB
 type: feedback
 ---
 
-TwilioTelephonyAdapter.sessions (ConcurrentHashMap) używa Twilio callSid (format CA...) jako klucza.
-ContactAssignedEvent wysyłany przez RabbitMQ do WebSocket relay zawiera TYLKO contactId (UUID z DB), nie callSid.
-Frontend odbiera contactId przez WebSocket i używa go jako {callId} w URL: POST /api/telephony/calls/{contactId}/answer.
-AgentCallController przekazuje odebrany callId bezpośrednio do telephonyAdapter.answerCall/hangupCall.
-requireSession(callId) szuka sessions.get(contactId-UUID) → null; UUID-scan po sessions.values() też zwraca null gdy sesja adaptera jeszcze nie istnieje (StatusCallback nie dotarł) lub istnieje z innym contactId (duplikat z persistContact()).
+TwilioTelephonyAdapter (Redis) używa Twilio callSid (format CA...) jako klucza sesji: `call-session:{callSid}`.
+Frontend odbiera contactId przez WebSocket i używa go jako {callId}: POST /api/telephony/calls/{contactId}/answer|hangup.
 
-**Why:** Twilio CallSid nie jest propagowany do frontendu w żadnym WS evencie. Frontend zna tylko contactId z bazy. Brakuje warstwy translacji callId→callSid w AgentCallController (przez ContactRepository.channelMetadata->>'sip_call_id').
+AgentCallController.resolveCallSid() tłumaczy UUID contactId → callSid przez ContactRepository.findCallSidByContactId()
+(channel_metadata->>'sip_call_id'). requireSession() ma analogiczny fallback.
 
-**Dodatkowy problem:** Gdy StatusCallback dociera po /voice webhooku, handleWebhookStatusUpdate() woła persistContact() ponownie → duplikat rekordu contact. Sesja adaptera (sessions[callSid]) może mieć inny contactId niż sesja IVR (Redis).
+**Przyczyna błędu "Sesja nie istnieje"**: findCallSidByContactId zwraca Optional.empty() gdy sip_call_id jest null w DB.
+To zdarza się gdy:
+- Kontakt OUTBOUND tworzony przed Twilio API (backfill sip_call_id przez handleWebhookStatusUpdate jest pending)
+- Błąd zapisu DB w handleVoiceWebhook (sesja Redis istnieje, ale DB niespójna)
+- Race condition: agent klika "Odbierz" zanim StatusCallback dotrze z Twilio
 
-**How to apply:** Gdy w logach "Sesja połączenia nie istnieje: {UUID-format}" – frontend wysyła contactId zamiast callSid. Naprawa priorytetu: AgentCallController.resolveCallSid() transluje UUID contactId → callSid przez ContactRepository.findCallSidByContactId() (channelMetadata->>'sip_call_id'). Alternatywa: dołącz callSid do eventu contact.assigned w RoutingService.
+**Implementowane rozwiązanie (2026-04-22)**: Indeks odwrotny Redis `contact-session-index:{contactId}` → callSid (String).
+- saveSession() tworzy indeks atomowo (setIfAbsent, StringRedisTemplate, TTL 24h) gdy contactId != null
+- requireSession() sprawdza indeks PRZED zapytaniem do DB (Fallback 1a → 1b → restore from DB)
+- deleteSession() usuwa indeks razem z sesją
+- StringRedisTemplate (nie GenericJackson2JsonRedisSerializer) — wartość to czysty String bez cudzysłowów JSON
+
+**Why:** DB lookup (sip_call_id) jest podatny na race condition i błędy zapisu. Indeks Redis jest pisany razem z sesją,
+więc jest zawsze spójny z życiem sesji. Obsługuje też OUTBOUND backfill race.
+
+**How to apply:** Gdy "Sesja połączenia nie istnieje: {UUID-format}" → sprawdź Redis pod kluczem
+contact-session-index:{contactId}. Jeśli brak — sesja wygasła lub nigdy nie powstała (sprawdź logi handleVoiceWebhook).

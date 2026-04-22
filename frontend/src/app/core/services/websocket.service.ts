@@ -20,6 +20,25 @@ export class WebSocketService {
   private client: Client | null = null;
 
   /**
+   * Callbacks invoked on every successful STOMP connect (including reconnects).
+   * Consumers register via onConnect() and receive an unregister function.
+   */
+  private readonly _onConnectCallbacks = new Set<() => void>();
+
+  /**
+   * Registers a callback that will be called on every successful STOMP connect,
+   * including reconnects. Returns an unregister function that removes the callback.
+   *
+   * Usage:
+   *   const unregister = this.ws.onConnect(() => this.doRecovery());
+   *   destroyRef.onDestroy(() => unregister());
+   */
+  onConnect(callback: () => void): () => void {
+    this._onConnectCallbacks.add(callback);
+    return () => this._onConnectCallbacks.delete(callback);
+  }
+
+  /**
    * Extra STOMP destinations registered by feature modules (e.g. supervisor topic).
    * These are re-subscribed automatically on every reconnect.
    */
@@ -45,6 +64,7 @@ export class WebSocketService {
         this.connectionState.set('CONNECTED');
         this.subscribeToUserEvents();
         this.resubscribeExtraTopics();
+        this._onConnectCallbacks.forEach((cb) => cb());
       },
       onDisconnect: () => {
         this.connectionState.set('DISCONNECTED');

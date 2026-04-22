@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -71,12 +72,25 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   /** Prefix klucza Redis dla sesji połączeń: {@code call-session:{callSid}}. */
   private static final String SESSION_KEY_PREFIX = "call-session:";
 
+  /**
+   * Indeks odwrotny: {@code contact-session-index:{contactId}} → Twilio CallSid (String).
+   *
+   * <p>Pozwala znaleźć sesję Redis po UUID kontaktu (DB) gdy frontend przekazuje {@code contactId}
+   * zamiast {@code callSid}. Indeks jest tworzony atomowo w {@link #saveSession} za każdym razem
+   * gdy {@link CallSession#getContactId()} nie jest null. Dzięki temu {@link #requireSession}
+   * może znaleźć właściwy {@code callSid} nawet gdy {@code channel_metadata->>'sip_call_id'}
+   * jest tymczasowo null w bazie danych (race condition / błąd zapisu DB).
+   */
+  private static final String CONTACT_SESSION_INDEX_PREFIX = "contact-session-index:";
+
   private final TwilioProperties twilioProperties;
   private final TelephonyEventPublisher eventPublisher;
   private final ContactRepository contactRepository;
   private final CustomerRepository customerRepository;
   private final TenantRepository tenantRepository;
   private final RedisTemplate<String, Object> redisTemplate;
+  /** Używany wyłącznie dla prostych kluczy String (indeks odwrotny contactId → callSid). */
+  private final StringRedisTemplate stringRedisTemplate;
   private final TwilioRecordingDownloadService recordingDownloadService;
 
   // =========================================================================
@@ -233,7 +247,6 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     try {
       String twilioFrom = resolvePhoneNumber(tenantId);
-      String callbackUrl = buildStatusCallbackUrl(tenantId);
 
       // Utwórz rekord Contact PRZED inicjacją połączenia Twilio, aby:
       // 1. contactId był dostępny w sesji zanim StatusCallback dotrze z Twilio.
@@ -251,14 +264,14 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           ? "contact-" + contactId
           : "contact-" + java.util.UUID.randomUUID();
 
-      String callbackBase = StringUtils.hasText(callbackUrl) ? callbackUrl : null;
+      String rawBase = buildRawWebhookBaseUrl(tenantId);
       StringBuilder conferenceAttrs = new StringBuilder();
       // endConferenceOnExit="true" – klient rozłączając się (lub po rozłączeniu przez hangupCall)
       // kończy konferencję, co wyzwala callbacki /conference i /recording po stronie Twilio.
       // Bez tego atrybutu konferencja trwałaby do czasu wyjścia ostatniego uczestnika.
       conferenceAttrs.append("startConferenceOnEnter=\"false\" endConferenceOnExit=\"true\"");
-      if (callbackBase != null) {
-        String confStatusCallbackUrl = callbackBase + "/conference?tenantId=" + tenantId;
+      if (rawBase != null) {
+        String confStatusCallbackUrl = rawBase + "/conference?tenantId=" + tenantId;
         conferenceAttrs.append(" statusCallback=\"").append(confStatusCallbackUrl).append("\"");
         conferenceAttrs.append(" statusCallbackEvent=\"end\"");
         conferenceAttrs.append(" statusCallbackMethod=\"POST\"");
@@ -277,8 +290,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           new Twiml(outboundTwiml)
       );
 
-      if (callbackBase != null) {
-        creator.setStatusCallback(URI.create(callbackBase + "?tenantId=" + tenantId));
+      if (rawBase != null) {
+        creator.setStatusCallback(URI.create(rawBase + "?tenantId=" + tenantId));
         creator.setStatusCallbackMethod(com.twilio.http.HttpMethod.POST);
         // Dozwolone eventy dla outbound calls: initiated, ringing, answered, completed.
         // "canceled" jest niedozwolony dla połączeń wychodzących (Twilio error 21626) –
@@ -440,7 +453,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     if (twilioProperties.isRecordingEnabled()) {
       conferenceAttrs.append(" record=\"record-from-start\"");
-      String callbackBase = buildStatusCallbackUrl(session.getTenantId());
+      String callbackBase = buildRawWebhookBaseUrl(session.getTenantId());
       if (StringUtils.hasText(callbackBase)) {
         // URL musi zawierać tenantId – controller parsuje go z query param
         String recordingCallbackUrl = callbackBase + "/recording?tenantId="
@@ -480,6 +493,20 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
       // Zapisz SID nogi agenta w sesji Redis – wymagany do rozłączenia CA_agent przez REST API w hangupCall()
       saveSession(session.withAgentCallSid(agentCallSid));
+
+      // Przejście ASSIGNED → ACTIVE: faktyczne zestawienie audio potwierdzono przez Twilio API.
+      // ContactAssignmentMonitor przestaje monitorować ten kontakt (sprawdza tylko status=ASSIGNED).
+      if (session.getContactId() != null) {
+        try {
+          contactRepository.updateContactStatusOnTelephonyEvent(
+              session.getContactId(), session.getTenantId(), "ACTIVE", null);
+          log.debug("[TwilioAdapter] Status kontaktu ASSIGNED→ACTIVE po dialAgentIntoConference: " +
+                    "contactId={}", session.getContactId());
+        } catch (Exception ex) {
+          log.warn("[TwilioAdapter] Nie udało się zaktualizować statusu kontaktu ASSIGNED→ACTIVE: " +
+                   "contactId={}, error={}", session.getContactId(), ex.getMessage());
+        }
+      }
     } catch (ApiException e) {
       log.error("[TwilioAdapter] Błąd Twilio API przy zestawianiu połączenia do agenta: " +
                 "agentClientId={}, conference={}, code={}, message={}",
@@ -1033,11 +1060,27 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * <p>TTL 24h pokrywa najdłuższe możliwe połączenie (Twilio max ~4h) plus bufor
    * na callbacki docierające do ~2 min po zakończeniu rozmowy.
    *
+   * <p>Gdy sesja zawiera {@code contactId}, atomowo tworzy też indeks odwrotny
+   * {@code contact-session-index:{contactId}} → {@code callSid}. Indeks umożliwia
+   * {@link #requireSession} znalezienie sesji gdy frontend przekazuje UUID kontaktu
+   * zamiast Twilio CallSid, nawet gdy {@code channel_metadata->>'sip_call_id'} jest
+   * tymczasowo null w bazie danych.
+   *
    * @param session sesja do zapisania
    */
   private void saveSession(CallSession session) {
     String key = SESSION_KEY_PREFIX + session.getCallId();
     redisTemplate.opsForValue().set(key, session, RedisConfig.TTL_CALL_SESSION);
+
+    // Indeks odwrotny contactId → callSid: pozwala requireSession() znaleźć sesję
+    // gdy AgentCallController przekazuje UUID kontaktu zamiast CA-SID.
+    // StringRedisTemplate (nie GenericJackson2JsonRedisSerializer) – wartość przechowywana
+    // jako czysty String bez cudzysłowów JSON. Nie nadpisujemy istniejącego wpisu –
+    // pierwszy callSid wygrywa (idempotentne).
+    if (session.getContactId() != null) {
+      String indexKey = CONTACT_SESSION_INDEX_PREFIX + session.getContactId().toString();
+      stringRedisTemplate.opsForValue().setIfAbsent(indexKey, session.getCallId(), RedisConfig.TTL_CALL_SESSION);
+    }
   }
 
   /**
@@ -1055,12 +1098,16 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   }
 
   /**
-   * Usuwa sesję z Redis.
+   * Usuwa sesję z Redis. Gdy sesja zawiera {@code contactId}, usuwa też indeks odwrotny.
    *
    * @param callId Twilio Call SID
    */
   private void deleteSession(String callId) {
+    CallSession session = getSession(callId);
     redisTemplate.delete(SESSION_KEY_PREFIX + callId);
+    if (session != null && session.getContactId() != null) {
+      stringRedisTemplate.delete(CONTACT_SESSION_INDEX_PREFIX + session.getContactId().toString());
+    }
   }
 
   private CallSession executeBlindTransfer(String callId, String target, CallSession session) {
@@ -1146,16 +1193,39 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private CallSession requireSession(String callId) {
     CallSession session = getSession(callId);
     if (session == null) {
-      // Fallback: callId may be a contactId (UUID from DB) sent by the frontend.
-      // After Redis migration we cannot scan values efficiently.
-      // Instead, resolve callSid from DB via contactId, then look up by callSid.
+      // Fallback 1: callId may be a contactId (UUID from DB) sent by the frontend.
+      // First try the Redis reverse index (contact-session-index:{contactId} → callSid).
+      // This is faster and more reliable than a DB lookup because it is written atomically
+      // in saveSession() whenever a session with contactId is persisted. The DB lookup
+      // (channel_metadata->>'sip_call_id') can return null when:
+      //   a) an OUTBOUND contact was created before Twilio returned a callSid (backfill pending)
+      //   b) the DB write failed while the Redis session was already registered
       try {
         UUID contactId = UUID.fromString(callId);
-        UUID tenantId = TenantContext.getTenantId();
-        if (tenantId != null) {
-          session = contactRepository.findCallSidByContactId(contactId, tenantId)
-              .map(this::getSession)
-              .orElse(null);
+
+        // Fallback 1a: Redis reverse index (no DB roundtrip)
+        // Używamy StringRedisTemplate – wartość to czysty String CA... bez cudzysłowów JSON.
+        String indexKey = CONTACT_SESSION_INDEX_PREFIX + contactId.toString();
+        String resolvedCallSid = stringRedisTemplate.opsForValue().get(indexKey);
+        if (resolvedCallSid != null) {
+          session = getSession(resolvedCallSid);
+          if (session != null) {
+            log.debug("[TwilioAdapter] Sesja znaleziona przez indeks Redis: contactId={}, callSid={}",
+                contactId, resolvedCallSid);
+          }
+        }
+
+        // Fallback 1b: DB lookup (sip_call_id in channel_metadata)
+        if (session == null) {
+          UUID tenantId = TenantContext.getTenantId();
+          if (tenantId != null) {
+            session = contactRepository.findCallSidByContactId(contactId, tenantId)
+                .map(this::getSession)
+                .orElse(null);
+            if (session != null) {
+              log.debug("[TwilioAdapter] Sesja znaleziona przez DB lookup sip_call_id: contactId={}", contactId);
+            }
+          }
         }
       } catch (IllegalArgumentException ignored) {
         // callId is not a valid UUID — not a contactId, skip fallback
@@ -1164,7 +1234,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             callId, e.getMessage());
       }
     }
-    // Fallback: sesja może nie istnieć w Redis gdy StatusCallback nie dotarł jeszcze.
+    // Fallback 2: sesja może nie istnieć w Redis gdy StatusCallback nie dotarł jeszcze.
     // Próbujemy odtworzyć sesję na podstawie callSid z DB (tabela contact, pole channelMetadata).
     if (session == null && callId.startsWith("CA")) {
       session = tryRestoreSessionFromDb(callId);
@@ -1258,6 +1328,20 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   }
 
   private String buildStatusCallbackUrl(UUID tenantId) {
+    String base = buildRawWebhookBaseUrl(tenantId);
+    if (base == null) return null;
+    if (tenantId != null && !base.contains("tenantId=")) {
+      String separator = base.contains("?") ? "&" : "?";
+      return base + separator + "tenantId=" + tenantId;
+    }
+    return base;
+  }
+
+  /**
+   * Zwraca bazowy URL webhooka Twilio BEZ doklejonego query param {@code tenantId}.
+   * Używany gdy caller sam buduje sub-ścieżkę (np. /recording, /conference).
+   */
+  private String buildRawWebhookBaseUrl(UUID tenantId) {
     if (tenantId != null) {
       try {
         String perTenantUrl = tenantRepository.findById(tenantId)
@@ -1265,21 +1349,19 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .orElse(null);
         if (StringUtils.hasText(perTenantUrl)) {
           log.debug("[TwilioAdapter] Używam per-tenant callback URL: tenantId={}", tenantId);
-          return perTenantUrl;
+          // Strip query string so callers can append their own sub-paths cleanly
+          int q = perTenantUrl.indexOf('?');
+          return q >= 0 ? perTenantUrl.substring(0, q) : perTenantUrl;
         }
       } catch (Exception e) {
         log.warn("[TwilioAdapter] Błąd odczytu per-tenant callback URL dla tenantId={}: {} – " +
                  "fallback do konfiguracji globalnej", tenantId, e.getMessage());
       }
     }
-
     String globalUrl = twilioProperties.getStatusCallbackUrl();
-    String baseUrl = StringUtils.hasText(globalUrl) ? globalUrl : null;
-    if (tenantId != null && baseUrl != null && !baseUrl.contains("tenantId=")) {
-      String separator = baseUrl.contains("?") ? "&" : "?";
-      return baseUrl + separator + "tenantId=" + tenantId;
-    }
-    return baseUrl;
+    if (!StringUtils.hasText(globalUrl)) return null;
+    int q = globalUrl.indexOf('?');
+    return q >= 0 ? globalUrl.substring(0, q) : globalUrl;
   }
 
   /**

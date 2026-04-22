@@ -53,20 +53,20 @@ public class FlywayConfig {
      *
      * @return FlywayMigrationStrategy – bezpieczna migracja produkcyjna
      */
+    /**
+     * Strategia migracji dla profilu PROD.
+     *
+     * <p>Wywołuje wyłącznie {@code migrate()} — Flyway wewnętrznie waliduje sumy kontrolne
+     * już zastosowanych migracji (spring.flyway.validate-on-migrate=true domyślnie)
+     * przed zastosowaniem pending. Jawne {@code validate()} przed {@code migrate()} jest
+     * niepoprawne, bo Flyway traktuje "pending" migracje jako błąd walidacji i blokuje start
+     * przy każdym dodaniu nowej migracji.
+     */
     @Bean
     @Profile("prod")
     public FlywayMigrationStrategy flywayMigrationStrategyProd() {
         return flyway -> {
-            log.info("[Flyway][PROD] Uruchamianie walidacji i migracji bazy danych...");
-            // Walidacja checksum ma sens tylko gdy baza ma już zastosowane migracje.
-            // Na świeżej bazie (current == null) pomijamy validate() — migrate() wykona to samo.
-            var current = flyway.info().current();
-            if (current != null) {
-                flyway.validate();
-                log.info("[Flyway][PROD] Walidacja migracji: OK (aktualna wersja: {})", current.getVersion());
-            } else {
-                log.info("[Flyway][PROD] Świeża baza – pomijam validate(), uruchamiam migrate()");
-            }
+            log.info("[Flyway][PROD] Uruchamianie migracji bazy danych...");
             var result = flyway.migrate();
             log.info("[Flyway][PROD] Migracje zakończone. Zastosowanych: {}",
                     result.migrationsExecuted);

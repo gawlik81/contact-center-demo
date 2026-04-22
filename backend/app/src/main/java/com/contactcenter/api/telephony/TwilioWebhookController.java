@@ -506,8 +506,10 @@ public class TwilioWebhookController {
                   currentStatus, contactId);
               return;
             }
-            if ("QUEUED".equals(currentStatus) || "ACTIVE".equals(currentStatus)
-                || "ON_HOLD".equals(currentStatus)) {
+            // ASSIGNED oznacza że routing przydzielił agenta, ale agent jeszcze nie odebrał
+            // (WS event mógł nie dotrzeć). Traktujemy tak samo jak QUEUED/ACTIVE – ABANDONED.
+            if ("QUEUED".equals(currentStatus) || "ASSIGNED".equals(currentStatus)
+                || "ACTIVE".equals(currentStatus) || "ON_HOLD".equals(currentStatus)) {
               log.info("[TwilioConference] Konferencja zakończona, kontakt w statusie {} – " +
                        "ustawiam ABANDONED: contactId={}", currentStatus, contactId);
               contactRepository.updateContactStatusOnTelephonyEvent(

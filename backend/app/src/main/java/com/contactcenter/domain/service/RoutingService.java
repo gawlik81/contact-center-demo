@@ -289,7 +289,12 @@ public class RoutingService {
     // =========================================================================
 
     /**
-     * Aktualizuje kontakt – przypisuje agenta i ustawia status ACTIVE.
+     * Aktualizuje kontakt – przypisuje agenta i ustawia status ASSIGNED.
+     *
+     * <p>Status ASSIGNED (nie ACTIVE) pozwala ContactAssignmentMonitor wykryć sytuację,
+     * gdy CONTACT_ASSIGNED WebSocket event nie dotarł do agenta (utrata połączenia WS).
+     * Przejście ASSIGNED → ACTIVE następuje dopiero gdy adapter telefoniczny wykona
+     * faktyczne zestawienie połączenia audio (dialAgentIntoConference).
      *
      * @param contact  encja kontaktu
      * @param agentId  UUID wybranego agenta
@@ -297,7 +302,7 @@ public class RoutingService {
      */
     private void assignContactToAgent(Contact contact, UUID agentId, UUID tenantId) {
         contact.setAgentId(agentId);
-        contact.setStatus("ACTIVE");
+        contact.setStatus("ASSIGNED");
         contact.setAssignedAt(Instant.now());
 
         int updated = contactRepository.update(contact);

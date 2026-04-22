@@ -58,9 +58,15 @@ public class FlywayConfig {
     public FlywayMigrationStrategy flywayMigrationStrategyProd() {
         return flyway -> {
             log.info("[Flyway][PROD] Uruchamianie walidacji i migracji bazy danych...");
-            // Walidacja sprawdza czy już zastosowane migracje nie zostały zmodyfikowane
-            flyway.validate();
-            log.info("[Flyway][PROD] Walidacja migracji: OK");
+            // Walidacja checksum ma sens tylko gdy baza ma już zastosowane migracje.
+            // Na świeżej bazie (current == null) pomijamy validate() — migrate() wykona to samo.
+            var current = flyway.info().current();
+            if (current != null) {
+                flyway.validate();
+                log.info("[Flyway][PROD] Walidacja migracji: OK (aktualna wersja: {})", current.getVersion());
+            } else {
+                log.info("[Flyway][PROD] Świeża baza – pomijam validate(), uruchamiam migrate()");
+            }
             var result = flyway.migrate();
             log.info("[Flyway][PROD] Migracje zakończone. Zastosowanych: {}",
                     result.migrationsExecuted);

@@ -75,4 +75,18 @@ public class S3Properties {
      * MinIO: true
      */
     private boolean pathStyleAccessEnabled = true;
+
+    /**
+     * Publiczny endpoint używany wyłącznie przez S3Presigner do generowania presigned URL.
+     * Gdy ustawiony (np. https://myngrok.ngrok-free.dev), presigned URL będzie zawierał
+     * ten hostname zamiast wewnętrznego (minio:9000), dzięki czemu URL jest dostępny z przeglądarki.
+     * Gdy null/pusty – używany jest {@link #endpoint}.
+     *
+     * ENV: S3_PUBLIC_ENDPOINT (opcjonalne)
+     */
+    private String publicEndpoint;
+
+    public String getEffectivePresignerEndpoint() {
+        return (publicEndpoint != null && !publicEndpoint.isBlank()) ? publicEndpoint : endpoint;
+    }
 }

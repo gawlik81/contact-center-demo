@@ -32,12 +32,12 @@
     <!-- Katalog logów: nadpisywalny przez ENV var LOG_PATH -->
     <property name="LOG_PATH" value="${LOG_PATH:-logs}"/>
 
-    <!-- Wspólny wzorzec dla BE i konsoli -->
+    <!-- Wspólny wzorzec dla BE i konsoli; strefa Europe/Warsaw dla czytelności w dev -->
     <property name="PATTERN_BE"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{tenantId}] [%X{requestId}] %logger{36} - %msg%n"/>
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS, Europe/Warsaw} [%thread] %-5level [%X{tenantId}] [%X{requestId}] %logger{36} - %msg%n"/>
     <!-- Wzorzec dla FE – zamiast [%thread] stały tag [FRONTEND] -->
     <property name="PATTERN_FE"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [FRONTEND] %-5level [%X{tenantId}] %logger{36} - %msg%n"/>
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS, Europe/Warsaw} [FRONTEND] %-5level [%X{tenantId}] %logger{36} - %msg%n"/>
 
     <!-- =========================================================
          Appender: CONSOLE

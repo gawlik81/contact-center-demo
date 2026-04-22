@@ -36,6 +36,22 @@
 23. [Procedura rollback](#23-procedura-rollback)
 24. [Checklista bezpieczeństwa produkcyjnego](#24-checklista-bezpieczeństwa-produkcyjnego)
 
+### Część C — Demo lokalne z publicznym adresem (Ubuntu + Docker + ngrok)
+
+25. [Wymagania wstępne](#25-wymagania-wstępne)
+26. [Krok 1 — Instalacja ngrok](#26-krok-1--instalacja-ngrok)
+27. [Krok 2 — Uwierzytelnienie ngrok](#27-krok-2--uwierzytelnienie-ngrok)
+28. [Krok 3 — (Opcjonalne) Statyczna domena ngrok](#28-krok-3--opcjonalne-statyczna-domena-ngrok)
+29. [Krok 4 — (Opcjonalne) Plik konfiguracyjny ngrok](#29-krok-4--opcjonalne-plik-konfiguracyjny-ngrok)
+30. [Krok 5 — Dostosowanie docker-compose dla lokalnego demo](#30-krok-5--dostosowanie-docker-compose-dla-lokalnego-demo)
+31. [Krok 6 — Uruchomienie systemu](#31-krok-6--uruchomienie-systemu)
+32. [Krok 7 — Uruchomienie tunelu ngrok](#32-krok-7--uruchomienie-tunelu-ngrok)
+33. [Krok 8 — Inicjalizacja danych demo](#33-krok-8--inicjalizacja-danych-demo)
+34. [Skróty i codzienne użytkowanie](#34-skróty-i-codzienne-użytkowanie)
+35. [Weryfikacja końcowa](#35-weryfikacja-końcowa)
+36. [Rozwiązywanie problemów (demo lokalne)](#36-rozwiązywanie-problemów-demo-lokalne)
+37. [Porównanie trybów wdrożenia](#37-porównanie-trybów-wdrożenia)
+
 ---
 
 # CZĘŚĆ A — Wdrożenie demo na Hostinger VPS
@@ -237,6 +253,8 @@ COPY app/pom.xml app/
 RUN mvn dependency:go-offline -pl app -q
 
 COPY app/src app/src
+# Migracje Flyway są w backend/src/main/resources (poza modułem app/)
+COPY src src
 
 # Buduj JAR bez testów
 RUN mvn clean package -pl app -DskipTests -q
@@ -249,7 +267,7 @@ RUN addgroup -S ccapp && adduser -S ccapp -G ccapp
 
 WORKDIR /app
 
-COPY --from=builder /build/app/target/app-*.jar app.jar
+COPY --from=builder /build/app/target/contact-center-app-*.jar app.jar
 
 # Katalog na logi
 RUN mkdir -p /var/log/contact-center && chown ccapp:ccapp /var/log/contact-center
@@ -296,7 +314,7 @@ FROM nginx:1.26-alpine AS runtime
 RUN rm /etc/nginx/conf.d/default.conf
 
 # Kopiuj zbudowaną aplikację
-COPY --from=builder /app/dist/contact-center/browser /usr/share/nginx/html
+COPY --from=builder /app/dist/contact-center-frontend/browser /usr/share/nginx/html
 
 # Kopiuj konfigurację Nginx dla SPA (Angular Router)
 COPY nginx-spa.conf /etc/nginx/conf.d/default.conf
@@ -304,7 +322,7 @@ COPY nginx-spa.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s \
-  CMD wget -q -O- http://localhost:80/ | grep -q '<app-root' || exit 1
+  CMD wget -q -O /dev/null http://localhost:80/ || exit 1
 ```
 
 ---
@@ -892,10 +910,12 @@ curl -sf -o /dev/null -w "%{http_code}" $DOMAIN/
 curl -sf $DOMAIN/api/actuator/health | python3 -m json.tool
 # Oczekiwane: {"status":"UP", "components":{...}}
 
-# 3. Test logowania
+# 3. Test logowania (tenantId = UUID z kroku INSERT INTO tenant)
+TENANT_ID=$(docker exec cc-postgres psql -U ccapp -d contact_center -tAc \
+  "SELECT tenant_id FROM tenant WHERE LOWER(name)='demo company' LIMIT 1")
 curl -sf -X POST $DOMAIN/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"tenantSlug":"acme","username":"admin@acme.com","password":"Admin@12345"}' \
+  -d "{\"tenantId\":\"$TENANT_ID\",\"email\":\"admin@demo.com\",\"password\":\"Test@12345\"}" \
   | python3 -m json.tool
 # Oczekiwane: {"accessToken":"eyJ...", "role":"ADMIN"}
 
@@ -918,45 +938,38 @@ Migracja `V999__dev_seed.sql` jest dostępna **tylko w profilu dev** — w produ
 ```bash
 # Wejdź do kontenera PostgreSQL
 docker exec -it cc-postgres psql -U ccapp -d contact_center
+```
 
-# Utwórz tenanta demo
-INSERT INTO tenant (id, name, slug, status, created_at, updated_at)
-VALUES (
-  gen_random_uuid(),
-  'Demo Company',
-  'demo',
-  'ACTIVE',
-  NOW(),
-  NOW()
-);
+```sql
+-- Utwórz tenanta demo (tenant_id generowany automatycznie)
+INSERT INTO tenant (name, status)
+VALUES ('Demo Company', 'ACTIVE')
+RETURNING tenant_id;
+```
 
--- Zapisz UUID tenanta z poprzedniego INSERT
--- Następnie utwórz użytkownika ADMIN (hasło: Admin@12345 — zmień po pierwszym logowaniu!)
-INSERT INTO app_user (id, tenant_id, email, password_hash, role, status, first_name, last_name, created_at, updated_at)
+```sql
+-- Utwórz użytkownika ADMIN (hasło: Test@12345 — zmień po pierwszym logowaniu!)
+INSERT INTO app_user (tenant_id, email, password_hash, role, status, first_name, last_name)
 VALUES (
-  gen_random_uuid(),
-  (SELECT id FROM tenant WHERE slug = 'demo'),
+  (SELECT tenant_id FROM tenant WHERE LOWER(name) = 'demo company'),
   'admin@demo.com',
   '$2a$12$b7S/mPXPbip0cNDfN5oFB.UCLXFqGaAO97oXynzYjMFlBuA.zLjt6',
   'ADMIN',
   'ACTIVE',
   'Admin',
-  'Demo',
-  NOW(),
-  NOW()
+  'Demo'
 );
 
 \q
 ```
 
-> Hash BCrypt powyżej odpowiada hasłu `Test@12345`. Zmień hasło po pierwszym logowaniu przez UI.
+> Hash BCrypt odpowiada hasłu `Test@12345`. Zmień hasło po pierwszym logowaniu przez UI.
 
 ### 13.2 Pierwsze logowanie
 
 Wejdź na `https://TWOJA_DOMENA` i zaloguj się:
 - Email: `admin@demo.com`
 - Hasło: `Test@12345`
-- Organizacja: `Demo Company` (pojawi się po wpisaniu emaila)
 
 ---
 
@@ -1276,5 +1289,788 @@ Przed udostępnieniem systemu na zewnątrz zweryfikuj:
 
 ---
 
+# CZĘŚĆ C — Demo lokalne z publicznym adresem (Ubuntu + Docker + ngrok)
+
+> Idealne do prezentacji dla klientów z własnego laptopa/stacji roboczej. **Nie wymaga VPS ani własnej domeny.** Działa na dynamicznym IP dzięki tunelowi ngrok.
+
+---
+
+## Konwencja uprawnień w tej sekcji
+
+W każdym bloku kodu oznaczono kto powinien wykonać polecenie:
+
+- `# [zwykły user]` — wykonaj jako zalogowany użytkownik (nie root)
+- `# [sudo / root]` — wykonaj z `sudo` lub jako root
+
+Cały backend, frontend, baza danych i pozostałe serwisy działają **wyłącznie w kontenerach Docker** — nie instalujesz Javy, Node.js ani PostgreSQL na hoście. Na
+hoście instalujesz jedynie: Docker Engine, Docker Compose i ngrok.
+
+---
+
+## 25. Wymagania wstępne
+
+| Wymaganie         | Minimalne                                                 |
+|-------------------|-----------------------------------------------------------|
+| System operacyjny | Ubuntu 22.04 LTS (desktop lub server)                     |
+| RAM               | 12 GB (ClickHouse + Spring Boot są pamięciożerne)         |
+| CPU               | 4 rdzenie                                                 |
+| Dysk              | 20 GB wolnego miejsca                                     |
+| Docker Engine     | ≥ 26.x                                                    |
+| Docker Compose    | v2.x                                                      |
+| Konto ngrok       | Bezpłatne — rejestracja na [ngrok.com](https://ngrok.com) |
+| Własna domena     | **Nie wymagana**                                          |
+
+> **Dlaczego ngrok?**  
+> Twój komputer ma dynamiczne IP — zmienia się przy każdym restarcie routera. ngrok tworzy zaszyfrowane połączenie wychodzące z Twojego hosta do serwerów ngrok.
+> Dostajesz publiczny adres HTTPS (np. `https://abc123.ngrok-free.app`) bez konieczności posiadania domeny czy otwierania portów na routerze.
+>
+> **Ograniczenie darmowego planu:** URL zmienia się przy każdym restarcie ngrok. Jeśli chcesz stały URL, aktywuj bezpłatną statyczną domenę ngrok (
+`Dashboard → Domains → Claim free domain`).
+
+---
+
+## 26. Krok 1 — Instalacja ngrok
+
+```bash
+# [sudo / root] Dodaj repozytorium ngrok i zainstaluj
+curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+  | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+
+echo "deb https://ngrok-agent.s3.amazonaws.com buster main" \
+  | sudo tee /etc/apt/sources.list.d/ngrok.list
+
+sudo apt update && sudo apt install -y ngrok
+
+# [zwykły user] Sprawdź wersję
+ngrok --version
+```
+
+---
+
+## 27. Krok 2 — Uwierzytelnienie ngrok
+
+```bash
+# [zwykły user] Token zapisywany do ~/.config/ngrok/ngrok.yml bieżącego użytkownika
+# NIE wykonuj jako root — authtoken musi należeć do użytkownika uruchamiającego ngrok
+# Skopiuj authtoken z: https://dashboard.ngrok.com/get-started/your-authtoken
+ngrok config add-authtoken <TWOJ_AUTHTOKEN>
+
+# Sprawdź konfigurację
+cat ~/.config/ngrok/ngrok.yml
+# Oczekiwane: authtoken: <token>...
+```
+
+---
+
+## 28. Krok 3 — (Opcjonalne) Statyczna domena ngrok
+
+Na darmowym planie ngrok oferuje **jedną bezpłatną statyczną domenę** (np. `twoja-nazwa.ngrok-free.app`). Dzięki niej URL nie zmienia się przy restarcie.
+
+```bash
+# 1. Wejdź na: https://dashboard.ngrok.com/domains → "Claim free domain"
+# 2. Zapisz przyznaną domenę, np.: twoja-nazwa.ngrok-free.app
+
+# [zwykły user] Użycie statycznej domeny przy uruchamianiu tunelu:
+ngrok http --domain=twoja-nazwa.ngrok-free.app 80
+```
+
+Bez statycznej domeny uruchamiasz ngrok bez flagi `--domain` — URL będzie losowy, ale działa tak samo.
+
+---
+
+## 29. Krok 4 — (Opcjonalne) Plik konfiguracyjny ngrok
+
+Jeśli chcesz uruchamiać ngrok jedną komendą z zachowanymi ustawieniami:
+
+```bash
+# [zwykły user] Plik konfiguracyjny ngrok zapisywany w katalogu domowym bieżącego użytkownika
+cat > ~/.config/ngrok/ngrok.yml << 'EOF'
+version: "3"
+agent:
+  authtoken: <TWOJ_AUTHTOKEN>
+tunnels:
+  cc-demo:
+    proto: http
+    addr: 80
+    # Odkomentuj jeśli masz statyczną domenę:
+    # domain: twoja-nazwa.ngrok-free.app
+EOF
+```
+
+Uruchomienie przez nazwę tunelu:
+
+```bash
+# [zwykły user]
+ngrok start cc-demo
+```
+
+---
+
+## 30. Krok 5 — Pliki konfiguracyjne Docker dla lokalnego demo
+
+Ponieważ SSL jest obsługiwany przez ngrok (nie lokalnie), Nginx działa tylko w trybie HTTP — **bez certyfikatu Let's Encrypt**. Wszystkie serwisy (backend
+Spring Boot, frontend Angular, PostgreSQL, Redis, RabbitMQ, MinIO, ClickHouse) działają jako kontenery Docker.
+
+### 30.1 Utwórz `nginx/nginx-local-demo.conf`
+
+```bash
+# [zwykły user] Wykonaj z katalogu projektu
+cd <KATALOG_PROJEKTU>   # np. ~/contact-center-demo lub /opt/contact-center-demo
+mkdir -p nginx
+```
+
+```nginx
+# nginx/nginx-local-demo.conf
+# Konfiguracja dla lokalnego demo z ngrok
+# SSL/TLS jest terminowany przez ngrok — tutaj tylko HTTP
+
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid       /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer"';
+    access_log /var/log/nginx/access.log main;
+
+    sendfile on;
+    keepalive_timeout 65;
+    client_max_body_size 50m;
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;
+    limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=5r/s;
+
+    upstream backend {
+        server backend:8080;
+        keepalive 32;
+    }
+
+    server {
+        listen 80;
+        server_name _;  # akceptuj każdy hostname
+
+        # REST API
+        location /api/ {
+            limit_req zone=api_limit burst=200 nodelay;
+            proxy_pass         http://backend;
+            proxy_http_version 1.1;
+            proxy_set_header   Host              $host;
+            proxy_set_header   X-Real-IP         $remote_addr;
+            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto https;  # ngrok zawsze HTTPS
+            proxy_connect_timeout 10s;
+            proxy_read_timeout    60s;
+        }
+
+        # Rate limiting dla auth
+        location /api/auth/ {
+            limit_req zone=auth_limit burst=10 nodelay;
+            proxy_pass         http://backend;
+            proxy_http_version 1.1;
+            proxy_set_header   Host              $host;
+            proxy_set_header   X-Real-IP         $remote_addr;
+            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto https;
+        }
+
+        # WebSocket (STOMP over SockJS)
+        location /ws {
+            proxy_pass         http://backend;
+            proxy_http_version 1.1;
+            proxy_set_header   Upgrade    $http_upgrade;
+            proxy_set_header   Connection "upgrade";
+            proxy_set_header   Host       $host;
+            proxy_set_header   X-Real-IP  $remote_addr;
+            proxy_read_timeout  3600s;
+            proxy_send_timeout  3600s;
+        }
+
+        # Actuator — tylko lokalnie
+        location /actuator {
+            allow 127.0.0.1;
+            allow 172.16.0.0/12;
+            deny all;
+            proxy_pass http://backend;
+        }
+
+        # MinIO presigned URL proxy — przekazuje oryginalne nagłówki (Host) dla walidacji podpisu AWS SigV4
+        # S3Presigner generuje URL z hostem ngrok; MinIO waliduje podpis na podstawie nagłówka Host
+        location /contact-center-recordings/ {
+            proxy_pass         http://minio:9000;
+            proxy_http_version 1.1;
+            proxy_set_header   Host              $host;
+            proxy_set_header   X-Real-IP         $remote_addr;
+            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_buffering    off;
+            proxy_read_timeout 300s;
+        }
+
+        # Frontend Angular SPA
+        location / {
+            proxy_pass         http://frontend:80;
+            proxy_http_version 1.1;
+            proxy_set_header   Host $host;
+        }
+    }
+}
+```
+
+### 30.2 Utwórz `docker-compose.local-demo.yml`
+
+```yaml
+# docker-compose.local-demo.yml
+# Nadpisania dla lokalnego demo z ngrok
+# Uruchomienie:
+#   docker compose --env-file .env.local-demo \
+#     -f docker-compose.yml -f docker-compose.local-demo.yml up -d
+
+services:
+
+   backend:
+      build:
+         context: ./backend
+         dockerfile: Dockerfile.backend
+      image: cc-backend:local
+      container_name: cc-backend
+      env_file: .env.local-demo
+      environment:
+         SPRING_PROFILES_ACTIVE: prod
+      depends_on:
+         postgres:
+            condition: service_healthy
+         redis:
+            condition: service_healthy
+         rabbitmq:
+            condition: service_healthy
+      restart: unless-stopped
+      networks:
+         - cc-network
+      expose:
+         - "8080"
+      volumes:
+         - backend_logs:/var/log/contact-center
+      healthcheck:
+         test: [ "CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'" ]
+         interval: 30s
+         timeout: 10s
+         start_period: 120s
+         retries: 5
+      logging:
+         driver: "json-file"
+         options:
+            max-size: "100m"
+            max-file: "5"
+
+   frontend:
+      build:
+         context: ./frontend
+         dockerfile: Dockerfile.frontend
+      image: cc-frontend:local
+      container_name: cc-frontend
+      restart: unless-stopped
+      networks:
+         - cc-network
+      expose:
+         - "80"
+      healthcheck:
+         disable: true   # wget --spider nie istnieje w BusyBox Alpine; Nginx startuje w <2s
+      logging:
+         driver: "json-file"
+         options:
+            max-size: "50m"
+            max-file: "3"
+
+   nginx:
+      image: nginx:1.26-alpine
+      container_name: cc-nginx
+      ports:
+         - "80:80"      # tylko HTTP — SSL obsługuje ngrok
+      volumes:
+         - ./nginx/nginx-local-demo.conf:/etc/nginx/nginx.conf:ro
+         - nginx_logs:/var/log/nginx
+      restart: unless-stopped
+      networks:
+         - cc-network
+      depends_on:
+         backend:
+            condition: service_healthy
+         frontend:
+            condition: service_started
+
+   postgres:
+      ports: !reset [ ]
+      expose:
+         - "5432"
+      environment:
+         POSTGRES_DB: contact_center
+         POSTGRES_USER: ${DB_USERNAME}
+         POSTGRES_PASSWORD: ${DB_PASSWORD}
+
+   redis:
+      ports: !reset [ ]
+      expose:
+         - "6379"
+      command: >
+         redis-server
+         --requirepass ${REDIS_PASSWORD}
+         --appendonly yes
+         --maxmemory 512mb
+         --maxmemory-policy allkeys-lru
+
+   rabbitmq:
+      ports: !reset [ ]
+      expose:
+         - "5672"
+      environment:
+         RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+         RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+         RABBITMQ_DEFAULT_VHOST: /
+
+   minio:
+      ports: !reset [ ]
+      expose:
+         - "9000"
+
+   clickhouse:
+      ports: !reset [ ]
+      expose:
+         - "8123"
+         - "9000"
+
+volumes:
+   nginx_logs:
+   backend_logs:
+```
+
+### 30.3 Utwórz `.env.local-demo`
+
+```bash
+# [zwykły user] Wykonaj z katalogu projektu
+nano .env.local-demo
+```
+
+```bash
+# ── Baza danych ──────────────────────────────────────────────
+DB_URL=jdbc:postgresql://postgres:5432/contact_center
+DB_USERNAME=ccapp
+DB_PASSWORD=LocalDemo@2026!SecurePass
+DB_POOL_MAX_SIZE=10
+DB_POOL_MIN_IDLE=2
+
+# ── Redis ────────────────────────────────────────────────────
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=LocalRedis@2026!SecurePass
+REDIS_DATABASE=0
+REDIS_SSL_ENABLED=false
+REDIS_POOL_MAX_ACTIVE=8
+REDIS_POOL_MAX_IDLE=8
+REDIS_POOL_MIN_IDLE=2
+
+# ── RabbitMQ ─────────────────────────────────────────────────
+RABBITMQ_HOST=rabbitmq
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=ccapp
+RABBITMQ_PASSWORD=LocalRabbit@2026!SecurePass
+RABBITMQ_VHOST=/
+RABBITMQ_SSL_ENABLED=false
+
+# ── JWT (wygeneruj: openssl rand -base64 64) ─────────────────
+JWT_SECRET=ZMIEN_NA_LOSOWY_CIAG_MIN64_ZNAKI_openssl_rand_base64_64
+JWT_EXPIRATION_MS=900000
+JWT_REFRESH_EXPIRATION_MS=604800000
+
+# ── MinIO / S3 ───────────────────────────────────────────────
+S3_ENDPOINT=http://minio:9000
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+S3_BUCKET=contact-center-recordings
+S3_REGION=us-east-1
+S3_PATH_STYLE_ACCESS=true
+# Publiczny endpoint dla presigned URL (musi być = APP_BASE_URL / ngrok URL).
+# S3Presigner generuje linki z tym hostem; Nginx proxy /contact-center-recordings/ → minio:9000.
+# MinIO waliduje podpis na podstawie nagłówka Host ($host) przesyłanego przez Nginx.
+S3_PUBLIC_ENDPOINT=https://PLACEHOLDER_UZUPELNIJ_PO_STARCIE_NGROK
+
+# ── ClickHouse ───────────────────────────────────────────────
+CLICKHOUSE_URL=jdbc:clickhouse://clickhouse:8123/contact_center_dw
+CLICKHOUSE_USER=default
+CLICKHOUSE_PASSWORD=
+
+# ── Twilio (opcjonalne — zostaw puste jeśli nie używasz VoIP) ─
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=
+TWILIO_API_KEY_SID=
+TWILIO_API_KEY_SECRET=
+TWILIO_TWIML_APP_SID=
+TWILIO_RECORDING_ENABLED=false
+# Weryfikacja podpisu Twilio wymaga dokładnej zgodności APP_BASE_URL z Twilio Console.
+# W demo lokalnym z dynamicznym URL ngrok wyłącz weryfikację.
+TWILIO_SIGNATURE_VALIDATION_ENABLED=false
+
+# ── Aplikacja ────────────────────────────────────────────────
+# WAŻNE: uzupełnij APP_BASE_URL po uruchomieniu ngrok (Krok 7)
+APP_BASE_URL=https://PLACEHOLDER_UZUPELNIJ_PO_STARCIE_NGROK
+# WAŻNE: ustaw na ten sam URL co APP_BASE_URL (ngrok domain)
+CORS_ALLOWED_ORIGINS=https://PLACEHOLDER_UZUPELNIJ_PO_STARCIE_NGROK,http://localhost:4200,http://localhost:3000
+WEBSOCKET_ALLOWED_ORIGINS=https://PLACEHOLDER_UZUPELNIJ_PO_STARCIE_NGROK,http://localhost:4200,http://localhost:3000
+SPRING_PROFILES_ACTIVE=prod
+SERVER_PORT=8080
+LOG_PATH=/var/log/contact-center
+LOG_FILE=/var/log/contact-center/app.log
+PROMETHEUS_ENABLED=false
+```
+
+```bash
+# Zabezpiecz plik — dostępny tylko dla właściciela
+chmod 600 .env.local-demo
+```
+
+> `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `WEBSOCKET_ALLOWED_ORIGINS` i `S3_PUBLIC_ENDPOINT` uzupełnisz po pierwszym uruchomieniu ngrok — wtedy poznasz przydzielony URL (Krok 7). Jeśli masz statyczną domenę ngrok, możesz wpisać ją od razu — wtedy ustaw wszystkie cztery pola przed pierwszym startem. Wygeneruj silny `JWT_SECRET`: `openssl rand -base64 64`.
+>
+> **Ważne:** `S3_PUBLIC_ENDPOINT` i `APP_BASE_URL` muszą zawsze mieć identyczną wartość. Presigned URL nagrania będzie zawierał ten hostname; Nginx proxy `/contact-center-recordings/` przekazuje żądanie do MinIO zachowując nagłówek `Host`, co pozwala MinIO poprawnie zwalidować podpis AWS SigV4.
+
+---
+
+## 31. Krok 6 — Uruchomienie systemu
+
+Wszystkie poniższe komendy wykonuj z katalogu projektu jako **zwykły user** (użytkownik musi należeć do grupy `docker`).
+
+```aiignore
+  sudo usermod -aG docker $USER
+                                                                                                                                                                                                                            
+  Następnie wyloguj się i zaloguj ponownie (samo newgrp docker wystarczy tylko dla bieżącej sesji):                                                                                                                         
+                                                                                                                                                                                                                            
+  newgrp docker                                                                                                                                                                                                             
+                       
+  Zweryfikuj:
+
+  groups | grep docker
+
+```
+
+```bash
+# [zwykły user] Przejdź do katalogu projektu
+cd <KATALOG_PROJEKTU>
+
+# Skrót — użyj we wszystkich poniższych komendach
+DC="docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml"
+
+# 1. Uruchom infrastrukturę (kontenery: postgres, redis, rabbitmq, minio, clickhouse)
+$DC up -d postgres redis rabbitmq minio clickhouse
+
+# Poczekaj na gotowość (~30 sekund)
+sleep 30
+
+# 2. Inicjalizacja bucket MinIO i schematu ClickHouse
+$DC up minio-init clickhouse-init
+# Kontenery zakończą pracę — to normalne
+
+# 3. Uruchom backend (Flyway wykona migracje automatycznie)
+$DC up -d backend
+
+# Obserwuj logi — czekaj na "Started ContactCenterApplication"
+docker logs cc-backend -f --tail=50
+
+# 4. Uruchom frontend i Nginx
+$DC up -d frontend nginx
+
+# 5. Sprawdź stan wszystkich kontenerów
+$DC ps
+```
+
+---
+
+## 32. Krok 7 — Uruchomienie tunelu ngrok
+
+### 32.1 Uruchomienie ręczne (test)
+
+```bash
+# [zwykły user] Uruchom ngrok — przekazuje port 80 kontenera Nginx do internetu
+
+# Wariant A: losowy URL (darmowy plan, URL zmienia się przy restarcie)
+ngrok http 80
+
+# Wariant B: statyczna domena (URL stały — wymaga wcześniejszego "Claim" w dashboardzie)
+ngrok http --domain=twoja-nazwa.ngrok-free.app 80
+```
+
+ngrok wyświetli w terminalu przydzielony URL, np.:
+
+```
+Forwarding  https://abc123.ngrok-free.app -> http://localhost:80
+Session Status: online
+```
+
+**Po zobaczeniu URL — zaktualizuj `APP_BASE_URL` w `.env.local-demo` i zrestartuj kontener backend:**
+
+```bash
+# [zwykły user] Wykonaj z katalogu projektu
+
+# Podmień URL (zastąp abc123.ngrok-free.app swoim URL)
+sed -i 's|APP_BASE_URL=.*|APP_BASE_URL=https://abc123.ngrok-free.app|' .env.local-demo
+
+# Zrestartuj kontener backend z nowym URL (Spring Boot wczyta nowe env)
+docker compose --env-file .env.local-demo \
+  -f docker-compose.yml \
+  -f docker-compose.local-demo.yml \
+  up -d --no-deps backend
+
+# Poczekaj na uruchomienie (~60s) — szukaj "Started ContactCenterApplication"
+docker logs cc-backend -f --tail=30
+```
+
+Otwórz przeglądarkę: `https://abc123.ngrok-free.app`
+
+> **Uwaga ngrok free:** przy pierwszym odwiedzeniu URL ngrok może pokazać stronę ostrzeżenia ("You are about to visit..."). Kliknij "Visit Site". Żeby
+> wyeliminować tę stronę, dodaj do konfiguracji ngrok: `response_header_add: ngrok-skip-browser-warning: true` — lub ustaw ten nagłówek w żądaniach klienta.
+
+### 32.2 Uruchomienie jako usługa systemd (zalecane — autostart)
+
+```bash
+# [sudo / root] Utwórz plik usługi systemd
+# Pole User= ustaw na swojego zwykłego użytkownika (tego, który ma authtoken w ~/.config/ngrok/)
+# ngrok jest zainstalowany systemowo w /usr/bin/ngrok
+sudo tee /etc/systemd/system/ngrok-cc.service > /dev/null << 'EOF'
+[Unit]
+Description=ngrok tunnel for Contact Center demo
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=<TWOJ_ZWYKLY_USER>
+ExecStart=/usr/bin/ngrok http 80
+# Jeśli masz statyczną domenę (odkomentuj i uzupełnij):
+# ExecStart=/usr/bin/ngrok http --domain=twoja-nazwa.ngrok-free.app 80
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# [sudo / root] Zastąp <TWOJ_ZWYKLY_USER> nazwą swojego użytkownika
+sudo sed -i "s/<TWOJ_ZWYKLY_USER>/$USER/" /etc/systemd/system/ngrok-cc.service
+
+# [sudo / root] Włącz autostart
+sudo systemctl daemon-reload
+sudo systemctl enable ngrok-cc
+sudo systemctl start ngrok-cc
+
+# [zwykły user] Sprawdź status
+sudo systemctl status ngrok-cc
+
+# [zwykły user] Sprawdź przydzielony URL przez lokalne API ngrok (port 4040)
+curl -s http://localhost:4040/api/tunnels | python3 -m json.tool | grep public_url
+```
+
+Po tej konfiguracji tunel startuje automatycznie przy każdym uruchomieniu Ubuntu.
+
+---
+
+## 33. Krok 8 — Inicjalizacja danych demo
+
+Uruchom skrypt seed (taki sam jak w Sekcji 13):
+
+```bash
+docker exec -it cc-postgres psql -U ccapp -d contact_center
+```
+
+```sql
+-- Utwórz tenanta demo (tenant_id generowany automatycznie)
+INSERT INTO tenant (name, status)
+VALUES ('Demo Company', 'ACTIVE');
+
+-- Utwórz konto admina (hasło: Test@12345)
+INSERT INTO app_user (tenant_id, email, password_hash, role, status, first_name, last_name)
+VALUES (
+    (SELECT tenant_id FROM tenant WHERE LOWER(name) = 'demo company'),
+    'admin@demo.com',
+    '$2a$12$b7S/mPXPbip0cNDfN5oFB.UCLXFqGaAO97oXynzYjMFlBuA.zLjt6',
+    'ADMIN', 'ACTIVE', 'Admin', 'Demo');
+
+\q
+```
+
+Zaloguj się na `https://<TWOJ_NGROK_URL>`:
+
+- Email: `admin@demo.com`
+- Hasło: `Test@12345`
+
+---
+
+## 34. Skróty i codzienne użytkowanie
+
+```bash
+# [zwykły user] Alias dla wygody — dodaj do ~/.bashrc (podmień ścieżkę na swój katalog projektu)
+echo 'alias cc-demo="docker compose --env-file <KATALOG_PROJEKTU>/.env.local-demo -f <KATALOG_PROJEKTU>/docker-compose.yml -f <KATALOG_PROJEKTU>/docker-compose.local-demo.yml"' >> ~/.bashrc
+source ~/.bashrc
+
+# Uruchom wszystkie kontenery
+cc-demo up -d
+
+# Zatrzymaj wszystkie kontenery (dane w volumes zostają)
+cc-demo down
+
+# Rebuild i restart kontenera backend po zmianie kodu
+cc-demo build backend && cc-demo up -d --no-deps backend
+
+# Sprawdź logi kontenera backend
+cc-demo logs -f backend
+
+# Stan wszystkich kontenerów
+cc-demo ps
+
+# [sudo / root] Status usługi ngrok
+sudo systemctl status ngrok-cc
+
+# [zwykły user] Sprawdź aktualny publiczny URL ngrok (port 4040 = lokalne API ngrok)
+curl -s http://localhost:4040/api/tunnels | python3 -c \
+  "import sys,json; t=json.load(sys.stdin)['tunnels']; print(t[0]['public_url'] if t else 'brak tunelu')"
+```
+
+---
+
+## 35. Weryfikacja końcowa
+
+```bash
+# Pobierz aktualny URL ngrok automatycznie
+DOMAIN=$(curl -s http://localhost:4040/api/tunnels \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])")
+echo "Używam: $DOMAIN"
+
+# Frontend
+curl -sf -o /dev/null -w "%{http_code}\n" $DOMAIN/
+# Oczekiwane: 200
+
+# Backend health
+curl -sf $DOMAIN/api/actuator/health | python3 -m json.tool
+# Oczekiwane: {"status":"UP"}
+
+# Logowanie (tenantId = UUID tenanta z bazy)
+TENANT_ID=$(curl -s http://localhost:4040/api/tunnels > /dev/null; \
+  docker exec cc-postgres psql -U ccapp -d contact_center -tAc \
+  "SELECT tenant_id FROM tenant WHERE LOWER(name)='demo company' LIMIT 1")
+curl -sf -X POST $DOMAIN/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"tenantId\":\"$TENANT_ID\",\"email\":\"admin@demo.com\",\"password\":\"Test@12345\"}" \
+  | python3 -m json.tool
+# Oczekiwane: accessToken + role ADMIN
+
+# Sprawdź certyfikat SSL (wystawiony przez ngrok)
+curl -sv $DOMAIN 2>&1 | grep -E "issuer|expire|SSL"
+```
+
+---
+
+## 36. Rozwiązywanie problemów (demo lokalne)
+
+### Problem: tunel ngrok nie łączy się
+
+```bash
+# [sudo / root] Sprawdź logi usługi systemd
+sudo journalctl -u ngrok-cc -f
+
+# [zwykły user] Sprawdź stan tunelu przez lokalne API ngrok (port 4040)
+curl -s http://localhost:4040/api/tunnels | python3 -m json.tool
+
+# [zwykły user] Uruchom ręcznie w terminalu — zobaczysz błędy wprost
+ngrok http 80
+```
+
+### Problem: `502 Bad Gateway` przez ngrok
+
+```bash
+# [zwykły user] Sprawdź stan kontenerów Docker i ich logi
+docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml ps
+docker logs cc-nginx
+docker logs cc-backend 2>&1 | tail -20
+```
+
+### Problem: WebSocket nie działa (chat/powiadomienia w UI)
+
+ngrok obsługuje WebSocket natywnie — nie wymaga dodatkowej konfiguracji. Jeśli jednak nie działa:
+
+```bash
+# Sprawdź czy nagłówki Upgrade są przekazywane przez Nginx
+docker exec cc-nginx nginx -T | grep -A 5 "location /ws"
+```
+
+### Problem: strona ostrzeżenia ngrok przy każdym odwiedzeniu
+
+ngrok free wyświetla stronę pośrednią dla nowych odwiedzających. Aby ją ominąć, dodaj nagłówek do żądań HTTP:
+
+```bash
+# Testowanie przez curl:
+curl -H "ngrok-skip-browser-warning: true" https://<TWOJ_URL>/api/actuator/health
+```
+
+Dla przeglądarki: zainstaluj rozszerzenie ModHeader i dodaj nagłówek `ngrok-skip-browser-warning: true`.
+
+### Problem: za mało RAM (OOM)
+
+```bash
+# Sprawdź zużycie pamięci
+docker stats --format "table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}"
+
+# Ogranicz ClickHouse (najbardziej żarłoczny)
+# W docker-compose.local-demo.yml dodaj do serwisu clickhouse:
+#   mem_limit: 1.5g
+```
+
+### Problem: `X-Forwarded-Proto` — backend odrzuca żądania jako HTTP
+
+W `.env.local-demo` upewnij się że `APP_BASE_URL` zaczyna się od `https://`. W `nginx-local-demo.conf` nagłówek `X-Forwarded-Proto` jest ustawiony na `https` —
+ngrok zawsze łączy się z Nginx przez HTTP (port 80), ale klient widzi HTTPS.
+
+### Problem: URL ngrok zmienia się po restarcie
+
+Użyj bezpłatnej statycznej domeny ngrok:
+
+1. Wejdź na `https://dashboard.ngrok.com/domains`
+2. Kliknij „Claim free domain" — dostaniesz stały URL np. `twoja-nazwa.ngrok-free.app`
+3. `[sudo / root]` Zaktualizuj `/etc/systemd/system/ngrok-cc.service` — podmień linię `ExecStart`:
+   ```
+   ExecStart=/usr/bin/ngrok http --domain=twoja-nazwa.ngrok-free.app 80
+   ```
+4. `[zwykły user]` Zaktualizuj `APP_BASE_URL` w `.env.local-demo` w katalogu projektu:
+   ```bash
+   sed -i 's|APP_BASE_URL=.*|APP_BASE_URL=https://twoja-nazwa.ngrok-free.app|' .env.local-demo
+   ```
+5. `[sudo / root]` Przeładuj usługę ngrok, potem `[zwykły user]` zrestartuj kontener backend:
+   ```bash
+   sudo systemctl daemon-reload && sudo systemctl restart ngrok-cc
+   docker compose --env-file .env.local-demo \
+     -f docker-compose.yml \
+     -f docker-compose.local-demo.yml \
+     up -d --no-deps backend
+   ```
+
+---
+
+## 37. Porównanie trybów wdrożenia
+
+| Cecha           | VPS Hostinger (Część A)         | Demo lokalne (Część C)                      |
+|-----------------|---------------------------------|---------------------------------------------|
+| Koszt           | ~$8–16/mies.                    | Bezpłatne (ngrok free tier)                 |
+| Własna domena   | Wymagana                        | **Nie wymagana**                            |
+| Dostępność 24/7 | Tak                             | Tylko gdy komputer włączony                 |
+| Stabilny URL    | Tak                             | Tak (ze statyczną domeną ngrok) / Nie (bez) |
+| SSL/TLS         | Let's Encrypt                   | ngrok (automatyczny)                        |
+| Dynamiczne IP   | Nie dotyczy                     | Obsługiwane przez tunel                     |
+| WebSocket       | Nginx proxy                     | ngrok natywny                               |
+| Przeznaczenie   | Produkcja / długoterminowe demo | Prezentacje, development, POC               |
+
+---
+
 *Dokument wygenerowany na podstawie `ARCHITECTURE.md`, `application-prod.yml` i `docker-compose.yml`.*  
-*Ostatnia aktualizacja: 2026-04-21*
+*Ostatnia aktualizacja: 2026-04-22*

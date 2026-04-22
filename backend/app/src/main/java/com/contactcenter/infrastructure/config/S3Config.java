@@ -93,15 +93,16 @@ public class S3Config {
                 .pathStyleAccessEnabled(s3Properties.isPathStyleAccessEnabled())
                 .build();
 
+        String presignerEndpoint = s3Properties.getEffectivePresignerEndpoint();
         S3Presigner presigner = S3Presigner.builder()
                 .region(Region.of(s3Properties.getRegion()))
                 .credentialsProvider(StaticCredentialsProvider.create(credentials))
-                .endpointOverride(URI.create(s3Properties.getEndpoint()))
+                .endpointOverride(URI.create(presignerEndpoint))
                 .serviceConfiguration(s3Config)
                 .build();
 
-        log.info("[S3] Skonfigurowano S3Presigner: expirationMinutes={}",
-                s3Properties.getPresignedUrlExpirationMinutes());
+        log.info("[S3] Skonfigurowano S3Presigner: endpoint={}, expirationMinutes={}",
+                presignerEndpoint, s3Properties.getPresignedUrlExpirationMinutes());
 
         return presigner;
     }

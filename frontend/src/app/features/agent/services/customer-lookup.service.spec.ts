@@ -160,16 +160,16 @@ describe('CustomerLookupService', () => {
     await resultPromise;
   });
 
-  it('should show an error toast and return null for non-404 HTTP errors', async () => {
+  it('should show an error toast and rethrow for non-404 HTTP errors', async () => {
+    // The service calls notifications.error() and re-throws the error via throwError().
+    // The caller is responsible for handling the error (e.g. switching to error state).
     const resultPromise = firstValueFrom(service.lookupByPhone('+48999999999'));
 
     httpMock
       .expectOne((r) => r.params.get('phone') === '+48999999999')
       .flush({}, { status: 500, statusText: 'Internal Server Error' });
 
-    const result = await resultPromise;
-
-    expect(result).toBeNull();
+    await expect(resultPromise).rejects.toThrow();
     expect(notifySpy.error).toHaveBeenCalledOnce();
   });
 });

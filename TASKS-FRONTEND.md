@@ -2104,4 +2104,91 @@ export class AgentShellComponent {}
 | Zakładka Klienci w Agent Desktop (EPIC-15) | 2 | 2 | 0 |
 | Kalendarz Agenta (EPIC-16) | 4 | 0 | 4 |
 | Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
-| **RAZEM** | **47** | **42** | **5** |
+| Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
+
+---
+
+## MODUL: Testy jednostkowe (EPIC-18)
+
+### FE-T001 – Testy jednostkowe AgentStatusService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-agent-desktop (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-03
+
+**Opis:**
+Napisać testy Vitest dla `AgentStatusService`.
+
+**Kryteria akceptacji:**
+- [ ] `setStatus()` → HTTP PUT, optymistyczna aktualizacja sygnału, rollback przy błędzie
+- [ ] WebSocket update: odbiór eventu zmiany statusu innego agenta, aktualizacja listy
+- [ ] `getAvailableStatuses()` — filtrowanie według roli (agent vs supervisor)
+- [ ] Wszystkie testy przechodzą (`npm test`)
+
+---
+
+### FE-T002 – Testy jednostkowe ContactService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-agent-desktop (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-12
+
+**Opis:**
+Napisać testy Vitest dla `ContactService`.
+
+**Kryteria akceptacji:**
+- [ ] `getContacts()` — stronicowanie, filtrowanie po statusie/kanale, tenant header
+- [ ] `assignContact()` — happy path, kontakt już przypisany (błąd 409), optymistyczna aktualizacja
+- [ ] `closeContact()` — zmiana statusu, wyzwolenie eventu do supervisora
+- [ ] Wszystkie testy przechodzą (`npm test`)
+
+---
+
+### FE-T003 – Testy jednostkowe CallbackService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-oddzwonienia (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-13
+
+**Opis:**
+Napisać testy Vitest dla `CallbackService`.
+
+**Kryteria akceptacji:**
+- [ ] `scheduleCallback()` — walidacja daty (nie w przeszłości), HTTP POST, zapis w lokalnym stanie
+- [ ] `cancelCallback()` — HTTP DELETE, usunięcie z listy
+- [ ] `getUpcoming()` — filtrowanie przeszłych callbacków, sortowanie po dacie
+- [ ] Wszystkie testy przechodzą (`npm test`)
+
+---
+
+### FE-T004 – Testy jednostkowe AgentGroupService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-przypisanie-agentów (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-14
+
+**Opis:**
+Napisać testy Vitest dla `AgentGroupService`.
+
+**Kryteria akceptacji:**
+- [ ] `getGroups()` — lista grup z agentami, cache (nie wywołuje HTTP dwa razy)
+- [ ] `addAgentToGroup()` — HTTP POST, aktualizacja lokalnej listy
+- [ ] `removeAgentFromGroup()` — HTTP DELETE, rollback przy błędzie 404
+- [ ] Wszystkie testy przechodzą (`npm test`)
+| **RAZEM** | **51** | **42** | **9** |

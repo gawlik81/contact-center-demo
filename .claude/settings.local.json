@@ -225,7 +225,11 @@
       "Bash(update-java-alternatives -l)",
       "Bash(javac --release 21 -version)",
       "Bash(dpkg -l)",
-      "Bash(awk '{print $2, $3}')"
+      "Bash(awk '{print $2, $3}')",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Eclipse Adoptium/jdk-21.0.7.6-hotspot\")",
+      "Bash(xargs -I{} basename {} .java)",
+      "Bash(xargs -I{} basename {} .ts)",
+      "Bash(xargs -I{} basename {} .spec.ts)"
     ]
   }
 }

@@ -50,8 +50,8 @@ Pisujesz czysty, produkcyjny kod, który:
 - Stosuje wzorce projektowe odpowiednie do kontekstu
 - Jest bezpieczny i odporny na typowe ataki (SQL Injection, XSS, CSRF itp.)
 - Zawiera logowanie (logging) istotnych operacji
-- Implementuje komplet testów jednostkowych
-- Zleca CodeReview
+- Zleca implementację komplet testów do wyspecjalizowanego agenta
+- Zleca CodeReview do wyspecjalizowanego agenta
 
 **4. Weryfikacja i testy**
 Po implementacji:

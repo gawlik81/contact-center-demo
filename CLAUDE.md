@@ -31,6 +31,7 @@ Odpowiadaj użytkownikowi **po polsku**. Kod, komentarze w kodzie i nazwy techni
 | Planowania produktów i tworzenia dokumentów wymagań projektowych (PRD) | `prd-planner`                        |
 | Dekonstrukcja wymagań na zadania                                       | `product-requirements-deconstructor` |
 | Projektowania UI premium                                               | `ui-premium-designer`                |
+| Testy jednostkowe, integracyjne, E2E                                   | `test-suite-expert`                  |
 
 ---
 

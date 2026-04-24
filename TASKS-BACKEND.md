@@ -2063,4 +2063,95 @@ GET /api/agent/calendar?from={ISO}&to={ISO}
 | Zarządzanie przypisaniem agentów (EPIC-14) | 5 | 5 | 0 |
 | Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
 | Kalendarz Agenta (EPIC-16) | 3 | 0 | 3 |
-| **RAZEM** | **52** | **46** | **6** |
+| Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
+
+---
+
+## MODUL: Testy jednostkowe (EPIC-18)
+
+### BE-T001 – Testy jednostkowe CampaignService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** M
+**Zależy od:** BE-kampanie (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-08
+
+**Opis:**
+Napisać testy jednostkowe dla `CampaignService` pokrywające kluczową logikę biznesową.
+
+**Kryteria akceptacji:**
+- [ ] CRUD kampanii z walidacją tenant isolation (`assertSameTenant`)
+- [ ] `convertLead()` — happy path, lead z obcego tenanta (blokada), lead już skonwertowany
+- [ ] Niedozwolone przejścia statusów kampanii (np. COMPLETED → ACTIVE)
+- [ ] Paginacja wyników z filtrowaniem po statusie
+- [ ] Wszystkie testy przechodzą (`mvn test -pl app -Dtest=CampaignServiceTest`)
+
+---
+
+### BE-T002 – Testy jednostkowe AdminUserService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** M
+**Zależy od:** BE-użytkownicy (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-02
+
+**Opis:**
+Napisać testy jednostkowe dla `AdminUserService`.
+
+**Kryteria akceptacji:**
+- [ ] Tworzenie użytkownika: unikalność emaila w ramach tenanta, haszowanie hasła, przypisanie roli
+- [ ] Dezaktywacja konta: wylogowanie aktywnych sesji
+- [ ] Reset hasła przez admina: generowanie linku, blokada cross-tenant dla SUPERVISOR
+- [ ] Bulk import: sukces, częściowy błąd (rollback per-user), duplikat email
+- [ ] Wszystkie testy przechodzą (`mvn test -pl app -Dtest=AdminUserServiceTest`)
+
+---
+
+### BE-T003 – Testy jednostkowe EmailSendService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** M
+**Zależy od:** BE-email (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-05
+
+**Opis:**
+Napisać testy jednostkowe dla `EmailSendService`.
+
+**Kryteria akceptacji:**
+- [ ] Wysyłanie emaila: poprawny SMTP call z nagłówkami, tenant, subject/body
+- [ ] Obsługa błędu SMTP: retry logic, zapis do dead-letter queue
+- [ ] Załączniki: poprawne enkodowanie Base64, limit rozmiaru
+- [ ] Template rendering: zmienne kontekstowe, fallback dla brakującej zmiennej
+- [ ] Wszystkie testy przechodzą (`mvn test -pl app -Dtest=EmailSendServiceTest`)
+
+---
+
+### BE-T004 – Testy jednostkowe IvrService
+
+**Typ:** Testing
+**Priorytet:** Should Have
+**Zlozonosc:** M
+**Zależy od:** BE-ivr (ukończone)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Odniesienie PRD:** EPIC-04
+
+**Opis:**
+Napisać testy jednostkowe dla `IvrService`.
+
+**Kryteria akceptacji:**
+- [ ] Budowanie drzewa IVR: tworzenie węzłów, podpinanie akcji
+- [ ] Walidacja drzewa: brak root node, cykl w grafie, niedozwolona akcja
+- [ ] Modyfikacja węzła: update akcji, usunięcie węzła z dziećmi (kaskada)
+- [ ] Tenant isolation: blokada odczytu/zapisu IVR z obcego tenanta
+- [ ] Wszystkie testy przechodzą (`mvn test -pl app -Dtest=IvrServiceTest`)
+| **RAZEM** | **56** | **46** | **10** |

@@ -90,7 +90,7 @@ public class CustomerController {
     // =========================================================================
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
     @Operation(
         summary = "Lista klientów / fuzzy search",
         description = "Gdy podano parametr 'q', wykonuje fuzzy search przez trigram similarity " +

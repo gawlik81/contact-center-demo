@@ -10,7 +10,8 @@ import java.util.UUID;
 /**
  * Odpowiedź API z pełnymi danymi profilu klienta.
  *
- * <p>Używana przez GET /api/customers/{id}, POST /api/customers, PATCH /api/customers/{id}.
+ * <p>Używana przez GET /api/customers/{id}, POST /api/customers, PATCH /api/customers/{id}
+ * oraz przez listing/search klientów w Agent Desktop.
  * Nie zawiera danych po anonimizacji RODO (po DELETE klient jest oznaczony is_deleted=true).
  */
 public record CustomerResponse(
@@ -25,14 +26,19 @@ public record CustomerResponse(
         String source,
         boolean deleted,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        /** Czas ostatniego zakończonego kontaktu – null gdy klient nie ma żadnych kontaktów. */
+        Instant lastContactAt
 ) {
 
     /**
-     * Mapuje encję {@link Customer} na DTO odpowiedzi.
+     * Mapuje encję {@link Customer} na DTO odpowiedzi bez daty ostatniego kontaktu.
+     *
+     * <p>Używane przy operacjach zapisu (create, update) gdzie pobranie lastContactAt
+     * wymagałoby dodatkowego zapytania nieistotnego w tym kontekście.
      *
      * @param customer encja klienta z bazy danych
-     * @return DTO gotowe do zwrócenia przez API
+     * @return DTO gotowe do zwrócenia przez API (lastContactAt = null)
      */
     public static CustomerResponse from(Customer customer) {
         return new CustomerResponse(
@@ -47,7 +53,35 @@ public record CustomerResponse(
                 customer.getSource(),
                 customer.isDeleted(),
                 customer.getCreatedAt(),
-                customer.getUpdatedAt()
+                customer.getUpdatedAt(),
+                null
+        );
+    }
+
+    /**
+     * Mapuje encję {@link Customer} na DTO odpowiedzi z datą ostatniego kontaktu.
+     *
+     * <p>Używane przez listing i search klientów w Agent Desktop (zakładka Klienci).
+     *
+     * @param customer      encja klienta z bazy danych
+     * @param lastContactAt czas ostatniego zakończonego kontaktu lub null
+     * @return DTO gotowe do zwrócenia przez API
+     */
+    public static CustomerResponse from(Customer customer, Instant lastContactAt) {
+        return new CustomerResponse(
+                customer.getCustomerId(),
+                customer.getTenantId(),
+                customer.getFirstName(),
+                customer.getLastName(),
+                customer.getPhone() != null ? customer.getPhone() : List.of(),
+                customer.getEmail() != null ? customer.getEmail() : List.of(),
+                customer.getCustomFields(),
+                customer.getGdprConsent(),
+                customer.getSource(),
+                customer.isDeleted(),
+                customer.getCreatedAt(),
+                customer.getUpdatedAt(),
+                lastContactAt
         );
     }
 }

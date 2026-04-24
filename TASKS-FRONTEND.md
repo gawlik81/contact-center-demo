@@ -1665,7 +1665,8 @@ Znajdź komponent w `features/supervisor/queues/` (prawdopodobnie `edit-queue-pa
 **Priorytet:** Must Have
 **Szacowany rozmiar:** M
 **Zależy od:** FE-009 (Agent Desktop layout), FE-018 (CustomerService / Customer API)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-24
 **Czeka na BE:** BE-025 ✅ (Customer CRUD API)
 **Blokuje:** FE-041
 **Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
@@ -1734,7 +1735,8 @@ selectedCustomer = signal<CustomerDetail | null>(null);
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Zależy od:** FE-040 (AgentCustomersTabComponent)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-24
 **Czeka na BE:** BE-048 (Manual Callback API)
 **Blokuje:** brak
 **Epic:** EPIC-15 Zakładka Klienci w Agent Desktop

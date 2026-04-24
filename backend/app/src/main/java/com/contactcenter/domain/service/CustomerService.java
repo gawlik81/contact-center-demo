@@ -118,7 +118,12 @@ public class CustomerService {
         List<Customer> results = customerRepository.searchByQuery(tenantId, query, effectiveLimit);
 
         return results.stream()
-                .map(CustomerResponse::from)
+                .map(c -> {
+                    Instant lastContactAt = customerRepository
+                            .findLastContactAtForCustomer(c.getCustomerId(), tenantId)
+                            .orElse(null);
+                    return CustomerResponse.from(c, lastContactAt);
+                })
                 .toList();
     }
 
@@ -144,7 +149,12 @@ public class CustomerService {
         int totalPages = (int) Math.ceil((double) totalElements / effectiveSize);
 
         List<CustomerResponse> content = customers.stream()
-                .map(CustomerResponse::from)
+                .map(c -> {
+                    Instant lastContactAt = customerRepository
+                            .findLastContactAtForCustomer(c.getCustomerId(), tenantId)
+                            .orElse(null);
+                    return CustomerResponse.from(c, lastContactAt);
+                })
                 .toList();
 
         return new PagedResponse<>(

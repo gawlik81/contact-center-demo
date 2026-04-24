@@ -1,7 +1,10 @@
-<dialog #dialogEl class="reschedule-dialog" aria-labelledby="reschedule-dialog-title">
-  <div class="reschedule-dialog__backdrop" (click)="cancel()" aria-hidden="true"></div>
-
-  <div class="reschedule-dialog__panel" role="document">
+<dialog
+  #dialogEl
+  class="reschedule-dialog"
+  aria-labelledby="reschedule-dialog-title"
+  (click)="onBackdropClick($event)"
+>
+  <div class="reschedule-dialog__content">
     <!-- Header -->
     <header class="reschedule-dialog__header">
       <div class="reschedule-dialog__icon" aria-hidden="true">
@@ -14,8 +17,7 @@
       <div class="reschedule-dialog__title-block">
         <h2 id="reschedule-dialog-title" class="reschedule-dialog__title">Przesuń oddzwonienie</h2>
         <p class="reschedule-dialog__subtitle">
-          Aktualna data: {{ currentScheduledAtFormatted() | slice: 0 : 10 }}
-          {{ currentScheduledAtFormatted() | slice: 11 : 16 }}
+          Aktualna data: {{ currentScheduledAtFormatted() }}
         </p>
       </div>
       <button
@@ -37,42 +39,77 @@
     <!-- Body -->
     <div class="reschedule-dialog__body">
       <form [formGroup]="form" (ngSubmit)="submit()" id="reschedule-form" novalidate>
-        <!-- Scheduled At -->
+        <!-- Date and time -->
         <div class="form-field">
-          <label class="form-field__label" for="scheduledAt">
-            Nowa data i czas
-            <span class="form-field__required" aria-hidden="true">*</span>
-          </label>
-          <input
-            id="scheduledAt"
-            type="datetime-local"
-            class="form-field__input"
-            formControlName="scheduledAt"
-            [min]="minDateTimeLocal()"
-            [class.form-field__input--error]="form.controls.scheduledAt.invalid && form.controls.scheduledAt.touched"
-            [attr.aria-invalid]="form.controls.scheduledAt.invalid && form.controls.scheduledAt.touched"
-            aria-required="true"
-            aria-describedby="scheduledAt-error"
-          />
-          @if (form.controls.scheduledAt.touched && form.controls.scheduledAt.hasError('required')) {
-            <span id="scheduledAt-error" class="form-field__hint" role="alert">
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                />
-              </svg>
-              Data i czas sa wymagane.
-            </span>
-          } @else if (form.controls.scheduledAt.touched && form.controls.scheduledAt.hasError('pastDate')) {
-            <span id="scheduledAt-error" class="form-field__hint" role="alert">
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                />
-              </svg>
-              Wybierz date w przyszlosci.
-            </span>
-          }
+          <span class="form-field__label" aria-hidden="true">
+            Nowa data i czas <span class="form-field__required" aria-hidden="true">*</span>
+          </span>
+          <div class="form-row">
+            <div class="form-row__col" [class.form-field--error]="scheduledDateError">
+              <input
+                id="reschedule-date"
+                type="date"
+                class="form-field__input"
+                formControlName="scheduledDate"
+                [min]="minDate()"
+                aria-required="true"
+                aria-label="Data oddzwonienia"
+                [attr.aria-invalid]="
+                  form.controls.scheduledDate.invalid && form.controls.scheduledDate.touched
+                "
+              />
+              @if (scheduledDateError) {
+                <span class="form-field__hint" role="alert">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                    />
+                  </svg>
+                  {{ scheduledDateError }}
+                </span>
+              }
+            </div>
+            <div
+              class="form-row__col form-row__col--time"
+              [class.form-field--error]="scheduledTimeError"
+            >
+              <div class="time-selects">
+                <select
+                  class="form-field__select time-selects__select"
+                  formControlName="scheduledHour"
+                  aria-label="Godzina"
+                  aria-required="true"
+                >
+                  @for (h of hours; track h) {
+                    @if (!isToday() || +h >= minHourToday()) {
+                      <option [value]="h">{{ h }}</option>
+                    }
+                  }
+                </select>
+                <span class="time-selects__sep" aria-hidden="true">:</span>
+                <select
+                  class="form-field__select time-selects__select"
+                  formControlName="scheduledMinute"
+                  aria-label="Minuty"
+                  aria-required="true"
+                >
+                  @for (m of minutes; track m) {
+                    <option [value]="m">{{ m }}</option>
+                  }
+                </select>
+              </div>
+              @if (scheduledTimeError) {
+                <span class="form-field__hint" role="alert">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                    />
+                  </svg>
+                  {{ scheduledTimeError }}
+                </span>
+              }
+            </div>
+          </div>
         </div>
 
         <!-- Notes -->
@@ -93,7 +130,7 @@
             aria-describedby="notes-count"
           ></textarea>
           <span id="notes-count" class="form-field__char-count" aria-live="polite">
-            {{ form.controls.notes.value?.length ?? 0 }}&nbsp;/&nbsp;500
+            {{ notesLength() }}&nbsp;/&nbsp;500
           </span>
         </div>
       </form>

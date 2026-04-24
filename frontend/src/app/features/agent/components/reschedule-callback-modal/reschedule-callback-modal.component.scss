@@ -1,9 +1,5 @@
 @use 'sass:color';
 
-// Reschedule Callback Dialog – modal overlay
-// Design tokens mirror the global :root variables from styles.scss
-// Color palette: brand blue (#1565c0) — consistent with disposition-dialog and other modals
-
 $primary: #1565c0;
 $primary-dark: #0d47a1;
 $primary-light: #e3f2fd;
@@ -30,93 +26,63 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 
 // ── Dialog shell ──────────────────────────────────────────────────────────────
 .reschedule-dialog {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
   border: none;
+  border-radius: 16px;
   padding: 0;
-  margin: 0;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 900;
+  box-shadow:
+    0 0 0 1px rgba(21, 101, 192, 0.08),
+    0 4px 6px rgba(0, 0, 0, 0.04),
+    0 10px 25px rgba(0, 0, 0, 0.1),
+    0 30px 60px rgba(0, 0, 0, 0.12);
+  width: 100%;
+  max-width: 480px;
+  background: $color-surface;
+  overflow: hidden;
+  animation: panel-in 320ms $ease-spring forwards;
 
-  // Backdrop – blurred overlay
-  &__backdrop {
-    position: fixed;
-    inset: 0;
+  &::backdrop {
     background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    z-index: 0;
     animation: backdrop-in 220ms $ease-standard forwards;
   }
 
-  // Panel card
-  &__panel {
-    position: relative;
-    z-index: 1;
-    background: $color-surface;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.8);
-    box-shadow:
-      0 0 0 1px rgba(21, 101, 192, 0.08),
-      0 4px 6px rgba(0, 0, 0, 0.04),
-      0 10px 25px rgba(0, 0, 0, 0.1),
-      0 30px 60px rgba(0, 0, 0, 0.12);
-    width: 100%;
-    max-width: 480px;
-    margin: 16px;
+  &__content {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    animation: panel-in 320ms $ease-spring forwards;
   }
 
-  // Header with gradient accent strip
   &__header {
     display: flex;
     align-items: center;
     gap: 14px;
     padding: 20px 20px 20px 24px;
-    background: linear-gradient(135deg, $primary-light 0%, #e8f4fd 100%);
-    border-bottom: 1px solid rgba(21, 101, 192, 0.12);
+    background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
     position: relative;
 
-    // Left accent bar
-    &::before {
+    &::after {
       content: '';
       position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 3px;
-      background: linear-gradient(180deg, $primary 0%, $primary-dark 100%);
-      border-radius: 0 2px 2px 0;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, transparent 60%);
+      pointer-events: none;
     }
   }
 
   &__icon {
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.15);
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow:
-      0 4px 8px rgba(21, 101, 192, 0.3),
-      0 1px 2px rgba(21, 101, 192, 0.2);
 
     svg {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
     }
   }
 
@@ -126,21 +92,20 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   }
 
   &__title {
-    font-size: 1rem;
+    font-size: 1.0625rem;
     font-weight: 600;
-    color: #0d47a1;
+    color: #ffffff;
     margin: 0 0 2px;
     letter-spacing: -0.01em;
   }
 
   &__subtitle {
     font-size: 0.8125rem;
-    color: $primary;
+    color: rgba(255, 255, 255, 0.75);
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    opacity: 0.8;
   }
 
   &__close-btn {
@@ -148,9 +113,9 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     width: 32px;
     height: 32px;
     border: none;
-    background: rgba(21, 101, 192, 0.08);
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 8px;
-    color: $primary;
+    color: rgba(255, 255, 255, 0.85);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -166,8 +131,8 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
 
     &:hover:not(:disabled) {
-      background: rgba(21, 101, 192, 0.16);
-      color: $primary-dark;
+      background: rgba(255, 255, 255, 0.22);
+      color: #fff;
     }
 
     &:active:not(:disabled) {
@@ -175,7 +140,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
 
     &:focus-visible {
-      outline: 2px solid $primary;
+      outline: 2px solid rgba(255, 255, 255, 0.7);
       outline-offset: 2px;
     }
 
@@ -185,7 +150,6 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
   }
 
-  // Scrollable body
   &__body {
     padding: 24px;
     display: flex;
@@ -194,7 +158,6 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     overflow-y: auto;
     max-height: calc(100dvh - 220px);
 
-    // Custom scrollbar
     scrollbar-width: thin;
     scrollbar-color: rgba(21, 101, 192, 0.2) transparent;
 
@@ -212,7 +175,6 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
   }
 
-  // Footer
   &__footer {
     padding: 16px 24px;
     border-top: 1px solid $color-border;
@@ -223,7 +185,6 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     background: $color-surface-2;
   }
 
-  // Error banner
   &__error {
     display: flex;
     align-items: flex-start;
@@ -281,6 +242,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     border: 1.5px solid $color-border;
     border-radius: $radius-lg;
     font-family: inherit;
+    width: 100%;
     transition:
       border-color 180ms $ease-standard,
       box-shadow 180ms $ease-standard;
@@ -301,10 +263,38 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
         0 0 0 3px $primary-ring,
         0 1px 4px rgba(21, 101, 192, 0.1);
     }
+  }
 
-    &[aria-invalid='true'] {
-      border-color: $color-danger !important;
-      box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1);
+  &__select {
+    padding: 11px 12px;
+    padding-right: 2rem;
+    font-size: 0.9375rem;
+    color: $color-text-primary;
+    background: $color-surface;
+    border: 1.5px solid $color-border;
+    border-radius: $radius-lg;
+    font-family: inherit;
+    width: 100%;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 18px;
+    cursor: pointer;
+    transition:
+      border-color 180ms $ease-standard,
+      box-shadow 180ms $ease-standard;
+
+    &:hover:not(:focus) {
+      border-color: #cbd5e1;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: $primary;
+      box-shadow:
+        0 0 0 3px $primary-ring,
+        0 1px 4px rgba(21, 101, 192, 0.1);
     }
   }
 
@@ -361,6 +351,60 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     text-align: right;
     transition: color 180ms $ease-standard;
   }
+
+  &--error {
+    .form-field__input,
+    .form-field__select {
+      border-color: $color-danger !important;
+      box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1);
+    }
+  }
+}
+
+// ── Date + time side-by-side layout ──────────────────────────────────────────
+.form-row {
+  display: flex;
+  gap: 0.625rem;
+  min-width: 0;
+
+  &__col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 0;
+    min-width: 0;
+
+    &--time {
+      flex: 0 0 152px;
+    }
+  }
+}
+
+// ── Hour : minute selects ─────────────────────────────────────────────────────
+.time-selects {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+
+  .time-selects__select {
+    width: 58px;
+    flex-shrink: 0;
+    padding-left: 0.5rem;
+    padding-right: 1.25rem;
+    background-position: right 4px center;
+    background-size: 16px;
+    text-align: center;
+    text-align-last: center;
+  }
+
+  &__sep {
+    font-size: 1rem;
+    font-weight: 600;
+    color: $color-text-secondary;
+    flex-shrink: 0;
+    line-height: 1;
+  }
 }
 
 // ── Buttons ───────────────────────────────────────────────────────────────────
@@ -387,7 +431,6 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     transform: scale(0.97);
   }
 
-  // Primary – brand blue gradient
   &--primary {
     background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
     color: #fff;
@@ -420,7 +463,6 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
   }
 
-  // Loading state
   &--loading {
     background: linear-gradient(135deg, $primary 0%, $primary-dark 100%) !important;
     opacity: 0.85;
@@ -428,7 +470,6 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     pointer-events: none;
   }
 
-  // Ghost / outline – cancel button
   &--secondary {
     background: transparent;
     color: $color-text-secondary;
@@ -457,7 +498,6 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     flex-shrink: 0;
   }
 
-  // Inline spinner
   &__spinner {
     display: inline-block;
     width: 15px;
@@ -500,8 +540,9 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 // ── Reduced motion fallback ───────────────────────────────────────────────────
 @media (prefers-reduced-motion: reduce) {
   .reschedule-dialog {
-    &__backdrop,
-    &__panel {
+    animation: none;
+
+    &::backdrop {
       animation: none;
     }
   }

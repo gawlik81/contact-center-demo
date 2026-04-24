@@ -1864,7 +1864,8 @@ RoutingRequest request = RoutingRequest.of(contact, queue, tenantId, eligibleAge
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Zależy od:** DB-027 (source_type AGENT_MANUAL), BE-025 (Customer API), BE-041 (Callback List API)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-24
 **Blokuje:** FE-041
 **Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
 **Odniesienie PRD:** US-09-02 (historia kontaktów klienta), EPIC-13 (callbacki)

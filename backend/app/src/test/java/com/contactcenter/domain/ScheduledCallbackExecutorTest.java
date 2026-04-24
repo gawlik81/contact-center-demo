@@ -1,7 +1,9 @@
 package com.contactcenter.domain;
 
+import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.service.ScheduledCallbackExecutor;
@@ -50,6 +52,9 @@ class ScheduledCallbackExecutorTest {
 
     @Mock
     private TelephonyAdapter telephonyAdapter;
+
+    @Mock
+    private AppUserRepository appUserRepository;
 
     @InjectMocks
     private ScheduledCallbackExecutor executor;
@@ -111,6 +116,8 @@ class ScheduledCallbackExecutorTest {
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
                 .thenReturn(1);
+        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+                .thenReturn(java.util.Optional.of(buildAvailableAgent(AGENT_ID, TENANT_ID)));
 
         CallSession mockSession = mock(CallSession.class);
         when(mockSession.getCallId()).thenReturn("call-sid-001");
@@ -146,6 +153,8 @@ class ScheduledCallbackExecutorTest {
                 .thenReturn(1);
         when(callbackRepository.updateStatusIfPending(eq(callbackId2), eq(TENANT_ID), eq("PROCESSING")))
                 .thenReturn(1);
+        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+                .thenReturn(java.util.Optional.of(buildAvailableAgent(AGENT_ID, TENANT_ID)));
 
         // Pierwszy callback rzuca wyjątek telefonii
         when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48111111111"), eq(AGENT_ID), isNull(), eq(CALLBACK_ID)))
@@ -196,6 +205,100 @@ class ScheduledCallbackExecutorTest {
     }
 
     // =========================================================================
+    // Test 5: Agent sticky niedostępny (BUSY) → brak initiateCall, status wraca do PENDING
+    // =========================================================================
+
+    @Test
+    @DisplayName("Sticky agent BUSY → initiateCall nie wywołane, status wraca do PENDING")
+    void executeScheduledCallbacks_stickyAgentBusy_callbackRevertedToPending() {
+        // given
+        ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48123456789");
+
+        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
+                .thenReturn(List.of(callback));
+        when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
+                .thenReturn(1);
+
+        AppUser busyAgent = AppUser.builder()
+                .id(AGENT_ID)
+                .tenantId(TENANT_ID)
+                .status(AppUser.UserStatus.BUSY)
+                .build();
+        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+                .thenReturn(java.util.Optional.of(busyAgent));
+
+        // when
+        executor.executeScheduledCallbacks();
+
+        // then
+        verifyNoInteractions(telephonyAdapter);
+        verify(callbackRepository).updateStatus(CALLBACK_ID, "PENDING", TENANT_ID);
+    }
+
+    // =========================================================================
+    // Test 6: Agent sticky BREAK → brak initiateCall, status wraca do PENDING
+    // =========================================================================
+
+    @Test
+    @DisplayName("Sticky agent BREAK → initiateCall nie wywołane, status wraca do PENDING")
+    void executeScheduledCallbacks_stickyAgentOnBreak_callbackRevertedToPending() {
+        // given
+        ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48123456789");
+
+        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
+                .thenReturn(List.of(callback));
+        when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
+                .thenReturn(1);
+
+        AppUser agentOnBreak = AppUser.builder()
+                .id(AGENT_ID)
+                .tenantId(TENANT_ID)
+                .status(AppUser.UserStatus.BREAK)
+                .build();
+        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+                .thenReturn(java.util.Optional.of(agentOnBreak));
+
+        // when
+        executor.executeScheduledCallbacks();
+
+        // then
+        verifyNoInteractions(telephonyAdapter);
+        verify(callbackRepository).updateStatus(CALLBACK_ID, "PENDING", TENANT_ID);
+    }
+
+    // =========================================================================
+    // Test 7: Brak sticky agenta (agentId == null) → zawsze wydzwaniany
+    // =========================================================================
+
+    @Test
+    @DisplayName("Callback bez sticky agenta (agentId=null) → initiateCall zawsze wywoływane")
+    void executeScheduledCallbacks_noStickyAgent_alwaysDialed() {
+        // given – callback bez przypisanego agenta
+        ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, null, "+48123456789");
+
+        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
+                .thenReturn(List.of(callback));
+        when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
+                .thenReturn(1);
+
+        CallSession mockSession = mock(CallSession.class);
+        when(mockSession.getCallId()).thenReturn("call-sid-003");
+        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), isNull(), isNull(), eq(CALLBACK_ID)))
+                .thenReturn(mockSession);
+
+        // when
+        executor.executeScheduledCallbacks();
+
+        // then – appUserRepository nie jest odpytywane, initiateCall wywołane
+        verifyNoInteractions(appUserRepository);
+        verify(telephonyAdapter).initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), isNull(), isNull(), eq(CALLBACK_ID));
+        verify(callbackRepository).updateStatus(CALLBACK_ID, "COMPLETED", TENANT_ID);
+    }
+
+    // =========================================================================
     // Pomocnicze – budowanie encji testowych
     // =========================================================================
 
@@ -208,6 +311,14 @@ class ScheduledCallbackExecutorTest {
                 .status("PENDING")
                 .scheduledAt(Instant.now().minusSeconds(300))
                 .createdAt(Instant.now().minusSeconds(3600))
+                .build();
+    }
+
+    private AppUser buildAvailableAgent(UUID agentId, UUID tenantId) {
+        return AppUser.builder()
+                .id(agentId)
+                .tenantId(tenantId)
+                .status(AppUser.UserStatus.AVAILABLE)
                 .build();
     }
 }

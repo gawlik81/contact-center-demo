@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -362,6 +363,50 @@ public class CustomerRepository extends TenantAwareRepository {
     // =========================================================================
     // Metody pomocnicze (historia kontaktów – istniejąca funkcjonalność)
     // =========================================================================
+
+    /**
+     * Pobiera czas ostatniego zakończonego kontaktu dla podanego klienta.
+     *
+     * <p>Używane przez listing i fuzzy search klientów w Agent Desktop
+     * do wypełnienia pola {@code lastContactAt} w {@code CustomerResponse}.
+     * Wyklucza kontakty aktywne (QUEUED, ACTIVE, ON_HOLD) – analogicznie do
+     * {@link #findLastContactsForCustomer}.
+     *
+     * @param customerId UUID klienta
+     * @param tenantId   UUID tenanta
+     * @return Optional z {@code started_at} ostatniego kontaktu lub empty gdy brak
+     */
+    @Transactional(readOnly = true)
+    public Optional<Instant> findLastContactAtForCustomer(UUID customerId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Object> rows = em.createNativeQuery(
+                        """
+                        SELECT started_at
+                        FROM contact
+                        WHERE tenant_id  = CAST(:tenantId AS uuid)
+                          AND customer_id = CAST(:customerId AS uuid)
+                          AND status NOT IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
+                        ORDER BY started_at DESC
+                        LIMIT 1
+                        """)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("customerId", customerId.toString())
+                .getResultList();
+
+        if (rows.isEmpty() || rows.get(0) == null) {
+            return Optional.empty();
+        }
+        Object result = rows.get(0);
+        if (result instanceof java.sql.Timestamp ts) {
+            return Optional.of(ts.toInstant());
+        }
+        if (result instanceof java.time.OffsetDateTime odt) {
+            return Optional.of(odt.toInstant());
+        }
+        return Optional.of(Instant.parse(result.toString()));
+    }
 
     /**
      * Pobiera ostatnie N kontaktów klienta.

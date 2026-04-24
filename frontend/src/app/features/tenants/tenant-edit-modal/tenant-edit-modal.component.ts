@@ -20,7 +20,7 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { Observable, catchError, map, of, switchMap, timer } from 'rxjs';
+import { Observable, catchError, map, of, switchMap, timer, EMPTY } from 'rxjs';
 import { TenantService } from '../tenant.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { Tenant, TenantStatus } from '../tenant.model';
@@ -68,19 +68,12 @@ export class TenantEditModalComponent implements OnInit, AfterViewInit {
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
 
   readonly submitting = signal(false);
-  readonly twilioSubmitting = signal(false);
-  readonly twilioLoadError = signal(false);
 
   readonly statusOptions: { value: TenantStatus; label: string }[] = [
     { value: 'ACTIVE', label: 'Aktywny' },
     { value: 'INACTIVE', label: 'Nieaktywny' },
     { value: 'SUSPENDED', label: 'Zawieszony' },
   ];
-
-  readonly twilioForm = this.fb.group({
-    twilioPhoneNumber: ['', [Validators.pattern(/^\+[1-9]\d{6,14}$/)]],
-    twilioStatusCallbackUrl: ['', [Validators.maxLength(500)]],
-  });
 
   readonly form = this.fb.group({
     name: ['', {
@@ -91,6 +84,8 @@ export class TenantEditModalComponent implements OnInit, AfterViewInit {
     maxAgents: [10, [Validators.required, Validators.min(1), Validators.max(500), Validators.pattern(/^\d+$/)]],
     maxQueues: [5, [Validators.required, Validators.min(1), Validators.max(100), Validators.pattern(/^\d+$/)]],
     maxCampaigns: [3, [Validators.required, Validators.min(1), Validators.max(100), Validators.pattern(/^\d+$/)]],
+    twilioPhoneNumber: ['', [Validators.pattern(/^\+[1-9]\d{6,14}$/)]],
+    twilioStatusCallbackUrl: ['', [Validators.maxLength(500)]],
   });
 
   ngOnInit(): void {
@@ -108,9 +103,6 @@ export class TenantEditModalComponent implements OnInit, AfterViewInit {
       maxAgents: t.config.max_agents ?? 10,
       maxQueues: t.config.max_queues ?? 5,
       maxCampaigns: t.config.max_campaigns ?? 3,
-    });
-
-    this.twilioForm.patchValue({
       twilioPhoneNumber: t.config.twilio_phone_number ?? '',
       twilioStatusCallbackUrl: t.config.twilio_status_callback_url ?? '',
     });
@@ -199,53 +191,39 @@ export class TenantEditModalComponent implements OnInit, AfterViewInit {
         },
       })
       .pipe(
+        switchMap((updated) =>
+          this.twilioConfigService
+            .updateTwilioConfig(tenantId, {
+              twilioPhoneNumber: raw.twilioPhoneNumber?.trim() || null,
+              twilioStatusCallbackUrl: raw.twilioStatusCallbackUrl?.trim() || null,
+            })
+            .pipe(
+              map(() => updated),
+              catchError(() => {
+                this.notifications.error('Tenant zaktualizowany, ale nie udalo sie zapisac konfiguracji Twilio.');
+                return of(updated);
+              }),
+            ),
+        ),
         catchError(() => {
           this.submitting.set(false);
           this.notifications.error('Nie udalo sie zaktualizowac tenanta. Sprobuj ponownie.');
-          return of(null);
+          return EMPTY;
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((updated) => {
-        if (updated) {
-          this.submitting.set(false);
-          this.notifications.success(`Tenant "${updated.name}" zostal zaktualizowany.`);
-          this.saved.emit();
-        }
+        this.submitting.set(false);
+        this.notifications.success(`Tenant "${updated.name}" zostal zaktualizowany.`);
+        this.saved.emit();
       });
   }
 
   get twilioPhoneNumberError(): string | null {
-    const ctrl = this.twilioForm.get('twilioPhoneNumber')!;
+    const ctrl = this.form.get('twilioPhoneNumber')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
     if (ctrl.hasError('pattern')) return 'Podaj numer w formacie E.164, np. +48123456789.';
     return null;
-  }
-
-  onSaveTwilio(): void {
-    this.twilioForm.markAllAsTouched();
-    if (this.twilioForm.invalid || this.twilioSubmitting()) return;
-    const tenantId = this.tenant().id;
-    const raw = this.twilioForm.getRawValue();
-    this.twilioSubmitting.set(true);
-    this.twilioConfigService.updateTwilioConfig(tenantId, {
-      twilioPhoneNumber: raw.twilioPhoneNumber?.trim() || null,
-      twilioStatusCallbackUrl: raw.twilioStatusCallbackUrl?.trim() || null,
-    }).pipe(
-      catchError((err) => {
-        this.twilioSubmitting.set(false);
-        const msg = err?.error?.message;
-        this.notifications.error(msg && err?.status === 400 ? msg : 'Nie udalo sie zapisac konfiguracji Twilio.');
-        return of(null);
-      }),
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe(updated => {
-      if (updated) {
-        this.twilioSubmitting.set(false);
-        this.twilioForm.markAsPristine();
-        this.notifications.success('Konfiguracja Twilio zaktualizowana.');
-      }
-    });
   }
 
   onCancel(): void {

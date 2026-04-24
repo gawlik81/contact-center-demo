@@ -3,7 +3,7 @@
     <h1 class="tenant-list__title">Zarzadzanie tenantami</h1>
     <button
       class="btn btn-primary"
-      (click)="navigateToNew()"
+      (click)="openAddModal()"
       type="button"
       aria-label="Dodaj nowego tenanta"
     >
@@ -171,3 +171,6 @@
     (cancelled)="closeEditModal()"
   />
 }
+
+<!-- Add modal -->
+<app-tenant-add-modal #addModal (tenantAdded)="onTenantAdded($event)" />

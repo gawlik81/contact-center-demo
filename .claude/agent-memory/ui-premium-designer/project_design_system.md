@@ -1,80 +1,75 @@
 ---
-name: Project Design System State
-description: Global CSS custom properties and design tokens now in styles.scss — added 2026-03-27
+name: Tenant Admin Panel — Design System Tokens
+description: SCSS variables, color palette, animation conventions, and component patterns used in the tenant management feature modals
 type: project
 ---
 
-# Stan design systemu
+## Color Palette (tenant modals — established standard)
 
-**UPDATE 2026-03-27:** `styles.scss` teraz zawiera kompletne CSS custom properties i `prefers-reduced-motion` globalnie.
+- `$brand-blue: #1565c0` — primary action, focus rings, section accent
+- `$brand-blue-dark: #0d47a1` — gradient end, hover darken
+- `$brand-blue-light: #1976d2` — gradient start for buttons
+- `$header-gradient-start / end: #1565c0 → #0d47a1` — modal header gradient
+- `$text-primary: #1a202c` — body text (slightly richer than pure #212121)
+- `$text-secondary: #64748b` — hints, labels, ghost button text
+- `$text-on-dark: #ffffff` — text on gradient header
+- `$border-color: #e2e8f0` — default input/section borders
+- `$bg-section: #f1f5ff` / `$bg-section-border: #c7d7f5` — "Limity zasobów" section
+- `$bg-twilio: #f0f7ff` / `$bg-twilio-border: #93c5fd` — Twilio VoIP section
+- `$error: #c62828` — validation errors
+- `$error-bg: rgba(#c62828, 0.06)` — error input background tint
 
-`frontend/src/styles.scss` zawiera:
-- CSS custom properties: `--color-brand`, `--color-brand-600` (#1a56db), `--color-text-primary/secondary/muted`
-- Surface tokens: `--color-surface`, `--color-surface-2` (#f8fafc), `--color-surface-3` (#f1f5f9), `--color-border` (#e2e8f0)
-- Radius: `--radius-sm/md/lg/xl/full`
-- Shadows: `--shadow-xs/sm/md/lg`
-- Easing: `--ease-standard`, `--ease-spring`, `--ease-out` (cubic-bezier)
-- Duration: `--duration-fast` (120ms), `--duration-normal` (200ms), `--duration-slow` (300ms)
-- `prefers-reduced-motion` globalny reset (nie potrzeba powielać w komponentach)
-- Globalny `:focus-visible` — 2px solid `--color-brand-600`, offset 3px
+## Border Radius
 
-**Why:** Analiza 25 komponentów SCSS przeprowadzona 2026-03-26 ujawniła brak centralnego design systemu. Dodano globalne tokeny.
+- `$radius-dialog: 12px` — modal outer corners
+- `$radius-input: 8px` — form inputs and selects
+- `$radius-btn: 8px` — buttons
 
-Każdy komponent SCSS nadal deklaruje lokalne `$zmienne` (SCSS aliases) dla autocomplete, ale ich wartości powinny odpowiadać tokenom globalnym.
+## Shadows
 
-## Zmienne SCSS zduplikowane w wielu plikach
-- `$brand-blue: #1565c0` — pojawia się w: login, admin-dashboard, tenant-list, queue-list, user-list
-- `$text-primary: #212121` lub `#1e293b` — różne wartości w różnych komponentach (niespójność)
-- `$border-color: #e2e8f0` — spójne w większości
-- `$radius: 6px` — spójne, ale brak wyższych wariantów jako zmiennych
+- Dialog: 3-layer shadow `0 4px 6px… + 0 10px 15px… + 0 20px 48px…`
+- Save button: layered `0 1px 2px + 0 4px 8px` with brand-blue-dark rgba
 
-## Niespójne border-radius
-- `6px` — queue-list, tenant-list, login inputs
-- `8px` — agent-desktop items, softphone
-- `10px` — admin-dashboard kpi-cards
-- `12px` — auth-card, IVR modal
+## Animation conventions
 
-## Brak tokenów CSS custom properties
-Projekt nie używa CSS `--custom-properties` (poza IVR editor który używa kilku `var(--color-*)` lokalnie).
+- Dialog entry: `dialog-enter` keyframe (fade + translateY(16px) + scale(0.98)), 280ms, `cubic-bezier(0.16, 1, 0.3, 1)`
+- Mobile bottom sheet: `sheet-enter` keyframe (translateY(32px)), 320ms, same easing
+- Button hover: `translateY(-1px)` + enhanced shadow, 180ms
+- Input transitions: border-color + box-shadow + background, 200ms `cubic-bezier(0.4, 0, 0.2, 1)`
+- Close button press: `scale(0.92)`, 100ms
 
-## How to apply
-Przed każdą zmianą stylu: sprawdź czy dany komponent ma lokalne `$zmienne` które mogą kolidować z globalnymi. Przy okazji refaktorów dodawaj `var(--token)` zamiast hardcoded wartości. Plik `styles.scss` jest dobrym miejscem na globalne tokeny.
+## Component patterns
 
-## Angular Material
+### Modal header
+- Full-width gradient background (`linear-gradient(135deg, start → end)`)
+- Shine overlay `::after` (linear-gradient 180deg, rgba white 8% → 0)
+- Header icon: 36×36px, `rgba(255,255,255,0.15)` bg, 8px radius
+- Close button: `rgba(white, 0.12)` bg, hover `rgba(white, 0.22)`, focus outline white
 
-Angular Material NIE jest zainstalowany w projekcie (brak w package.json). Nie uzywac `MatTooltipModule` ani zadnych importow z `@angular/material/*`. Zamiast tego stosowac:
-- Natywny atrybut `title` dla dostepnosci
-- CSS tooltip przez `data-tooltip` + `::after` pseudo-element (wzorzec uzywany w sidenav)
+### Form sections (e.g. "Limity zasobów")
+- Wrapped in `.form-section` with `$bg-section` tinted background + border
+- Section label: 0.75rem, 700 weight, uppercase, letter-spacing 0.06em, brand-blue color
+- Section icon: 22×22px, `rgba($brand-blue, 0.12)` bg
 
-## Sidenav Collapsible Pattern (zaimplementowany 2026-03-27)
+### Twilio VoIP section
+- `$bg-twilio` background + `box-shadow: inset 3px 0 0 $bg-twilio-border` left accent
+- Section header has bottom border separator within the section
 
-- `isCollapsed` signal w SidenavComponent, zapisywany do localStorage pod kluczem `cc_sidenav_collapsed`
-- Output `collapsedChange` emituje stan do AppShellComponent
-- CSS class `sidenav--collapsed` na `<nav>` — width przechodzi 240px → 60px przez `transition: width 0.25s cubic-bezier(0.4,0,0.2,1)`
-- AppShell uzywa flexbox — sidenav jest `position: relative; flex-shrink: 0` wiec flex automatycznie dostosowuje szerokosc content area (nie potrzeba margin-left)
-- BLAD NAPRAWIONY: stary app-shell.component.scss mial `margin-left: $sidenav-width` na desktopie co powodowalo podwojne przesuniecie (sidenav juz zajmowal miejsce w flex flow). Usunieto.
+### Error messages
+- Inline SVG warning icon (info circle path) 14×14px at left of text
+- `.form-error` uses `display: inline-flex; align-items: center; gap: 0.3rem`
 
-## AppShell layout chain (stan po 2026-03-27)
+### Buttons
+- Cancel: ghost with `$border-color` border, hover `#f1f5f9` bg
+- Save: gradient (`$brand-blue-light → $brand-blue-dark`), lift on hover
+- Both: `scale(0.97)` on active state
 
-`shell` (height: 100vh, flex column)
-  → `shell__navbar` (flex-shrink: 0)
-  → `shell__body` (flex: 1, overflow: hidden, display: flex)
-    → `shell__main` (flex: 1, display: flex column, overflow: hidden)
-      → `shell__breadcrumbs` (flex-shrink: 0, min-height: 36px)
-      → `shell__content` (flex: 1, min-height: 0, overflow-y: auto, padding: 1.5rem, **display: flex; flex-direction: column**)
+## Backdrop
+- `rgba(15, 23, 42, 0.55)` + `backdrop-filter: blur(4px)`
 
-`shell__content` jest teraz `display: flex; flex-direction: column` — umożliwia potomkom z `flex: 1` wypełnienie całej dostępnej wysokości.
+## Breakpoints
+- `< 520px`: bottom sheet layout (fixed bottom, rounded top corners only)
 
-## Agent desktop full-bleed pattern
+**Why:** Established during tenant modal redesign (2026-04-23). Serves as the reference for future modal/dialog work in admin panel.
 
-`:host` agenta ma: `flex: 1; margin: -1.5rem; width: calc(100% + 3rem); min-height: 0; overflow: hidden`.
-To ucieka z paddingu `shell__content` i wypełnia całą przestrzeń edge-to-edge.
-`.desktop` wewnątrz ma `flex: 1; min-height: 0`.
-
-Wzorzec do ponownego użycia dla każdego widoku wymagającego full-bleed (bez 1.5rem paddingu).
-
-## Email 2-kolumnowy layout (proporcje)
-
-Thread (lewa kolumna): `flex: 0 0 57%` — agenci czytają kontekst, potrzebują więcej miejsca.
-Reply (prawa kolumna): `flex: 1` — compose area.
-Separator: `border-right: 2px solid $border` na `.email-thread`.
+**How to apply:** Use these tokens and patterns for any new admin modals, dialogs, or form panels to maintain visual consistency.

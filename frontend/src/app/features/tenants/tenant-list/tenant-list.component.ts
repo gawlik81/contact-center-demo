@@ -6,31 +6,39 @@ import {
   signal,
   computed,
   DestroyRef,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { Router } from '@angular/router';
 import { debounceTime, distinctUntilChanged, catchError, of } from 'rxjs';
 import { TenantService } from '../tenant.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { Tenant, TenantStatus, PagedResponse } from '../tenant.model';
 import { TenantDeactivateModalComponent } from '../tenant-deactivate-modal/tenant-deactivate-modal.component';
 import { TenantEditModalComponent } from '../tenant-edit-modal/tenant-edit-modal.component';
+import { TenantAddModalComponent } from '../tenant-add-modal/tenant-add-modal.component';
 
 @Component({
   selector: 'app-tenant-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DatePipe, TenantDeactivateModalComponent, TenantEditModalComponent],
+  imports: [
+    ReactiveFormsModule,
+    DatePipe,
+    TenantDeactivateModalComponent,
+    TenantEditModalComponent,
+    TenantAddModalComponent,
+  ],
   templateUrl: './tenant-list.component.html',
   styleUrl: './tenant-list.component.scss',
 })
 export class TenantListComponent implements OnInit {
   private readonly tenantService = inject(TenantService);
   private readonly notifications = inject(NotificationService);
-  private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+
+  private readonly addModalRef = viewChild<TenantAddModalComponent>('addModal');
 
   readonly loading = signal(false);
   readonly tenants = signal<Tenant[]>([]);
@@ -174,10 +182,14 @@ export class TenantListComponent implements OnInit {
     this.loadTenants();
   }
 
-  // ── Nawigacja ─────────────────────────────────────────────────────────────
+  // ── Dodawanie ─────────────────────────────────────────────────────────────
 
-  navigateToNew(): void {
-    this.router.navigate(['/admin/tenants/new']);
+  openAddModal(): void {
+    this.addModalRef()?.open();
+  }
+
+  onTenantAdded(_tenant: Tenant): void {
+    this.loadTenants();
   }
 
   trackByTenantId(_index: number, tenant: Tenant): string {

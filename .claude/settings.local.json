@@ -212,7 +212,15 @@
       "Bash(javac -version)",
       "Bash(/usr/lib/jvm/java-21-openjdk-amd64/bin/javac -version)",
       "Bash(JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn package -f /home/pawelm/contact-center/backend/app/pom.xml -DskipTests -q)",
-      "Bash(awk 'NR>=250 && NR<=310' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)"
+      "Bash(awk 'NR>=250 && NR<=310' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)",
+      "Bash(npx @angular/cli mcp --help)",
+      "Bash(npm --version)",
+      "Bash(bash)",
+      "Bash(node_modules/.bin/ng lint *)",
+      "Bash(node_modules/.bin/eslint src/app/features/tenants/tenant-form/tenant-form.component.ts --max-warnings 0)",
+      "Bash(./node_modules/.bin/ng lint *)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(/home/pawelm/contact-center/frontend/node_modules/.bin/tsc --noEmit -p /home/pawelm/contact-center/frontend/tsconfig.app.json)"
     ]
   }
 }

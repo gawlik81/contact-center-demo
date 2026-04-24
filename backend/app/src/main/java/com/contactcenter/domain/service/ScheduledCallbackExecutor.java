@@ -1,7 +1,9 @@
 package com.contactcenter.domain.service;
 
+import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -46,6 +48,7 @@ public class ScheduledCallbackExecutor {
     private final TenantRepository tenantRepository;
     private final ScheduledCallbackRepository callbackRepository;
     private final TelephonyAdapter telephonyAdapter;
+    private final AppUserRepository appUserRepository;
 
     @Value("${dialer.callback-executor.batch-size:50}")
     private int batchSize;
@@ -144,6 +147,20 @@ public class ScheduledCallbackExecutor {
             log.debug("[CallbackExecutor] Callback {} już przetwarzany przez inny węzeł – pomijam",
                     callback.getCallbackId());
             return;
+        }
+
+        if (callback.getAgentId() != null) {
+            boolean agentAvailable = appUserRepository
+                    .findByIdAndTenantIdAndDeletedFalse(callback.getAgentId(), callback.getTenantId())
+                    .map(agent -> agent.getStatus() == AppUser.UserStatus.AVAILABLE)
+                    .orElse(false);
+
+            if (!agentAvailable) {
+                log.info("[CallbackExecutor] Agent {} niedostępny – cofam callback {} do PENDING",
+                        callback.getAgentId(), callback.getCallbackId());
+                callbackRepository.updateStatus(callback.getCallbackId(), "PENDING", callback.getTenantId());
+                return;
+            }
         }
 
         log.info("[CallbackExecutor] Inicjowanie oddzwonienia: callbackId={}, phone={}, agentId={}, tenant={}",

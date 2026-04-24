@@ -3,7 +3,7 @@
 -- DB-027: Rozszerzenie scheduled_callback o typ AGENT_MANUAL
 --
 -- Migracja: Flyway V047
--- Zaleznosci: V037 (source_type), V038 (OUTBOUND_CALLBACK), V032 (is_deleted, assigned_agent_id)
+-- Zaleznosci: V037 (source_type), V038 (OUTBOUND_CALLBACK), V032 (is_deleted, agent_id)
 -- Epic: EPIC-17
 --
 -- Zmiany:
@@ -44,7 +44,7 @@ COMMENT ON COLUMN scheduled_callback.notes
 -- =============================================================================
 
 CREATE INDEX IF NOT EXISTS idx_scheduled_callback_agent_manual
-    ON scheduled_callback (tenant_id, assigned_agent_id, scheduled_at)
+    ON scheduled_callback (tenant_id, agent_id, scheduled_at)
     WHERE source_type = 'AGENT_MANUAL'
       AND status = 'PENDING'
       AND is_deleted = FALSE;
@@ -57,7 +57,7 @@ COMMENT ON INDEX idx_scheduled_callback_agent_manual
 -- =============================================================================
 
 CREATE INDEX IF NOT EXISTS idx_scheduled_callback_agent_calendar
-    ON scheduled_callback (tenant_id, assigned_agent_id, scheduled_at)
+    ON scheduled_callback (tenant_id, agent_id, scheduled_at)
     WHERE is_deleted = FALSE;
 
 COMMENT ON INDEX idx_scheduled_callback_agent_calendar

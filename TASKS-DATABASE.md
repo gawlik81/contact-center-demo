@@ -901,10 +901,11 @@ CREATE INDEX IF NOT EXISTS idx_agent_group_member_lookup
 **Priorytet:** Must Have
 **Zlozonosc:** XS
 **Zależy od:** DB-023 (tabela `scheduled_callback`)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-24
 **Blokuje:** BE-048
 **Epic:** EPIC-15 Zakładka Klienci w Agent Desktop
-**Flyway:** V046__scheduled_callback_agent_manual_source.sql
+**Flyway:** V047__scheduled_callback_agent_manual_source.sql
 
 **Opis:**
 Tabela `scheduled_callback` ma CHECK constraint ograniczający `source_type` do wartości `CAMPAIGN_CALLBACK` i `INBOUND_CALLBACK`. Nowy scenariusz — agent zamawia oddzwonienie do klienta z własnej inicjatywy poza aktywną rozmową — wymaga trzeciej wartości `AGENT_MANUAL`. Przy okazji dodawana jest kolumna `notes` potrzebna dla BE-048.

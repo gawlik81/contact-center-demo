@@ -1,0 +1,204 @@
+<dialog #dialogEl class="callback-dialog" aria-labelledby="callback-dialog-title">
+  <div class="callback-dialog__backdrop" (click)="cancel()" aria-hidden="true"></div>
+
+  <div class="callback-dialog__panel" role="document">
+    <!-- Header -->
+    <header class="callback-dialog__header">
+      <div class="callback-dialog__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+          />
+        </svg>
+      </div>
+      <div class="callback-dialog__title-block">
+        <h2 id="callback-dialog-title" class="callback-dialog__title">Zamow oddzwonienie</h2>
+        <p class="callback-dialog__subtitle">{{ customerDisplayName() }}</p>
+      </div>
+      <button
+        type="button"
+        class="callback-dialog__close-btn"
+        [disabled]="loading()"
+        aria-label="Zamknij dialog"
+        (click)="cancel()"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12
+             13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </header>
+
+    <!-- Body -->
+    <div class="callback-dialog__body">
+      <form [formGroup]="form" (ngSubmit)="submit()" id="callback-form" novalidate>
+        <!-- Phone number -->
+        <div class="form-field">
+          <label class="form-field__label" for="phoneNumber">
+            Numer telefonu
+            <span class="form-field__required" aria-hidden="true">*</span>
+          </label>
+
+          @if (hasPhones()) {
+            <select
+              id="phoneNumber"
+              class="form-field__select"
+              formControlName="phoneNumber"
+              [class.form-field__select--error]="form.controls.phoneNumber.invalid && form.controls.phoneNumber.touched"
+              [attr.aria-invalid]="form.controls.phoneNumber.invalid && form.controls.phoneNumber.touched"
+              aria-required="true"
+              aria-describedby="phoneNumber-error"
+            >
+              @for (phone of customer().phone; track phone) {
+                <option [value]="phone">{{ phone }}</option>
+              }
+            </select>
+          } @else {
+            <input
+              id="phoneNumber"
+              type="tel"
+              class="form-field__input"
+              formControlName="phoneNumber"
+              placeholder="+48123456789"
+              autocomplete="tel"
+              [class.form-field__input--error]="form.controls.phoneNumber.invalid && form.controls.phoneNumber.touched"
+              [attr.aria-invalid]="form.controls.phoneNumber.invalid && form.controls.phoneNumber.touched"
+              aria-required="true"
+              aria-describedby="phoneNumber-error"
+            />
+            <span class="form-field__helper">Format miedzynarodowy, np. +48123456789</span>
+          }
+
+          @if (form.controls.phoneNumber.touched && form.controls.phoneNumber.hasError('required')) {
+            <span id="phoneNumber-error" class="form-field__hint" role="alert">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                />
+              </svg>
+              Numer telefonu jest wymagany.
+            </span>
+          } @else if (form.controls.phoneNumber.touched && form.controls.phoneNumber.hasError('invalidE164')) {
+            <span id="phoneNumber-error" class="form-field__hint" role="alert">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                />
+              </svg>
+              Podaj numer w formacie miedzynarodowym (np. +48123456789).
+            </span>
+          }
+        </div>
+
+        <!-- Date and time -->
+        <div class="form-field">
+          <label class="form-field__label" for="scheduledAt">
+            Data i godzina oddzwonienia
+            <span class="form-field__required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="scheduledAt"
+            type="datetime-local"
+            class="form-field__input"
+            formControlName="scheduledAt"
+            [min]="minDateTimeLocal()"
+            [class.form-field__input--error]="form.controls.scheduledAt.invalid && form.controls.scheduledAt.touched"
+            [attr.aria-invalid]="form.controls.scheduledAt.invalid && form.controls.scheduledAt.touched"
+            aria-required="true"
+            aria-describedby="scheduledAt-error"
+          />
+          @if (form.controls.scheduledAt.touched && form.controls.scheduledAt.hasError('required')) {
+            <span id="scheduledAt-error" class="form-field__hint" role="alert">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                />
+              </svg>
+              Data i godzina sa wymagane.
+            </span>
+          } @else if (form.controls.scheduledAt.touched && form.controls.scheduledAt.hasError('tooSoon')) {
+            <span id="scheduledAt-error" class="form-field__hint" role="alert">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                />
+              </svg>
+              Wybierz termin co najmniej 5 minut w przyszlosci.
+            </span>
+          }
+        </div>
+
+        <!-- Notes -->
+        <div class="form-field">
+          <label class="form-field__label" for="callback-notes">
+            Notatki
+            <span class="form-field__optional">(opcjonalne)</span>
+          </label>
+          <textarea
+            id="callback-notes"
+            class="form-field__textarea"
+            rows="3"
+            maxlength="500"
+            placeholder="Dodaj notatke do oddzwonienia..."
+            formControlName="notes"
+            aria-multiline="true"
+            [attr.aria-invalid]="form.controls.notes.invalid && form.controls.notes.touched"
+            aria-describedby="notes-count"
+          ></textarea>
+          <span id="notes-count" class="form-field__char-count" aria-live="polite">
+            {{ notesLength() }}&nbsp;/&nbsp;500
+          </span>
+        </div>
+      </form>
+
+      <!-- Error message -->
+      @if (errorMessage()) {
+        <div class="callback-dialog__error" role="alert" aria-live="assertive">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            />
+          </svg>
+          <span>{{ errorMessage() }}</span>
+        </div>
+      }
+    </div>
+
+    <!-- Footer -->
+    <footer class="callback-dialog__footer">
+      <button
+        type="button"
+        class="btn btn--secondary"
+        [disabled]="loading()"
+        aria-label="Anuluj i zamknij modal"
+        (click)="cancel()"
+      >
+        Anuluj
+      </button>
+
+      <button
+        type="submit"
+        form="callback-form"
+        class="btn btn--primary"
+        [disabled]="!canSubmit()"
+        [class.btn--loading]="loading()"
+        [attr.aria-busy]="loading()"
+        aria-label="Zamow oddzwonienie"
+      >
+        @if (loading()) {
+          <span class="btn__spinner" aria-hidden="true"></span>
+          <span>Zapisywanie...</span>
+        } @else {
+          <svg class="btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+            />
+          </svg>
+          <span>Zamow oddzwonienie</span>
+        }
+      </button>
+    </footer>
+  </div>
+</dialog>

@@ -57,3 +57,4 @@
 - [Social Media integrations panel (FE-023)](./project_fe023_social_integrations.md) – OAuth redirect flow, 3 karty platform, dialog rozłączenia, OauthCallbackComponent, route supervisor/settings/integrations
 - [Email templates management (FE-031)](./project_fe031_email_templates.md) – EmailTemplatesComponent (CRUD, 3 native dialogs, preview iframe), EmailService extensions, route settings/email-templates, sidenav Konfiguracja
 - [Social contact component (FE-013)](./project_fe013_social_contact.md) – SocialContactComponent (czat FB/IG/WA), WS SOCIAL_MESSAGE_RECEIVED, infinite scroll, read-only mode, ContactType rozszerzony o SOCIAL
+- [Agent customer search tab (FE-040)](./project_fe040_agent_customers_tab.md) – AgentCustomersTabComponent (/agent/customers), debounce Subject+300ms, CustomerSummary model, CustomerSearchService, drawer ze szczegółami, @Output scheduleCallback dla FE-041

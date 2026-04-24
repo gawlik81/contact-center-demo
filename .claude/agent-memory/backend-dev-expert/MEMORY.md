@@ -85,3 +85,4 @@
 - [BE-017 Social OAuth](project_be017_social_oauth.md) – OAuth flow i szyfrowanie tokenów AES-256-GCM (BYTEA), SocialIntegration encja, callback publiczny w SecurityConfig+TenantFilter, @Scheduled refresh co 1h
 - [BE-018 Social Media Adapter](project_be018_social_adapter.md) – webhook handler FB/IG/WA, SocialMessage encja, adapter stubs, async RabbitMQ (cc.queue.social-incoming), cross-tenant findByPlatformAndPageId
 - [WS Resilience – ASSIGNED Status](project_ws_resilience_assigned_status.md) — Opcja B: status ASSIGNED, ContactAssignmentMonitor, retry Redis, GET /api/agent/me/assigned-contact (V046, 2026-04-22)
+- [BE-048 Manual Callback Endpoint](project_be048_manual_callback.md) — POST /api/callbacks/manual, ManualCallbackController, sourceType=AGENT_MANUAL, walidacja scheduledAt min. 5min, cross-tenant guard via CrossTenantAccessException (403)

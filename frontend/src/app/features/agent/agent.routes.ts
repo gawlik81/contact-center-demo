@@ -20,12 +20,11 @@ export const AGENT_ROUTES: Routes = [
           ),
       },
       {
-        // TODO FE-015: Replace placeholder with real Agent Customers component
         path: 'customers',
         data: { breadcrumb: 'Klienci' },
         loadComponent: () =>
-          import('./pages/customers/agent-customers-placeholder.component').then(
-            (m) => m.AgentCustomersPlaceholderComponent,
+          import('./pages/customers/agent-customers-tab.component').then(
+            (m) => m.AgentCustomersTabComponent,
           ),
       },
       {

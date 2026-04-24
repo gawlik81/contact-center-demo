@@ -1921,6 +1921,167 @@ Modal do dodania nowej zaplanowanej przerwy lub edycji istniejącej (tryb przeka
 
 ---
 
+## Powiadomienia o połączeniu (EPIC-17 – Incoming Call Alert)
+
+> Agent przebywający na zakładce innej niż `/agent/desktop` (Klienci, Oddzwonienia) nie widzi
+> softphone'a i może przeoczyć przychodzące połączenie. Poniższe zadania rozwiązują ten problem
+> przez globalny serwis alertów + pływający banner + opcjonalne powiadomienie przeglądarki.
+
+---
+
+### FE-046 – `IncomingCallAlertService`: globalny serwis alertów o przychodzącym połączeniu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-009 (Agent Desktop, WebSocket, SoftphoneService, ContactTabStore)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-047, FE-048
+**Odniesienie PRD:** EPIC-17 – Incoming Call Alert
+
+**Opis:**
+Serwis singleton (`providedIn: 'root'`) nasłuchujący zdarzeń WebSocket `CALL_INCOMING` i `CONTACT_ASSIGNED` (type: PHONE) przez cały czas sesji agenta, niezależnie od aktywnej strony. Przejmuje odpowiedzialność za wywołanie `ContactTabStore.openFromCallIncoming()` i `SoftphoneService.incomingCall()` — czyli logikę dotychczas obsługiwaną wyłącznie w `AgentDesktopComponent.ngOnInit()`, która nie działa gdy komponent jest odmontowany.
+
+**Interfejsy:**
+```typescript
+interface IncomingCallAlert {
+  contactId: string;
+  customerName: string;
+  customerPhone: string;
+  queueName: string;
+  receivedAt: Date;
+}
+```
+
+**Sygnały i metody:**
+- `pendingAlert: signal<IncomingCallAlert | null>` — aktywne oczekujące połączenie
+- `dismissAlert(): void` — czyści alert (nie rozłącza połączenia)
+- Automatyczny auto-dismiss gdy `softphoneService.session()?.state` zmienia się z `RINGING` na `ACTIVE` lub `ENDED`
+
+**Obsługa CALL_INCOMING (przeniesiona z AgentDesktopComponent):**
+1. Wywołuje `ContactTabStore.openFromCallIncoming(payload)` — otwiera tab (sprawdza limity)
+2. Jeśli limit OK → wywołuje `SoftphoneService.incomingCall(payload)` — stan → `RINGING`
+3. Ustawia `pendingAlert` z danymi połączenia
+4. Jeśli limit przekroczony → tylko `NotificationService.warning(...)`, nie ustawia alertu
+
+**Web Notifications API:**
+- Przy inicjalizacji serwisu: `Notification.requestPermission()` (jednorazowo)
+- Przy ustawieniu `pendingAlert`: `new Notification('Przychodzące połączenie', { body: ..., icon: ... })`
+- Klik w powiadomienie systemowe → `window.focus()` + `Router.navigate(['/agent/desktop'])`
+- Auto-zamknięcie powiadomienia systemowego po 15s lub przy dismissAlert
+
+**Dźwięk dzwonka:**
+- Plik `assets/sounds/ringtone.mp3` (krótka pętla, ~3s)
+- Start odtwarzania przy ustawieniu `pendingAlert` (loop: true)
+- Stop przy `dismissAlert()` lub auto-dismiss
+- Obsługa błędów: AudioContext wymaga gestu użytkownika — inicjuj przy pierwszej interakcji
+
+**Kryteria akceptacji:**
+- [ ] Serwis jest singleton `providedIn: 'root'`, inicjalizuje się przy starcie aplikacji (np. przez APP_INITIALIZER lub wstrzyknięcie w AppComponent)
+- [ ] Nasłuchuje `CALL_INCOMING` niezależnie od aktywnej strony (nawet gdy `/agent/customers` jest aktywny)
+- [ ] Wywołuje `ContactTabStore.openFromCallIncoming()` i `SoftphoneService.incomingCall()` — przenosząc tę logikę z `AgentDesktopComponent`
+- [ ] `pendingAlert` ustawiany tylko gdy limit nie jest przekroczony
+- [ ] Auto-dismiss działa przez effect na `softphoneService.session`
+- [ ] Web Notification wyświetla się, gdy uprawnienia są przyznane
+- [ ] Klik w Web Notification nawiguje do `/agent/desktop`
+- [ ] Dźwięk dzwonka gra w pętli gdy `pendingAlert !== null`
+- [ ] Dźwięk zatrzymuje się przy `dismissAlert()`
+- [ ] Brak błędów w konsoli przy braku uprawnień do powiadomień lub audio
+
+---
+
+### FE-047 – `IncomingCallBannerComponent`: pływający banner powiadomienia
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-046
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-048
+**Odniesienie PRD:** EPIC-17 – Incoming Call Alert
+
+**Opis:**
+Standalone komponent wyświetlający pulsujący banner u góry ekranu gdy agent jest poza `/agent/desktop` i istnieje oczekujące połączenie (`IncomingCallAlertService.pendingAlert() !== null`). Banner jest `position: fixed` z wysokim `z-index`, widoczny nad dowolną stroną aplikacji.
+
+**Selector:** `cc-incoming-call-banner`
+
+**Warunki widoczności:**
+- `pendingAlert() !== null` — jest oczekujące połączenie
+- `!router.url.startsWith('/agent/desktop')` — agent nie jest na stronie desktop
+
+**Zawartość:**
+- Ikona telefonu z animacją pulsowania (CSS `@keyframes`)
+- Tekst: „Przychodzące połączenie"
+- Imię i nazwisko klienta (bold)
+- Numer telefonu
+- Nazwa kolejki
+- Przycisk CTA: „Przejdź do pulpitu i odbierz" → `Router.navigate(['/agent/desktop'])` + `IncomingCallAlertService.dismissAlert()`
+- Przycisk X (ikonka): `dismissAlert()` — zamknięcie bannera bez odrzucania połączenia
+
+**Styl:**
+- Tło: czerwień ostrzegawcza (`#dc2626` lub odpowiednik z design tokenu)
+- Tekst biały
+- Cień (box-shadow) dla wyróżnienia nad treścią
+- Animacja pulse na ikonie telefonu
+- Animacja slideDown przy pojawieniu się bannera
+
+**Kryteria akceptacji:**
+- [ ] Banner widoczny tylko gdy `pendingAlert !== null` i agent nie jest na `/agent/desktop`
+- [ ] Po kliknięciu CTA: nawigacja do `/agent/desktop` + dismiss alertu
+- [ ] Po kliknięciu X: dismiss alertu (banner znika, połączenie nadal dzwoni w Twilio)
+- [ ] Komponent standalone, `ChangeDetectionStrategy.OnPush`
+- [ ] Animacja pulse na ikonie działa (CSS-only, nie JS interval)
+- [ ] Banner znika automatycznie gdy agent odbierze lub odrzuci połączenie (auto-dismiss)
+- [ ] Responsywny — działa na wąskich ekranach (laptop 1280px)
+
+---
+
+### FE-048 – Integracja bannera w AgentShellComponent i refaktoryzacja AgentDesktopComponent
+
+**Typ:** Refactor + Integration
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-046, FE-047
+**Status:** ⬜ Do zrobienia
+**Blokuje:** brak
+**Odniesienie PRD:** EPIC-17 – Incoming Call Alert
+
+**Opis:**
+Dwa powiązane kroki: (1) dodanie `<cc-incoming-call-banner />` do szablonu `AgentShellComponent`, który jest persistentny dla wszystkich stron agenta; (2) usunięcie z `AgentDesktopComponent` logiki obsługi `CALL_INCOMING`, która została przeniesiona do `IncomingCallAlertService` w FE-046 — tak by uniknąć podwójnego wywołania.
+
+**Zmiany w AgentShellComponent:**
+```typescript
+// agent-shell.component.ts
+import { IncomingCallBannerComponent } from './components/incoming-call-banner/incoming-call-banner.component';
+
+@Component({
+  template: `
+    <cc-app-shell />
+    <cc-incoming-call-banner />
+  `,
+  imports: [AppShellComponent, IncomingCallBannerComponent],
+})
+export class AgentShellComponent {}
+```
+
+**Zmiany w AgentDesktopComponent:**
+- Usunąć subskrypcję na `CALL_INCOMING` z `ngOnInit` (przeniesioną do FE-046)
+- Usunąć wywołania `tabStore.openFromCallIncoming()` i `softphoneService.incomingCall()` z tego komponentu
+- Zachować subskrypcję na `CALL_OUTBOUND`, `CONTACT_ASSIGNED` (inne kanały niż PHONE), `QUEUE_UPDATE`, `CALL_HANGUP` — te pozostają w AgentDesktopComponent
+- Wywołać `IncomingCallAlertService.dismissAlert()` gdy agent wróci na desktop i połączenie zostanie odebrane (w effect na `softphoneService.session()?.state === 'ACTIVE'`)
+- Upewnić się, że gdy agent wraca na desktop po kliknięciu bannera, widzi softphone w stanie `RINGING` (stan jest już ustawiony przez serwis — komponent tylko renderuje sygnały)
+
+**Kryteria akceptacji:**
+- [ ] `AgentShellComponent` renderuje `<cc-incoming-call-banner />` obok `<cc-app-shell />`
+- [ ] `AgentDesktopComponent` nie wywołuje już `openFromCallIncoming()` ani `softphoneService.incomingCall()` dla `CALL_INCOMING`
+- [ ] Brak podwójnego wywołania `incomingCall()` gdy agent jest na `/agent/desktop`
+- [ ] Gdy agent kliknie banner i wróci na desktop, softphone wyświetla stan `RINGING` z poprawnymi danymi klienta
+- [ ] Wszystkie istniejące przepływy (CALL_OUTBOUND, CONTACT_ASSIGNED EMAIL/CHAT/SOCIAL, QUEUE_UPDATE, CALL_HANGUP) działają bez zmian
+- [ ] Testy jednostkowe dla `IncomingCallAlertService`: przeniesiona logika, auto-dismiss, Web Notification
+- [ ] Brak regresji w istniejących testach `AgentDesktopComponent`
+
+---
+
 ## Podsumowanie zadań Frontend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -1942,4 +2103,5 @@ Modal do dodania nowej zaplanowanej przerwy lub edycji istniejącej (tryb przeka
 | Zarządzanie przypisaniem agentów (EPIC-14) | 4 | 4 | 0 |
 | Zakładka Klienci w Agent Desktop (EPIC-15) | 2 | 2 | 0 |
 | Kalendarz Agenta (EPIC-16) | 4 | 0 | 4 |
-| **RAZEM** | **44** | **39** | **5** |
+| Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
+| **RAZEM** | **47** | **42** | **5** |

@@ -220,7 +220,12 @@
       "Bash(node_modules/.bin/eslint src/app/features/tenants/tenant-form/tenant-form.component.ts --max-warnings 0)",
       "Bash(./node_modules/.bin/ng lint *)",
       "Bash(node_modules/.bin/tsc --noEmit)",
-      "Bash(/home/pawelm/contact-center/frontend/node_modules/.bin/tsc --noEmit -p /home/pawelm/contact-center/frontend/tsconfig.app.json)"
+      "Bash(/home/pawelm/contact-center/frontend/node_modules/.bin/tsc --noEmit -p /home/pawelm/contact-center/frontend/tsconfig.app.json)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn package -pl app -DskipTests -q)",
+      "Bash(update-java-alternatives -l)",
+      "Bash(javac --release 21 -version)",
+      "Bash(dpkg -l)",
+      "Bash(awk '{print $2, $3}')"
     ]
   }
 }

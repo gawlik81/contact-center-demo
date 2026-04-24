@@ -1342,7 +1342,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * Używany gdy caller sam buduje sub-ścieżkę (np. /recording, /conference).
    */
   private String buildRawWebhookBaseUrl(UUID tenantId) {
-    if (tenantId != null) {
+    if (tenantId != null && twilioProperties.isPerTenantCallbackUrlEnabled()) {
       try {
         String perTenantUrl = tenantRepository.findById(tenantId)
             .map(Tenant::getTwilioStatusCallbackUrl)

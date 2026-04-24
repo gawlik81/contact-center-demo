@@ -21,6 +21,8 @@ $bg-body: #ffffff;
 $bg-footer: #f8fafc;
 $bg-section: #f1f5ff;
 $bg-section-border: #c7d7f5;
+$bg-twilio: #f0f7ff;
+$bg-twilio-border: #93c5fd;
 $error: #c62828;
 $error-bg: rgba(#c62828, 0.06);
 $radius-dialog: 12px;
@@ -160,6 +162,18 @@ $shadow-dialog:
     border-top: 1px solid $border-color;
     background: $bg-footer;
   }
+
+  // ── Twilio VoIP section ──────────────────────────────────────────────────────
+  &__twilio {
+    padding: 1rem 1.125rem;
+    background: $bg-twilio;
+    border: 1px solid $bg-twilio-border;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    box-shadow: inset 3px 0 0 $bg-twilio-border;
+  }
 }
 
 @keyframes sheet-enter {
@@ -221,6 +235,12 @@ $shadow-dialog:
     display: flex;
     align-items: center;
     gap: 0.5rem;
+
+    &--voip {
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba($bg-twilio-border, 0.6);
+      margin-bottom: 0.25rem;
+    }
   }
 
   &__icon {
@@ -233,6 +253,11 @@ $shadow-dialog:
     border-radius: 5px;
     color: $brand-blue;
     flex-shrink: 0;
+
+    &--voip {
+      background: rgba(#0369a1, 0.12);
+      color: #0369a1;
+    }
   }
 
   &__label {
@@ -402,7 +427,11 @@ $shadow-dialog:
     0 4px 8px rgba($brand-blue-dark, 0.18);
 
   &:hover:not(:disabled) {
-    background: linear-gradient(135deg, $brand-blue 0%, color.adjust($brand-blue-dark, $lightness: -6%) 100%);
+    background: linear-gradient(
+      135deg,
+      $brand-blue 0%,
+      color.adjust($brand-blue-dark, $lightness: -6%) 100%
+    );
     box-shadow:
       0 2px 4px rgba($brand-blue-dark, 0.3),
       0 6px 12px rgba($brand-blue-dark, 0.22);

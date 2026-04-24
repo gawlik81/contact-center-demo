@@ -35,6 +35,7 @@ export class TwilioSettingsComponent implements OnInit {
   readonly submitting = signal(false);
 
   readonly hasPerTenantConfig = signal(false);
+  readonly perTenantCallbackUrlEnabled = signal(false);
 
   readonly form = this.fb.group({
     twilioPhoneNumber: ['', [Validators.pattern(E164_PATTERN)]],
@@ -53,7 +54,8 @@ export class TwilioSettingsComponent implements OnInit {
 
   readonly autoCallbackUrlPreview = computed(() => {
     const tenantId = this.authService.currentTenantId();
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com';
+    const origin =
+      typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com';
     return `${origin}/api/telephony/webhook/twilio${tenantId ? `?tenantId=${tenantId}` : ''}`;
   });
 
@@ -63,6 +65,11 @@ export class TwilioSettingsComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.twilioConfigService
+      .getTelephonyFeatures()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((f) => this.perTenantCallbackUrlEnabled.set(f.perTenantCallbackUrlEnabled));
+
     // After a page reload the in-memory JWT payload is null until the silent
     // refresh triggered by AuthGuard completes. Listening on the signal avoids
     // showing a load error caused purely by the race between ngOnInit and the
@@ -107,7 +114,9 @@ export class TwilioSettingsComponent implements OnInit {
 
     const raw = this.form.getRawValue();
     const phoneNumber = raw.twilioPhoneNumber?.trim() || null;
-    const callbackUrl = raw.twilioStatusCallbackUrl?.trim() || null;
+    const callbackUrl = this.perTenantCallbackUrlEnabled()
+      ? raw.twilioStatusCallbackUrl?.trim() || null
+      : null;
 
     this.submitting.set(true);
 
@@ -131,7 +140,9 @@ export class TwilioSettingsComponent implements OnInit {
           if (err?.status === 400 && message) {
             this.notifications.error(message);
           } else {
-            this.notifications.error('Nie udalo sie zapisac konfiguracji Twilio. Sprobuj ponownie.');
+            this.notifications.error(
+              'Nie udalo sie zapisac konfiguracji Twilio. Sprobuj ponownie.',
+            );
           }
         },
       });
@@ -159,7 +170,9 @@ export class TwilioSettingsComponent implements OnInit {
         },
         error: () => {
           this.submitting.set(false);
-          this.notifications.error('Nie udalo sie usunac konfiguracji per-tenant. Sprobuj ponownie.');
+          this.notifications.error(
+            'Nie udalo sie usunac konfiguracji per-tenant. Sprobuj ponownie.',
+          );
         },
       });
   }
@@ -167,7 +180,8 @@ export class TwilioSettingsComponent implements OnInit {
   get phoneNumberError(): string | null {
     const ctrl = this.form.get('twilioPhoneNumber')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('pattern')) return 'Numer telefonu musi byc w formacie E.164, np. +48123456789.';
+    if (ctrl.hasError('pattern'))
+      return 'Numer telefonu musi byc w formacie E.164, np. +48123456789.';
     return null;
   }
 

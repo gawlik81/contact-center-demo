@@ -1,9 +1,4 @@
-<dialog
-  #dialogEl
-  class="tenant-add-dialog"
-  aria-labelledby="tenant-add-title"
-  (click)="onBackdropClick($event)"
->
+<dialog #dialogEl class="tenant-add-dialog" aria-labelledby="tenant-add-title" (click)="onBackdropClick($event)">
   <div class="tenant-add-dialog__content" role="document">
     <div class="tenant-add-dialog__header">
       <div class="tenant-add-dialog__header-inner">
@@ -25,13 +20,7 @@
       </button>
     </div>
 
-    <form
-      class="tenant-add-dialog__body"
-      [formGroup]="form"
-      (ngSubmit)="onSubmit()"
-      novalidate
-      id="tenant-add-form"
-    >
+    <form class="tenant-add-dialog__body" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate id="tenant-add-form">
       <!-- Name field -->
       <div class="form-field" [class.form-field--error]="nameError">
         <label class="form-label" for="add-tenant-name">
@@ -50,11 +39,7 @@
             [attr.aria-describedby]="nameError ? 'add-name-error' : null"
           />
           @if (nameCtrl.pending) {
-            <span
-              class="form-validating"
-              aria-live="polite"
-              aria-label="Sprawdzanie dostepnosci nazwy"
-            >
+            <span class="form-validating" aria-live="polite" aria-label="Sprawdzanie dostepnosci nazwy">
               <span class="spinner spinner--dark" aria-hidden="true"></span>
             </span>
           }
@@ -176,9 +161,7 @@
             min="1"
             max="100"
             aria-required="true"
-            [attr.aria-invalid]="
-              maxCampaignsCtrl.invalid && (maxCampaignsCtrl.dirty || maxCampaignsCtrl.touched)
-            "
+            [attr.aria-invalid]="maxCampaignsCtrl.invalid && (maxCampaignsCtrl.dirty || maxCampaignsCtrl.touched)"
             [attr.aria-describedby]="maxCampaignsError ? 'add-max-campaigns-error' : null"
           />
           <span class="form-hint">zakres: 1&ndash;100</span>
@@ -202,51 +185,58 @@
         </div>
       </div>
 
-      <!-- Twilio caller ID -->
-      <div class="form-field" [class.form-field--error]="twilioPhoneNumberError">
-        <label class="form-label" for="add-twilio-phone-number">Numer wychodzacy (Caller ID)</label>
-        <input
-          id="add-twilio-phone-number"
-          type="tel"
-          class="form-input form-input--tel"
-          formControlName="twilioPhoneNumber"
-          placeholder="+48123456789"
-          autocomplete="off"
-          [attr.aria-invalid]="
-            twilioPhoneNumberCtrl.invalid &&
-            (twilioPhoneNumberCtrl.dirty || twilioPhoneNumberCtrl.touched)
-          "
-          [attr.aria-describedby]="
-            twilioPhoneNumberError ? 'add-twilio-phone-error' : 'add-twilio-phone-hint'
-          "
-        />
-        @if (twilioPhoneNumberError) {
-          <span id="add-twilio-phone-error" class="form-error" role="alert">
-            <svg
-              class="form-error__icon"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              width="14"
-              height="14"
-              aria-hidden="true"
-            >
+      <!-- Twilio VoIP section -->
+      <div class="tenant-add-dialog__twilio">
+        <div class="form-section__header form-section__header--voip">
+          <span class="form-section__icon form-section__icon--voip" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
               <path
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
               />
             </svg>
-            {{ twilioPhoneNumberError }}
           </span>
-        }
-        <span id="add-twilio-phone-hint" class="form-hint">
-          Numer prezentowany klientowi podczas polaczen wychodzacych. Format: +48XXXXXXXXX
-        </span>
+          <span class="form-section__label">Telefonia VoIP (Twilio)</span>
+        </div>
+        <div class="form-field" [class.form-field--error]="twilioPhoneNumberError">
+          <label class="form-label" for="add-twilio-phone-number">Numer wychodzacy (Caller ID)</label>
+          <input
+            id="add-twilio-phone-number"
+            type="tel"
+            class="form-input form-input--tel"
+            formControlName="twilioPhoneNumber"
+            placeholder="+48123456789"
+            autocomplete="off"
+            [attr.aria-invalid]="
+              twilioPhoneNumberCtrl.invalid && (twilioPhoneNumberCtrl.dirty || twilioPhoneNumberCtrl.touched)
+            "
+            [attr.aria-describedby]="twilioPhoneNumberError ? 'add-twilio-phone-error' : 'add-twilio-phone-hint'"
+          />
+          @if (twilioPhoneNumberError) {
+            <span id="add-twilio-phone-error" class="form-error" role="alert">
+              <svg
+                class="form-error__icon"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                width="14"
+                height="14"
+                aria-hidden="true"
+              >
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                />
+              </svg>
+              {{ twilioPhoneNumberError }}
+            </span>
+          }
+          <span id="add-twilio-phone-hint" class="form-hint">
+            Numer prezentowany klientowi podczas polaczen wychodzacych. Format: +48XXXXXXXXX
+          </span>
+        </div>
       </div>
     </form>
 
     <div class="tenant-add-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()" [disabled]="submitting()">
-        Anuluj
-      </button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" [disabled]="submitting()">Anuluj</button>
       <button
         class="btn btn-save"
         type="submit"

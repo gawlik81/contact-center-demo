@@ -20,7 +20,7 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { Observable, catchError, map, of, switchMap, timer, EMPTY } from 'rxjs';
+import { Observable, catchError, map, of, switchMap, timer, EMPTY, take } from 'rxjs';
 import { TenantService } from '../tenant.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { Tenant, TenantStatus } from '../tenant.model';
@@ -68,6 +68,7 @@ export class TenantEditModalComponent implements OnInit, AfterViewInit {
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
 
   readonly submitting = signal(false);
+  readonly perTenantCallbackUrlEnabled = signal(false);
 
   readonly statusOptions: { value: TenantStatus; label: string }[] = [
     { value: 'ACTIVE', label: 'Aktywny' },
@@ -76,25 +77,42 @@ export class TenantEditModalComponent implements OnInit, AfterViewInit {
   ];
 
   readonly form = this.fb.group({
-    name: ['', {
-      validators: [Validators.required, Validators.minLength(2), Validators.maxLength(255)],
-      updateOn: 'blur',
-    }],
+    name: [
+      '',
+      {
+        validators: [Validators.required, Validators.minLength(2), Validators.maxLength(255)],
+        updateOn: 'blur',
+      },
+    ],
     status: ['ACTIVE' as TenantStatus, Validators.required],
-    maxAgents: [10, [Validators.required, Validators.min(1), Validators.max(500), Validators.pattern(/^\d+$/)]],
-    maxQueues: [5, [Validators.required, Validators.min(1), Validators.max(100), Validators.pattern(/^\d+$/)]],
-    maxCampaigns: [3, [Validators.required, Validators.min(1), Validators.max(100), Validators.pattern(/^\d+$/)]],
+    maxAgents: [
+      10,
+      [Validators.required, Validators.min(1), Validators.max(500), Validators.pattern(/^\d+$/)],
+    ],
+    maxQueues: [
+      5,
+      [Validators.required, Validators.min(1), Validators.max(100), Validators.pattern(/^\d+$/)],
+    ],
+    maxCampaigns: [
+      3,
+      [Validators.required, Validators.min(1), Validators.max(100), Validators.pattern(/^\d+$/)],
+    ],
     twilioPhoneNumber: ['', [Validators.pattern(/^\+[1-9]\d{6,14}$/)]],
     twilioStatusCallbackUrl: ['', [Validators.maxLength(500)]],
   });
 
   ngOnInit(): void {
+    this.twilioConfigService
+      .getTelephonyFeatures()
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((f) => this.perTenantCallbackUrlEnabled.set(f.perTenantCallbackUrlEnabled));
+
     const t = this.tenant();
 
     // Ustawiamy async validator dopiero po poznaniu ID tenanta
-    this.form.get('name')?.addAsyncValidators(
-      nameAvailabilityForUpdateValidator(this.tenantService, t.id),
-    );
+    this.form
+      .get('name')
+      ?.addAsyncValidators(nameAvailabilityForUpdateValidator(this.tenantService, t.id));
     this.form.get('name')?.updateValueAndValidity();
 
     this.form.patchValue({
@@ -195,12 +213,16 @@ export class TenantEditModalComponent implements OnInit, AfterViewInit {
           this.twilioConfigService
             .updateTwilioConfig(tenantId, {
               twilioPhoneNumber: raw.twilioPhoneNumber?.trim() || null,
-              twilioStatusCallbackUrl: raw.twilioStatusCallbackUrl?.trim() || null,
+              twilioStatusCallbackUrl: this.perTenantCallbackUrlEnabled()
+                ? raw.twilioStatusCallbackUrl?.trim() || null
+                : null,
             })
             .pipe(
               map(() => updated),
               catchError(() => {
-                this.notifications.error('Tenant zaktualizowany, ale nie udalo sie zapisac konfiguracji Twilio.');
+                this.notifications.error(
+                  'Tenant zaktualizowany, ale nie udalo sie zapisac konfiguracji Twilio.',
+                );
                 return of(updated);
               }),
             ),

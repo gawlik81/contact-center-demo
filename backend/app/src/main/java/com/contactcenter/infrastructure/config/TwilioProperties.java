@@ -60,6 +60,14 @@ public class TwilioProperties {
     private String statusCallbackUrl;
 
     /**
+     * Włącza możliwość nadpisania statusCallbackUrl per-tenant (klucz {@code twilio_status_callback_url}
+     * w konfiguracji tenanta). Domyślnie {@code false} – wszyscy tenanci używają globalnego
+     * {@code statusCallbackUrl}. Ustaw na {@code true} gdy różni tenanci potrzebują różnych URL
+     * callbacku (np. BYOT, multi-region deployment).
+     */
+    private boolean perTenantCallbackUrlEnabled = false;
+
+    /**
      * Włącza nagrywanie konferencji przez {@code <Conference record="record-from-start">}
      * i obsługę webhooków recordingStatusCallback.
      * Domyślnie {@code true} gdy Twilio jest włączone.

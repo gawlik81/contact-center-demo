@@ -190,7 +190,7 @@ By default the backend uses `MockTelephonyAdapter` which generates fake call eve
 Twilio sends call status updates (POST form-encoded) to the endpoint:
 
 ```
-POST /api/telephony/webhook/twilio?tenantId=<tenant-UUID>
+POST /api/telephony/webhook/twilio
 ```
 
 The URL must be publicly reachable by Twilio. For local development use [ngrok](https://ngrok.com/) or a similar tunnel:

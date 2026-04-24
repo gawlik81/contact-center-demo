@@ -73,6 +73,16 @@ public class TwilioVoiceController {
      *
      * @return JSON z polami {@code token} (JWT) i {@code identity} (agent identity)
      */
+    @GetMapping("/features")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @SecurityRequirement(name = "Bearer Authentication")
+    @Operation(summary = "Feature flags modułu telefonii")
+    public ResponseEntity<Map<String, Object>> getFeatureFlags() {
+        return ResponseEntity.ok(Map.of(
+                "perTenantCallbackUrlEnabled", twilioProperties.isPerTenantCallbackUrlEnabled()
+        ));
+    }
+
     @GetMapping("/voice-token")
     @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
     @SecurityRequirement(name = "Bearer Authentication")

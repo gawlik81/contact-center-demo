@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 
 export interface TwilioConfigRequest {
@@ -29,5 +29,11 @@ export class TwilioConfigService {
 
   updateTwilioConfig(tenantId: string, request: TwilioConfigRequest): Observable<TenantConfig> {
     return this.http.patch<TenantConfig>(`${this.baseUrl}/${tenantId}/config`, request);
+  }
+
+  getTelephonyFeatures(): Observable<{ perTenantCallbackUrlEnabled: boolean }> {
+    return this.http.get<{ perTenantCallbackUrlEnabled: boolean }>(
+      `${environment.apiUrl}/telephony/features`,
+    );
   }
 }

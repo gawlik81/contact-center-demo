@@ -26,104 +26,36 @@
     </div>
 
     <div class="tenant-edit-dialog__scroll">
-    <form
-      class="tenant-edit-dialog__body"
-      [formGroup]="form"
-      (ngSubmit)="onSubmit()"
-      novalidate
-      id="tenant-edit-form"
-    >
-      <!-- Name -->
-      <div class="form-field" [class.form-field--error]="nameError">
-        <label class="form-label" for="edit-tenant-name">
-          Nazwa <span class="required" aria-hidden="true">*</span>
-        </label>
-        <div class="form-input-wrapper">
-          <input
-            id="edit-tenant-name"
-            type="text"
-            class="form-input"
-            formControlName="name"
-            autocomplete="off"
-            [attr.aria-describedby]="nameError ? 'edit-tenant-name-error' : null"
-            [attr.aria-invalid]="nameError ? 'true' : null"
-          />
-          @if (nameValidating) {
-            <span
-              class="form-validating"
-              aria-live="polite"
-              aria-label="Sprawdzanie dostepnosci nazwy"
-            >
-              <span class="spinner spinner--dark" aria-hidden="true"></span>
-            </span>
-          }
-        </div>
-        @if (nameError) {
-          <span id="edit-tenant-name-error" class="form-error" role="alert">
-            <svg
-              class="form-error__icon"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              width="14"
-              height="14"
-              aria-hidden="true"
-            >
-              <path
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-              />
-            </svg>
-            {{ nameError }}
-          </span>
-        }
-      </div>
-
-      <!-- Status -->
-      <div class="form-field">
-        <label class="form-label" for="edit-tenant-status">
-          Status <span class="required" aria-hidden="true">*</span>
-        </label>
-        <select
-          id="edit-tenant-status"
-          class="form-select"
-          formControlName="status"
-          aria-required="true"
-        >
-          @for (opt of statusOptions; track opt.value) {
-            <option [value]="opt.value">{{ opt.label }}</option>
-          }
-        </select>
-      </div>
-
-      <!-- Resource limits section -->
-      <div class="form-section">
-        <div class="form-section__header">
-          <span class="form-section__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-              <path
-                d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"
-              />
-            </svg>
-          </span>
-          <span class="form-section__label">Limity zasobow</span>
-        </div>
-
-        <!-- Max agents -->
-        <div class="form-field" [class.form-field--error]="maxAgentsError">
-          <label class="form-label" for="edit-max-agents">
-            Maks. agentow <span class="required" aria-hidden="true">*</span>
+      <form
+        class="tenant-edit-dialog__body"
+        [formGroup]="form"
+        (ngSubmit)="onSubmit()"
+        novalidate
+        id="tenant-edit-form"
+      >
+        <!-- Name -->
+        <div class="form-field" [class.form-field--error]="nameError">
+          <label class="form-label" for="edit-tenant-name">
+            Nazwa <span class="required" aria-hidden="true">*</span>
           </label>
-          <input
-            id="edit-max-agents"
-            type="number"
-            class="form-input form-input--narrow"
-            formControlName="maxAgents"
-            min="1"
-            max="500"
-            [attr.aria-describedby]="maxAgentsError ? 'edit-max-agents-error' : null"
-            [attr.aria-invalid]="maxAgentsError ? 'true' : null"
-          />
-          @if (maxAgentsError) {
-            <span id="edit-max-agents-error" class="form-error" role="alert">
+          <div class="form-input-wrapper">
+            <input
+              id="edit-tenant-name"
+              type="text"
+              class="form-input"
+              formControlName="name"
+              autocomplete="off"
+              [attr.aria-describedby]="nameError ? 'edit-tenant-name-error' : null"
+              [attr.aria-invalid]="nameError ? 'true' : null"
+            />
+            @if (nameValidating) {
+              <span class="form-validating" aria-live="polite" aria-label="Sprawdzanie dostepnosci nazwy">
+                <span class="spinner spinner--dark" aria-hidden="true"></span>
+              </span>
+            }
+          </div>
+          @if (nameError) {
+            <span id="edit-tenant-name-error" class="form-error" role="alert">
               <svg
                 class="form-error__icon"
                 viewBox="0 0 24 24"
@@ -136,137 +68,200 @@
                   d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                 />
               </svg>
-              {{ maxAgentsError }}
+              {{ nameError }}
             </span>
           }
         </div>
 
-        <!-- Max queues -->
-        <div class="form-field" [class.form-field--error]="maxQueuesError">
-          <label class="form-label" for="edit-max-queues">
-            Maks. kolejek <span class="required" aria-hidden="true">*</span>
-          </label>
-          <input
-            id="edit-max-queues"
-            type="number"
-            class="form-input form-input--narrow"
-            formControlName="maxQueues"
-            min="1"
-            max="100"
-            [attr.aria-describedby]="maxQueuesError ? 'edit-max-queues-error' : null"
-            [attr.aria-invalid]="maxQueuesError ? 'true' : null"
-          />
-          @if (maxQueuesError) {
-            <span id="edit-max-queues-error" class="form-error" role="alert">
-              <svg
-                class="form-error__icon"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                width="14"
-                height="14"
-                aria-hidden="true"
-              >
-                <path
-                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                />
-              </svg>
-              {{ maxQueuesError }}
-            </span>
-          }
-        </div>
-
-        <!-- Max campaigns -->
-        <div class="form-field" [class.form-field--error]="maxCampaignsError">
-          <label class="form-label" for="edit-max-campaigns">
-            Maks. kampanii <span class="required" aria-hidden="true">*</span>
-          </label>
-          <input
-            id="edit-max-campaigns"
-            type="number"
-            class="form-input form-input--narrow"
-            formControlName="maxCampaigns"
-            min="1"
-            max="100"
-            [attr.aria-describedby]="maxCampaignsError ? 'edit-max-campaigns-error' : null"
-            [attr.aria-invalid]="maxCampaignsError ? 'true' : null"
-          />
-          @if (maxCampaignsError) {
-            <span id="edit-max-campaigns-error" class="form-error" role="alert">
-              <svg
-                class="form-error__icon"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                width="14"
-                height="14"
-                aria-hidden="true"
-              >
-                <path
-                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                />
-              </svg>
-              {{ maxCampaignsError }}
-            </span>
-          }
-        </div>
-      </div>
-      <!-- Twilio VoIP section -->
-      <div class="tenant-edit-dialog__twilio">
-        <div class="form-section__header form-section__header--voip">
-          <span class="form-section__icon form-section__icon--voip" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-              <path
-                d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
-              />
-            </svg>
-          </span>
-          <span class="form-section__label">Telefonia VoIP (Twilio)</span>
-        </div>
-        <div class="form-field" [class.form-field--error]="twilioPhoneNumberError">
-          <label class="form-label" for="twilioPhone">Numer wychodzacy (Caller ID)</label>
-          <input
-            id="twilioPhone"
-            type="tel"
-            class="form-input form-input--tel"
-            formControlName="twilioPhoneNumber"
-            placeholder="+48123456789"
-            autocomplete="off"
-            [attr.aria-describedby]="twilioPhoneNumberError ? 'twilioPhone-error' : 'twilioPhone-hint'"
-            [attr.aria-invalid]="twilioPhoneNumberError ? 'true' : null"
-          />
-          @if (twilioPhoneNumberError) {
-            <span id="twilioPhone-error" class="form-error" role="alert">
-              <svg
-                class="form-error__icon"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                width="14"
-                height="14"
-                aria-hidden="true"
-              >
-                <path
-                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                />
-              </svg>
-              {{ twilioPhoneNumberError }}
-            </span>
-          }
-          <span id="twilioPhone-hint" class="form-hint">
-            Numer prezentowany klientowi podczas polaczen wychodzacych. Format: +48XXXXXXXXX
-          </span>
-        </div>
+        <!-- Status -->
         <div class="form-field">
-          <label class="form-label" for="twilioCallbackUrl">URL webhooka statusow (opcjonalny)</label>
-          <input
-            id="twilioCallbackUrl"
-            type="url"
-            class="form-input"
-            formControlName="twilioStatusCallbackUrl"
-            placeholder="https://..."
-          />
+          <label class="form-label" for="edit-tenant-status">
+            Status <span class="required" aria-hidden="true">*</span>
+          </label>
+          <select id="edit-tenant-status" class="form-select" formControlName="status" aria-required="true">
+            @for (opt of statusOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
         </div>
-      </div>
-    </form>
 
+        <!-- Resource limits section -->
+        <div class="form-section">
+          <div class="form-section__header">
+            <span class="form-section__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <path
+                  d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"
+                />
+              </svg>
+            </span>
+            <span class="form-section__label">Limity zasobow</span>
+          </div>
+
+          <!-- Max agents -->
+          <div class="form-field" [class.form-field--error]="maxAgentsError">
+            <label class="form-label" for="edit-max-agents">
+              Maks. agentow <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="edit-max-agents"
+              type="number"
+              class="form-input form-input--narrow"
+              formControlName="maxAgents"
+              min="1"
+              max="500"
+              [attr.aria-describedby]="maxAgentsError ? 'edit-max-agents-error' : null"
+              [attr.aria-invalid]="maxAgentsError ? 'true' : null"
+            />
+            <span class="form-hint">zakres: 1&ndash;500</span>
+            @if (maxAgentsError) {
+              <span id="edit-max-agents-error" class="form-error" role="alert">
+                <svg
+                  class="form-error__icon"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  />
+                </svg>
+                {{ maxAgentsError }}
+              </span>
+            }
+          </div>
+
+          <!-- Max queues -->
+          <div class="form-field" [class.form-field--error]="maxQueuesError">
+            <label class="form-label" for="edit-max-queues">
+              Maks. kolejek <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="edit-max-queues"
+              type="number"
+              class="form-input form-input--narrow"
+              formControlName="maxQueues"
+              min="1"
+              max="100"
+              [attr.aria-describedby]="maxQueuesError ? 'edit-max-queues-error' : null"
+              [attr.aria-invalid]="maxQueuesError ? 'true' : null"
+            />
+            <span class="form-hint">zakres: 1&ndash;100</span>
+            @if (maxQueuesError) {
+              <span id="edit-max-queues-error" class="form-error" role="alert">
+                <svg
+                  class="form-error__icon"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  />
+                </svg>
+                {{ maxQueuesError }}
+              </span>
+            }
+          </div>
+
+          <!-- Max campaigns -->
+          <div class="form-field" [class.form-field--error]="maxCampaignsError">
+            <label class="form-label" for="edit-max-campaigns">
+              Maks. kampanii <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="edit-max-campaigns"
+              type="number"
+              class="form-input form-input--narrow"
+              formControlName="maxCampaigns"
+              min="1"
+              max="100"
+              [attr.aria-describedby]="maxCampaignsError ? 'edit-max-campaigns-error' : null"
+              [attr.aria-invalid]="maxCampaignsError ? 'true' : null"
+            />
+            <span class="form-hint">zakres: 1&ndash;100</span>
+            @if (maxCampaignsError) {
+              <span id="edit-max-campaigns-error" class="form-error" role="alert">
+                <svg
+                  class="form-error__icon"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  />
+                </svg>
+                {{ maxCampaignsError }}
+              </span>
+            }
+          </div>
+        </div>
+        <!-- Twilio VoIP section -->
+        <div class="tenant-edit-dialog__twilio">
+          <div class="form-section__header form-section__header--voip">
+            <span class="form-section__icon form-section__icon--voip" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <path
+                  d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                />
+              </svg>
+            </span>
+            <span class="form-section__label">Telefonia VoIP (Twilio)</span>
+          </div>
+          <div class="form-field" [class.form-field--error]="twilioPhoneNumberError">
+            <label class="form-label" for="twilioPhone">Numer wychodzacy (Caller ID)</label>
+            <input
+              id="twilioPhone"
+              type="tel"
+              class="form-input form-input--tel"
+              formControlName="twilioPhoneNumber"
+              placeholder="+48123456789"
+              autocomplete="off"
+              [attr.aria-describedby]="twilioPhoneNumberError ? 'twilioPhone-error' : 'twilioPhone-hint'"
+              [attr.aria-invalid]="twilioPhoneNumberError ? 'true' : null"
+            />
+            @if (twilioPhoneNumberError) {
+              <span id="twilioPhone-error" class="form-error" role="alert">
+                <svg
+                  class="form-error__icon"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  />
+                </svg>
+                {{ twilioPhoneNumberError }}
+              </span>
+            }
+            <span id="twilioPhone-hint" class="form-hint">
+              Numer prezentowany klientowi podczas polaczen wychodzacych. Format: +48XXXXXXXXX
+            </span>
+          </div>
+          @if (perTenantCallbackUrlEnabled()) {
+            <div class="form-field">
+              <label class="form-label" for="twilioCallbackUrl">URL webhooka statusow (opcjonalny)</label>
+              <input
+                id="twilioCallbackUrl"
+                type="url"
+                class="form-input"
+                formControlName="twilioStatusCallbackUrl"
+                placeholder="https://..."
+              />
+            </div>
+          }
+        </div>
+      </form>
     </div>
 
     <div class="tenant-edit-dialog__footer">
@@ -287,6 +282,5 @@
         }
       </button>
     </div>
-
   </div>
 </dialog>

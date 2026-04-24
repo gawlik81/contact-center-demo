@@ -249,9 +249,13 @@ twilio:
   # Numer telefonu Twilio w formacie E.164 (np. +48123456789)
   phone-number: ${TWILIO_PHONE_NUMBER:}
   # URL StatusCallback – publiczny URL do odbioru zdarzeń o statusie połączenia od Twilio
-  # Format: https://<ngrok-domain>/api/telephony/webhook/twilio?tenantId=<UUID>
+  # Format: https://<ngrok-domain>/api/telephony/webhook/twilio
   # Konfiguracja w Twilio Console: Phone Numbers → Active Numbers → Voice & Fax → Status Callback URL
   status-callback-url: ${TWILIO_STATUS_CALLBACK_URL:}
+  # Włącza możliwość nadpisania status-callback-url per-tenant (w panelu konfiguracji tenanta).
+  # false (domyślnie) = wszyscy tenanci używają globalnego URL powyżej.
+  # true = per-tenant URL z twilio_status_callback_url ma pierwszeństwo jeśli ustawiony.
+  per-tenant-callback-url-enabled: ${TWILIO_PER_TENANT_CALLBACK_URL_ENABLED:false}
   # Włącza nagrywanie konferencji przez <Conference record="record-from-start">
   # i obsługę recordingStatusCallback (endpoint /api/telephony/webhook/twilio/recording)
   recording-enabled: ${TWILIO_RECORDING_ENABLED:true}

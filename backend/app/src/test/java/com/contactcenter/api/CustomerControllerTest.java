@@ -267,6 +267,7 @@ class CustomerControllerTest {
                 "MANUAL",
                 false,
                 Instant.now(),
+                null,
                 null
         );
     }

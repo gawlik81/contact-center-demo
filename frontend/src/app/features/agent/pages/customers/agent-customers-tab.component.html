@@ -162,7 +162,7 @@
           <p class="drawer-section__label">Ostatni kontakt</p>
           <p class="drawer-section__value">
             @if (selectedCustomer()!.lastContactAt) {
-              {{ selectedCustomer()!.lastContactAt }}
+              {{ selectedCustomer()!.lastContactAt | date: 'dd.MM.yyyy, HH:mm' }}
             } @else {
               Brak kontaktow
             }

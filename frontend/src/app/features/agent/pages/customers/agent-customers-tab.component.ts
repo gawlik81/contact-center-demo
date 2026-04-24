@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   EMPTY,
@@ -31,7 +32,7 @@ const MIN_QUERY_LENGTH = 2;
 @Component({
   selector: 'app-agent-customers-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, AgentCustomerCardComponent, ManualCallbackModalComponent],
+  imports: [DatePipe, FormsModule, AgentCustomerCardComponent, ManualCallbackModalComponent],
   templateUrl: './agent-customers-tab.component.html',
   styleUrl: './agent-customers-tab.component.scss',
 })

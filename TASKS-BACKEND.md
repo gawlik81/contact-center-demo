@@ -1950,7 +1950,7 @@ Nowy endpoint umożliwiający agentowi zaplanowanie oddzwonienia do wybranego kl
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** DB-028
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** BE-050, BE-051
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 

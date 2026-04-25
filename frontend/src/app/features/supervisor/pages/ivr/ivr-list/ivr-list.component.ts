@@ -11,6 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { catchError, of } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import { IvrService } from '../../../services/ivr.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { IvrResponse } from '../../../models/ivr.model';
@@ -120,6 +121,34 @@ export class IvrListComponent implements OnInit {
         this.setActionInProgress(id, false);
         if (updated) {
           this.notifications.success(`IVR "${ivr.name}" zostal aktywowany.`);
+          this.ivrs.update((list) => list.map((i) => (i.ivr_id === id ? updated : i)));
+        }
+      });
+  }
+
+  onDeactivate(ivr: IvrResponse): void {
+    const id = ivr.ivr_id;
+    this.setActionInProgress(id, true);
+    this.ivrService
+      .deactivateIvr(id)
+      .pipe(
+        catchError((err: unknown) => {
+          const httpErr = err as HttpErrorResponse;
+          if (httpErr?.status === 409) {
+            this.notifications.error(
+              `Nie można deaktywować IVR "${ivr.name}" – jest przypisany do reguły routingu.`,
+            );
+          } else {
+            this.notifications.error(`Nie udało się deaktywować IVR "${ivr.name}".`);
+          }
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((updated) => {
+        this.setActionInProgress(id, false);
+        if (updated) {
+          this.notifications.success(`IVR "${ivr.name}" został deaktywowany.`);
           this.ivrs.update((list) => list.map((i) => (i.ivr_id === id ? updated : i)));
         }
       });

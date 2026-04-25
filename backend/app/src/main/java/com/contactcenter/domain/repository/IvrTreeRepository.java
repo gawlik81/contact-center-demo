@@ -65,13 +65,33 @@ public class IvrTreeRepository extends TenantAwareRepository {
     }
 
     /**
+     * Sprawdza czy drzewo IVR o podanym identyfikatorze jest aktywne.
+     *
+     * @param ivrId    UUID drzewa IVR
+     * @param tenantId UUID tenanta
+     * @return {@code true} gdy drzewo istnieje i ma {@code is_active = true}
+     */
+    @Transactional(readOnly = true)
+    public boolean existsActiveByIvrId(UUID ivrId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        Number count = (Number) em.createQuery(
+                        "SELECT COUNT(t) FROM IvrTree t WHERE t.ivrId = :ivrId AND t.tenantId = :tenantId AND t.active = true")
+                .setParameter("ivrId", ivrId)
+                .setParameter("tenantId", tenantId)
+                .getSingleResult();
+
+        return count.longValue() > 0;
+    }
+
+    /**
      * Pobiera aktywne drzewo IVR dla tenanta.
      *
-     * <p>Zakłada że co najwyżej jedno drzewo jest aktywne per tenant.
-     * Aktywacja zapewniona przez {@link #deactivateAll(UUID)} + {@link #update(IvrTree)}.
+     * <p>Wiele drzew IVR może być aktywnych jednocześnie per tenant –
+     * które drzewo obsługuje ruch decydują reguły {@code phone_routing_rule}.
      *
      * @param tenantId UUID tenanta
-     * @return Optional z aktywnym drzewem IVR lub empty gdy brak
+     * @return Optional z jednym aktywnym drzewem IVR lub empty gdy brak
      */
     @Transactional(readOnly = true)
     public Optional<IvrTree> findActiveByTenantId(UUID tenantId) {
@@ -179,8 +199,6 @@ public class IvrTreeRepository extends TenantAwareRepository {
 
     /**
      * Dezaktywuje wszystkie drzewa IVR dla tenanta.
-     *
-     * <p>Wywoływane przed aktywacją nowego drzewa – zapewnia unikalność aktywnego drzewa per tenant.
      *
      * @param tenantId UUID tenanta
      */

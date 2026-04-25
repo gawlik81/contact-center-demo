@@ -4,7 +4,9 @@ import com.contactcenter.api.ivr.dto.CreateIvrRequest;
 import com.contactcenter.api.ivr.dto.IvrResponse;
 import com.contactcenter.api.ivr.dto.UpdateIvrRequest;
 import com.contactcenter.domain.model.IvrTree;
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.repository.IvrTreeRepository;
+import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +23,7 @@ import java.util.UUID;
  * <p>Dostępny dla ról SUPERVISOR i ADMIN. Zapewnia:
  * <ul>
  *   <li>Tworzenie i aktualizację drzew IVR</li>
- *   <li>Aktywację drzewa (dezaktywuje inne per tenant)</li>
+ *   <li>Aktywację i deaktywację drzew IVR (wiele drzew może być aktywnych jednocześnie)</li>
  *   <li>Usunięcie drzewa IVR</li>
  * </ul>
  */
@@ -31,6 +33,7 @@ import java.util.UUID;
 public class IvrService {
 
     private final IvrTreeRepository ivrTreeRepository;
+    private final PhoneRoutingRuleRepository phoneRoutingRuleRepository;
 
     // =========================================================================
     // Lista
@@ -162,9 +165,10 @@ public class IvrService {
     // =========================================================================
 
     /**
-     * Aktywuje drzewo IVR – dezaktywuje wszystkie inne dla tenanta.
+     * Aktywuje drzewo IVR.
      *
-     * <p>Zapewnia że tylko jedno drzewo IVR jest aktywne per tenant jednocześnie.
+     * <p>Wiele drzew IVR może być aktywnych jednocześnie per tenant –
+     * które drzewo obsługuje ruch przychodzący decydują reguły {@code phone_routing_rule}.
      *
      * @param ivrId    UUID drzewa IVR do aktywacji
      * @param tenantId UUID tenanta
@@ -175,10 +179,6 @@ public class IvrService {
     public IvrResponse activateIvrTree(UUID ivrId, UUID tenantId) {
         IvrTree ivr = findOrThrow(ivrId, tenantId);
 
-        // Dezaktywuj wszystkie inne drzewa
-        ivrTreeRepository.deactivateAll(tenantId);
-
-        // Aktywuj wybrane drzewo
         ivr.setActive(true);
         int updated = ivrTreeRepository.update(ivr);
         if (updated == 0) {
@@ -186,6 +186,44 @@ public class IvrService {
         }
 
         log.info("[IvrService] Drzewo IVR aktywowane: ivrId={}, tenantId={}", ivrId, tenantId);
+
+        IvrTree refreshed = findOrThrow(ivrId, tenantId);
+        return IvrResponse.from(refreshed);
+    }
+
+    // =========================================================================
+    // Deaktywacja
+    // =========================================================================
+
+    /**
+     * Deaktywuje drzewo IVR.
+     *
+     * <p>Blokuje deaktywację gdy drzewo jest przypisane do co najmniej jednej reguły routingu.
+     * Przed deaktywacją należy usunąć drzewo ze wszystkich reguł {@code phone_routing_rule}.
+     *
+     * @param ivrId    UUID drzewa IVR do deaktywacji
+     * @param tenantId UUID tenanta
+     * @return DTO deaktywowanego drzewa IVR
+     * @throws EntityNotFoundException gdy drzewo nie istnieje
+     * @throws ConflictException       gdy drzewo jest przypisane do reguły routingu (HTTP 409)
+     */
+    @Transactional
+    public IvrResponse deactivateIvrTree(UUID ivrId, UUID tenantId) {
+        IvrTree ivr = findOrThrow(ivrId, tenantId);
+
+        if (phoneRoutingRuleRepository.existsRulesByIvrTreeId(ivrId, tenantId)) {
+            throw new ConflictException(
+                    "Nie można deaktywować drzewa IVR przypisanego do reguły routingu. "
+                    + "Usuń drzewo z reguł routingu przed deaktywacją.");
+        }
+
+        ivr.setActive(false);
+        int updated = ivrTreeRepository.update(ivr);
+        if (updated == 0) {
+            throw new EntityNotFoundException("Drzewo IVR nie istnieje: " + ivrId);
+        }
+
+        log.info("[IvrService] Drzewo IVR deaktywowane: ivrId={}, tenantId={}", ivrId, tenantId);
 
         IvrTree refreshed = findOrThrow(ivrId, tenantId);
         return IvrResponse.from(refreshed);

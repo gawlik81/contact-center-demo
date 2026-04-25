@@ -43,6 +43,10 @@ export class IvrService {
     return this.http.post<IvrResponse>(`${this.baseUrl}/${ivrId}/activate`, {});
   }
 
+  deactivateIvr(ivrId: string): Observable<IvrResponse> {
+    return this.http.post<IvrResponse>(`${this.baseUrl}/${ivrId}/deactivate`, {});
+  }
+
   /**
    * Loads node UI positions from localStorage and merges with definition nodes.
    */

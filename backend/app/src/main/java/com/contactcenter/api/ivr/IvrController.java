@@ -33,8 +33,9 @@ import java.util.UUID;
  *   <li>{@code GET    /api/ivr/{ivrId}}      – szczegóły drzewa</li>
  *   <li>{@code PATCH  /api/ivr/{ivrId}}      – aktualizacja drzewa</li>
  *   <li>{@code DELETE /api/ivr/{ivrId}}      – usunięcie drzewa</li>
- *   <li>{@code POST   /api/ivr/{ivrId}/activate} – aktywacja drzewa</li>
- *   <li>{@code POST   /api/ivr/dtmf}         – symulacja DTMF (dev)</li>
+ *   <li>{@code POST   /api/ivr/{ivrId}/activate}   – aktywacja drzewa</li>
+ *   <li>{@code POST   /api/ivr/{ivrId}/deactivate} – deaktywacja drzewa</li>
+ *   <li>{@code POST   /api/ivr/dtmf}               – symulacja DTMF (dev)</li>
  * </ul>
  */
 @Slf4j
@@ -126,11 +127,25 @@ public class IvrController {
 
     @PostMapping("/{ivrId}/activate")
     @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
-    @Operation(summary = "Aktywacja drzewa IVR (dezaktywuje inne dla tenanta)")
+    @Operation(summary = "Aktywacja drzewa IVR")
     public ResponseEntity<IvrResponse> activateIvrTree(@PathVariable UUID ivrId) {
         UUID tenantId = TenantContext.getTenantId();
         log.info("[IvrController] POST /api/ivr/{}/activate – tenantId={}", ivrId, tenantId);
         IvrResponse response = ivrService.activateIvrTree(ivrId, tenantId);
+        return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Deaktywacja drzewa IVR
+    // =========================================================================
+
+    @PostMapping("/{ivrId}/deactivate")
+    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+    @Operation(summary = "Deaktywacja drzewa IVR")
+    public ResponseEntity<IvrResponse> deactivateIvrTree(@PathVariable UUID ivrId) {
+        UUID tenantId = TenantContext.getTenantId();
+        log.info("[IvrController] POST /api/ivr/{}/deactivate – tenantId={}", ivrId, tenantId);
+        IvrResponse response = ivrService.deactivateIvrTree(ivrId, tenantId);
         return ResponseEntity.ok(response);
     }
 

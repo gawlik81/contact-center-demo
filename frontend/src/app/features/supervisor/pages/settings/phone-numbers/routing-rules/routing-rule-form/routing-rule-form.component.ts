@@ -206,7 +206,7 @@ export class RoutingRuleFormComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((trees) => {
-        this.ivrTrees.set(trees);
+        this.ivrTrees.set(trees.filter((t) => t.is_active));
         ivrDone = true;
         checkDone();
       });

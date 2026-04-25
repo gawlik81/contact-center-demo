@@ -7,6 +7,7 @@ import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
 import com.contactcenter.domain.model.PhoneNumber;
 import com.contactcenter.domain.model.PhoneRoutingRule;
+import com.contactcenter.domain.repository.IvrTreeRepository;
 import com.contactcenter.domain.repository.PhoneNumberRepository;
 import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class PhoneRoutingRuleService {
 
     private final PhoneRoutingRuleRepository phoneRoutingRuleRepository;
     private final PhoneNumberRepository phoneNumberRepository;
+    private final IvrTreeRepository ivrTreeRepository;
 
     // =========================================================================
     // Tworzenie
@@ -60,6 +62,13 @@ public class PhoneRoutingRuleService {
                                                CreatePhoneRoutingRuleRequest request) {
         validateCreateRequest(request);
         PhoneNumber phoneNumber = requirePhoneNumber(tenantId, phoneNumberId);
+
+        if (request.ivrTreeId() != null
+                && !ivrTreeRepository.existsActiveByIvrId(request.ivrTreeId(), tenantId)) {
+            throw new IllegalArgumentException(
+                    "Drzewo IVR jest nieaktywne i nie może zostać dodane do reguły routingu. "
+                    + "Aktywuj drzewo IVR przed dodaniem do reguły.");
+        }
 
         assertNoOverlap(phoneNumberId, null,
                 request.daysOfWeek(), request.timeStart(), request.timeEnd(), tenantId);
@@ -144,6 +153,13 @@ public class PhoneRoutingRuleService {
         if (!timeEnd.isAfter(timeStart)) {
             throw new IllegalArgumentException(
                     "timeEnd musi być późniejszy niż timeStart (timeStart=" + timeStart + ", timeEnd=" + timeEnd + ")");
+        }
+
+        if (request.ivrTreeId() != null
+                && !ivrTreeRepository.existsActiveByIvrId(request.ivrTreeId(), tenantId)) {
+            throw new IllegalArgumentException(
+                    "Drzewo IVR jest nieaktywne i nie może zostać dodane do reguły routingu. "
+                    + "Aktywuj drzewo IVR przed dodaniem do reguły.");
         }
 
         // Wykrywanie kolizji z wykluczeniem samej siebie

@@ -229,7 +229,8 @@
       "Bash(export JAVA_HOME=\"/c/Program Files/Eclipse Adoptium/jdk-21.0.7.6-hotspot\")",
       "Bash(xargs -I{} basename {} .java)",
       "Bash(xargs -I{} basename {} .ts)",
-      "Bash(xargs -I{} basename {} .spec.ts)"
+      "Bash(xargs -I{} basename {} .spec.ts)",
+      "Bash(xargs ls *)"
     ]
   }
 }

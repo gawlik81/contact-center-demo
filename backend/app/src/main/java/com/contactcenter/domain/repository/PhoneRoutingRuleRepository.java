@@ -175,6 +175,35 @@ public class PhoneRoutingRuleRepository extends TenantAwareRepository {
         return conflictingIds;
     }
 
+    /**
+     * Sprawdza czy drzewo IVR jest przypisane do co najmniej jednej reguły routingu.
+     *
+     * <p>Używane przy deaktywacji drzewa IVR – jeśli istnieje reguła (aktywna lub nie)
+     * wskazująca na to drzewo, deaktywacja jest blokowana (HTTP 409).
+     *
+     * @param ivrTreeId UUID drzewa IVR
+     * @param tenantId  UUID tenanta
+     * @return {@code true} gdy istnieje co najmniej jedna reguła wskazująca na podane drzewo
+     */
+    @Transactional(readOnly = true)
+    public boolean existsRulesByIvrTreeId(UUID ivrTreeId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        Number count = (Number) em.createNativeQuery(
+                        """
+                        SELECT COUNT(*) FROM phone_routing_rule
+                        WHERE ivr_tree_id = CAST(:ivrTreeId AS uuid)
+                          AND tenant_id   = CAST(:tenantId AS uuid)
+                        """)
+                .setParameter("ivrTreeId", ivrTreeId.toString())
+                .setParameter("tenantId", tenantId.toString())
+                .getSingleResult();
+
+        boolean hasRules = count.longValue() > 0;
+        log.debug("[PhoneRoutingRuleRepo] Reguły dla ivrTreeId={}: {}", ivrTreeId, hasRules);
+        return hasRules;
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

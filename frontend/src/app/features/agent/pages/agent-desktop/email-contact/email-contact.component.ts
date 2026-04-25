@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { debounceTime, startWith } from 'rxjs';
+import { catchError, debounceTime, of, startWith } from 'rxjs';
 
 import {
   EmailService,
@@ -21,6 +21,7 @@ import {
   EmailTemplate,
   SendReplyRequest,
 } from '../../../services/email.service';
+import { ContactService } from '../../../services/contact.service';
 import { EmailThreadMessageComponent } from './email-thread-message/email-thread-message.component';
 
 @Component({
@@ -32,11 +33,12 @@ import { EmailThreadMessageComponent } from './email-thread-message/email-thread
 })
 export class EmailContactComponent implements OnInit {
   contactId = input.required<string>();
-  replySent = output<void>();
+  replySent = output<boolean>();
 
   @ViewChild('editor') private editorRef?: ElementRef<HTMLDivElement>;
 
   private readonly emailService = inject(EmailService);
+  private readonly contactService = inject(ContactService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly loading = signal(true);
@@ -73,6 +75,14 @@ export class EmailContactComponent implements OnInit {
   ngOnInit(): void {
     this.loadMessage();
     this.loadTemplates();
+
+    // Notify backend that the agent opened this contact (ASSIGNED → ACTIVE).
+    // This stops ContactAssignmentMonitor from re-queueing the contact.
+    // Fire-and-forget — idempotent, failure is non-critical.
+    this.contactService
+      .acceptContact(this.contactId())
+      .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
+      .subscribe();
 
     this.templateSearchControl.valueChanges
       .pipe(startWith(''), debounceTime(150), takeUntilDestroyed(this.destroyRef))
@@ -256,7 +266,7 @@ export class EmailContactComponent implements OnInit {
       .subscribe({
         next: () => {
           this.sending.set(false);
-          this.replySent.emit();
+          this.replySent.emit(true);
         },
         error: () => {
           this.sending.set(false);
@@ -266,7 +276,14 @@ export class EmailContactComponent implements OnInit {
   }
 
   protected cancelReply(): void {
-    this.replySent.emit();
+    // Abandon the contact on the backend before closing the tab.
+    // Fire-and-forget — idempotent, UI closes regardless of backend response.
+    this.contactService
+      .abandonContact(this.contactId())
+      .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+
+    this.replySent.emit(false);
   }
 
   protected getVariableKeys(): string[] {

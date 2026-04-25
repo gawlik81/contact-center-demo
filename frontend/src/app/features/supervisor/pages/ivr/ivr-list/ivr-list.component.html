@@ -79,6 +79,17 @@
                       Aktywuj
                     </button>
                   }
+                  @if (ivr.is_active) {
+                    <button
+                      class="btn btn-sm btn-warning"
+                      type="button"
+                      (click)="onDeactivate(ivr)"
+                      [disabled]="actionInProgress().has(ivr.ivr_id)"
+                      [attr.aria-label]="'Deaktywuj IVR ' + ivr.name"
+                    >
+                      Deaktywuj
+                    </button>
+                  }
                   <button
                     class="btn btn-sm btn-danger"
                     type="button"

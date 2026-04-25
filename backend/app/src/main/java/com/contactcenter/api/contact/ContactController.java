@@ -682,4 +682,71 @@ public class ContactController {
 
         return ResponseEntity.ok(related);
     }
+
+    // =========================================================================
+    // Przyjęcie kontaktu przez agenta (EMAIL/CHAT – ASSIGNED → ACTIVE)
+    // =========================================================================
+
+    @PostMapping("/{id}/accept")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+        summary = "Potwierdź odebranie kontaktu (ASSIGNED → ACTIVE)",
+        description = """
+                Przełącza kontakt ze statusu ASSIGNED na ACTIVE. Wywoływany przez agenta
+                zaraz po otwarciu zakładki z kontaktem EMAIL lub CHAT, aby zatrzymać
+                ContactAssignmentMonitor przed re-kolejkowaniem kontaktu.
+                Operacja jest idempotentna – wielokrotne wywołanie nie powoduje błędu.
+                """,
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Kontakt przyjęty (status ACTIVE)"),
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje"),
+            @ApiResponse(responseCode = "409", description = "Kontakt w niedozwolonym statusie lub cudzy")
+        }
+    )
+    public ResponseEntity<ContactResponse> acceptContact(
+            @Parameter(description = "UUID kontaktu", required = true)
+            @PathVariable String id
+    ) {
+        UUID contactId = parseContactId(id);
+        UUID tenantId  = TenantContext.getTenantId();
+        UUID agentId   = TenantContext.getUserId();
+
+        log.debug("[ContactController] acceptContact: contactId={}, agent={}, tenant={}", contactId, agentId, tenantId);
+
+        ContactResponse response = contactService.acceptContact(contactId, tenantId, agentId);
+        return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Porzucenie kontaktu przez agenta (EMAIL/CHAT – anulowanie bez odpowiedzi)
+    // =========================================================================
+
+    @PostMapping("/{id}/abandon")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+        summary = "Porzuć kontakt EMAIL/CHAT bez odpowiedzi (→ ABANDONED)",
+        description = """
+                Ustawia status kontaktu na ABANDONED. Wywoływany gdy agent klika "Anuluj"
+                w zakładce emaila – kontakt nie zostanie ponownie zroutowany.
+                Operacja jest idempotentna – wielokrotne wywołanie nie powoduje błędu.
+                """,
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Kontakt porzucony (status ABANDONED)"),
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje"),
+            @ApiResponse(responseCode = "409", description = "Kontakt cudzy")
+        }
+    )
+    public ResponseEntity<ContactResponse> abandonContact(
+            @Parameter(description = "UUID kontaktu", required = true)
+            @PathVariable String id
+    ) {
+        UUID contactId = parseContactId(id);
+        UUID tenantId  = TenantContext.getTenantId();
+        UUID agentId   = TenantContext.getUserId();
+
+        log.debug("[ContactController] abandonContact: contactId={}, agent={}, tenant={}", contactId, agentId, tenantId);
+
+        ContactResponse response = contactService.abandonContact(contactId, tenantId, agentId);
+        return ResponseEntity.ok(response);
+    }
 }

@@ -1971,7 +1971,7 @@ JPA entity `AgentBreak` mapująca tabelę `agent_break`. Enum `BreakType` (LUNCH
 **Priorytet:** Should Have
 **Zlozonosc:** M
 **Zależy od:** BE-049
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** FE-045
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 

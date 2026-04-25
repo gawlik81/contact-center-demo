@@ -2,3 +2,4 @@
 
 - [BE-043 AgentGroup domain package](project_agent_groups.md) — pakiet domain/agentgroup; encja + repo; BE-044 doda serwis+kontroler
 - [Testy repozytoriów – styl i podejście](feedback_repository_tests.md) — brak H2, Mockito EntityManager + ReflectionTestUtils; generics pitfall przy thenReturn(List<Object[]>)
+- [BE-050 AgentBreak REST API](project_agent_breaks.md) — api/agentbreak + domain/agentbreak; serwis+kontroler+DTO+testy; wzorzec właścicielski per-agent

@@ -319,6 +319,46 @@ public class ScheduledCallbackRepository extends TenantAwareRepository {
     }
 
     /**
+     * Zwraca listę callbacków agenta w podanym zakresie czasowym (kalendarz agenta, BE-051).
+     *
+     * <p>Filtruje po {@code agent_id} i {@code scheduled_at BETWEEN from AND to}.
+     * Wyniki sortowane po {@code scheduled_at ASC}. Używa jawnych CAST dla UUID i TIMESTAMPTZ.
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  UUID agenta
+     * @param from     początek zakresu (włącznie)
+     * @param to       koniec zakresu (włącznie)
+     * @return lista callbacków agenta w zakresie dat, posortowana po scheduled_at ASC
+     */
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public List<ScheduledCallback> findByAgentIdAndScheduledAtBetween(
+            UUID tenantId, UUID agentId, Instant from, Instant to) {
+        setTenantContextInDb(tenantId);
+
+        log.debug("[CallbackRepo] Kalendarz agenta: tenant={}, agentId={}, from={}, to={}",
+                tenantId, agentId, from, to);
+
+        List<ScheduledCallback> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM scheduled_callback
+                        WHERE tenant_id    = CAST(:tenantId AS uuid)
+                          AND agent_id     = CAST(:agentId AS uuid)
+                          AND scheduled_at BETWEEN CAST(:from AS timestamptz) AND CAST(:to AS timestamptz)
+                        ORDER BY scheduled_at ASC
+                        """,
+                        ScheduledCallback.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("agentId", agentId.toString())
+                .setParameter("from", from.toString())
+                .setParameter("to", to.toString())
+                .getResultList();
+
+        log.debug("[CallbackRepo] Znaleziono {} callbacków w kalendarzu agentId={}", results.size(), agentId);
+        return results;
+    }
+
+    /**
      * Zwraca listę callbacków, dla których dany kontakt jest kontaktem źródłowym.
      *
      * <p>Callback ma {@code origin_contact_id} wskazujący na kontakt, podczas którego

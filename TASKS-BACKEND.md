@@ -2004,7 +2004,7 @@ DELETE /api/agent/breaks/{id}                   → anuluj przerwę (PLANNED →
 **Priorytet:** Should Have
 **Zlozonosc:** M
 **Zależy od:** BE-049, BE-039, BE-022
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** FE-042, FE-043
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 

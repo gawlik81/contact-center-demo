@@ -223,6 +223,43 @@ public class CampaignRepository extends TenantAwareRepository {
         return results;
     }
 
+    /**
+     * Pobiera kampanie powiązane z agentem przez kolejkę (kalendarz agenta, BE-051).
+     *
+     * <p>JOIN {@code campaign} z {@code queue_agent} po {@code queue_id}.
+     * Wyklucza kampanie w statusach COMPLETED i CANCELLED – agent powinien widzieć
+     * wyłącznie kampanie aktywne lub planowane (RUNNING, SCHEDULED, DRAFT).
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  UUID agenta
+     * @return lista kampanii powiązanych z agentEM przez queue_agent (bez COMPLETED/CANCELLED)
+     */
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public List<Campaign> findByAgentIdViaQueue(UUID tenantId, UUID agentId) {
+        setTenantContextInDb(tenantId);
+
+        log.debug("[CampaignRepo] Kalendarz agenta – kampanie via kolejka: tenant={}, agentId={}",
+                tenantId, agentId);
+
+        List<Campaign> results = em.createNativeQuery(
+                        """
+                        SELECT c.* FROM campaign c
+                        JOIN queue_agent qa ON c.queue_id = qa.queue_id
+                        WHERE c.tenant_id      = CAST(:tenantId AS uuid)
+                          AND qa.agent_id      = CAST(:agentId AS uuid)
+                          AND c.status NOT IN ('COMPLETED', 'CANCELLED')
+                        ORDER BY c.created_at ASC
+                        """,
+                        Campaign.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("agentId", agentId.toString())
+                .getResultList();
+
+        log.debug("[CampaignRepo] Znaleziono {} kampanii dla agentId={}", results.size(), agentId);
+        return results;
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

@@ -976,7 +976,7 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_callback_agent_calendar
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** DB-003 (tabela `app_user`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** BE-049, BE-050
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 

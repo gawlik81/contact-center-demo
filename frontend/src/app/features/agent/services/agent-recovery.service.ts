@@ -18,13 +18,16 @@ export interface AssignedContactResponse {
 }
 
 /**
- * Recovers softphone state after a WebSocket reconnect.
+ * Recovers agent desktop state after a WebSocket reconnect.
  *
  * When the WS connection drops and re-establishes, events sent during the
- * outage are lost. This service queries the backend for any PHONE contact
- * in ASSIGNED state (i.e., ringing but not yet answered) and reconstructs
- * the RINGING softphone state as if the CONTACT_ASSIGNED WS event had just
- * arrived.
+ * outage are lost. This service queries the backend for any contact
+ * in ASSIGNED state (ringing/pending for the agent) and reconstructs
+ * the desktop state as if the CONTACT_ASSIGNED WS event had just arrived.
+ *
+ * For EMAIL and CHAT contacts it also calls POST /api/contacts/{id}/accept
+ * to transition the contact from ASSIGNED to ACTIVE in the backend, stopping
+ * ContactAssignmentMonitor from re-queuing the contact.
  *
  * Called once per WS connect event from AgentDesktopComponent.
  */
@@ -50,28 +53,65 @@ export class AgentRecoveryService {
         ),
     );
 
-    if (!contact || contact.channel !== 'PHONE') return;
+    if (!contact) return;
 
-    // Double-check: WS event may have arrived while we were awaiting HTTP
-    if (this.softphoneService.session() !== null) return;
+    if (contact.channel === 'PHONE') {
+      // Double-check: WS event may have arrived while we were awaiting HTTP
+      if (this.softphoneService.session() !== null) return;
 
-    // Reconstruct the payload that would have arrived via CONTACT_ASSIGNED WS event
-    const payload: ContactAssignedPayload = {
-      contactId: contact.contactId,
-      type: 'PHONE',
-      customerName: contact.customerName || contact.customerIdentifier,
-      customerIdentifier: contact.customerIdentifier,
-      queueName: contact.queueName,
-      customerId: contact.customerId,
-    };
+      // Reconstruct the payload that would have arrived via CONTACT_ASSIGNED WS event
+      const payload: ContactAssignedPayload = {
+        contactId: contact.contactId,
+        type: 'PHONE',
+        customerName: contact.customerName || contact.customerIdentifier,
+        customerIdentifier: contact.customerIdentifier,
+        queueName: contact.queueName,
+        customerId: contact.customerId,
+      };
 
-    const reason = this.tabStore.openFromContactAssigned(payload);
-    if (reason === null) {
-      this.softphoneService.incomingCall(payload);
-      console.warn(
-        '[AgentRecovery] Recovered pending PHONE contact after WS reconnect:',
-        contact.contactId,
-      );
+      const reason = this.tabStore.openFromContactAssigned(payload);
+      if (reason === null) {
+        this.softphoneService.incomingCall(payload);
+        console.warn(
+          '[AgentRecovery] Recovered pending PHONE contact after WS reconnect:',
+          contact.contactId,
+        );
+      }
+      return;
+    }
+
+    if (contact.channel === 'EMAIL' || contact.channel === 'CHAT') {
+      const type = contact.channel as 'EMAIL' | 'CHAT';
+
+      // Check if this tab is already open (e.g. component already mounted)
+      const alreadyOpen = this.tabStore
+        .tabs()
+        .some((t) => t.contactId === contact.contactId);
+      if (alreadyOpen) return;
+
+      const payload: ContactAssignedPayload = {
+        contactId: contact.contactId,
+        type,
+        customerName: contact.customerName || contact.customerIdentifier,
+        customerIdentifier: contact.customerIdentifier,
+        queueName: contact.queueName,
+        customerId: contact.customerId,
+      };
+
+      const reason = this.tabStore.openFromContactAssigned(payload);
+      if (reason === null) {
+        // Notify ContactAssignmentMonitor that the contact was picked up.
+        // Fire-and-forget — failure is non-critical; monitor will retry via WS.
+        this.http
+          .post(`${environment.apiUrl}/contacts/${contact.contactId}/accept`, {})
+          .pipe(catchError(() => of(null)))
+          .subscribe();
+
+        console.warn(
+          '[AgentRecovery] Recovered pending', type, 'contact after WS reconnect:',
+          contact.contactId,
+        );
+      }
     }
   }
 }

@@ -258,7 +258,7 @@
                       @case ('EMAIL') {
                         <cc-email-contact
                           [contactId]="activeTab()!.contactId"
-                          (replySent)="onEmailReplySent(activeTab()!)"
+                          (replySent)="onEmailReplySent(activeTab()!, $event)"
                         />
                       }
                       @case ('SOCIAL') {

@@ -327,9 +327,11 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
     }
   }
 
-  protected onEmailReplySent(tab: ContactTab): void {
+  protected onEmailReplySent(tab: ContactTab, sent: boolean): void {
     this.tabStore.closeTab(tab.id);
-    this.notifications.success('Odpowiedz wyslana');
+    if (sent) {
+      this.notifications.success('Odpowiedz wyslana');
+    }
   }
 
   private showLimitMessage(reason: 'MAX_PHONE' | 'MAX_ASYNC' | 'MAX_TOTAL'): void {

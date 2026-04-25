@@ -67,6 +67,29 @@ export class ContactService {
     return this.http.get<RelatedItem[]>(`${environment.apiUrl}/contacts/${contactId}/related`);
   }
 
+  /**
+   * Confirms that the agent has opened/accepted an EMAIL or CHAT contact.
+   * Transitions the contact from ASSIGNED → ACTIVE on the backend, which stops
+   * ContactAssignmentMonitor from re-queuing it.
+   */
+  acceptContact(contactId: string): Observable<ContactResponse> {
+    return this.http.post<ContactResponse>(
+      `${environment.apiUrl}/contacts/${contactId}/accept`,
+      {},
+    );
+  }
+
+  /**
+   * Abandons an EMAIL or CHAT contact without sending a reply.
+   * Transitions the contact to ABANDONED on the backend.
+   */
+  abandonContact(contactId: string): Observable<ContactResponse> {
+    return this.http.post<ContactResponse>(
+      `${environment.apiUrl}/contacts/${contactId}/abandon`,
+      {},
+    );
+  }
+
   getContacts(
     filters: ContactFilterParams,
     page: number,

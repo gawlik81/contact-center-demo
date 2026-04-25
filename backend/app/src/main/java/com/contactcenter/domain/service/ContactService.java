@@ -386,6 +386,110 @@ public class ContactService {
     }
 
     // =========================================================================
+    // Przyjęcie kontaktu przez agenta (EMAIL / CHAT – potwierdzenie odebrania)
+    // =========================================================================
+
+    /**
+     * Przełącza kontakt ze statusu ASSIGNED na ACTIVE.
+     *
+     * <p>Wywoływany przez agenta bezpośrednio po otwarciu zakładki z kontaktem
+     * asynchronicznym (EMAIL, CHAT). Informuje {@link ContactAssignmentMonitor},
+     * że kontakt został odebrany i nie wymaga ponownego wysyłania CONTACT_ASSIGNED.
+     *
+     * <p>Operacja jest idempotentna – jeśli kontakt jest już ACTIVE, zwraca go bez
+     * błędu (agent mógł wywołać endpoint dwukrotnie po refreshu strony).
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     * @param agentId   UUID agenta (z TenantContext) – weryfikacja własności
+     * @return zaktualizowany DTO kontaktu
+     * @throws EntityNotFoundException   HTTP 404 gdy kontakt nie istnieje
+     * @throws InvalidOperationException HTTP 409 gdy kontakt należy do innego agenta
+     *                                   lub jest w niedozwolonym statusie (COMPLETED, ABANDONED)
+     */
+    @Transactional
+    @Audited(action = "CONTACT_ACCEPTED", entityType = "CONTACT")
+    public ContactResponse acceptContact(UUID contactId, UUID tenantId, UUID agentId) {
+        Contact contact = findContactOrThrow(contactId, tenantId);
+
+        // Idempotentność – kontakt już aktywny (np. drugi request po refreshu)
+        if ("ACTIVE".equals(contact.getStatus())) {
+            return getContactInternal(contactId, tenantId);
+        }
+
+        // Tylko kontakt ASSIGNED może być akceptowany
+        if (!"ASSIGNED".equals(contact.getStatus())) {
+            throw new InvalidOperationException(
+                    "Kontakt nie jest w statusie ASSIGNED (aktualny status: " +
+                    contact.getStatus() + "): " + contactId);
+        }
+
+        // Agent musi być właścicielem przypisania
+        if (contact.getAgentId() != null && !agentId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Kontakt jest przypisany do innego agenta: " + contactId);
+        }
+
+        Instant now = Instant.now();
+        contact.setStatus("ACTIVE");
+        contact.setUpdatedAt(now);
+        contactRepository.update(contact);
+
+        log.info("[ContactService] Kontakt zaakceptowany przez agenta: contactId={}, agentId={}, tenant={}",
+                contactId, agentId, tenantId);
+
+        return getContactInternal(contactId, tenantId);
+    }
+
+    // =========================================================================
+    // Porzucenie kontaktu przez agenta (EMAIL / CHAT – anulowanie bez odpowiedzi)
+    // =========================================================================
+
+    /**
+     * Porzuca kontakt EMAIL/CHAT przez agenta (bez wysyłania odpowiedzi).
+     *
+     * <p>Wywoływany gdy agent klika "Anuluj" w zakładce emaila. Ustawia status
+     * kontaktu na ABANDONED i zamyka zakładkę po stronie frontendu.
+     *
+     * <p>Operacja jest idempotentna – jeśli kontakt jest już ABANDONED lub COMPLETED,
+     * zwraca go bez błędu.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     * @param agentId   UUID agenta (z TenantContext) – weryfikacja własności
+     * @return zaktualizowany DTO kontaktu
+     * @throws EntityNotFoundException   HTTP 404 gdy kontakt nie istnieje
+     * @throws InvalidOperationException HTTP 409 gdy kontakt należy do innego agenta
+     */
+    @Transactional
+    @Audited(action = "CONTACT_ABANDONED", entityType = "CONTACT")
+    public ContactResponse abandonContact(UUID contactId, UUID tenantId, UUID agentId) {
+        Contact contact = findContactOrThrow(contactId, tenantId);
+
+        // Idempotentność – kontakt już w stanie końcowym
+        if ("ABANDONED".equals(contact.getStatus()) || "COMPLETED".equals(contact.getStatus())) {
+            return getContactInternal(contactId, tenantId);
+        }
+
+        // Weryfikacja własności (tylko dla kontaktów z przypisanym agentem)
+        if (contact.getAgentId() != null && !agentId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Kontakt jest przypisany do innego agenta: " + contactId);
+        }
+
+        Instant now = Instant.now();
+        contact.setStatus("ABANDONED");
+        contact.setEndedAt(now);
+        contact.setUpdatedAt(now);
+        contactRepository.update(contact);
+
+        log.info("[ContactService] Kontakt porzucony przez agenta: contactId={}, agentId={}, tenant={}",
+                contactId, agentId, tenantId);
+
+        return getContactInternal(contactId, tenantId);
+    }
+
+    // =========================================================================
     // Historia kontaktów klienta
     // =========================================================================
 

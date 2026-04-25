@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -279,6 +280,18 @@ public class EmailContactCreator {
             return;
         }
         Contact inbound = inboundOpt.get();
+
+        // Guard przed duplikatami – sprawdź czy kontakt OUTBOUND dla tego inboundContactId
+        // już istnieje. Zabezpiecza przed wielokrotnym wywołaniem email.sent dla tej samej
+        // wiadomości (np. retry kolejki RabbitMQ lub wielokrotny klik w UI).
+        List<Contact> existingOutbound = contactRepository.findByChannelMetadataValue(
+                "inboundContactId", inboundContactId.toString(), tenantId);
+        if (!existingOutbound.isEmpty()) {
+            log.warn("[EmailContact] Kontakt OUTBOUND dla inboundContactId={} już istnieje ({}), " +
+                     "pomijam tworzenie duplikatu.",
+                    inboundContactId, existingOutbound.get(0).getContactId());
+            return;
+        }
 
         UUID customerId = inbound.getCustomerId();
 

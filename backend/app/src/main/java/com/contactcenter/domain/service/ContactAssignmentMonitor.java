@@ -108,6 +108,11 @@ public class ContactAssignmentMonitor {
      * Przetwarza pojedynczy kontakt ze statusem ASSIGNED.
      *
      * <ul>
+     *   <li>Kontakty EMAIL i CHAT są obsługiwane przez HTTP polling (nie przez WebSocket CONTACT_ASSIGNED).
+     *       Gdy agent pobierze taki kontakt, wywołuje {@code POST /api/contacts/{id}/accept} który
+     *       zmienia status na ACTIVE – monitor pomija kontakty w tym statusie przez zapytanie SQL.
+     *       Dopóki kontakt jest ASSIGNED (agent jeszcze go nie otworzył), monitor re-wysyła WS event
+     *       tak jak dla PHONE, co pozwala odświeżyć zakładkę agenta.</li>
      *   <li>retry &lt; MAX_RETRIES: re-wysyła CONTACT_ASSIGNED przez WebSocket i inkrementuje licznik.</li>
      *   <li>retry &ge; MAX_RETRIES: resetuje kontakt do QUEUED, re-kolejkuje przez RabbitMQ.</li>
      * </ul>

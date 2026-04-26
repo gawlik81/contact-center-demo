@@ -45,6 +45,9 @@ public class EmailEncryptionService {
                     "email.encryption-key musi mieć 64 znaki hex (32 bajty dla AES-256). " +
                     "Ustaw zmienną ENV EMAIL_ENCRYPTION_KEY.");
         }
+        if (isZeroKey(keyBytes)) {
+            log.warn("[EmailEncryption][SECURITY] Klucz szyfrowania to same zera – NIGDY nie używaj w produkcji! Ustaw EMAIL_ENCRYPTION_KEY.");
+        }
         this.secretKey = new SecretKeySpec(keyBytes, "AES");
         log.info("[EmailEncryption] Serwis szyfrowania AES-256-GCM zainicjalizowany");
     }
@@ -125,6 +128,13 @@ public class EmailEncryptionService {
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
+
+    private static boolean isZeroKey(byte[] key) {
+        for (byte b : key) {
+            if (b != 0) return false;
+        }
+        return true;
+    }
 
     private static byte[] hexToBytes(String hex) {
         if (hex == null || hex.length() % 2 != 0) {

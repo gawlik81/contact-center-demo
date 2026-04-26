@@ -98,6 +98,10 @@ public class Customer {
     @Builder.Default
     private String source = "MANUAL";
 
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
+
     /** Soft delete – anonimizacja RODO zachowuje rekord bez PII. */
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;

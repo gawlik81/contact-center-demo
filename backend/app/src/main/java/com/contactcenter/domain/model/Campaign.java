@@ -115,6 +115,10 @@ public class Campaign {
     @Column(name = "created_by")
     private UUID createdBy;
 
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

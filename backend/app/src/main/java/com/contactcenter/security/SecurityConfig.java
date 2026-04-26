@@ -89,6 +89,7 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
             // Reguły autoryzacji
+            // Lista publicznych ścieżek zsynchronizowana z PublicPathsConfig.PUBLIC_PREFIXES
             .authorizeHttpRequests(auth -> auth
                 // Health check – publiczny (Kubernetes liveness/readiness probe)
                 .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()

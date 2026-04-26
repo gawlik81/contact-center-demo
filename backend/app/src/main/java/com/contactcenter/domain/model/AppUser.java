@@ -116,6 +116,10 @@ public class AppUser {
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;
 
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
+
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 

@@ -22,7 +22,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
-import java.util.Set;
 
 /**
  * Filtr HTTP ekstrahujący tenant_id i user_id z JWT i ustawiający {@link TenantContext}.
@@ -63,38 +62,6 @@ public class TenantFilter extends OncePerRequestFilter {
     static final String MDC_TENANT_ID  = "tenantId";
     static final String MDC_USER_ID    = "userId";
     static final String MDC_REQUEST_ID = "requestId";
-
-    /**
-     * Publiczne ścieżki, dla których TenantFilter nie wymaga JWT.
-     * Musi być spójne z konfiguracją Spring Security w {@link SecurityConfig}.
-     */
-    private static final Set<String> PUBLIC_PATH_PREFIXES = Set.of(
-            "/actuator/health",
-            "/api-docs",
-            "/swagger-ui",
-            "/api/auth/login",
-            "/api/auth/refresh",
-            "/api/public/",
-            "/webhooks/",
-            // Webhook VoIP – weryfikacja przez X-Webhook-Secret (nie przez JWT)
-            "/api/telephony/webhook",
-            // Hold music TwiML – wywoływany przez Twilio jako waitUrl w Conference (bez JWT)
-            "/api/telephony/hold-music",
-            // WebSocket/SockJS endpoint – autentykacja JWT dzieje się w STOMP CONNECT frame
-            // przez WebSocketAuthInterceptor, nie przez HTTP filtr
-            "/ws",
-            // WebSocket plain endpoint (bez SockJS) – używany przez Angular Agent Desktop
-            // Ta sama zasada: auth dzieje się w warstwie STOMP CONNECT, nie HTTP
-            "/ws-native",
-            // Endpoint przyjmowania logów z frontendu – publiczny (FE wysyła logi przed zalogowaniem)
-            "/api/logs",
-            // OAuth callback social media – wywoływany przez serwer OAuth bez JWT
-            // Bezpieczeństwo przez weryfikację parametru 'state' (OAuth CSRF protection)
-            "/api/oauth/",
-            // Webhooks social media (Facebook/Instagram/WhatsApp) – wywoływane przez platformy bez JWT
-            // Weryfikacja autentyczności przez HMAC X-Hub-Signature (TODO: produkcja)
-            "/api/webhooks/"
-    );
 
     private final JwtParser jwtParser;
     private final ObjectMapper objectMapper;
@@ -177,9 +144,10 @@ public class TenantFilter extends OncePerRequestFilter {
 
     /**
      * Sprawdza czy ścieżka jest publiczna (nie wymaga JWT).
+     * Lista publicznych ścieżek zarządzana centralnie w {@link PublicPathsConfig}.
      */
     private boolean isPublicPath(String path) {
-        return PUBLIC_PATH_PREFIXES.stream()
+        return PublicPathsConfig.PUBLIC_PREFIXES.stream()
                 .anyMatch(path::startsWith);
     }
 

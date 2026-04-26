@@ -231,7 +231,9 @@
       "Bash(xargs -I{} basename {} .ts)",
       "Bash(xargs -I{} basename {} .spec.ts)",
       "Bash(xargs ls *)",
-      "Bash(cloc *)"
+      "Bash(cloc *)",
+      "Bash(cat vitest.config.ts)",
+      "Bash(cat vitest.config.js)"
     ]
   }
 }

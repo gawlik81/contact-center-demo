@@ -240,6 +240,84 @@ $success: #2e7d32;
   }
 }
 
+// ===== Bottom Tab Nav (Calendar / future tabs) =====
+
+.desktop {
+  &__tab-nav {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: $surface;
+    border-top: 1px solid $border;
+    flex-shrink: 0;
+    height: 40px;
+    padding: 0 0.5rem;
+  }
+
+  &__tab-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0 0.875rem;
+    height: 100%;
+    border: none;
+    border-right: 1px solid $border;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: $text-secondary;
+    transition:
+      background var(--duration-fast, 120ms),
+      color var(--duration-fast, 120ms);
+    position: relative;
+
+    &:first-child {
+      border-left: 1px solid $border;
+    }
+
+    &:hover:not(&--active) {
+      background: $surface-3;
+      color: $text-primary;
+    }
+
+    &--active {
+      background: #eff6ff;
+      color: $brand;
+      font-weight: 600;
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: -1px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: $brand;
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -3px;
+    }
+  }
+
+  &__tab-nav-icon {
+    width: 0.9375rem;
+    height: 0.9375rem;
+    flex-shrink: 0;
+    opacity: 0.65;
+
+    .desktop__tab-nav-btn--active & {
+      opacity: 1;
+    }
+  }
+
+  &__tab-nav-label {
+    white-space: nowrap;
+  }
+}
+
 // ===== Status Panel =====
 
 .status-panel {

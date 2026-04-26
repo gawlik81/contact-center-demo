@@ -13,6 +13,7 @@ import { catchError, EMPTY } from 'rxjs';
 import { AgentCalendarService } from '../../../services/agent-calendar.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { RescheduleCallbackModalComponent } from '../../../components/reschedule-callback-modal/reschedule-callback-modal.component';
+import { AddBreakModalComponent } from '../../../components/add-break-modal/add-break-modal.component';
 import {
   AgentCalendarResponse,
   CalendarBreak,
@@ -35,7 +36,7 @@ interface CalendarDay {
   selector: 'app-agent-calendar',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [RescheduleCallbackModalComponent],
+  imports: [RescheduleCallbackModalComponent, AddBreakModalComponent],
   templateUrl: './agent-calendar.component.html',
   styleUrl: './agent-calendar.component.scss',
 })
@@ -242,6 +243,16 @@ export class AgentCalendarComponent implements OnInit {
   closeBreakModal(): void {
     this.selectedBreak.set(null);
     this.addBreakMode.set(false);
+  }
+
+  onBreakSaved(): void {
+    this.closeBreakModal();
+    this.loadData();
+  }
+
+  onBreakCancelled(): void {
+    this.closeBreakModal();
+    this.loadData();
   }
 
   // ── Template helpers ──────────────────────────────────────────────────────────

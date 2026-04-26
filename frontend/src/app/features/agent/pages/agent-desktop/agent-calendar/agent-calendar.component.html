@@ -8,14 +8,14 @@
   />
 }
 
-<!-- AddBreakModal placeholder (FE-045) -->
+<!-- AddBreakModal (FE-045) -->
 @if (selectedBreak() || addBreakMode()) {
-  <div class="modal-placeholder" role="dialog" aria-label="Przerwa">
-    <div class="modal-placeholder__box">
-      <p class="modal-placeholder__text">AddBreakModal – zostanie zaimplementowany w FE-045</p>
-      <button type="button" class="modal-placeholder__close" (click)="closeBreakModal()">Zamknij</button>
-    </div>
-  </div>
+  <app-add-break-modal
+    [existingBreak]="selectedBreak()"
+    (saved)="onBreakSaved()"
+    (cancelled)="closeBreakModal()"
+    (breakCancelled)="onBreakCancelled()"
+  />
 }
 
 <!-- Calendar container -->

@@ -23,13 +23,20 @@ import {
 
 type CalendarViewMode = 'week' | 'day';
 
+type CalendarEventEntry =
+  | { kind: 'campaign'; item: CalendarCampaign }
+  | { kind: 'callback'; item: CalendarCallback }
+  | { kind: 'break'; item: CalendarBreak };
+
 interface CalendarDay {
   date: Date;
-  label: string; // e.g. "Pon 21 kwi"
+  label: string;
   isToday: boolean;
   callbacks: CalendarCallback[];
   campaigns: CalendarCampaign[];
   breaks: CalendarBreak[];
+  /** Unified sorted list: campaigns first (all-day), then timed events chronologically. */
+  events: CalendarEventEntry[];
 }
 
 @Component({
@@ -87,24 +94,59 @@ export class AgentCalendarComponent implements OnInit {
         return d >= dayStart && d <= dayEnd;
       });
 
+      const JS_DAY_TO_NAME: Record<number, string> = {
+        0: 'SUN',
+        1: 'MON',
+        2: 'TUE',
+        3: 'WED',
+        4: 'THU',
+        5: 'FRI',
+        6: 'SAT',
+      };
+      const dayName = JS_DAY_TO_NAME[date.getDay()];
+
       const campaigns = data.campaigns.filter((c) => {
         if (DONE_STATUSES.has(c.status)) return false;
-        if (!c.startDate && !c.endDate) return false;
+
+        // Check date range
         const start = c.startDate ? new Date(c.startDate) : null;
         const end = c.endDate ? new Date(c.endDate) : null;
         if (start) start.setHours(0, 0, 0, 0);
         if (end) end.setHours(23, 59, 59, 999);
-        const dayTs = dayStart.getTime();
         const startOk = !start || start.getTime() <= dayEnd.getTime();
-        const endOk = !end || end.getTime() >= dayTs;
-        return startOk && endOk;
+        const endOk = !end || end.getTime() >= dayStart.getTime();
+        if (!startOk || !endOk) return false;
+
+        // Check active days of week
+        if (c.activeDays && c.activeDays.length > 0 && !c.activeDays.includes(dayName)) {
+          return false;
+        }
+
+        return true;
       });
 
-      // Sort callbacks and breaks chronologically
-      callbacks.sort(
-        (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
-      );
-      breaks.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      // Merge callbacks and breaks into one chronologically sorted timed-events list
+      const timedEvents: Array<
+        | { kind: 'callback'; item: CalendarCallback; t: number }
+        | { kind: 'break'; item: CalendarBreak; t: number }
+      > = [
+        ...callbacks.map((cb) => ({
+          kind: 'callback' as const,
+          item: cb,
+          t: new Date(cb.scheduledAt).getTime(),
+        })),
+        ...breaks.map((br) => ({
+          kind: 'break' as const,
+          item: br,
+          t: new Date(br.startTime).getTime(),
+        })),
+      ].sort((a, b) => a.t - b.t);
+
+      // Campaigns are all-day: appear before timed events
+      const events: CalendarEventEntry[] = [
+        ...campaigns.map((c): CalendarEventEntry => ({ kind: 'campaign', item: c })),
+        ...timedEvents.map(({ kind, item }): CalendarEventEntry => ({ kind, item } as CalendarEventEntry)),
+      ];
 
       const isToday = dayStart.getTime() === today.getTime();
 
@@ -115,6 +157,7 @@ export class AgentCalendarComponent implements OnInit {
         callbacks,
         campaigns,
         breaks,
+        events,
       };
     });
   });
@@ -304,10 +347,52 @@ export class AgentCalendarComponent implements OnInit {
     return map[source] ?? source;
   }
 
+  callbackStatusLabel(status: string): string {
+    const map: Record<string, string> = {
+      PENDING: 'Oczekujacy',
+      SCHEDULED: 'Zaplanowany',
+      IN_PROGRESS: 'W toku',
+      COMPLETED: 'Zakończony',
+      CANCELLED: 'Odwołany',
+      NO_ANSWER: 'Brak odpowiedzi',
+      RESCHEDULED: 'Przesunięty',
+    };
+    return map[status] ?? status;
+  }
+
+  campaignStatusLabel(status: string): string {
+    const map: Record<string, string> = {
+      ACTIVE: 'Aktywna',
+      RUNNING: 'Aktywna',
+      SCHEDULED: 'Zaplanowana',
+      DRAFT: 'Szkic',
+      PAUSED: 'Wstrzymana',
+      STOPPED: 'Zatrzymana',
+      COMPLETED: 'Zakończona',
+      CANCELLED: 'Odwołana',
+    };
+    return map[status] ?? status;
+  }
+
+  formatActiveDays(days: string[]): string {
+    const map: Record<string, string> = {
+      MON: 'Pon',
+      TUE: 'Wt',
+      WED: 'Sr',
+      THU: 'Czw',
+      FRI: 'Pt',
+      SAT: 'Sob',
+      SUN: 'Ndz',
+    };
+    return days.map((d) => map[d] ?? d).join(', ');
+  }
+
   readonly trackByDay = (_i: number, day: CalendarDay) => day.date.toISOString().slice(0, 10);
-  readonly trackByCallbackId = (_i: number, cb: CalendarCallback) => cb.id;
-  readonly trackByCampaignId = (_i: number, c: CalendarCampaign) => c.id;
-  readonly trackByBreakId = (_i: number, br: CalendarBreak) => br.id;
+  readonly trackByEventId = (_i: number, e: CalendarEventEntry): string => {
+    if (e.kind === 'callback') return `cb-${e.item.id}`;
+    if (e.kind === 'break') return `br-${e.item.id}`;
+    return `ca-${e.item.id}`;
+  };
 
   // ── Private helpers ───────────────────────────────────────────────────────────
   private getWeekDays(base: Date): Date[] {

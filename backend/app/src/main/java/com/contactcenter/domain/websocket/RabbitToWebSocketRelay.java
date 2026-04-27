@@ -150,7 +150,8 @@ public class RabbitToWebSocketRelay {
 
             WebSocketEvent event = WebSocketEvent.agentStatusChanged(tenantId, agentId, status);
 
-            // Zmiana statusu agenta → broadcast do supervisorów tenanta
+            // Zmiana statusu agenta → unicast do samego agenta + broadcast do supervisorów tenanta
+            broadcaster.sendToUser(agentId, event);
             broadcaster.sendToTenantSupervisors(tenantId, event);
 
         } catch (IllegalArgumentException e) {

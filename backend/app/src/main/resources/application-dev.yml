@@ -197,3 +197,12 @@ etl:
   sync:
     # Interwał ETL w ms – 60s domyślnie (nadpisywalne przez ENV)
     fixed-delay-ms: ${ETL_SYNC_DELAY_MS:60000}
+
+# =============================================================================
+# Agent Breaks Activator – DEV: krótszy interwał (10s) dla wygody testowania
+# =============================================================================
+agent:
+  breaks:
+    activator:
+      enabled: ${AGENT_BREAKS_ACTIVATOR_ENABLED:true}
+      interval-ms: ${AGENT_BREAKS_ACTIVATOR_INTERVAL_MS:10000}

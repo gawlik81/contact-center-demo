@@ -226,13 +226,18 @@ public class CampaignRepository extends TenantAwareRepository {
     /**
      * Pobiera kampanie powiązane z agentem przez kolejkę (kalendarz agenta, BE-051).
      *
-     * <p>JOIN {@code campaign} z {@code queue_agent} po {@code queue_id}.
-     * Wyklucza kampanie w statusach COMPLETED i CANCELLED – agent powinien widzieć
-     * wyłącznie kampanie aktywne lub planowane (RUNNING, SCHEDULED, DRAFT).
+     * <p>Agent widzi kampanię jeśli spełniony jest dowolny z warunków:
+     * <ol>
+     *   <li>jest jawnie przypisany do kolejki przez {@code queue_agent},</li>
+     *   <li>kolejka ma flagę {@code all_agents = TRUE} (wszyscy agenci tenanta),</li>
+     *   <li>jest członkiem grupy przypisanej do kolejki przez {@code queue_agent_group}.</li>
+     * </ol>
+     *
+     * <p>Wyklucza kampanie w statusach COMPLETED i CANCELLED.
      *
      * @param tenantId UUID tenanta
      * @param agentId  UUID agenta
-     * @return lista kampanii powiązanych z agentEM przez queue_agent (bez COMPLETED/CANCELLED)
+     * @return lista kampanii widocznych dla agenta (bez COMPLETED/CANCELLED)
      */
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
@@ -245,10 +250,23 @@ public class CampaignRepository extends TenantAwareRepository {
         List<Campaign> results = em.createNativeQuery(
                         """
                         SELECT c.* FROM campaign c
-                        JOIN queue_agent qa ON c.queue_id = qa.queue_id
-                        WHERE c.tenant_id      = CAST(:tenantId AS uuid)
-                          AND qa.agent_id      = CAST(:agentId AS uuid)
+                        JOIN queue q ON c.queue_id = q.queue_id
+                        WHERE c.tenant_id = CAST(:tenantId AS uuid)
                           AND c.status NOT IN ('COMPLETED', 'CANCELLED')
+                          AND (
+                            q.all_agents = TRUE
+                            OR EXISTS (
+                              SELECT 1 FROM queue_agent qa
+                              WHERE qa.queue_id = c.queue_id
+                                AND qa.agent_id = CAST(:agentId AS uuid)
+                            )
+                            OR EXISTS (
+                              SELECT 1 FROM queue_agent_group qag
+                              JOIN agent_group_member agm ON qag.group_id = agm.group_id
+                              WHERE qag.queue_id = c.queue_id
+                                AND agm.agent_id = CAST(:agentId AS uuid)
+                            )
+                          )
                         ORDER BY c.created_at ASC
                         """,
                         Campaign.class)

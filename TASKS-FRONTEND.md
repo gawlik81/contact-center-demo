@@ -1804,8 +1804,9 @@ interface ManualCallbackResponse {
 **Typ:** Feature
 **Priorytet:** Should Have
 **Zlozonosc:** S
-**Zależy od:** BE-051
-**Status:** ⬜ Do zrobienia
+**Zależy od:** BE-051, BE-050
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-26
 **Blokuje:** FE-043, FE-044, FE-045
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 
@@ -1842,7 +1843,8 @@ cancelBreak(id: string): Observable<void>
 **Priorytet:** Should Have
 **Zlozonosc:** L
 **Zależy od:** FE-042
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-27
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 
@@ -1876,7 +1878,8 @@ Główny widok kalendarza jako nowa zakładka w Agent Desktop. Wyświetla zdarze
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-042, BE-039
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-26
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 
@@ -1899,7 +1902,8 @@ Modal uruchamiany po kliknięciu zdarzenia typu callback w kalendarzu. Wyświetl
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-042
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-27
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 

@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-20 (BE-030b ✅ ETL ClickHouse DW (ClickHouseDwWriter, ClickHouseDataSourceConfig, docker-compose clickhouse); wszystkie zadania zweryfikowane wg kodu źródłowego; łączny stan: DB 26/26, BE 49/49, FE 38/38)
+**Ostatnia aktualizacja:** 2026-04-27 (DB-027 ✅, DB-028 ✅; BE-048 ✅, BE-049 ✅, BE-050 ✅, BE-051 ✅, BE-052 ✅ AgentBreakActivator, BE-053 ✅ CampaignWindowActivator; FE-040 ✅, FE-041 ✅, FE-042 ✅, FE-043 ✅, FE-044 ✅, FE-045 ✅; łączny stan: DB 28/28, BE 55/55, FE 44/47)
 
 ---
 
@@ -45,6 +45,8 @@
 | DB-024 | Tabele `agent_group` i `agent_group_member`: grupy agentów | ✅ | V042__create_agent_groups.sql: tabela agent_group (UNIQUE tenant+name, RLS, soft-delete), tabela agent_group_member (PK (group_id,agent_id), FK CASCADE). Odblokowano: DB-025, DB-026, BE-043 |
 | DB-025 | Rozszerzenie tabeli `queue` o flagę `all_agents` i tabelę `queue_agent_group` | ✅ | V043__queue_agent_group.sql: kolumna all_agents BOOLEAN DEFAULT FALSE, tabela queue_agent_group (PK (queue_id,group_id), FK CASCADE), UPDATE istniejących kolejek → all_agents=TRUE. Odblokowano: DB-026, BE-045 |
 | DB-026 | Indeksy wydajnościowe dla rozwiązania łączonego: kolejka + agenci/grupy | ✅ | V044__queue_agent_assignment_indexes.sql: idx_queue_agent_queue, idx_queue_agent_group_lookup (INCLUDE group_id), idx_agent_group_member_lookup (INCLUDE group_id). Wszystkie idempotentne (IF NOT EXISTS) |
+| DB-027 | Rozszerzenie `scheduled_callback.source_type` o wartość `AGENT_MANUAL` | ✅ | V047__scheduled_callback_agent_manual_source.sql: rozszerzony CHECK constraint (CAMPAIGN_CALLBACK / INBOUND_CALLBACK / AGENT_MANUAL), kolumna notes TEXT, indeks idx_scheduled_callback_agent_manual, indeks idx_scheduled_callback_agent_calendar. Odblokowano BE-048. Zrealizowane 2026-04-24. |
+| DB-028 | Tabela `agent_break`: zaplanowane przerwy agentów | ✅ | V047__agent_break.sql: tabela agent_break z CHECKami break_type / status / end_time>start_time, FK agent_id→app_user, FK tenant_id→tenant, RLS policy, indeks idx_agent_break_tenant_agent_time. Odblokowano BE-049, BE-050. Zrealizowane 2026-04-26. |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -107,6 +109,12 @@
 | BE-046 | REST API zarządzania przypisaniem agentów do kolejki | ✅ | QueueAssignmentController (GET/PUT /api/queues/{queueId}/assignment), QueueAssignmentService, DTOs: QueueAssignmentResponse + UpdateQueueAssignmentRequest + AgentGroupSummary. Walidacja: agentId i groupId cross-tenant → HTTP 422. Role: SUPERVISOR/ADMIN. 9 testów jednostkowych. 850 PASS. Zrealizowane 2026-04-18 |
 | BE-047 | Aktualizacja `DefaultRoutingEngine`: filtrowanie agentów po przypisaniu do kolejki | ✅ | RoutingRequest +eligibleAgentIds (null=all_agents), DefaultRoutingEngine: filtr po scanAvailableAgents + sticky guard + empty→Optional.empty()+WARN, RoutingService: isAllAgents→resolveEligibleAgentIds (1 zapytanie DB). 5 nowych testów DefaultRoutingEngineTest (EligibleAgentFilter). 855 PASS. Zrealizowane 2026-04-18 |
 | BE-037 | Endpoint streamowania nagrania z MinIO/S3: presigned URL | ✅ | GET /api/contacts/{id}/recording → ContactRecordingUrlResponse (presignedUrl TTL 15min, expiresAt, fileName, durationSeconds). Dodano do ContactController + ContactService. Nowa metoda generatePresignedUrlForKey(s3Key, Duration) w RecordingService. 8 nowych testów jednostkowych w ContactServiceTest. |
+| BE-048 | API manualnego callbacku do klienta inicjowanego przez agenta | ✅ | POST /api/callbacks/manual: ManualCallbackRequest (customerId, phoneNumber, scheduledAt, notes), source_type=AGENT_MANUAL, assigned_agent_id z JWT. Zależy od DB-027. Zrealizowane 2026-04-24. |
+| BE-049 | Model i repozytorium przerw agenta (`AgentBreak`, `AgentBreakRepository`) | ✅ | AgentBreak entity (JPA, tabela agent_break), AgentBreakRepository extends TenantAwareRepository, metody findByAgentIdAndStartTimeBetween, assertSameTenant przed zapisem. Zrealizowane 2026-04-26. |
+| BE-050 | CRUD REST API przerw agenta (`AgentBreakController`, `AgentBreakService`) | ✅ | GET/POST/PUT/DELETE /api/agent/breaks, walidacja endTime>startTime, soft-delete (PLANNED→CANCELLED), izolacja agent_id z JWT, OpenAPI docs. Zrealizowane 2026-04-26. |
+| BE-051 | Agregujące API kalendarza agenta (`AgentCalendarController`) | ✅ | GET /api/agent/calendar?from&to: zwraca {callbacks, campaigns, breaks} z trzech źródeł, domyślnie bieżący tydzień, max 90 dni, izolacja tenant+agent_id z JWT. Zrealizowane 2026-04-27. |
+| BE-052 | Scheduler automatycznej aktywacji i zamykania przerw (`AgentBreakActivator`) | ✅ | @Scheduled: PLANNED→ACTIVE gdy start_time<=NOW(), ACTIVE→COMPLETED gdy end_time<=NOW(), batch UPDATE, błąd per-rekordu nie zatrzymuje przetwarzania. Zrealizowane 2026-04-26. |
+| BE-053 | Scheduler automatycznej aktywacji kampanii wg harmonogramu (`CampaignWindowActivator`) | ✅ | @Scheduled: SCHEDULED→RUNNING gdy czas w oknie harmonogramu, RUNNING→SCHEDULED gdy poza oknem, strefa czasowa z tenant.config.timezone. Zrealizowane 2026-04-27. |
 
 ---
 
@@ -153,6 +161,12 @@
 | FE-037 | Panel zarządzania grupami agentów (`AgentGroupsPageComponent`) | ✅ | AgentGroupsPageComponent (tabela grup, CRUD), CreateEditGroupModalComponent (formularz z obsługą 409), GroupMembersModalComponent (forkJoin members+agents, checkbox multi-select). Trasa /supervisor/agent-groups z roleGuard. Pozycja "Grupy agentów" w SUPERVISOR_NAV sidenav. Zrealizowane 2026-04-18. Odblokowało FE-038 |
 | FE-038 | Komponent przypisania agentów do kolejki (`QueueAssignmentPanelComponent`) | ✅ | QueueAssignmentPanelComponent (standalone, OnPush, input.required queueId). forkJoin: getQueueAssignment + listGroups + getUsers(AGENT). Radio-group trybu (allAgents/wybrane), checkboxy grup i agentów, computed hasNoAssignment + totalAgentsCount, onSave() z obsługą HTTP 400. Zrealizowane 2026-04-18. Odblokowało FE-039 |
 | FE-039 | Integracja panelu przypisania z formularzem edycji kolejki | ✅ | QueueAssignmentPanelComponent dodany do imports QueueFormComponent. W szablonie: sekcja po </form> — w trybie edycji renderuje <app-queue-assignment-panel [queueId]>, w trybie tworzenia komunikat "Zapisz kolejkę, aby skonfigurować przypisanie". Styl .assignment-new-queue-hint w SCSS. Zrealizowane 2026-04-18. |
+| FE-040 | Zakładka „Klienci" w Agent Desktop (`AgentCustomersTabComponent`) | ✅ | AgentCustomersTabComponent + AgentCustomerCardComponent: fuzzy search debounce 300ms, virtual scroll, skeleton loader, przycisk Szczegóły i Zamów oddzwonienie. Zrealizowane 2026-04-24. |
+| FE-041 | Modal zamówienia manualnego oddzwonienia do klienta (`ManualCallbackModalComponent`) | ✅ | ManualCallbackModalComponent: dropdown numerów telefonu klienta, datetime-local walidacja @Future+5min, notatki, POST /api/callbacks/manual (BE-048). Zrealizowane 2026-04-24. |
+| FE-042 | `AgentCalendarService` i typy DTO dla kalendarza | ✅ | AgentCalendarService: getCalendar, addBreak, updateBreak, cancelBreak; interfejsy CalendarCallback/CalendarCampaign/CalendarBreak/AgentCalendarResponse/AgentBreakRequest. Zrealizowane 2026-04-26. |
+| FE-043 | `AgentCalendarComponent`: widok kalendarza agenta | ✅ | AgentCalendarComponent: siatka tygodniowa/dzienna, 3 typy zdarzeń (callbacki/kampanie/przerwy), FAB Dodaj przerwę, nawigacja między tygodniami/dniami, standalone OnPush signal(). Zrealizowane 2026-04-27. |
+| FE-044 | `RescheduleCallbackModalComponent`: zmiana daty callbacku z kalendarza | ✅ | RescheduleCallbackModalComponent: date-time picker z preładowaną datą callbacku, walidacja @Future, PUT /api/callbacks/{id}/reschedule, odświeżenie kalendarza po zapisie. Zrealizowane 2026-04-26. |
+| FE-045 | `AddBreakModalComponent`: dodanie i edycja zaplanowanej przerwy | ✅ | AddBreakModalComponent: select typ przerwy, datetime pickers, notatki, tryb tworzenia (POST /api/agent/breaks) i edycji (PUT), przycisk Anuluj przerwę (DELETE). Zrealizowane 2026-04-27. |
 
 ---
 
@@ -160,10 +174,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 26/26 | 0 | 0 | 26 |
-| Backend (BE) | 49/49 | 0 | 0 | 49 |
-| Frontend (FE) | 38/38 | 0 | 0 | 38 |
-| **RAZEM** | **113/113** | **0** | **0** | **113** |
+| Database (DB) | 28/28 | 0 | 0 | 28 |
+| Backend (BE) | 55/55 | 0 | 0 | 55 |
+| Frontend (FE) | 44/47 | 0 | 3 | 47 |
+| **RAZEM** | **127/130** | **0** | **3** | **130** |
 
 ---
 

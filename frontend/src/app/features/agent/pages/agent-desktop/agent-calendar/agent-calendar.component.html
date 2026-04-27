@@ -96,95 +96,101 @@
           }
         </div>
 
-        <!-- Events list -->
+        <!-- Events list: campaigns (all-day) first, then timed events chronologically -->
         <div class="cal__events">
-          <!-- Callbacks -->
-          @for (cb of day.callbacks; track trackByCallbackId($index, cb)) {
-            <button
-              type="button"
-              class="cal__event cal__event--callback"
-              (click)="openCallback(cb)"
-              [attr.aria-label]="'Oddzwonienie do ' + cb.customerName + ' o ' + formatTime(cb.scheduledAt)"
-            >
-              <span class="cal__event-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path [attr.d]="CALLBACK_ICON" />
-                </svg>
-              </span>
-              <span class="cal__event-body">
-                <span class="cal__event-title">{{ cb.customerName }}</span>
-                <span class="cal__event-meta">{{ formatTime(cb.scheduledAt) }} &middot; {{ callbackSourceLabel(cb.sourceType) }}</span>
-              </span>
-              <span class="cal__event-status" [class]="'cal__event-status--' + cb.status.toLowerCase()">
-                {{ cb.status }}
-              </span>
-            </button>
-          }
+          @for (event of day.events; track trackByEventId($index, event)) {
+            @if (event.kind === 'callback') {
+              @let cb = event.item;
+              <button
+                type="button"
+                class="cal__event cal__event--callback"
+                (click)="openCallback(cb)"
+                [attr.aria-label]="'Oddzwonienie do ' + cb.customerName + ' o ' + formatTime(cb.scheduledAt)"
+              >
+                <span class="cal__event-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path [attr.d]="CALLBACK_ICON" />
+                  </svg>
+                </span>
+                <span class="cal__event-body">
+                  <span class="cal__event-title">{{ cb.customerName }}</span>
+                  <span class="cal__event-meta">{{ formatTime(cb.scheduledAt) }} &middot; {{ callbackSourceLabel(cb.sourceType) }}</span>
+                </span>
+                <span class="cal__event-status" [class]="'cal__event-status--' + cb.status.toLowerCase()">
+                  {{ callbackStatusLabel(cb.status) }}
+                </span>
+              </button>
+            } @else if (event.kind === 'break') {
+              @let br = event.item;
+              <button
+                type="button"
+                class="cal__event cal__event--break"
+                (click)="openBreak(br)"
+                [attr.aria-label]="breakTypeLabel(br.breakType) + ' od ' + formatTime(br.startTime)"
+              >
+                <span class="cal__event-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path [attr.d]="BREAK_ICON" />
+                  </svg>
+                </span>
+                <span class="cal__event-body">
+                  <span class="cal__event-title">{{ breakTypeLabel(br.breakType) }}</span>
+                  <span class="cal__event-meta">{{ formatTime(br.startTime) }}–{{ formatTime(br.endTime) }}</span>
+                </span>
+                <span class="cal__event-status" [class]="'cal__event-status--' + br.status.toLowerCase()">
+                  {{ breakStatusLabel(br.status) }}
+                </span>
+              </button>
+            } @else if (event.kind === 'campaign') {
+              @let c = event.item;
+              <button
+                type="button"
+                class="cal__event cal__event--campaign"
+                [class.cal__event--selected]="selectedCampaign()?.id === c.id"
+                (click)="openCampaignInline(c)"
+                [attr.aria-expanded]="selectedCampaign()?.id === c.id"
+                [attr.aria-label]="'Kampania ' + c.name"
+              >
+                <span class="cal__event-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path [attr.d]="CAMPAIGN_ICON" />
+                  </svg>
+                </span>
+                <span class="cal__event-body">
+                  <span class="cal__event-title">{{ c.name }}</span>
+                  <span class="cal__event-meta">{{ formatDateRange(c.startDate, c.endDate) }}</span>
+                </span>
+                <span class="cal__event-status" [class]="'cal__event-status--' + c.status.toLowerCase()">
+                  {{ campaignStatusLabel(c.status) }}
+                </span>
+              </button>
 
-          <!-- Breaks -->
-          @for (br of day.breaks; track trackByBreakId($index, br)) {
-            <button
-              type="button"
-              class="cal__event cal__event--break"
-              (click)="openBreak(br)"
-              [attr.aria-label]="breakTypeLabel(br.breakType) + ' od ' + formatTime(br.startTime)"
-            >
-              <span class="cal__event-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path [attr.d]="BREAK_ICON" />
-                </svg>
-              </span>
-              <span class="cal__event-body">
-                <span class="cal__event-title">{{ breakTypeLabel(br.breakType) }}</span>
-                <span class="cal__event-meta">{{ formatTime(br.startTime) }}–{{ formatTime(br.endTime) }}</span>
-              </span>
-              <span class="cal__event-status" [class]="'cal__event-status--' + br.status.toLowerCase()">
-                {{ breakStatusLabel(br.status) }}
-              </span>
-            </button>
-          }
-
-          <!-- Campaigns -->
-          @for (c of day.campaigns; track trackByCampaignId($index, c)) {
-            <button
-              type="button"
-              class="cal__event cal__event--campaign"
-              [class.cal__event--selected]="selectedCampaign()?.id === c.id"
-              (click)="openCampaignInline(c)"
-              [attr.aria-expanded]="selectedCampaign()?.id === c.id"
-              [attr.aria-label]="'Kampania ' + c.name"
-            >
-              <span class="cal__event-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path [attr.d]="CAMPAIGN_ICON" />
-                </svg>
-              </span>
-              <span class="cal__event-body">
-                <span class="cal__event-title">{{ c.name }}</span>
-                <span class="cal__event-meta">{{ formatDateRange(c.startDate, c.endDate) }}</span>
-              </span>
-              <span class="cal__event-status" [class]="'cal__event-status--' + c.status.toLowerCase()">
-                {{ c.status }}
-              </span>
-            </button>
-
-            <!-- Inline campaign details panel -->
-            @if (selectedCampaign()?.id === c.id) {
-              <div class="cal__campaign-panel" role="region" aria-label="Szczegoly kampanii">
-                <dl class="cal__campaign-dl">
-                  <dt>Nazwa</dt>
-                  <dd>{{ c.name }}</dd>
-                  <dt>Status</dt>
-                  <dd>{{ c.status }}</dd>
-                  <dt>Okres</dt>
-                  <dd>{{ formatDateRange(c.startDate, c.endDate) }}</dd>
-                </dl>
-              </div>
+              <!-- Inline campaign details panel -->
+              @if (selectedCampaign()?.id === c.id) {
+                <div class="cal__campaign-panel" role="region" aria-label="Szczegoly kampanii">
+                  <dl class="cal__campaign-dl">
+                    <dt>Nazwa</dt>
+                    <dd>{{ c.name }}</dd>
+                    <dt>Status</dt>
+                    <dd>{{ campaignStatusLabel(c.status) }}</dd>
+                    <dt>Okres</dt>
+                    <dd>{{ formatDateRange(c.startDate, c.endDate) }}</dd>
+                    @if (c.activeHoursFrom || c.activeHoursTo) {
+                      <dt>Godziny</dt>
+                      <dd>{{ c.activeHoursFrom ?? '00:00' }}–{{ c.activeHoursTo ?? '23:59' }}{{ c.timezone ? ' (' + c.timezone + ')' : '' }}</dd>
+                    }
+                    @if (c.activeDays && c.activeDays.length > 0) {
+                      <dt>Dni</dt>
+                      <dd>{{ formatActiveDays(c.activeDays) }}</dd>
+                    }
+                  </dl>
+                </div>
+              }
             }
           }
 
           <!-- Empty day -->
-          @if (day.callbacks.length === 0 && day.breaks.length === 0 && day.campaigns.length === 0) {
+          @if (day.events.length === 0) {
             <p class="cal__day-empty">Brak zdarzen</p>
           }
         </div>

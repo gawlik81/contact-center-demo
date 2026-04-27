@@ -176,13 +176,35 @@ public class AgentCalendarService {
      * Mapuje encję {@link Campaign} na {@link CalendarCampaignItem}.
      *
      * <p>Statusy: "RUNNING" → "ACTIVE", pozostałe bez zmiany.
-     * startDate/endDate wyciągane z JSONB {@code schedule} pod kluczami
-     * {@code "start_date"} i {@code "end_date"}.
+     * Wszystkie pola harmonogramu wyciągane z JSONB {@code schedule}.
      */
+    @SuppressWarnings("unchecked")
     private CalendarCampaignItem toCampaignItem(Campaign campaign) {
         Map<String, Object> schedule = campaign.getSchedule();
-        String startDate = schedule != null ? (String) schedule.getOrDefault("start_date", null) : null;
-        String endDate   = schedule != null ? (String) schedule.getOrDefault("end_date",   null) : null;
+
+        String startDate = null;
+        String endDate   = null;
+        List<String> activeDays    = null;
+        String activeHoursFrom     = null;
+        String activeHoursTo       = null;
+        String timezone            = null;
+
+        if (schedule != null) {
+            startDate = (String) schedule.get("start_date");
+            endDate   = (String) schedule.get("end_date");
+            timezone  = (String) schedule.get("timezone");
+
+            Object days = schedule.get("active_days");
+            if (days instanceof List<?> dayList && !dayList.isEmpty()) {
+                activeDays = dayList.stream().map(Object::toString).toList();
+            }
+
+            Object hours = schedule.get("active_hours");
+            if (hours instanceof Map<?, ?> hoursMap) {
+                activeHoursFrom = (String) hoursMap.get("from");
+                activeHoursTo   = (String) hoursMap.get("to");
+            }
+        }
 
         String status = "RUNNING".equals(campaign.getStatus()) ? "ACTIVE" : campaign.getStatus();
 
@@ -191,7 +213,11 @@ public class AgentCalendarService {
                 campaign.getName(),
                 startDate,
                 endDate,
-                status
+                status,
+                activeDays,
+                activeHoursFrom,
+                activeHoursTo,
+                timezone
         );
     }
 

@@ -16,6 +16,14 @@ export interface CalendarCampaign {
   startDate: string | null;
   endDate: string | null;
   status: string;
+  /** Dni tygodnia obowiązywania kampanii (MON–SUN). Null = brak ograniczenia. */
+  activeDays: string[] | null;
+  /** Godzina rozpoczęcia okna aktywności (HH:mm). Null = brak ograniczenia. */
+  activeHoursFrom: string | null;
+  /** Godzina zakończenia okna aktywności (HH:mm). Null = brak ograniczenia. */
+  activeHoursTo: string | null;
+  /** Strefa czasowa okna aktywności. Null = UTC. */
+  timezone: string | null;
 }
 
 export interface CalendarBreak {

@@ -173,7 +173,6 @@ public class AgentBreakRepository extends TenantAwareRepository {
     @Transactional
     public int update(AgentBreak agentBreak) {
         assertSameTenant(agentBreak.getTenantId());
-        em.detach(agentBreak);
         setTenantContextInDb(agentBreak.getTenantId());
 
         log.debug("[AgentBreakRepo] Aktualizacja przerwy: id={}, tenant={}",
@@ -243,6 +242,128 @@ public class AgentBreakRepository extends TenantAwareRepository {
         log.debug("[AgentBreakRepo] Zmiana statusu: zaktualizowano {} wierszy dla id={}", updated, id);
 
         return updated;
+    }
+
+    // =========================================================================
+    // Bulk – zmiana statusów (scheduler AgentBreakActivator)
+    // =========================================================================
+
+    /**
+     * Masowe przejście PLANNED → ACTIVE dla przerw, których start_time już minął.
+     *
+     * <p>Wykonywane cyklicznie przez {@link AgentBreakActivator}. Aktualizuje wszystkie
+     * przerwy o statusie PLANNED, dla których {@code start_time <= NOW()} i które
+     * należą do podanego tenanta. Pole {@code updated_at} ustawiane przez {@code NOW()}.
+     *
+     * <p>Uwaga: RLS dla tej operacji jest wymagane – {@code setTenantContextInDb(tenantId)}
+     * wywołuje {@code set_tenant_context}, a WHERE zawiera jawny filtr {@code tenant_id},
+     * co daje dwie niezależne warstwy izolacji.
+     *
+     * @param tenantId UUID tenanta
+     * @return liczba aktywowanych przerw (0 = brak przerw do aktywacji)
+     * @deprecated Użyj {@link #activateDueBreaksAndReturn(UUID)} – zwraca encje potrzebne do zmiany statusu agenta.
+     */
+    @Deprecated
+    @Transactional
+    public int activateDueBreaks(UUID tenantId) {
+        return activateDueBreaksAndReturn(tenantId).size();
+    }
+
+    /**
+     * Masowe przejście PLANNED → ACTIVE dla przerw, których start_time już minął.
+     *
+     * <p>Wykonuje UPDATE … RETURNING, dzięki czemu zwraca pełne encje aktywowanych przerw.
+     * Scheduler {@link AgentBreakActivator} używa zwróconych encji do zmiany statusu agenta
+     * (agentId) na {@code BREAK}.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista aktywowanych przerw (pusta jeśli brak)
+     */
+    @Transactional
+    public List<AgentBreak> activateDueBreaksAndReturn(UUID tenantId) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        log.debug("[AgentBreakRepo] Aktywacja przerw PLANNED → ACTIVE: tenant={}", tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+                UPDATE agent_break
+                SET status     = 'ACTIVE',
+                    updated_at = NOW()
+                WHERE status     = 'PLANNED'
+                  AND start_time <= NOW()
+                  AND tenant_id  = CAST(:tenantId AS uuid)
+                RETURNING id, tenant_id, agent_id, start_time, end_time,
+                          break_type, notes, status, created_at, updated_at
+                """)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        List<AgentBreak> activated = rows.stream().map(this::mapRow).toList();
+
+        if (!activated.isEmpty()) {
+            log.info("[AgentBreakRepo] Aktywowano {} przerw (tenant={})", activated.size(), tenantId);
+        }
+
+        return activated;
+    }
+
+    /**
+     * Masowe przejście ACTIVE → COMPLETED dla przerw, których end_time już minął.
+     *
+     * <p>Wykonywane cyklicznie przez {@link AgentBreakActivator}. Aktualizuje wszystkie
+     * przerwy o statusie ACTIVE, dla których {@code end_time <= NOW()} i które
+     * należą do podanego tenanta. Pole {@code updated_at} ustawiane przez {@code NOW()}.
+     *
+     * @param tenantId UUID tenanta
+     * @return liczba ukończonych przerw (0 = brak przerw do ukończenia)
+     * @deprecated Użyj {@link #completeExpiredBreaksAndReturn(UUID)} – zwraca encje potrzebne do zmiany statusu agenta.
+     */
+    @Deprecated
+    @Transactional
+    public int completeExpiredBreaks(UUID tenantId) {
+        return completeExpiredBreaksAndReturn(tenantId).size();
+    }
+
+    /**
+     * Masowe przejście ACTIVE → COMPLETED dla przerw, których end_time już minął.
+     *
+     * <p>Wykonuje UPDATE … RETURNING, dzięki czemu zwraca pełne encje zakończonych przerw.
+     * Scheduler {@link AgentBreakActivator} używa zwróconych encji do przywrócenia statusu
+     * agenta na {@code AVAILABLE} – ale tylko gdy agent nadal ma status {@code BREAK}.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista zakończonych przerw (pusta jeśli brak)
+     */
+    @Transactional
+    public List<AgentBreak> completeExpiredBreaksAndReturn(UUID tenantId) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        log.debug("[AgentBreakRepo] Kończenie przerw ACTIVE → COMPLETED: tenant={}", tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+                UPDATE agent_break
+                SET status     = 'COMPLETED',
+                    updated_at = NOW()
+                WHERE status   = 'ACTIVE'
+                  AND end_time <= NOW()
+                  AND tenant_id = CAST(:tenantId AS uuid)
+                RETURNING id, tenant_id, agent_id, start_time, end_time,
+                          break_type, notes, status, created_at, updated_at
+                """)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        List<AgentBreak> completed = rows.stream().map(this::mapRow).toList();
+
+        if (!completed.isEmpty()) {
+            log.info("[AgentBreakRepo] Ukończono {} przerw (tenant={})", completed.size(), tenantId);
+        }
+
+        return completed;
     }
 
     // =========================================================================

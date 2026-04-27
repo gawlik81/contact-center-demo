@@ -14,13 +14,21 @@ import { Campaign, CampaignStatus, PagedResponse } from '../../../models/campaig
 import { CampaignFormComponent } from '../campaign-form/campaign-form.component';
 import { CampaignImportComponent } from '../campaign-import/campaign-import.component';
 import { CampaignContactsComponent } from '../campaign-contacts/campaign-contacts.component';
+import { CampaignInfoComponent } from '../campaign-info/campaign-info.component';
+import { ConfirmDialogComponent } from '../../../../../shared/components/confirm-dialog/confirm-dialog.component';
 
 const POLLING_INTERVAL_MS = 10_000;
 
 @Component({
   selector: 'app-campaign-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CampaignFormComponent, CampaignImportComponent, CampaignContactsComponent],
+  imports: [
+    CampaignFormComponent,
+    CampaignImportComponent,
+    CampaignContactsComponent,
+    CampaignInfoComponent,
+    ConfirmDialogComponent,
+  ],
   templateUrl: './campaign-list.component.html',
   styleUrl: './campaign-list.component.scss',
 })
@@ -47,6 +55,14 @@ export class CampaignListComponent implements OnInit {
 
   readonly showContactsModal = signal(false);
   readonly contactsCampaign = signal<Campaign | null>(null);
+
+  readonly showInfoModal = signal(false);
+  readonly infoCampaign = signal<Campaign | null>(null);
+
+  readonly showConfirmDialog = signal(false);
+  readonly confirmDialogMessage = signal('');
+  readonly confirmDialogDanger = signal(false);
+  private readonly pendingConfirmAction = signal<(() => void) | null>(null);
 
   ngOnInit(): void {
     this.loadCampaigns();
@@ -116,6 +132,16 @@ export class CampaignListComponent implements OnInit {
     this.loadCampaigns();
   }
 
+  canEdit(status: CampaignStatus): boolean {
+    return status === 'DRAFT';
+  }
+
+  openEditModal(campaign: Campaign): void {
+    this.selectedCampaign.set(campaign);
+    this.isEditMode.set(true);
+    this.showFormModal.set(true);
+  }
+
   canImport(status: CampaignStatus): boolean {
     return status === 'DRAFT' || status === 'SCHEDULED';
   }
@@ -144,8 +170,22 @@ export class CampaignListComponent implements OnInit {
     this.contactsCampaign.set(null);
   }
 
+  openInfoModal(campaign: Campaign): void {
+    this.infoCampaign.set(campaign);
+    this.showInfoModal.set(true);
+  }
+
+  onInfoClosed(): void {
+    this.showInfoModal.set(false);
+    this.infoCampaign.set(null);
+  }
+
   canStart(status: CampaignStatus): boolean {
-    return status === 'DRAFT' || status === 'SCHEDULED' || status === 'PAUSED';
+    return status === 'DRAFT' || status === 'PAUSED';
+  }
+
+  canRevertToDraft(status: CampaignStatus): boolean {
+    return status === 'SCHEDULED';
   }
 
   canPause(status: CampaignStatus): boolean {
@@ -189,16 +229,40 @@ export class CampaignListComponent implements OnInit {
       });
   }
 
-  onPause(campaign: Campaign): void {
-    const id = campaign.campaignId;
-    if (!confirm(`Czy na pewno chcesz wstrzymac kampanie "${campaign.name}"?`)) return;
+  private requestConfirm(message: string, danger: boolean, action: () => void): void {
+    this.confirmDialogMessage.set(message);
+    this.confirmDialogDanger.set(danger);
+    this.pendingConfirmAction.set(action);
+    this.showConfirmDialog.set(true);
+  }
 
+  onConfirmDialogConfirmed(): void {
+    this.showConfirmDialog.set(false);
+    this.pendingConfirmAction()?.();
+    this.pendingConfirmAction.set(null);
+  }
+
+  onConfirmDialogCancelled(): void {
+    this.showConfirmDialog.set(false);
+    this.pendingConfirmAction.set(null);
+  }
+
+  onPause(campaign: Campaign): void {
+    this.requestConfirm(
+      `Czy na pewno chcesz wstrzymać kampanię "${campaign.name}"?`,
+      false,
+      () => this.executePause(campaign),
+    );
+  }
+
+  private executePause(campaign: Campaign): void {
+    const id = campaign.campaignId;
     this.setActionInProgress(id, true);
     this.campaignService
       .pauseCampaign(id)
       .pipe(
         catchError(() => {
-          this.notifications.error(`Nie udalo sie wstrzymac kampanii "${campaign.name}".`);
+          this.notifications.error(`Nie udało się wstrzymać kampanii "${campaign.name}".`);
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -206,27 +270,28 @@ export class CampaignListComponent implements OnInit {
       .subscribe((updated) => {
         this.setActionInProgress(id, false);
         if (updated) {
-          this.notifications.success(`Kampania "${campaign.name}" zostala wstrzymana.`);
+          this.notifications.success(`Kampania "${campaign.name}" została wstrzymana.`);
           this.updateCampaignInList(updated);
         }
       });
   }
 
   onStop(campaign: Campaign): void {
-    const id = campaign.campaignId;
-    if (
-      !confirm(
-        `Czy na pewno chcesz zatrzymac kampanie "${campaign.name}"? Tej operacji nie mozna cofnac.`,
-      )
-    )
-      return;
+    this.requestConfirm(
+      `Czy na pewno chcesz zatrzymać kampanię "${campaign.name}"? Tej operacji nie można cofnąć.`,
+      true,
+      () => this.executeStop(campaign),
+    );
+  }
 
+  private executeStop(campaign: Campaign): void {
+    const id = campaign.campaignId;
     this.setActionInProgress(id, true);
     this.campaignService
       .stopCampaign(id)
       .pipe(
         catchError(() => {
-          this.notifications.error(`Nie udalo sie zatrzymac kampanii "${campaign.name}".`);
+          this.notifications.error(`Nie udało się zatrzymać kampanii "${campaign.name}".`);
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -234,7 +299,36 @@ export class CampaignListComponent implements OnInit {
       .subscribe((updated) => {
         this.setActionInProgress(id, false);
         if (updated) {
-          this.notifications.success(`Kampania "${campaign.name}" zostala zatrzymana.`);
+          this.notifications.success(`Kampania "${campaign.name}" została zatrzymana.`);
+          this.updateCampaignInList(updated);
+        }
+      });
+  }
+
+  onRevertToDraft(campaign: Campaign): void {
+    this.requestConfirm(
+      `Czy na pewno chcesz cofnąć kampanię "${campaign.name}" do statusu Szkic?`,
+      false,
+      () => this.executeRevertToDraft(campaign),
+    );
+  }
+
+  private executeRevertToDraft(campaign: Campaign): void {
+    const id = campaign.campaignId;
+    this.setActionInProgress(id, true);
+    this.campaignService
+      .revertToDraft(id)
+      .pipe(
+        catchError(() => {
+          this.notifications.error(`Nie udało się cofnąć kampanii "${campaign.name}" do szkicu.`);
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((updated) => {
+        this.setActionInProgress(id, false);
+        if (updated) {
+          this.notifications.success(`Kampania "${campaign.name}" cofnięta do statusu Szkic.`);
           this.updateCampaignInList(updated);
         }
       });

@@ -95,6 +95,31 @@
                       />
                     </svg>
                   </button>
+                  @if (canEdit(campaign.status)) {
+                    <button
+                      class="btn btn-icon-edit"
+                      type="button"
+                      (click)="openEditModal(campaign)"
+                      [attr.aria-label]="'Edytuj kampanię ' + campaign.name"
+                      title="Edytuj"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                      </svg>
+                    </button>
+                  }
+                  <!-- Info button (always visible) -->
+                  <button
+                    class="btn btn-icon-info"
+                    type="button"
+                    (click)="openInfoModal(campaign)"
+                    [attr.aria-label]="'Informacje o kampanii ' + campaign.name"
+                    title="Informacje"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                  </button>
                   @if (canImport(campaign.status)) {
                     <button
                       class="btn btn-icon-import"
@@ -120,6 +145,20 @@
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                         <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </button>
+                  }
+                  @if (canRevertToDraft(campaign.status)) {
+                    <button
+                      class="btn btn-icon-revert"
+                      type="button"
+                      (click)="onRevertToDraft(campaign)"
+                      [disabled]="actionInProgress().has(campaign.campaignId)"
+                      [attr.aria-label]="'Cofnij kampanie ' + campaign.name + ' do szkicu'"
+                      title="Cofnij do szkicu"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+                        <path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/>
                       </svg>
                     </button>
                   }
@@ -231,4 +270,19 @@
 <!-- Contacts preview modal -->
 @if (showContactsModal() && contactsCampaign()) {
   <app-campaign-contacts [campaign]="contactsCampaign()!" (closed)="onContactsClosed()" />
+}
+
+<!-- Campaign info modal -->
+@if (showInfoModal() && infoCampaign()) {
+  <app-campaign-info [campaign]="infoCampaign()!" (closed)="onInfoClosed()" />
+}
+
+<!-- Confirm dialog -->
+@if (showConfirmDialog()) {
+  <app-confirm-dialog
+    [message]="confirmDialogMessage()"
+    [danger]="confirmDialogDanger()"
+    (confirmed)="onConfirmDialogConfirmed()"
+    (cancelled)="onConfirmDialogCancelled()"
+  />
 }

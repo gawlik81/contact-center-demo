@@ -278,6 +278,35 @@ public class CampaignRepository extends TenantAwareRepository {
         return results;
     }
 
+    /**
+     * Pobiera wszystkie kampanie w statusie SCHEDULED dla danego tenanta.
+     *
+     * <p>Używane przez {@link com.contactcenter.domain.service.CampaignWindowActivator}
+     * do automatycznego przejścia SCHEDULED → RUNNING gdy kampania wchodzi w okno czasowe.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista kampanii w statusie SCHEDULED
+     */
+    @Transactional(readOnly = true)
+    public List<Campaign> findScheduledByTenantId(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Campaign> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM campaign
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND status = 'SCHEDULED'
+                        ORDER BY created_at ASC
+                        """,
+                        Campaign.class)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        log.debug("[CampaignRepo] Kampanie SCHEDULED: tenant={}, znaleziono={}", tenantId, results.size());
+        return results;
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

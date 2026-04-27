@@ -1,0 +1,108 @@
+$text-primary: #212121;
+$text-secondary: #616161;
+$border-color: #e2e8f0;
+$bg-white: #ffffff;
+$radius: 8px;
+$brand-blue: #1565c0;
+$brand-blue-dark: #0d47a1;
+$brand-blue-bg: #e3f2fd;
+$danger: #c62828;
+$danger-dark: #b71c1c;
+$danger-bg: #ffebee;
+
+.confirm-dialog {
+  border: none;
+  border-radius: $radius;
+  padding: 0;
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.12),
+    0 24px 48px rgba(0, 0, 0, 0.18);
+  width: 100%;
+  max-width: 400px;
+  background: $bg-white;
+  color: $text-primary;
+  overflow: hidden;
+
+  &[open] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+  }
+
+  @media (max-width: 480px) {
+    max-width: calc(100% - 32px);
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+  }
+
+  &__message {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: $text-primary;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+}
+
+// Button styles matching project conventions
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+  white-space: nowrap;
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+
+  &-primary {
+    background: $brand-blue;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: $brand-blue-dark;
+    }
+  }
+
+  &-secondary {
+    background: $brand-blue-bg;
+    color: $brand-blue;
+
+    &:hover:not(:disabled) {
+      background: darken($brand-blue-bg, 4%);
+    }
+  }
+
+  &-danger {
+    background: $danger;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: $danger-dark;
+    }
+  }
+}

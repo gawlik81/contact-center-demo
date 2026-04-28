@@ -112,6 +112,14 @@ public class AppUser {
     @Builder.Default
     private List<String> skills = new ArrayList<>();
 
+    /**
+     * Preferowany język interfejsu użytkownika (ISO 639-1).
+     * Wartości dozwolone: "pl", "en", "de". Dodane w V050.
+     */
+    @Column(name = "preferred_language", nullable = false, length = 10)
+    @Builder.Default
+    private String preferredLanguage = "pl";
+
     /** Soft delete – konto usunięte logicznie, użytkownik nie może się zalogować. */
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;

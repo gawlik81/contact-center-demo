@@ -2103,7 +2103,8 @@ Scheduled component `CampaignWindowActivator` sprawdzający cyklicznie kampanie 
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** BE-003 (auth), DB-029
-**Status:** 🔲 Do zrealizowania
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Blokuje:** FE-050
 **Epic:** EPIC-19 Wielojęzyczność
 **Odniesienie PRD:** przekrojowe

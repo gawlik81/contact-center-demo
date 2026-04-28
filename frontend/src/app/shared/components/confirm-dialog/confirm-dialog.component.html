@@ -1,0 +1,17 @@
+<dialog #dialogEl class="confirm-dialog" (click)="onBackdropClick($event)">
+  <div class="confirm-dialog__content">
+    <p class="confirm-dialog__message">{{ message() }}</p>
+    <div class="confirm-dialog__actions">
+      <button type="button" class="btn btn-secondary" (click)="onCancel()">{{ cancelLabel() }}</button>
+      <button
+        type="button"
+        class="btn"
+        [class.btn-danger]="danger()"
+        [class.btn-primary]="!danger()"
+        (click)="onConfirm()"
+      >
+        {{ confirmLabel() }}
+      </button>
+    </div>
+  </div>
+</dialog>

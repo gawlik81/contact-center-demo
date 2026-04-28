@@ -1,0 +1,125 @@
+<dialog
+  #dialogEl
+  class="info-dialog"
+  aria-labelledby="info-title"
+  (click)="onBackdropClick($event)"
+  (keydown)="$event.key === 'Escape' && close()"
+  tabindex="-1"
+>
+  <div class="info-modal">
+    <!-- Header -->
+    <div class="info-modal__header">
+      <h2 class="info-modal__title" id="info-title">Informacje o kampanii</h2>
+      <button class="btn btn-close" type="button" (click)="close()" aria-label="Zamknij informacje o kampanii">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="info-modal__body">
+      <dl class="info-grid">
+        <!-- Nazwa -->
+        <div class="info-grid__row">
+          <dt class="info-grid__label">Nazwa</dt>
+          <dd class="info-grid__value info-grid__value--name">{{ campaign.name }}</dd>
+        </div>
+
+        <!-- Status -->
+        <div class="info-grid__row">
+          <dt class="info-grid__label">Status</dt>
+          <dd class="info-grid__value">
+            <span
+              class="status-badge"
+              [class.status-badge--draft]="campaign.status === 'DRAFT'"
+              [class.status-badge--scheduled]="campaign.status === 'SCHEDULED'"
+              [class.status-badge--running]="campaign.status === 'RUNNING'"
+              [class.status-badge--paused]="campaign.status === 'PAUSED'"
+              [class.status-badge--stopped]="campaign.status === 'STOPPED'"
+              [class.status-badge--completed]="campaign.status === 'COMPLETED'"
+            >
+              {{ formatStatus(campaign.status) }}
+            </span>
+          </dd>
+        </div>
+
+        <!-- Typ -->
+        <div class="info-grid__row">
+          <dt class="info-grid__label">Typ</dt>
+          <dd class="info-grid__value">{{ formatType(campaign.type) }}</dd>
+        </div>
+
+        <!-- Dialer -->
+        <div class="info-grid__row">
+          <dt class="info-grid__label">Dialer</dt>
+          <dd class="info-grid__value">{{ formatDialerType(campaign.dialerType) }}</dd>
+        </div>
+
+        <!-- Separator: Harmonogram -->
+        <div class="info-grid__section-label" role="presentation">Harmonogram</div>
+
+        <div class="info-grid__row info-grid__row--sub">
+          <dt class="info-grid__label">Data od</dt>
+          <dd class="info-grid__value">{{ formatDate(campaign.schedule?.start_date) }}</dd>
+        </div>
+
+        <div class="info-grid__row info-grid__row--sub">
+          <dt class="info-grid__label">Data do</dt>
+          <dd class="info-grid__value">{{ formatDate(campaign.schedule?.end_date) }}</dd>
+        </div>
+
+        <div class="info-grid__row info-grid__row--sub">
+          <dt class="info-grid__label">Godziny aktywne</dt>
+          <dd class="info-grid__value">{{ formatActiveHours(campaign.schedule?.active_hours) }}</dd>
+        </div>
+
+        <div class="info-grid__row info-grid__row--sub">
+          <dt class="info-grid__label">Aktywne dni</dt>
+          <dd class="info-grid__value">{{ formatActiveDays(campaign.schedule?.active_days) }}</dd>
+        </div>
+
+        <div class="info-grid__row info-grid__row--sub">
+          <dt class="info-grid__label">Strefa czasowa</dt>
+          <dd class="info-grid__value">{{ campaign.schedule?.timezone || 'Europe/Warsaw' }}</dd>
+        </div>
+
+        <!-- Separator: Statystyki -->
+        <div class="info-grid__section-label" role="presentation">Statystyki i limity</div>
+
+        <!-- Liczba rekordow -->
+        <div class="info-grid__row">
+          <dt class="info-grid__label">Liczba rekordow</dt>
+          <dd class="info-grid__value">
+            @if (contactCountLoading()) {
+              <span class="spinner" aria-label="Wczytywanie..." role="status"></span>
+            } @else if (contactCount() !== null) {
+              {{ contactCount() }}
+            } @else {
+              <span class="value-unknown">—</span>
+            }
+          </dd>
+        </div>
+
+        <!-- Maks. prob -->
+        <div class="info-grid__row">
+          <dt class="info-grid__label">Maks. prob</dt>
+          <dd class="info-grid__value">{{ campaign.maxAttempts }}</dd>
+        </div>
+
+        <!-- Opoznienie ponowienia -->
+        <div class="info-grid__row">
+          <dt class="info-grid__label">Opoznienie ponowienia</dt>
+          <dd class="info-grid__value">{{ campaign.retryDelayMinutes }} min</dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Footer -->
+    <div class="info-modal__footer">
+      <button class="btn btn-secondary" type="button" (click)="close()">Zamknij</button>
+    </div>
+  </div>
+</dialog>

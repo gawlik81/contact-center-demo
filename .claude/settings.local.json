@@ -230,7 +230,11 @@
       "Bash(xargs -I{} basename {} .java)",
       "Bash(xargs -I{} basename {} .ts)",
       "Bash(xargs -I{} basename {} .spec.ts)",
-      "Bash(xargs ls *)"
+      "Bash(xargs ls *)",
+      "Bash(cloc *)",
+      "Bash(cat vitest.config.ts)",
+      "Bash(cat vitest.config.js)",
+      "Bash(ng test *)"
     ]
   }
 }

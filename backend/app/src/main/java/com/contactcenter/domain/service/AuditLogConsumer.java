@@ -37,7 +37,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AuditLogConsumer {
+public class AuditLogConsumer extends TenantAwareConsumer {
 
     private final AuditLogRepository auditLogRepository;
 
@@ -68,7 +68,10 @@ public class AuditLogConsumer {
             log.warn("[AuditLogConsumer] Otrzymano null zdarzenie – ignoruję");
             return;
         }
+        processWithTenant(event.tenantId(), () -> doHandle(event));
+    }
 
+    private void doHandle(AuditLogEvent event) {
         log.debug("[AuditLogConsumer] Przetwarzanie zdarzenia audytowego: action={}, entityType={}, entityId={}",
                 event.action(), event.entityType(), event.entityId());
 

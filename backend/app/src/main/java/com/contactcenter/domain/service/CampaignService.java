@@ -34,6 +34,7 @@ import java.util.UUID;
  *   DRAFT      → SCHEDULED (start, jeśli start_date w przyszłości)
  *   DRAFT      → RUNNING   (start, jeśli harmonogram pusty lub aktualny)
  *   SCHEDULED  → RUNNING   (start)
+ *   SCHEDULED  → DRAFT     (revertToDraft)
  *   RUNNING    → PAUSED    (pause)
  *   PAUSED     → RUNNING   (start/resume)
  *   RUNNING    → STOPPED   (stop)
@@ -304,6 +305,38 @@ public class CampaignService {
         return CampaignResponse.from(saved);
     }
 
+    /**
+     * Cofa kampanię SCHEDULED do statusu DRAFT.
+     *
+     * <p>Dozwolone przejście: SCHEDULED → DRAFT.
+     * Umożliwia edycję harmonogramu po zaplanowaniu.
+     *
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     * @return DTO kampanii ze statusem DRAFT
+     * @throws InvalidOperationException gdy kampania nie jest w statusie SCHEDULED
+     */
+    @Transactional
+    public CampaignResponse revertToDraft(UUID campaignId, UUID tenantId) {
+        Campaign campaign = findOrThrow(campaignId, tenantId);
+        String currentStatus = campaign.getStatus();
+
+        if (!STATUS_SCHEDULED.equals(currentStatus)) {
+            throw new InvalidOperationException(
+                    String.format("Nie można cofnąć kampanii '%s' do szkicu ze statusu %s. " +
+                            "Operacja dozwolona tylko dla kampanii w statusie SCHEDULED.",
+                            campaign.getName(), currentStatus));
+        }
+
+        campaign.setStatus(STATUS_DRAFT);
+        Campaign saved = campaignRepository.save(campaign);
+
+        log.info("[CampaignService] Cofnięto kampanię do szkicu: campaignId={}, SCHEDULED → DRAFT, tenant={}",
+                campaignId, tenantId);
+
+        return CampaignResponse.from(saved);
+    }
+
     // =========================================================================
     // Pomocnicze
     // =========================================================================
@@ -316,7 +349,7 @@ public class CampaignService {
      *   <li>Brak harmonogramu ({}) → RUNNING</li>
      *   <li>start_date w przyszłości → SCHEDULED</li>
      *   <li>end_date w przeszłości → błąd 422</li>
-     *   <li>Kampania poza oknem active_hours/active_days → błąd 422</li>
+     *   <li>Kampania poza oknem active_hours/active_days → SCHEDULED</li>
      *   <li>Kampania w oknie czasowym → RUNNING</li>
      * </ul>
      *
@@ -363,10 +396,7 @@ public class CampaignService {
         if (activeDays != null && !activeDays.isEmpty()) {
             String currentDayOfWeek = now.getDayOfWeek().name().substring(0, 3); // MON, TUE, ...
             if (!activeDays.contains(currentDayOfWeek)) {
-                throw new InvalidOperationException(
-                        String.format("Kampania '%s' poza oknem czasowym harmonogramu: " +
-                                "dzisiejszy dzień tygodnia (%s) nie jest w liście aktywnych dni.",
-                                campaign.getName(), currentDayOfWeek));
+                return STATUS_SCHEDULED;
             }
         }
 
@@ -381,10 +411,7 @@ public class CampaignService {
                 LocalTime toTime = LocalTime.parse(toStr);
                 LocalTime currentTime = now.toLocalTime();
                 if (currentTime.isBefore(fromTime) || currentTime.isAfter(toTime)) {
-                    throw new InvalidOperationException(
-                            String.format("Kampania '%s' poza oknem czasowym harmonogramu: " +
-                                    "aktualna godzina %s jest poza oknem %s–%s.",
-                                    campaign.getName(), currentTime, fromStr, toStr));
+                    return STATUS_SCHEDULED;
                 }
             }
         }

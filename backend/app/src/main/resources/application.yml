@@ -394,3 +394,16 @@ dialer:
     interval-ms: ${DIALER_CALLBACK_EXECUTOR_INTERVAL_MS:60000}
     # Maksymalna liczba callbacków przetwarzanych w jednym cyklu per tenant.
     batch-size: ${DIALER_CALLBACK_EXECUTOR_BATCH_SIZE:50}
+
+# =============================================================================
+# Agent Breaks Activator – automatyczna aktywacja i kończenie przerw agentów
+# =============================================================================
+agent:
+  breaks:
+    activator:
+      # Włącza/wyłącza scheduler. Domyślnie true.
+      # Wyłącz przez AGENT_BREAKS_ACTIVATOR_ENABLED=false w ENV vars.
+      enabled: ${AGENT_BREAKS_ACTIVATOR_ENABLED:true}
+      # Opóźnienie między zakończeniem jednego cyklu a startem kolejnego (ms).
+      # fixedDelay: co 30s po zakończeniu poprzedniego cyklu.
+      interval-ms: ${AGENT_BREAKS_ACTIVATOR_INTERVAL_MS:30000}

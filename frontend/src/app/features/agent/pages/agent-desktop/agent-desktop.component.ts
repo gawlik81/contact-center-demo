@@ -26,6 +26,7 @@ import { DispositionPanelComponent } from '../../components/disposition-panel/di
 import { EmailContactComponent } from './email-contact/email-contact.component';
 import { SocialContactComponent } from './social-contact/social-contact.component';
 import { ManualCampaignPanelComponent } from '../../components/manual-campaign-panel/manual-campaign-panel.component';
+import { AgentCalendarComponent } from './agent-calendar/agent-calendar.component';
 import {
   AgentStatus,
   ALL_AGENT_STATUSES,
@@ -53,6 +54,7 @@ import {
     EmailContactComponent,
     SocialContactComponent,
     ManualCampaignPanelComponent,
+    AgentCalendarComponent,
   ],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
@@ -110,6 +112,9 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
   protected readonly wrappingTab = this.tabStore.wrappingTab;
 
   protected readonly tabLimitMessage = signal<string | null>(null);
+
+  /** Calendar tab visibility */
+  protected readonly calendarTabActive = signal(false);
 
   /**
    * Monitors SoftphoneService session state.
@@ -239,6 +244,14 @@ export class AgentDesktopComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.ws.disconnect();
+  }
+
+  protected openCalendarTab(): void {
+    this.calendarTabActive.set(true);
+  }
+
+  protected closeCalendarTab(): void {
+    this.calendarTabActive.set(false);
   }
 
   protected changeStatus(status: AgentStatus): void {

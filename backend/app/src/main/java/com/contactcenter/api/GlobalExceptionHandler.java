@@ -14,6 +14,8 @@ import com.contactcenter.security.MfaService;
 import jakarta.persistence.EntityNotFoundException;
 import org.hibernate.exception.GenericJDBCException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -267,7 +269,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Zasób nie istnieje – HTTP 422 Unprocessable Entity.
+     * Zasób nie istnieje – HTTP 404 Not Found.
      *
      * <p>Obsługuje {@link EntityNotFoundException} rzucany przez serwisy domenowe
      * gdy encja o podanym ID nie istnieje.
@@ -276,14 +278,35 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleEntityNotFoundException(
             EntityNotFoundException ex, WebRequest request) {
 
-        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
         problem.setType(URI.create(ERROR_BASE_URI + "entity-not-found"));
         problem.setTitle("Zasób nie istnieje");
         problem.setDetail(ex.getMessage());
         problem.setProperty("timestamp", Instant.now());
 
-        log.debug("[API] Zasób nie istnieje: {}", ex.getMessage());
-        return ResponseEntity.unprocessableEntity().body(problem);
+        log.debug("[API] Zasób nie istnieje (EntityNotFoundException): {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    /**
+     * Konflikt równoczesnej modyfikacji (Optimistic Locking) – HTTP 409 Conflict.
+     *
+     * <p>Rzucany przez Hibernate/Spring Data gdy wiersz został zmodyfikowany
+     * przez inną transakcję między odczytem a zapisem (pole {@code @Version}).
+     * Klient powinien odświeżyć dane i ponowić operację.
+     */
+    @ExceptionHandler({ObjectOptimisticLockingFailureException.class, OptimisticLockingFailureException.class})
+    public ResponseEntity<ProblemDetail> handleOptimisticLockingException(
+            Exception ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setType(URI.create(ERROR_BASE_URI + "optimistic-locking-conflict"));
+        problem.setTitle("Konflikt równoczesnej modyfikacji");
+        problem.setDetail("Zasób został zmodyfikowany przez inną operację. Odśwież dane i spróbuj ponownie.");
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API] Konflikt optimistic locking: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     /**

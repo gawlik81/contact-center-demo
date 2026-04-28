@@ -162,6 +162,15 @@ springdoc:
 # =============================================================================
 
 # =============================================================================
+# Agent Breaks Activator – PROD: interwał 60s (mniejsze obciążenie DB)
+# =============================================================================
+agent:
+  breaks:
+    activator:
+      enabled: ${AGENT_BREAKS_ACTIVATOR_ENABLED:true}
+      interval-ms: ${AGENT_BREAKS_ACTIVATOR_INTERVAL_MS:60000}
+
+# =============================================================================
 # Logowanie – prod: INFO (bez SQL dump, bez debug security)
 # =============================================================================
 logging:

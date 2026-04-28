@@ -1,0 +1,213 @@
+<!-- Reschedule Callback Modal -->
+@if (selectedCallback()) {
+  <app-reschedule-callback-modal
+    [callbackId]="selectedCallback()!.id"
+    [currentScheduledAt]="parseDate(selectedCallback()!.scheduledAt)"
+    (rescheduled)="onCallbackRescheduled()"
+    (cancelled)="selectedCallback.set(null)"
+  />
+}
+
+<!-- AddBreakModal (FE-045) -->
+@if (selectedBreak() || addBreakMode()) {
+  <app-add-break-modal
+    [existingBreak]="selectedBreak()"
+    (saved)="onBreakSaved()"
+    (cancelled)="closeBreakModal()"
+    (breakCancelled)="onBreakCancelled()"
+  />
+}
+
+<!-- Calendar container -->
+<div class="cal">
+  <!-- ── Header ── -->
+  <div class="cal__header">
+    <div class="cal__nav">
+      <button
+        type="button"
+        class="cal__nav-btn"
+        aria-label="Poprzedni okres"
+        (click)="navigate(-1)"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+        </svg>
+      </button>
+
+      <button type="button" class="cal__today-btn" (click)="goToday()">Dzisiaj</button>
+
+      <button
+        type="button"
+        class="cal__nav-btn"
+        aria-label="Nastepny okres"
+        (click)="navigate(1)"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+        </svg>
+      </button>
+    </div>
+
+    <h2 class="cal__label">{{ displayLabel() }}</h2>
+
+    <div class="cal__mode-switch" role="group" aria-label="Tryb widoku">
+      <button
+        type="button"
+        class="cal__mode-btn"
+        [class.cal__mode-btn--active]="viewMode() === 'week'"
+        (click)="setViewMode('week')"
+        aria-pressed="{{ viewMode() === 'week' }}"
+      >
+        Tydzien
+      </button>
+      <button
+        type="button"
+        class="cal__mode-btn"
+        [class.cal__mode-btn--active]="viewMode() === 'day'"
+        (click)="setViewMode('day')"
+        aria-pressed="{{ viewMode() === 'day' }}"
+      >
+        Dzien
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Loading spinner ── -->
+  @if (isLoading()) {
+    <div class="cal__spinner-overlay" aria-live="polite" aria-label="Ladowanie kalendarza">
+      <span class="cal__spinner"></span>
+    </div>
+  }
+
+  <!-- ── Grid ── -->
+  <div class="cal__grid" [class.cal__grid--day]="viewMode() === 'day'">
+    @for (day of weekDays(); track trackByDay($index, day)) {
+      <div
+        class="cal__day"
+        [class.cal__day--today]="day.isToday"
+      >
+        <!-- Day header -->
+        <div class="cal__day-header">
+          <span class="cal__day-label">{{ day.label }}</span>
+          @if (day.callbacks.length + day.breaks.length + day.campaigns.length > 0) {
+            <span class="cal__day-count" aria-label="{{ day.callbacks.length + day.breaks.length + day.campaigns.length }} zdarzen">
+              {{ day.callbacks.length + day.breaks.length + day.campaigns.length }}
+            </span>
+          }
+        </div>
+
+        <!-- Events list: campaigns (all-day) first, then timed events chronologically -->
+        <div class="cal__events">
+          @for (event of day.events; track trackByEventId($index, event)) {
+            @if (event.kind === 'callback') {
+              @let cb = event.item;
+              <button
+                type="button"
+                class="cal__event cal__event--callback"
+                (click)="openCallback(cb)"
+                [attr.aria-label]="'Oddzwonienie do ' + cb.customerName + ' o ' + formatTime(cb.scheduledAt)"
+              >
+                <span class="cal__event-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path [attr.d]="CALLBACK_ICON" />
+                  </svg>
+                </span>
+                <span class="cal__event-body">
+                  <span class="cal__event-title">{{ cb.customerName }}</span>
+                  <span class="cal__event-meta">{{ formatTime(cb.scheduledAt) }} &middot; {{ callbackSourceLabel(cb.sourceType) }}</span>
+                </span>
+                <span class="cal__event-status" [class]="'cal__event-status--' + cb.status.toLowerCase()">
+                  {{ callbackStatusLabel(cb.status) }}
+                </span>
+              </button>
+            } @else if (event.kind === 'break') {
+              @let br = event.item;
+              <button
+                type="button"
+                class="cal__event cal__event--break"
+                (click)="openBreak(br)"
+                [attr.aria-label]="breakTypeLabel(br.breakType) + ' od ' + formatTime(br.startTime)"
+              >
+                <span class="cal__event-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path [attr.d]="BREAK_ICON" />
+                  </svg>
+                </span>
+                <span class="cal__event-body">
+                  <span class="cal__event-title">{{ breakTypeLabel(br.breakType) }}</span>
+                  <span class="cal__event-meta">{{ formatTime(br.startTime) }}–{{ formatTime(br.endTime) }}</span>
+                </span>
+                <span class="cal__event-status" [class]="'cal__event-status--' + br.status.toLowerCase()">
+                  {{ breakStatusLabel(br.status) }}
+                </span>
+              </button>
+            } @else if (event.kind === 'campaign') {
+              @let c = event.item;
+              <button
+                type="button"
+                class="cal__event cal__event--campaign"
+                [class.cal__event--selected]="selectedCampaign()?.id === c.id"
+                (click)="openCampaignInline(c)"
+                [attr.aria-expanded]="selectedCampaign()?.id === c.id"
+                [attr.aria-label]="'Kampania ' + c.name"
+              >
+                <span class="cal__event-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path [attr.d]="CAMPAIGN_ICON" />
+                  </svg>
+                </span>
+                <span class="cal__event-body">
+                  <span class="cal__event-title">{{ c.name }}</span>
+                  <span class="cal__event-meta">{{ formatDateRange(c.startDate, c.endDate) }}</span>
+                </span>
+                <span class="cal__event-status" [class]="'cal__event-status--' + c.status.toLowerCase()">
+                  {{ campaignStatusLabel(c.status) }}
+                </span>
+              </button>
+
+              <!-- Inline campaign details panel -->
+              @if (selectedCampaign()?.id === c.id) {
+                <div class="cal__campaign-panel" role="region" aria-label="Szczegoly kampanii">
+                  <dl class="cal__campaign-dl">
+                    <dt>Nazwa</dt>
+                    <dd>{{ c.name }}</dd>
+                    <dt>Status</dt>
+                    <dd>{{ campaignStatusLabel(c.status) }}</dd>
+                    <dt>Okres</dt>
+                    <dd>{{ formatDateRange(c.startDate, c.endDate) }}</dd>
+                    @if (c.activeHoursFrom || c.activeHoursTo) {
+                      <dt>Godziny</dt>
+                      <dd>{{ c.activeHoursFrom ?? '00:00' }}–{{ c.activeHoursTo ?? '23:59' }}{{ c.timezone ? ' (' + c.timezone + ')' : '' }}</dd>
+                    }
+                    @if (c.activeDays && c.activeDays.length > 0) {
+                      <dt>Dni</dt>
+                      <dd>{{ formatActiveDays(c.activeDays) }}</dd>
+                    }
+                  </dl>
+                </div>
+              }
+            }
+          }
+
+          <!-- Empty day -->
+          @if (day.events.length === 0) {
+            <p class="cal__day-empty">Brak zdarzen</p>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- FAB: Add break -->
+<button
+  type="button"
+  class="cal__fab"
+  aria-label="Dodaj przerwe"
+  (click)="openAddBreak()"
+>
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+  </svg>
+  Dodaj przerwe
+</button>

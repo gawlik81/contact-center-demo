@@ -321,7 +321,7 @@ public class UserService {
 
         // Agent może zmieniać tylko własny status
         String requestingRole = TenantContext.getUserRole();
-        UUID requestingUserId = TenantContext.getUserId();
+        UUID requestingUserId = TenantContext.getUserIdOrNull();
         if ("AGENT".equalsIgnoreCase(requestingRole) && !userId.equals(requestingUserId)) {
             throw new AccessDeniedException("Agent może zmieniać tylko własny status");
         }

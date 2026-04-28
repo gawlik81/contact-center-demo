@@ -45,6 +45,10 @@ export class CampaignService {
     return this.http.post<Campaign>(`${this.API}/${id}/stop`, {});
   }
 
+  revertToDraft(id: string): Observable<Campaign> {
+    return this.http.post<Campaign>(`${this.API}/${id}/draft`, {});
+  }
+
   importContacts(
     campaignId: string,
     file: File,

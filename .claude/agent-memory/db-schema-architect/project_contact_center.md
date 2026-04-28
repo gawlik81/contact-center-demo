@@ -40,6 +40,9 @@ Stan migracji po V035 (2026-04-08):
   - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
   - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
 
+Stan migracji po V048 (2026-04-25):
+- V048__agent_break.sql: tabela przerw agentów (agent_break), klucz UUID (uuid_generate_v4()), FK do tenant i app_user ON DELETE RESTRICT, CHECK constraints na break_type (LUNCH/SHORT_BREAK/TRAINING/OTHER), status (PLANNED/ACTIVE/COMPLETED/CANCELLED) i end_time > start_time, indeks kompozytowy (tenant_id, agent_id, start_time), RLS USING (current_setting('app.current_tenant_id', TRUE)::uuid)
+
 Stan migracji po V033 (2026-04-08):
 - V030__add_error_contact_status.sql: dodanie statusu ERROR do tabeli contact
 - V031__add_dialer_indexes.sql: indeksy dla Progressive Dialer (BE-024) – zawierała błędy redundancji naprawione w V033

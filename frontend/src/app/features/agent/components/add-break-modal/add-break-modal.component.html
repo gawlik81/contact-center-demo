@@ -1,0 +1,354 @@
+<dialog
+  #dialogEl
+  class="break-dialog"
+  [attr.aria-labelledby]="isEditMode() ? 'break-dialog-title-edit' : 'break-dialog-title-add'"
+  (click)="onBackdropClick($event)"
+>
+  <div class="break-dialog__content">
+    <!-- Header -->
+    <header class="break-dialog__header">
+      <div class="break-dialog__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"
+          />
+        </svg>
+      </div>
+      <div class="break-dialog__title-block">
+        @if (isEditMode()) {
+          <h2 id="break-dialog-title-edit" class="break-dialog__title">Edytuj przerwę</h2>
+          <p class="break-dialog__subtitle">Zmień szczegóły zaplanowanej przerwy</p>
+        } @else {
+          <h2 id="break-dialog-title-add" class="break-dialog__title">Dodaj przerwę</h2>
+          <p class="break-dialog__subtitle">Zaplanuj nową przerwę w kalendarzu</p>
+        }
+      </div>
+      <button
+        type="button"
+        class="break-dialog__close-btn"
+        [disabled]="loading()"
+        aria-label="Zamknij dialog"
+        (click)="close()"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12
+             13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </header>
+
+    <!-- Body -->
+    <div class="break-dialog__body">
+      <!-- Confirm cancel section (shown instead of form when confirming) -->
+      @if (confirmCancel()) {
+        <div class="break-dialog__confirm" role="alertdialog" aria-labelledby="confirm-cancel-title">
+          <div class="break-dialog__confirm-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+              />
+            </svg>
+          </div>
+          <p id="confirm-cancel-title" class="break-dialog__confirm-text">
+            Czy na pewno chcesz anulować tę przerwę? Operacji nie można cofnąć.
+          </p>
+          <div class="break-dialog__confirm-actions">
+            <button
+              type="button"
+              class="btn btn--secondary"
+              [disabled]="loading()"
+              (click)="abortCancelBreak()"
+            >
+              Nie
+            </button>
+            <button
+              type="button"
+              class="btn btn--danger"
+              [disabled]="loading()"
+              [class.btn--loading]="loading()"
+              [attr.aria-busy]="loading()"
+              (click)="confirmCancelBreak()"
+            >
+              @if (loading()) {
+                <span class="btn__spinner" aria-hidden="true"></span>
+                <span>Anulowanie...</span>
+              } @else {
+                <span>Tak, anuluj</span>
+              }
+            </button>
+          </div>
+        </div>
+      } @else {
+        <!-- Main form -->
+        <form [formGroup]="form" (ngSubmit)="submit()" id="break-form" novalidate>
+          <!-- Break type -->
+          <div class="form-field" [class.form-field--error]="breakTypeError">
+            <label class="form-field__label" for="break-type">
+              Typ przerwy <span class="form-field__required" aria-hidden="true">*</span>
+            </label>
+            <select
+              id="break-type"
+              class="form-field__select"
+              formControlName="breakType"
+              aria-required="true"
+              [attr.aria-invalid]="
+                form.controls.breakType.invalid && form.controls.breakType.touched
+              "
+            >
+              @for (opt of breakTypes; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+            @if (breakTypeError) {
+              <span class="form-field__hint" role="alert">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  />
+                </svg>
+                {{ breakTypeError }}
+              </span>
+            }
+          </div>
+
+          <!-- Start date + time -->
+          <div class="form-field">
+            <span class="form-field__label" aria-hidden="true">
+              Czas rozpoczęcia <span class="form-field__required" aria-hidden="true">*</span>
+            </span>
+            <div class="form-row">
+              <div class="form-row__col" [class.form-field--error]="startDateError">
+                <input
+                  id="break-start-date"
+                  type="date"
+                  class="form-field__input"
+                  formControlName="startDate"
+                  [min]="minDate()"
+                  aria-required="true"
+                  aria-label="Data rozpoczęcia przerwy"
+                  [attr.aria-invalid]="
+                    form.controls.startDate.invalid && form.controls.startDate.touched
+                  "
+                />
+                @if (startDateError) {
+                  <span class="form-field__hint" role="alert">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                      />
+                    </svg>
+                    {{ startDateError }}
+                  </span>
+                }
+              </div>
+              <div
+                class="form-row__col form-row__col--time"
+                [class.form-field--error]="startTimeError"
+              >
+                <div class="time-selects">
+                  <select
+                    class="form-field__select time-selects__select"
+                    formControlName="startHour"
+                    aria-label="Godzina rozpoczęcia"
+                    aria-required="true"
+                  >
+                    @for (h of hours; track h) {
+                      <option [value]="h">{{ h }}</option>
+                    }
+                  </select>
+                  <span class="time-selects__sep" aria-hidden="true">:</span>
+                  <select
+                    class="form-field__select time-selects__select"
+                    formControlName="startMinute"
+                    aria-label="Minuty rozpoczęcia"
+                    aria-required="true"
+                  >
+                    @for (m of minutes; track m) {
+                      <option [value]="m">{{ m }}</option>
+                    }
+                  </select>
+                </div>
+                @if (startTimeError) {
+                  <span class="form-field__hint" role="alert">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                      />
+                    </svg>
+                    {{ startTimeError }}
+                  </span>
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- End date + time -->
+          <div class="form-field">
+            <span class="form-field__label" aria-hidden="true">
+              Czas zakończenia <span class="form-field__required" aria-hidden="true">*</span>
+            </span>
+            <div class="form-row">
+              <div class="form-row__col" [class.form-field--error]="endDateError">
+                <input
+                  id="break-end-date"
+                  type="date"
+                  class="form-field__input"
+                  formControlName="endDate"
+                  [min]="minDate()"
+                  aria-required="true"
+                  aria-label="Data zakończenia przerwy"
+                  [attr.aria-invalid]="
+                    form.controls.endDate.invalid && form.controls.endDate.touched
+                  "
+                />
+                @if (endDateError) {
+                  <span class="form-field__hint" role="alert">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                      />
+                    </svg>
+                    {{ endDateError }}
+                  </span>
+                }
+              </div>
+              <div
+                class="form-row__col form-row__col--time"
+                [class.form-field--error]="endTimeError || !!endNotAfterStartError"
+              >
+                <div class="time-selects">
+                  <select
+                    class="form-field__select time-selects__select"
+                    formControlName="endHour"
+                    aria-label="Godzina zakończenia"
+                    aria-required="true"
+                  >
+                    @for (h of hours; track h) {
+                      <option [value]="h">{{ h }}</option>
+                    }
+                  </select>
+                  <span class="time-selects__sep" aria-hidden="true">:</span>
+                  <select
+                    class="form-field__select time-selects__select"
+                    formControlName="endMinute"
+                    aria-label="Minuty zakończenia"
+                    aria-required="true"
+                  >
+                    @for (m of minutes; track m) {
+                      <option [value]="m">{{ m }}</option>
+                    }
+                  </select>
+                </div>
+                @if (endTimeError) {
+                  <span class="form-field__hint" role="alert">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                      />
+                    </svg>
+                    {{ endTimeError }}
+                  </span>
+                }
+              </div>
+            </div>
+            @if (endNotAfterStartError) {
+              <span class="form-field__hint" role="alert">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  />
+                </svg>
+                {{ endNotAfterStartError }}
+              </span>
+            }
+          </div>
+
+          <!-- Notes -->
+          <div class="form-field">
+            <label class="form-field__label" for="break-notes">
+              Notatki
+              <span class="form-field__optional">(opcjonalne)</span>
+            </label>
+            <textarea
+              id="break-notes"
+              class="form-field__textarea"
+              rows="3"
+              maxlength="500"
+              placeholder="Dodaj notatkę do przerwy..."
+              formControlName="notes"
+              aria-multiline="true"
+              [attr.aria-invalid]="form.controls.notes.invalid && form.controls.notes.touched"
+              aria-describedby="break-notes-count"
+            ></textarea>
+            <span id="break-notes-count" class="form-field__char-count" aria-live="polite">
+              {{ notesLength() }}&nbsp;/&nbsp;500
+            </span>
+          </div>
+        </form>
+
+        <!-- Error message -->
+        @if (errorMessage()) {
+          <div class="break-dialog__error" role="alert" aria-live="assertive">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+              />
+            </svg>
+            <span>{{ errorMessage() }}</span>
+          </div>
+        }
+      }
+    </div>
+
+    <!-- Footer -->
+    <footer class="break-dialog__footer">
+      @if (isEditMode() && !confirmCancel()) {
+        <button
+          type="button"
+          class="btn btn--danger-outline"
+          [disabled]="loading()"
+          aria-label="Anuluj tę przerwę"
+          (click)="cancelBreak()"
+        >
+          Anuluj przerwę
+        </button>
+      }
+
+      <div class="break-dialog__footer-actions">
+        <button
+          type="button"
+          class="btn btn--secondary"
+          [disabled]="loading()"
+          aria-label="Zamknij dialog bez zapisywania"
+          (click)="close()"
+        >
+          Zamknij
+        </button>
+
+        @if (!confirmCancel()) {
+          <button
+            type="submit"
+            form="break-form"
+            class="btn btn--primary"
+            [disabled]="!canSubmit()"
+            [class.btn--loading]="loading()"
+            [attr.aria-busy]="loading()"
+            [attr.aria-label]="isEditMode() ? 'Zapisz zmiany przerwy' : 'Dodaj przerwę do kalendarza'"
+          >
+            @if (loading()) {
+              <span class="btn__spinner" aria-hidden="true"></span>
+              <span>Zapisywanie...</span>
+            } @else {
+              <svg class="btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+              </svg>
+              <span>{{ isEditMode() ? 'Zapisz zmiany' : 'Dodaj przerwę' }}</span>
+            }
+          </button>
+        }
+      </div>
+    </footer>
+  </div>
+</dialog>

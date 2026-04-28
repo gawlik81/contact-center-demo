@@ -36,6 +36,7 @@ import java.util.UUID;
  *   <li>POST   /api/campaigns/{id}/start       – uruchomienie kampanii</li>
  *   <li>POST   /api/campaigns/{id}/pause       – wstrzymanie kampanii</li>
  *   <li>POST   /api/campaigns/{id}/stop        – zatrzymanie kampanii</li>
+ *   <li>POST   /api/campaigns/{id}/draft       – cofnięcie kampanii SCHEDULED do DRAFT</li>
  * </ul>
  *
  * <p>TenantId i UserId pobierane są z {@link TenantContext} ustawionego przez {@code TenantFilter}.
@@ -243,6 +244,28 @@ public class CampaignController {
         UUID tenantId = TenantContext.getTenantId();
         CampaignResponse response = campaignService.stopCampaign(id, tenantId);
         log.debug("[CampaignController] POST /api/campaigns/{}/stop → STOPPED", id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/draft")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @Operation(
+        summary = "Cofnij kampanię do szkicu",
+        description = "Cofa kampanię ze statusu SCHEDULED do DRAFT, umożliwiając ponowną edycję harmonogramu.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Kampania cofnięta do szkicu"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "409", description = "Kampania nie jest w statusie SCHEDULED"),
+            @ApiResponse(responseCode = "422", description = "Kampania nie istnieje")
+        }
+    )
+    public ResponseEntity<CampaignResponse> revertToDraft(
+            @Parameter(description = "UUID kampanii") @PathVariable UUID id
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        CampaignResponse response = campaignService.revertToDraft(id, tenantId);
+        log.debug("[CampaignController] POST /api/campaigns/{}/draft → DRAFT", id);
         return ResponseEntity.ok(response);
     }
 }

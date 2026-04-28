@@ -223,6 +223,90 @@ public class CampaignRepository extends TenantAwareRepository {
         return results;
     }
 
+    /**
+     * Pobiera kampanie powiązane z agentem przez kolejkę (kalendarz agenta, BE-051).
+     *
+     * <p>Agent widzi kampanię jeśli spełniony jest dowolny z warunków:
+     * <ol>
+     *   <li>jest jawnie przypisany do kolejki przez {@code queue_agent},</li>
+     *   <li>kolejka ma flagę {@code all_agents = TRUE} (wszyscy agenci tenanta),</li>
+     *   <li>jest członkiem grupy przypisanej do kolejki przez {@code queue_agent_group}.</li>
+     * </ol>
+     *
+     * <p>Wyklucza kampanie w statusach COMPLETED i CANCELLED.
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  UUID agenta
+     * @return lista kampanii widocznych dla agenta (bez COMPLETED/CANCELLED)
+     */
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public List<Campaign> findByAgentIdViaQueue(UUID tenantId, UUID agentId) {
+        setTenantContextInDb(tenantId);
+
+        log.debug("[CampaignRepo] Kalendarz agenta – kampanie via kolejka: tenant={}, agentId={}",
+                tenantId, agentId);
+
+        List<Campaign> results = em.createNativeQuery(
+                        """
+                        SELECT c.* FROM campaign c
+                        JOIN queue q ON c.queue_id = q.queue_id
+                        WHERE c.tenant_id = CAST(:tenantId AS uuid)
+                          AND c.status NOT IN ('COMPLETED', 'CANCELLED')
+                          AND (
+                            q.all_agents = TRUE
+                            OR EXISTS (
+                              SELECT 1 FROM queue_agent qa
+                              WHERE qa.queue_id = c.queue_id
+                                AND qa.agent_id = CAST(:agentId AS uuid)
+                            )
+                            OR EXISTS (
+                              SELECT 1 FROM queue_agent_group qag
+                              JOIN agent_group_member agm ON qag.group_id = agm.group_id
+                              WHERE qag.queue_id = c.queue_id
+                                AND agm.agent_id = CAST(:agentId AS uuid)
+                            )
+                          )
+                        ORDER BY c.created_at ASC
+                        """,
+                        Campaign.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("agentId", agentId.toString())
+                .getResultList();
+
+        log.debug("[CampaignRepo] Znaleziono {} kampanii dla agentId={}", results.size(), agentId);
+        return results;
+    }
+
+    /**
+     * Pobiera wszystkie kampanie w statusie SCHEDULED dla danego tenanta.
+     *
+     * <p>Używane przez {@link com.contactcenter.domain.service.CampaignWindowActivator}
+     * do automatycznego przejścia SCHEDULED → RUNNING gdy kampania wchodzi w okno czasowe.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista kampanii w statusie SCHEDULED
+     */
+    @Transactional(readOnly = true)
+    public List<Campaign> findScheduledByTenantId(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Campaign> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM campaign
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND status = 'SCHEDULED'
+                        ORDER BY created_at ASC
+                        """,
+                        Campaign.class)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        log.debug("[CampaignRepo] Kampanie SCHEDULED: tenant={}, znaleziono={}", tenantId, results.size());
+        return results;
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================

@@ -32,6 +32,7 @@
     "aws-cost-optimization@devops-skills": true,
     "ci-cd@devops-skills": true,
     "gitops-workflows@devops-skills": true,
-    "monitoring-observability@devops-skills": true
+    "monitoring-observability@devops-skills": true,
+    "fullstack-dev-skills@fullstack-dev-skills": true
   }
 }

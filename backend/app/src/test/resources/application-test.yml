@@ -33,6 +33,12 @@ jwt:
   access-token-ttl-seconds: 900
   refresh-token-ttl-seconds: 604800
 
+# Agent Breaks Activator – wyłączony w testach (scheduler nie powinien działać w tle)
+agent:
+  breaks:
+    activator:
+      enabled: false
+
 logging:
   level:
     com.contactcenter: DEBUG

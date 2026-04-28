@@ -58,3 +58,4 @@
 - [Email templates management (FE-031)](./project_fe031_email_templates.md) – EmailTemplatesComponent (CRUD, 3 native dialogs, preview iframe), EmailService extensions, route settings/email-templates, sidenav Konfiguracja
 - [Social contact component (FE-013)](./project_fe013_social_contact.md) – SocialContactComponent (czat FB/IG/WA), WS SOCIAL_MESSAGE_RECEIVED, infinite scroll, read-only mode, ContactType rozszerzony o SOCIAL
 - [Agent customer search tab (FE-040)](./project_fe040_agent_customers_tab.md) – AgentCustomersTabComponent (/agent/customers), debounce Subject+300ms, CustomerSummary model, CustomerSearchService, drawer ze szczegółami, @Output scheduleCallback dla FE-041
+- [Agent calendar component (FE-043)](./project_fe043_agent_calendar.md) – AgentCalendarComponent (tyg/dzień, 3 typy zdarzeń, FAB), calendarTabActive signal w AgentDesktop, placeholder dla FE-045

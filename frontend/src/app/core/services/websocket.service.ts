@@ -47,19 +47,22 @@ export class WebSocketService {
   connect(): void {
     if (this.client?.active) return;
 
-    const token = this.auth.getAccessToken();
     const wsUrl = environment.wsUrl;
 
     this.connectionState.set('CONNECTING');
 
     const config: StompConfig = {
       brokerURL: wsUrl,
-      connectHeaders: {
-        Authorization: `Bearer ${token ?? ''}`,
-      },
+      connectHeaders: {},
       heartbeatOutgoing: 20000,
       heartbeatIncoming: 0,
       reconnectDelay: 1000,
+      beforeConnect: (client: Client) => {
+        // Always read the current token so reconnects use the refreshed one
+        client.connectHeaders = {
+          Authorization: `Bearer ${this.auth.getAccessToken() ?? ''}`,
+        };
+      },
       onConnect: () => {
         this.connectionState.set('CONNECTED');
         this.subscribeToUserEvents();

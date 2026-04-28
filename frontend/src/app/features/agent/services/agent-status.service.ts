@@ -1,10 +1,11 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, EMPTY, Observable, switchMap, tap } from 'rxjs';
+import { catchError, EMPTY, filter, Observable, switchMap, tap } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { AgentStatus } from '../models/agent-status.model';
 import { NotificationService } from '../../../core/services/notification.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
+import { AgentStatusChangedPayload, WsEvent } from '../models/ws-event.model';
 
 interface UserResponse {
   id: string;
@@ -31,19 +32,19 @@ export class AgentStatusService {
   readonly currentStatus = signal<AgentStatus>('OFFLINE');
   readonly isChanging = signal(false);
 
+  private currentUserId: string | null = null;
+
   /**
    * Fetches the current user profile via GET /api/users/me and initialises the agent status.
-   * - If the backend reports an active status (AVAILABLE, BUSY, BREAK, AFTER_CONTACT),
-   *   the signal is set locally without sending a PATCH.
-   * - If the status is OFFLINE, INACTIVE, ACTIVE (non-agent states), or absent,
-   *   a PATCH is sent to set the agent as AVAILABLE.
-   * Errors are swallowed after showing a toast so the desktop still loads.
+   * Also subscribes to AGENT_STATUS_CHANGED WebSocket events so server-side status changes
+   * (e.g. automatic break activation by the scheduler) are reflected immediately in the UI.
    */
   initStatus(): void {
     this.http
       .get<UserResponse>(`${environment.apiUrl}/users/me`)
       .pipe(
         switchMap((user) => {
+          this.currentUserId = user.id;
           const status = user?.status as AgentStatus | undefined;
           if (status && ACTIVE_STATUSES.has(status)) {
             this.currentStatus.set(status);
@@ -57,6 +58,15 @@ export class AgentStatusService {
         }),
       )
       .subscribe();
+
+    this.ws.events$
+      .pipe(filter((e: WsEvent) => e.eventType === 'AGENT_STATUS_CHANGED'))
+      .subscribe((e) => {
+        const payload = e.payload as AgentStatusChangedPayload;
+        if (payload.agentId === this.currentUserId) {
+          this.currentStatus.set(payload.status);
+        }
+      });
   }
 
   /**

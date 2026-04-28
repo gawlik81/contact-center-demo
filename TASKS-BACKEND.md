@@ -1950,7 +1950,8 @@ Nowy endpoint umożliwiający agentowi zaplanowanie oddzwonienia do wybranego kl
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** DB-028
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-26
 **Blokuje:** BE-050, BE-051
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 
@@ -1971,7 +1972,8 @@ JPA entity `AgentBreak` mapująca tabelę `agent_break`. Enum `BreakType` (LUNCH
 **Priorytet:** Should Have
 **Zlozonosc:** M
 **Zależy od:** BE-049
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-26
 **Blokuje:** FE-045
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 
@@ -2003,8 +2005,9 @@ DELETE /api/agent/breaks/{id}                   → anuluj przerwę (PLANNED →
 **Typ:** Feature
 **Priorytet:** Should Have
 **Zlozonosc:** M
-**Zależy od:** BE-049, BE-039, BE-022
-**Status:** ⬜ Do zrobienia
+**Zależy od:** BE-049, BE-039, BE-022, DB-028
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-27
 **Blokuje:** FE-042, FE-043
 **Odniesienie PRD:** EPIC-16 – Agent Calendar
 
@@ -2042,6 +2045,56 @@ GET /api/agent/calendar?from={ISO}&to={ISO}
 
 ---
 
+### BE-052 – Scheduler automatycznej aktywacji i zamykania przerw (`AgentBreakActivator`)
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** BE-049
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-26
+**Blokuje:** brak
+**Epic:** EPIC-16 Kalendarz Agenta
+**Odniesienie PRD:** EPIC-16 – Agent Calendar
+
+**Opis:**
+Scheduled component `AgentBreakActivator` wykonujący cykliczne zadanie (np. co minutę) aktywujące i kończące przerwy agentów. Przy każdym uruchomieniu: przerwy o statusie `PLANNED` których `start_time <= NOW()` przejście do `ACTIVE`; przerwy o statusie `ACTIVE` których `end_time <= NOW()` przejście do `COMPLETED`. Obsługuje izolację multitenant. Zaimplementowany w `/domain/agentbreak/AgentBreakActivator.java`.
+
+**Kryteria akceptacji:**
+- [ ] `@Scheduled` uruchamia zadanie cyklicznie (co minutę lub konfigurowalne)
+- [ ] PLANNED → ACTIVE gdy `start_time <= NOW()` dla wszystkich tenantów
+- [ ] ACTIVE → COMPLETED gdy `end_time <= NOW()` dla wszystkich tenantów
+- [ ] Zmiany statusu atomowe (per rekord lub batch UPDATE)
+- [ ] Błąd dla jednego rekordu nie zatrzymuje przetwarzania pozostałych
+- [ ] Testy jednostkowe `AgentBreakActivatorTest` pokrywające przejścia statusów
+
+---
+
+### BE-053 – Scheduler automatycznej aktywacji kampanii wg harmonogramu (`CampaignWindowActivator`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-022, DB-011
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-27
+**Blokuje:** brak
+**Epic:** EPIC-08 Kampanie Outbound
+**Odniesienie PRD:** EPIC-08
+
+**Opis:**
+Scheduled component `CampaignWindowActivator` sprawdzający cyklicznie kampanie o statusie `SCHEDULED` i automatycznie przełączający je do `RUNNING` gdy bieżący czas mieści się w oknie harmonogramu (pola `schedule.start_date`, `schedule.end_date`, `schedule.time_from`, `schedule.time_to`, `schedule.days_of_week`). Obsługuje strefę czasową tenanta. Zaimplementowany w `/domain/service/CampaignWindowActivator.java`.
+
+**Kryteria akceptacji:**
+- [ ] `@Scheduled` uruchamia zadanie cyklicznie (co minutę lub konfigurowalne)
+- [ ] Kampania SCHEDULED → RUNNING gdy aktualny czas mieści się w oknie harmonogramu
+- [ ] Kampania RUNNING → SCHEDULED gdy wychodzi poza okno harmonogramu (poza godzinami lub dniami)
+- [ ] Strefa czasowa pobierana z konfiguracji tenanta (`tenant.config.timezone`)
+- [ ] Kampanie bez harmonogramu lub z brakującymi polami pomijane bez błędu
+- [ ] Błąd dla jednej kampanii nie zatrzymuje przetwarzania pozostałych
+
+---
+
 ## Podsumowanie zadań Backend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -2055,7 +2108,7 @@ GET /api/agent/calendar?from={ISO}&to={ISO}
 | Email (EPIC-05) | 2 | 2 | 0 |
 | Social Media (EPIC-06) | 2 | 2 | 0 |
 | Routing (EPIC-07) | 3 | 2 | 1 |
-| Kampanie (EPIC-08) | 3 | 3 | 0 |
+| Kampanie (EPIC-08) | 4 | 4 | 0 |
 | Klienci (EPIC-09) | 2 | 2 | 0 |
 | Raporty (EPIC-10) | 4 | 4 | 0 |
 | RODO | 1 | 1 | 0 |
@@ -2063,7 +2116,7 @@ GET /api/agent/calendar?from={ISO}&to={ISO}
 | Zaplanowane oddzwonienia (EPIC-13) | 5 | 5 | 0 |
 | Zarządzanie przypisaniem agentów (EPIC-14) | 5 | 5 | 0 |
 | Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
-| Kalendarz Agenta (EPIC-16) | 3 | 0 | 3 |
+| Kalendarz Agenta (EPIC-16) | 5 | 0 | 5 |
 | Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
 
 ---

@@ -12,6 +12,12 @@ import { TranslocoModule } from '@jsverse/transloco';
 import { LanguageService } from '../../../core/services/language.service';
 import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../../../core/models/language.model';
 
+const LANGUAGE_FLAGS: Record<SupportedLanguage, string> = {
+  pl: '🇵🇱',
+  en: '🇬🇧',
+  de: '🇩🇪',
+};
+
 @Component({
   selector: 'app-language-switcher',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,6 +32,7 @@ export class LanguageSwitcherComponent {
 
   readonly languages: SupportedLanguage[] = SUPPORTED_LANGUAGES;
   readonly currentLang = this.languageService.currentLang;
+  readonly flags = LANGUAGE_FLAGS;
 
   readonly isOpen = signal(false);
 

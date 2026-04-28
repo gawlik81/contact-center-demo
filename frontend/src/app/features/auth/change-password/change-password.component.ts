@@ -14,6 +14,7 @@ import {
   ValidatorFn,
 } from '@angular/forms';
 import { Router } from '@angular/router';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../../../core/services/auth.service';
 
 /** Cross-field validator: newPassword must equal confirmPassword */
@@ -39,7 +40,7 @@ function computeStrength(password: string): number {
 @Component({
   selector: 'app-change-password',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, TranslocoModule],
   templateUrl: './change-password.component.html',
   styleUrl: './change-password.component.scss',
 })
@@ -47,6 +48,7 @@ export class ChangePasswordComponent {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly transloco = inject(TranslocoService);
 
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
@@ -62,9 +64,15 @@ export class ChangePasswordComponent {
 
   // ── Control accessors ────────────────────────────────────────────────────
 
-  private get currentPasswordCtrl() { return this.form.get('currentPassword')!; }
-  private get newPasswordCtrl() { return this.form.get('newPassword')!; }
-  private get confirmPasswordCtrl() { return this.form.get('confirmPassword')!; }
+  private get currentPasswordCtrl() {
+    return this.form.get('currentPassword')!;
+  }
+  private get newPasswordCtrl() {
+    return this.form.get('newPassword')!;
+  }
+  private get confirmPasswordCtrl() {
+    return this.form.get('confirmPassword')!;
+  }
 
   // ── Validation signals ────────────────────────────────────────────────────
 
@@ -87,23 +95,28 @@ export class ChangePasswordComponent {
   readonly currentPasswordError = computed(() => {
     const ctrl = this.currentPasswordCtrl;
     if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Aktualne hasło jest wymagane.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('auth.validation.currentPasswordRequired');
     return null;
   });
 
   readonly newPasswordError = computed(() => {
     const ctrl = this.newPasswordCtrl;
     if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Nowe hasło jest wymagane.';
-    if (ctrl.hasError('minlength')) return 'Hasło musi mieć co najmniej 8 znaków.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('auth.validation.newPasswordRequired');
+    if (ctrl.hasError('minlength'))
+      return this.transloco.translate('auth.validation.passwordTooShort');
     return null;
   });
 
   readonly confirmPasswordError = computed(() => {
     const ctrl = this.confirmPasswordCtrl;
     if (!(ctrl.dirty || ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Potwierdzenie hasła jest wymagane.';
-    if (this.form.hasError('passwordsMismatch')) return 'Hasła nie są identyczne.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('auth.validation.confirmPasswordRequired');
+    if (this.form.hasError('passwordsMismatch'))
+      return this.transloco.translate('auth.validation.passwordsMismatch');
     return null;
   });
 
@@ -115,8 +128,15 @@ export class ChangePasswordComponent {
   });
 
   readonly strengthLabel = computed(() => {
-    const labels = ['', 'Bardzo słabe', 'Słabe', 'Średnie', 'Silne'];
-    return labels[this.strengthScore()] ?? '';
+    const keys = [
+      '',
+      'auth.changePassword.strengthWeak',
+      'auth.changePassword.strengthFair',
+      'auth.changePassword.strengthGood',
+      'auth.changePassword.strengthStrong',
+    ];
+    const key = keys[this.strengthScore()];
+    return key ? this.transloco.translate(key) : '';
   });
 
   readonly strengthClass = computed(() => {
@@ -149,11 +169,13 @@ export class ChangePasswordComponent {
         this.loading.set(false);
         const status = err?.status;
         if (status === 401) {
-          this.errorMessage.set('Aktualne hasło jest nieprawidłowe.');
+          this.errorMessage.set(this.transloco.translate('auth.errors.currentPasswordWrong'));
         } else if (status === 422) {
-          this.errorMessage.set('Nowe hasło nie spełnia wymagań bezpieczeństwa.');
+          this.errorMessage.set(
+            this.transloco.translate('auth.errors.passwordPolicyViolation'),
+          );
         } else {
-          this.errorMessage.set('Wystąpił błąd serwera. Spróbuj ponownie.');
+          this.errorMessage.set(this.transloco.translate('auth.errors.serverError'));
         }
       },
     });

@@ -40,7 +40,7 @@
   <div class="navbar__right">
     @if (auth.currentPayload()) {
       <div class="navbar__tenant" aria-label="Nazwa tenanta">
-        <span class="navbar__tenant-label">Tenant:</span>
+        <span class="navbar__tenant-label">{{ 'nav.tenantLabel' | transloco }}</span>
         <span class="navbar__tenant-id">{{ auth.currentTenantName() ?? auth.currentTenantId() }}</span>
       </div>
 
@@ -76,7 +76,7 @@
         <polyline points="16 17 21 12 16 7" />
         <line x1="21" y1="12" x2="9" y2="12" />
       </svg>
-      <span class="navbar__logout-label">Wyloguj</span>
+      <span class="navbar__logout-label">{{ 'nav.logout' | transloco }}</span>
     </button>
   </div>
 </header>

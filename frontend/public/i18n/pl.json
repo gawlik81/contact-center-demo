@@ -26,11 +26,55 @@
       "emailPlaceholder": "Wpisz adres e-mail",
       "passwordLabel": "Hasło",
       "submitButton": "Zaloguj się",
+      "nextButton": "Dalej",
+      "checking": "Sprawdzanie...",
+      "loggingIn": "Logowanie...",
+      "verifying": "Weryfikacja...",
       "forgotPassword": "Zapomniałem hasła",
       "invalidCredentials": "Nieprawidłowy adres e-mail lub hasło",
       "mfaTitle": "Weryfikacja dwuetapowa",
+      "mfaSubtitle": "Wprowadź 6-cyfrowy kod z aplikacji uwierzytelniającej.",
       "mfaCodeLabel": "Kod weryfikacyjny",
-      "mfaSubmitButton": "Zweryfikuj"
+      "mfaSubmitButton": "Weryfikuj",
+      "orgLabel": "Organizacja",
+      "orgPlaceholder": "-- wybierz organizację --",
+      "back": "← Wróć",
+      "backToLogin": "← Wróć do logowania"
+    },
+    "changePassword": {
+      "title": "Zmiana hasła",
+      "subtitle": "Twoje hasło wygasło lub wymaga zmiany. Ustaw nowe hasło, aby kontynuować.",
+      "currentLabel": "Aktualne hasło",
+      "newLabel": "Nowe hasło",
+      "confirmLabel": "Potwierdź nowe hasło",
+      "submitButton": "Zmień hasło",
+      "saving": "Zapisywanie...",
+      "passwordStrength": "Siła hasła:",
+      "strengthWeak": "Bardzo słabe",
+      "strengthFair": "Słabe",
+      "strengthGood": "Średnie",
+      "strengthStrong": "Silne"
+    },
+    "validation": {
+      "emailRequired": "Adres e-mail jest wymagany.",
+      "emailInvalid": "Podaj prawidłowy adres e-mail.",
+      "passwordRequired": "Hasło jest wymagane.",
+      "passwordTooShort": "Hasło musi mieć co najmniej 8 znaków.",
+      "mfaCodeRequired": "Kod weryfikacyjny jest wymagany.",
+      "mfaCodeInvalid": "Kod musi składać się z 6 cyfr.",
+      "tenantRequired": "Wybór organizacji jest wymagany.",
+      "currentPasswordRequired": "Aktualne hasło jest wymagane.",
+      "newPasswordRequired": "Nowe hasło jest wymagane.",
+      "confirmPasswordRequired": "Potwierdzenie hasła jest wymagane.",
+      "passwordsMismatch": "Hasła nie są identyczne."
+    },
+    "errors": {
+      "invalidCredentials": "Nieprawidłowy e-mail lub hasło.",
+      "serverError": "Wystąpił błąd serwera. Spróbuj ponownie.",
+      "invalidMfaCode": "Nieprawidłowy kod weryfikacyjny.",
+      "mfaFailed": "Weryfikacja nie powiodła się. Spróbuj ponownie.",
+      "currentPasswordWrong": "Aktualne hasło jest nieprawidłowe.",
+      "passwordPolicyViolation": "Nowe hasło nie spełnia wymagań bezpieczeństwa."
     }
   },
   "nav": {
@@ -41,7 +85,32 @@
     "customers": "Klienci",
     "reports": "Raporty",
     "settings": "Ustawienia",
-    "logout": "Wyloguj się"
+    "logout": "Wyloguj się",
+    "tenantLabel": "Tenant:",
+    "menu": "Menu",
+    "collapse": "Zwij",
+    "mainNav": "Nawigacja główna",
+    "collapseNav": "Zwij nawigację",
+    "expandNav": "Rozwiń nawigację",
+    "desktop": "Desktop",
+    "tenants": "Tenants",
+    "users": "Użytkownicy",
+    "metrics": "Metryki",
+    "agentGroups": "Grupy agentów",
+    "callbacks": "Oddzwonienia",
+    "ivr": "IVR",
+    "configuration": "Konfiguracja",
+    "settingsEmail": "Email",
+    "settingsPhoneNumbers": "Numery telefonów",
+    "settingsSocialMedia": "Social Media",
+    "settingsEmailTemplates": "Szablony email",
+    "reportsHistorical": "Historyczne",
+    "reportsContacts": "Kontakty"
+  },
+  "role": {
+    "admin": "Admin",
+    "supervisor": "Supervisor",
+    "agent": "Agent"
   },
   "agent": {
     "status": {

@@ -26,11 +26,55 @@
       "emailPlaceholder": "Enter your email address",
       "passwordLabel": "Password",
       "submitButton": "Sign In",
+      "nextButton": "Next",
+      "checking": "Checking...",
+      "loggingIn": "Signing in...",
+      "verifying": "Verifying...",
       "forgotPassword": "Forgot password",
       "invalidCredentials": "Invalid email address or password",
       "mfaTitle": "Two-factor authentication",
+      "mfaSubtitle": "Enter the 6-digit code from your authenticator app.",
       "mfaCodeLabel": "Verification code",
-      "mfaSubmitButton": "Verify"
+      "mfaSubmitButton": "Verify",
+      "orgLabel": "Organization",
+      "orgPlaceholder": "-- select organization --",
+      "back": "← Back",
+      "backToLogin": "← Back to sign in"
+    },
+    "changePassword": {
+      "title": "Change password",
+      "subtitle": "Your password has expired or needs to be changed. Set a new password to continue.",
+      "currentLabel": "Current password",
+      "newLabel": "New password",
+      "confirmLabel": "Confirm new password",
+      "submitButton": "Change password",
+      "saving": "Saving...",
+      "passwordStrength": "Password strength:",
+      "strengthWeak": "Very weak",
+      "strengthFair": "Weak",
+      "strengthGood": "Fair",
+      "strengthStrong": "Strong"
+    },
+    "validation": {
+      "emailRequired": "Email address is required.",
+      "emailInvalid": "Please enter a valid email address.",
+      "passwordRequired": "Password is required.",
+      "passwordTooShort": "Password must be at least 8 characters.",
+      "mfaCodeRequired": "Verification code is required.",
+      "mfaCodeInvalid": "Code must consist of 6 digits.",
+      "tenantRequired": "Please select an organization.",
+      "currentPasswordRequired": "Current password is required.",
+      "newPasswordRequired": "New password is required.",
+      "confirmPasswordRequired": "Password confirmation is required.",
+      "passwordsMismatch": "Passwords do not match."
+    },
+    "errors": {
+      "invalidCredentials": "Invalid email or password.",
+      "serverError": "A server error occurred. Please try again.",
+      "invalidMfaCode": "Invalid verification code.",
+      "mfaFailed": "Verification failed. Please try again.",
+      "currentPasswordWrong": "Current password is incorrect.",
+      "passwordPolicyViolation": "New password does not meet security requirements."
     }
   },
   "nav": {
@@ -41,7 +85,32 @@
     "customers": "Customers",
     "reports": "Reports",
     "settings": "Settings",
-    "logout": "Log out"
+    "logout": "Log out",
+    "tenantLabel": "Tenant:",
+    "menu": "Menu",
+    "collapse": "Collapse",
+    "mainNav": "Main navigation",
+    "collapseNav": "Collapse navigation",
+    "expandNav": "Expand navigation",
+    "desktop": "Desktop",
+    "tenants": "Tenants",
+    "users": "Users",
+    "metrics": "Metrics",
+    "agentGroups": "Agent groups",
+    "callbacks": "Callbacks",
+    "ivr": "IVR",
+    "configuration": "Configuration",
+    "settingsEmail": "Email",
+    "settingsPhoneNumbers": "Phone numbers",
+    "settingsSocialMedia": "Social Media",
+    "settingsEmailTemplates": "Email templates",
+    "reportsHistorical": "Historical",
+    "reportsContacts": "Contacts"
+  },
+  "role": {
+    "admin": "Admin",
+    "supervisor": "Supervisor",
+    "agent": "Agent"
   },
   "agent": {
     "status": {

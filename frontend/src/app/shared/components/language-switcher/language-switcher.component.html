@@ -7,6 +7,7 @@
     aria-label="Wybierz język"
     (click)="toggleDropdown($event)"
   >
+    <span class="lang-switcher__flag" aria-hidden="true">{{ flags[currentLang()] }}</span>
     <span class="lang-switcher__current">{{ currentLangLabel() }}</span>
     <svg
       class="lang-switcher__chevron"
@@ -42,6 +43,7 @@
               ✓
             }
           </span>
+          <span class="lang-switcher__flag" aria-hidden="true">{{ flags[lang] }}</span>
           <span class="lang-switcher__code">{{ lang.toUpperCase() }}</span>
           <span class="lang-switcher__name">{{ 'language.' + lang | transloco }}</span>
         </li>

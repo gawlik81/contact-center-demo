@@ -6,6 +6,7 @@ import {
   output,
 } from '@angular/core';
 import { NgClass } from '@angular/common';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserRole } from '../../../core/models/jwt-payload.model';
 import { LanguageSwitcherComponent } from '../language-switcher/language-switcher.component';
@@ -13,12 +14,13 @@ import { LanguageSwitcherComponent } from '../language-switcher/language-switche
 @Component({
   selector: 'cc-top-navbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgClass, LanguageSwitcherComponent],
+  imports: [NgClass, LanguageSwitcherComponent, TranslocoModule],
   templateUrl: './top-navbar.component.html',
   styleUrl: './top-navbar.component.scss',
 })
 export class TopNavbarComponent {
   protected readonly auth = inject(AuthService);
+  private readonly transloco = inject(TranslocoService);
 
   /** Whether the sidenav is currently open (used for aria-expanded) */
   readonly sidenavOpen = input<boolean>(false);
@@ -50,11 +52,11 @@ export class TopNavbarComponent {
   getRoleLabel(role: UserRole | null): string {
     switch (role) {
       case 'ADMIN':
-        return 'Admin';
+        return this.transloco.translate('role.admin');
       case 'SUPERVISOR':
-        return 'Supervisor';
+        return this.transloco.translate('role.supervisor');
       case 'AGENT':
-        return 'Agent';
+        return this.transloco.translate('role.agent');
       default:
         return '';
     }

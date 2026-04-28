@@ -26,11 +26,55 @@
       "emailPlaceholder": "E-Mail-Adresse eingeben",
       "passwordLabel": "Passwort",
       "submitButton": "Anmelden",
+      "nextButton": "Weiter",
+      "checking": "Prüfen...",
+      "loggingIn": "Anmelden...",
+      "verifying": "Verifizieren...",
       "forgotPassword": "Passwort vergessen",
       "invalidCredentials": "Ungültige E-Mail-Adresse oder Passwort",
       "mfaTitle": "Zwei-Faktor-Authentifizierung",
+      "mfaSubtitle": "Geben Sie den 6-stelligen Code aus Ihrer Authentifizierungs-App ein.",
       "mfaCodeLabel": "Bestätigungscode",
-      "mfaSubmitButton": "Bestätigen"
+      "mfaSubmitButton": "Bestätigen",
+      "orgLabel": "Organisation",
+      "orgPlaceholder": "-- Organisation auswählen --",
+      "back": "← Zurück",
+      "backToLogin": "← Zurück zur Anmeldung"
+    },
+    "changePassword": {
+      "title": "Passwort ändern",
+      "subtitle": "Ihr Passwort ist abgelaufen oder muss geändert werden. Legen Sie ein neues Passwort fest, um fortzufahren.",
+      "currentLabel": "Aktuelles Passwort",
+      "newLabel": "Neues Passwort",
+      "confirmLabel": "Neues Passwort bestätigen",
+      "submitButton": "Passwort ändern",
+      "saving": "Speichern...",
+      "passwordStrength": "Passwortstärke:",
+      "strengthWeak": "Sehr schwach",
+      "strengthFair": "Schwach",
+      "strengthGood": "Mittel",
+      "strengthStrong": "Stark"
+    },
+    "validation": {
+      "emailRequired": "E-Mail-Adresse ist erforderlich.",
+      "emailInvalid": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+      "passwordRequired": "Passwort ist erforderlich.",
+      "passwordTooShort": "Das Passwort muss mindestens 8 Zeichen lang sein.",
+      "mfaCodeRequired": "Bestätigungscode ist erforderlich.",
+      "mfaCodeInvalid": "Der Code muss aus 6 Ziffern bestehen.",
+      "tenantRequired": "Bitte wählen Sie eine Organisation aus.",
+      "currentPasswordRequired": "Aktuelles Passwort ist erforderlich.",
+      "newPasswordRequired": "Neues Passwort ist erforderlich.",
+      "confirmPasswordRequired": "Passwortbestätigung ist erforderlich.",
+      "passwordsMismatch": "Passwörter stimmen nicht überein."
+    },
+    "errors": {
+      "invalidCredentials": "Ungültige E-Mail oder Passwort.",
+      "serverError": "Ein Serverfehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+      "invalidMfaCode": "Ungültiger Bestätigungscode.",
+      "mfaFailed": "Verifizierung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+      "currentPasswordWrong": "Das aktuelle Passwort ist falsch.",
+      "passwordPolicyViolation": "Das neue Passwort erfüllt nicht die Sicherheitsanforderungen."
     }
   },
   "nav": {
@@ -41,7 +85,32 @@
     "customers": "Kunden",
     "reports": "Berichte",
     "settings": "Einstellungen",
-    "logout": "Abmelden"
+    "logout": "Abmelden",
+    "tenantLabel": "Mandant:",
+    "menu": "Menü",
+    "collapse": "Einklappen",
+    "mainNav": "Hauptnavigation",
+    "collapseNav": "Navigation einklappen",
+    "expandNav": "Navigation ausklappen",
+    "desktop": "Desktop",
+    "tenants": "Mandanten",
+    "users": "Benutzer",
+    "metrics": "Metriken",
+    "agentGroups": "Agentengruppen",
+    "callbacks": "Rückrufe",
+    "ivr": "IVR",
+    "configuration": "Konfiguration",
+    "settingsEmail": "E-Mail",
+    "settingsPhoneNumbers": "Telefonnummern",
+    "settingsSocialMedia": "Social Media",
+    "settingsEmailTemplates": "E-Mail-Vorlagen",
+    "reportsHistorical": "Historisch",
+    "reportsContacts": "Kontakte"
+  },
+  "role": {
+    "admin": "Admin",
+    "supervisor": "Supervisor",
+    "agent": "Agent"
   },
   "agent": {
     "status": {

@@ -35,6 +35,12 @@
     }
   }
 
+  &__flag {
+    font-size: 1rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
   &__current {
     font-size: 0.8125rem;
     font-weight: 600;

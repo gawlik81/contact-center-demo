@@ -2180,7 +2180,8 @@ Standalone component `LanguageSwitcherComponent` (`shared/components/language-sw
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-049, FE-050
-**Status:** 🔲 Do zrealizowania
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Czeka na BE:** brak
 **Blokuje:** FE-053
 **Epic:** EPIC-19 Wielojęzyczność

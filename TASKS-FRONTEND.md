@@ -2088,6 +2088,147 @@ export class AgentShellComponent {}
 
 ---
 
+## MODUL: Wielojęzyczność UI (EPIC-19)
+
+### FE-049 – Konfiguracja Transloco i pliki tłumaczeń (PL / EN / DE)
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-001
+**Status:** 🔲 Do zrealizowania
+**Czeka na BE:** brak
+**Blokuje:** FE-050, FE-051, FE-052
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Instalacja i konfiguracja biblioteki **Transloco** (`@jsverse/transloco`). Ustawienie providerów w `app.config.ts` z loaderem HTTP lazy-loading plików `assets/i18n/{lang}.json`. Stworzenie szkieletowych plików tłumaczeń dla języków: `pl`, `en`, `de`. Konfiguracja `availableLangs`, `defaultLang = 'pl'`, `fallbackLang = 'en'`. Dodanie `assets/i18n/` do `angular.json` assets.
+
+**Kryteria akceptacji:**
+- [ ] `@jsverse/transloco` zainstalowany i skonfigurowany w `app.config.ts`
+- [ ] Pliki `assets/i18n/pl.json`, `en.json`, `de.json` obecne i ładowane przez HTTP
+- [ ] `TranslocoService.setActiveLang()` zmienia język bez przeładowania strony
+- [ ] Fallback na `en` gdy klucz brakuje w aktywnym języku
+- [ ] `ng build` i `npm test` kończą się bez błędów
+- [ ] Loader skonfigurowany do lazy-load (nie inline translations)
+
+---
+
+### FE-050 – `LanguageService`: zarządzanie językiem i persystencja
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-049, BE-054
+**Status:** 🔲 Do zrealizowania
+**Czeka na BE:** BE-054 (endpoint preferencji użytkownika)
+**Blokuje:** FE-051
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Serwis `LanguageService` (`core/services/language.service.ts`) odpowiedzialny za:
+1. **Init przy starcie** (`APP_INITIALIZER`): odczyt `preferred_language` z profilu zalogowanego użytkownika (`GET /api/users/me/preferences`) → localStorage → język przeglądarki (`navigator.language`) → fallback `pl`.
+2. **Zmiana języka**: `setLanguage(lang: SupportedLanguage)` → wywołuje `TranslocoService.setActiveLang()` → persystuje w localStorage → jeśli zalogowany, synchronizuje z backendem `PUT /api/users/me/preferences`.
+3. Eksponuje `currentLang = signal<SupportedLanguage>()`.
+4. Typ `SupportedLanguage = 'pl' | 'en' | 'de'` w `core/models/language.model.ts`.
+
+**Kryteria akceptacji:**
+- [ ] `LanguageService` zarejestrowany jako `providedIn: 'root'`
+- [ ] `APP_INITIALIZER` ładuje preferencję z backendu (gdy zalogowany) lub localStorage
+- [ ] `setLanguage()` aktualizuje Transloco, localStorage i backend (w tle, bez blokowania UI)
+- [ ] `currentLang` signal reaguje na zmiany
+- [ ] Gdy backend zwróci błąd przy zapisie, zmiana języka w UI nie jest cofana
+- [ ] Testy jednostkowe: init flow, fallback chain, sync z backendem
+
+---
+
+### FE-051 – `LanguageSwitcherComponent`: wybór języka w nagłówku
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-050
+**Status:** 🔲 Do zrealizowania
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Standalone component `LanguageSwitcherComponent` (`shared/components/language-switcher/`) wyświetlający dropdown z listą dostępnych języków. Każdy język reprezentowany flagą + skrótem (PL, EN, DE). Aktywny język wyróżniony. Komponent dodany do `AppShellComponent` (nagłówek lub menu użytkownika). Używa `LanguageService` do odczytu i zmiany języka.
+
+**Selektor:** `app-language-switcher`
+
+**Kryteria akceptacji:**
+- [ ] Dropdown z opcjami: PL / EN / DE z etykietami języka
+- [ ] Aktywny język oznaczony (checkmark lub pogrubienie)
+- [ ] Kliknięcie zmienia natychmiast widoczne teksty w UI (bez przeładowania)
+- [ ] Komponent widoczny w `AppShellComponent` dla wszystkich zalogowanych ról
+- [ ] Dostępność: `aria-label`, `role="listbox"` lub natywny `<select>` na mobile
+- [ ] Responsywny: na małych ekranach pokazuje tylko skrót (PL/EN/DE)
+
+---
+
+### FE-052 – Internacjonalizacja: moduł Auth i AppShell
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-049, FE-050
+**Status:** 🔲 Do zrealizowania
+**Czeka na BE:** brak
+**Blokuje:** FE-053
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Zastąpienie hardkodowanych ciągów tekstowych kluczami Transloco w priorytetowych modułach:
+- **Auth**: formularz logowania, komunikaty błędów, etykiety pól
+- **AppShell / nawigacja**: etykiety menu, nagłówki sekcji, tooltips
+- **Komponenty shared**: komunikaty `NotificationService`, etykiety przycisków, okna dialogowe
+
+Uzupełnienie plików `pl.json`, `en.json`, `de.json` o przetłumaczone klucze dla ww. tekstów. Użycie pipe `{{ 'key' | transloco }}` w szablonach i `TranslocoService.translate()` w logice serwisowej.
+
+**Kryteria akceptacji:**
+- [ ] Formularz logowania w pełni przetłumaczony (PL/EN/DE)
+- [ ] Nawigacja AppShell przetłumaczona (PL/EN/DE)
+- [ ] Komunikaty błędów HTTP i walidacji przetłumaczone
+- [ ] Brak hardkodowanych polskich ciągów w ww. komponentach
+- [ ] Zmiana języka przez `LanguageSwitcherComponent` widoczna natychmiast
+
+---
+
+### FE-053 – Internacjonalizacja: Agent Desktop, Supervisor, Admin
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** L
+**Zależy od:** FE-052
+**Status:** 🔲 Do zrealizowania
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Pełna internacjonalizacja pozostałych modułów aplikacji:
+- **Agent Desktop**: zakładki (Softphone, Email, Chat, Social, Klienci, Kalendarz), etykiety statusów agenta, przyciski akcji
+- **Supervisor Dashboard**: nagłówki tabel, statusy, filtry, etykiety wykresów
+- **Admin Panel**: formularze tenantów, agentów, kolejek, kampanii; komunikaty sukcesu/błędu
+- **Modale / dialogi**: wszystkie okna dialogowe w aplikacji
+
+Klucze organizowane hierarchicznie w JSON: `{ "agent": { "desktop": { ... } }, "supervisor": { ... }, "admin": { ... } }`.
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie moduły aplikacji nie zawierają hardkodowanych polskich ciągów
+- [ ] Pliki `pl.json`, `en.json`, `de.json` kompletne (brak brakujących kluczy)
+- [ ] Testy snapshot/unit przechodzą z domyślnym językiem `pl`
+- [ ] Dynamiczne wartości (imię użytkownika, liczby) obsługiwane przez Transloco params
+
+---
+
 ## Podsumowanie zadań Frontend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |

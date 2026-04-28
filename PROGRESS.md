@@ -362,6 +362,14 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-023 | Panel konfiguracji integracji social media (OAuth flow) | ✅ |
 | FE-033 | Panel RODO w profilu klienta: GdprAnonymizeModalComponent (native dialog, wymóg wpisania "ANONIMIZUJ", loading state, 403 handling), rozszerzenie CustomerDetailComponent (computed canAccessGdprPanel, eksport ZIP blob download, badge "Dane zanonimizowane" gdy is_deleted). BUILD SUCCESS. | ✅ |
 | FE-025 | TwilioConfigService (GET tenant + PATCH /api/tenants/{id}/config), TwilioSettingsComponent (formularz E.164, badge per-tenant/fallback, podgląd auto URL, usunięcie konfiguracji), route /supervisor/settings/twilio, wpis w sidenavie. BUILD SUCCESS. | ✅ |
+| FE-046 | IncomingCallAlertService: globalny serwis alertów o przychodzącym połączeniu, Web Notification API, auto-dismiss, signal currentAlert. | ✅ |
+| FE-047 | IncomingCallBannerComponent: pływający banner z danymi dzwoniącego, przycisk odbierz/odrzuć, animacja wejścia. | ✅ |
+| FE-048 | Integracja bannera w AgentShellComponent, refaktoryzacja AgentDesktopComponent (usunięcie zduplikowanej logiki CALL_INCOMING). | ✅ |
+| **FE-049** | **Konfiguracja Transloco + pliki tłumaczeń PL/EN/DE** | **🔲 Do zrealizowania** |
+| **FE-050** | **LanguageService: zarządzanie językiem, persystencja localStorage + backend** | **🔲 Do zrealizowania** |
+| **FE-051** | **LanguageSwitcherComponent: dropdown wyboru języka w AppShell** | **🔲 Do zrealizowania** |
+| **FE-052** | **Internacjonalizacja: moduł Auth + AppShell** | **🔲 Do zrealizowania** |
+| **FE-053** | **Internacjonalizacja: Agent Desktop, Supervisor, Admin** | **🔲 Do zrealizowania** |
 
 ---
 
@@ -447,6 +455,7 @@ FE-005 → FE-023                                  (Integracje social media)
 | FE-023 | BE-017 | Panel integracji social media: OAuth flow callback | 🔴 OAuth wymaga prawdziwego backendu |
 | FE-024 | BE-020 ✅ | Konfiguracja kolejek: CRUD + stats `/api/queues` | ✅ Gotowe |
 | FE-025 | BE-032 ✅ | Konfiguracja Twilio per tenant: PATCH `/api/tenants/{id}/config` | ✅ Gotowe |
+| FE-050 | BE-054 | Persystencja języka: `GET/PUT /api/users/me/preferences` | 🔵 Tak – MSW mock |
 
 ---
 

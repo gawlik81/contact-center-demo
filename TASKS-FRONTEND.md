@@ -1941,7 +1941,7 @@ Modal do dodania nowej zaplanowanej przerwy lub edycji istniejącej (tryb przeka
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-009 (Agent Desktop, WebSocket, SoftphoneService, ContactTabStore)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** FE-047, FE-048
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 
@@ -2002,7 +2002,7 @@ interface IncomingCallAlert {
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-046
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** FE-048
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 
@@ -2048,7 +2048,7 @@ Standalone komponent wyświetlający pulsujący banner u góry ekranu gdy agent 
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-046, FE-047
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 

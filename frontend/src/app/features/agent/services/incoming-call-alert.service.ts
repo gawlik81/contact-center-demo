@@ -1,0 +1,242 @@
+import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { Subject } from 'rxjs';
+import { filter, takeUntil } from 'rxjs/operators';
+import { WebSocketService } from '../../../core/services/websocket.service';
+import { NotificationService } from '../../../core/services/notification.service';
+import { ContactTabStore, TabLimitReason } from './contact-tab.store';
+import { SoftphoneService } from './softphone.service';
+import { CustomerLookupService } from './customer-lookup.service';
+import { CallIncomingPayload, ContactAssignedPayload } from '../models/ws-event.model';
+
+export interface IncomingCallAlert {
+  contactId: string;
+  customerName: string;
+  customerPhone: string;
+  queueName: string;
+  receivedAt: Date;
+}
+
+const LIMIT_MESSAGES: Record<Exclude<TabLimitReason, null>, string> = {
+  MAX_PHONE: 'Możesz obsługiwać tylko 1 połączenie telefoniczne jednocześnie.',
+  MAX_ASYNC: 'Osiągnąłeś limit 3 kontaktów chat/email jednocześnie.',
+  MAX_TOTAL: 'Osiągnąłeś maksymalny limit 4 aktywnych kontaktów.',
+};
+
+@Injectable({ providedIn: 'root' })
+export class IncomingCallAlertService implements OnDestroy {
+  private readonly ws = inject(WebSocketService);
+  private readonly notifications = inject(NotificationService);
+  private readonly tabStore = inject(ContactTabStore);
+  private readonly softphoneService = inject(SoftphoneService);
+  private readonly lookupService = inject(CustomerLookupService);
+  private readonly router = inject(Router);
+
+  private readonly destroy$ = new Subject<void>();
+
+  /** Aktywne oczekujące połączenie przychodzące (null gdy brak). */
+  readonly pendingAlert = signal<IncomingCallAlert | null>(null);
+
+  private audio: HTMLAudioElement | null = null;
+  private systemNotification: Notification | null = null;
+  private notificationCloseTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    this.initAudio();
+    this.requestNotificationPermission();
+    this.subscribeToWsEvents();
+    this.setupAutoDismissEffect();
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  /**
+   * Clears the pending alert, stops the ringtone and closes the system notification.
+   * Does NOT disconnect the call.
+   */
+  dismissAlert(): void {
+    this.pendingAlert.set(null);
+    this.stopAudio();
+    this.closeSystemNotification();
+  }
+
+  // ── Initialization ─────────────────────────────────────────────────────────
+
+  private initAudio(): void {
+    try {
+      this.audio = new Audio('sounds/ringtone.mp3');
+      this.audio.loop = true;
+    } catch {
+      this.audio = null;
+    }
+  }
+
+  private requestNotificationPermission(): void {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission === 'default') {
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      Notification.requestPermission().catch(() => {});
+    }
+  }
+
+  // ── WebSocket event handling ───────────────────────────────────────────────
+
+  private subscribeToWsEvents(): void {
+    this.ws.events$
+      .pipe(
+        filter((e) => e.eventType === 'CALL_INCOMING' || e.eventType === 'CONTACT_ASSIGNED'),
+        takeUntil(this.destroy$),
+      )
+      .subscribe((event) => {
+        if (event.eventType === 'CALL_INCOMING') {
+          this.handleCallIncoming(event.payload as CallIncomingPayload);
+        } else if (event.eventType === 'CONTACT_ASSIGNED') {
+          const payload = event.payload as ContactAssignedPayload;
+          if (payload.type === 'PHONE') {
+            this.handleContactAssigned(payload);
+          }
+        }
+      });
+  }
+
+  private handleCallIncoming(payload: CallIncomingPayload): void {
+    this.lookupService.evict(payload.customerPhone);
+
+    const reason = this.tabStore.openFromCallIncoming(payload);
+
+    if (reason !== null) {
+      this.notifications.warning(LIMIT_MESSAGES[reason]);
+      return;
+    }
+
+    this.softphoneService.incomingCall(payload);
+
+    const alert: IncomingCallAlert = {
+      contactId: payload.contactId,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      queueName: payload.queueName,
+      receivedAt: new Date(),
+    };
+    this.pendingAlert.set(alert);
+    this.playAudio();
+    this.showSystemNotification(alert);
+  }
+
+  private handleContactAssigned(payload: ContactAssignedPayload): void {
+    const reason = this.tabStore.openFromContactAssigned(payload);
+
+    if (reason !== null) {
+      this.notifications.warning('Osiągnąłeś limit aktywnych kontaktów.');
+      return;
+    }
+
+    this.softphoneService.incomingCall(payload);
+
+    const alert: IncomingCallAlert = {
+      contactId: payload.contactId,
+      customerName: payload.customerName,
+      customerPhone: payload.customerIdentifier,
+      queueName: payload.queueName ?? '',
+      receivedAt: new Date(),
+    };
+    this.pendingAlert.set(alert);
+    this.playAudio();
+    this.showSystemNotification(alert);
+  }
+
+  // ── Auto-dismiss effect ────────────────────────────────────────────────────
+
+  private setupAutoDismissEffect(): void {
+    effect(() => {
+      const session = this.softphoneService.session();
+      const alert = this.pendingAlert();
+
+      if (session === null && alert !== null) {
+        this.dismissAlert();
+        return;
+      }
+
+      if (session !== null && (session.state === 'ACTIVE' || session.state === 'ENDED')) {
+        this.dismissAlert();
+      }
+    });
+  }
+
+  // ── Audio ──────────────────────────────────────────────────────────────────
+
+  private playAudio(): void {
+    if (!this.audio) return;
+    try {
+      this.audio.currentTime = 0;
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      this.audio.play().catch(() => {});
+    } catch {
+      // ignore — AudioContext may require a user gesture
+    }
+  }
+
+  private stopAudio(): void {
+    if (!this.audio) return;
+    try {
+      this.audio.pause();
+      this.audio.currentTime = 0;
+    } catch {
+      // ignore
+    }
+  }
+
+  // ── System Notifications ───────────────────────────────────────────────────
+
+  private showSystemNotification(alert: IncomingCallAlert): void {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'granted') return;
+
+    try {
+      this.closeSystemNotification();
+
+      const notification = new Notification('Przychodzące połączenie', {
+        body: `${alert.customerName} (${alert.customerPhone}) — ${alert.queueName}`,
+        icon: 'favicon.ico',
+      });
+
+      notification.onclick = () => {
+        window.focus();
+        this.router.navigate(['/agent/desktop']);
+        notification.close();
+      };
+
+      this.notificationCloseTimeout = setTimeout(() => {
+        notification.close();
+      }, 15_000);
+
+      this.systemNotification = notification;
+    } catch {
+      // ignore — Notification API may not be available in all environments
+    }
+  }
+
+  private closeSystemNotification(): void {
+    if (this.notificationCloseTimeout !== null) {
+      clearTimeout(this.notificationCloseTimeout);
+      this.notificationCloseTimeout = null;
+    }
+    if (this.systemNotification) {
+      try {
+        this.systemNotification.close();
+      } catch {
+        // ignore
+      }
+      this.systemNotification = null;
+    }
+  }
+
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+    this.stopAudio();
+    this.closeSystemNotification();
+  }
+}

@@ -1941,7 +1941,7 @@ Modal do dodania nowej zaplanowanej przerwy lub edycji istniejącej (tryb przeka
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-009 (Agent Desktop, WebSocket, SoftphoneService, ContactTabStore)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** FE-047, FE-048
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 

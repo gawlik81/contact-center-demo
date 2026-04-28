@@ -2122,7 +2122,8 @@ Instalacja i konfiguracja biblioteki **Transloco** (`@jsverse/transloco`). Ustaw
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-049, BE-054
-**Status:** 🔲 Do zrealizowania
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Czeka na BE:** BE-054 (endpoint preferencji użytkownika)
 **Blokuje:** FE-051
 **Epic:** EPIC-19 Wielojęzyczność

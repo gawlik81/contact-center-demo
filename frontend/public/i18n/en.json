@@ -1,0 +1,85 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "close": "Close",
+    "confirm": "Confirm",
+    "search": "Search",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Operation completed successfully",
+    "yes": "Yes",
+    "no": "No",
+    "actions": "Actions",
+    "status": "Status",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign In",
+      "emailLabel": "Email address",
+      "emailPlaceholder": "Enter your email address",
+      "passwordLabel": "Password",
+      "submitButton": "Sign In",
+      "forgotPassword": "Forgot password",
+      "invalidCredentials": "Invalid email address or password",
+      "mfaTitle": "Two-factor authentication",
+      "mfaCodeLabel": "Verification code",
+      "mfaSubmitButton": "Verify"
+    }
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "agents": "Agents",
+    "queues": "Queues",
+    "campaigns": "Campaigns",
+    "customers": "Customers",
+    "reports": "Reports",
+    "settings": "Settings",
+    "logout": "Log out"
+  },
+  "agent": {
+    "status": {
+      "available": "Available",
+      "busy": "Busy",
+      "break": "On break",
+      "afterContact": "After contact work",
+      "offline": "Offline"
+    },
+    "desktop": {
+      "title": "Agent Desktop",
+      "noActiveContact": "No active contact"
+    }
+  },
+  "supervisor": {
+    "dashboard": {
+      "title": "Supervisor Dashboard",
+      "activeAgents": "Active agents",
+      "waitingContacts": "Waiting contacts",
+      "avgWaitTime": "Average wait time"
+    }
+  },
+  "admin": {
+    "tenants": {
+      "title": "Tenant Management",
+      "createTenant": "Add tenant",
+      "editTenant": "Edit tenant"
+    },
+    "users": {
+      "title": "User Management",
+      "createUser": "Add user",
+      "editUser": "Edit user"
+    }
+  },
+  "language": {
+    "select": "Select language",
+    "pl": "Polski",
+    "en": "English",
+    "de": "Deutsch"
+  }
+}

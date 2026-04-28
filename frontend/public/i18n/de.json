@@ -1,0 +1,85 @@
+{
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "add": "Hinzufügen",
+    "close": "Schließen",
+    "confirm": "Bestätigen",
+    "search": "Suchen",
+    "loading": "Wird geladen...",
+    "error": "Ein Fehler ist aufgetreten",
+    "success": "Vorgang erfolgreich abgeschlossen",
+    "yes": "Ja",
+    "no": "Nein",
+    "actions": "Aktionen",
+    "status": "Status",
+    "name": "Name",
+    "email": "E-Mail",
+    "phone": "Telefon"
+  },
+  "auth": {
+    "login": {
+      "title": "Anmelden",
+      "emailLabel": "E-Mail-Adresse",
+      "emailPlaceholder": "E-Mail-Adresse eingeben",
+      "passwordLabel": "Passwort",
+      "submitButton": "Anmelden",
+      "forgotPassword": "Passwort vergessen",
+      "invalidCredentials": "Ungültige E-Mail-Adresse oder Passwort",
+      "mfaTitle": "Zwei-Faktor-Authentifizierung",
+      "mfaCodeLabel": "Bestätigungscode",
+      "mfaSubmitButton": "Bestätigen"
+    }
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "agents": "Agenten",
+    "queues": "Warteschlangen",
+    "campaigns": "Kampagnen",
+    "customers": "Kunden",
+    "reports": "Berichte",
+    "settings": "Einstellungen",
+    "logout": "Abmelden"
+  },
+  "agent": {
+    "status": {
+      "available": "Verfügbar",
+      "busy": "Beschäftigt",
+      "break": "Pause",
+      "afterContact": "Nachbearbeitungszeit",
+      "offline": "Offline"
+    },
+    "desktop": {
+      "title": "Agenten-Desktop",
+      "noActiveContact": "Kein aktiver Kontakt"
+    }
+  },
+  "supervisor": {
+    "dashboard": {
+      "title": "Supervisor-Dashboard",
+      "activeAgents": "Aktive Agenten",
+      "waitingContacts": "Wartende Kontakte",
+      "avgWaitTime": "Durchschnittliche Wartezeit"
+    }
+  },
+  "admin": {
+    "tenants": {
+      "title": "Mandantenverwaltung",
+      "createTenant": "Mandant hinzufügen",
+      "editTenant": "Mandant bearbeiten"
+    },
+    "users": {
+      "title": "Benutzerverwaltung",
+      "createUser": "Benutzer hinzufügen",
+      "editUser": "Benutzer bearbeiten"
+    }
+  },
+  "language": {
+    "select": "Sprache auswählen",
+    "pl": "Polski",
+    "en": "English",
+    "de": "Deutsch"
+  }
+}

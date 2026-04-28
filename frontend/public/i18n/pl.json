@@ -1,0 +1,85 @@
+{
+  "common": {
+    "save": "Zapisz",
+    "cancel": "Anuluj",
+    "delete": "Usuń",
+    "edit": "Edytuj",
+    "add": "Dodaj",
+    "close": "Zamknij",
+    "confirm": "Potwierdź",
+    "search": "Szukaj",
+    "loading": "Ładowanie...",
+    "error": "Wystąpił błąd",
+    "success": "Operacja zakończona pomyślnie",
+    "yes": "Tak",
+    "no": "Nie",
+    "actions": "Akcje",
+    "status": "Status",
+    "name": "Nazwa",
+    "email": "E-mail",
+    "phone": "Telefon"
+  },
+  "auth": {
+    "login": {
+      "title": "Logowanie",
+      "emailLabel": "Adres e-mail",
+      "emailPlaceholder": "Wpisz adres e-mail",
+      "passwordLabel": "Hasło",
+      "submitButton": "Zaloguj się",
+      "forgotPassword": "Zapomniałem hasła",
+      "invalidCredentials": "Nieprawidłowy adres e-mail lub hasło",
+      "mfaTitle": "Weryfikacja dwuetapowa",
+      "mfaCodeLabel": "Kod weryfikacyjny",
+      "mfaSubmitButton": "Zweryfikuj"
+    }
+  },
+  "nav": {
+    "dashboard": "Panel główny",
+    "agents": "Agenci",
+    "queues": "Kolejki",
+    "campaigns": "Kampanie",
+    "customers": "Klienci",
+    "reports": "Raporty",
+    "settings": "Ustawienia",
+    "logout": "Wyloguj się"
+  },
+  "agent": {
+    "status": {
+      "available": "Dostępny",
+      "busy": "Zajęty",
+      "break": "Przerwa",
+      "afterContact": "Po kontakcie",
+      "offline": "Offline"
+    },
+    "desktop": {
+      "title": "Panel agenta",
+      "noActiveContact": "Brak aktywnego kontaktu"
+    }
+  },
+  "supervisor": {
+    "dashboard": {
+      "title": "Panel supervisora",
+      "activeAgents": "Aktywni agenci",
+      "waitingContacts": "Kontakty oczekujące",
+      "avgWaitTime": "Średni czas oczekiwania"
+    }
+  },
+  "admin": {
+    "tenants": {
+      "title": "Zarządzanie tenantami",
+      "createTenant": "Dodaj tenant",
+      "editTenant": "Edytuj tenant"
+    },
+    "users": {
+      "title": "Zarządzanie użytkownikami",
+      "createUser": "Dodaj użytkownika",
+      "editUser": "Edytuj użytkownika"
+    }
+  },
+  "language": {
+    "select": "Wybierz język",
+    "pl": "Polski",
+    "en": "English",
+    "de": "Deutsch"
+  }
+}

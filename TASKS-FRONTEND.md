@@ -2096,7 +2096,8 @@ export class AgentShellComponent {}
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-001
-**Status:** 🔲 Do zrealizowania
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Czeka na BE:** brak
 **Blokuje:** FE-050, FE-051, FE-052
 **Epic:** EPIC-19 Wielojęzyczność

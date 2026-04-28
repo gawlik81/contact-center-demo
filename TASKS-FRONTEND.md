@@ -2152,7 +2152,8 @@ Serwis `LanguageService` (`core/services/language.service.ts`) odpowiedzialny za
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-050
-**Status:** 🔲 Do zrealizowania
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Czeka na BE:** brak
 **Blokuje:** brak
 **Epic:** EPIC-19 Wielojęzyczność

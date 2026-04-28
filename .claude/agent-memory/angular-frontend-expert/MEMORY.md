@@ -61,3 +61,4 @@
 - [Agent calendar component (FE-043)](./project_fe043_agent_calendar.md) – AgentCalendarComponent (tyg/dzień, 3 typy zdarzeń, FAB), calendarTabActive signal w AgentDesktop, placeholder dla FE-045
 - [Transloco i18n setup (FE-049)](./project_fe049_transloco.md) – @jsverse/transloco v8, własny HttpLoader (brak gotowego), public/i18n/ dla pl/en/de, provideTransloco w app.config
 - [LanguageService and language model (FE-050)](./project_fe050_language_service.md) – LanguageService (priority chain backend→localStorage→navigator→'pl'), APP_INITIALIZER, Signal mock pattern dla isAuthenticated w testach
+- [Language switcher component (FE-051)](./project_fe051_language_switcher.md) – LanguageSwitcherComponent (custom dropdown, HostListener outside-click, signal isOpen), osadzony w TopNavbar

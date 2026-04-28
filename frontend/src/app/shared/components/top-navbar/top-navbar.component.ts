@@ -8,11 +8,12 @@ import {
 import { NgClass } from '@angular/common';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserRole } from '../../../core/models/jwt-payload.model';
+import { LanguageSwitcherComponent } from '../language-switcher/language-switcher.component';
 
 @Component({
   selector: 'cc-top-navbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgClass],
+  imports: [NgClass, LanguageSwitcherComponent],
   templateUrl: './top-navbar.component.html',
   styleUrl: './top-navbar.component.scss',
 })

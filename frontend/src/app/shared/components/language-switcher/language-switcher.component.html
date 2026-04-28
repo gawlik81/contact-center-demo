@@ -1,0 +1,51 @@
+<div class="lang-switcher" #switcher>
+  <button
+    class="lang-switcher__trigger"
+    type="button"
+    [attr.aria-expanded]="isOpen()"
+    aria-haspopup="listbox"
+    aria-label="Wybierz język"
+    (click)="toggleDropdown($event)"
+  >
+    <span class="lang-switcher__current">{{ currentLangLabel() }}</span>
+    <svg
+      class="lang-switcher__chevron"
+      [class.lang-switcher__chevron--open]="isOpen()"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  </button>
+
+  @if (isOpen()) {
+    <ul class="lang-switcher__list" role="listbox" aria-label="Dostępne języki">
+      @for (lang of languages; track lang) {
+        <li
+          class="lang-switcher__option"
+          [class.lang-switcher__option--active]="lang === currentLang()"
+          role="option"
+          [attr.aria-selected]="lang === currentLang()"
+          tabindex="0"
+          (click)="selectLanguage(lang)"
+          (keydown.enter)="selectLanguage(lang)"
+          (keydown.space)="$event.preventDefault(); selectLanguage(lang)"
+        >
+          <span class="lang-switcher__check" aria-hidden="true">
+            @if (lang === currentLang()) {
+              ✓
+            }
+          </span>
+          <span class="lang-switcher__code">{{ lang.toUpperCase() }}</span>
+          <span class="lang-switcher__name">{{ 'language.' + lang | transloco }}</span>
+        </li>
+      }
+    </ul>
+  }
+</div>

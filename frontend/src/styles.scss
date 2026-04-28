@@ -1,5 +1,18 @@
 /* You can add global styles to this file, and also import other style files */
 
+// ── Base reset ────────────────────────────────────────────────────────────────
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
 // ── CSS Custom Properties (Design Tokens) ─────────────────────────────────────
 :root {
   // Brand colors

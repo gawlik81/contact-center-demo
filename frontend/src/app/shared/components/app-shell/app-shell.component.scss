@@ -28,7 +28,7 @@ $breakpoint-desktop: 1280px;
 .shell {
   display: flex;
   flex-direction: column;
-  height: 100vh; // definite height – required so nested height:100% chains resolve
+  height: 100vh;
   background: #f8fafc;
 
   &__navbar {

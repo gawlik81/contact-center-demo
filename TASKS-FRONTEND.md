@@ -2048,7 +2048,7 @@ Standalone komponent wyświetlający pulsujący banner u góry ekranu gdy agent 
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-046, FE-047
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 

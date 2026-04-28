@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Pattern;
 public record UserPreferencesDto(
 
         @NotNull(message = "preferredLanguage is required")
-        @Pattern(regexp = "^(pl|en|de)$", message = "Unsupported language code")
+        @Pattern(regexp = "^(pl|en|de|uk)$", message = "Unsupported language code")
         String preferredLanguage
 
 ) {}

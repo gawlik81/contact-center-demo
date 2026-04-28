@@ -16,6 +16,7 @@ const LANGUAGE_FLAGS: Record<SupportedLanguage, string> = {
   pl: '🇵🇱',
   en: '🇬🇧',
   de: '🇩🇪',
+  uk: '🇺🇦',
 };
 
 @Component({

@@ -28,7 +28,7 @@ export const appConfig: ApplicationConfig = {
     { provide: ErrorHandler, useClass: AppErrorHandler },
     provideTransloco({
       config: {
-        availableLangs: ['pl', 'en', 'de'],
+        availableLangs: ['pl', 'en', 'de', 'uk'],
         defaultLang: 'pl',
         fallbackLang: 'en',
         reRenderOnLangChange: true,

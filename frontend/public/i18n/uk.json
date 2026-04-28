@@ -1,0 +1,155 @@
+{
+  "common": {
+    "save": "Зберегти",
+    "cancel": "Скасувати",
+    "delete": "Видалити",
+    "edit": "Редагувати",
+    "add": "Додати",
+    "close": "Закрити",
+    "confirm": "Підтвердити",
+    "search": "Пошук",
+    "loading": "Завантаження...",
+    "error": "Сталася помилка",
+    "success": "Операція виконана успішно",
+    "yes": "Так",
+    "no": "Ні",
+    "actions": "Дії",
+    "status": "Статус",
+    "name": "Назва",
+    "email": "E-mail",
+    "phone": "Телефон"
+  },
+  "auth": {
+    "login": {
+      "title": "Вхід",
+      "emailLabel": "Адреса e-mail",
+      "emailPlaceholder": "Введіть адресу e-mail",
+      "passwordLabel": "Пароль",
+      "submitButton": "Увійти",
+      "nextButton": "Далі",
+      "checking": "Перевірка...",
+      "loggingIn": "Вхід...",
+      "verifying": "Верифікація...",
+      "forgotPassword": "Забув пароль",
+      "invalidCredentials": "Неправильна адреса e-mail або пароль",
+      "mfaTitle": "Двоетапна перевірка",
+      "mfaSubtitle": "Введіть 6-значний код із застосунку автентифікатора.",
+      "mfaCodeLabel": "Код підтвердження",
+      "mfaSubmitButton": "Підтвердити",
+      "orgLabel": "Організація",
+      "orgPlaceholder": "-- оберіть організацію --",
+      "back": "← Назад",
+      "backToLogin": "← Назад до входу"
+    },
+    "changePassword": {
+      "title": "Зміна пароля",
+      "subtitle": "Термін дії вашого пароля закінчився або він потребує зміни. Встановіть новий пароль, щоб продовжити.",
+      "currentLabel": "Поточний пароль",
+      "newLabel": "Новий пароль",
+      "confirmLabel": "Підтвердіть новий пароль",
+      "submitButton": "Змінити пароль",
+      "saving": "Збереження...",
+      "passwordStrength": "Надійність пароля:",
+      "strengthWeak": "Дуже слабкий",
+      "strengthFair": "Слабкий",
+      "strengthGood": "Середній",
+      "strengthStrong": "Надійний"
+    },
+    "validation": {
+      "emailRequired": "Адреса e-mail є обов'язковою.",
+      "emailInvalid": "Введіть правильну адресу e-mail.",
+      "passwordRequired": "Пароль є обов'язковим.",
+      "passwordTooShort": "Пароль повинен містити щонайменше 8 символів.",
+      "mfaCodeRequired": "Код підтвердження є обов'язковим.",
+      "mfaCodeInvalid": "Код повинен складатися з 6 цифр.",
+      "tenantRequired": "Вибір організації є обов'язковим.",
+      "currentPasswordRequired": "Поточний пароль є обов'язковим.",
+      "newPasswordRequired": "Новий пароль є обов'язковим.",
+      "confirmPasswordRequired": "Підтвердження пароля є обов'язковим.",
+      "passwordsMismatch": "Паролі не збігаються."
+    },
+    "errors": {
+      "invalidCredentials": "Неправильний e-mail або пароль.",
+      "serverError": "Сталася помилка сервера. Спробуйте ще раз.",
+      "invalidMfaCode": "Неправильний код підтвердження.",
+      "mfaFailed": "Верифікація не вдалася. Спробуйте ще раз.",
+      "currentPasswordWrong": "Поточний пароль невірний.",
+      "passwordPolicyViolation": "Новий пароль не відповідає вимогам безпеки."
+    }
+  },
+  "nav": {
+    "dashboard": "Панель керування",
+    "agents": "Агенти",
+    "queues": "Черги",
+    "campaigns": "Кампанії",
+    "customers": "Клієнти",
+    "reports": "Звіти",
+    "settings": "Налаштування",
+    "logout": "Вийти",
+    "tenantLabel": "Tenant:",
+    "menu": "Меню",
+    "collapse": "Згорнути",
+    "mainNav": "Головна навігація",
+    "collapseNav": "Згорнути навігацію",
+    "expandNav": "Розгорнути навігацію",
+    "desktop": "Desktop",
+    "tenants": "Tenants",
+    "users": "Користувачі",
+    "metrics": "Метрики",
+    "agentGroups": "Групи агентів",
+    "callbacks": "Передзвони",
+    "ivr": "IVR",
+    "configuration": "Конфігурація",
+    "settingsEmail": "Email",
+    "settingsPhoneNumbers": "Номери телефонів",
+    "settingsSocialMedia": "Соціальні мережі",
+    "settingsEmailTemplates": "Шаблони email",
+    "reportsHistorical": "Історичні",
+    "reportsContacts": "Контакти"
+  },
+  "role": {
+    "admin": "Admin",
+    "supervisor": "Supervisor",
+    "agent": "Agent"
+  },
+  "agent": {
+    "status": {
+      "available": "Доступний",
+      "busy": "Зайнятий",
+      "break": "Перерва",
+      "afterContact": "Після контакту",
+      "offline": "Офлайн"
+    },
+    "desktop": {
+      "title": "Панель агента",
+      "noActiveContact": "Немає активного контакту"
+    }
+  },
+  "supervisor": {
+    "dashboard": {
+      "title": "Панель супервайзера",
+      "activeAgents": "Активні агенти",
+      "waitingContacts": "Контакти в очікуванні",
+      "avgWaitTime": "Середній час очікування"
+    }
+  },
+  "admin": {
+    "tenants": {
+      "title": "Управління тенантами",
+      "createTenant": "Додати тенант",
+      "editTenant": "Редагувати тенант"
+    },
+    "users": {
+      "title": "Управління користувачами",
+      "createUser": "Додати користувача",
+      "editUser": "Редагувати користувача"
+    }
+  },
+  "language": {
+    "select": "Оберіть мову",
+    "pl": "Polski",
+    "en": "English",
+    "de": "Deutsch",
+    "uk": "Українська"
+  }
+}

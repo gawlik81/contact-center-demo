@@ -1030,7 +1030,8 @@ CREATE POLICY agent_break_tenant_isolation ON agent_break
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** DB-003 (tabela `app_user`)
-**Status:** 🔲 Do zrealizowania
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Blokuje:** BE-054
 **Epic:** EPIC-19 Wielojęzyczność
 **Odniesienie PRD:** przekrojowe

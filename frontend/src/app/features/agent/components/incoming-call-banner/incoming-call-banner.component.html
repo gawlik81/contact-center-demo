@@ -1,0 +1,30 @@
+@if (isVisible()) {
+  <div class="banner">
+    <div class="banner__icon">
+      <!-- ikona SVG telefonu 28x28px, kolor white -->
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="white">
+        <path
+          d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+        />
+      </svg>
+    </div>
+    <div class="banner__info">
+      <div class="banner__label">Przychodzące połączenie</div>
+      <div class="banner__name">{{ pendingAlert()?.customerName }}</div>
+      <div class="banner__details">
+        {{ pendingAlert()?.customerPhone }}
+        @if (pendingAlert()?.queueName) {
+          · {{ pendingAlert()?.queueName }}
+        }
+      </div>
+    </div>
+    <button class="banner__cta" (click)="goToDesktop()">Przejdź do pulpitu i odbierz</button>
+    <button class="banner__close" (click)="dismiss()" aria-label="Zamknij">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white">
+        <path
+          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+        />
+      </svg>
+    </button>
+  </div>
+}

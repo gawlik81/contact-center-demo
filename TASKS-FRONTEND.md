@@ -2002,7 +2002,7 @@ interface IncomingCallAlert {
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-046
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** FE-048
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 

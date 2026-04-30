@@ -1,8 +1,8 @@
 <div class="customers-tab">
   <!-- ===== Header ===== -->
   <div class="customers-tab__header">
-    <h1 class="customers-tab__title">Klienci</h1>
-    <p class="customers-tab__subtitle">Wyszukaj klienta po imieniu, nazwisku, telefonie lub emailu</p>
+    <h1 class="customers-tab__title">{{ 'agent.customersTab.title' | transloco }}</h1>
+    <p class="customers-tab__subtitle">{{ 'agent.customersTab.subtitle' | transloco }}</p>
   </div>
 
   <!-- ===== Search bar ===== -->
@@ -16,14 +16,14 @@
       <input
         class="search-box__input"
         type="search"
-        placeholder="Wpisz imie, nazwisko, telefon lub email..."
+        [placeholder]="'agent.customersTab.searchPlaceholder' | transloco"
         autocomplete="off"
-        aria-label="Wyszukaj klienta"
+        [attr.aria-label]="'agent.customersTab.searchLabel' | transloco"
         [ngModel]="searchQuery()"
         (ngModelChange)="onInputChange($event)"
       />
       @if (searchQuery().length > 0) {
-        <button type="button" class="search-box__clear" aria-label="Wyczysc wyszukiwanie" (click)="clearSearch()">
+        <button type="button" class="search-box__clear" [attr.aria-label]="'agent.customersTab.clearSearch' | transloco" (click)="clearSearch()">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -34,15 +34,15 @@
     </div>
 
     @if (searchQuery().length > 0 && searchQuery().length < 2) {
-      <p class="search-hint" role="status" aria-live="polite">Wpisz minimum 2 znaki, aby wyszukac klientow</p>
+      <p class="search-hint" role="status" aria-live="polite">{{ 'agent.customersTab.searchMinChars' | transloco }}</p>
     }
   </div>
 
   <!-- ===== Results area ===== -->
-  <div class="customers-tab__results" role="region" aria-label="Wyniki wyszukiwania">
+  <div class="customers-tab__results" role="region" [attr.aria-label]="'agent.customers.resultsLabel' | transloco">
     <!-- Loading: skeleton -->
     @if (isLoading()) {
-      <div class="skeleton-list" aria-label="Ladowanie wynikow..." aria-busy="true">
+      <div class="skeleton-list" [attr.aria-label]="'common.loading_data' | transloco" aria-busy="true">
         @for (i of [1, 2, 3]; track i) {
           <div class="skeleton-card">
             <div class="skeleton-card__avatar skeleton-pulse"></div>
@@ -63,8 +63,7 @@
     <!-- Results list -->
     @if (!isLoading() && customers().length > 0) {
       <p class="results-count" role="status" aria-live="polite">
-        Znaleziono {{ customers().length }}
-        {{ customers().length === 1 ? 'klienta' : 'klientow' }}
+        {{ 'agent.customersTab.found' | transloco: { count: customers().length } }}
       </p>
       <ul class="customer-list" role="list">
         @for (customer of customers(); track trackByCustomerId($index, customer)) {
@@ -87,8 +86,8 @@
             d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
           />
         </svg>
-        <p class="empty-state__text">Nie znaleziono klientow</p>
-        <p class="empty-state__sub">Sprawdz poprawnosc wpisanej frazy i sprobuj ponownie</p>
+        <p class="empty-state__text">{{ 'agent.customers.emptyText' | transloco }}</p>
+        <p class="empty-state__sub">{{ 'agent.customers.emptySub' | transloco }}</p>
       </div>
     }
 
@@ -98,7 +97,7 @@
         <svg class="initial-state__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 5h2v6h-2V7zm0 8h2v2h-2v-2z" />
         </svg>
-        <p class="initial-state__text">Wpisz fraze, aby wyszukac klientow</p>
+        <p class="initial-state__text">{{ 'agent.customers.initialText' | transloco }}</p>
       </div>
     }
   </div>
@@ -114,7 +113,7 @@
 
   <!-- ===== Customer detail drawer ===== -->
   @if (selectedCustomer()) {
-    <div class="customer-drawer" role="complementary" aria-label="Szczegoly klienta">
+    <div class="customer-drawer" role="complementary" [attr.aria-label]="'agent.customers.detailsLabel' | transloco">
       <div class="customer-drawer__header">
         <div class="customer-drawer__avatar" aria-hidden="true">
           {{ (selectedCustomer()!.firstName ?? '').charAt(0).toUpperCase()
@@ -128,7 +127,7 @@
         <button
           type="button"
           class="customer-drawer__close"
-          aria-label="Zamknij szczegoly"
+          [attr.aria-label]="'agent.customers.closeDetails' | transloco"
           (click)="selectedCustomer.set(null)"
         >
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -142,7 +141,7 @@
       <div class="customer-drawer__body">
         @if (selectedCustomer()!.phone.length > 0) {
           <div class="drawer-section">
-            <p class="drawer-section__label">Telefony</p>
+            <p class="drawer-section__label">{{ 'agent.customers.phones' | transloco }}</p>
             @for (phone of selectedCustomer()!.phone; track phone) {
               <p class="drawer-section__value">{{ phone }}</p>
             }
@@ -151,7 +150,7 @@
 
         @if (selectedCustomer()!.email.length > 0) {
           <div class="drawer-section">
-            <p class="drawer-section__label">Emaile</p>
+            <p class="drawer-section__label">{{ 'agent.customers.emails' | transloco }}</p>
             @for (email of selectedCustomer()!.email; track email) {
               <p class="drawer-section__value">{{ email }}</p>
             }
@@ -159,18 +158,18 @@
         }
 
         <div class="drawer-section">
-          <p class="drawer-section__label">Ostatni kontakt</p>
+          <p class="drawer-section__label">{{ 'agent.customers.lastContact' | transloco }}</p>
           <p class="drawer-section__value">
             @if (selectedCustomer()!.lastContactAt) {
               {{ selectedCustomer()!.lastContactAt | date: 'dd.MM.yyyy, HH:mm' }}
             } @else {
-              Brak kontaktow
+              {{ 'agent.customers.noContacts' | transloco }}
             }
           </p>
         </div>
 
         <button type="button" class="drawer-action-btn" (click)="onScheduleCallback(selectedCustomer()!)">
-          Zamow oddzwonienie
+          {{ 'agent.customers.scheduleCallback' | transloco }}
         </button>
       </div>
     </div>

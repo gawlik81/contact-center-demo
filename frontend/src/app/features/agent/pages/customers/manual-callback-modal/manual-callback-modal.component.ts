@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -36,7 +37,8 @@ function e164Validator(control: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-manual-callback-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [
+    TranslocoModule,ReactiveFormsModule],
   templateUrl: './manual-callback-modal.component.html',
   styleUrl: './manual-callback-modal.component.scss',
   host: {

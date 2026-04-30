@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, of, catchError, throwError } from 'rxjs';
 import { tap } from 'rxjs/operators';
+import { TranslocoService } from '@jsverse/transloco';
 import { CustomerProfile } from '../../../core/models/customer-profile.model';
 import { NotificationService } from '../../../core/services/notification.service';
 
@@ -23,6 +24,7 @@ const CACHE_TTL_MS = 300_000; // 5 minutes
 export class CustomerLookupService {
   private readonly http = inject(HttpClient);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
 
   private readonly cache = new Map<string, CacheEntry>();
 
@@ -48,7 +50,7 @@ export class CustomerLookupService {
           }
           // For 5xx / network errors: show toast and rethrow so the caller
           // (CustomerPanelComponent) can switch to the 'error' state.
-          this.notifications.error('Nie udało się pobrać danych klienta.');
+          this.notifications.error(this.transloco.translate('agent.customerPanel.lookupError'));
           return throwError(() => err);
         }),
       );
@@ -75,7 +77,7 @@ export class CustomerLookupService {
             this.setCache(cacheKey, null);
             return of(null);
           }
-          this.notifications.error('Nie udało się pobrać danych klienta.');
+          this.notifications.error(this.transloco.translate('agent.customerPanel.lookupError'));
           return throwError(() => err);
         }),
       );

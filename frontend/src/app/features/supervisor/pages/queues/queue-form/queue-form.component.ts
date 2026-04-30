@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -25,7 +26,8 @@ import { QueueAssignmentPanelComponent } from '../queue-assignment-panel/queue-a
 @Component({
   selector: 'app-queue-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, QueueAssignmentPanelComponent],
+  imports: [
+    TranslocoModule,ReactiveFormsModule, QueueAssignmentPanelComponent],
   templateUrl: './queue-form.component.html',
   styleUrl: './queue-form.component.scss',
   host: {

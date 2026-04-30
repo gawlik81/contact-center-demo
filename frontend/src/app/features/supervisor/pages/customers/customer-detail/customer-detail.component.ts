@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -28,6 +29,7 @@ type ContactsLoadState = 'loading' | 'loaded' | 'error';
   selector: 'app-customer-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    TranslocoModule,
     DatePipe,
     KeyValuePipe,
     ContactDetailModalComponent,
@@ -41,6 +43,7 @@ export class CustomerDetailComponent implements OnInit {
   private readonly customerService = inject(CustomerService);
   private readonly gdprService = inject(GdprService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly authService = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -102,7 +105,7 @@ export class CustomerDetailComponent implements OnInit {
                 this.loadState.set('not-found');
               } else {
                 this.loadState.set('error');
-                this.notifications.error('Nie udało się pobrać danych klienta.');
+                this.notifications.error(this.transloco.translate('supervisor.customerDetail.errorLoad'));
               }
               return of(null);
             }),
@@ -133,7 +136,7 @@ export class CustomerDetailComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się pobrać historii kontaktów.');
+          this.notifications.error(this.transloco.translate('supervisor.customerDetail.errorLoad'));
           this.contactsLoadState.set('error');
           return of(null);
         }),
@@ -190,7 +193,7 @@ export class CustomerDetailComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się odświeżyć danych klienta.');
+          this.notifications.error(this.transloco.translate('supervisor.customerDetail.errorLoad'));
           this.loadState.set('error');
           return of(null);
         }),
@@ -225,13 +228,7 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   getStatusLabel(status: string): string {
-    const labels: Record<string, string> = {
-      ACTIVE: 'Aktywny',
-      ENDED: 'Zakończony',
-      QUEUED: 'W kolejce',
-      WRAP_UP: 'Po kontakcie',
-    };
-    return labels[status] ?? status;
+    return this.transloco.translate(`supervisor.customerDetail.contactStatusLabels.${status}`, {}, status);
   }
 
   onGdprExport(): void {
@@ -245,9 +242,9 @@ export class CustomerDetailComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         catchError((err: { status?: number }) => {
           if (err.status === 403) {
-            this.notifications.error('Brak uprawnień do eksportu danych.');
+            this.notifications.error(this.transloco.translate('supervisor.customerDetail.errorLoad'));
           } else {
-            this.notifications.error('Nie udało się wyeksportować danych klienta.');
+            this.notifications.error(this.transloco.translate('supervisor.customerDetail.errorLoad'));
           }
           this.gdprExportLoading.set(false);
           return of(null);

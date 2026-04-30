@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -32,7 +33,8 @@ const MIN_QUERY_LENGTH = 2;
 @Component({
   selector: 'app-agent-customers-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, FormsModule, AgentCustomerCardComponent, ManualCallbackModalComponent],
+  imports: [
+    TranslocoModule,DatePipe, FormsModule, AgentCustomerCardComponent, ManualCallbackModalComponent],
   templateUrl: './agent-customers-tab.component.html',
   styleUrl: './agent-customers-tab.component.scss',
 })

@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -47,7 +48,8 @@ const NODE_HEIGHT_BASE = 80;
 @Component({
   selector: 'app-ivr-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, SlicePipe],
+  imports: [
+    TranslocoModule,FormsModule, SlicePipe],
   templateUrl: './ivr-editor.component.html',
   styleUrl: './ivr-editor.component.scss',
 })
@@ -55,6 +57,7 @@ export class IvrEditorComponent implements OnInit {
   private readonly ivrService = inject(IvrService);
   private readonly queueService = inject(QueueService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -124,6 +127,10 @@ export class IvrEditorComponent implements OnInit {
   });
 
   readonly nodeLabels = IVR_NODE_LABELS;
+
+  getNodeLabel(type: IvrNodeType): string {
+    return this.transloco.translate(IVR_NODE_LABELS[type], {}, IVR_NODE_LABELS[type]);
+  }
 
   readonly nodeTypes: IvrNodeType[] = [
     'PLAY_AUDIO',
@@ -720,7 +727,7 @@ export class IvrEditorComponent implements OnInit {
   }
 
   nodeTypesList(): { type: IvrNodeType; label: string }[] {
-    return this.nodeTypes.map((t) => ({ type: t, label: this.nodeLabels[t] }));
+    return this.nodeTypes.map((t) => ({ type: t, label: this.getNodeLabel(t) }));
   }
 
   otherNodes(currentNodeId: string): IvrNodeUI[] {
@@ -730,7 +737,7 @@ export class IvrEditorComponent implements OnInit {
   getNodeShortLabel(nodeId: string): string {
     const node = this.definition().nodes.find((n) => n.node_id === nodeId);
     if (!node) return nodeId.slice(0, 12) + '…';
-    const type = this.nodeLabels[node.type];
+    const type = this.getNodeLabel(node.type);
     const prompt = node.prompt ? ': ' + node.prompt.slice(0, 15) : '';
     return type + prompt;
   }

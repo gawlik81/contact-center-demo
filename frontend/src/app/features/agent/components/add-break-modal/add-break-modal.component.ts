@@ -21,6 +21,7 @@ import {
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, EMPTY, map } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AgentCalendarService } from '../../services/agent-calendar.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AgentBreakRequest, BreakType, CalendarBreak } from '../../models/agent-calendar.model';
@@ -52,7 +53,7 @@ export interface BreakTypeOption {
   selector: 'app-add-break-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, TranslocoModule],
   templateUrl: './add-break-modal.component.html',
   styleUrl: './add-break-modal.component.scss',
 })
@@ -66,6 +67,7 @@ export class AddBreakModalComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly calendarService = inject(AgentCalendarService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
@@ -75,11 +77,11 @@ export class AddBreakModalComponent implements OnInit {
   readonly confirmCancel = signal(false);
 
   readonly breakTypes: BreakTypeOption[] = [
-    { value: 'LUNCH', label: 'Obiad' },
-    { value: 'SHORT_BREAK', label: 'Krótka przerwa' },
-    { value: 'TRAINING', label: 'Szkolenie' },
-    { value: 'MEETING', label: 'Spotkanie' },
-    { value: 'OTHER', label: 'Inna' },
+    { value: 'LUNCH', label: 'agent.addBreak.breakTypes.LUNCH' },
+    { value: 'SHORT_BREAK', label: 'agent.addBreak.breakTypes.SHORT_BREAK' },
+    { value: 'TRAINING', label: 'agent.addBreak.breakTypes.TRAINING' },
+    { value: 'MEETING', label: 'agent.addBreak.breakTypes.MEETING' },
+    { value: 'OTHER', label: 'agent.addBreak.breakTypes.OTHER' },
   ];
 
   private readonly pad = (n: number) => n.toString().padStart(2, '0');
@@ -125,7 +127,7 @@ export class AddBreakModalComponent implements OnInit {
   get breakTypeError(): string | null {
     const ctrl = this.form.controls.breakType;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Typ przerwy jest wymagany.';
+    if (ctrl.hasError('required')) return this.transloco.translate('agent.addBreak.breakTypeLabel');
     return null;
   }
 
@@ -147,7 +149,7 @@ export class AddBreakModalComponent implements OnInit {
   get endDateError(): string | null {
     const ctrl = this.form.controls.endDate;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Data zakończenia jest wymagana.';
+    if (ctrl.hasError('required')) return this.transloco.translate('agent.addBreak.endLabel');
     return null;
   }
 
@@ -244,11 +246,11 @@ export class AddBreakModalComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
           if (err.status === 409) {
-            this.errorMessage.set('Przerwa koliduje z innym zdarzeniem.');
+            this.errorMessage.set(this.transloco.translate('agent.addBreak.saving'));
           } else if (err.status === 403) {
-            this.errorMessage.set('Brak uprawnień do tej operacji.');
+            this.errorMessage.set(this.transloco.translate('common.error'));
           } else {
-            this.errorMessage.set('Wystąpił błąd. Spróbuj ponownie.');
+            this.errorMessage.set(this.transloco.translate('common.error'));
           }
           return EMPTY;
         }),
@@ -256,7 +258,7 @@ export class AddBreakModalComponent implements OnInit {
       )
       .subscribe(() => {
         this.loading.set(false);
-        const msg = existing ? 'Przerwa zaktualizowana.' : 'Przerwa dodana do kalendarza.';
+        const msg = existing ? this.transloco.translate('common.success') : this.transloco.translate('common.success');
         this.notifications.success(msg);
         this.dialogRef().nativeElement.close();
         this.saved.emit();
@@ -282,9 +284,9 @@ export class AddBreakModalComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
           if (err.status === 409) {
-            this.errorMessage.set('Nie można anulować przerwy w tym statusie.');
+            this.errorMessage.set(this.transloco.translate('common.error'));
           } else {
-            this.errorMessage.set('Wystąpił błąd podczas anulowania. Spróbuj ponownie.');
+            this.errorMessage.set(this.transloco.translate('common.error'));
           }
           this.confirmCancel.set(false);
           return EMPTY;
@@ -293,7 +295,7 @@ export class AddBreakModalComponent implements OnInit {
       )
       .subscribe(() => {
         this.loading.set(false);
-        this.notifications.success('Przerwa anulowana.');
+        this.notifications.success(this.transloco.translate('common.success'));
         this.dialogRef().nativeElement.close();
         this.breakCancelled.emit();
       });

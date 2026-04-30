@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -30,7 +31,8 @@ const DAY_LABELS: Record<ActiveDay, string> = {
 @Component({
   selector: 'app-campaign-info',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [
+    TranslocoModule,],
   templateUrl: './campaign-info.component.html',
   styleUrl: './campaign-info.component.scss',
   host: {

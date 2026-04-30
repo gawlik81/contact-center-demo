@@ -1,16 +1,16 @@
 <div class="user-list">
   <div class="user-list__header">
-    <h1 class="user-list__title">Użytkownicy (wszystkie tenanty)</h1>
+    <h1 class="user-list__title">{{ 'admin.userList.title' | transloco }}</h1>
     <button
       class="btn btn-primary"
       type="button"
       (click)="openCreateModal()"
-      aria-label="Dodaj nowego użytkownika"
+      [attr.aria-label]="'admin.userList.addUserLabel' | transloco"
     >
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
       </svg>
-      Nowy użytkownik
+      {{ 'admin.userList.addUser' | transloco }}
     </button>
   </div>
 
@@ -19,12 +19,12 @@
     class="user-list__filters"
     [formGroup]="filterForm"
     role="search"
-    aria-label="Filtruj użytkowników"
+    [attr.aria-label]="'admin.userList.filterLabel' | transloco"
   >
     <div class="filter-field">
       <label class="filter-label" for="filter-tenant">Tenant</label>
       <select id="filter-tenant" class="filter-select" formControlName="tenantId">
-        <option value="">Wszystkie tenanty</option>
+        <option value="">{{ 'admin.userList.allTenants' | transloco }}</option>
         @for (tenant of tenants(); track tenant.id) {
           <option [value]="tenant.id">{{ tenant.name }}</option>
         }
@@ -34,7 +34,7 @@
 
   <!-- Loading skeleton -->
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+    <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <div class="skeleton-row">
           <div class="skeleton-cell skeleton-cell--medium"></div>
@@ -52,16 +52,16 @@
   <!-- Table -->
   @if (!loading()) {
     @if (users().length > 0) {
-  <div class="table-wrapper" role="region" aria-label="Lista użytkowników">
+  <div class="table-wrapper" role="region" [attr.aria-label]="'admin.userList.tableLabel' | transloco">
         <table class="user-table" aria-live="polite">
           <thead>
             <tr>
               <th scope="col">Tenant</th>
-              <th scope="col">Imie i nazwisko</th>
-              <th scope="col">Email</th>
-              <th scope="col">Rola</th>
-              <th scope="col">Status</th>
-              <th scope="col">Skills</th>
+              <th scope="col">{{ 'common.firstName' | transloco }} {{ 'common.lastName' | transloco }}</th>
+              <th scope="col">{{ 'common.email' | transloco }}</th>
+              <th scope="col">{{ 'common.role' | transloco }}</th>
+              <th scope="col">{{ 'common.status' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.users.tableSkills' | transloco }}</th>
               <th scope="col"><span class="sr-only">Akcje</span></th>
             </tr>
           </thead>
@@ -76,16 +76,16 @@
                   @if (user.passwordResetRequired) {
                     <span
                       class="reset-badge"
-                      title="Wymagana zmiana hasla"
-                      aria-label="Wymagana zmiana hasla"
+                      [title]="'supervisor.users.passwordResetRequired' | transloco"
+                      [attr.aria-label]="'supervisor.users.passwordResetRequired' | transloco"
                     >!</span>
                   }
                   @if (!user.active) {
                     <span
                       class="inactive-badge"
-                      title="Konto nieaktywne"
-                      aria-label="Konto nieaktywne"
-                    >Zablokowany</span>
+                      [title]="'admin.userList.accountInactive' | transloco"
+                      [attr.aria-label]="'admin.userList.accountInactive' | transloco"
+                    >{{ 'admin.userList.blocked' | transloco }}</span>
                   }
                 </td>
                 <td class="user-email">{{ user.email }}</td>
@@ -211,8 +211,8 @@
             d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
           />
         </svg>
-        <p class="empty-state__message">Brak użytkowników do wyświetlenia.</p>
-        <p class="empty-state__hint">Zmień filtry lub dodaj nowego użytkownika.</p>
+        <p class="empty-state__message">{{ 'admin.userList.emptyMessage' | transloco }}</p>
+        <p class="empty-state__hint">{{ 'admin.userList.emptyHint' | transloco }}</p>
       </div>
     }
   }
@@ -238,16 +238,16 @@
   >
     <div class="confirm-dialog__content" role="document">
       <div class="confirm-dialog__header">
-        <h2 id="delete-dialog-title" class="confirm-dialog__title">Usun użytkownika</h2>
+        <h2 id="delete-dialog-title" class="confirm-dialog__title">{{ 'admin.userList.confirmDeleteTitle' | transloco }}</h2>
       </div>
       <div class="confirm-dialog__body">
         <p class="confirm-dialog__message">
-          Czy na pewno chcesz usunać użytkownika
+          {{ 'admin.userList.confirmDeleteBody' | transloco }}
           <strong>{{ deletingUser()!.firstName }} {{ deletingUser()!.lastName }}</strong>
           (<span class="confirm-dialog__email">{{ deletingUser()!.email }}</span>)?
         </p>
         <p class="confirm-dialog__warning">
-          Ta operacja jest nieodwracalna. Uzytkownik zostanie trwale zablokowany i ukryty.
+          {{ 'admin.userList.confirmDeleteWarning' | transloco }}
         </p>
       </div>
       <div class="confirm-dialog__footer">
@@ -257,7 +257,7 @@
           (click)="closeDeleteModal()"
           [disabled]="deleteSubmitting()"
         >
-          Anuluj
+          {{ 'common.cancel' | transloco }}
         </button>
         <button
           class="btn btn-danger"
@@ -269,9 +269,9 @@
         >
           @if (deleteSubmitting()) {
             <span class="spinner" aria-hidden="true"></span>
-            Usuwanie...
+            {{ 'admin.userList.deleting' | transloco }}
           } @else {
-            Usun
+            {{ 'admin.userList.confirmDeleteBtn' | transloco }}
           }
         </button>
       </div>
@@ -290,16 +290,16 @@
   >
     <div class="confirm-dialog__content" role="document">
       <div class="confirm-dialog__header">
-        <h2 id="force-reset-dialog-title" class="confirm-dialog__title">Wymus zmiane hasla</h2>
+        <h2 id="force-reset-dialog-title" class="confirm-dialog__title">{{ 'supervisor.userResetPassword.title' | transloco }}</h2>
       </div>
       <div class="confirm-dialog__body">
         <p class="confirm-dialog__message">
-          Czy na pewno chcesz wymusić zmianę hasła dla użytkownika
+          {{ 'supervisor.userResetPassword.body' | transloco }}
           <strong>{{ forceResetUser()!.firstName }} {{ forceResetUser()!.lastName }}</strong>
           (<span class="confirm-dialog__email">{{ forceResetUser()!.email }}</span>)?
         </p>
         <p class="confirm-dialog__info">
-          Uzytkownik bedzie musial zmienic haslo przy nastepnym logowaniu.
+          {{ 'supervisor.userResetPassword.warning' | transloco }}
         </p>
       </div>
       <div class="confirm-dialog__footer">
@@ -309,7 +309,7 @@
           (click)="closeForceResetModal()"
           [disabled]="forceResetSubmitting()"
         >
-          Anuluj
+          {{ 'common.cancel' | transloco }}
         </button>
         <button
           class="btn btn-warning"
@@ -321,9 +321,9 @@
         >
           @if (forceResetSubmitting()) {
             <span class="spinner" aria-hidden="true"></span>
-            Przetwarzanie...
+            {{ 'auth.changePassword.saving' | transloco }}
           } @else {
-            Wymus zmiane hasla
+            {{ 'supervisor.userResetPassword.confirm' | transloco }}
           }
         </button>
       </div>

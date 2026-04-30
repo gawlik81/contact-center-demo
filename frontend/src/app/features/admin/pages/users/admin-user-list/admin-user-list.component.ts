@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal,} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {FormBuilder, ReactiveFormsModule} from '@angular/forms';
@@ -13,7 +14,8 @@ import {UserRole, UserStatus} from '../../../../supervisor/models/user.model';
 @Component({
   selector: 'cc-admin-user-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, AdminUserFormComponent],
+  imports: [
+    TranslocoModule,ReactiveFormsModule, AdminUserFormComponent],
   templateUrl: './admin-user-list.component.html',
   styleUrl: './admin-user-list.component.scss',
 })
@@ -21,6 +23,7 @@ export class AdminUserListComponent implements OnInit {
   private readonly adminUserService = inject(AdminUserService);
   private readonly tenantService = inject(TenantService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -68,7 +71,7 @@ export class AdminUserListComponent implements OnInit {
       .getTenants({ page: 0, size: 200, status: 'ACTIVE' })
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac listy tenantow.');
+          this.notifications.error(this.transloco.translate('admin.tenants.errorLoad'));
           return of({ content: [], totalElements: 0, totalPages: 0, size: 200, number: 0 });
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -92,7 +95,7 @@ export class AdminUserListComponent implements OnInit {
       })
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało sie pobrać listy użytkowników. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('admin.userList.errorLoad'));
           const empty: AdminPagedResponse<AdminUserResponse> = {
             content: [],
             page: 0,
@@ -164,7 +167,7 @@ export class AdminUserListComponent implements OnInit {
       .pipe(
         catchError(() => {
           this.deleteSubmitting.set(false);
-          this.notifications.error('Nie udało sie usunąć użytkownika. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('admin.userList.errorDelete'));
           return of(undefined);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -172,9 +175,7 @@ export class AdminUserListComponent implements OnInit {
       .subscribe((result) => {
         if (result !== null) {
           this.deleteSubmitting.set(false);
-          this.notifications.success(
-            `Uzytkownik "${user.firstName} ${user.lastName}" zostal usuniety.`,
-          );
+          this.notifications.success(this.transloco.translate('admin.userList.successDelete'));
           this.closeDeleteModal();
           this.loadUsers();
         }
@@ -203,9 +204,7 @@ export class AdminUserListComponent implements OnInit {
       .pipe(
         catchError(() => {
           this.forceResetSubmitting.set(false);
-          this.notifications.error(
-            'Nie udalo sie wymuszenia zmiany hasla. Sprobuj ponownie.',
-          );
+          this.notifications.error(this.transloco.translate('admin.userList.errorDelete'));
           return of(undefined);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -214,7 +213,7 @@ export class AdminUserListComponent implements OnInit {
         if (result !== null) {
           this.forceResetSubmitting.set(false);
           this.notifications.success(
-            `Zmiana hasla zostala wymuszona dla "${user.firstName} ${user.lastName}".`,
+            this.transloco.translate('supervisor.users.successResetPassword'),
           );
           this.closeForceResetModal();
           this.loadUsers();

@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -19,13 +20,15 @@ import { IvrResponse } from '../../../models/ivr.model';
 @Component({
   selector: 'app-ivr-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [
+    TranslocoModule,FormsModule],
   templateUrl: './ivr-list.component.html',
   styleUrl: './ivr-list.component.scss',
 })
 export class IvrListComponent implements OnInit {
   private readonly ivrService = inject(IvrService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -51,7 +54,7 @@ export class IvrListComponent implements OnInit {
       .getIvrList()
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac listy IVR.');
+          this.notifications.error(this.transloco.translate('supervisor.ivr.errorLoad'));
           return of([]);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -90,7 +93,7 @@ export class IvrListComponent implements OnInit {
       })
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie utworzyc drzewa IVR.');
+          this.notifications.error(this.transloco.translate('supervisor.ivr.errorCreate'));
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -99,7 +102,7 @@ export class IvrListComponent implements OnInit {
         this.createInProgress.set(false);
         if (ivr) {
           this.closeCreateModal();
-          this.notifications.success(`Drzewo IVR "${ivr.name}" zostalo utworzone.`);
+          this.notifications.success(this.transloco.translate('supervisor.ivr.successCreate'));
           this.router.navigate(['/supervisor/ivr', ivr.ivr_id]);
         }
       });
@@ -112,7 +115,7 @@ export class IvrListComponent implements OnInit {
       .activateIvr(id)
       .pipe(
         catchError(() => {
-          this.notifications.error(`Nie udalo sie aktywowac IVR "${ivr.name}".`);
+          this.notifications.error(this.transloco.translate('supervisor.ivr.errorActivate'));
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -120,7 +123,7 @@ export class IvrListComponent implements OnInit {
       .subscribe((updated) => {
         this.setActionInProgress(id, false);
         if (updated) {
-          this.notifications.success(`IVR "${ivr.name}" zostal aktywowany.`);
+          this.notifications.success(this.transloco.translate('supervisor.ivr.successActivate'));
           this.ivrs.update((list) => list.map((i) => (i.ivr_id === id ? updated : i)));
         }
       });
@@ -135,11 +138,9 @@ export class IvrListComponent implements OnInit {
         catchError((err: unknown) => {
           const httpErr = err as HttpErrorResponse;
           if (httpErr?.status === 409) {
-            this.notifications.error(
-              `Nie można deaktywować IVR "${ivr.name}" – jest przypisany do reguły routingu.`,
-            );
+            this.notifications.error(this.transloco.translate('supervisor.ivr.errorActivate'));
           } else {
-            this.notifications.error(`Nie udało się deaktywować IVR "${ivr.name}".`);
+            this.notifications.error(this.transloco.translate('supervisor.ivr.errorActivate'));
           }
           return of(null);
         }),
@@ -148,7 +149,7 @@ export class IvrListComponent implements OnInit {
       .subscribe((updated) => {
         this.setActionInProgress(id, false);
         if (updated) {
-          this.notifications.success(`IVR "${ivr.name}" został deaktywowany.`);
+          this.notifications.success(this.transloco.translate('supervisor.ivr.successActivate'));
           this.ivrs.update((list) => list.map((i) => (i.ivr_id === id ? updated : i)));
         }
       });
@@ -172,7 +173,7 @@ export class IvrListComponent implements OnInit {
       .deleteIvr(id)
       .pipe(
         catchError(() => {
-          this.notifications.error(`Nie udalo sie usunac IVR.`);
+          this.notifications.error(this.transloco.translate('supervisor.ivr.errorDelete'));
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -180,7 +181,7 @@ export class IvrListComponent implements OnInit {
       .subscribe((result) => {
         this.setActionInProgress(id, false);
         if (result !== null || result === undefined) {
-          this.notifications.success(`IVR "${ivr?.name ?? ''}" zostal usuniety.`);
+          this.notifications.success(this.transloco.translate('supervisor.ivr.successDelete'));
           this.ivrs.update((list) => list.filter((i) => i.ivr_id !== id));
         }
       });

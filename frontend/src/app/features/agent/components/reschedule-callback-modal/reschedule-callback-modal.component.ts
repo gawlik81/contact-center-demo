@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -23,7 +24,7 @@ import { ScheduledCallbackDto } from '../../models/callback.model';
   selector: 'app-reschedule-callback-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, TranslocoModule],
   templateUrl: './reschedule-callback-modal.component.html',
   styleUrl: './reschedule-callback-modal.component.scss',
 })

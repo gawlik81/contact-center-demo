@@ -1,10 +1,10 @@
 <div class="admin-dashboard">
   <div class="admin-dashboard__header">
-    <h1 class="admin-dashboard__title">Dashboard administratora</h1>
+    <h1 class="admin-dashboard__title">{{ 'admin.dashboard.title' | transloco }}</h1>
     @if (metrics()) {
       <p class="admin-dashboard__timestamp" aria-live="polite">
-        Odswiezono: {{ metrics()!.generatedAt | date: 'dd.MM.yyyy HH:mm:ss' }}
-        <span class="admin-dashboard__poll-badge" aria-label="Dane sa odswiezane automatycznie co 30 sekund"
+        {{ 'admin.dashboard.refreshedAt' | transloco }} {{ metrics()!.generatedAt | date: 'dd.MM.yyyy HH:mm:ss' }}
+        <span class="admin-dashboard__poll-badge" [attr.aria-label]="'admin.dashboard.pollBadgeLabel' | transloco"
           >co 30s</span
         >
       </p>
@@ -18,7 +18,7 @@
         <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
       </svg>
       <div class="alert-banner__body">
-        <p class="alert-banner__title">Alerty systemowe ({{ metrics()!.systemAlerts.length }})</p>
+        <p class="alert-banner__title">{{ 'admin.dashboard.alertsTitle' | transloco }} ({{ metrics()!.systemAlerts.length }})</p>
         <ul class="alert-banner__list">
           @for (alert of metrics()!.systemAlerts; track alert) {
             <li>{{ alert }}</li>
@@ -30,7 +30,7 @@
 
   <!-- KPI cards skeleton -->
   @if (loading()) {
-    <div class="kpi-grid" aria-busy="true" aria-label="Wczytywanie metryk...">
+    <div class="kpi-grid" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
       @for (i of [1, 2, 3]; track i) {
         <div class="kpi-card kpi-card--skeleton">
           <div class="skeleton-block skeleton-block--label"></div>
@@ -42,7 +42,7 @@
 
   <!-- KPI cards -->
   @if (!loading() && metrics()) {
-    <div class="kpi-grid" role="region" aria-label="Metryki globalne">
+    <div class="kpi-grid" role="region" [attr.aria-label]="'admin.dashboard.kpiLabel' | transloco">
       <div class="kpi-card kpi-card--blue" role="group" aria-labelledby="kpi-tenants-label">
         <div class="kpi-card__icon-wrap kpi-card__icon-wrap--blue" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="currentColor" class="kpi-card__icon">
@@ -50,7 +50,7 @@
           </svg>
         </div>
         <div class="kpi-card__content">
-          <p id="kpi-tenants-label" class="kpi-card__label">Aktywne tenanty</p>
+          <p id="kpi-tenants-label" class="kpi-card__label">{{ 'admin.dashboard.kpiActiveTenants' | transloco }}</p>
           <p class="kpi-card__value">{{ metrics()!.totalActiveTenants }}</p>
         </div>
       </div>
@@ -64,7 +64,7 @@
           </svg>
         </div>
         <div class="kpi-card__content">
-          <p id="kpi-agents-label" class="kpi-card__label">Agenci online</p>
+          <p id="kpi-agents-label" class="kpi-card__label">{{ 'admin.dashboard.kpiAgentsOnline' | transloco }}</p>
           <p class="kpi-card__value">{{ metrics()!.totalAgentsOnline }}</p>
         </div>
       </div>
@@ -89,7 +89,7 @@
           </svg>
         </div>
         <div class="kpi-card__content">
-          <p id="kpi-alerts-label" class="kpi-card__label">Alerty systemowe</p>
+          <p id="kpi-alerts-label" class="kpi-card__label">{{ 'admin.dashboard.kpiAlerts' | transloco }}</p>
           <p class="kpi-card__value">{{ metrics()!.systemAlerts.length }}</p>
         </div>
       </div>
@@ -102,7 +102,7 @@
       <div class="section__header">
         <div class="skeleton-block skeleton-block--heading"></div>
       </div>
-      <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie tenantow...">
+      <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
         @for (i of [1, 2, 3]; track i) {
           <div class="skeleton-row">
             <div class="skeleton-cell skeleton-cell--wide"></div>
@@ -119,21 +119,21 @@
   @if (!loading()) {
     <section class="section" aria-label="Tenanty">
       <div class="section__header">
-        <h2 class="section__title">Tenanty</h2>
+        <h2 class="section__title">{{ 'admin.dashboard.tenantsTitle' | transloco }}</h2>
         @if (hasTenants()) {
-          <span class="section__count" aria-label="{{ tenants().length }} tenantow">{{ tenants().length }}</span>
+          <span class="section__count" [attr.aria-label]="tenants().length + ' ' + ('admin.dashboard.tenants' | transloco)">{{ tenants().length }}</span>
         }
       </div>
 
       @if (hasTenants()) {
-        <div class="table-wrapper" role="region" aria-label="Lista tenantow z metrykami">
+        <div class="table-wrapper" role="region" [attr.aria-label]="'admin.dashboard.tableLabel' | transloco">
           <table class="data-table" aria-live="polite">
             <thead>
               <tr>
-                <th scope="col">Nazwa</th>
-                <th scope="col">Status</th>
-                <th scope="col">Agenci online</th>
-                <th scope="col">Wykorzystanie</th>
+                <th scope="col">{{ 'common.name' | transloco }}</th>
+                <th scope="col">{{ 'common.status' | transloco }}</th>
+                <th scope="col">{{ 'admin.dashboard.agentsOnline' | transloco }}</th>
+                <th scope="col">{{ 'admin.dashboard.utilization' | transloco }}</th>
               </tr>
             </thead>
             <tbody>
@@ -151,13 +151,13 @@
                     >
                       @switch (tenant.status) {
                         @case ('ACTIVE') {
-                          Aktywny
+                          {{ 'common.active' | transloco }}
                         }
                         @case ('INACTIVE') {
-                          Nieaktywny
+                          {{ 'common.inactive' | transloco }}
                         }
                         @case ('SUSPENDED') {
-                          Zawieszony
+                          {{ 'admin.dashboard.statusSuspended' | transloco }}
                         }
                       }
                     </span>
@@ -197,8 +197,8 @@
           <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M3 21V7l9-4 9 4v14H3zm6-2h2v-4H9v4zm4 0h2v-4h-2v4zm4 0h2v-6h-2v6zm-8-6h2v-2H9v2zm4 0h2v-2h-2v2z" />
           </svg>
-          <p class="empty-state__message">Brak danych do wyswietlenia.</p>
-          <p class="empty-state__hint">Nie ma aktywnych tenantow lub brak danych z API.</p>
+          <p class="empty-state__message">{{ 'common.no_data' | transloco }}</p>
+          <p class="empty-state__hint">{{ 'admin.dashboard.emptyHint' | transloco }}</p>
         </div>
       }
     </section>

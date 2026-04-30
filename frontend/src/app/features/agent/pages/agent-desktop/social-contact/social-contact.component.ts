@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -26,7 +27,8 @@ import { WsEvent } from '../../../models/ws-event.model';
 @Component({
   selector: 'cc-social-contact',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe],
+  imports: [
+    TranslocoModule,DatePipe],
   templateUrl: './social-contact.component.html',
   styleUrl: './social-contact.component.scss',
 })

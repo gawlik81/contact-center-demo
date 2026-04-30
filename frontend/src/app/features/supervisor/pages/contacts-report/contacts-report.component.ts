@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, OnInit, signal, ViewChild,} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {FormBuilder, ReactiveFormsModule} from '@angular/forms';
@@ -13,7 +14,8 @@ import {ContactDetailModalComponent} from '../../../../shared/components/contact
 @Component({
   selector: 'app-contacts-report',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, ContactDetailModalComponent],
+  imports: [
+    TranslocoModule,ReactiveFormsModule, ContactDetailModalComponent],
   templateUrl: './contacts-report.component.html',
   styleUrl: './contacts-report.component.scss',
 })

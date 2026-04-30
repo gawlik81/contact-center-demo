@@ -2,7 +2,7 @@
   <!-- Page header -->
   <div class="callbacks-page__header">
     <h1 class="callbacks-page__title">
-      Oddzwonienia
+      {{ 'supervisor.callbacks.title' | transloco }}
       @if (!loading() && total() > 0) {
         <span class="callbacks-page__count">({{ total() }})</span>
       }
@@ -10,9 +10,9 @@
   </div>
 
   <!-- Filters bar -->
-  <div class="callbacks-page__filters" [formGroup]="filterForm" role="search" aria-label="Filtry listy oddzwonień">
+  <div class="callbacks-page__filters" [formGroup]="filterForm" role="search" [attr.aria-label]="'supervisor.callbacks.filtersLabel' | transloco">
     <div class="filter-group">
-      <label class="filter-label" for="filter-status">Status</label>
+      <label class="filter-label" for="filter-status">{{ 'common.status' | transloco }}</label>
       <select
         id="filter-status"
         class="filter-select"
@@ -20,16 +20,16 @@
         (change)="onFilterChange()"
         aria-label="Filtruj po statusie"
       >
-        <option [ngValue]="null">Wszystkie</option>
-        <option value="PENDING">Oczekujące</option>
-        <option value="PROCESSING">W trakcie</option>
-        <option value="COMPLETED">Zakończone</option>
-        <option value="CANCELLED">Anulowane</option>
+        <option [ngValue]="null">{{ 'common.all' | transloco }}</option>
+        <option value="PENDING">{{ 'supervisor.callbacks.statusPending' | transloco }}</option>
+        <option value="PROCESSING">{{ 'supervisor.callbacks.statusProcessing' | transloco }}</option>
+        <option value="COMPLETED">{{ 'supervisor.callbacks.statusCompleted' | transloco }}</option>
+        <option value="CANCELLED">{{ 'supervisor.callbacks.statusCancelled' | transloco }}</option>
       </select>
     </div>
 
     <div class="filter-group">
-      <label class="filter-label" for="filter-agent">Agent</label>
+      <label class="filter-label" for="filter-agent">{{ 'supervisor.callbacks.agentLabel' | transloco }}</label>
       <select
         id="filter-agent"
         class="filter-select"
@@ -37,7 +37,7 @@
         (change)="onFilterChange()"
         aria-label="Filtruj po agencie"
       >
-        <option [ngValue]="null">Wszyscy agenci</option>
+        <option [ngValue]="null">{{ 'supervisor.callbacks.allAgents' | transloco }}</option>
         @for (agent of agents(); track agent.id) {
           <option [value]="agent.id">{{ agent.name }}</option>
         }
@@ -45,7 +45,7 @@
     </div>
 
     <div class="filter-group">
-      <label class="filter-label" for="filter-sort">Sortowanie</label>
+      <label class="filter-label" for="filter-sort">{{ 'supervisor.callbacks.sortLabel' | transloco }}</label>
       <select
         id="filter-sort"
         class="filter-select"
@@ -53,15 +53,15 @@
         (change)="onFilterChange()"
         aria-label="Sortuj oddzwonienia"
       >
-        <option value="ASC">Najwcześniejsze</option>
-        <option value="DESC">Najpóźniejsze</option>
+        <option value="ASC">{{ 'common.sortAsc' | transloco }}</option>
+        <option value="DESC">{{ 'common.sortDesc' | transloco }}</option>
       </select>
     </div>
   </div>
 
   <!-- Loading skeleton -->
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+    <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <div class="skeleton-row">
           <div class="skeleton-cell skeleton-cell--medium"></div>
@@ -79,16 +79,16 @@
   <!-- Table -->
   @if (!loading()) {
     @if (callbacks().length > 0) {
-      <div class="table-wrapper" role="region" aria-label="Lista oddzwonień">
+      <div class="table-wrapper" role="region" [attr.aria-label]="'supervisor.callbacks.tableLabel' | transloco">
         <table class="callbacks-table" aria-live="polite">
           <thead>
             <tr>
-              <th scope="col">Telefon</th>
-              <th scope="col" class="hide-sm">Imię i nazwisko</th>
-              <th scope="col">Data i godzina</th>
-              <th scope="col" class="hide-xs">Notatka</th>
-              <th scope="col" class="hide-sm">Agent</th>
-              <th scope="col">Status</th>
+              <th scope="col">{{ 'common.phone' | transloco }}</th>
+              <th scope="col" class="hide-sm">{{ 'supervisor.callbacks.tableFullName' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.callbacks.tableDateTime' | transloco }}</th>
+              <th scope="col" class="hide-xs">{{ 'common.notes' | transloco }}</th>
+              <th scope="col" class="hide-sm">{{ 'supervisor.callbacks.agentLabel' | transloco }}</th>
+              <th scope="col">{{ 'common.status' | transloco }}</th>
               <th scope="col"><span class="sr-only">Akcje</span></th>
             </tr>
           </thead>
@@ -151,8 +151,7 @@
       <nav class="pagination" aria-label="Nawigacja stron">
         <span class="pagination__info" aria-live="polite">
           @if (total() > 0) {
-            Wyświetlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ total() }}
-            oddzwonień
+            {{ 'supervisor.callbacks.showing' | transloco }} {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ total() }} {{ 'supervisor.callbacks.ofCallbacks' | transloco }}
           }
         </span>
         <div class="pagination__controls">
@@ -161,22 +160,22 @@
             type="button"
             (click)="onPrevPage()"
             [disabled]="page() === 0"
-            aria-label="Poprzednia strona"
+            [attr.aria-label]="'common.previous' | transloco"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
             </svg>
-            Poprzednia
+            {{ 'common.previous' | transloco }}
           </button>
-          <span class="pagination__pages" aria-current="page"> Strona {{ page() + 1 }} z {{ totalPages() }} </span>
+          <span class="pagination__pages" aria-current="page"> {{ 'common.page' | transloco }} {{ page() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }} </span>
           <button
             class="btn btn-pagination"
             type="button"
             (click)="onNextPage()"
             [disabled]="page() + 1 >= totalPages()"
-            aria-label="Następna strona"
+            [attr.aria-label]="'common.next' | transloco"
           >
-            Następna
+            {{ 'common.next' | transloco }}
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
             </svg>
@@ -191,8 +190,8 @@
             d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
           />
         </svg>
-        <p class="empty-state__message">Brak oddzwonień spełniających podane kryteria.</p>
-        <p class="empty-state__hint">Zmień filtry lub poczekaj na nowe zgłoszenia.</p>
+        <p class="empty-state__message">{{ 'supervisor.callbacks.emptyText' | transloco }}</p>
+        <p class="empty-state__hint">{{ 'supervisor.callbacks.emptyHint' | transloco }}</p>
       </div>
     }
   }
@@ -212,21 +211,21 @@
 @if (showDeleteModal() && deletingCallback()) {
   <dialog class="confirm-dialog" open aria-modal="true" aria-labelledby="confirm-dialog-title">
     <div class="confirm-dialog__content">
-      <h2 class="confirm-dialog__title" id="confirm-dialog-title">Anuluj oddzwonienie</h2>
+      <h2 class="confirm-dialog__title" id="confirm-dialog-title">{{ 'supervisor.callbacks.cancelTitle' | transloco }}</h2>
       <p class="confirm-dialog__body">
-        Czy na pewno chcesz anulować oddzwonienie do
+        {{ 'supervisor.callbacks.confirmBody' | transloco }}
         <strong>{{ deletingCallback()!.phone }}</strong>
         @if (getClientName(deletingCallback()!) !== '—') {
           ({{ getClientName(deletingCallback()!) }})
         }
-        zaplanowane na
+        {{ 'supervisor.callbacks.confirmScheduled' | transloco }}
         <strong>{{ deletingCallback()!.scheduledAt | date: 'dd.MM.yyyy HH:mm' }}</strong
         >?
       </p>
-      <p class="confirm-dialog__warning">Tej operacji nie można cofnąć.</p>
+      <p class="confirm-dialog__warning">{{ 'supervisor.callbacks.irreversible' | transloco }}</p>
       <div class="confirm-dialog__actions">
         <button class="btn btn-secondary" type="button" (click)="closeDeleteModal()" [disabled]="deleteLoading()">
-          Wróć
+          {{ 'common.back' | transloco }}
         </button>
         <button
           class="btn btn-danger"
@@ -236,9 +235,9 @@
           aria-live="polite"
         >
           @if (deleteLoading()) {
-            Anulowanie...
+            {{ 'supervisor.callbacks.cancelling' | transloco }}
           } @else {
-            Anuluj oddzwonienie
+            {{ 'supervisor.callbacks.cancelButton' | transloco }}
           }
         </button>
       </div>

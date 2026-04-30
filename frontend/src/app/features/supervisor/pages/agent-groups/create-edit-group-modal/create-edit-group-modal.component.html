@@ -8,13 +8,13 @@
 >
   <div class="modal-content">
     <h2 class="modal-title" [id]="isEditMode ? 'modal-title-edit' : 'modal-title-create'">
-      {{ isEditMode ? 'Edytuj grupę' : 'Utwórz grupę' }}
+      {{ isEditMode ? ('supervisor.agentGroupForm.titleEdit' | transloco) : ('supervisor.agentGroupForm.titleCreate' | transloco) }}
     </h2>
 
     <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
       <div class="form-field">
         <label class="form-label" for="group-name">
-          Nazwa grupy <span class="form-required" aria-hidden="true">*</span>
+          {{ 'supervisor.agentGroupForm.nameLabel' | transloco }} <span class="form-required" aria-hidden="true">*</span>
         </label>
         <input
           id="group-name"
@@ -31,25 +31,25 @@
         @if (nameControl.invalid && nameControl.touched) {
           <span class="form-error" id="group-name-error" role="alert">
             @if (nameControl.hasError('required')) {
-              Nazwa grupy jest wymagana.
+              {{ 'supervisor.agentGroupForm.nameRequired' | transloco }}
             } @else if (nameControl.hasError('maxlength')) {
-              Nazwa nie może przekraczać 255 znaków.
+              {{ 'supervisor.agentGroupForm.nameMaxLength' | transloco }}
             } @else if (nameControl.hasError('conflict')) {
-              Nazwa jest już zajęta.
+              {{ 'supervisor.agentGroupForm.nameConflict' | transloco }}
             } @else if (nameControl.hasError('serverError')) {
-              Wystąpił błąd serwera. Spróbuj ponownie.
+              {{ 'common.error' | transloco }}
             }
           </span>
         }
       </div>
 
       <div class="modal-actions">
-        <button class="btn btn-secondary" type="button" (click)="onCancel()" [disabled]="saving()">Anuluj</button>
+        <button class="btn btn-secondary" type="button" (click)="onCancel()" [disabled]="saving()">{{ 'common.cancel' | transloco }}</button>
         <button class="btn btn-primary" type="submit" [disabled]="saving()">
           @if (saving()) {
-            Zapisywanie...
+            {{ 'common.saving' | transloco }}
           } @else {
-            Zapisz
+            {{ 'common.save' | transloco }}
           }
         </button>
       </div>

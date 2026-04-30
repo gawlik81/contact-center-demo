@@ -1,6 +1,10 @@
 <section class="assignment-panel">
   @if (loading()) {
-    <div class="assignment-skeleton" aria-busy="true" aria-label="Ładowanie danych przypisania">
+    <div
+      class="assignment-skeleton"
+      aria-busy="true"
+      [attr.aria-label]="'supervisor.queueAssignment.loadingLabel' | transloco"
+    >
       <div class="skeleton skeleton--line skeleton--short"></div>
       <div class="skeleton skeleton--line"></div>
       <div class="skeleton skeleton--line"></div>
@@ -8,16 +12,18 @@
     </div>
   } @else {
     <div class="assignment-mode" role="radiogroup" aria-labelledby="assignment-mode-label">
-      <p id="assignment-mode-label" class="assignment-mode__label">Tryb przypisania agentów</p>
+      <p id="assignment-mode-label" class="assignment-mode__label">
+        {{ 'supervisor.queueAssignment.modeLabel' | transloco }}
+      </p>
       <label class="radio-option">
         <input
           type="radio"
           name="assignment-mode"
           [checked]="allAgents()"
           (change)="allAgents.set(true)"
-          aria-label="Wszyscy agenci tenanta"
+          [attr.aria-label]="'supervisor.queueAssignment.allAgents' | transloco"
         />
-        <span class="radio-option__text">Wszyscy agenci tenanta</span>
+        <span class="radio-option__text">{{ 'supervisor.queueAssignment.allAgents' | transloco }}</span>
       </label>
       <label class="radio-option">
         <input
@@ -25,9 +31,9 @@
           name="assignment-mode"
           [checked]="!allAgents()"
           (change)="allAgents.set(false)"
-          aria-label="Wybrane grupy lub agenci"
+          [attr.aria-label]="'supervisor.queueAssignment.selectedGroupsAgents' | transloco"
         />
-        <span class="radio-option__text">Wybrane grupy lub agenci</span>
+        <span class="radio-option__text">{{ 'supervisor.queueAssignment.selectedGroupsAgents' | transloco }}</span>
       </label>
     </div>
 
@@ -50,17 +56,17 @@
           <line x1="12" y1="9" x2="12" y2="13" />
           <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
-        Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu
+        {{ 'supervisor.queueAssignment.noAssignmentWarning' | transloco }}
       </div>
     }
 
     @if (!allAgents()) {
       <div class="assignment-section">
-        <h4 class="assignment-section__title">Grupy agentów</h4>
+        <h4 class="assignment-section__title">{{ 'supervisor.queueAssignment.groupsTitle' | transloco }}</h4>
         @if (availableGroups().length === 0) {
-          <p class="assignment-section__empty">Brak dostępnych grup.</p>
+          <p class="assignment-section__empty">{{ 'supervisor.queueAssignment.noGroups' | transloco }}</p>
         } @else {
-          <ul class="checkbox-list" aria-label="Lista grup agentów">
+          <ul class="checkbox-list" [attr.aria-label]="'supervisor.queueAssignment.groupsTitle' | transloco">
             @for (group of availableGroups(); track group.groupId) {
               <li class="checkbox-list__item">
                 <label class="checkbox-option">
@@ -68,10 +74,10 @@
                     type="checkbox"
                     [checked]="selectedGroupIds().includes(group.groupId)"
                     (change)="toggleGroup(group.groupId)"
-                    [attr.aria-label]="group.name + ', ' + group.memberCount + ' agentów'"
+                    [attr.aria-label]="group.name + ', ' + group.memberCount + ' ' + ('supervisor.queueAssignment.agentsCount' | transloco)"
                   />
                   <span class="checkbox-option__text">{{ group.name }}</span>
-                  <span class="count-badge">{{ group.memberCount }} agentów</span>
+                  <span class="count-badge">{{ group.memberCount }} {{ 'supervisor.queueAssignment.agentsCount' | transloco }}</span>
                 </label>
               </li>
             }
@@ -80,11 +86,11 @@
       </div>
 
       <div class="assignment-section">
-        <h4 class="assignment-section__title">Indywidualni agenci</h4>
+        <h4 class="assignment-section__title">{{ 'supervisor.queueAssignment.directAgentsTitle' | transloco }}</h4>
         @if (availableAgents().length === 0) {
-          <p class="assignment-section__empty">Brak dostępnych agentów.</p>
+          <p class="assignment-section__empty">{{ 'supervisor.queueAssignment.noAgents' | transloco }}</p>
         } @else {
-          <ul class="checkbox-list" aria-label="Lista indywidualnych agentów">
+          <ul class="checkbox-list" [attr.aria-label]="'supervisor.queueAssignment.directAgentsTitle' | transloco">
             @for (agent of availableAgents(); track agent.id) {
               <li class="checkbox-list__item">
                 <label class="checkbox-option">
@@ -118,9 +124,9 @@
       >
         @if (saving()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Zapisz przypisanie
+          {{ 'supervisor.queueAssignment.saveAssignment' | transloco }}
         }
       </button>
     </div>

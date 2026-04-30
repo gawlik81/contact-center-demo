@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -33,7 +34,8 @@ function passwordStrengthValidator(control: AbstractControl): ValidationErrors |
 @Component({
   selector: 'cc-admin-user-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [
+    TranslocoModule,ReactiveFormsModule],
   templateUrl: './admin-user-form.component.html',
   styleUrl: './admin-user-form.component.scss',
   host: {
@@ -50,6 +52,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
 
   private readonly adminUserService = inject(AdminUserService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -166,14 +169,14 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
   get tenantIdError(): string | null {
     const ctrl = this.form.get('tenantId')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Tenant jest wymagany.';
+    if (ctrl.hasError('required')) return this.transloco.translate('admin.userForm.errors.tenantRequired');
     return null;
   }
 
   get firstNameError(): string | null {
     const ctrl = this.form.get('firstName')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Imie jest wymagane.';
+    if (ctrl.hasError('required')) return this.transloco.translate('admin.userForm.errors.firstNameRequired');
     if (ctrl.hasError('maxlength')) return 'Imie nie moze przekraczac 100 znakow.';
     return null;
   }
@@ -181,7 +184,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
   get lastNameError(): string | null {
     const ctrl = this.form.get('lastName')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Nazwisko jest wymagane.';
+    if (ctrl.hasError('required')) return this.transloco.translate('admin.userForm.errors.lastNameRequired');
     if (ctrl.hasError('maxlength')) return 'Nazwisko nie moze przekraczac 100 znakow.';
     return null;
   }
@@ -189,7 +192,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
   get emailError(): string | null {
     const ctrl = this.form.get('email')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Email jest wymagany.';
+    if (ctrl.hasError('required')) return this.transloco.translate('admin.userForm.errors.emailRequired');
     if (ctrl.hasError('email')) return 'Nieprawidlowy format adresu email.';
     if (ctrl.hasError('maxlength')) return 'Email nie moze przekraczac 255 znakow.';
     return null;
@@ -198,7 +201,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
   get passwordError(): string | null {
     const ctrl = this.form.get('password')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Haslo jest wymagane.';
+    if (ctrl.hasError('required')) return this.transloco.translate('admin.userForm.errors.passwordRequired');
     if (ctrl.hasError('minLength')) return 'Haslo musi miec co najmniej 8 znakow.';
     if (ctrl.hasError('requireUppercase'))
       return 'Haslo musi zawierac co najmniej jedna wielka litere.';
@@ -233,7 +236,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
         .pipe(
           catchError(() => {
             this.submitting.set(false);
-            this.notifications.error('Nie udało sie zaktualizować użytkownika. Spróbuj ponownie.');
+            this.notifications.error(this.transloco.translate('admin.userForm.errorEdit'));
             return of(null);
           }),
           takeUntilDestroyed(this.destroyRef),
@@ -241,9 +244,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
         .subscribe((updated) => {
           if (updated) {
             this.submitting.set(false);
-            this.notifications.success(
-              `Uzytkownik "${updated.firstName} ${updated.lastName}" zostal zaktualizowany.`,
-            );
+            this.notifications.success(this.transloco.translate('admin.userForm.successEdit'));
             this.saved.emit();
           }
         });
@@ -262,7 +263,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
         .pipe(
           catchError(() => {
             this.submitting.set(false);
-            this.notifications.error('Nie udało sie utworzyć użytkownika. Spróbuj ponownie.');
+            this.notifications.error(this.transloco.translate('admin.userForm.errorCreate'));
             return of(null);
           }),
           takeUntilDestroyed(this.destroyRef),
@@ -270,9 +271,7 @@ export class AdminUserFormComponent implements OnInit, AfterViewInit {
         .subscribe((created) => {
           if (created) {
             this.submitting.set(false);
-            this.notifications.success(
-              `Uzytkownik "${created.firstName} ${created.lastName}" zostal utworzony.`,
-            );
+            this.notifications.success(this.transloco.translate('admin.userForm.successCreate'));
             this.saved.emit();
           }
         });

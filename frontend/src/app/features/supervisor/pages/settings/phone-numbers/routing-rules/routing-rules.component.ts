@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -24,7 +25,8 @@ import { RoutingRuleFormComponent } from './routing-rule-form/routing-rule-form.
 @Component({
   selector: 'app-routing-rules',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RoutingRuleFormComponent],
+  imports: [
+    TranslocoModule,RoutingRuleFormComponent],
   templateUrl: './routing-rules.component.html',
   styleUrl: './routing-rules.component.scss',
 })
@@ -39,6 +41,7 @@ export class RoutingRulesComponent implements OnInit {
   private readonly ivrService = inject(IvrService);
   private readonly queueService = inject(QueueService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(true);
@@ -165,15 +168,15 @@ export class RoutingRulesComponent implements OnInit {
         next: () => {
           this.rules.update((list) => list.filter((r) => r.ruleId !== rule.ruleId));
           this.ruleCountChange.emit(this.rules().length);
-          this.notifications.success('Reguła usunięta.');
+          this.notifications.success(this.transloco.translate('supervisor.settings.routingRules.successDelete'));
           this.deletingRuleId.set(null);
         },
         error: (err: unknown) => {
           const status = (err as { status?: number })?.status;
           if (status === 409) {
-            this.notifications.error('Nie można usunąć reguły – jest używana.');
+            this.notifications.error(this.transloco.translate('supervisor.settings.routingRules.errorDelete'));
           } else {
-            this.notifications.error('Nie udało się usunąć reguły. Spróbuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.settings.routingRules.errorDelete'));
           }
           this.deletingRuleId.set(null);
         },

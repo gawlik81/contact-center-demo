@@ -5,17 +5,17 @@
     <div class="modal-header">
       <div class="modal-header__text">
         <h2 class="modal-title" id="queue-agents-title">
-          Agenci kolejki: <span class="modal-title__queue">{{ queue().name }}</span>
+          {{ 'supervisor.queueAgents.title' | transloco }}: <span class="modal-title__queue">{{ queue().name }}</span>
         </h2>
         <p class="modal-subtitle">
           @if (!loading() && totalAgentCount() !== null) {
-            {{ totalAgentCount() }} {{ totalAgentCount() === 1 ? 'agent' : 'agentów' }} przypisanych
+            {{ totalAgentCount() }} {{ totalAgentCount() === 1 ? ('supervisor.queueAgents.agentSingular' | transloco) : ('supervisor.queueAgents.agentsPlural' | transloco) }}
           } @else {
-            Agenci przypisani do obsługi tej kolejki
+            {{ 'supervisor.queueAgents.subtitle' | transloco }}
           }
         </p>
       </div>
-      <button class="btn-close" type="button" (click)="onClose()" aria-label="Zamknij">
+      <button class="btn-close" type="button" (click)="onClose()" [attr.aria-label]="'common.close' | transloco">
         <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
           <path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -33,7 +33,7 @@
           <div class="skeleton skeleton--medium"></div>
         </div>
       } @else if (notConfigured()) {
-        <p class="info-empty">Brak konfiguracji przypisania dla tej kolejki.</p>
+        <p class="info-empty">{{ 'supervisor.queueAgents.notConfigured' | transloco }}</p>
       } @else if (assignment()!.allAgents) {
         <div class="all-agents-badge">
           <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
@@ -41,13 +41,13 @@
               d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
             />
           </svg>
-          Wszyscy agenci tenanta
+          {{ 'supervisor.queueAgents.allAgents' | transloco }}
         </div>
       } @else {
         @if (assignment()!.groups.length > 0) {
           <section class="agents-section">
-            <h3 class="agents-section__title">Grupy agentów</h3>
-            <ul class="agents-list" aria-label="Przypisane grupy">
+            <h3 class="agents-section__title">{{ 'supervisor.queueAgents.groupsTitle' | transloco }}</h3>
+            <ul class="agents-list" [attr.aria-label]="'supervisor.queueAgents.groupsTitle' | transloco">
               @for (group of assignment()!.groups; track group.groupId) {
                 <li class="agents-list__item">
                   <svg
@@ -63,7 +63,7 @@
                     />
                   </svg>
                   <span class="item-name">{{ group.name }}</span>
-                  <span class="item-count">{{ group.memberCount }} ag.</span>
+                  <span class="item-count">{{ group.memberCount }} {{ 'supervisor.queueAgents.agentsAbbr' | transloco }}</span>
                 </li>
               }
             </ul>
@@ -72,8 +72,8 @@
 
         @if (assignment()!.directAgents.length > 0) {
           <section class="agents-section">
-            <h3 class="agents-section__title">Indywidualni agenci</h3>
-            <ul class="agents-list" aria-label="Indywidualni agenci">
+            <h3 class="agents-section__title">{{ 'supervisor.queueAgents.directAgentsTitle' | transloco }}</h3>
+            <ul class="agents-list" [attr.aria-label]="'supervisor.queueAgents.directAgentsTitle' | transloco">
               @for (agent of assignment()!.directAgents; track agent.agentId) {
                 <li class="agents-list__item">
                   <svg
@@ -101,14 +101,14 @@
             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
               <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
             </svg>
-            Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu.
+            {{ 'supervisor.queueAgents.noAssignment' | transloco }}
           </div>
         }
       }
     </div>
 
     <div class="modal-footer">
-      <button class="btn btn-close-footer" type="button" (click)="onClose()">Zamknij</button>
+      <button class="btn btn-close-footer" type="button" (click)="onClose()">{{ 'common.close' | transloco }}</button>
     </div>
   </div>
 </dialog>

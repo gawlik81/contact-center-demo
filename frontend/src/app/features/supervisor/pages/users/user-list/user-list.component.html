@@ -1,51 +1,61 @@
 <div class="user-list">
   <div class="user-list__header">
-    <h1 class="user-list__title">Zarządzanie użytkownikami</h1>
-    <button class="btn btn-primary" type="button" (click)="openCreateModal()" aria-label="Dodaj nowego agenta">
+    <h1 class="user-list__title">{{ 'supervisor.users.title' | transloco }}</h1>
+    <button
+      class="btn btn-primary"
+      type="button"
+      (click)="openCreateModal()"
+      [attr.aria-label]="'supervisor.users.addUserLabel' | transloco"
+    >
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
       </svg>
-      Nowy użytkownik
+      {{ 'supervisor.users.addUser' | transloco }}
     </button>
   </div>
 
   <!-- Filters -->
-  <div class="user-list__filters" [formGroup]="filterForm" role="search" aria-label="Filtruj agentow">
+  <div
+    class="user-list__filters"
+    [formGroup]="filterForm"
+    role="search"
+    [attr.aria-label]="'supervisor.users.filterLabel' | transloco"
+  >
     <div class="filter-field">
-      <label class="filter-label" for="filter-search">Szukaj</label>
+      <label class="filter-label" for="filter-search">{{ 'supervisor.users.filterSearch' | transloco }}</label>
       <input
         id="filter-search"
         type="text"
         class="filter-input"
         formControlName="search"
-        placeholder="Imię, nazwisko lub email..."
+        [placeholder]="'supervisor.users.filterSearchPlaceholder' | transloco"
         autocomplete="off"
       />
     </div>
     <div class="filter-field">
-      <label class="filter-label" for="filter-skill">Skill</label>
+      <label class="filter-label" for="filter-skill">{{ 'supervisor.users.filterSkill' | transloco }}</label>
       <input
         id="filter-skill"
         type="text"
         class="filter-input"
         formControlName="skill"
-        placeholder="Szukaj po skill..."
+        [placeholder]="'supervisor.users.filterSkillPlaceholder' | transloco"
         autocomplete="off"
       />
     </div>
     <div class="filter-field">
-      <label class="filter-label" for="filter-status">Status</label>
+      <label class="filter-label" for="filter-status">{{ 'supervisor.users.filterStatus' | transloco }}</label>
       <select id="filter-status" class="filter-select" formControlName="status">
         @for (opt of statusOptions; track opt.value) {
-          <option [value]="opt.value">{{ opt.label }}</option>
+          <option [value]="opt.value">{{ opt.label | transloco }}</option>
         }
       </select>
     </div>
     <div class="filter-field">
-      <label class="filter-label" for="filter-role">Rola</label>
+      <label class="filter-label" for="filter-role">{{ 'supervisor.users.filterRole' | transloco }}</label>
       <select id="filter-role" class="filter-select" formControlName="role">
         @for (opt of roleOptions; track opt.value) {
-          <option [value]="opt.value">{{ opt.label }}</option>
+          <option [value]="opt.value">{{ opt.label | transloco }}</option>
         }
       </select>
     </div>
@@ -53,7 +63,11 @@
 
   <!-- Loading skeleton -->
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+    <div
+      class="skeleton-wrapper"
+      aria-busy="true"
+      [attr.aria-label]="'common.loading_data' | transloco"
+    >
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <div class="skeleton-row">
           <div class="skeleton-cell skeleton-cell--wide"></div>
@@ -70,16 +84,16 @@
   <!-- Table -->
   @if (!loading()) {
     @if (users().length > 0) {
-      <div class="table-wrapper" role="region" aria-label="Lista agentow">
+      <div class="table-wrapper" role="region" [attr.aria-label]="'supervisor.users.tableLabel' | transloco">
         <table class="user-table" aria-live="polite">
           <thead>
             <tr>
-              <th scope="col">Imie i nazwisko</th>
-              <th scope="col">Email</th>
-              <th scope="col">Rola</th>
-              <th scope="col">Status</th>
-              <th scope="col">Skills</th>
-              <th scope="col"><span class="sr-only">Akcje</span></th>
+              <th scope="col">{{ 'supervisor.users.tableFullName' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.users.tableEmail' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.users.tableRole' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.users.tableStatus' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.users.tableSkills' | transloco }}</th>
+              <th scope="col"><span class="sr-only">{{ 'common.actions' | transloco }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -88,7 +102,11 @@
                 <td class="user-name">
                   {{ user.firstName }} {{ user.lastName }}
                   @if (user.passwordResetRequired) {
-                    <span class="reset-badge" title="Wymagana zmiana hasla" aria-label="Wymagana zmiana hasla">!</span>
+                    <span
+                      class="reset-badge"
+                      [title]="'supervisor.users.passwordResetRequired' | transloco"
+                      [attr.aria-label]="'supervisor.users.passwordResetRequired' | transloco"
+                    >!</span>
                   }
                 </td>
                 <td class="user-email">{{ user.email }}</td>
@@ -98,18 +116,12 @@
                     [class.role-badge--admin]="user.role === 'ADMIN'"
                     [class.role-badge--supervisor]="user.role === 'SUPERVISOR'"
                     [class.role-badge--agent]="user.role === 'AGENT'"
-                    [attr.aria-label]="'Rola: ' + user.role"
+                    [attr.aria-label]="('common.role' | transloco) + ': ' + user.role"
                   >
                     @switch (user.role) {
-                      @case ('ADMIN') {
-                        Admin
-                      }
-                      @case ('SUPERVISOR') {
-                        Supervisor
-                      }
-                      @case ('AGENT') {
-                        Agent
-                      }
+                      @case ('ADMIN') { Admin }
+                      @case ('SUPERVISOR') { Supervisor }
+                      @case ('AGENT') { Agent }
                     }
                   </span>
                 </td>
@@ -123,41 +135,27 @@
                     [class.status-badge--inactive]="user.status === 'INACTIVE'"
                     [class.status-badge--offline]="user.status === 'OFFLINE'"
                     [class.status-badge--updated]="flashingAgentIds().has(user.id)"
-                    [attr.aria-label]="'Status: ' + user.status"
+                    [attr.aria-label]="('common.status' | transloco) + ': ' + user.status"
                     [attr.aria-live]="flashingAgentIds().has(user.id) ? 'polite' : null"
                   >
                     @switch (user.status) {
-                      @case ('AVAILABLE') {
-                        Dostepny
-                      }
-                      @case ('BUSY') {
-                        Zajety
-                      }
-                      @case ('AFTER_CONTACT') {
-                        Po kontakcie
-                      }
-                      @case ('BREAK') {
-                        Przerwa
-                      }
-                      @case ('ACTIVE') {
-                        Aktywny
-                      }
-                      @case ('INACTIVE') {
-                        Nieaktywny
-                      }
-                      @case ('OFFLINE') {
-                        Offline
-                      }
+                      @case ('AVAILABLE') { {{ 'agent.status.available' | transloco }} }
+                      @case ('BUSY') { {{ 'agent.status.busy' | transloco }} }
+                      @case ('AFTER_CONTACT') { {{ 'agent.status.afterContact' | transloco }} }
+                      @case ('BREAK') { {{ 'agent.status.break' | transloco }} }
+                      @case ('ACTIVE') { {{ 'common.active' | transloco }} }
+                      @case ('INACTIVE') { {{ 'common.inactive' | transloco }} }
+                      @case ('OFFLINE') { {{ 'agent.status.offline' | transloco }} }
                     }
                   </span>
                 </td>
                 <td>
-                  <div class="skills-list" role="list" aria-label="Skills agenta">
+                  <div class="skills-list" role="list" [attr.aria-label]="'supervisor.users.tableSkills' | transloco">
                     @for (skill of user.skills; track skill) {
                       <span class="skill-tag" role="listitem">{{ skill }}</span>
                     }
                     @if (user.skills.length === 0) {
-                      <span class="no-skills">Brak</span>
+                      <span class="no-skills">{{ 'common.no_data' | transloco }}</span>
                     }
                   </div>
                 </td>
@@ -166,8 +164,8 @@
                     class="btn btn-icon-outline"
                     type="button"
                     (click)="openEditModal(user)"
-                    [attr.aria-label]="'Edytuj agenta ' + user.firstName + ' ' + user.lastName"
-                    title="Edytuj"
+                    [attr.aria-label]="('supervisor.users.editLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                    [title]="'common.edit' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path
@@ -179,8 +177,8 @@
                     class="btn btn-icon-warning"
                     type="button"
                     (click)="openResetPasswordModal(user)"
-                    [attr.aria-label]="'Wymus reset hasla dla agenta ' + user.firstName + ' ' + user.lastName"
-                    title="Wymus reset hasla"
+                    [attr.aria-label]="('supervisor.users.resetPasswordLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                    [title]="'supervisor.users.resetPasswordLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path
@@ -192,8 +190,8 @@
                     class="btn btn-icon-danger"
                     type="button"
                     (click)="openDeleteModal(user)"
-                    [attr.aria-label]="'Usun agenta ' + user.firstName + ' ' + user.lastName"
-                    title="Usun"
+                    [attr.aria-label]="('supervisor.users.deleteLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                    [title]="'common.delete' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
@@ -207,10 +205,11 @@
       </div>
 
       <!-- Pagination -->
-      <nav class="pagination" aria-label="Nawigacja stron">
+      <nav class="pagination" [attr.aria-label]="'supervisor.users.paginationLabel' | transloco">
         <span class="pagination__info" aria-live="polite">
           @if (totalElements() > 0) {
-            Wyswietlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }} wynikow
+            {{ 'supervisor.users.showing' | transloco }} {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }}
+            {{ 'common.of' | transloco }} {{ totalElements() }} {{ 'supervisor.users.ofUsers' | transloco }}
           }
         </span>
         <div class="pagination__controls">
@@ -219,24 +218,24 @@
             type="button"
             (click)="onPrevPage()"
             [disabled]="currentPage() === 0"
-            aria-label="Poprzednia strona"
+            [attr.aria-label]="'common.previous' | transloco"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
             </svg>
-            Poprzednia
+            {{ 'common.previous' | transloco }}
           </button>
           <span class="pagination__pages" aria-current="page">
-            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+            {{ 'common.page' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
           </span>
           <button
             class="btn btn-pagination"
             type="button"
             (click)="onNextPage()"
             [disabled]="currentPage() + 1 >= totalPages()"
-            aria-label="Nastepna strona"
+            [attr.aria-label]="'common.next' | transloco"
           >
-            Nastepna
+            {{ 'common.next' | transloco }}
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
             </svg>
@@ -251,8 +250,8 @@
             d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
           />
         </svg>
-        <p class="empty-state__message">Brak agentow do wyswietlenia.</p>
-        <p class="empty-state__hint">Zmien filtry lub dodaj nowego agenta.</p>
+        <p class="empty-state__message">{{ 'supervisor.users.emptyText' | transloco }}</p>
+        <p class="empty-state__hint">{{ 'supervisor.users.emptyHint' | transloco }}</p>
       </div>
     }
   }

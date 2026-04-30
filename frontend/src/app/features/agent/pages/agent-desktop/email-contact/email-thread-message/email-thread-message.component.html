@@ -2,7 +2,7 @@
   class="thread-message"
   [class.thread-message--inbound]="message().direction === 'INBOUND'"
   [class.thread-message--outbound]="message().direction === 'OUTBOUND'"
-  [attr.aria-label]="(message().direction === 'INBOUND' ? 'Wiadomosc przychodzaca od ' : 'Wiadomosc wychodzaca do ') + message().fromAddress"
+  [attr.aria-label]="(message().direction === 'INBOUND' ? ('agent.emailContact.inboundFrom' | transloco) : ('agent.emailContact.outboundTo' | transloco)) + ' ' + message().fromAddress"
 >
   <div class="thread-message__meta">
     <div class="thread-message__meta-left">
@@ -11,14 +11,14 @@
         [class.thread-message__direction-badge--inbound]="message().direction === 'INBOUND'"
         [class.thread-message__direction-badge--outbound]="message().direction === 'OUTBOUND'"
       >
-        {{ message().direction === 'INBOUND' ? 'Przychodzaca' : 'Wychodzaca' }}
+        {{ message().direction === 'INBOUND' ? ('agent.emailContact.inbound' | transloco) : ('agent.emailContact.outbound' | transloco) }}
       </span>
       <span class="thread-message__from">
-        <strong>Od:</strong> {{ message().fromAddress }}
+        <strong>{{ 'agent.emailContact.from' | transloco }}:</strong> {{ message().fromAddress }}
       </span>
       @if (message().toAddresses.length) {
         <span class="thread-message__to">
-          <strong>Do:</strong> {{ message().toAddresses.join(', ') }}
+          <strong>{{ 'agent.emailContact.to' | transloco }}:</strong> {{ message().toAddresses.join(', ') }}
         </span>
       }
     </div>
@@ -36,10 +36,10 @@
       class="thread-message__iframe"
       [srcdoc]="getSrcdoc(message().bodyHtml, message().bodyText)"
       [style.height.px]="iframeHeight()"
-      title="Tresc wiadomosci email"
+      [title]="'agent.emailContact.messageContent' | transloco"
       sandbox="allow-same-origin"
       (load)="onIframeLoad($event)"
-      aria-label="Tresc wiadomosci"
+      [attr.aria-label]="'agent.emailContact.messageContent' | transloco"
     ></iframe>
   </div>
 </article>

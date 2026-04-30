@@ -2,27 +2,27 @@
 @if (wsService.connectionState() !== 'CONNECTED') {
   <div class="ws-banner" role="alert" aria-live="assertive">
     <span class="ws-banner__icon" aria-hidden="true">⚠</span>
-    Utracono połączenie z serwerem – dane mogą być nieaktualne.
+    {{ 'supervisor.dashboard.wsDisconnected' | transloco }}
   </div>
 }
 
 <!-- Dashboard header -->
 <div class="dashboard-header">
-  <h1>Dashboard RT Supervisora</h1>
+  <h1>{{ 'supervisor.dashboard.rtTitle' | transloco }}</h1>
   <button
     type="button"
     class="btn-fullscreen"
     (click)="toggleFullscreen()"
-    aria-label="Tryb pełnoekranowy"
+    [attr.aria-label]="'supervisor.dashboard.fullscreenLabel' | transloco"
   >
     <span class="btn-fullscreen__icon" aria-hidden="true">⛶</span>
-    Pełny ekran
+    {{ 'supervisor.dashboard.fullscreen' | transloco }}
   </button>
 </div>
 
 <!-- ── SKELETON (metrics not yet loaded) ─────────────────────── -->
 @if (metrics() === null) {
-  <div class="kpi-skeleton-grid" aria-busy="true" aria-label="Ładowanie metryk">
+  <div class="kpi-skeleton-grid" aria-busy="true" [attr.aria-label]="'supervisor.dashboard.loadingMetrics' | transloco">
     @for (_ of [1, 2, 3, 4, 5]; track $index) {
       <div class="kpi-skeleton-card">
         <div class="skeleton skeleton-label"></div>
@@ -52,43 +52,43 @@
   <div
     class="kpi-grid"
     role="region"
-    aria-label="Wskaźniki KPI"
+    [attr.aria-label]="'supervisor.dashboard.kpiLabel' | transloco"
     aria-live="polite"
     aria-atomic="true"
   >
     <div class="kpi-card kpi-calls" role="status">
-      <span class="kpi-label">Aktywne połączenia</span>
-      <span class="kpi-value" aria-label="Aktywne połączenia: {{ activeCalls() }}">
+      <span class="kpi-label">{{ 'supervisor.dashboard.kpiActiveCalls' | transloco }}</span>
+      <span class="kpi-value" [attr.aria-label]="('supervisor.dashboard.kpiActiveCalls' | transloco) + ': ' + activeCalls()">
         {{ activeCalls() }}
       </span>
     </div>
 
     <div class="kpi-card kpi-avail" role="status">
-      <span class="kpi-label">Dostępni agenci</span>
-      <span class="kpi-value" aria-label="Dostępni agenci: {{ availableCount() }}">
+      <span class="kpi-label">{{ 'supervisor.dashboard.kpiAvailable' | transloco }}</span>
+      <span class="kpi-value" [attr.aria-label]="('supervisor.dashboard.kpiAvailable' | transloco) + ': ' + availableCount()">
         {{ availableCount() }}
       </span>
     </div>
 
     <div class="kpi-card kpi-break" role="status">
-      <span class="kpi-label">Na przerwie</span>
-      <span class="kpi-value" aria-label="Na przerwie: {{ breakCount() }}">
+      <span class="kpi-label">{{ 'supervisor.dashboard.kpiBreak' | transloco }}</span>
+      <span class="kpi-value" [attr.aria-label]="('supervisor.dashboard.kpiBreak' | transloco) + ': ' + breakCount()">
         {{ breakCount() }}
       </span>
     </div>
 
     <div class="kpi-card kpi-acw" role="status">
-      <span class="kpi-label">Po kontakcie</span>
-      <span class="kpi-value" aria-label="Po kontakcie: {{ acwCount() }}">
+      <span class="kpi-label">{{ 'supervisor.dashboard.kpiAfterContact' | transloco }}</span>
+      <span class="kpi-value" [attr.aria-label]="('supervisor.dashboard.kpiAfterContact' | transloco) + ': ' + acwCount()">
         {{ acwCount() }}
       </span>
     </div>
 
     <div class="kpi-card kpi-wait" role="status">
-      <span class="kpi-label">Śr. czas oczekiwania</span>
+      <span class="kpi-label">{{ 'supervisor.dashboard.kpiAvgWait' | transloco }}</span>
       <span
         class="kpi-value"
-        aria-label="Średni czas oczekiwania: {{ secondsToTime(avgWaitTime()) }}"
+        [attr.aria-label]="('supervisor.dashboard.kpiAvgWait' | transloco) + ': ' + secondsToTime(avgWaitTime())"
       >
         {{ secondsToTime(avgWaitTime()) }}
       </span>
@@ -96,19 +96,19 @@
   </div>
 
   <!-- ── Agents table ───────────────────────────────────────── -->
-  <section class="section" aria-label="Tabela agentów" aria-live="polite">
+  <section class="section" [attr.aria-label]="'supervisor.dashboard.agentsSection' | transloco" aria-live="polite">
     <div class="section-header">
-      <h2>Agenci ({{ agents().length }})</h2>
+      <h2>{{ 'supervisor.dashboard.agentsTitle' | transloco }} ({{ agents().length }})</h2>
     </div>
 
     <div class="agents-table-wrapper">
-      <table class="agents-table" aria-label="Lista agentów i ich statusy">
+      <table class="agents-table" [attr.aria-label]="'supervisor.dashboard.agentsLabel' | transloco">
         <thead>
           <tr>
-            <th scope="col">Imię i nazwisko</th>
-            <th scope="col">Status</th>
-            <th scope="col">Aktualny kontakt</th>
-            <th scope="col">Czas przerwy</th>
+            <th scope="col">{{ 'supervisor.dashboard.agentName' | transloco }}</th>
+            <th scope="col">{{ 'supervisor.dashboard.agentStatus' | transloco }}</th>
+            <th scope="col">{{ 'supervisor.dashboard.agentContact' | transloco }}</th>
+            <th scope="col">{{ 'supervisor.dashboard.agentBreakTime' | transloco }}</th>
           </tr>
         </thead>
         <tbody>
@@ -119,7 +119,7 @@
                 <span
                   class="status-badge"
                   [class]="'status-badge badge-' + agent.status"
-                  [attr.aria-label]="'Status: ' + statusLabel(agent.status)"
+                  [attr.aria-label]="('supervisor.dashboard.agentStatus' | transloco) + ': ' + statusLabel(agent.status)"
                 >
                   {{ statusLabel(agent.status) }}
                 </span>
@@ -128,7 +128,7 @@
                 @if (agent.currentContact) {
                   {{ agent.currentContact }}
                 } @else {
-                  <span class="contact-dash" aria-label="brak kontaktu">–</span>
+                  <span class="contact-dash">–</span>
                 }
               </td>
               <td>
@@ -136,12 +136,11 @@
                   <span
                     class="break-time"
                     [class.break-time--alert]="isBreakAlert(agent)"
-                    [attr.aria-label]="'Na przerwie od ' + breakMinutes(agent) + ' minut'"
                   >
-                    {{ breakMinutes(agent) }} min
+                    {{ breakMinutes(agent) }} {{ 'supervisor.dashboard.agentBreakMinutes' | transloco }}
                   </span>
                 } @else {
-                  <span class="contact-dash" aria-label="nie dotyczy">–</span>
+                  <span class="contact-dash">–</span>
                 }
               </td>
             </tr>
@@ -149,7 +148,7 @@
           @empty {
             <tr>
               <td colspan="4" style="text-align:center; color:#9e9e9e; padding:24px">
-                Brak danych o agentach
+                {{ 'common.no_data' | transloco }}
               </td>
             </tr>
           }
@@ -159,20 +158,19 @@
   </section>
 
   <!-- ── Queue chart ────────────────────────────────────────── -->
-  <section class="section" aria-label="Kolejki" aria-live="polite">
+  <section class="section" [attr.aria-label]="'supervisor.dashboard.queuesSection' | transloco" aria-live="polite">
     <div class="section-header">
-      <h2>Kolejki</h2>
+      <h2>{{ 'supervisor.dashboard.queuesTitle' | transloco }}</h2>
     </div>
 
     @if (queues().length === 0) {
-      <p class="queues-empty">Brak danych o kolejkach.</p>
+      <p class="queues-empty">{{ 'common.no_data' | transloco }}</p>
     } @else {
-      <div class="queues-list" role="list" aria-label="Oczekujące w kolejkach">
+      <div class="queues-list" role="list" [attr.aria-label]="'supervisor.dashboard.queuesLabel' | transloco">
         @for (queue of queues(); track queue.id) {
           <div
             class="queue-row"
             role="listitem"
-            [attr.aria-label]="queue.name + ': ' + queue.waiting + ' oczekujących, ' + queue.availableAgents + ' dostępnych agentów'"
           >
             <span class="queue-name">{{ queue.name }}</span>
 
@@ -185,8 +183,8 @@
             </div>
 
             <div class="queue-stats" aria-hidden="true">
-              <span class="waiting-count">{{ queue.waiting }} czek.</span>
-              <span>{{ queue.availableAgents }} ag.</span>
+              <span class="waiting-count">{{ queue.waiting }} {{ 'supervisor.dashboard.queueWaiting' | transloco }}</span>
+              <span>{{ queue.availableAgents }} {{ 'supervisor.dashboard.queueAgents' | transloco }}</span>
             </div>
           </div>
         }

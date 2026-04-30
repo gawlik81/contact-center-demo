@@ -13,9 +13,8 @@
 
     <div class="deactivate-dialog__body">
       <p id="deactivate-desc" class="deactivate-dialog__message">
-        Czy na pewno chcesz dezaktywowac tenanta
+        {{ 'admin.tenants.confirmDeactivateTitle' | transloco }}
         <strong>{{ tenant().name }}</strong>?
-        Użytkownicy nie beda mogli sie zalogowac.
       </p>
     </div>
 

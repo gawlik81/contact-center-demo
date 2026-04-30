@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -31,7 +32,8 @@ function passwordStrengthValidator(control: AbstractControl): ValidationErrors |
 @Component({
   selector: 'app-user-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [
+    TranslocoModule,ReactiveFormsModule],
   templateUrl: './user-form.component.html',
   styleUrl: './user-form.component.scss',
   host: {
@@ -49,6 +51,7 @@ export class UserFormComponent implements OnInit, AfterViewInit {
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly transloco = inject(TranslocoService);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
 
@@ -162,36 +165,36 @@ export class UserFormComponent implements OnInit, AfterViewInit {
   get firstNameError(): string | null {
     const ctrl = this.form.get('firstName')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Imie jest wymagane.';
-    if (ctrl.hasError('maxlength')) return 'Imie nie moze przekraczac 100 znakow.';
+    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.userForm.errors.firstNameRequired');
+    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.userForm.errors.firstNameMaxLength');
     return null;
   }
 
   get lastNameError(): string | null {
     const ctrl = this.form.get('lastName')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Nazwisko jest wymagane.';
-    if (ctrl.hasError('maxlength')) return 'Nazwisko nie moze przekraczac 100 znakow.';
+    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.userForm.errors.lastNameRequired');
+    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.userForm.errors.lastNameMaxLength');
     return null;
   }
 
   get emailError(): string | null {
     const ctrl = this.form.get('email')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Email jest wymagany.';
-    if (ctrl.hasError('email')) return 'Nieprawidlowy format adresu email.';
-    if (ctrl.hasError('maxlength')) return 'Email nie moze przekraczac 255 znakow.';
+    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.userForm.errors.emailRequired');
+    if (ctrl.hasError('email')) return this.transloco.translate('supervisor.userForm.errors.emailInvalid');
+    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.userForm.errors.emailMaxLength');
     return null;
   }
 
   get passwordError(): string | null {
     const ctrl = this.form.get('password')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Haslo jest wymagane.';
-    if (ctrl.hasError('minLength')) return 'Haslo musi miec co najmniej 8 znakow.';
+    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.userForm.errors.passwordRequired');
+    if (ctrl.hasError('minLength')) return this.transloco.translate('supervisor.userForm.errors.passwordMinLength');
     if (ctrl.hasError('requireUppercase'))
-      return 'Haslo musi zawierac co najmniej jedna wielka litere.';
-    if (ctrl.hasError('requireDigit')) return 'Haslo musi zawierac co najmniej jedna cyfre.';
+      return this.transloco.translate('supervisor.userForm.errors.passwordUppercase');
+    if (ctrl.hasError('requireDigit')) return this.transloco.translate('supervisor.userForm.errors.passwordDigit');
     return null;
   }
 
@@ -221,13 +224,15 @@ export class UserFormComponent implements OnInit, AfterViewInit {
           next: () => {
             this.submitting.set(false);
             this.notifications.success(
-              `Agent "${raw.firstName} ${raw.lastName}" zostal zaktualizowany.`,
+              this.transloco.translate('supervisor.userForm.successEdit', {
+                name: `${raw.firstName} ${raw.lastName}`,
+              }),
             );
             this.saved.emit();
           },
           error: () => {
             this.submitting.set(false);
-            this.notifications.error('Nie udalo sie zaktualizowac agenta. Sprobuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.userForm.errorEdit'));
           },
         });
     } else {
@@ -245,7 +250,9 @@ export class UserFormComponent implements OnInit, AfterViewInit {
           next: (created) => {
             this.submitting.set(false);
             this.notifications.success(
-              `Agent "${created.firstName} ${created.lastName}" zostal utworzony.`,
+              this.transloco.translate('supervisor.userForm.successCreate', {
+                name: `${created.firstName} ${created.lastName}`,
+              }),
             );
             this.saved.emit();
           },
@@ -253,10 +260,10 @@ export class UserFormComponent implements OnInit, AfterViewInit {
             this.submitting.set(false);
             if (err?.status === 403) {
               this.notifications.error(
-                  'Supervisorzy moga tworzyć użytkowników tylko z rola Supervisor lub Agent.',
+                this.transloco.translate('supervisor.userForm.errorForbidden'),
               );
             } else {
-              this.notifications.error('Nie udało sie utworzyć użytkownika. Spróbuj ponownie.');
+              this.notifications.error(this.transloco.translate('supervisor.userForm.errorCreate'));
             }
           },
         });

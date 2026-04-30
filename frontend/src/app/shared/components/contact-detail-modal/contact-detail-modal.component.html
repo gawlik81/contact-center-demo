@@ -267,7 +267,7 @@
 
         @if (!relatedLoading() && relatedContacts().length > 0) {
           <section class="contact-section" aria-labelledby="contact-section-related">
-            <h3 id="contact-section-related" class="contact-section__title">Powiązania</h3>
+            <h3 id="contact-section-related" class="contact-section__title">{{ 'contactDetailModal.related' | transloco }}</h3>
             <ul class="related-contacts-list">
               @for (item of relatedContacts(); track item.contactId ?? item.callbackId) {
                 <li class="related-contact-item">
@@ -277,11 +277,11 @@
                     "
                   >
                     @if (item.relationType === 'PARENT') {
-                      Kontakt źródłowy
+                      {{ 'contactDetailModal.parentContact' | transloco }}
                     } @else if (item.itemType === 'CALLBACK') {
-                      Oddzwonienie
+                      {{ 'agent.rescheduleCallback.title' | transloco }}
                     } @else {
-                      Kontakt wynikowy
+                      {{ 'contactDetailModal.childContact' | transloco }}
                     }
                   </span>
 
@@ -308,8 +308,8 @@
                       class="related-contact-item__nav-btn"
                       [attr.aria-label]="
                         item.relationType === 'PARENT'
-                          ? 'Przejdź do kontaktu źródłowego'
-                          : 'Przejdź do kontaktu wynikowego'
+                          ? ('contactDetailModal.goToParent' | transloco)
+                          : ('contactDetailModal.goToChild' | transloco)
                       "
                       (click)="openRelatedContact(item.contactId!)"
                     >
@@ -334,7 +334,7 @@
 
     <!-- ── Footer ────────────────────────────────────────────────────── -->
     <div class="contact-dialog__footer">
-      <button class="btn btn-close" type="button" (click)="close()" autofocus>Zamknij</button>
+      <button class="btn btn-close" type="button" (click)="close()" autofocus>{{ 'contactDetailModal.close' | transloco }}</button>
     </div>
   </div>
 </dialog>

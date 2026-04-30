@@ -1,7 +1,7 @@
 @if (loading()) {
-  <div class="email-loading" role="status" aria-label="Ladowanie wiadomosci email">
+  <div class="email-loading" role="status" [attr.aria-label]="'agent.emailContact.loadingLabel' | transloco">
     <span class="email-loading__spinner" aria-hidden="true"></span>
-    <span class="email-loading__text">Ladowanie wiadomosci...</span>
+    <span class="email-loading__text">{{ 'agent.emailContact.loading' | transloco }}</span>
   </div>
 } @else if (error() && !rootMessage()) {
   <div class="email-error" role="alert">
@@ -31,10 +31,10 @@
       </div>
       <div class="email-header__meta">
         <span class="email-header__from">
-          <strong>Od:</strong> {{ rootMessage()!.fromAddress }}
+          <strong>{{ 'agent.emailContact.from' | transloco }}:</strong> {{ rootMessage()!.fromAddress }}
         </span>
         <span class="email-header__to">
-          <strong>Do:</strong> {{ rootMessage()!.toAddresses.join(', ') }}
+          <strong>{{ 'agent.emailContact.to' | transloco }}:</strong> {{ rootMessage()!.toAddresses.join(', ') }}
         </span>
       </div>
       @if (error()) {
@@ -51,24 +51,24 @@
     <div class="email-body">
 
       <!-- LEFT: message thread -->
-      <section class="email-thread" role="region" aria-label="Watek wiadomosci email">
+      <section class="email-thread" role="region" [attr.aria-label]="'agent.emailContact.threadLabel' | transloco">
         @if (hasMore()) {
           <div class="email-thread__load-more">
             <button
               type="button"
               class="email-thread__load-btn"
               [disabled]="loadingMore()"
-              aria-label="Zaladuj starsze wiadomosci"
+              [attr.aria-label]="'agent.emailContact.loadOlder' | transloco"
               (click)="loadMoreMessages()"
             >
               @if (loadingMore()) {
                 <span class="btn-spinner" aria-hidden="true"></span>
-                <span>Ladowanie...</span>
+                <span>{{ 'common.loading' | transloco }}</span>
               } @else {
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M7 14l5-5 5 5z" />
                 </svg>
-                <span>Zaladuj wiecej</span>
+                <span>{{ 'agent.emailContact.loadMore' | transloco }}</span>
               }
             </button>
           </div>
@@ -82,14 +82,14 @@
       </section>
 
       <!-- RIGHT: reply panel -->
-      <section class="email-reply" role="region" aria-label="Panel odpowiedzi">
+      <section class="email-reply" role="region" [attr.aria-label]="'agent.emailContact.replyLabel' | transloco">
 
         <!-- Scrollable form fields -->
         <div class="email-reply__inner">
 
           <!-- Template selector -->
           <div class="email-reply__field-group">
-            <label class="field-label" for="template-search">Szablon odpowiedzi (opcjonalnie)</label>
+            <label class="field-label" for="template-search">{{ 'agent.emailContact.templateLabel' | transloco }}</label>
             <div class="autocomplete-wrapper">
               <input
                 id="template-search"

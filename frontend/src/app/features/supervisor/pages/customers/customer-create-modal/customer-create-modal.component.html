@@ -6,7 +6,7 @@
 >
   <div class="create-dialog__content" role="document">
     <div class="create-dialog__header">
-      <h2 id="create-customer-title" class="create-dialog__title">Nowy klient</h2>
+      <h2 id="create-customer-title" class="create-dialog__title">{{ 'supervisor.customerCreate.title' | transloco }}</h2>
     </div>
 
     <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
@@ -14,7 +14,7 @@
 
         <div class="form-row">
           <div class="form-field">
-            <label class="form-label" for="firstName">Imię</label>
+            <label class="form-label" for="firstName">{{ 'common.firstName' | transloco }}</label>
             <input
               id="firstName"
               type="text"
@@ -22,15 +22,15 @@
               formControlName="firstName"
               maxlength="100"
               autocomplete="given-name"
-              placeholder="Opcjonalne"
+              [placeholder]="'common.optional' | transloco"
             />
             @if (form.controls.firstName.hasError('maxlength')) {
-              <span class="form-error" role="alert">Maksymalnie 100 znaków.</span>
+              <span class="form-error" role="alert">{{ 'supervisor.customerCreate.maxLength100' | transloco }}</span>
             }
           </div>
 
           <div class="form-field">
-            <label class="form-label" for="lastName">Nazwisko</label>
+            <label class="form-label" for="lastName">{{ 'common.lastName' | transloco }}</label>
             <input
               id="lastName"
               type="text"
@@ -38,50 +38,44 @@
               formControlName="lastName"
               maxlength="100"
               autocomplete="family-name"
-              placeholder="Opcjonalne"
+              [placeholder]="'common.optional' | transloco"
             />
             @if (form.controls.lastName.hasError('maxlength')) {
-              <span class="form-error" role="alert">Maksymalnie 100 znaków.</span>
+              <span class="form-error" role="alert">{{ 'supervisor.customerCreate.maxLength100' | transloco }}</span>
             }
           </div>
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="phones">Numery telefonów</label>
+          <label class="form-label" for="phones">{{ 'supervisor.customerCreate.phonesLabel' | transloco }}</label>
           <input
             id="phones"
             type="text"
             class="form-input"
             formControlName="phones"
             autocomplete="off"
-            placeholder="np. +48123456789, +48987654321"
+            [placeholder]="'supervisor.customerCreate.phonesPlaceholder' | transloco"
           />
-          <span class="form-hint">Wiele numerów oddziel przecinkami.</span>
+          <span class="form-hint">{{ 'supervisor.customerCreate.phonesHint' | transloco }}</span>
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="emails">Adresy e-mail</label>
+          <label class="form-label" for="emails">{{ 'supervisor.customerCreate.emailsLabel' | transloco }}</label>
           <input
             id="emails"
             type="text"
             class="form-input"
             formControlName="emails"
             autocomplete="off"
-            placeholder="np. jan@example.com, inna@example.com"
+            [placeholder]="'supervisor.customerCreate.emailsPlaceholder' | transloco"
           />
-          <span class="form-hint">Wiele adresów oddziel przecinkami.</span>
+          <span class="form-hint">{{ 'supervisor.customerCreate.emailsHint' | transloco }}</span>
         </div>
 
       </div>
 
       <div class="create-dialog__footer">
-        <button
-          class="btn btn-cancel"
-          type="button"
-          (click)="onCancel()"
-        >
-          Anuluj
-        </button>
+        <button class="btn btn-cancel" type="button" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
         <button
           class="btn btn-save"
           type="submit"
@@ -89,9 +83,9 @@
           [attr.aria-busy]="saving()"
         >
           @if (saving()) {
-            Zapisywanie...
+            {{ 'common.saving' | transloco }}
           } @else {
-            Zapisz klienta
+            {{ 'supervisor.customerCreate.save' | transloco }}
           }
         </button>
       </div>

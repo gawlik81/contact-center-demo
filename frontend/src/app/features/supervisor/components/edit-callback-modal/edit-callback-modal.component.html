@@ -12,7 +12,7 @@
         </svg>
       </div>
       <div class="edit-cb-dialog__title-block">
-        <h2 id="edit-cb-dialog-title" class="edit-cb-dialog__title">Edytuj oddzwonienie</h2>
+        <h2 id="edit-cb-dialog-title" class="edit-cb-dialog__title">{{ 'supervisor.editCallback.title' | transloco }}</h2>
         <p class="edit-cb-dialog__subtitle">{{ callback().phone }}</p>
       </div>
       <button
@@ -36,7 +36,7 @@
         <!-- Phone -->
         <div class="form-field">
           <label class="form-field__label" for="edit-cb-phone">
-            Numer telefonu
+            {{ 'common.phone' | transloco }}
             <span class="form-field__required" aria-hidden="true">*</span>
           </label>
           <input
@@ -57,7 +57,7 @@
                   d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                 />
               </svg>
-              Numer telefonu jest wymagany.
+              {{ 'supervisor.editCallback.phoneRequired' | transloco }}
             </span>
           } @else if (form.controls.phone.touched && form.controls.phone.hasError('pattern')) {
             <span id="edit-cb-phone-error" class="form-field__hint" role="alert">
@@ -66,7 +66,7 @@
                   d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                 />
               </svg>
-              Format: +48123456789 (E.164, 7–15 cyfr po +).
+              {{ 'supervisor.editCallback.phoneFormat' | transloco }}
             </span>
           }
         </div>
@@ -75,8 +75,8 @@
         <div class="form-row">
           <div class="form-field">
             <label class="form-field__label" for="edit-cb-firstName">
-              Imię
-              <span class="form-field__optional">(opcjonalne)</span>
+              {{ 'common.firstName' | transloco }}
+              <span class="form-field__optional">{{ 'common.optional' | transloco }}</span>
             </label>
             <input
               id="edit-cb-firstName"
@@ -89,8 +89,8 @@
 
           <div class="form-field">
             <label class="form-field__label" for="edit-cb-lastName">
-              Nazwisko
-              <span class="form-field__optional">(opcjonalne)</span>
+              {{ 'common.lastName' | transloco }}
+              <span class="form-field__optional">{{ 'common.optional' | transloco }}</span>
             </label>
             <input
               id="edit-cb-lastName"
@@ -105,7 +105,7 @@
         <!-- Scheduled At -->
         <div class="form-field">
           <label class="form-field__label" for="edit-cb-scheduledAt">
-            Data i godzina
+            {{ 'supervisor.editCallback.dateTimeLabel' | transloco }}
             <span class="form-field__required" aria-hidden="true">*</span>
           </label>
           <input
@@ -125,7 +125,7 @@
                   d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                 />
               </svg>
-              Data i czas są wymagane.
+              {{ 'supervisor.editCallback.dateTimeRequired' | transloco }}
             </span>
           } @else if (form.controls.scheduledAt.touched && form.controls.scheduledAt.hasError('pastDate')) {
             <span id="edit-cb-scheduledAt-error" class="form-field__hint" role="alert">
@@ -134,7 +134,7 @@
                   d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                 />
               </svg>
-              Wybierz datę w przyszłości.
+              {{ 'supervisor.editCallback.dateTimePast' | transloco }}
             </span>
           }
         </div>
@@ -143,10 +143,10 @@
         <div class="form-field">
           <label class="form-field__label" for="edit-cb-agentId">
             Agent
-            <span class="form-field__optional">(opcjonalne)</span>
+            <span class="form-field__optional">{{ 'common.optional' | transloco }}</span>
           </label>
           <select id="edit-cb-agentId" class="form-field__select" formControlName="agentId">
-            <option [ngValue]="null">Brak przypisania</option>
+            <option [ngValue]="null">{{ 'supervisor.editCallback.noAgent' | transloco }}</option>
             @for (agent of agents(); track agent.id) {
               <option [value]="agent.id">{{ agent.name }}</option>
             }
@@ -156,15 +156,15 @@
         <!-- Notes -->
         <div class="form-field">
           <label class="form-field__label" for="edit-cb-notes">
-            Notatka
-            <span class="form-field__optional">(opcjonalne)</span>
+            {{ 'common.notes' | transloco }}
+            <span class="form-field__optional">{{ 'common.optional' | transloco }}</span>
           </label>
           <textarea
             id="edit-cb-notes"
             class="form-field__textarea"
             rows="3"
             maxlength="500"
-            placeholder="Dodaj notatkę..."
+            [placeholder]="'supervisor.editCallback.notesPlaceholder' | transloco"
             formControlName="notes"
             aria-multiline="true"
             [attr.aria-invalid]="form.controls.notes.invalid && form.controls.notes.touched"
@@ -195,7 +195,7 @@
         type="button"
         class="btn btn--secondary"
         [disabled]="loading()"
-        aria-label="Anuluj i zamknij modal"
+        [attr.aria-label]="'common.cancel' | transloco"
         (click)="cancel()"
       >
         Anuluj
@@ -208,16 +208,16 @@
         [disabled]="form.invalid || loading()"
         [class.btn--loading]="loading()"
         [attr.aria-busy]="loading()"
-        aria-label="Zapisz zmiany oddzwonienia"
+        [attr.aria-label]="'supervisor.editCallback.saveLabel' | transloco"
       >
         @if (loading()) {
           <span class="btn__spinner" aria-hidden="true"></span>
-          <span>Zapisywanie...</span>
+          <span>{{ 'common.saving' | transloco }}</span>
         } @else {
           <svg class="btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
           </svg>
-          <span>Zapisz</span>
+          <span>{{ 'common.save' | transloco }}</span>
         }
       </button>
     </footer>

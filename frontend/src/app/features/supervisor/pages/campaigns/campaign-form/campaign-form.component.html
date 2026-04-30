@@ -7,9 +7,14 @@
   <div class="campaign-form-dialog__content" role="document">
     <div class="campaign-form-dialog__header">
       <h2 id="campaign-form-title" class="campaign-form-dialog__title">
-        {{ isEditMode() ? 'Edytuj kampanie' : 'Nowa kampania' }}
+        {{ isEditMode() ? ('supervisor.campaignForm.titleEdit' | transloco) : ('supervisor.campaignForm.titleCreate' | transloco) }}
       </h2>
-      <button class="btn-close" type="button" (click)="onCancel()" aria-label="Zamknij formularz">
+      <button
+        class="btn-close"
+        type="button"
+        (click)="onCancel()"
+        [attr.aria-label]="'supervisor.campaignForm.closeLabel' | transloco"
+      >
         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
           <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
         </svg>
@@ -26,7 +31,7 @@
       <!-- Name -->
       <div class="form-field" [class.form-field--error]="nameError">
         <label class="form-label" for="campaignName">
-          Nazwa <span class="required" aria-hidden="true">*</span>
+          {{ 'common.name' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
         <input
           id="campaignName"
@@ -46,7 +51,7 @@
       <!-- Type -->
       <div class="form-field">
         <label class="form-label" for="campaignType">
-          Typ <span class="required" aria-hidden="true">*</span>
+          {{ 'supervisor.campaignForm.typeLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
         <select id="campaignType" class="form-select" formControlName="type" aria-required="true">
           @for (opt of typeOptions; track opt.value) {
@@ -58,7 +63,7 @@
       <!-- Dialer type -->
       <div class="form-field">
         <label class="form-label" for="dialerType">
-          Typ dialera <span class="required" aria-hidden="true">*</span>
+          {{ 'supervisor.campaignForm.dialerTypeLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
         <select id="dialerType" class="form-select" formControlName="dialerType" aria-required="true">
           @for (opt of dialerOptions; track opt.value) {
@@ -70,7 +75,7 @@
       <!-- Queue -->
       <div class="form-field" [class.form-field--error]="queueIdError">
         <label class="form-label" for="queueId">
-          Kolejka <span class="required" aria-hidden="true">*</span>
+          {{ 'supervisor.campaignForm.queueLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
         @if (queuesLoading()) {
           <div class="form-skeleton" aria-hidden="true"></div>
@@ -83,7 +88,7 @@
             [attr.aria-describedby]="queueIdError ? 'queueId-error' : null"
             [attr.aria-invalid]="queueIdError ? 'true' : null"
           >
-            <option value="">-- Wybierz kolejkę --</option>
+            <option value="">{{ 'supervisor.campaignForm.queuePlaceholder' | transloco }}</option>
             @for (queue of queues(); track queue.queueId) {
               <option [value]="queue.queueId">{{ queue.name }}</option>
             }
@@ -98,7 +103,7 @@
       <div class="form-row">
         <div class="form-field" [class.form-field--error]="maxAttemptsError">
           <label class="form-label" for="maxAttempts">
-            Maks. prób <span class="required" aria-hidden="true">*</span>
+            {{ 'supervisor.campaignForm.maxAttemptsLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="maxAttempts"
@@ -116,7 +121,7 @@
 
         <div class="form-field" [class.form-field--error]="retryDelayError">
           <label class="form-label" for="retryDelayMinutes">
-            Opóźnienie retry (min) <span class="required" aria-hidden="true">*</span>
+            {{ 'supervisor.campaignForm.retryDelayLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="retryDelayMinutes"
@@ -135,27 +140,17 @@
 
       <!-- Schedule section -->
       <fieldset class="schedule-section" formGroupName="schedule">
-        <legend class="schedule-section__legend">Harmonogram (opcjonalny)</legend>
+        <legend class="schedule-section__legend">{{ 'supervisor.campaignForm.scheduleLabel' | transloco }}</legend>
 
         <!-- Date range -->
         <div class="form-row">
           <div class="form-field" [class.form-field--error]="scheduleDateRangeError">
-            <label class="form-label" for="startDate">Data startu</label>
-            <input
-              id="startDate"
-              type="date"
-              class="form-input"
-              formControlName="startDate"
-            />
+            <label class="form-label" for="startDate">{{ 'supervisor.campaignForm.startDateLabel' | transloco }}</label>
+            <input id="startDate" type="date" class="form-input" formControlName="startDate" />
           </div>
           <div class="form-field" [class.form-field--error]="scheduleDateRangeError">
-            <label class="form-label" for="endDate">Data końca</label>
-            <input
-              id="endDate"
-              type="date"
-              class="form-input"
-              formControlName="endDate"
-            />
+            <label class="form-label" for="endDate">{{ 'supervisor.campaignForm.endDateLabel' | transloco }}</label>
+            <input id="endDate" type="date" class="form-input" formControlName="endDate" />
           </div>
         </div>
         @if (scheduleDateRangeError) {
@@ -165,7 +160,7 @@
         <!-- Time range -->
         <div class="form-row">
           <div class="form-field" [class.form-field--error]="timeFromError || scheduleTimeRangeError">
-            <label class="form-label" for="timeFrom">Godzina od</label>
+            <label class="form-label" for="timeFrom">{{ 'supervisor.campaignForm.timeFromLabel' | transloco }}</label>
             <input
               id="timeFrom"
               type="text"
@@ -181,7 +176,7 @@
             }
           </div>
           <div class="form-field" [class.form-field--error]="timeToError || scheduleTimeRangeError">
-            <label class="form-label" for="timeTo">Godzina do</label>
+            <label class="form-label" for="timeTo">{{ 'supervisor.campaignForm.timeToLabel' | transloco }}</label>
             <input
               id="timeTo"
               type="text"
@@ -203,7 +198,7 @@
 
         <!-- Active days -->
         <div class="form-field">
-          <span class="form-label" id="activeDaysLabel">Aktywne dni</span>
+          <span class="form-label" id="activeDaysLabel">{{ 'supervisor.campaignForm.activeDaysLabel' | transloco }}</span>
           <div class="days-group" role="group" aria-labelledby="activeDaysLabel">
             @for (day of allDays; track day.value) {
               <button
@@ -222,7 +217,7 @@
 
         <!-- Timezone -->
         <div class="form-field">
-          <label class="form-label" for="timezone">Strefa czasowa</label>
+          <label class="form-label" for="timezone">{{ 'supervisor.campaignForm.timezoneLabel' | transloco }}</label>
           <select id="timezone" class="form-select" formControlName="timezone">
             @for (tz of timezoneOptions; track tz) {
               <option [value]="tz">{{ tz }}</option>
@@ -233,20 +228,20 @@
     </form>
 
     <div class="campaign-form-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()">Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
       <button
         class="btn btn-save"
         type="submit"
         form="campaign-form"
         [disabled]="isSaveDisabled"
         [attr.aria-disabled]="isSaveDisabled"
-        aria-label="Zapisz kampanie"
+        [attr.aria-label]="'supervisor.campaignForm.saveLabel' | transloco"
       >
         @if (submitting()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Zapisz
+          {{ 'common.save' | transloco }}
         }
       </button>
     </div>

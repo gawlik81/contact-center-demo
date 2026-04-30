@@ -1,14 +1,14 @@
 <div class="et-page">
   <header class="et-header">
     <div class="et-header__title">
-      <h1>Szablony email</h1>
+      <h1>{{ 'supervisor.settings.emailTemplates.title' | transloco }}</h1>
       <span class="et-badge" [class.et-badge--hidden]="loading()">
-        {{ totalElements() }} {{ totalElements() === 1 ? 'szablon' : totalElements() < 5 ? 'szablony' : 'szablonów' }}
+        {{ totalElements() }} {{ 'supervisor.settings.emailTemplates.templateCount_many' | transloco }}
       </span>
     </div>
     <button class="et-btn et-btn--primary" (click)="openCreateModal()" [disabled]="loading()">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
-      Nowy szablon
+      {{ 'supervisor.settings.emailTemplates.addTemplate' | transloco }}
     </button>
   </header>
 
@@ -30,17 +30,17 @@
           d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"
         />
       </svg>
-      <p>Brak szablonów email. Utwórz pierwszy szablon klikając „Nowy szablon".</p>
+      <p>{{ 'supervisor.settings.emailTemplates.emptyText' | transloco }}</p>
     </div>
   } @else {
     <div class="et-table-wrapper">
       <table class="et-table" role="table">
         <thead>
           <tr>
-            <th scope="col">Nazwa</th>
-            <th scope="col">Temat</th>
-            <th scope="col">Zmienne</th>
-            <th scope="col" class="et-col-actions">Akcje</th>
+            <th scope="col">{{ 'common.name' | transloco }}</th>
+            <th scope="col">{{ 'supervisor.settings.emailTemplates.subject' | transloco }}</th>
+            <th scope="col">{{ 'supervisor.settings.emailTemplates.variables' | transloco }}</th>
+            <th scope="col" class="et-col-actions">{{ 'common.actions' | transloco }}</th>
           </tr>
         </thead>
         <tbody>
@@ -50,7 +50,7 @@
               <td class="et-cell-subject">{{ template.subjectTemplate }}</td>
               <td class="et-cell-vars">
                 @if (template.variables.length === 0) {
-                  <span class="et-no-vars">brak</span>
+                  <span class="et-no-vars">{{ 'common.no_data' | transloco }}</span>
                 } @else {
                   <div class="et-chips">
                     @for (v of template.variables; track v) {
@@ -71,7 +71,7 @@
                       d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
                     />
                   </svg>
-                  Podgląd
+                  {{ 'common.preview' | transloco }}
                 </button>
                 <button
                   class="et-btn et-btn--ghost et-btn--sm"
@@ -95,7 +95,7 @@
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                   </svg>
-                  Usuń
+                  {{ 'supervisor.settings.emailTemplates.deleteButton' | transloco }}
                 </button>
               </td>
             </tr>
@@ -110,7 +110,7 @@
           class="et-btn et-btn--ghost et-btn--sm"
           [disabled]="!hasPrevPage()"
           (click)="goToPage(currentPage() - 1)"
-          aria-label="Poprzednia strona"
+          [attr.aria-label]="'common.previous' | transloco"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg>
         </button>
@@ -119,7 +119,7 @@
           class="et-btn et-btn--ghost et-btn--sm"
           [disabled]="!hasNextPage()"
           (click)="goToPage(currentPage() + 1)"
-          aria-label="Następna strona"
+          [attr.aria-label]="'common.next' | transloco"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
         </button>
@@ -132,7 +132,7 @@
 <dialog #formDialog class="et-dialog" (close)="closeFormModal()">
   <div class="et-dialog__inner">
     <header class="et-dialog__header">
-      <h2>{{ modalMode() === 'create' ? 'Nowy szablon email' : 'Edytuj szablon email' }}</h2>
+      <h2>{{ modalMode() === 'create' ? ('supervisor.settings.emailTemplates.addTemplate' | transloco) : ('supervisor.settings.emailTemplates.editTemplate' | transloco) }}</h2>
       <button class="et-dialog__close" (click)="closeFormModal()" aria-label="Zamknij">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -144,61 +144,61 @@
 
     <form [formGroup]="form" (ngSubmit)="saveTemplate()" class="et-form" novalidate>
       <div class="et-field">
-        <label class="et-label" for="field-name">Nazwa szablonu <span class="et-required">*</span></label>
+        <label class="et-label" for="field-name">{{ 'common.name' | transloco }} <span class="et-required">*</span></label>
         <input
           id="field-name"
           class="et-input"
           [class.et-input--error]="isFieldInvalid('name')"
           type="text"
           formControlName="name"
-          placeholder="np. Podziękowanie za kontakt"
+          [placeholder]="'supervisor.settings.emailTemplates.templateNamePlaceholder' | transloco"
           autocomplete="off"
         />
         @if (isFieldInvalid('name')) {
-          <span class="et-error-msg" role="alert">Nazwa jest wymagana (maks. 200 znaków).</span>
+          <span class="et-error-msg" role="alert">{{ 'supervisor.settings.emailTemplates.nameError' | transloco }}</span>
         }
       </div>
 
       <div class="et-field">
-        <label class="et-label" for="field-subject">Temat wiadomości <span class="et-required">*</span></label>
+        <label class="et-label" for="field-subject">{{ 'supervisor.settings.emailTemplates.subject' | transloco }} <span class="et-required">*</span></label>
         <input
           id="field-subject"
           class="et-input"
           [class.et-input--error]="isFieldInvalid('subjectTemplate')"
           type="text"
           formControlName="subjectTemplate"
-          placeholder="np. Odpowiedź na Twoje zgłoszenie #[[ ticketId ]]"
+          [placeholder]="'supervisor.settings.emailTemplates.subjectPlaceholder' | transloco"
           autocomplete="off"
         />
         @if (isFieldInvalid('subjectTemplate')) {
-          <span class="et-error-msg" role="alert">Temat jest wymagany (maks. 500 znaków).</span>
+          <span class="et-error-msg" role="alert">{{ 'supervisor.settings.emailTemplates.subjectError' | transloco }}</span>
         }
       </div>
 
       <div class="et-field">
-        <label class="et-label" for="field-body">Treść (HTML) <span class="et-required">*</span></label>
+        <label class="et-label" for="field-body">{{ 'supervisor.settings.emailTemplates.bodyLabel' | transloco }} <span class="et-required">*</span></label>
         <textarea
           id="field-body"
           class="et-textarea"
           [class.et-textarea--error]="isFieldInvalid('bodyHtml')"
           formControlName="bodyHtml"
           rows="10"
-          placeholder="np. &lt;p&gt;Dzień dobry [[ customerName ]],&lt;/p&gt;"
+          [placeholder]="'supervisor.settings.emailTemplates.bodyPlaceholder' | transloco"
         ></textarea>
         @if (isFieldInvalid('bodyHtml')) {
-          <span class="et-error-msg" role="alert">Treść jest wymagana.</span>
+          <span class="et-error-msg" role="alert">{{ 'supervisor.settings.emailTemplates.bodyError' | transloco }}</span>
         }
         <p class="et-hint">
-          Używaj składni <code>{{ curlyOpen }}nazwaZmiennej{{ curlyClose }}</code> aby wstawiać dynamiczne wartości.
+          {{ 'supervisor.settings.emailTemplates.variableHint' | transloco }}
         </p>
       </div>
 
       <div class="et-field">
         <div class="et-field-row">
-          <span class="et-label">Zmienne szablonu</span>
+          <span class="et-label">{{ 'supervisor.settings.emailTemplates.variablesLabel' | transloco }}</span>
           <button type="button" class="et-btn et-btn--ghost et-btn--sm" (click)="addVariable()">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
-            Dodaj zmienną
+            {{ 'supervisor.settings.emailTemplates.addVariable' | transloco }}
           </button>
         </div>
         <div formArrayName="variables" class="et-variables-list">
@@ -229,19 +229,19 @@
             </div>
           }
           @if (variablesArray.length === 0) {
-            <p class="et-variables-empty">Brak zdefiniowanych zmiennych.</p>
+            <p class="et-variables-empty">{{ 'supervisor.settings.emailTemplates.noVariables' | transloco }}</p>
           }
         </div>
       </div>
 
       <footer class="et-dialog__footer">
-        <button type="button" class="et-btn et-btn--ghost" (click)="closeFormModal()">Anuluj</button>
+        <button type="button" class="et-btn et-btn--ghost" (click)="closeFormModal()">{{ 'common.cancel' | transloco }}</button>
         <button type="submit" class="et-btn et-btn--primary" [disabled]="saving()">
           @if (saving()) {
             <span class="et-spinner" aria-hidden="true"></span>
-            Zapisywanie...
+            {{ 'common.saving' | transloco }}
           } @else {
-            {{ modalMode() === 'create' ? 'Utwórz szablon' : 'Zapisz zmiany' }}
+            {{ (modalMode() === 'create' ? 'supervisor.settings.emailTemplates.createButton' : 'supervisor.settings.emailTemplates.saveButton') | transloco }}
           }
         </button>
       </footer>
@@ -253,7 +253,7 @@
 <dialog #deleteDialog class="et-dialog et-dialog--sm" (close)="closeDeleteModal()">
   <div class="et-dialog__inner">
     <header class="et-dialog__header">
-      <h2>Usuń szablon</h2>
+      <h2>{{ 'supervisor.settings.emailTemplates.deleteTitle' | transloco }}</h2>
       <button class="et-dialog__close" (click)="closeDeleteModal()" aria-label="Zamknij">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -264,18 +264,17 @@
     </header>
     <div class="et-dialog__body">
       <p>
-        Czy na pewno chcesz usunąć szablon
-        <strong>„{{ selectedTemplate()?.name }}"</strong>? Tej operacji nie można cofnąć.
+        {{ 'supervisor.settings.emailTemplates.deleteConfirm' | transloco: { name: selectedTemplate()?.name } }}
       </p>
     </div>
     <footer class="et-dialog__footer">
-      <button type="button" class="et-btn et-btn--ghost" (click)="closeDeleteModal()">Anuluj</button>
+      <button type="button" class="et-btn et-btn--ghost" (click)="closeDeleteModal()">{{ 'common.cancel' | transloco }}</button>
       <button type="button" class="et-btn et-btn--danger" (click)="confirmDelete()" [disabled]="deleting()">
         @if (deleting()) {
           <span class="et-spinner" aria-hidden="true"></span>
           Usuwanie...
         } @else {
-          Usuń szablon
+          {{ 'supervisor.settings.emailTemplates.deleteButton' | transloco }}
         }
       </button>
     </footer>
@@ -286,7 +285,7 @@
 <dialog #previewDialog class="et-dialog et-dialog--wide" (close)="closePreviewModal()">
   <div class="et-dialog__inner">
     <header class="et-dialog__header">
-      <h2>Podgląd szablonu: {{ selectedTemplate()?.name }}</h2>
+      <h2>{{ 'supervisor.settings.emailTemplates.previewTitle' | transloco }}: {{ selectedTemplate()?.name }}</h2>
       <button class="et-dialog__close" (click)="closePreviewModal()" aria-label="Zamknij">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -299,7 +298,7 @@
     <div class="et-dialog__body et-preview-body">
       @if ((selectedTemplate()?.variables?.length ?? 0) > 0) {
         <form [formGroup]="previewForm" (ngSubmit)="runPreview()" class="et-preview-vars" novalidate>
-          <p class="et-preview-vars__label">Podaj wartości zmiennych:</p>
+          <p class="et-preview-vars__label">{{ 'supervisor.settings.emailTemplates.previewVarsLabel' | transloco }}</p>
           <div class="et-preview-vars__fields">
             @for (key of previewVariableKeys(); track key) {
               <div class="et-field et-field--inline">
@@ -320,9 +319,9 @@
           <button type="submit" class="et-btn et-btn--primary et-btn--sm" [disabled]="previewLoading()">
             @if (previewLoading()) {
               <span class="et-spinner" aria-hidden="true"></span>
-              Generowanie...
+              {{ 'supervisor.settings.emailTemplates.generating' | transloco }}
             } @else {
-              Generuj podgląd
+              {{ 'supervisor.settings.emailTemplates.generatePreview' | transloco }}
             }
           </button>
         </form>
@@ -335,9 +334,9 @@
         >
           @if (previewLoading()) {
             <span class="et-spinner" aria-hidden="true"></span>
-            Generowanie...
+            {{ 'supervisor.settings.emailTemplates.generating' | transloco }}
           } @else {
-            Generuj podgląd
+            {{ 'supervisor.settings.emailTemplates.generatePreview' | transloco }}
           }
         </button>
       }
@@ -345,13 +344,13 @@
       @if (previewResult()) {
         <div class="et-preview-result">
           <div class="et-preview-subject">
-            <span class="et-preview-subject__label">Temat:</span>
+            <span class="et-preview-subject__label">{{ 'supervisor.settings.emailTemplates.subject' | transloco }}:</span>
             <span class="et-preview-subject__value">{{ previewResult()!.subject }}</span>
           </div>
           <div class="et-preview-frame-wrapper">
             <iframe
               class="et-preview-frame"
-              title="Podgląd treści email"
+              [title]="'supervisor.settings.emailTemplates.previewFrameTitle' | transloco"
               sandbox="allow-same-origin"
               [srcdoc]="previewResult()!.bodyHtml"
             ></iframe>
@@ -361,7 +360,7 @@
     </div>
 
     <footer class="et-dialog__footer">
-      <button type="button" class="et-btn et-btn--ghost" (click)="closePreviewModal()">Zamknij</button>
+      <button type="button" class="et-btn et-btn--ghost" (click)="closePreviewModal()">{{ 'common.close' | transloco }}</button>
     </footer>
   </div>
 </dialog>

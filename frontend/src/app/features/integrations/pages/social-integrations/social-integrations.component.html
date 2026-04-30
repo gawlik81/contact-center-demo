@@ -25,7 +25,7 @@
       </button>
     </div>
     <p class="page-header__subtitle">
-      Zarządzaj połączeniami z platformami social media, aby odbierać wiadomości bezpośrednio w systemie Contact Center.
+      {{ 'integrations.social.pageDescription' | transloco }}
     </p>
   </header>
 
@@ -65,10 +65,10 @@
                   [class.status-badge--expired]="integration!.webhookStatus === 'EXPIRED_TOKEN'"
                   [class.status-badge--inactive]="integration!.webhookStatus === 'INACTIVE'"
                 >
-                  Połączony
+                  {{ 'integrations.social.connected' | transloco }}
                 </span>
               } @else {
-                <span class="status-badge status-badge--disconnected">Niepołączony</span>
+                <span class="status-badge status-badge--disconnected">{{ 'integrations.social.disconnected' | transloco }}</span>
               }
             </div>
           </div>
@@ -85,7 +85,7 @@
                   <dd class="info-list__value info-list__value--mono">{{ integration!.pageId }}</dd>
                 </div>
                 <div class="info-list__row">
-                  <dt class="info-list__label">Status webhooka</dt>
+                  <dt class="info-list__label">{{ 'integrations.social.title' | transloco }}</dt>
                   <dd class="info-list__value">
                     <span
                       class="webhook-badge"
@@ -106,7 +106,7 @@
                   </div>
                 }
                 <div class="info-list__row">
-                  <dt class="info-list__label">Połączono</dt>
+                  <dt class="info-list__label">{{ 'integrations.social.connected' | transloco }}</dt>
                   <dd class="info-list__value">{{ formatDate(integration!.createdAt) }}</dd>
                 </div>
               </dl>
@@ -126,8 +126,8 @@
                     />
                   </svg>
                   <p class="whatsapp-notice__text">
-                    WhatsApp Business API jest konfigurowany przez Meta Business Suite – nie używa standardowego OAuth.
-                    Kliknij przycisk poniżej, aby przejść do konfiguracji.
+                    {{ 'integrations.social.whatsappNote' | transloco }}
+                    {{ 'integrations.social.whatsappCta' | transloco }}
                   </p>
                 </div>
               }
@@ -142,7 +142,7 @@
                 (click)="openDisconnectDialog(integration!)"
                 [disabled]="disconnecting()"
               >
-                Rozłącz
+                {{ 'integrations.social.disconnect' | transloco }}
               </button>
             } @else if (card.platform === 'WHATSAPP') {
               <a
@@ -151,7 +151,7 @@
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Konfiguruj w Meta Business Suite
+                {{ 'integrations.social.connect' | transloco }}
               </a>
             } @else {
               <button
@@ -162,9 +162,9 @@
               >
                 @if (isConnecting) {
                   <span class="btn-spinner" aria-hidden="true"></span>
-                  Łączenie...
+                  {{ 'integrations.social.connecting' | transloco }}
                 } @else {
-                  Połącz
+                  {{ 'integrations.social.connect' | transloco }}
                 }
               </button>
             }
@@ -183,14 +183,14 @@
   aria-describedby="disconnect-dialog-desc"
 >
   <div class="cc-dialog__content">
-    <h2 id="disconnect-dialog-title" class="cc-dialog__title">Potwierdź rozłączenie</h2>
+    <h2 id="disconnect-dialog-title" class="cc-dialog__title">{{ 'integrations.social.confirmDisconnectTitle' | transloco }}</h2>
     @if (pendingDisconnect(); as integration) {
       <p id="disconnect-dialog-desc" class="cc-dialog__body">
-        Czy na pewno chcesz rozłączyć
+        {{ 'integrations.social.disconnect' | transloco }}
         <strong>{{ integration.displayName }}</strong>
         ({{ integration.platform }})?
         <br />
-        Ta operacja usunie token autoryzacyjny z serwera.
+        {{ 'integrations.social.errorDisconnect' | transloco }}
       </p>
     }
     <div class="cc-dialog__actions">
@@ -200,9 +200,9 @@
       <button class="btn btn--danger" type="button" [disabled]="disconnecting()" (click)="confirmDisconnect()">
         @if (disconnecting()) {
           <span class="btn-spinner" aria-hidden="true"></span>
-          Rozłączanie...
+          {{ 'integrations.social.disconnecting' | transloco }}
         } @else {
-          Rozłącz
+          {{ 'integrations.social.disconnect' | transloco }}
         }
       </button>
     </div>

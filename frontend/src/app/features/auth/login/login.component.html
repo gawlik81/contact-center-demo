@@ -100,7 +100,7 @@
               type="password"
               formControlName="password"
               autocomplete="current-password"
-              placeholder="Minimum 8 znaków"
+              [placeholder]="'common.minimumChars' | transloco"
               [class.input-invalid]="passwordInvalid()"
               aria-required="true"
               [attr.aria-describedby]="passwordInvalid() ? 'password-error' : null"

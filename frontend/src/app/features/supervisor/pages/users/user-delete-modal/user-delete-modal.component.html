@@ -7,27 +7,29 @@
 >
   <div class="delete-dialog__content" role="document">
     <div class="delete-dialog__header">
-      <h2 id="delete-title" class="delete-dialog__title">Usun agenta</h2>
+      <h2 id="delete-title" class="delete-dialog__title">{{ 'supervisor.userDelete.title' | transloco }}</h2>
     </div>
 
     <div class="delete-dialog__body">
       <p id="delete-desc" class="delete-dialog__message">
-        Czy na pewno chcesz usunac agenta
-        <strong>{{ user().firstName }} {{ user().lastName }}</strong
-        >? Ta operacja jest nieodwracalna.
+        {{ 'supervisor.userDelete.body' | transloco }}
+        <strong>{{ user().firstName }} {{ user().lastName }}</strong>?
+        {{ 'supervisor.userDelete.irreversible' | transloco }}
       </p>
-      <p class="delete-dialog__warning">Jezeli agent ma aktywne kontakty, operacja zostanie odrzucona.</p>
+      <p class="delete-dialog__warning">{{ 'supervisor.userDelete.warning' | transloco }}</p>
     </div>
 
     <div class="delete-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         class="btn btn-delete"
         type="button"
         (click)="onConfirm()"
-        [attr.aria-label]="'Potwierdz usuniecie agenta ' + user().firstName + ' ' + user().lastName"
+        [attr.aria-label]="('supervisor.userDelete.confirmLabel' | transloco) + ' ' + user().firstName + ' ' + user().lastName"
       >
-        Usun
+        {{ 'common.delete' | transloco }}
       </button>
     </div>
   </div>

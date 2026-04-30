@@ -7,9 +7,14 @@
   <div class="queue-form-dialog__content" role="document">
     <div class="queue-form-dialog__header">
       <h2 id="queue-form-title" class="queue-form-dialog__title">
-        {{ isEditMode() ? 'Edytuj kolejke' : 'Nowa kolejka' }}
+        {{ isEditMode() ? ('supervisor.queueForm.titleEdit' | transloco) : ('supervisor.queueForm.titleCreate' | transloco) }}
       </h2>
-      <button class="btn-close" type="button" (click)="onCancel()" aria-label="Zamknij formularz">
+      <button
+        class="btn-close"
+        type="button"
+        (click)="onCancel()"
+        [attr.aria-label]="'supervisor.queueForm.closeLabel' | transloco"
+      >
         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
           <path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -22,20 +27,20 @@
       <form class="queue-form-dialog__body" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate id="queue-form">
         <!-- Loading options indicator -->
         @if (loadingOptions()) {
-          <div class="options-loading" aria-label="Wczytywanie opcji...">
+          <div class="options-loading" [attr.aria-label]="'common.loading_data' | transloco">
             <span class="spinner spinner--dark" aria-hidden="true"></span>
-            Wczytywanie opcji...
+            {{ 'common.loading_data' | transloco }}
           </div>
         }
 
         <!-- Section: Basic info -->
         <div class="form-section">
-          <p class="form-section__heading">Podstawowe informacje</p>
+          <p class="form-section__heading">{{ 'supervisor.queueForm.sectionBasic' | transloco }}</p>
 
           <!-- Name -->
           <div class="form-field" [class.form-field--error]="nameError">
             <label class="form-label" for="queue-name">
-              Nazwa <span class="required" aria-hidden="true">*</span>
+              {{ 'common.name' | transloco }} <span class="required" aria-hidden="true">*</span>
             </label>
             <input
               id="queue-name"
@@ -53,35 +58,35 @@
 
           <!-- Email address -->
           <div class="form-field" [class.form-field--error]="emailAddressError">
-            <label class="form-label" for="queue-email"> Adres email kolejki (opcjonalnie) </label>
+            <label class="form-label" for="queue-email">
+              {{ 'supervisor.queueForm.emailLabel' | transloco }}
+            </label>
             <input
               id="queue-email"
               type="email"
               class="form-input"
               formControlName="emailAddress"
               autocomplete="off"
-              placeholder="np. support@firma.pl"
+              [placeholder]="'supervisor.queueForm.emailPlaceholder' | transloco"
               [attr.aria-describedby]="emailAddressError ? 'queue-email-error' : 'queue-email-hint'"
               [attr.aria-invalid]="emailAddressError ? 'true' : null"
             />
             @if (emailAddressError) {
               <span id="queue-email-error" class="form-error" role="alert">{{ emailAddressError }}</span>
             } @else {
-              <span id="queue-email-hint" class="form-hint"
-                >Emaile przychodzace na ten adres beda automatycznie kierowane do tej kolejki.</span
-              >
+              <span id="queue-email-hint" class="form-hint">{{ 'supervisor.queueForm.emailHint' | transloco }}</span>
             }
           </div>
         </div>
 
         <!-- Section: Routing -->
         <div class="form-section">
-          <p class="form-section__heading">Routing</p>
+          <p class="form-section__heading">{{ 'supervisor.queueForm.sectionRouting' | transloco }}</p>
 
           <!-- Routing strategy -->
           <div class="form-field" [class.form-field--error]="routingStrategyError">
             <label class="form-label" for="routing-strategy">
-              Strategia routingu <span class="required" aria-hidden="true">*</span>
+              {{ 'supervisor.queueForm.routingStrategyLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
             </label>
             <select
               id="routing-strategy"
@@ -91,7 +96,7 @@
               [attr.aria-describedby]="routingStrategyError ? 'routing-strategy-error' : null"
               [attr.aria-invalid]="routingStrategyError ? 'true' : null"
             >
-              <option value="" disabled>Wybierz strategie...</option>
+              <option value="" disabled>{{ 'supervisor.queueForm.routingStrategyPlaceholder' | transloco }}</option>
               @for (strategy of routingStrategies(); track strategy) {
                 <option [value]="strategy">{{ strategy }}</option>
               }
@@ -103,8 +108,8 @@
 
           <!-- Required skills multi-select -->
           <div class="form-field">
-            <label class="form-label" for="skill-input">Wymagane skills</label>
-            <div class="skills-container" role="group" aria-label="Wybrane skills">
+            <label class="form-label" for="skill-input">{{ 'supervisor.queueForm.skillsLabel' | transloco }}</label>
+            <div class="skills-container" role="group" [attr.aria-label]="'supervisor.queueForm.skillsLabel' | transloco">
               @for (skill of selectedSkills(); track skill) {
                 <span class="skill-chip">
                   {{ skill }}
@@ -112,7 +117,7 @@
                     type="button"
                     class="skill-chip__remove"
                     (click)="removeSkill(skill)"
-                    [attr.aria-label]="'Usun skill ' + skill"
+                    [attr.aria-label]="('supervisor.queueForm.removeSkill' | transloco) + ' ' + skill"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" aria-hidden="true">
                       <path
@@ -129,7 +134,7 @@
                   type="text"
                   class="skill-input"
                   [value]="skillInput()"
-                  placeholder="Dodaj skill..."
+                  [placeholder]="'supervisor.queueForm.skillsPlaceholder' | transloco"
                   autocomplete="off"
                   role="combobox"
                   aria-autocomplete="list"
@@ -141,7 +146,12 @@
                   (keydown)="onSkillInputKeydown($event)"
                 />
                 @if (showSkillDropdown() && filteredSkills().length > 0) {
-                  <ul id="skill-dropdown" class="skill-dropdown" role="listbox" aria-label="Dostepne skills">
+                  <ul
+                    id="skill-dropdown"
+                    class="skill-dropdown"
+                    role="listbox"
+                    [attr.aria-label]="'supervisor.queueForm.skillsAvailable' | transloco"
+                  >
                     @for (skill of filteredSkills(); track skill) {
                       <li
                         class="skill-dropdown__item"
@@ -156,14 +166,14 @@
                 }
               </div>
             </div>
-            <span class="form-hint">Nacisnij Enter lub wybierz z listy, aby dodac skill.</span>
+            <span class="form-hint">{{ 'supervisor.queueForm.skillsHint' | transloco }}</span>
           </div>
 
           <!-- Active toggle (edit only) -->
           @if (isEditMode()) {
             <div class="form-field form-field--toggle">
-              <label class="form-label" for="queue-active">Status kolejki</label>
-              <label class="toggle-label" aria-label="Aktywnosc kolejki">
+              <label class="form-label" for="queue-active">{{ 'supervisor.queueForm.statusLabel' | transloco }}</label>
+              <label class="toggle-label" [attr.aria-label]="'supervisor.queueForm.statusLabel' | transloco">
                 <input
                   id="queue-active"
                   type="checkbox"
@@ -174,7 +184,7 @@
                 />
                 <span class="toggle-track" aria-hidden="true"></span>
                 <span class="toggle-text">
-                  {{ form.get('active')?.value ? 'Aktywna' : 'Nieaktywna' }}
+                  {{ form.get('active')?.value ? ('supervisor.queues.statusActive' | transloco) : ('supervisor.queues.statusInactive' | transloco) }}
                 </span>
               </label>
             </div>
@@ -184,29 +194,29 @@
 
       @if (isEditMode() && queue()) {
         <div class="assignment-section">
-          <p class="assignment-section__heading">Przypisanie agentów</p>
+          <p class="assignment-section__heading">{{ 'supervisor.queueForm.assignmentTitle' | transloco }}</p>
           <app-queue-assignment-panel [queueId]="queue()!.queueId" />
         </div>
       } @else if (!isEditMode()) {
-        <p class="assignment-new-queue-hint">Zapisz kolejkę, aby skonfigurować przypisanie agentów.</p>
+        <p class="assignment-new-queue-hint">{{ 'supervisor.queueForm.assignmentHint' | transloco }}</p>
       }
     </div>
 
     <div class="queue-form-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()">Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
       <button
         class="btn btn-save"
         type="submit"
         form="queue-form"
         [disabled]="isSaveDisabled"
         [attr.aria-disabled]="isSaveDisabled"
-        aria-label="Zapisz kolejke"
+        [attr.aria-label]="'supervisor.queueForm.saveLabel' | transloco"
       >
         @if (submitting()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Zapisz
+          {{ 'common.save' | transloco }}
         }
       </button>
     </div>

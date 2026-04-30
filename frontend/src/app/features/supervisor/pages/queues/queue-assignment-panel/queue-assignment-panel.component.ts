@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -25,7 +26,8 @@ import { PagedResponse } from '../../../../../core/models/paged-response.model';
 @Component({
   selector: 'app-queue-assignment-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [
+    TranslocoModule,],
   templateUrl: './queue-assignment-panel.component.html',
   styleUrl: './queue-assignment-panel.component.scss',
 })
@@ -35,6 +37,7 @@ export class QueueAssignmentPanelComponent implements OnInit {
   private readonly agentGroupService = inject(AgentGroupService);
   private readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly assignment = signal<QueueAssignment | null>(null);
@@ -132,14 +135,14 @@ export class QueueAssignmentPanelComponent implements OnInit {
         next: (updated) => {
           this.assignment.set(updated);
           this.saving.set(false);
-          this.notifications.success('Przypisanie zaktualizowane');
+          this.notifications.success(this.transloco.translate('supervisor.queueAssignment.successSave'));
         },
         error: (err: HttpErrorResponse) => {
           this.saving.set(false);
           if (err.status === 400 && err.error?.message) {
             this.notifications.error(err.error.message);
           } else {
-            this.notifications.error('Nie udało się zapisać przypisania. Spróbuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.queueAssignment.errorSave'));
           }
         },
       });

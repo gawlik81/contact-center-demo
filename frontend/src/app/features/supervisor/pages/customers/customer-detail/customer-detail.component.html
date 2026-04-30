@@ -1,7 +1,7 @@
 <div class="customer-detail">
   <!-- ── Loading skeleton ──────────────────────────────────────────────── -->
   @if (loadState() === 'loading') {
-    <div class="skeleton-page" aria-busy="true" aria-label="Wczytywanie danych klienta...">
+    <div class="skeleton-page" aria-busy="true" [attr.aria-label]="'supervisor.customerDetail.loadingLabel' | transloco">
       <div class="skeleton-header">
         <div class="skeleton-block skeleton-block--title"></div>
         <div class="skeleton-block skeleton-block--btn"></div>
@@ -24,9 +24,9 @@
       <svg class="error-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
       </svg>
-      <h2 class="error-state__title">Klient nie istnieje</h2>
-      <p class="error-state__message">Nie znaleziono klienta o podanym identyfikatorze.</p>
-      <button class="btn btn-primary" type="button" (click)="goBack()">Wróć do listy klientów</button>
+      <h2 class="error-state__title">{{ 'supervisor.customerDetail.notFoundTitle' | transloco }}</h2>
+      <p class="error-state__message">{{ 'supervisor.customerDetail.notFoundMessage' | transloco }}</p>
+      <button class="btn btn-primary" type="button" (click)="goBack()">{{ 'supervisor.customerDetail.backToList' | transloco }}</button>
     </div>
   }
 
@@ -36,9 +36,9 @@
       <svg class="error-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
       </svg>
-      <h2 class="error-state__title">Błąd ładowania</h2>
-      <p class="error-state__message">Nie udało się pobrać danych klienta. Spróbuj ponownie.</p>
-      <button class="btn btn-primary" type="button" (click)="goBack()">Wróć do listy klientów</button>
+      <h2 class="error-state__title">{{ 'supervisor.customerDetail.errorTitle' | transloco }}</h2>
+      <p class="error-state__message">{{ 'supervisor.customerDetail.errorMessage' | transloco }}</p>
+      <button class="btn btn-primary" type="button" (click)="goBack()">{{ 'supervisor.customerDetail.backToList' | transloco }}</button>
     </div>
   }
 
@@ -51,7 +51,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18">
             <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
           </svg>
-          Wróć
+          {{ 'supervisor.customerDetail.back' | transloco }}
         </button>
         <div class="detail-header__title-block">
           <h1 class="detail-header__name">{{ customerName() }}</h1>
@@ -70,7 +70,7 @@
               d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
             />
           </svg>
-          Edytuj
+          {{ 'supervisor.customerDetail.edit' | transloco }}
         </button>
       </div>
     </header>
@@ -83,7 +83,7 @@
 
         <dl class="detail-dl">
           <div class="detail-dl__row">
-            <dt class="detail-dl__term">Numery telefonów</dt>
+            <dt class="detail-dl__term">{{ 'supervisor.customerDetail.phones' | transloco }}</dt>
             <dd class="detail-dl__desc">
               @if (c.phone.length > 0) {
                 <ul class="value-list" aria-label="Numery telefonów">
@@ -92,7 +92,7 @@
                   }
                 </ul>
               } @else {
-                <span class="value-empty">Brak</span>
+                <span class="value-empty">{{ 'common.no_data' | transloco }}</span>
               }
             </dd>
           </div>
@@ -107,13 +107,13 @@
                   }
                 </ul>
               } @else {
-                <span class="value-empty">Brak</span>
+                <span class="value-empty">{{ 'common.no_data' | transloco }}</span>
               }
             </dd>
           </div>
 
           <div class="detail-dl__row">
-            <dt class="detail-dl__term">Źródło</dt>
+            <dt class="detail-dl__term">{{ 'supervisor.customerDetail.source' | transloco }}</dt>
             <dd class="detail-dl__desc">{{ c.source }}</dd>
           </div>
 
@@ -151,7 +151,7 @@
 
           @if (c.gdprConsent.consent_source) {
             <div class="detail-dl__row">
-              <dt class="detail-dl__term">Źródło zgody</dt>
+              <dt class="detail-dl__term">{{ 'supervisor.customerDetail.consentSource' | transloco }}</dt>
               <dd class="detail-dl__desc">{{ c.gdprConsent.consent_source }}</dd>
             </div>
           }
@@ -187,7 +187,7 @@
 
     <!-- ── Contact history ─────────────────────────────────────────────── -->
     <section class="contacts-section" aria-labelledby="section-history">
-      <h2 id="section-history" class="contacts-section__title">Historia kontaktów</h2>
+      <h2 id="section-history" class="contacts-section__title">{{ 'supervisor.customerDetail.contactHistory' | transloco }}</h2>
 
       <!-- Contacts loading skeleton -->
       @if (contactsLoadState() === 'loading') {
@@ -213,11 +213,11 @@
               d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
             />
           </svg>
-          <p class="empty-state__message">Błąd ładowania historii kontaktów</p>
+          <p class="empty-state__message">{{ 'supervisor.customerDetail.contactHistoryError' | transloco }}</p>
           <p class="empty-state__hint">
-            Nie udało się pobrać historii kontaktów. Sprawdź połączenie i spróbuj ponownie.
+            {{ 'supervisor.customerDetail.contactHistoryErrorHint' | transloco }}
           </p>
-          <button class="btn btn-primary" type="button" (click)="loadContacts()">Spróbuj ponownie</button>
+          <button class="btn btn-primary" type="button" (click)="loadContacts()">{{ 'supervisor.customerDetail.retry' | transloco }}</button>
         </div>
       }
 
@@ -230,7 +230,7 @@
                 <tr>
                   <th scope="col">Data</th>
                   <th scope="col">Czas trwania</th>
-                  <th scope="col">Kanał</th>
+                  <th scope="col">{{ 'supervisor.customerDetail.channel' | transloco }}</th>
                   <th scope="col">Status</th>
                   <th scope="col">Dyspozycja</th>
                   <th scope="col">Notatka</th>
@@ -275,7 +275,7 @@
           @if (contactsTotalPages() > 1) {
             <nav class="pagination" aria-label="Nawigacja po historii kontaktów">
               <span class="pagination__info" aria-live="polite">
-                Wyświetlanie {{ contactsFirstIndex() }}&ndash;{{ contactsLastIndex() }} z {{ contactsTotalElements() }}
+                {{ 'supervisor.customerDetail.showingOf' | transloco: { from: contactsFirstIndex(), to: contactsLastIndex(), total: contactsTotalElements() } }}
               </span>
               <div class="pagination__controls">
                 <button
@@ -300,7 +300,7 @@
                   [disabled]="contactsCurrentPage() + 1 >= contactsTotalPages()"
                   aria-label="Następna strona historii"
                 >
-                  Następna
+                  {{ 'supervisor.customerDetail.next' | transloco }}
                   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                     <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
                   </svg>
@@ -316,8 +316,8 @@
                 d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"
               />
             </svg>
-            <p class="empty-state__message">Brak historii kontaktów</p>
-            <p class="empty-state__hint">Ten klient nie miał jeszcze żadnego kontaktu z centrum.</p>
+            <p class="empty-state__message">{{ 'supervisor.customerDetail.noHistory' | transloco }}</p>
+            <p class="empty-state__hint">{{ 'supervisor.customerDetail.noContactHint' | transloco }}</p>
           </div>
         }
       }
@@ -335,7 +335,7 @@
                 d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 6h2v2h-2V7zm0 4h2v6h-2v-6z"
               />
             </svg>
-            <span>Dane zanonimizowane &ndash; operacje RODO niedostępne</span>
+            <span>{{ 'supervisor.customerDetail.anonymizedNote' | transloco }}</span>
           </div>
         } @else {
           <div class="gdpr-section__actions">
@@ -343,7 +343,7 @@
               <div class="gdpr-action-card__info">
                 <h3 class="gdpr-action-card__title">Eksport danych (Art. 15)</h3>
                 <p class="gdpr-action-card__desc">
-                  Pobierz pełny pakiet danych osobowych klienta zgodnie z prawem dostępu do danych.
+                  {{ 'supervisor.customerDetail.gdprDownloadNote' | transloco }}
                 </p>
               </div>
               <button

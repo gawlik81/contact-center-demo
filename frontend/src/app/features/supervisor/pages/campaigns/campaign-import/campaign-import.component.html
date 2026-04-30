@@ -1,8 +1,8 @@
 <dialog #dialogEl class="import-dialog" aria-labelledby="import-dialog-title" aria-modal="true">
   <!-- ── Header ─────────────────────────────────────────────────────────── -->
   <div class="import-dialog__header">
-    <h2 class="import-dialog__title" id="import-dialog-title">Import kontaktow &ndash; {{ campaign().name }}</h2>
-    <button class="btn-close" type="button" (click)="onClose(false)" aria-label="Zamknij dialog importu">
+    <h2 class="import-dialog__title" id="import-dialog-title">{{ 'supervisor.campaignImport.title' | transloco }} – {{ campaign().name }}</h2>
+    <button class="btn-close" type="button" (click)="onClose(false)" [attr.aria-label]="'common.close' | transloco">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20">
         <path
           d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -32,16 +32,16 @@
         <span class="stepper__label">
           @switch (step) {
             @case ('upload') {
-              Plik
+              {{ 'supervisor.customerImport.stepFile' | transloco }}
             }
             @case ('mapping') {
-              Mapowanie
+              {{ 'supervisor.customerImport.stepMapping' | transloco }}
             }
             @case ('progress') {
-              Import
+              {{ 'supervisor.customerImport.stepImport' | transloco }}
             }
             @case ('report') {
-              Raport
+              {{ 'supervisor.customerImport.stepReport' | transloco }}
             }
           }
         </span>
@@ -55,7 +55,7 @@
   <!-- ── Step 1: Upload ────────────────────────────────────────────────── -->
   @if (currentStep() === 'upload') {
     <div class="import-step" role="region" aria-labelledby="step-upload-title">
-      <h3 class="import-step__subtitle" id="step-upload-title">Wybierz plik CSV</h3>
+      <h3 class="import-step__subtitle" id="step-upload-title">{{ 'supervisor.customerImport.uploadTitle' | transloco }}</h3>
 
       <!-- Drag & drop zone -->
       <div
@@ -77,9 +77,9 @@
               d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"
             />
           </svg>
-          <p class="drop-zone__text">Przeciagnij plik CSV tutaj lub</p>
-          <button class="btn btn-secondary" type="button" (click)="fileInput.click()">Wybierz plik</button>
-          <p class="drop-zone__hint">Maksymalny rozmiar: 50 MB &bull; Format: .csv</p>
+          <p class="drop-zone__text">{{ 'supervisor.customerImport.dragText' | transloco }}</p>
+          <button class="btn btn-secondary" type="button" (click)="fileInput.click()">{{ 'supervisor.customerImport.chooseFile' | transloco }}</button>
+          <p class="drop-zone__hint">{{ 'supervisor.customerImport.fileHint' | transloco }}</p>
         } @else {
           <svg
             class="drop-zone__icon drop-zone__icon--success"
@@ -93,7 +93,7 @@
           </svg>
           <p class="drop-zone__filename">{{ selectedFile()!.name }}</p>
           <p class="drop-zone__filesize">{{ formatFileSize(selectedFile()!.size) }}</p>
-          <button class="btn btn-link" type="button" (click)="fileInput.click()">Zmien plik</button>
+          <button class="btn btn-link" type="button" (click)="fileInput.click()">{{ 'supervisor.customerImport.changeFile' | transloco }}</button>
         }
       </div>
 
@@ -126,15 +126,15 @@
           [checked]="skipDuplicates()"
           (change)="skipDuplicates.set($any($event.target).checked)"
         />
-        <span>Pomin duplikaty (na podstawie numeru telefonu)</span>
+        <span>{{ 'supervisor.campaignImport.skipDuplicates' | transloco }}</span>
       </label>
 
       <!-- Separator configuration -->
       <div class="separator-config" role="group" aria-labelledby="separator-config-label">
-        <p class="separator-config__label" id="separator-config-label">Konfiguracja separatorów</p>
+        <p class="separator-config__label" id="separator-config-label">{{ 'supervisor.customerImport.separatorLabel' | transloco }}</p>
         <div class="separator-config__row">
           <div class="separator-config__field">
-            <label class="separator-config__field-label" for="column-separator-select"> Separator kolumn </label>
+            <label class="separator-config__field-label" for="column-separator-select"> {{ 'supervisor.customerImport.columnSeparator' | transloco }} </label>
             <select
               id="column-separator-select"
               class="field-select"
@@ -149,7 +149,7 @@
           </div>
           <div class="separator-config__field">
             <label class="separator-config__field-label" for="quote-char-select">
-              Separator stringów (quote char)
+              {{ 'supervisor.customerImport.quoteChar' | transloco }}
             </label>
             <select
               id="quote-char-select"
@@ -169,7 +169,7 @@
       <!-- CSV Preview -->
       @if (csvHeaders().length > 0) {
         <div class="preview-section">
-          <h4 class="preview-section__title">Podglad pliku (pierwsze {{ csvPreviewRows().length }} wierszy)</h4>
+          <h4 class="preview-section__title">{{ 'supervisor.customerImport.previewTitle' | transloco: { count: csvPreviewRows().length } }}</h4>
           <div class="preview-table-wrapper" role="region" aria-label="Podglad zawartosci CSV">
             <table class="preview-table">
               <thead>
@@ -195,9 +195,9 @@
 
       <!-- Actions -->
       <div class="import-step__actions">
-        <button class="btn btn-secondary" type="button" (click)="onClose(false)">Anuluj</button>
+        <button class="btn btn-secondary" type="button" (click)="onClose(false)">{{ 'common.cancel' | transloco }}</button>
         <button class="btn btn-primary" type="button" [disabled]="!selectedFile()" (click)="goToMapping()">
-          Dalej: Mapowanie kolumn
+          {{ 'supervisor.customerImport.nextMapping' | transloco }}
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
             <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
           </svg>
@@ -209,17 +209,17 @@
   <!-- ── Step 2: Column Mapping ─────────────────────────────────────────── -->
   @if (currentStep() === 'mapping') {
     <div class="import-step" role="region" aria-labelledby="step-mapping-title">
-      <h3 class="import-step__subtitle" id="step-mapping-title">Mapowanie kolumn CSV</h3>
+      <h3 class="import-step__subtitle" id="step-mapping-title">{{ 'supervisor.customerImport.mappingTitle' | transloco }}</h3>
       <p class="import-step__desc">
-        Przypisz kolumny z pliku CSV do pol systemowych. Pole <strong>Telefon</strong> jest wymagane.
+        {{ 'supervisor.customerImport.mappingDesc' | transloco }}
       </p>
 
       <div class="mapping-table-wrapper" role="region" aria-label="Tabela mapowania kolumn">
         <table class="mapping-table">
           <thead>
             <tr>
-              <th scope="col">Kolumna CSV</th>
-              <th scope="col">Pole systemowe</th>
+              <th scope="col">{{ 'supervisor.customerImport.csvColumn' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.customerImport.systemField' | transloco }}</th>
             </tr>
           </thead>
           <tbody>
@@ -263,7 +263,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
           </svg>
-          Pole telefonu jest zmapowane.
+          {{ 'supervisor.customerImport.phoneMapped' | transloco }}
         </div>
       }
 
@@ -278,9 +278,9 @@
         <button class="btn btn-primary" type="button" [disabled]="submitting()" (click)="onImport()">
           @if (submitting()) {
             <span class="spinner" aria-hidden="true"></span>
-            Wysylanie...
+            {{ 'supervisor.customerImport.sending' | transloco }}
           } @else {
-            Importuj kontakty
+            {{ 'supervisor.campaignImport.importButton' | transloco }}
           }
         </button>
       </div>
@@ -290,7 +290,7 @@
   <!-- ── Step 3: Progress ───────────────────────────────────────────────── -->
   @if (currentStep() === 'progress') {
     <div class="import-step import-step--centered" role="region" aria-labelledby="step-progress-title">
-      <h3 class="import-step__subtitle" id="step-progress-title">Trwa import...</h3>
+      <h3 class="import-step__subtitle" id="step-progress-title">{{ 'supervisor.customerImport.progressTitle' | transloco }}</h3>
 
       <div class="progress-wrapper" aria-live="polite" [attr.aria-label]="'Postep importu: ' + progressPercent() + '%'">
         <div
@@ -307,16 +307,16 @@
 
       @if (jobStatus(); as job) {
         <p class="progress-text">
-          Przetworzono <strong>{{ job.processedRows }}</strong> z <strong>{{ job.totalRows }}</strong> rekordow
+          {{ 'supervisor.customerImport.processed' | transloco: { processed: job.processedRows, total: job.totalRows } }}
         </p>
         <p class="progress-status">
           Status:
           @switch (job.status) {
             @case ('QUEUED') {
-              <span class="badge badge--info">W kolejce</span>
+              <span class="badge badge--info">{{ 'supervisor.customerImport.statusQueued' | transloco }}</span>
             }
             @case ('PROCESSING') {
-              <span class="badge badge--info">Przetwarzanie</span>
+              <span class="badge badge--info">{{ 'supervisor.customerImport.statusProcessing' | transloco }}</span>
             }
           }
         </p>
@@ -324,7 +324,7 @@
         <p class="progress-text">Inicjalizacja importu...</p>
       }
 
-      <p class="progress-hint">Import odbywa sie w tle. Nie zamykaj okna.</p>
+      <p class="progress-hint">{{ 'supervisor.customerImport.dontClose' | transloco }}</p>
     </div>
   }
 
@@ -334,9 +334,9 @@
       <div class="import-step" role="region" aria-labelledby="step-report-title">
         <h3 class="import-step__subtitle" id="step-report-title">
           @if (job.status === 'COMPLETED') {
-            Import zakonczony pomyslnie
+            {{ 'supervisor.customerImport.reportSuccess' | transloco }}
           } @else {
-            Import zakonczony z ostrzezeniami
+            {{ 'supervisor.customerImport.reportPartial' | transloco }}
           }
         </h3>
 
@@ -344,22 +344,22 @@
         <div class="report-summary" role="list" aria-label="Podsumowanie importu">
           <div class="report-card report-card--total" role="listitem">
             <span class="report-card__value">{{ job.totalRows }}</span>
-            <span class="report-card__label">Lacznie wierszy</span>
+            <span class="report-card__label">{{ 'supervisor.customerImport.totalRows' | transloco }}</span>
           </div>
           <div class="report-card report-card--success" role="listitem">
             <span class="report-card__value">{{ job.importedRows }}</span>
-            <span class="report-card__label">Zaimportowanych</span>
+            <span class="report-card__label">{{ 'supervisor.customerImport.added' | transloco }}</span>
           </div>
           <div class="report-card" [class.report-card--danger]="job.rejectedRows > 0" role="listitem">
             <span class="report-card__value">{{ job.rejectedRows }}</span>
-            <span class="report-card__label">Odrzuconych</span>
+            <span class="report-card__label">{{ 'supervisor.campaignImport.rejected' | transloco }}</span>
           </div>
         </div>
 
         <!-- Rejected samples -->
         @if (job.rejectedSamples && job.rejectedSamples.length > 0) {
           <div class="rejected-section">
-            <h4 class="rejected-section__title">Przykladowe bledy ({{ job.rejectedSamples.length }}):</h4>
+            <h4 class="rejected-section__title">{{ 'supervisor.campaignImport.sampleErrors' | transloco: { count: job.rejectedSamples.length } }}</h4>
             <ul class="rejected-list" aria-label="Lista bledow importu">
               @for (sample of job.rejectedSamples; track $index) {
                 <li class="rejected-list__item">{{ sample }}</li>

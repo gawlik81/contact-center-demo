@@ -2210,7 +2210,8 @@ Uzupełnienie plików `pl.json`, `en.json`, `de.json` o przetłumaczone klucze d
 **Priorytet:** Should Have
 **Zlozonosc:** L
 **Zależy od:** FE-052
-**Status:** 🔲 Do zrealizowania
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-29
 **Czeka na BE:** brak
 **Blokuje:** brak
 **Epic:** EPIC-19 Wielojęzyczność
@@ -2230,6 +2231,260 @@ Klucze organizowane hierarchicznie w JSON: `{ "agent": { "desktop": { ... } }, "
 - [ ] Pliki `pl.json`, `en.json`, `de.json` kompletne (brak brakujących kluczy)
 - [ ] Testy snapshot/unit przechodzą z domyślnym językiem `pl`
 - [ ] Dynamiczne wartości (imię użytkownika, liczby) obsługiwane przez Transloco params
+
+---
+
+### FE-054 – i18n fix: contacts-report — hardcoded nagłówki tabeli
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `features/supervisor/pages/contacts-report/contacts-report.component.html`
+Nagłówki `<th>` ("Data i czas", "Kanal", "Kierunek", "Kolejka", "Czas trwania", "Status", "Dyspozycja", "Akcje") oraz `<option>Wszystkie</option>` są hardcoded po polsku.
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie nagłówki tabeli używają `| transloco` pipe
+- [ ] Opcja "Wszystkie" w filtrze używa klucza `common.all` lub `supervisor.contactsReport.*`
+- [ ] Tekst poprawnie wyświetla się w PL / EN / DE / UK
+
+---
+
+### FE-055 – i18n fix: customer-detail — hardcoded etykiety i nagłówki
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `features/supervisor/pages/customers/customer-detail/customer-detail.component.html`
+Hardcoded: "Dane kontaktowe", "Ostatnia aktualizacja", "Zgoda na przetwarzanie", "Tak"/"Nie" (badge), "Data zgody", "Zgoda marketingowa", "Dodatkowe pola", nagłówki tabeli historii kontaktów oraz aria-labels nawigacji.
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie etykiety `<dt>`, `<th>`, tytuły sekcji używają `| transloco`
+- [ ] Badge "Tak"/"Nie" używają `common.yes` / `common.no`
+- [ ] Aria-labels nawigacji używają kluczy `supervisor.customerDetail.*`
+
+---
+
+### FE-056 – i18n fix: social-integrations — hardcoded tytuł i etykiety
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki: `features/integrations/pages/social-integrations/social-integrations.component.html` + `.ts`
+HTML: "Integracje Social Media", "Nazwa strony", "Token wygasa" hardcoded po polsku.
+TS: metoda zwraca hardcoded `'Błąd'` zamiast przetłumaczonego stringa.
+
+**Kryteria akceptacji:**
+- [ ] Tytuł i etykiety `<dt>` używają `| transloco` z kluczami `integrations.social.*`
+- [ ] Metoda w TS używa `transloco.translate()` lub klucz jest rozwiązywany w template
+
+---
+
+### FE-057 – i18n fix: ivr-editor — hardcoded etykiety formularza i aria-labels
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `features/supervisor/pages/ivr/ivr-editor/ivr-editor.component.html` + `.ts`
+HTML: `<label>` "Plik audio", "Routing", "Przypadki"; przycisk "Kopiuj"; aria-labels węzłów ("Węzeł startowy", "Port wejściowy/wyjściowy", "Kliknij, by połączyć", "Paleta węzłów", "Właściwości węzła", "Podgląd JSON"); title attrs "Usuń węzeł/opcję/przypadek".
+TS: `warnings.push('Brak zdefiniowanego wezla startowego...')` hardcoded po polsku.
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie `<label>`, aria-label, title w edytorze używają `| transloco`
+- [ ] Warning o braku węzła startowego używa `transloco.translate()` z kluczem `supervisor.ivr.*`
+- [ ] Przycisk "Kopiuj" używa `common.copy` lub `supervisor.ivrEditor.copyJson`
+
+---
+
+### FE-058 – i18n fix: dni tygodnia w campaign-form, campaign-info, phone-number.model
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/supervisor/pages/campaigns/campaign-form/campaign-form.component.ts` — tablica `WEEK_DAYS` z `{ value: 'MON', label: 'Pon' }` itp.
+- `features/supervisor/pages/campaigns/campaign-info/campaign-info.component.ts` — mapa `{ MON: 'Pon', TUE: 'Wt', ... }`
+- `features/supervisor/models/phone-number.model.ts` — mapa `{ 1: 'Pon', 2: 'Wt', ... }`
+Zastąpić `transloco.translate()` z kluczami `agent.calendar.days.MON` itp. + reaktywność na zmianę języka.
+
+**Kryteria akceptacji:**
+- [ ] Nazwy dni renderują się w aktywnym języku po przełączeniu
+- [ ] Brak hardcodowanych polskich skrótów w plikach TS
+
+---
+
+### FE-059 – i18n fix: error-handler.interceptor — hardcoded komunikaty błędów
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `core/interceptors/error-handler.interceptor.ts`
+Hardcoded: `notifications.error('Brak połączenia z serwerem')`, `'Brak uprawnień'`, `'Błąd serwera, spróbuj ponownie'`.
+Interceptor musi wstrzykiwać `TranslocoService` i używać `transloco.translate()` z kluczami np. `common.errorNetwork`, `common.errorForbidden`, `common.errorServer`.
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie 3 komunikaty błędów pobierane z pliku i18n
+- [ ] Powiadomienia wyświetlają się w aktywnym języku
+
+---
+
+### FE-060 – i18n fix: tenant modals — hardcoded tytuły i etykiety
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/tenants/tenant-add-modal/tenant-add-modal.component.html` — "Nowy tenant", "Limity zasobow"
+- `features/tenants/tenant-deactivate-modal/tenant-deactivate-modal.component.html` — "Dezaktywacja tenanta"
+- `features/tenants/tenant-edit-modal/tenant-edit-modal.component.html` — "Edytuj tenanta", "Anuluj"
+
+**Kryteria akceptacji:**
+- [ ] Tytuły modali i etykiety sekcji używają `| transloco`
+- [ ] Klucze dodane do wszystkich 4 plików i18n (pl/en/de/uk)
+
+---
+
+### FE-061 – i18n fix: schedule/reschedule-callback-modal — hardcoded stringi
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/agent/components/schedule-inbound-callback-modal/` — HTML: "Zaplanuj oddzwonienie", "Oddzwonienie zostanie dodane do kolejki agentow", "Nazwisko", "Zaplanuj"; TS: `errorMessage.set('Brak uprawnien...')`
+- `features/agent/components/reschedule-callback-modal/` — HTML: `<span>Zapisz</span>`; TS: `errorMessage.set('Brak uprawnien...')`
+
+**Kryteria akceptacji:**
+- [ ] Widoczne teksty w obu modalach używają `| transloco`
+- [ ] Komunikaty błędów w TS pobierane z i18n
+
+---
+
+### FE-062 – i18n fix: email-contact i social-contact — hardcoded etykiety
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/agent/pages/agent-desktop/email-contact/email-contact.component.html` — "Temat odpowiedzi", "Wyslij odpowiedz"
+- `features/agent/pages/agent-desktop/social-contact/social-contact.component.html` — "Zaladuj wczesniejsze"
+
+**Kryteria akceptacji:**
+- [ ] Etykiety używają kluczy `agent.emailContact.*` i `agent.socialContact.*`
+
+---
+
+### FE-063 – i18n fix: customer-panel — hardcoded etykiety
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `features/agent/components/customer-panel/customer-panel.component.html`
+Hardcoded: "Brak aktywnego kontaktu", "Nieznany klient", "Ostatnie kontakty".
+
+**Kryteria akceptacji:**
+- [ ] Etykiety używają kluczy `agent.customerPanel.*`
+
+---
+
+### FE-064 – i18n fix: agent-groups, admin-user-list — hardcoded aria-labels i title
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/supervisor/pages/agent-groups/agent-groups-page/agent-groups-page.component.html` — title "Edytuj grupę", "Zarządzaj agentami", "Usuń grupę"
+- `features/supervisor/pages/agent-groups/group-members-modal/group-members-modal.component.html` — aria-label "Filtruj agentów", "Lista agentów"
+- `features/admin/pages/users/admin-user-list/admin-user-list.component.html` — aria-label "Skills użytkownika", "Potwierdź usuniecie", `<span>Brak</span>`
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie title i aria-label używają `[attr.aria-label]` / `[title]` z `| transloco`
+- [ ] `<span>Brak</span>` zastąpiony kluczem `common.no_data` lub `common.none`
+
+---
+
+### FE-065 – i18n fix: manual-callback-modal i agent-callbacks-page — pozostałe stringi
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/agent/pages/customers/manual-callback-modal/manual-callback-modal.component.ts` — `errorMessage.set('Brak uprawnien do zamowienia oddzwonienia.')`
+- `features/agent/pages/callbacks/agent-callbacks-page.component.html` — `title="Przełóż oddzwonienie"`, `<span class="sr-only">Akcje</span>`
+
+**Kryteria akceptacji:**
+- [ ] Komunikat błędu w TS pobierany z i18n
+- [ ] title i sr-only "Akcje" używają `| transloco`
 
 ---
 
@@ -2256,6 +2511,7 @@ Klucze organizowane hierarchicznie w JSON: `{ "agent": { "desktop": { ... } }, "
 | Kalendarz Agenta (EPIC-16) | 4 | 0 | 4 |
 | Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
 | Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
+| i18n fixes (EPIC-19) | 12 | 6 | 6 |
 
 ---
 

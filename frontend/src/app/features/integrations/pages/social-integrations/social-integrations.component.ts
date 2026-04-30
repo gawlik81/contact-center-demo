@@ -9,6 +9,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EMPTY, catchError, of } from 'rxjs';
 import { SocialIntegration, SocialPlatform } from '../../models/social-integration.model';
@@ -51,6 +52,7 @@ const PLATFORM_CARDS: PlatformCard[] = [
 ];
 
 @Component({
+  imports: [TranslocoModule],
   selector: 'app-social-integrations',
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './social-integrations.component.html',
@@ -61,6 +63,7 @@ export class SocialIntegrationsComponent implements OnInit {
 
   private readonly integrationService = inject(SocialIntegrationService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(false);
@@ -90,7 +93,7 @@ export class SocialIntegrationsComponent implements OnInit {
       .getIntegrations()
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało się załadować integracji.');
+          this.notifications.error(this.transloco.translate('integrations.social.errorLoad'));
           return of([]);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -111,7 +114,7 @@ export class SocialIntegrationsComponent implements OnInit {
       .initiateOAuth(platform)
       .pipe(
         catchError(() => {
-          this.notifications.error(`Nie udało się zainicjować połączenia z ${platform}.`);
+          this.notifications.error(this.transloco.translate('integrations.social.errorConnect'));
           this.connectingPlatform.set(null);
           return of(null);
         }),
@@ -145,7 +148,7 @@ export class SocialIntegrationsComponent implements OnInit {
       .deleteIntegration(integration.integrationId)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało się rozłączyć integracji.');
+          this.notifications.error(this.transloco.translate('integrations.social.errorDisconnect'));
           this.disconnecting.set(false);
           return EMPTY;
         }),
@@ -153,7 +156,7 @@ export class SocialIntegrationsComponent implements OnInit {
       )
       .subscribe(() => {
         this.notifications.success(
-          `Rozłączono pomyślnie z ${integration.displayName} (${integration.platform}).`,
+          this.transloco.translate('integrations.social.successDisconnect'),
         );
         this.disconnectDialogRef.nativeElement.close();
         this.pendingDisconnect.set(null);

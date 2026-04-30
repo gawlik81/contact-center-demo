@@ -14,6 +14,7 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
 import {
   ContactResponse,
@@ -31,7 +32,7 @@ type RecordingState = 'idle' | 'loading' | 'loaded' | 'error';
 @Component({
   selector: 'app-contact-detail-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, AudioPlayerComponent],
+  imports: [DatePipe, AudioPlayerComponent, TranslocoModule],
   templateUrl: './contact-detail-modal.component.html',
   styleUrl: './contact-detail-modal.component.scss',
   host: {
@@ -46,6 +47,7 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   private readonly contactService = inject(ContactService);
   private readonly notifications = inject(NotificationService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly transloco = inject(TranslocoService);
 
   /** Wewnętrzny sygnał aktualnie wyświetlanego kontaktu — umożliwia nawigację między powiązanymi. */
   private readonly currentContactId = signal<string | null>(null);
@@ -137,7 +139,7 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
       .pipe(
         catchError(() => {
           this.loadState.set('error');
-          this.notifications.error('Nie udalo sie pobrac szczegolow kontaktu.');
+          this.notifications.error(this.transloco.translate('contactDetailModal.errorLoad'));
           return of(null);
         }),
       )
@@ -177,7 +179,7 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
       .pipe(
         catchError(() => {
           this.recordingState.set('error');
-          this.notifications.error('Nie udalo sie pobrac URL nagrania.');
+          this.notifications.error(this.transloco.translate('contactDetailModal.errorRecording'));
           return of(null);
         }),
       )
@@ -198,7 +200,7 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
       .pipe(
         catchError(() => {
           this.emailPreviewState.set('error');
-          this.notifications.error('Nie udalo sie pobrac podgladu wiadomosci.');
+          this.notifications.error(this.transloco.translate('contactDetailModal.errorEmailPreview'));
           return of(null);
         }),
       )
@@ -246,39 +248,23 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   }
 
   getChannelLabel(channel: string): string {
-    const labels: Record<string, string> = {
-      PHONE: 'Telefon',
-      EMAIL: 'Email',
-      CHAT: 'Chat',
-      SOCIAL: 'Social',
-    };
-    return labels[channel] ?? channel;
+    return this.transloco.translate(`contactDetailModal.channelLabels.${channel}`, {}, channel);
   }
 
   getStatusLabel(status: string): string {
-    const labels: Record<string, string> = {
-      QUEUED: 'W kolejce',
-      ACTIVE: 'Aktywny',
-      ON_HOLD: 'Wstrzymany',
-      COMPLETED: 'Zakonczony',
-      ABANDONED: 'Porzucony',
-      FAILED: 'Nieudany',
-    };
-    return labels[status] ?? status;
+    return this.transloco.translate(`contactDetailModal.statusLabels.${status}`, {}, status);
   }
 
   getDirectionLabel(direction: string): string {
-    return direction === 'INBOUND' ? 'Przychodzacy' : 'Wychodzacy';
+    return this.transloco.translate(`contactDetailModal.directionLabels.${direction}`, {}, direction);
   }
 
   getCallbackStatusLabel(status: string): string {
-    const labels: Record<string, string> = {
-      PENDING: 'Oczekujące',
-      PROCESSING: 'W trakcie',
-      COMPLETED: 'Zakończone',
-      CANCELLED: 'Anulowane',
-    };
-    return labels[status] ?? status;
+    return this.transloco.translate(
+      `contactDetailModal.callbackStatusLabels.${status}`,
+      {},
+      status,
+    );
   }
 
   private formatDurationSeconds(totalSeconds: number): string {

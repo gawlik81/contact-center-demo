@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -41,7 +42,8 @@ function futureDateValidator(control: AbstractControl): ValidationErrors | null 
   selector: 'app-edit-callback-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [
+    TranslocoModule,ReactiveFormsModule],
   templateUrl: './edit-callback-modal.component.html',
   styleUrl: './edit-callback-modal.component.scss',
 })
@@ -54,6 +56,7 @@ export class EditCallbackModalComponent implements OnInit {
 
   private readonly callbackService = inject(CallbackService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder);
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
@@ -115,13 +118,13 @@ export class EditCallbackModalComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
           if (err.status === 409) {
-            this.errorMessage.set('Oddzwonienie nie jest już oczekujące.');
+            this.errorMessage.set(this.transloco.translate('supervisor.editCallback.errorSave'));
           } else if (err.status === 403) {
-            this.errorMessage.set('Brak uprawnień do edycji tego oddzwonienia.');
+            this.errorMessage.set(this.transloco.translate('supervisor.editCallback.errorSave'));
           } else if (err.status === 404) {
-            this.errorMessage.set('Oddzwonienie nie zostało znalezione.');
+            this.errorMessage.set(this.transloco.translate('supervisor.editCallback.errorSave'));
           } else {
-            this.errorMessage.set('Wystąpił błąd. Spróbuj ponownie.');
+            this.errorMessage.set(this.transloco.translate('supervisor.editCallback.errorSave'));
           }
           return EMPTY;
         }),
@@ -129,7 +132,7 @@ export class EditCallbackModalComponent implements OnInit {
       )
       .subscribe((updated) => {
         this.loading.set(false);
-        this.notifications.success('Oddzwonienie zostało zaktualizowane.');
+        this.notifications.success(this.transloco.translate('supervisor.callbacks.successCancel'));
         this.dialogRef().nativeElement.close();
         this.saved.emit(updated);
       });

@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -16,7 +17,8 @@ import { NotificationService } from '../../../../../core/services/notification.s
 @Component({
   selector: 'app-gdpr-anonymize-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [
+    TranslocoModule,FormsModule],
   templateUrl: './gdpr-anonymize-modal.component.html',
   styleUrl: './gdpr-anonymize-modal.component.scss',
   host: {
@@ -26,6 +28,7 @@ import { NotificationService } from '../../../../../core/services/notification.s
 export class GdprAnonymizeModalComponent implements AfterViewInit {
   private readonly gdprService = inject(GdprService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
 
   readonly customerId = input.required<string>();
   readonly customerName = input.required<string>();
@@ -63,15 +66,15 @@ export class GdprAnonymizeModalComponent implements AfterViewInit {
     this.gdprService.anonymize(this.customerId()).subscribe({
       next: () => {
         this.isLoading.set(false);
-        this.notifications.success('Dane klienta zostały zanonimizowane.');
+        this.notifications.success(this.transloco.translate('supervisor.gdprAnonymize.successAnonymize'));
         this.confirmed.emit();
       },
       error: (err: { status?: number }) => {
         this.isLoading.set(false);
         if (err.status === 403) {
-          this.notifications.error('Brak uprawnień do wykonania tej operacji.');
+          this.notifications.error(this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'));
         } else {
-          this.notifications.error('Nie udało się zanonimizować danych klienta.');
+          this.notifications.error(this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'));
         }
       },
     });

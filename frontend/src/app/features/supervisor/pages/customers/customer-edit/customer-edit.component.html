@@ -7,12 +7,12 @@
   <div class="customer-edit-dialog__content" role="document">
     <div class="customer-edit-dialog__header">
       <h2 id="customer-edit-title" class="customer-edit-dialog__title">
-        Edycja klienta
+        {{ 'supervisor.customerEdit.title' | transloco }}
         @if (customerName()) {
           <span class="customer-edit-dialog__subtitle">{{ customerName() }}</span>
         }
       </h2>
-      <button class="btn-close" type="button" (click)="onCancel()" aria-label="Zamknij formularz edycji klienta">
+      <button class="btn-close" type="button" (click)="onCancel()" [attr.aria-label]="'supervisor.customerEdit.closeLabel' | transloco">
         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
           <path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -30,46 +30,46 @@
     >
       <!-- Dane osobowe -->
       <section class="form-section" aria-labelledby="section-basic">
-        <h3 id="section-basic" class="form-section__title">Dane osobowe</h3>
+        <h3 id="section-basic" class="form-section__title">{{ 'supervisor.customerEdit.sectionBasic' | transloco }}</h3>
 
         <div class="form-field">
-          <label class="form-label" for="firstName">Imię</label>
+          <label class="form-label" for="firstName">{{ 'common.firstName' | transloco }}</label>
           <input
             id="firstName"
             class="form-input"
             [class.form-input--invalid]="form.get('firstName')?.invalid && form.get('firstName')?.touched"
             type="text"
             formControlName="firstName"
-            placeholder="Wprowadź imię"
+            [placeholder]="'supervisor.customerEdit.firstNamePlaceholder' | transloco"
             autocomplete="given-name"
             maxlength="100"
           />
           @if (form.get('firstName')?.hasError('maxlength') && form.get('firstName')?.touched) {
-            <span class="form-error" role="alert">Imię nie może przekraczać 100 znaków.</span>
+            <span class="form-error" role="alert">{{ 'supervisor.customerEdit.firstNameMaxLength' | transloco }}</span>
           }
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="lastName">Nazwisko</label>
+          <label class="form-label" for="lastName">{{ 'common.lastName' | transloco }}</label>
           <input
             id="lastName"
             class="form-input"
             [class.form-input--invalid]="form.get('lastName')?.invalid && form.get('lastName')?.touched"
             type="text"
             formControlName="lastName"
-            placeholder="Wprowadź nazwisko"
+            [placeholder]="'supervisor.customerEdit.lastNamePlaceholder' | transloco"
             autocomplete="family-name"
             maxlength="100"
           />
           @if (form.get('lastName')?.hasError('maxlength') && form.get('lastName')?.touched) {
-            <span class="form-error" role="alert">Nazwisko nie może przekraczać 100 znaków.</span>
+            <span class="form-error" role="alert">{{ 'supervisor.customerEdit.lastNameMaxLength' | transloco }}</span>
           }
         </div>
       </section>
 
       <!-- Numery telefonów -->
       <section class="form-section" aria-labelledby="section-phones">
-        <h3 id="section-phones" class="form-section__title">Numery telefonów</h3>
+        <h3 id="section-phones" class="form-section__title">{{ 'supervisor.customerEdit.sectionPhones' | transloco }}</h3>
 
         <div formArrayName="phones" class="array-fields">
           @for (ctrl of phonesArray.controls; track $index) {
@@ -99,10 +99,10 @@
                 </svg>
               </button>
               @if (getControl(phonesArray, $index).hasError('required') && getControl(phonesArray, $index).touched) {
-                <span class="form-error array-field__error" role="alert">Numer telefonu jest wymagany.</span>
+                <span class="form-error array-field__error" role="alert">{{ 'supervisor.customerEdit.phoneRequired' | transloco }}</span>
               }
               @if (getControl(phonesArray, $index).hasError('maxlength') && getControl(phonesArray, $index).touched) {
-                <span class="form-error array-field__error" role="alert">Numer nie może przekraczać 30 znaków.</span>
+                <span class="form-error array-field__error" role="alert">{{ 'supervisor.customerEdit.phoneMaxLength' | transloco }}</span>
               }
             </div>
           }
@@ -112,13 +112,13 @@
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
             <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
           </svg>
-          Dodaj numer
+          {{ 'supervisor.customerEdit.addPhone' | transloco }}
         </button>
       </section>
 
       <!-- Adresy e-mail -->
       <section class="form-section" aria-labelledby="section-emails">
-        <h3 id="section-emails" class="form-section__title">Adresy e-mail</h3>
+        <h3 id="section-emails" class="form-section__title">{{ 'supervisor.customerEdit.sectionEmails' | transloco }}</h3>
 
         <div formArrayName="emails" class="array-fields">
           @for (ctrl of emailsArray.controls; track $index) {
@@ -147,15 +147,15 @@
                 </svg>
               </button>
               @if (getControl(emailsArray, $index).hasError('email') && getControl(emailsArray, $index).touched) {
-                <span class="form-error array-field__error" role="alert">Podaj prawidłowy adres e-mail.</span>
+                <span class="form-error array-field__error" role="alert">{{ 'supervisor.customerEdit.emailInvalid' | transloco }}</span>
               }
               @if (getControl(emailsArray, $index).hasError('maxlength') && getControl(emailsArray, $index).touched) {
-                <span class="form-error array-field__error" role="alert">Adres nie może przekraczać 200 znaków.</span>
+                <span class="form-error array-field__error" role="alert">{{ 'supervisor.customerEdit.emailMaxLength' | transloco }}</span>
               }
             </div>
           }
           @if (emailsArray.length === 0) {
-            <p class="array-empty">Brak adresów e-mail. Kliknij "Dodaj e-mail" aby dodać.</p>
+            <p class="array-empty">{{ 'supervisor.customerEdit.noEmails' | transloco }}</p>
           }
         </div>
 
@@ -163,18 +163,18 @@
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
             <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
           </svg>
-          Dodaj e-mail
+          {{ 'supervisor.customerEdit.addEmail' | transloco }}
         </button>
       </section>
 
       <!-- Zgody RODO -->
       <section class="form-section" aria-labelledby="section-gdpr" formGroupName="gdprConsent">
-        <h3 id="section-gdpr" class="form-section__title">Zgody RODO</h3>
+        <h3 id="section-gdpr" class="form-section__title">RODO</h3>
 
         <div class="form-field form-field--checkbox">
           <label class="form-checkbox">
             <input class="form-checkbox__input" type="checkbox" formControlName="consent_given" id="consent_given" />
-            <span class="form-checkbox__label">Zgoda na przetwarzanie danych</span>
+            <span class="form-checkbox__label">{{ 'supervisor.customerEdit.consentProcessing' | transloco }}</span>
           </label>
         </div>
 
@@ -186,14 +186,14 @@
               formControlName="marketing_consent"
               id="marketing_consent"
             />
-            <span class="form-checkbox__label">Zgoda marketingowa</span>
+            <span class="form-checkbox__label">{{ 'supervisor.customerEdit.consentMarketing' | transloco }}</span>
           </label>
         </div>
       </section>
     </form>
 
     <div class="customer-edit-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()">Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
       <button
         class="btn btn-save"
         type="submit"
@@ -201,13 +201,13 @@
         [disabled]="form.invalid || saving()"
         [attr.aria-disabled]="form.invalid || saving()"
         [attr.aria-busy]="saving()"
-        aria-label="Zapisz zmiany klienta"
+        [attr.aria-label]="'supervisor.customerEdit.saveLabel' | transloco"
       >
         @if (saving()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Zapisz zmiany
+          {{ 'supervisor.customerEdit.saveChanges' | transloco }}
         }
       </button>
     </div>

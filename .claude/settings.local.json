@@ -234,7 +234,26 @@
       "Bash(cloc *)",
       "Bash(cat vitest.config.ts)",
       "Bash(cat vitest.config.js)",
-      "Bash(ng test *)"
+      "Bash(ng test *)",
+      "Bash(sed -n '25,50p' /home/pawelm/contact-center/frontend/src/app/features/agent/components/manual-campaign-panel/manual-campaign-panel.component.html)",
+      "Bash(sed -n '100,135p' /home/pawelm/contact-center/frontend/src/app/features/agent/components/manual-campaign-panel/manual-campaign-panel.component.html)",
+      "Bash(sed -n '212,220p' /home/pawelm/contact-center/frontend/src/app/features/admin/pages/users/admin-user-list/admin-user-list.component.html)",
+      "Bash(sed -n '239,250p' /home/pawelm/contact-center/frontend/src/app/features/admin/pages/users/admin-user-list/admin-user-list.component.html)",
+      "Bash(sed -n '294,300p' /home/pawelm/contact-center/frontend/src/app/features/admin/pages/users/admin-user-list/admin-user-list.component.html)",
+      "Bash(sed -n '25,35p' /home/pawelm/contact-center/frontend/src/app/features/integrations/pages/social-integrations/social-integrations.component.html)",
+      "Bash(sed -n '68,75p' /home/pawelm/contact-center/frontend/src/app/features/integrations/pages/social-integrations/social-integrations.component.html)",
+      "Bash(sed -n '126,135p' /home/pawelm/contact-center/frontend/src/app/features/integrations/pages/social-integrations/social-integrations.component.html)",
+      "Bash(sed -n '162,170p' /home/pawelm/contact-center/frontend/src/app/features/integrations/pages/social-integrations/social-integrations.component.html)",
+      "Bash(sed -n '183,192p' /home/pawelm/contact-center/frontend/src/app/features/integrations/pages/social-integrations/social-integrations.component.html)",
+      "Bash(sed -n 27,32p /home/pawelm/contact-center/frontend/src/app/features/supervisor/pages/customers/customer-detail/customer-detail.component.html)",
+      "Bash(sed -n 83,90p /home/pawelm/contact-center/frontend/src/app/features/supervisor/pages/customers/customer-detail/customer-detail.component.html)",
+      "Bash(sed -n 113,120p /home/pawelm/contact-center/frontend/src/app/features/supervisor/pages/customers/customer-detail/customer-detail.component.html)",
+      "Bash(sed -n 151,157p /home/pawelm/contact-center/frontend/src/app/features/supervisor/pages/customers/customer-detail/customer-detail.component.html)",
+      "Bash(sed -n 188,222p /home/pawelm/contact-center/frontend/src/app/features/supervisor/pages/customers/customer-detail/customer-detail.component.html)",
+      "Bash(chmod +x /tmp/search_polish.sh)",
+      "Bash(/tmp/search_polish.sh)",
+      "Bash(chmod +x /tmp/find_hardcoded_polish.sh)",
+      "Bash(/tmp/find_hardcoded_polish.sh)"
     ]
   }
 }

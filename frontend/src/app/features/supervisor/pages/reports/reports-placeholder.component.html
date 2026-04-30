@@ -1,6 +1,6 @@
 <div class="reports">
   <div class="reports__header">
-    <h1 class="reports__title">Raporty historyczne</h1>
+    <h1 class="reports__title">{{ 'supervisor.reports.title' | transloco }}</h1>
   </div>
 
   <!-- Filters -->
@@ -8,11 +8,11 @@
     class="reports__filters"
     [formGroup]="filterForm"
     role="search"
-    aria-label="Filtry raportu"
+    [attr.aria-label]="'supervisor.reports.filtersLabel' | transloco"
   >
     <div class="filters__row">
       <div class="filter-field">
-        <label for="dateFrom" class="filter-label">Od</label>
+        <label for="dateFrom" class="filter-label">{{ 'common.from' | transloco }}</label>
         <input
           id="dateFrom"
           type="date"
@@ -23,7 +23,7 @@
       </div>
 
       <div class="filter-field">
-        <label for="dateTo" class="filter-label">Do</label>
+        <label for="dateTo" class="filter-label">{{ 'common.to' | transloco }}</label>
         <input
           id="dateTo"
           type="date"
@@ -34,9 +34,9 @@
       </div>
 
       <div class="filter-field">
-        <label for="agentId" class="filter-label">Agent</label>
+        <label for="agentId" class="filter-label">{{ 'supervisor.reports.agentLabel' | transloco }}</label>
         <select id="agentId" class="filter-select" formControlName="agentId" aria-label="Filtruj po agencie">
-          <option value="">Wszyscy agenci</option>
+          <option value="">{{ 'supervisor.reports.allAgents' | transloco }}</option>
           @for (agent of agents(); track agent.id) {
             <option [value]="agent.id">{{ agent.firstName }} {{ agent.lastName }}</option>
           }
@@ -44,9 +44,9 @@
       </div>
 
       <div class="filter-field">
-        <label for="channel" class="filter-label">Kanal</label>
+        <label for="channel" class="filter-label">{{ 'supervisor.reports.channelLabel' | transloco }}</label>
         <select id="channel" class="filter-select" formControlName="channel" aria-label="Filtruj po kanale">
-          <option value="">Wszystkie kanaly</option>
+          <option value="">{{ 'supervisor.reports.allChannels' | transloco }}</option>
           @for (ch of channels; track ch) {
             <option [value]="ch">{{ ch }}</option>
           }
@@ -59,21 +59,21 @@
           type="button"
           (click)="onSearch()"
           [disabled]="!filtersAreValid"
-          aria-label="Zastosuj filtry i wyszukaj"
+          [attr.aria-label]="'common.search' | transloco"
         >
-          Szukaj
+          {{ 'common.search' | transloco }}
         </button>
         <button
           class="btn btn-secondary"
           type="button"
           (click)="onClearFilters()"
-          aria-label="Wyczysc filtry i przywroc domyslne"
-          title="Wyczysc filtry"
+          [attr.aria-label]="'supervisor.reports.clearLabel' | transloco"
+          [title]="'supervisor.reports.clearLabel' | transloco"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
           </svg>
-          Wyczysc
+          {{ 'supervisor.reports.clearLabel' | transloco }}
         </button>
       </div>
     </div>
@@ -95,16 +95,16 @@
         type="button"
         (click)="onExportCsv()"
         [disabled]="!filtersAreValid || exportingCsv()"
-        aria-label="Eksportuj raport do CSV"
+        [attr.aria-label]="'supervisor.reports.exportCsv' | transloco"
       >
         @if (exportingCsv()) {
           <span class="spinner" aria-hidden="true"></span>
-          Eksportowanie...
+          {{ 'supervisor.reports.exporting' | transloco }}
         } @else {
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
             <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
           </svg>
-          Eksport CSV
+          {{ 'supervisor.reports.exportCsv' | transloco }}
         }
       </button>
       <button
@@ -112,16 +112,16 @@
         type="button"
         (click)="onExportXlsx()"
         [disabled]="!filtersAreValid || exportingXlsx()"
-        aria-label="Eksportuj raport do XLSX"
+        [attr.aria-label]="'supervisor.reports.exportXlsx' | transloco"
       >
         @if (exportingXlsx()) {
           <span class="spinner" aria-hidden="true"></span>
-          Eksportowanie...
+          {{ 'supervisor.reports.exporting' | transloco }}
         } @else {
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
             <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
           </svg>
-          Eksport XLSX
+          {{ 'supervisor.reports.exportXlsx' | transloco }}
         }
       </button>
     </div>
@@ -132,7 +132,7 @@
 
   <!-- Skeleton loading -->
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych raportu...">
+    <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
       @for (i of [1, 2, 3, 4, 5, 6, 7, 8]; track i) {
         <div class="skeleton-row">
           <div class="skeleton-cell skeleton-cell--narrow"></div>
@@ -150,16 +150,16 @@
   <!-- Table -->
   @if (!loading()) {
     @if (rows().length > 0) {
-      <div class="table-wrapper" role="region" aria-label="Wyniki raportu agentow">
+      <div class="table-wrapper" role="region" [attr.aria-label]="'supervisor.reports.tableLabel' | transloco">
         <table class="report-table" aria-live="polite">
           <thead>
             <tr>
-              <th scope="col">Data</th>
-              <th scope="col">Agent</th>
-              <th scope="col">Kanal</th>
-              <th scope="col">Kontakty</th>
-              <th scope="col">Avg czas obslugi</th>
-              <th scope="col">Avg czas oczekiwania</th>
+              <th scope="col">{{ 'supervisor.reports.tableDate' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.reports.tableAgent' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.reports.tableChannel' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.reports.tableContacts' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.reports.tableAvgHandle' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.reports.tableAvgWait' | transloco }}</th>
               <th scope="col">FCR</th>
             </tr>
           </thead>
@@ -191,9 +191,9 @@
       </div>
 
       <!-- Pagination -->
-      <nav class="pagination" aria-label="Nawigacja stron raportu">
+      <nav class="pagination" [attr.aria-label]="'supervisor.reports.paginationLabel' | transloco">
         <span class="pagination__info" aria-live="polite">
-          Wyswietlanie {{ currentPage() * pageSize + 1 }}&ndash;{{ (currentPage() + 1) * pageSize > totalElements() ? totalElements() : (currentPage() + 1) * pageSize }} z {{ totalElements() }} wynikow
+          {{ 'supervisor.reports.showing' | transloco }} {{ currentPage() * pageSize + 1 }}&ndash;{{ (currentPage() + 1) * pageSize > totalElements() ? totalElements() : (currentPage() + 1) * pageSize }} {{ 'common.of' | transloco }} {{ totalElements() }}
         </span>
         <div class="pagination__controls">
           <button
@@ -201,24 +201,24 @@
             type="button"
             (click)="onPrevPage()"
             [disabled]="currentPage() === 0"
-            aria-label="Poprzednia strona"
+            [attr.aria-label]="'common.previous' | transloco"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
             </svg>
-            Poprzednia
+            {{ 'common.previous' | transloco }}
           </button>
           <span class="pagination__pages" aria-current="page">
-            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+            {{ 'common.page' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
           </span>
           <button
             class="btn btn-pagination"
             type="button"
             (click)="onNextPage()"
             [disabled]="currentPage() + 1 >= totalPages()"
-            aria-label="Nastepna strona"
+            [attr.aria-label]="'common.next' | transloco"
           >
-            Nastepna
+            {{ 'common.next' | transloco }}
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
             </svg>
@@ -231,8 +231,8 @@
         <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
         </svg>
-        <p class="empty-state__message">Brak danych dla wybranych filtrow.</p>
-        <p class="empty-state__hint">Sprobuj zmienic zakres dat lub filtry.</p>
+        <p class="empty-state__message">{{ 'supervisor.reports.emptyText' | transloco }}</p>
+        <p class="empty-state__hint">{{ 'supervisor.reports.emptyHint' | transloco }}</p>
       </div>
     }
   }

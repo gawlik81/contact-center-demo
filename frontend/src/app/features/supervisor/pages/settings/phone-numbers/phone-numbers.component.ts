@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -22,7 +23,8 @@ const E164_PATTERN = /^\+[1-9]\d{1,14}$/;
 @Component({
   selector: 'app-phone-numbers',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RoutingRulesComponent],
+  imports: [
+    TranslocoModule,ReactiveFormsModule, RoutingRulesComponent],
   templateUrl: './phone-numbers.component.html',
   styleUrl: './phone-numbers.component.scss',
 })
@@ -33,6 +35,7 @@ export class PhoneNumbersComponent implements OnInit {
 
   private readonly phoneNumberService = inject(PhoneNumberService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder);
 
@@ -153,11 +156,11 @@ export class PhoneNumbersComponent implements OnInit {
           const httpErr = err as { status?: number; error?: { message?: string } };
           const msg = httpErr?.error?.message;
           if (httpErr?.status === 409) {
-            this.notifications.error('Numer telefonu już istnieje w systemie.');
+            this.notifications.error(this.transloco.translate('supervisor.settings.phoneNumbers.errorSave'));
           } else if (httpErr?.status === 400 && msg) {
             this.notifications.error(msg);
           } else {
-            this.notifications.error('Nie udało się dodać numeru. Spróbuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.settings.phoneNumbers.errorSave'));
           }
           return of(null);
         }),
@@ -168,7 +171,7 @@ export class PhoneNumbersComponent implements OnInit {
         this.submitting.set(false);
         this.phoneNumbers.update((list) => [...list, result]);
         this.ruleCounts.update((counts) => ({ ...counts, [result.phoneNumberId]: 0 }));
-        this.notifications.success('Numer telefonu dodany.');
+        this.notifications.success(this.transloco.translate('supervisor.settings.phoneNumbers.successSave'));
         this.addDialogRef.nativeElement.close();
       });
   }
@@ -209,7 +212,7 @@ export class PhoneNumbersComponent implements OnInit {
           if (httpErr?.status === 400 && msg) {
             this.notifications.error(msg);
           } else {
-            this.notifications.error('Nie udało się zaktualizować numeru. Spróbuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.settings.phoneNumbers.errorSave'));
           }
           return of(null);
         }),
@@ -221,7 +224,7 @@ export class PhoneNumbersComponent implements OnInit {
         this.phoneNumbers.update((list) =>
           list.map((n) => (n.phoneNumberId === result.phoneNumberId ? result : n)),
         );
-        this.notifications.success('Numer telefonu zaktualizowany.');
+        this.notifications.success(this.transloco.translate('supervisor.settings.phoneNumbers.successSave'));
         this.editDialogRef.nativeElement.close();
         this.editingNumber.set(null);
       });
@@ -252,9 +255,9 @@ export class PhoneNumbersComponent implements OnInit {
           this.deletingId.set(null);
           const status = (err as { status?: number })?.status;
           if (status === 409) {
-            this.notifications.error('Usuń najpierw reguły routingu tego numeru.');
+            this.notifications.error(this.transloco.translate('supervisor.settings.phoneNumbers.removeRulesFirst'));
           } else {
-            this.notifications.error('Nie udało się usunąć numeru. Spróbuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.settings.phoneNumbers.errorDelete'));
           }
           this.deleteDialogRef.nativeElement.close();
           this.pendingDeleteNumber.set(null);
@@ -266,7 +269,7 @@ export class PhoneNumbersComponent implements OnInit {
         const id = number.phoneNumberId;
         this.phoneNumbers.update((list) => list.filter((n) => n.phoneNumberId !== id));
         if (this.expandedNumberId() === id) this.expandedNumberId.set(null);
-        this.notifications.success('Numer telefonu usunięty.');
+        this.notifications.success(this.transloco.translate('supervisor.settings.phoneNumbers.successDelete'));
         this.deletingId.set(null);
         this.deleteDialogRef.nativeElement.close();
         this.pendingDeleteNumber.set(null);
@@ -276,8 +279,8 @@ export class PhoneNumbersComponent implements OnInit {
   get addNumberError(): string | null {
     const ctrl = this.addForm.get('number')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Numer telefonu jest wymagany.';
-    if (ctrl.hasError('pattern')) return 'Numer musi być w formacie E.164, np. +48123456789.';
+    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.settings.phoneNumbers.errorPhoneRequired');
+    if (ctrl.hasError('pattern')) return this.transloco.translate('supervisor.settings.phoneNumbers.errorPhoneFormat');
     return null;
   }
 

@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -26,6 +27,7 @@ type SortDir = 'asc' | 'desc';
   selector: 'app-customer-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    TranslocoModule,
     DatePipe,
     ReactiveFormsModule,
     CustomerDeleteModalComponent,
@@ -38,6 +40,7 @@ type SortDir = 'asc' | 'desc';
 export class CustomerListComponent implements OnInit {
   private readonly customerService = inject(CustomerService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
@@ -88,7 +91,7 @@ export class CustomerListComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się pobrać listy klientów. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.customers.errorLoad'));
           return of({ content: [], totalElements: 0, totalPages: 0, page: 0, size: this.pageSize });
         }),
         finalize(() => this.loading.set(false)),
@@ -133,7 +136,7 @@ export class CustomerListComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się zanonimizować danych klienta. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'));
           return of(null);
         }),
         finalize(() => {
@@ -143,7 +146,7 @@ export class CustomerListComponent implements OnInit {
       )
       .subscribe((result) => {
         if (result !== null) {
-          this.notifications.success(`Dane klienta "${name}" zostały zanonimizowane (RODO).`);
+          this.notifications.success(this.transloco.translate('supervisor.gdprAnonymize.successAnonymize'));
           this.loadCustomers();
         }
       });
@@ -218,8 +221,8 @@ export class CustomerListComponent implements OnInit {
   }
 
   getSortAriaLabel(field: SortField): string {
-    if (this.sortField() !== field) return 'Sortuj rosnąco';
-    return this.sortDir() === 'asc' ? 'Sortuj malejąco' : 'Sortuj rosnąco';
+    if (this.sortField() !== field) return this.transloco.translate('common.sortAsc');
+    return this.sortDir() === 'asc' ? this.transloco.translate('common.sortDesc') : this.transloco.translate('common.sortAsc');
   }
 
   isSortActive(field: SortField): boolean {

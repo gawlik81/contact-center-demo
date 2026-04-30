@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -23,6 +24,7 @@ import { TenantAddModalComponent } from '../tenant-add-modal/tenant-add-modal.co
   selector: 'app-tenant-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    TranslocoModule,
     ReactiveFormsModule,
     DatePipe,
     TenantDeactivateModalComponent,
@@ -35,6 +37,7 @@ import { TenantAddModalComponent } from '../tenant-add-modal/tenant-add-modal.co
 export class TenantListComponent implements OnInit {
   private readonly tenantService = inject(TenantService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -98,7 +101,7 @@ export class TenantListComponent implements OnInit {
       })
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało się pobrać listy tenantów. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('admin.tenants.errorLoad'));
           return of<PagedResponse<Tenant>>({
             content: [],
             totalElements: 0,
@@ -153,14 +156,14 @@ export class TenantListComponent implements OnInit {
       .deactivateTenant(tenant.id)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało się dezaktywować tenanta. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('admin.tenants.errorDeactivate'));
           return of(undefined);
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
         this.closeDeactivateModal();
-        this.notifications.success(`Tenant "${tenant.name}" został dezaktywowany.`);
+        this.notifications.success(this.transloco.translate('admin.tenants.successDeactivate'));
         this.loadTenants();
       });
   }

@@ -7,13 +7,9 @@
   <div class="user-form-dialog__content" role="document">
     <div class="user-form-dialog__header">
       <h2 id="admin-user-form-title" class="user-form-dialog__title">
-        @if (isEditMode()) {
-        Edytuj użytkownika
-        } @else {
-        Nowy użytkownik
-        }
+        {{ isEditMode() ? ('admin.userForm.titleEdit' | transloco) : ('admin.userForm.titleCreate' | transloco) }}
       </h2>
-      <button class="btn-close" type="button" (click)="onCancel()" aria-label="Zamknij formularz">
+      <button class="btn-close" type="button" (click)="onCancel()" [attr.aria-label]="'supervisor.userForm.closeLabel' | transloco">
         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
           <path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -43,7 +39,7 @@
             [attr.aria-describedby]="tenantIdError ? 'tenantId-error' : null"
             [attr.aria-invalid]="tenantIdError ? 'true' : null"
           >
-            <option value="">-- Wybierz tenant --</option>
+            <option value="">{{ 'admin.userForm.tenantPlaceholder' | transloco }}</option>
             @for (tenant of tenants(); track tenant.id) {
               <option [value]="tenant.id">{{ tenant.name }}</option>
             }
@@ -57,7 +53,7 @@
       <!-- First name -->
       <div class="form-field" [class.form-field--error]="firstNameError">
         <label class="form-label" for="adm-firstName">
-          Imie <span class="required" aria-hidden="true">*</span>
+          {{ 'common.firstName' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
         <input
           id="adm-firstName"
@@ -76,7 +72,7 @@
       <!-- Last name -->
       <div class="form-field" [class.form-field--error]="lastNameError">
         <label class="form-label" for="adm-lastName">
-          Nazwisko <span class="required" aria-hidden="true">*</span>
+          {{ 'common.lastName' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
         <input
           id="adm-lastName"
@@ -156,9 +152,9 @@
               class="form-checkbox"
               formControlName="active"
             />
-            Konto aktywne
+            {{ 'admin.userForm.activeLabel' | transloco }}
           </label>
-          <span class="form-hint">Odznaczenie zablokuje możliwość logowania użytkownika.</span>
+          <span class="form-hint">{{ 'admin.userForm.activeHint' | transloco }}</span>
         </div>
       }
 
@@ -226,7 +222,7 @@
     </form>
 
     <div class="user-form-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()">Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
       <button
         class="btn btn-save"
         type="submit"
@@ -237,9 +233,9 @@
       >
         @if (submitting()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Zapisz
+          {{ 'common.save' | transloco }}
         }
       </button>
     </div>

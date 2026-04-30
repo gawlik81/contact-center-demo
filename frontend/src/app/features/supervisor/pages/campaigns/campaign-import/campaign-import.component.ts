@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -41,7 +42,8 @@ const PREVIEW_ROWS = 5;
 @Component({
   selector: 'app-campaign-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [
+    TranslocoModule,FormsModule],
   templateUrl: './campaign-import.component.html',
   styleUrl: './campaign-import.component.scss',
   host: {

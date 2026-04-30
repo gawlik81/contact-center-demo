@@ -18,7 +18,7 @@
           </svg>
         </span>
         <div class="callback-dialog__title-block">
-          <h2 id="callback-dialog-title" class="callback-dialog__title">Zamow oddzwonienie</h2>
+          <h2 id="callback-dialog-title" class="callback-dialog__title">{{ 'agent.manualCallback.title' | transloco }}</h2>
           <p class="callback-dialog__subtitle">{{ customerDisplayName() }}</p>
         </div>
       </div>
@@ -26,7 +26,7 @@
         class="btn-close"
         type="button"
         (click)="cancel()"
-        aria-label="Zamknij formularz"
+        [attr.aria-label]="'supervisor.userForm.closeLabel' | transloco"
         [disabled]="loading()"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -54,7 +54,7 @@
         "
       >
         <label class="form-label" for="cb-phoneNumber">
-          Numer telefonu <span class="required" aria-hidden="true">*</span>
+          {{ 'common.phone' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
 
         @if (hasPhones()) {

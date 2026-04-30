@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -12,7 +13,8 @@ import { UserResponse } from '../../../models/user.model';
 @Component({
   selector: 'app-user-delete-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [
+    TranslocoModule,],
   templateUrl: './user-delete-modal.component.html',
   styleUrl: './user-delete-modal.component.scss',
   host: {

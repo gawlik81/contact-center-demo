@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -33,7 +34,8 @@ interface StatusOption {
 @Component({
   selector: 'app-campaign-contacts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [
+    TranslocoModule,],
   templateUrl: './campaign-contacts.component.html',
   styleUrl: './campaign-contacts.component.scss',
   host: {

@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -27,7 +28,8 @@ import { EmailThreadMessageComponent } from './email-thread-message/email-thread
 @Component({
   selector: 'cc-email-contact',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, EmailThreadMessageComponent],
+  imports: [
+    TranslocoModule,ReactiveFormsModule, EmailThreadMessageComponent],
   templateUrl: './email-contact.component.html',
   styleUrl: './email-contact.component.scss',
 })

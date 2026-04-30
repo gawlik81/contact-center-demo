@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -19,7 +20,8 @@ import { CustomerResponse } from '../../../models/customer.model';
 @Component({
   selector: 'app-customer-create-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [
+    TranslocoModule,ReactiveFormsModule],
   templateUrl: './customer-create-modal.component.html',
   styleUrl: './customer-create-modal.component.scss',
   host: {
@@ -32,6 +34,7 @@ export class CustomerCreateModalComponent implements AfterViewInit {
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
   private readonly customerService = inject(CustomerService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -102,14 +105,14 @@ export class CustomerCreateModalComponent implements AfterViewInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się utworzyć klienta. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.customerCreate.errorCreate'));
           return of(null);
         }),
         finalize(() => this.saving.set(false)),
       )
       .subscribe((result) => {
         if (result !== null) {
-          this.notifications.success('Klient został pomyślnie dodany.');
+          this.notifications.success(this.transloco.translate('supervisor.customerCreate.successCreate'));
           this.customerCreated.emit(result);
           this.close();
         }

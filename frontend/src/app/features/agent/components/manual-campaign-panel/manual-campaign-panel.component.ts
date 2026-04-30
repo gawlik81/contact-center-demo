@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, catchError, finalize, of, switchMap, timer } from 'rxjs';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { DialerService } from '../../services/dialer.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AgentStatus } from '../../models/agent-status.model';
@@ -28,7 +29,7 @@ const POLL_INTERVAL_MS = 30_000;
 @Component({
   selector: 'app-manual-campaign-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [TranslocoModule],
   templateUrl: './manual-campaign-panel.component.html',
   styleUrl: './manual-campaign-panel.component.scss',
 })
@@ -37,6 +38,7 @@ export class ManualCampaignPanelComponent implements OnInit {
 
   private readonly dialerService = inject(DialerService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly loading = signal(false);
@@ -82,7 +84,7 @@ export class ManualCampaignPanelComponent implements OnInit {
     return this.dialerService.getManualCampaignRecords().pipe(
       finalize(() => this.loading.set(false)),
       catchError(() => {
-        this.error.set('Nie udało się pobrać kampanii.');
+        this.error.set(this.transloco.translate('agent.manualCampaign.errorLoad'));
         return of(null);
       }),
     );
@@ -135,16 +137,18 @@ export class ManualCampaignPanelComponent implements OnInit {
           );
           const name = [record.firstName, record.lastName].filter(Boolean).join(' ');
           const displayName = name || record.phone;
-          this.notifications.success(`Inicjowanie połączenia do ${displayName} (${record.phone})`);
+          this.notifications.success(
+            `${this.transloco.translate('agent.manualCampaign.callInitiating')} ${displayName} (${record.phone})`,
+          );
         },
         error: (err) => {
           if (err.status === 409) {
-            const msg: string = err.error?.message ?? 'Rekord nie może być wydzwoniony.';
-            this.notifications.error(msg);
+            const msg: string = err.error?.message ?? '';
+            this.notifications.error(msg || this.transloco.translate('agent.manualCampaign.callError'));
           } else if (err.status === 404) {
-            this.notifications.error('Rekord nie został znaleziony.');
+            this.notifications.error(this.transloco.translate('agent.manualCampaign.callRecordNotFound'));
           } else {
-            this.notifications.error('Nie udało się zainicjować połączenia. Spróbuj ponownie.');
+            this.notifications.error(this.transloco.translate('agent.manualCampaign.callError'));
           }
         },
       });

@@ -1,19 +1,21 @@
 import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslocoModule } from '@jsverse/transloco';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-forbidden',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TranslocoModule],
   template: `
     <div class="forbidden-container">
       <div class="forbidden-card">
         <div class="icon" aria-hidden="true">403</div>
-        <h1>Brak dostępu</h1>
-        <p>Nie masz uprawnień do wyświetlenia tej strony.</p>
+        <h1>{{ 'auth.forbidden.title' | transloco }}</h1>
+        <p>{{ 'auth.forbidden.message' | transloco }}</p>
         <div class="actions">
-          <button (click)="goBack()">Wróć</button>
-          <button class="secondary" (click)="logout()">Wyloguj</button>
+          <button (click)="goBack()">{{ 'auth.forbidden.back' | transloco }}</button>
+          <button class="secondary" (click)="logout()">{{ 'auth.forbidden.logout' | transloco }}</button>
         </div>
       </div>
     </div>

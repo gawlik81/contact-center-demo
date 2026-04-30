@@ -2,9 +2,9 @@
   <!-- Panel header -->
   <div class="manual-panel__header">
     <h2 class="manual-panel__title">
-      Kampanie manualne
+      {{ 'agent.manualCampaign.title' | transloco }}
       @if (totalPending() > 0) {
-        <span class="manual-panel__badge" aria-label="{{ totalPending() }} rekordów do wydzwonienia">
+        <span class="manual-panel__badge" [attr.aria-label]="totalPending() + ' ' + ('agent.manualCampaign.recordsLabel' | transloco)">
           {{ totalPending() }}
         </span>
       }
@@ -32,7 +32,7 @@
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="14" height="14">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
       </svg>
-      Zmień status na Dostępny aby dzwonić
+      {{ 'agent.manualCampaign.statusNotAvailable' | transloco }}
     </div>
   }
 
@@ -45,7 +45,7 @@
 
   <!-- Loading skeleton (initial load) -->
   @if (loading() && campaignRows().length === 0) {
-    <div class="manual-panel__skeleton" aria-busy="true" aria-label="Wczytywanie kampanii...">
+    <div class="manual-panel__skeleton" aria-busy="true" [attr.aria-label]="'agent.manualCampaign.loadingLabel' | transloco">
       @for (i of [1, 2, 3]; track i) {
         <div class="skeleton-campaign">
           <div class="skeleton-line skeleton-line--title"></div>
@@ -63,7 +63,7 @@
           d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
         />
       </svg>
-      <p>Brak aktywnych kampanii manualnych</p>
+      <p>{{ 'agent.manualCampaign.empty' | transloco }}</p>
     </div>
   }
 
@@ -105,7 +105,7 @@
           [attr.aria-label]="'Rekordy kampanii ' + row.group.campaignName"
         >
           @if (row.group.records.length === 0) {
-            <p class="contacts-empty">Brak rekordów do wydzwonienia</p>
+            <p class="contacts-empty">{{ 'agent.manualCampaign.recordsEmpty' | transloco }}</p>
           } @else {
             <ul class="contact-records" role="list" aria-label="Rekordy do wydzwonienia">
               @for (record of row.group.records; track trackByRecordId($index, record)) {
@@ -126,7 +126,7 @@
                     (click)="callRecord(row.group, record)"
                     [attr.aria-label]="'Zadzwon do ' + record.phone"
                     [attr.aria-busy]="callingRecordId() === record.recordId"
-                    [title]="isAvailable() ? '' : 'Zmień status na Dostępny aby dzwonić'"
+                    [title]="isAvailable() ? '' : ('agent.manualCampaign.changeStatusToCall' | transloco)"
                   >
                     @if (callingRecordId() === record.recordId) {
                       <span class="btn-call__spinner" aria-hidden="true"></span>

@@ -1,6 +1,6 @@
 <div class="contacts-report">
   <div class="contacts-report__header">
-    <h1 class="contacts-report__title">Raporty &gt; Kontakty</h1>
+    <h1 class="contacts-report__title">{{ 'supervisor.contactsReport.title' | transloco }}</h1>
   </div>
 
   <!-- Filters -->
@@ -8,12 +8,12 @@
     class="contacts-report__filters"
     [formGroup]="filterForm"
     role="search"
-    aria-label="Filtry kontaktow"
+    [attr.aria-label]="'supervisor.contactsReport.filtersLabel' | transloco"
   >
     <div class="filters__row">
       <!-- Date from -->
       <div class="filter-field">
-        <label for="dateFrom" class="filter-label">Od</label>
+        <label for="dateFrom" class="filter-label">{{ 'common.from' | transloco }}</label>
         <input
           id="dateFrom"
           type="date"
@@ -25,7 +25,7 @@
 
       <!-- Date to -->
       <div class="filter-field">
-        <label for="dateTo" class="filter-label">Do</label>
+        <label for="dateTo" class="filter-label">{{ 'common.to' | transloco }}</label>
         <input
           id="dateTo"
           type="date"
@@ -37,9 +37,9 @@
 
       <!-- Channel -->
       <div class="filter-field">
-        <label for="channel" class="filter-label">Kanal</label>
+        <label for="channel" class="filter-label">{{ 'supervisor.contactsReport.channelLabel' | transloco }}</label>
         <select id="channel" class="filter-select" formControlName="channel" aria-label="Filtruj po kanale">
-          <option value="">Wszystkie</option>
+          <option value="">{{ 'common.all' | transloco }}</option>
           @for (ch of channels; track ch.value) {
             <option [value]="ch.value">{{ ch.label }}</option>
           }
@@ -48,7 +48,7 @@
 
       <!-- Status -->
       <div class="filter-field">
-        <label for="status" class="filter-label">Status</label>
+        <label for="status" class="filter-label">{{ 'common.status' | transloco }}</label>
         <select id="status" class="filter-select" formControlName="status" aria-label="Filtruj po statusie">
           <option value="">Wszystkie</option>
           @for (st of statuses; track st) {
@@ -59,9 +59,9 @@
 
       <!-- Queue -->
       <div class="filter-field">
-        <label for="queueId" class="filter-label">Kolejka</label>
+        <label for="queueId" class="filter-label">{{ 'supervisor.contactsReport.queueLabel' | transloco }}</label>
         <select id="queueId" class="filter-select" formControlName="queueId" aria-label="Filtruj po kolejce">
-          <option value="">Wszystkie kolejki</option>
+          <option value="">{{ 'supervisor.contactsReport.allQueues' | transloco }}</option>
           @for (q of queues(); track q.queueId) {
             <option [value]="q.queueId">{{ q.name }}</option>
           }
@@ -70,7 +70,7 @@
 
       <!-- Remote address -->
       <div class="filter-field">
-        <label for="remoteAddress" class="filter-label">Numer / adres</label>
+        <label for="remoteAddress" class="filter-label">{{ 'supervisor.contactsReport.remoteAddressLabel' | transloco }}</label>
         <input
           id="remoteAddress"
           type="text"
@@ -83,7 +83,7 @@
 
       <!-- Duration min -->
       <div class="filter-field">
-        <label for="durationMin" class="filter-label">Min czas (s)</label>
+        <label for="durationMin" class="filter-label">{{ 'supervisor.contactsReport.durationMin' | transloco }}</label>
         <input
           id="durationMin"
           type="number"

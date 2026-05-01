@@ -1,6 +1,5 @@
 <div class="auth-page">
   <div class="auth-card">
-
     <!-- Logo / Brand -->
     <header class="auth-header">
       <div class="brand-icon" aria-hidden="true">CC</div>
@@ -21,7 +20,6 @@
         <h2 class="step-title">{{ 'auth.login.title' | transloco }}</h2>
 
         <form [formGroup]="emailStepForm" (ngSubmit)="onSubmitEmail()" novalidate>
-
           <div class="form-field">
             <label for="email-step" class="form-label">{{ 'auth.login.emailLabel' | transloco }}</label>
             <input
@@ -41,12 +39,7 @@
             }
           </div>
 
-          <button
-            type="submit"
-            class="btn btn-primary"
-            [disabled]="loading()"
-            [attr.aria-busy]="loading()"
-          >
+          <button type="submit" class="btn btn-primary" [disabled]="loading()" [attr.aria-busy]="loading()">
             @if (loading()) {
               <span class="spinner" aria-hidden="true"></span>
               {{ 'auth.login.checking' | transloco }}
@@ -54,7 +47,6 @@
               {{ 'auth.login.nextButton' | transloco }}
             }
           </button>
-
         </form>
       </div>
     }
@@ -69,7 +61,6 @@
         </p>
 
         <form [formGroup]="credentialsForm" (ngSubmit)="onSubmitCredentials()" novalidate>
-
           @if (showTenantSelect()) {
             <div class="form-field">
               <label for="tenantId" class="form-label">{{ 'auth.login.orgLabel' | transloco }}</label>
@@ -112,12 +103,7 @@
             }
           </div>
 
-          <button
-            type="submit"
-            class="btn btn-primary"
-            [disabled]="loading()"
-            [attr.aria-busy]="loading()"
-          >
+          <button type="submit" class="btn btn-primary" [disabled]="loading()" [attr.aria-busy]="loading()">
             @if (loading()) {
               <span class="spinner" aria-hidden="true"></span>
               {{ 'auth.login.loggingIn' | transloco }}
@@ -125,15 +111,9 @@
               {{ 'auth.login.submitButton' | transloco }}
             }
           </button>
-
         </form>
 
-        <button
-          type="button"
-          class="btn btn-ghost back-btn"
-          (click)="backToEmail()"
-          [disabled]="loading()"
-        >
+        <button type="button" class="btn btn-ghost back-btn" (click)="backToEmail()" [disabled]="loading()">
           {{ 'auth.login.back' | transloco }}
         </button>
       </div>
@@ -148,7 +128,6 @@
         </p>
 
         <form [formGroup]="mfaForm" (ngSubmit)="onSubmitMfa()" novalidate>
-
           <div class="form-field">
             <label for="mfa-code" class="form-label">{{ 'auth.login.mfaCodeLabel' | transloco }}</label>
             <input
@@ -170,12 +149,7 @@
             }
           </div>
 
-          <button
-            type="submit"
-            class="btn btn-primary"
-            [disabled]="loading()"
-            [attr.aria-busy]="loading()"
-          >
+          <button type="submit" class="btn btn-primary" [disabled]="loading()" [attr.aria-busy]="loading()">
             @if (loading()) {
               <span class="spinner" aria-hidden="true"></span>
               {{ 'auth.login.verifying' | transloco }}
@@ -183,19 +157,12 @@
               {{ 'auth.login.mfaSubmitButton' | transloco }}
             }
           </button>
-
         </form>
 
-        <button
-          type="button"
-          class="btn btn-ghost back-btn"
-          (click)="backToCredentials()"
-          [disabled]="loading()"
-        >
+        <button type="button" class="btn btn-ghost back-btn" (click)="backToCredentials()" [disabled]="loading()">
           {{ 'auth.login.backToLogin' | transloco }}
         </button>
       </div>
     }
-
   </div>
 </div>

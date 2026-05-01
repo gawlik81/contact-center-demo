@@ -23,8 +23,7 @@ import { PagedResponse } from '../../models/user.model';
 @Component({
   selector: 'app-reports',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './reports-placeholder.component.html',
   styleUrl: './reports-placeholder.component.scss',
 })
@@ -99,7 +98,9 @@ export class ReportsComponent implements OnInit {
     this.loadData();
   }
 
-  private dateRangeValidator(group: ReturnType<FormBuilder['group']>): Record<string, boolean> | null {
+  private dateRangeValidator(
+    group: ReturnType<FormBuilder['group']>,
+  ): Record<string, boolean> | null {
     const from = group.get('dateFrom')?.value as string;
     const to = group.get('dateTo')?.value as string;
     if (!from || !to) return null;

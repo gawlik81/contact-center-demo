@@ -13,24 +13,12 @@
     <div class="filters__row">
       <div class="filter-field">
         <label for="dateFrom" class="filter-label">{{ 'common.from' | transloco }}</label>
-        <input
-          id="dateFrom"
-          type="date"
-          class="filter-input"
-          formControlName="dateFrom"
-          aria-label="Data od"
-        />
+        <input id="dateFrom" type="date" class="filter-input" formControlName="dateFrom" aria-label="Data od" />
       </div>
 
       <div class="filter-field">
         <label for="dateTo" class="filter-label">{{ 'common.to' | transloco }}</label>
-        <input
-          id="dateTo"
-          type="date"
-          class="filter-input"
-          formControlName="dateTo"
-          aria-label="Data do"
-        />
+        <input id="dateTo" type="date" class="filter-input" formControlName="dateTo" aria-label="Data do" />
       </div>
 
       <div class="filter-field">
@@ -71,7 +59,9 @@
           [title]="'supervisor.reports.clearLabel' | transloco"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            <path
+              d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
           </svg>
           {{ 'supervisor.reports.clearLabel' | transloco }}
         </button>
@@ -82,7 +72,7 @@
     @if (dateRangeError) {
       <div class="filters__error" role="alert" aria-live="polite">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
         </svg>
         {{ dateRangeError }}
       </div>
@@ -102,7 +92,7 @@
           {{ 'supervisor.reports.exporting' | transloco }}
         } @else {
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
           </svg>
           {{ 'supervisor.reports.exportCsv' | transloco }}
         }
@@ -119,7 +109,7 @@
           {{ 'supervisor.reports.exporting' | transloco }}
         } @else {
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
           </svg>
           {{ 'supervisor.reports.exportXlsx' | transloco }}
         }
@@ -193,7 +183,10 @@
       <!-- Pagination -->
       <nav class="pagination" [attr.aria-label]="'supervisor.reports.paginationLabel' | transloco">
         <span class="pagination__info" aria-live="polite">
-          {{ 'supervisor.reports.showing' | transloco }} {{ currentPage() * pageSize + 1 }}&ndash;{{ (currentPage() + 1) * pageSize > totalElements() ? totalElements() : (currentPage() + 1) * pageSize }} {{ 'common.of' | transloco }} {{ totalElements() }}
+          {{ 'supervisor.reports.showing' | transloco }} {{ currentPage() * pageSize + 1 }}&ndash;{{
+            (currentPage() + 1) * pageSize > totalElements() ? totalElements() : (currentPage() + 1) * pageSize
+          }}
+          {{ 'common.of' | transloco }} {{ totalElements() }}
         </span>
         <div class="pagination__controls">
           <button
@@ -204,7 +197,7 @@
             [attr.aria-label]="'common.previous' | transloco"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
             </svg>
             {{ 'common.previous' | transloco }}
           </button>
@@ -220,7 +213,7 @@
           >
             {{ 'common.next' | transloco }}
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
             </svg>
           </button>
         </div>
@@ -229,7 +222,9 @@
       <!-- Empty state -->
       <div class="empty-state" role="status" aria-live="polite">
         <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+          <path
+            d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+          />
         </svg>
         <p class="empty-state__message">{{ 'supervisor.reports.emptyText' | transloco }}</p>
         <p class="empty-state__hint">{{ 'supervisor.reports.emptyHint' | transloco }}</p>

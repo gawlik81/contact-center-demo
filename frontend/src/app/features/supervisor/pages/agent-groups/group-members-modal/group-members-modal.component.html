@@ -46,7 +46,9 @@
 
         <div class="agents-list-wrapper">
           @if (filteredAgents().length === 0) {
-            <p class="members-no-results">{{ 'supervisor.agentGroupMembers.noResults' | transloco: { query: searchQuery() } }}</p>
+            <p class="members-no-results">
+              {{ 'supervisor.agentGroupMembers.noResults' | transloco: { query: searchQuery() } }}
+            </p>
           } @else {
             <ul class="agents-list" role="list" aria-label="Lista agentów">
               @for (agent of filteredAgents(); track trackByAgentId($index, agent)) {
@@ -73,12 +75,17 @@
       }
 
       <div class="members-summary" aria-live="polite">
-        {{ 'supervisor.agentGroupMembers.selected' | transloco: { count: selectedAgentIds().size, total: availableAgents().length } }}
+        {{
+          'supervisor.agentGroupMembers.selected'
+            | transloco: { count: selectedAgentIds().size, total: availableAgents().length }
+        }}
       </div>
     }
 
     <div class="modal-actions">
-      <button class="btn btn-secondary" type="button" (click)="onCancel()" [disabled]="saving()">{{ 'common.cancel' | transloco }}</button>
+      <button class="btn btn-secondary" type="button" (click)="onCancel()" [disabled]="saving()">
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button class="btn btn-primary" type="button" (click)="onSubmit()" [disabled]="saving() || loading()">
         @if (saving()) {
           {{ 'common.saving' | transloco }}

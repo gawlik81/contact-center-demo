@@ -24,10 +24,7 @@ import { NotificationService } from '../../../../../core/services/notification.s
 import { AuthService } from '../../../../../core/services/auth.service';
 import { WebSocketService } from '../../../../../core/services/websocket.service';
 import { PagedResponse, UserResponse, UserRole, UserStatus } from '../../../models/user.model';
-import {
-  AgentStatusChangedPayload,
-  WsEvent,
-} from '../../../../agent/models/ws-event.model';
+import { AgentStatusChangedPayload, WsEvent } from '../../../../agent/models/ws-event.model';
 import { UserFormComponent } from '../user-form/user-form.component';
 import { UserDeleteModalComponent } from '../user-delete-modal/user-delete-modal.component';
 import { UserResetPasswordModalComponent } from '../user-reset-password-modal/user-reset-password-modal.component';
@@ -159,9 +156,7 @@ export class UserListComponent implements OnInit {
           return state === 'DISCONNECTED' || state === 'ERROR';
         }),
         switchMap(() =>
-          this.userService
-            .getUsers(this.buildFilterParams())
-            .pipe(catchError(() => of(null))),
+          this.userService.getUsers(this.buildFilterParams()).pipe(catchError(() => of(null))),
         ),
         takeUntilDestroyed(this.destroyRef),
       )

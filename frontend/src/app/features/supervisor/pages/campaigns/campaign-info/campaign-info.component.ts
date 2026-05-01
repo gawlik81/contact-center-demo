@@ -1,7 +1,8 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   DestroyRef,
   ElementRef,
@@ -18,21 +19,10 @@ import { catchError, of } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
 import { Campaign, ActiveDay } from '../../../models/campaign.model';
 
-const DAY_LABELS: Record<ActiveDay, string> = {
-  MON: 'Pon',
-  TUE: 'Wt',
-  WED: 'Sr',
-  THU: 'Czw',
-  FRI: 'Pt',
-  SAT: 'Sob',
-  SUN: 'Nie',
-};
-
 @Component({
   selector: 'app-campaign-info',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,],
+  imports: [TranslocoModule],
   templateUrl: './campaign-info.component.html',
   styleUrl: './campaign-info.component.scss',
   host: {
@@ -44,6 +34,8 @@ export class CampaignInfoComponent implements OnInit, AfterViewInit {
   @Output() closed = new EventEmitter<void>();
 
   private readonly campaignService = inject(CampaignService);
+  private readonly transloco = inject(TranslocoService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
@@ -52,6 +44,9 @@ export class CampaignInfoComponent implements OnInit, AfterViewInit {
   readonly contactCountLoading = signal(true);
 
   ngOnInit(): void {
+    this.transloco.langChanges$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.cdr.markForCheck();
+    });
     this.campaignService
       .getCampaignContacts(this.campaign.campaignId, 0, 1)
       .pipe(
@@ -149,7 +144,7 @@ export class CampaignInfoComponent implements OnInit, AfterViewInit {
 
   formatActiveDays(days: ActiveDay[] | undefined): string {
     if (!days || days.length === 0) return '—';
-    return days.map((d) => DAY_LABELS[d] ?? d).join(', ');
+    return days.map((d) => this.transloco.translate(`agent.calendar.days.${d}`, {}, d)).join(', ');
   }
 
   formatActiveHours(hours: { from: string; to: string } | undefined): string {

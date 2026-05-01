@@ -63,11 +63,7 @@
 
   <!-- Loading skeleton -->
   @if (loading()) {
-    <div
-      class="skeleton-wrapper"
-      aria-busy="true"
-      [attr.aria-label]="'common.loading_data' | transloco"
-    >
+    <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <div class="skeleton-row">
           <div class="skeleton-cell skeleton-cell--wide"></div>
@@ -93,7 +89,9 @@
               <th scope="col">{{ 'supervisor.users.tableRole' | transloco }}</th>
               <th scope="col">{{ 'supervisor.users.tableStatus' | transloco }}</th>
               <th scope="col">{{ 'supervisor.users.tableSkills' | transloco }}</th>
-              <th scope="col"><span class="sr-only">{{ 'common.actions' | transloco }}</span></th>
+              <th scope="col">
+                <span class="sr-only">{{ 'common.actions' | transloco }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -106,7 +104,8 @@
                       class="reset-badge"
                       [title]="'supervisor.users.passwordResetRequired' | transloco"
                       [attr.aria-label]="'supervisor.users.passwordResetRequired' | transloco"
-                    >!</span>
+                      >!</span
+                    >
                   }
                 </td>
                 <td class="user-email">{{ user.email }}</td>
@@ -119,9 +118,15 @@
                     [attr.aria-label]="('common.role' | transloco) + ': ' + user.role"
                   >
                     @switch (user.role) {
-                      @case ('ADMIN') { Admin }
-                      @case ('SUPERVISOR') { Supervisor }
-                      @case ('AGENT') { Agent }
+                      @case ('ADMIN') {
+                        Admin
+                      }
+                      @case ('SUPERVISOR') {
+                        Supervisor
+                      }
+                      @case ('AGENT') {
+                        Agent
+                      }
                     }
                   </span>
                 </td>
@@ -139,13 +144,27 @@
                     [attr.aria-live]="flashingAgentIds().has(user.id) ? 'polite' : null"
                   >
                     @switch (user.status) {
-                      @case ('AVAILABLE') { {{ 'agent.status.available' | transloco }} }
-                      @case ('BUSY') { {{ 'agent.status.busy' | transloco }} }
-                      @case ('AFTER_CONTACT') { {{ 'agent.status.afterContact' | transloco }} }
-                      @case ('BREAK') { {{ 'agent.status.break' | transloco }} }
-                      @case ('ACTIVE') { {{ 'common.active' | transloco }} }
-                      @case ('INACTIVE') { {{ 'common.inactive' | transloco }} }
-                      @case ('OFFLINE') { {{ 'agent.status.offline' | transloco }} }
+                      @case ('AVAILABLE') {
+                        {{ 'agent.status.available' | transloco }}
+                      }
+                      @case ('BUSY') {
+                        {{ 'agent.status.busy' | transloco }}
+                      }
+                      @case ('AFTER_CONTACT') {
+                        {{ 'agent.status.afterContact' | transloco }}
+                      }
+                      @case ('BREAK') {
+                        {{ 'agent.status.break' | transloco }}
+                      }
+                      @case ('ACTIVE') {
+                        {{ 'common.active' | transloco }}
+                      }
+                      @case ('INACTIVE') {
+                        {{ 'common.inactive' | transloco }}
+                      }
+                      @case ('OFFLINE') {
+                        {{ 'agent.status.offline' | transloco }}
+                      }
                     }
                   </span>
                 </td>
@@ -164,7 +183,9 @@
                     class="btn btn-icon-outline"
                     type="button"
                     (click)="openEditModal(user)"
-                    [attr.aria-label]="('supervisor.users.editLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                    [attr.aria-label]="
+                      ('supervisor.users.editLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName
+                    "
                     [title]="'common.edit' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
@@ -177,7 +198,9 @@
                     class="btn btn-icon-warning"
                     type="button"
                     (click)="openResetPasswordModal(user)"
-                    [attr.aria-label]="('supervisor.users.resetPasswordLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                    [attr.aria-label]="
+                      ('supervisor.users.resetPasswordLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName
+                    "
                     [title]="'supervisor.users.resetPasswordLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
@@ -190,7 +213,9 @@
                     class="btn btn-icon-danger"
                     type="button"
                     (click)="openDeleteModal(user)"
-                    [attr.aria-label]="('supervisor.users.deleteLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                    [attr.aria-label]="
+                      ('supervisor.users.deleteLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName
+                    "
                     [title]="'common.delete' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">

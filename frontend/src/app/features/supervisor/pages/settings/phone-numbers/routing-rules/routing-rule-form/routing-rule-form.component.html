@@ -1,7 +1,11 @@
 <dialog #dialogRef class="rule-dialog" aria-labelledby="rule-dialog-title">
   <div class="rule-dialog__header">
     <h2 id="rule-dialog-title" class="rule-dialog__title">
-      {{ isEditMode() ? ('supervisor.settings.routingRuleForm.titleEdit' | transloco) : ('supervisor.settings.routingRuleForm.titleCreate' | transloco) }}
+      {{
+        isEditMode()
+          ? ('supervisor.settings.routingRuleForm.titleEdit' | transloco)
+          : ('supervisor.settings.routingRuleForm.titleCreate' | transloco)
+      }}
     </h2>
     <button type="button" class="rule-dialog__close" (click)="close()" [attr.aria-label]="'common.close' | transloco">
       <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
@@ -24,9 +28,9 @@
             [class.day-btn--active]="isDaySelected(day)"
             (click)="toggleDay(day)"
             [attr.aria-pressed]="isDaySelected(day)"
-            [attr.aria-label]="dayLabels[day]"
+            [attr.aria-label]="dayLabels[day] | transloco"
           >
-            {{ dayLabels[day] }}
+            {{ dayLabels[day] | transloco }}
           </button>
         }
       </div>
@@ -64,7 +68,9 @@
 
     <!-- Target type -->
     <div class="form-field">
-      <span class="form-label" id="target-label">{{ 'supervisor.settings.routingRuleForm.targetLabel' | transloco }}</span>
+      <span class="form-label" id="target-label">{{
+        'supervisor.settings.routingRuleForm.targetLabel' | transloco
+      }}</span>
       <div class="radio-group" role="radiogroup" aria-labelledby="target-label">
         <label class="radio-label">
           <input type="radio" formControlName="targetType" value="ivr" />
@@ -80,7 +86,9 @@
     <!-- IVR select -->
     @if (targetType() === 'ivr') {
       <div class="form-field">
-        <label class="form-label" for="ivr-select">{{ 'supervisor.settings.routingRuleForm.ivrLabel' | transloco }}</label>
+        <label class="form-label" for="ivr-select">{{
+          'supervisor.settings.routingRuleForm.ivrLabel' | transloco
+        }}</label>
         @if (loadingOptions()) {
           <div class="skeleton skeleton--field"></div>
         } @else {
@@ -97,7 +105,9 @@
     <!-- Queue select -->
     @if (targetType() === 'queue') {
       <div class="form-field">
-        <label class="form-label" for="queue-select">{{ 'supervisor.settings.routingRuleForm.queueLabel' | transloco }}</label>
+        <label class="form-label" for="queue-select">{{
+          'supervisor.settings.routingRuleForm.queueLabel' | transloco
+        }}</label>
         @if (loadingOptions()) {
           <div class="skeleton skeleton--field"></div>
         } @else {

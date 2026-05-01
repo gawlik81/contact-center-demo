@@ -2,7 +2,13 @@
   class="thread-message"
   [class.thread-message--inbound]="message().direction === 'INBOUND'"
   [class.thread-message--outbound]="message().direction === 'OUTBOUND'"
-  [attr.aria-label]="(message().direction === 'INBOUND' ? ('agent.emailContact.inboundFrom' | transloco) : ('agent.emailContact.outboundTo' | transloco)) + ' ' + message().fromAddress"
+  [attr.aria-label]="
+    (message().direction === 'INBOUND'
+      ? ('agent.emailContact.inboundFrom' | transloco)
+      : ('agent.emailContact.outboundTo' | transloco)) +
+    ' ' +
+    message().fromAddress
+  "
 >
   <div class="thread-message__meta">
     <div class="thread-message__meta-left">
@@ -11,7 +17,11 @@
         [class.thread-message__direction-badge--inbound]="message().direction === 'INBOUND'"
         [class.thread-message__direction-badge--outbound]="message().direction === 'OUTBOUND'"
       >
-        {{ message().direction === 'INBOUND' ? ('agent.emailContact.inbound' | transloco) : ('agent.emailContact.outbound' | transloco) }}
+        {{
+          message().direction === 'INBOUND'
+            ? ('agent.emailContact.inbound' | transloco)
+            : ('agent.emailContact.outbound' | transloco)
+        }}
       </span>
       <span class="thread-message__from">
         <strong>{{ 'agent.emailContact.from' | transloco }}:</strong> {{ message().fromAddress }}
@@ -26,7 +36,7 @@
       class="thread-message__time"
       [attr.datetime]="message().receivedAt || message().sentAt || message().createdAt"
     >
-      {{ (message().receivedAt || message().sentAt || message().createdAt) | date: 'dd.MM.yyyy HH:mm' }}
+      {{ message().receivedAt || message().sentAt || message().createdAt | date: 'dd.MM.yyyy HH:mm' }}
     </time>
   </div>
 

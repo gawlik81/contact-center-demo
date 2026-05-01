@@ -41,11 +41,7 @@
 
   <!-- Loading skeleton -->
   @if (loading()) {
-    <div
-      class="skeleton-wrapper"
-      aria-busy="true"
-      [attr.aria-label]="'common.loading_data' | transloco"
-    >
+    <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <div class="skeleton-row">
           <div class="skeleton-cell skeleton-cell--wide"></div>
@@ -69,7 +65,9 @@
               <th scope="col" class="hide-sm">{{ 'supervisor.queues.tableRoutingStrategy' | transloco }}</th>
               <th scope="col" class="hide-sm">{{ 'supervisor.queues.tableSkills' | transloco }}</th>
               <th scope="col">{{ 'common.status' | transloco }}</th>
-              <th scope="col"><span class="sr-only">{{ 'common.actions' | transloco }}</span></th>
+              <th scope="col">
+                <span class="sr-only">{{ 'common.actions' | transloco }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -97,9 +95,17 @@
                     class="status-badge"
                     [class.status-badge--active]="queue.active"
                     [class.status-badge--inactive]="!queue.active"
-                    [attr.aria-label]="queue.active ? ('supervisor.queues.statusActive' | transloco) : ('supervisor.queues.statusInactive' | transloco)"
+                    [attr.aria-label]="
+                      queue.active
+                        ? ('supervisor.queues.statusActive' | transloco)
+                        : ('supervisor.queues.statusInactive' | transloco)
+                    "
                   >
-                    {{ queue.active ? ('supervisor.queues.statusActive' | transloco) : ('supervisor.queues.statusInactive' | transloco) }}
+                    {{
+                      queue.active
+                        ? ('supervisor.queues.statusActive' | transloco)
+                        : ('supervisor.queues.statusInactive' | transloco)
+                    }}
                   </span>
                 </td>
                 <td class="queue-actions">
@@ -134,8 +140,18 @@
                     type="button"
                     (click)="toggleActive(queue)"
                     [disabled]="toggling() === queue.queueId"
-                    [attr.aria-label]="(queue.active ? ('supervisor.queues.deactivate' | transloco) : ('supervisor.queues.activate' | transloco)) + ' ' + queue.name"
-                    [title]="queue.active ? ('supervisor.queues.deactivate' | transloco) : ('supervisor.queues.activate' | transloco)"
+                    [attr.aria-label]="
+                      (queue.active
+                        ? ('supervisor.queues.deactivate' | transloco)
+                        : ('supervisor.queues.activate' | transloco)) +
+                      ' ' +
+                      queue.name
+                    "
+                    [title]="
+                      queue.active
+                        ? ('supervisor.queues.deactivate' | transloco)
+                        : ('supervisor.queues.activate' | transloco)
+                    "
                   >
                     @if (toggling() === queue.queueId) {
                       <span class="spinner" aria-hidden="true"></span>

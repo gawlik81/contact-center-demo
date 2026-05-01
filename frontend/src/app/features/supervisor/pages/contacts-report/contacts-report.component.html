@@ -19,7 +19,7 @@
           type="date"
           class="filter-input"
           formControlName="dateFrom"
-          aria-label="Data od"
+          [attr.aria-label]="'supervisor.contactsReport.filterDateFromLabel' | transloco"
         />
       </div>
 
@@ -31,17 +31,22 @@
           type="date"
           class="filter-input"
           formControlName="dateTo"
-          aria-label="Data do"
+          [attr.aria-label]="'supervisor.contactsReport.filterDateToLabel' | transloco"
         />
       </div>
 
       <!-- Channel -->
       <div class="filter-field">
         <label for="channel" class="filter-label">{{ 'supervisor.contactsReport.channelLabel' | transloco }}</label>
-        <select id="channel" class="filter-select" formControlName="channel" aria-label="Filtruj po kanale">
+        <select
+          id="channel"
+          class="filter-select"
+          formControlName="channel"
+          [attr.aria-label]="'supervisor.contactsReport.filterChannelLabel' | transloco"
+        >
           <option value="">{{ 'common.all' | transloco }}</option>
           @for (ch of channels; track ch.value) {
-            <option [value]="ch.value">{{ ch.label }}</option>
+            <option [value]="ch.value">{{ ch.labelKey | transloco }}</option>
           }
         </select>
       </div>
@@ -49,8 +54,13 @@
       <!-- Status -->
       <div class="filter-field">
         <label for="status" class="filter-label">{{ 'common.status' | transloco }}</label>
-        <select id="status" class="filter-select" formControlName="status" aria-label="Filtruj po statusie">
-          <option value="">Wszystkie</option>
+        <select
+          id="status"
+          class="filter-select"
+          formControlName="status"
+          [attr.aria-label]="'supervisor.contactsReport.filterStatusLabel' | transloco"
+        >
+          <option value="">{{ 'common.all' | transloco }}</option>
           @for (st of statuses; track st) {
             <option [value]="st">{{ st }}</option>
           }
@@ -60,7 +70,12 @@
       <!-- Queue -->
       <div class="filter-field">
         <label for="queueId" class="filter-label">{{ 'supervisor.contactsReport.queueLabel' | transloco }}</label>
-        <select id="queueId" class="filter-select" formControlName="queueId" aria-label="Filtruj po kolejce">
+        <select
+          id="queueId"
+          class="filter-select"
+          formControlName="queueId"
+          [attr.aria-label]="'supervisor.contactsReport.filterQueueLabel' | transloco"
+        >
           <option value="">{{ 'supervisor.contactsReport.allQueues' | transloco }}</option>
           @for (q of queues(); track q.queueId) {
             <option [value]="q.queueId">{{ q.name }}</option>
@@ -70,14 +85,16 @@
 
       <!-- Remote address -->
       <div class="filter-field">
-        <label for="remoteAddress" class="filter-label">{{ 'supervisor.contactsReport.remoteAddressLabel' | transloco }}</label>
+        <label for="remoteAddress" class="filter-label">{{
+          'supervisor.contactsReport.remoteAddressLabel' | transloco
+        }}</label>
         <input
           id="remoteAddress"
           type="text"
           class="filter-input filter-input--wide"
           formControlName="remoteAddress"
           placeholder="np. +48123..."
-          aria-label="Filtruj po numerze lub adresie"
+          [attr.aria-label]="'supervisor.contactsReport.filterAddressLabel' | transloco"
         />
       </div>
 
@@ -91,13 +108,13 @@
           formControlName="durationMin"
           min="0"
           placeholder="0"
-          aria-label="Minimalny czas trwania w sekundach"
+          [attr.aria-label]="'supervisor.contactsReport.filterDurationMinLabel' | transloco"
         />
       </div>
 
       <!-- Duration max -->
       <div class="filter-field">
-        <label for="durationMax" class="filter-label">Maks czas (s)</label>
+        <label for="durationMax" class="filter-label">{{ 'supervisor.contactsReport.durationMax' | transloco }}</label>
         <input
           id="durationMax"
           type="number"
@@ -105,7 +122,7 @@
           formControlName="durationMax"
           min="0"
           placeholder="3600"
-          aria-label="Maksymalny czas trwania w sekundach"
+          [attr.aria-label]="'supervisor.contactsReport.filterDurationMaxLabel' | transloco"
         />
       </div>
 
@@ -114,21 +131,23 @@
           class="btn btn-primary"
           type="button"
           (click)="onSearch()"
-          aria-label="Zastosuj filtry i wyszukaj"
+          [attr.aria-label]="'supervisor.contactsReport.searchBtnLabel' | transloco"
         >
-          Szukaj
+          {{ 'common.search' | transloco }}
         </button>
         <button
           class="btn btn-secondary"
           type="button"
           (click)="onClearFilters()"
-          aria-label="Wyczysc filtry i przywroc domyslne"
-          title="Wyczysc filtry"
+          [attr.aria-label]="'supervisor.contactsReport.clearFiltersBtnLabel' | transloco"
+          [title]="'supervisor.contactsReport.clearFiltersTitle' | transloco"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            <path
+              d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
           </svg>
-          Wyczysc
+          {{ 'supervisor.contactsReport.clearFilters' | transloco }}
         </button>
       </div>
     </div>
@@ -140,16 +159,16 @@
         type="button"
         (click)="onExportCsv()"
         [disabled]="exportingCsv() || rows().length === 0"
-        aria-label="Eksportuj kontakty do CSV"
+        [attr.aria-label]="'supervisor.contactsReport.exportBtnLabel' | transloco"
       >
         @if (exportingCsv()) {
           <span class="spinner" aria-hidden="true"></span>
-          Eksportowanie...
+          {{ 'supervisor.contactsReport.exporting' | transloco }}
         } @else {
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
           </svg>
-          Eksport CSV
+          {{ 'supervisor.contactsReport.exportCsv' | transloco }}
         }
       </button>
     </div>
@@ -160,7 +179,11 @@
 
   <!-- Skeleton loading -->
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie kontaktow...">
+    <div
+      class="skeleton-wrapper"
+      aria-busy="true"
+      [attr.aria-label]="'supervisor.contactsReport.loadingContacts' | transloco"
+    >
       @for (i of skeletonRows; track i) {
         <div class="skeleton-row">
           <div class="skeleton-cell skeleton-cell--medium"></div>
@@ -180,19 +203,19 @@
   <!-- Table -->
   @if (!loading()) {
     @if (rows().length > 0) {
-      <div class="table-wrapper" role="region" aria-label="Lista kontaktow">
+      <div class="table-wrapper" role="region" [attr.aria-label]="'supervisor.contactsReport.contactsList' | transloco">
         <table class="report-table" aria-live="polite">
           <thead>
             <tr>
-              <th scope="col">Data i czas</th>
-              <th scope="col">Kanal</th>
-              <th scope="col">Kierunek</th>
-              <th scope="col">Numer / adres</th>
-              <th scope="col">Kolejka</th>
-              <th scope="col">Czas trwania</th>
-              <th scope="col">Status</th>
-              <th scope="col">Dyspozycja</th>
-              <th scope="col" class="th-actions">Akcje</th>
+              <th scope="col">{{ 'supervisor.contactsReport.thDateTime' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.contactsReport.thChannel' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.contactsReport.thDirection' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.contactsReport.thAddress' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.contactsReport.thQueue' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.contactsReport.thDuration' | transloco }}</th>
+              <th scope="col">{{ 'common.status' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.contactsReport.thDisposition' | transloco }}</th>
+              <th scope="col" class="th-actions">{{ 'common.actions' | transloco }}</th>
             </tr>
           </thead>
           <tbody>
@@ -207,7 +230,9 @@
                     [class.channel-badge--email]="row.channel === 'EMAIL'"
                     [class.channel-badge--chat]="row.channel === 'CHAT'"
                     [class.channel-badge--social]="row.channel === 'SOCIAL'"
-                    [attr.aria-label]="'Kanal: ' + getChannelLabel(row.channel)"
+                    [attr.aria-label]="
+                      ('supervisor.contactsReport.channelPrefix' | transloco) + getChannelLabel(row.channel)
+                    "
                   >
                     {{ getChannelLabel(row.channel) }}
                   </span>
@@ -218,12 +243,16 @@
                     class="direction-label"
                     [class.direction-label--inbound]="row.direction === 'INBOUND'"
                     [class.direction-label--outbound]="row.direction === 'OUTBOUND'"
-                    [attr.aria-label]="row.direction === 'INBOUND' ? 'Przychodzacy' : 'Wychodzacy'"
+                    [attr.aria-label]="
+                      row.direction === 'INBOUND'
+                        ? ('supervisor.contactsReport.inbound' | transloco)
+                        : ('supervisor.contactsReport.outbound' | transloco)
+                    "
                   >
                     @if (row.direction === 'INBOUND') {
-                      &#8600; Przych.
+                      &#8600; {{ 'supervisor.contactsReport.inboundShort' | transloco }}
                     } @else {
-                      &#8599; Wych.
+                      &#8599; {{ 'supervisor.contactsReport.outboundShort' | transloco }}
                     }
                   </span>
                 </td>
@@ -242,7 +271,7 @@
                     [class.status-badge--failed]="row.status === 'FAILED'"
                     [class.status-badge--active]="row.status === 'ACTIVE'"
                     [class.status-badge--queued]="row.status === 'QUEUED'"
-                    [attr.aria-label]="'Status: ' + row.status"
+                    [attr.aria-label]="('supervisor.contactsReport.statusPrefix' | transloco) + row.status"
                   >
                     {{ row.status }}
                   </span>
@@ -255,11 +284,15 @@
                     class="btn-icon"
                     type="button"
                     (click)="selectedContactId.set(row.contactId)"
-                    [attr.aria-label]="'Szczegoly kontaktu ' + row.contactId"
-                    title="Szczegoly kontaktu"
+                    [attr.aria-label]="
+                      ('supervisor.contactsReport.contactDetailsLabel' | transloco) + ' ' + row.contactId
+                    "
+                    [title]="'supervisor.contactsReport.contactDetailsLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18">
-                      <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                      <path
+                        d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
+                      />
                     </svg>
                   </button>
                 </td>
@@ -270,11 +303,20 @@
       </div>
 
       <!-- Pagination -->
-      <nav class="pagination" aria-label="Nawigacja stron kontaktow">
+      <nav class="pagination" [attr.aria-label]="'supervisor.contactsReport.paginationLabel' | transloco">
         <span class="pagination__info" aria-live="polite">
-          Wyswietlanie
-          {{ currentPage() * pageSize + 1 }}&ndash;{{ (currentPage() + 1) * pageSize > totalElements() ? totalElements() : (currentPage() + 1) * pageSize }}
-          z {{ totalElements() }} kontaktow
+          {{
+            'supervisor.contactsReport.paginationInfo'
+              | transloco
+                : {
+                    from: currentPage() * pageSize + 1,
+                    to:
+                      (currentPage() + 1) * pageSize > totalElements()
+                        ? totalElements()
+                        : (currentPage() + 1) * pageSize,
+                    total: totalElements(),
+                  }
+          }}
         </span>
         <div class="pagination__controls">
           <button
@@ -282,46 +324,44 @@
             type="button"
             (click)="onPrevPage()"
             [disabled]="currentPage() === 0"
-            aria-label="Poprzednia strona"
+            [attr.aria-label]="'supervisor.contactsReport.prevPageLabel' | transloco"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
             </svg>
-            Poprzednia
+            {{ 'common.previous' | transloco }}
           </button>
           <span class="pagination__pages" aria-current="page">
-            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+            {{ 'supervisor.contactsReport.pageInfo' | transloco: { current: currentPage() + 1, total: totalPages() } }}
           </span>
           <button
             class="btn btn-pagination"
             type="button"
             (click)="onNextPage()"
             [disabled]="currentPage() + 1 >= totalPages()"
-            aria-label="Nastepna strona"
+            [attr.aria-label]="'supervisor.contactsReport.nextPageLabel' | transloco"
           >
-            Nastepna
+            {{ 'supervisor.contactsReport.nextPage' | transloco }}
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
-              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
             </svg>
           </button>
         </div>
       </nav>
-
     } @else {
       <!-- Empty state -->
       <div class="empty-state" role="status" aria-live="polite">
         <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+          <path
+            d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"
+          />
         </svg>
-        <p class="empty-state__message">Brak kontaktow spelniajacych kryteria.</p>
-        <p class="empty-state__hint">Sprobuj zmienic zakres dat lub filtry wyszukiwania.</p>
+        <p class="empty-state__message">{{ 'supervisor.contactsReport.emptyMessage' | transloco }}</p>
+        <p class="empty-state__hint">{{ 'supervisor.contactsReport.emptyHint' | transloco }}</p>
       </div>
     }
   }
 </div>
 
 <!-- Contact detail modal -->
-<app-contact-detail-modal
-  [contactId]="selectedContactId()"
-  (closed)="selectedContactId.set(null)"
-/>
+<app-contact-detail-modal [contactId]="selectedContactId()" (closed)="selectedContactId.set(null)" />

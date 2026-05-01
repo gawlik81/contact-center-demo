@@ -20,8 +20,7 @@ import { HttpErrorResponse } from '@angular/common/http';
   selector: 'app-agent-groups-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,CreateEditGroupModalComponent, GroupMembersModalComponent],
+  imports: [TranslocoModule, CreateEditGroupModalComponent, GroupMembersModalComponent],
   templateUrl: './agent-groups-page.component.html',
   styleUrl: './agent-groups-page.component.scss',
 })
@@ -116,7 +115,9 @@ export class AgentGroupsPageComponent implements OnInit {
   onMembersSaved(): void {
     this.closeMembersModal();
     this.loadGroups();
-    this.notifications.success(this.transloco.translate('supervisor.agentGroupMembers.saveComposition'));
+    this.notifications.success(
+      this.transloco.translate('supervisor.agentGroupMembers.saveComposition'),
+    );
   }
 
   openDeleteModal(group: AgentGroup): void {
@@ -140,9 +141,13 @@ export class AgentGroupsPageComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         catchError((err: HttpErrorResponse) => {
           if (err.status === 409) {
-            this.notifications.error(this.transloco.translate('supervisor.agentGroups.errorDelete'));
+            this.notifications.error(
+              this.transloco.translate('supervisor.agentGroups.errorDelete'),
+            );
           } else {
-            this.notifications.error(this.transloco.translate('supervisor.agentGroups.errorDelete'));
+            this.notifications.error(
+              this.transloco.translate('supervisor.agentGroups.errorDelete'),
+            );
           }
           return of(null);
         }),
@@ -155,7 +160,9 @@ export class AgentGroupsPageComponent implements OnInit {
         if (result !== null) {
           this.groups.update((list) => list.filter((g) => g.groupId !== group.groupId));
           this.total.update((t) => t - 1);
-          this.notifications.success(this.transloco.translate('supervisor.agentGroups.successDelete'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.agentGroups.successDelete'),
+          );
         }
       });
   }

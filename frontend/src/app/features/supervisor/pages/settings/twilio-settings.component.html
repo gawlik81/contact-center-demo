@@ -11,7 +11,10 @@
             Aktywna konfiguracja per-tenant
           </span>
         } @else {
-          <span class="badge badge--fallback" aria-label="{{ 'supervisor.settings.twilio.fallbackConfig' | transloco }}">
+          <span
+            class="badge badge--fallback"
+            aria-label="{{ 'supervisor.settings.twilio.fallbackConfig' | transloco }}"
+          >
             <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" aria-hidden="true">
               <path
                 d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
@@ -71,7 +74,9 @@
           <h2 class="form-section__title">{{ 'supervisor.settings.twilio.webhookTitle' | transloco }}</h2>
 
           <div class="form-field" [class.form-field--error]="callbackUrlError">
-            <label class="form-label" for="twilio-callback">{{ 'supervisor.settings.twilio.webhookLabel' | transloco }}</label>
+            <label class="form-label" for="twilio-callback">{{
+              'supervisor.settings.twilio.webhookLabel' | transloco
+            }}</label>
             <input
               id="twilio-callback"
               type="url"

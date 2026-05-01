@@ -13,12 +13,18 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators,} from '@angular/forms';
-import {catchError, of} from 'rxjs';
-import {UserService} from '../../../services/user.service';
-import {NotificationService} from '../../../../../core/services/notification.service';
-import {UserResponse, UserRole} from '../../../models/user.model';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl,
+  FormBuilder,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
+import { catchError, of } from 'rxjs';
+import { UserService } from '../../../services/user.service';
+import { NotificationService } from '../../../../../core/services/notification.service';
+import { UserResponse, UserRole } from '../../../models/user.model';
 
 function passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
   const val: string = control.value ?? '';
@@ -32,8 +38,7 @@ function passwordStrengthValidator(control: AbstractControl): ValidationErrors |
 @Component({
   selector: 'app-user-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './user-form.component.html',
   styleUrl: './user-form.component.scss',
   host: {
@@ -165,36 +170,46 @@ export class UserFormComponent implements OnInit, AfterViewInit {
   get firstNameError(): string | null {
     const ctrl = this.form.get('firstName')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.userForm.errors.firstNameRequired');
-    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.userForm.errors.firstNameMaxLength');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.userForm.errors.firstNameRequired');
+    if (ctrl.hasError('maxlength'))
+      return this.transloco.translate('supervisor.userForm.errors.firstNameMaxLength');
     return null;
   }
 
   get lastNameError(): string | null {
     const ctrl = this.form.get('lastName')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.userForm.errors.lastNameRequired');
-    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.userForm.errors.lastNameMaxLength');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.userForm.errors.lastNameRequired');
+    if (ctrl.hasError('maxlength'))
+      return this.transloco.translate('supervisor.userForm.errors.lastNameMaxLength');
     return null;
   }
 
   get emailError(): string | null {
     const ctrl = this.form.get('email')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.userForm.errors.emailRequired');
-    if (ctrl.hasError('email')) return this.transloco.translate('supervisor.userForm.errors.emailInvalid');
-    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.userForm.errors.emailMaxLength');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.userForm.errors.emailRequired');
+    if (ctrl.hasError('email'))
+      return this.transloco.translate('supervisor.userForm.errors.emailInvalid');
+    if (ctrl.hasError('maxlength'))
+      return this.transloco.translate('supervisor.userForm.errors.emailMaxLength');
     return null;
   }
 
   get passwordError(): string | null {
     const ctrl = this.form.get('password')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.userForm.errors.passwordRequired');
-    if (ctrl.hasError('minLength')) return this.transloco.translate('supervisor.userForm.errors.passwordMinLength');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.userForm.errors.passwordRequired');
+    if (ctrl.hasError('minLength'))
+      return this.transloco.translate('supervisor.userForm.errors.passwordMinLength');
     if (ctrl.hasError('requireUppercase'))
       return this.transloco.translate('supervisor.userForm.errors.passwordUppercase');
-    if (ctrl.hasError('requireDigit')) return this.transloco.translate('supervisor.userForm.errors.passwordDigit');
+    if (ctrl.hasError('requireDigit'))
+      return this.transloco.translate('supervisor.userForm.errors.passwordDigit');
     return null;
   }
 

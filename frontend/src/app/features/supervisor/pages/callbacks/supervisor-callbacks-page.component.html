@@ -10,7 +10,12 @@
   </div>
 
   <!-- Filters bar -->
-  <div class="callbacks-page__filters" [formGroup]="filterForm" role="search" [attr.aria-label]="'supervisor.callbacks.filtersLabel' | transloco">
+  <div
+    class="callbacks-page__filters"
+    [formGroup]="filterForm"
+    role="search"
+    [attr.aria-label]="'supervisor.callbacks.filtersLabel' | transloco"
+  >
     <div class="filter-group">
       <label class="filter-label" for="filter-status">{{ 'common.status' | transloco }}</label>
       <select
@@ -151,7 +156,8 @@
       <nav class="pagination" aria-label="Nawigacja stron">
         <span class="pagination__info" aria-live="polite">
           @if (total() > 0) {
-            {{ 'supervisor.callbacks.showing' | transloco }} {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ total() }} {{ 'supervisor.callbacks.ofCallbacks' | transloco }}
+            {{ 'supervisor.callbacks.showing' | transloco }} {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }}
+            {{ 'common.of' | transloco }} {{ total() }} {{ 'supervisor.callbacks.ofCallbacks' | transloco }}
           }
         </span>
         <div class="pagination__controls">
@@ -167,7 +173,9 @@
             </svg>
             {{ 'common.previous' | transloco }}
           </button>
-          <span class="pagination__pages" aria-current="page"> {{ 'common.page' | transloco }} {{ page() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }} </span>
+          <span class="pagination__pages" aria-current="page">
+            {{ 'common.page' | transloco }} {{ page() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
+          </span>
           <button
             class="btn btn-pagination"
             type="button"
@@ -211,7 +219,9 @@
 @if (showDeleteModal() && deletingCallback()) {
   <dialog class="confirm-dialog" open aria-modal="true" aria-labelledby="confirm-dialog-title">
     <div class="confirm-dialog__content">
-      <h2 class="confirm-dialog__title" id="confirm-dialog-title">{{ 'supervisor.callbacks.cancelTitle' | transloco }}</h2>
+      <h2 class="confirm-dialog__title" id="confirm-dialog-title">
+        {{ 'supervisor.callbacks.cancelTitle' | transloco }}
+      </h2>
       <p class="confirm-dialog__body">
         {{ 'supervisor.callbacks.confirmBody' | transloco }}
         <strong>{{ deletingCallback()!.phone }}</strong>

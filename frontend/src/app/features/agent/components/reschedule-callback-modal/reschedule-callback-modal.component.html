@@ -1,9 +1,4 @@
-<dialog
-  #dialogEl
-  class="reschedule-dialog"
-  aria-labelledby="reschedule-dialog-title"
-  (click)="onBackdropClick($event)"
->
+<dialog #dialogEl class="reschedule-dialog" aria-labelledby="reschedule-dialog-title" (click)="onBackdropClick($event)">
   <div class="reschedule-dialog__content">
     <!-- Header -->
     <header class="reschedule-dialog__header">
@@ -15,10 +10,10 @@
         </svg>
       </div>
       <div class="reschedule-dialog__title-block">
-        <h2 id="reschedule-dialog-title" class="reschedule-dialog__title">{{ 'agent.rescheduleCallback.title' | transloco }}</h2>
-        <p class="reschedule-dialog__subtitle">
-          Aktualna data: {{ currentScheduledAtFormatted() }}
-        </p>
+        <h2 id="reschedule-dialog-title" class="reschedule-dialog__title">
+          {{ 'agent.rescheduleCallback.title' | transloco }}
+        </h2>
+        <p class="reschedule-dialog__subtitle">Aktualna data: {{ currentScheduledAtFormatted() }}</p>
       </div>
       <button
         type="button"
@@ -54,9 +49,7 @@
                 [min]="minDate()"
                 aria-required="true"
                 aria-label="Data oddzwonienia"
-                [attr.aria-invalid]="
-                  form.controls.scheduledDate.invalid && form.controls.scheduledDate.touched
-                "
+                [attr.aria-invalid]="form.controls.scheduledDate.invalid && form.controls.scheduledDate.touched"
               />
               @if (scheduledDateError) {
                 <span class="form-field__hint" role="alert">
@@ -69,10 +62,7 @@
                 </span>
               }
             </div>
-            <div
-              class="form-row__col form-row__col--time"
-              [class.form-field--error]="scheduledTimeError"
-            >
+            <div class="form-row__col form-row__col--time" [class.form-field--error]="scheduledTimeError">
               <div class="time-selects">
                 <select
                   class="form-field__select time-selects__select"

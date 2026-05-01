@@ -82,15 +82,21 @@
   <!-- ── Grid ── -->
   <div class="cal__grid" [class.cal__grid--day]="viewMode() === 'day'">
     @for (day of weekDays(); track trackByDay($index, day)) {
-      <div
-        class="cal__day"
-        [class.cal__day--today]="day.isToday"
-      >
+      <div class="cal__day" [class.cal__day--today]="day.isToday">
         <!-- Day header -->
         <div class="cal__day-header">
           <span class="cal__day-label">{{ day.label }}</span>
           @if (day.callbacks.length + day.breaks.length + day.campaigns.length > 0) {
-            <span class="cal__day-count" [attr.aria-label]="(day.callbacks.length + day.breaks.length + day.campaigns.length) + ' ' + ('agent.calendar.eventsCount' | transloco)">
+            <span
+              class="cal__day-count"
+              [attr.aria-label]="
+                day.callbacks.length +
+                day.breaks.length +
+                day.campaigns.length +
+                ' ' +
+                ('agent.calendar.eventsCount' | transloco)
+              "
+            >
               {{ day.callbacks.length + day.breaks.length + day.campaigns.length }}
             </span>
           }
@@ -105,7 +111,13 @@
                 type="button"
                 class="cal__event cal__event--callback"
                 (click)="openCallback(cb)"
-                [attr.aria-label]="('agent.calendar.callbackLabel' | transloco) + ' ' + cb.customerName + ' ' + formatTime(cb.scheduledAt)"
+                [attr.aria-label]="
+                  ('agent.calendar.callbackLabel' | transloco) +
+                  ' ' +
+                  cb.customerName +
+                  ' ' +
+                  formatTime(cb.scheduledAt)
+                "
               >
                 <span class="cal__event-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -114,7 +126,10 @@
                 </span>
                 <span class="cal__event-body">
                   <span class="cal__event-title">{{ cb.customerName }}</span>
-                  <span class="cal__event-meta">{{ formatTime(cb.scheduledAt) }} &middot; {{ 'agent.calendarStatus.callbackSourceLabels.' + cb.sourceType | transloco }}</span>
+                  <span class="cal__event-meta"
+                    >{{ formatTime(cb.scheduledAt) }} &middot;
+                    {{ 'agent.calendarStatus.callbackSourceLabels.' + cb.sourceType | transloco }}</span
+                  >
                 </span>
                 <span class="cal__event-status" [class]="'cal__event-status--' + cb.status.toLowerCase()">
                   {{ 'agent.calendarStatus.callbackStatusLabels.' + cb.status | transloco }}
@@ -126,7 +141,9 @@
                 type="button"
                 class="cal__event cal__event--break"
                 (click)="openBreak(br)"
-                [attr.aria-label]="('agent.calendarStatus.breakLabels.' + br.breakType | transloco) + ' ' + formatTime(br.startTime)"
+                [attr.aria-label]="
+                  ('agent.calendarStatus.breakLabels.' + br.breakType | transloco) + ' ' + formatTime(br.startTime)
+                "
               >
                 <span class="cal__event-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -134,7 +151,9 @@
                   </svg>
                 </span>
                 <span class="cal__event-body">
-                  <span class="cal__event-title">{{ 'agent.calendarStatus.breakLabels.' + br.breakType | transloco }}</span>
+                  <span class="cal__event-title">{{
+                    'agent.calendarStatus.breakLabels.' + br.breakType | transloco
+                  }}</span>
                   <span class="cal__event-meta">{{ formatTime(br.startTime) }}–{{ formatTime(br.endTime) }}</span>
                 </span>
                 <span class="cal__event-status" [class]="'cal__event-status--' + br.status.toLowerCase()">
@@ -167,7 +186,11 @@
 
               <!-- Inline campaign details panel -->
               @if (selectedCampaign()?.id === c.id) {
-                <div class="cal__campaign-panel" role="region" [attr.aria-label]="'agent.calendar.campaignDetails' | transloco">
+                <div
+                  class="cal__campaign-panel"
+                  role="region"
+                  [attr.aria-label]="'agent.calendar.campaignDetails' | transloco"
+                >
                   <dl class="cal__campaign-dl">
                     <dt>{{ 'agent.calendar.campaignName' | transloco }}</dt>
                     <dd>{{ c.name }}</dd>
@@ -177,7 +200,10 @@
                     <dd>{{ formatDateRange(c.startDate, c.endDate) }}</dd>
                     @if (c.activeHoursFrom || c.activeHoursTo) {
                       <dt>{{ 'agent.calendar.campaignHours' | transloco }}</dt>
-                      <dd>{{ c.activeHoursFrom ?? '00:00' }}–{{ c.activeHoursTo ?? '23:59' }}{{ c.timezone ? ' (' + c.timezone + ')' : '' }}</dd>
+                      <dd>
+                        {{ c.activeHoursFrom ?? '00:00' }}–{{ c.activeHoursTo ?? '23:59'
+                        }}{{ c.timezone ? ' (' + c.timezone + ')' : '' }}
+                      </dd>
                     }
                     @if (c.activeDays && c.activeDays.length > 0) {
                       <dt>{{ 'agent.calendar.campaignDays' | transloco }}</dt>

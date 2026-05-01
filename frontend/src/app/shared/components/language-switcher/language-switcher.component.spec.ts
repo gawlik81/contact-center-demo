@@ -69,7 +69,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('opens dropdown when trigger is clicked', () => {
     setup();
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     trigger.click();
     fixture.detectChanges();
     const list = fixture.nativeElement.querySelector('.lang-switcher__list');
@@ -78,7 +79,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('closes dropdown when trigger is clicked again', () => {
     setup();
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     trigger.click();
     fixture.detectChanges();
     trigger.click();
@@ -89,7 +91,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('sets aria-expanded="true" when dropdown is open', () => {
     setup();
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     trigger.click();
     fixture.detectChanges();
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
@@ -97,7 +100,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('sets aria-expanded="false" when dropdown is closed', () => {
     setup();
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -105,7 +109,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('calls languageService.setLanguage when an option is clicked', () => {
     setup('pl');
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     trigger.click();
     fixture.detectChanges();
 
@@ -122,7 +127,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('closes dropdown after selecting a language', () => {
     setup('pl');
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     trigger.click();
     fixture.detectChanges();
 
@@ -137,7 +143,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('marks active option with aria-selected="true"', () => {
     setup('de');
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     trigger.click();
     fixture.detectChanges();
 
@@ -151,7 +158,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('marks inactive options with aria-selected="false"', () => {
     setup('pl');
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     trigger.click();
     fixture.detectChanges();
 
@@ -167,7 +175,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('closes dropdown when clicking outside the component', () => {
     setup();
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     trigger.click();
     fixture.detectChanges();
     expect(component.isOpen()).toBe(true);
@@ -182,7 +191,8 @@ describe('LanguageSwitcherComponent', () => {
 
   it('does not close dropdown when clicking inside the component', () => {
     setup();
-    const trigger: HTMLButtonElement = fixture.nativeElement.querySelector('.lang-switcher__trigger');
+    const trigger: HTMLButtonElement =
+      fixture.nativeElement.querySelector('.lang-switcher__trigger');
     trigger.click();
     fixture.detectChanges();
     expect(component.isOpen()).toBe(true);

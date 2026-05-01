@@ -10,7 +10,9 @@ $breakpoint-tablet: 1024px;
 $breakpoint-desktop: 1280px;
 
 $transition-sidenav: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-$transition-label: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+$transition-label:
+  opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+  transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 
 // Overlay (mobile/tablet only)
 .sidenav-overlay {

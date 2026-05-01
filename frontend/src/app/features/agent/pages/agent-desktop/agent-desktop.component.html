@@ -58,10 +58,7 @@
           </svg>
           <span class="status-btn__text">{{ currentStatusConfig().labelKey | transloco }}</span>
           @if (statusService.isChanging()) {
-            <span
-              class="status-btn__spinner"
-              [attr.aria-label]="'agent.desktop.changingStatus' | transloco"
-            ></span>
+            <span class="status-btn__spinner" [attr.aria-label]="'agent.desktop.changingStatus' | transloco"></span>
           } @else {
             <svg class="status-btn__chevron" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
               <path d="M7 10l5 5 5-5z" />
@@ -185,11 +182,7 @@
 
     <!-- MAIN: contact tabs + customer panel -->
     <div class="desktop__content-area">
-      <main
-        class="desktop__main"
-        id="main-content"
-        [attr.aria-label]="'agent.desktop.activeContactsLabel' | transloco"
-      >
+      <main class="desktop__main" id="main-content" [attr.aria-label]="'agent.desktop.activeContactsLabel' | transloco">
         @if (calendarTabActive()) {
           <!-- ── Calendar view ── -->
           <app-agent-calendar />
@@ -210,11 +203,7 @@
           } @else {
             <div class="contact-tabs">
               <!-- Tab bar -->
-              <div
-                class="contact-tabs__bar"
-                role="tablist"
-                [attr.aria-label]="'agent.desktop.tabBarLabel' | transloco"
-              >
+              <div class="contact-tabs__bar" role="tablist" [attr.aria-label]="'agent.desktop.tabBarLabel' | transloco">
                 @for (tab of tabs(); track trackByTabId($index, tab)) {
                   <button
                     type="button"
@@ -320,10 +309,7 @@
 
       <!-- RIGHT PANEL: customer profile (hidden when calendar is active) -->
       @if (!calendarTabActive()) {
-        <aside
-          class="desktop__customer-panel"
-          [attr.aria-label]="'agent.desktop.profileLabel' | transloco"
-        >
+        <aside class="desktop__customer-panel" [attr.aria-label]="'agent.desktop.profileLabel' | transloco">
           <cc-customer-panel [cli]="activeCli()" [email]="activeEmail()" />
         </aside>
       }

@@ -34,7 +34,12 @@ const MIN_QUERY_LENGTH = 2;
   selector: 'app-agent-customers-tab',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    TranslocoModule,DatePipe, FormsModule, AgentCustomerCardComponent, ManualCallbackModalComponent],
+    TranslocoModule,
+    DatePipe,
+    FormsModule,
+    AgentCustomerCardComponent,
+    ManualCallbackModalComponent,
+  ],
   templateUrl: './agent-customers-tab.component.html',
   styleUrl: './agent-customers-tab.component.scss',
 })

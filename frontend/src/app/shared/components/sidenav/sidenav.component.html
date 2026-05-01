@@ -28,7 +28,7 @@
             class="sidenav__link sidenav__link--section"
             [class.sidenav__link--section-active]="isChildActive(item)"
             [attr.aria-label]="item.ariaLabel | transloco"
-            [attr.aria-expanded]="isCollapsed() ? null : (isSectionExpanded(item.route) || isChildActive(item))"
+            [attr.aria-expanded]="isCollapsed() ? null : isSectionExpanded(item.route) || isChildActive(item)"
             [attr.title]="isCollapsed() ? (item.label | transloco) : null"
             [attr.data-tooltip]="isCollapsed() ? (item.label | transloco) : null"
             (click)="toggleSection(item.route)"
@@ -63,7 +63,13 @@
                     #crla="routerLinkActive"
                     [attr.aria-current]="crla.isActive ? 'page' : null"
                   >
-                    <svg class="sidenav__icon sidenav__icon--sm" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+                    <svg
+                      class="sidenav__icon sidenav__icon--sm"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
                       <path [attr.d]="child.svgPath" />
                     </svg>
                     <span class="sidenav__label">{{ child.label | transloco }}</span>
@@ -123,7 +129,9 @@
         focusable="false"
       >
         <!-- Double chevron left -->
-        <path d="M11.41 7.41L10 6l-6 6 6 6 1.41-1.41L6.83 12l4.58-4.59zm6 0L16 6l-6 6 6 6 1.41-1.41L12.83 12l4.58-4.59z" />
+        <path
+          d="M11.41 7.41L10 6l-6 6 6 6 1.41-1.41L6.83 12l4.58-4.59zm6 0L16 6l-6 6 6 6 1.41-1.41L12.83 12l4.58-4.59z"
+        />
       </svg>
       <span class="sidenav__collapse-label">{{ 'nav.collapse' | transloco }}</span>
     </button>

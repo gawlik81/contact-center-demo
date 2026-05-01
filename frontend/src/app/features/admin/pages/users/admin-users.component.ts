@@ -1,5 +1,5 @@
-import {ChangeDetectionStrategy, Component} from '@angular/core';
-import {AdminUserListComponent} from './admin-user-list/admin-user-list.component';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { AdminUserListComponent } from './admin-user-list/admin-user-list.component';
 
 /**
  * Panel Admina – zakładka "Użytkownicy".

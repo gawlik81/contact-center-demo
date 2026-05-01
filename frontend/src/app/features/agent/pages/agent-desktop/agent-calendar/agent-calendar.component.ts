@@ -44,8 +44,7 @@ interface CalendarDay {
   selector: 'app-agent-calendar',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [
-    TranslocoModule,RescheduleCallbackModalComponent, AddBreakModalComponent],
+  imports: [TranslocoModule, RescheduleCallbackModalComponent, AddBreakModalComponent],
   templateUrl: './agent-calendar.component.html',
   styleUrl: './agent-calendar.component.scss',
 })
@@ -59,14 +58,20 @@ export class AgentCalendarComponent implements OnInit {
   readonly viewMode = signal<CalendarViewMode>(window.innerWidth < 640 ? 'day' : 'week');
   readonly currentDate = signal<Date>(new Date());
   readonly isLoading = signal(false);
-  readonly calendarData = signal<AgentCalendarResponse>({ callbacks: [], campaigns: [], breaks: [] });
+  readonly calendarData = signal<AgentCalendarResponse>({
+    callbacks: [],
+    campaigns: [],
+    breaks: [],
+  });
 
   // ── Modal state ──────────────────────────────────────────────────────────────
   readonly selectedCallback = signal<CalendarCallback | null>(null);
   readonly selectedBreak = signal<CalendarBreak | null>(null);
   readonly selectedCampaign = signal<CalendarCampaign | null>(null);
   readonly addBreakMode = signal(false);
-  readonly currentLang = toSignal(this.transloco.langChanges$, { initialValue: this.transloco.getActiveLang() });
+  readonly currentLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
 
   // ── Derived state ────────────────────────────────────────────────────────────
   readonly weekDays = computed<CalendarDay[]>(() => {
@@ -150,7 +155,9 @@ export class AgentCalendarComponent implements OnInit {
       // Campaigns are all-day: appear before timed events
       const events: CalendarEventEntry[] = [
         ...campaigns.map((c): CalendarEventEntry => ({ kind: 'campaign', item: c })),
-        ...timedEvents.map(({ kind, item }): CalendarEventEntry => ({ kind, item } as CalendarEventEntry)),
+        ...timedEvents.map(
+          ({ kind, item }): CalendarEventEntry => ({ kind, item }) as CalendarEventEntry,
+        ),
       ];
 
       const isToday = dayStart.getTime() === today.getTime();

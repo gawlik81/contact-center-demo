@@ -105,7 +105,9 @@ export class CustomerDetailComponent implements OnInit {
                 this.loadState.set('not-found');
               } else {
                 this.loadState.set('error');
-                this.notifications.error(this.transloco.translate('supervisor.customerDetail.errorLoad'));
+                this.notifications.error(
+                  this.transloco.translate('supervisor.customerDetail.errorLoad'),
+                );
               }
               return of(null);
             }),
@@ -218,17 +220,16 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   getChannelLabel(channel: string): string {
-    const labels: Record<string, string> = {
-      VOICE: 'Telefon',
-      EMAIL: 'Email',
-      CHAT: 'Chat',
-      SOCIAL: 'Social',
-    };
-    return labels[channel] ?? channel;
+    const key = `supervisor.customerDetail.channelLabels.${channel}`;
+    return this.transloco.translate(key, {}, channel);
   }
 
   getStatusLabel(status: string): string {
-    return this.transloco.translate(`supervisor.customerDetail.contactStatusLabels.${status}`, {}, status);
+    return this.transloco.translate(
+      `supervisor.customerDetail.contactStatusLabels.${status}`,
+      {},
+      status,
+    );
   }
 
   onGdprExport(): void {
@@ -242,9 +243,13 @@ export class CustomerDetailComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         catchError((err: { status?: number }) => {
           if (err.status === 403) {
-            this.notifications.error(this.transloco.translate('supervisor.customerDetail.errorLoad'));
+            this.notifications.error(
+              this.transloco.translate('supervisor.customerDetail.errorLoad'),
+            );
           } else {
-            this.notifications.error(this.transloco.translate('supervisor.customerDetail.errorLoad'));
+            this.notifications.error(
+              this.transloco.translate('supervisor.customerDetail.errorLoad'),
+            );
           }
           this.gdprExportLoading.set(false);
           return of(null);

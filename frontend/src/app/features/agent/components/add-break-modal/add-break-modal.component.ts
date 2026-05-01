@@ -142,7 +142,8 @@ export class AddBreakModalComponent implements OnInit {
     const h = this.form.controls.startHour;
     const m = this.form.controls.startMinute;
     if (!h.touched && !m.touched) return null;
-    if (h.hasError('required') || m.hasError('required')) return 'Godzina rozpoczęcia jest wymagana.';
+    if (h.hasError('required') || m.hasError('required'))
+      return 'Godzina rozpoczęcia jest wymagana.';
     return null;
   }
 
@@ -157,7 +158,8 @@ export class AddBreakModalComponent implements OnInit {
     const h = this.form.controls.endHour;
     const m = this.form.controls.endMinute;
     if (!h.touched && !m.touched) return null;
-    if (h.hasError('required') || m.hasError('required')) return 'Godzina zakończenia jest wymagana.';
+    if (h.hasError('required') || m.hasError('required'))
+      return 'Godzina zakończenia jest wymagana.';
     return null;
   }
 
@@ -258,7 +260,9 @@ export class AddBreakModalComponent implements OnInit {
       )
       .subscribe(() => {
         this.loading.set(false);
-        const msg = existing ? this.transloco.translate('common.success') : this.transloco.translate('common.success');
+        const msg = existing
+          ? this.transloco.translate('common.success')
+          : this.transloco.translate('common.success');
         this.notifications.success(msg);
         this.dialogRef().nativeElement.close();
         this.saved.emit();

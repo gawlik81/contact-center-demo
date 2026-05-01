@@ -21,8 +21,7 @@ import { RescheduleCallbackModalComponent } from '../../components/reschedule-ca
   selector: 'app-agent-callbacks-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,DatePipe, ReactiveFormsModule, RescheduleCallbackModalComponent],
+  imports: [TranslocoModule, DatePipe, ReactiveFormsModule, RescheduleCallbackModalComponent],
   templateUrl: './agent-callbacks-page.component.html',
   styleUrl: './agent-callbacks-page.component.scss',
 })

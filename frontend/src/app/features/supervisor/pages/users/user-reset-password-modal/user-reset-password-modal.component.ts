@@ -13,8 +13,7 @@ import { UserResponse } from '../../../models/user.model';
 @Component({
   selector: 'app-user-reset-password-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,],
+  imports: [TranslocoModule],
   templateUrl: './user-reset-password-modal.component.html',
   styleUrl: './user-reset-password-modal.component.scss',
   host: {

@@ -102,9 +102,7 @@ export class ManualCampaignPanelComponent implements OnInit {
 
   protected toggleExpanded(campaignId: string): void {
     this.campaignRows.update((rows) =>
-      rows.map((r) =>
-        r.group.campaignId === campaignId ? { ...r, expanded: !r.expanded } : r,
-      ),
+      rows.map((r) => (r.group.campaignId === campaignId ? { ...r, expanded: !r.expanded } : r)),
     );
   }
 
@@ -144,9 +142,13 @@ export class ManualCampaignPanelComponent implements OnInit {
         error: (err) => {
           if (err.status === 409) {
             const msg: string = err.error?.message ?? '';
-            this.notifications.error(msg || this.transloco.translate('agent.manualCampaign.callError'));
+            this.notifications.error(
+              msg || this.transloco.translate('agent.manualCampaign.callError'),
+            );
           } else if (err.status === 404) {
-            this.notifications.error(this.transloco.translate('agent.manualCampaign.callRecordNotFound'));
+            this.notifications.error(
+              this.transloco.translate('agent.manualCampaign.callRecordNotFound'),
+            );
           } else {
             this.notifications.error(this.transloco.translate('agent.manualCampaign.callError'));
           }
@@ -154,8 +156,7 @@ export class ManualCampaignPanelComponent implements OnInit {
       });
   }
 
-  protected readonly trackByCampaignId = (_i: number, row: CampaignRow) =>
-    row.group.campaignId;
+  protected readonly trackByCampaignId = (_i: number, row: CampaignRow) => row.group.campaignId;
 
   protected readonly trackByRecordId = (_i: number, rec: ManualCampaignRecord) => rec.recordId;
 }

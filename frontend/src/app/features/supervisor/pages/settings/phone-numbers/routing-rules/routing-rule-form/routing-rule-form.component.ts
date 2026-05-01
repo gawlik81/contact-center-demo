@@ -45,8 +45,7 @@ function atLeastOneDayValidator(control: AbstractControl): ValidationErrors | nu
 @Component({
   selector: 'app-routing-rule-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './routing-rule-form.component.html',
   styleUrl: './routing-rule-form.component.scss',
 })
@@ -178,7 +177,9 @@ export class RoutingRuleFormComponent implements OnInit {
             const msg = httpErr?.error?.message ?? 'Reguła koliduje z istniejącą regułą.';
             this.notifications.error(msg);
           } else {
-            this.notifications.error(this.transloco.translate('supervisor.settings.routingRules.errorSave'));
+            this.notifications.error(
+              this.transloco.translate('supervisor.settings.routingRules.errorSave'),
+            );
           }
           return of(null);
         }),
@@ -187,7 +188,9 @@ export class RoutingRuleFormComponent implements OnInit {
       .subscribe((result) => {
         if (!result) return;
         this.submitting.set(false);
-        this.notifications.success(this.transloco.translate('supervisor.settings.routingRules.successSave'));
+        this.notifications.success(
+          this.transloco.translate('supervisor.settings.routingRules.successSave'),
+        );
         this.saved.emit(result);
         this.dialogRef.nativeElement.close();
       });

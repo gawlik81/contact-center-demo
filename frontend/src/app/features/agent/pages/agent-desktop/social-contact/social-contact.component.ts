@@ -27,8 +27,7 @@ import { WsEvent } from '../../../models/ws-event.model';
 @Component({
   selector: 'cc-social-contact',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,DatePipe],
+  imports: [TranslocoModule, DatePipe],
   templateUrl: './social-contact.component.html',
   styleUrl: './social-contact.component.scss',
 })

@@ -128,7 +128,9 @@
 @if (showDeleteModal() && deletingGroup()) {
   <dialog class="confirm-dialog" open aria-modal="true" aria-labelledby="confirm-delete-title">
     <div class="confirm-dialog__content">
-      <h2 class="confirm-dialog__title" id="confirm-delete-title">{{ 'supervisor.agentGroups.deleteTitle' | transloco }}</h2>
+      <h2 class="confirm-dialog__title" id="confirm-delete-title">
+        {{ 'supervisor.agentGroups.deleteTitle' | transloco }}
+      </h2>
       <p class="confirm-dialog__body">
         {{ 'supervisor.agentGroups.confirmDeleteBody' | transloco }}
         <strong>{{ deletingGroup()!.name }}</strong

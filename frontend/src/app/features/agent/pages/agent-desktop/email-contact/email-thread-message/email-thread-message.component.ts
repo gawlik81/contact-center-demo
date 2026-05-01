@@ -14,8 +14,7 @@ import { EmailMessage } from '../../../../services/email.service';
 @Component({
   selector: 'cc-email-thread-message',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,DatePipe],
+  imports: [TranslocoModule, DatePipe],
   templateUrl: './email-thread-message.component.html',
   styleUrl: './email-thread-message.component.scss',
 })
@@ -43,7 +42,11 @@ export class EmailThreadMessageComponent {
 
   protected getSrcdoc(html: string | null | undefined, text?: string | null): string {
     const noContentLabel = this.transloco.translate('agent.emailThread.noContent');
-    const content = html || (text ? `<pre style="white-space:pre-wrap;word-break:break-word">${text.replace(/</g, '&lt;')}</pre>` : `<p style="color:#64748b;font-style:italic">${noContentLabel}</p>`);
+    const content =
+      html ||
+      (text
+        ? `<pre style="white-space:pre-wrap;word-break:break-word">${text.replace(/</g, '&lt;')}</pre>`
+        : `<p style="color:#64748b;font-style:italic">${noContentLabel}</p>`);
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
   * { box-sizing: border-box; }

@@ -136,7 +136,9 @@ export class CustomerListComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error(this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'),
+          );
           return of(null);
         }),
         finalize(() => {
@@ -146,7 +148,9 @@ export class CustomerListComponent implements OnInit {
       )
       .subscribe((result) => {
         if (result !== null) {
-          this.notifications.success(this.transloco.translate('supervisor.gdprAnonymize.successAnonymize'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.gdprAnonymize.successAnonymize'),
+          );
           this.loadCustomers();
         }
       });
@@ -222,7 +226,9 @@ export class CustomerListComponent implements OnInit {
 
   getSortAriaLabel(field: SortField): string {
     if (this.sortField() !== field) return this.transloco.translate('common.sortAsc');
-    return this.sortDir() === 'asc' ? this.transloco.translate('common.sortDesc') : this.transloco.translate('common.sortAsc');
+    return this.sortDir() === 'asc'
+      ? this.transloco.translate('common.sortDesc')
+      : this.transloco.translate('common.sortAsc');
   }
 
   isSortActive(field: SortField): boolean {

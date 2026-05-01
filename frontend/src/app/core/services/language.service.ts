@@ -38,10 +38,12 @@ export class LanguageService {
     if (this.authService.isAuthenticated()) {
       this.http
         .put(`${environment.apiUrl}/users/me/preferences`, { preferredLanguage: lang })
-        .pipe(catchError((err) => {
-          console.error('[LanguageService] Failed to persist language preference:', err);
-          return of(null);
-        }))
+        .pipe(
+          catchError((err) => {
+            console.error('[LanguageService] Failed to persist language preference:', err);
+            return of(null);
+          }),
+        )
         .subscribe();
     }
   }

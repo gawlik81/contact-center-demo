@@ -9,7 +9,12 @@
       <h2 id="admin-user-form-title" class="user-form-dialog__title">
         {{ isEditMode() ? ('admin.userForm.titleEdit' | transloco) : ('admin.userForm.titleCreate' | transloco) }}
       </h2>
-      <button class="btn-close" type="button" (click)="onCancel()" [attr.aria-label]="'supervisor.userForm.closeLabel' | transloco">
+      <button
+        class="btn-close"
+        type="button"
+        (click)="onCancel()"
+        [attr.aria-label]="'supervisor.userForm.closeLabel' | transloco"
+      >
         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
           <path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -18,19 +23,11 @@
       </button>
     </div>
 
-    <form
-      class="user-form-dialog__body"
-      [formGroup]="form"
-      (ngSubmit)="onSubmit()"
-      novalidate
-      id="admin-user-form"
-    >
+    <form class="user-form-dialog__body" [formGroup]="form" (ngSubmit)="onSubmit()" novalidate id="admin-user-form">
       <!-- Tenant selector (only in create mode) -->
       @if (!isEditMode()) {
         <div class="form-field" [class.form-field--error]="tenantIdError">
-          <label class="form-label" for="tenantId">
-            Tenant <span class="required" aria-hidden="true">*</span>
-          </label>
+          <label class="form-label" for="tenantId"> Tenant <span class="required" aria-hidden="true">*</span> </label>
           <select
             id="tenantId"
             class="form-select"
@@ -90,9 +87,7 @@
 
       <!-- Email -->
       <div class="form-field" [class.form-field--error]="emailError">
-        <label class="form-label" for="adm-email">
-          Email <span class="required" aria-hidden="true">*</span>
-        </label>
+        <label class="form-label" for="adm-email"> Email <span class="required" aria-hidden="true">*</span> </label>
         <input
           id="adm-email"
           type="email"
@@ -132,9 +127,7 @@
 
       <!-- Role -->
       <div class="form-field">
-        <label class="form-label" for="adm-role">
-          Rola <span class="required" aria-hidden="true">*</span>
-        </label>
+        <label class="form-label" for="adm-role"> Rola <span class="required" aria-hidden="true">*</span> </label>
         <select id="adm-role" class="form-select" formControlName="role" aria-required="true">
           @for (opt of roleOptions; track opt.value) {
             <option [value]="opt.value">{{ opt.label }}</option>
@@ -146,12 +139,7 @@
       @if (isEditMode()) {
         <div class="form-field form-field--checkbox">
           <label class="form-label form-label--checkbox" for="adm-active">
-            <input
-              id="adm-active"
-              type="checkbox"
-              class="form-checkbox"
-              formControlName="active"
-            />
+            <input id="adm-active" type="checkbox" class="form-checkbox" formControlName="active" />
             {{ 'admin.userForm.activeLabel' | transloco }}
           </label>
           <span class="form-hint">{{ 'admin.userForm.activeHint' | transloco }}</span>
@@ -197,12 +185,7 @@
               (keydown)="onSkillInputKeydown($event)"
             />
             @if (showSkillDropdown() && filteredSkills().length > 0) {
-              <ul
-                id="adm-skill-dropdown"
-                class="skill-dropdown"
-                role="listbox"
-                aria-label="Dostepne skills"
-              >
+              <ul id="adm-skill-dropdown" class="skill-dropdown" role="listbox" aria-label="Dostepne skills">
                 @for (skill of filteredSkills(); track skill) {
                   <li
                     class="skill-dropdown__item"

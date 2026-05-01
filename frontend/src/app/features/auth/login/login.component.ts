@@ -1,10 +1,4 @@
-import {
-  Component,
-  ChangeDetectionStrategy,
-  inject,
-  signal,
-  computed,
-} from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
@@ -57,10 +51,7 @@ export class LoginComponent {
   // ── Step 3: MFA form ──────────────────────────────────────────────────────
 
   readonly mfaForm = this.fb.group({
-    code: [
-      '',
-      [Validators.required, Validators.pattern(/^\d{6}$/)],
-    ],
+    code: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
   });
 
   // ── Computed helpers: email step ──────────────────────────────────────────
@@ -98,8 +89,10 @@ export class LoginComponent {
   readonly passwordErrorMessage = computed(() => {
     const ctrl = this.passwordControl();
     if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('auth.validation.passwordRequired');
-    if (ctrl.hasError('minlength')) return this.transloco.translate('auth.validation.passwordTooShort');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('auth.validation.passwordRequired');
+    if (ctrl.hasError('minlength'))
+      return this.transloco.translate('auth.validation.passwordTooShort');
     return null;
   });
 
@@ -115,7 +108,8 @@ export class LoginComponent {
   readonly codeErrorMessage = computed(() => {
     const ctrl = this.codeControl();
     if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('auth.validation.mfaCodeRequired');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('auth.validation.mfaCodeRequired');
     if (ctrl.hasError('pattern')) return this.transloco.translate('auth.validation.mfaCodeInvalid');
     return null;
   });
@@ -181,23 +175,21 @@ export class LoginComponent {
 
     const password = this.credentialsForm.getRawValue().password!;
 
-    this.authService
-      .login({ tenantId, email: this.emailValue, password })
-      .subscribe({
-        next: (response: LoginResponse) => {
-          this.loading.set(false);
-          this.handleLoginResponse(response);
-        },
-        error: (err) => {
-          this.loading.set(false);
-          const status = err?.status;
-          if (status === 401) {
-            this.errorMessage.set(this.transloco.translate('auth.errors.invalidCredentials'));
-          } else {
-            this.errorMessage.set(this.transloco.translate('auth.errors.serverError'));
-          }
-        },
-      });
+    this.authService.login({ tenantId, email: this.emailValue, password }).subscribe({
+      next: (response: LoginResponse) => {
+        this.loading.set(false);
+        this.handleLoginResponse(response);
+      },
+      error: (err) => {
+        this.loading.set(false);
+        const status = err?.status;
+        if (status === 401) {
+          this.errorMessage.set(this.transloco.translate('auth.errors.invalidCredentials'));
+        } else {
+          this.errorMessage.set(this.transloco.translate('auth.errors.serverError'));
+        }
+      },
+    });
   }
 
   onSubmitMfa(): void {

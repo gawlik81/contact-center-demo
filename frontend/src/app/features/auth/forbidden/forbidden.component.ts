@@ -15,7 +15,9 @@ import { AuthService } from '../../../core/services/auth.service';
         <p>{{ 'auth.forbidden.message' | transloco }}</p>
         <div class="actions">
           <button (click)="goBack()">{{ 'auth.forbidden.back' | transloco }}</button>
-          <button class="secondary" (click)="logout()">{{ 'auth.forbidden.logout' | transloco }}</button>
+          <button class="secondary" (click)="logout()">
+            {{ 'auth.forbidden.logout' | transloco }}
+          </button>
         </div>
       </div>
     </div>
@@ -32,7 +34,7 @@ import { AuthService } from '../../../core/services/auth.service';
       background: #fff;
       padding: 3rem 2rem;
       border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       text-align: center;
       max-width: 420px;
     }
@@ -42,9 +44,20 @@ import { AuthService } from '../../../core/services/auth.service';
       color: #d32f2f;
       margin-bottom: 0.5rem;
     }
-    h1 { margin: 0 0 0.5rem; font-size: 1.5rem; color: #333; }
-    p { color: #666; margin-bottom: 2rem; }
-    .actions { display: flex; gap: 0.75rem; justify-content: center; }
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.5rem;
+      color: #333;
+    }
+    p {
+      color: #666;
+      margin-bottom: 2rem;
+    }
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+    }
     button {
       padding: 0.6rem 1.5rem;
       border: none;
@@ -54,9 +67,16 @@ import { AuthService } from '../../../core/services/auth.service';
       background: #1565c0;
       color: #fff;
     }
-    button:hover { background: #0d47a1; }
-    button.secondary { background: #e0e0e0; color: #333; }
-    button.secondary:hover { background: #bdbdbd; }
+    button:hover {
+      background: #0d47a1;
+    }
+    button.secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+    button.secondary:hover {
+      background: #bdbdbd;
+    }
   `,
 })
 export class ForbiddenComponent {

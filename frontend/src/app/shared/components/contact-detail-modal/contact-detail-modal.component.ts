@@ -200,7 +200,9 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
       .pipe(
         catchError(() => {
           this.emailPreviewState.set('error');
-          this.notifications.error(this.transloco.translate('contactDetailModal.errorEmailPreview'));
+          this.notifications.error(
+            this.transloco.translate('contactDetailModal.errorEmailPreview'),
+          );
           return of(null);
         }),
       )
@@ -256,7 +258,11 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   }
 
   getDirectionLabel(direction: string): string {
-    return this.transloco.translate(`contactDetailModal.directionLabels.${direction}`, {}, direction);
+    return this.transloco.translate(
+      `contactDetailModal.directionLabels.${direction}`,
+      {},
+      direction,
+    );
   }
 
   getCallbackStatusLabel(status: string): string {

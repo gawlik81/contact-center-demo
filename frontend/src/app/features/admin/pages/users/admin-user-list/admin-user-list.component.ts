@@ -1,21 +1,27 @@
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
-import {ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal,} from '@angular/core';
-import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {FormBuilder, ReactiveFormsModule} from '@angular/forms';
-import {catchError, of} from 'rxjs';
-import {AdminUserService} from '../../../services/admin-user.service';
-import {TenantService} from '../../../../tenants/tenant.service';
-import {NotificationService} from '../../../../../core/services/notification.service';
-import {AdminPagedResponse, AdminUserResponse} from '../../../models/admin-user.model';
-import {Tenant} from '../../../../tenants/tenant.model';
-import {AdminUserFormComponent} from '../admin-user-form/admin-user-form.component';
-import {UserRole, UserStatus} from '../../../../supervisor/models/user.model';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { catchError, of } from 'rxjs';
+import { AdminUserService } from '../../../services/admin-user.service';
+import { TenantService } from '../../../../tenants/tenant.service';
+import { NotificationService } from '../../../../../core/services/notification.service';
+import { AdminPagedResponse, AdminUserResponse } from '../../../models/admin-user.model';
+import { Tenant } from '../../../../tenants/tenant.model';
+import { AdminUserFormComponent } from '../admin-user-form/admin-user-form.component';
+import { UserRole, UserStatus } from '../../../../supervisor/models/user.model';
 
 @Component({
   selector: 'cc-admin-user-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,ReactiveFormsModule, AdminUserFormComponent],
+  imports: [TranslocoModule, ReactiveFormsModule, AdminUserFormComponent],
   templateUrl: './admin-user-list.component.html',
   styleUrl: './admin-user-list.component.scss',
 })
@@ -57,12 +63,10 @@ export class AdminUserListComponent implements OnInit {
   ngOnInit(): void {
     this.loadTenants();
 
-    this.filterForm.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.currentPage.set(0);
-        this.loadUsers();
-      });
+    this.filterForm.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.currentPage.set(0);
+      this.loadUsers();
+    });
   }
 
   private loadTenants(): void {
@@ -248,22 +252,33 @@ export class AdminUserListComponent implements OnInit {
 
   getRoleLabel(role: UserRole): string {
     switch (role) {
-      case 'ADMIN': return 'Admin';
-      case 'SUPERVISOR': return 'Supervisor';
-      case 'AGENT': return 'Agent';
-      default: return role;
+      case 'ADMIN':
+        return 'Admin';
+      case 'SUPERVISOR':
+        return 'Supervisor';
+      case 'AGENT':
+        return 'Agent';
+      default:
+        return role;
     }
   }
 
   getStatusLabel(status: UserStatus): string {
     switch (status) {
-      case 'AVAILABLE': return 'Dostepny';
-      case 'BUSY': return 'Zajety';
-      case 'AFTER_CONTACT': return 'Po kontakcie';
-      case 'BREAK': return 'Przerwa';
-      case 'ACTIVE': return 'Aktywny';
-      case 'INACTIVE': return 'Nieaktywny';
-      case 'OFFLINE': return 'Offline';
+      case 'AVAILABLE':
+        return 'Dostepny';
+      case 'BUSY':
+        return 'Zajety';
+      case 'AFTER_CONTACT':
+        return 'Po kontakcie';
+      case 'BREAK':
+        return 'Przerwa';
+      case 'ACTIVE':
+        return 'Aktywny';
+      case 'INACTIVE':
+        return 'Nieaktywny';
+      case 'OFFLINE':
+        return 'Offline';
     }
   }
 }

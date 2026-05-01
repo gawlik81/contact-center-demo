@@ -34,8 +34,7 @@ interface StatusOption {
 @Component({
   selector: 'app-campaign-contacts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,],
+  imports: [TranslocoModule],
   templateUrl: './campaign-contacts.component.html',
   styleUrl: './campaign-contacts.component.scss',
   host: {
@@ -192,7 +191,9 @@ export class CampaignContactsComponent implements AfterViewInit {
         next: () => {
           this.contacts.update((list) =>
             list.map((c) =>
-              c.recordId === contact.recordId ? { ...c, status: 'DIALING' as CampaignContactStatus } : c,
+              c.recordId === contact.recordId
+                ? { ...c, status: 'DIALING' as CampaignContactStatus }
+                : c,
             ),
           );
         },
@@ -204,7 +205,9 @@ export class CampaignContactsComponent implements AfterViewInit {
           } else if (err.status === 404) {
             this.notificationService.error('Rekord nie zostal znaleziony.');
           } else {
-            this.notificationService.error('Nie udalo sie zainicjowac polaczenia. Sprobuj ponownie.');
+            this.notificationService.error(
+              'Nie udalo sie zainicjowac polaczenia. Sprobuj ponownie.',
+            );
           }
         },
       });

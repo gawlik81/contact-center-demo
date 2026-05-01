@@ -38,7 +38,9 @@
               <th scope="col">{{ 'common.status' | transloco }}</th>
               <th scope="col">{{ 'supervisor.ivr.tableVersion' | transloco }}</th>
               <th scope="col">{{ 'supervisor.ivr.tableModified' | transloco }}</th>
-              <th scope="col"><span class="sr-only">{{ 'common.actions' | transloco }}</span></th>
+              <th scope="col">
+                <span class="sr-only">{{ 'common.actions' | transloco }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -50,9 +52,17 @@
                     class="status-badge"
                     [class.status-badge--active]="ivr.is_active"
                     [class.status-badge--inactive]="!ivr.is_active"
-                    [attr.aria-label]="ivr.is_active ? ('supervisor.ivr.statusActive' | transloco) : ('supervisor.ivr.statusInactive' | transloco)"
+                    [attr.aria-label]="
+                      ivr.is_active
+                        ? ('supervisor.ivr.statusActive' | transloco)
+                        : ('supervisor.ivr.statusInactive' | transloco)
+                    "
                   >
-                    {{ ivr.is_active ? ('supervisor.ivr.statusActive' | transloco) : ('supervisor.ivr.statusInactive' | transloco) }}
+                    {{
+                      ivr.is_active
+                        ? ('supervisor.ivr.statusActive' | transloco)
+                        : ('supervisor.ivr.statusInactive' | transloco)
+                    }}
                   </span>
                 </td>
                 <td class="ivr-version" [title]="('supervisor.ivr.versionTitle' | transloco) + ' ' + ivr.version">
@@ -130,7 +140,12 @@
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal__header">
         <h2 class="modal__title" id="create-ivr-title">{{ 'supervisor.ivr.addIvr' | transloco }}</h2>
-        <button class="modal__close" type="button" (click)="closeCreateModal()" [attr.aria-label]="'common.close' | transloco">
+        <button
+          class="modal__close"
+          type="button"
+          (click)="closeCreateModal()"
+          [attr.aria-label]="'common.close' | transloco"
+        >
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20">
             <path
               d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -153,7 +168,9 @@
         />
       </div>
       <div class="modal__footer">
-        <button class="btn btn-secondary" type="button" (click)="closeCreateModal()">{{ 'common.cancel' | transloco }}</button>
+        <button class="btn btn-secondary" type="button" (click)="closeCreateModal()">
+          {{ 'common.cancel' | transloco }}
+        </button>
         <button
           class="btn btn-primary"
           type="button"
@@ -187,8 +204,12 @@
         <p>{{ 'supervisor.ivr.deleteConfirm' | transloco }}</p>
       </div>
       <div class="modal__footer">
-        <button class="btn btn-secondary" type="button" (click)="cancelDelete()">{{ 'common.cancel' | transloco }}</button>
-        <button class="btn btn-danger" type="button" (click)="confirmDelete()">{{ 'common.delete' | transloco }}</button>
+        <button class="btn btn-secondary" type="button" (click)="cancelDelete()">
+          {{ 'common.cancel' | transloco }}
+        </button>
+        <button class="btn btn-danger" type="button" (click)="confirmDelete()">
+          {{ 'common.delete' | transloco }}
+        </button>
       </div>
     </div>
   </div>

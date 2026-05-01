@@ -20,8 +20,7 @@ import { IvrResponse } from '../../../models/ivr.model';
 @Component({
   selector: 'app-ivr-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,FormsModule],
+  imports: [TranslocoModule, FormsModule],
   templateUrl: './ivr-list.component.html',
   styleUrl: './ivr-list.component.scss',
 })

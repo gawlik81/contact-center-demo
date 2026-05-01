@@ -13,7 +13,8 @@
     <div class="delete-dialog__body">
       <p id="delete-desc" class="delete-dialog__message">
         {{ 'supervisor.userDelete.body' | transloco }}
-        <strong>{{ user().firstName }} {{ user().lastName }}</strong>?
+        <strong>{{ user().firstName }} {{ user().lastName }}</strong
+        >?
         {{ 'supervisor.userDelete.irreversible' | transloco }}
       </p>
       <p class="delete-dialog__warning">{{ 'supervisor.userDelete.warning' | transloco }}</p>
@@ -27,7 +28,9 @@
         class="btn btn-delete"
         type="button"
         (click)="onConfirm()"
-        [attr.aria-label]="('supervisor.userDelete.confirmLabel' | transloco) + ' ' + user().firstName + ' ' + user().lastName"
+        [attr.aria-label]="
+          ('supervisor.userDelete.confirmLabel' | transloco) + ' ' + user().firstName + ' ' + user().lastName
+        "
       >
         {{ 'common.delete' | transloco }}
       </button>

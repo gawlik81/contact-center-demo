@@ -312,7 +312,9 @@ export class AgentDesktopComponent implements OnInit {
       MAX_ASYNC: this.transloco.translate('agent.desktop.tabLimitAsync'),
       MAX_TOTAL: this.transloco.translate('agent.desktop.tabLimitTotal'),
     };
-    this.tabLimitMessage.set(messages[reason] ?? this.transloco.translate('agent.desktop.tabLimit'));
+    this.tabLimitMessage.set(
+      messages[reason] ?? this.transloco.translate('agent.desktop.tabLimit'),
+    );
     setTimeout(() => this.tabLimitMessage.set(null), 5_000);
   }
 }

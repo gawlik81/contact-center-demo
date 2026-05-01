@@ -12,8 +12,7 @@ import {
 @Component({
   selector: 'app-customer-delete-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,],
+  imports: [TranslocoModule],
   templateUrl: './customer-delete-modal.component.html',
   styleUrl: './customer-delete-modal.component.scss',
   host: {

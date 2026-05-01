@@ -2240,7 +2240,7 @@ Klucze organizowane hierarchicznie w JSON: `{ "agent": { "desktop": { ... } }, "
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2249,9 +2249,9 @@ Plik: `features/supervisor/pages/contacts-report/contacts-report.component.html`
 Nagłówki `<th>` ("Data i czas", "Kanal", "Kierunek", "Kolejka", "Czas trwania", "Status", "Dyspozycja", "Akcje") oraz `<option>Wszystkie</option>` są hardcoded po polsku.
 
 **Kryteria akceptacji:**
-- [ ] Wszystkie nagłówki tabeli używają `| transloco` pipe
-- [ ] Opcja "Wszystkie" w filtrze używa klucza `common.all` lub `supervisor.contactsReport.*`
-- [ ] Tekst poprawnie wyświetla się w PL / EN / DE / UK
+- [x] Wszystkie nagłówki tabeli używają `| transloco` pipe
+- [x] Opcja "Wszystkie" w filtrze używa klucza `common.all` lub `supervisor.contactsReport.*`
+- [x] Tekst poprawnie wyświetla się w PL / EN / DE / UK
 
 ---
 
@@ -2261,7 +2261,7 @@ Nagłówki `<th>` ("Data i czas", "Kanal", "Kierunek", "Kolejka", "Czas trwania"
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2270,9 +2270,9 @@ Plik: `features/supervisor/pages/customers/customer-detail/customer-detail.compo
 Hardcoded: "Dane kontaktowe", "Ostatnia aktualizacja", "Zgoda na przetwarzanie", "Tak"/"Nie" (badge), "Data zgody", "Zgoda marketingowa", "Dodatkowe pola", nagłówki tabeli historii kontaktów oraz aria-labels nawigacji.
 
 **Kryteria akceptacji:**
-- [ ] Wszystkie etykiety `<dt>`, `<th>`, tytuły sekcji używają `| transloco`
-- [ ] Badge "Tak"/"Nie" używają `common.yes` / `common.no`
-- [ ] Aria-labels nawigacji używają kluczy `supervisor.customerDetail.*`
+- [x] Wszystkie etykiety `<dt>`, `<th>`, tytuły sekcji używają `| transloco`
+- [x] Badge "Tak"/"Nie" używają `common.yes` / `common.no`
+- [x] Aria-labels nawigacji używają kluczy `supervisor.customerDetail.*`
 
 ---
 
@@ -2282,7 +2282,7 @@ Hardcoded: "Dane kontaktowe", "Ostatnia aktualizacja", "Zgoda na przetwarzanie",
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2292,8 +2292,8 @@ HTML: "Integracje Social Media", "Nazwa strony", "Token wygasa" hardcoded po pol
 TS: metoda zwraca hardcoded `'Błąd'` zamiast przetłumaczonego stringa.
 
 **Kryteria akceptacji:**
-- [ ] Tytuł i etykiety `<dt>` używają `| transloco` z kluczami `integrations.social.*`
-- [ ] Metoda w TS używa `transloco.translate()` lub klucz jest rozwiązywany w template
+- [x] Tytuł i etykiety `<dt>` używają `| transloco` z kluczami `integrations.social.*`
+- [x] Metoda w TS używa `transloco.translate()` lub klucz jest rozwiązywany w template
 
 ---
 
@@ -2303,7 +2303,7 @@ TS: metoda zwraca hardcoded `'Błąd'` zamiast przetłumaczonego stringa.
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2313,9 +2313,9 @@ HTML: `<label>` "Plik audio", "Routing", "Przypadki"; przycisk "Kopiuj"; aria-la
 TS: `warnings.push('Brak zdefiniowanego wezla startowego...')` hardcoded po polsku.
 
 **Kryteria akceptacji:**
-- [ ] Wszystkie `<label>`, aria-label, title w edytorze używają `| transloco`
-- [ ] Warning o braku węzła startowego używa `transloco.translate()` z kluczem `supervisor.ivr.*`
-- [ ] Przycisk "Kopiuj" używa `common.copy` lub `supervisor.ivrEditor.copyJson`
+- [x] Wszystkie `<label>`, aria-label, title w edytorze używają `| transloco`
+- [x] Warning o braku węzła startowego używa `transloco.translate()` z kluczem `supervisor.ivr.*`
+- [x] Przycisk "Kopiuj" używa `common.copy` lub `supervisor.ivrEditor.copyJson`
 
 ---
 
@@ -2325,7 +2325,7 @@ TS: `warnings.push('Brak zdefiniowanego wezla startowego...')` hardcoded po pols
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2337,8 +2337,8 @@ Pliki:
 Zastąpić `transloco.translate()` z kluczami `agent.calendar.days.MON` itp. + reaktywność na zmianę języka.
 
 **Kryteria akceptacji:**
-- [ ] Nazwy dni renderują się w aktywnym języku po przełączeniu
-- [ ] Brak hardcodowanych polskich skrótów w plikach TS
+- [x] Nazwy dni renderują się w aktywnym języku po przełączeniu
+- [x] Brak hardcodowanych polskich skrótów w plikach TS
 
 ---
 
@@ -2348,7 +2348,7 @@ Zastąpić `transloco.translate()` z kluczami `agent.calendar.days.MON` itp. + r
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2358,8 +2358,8 @@ Hardcoded: `notifications.error('Brak połączenia z serwerem')`, `'Brak uprawni
 Interceptor musi wstrzykiwać `TranslocoService` i używać `transloco.translate()` z kluczami np. `common.errorNetwork`, `common.errorForbidden`, `common.errorServer`.
 
 **Kryteria akceptacji:**
-- [ ] Wszystkie 3 komunikaty błędów pobierane z pliku i18n
-- [ ] Powiadomienia wyświetlają się w aktywnym języku
+- [x] Wszystkie 3 komunikaty błędów pobierane z pliku i18n
+- [x] Powiadomienia wyświetlają się w aktywnym języku
 
 ---
 

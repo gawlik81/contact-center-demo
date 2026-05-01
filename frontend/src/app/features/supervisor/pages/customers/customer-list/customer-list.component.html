@@ -82,11 +82,17 @@
                   (click)="onSort('firstName')"
                   [class.sort-btn--active]="isSortActive('firstName')"
                   [attr.aria-label]="('common.firstName' | transloco) + ' - ' + getSortAriaLabel('firstName')"
-                  aria-sort="{{ isSortActive('firstName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                  aria-sort="{{
+                    isSortActive('firstName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }}"
                 >
                   {{ 'common.firstName' | transloco }}
                   <span class="sort-icon" aria-hidden="true">
-                    @if (isSortActive('firstName')) { {{ sortDir() === 'asc' ? '↑' : '↓' }} } @else { ⇅ }
+                    @if (isSortActive('firstName')) {
+                      {{ sortDir() === 'asc' ? '↑' : '↓' }}
+                    } @else {
+                      ⇅
+                    }
                   </span>
                 </button>
               </th>
@@ -97,11 +103,17 @@
                   (click)="onSort('lastName')"
                   [class.sort-btn--active]="isSortActive('lastName')"
                   [attr.aria-label]="('common.lastName' | transloco) + ' - ' + getSortAriaLabel('lastName')"
-                  aria-sort="{{ isSortActive('lastName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                  aria-sort="{{
+                    isSortActive('lastName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }}"
                 >
                   {{ 'common.lastName' | transloco }}
                   <span class="sort-icon" aria-hidden="true">
-                    @if (isSortActive('lastName')) { {{ sortDir() === 'asc' ? '↑' : '↓' }} } @else { ⇅ }
+                    @if (isSortActive('lastName')) {
+                      {{ sortDir() === 'asc' ? '↑' : '↓' }}
+                    } @else {
+                      ⇅
+                    }
                   </span>
                 </button>
               </th>
@@ -113,16 +125,26 @@
                   type="button"
                   (click)="onSort('createdAt')"
                   [class.sort-btn--active]="isSortActive('createdAt')"
-                  [attr.aria-label]="('supervisor.customers.tableAddedDate' | transloco) + ' - ' + getSortAriaLabel('createdAt')"
-                  aria-sort="{{ isSortActive('createdAt') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none' }}"
+                  [attr.aria-label]="
+                    ('supervisor.customers.tableAddedDate' | transloco) + ' - ' + getSortAriaLabel('createdAt')
+                  "
+                  aria-sort="{{
+                    isSortActive('createdAt') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
+                  }}"
                 >
                   {{ 'supervisor.customers.tableAddedDate' | transloco }}
                   <span class="sort-icon" aria-hidden="true">
-                    @if (isSortActive('createdAt')) { {{ sortDir() === 'asc' ? '↑' : '↓' }} } @else { ⇅ }
+                    @if (isSortActive('createdAt')) {
+                      {{ sortDir() === 'asc' ? '↑' : '↓' }}
+                    } @else {
+                      ⇅
+                    }
                   </span>
                 </button>
               </th>
-              <th scope="col"><span class="sr-only">{{ 'common.actions' | transloco }}</span></th>
+              <th scope="col">
+                <span class="sr-only">{{ 'common.actions' | transloco }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -138,7 +160,9 @@
                     class="btn btn-icon-outline"
                     type="button"
                     (click)="navigateToProfile(customer)"
-                    [attr.aria-label]="('supervisor.customers.profileLabel' | transloco) + ' ' + getCustomerName(customer)"
+                    [attr.aria-label]="
+                      ('supervisor.customers.profileLabel' | transloco) + ' ' + getCustomerName(customer)
+                    "
                     [title]="'supervisor.customers.profileLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
@@ -164,7 +188,9 @@
                     class="btn btn-icon-danger"
                     type="button"
                     (click)="openDeleteModal(customer)"
-                    [attr.aria-label]="('supervisor.customers.deleteLabel' | transloco) + ' ' + getCustomerName(customer)"
+                    [attr.aria-label]="
+                      ('supervisor.customers.deleteLabel' | transloco) + ' ' + getCustomerName(customer)
+                    "
                     [title]="'supervisor.customers.deleteLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">

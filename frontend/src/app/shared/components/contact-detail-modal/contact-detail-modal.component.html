@@ -267,7 +267,9 @@
 
         @if (!relatedLoading() && relatedContacts().length > 0) {
           <section class="contact-section" aria-labelledby="contact-section-related">
-            <h3 id="contact-section-related" class="contact-section__title">{{ 'contactDetailModal.related' | transloco }}</h3>
+            <h3 id="contact-section-related" class="contact-section__title">
+              {{ 'contactDetailModal.related' | transloco }}
+            </h3>
             <ul class="related-contacts-list">
               @for (item of relatedContacts(); track item.contactId ?? item.callbackId) {
                 <li class="related-contact-item">
@@ -334,7 +336,9 @@
 
     <!-- ── Footer ────────────────────────────────────────────────────── -->
     <div class="contact-dialog__footer">
-      <button class="btn btn-close" type="button" (click)="close()" autofocus>{{ 'contactDetailModal.close' | transloco }}</button>
+      <button class="btn btn-close" type="button" (click)="close()" autofocus>
+        {{ 'contactDetailModal.close' | transloco }}
+      </button>
     </div>
   </div>
 </dialog>

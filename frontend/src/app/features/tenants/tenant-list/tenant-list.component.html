@@ -1,12 +1,7 @@
 <div class="tenant-list">
   <div class="tenant-list__header">
     <h1 class="tenant-list__title">Zarzadzanie tenantami</h1>
-    <button
-      class="btn btn-primary"
-      (click)="openAddModal()"
-      type="button"
-      aria-label="Dodaj nowego tenanta"
-    >
+    <button class="btn btn-primary" (click)="openAddModal()" type="button" aria-label="Dodaj nowego tenanta">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
       </svg>
@@ -79,9 +74,15 @@
                     [attr.aria-label]="'Status: ' + tenant.status"
                   >
                     @switch (tenant.status) {
-                      @case ('ACTIVE') { Aktywny }
-                      @case ('INACTIVE') { Nieaktywny }
-                      @case ('SUSPENDED') { Zawieszony }
+                      @case ('ACTIVE') {
+                        Aktywny
+                      }
+                      @case ('INACTIVE') {
+                        Nieaktywny
+                      }
+                      @case ('SUSPENDED') {
+                        Zawieszony
+                      }
                     }
                   </span>
                 </td>
@@ -118,7 +119,8 @@
       <!-- Pagination -->
       <div class="pagination" aria-label="Paginacja tenantów" role="navigation">
         <span class="pagination__info" aria-live="polite">
-          {{ 'common.showing' | transloco }}: {{ totalElements() }} | {{ 'common.page' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
+          {{ 'common.showing' | transloco }}: {{ totalElements() }} | {{ 'common.page' | transloco }}
+          {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
         </span>
         <div class="pagination__controls">
           <button
@@ -165,11 +167,7 @@
 
 <!-- Edit modal -->
 @if (showEditModal() && editingTenant()) {
-  <app-tenant-edit-modal
-    [tenant]="editingTenant()!"
-    (saved)="onEditSaved()"
-    (cancelled)="closeEditModal()"
-  />
+  <app-tenant-edit-modal [tenant]="editingTenant()!" (saved)="onEditSaved()" (cancelled)="closeEditModal()" />
 }
 
 <!-- Add modal -->

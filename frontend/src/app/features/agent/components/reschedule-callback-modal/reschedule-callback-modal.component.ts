@@ -67,10 +67,9 @@ export class RescheduleCallbackModalComponent implements OnInit {
   });
   readonly canSubmit = computed(() => this._formStatus() === 'VALID' && !this.loading());
 
-  private readonly _scheduledDateValue = toSignal(
-    this.form.controls.scheduledDate.valueChanges,
-    { initialValue: this.form.controls.scheduledDate.value },
-  );
+  private readonly _scheduledDateValue = toSignal(this.form.controls.scheduledDate.valueChanges, {
+    initialValue: this.form.controls.scheduledDate.value,
+  });
 
   readonly isToday = computed(() => {
     const val = this._scheduledDateValue();

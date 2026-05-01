@@ -139,7 +139,9 @@ $break-color: #22c55e;
     cursor: pointer;
     font-size: 0.8125rem;
     color: $text-secondary;
-    transition: background 120ms, color 120ms;
+    transition:
+      background 120ms,
+      color 120ms;
 
     &:last-child {
       border-right: none;

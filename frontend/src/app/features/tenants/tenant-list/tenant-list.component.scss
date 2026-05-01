@@ -70,7 +70,9 @@ $radius: 6px;
   color: $text-primary;
   background: $bg-white;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 
   &:focus {
     border-color: $brand-blue;
@@ -192,7 +194,10 @@ $radius: 6px;
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
   text-decoration: none;
   line-height: 1;
 
@@ -298,7 +303,12 @@ $radius: 6px;
 .skeleton-cell {
   height: 16px;
   border-radius: 4px;
-  background: linear-gradient(90deg, rgba(226, 232, 240, 0.5) 0%, rgba(241, 245, 249, 0.9) 40%, rgba(226, 232, 240, 0.5) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.5) 0%,
+    rgba(241, 245, 249, 0.9) 40%,
+    rgba(226, 232, 240, 0.5) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease infinite;
 
@@ -322,8 +332,12 @@ $radius: 6px;
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 // ── Empty state ────────────────────────────────────────────────────────────────

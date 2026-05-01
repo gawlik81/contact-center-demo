@@ -14,19 +14,13 @@
     <div class="deactivate-dialog__body">
       <p id="deactivate-desc" class="deactivate-dialog__message">
         {{ 'admin.tenants.confirmDeactivateTitle' | transloco }}
-        <strong>{{ tenant().name }}</strong>?
+        <strong>{{ tenant().name }}</strong
+        >?
       </p>
     </div>
 
     <div class="deactivate-dialog__footer">
-      <button
-        class="btn btn-cancel"
-        type="button"
-        (click)="onCancel()"
-        autofocus
-      >
-        Anuluj
-      </button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>Anuluj</button>
       <button
         class="btn btn-deactivate"
         type="button"

@@ -1,17 +1,13 @@
-<dialog
-  #dialogEl
-  class="create-dialog"
-  aria-labelledby="create-customer-title"
-  (click)="onBackdropClick($event)"
->
+<dialog #dialogEl class="create-dialog" aria-labelledby="create-customer-title" (click)="onBackdropClick($event)">
   <div class="create-dialog__content" role="document">
     <div class="create-dialog__header">
-      <h2 id="create-customer-title" class="create-dialog__title">{{ 'supervisor.customerCreate.title' | transloco }}</h2>
+      <h2 id="create-customer-title" class="create-dialog__title">
+        {{ 'supervisor.customerCreate.title' | transloco }}
+      </h2>
     </div>
 
     <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
       <div class="create-dialog__body">
-
         <div class="form-row">
           <div class="form-field">
             <label class="form-label" for="firstName">{{ 'common.firstName' | transloco }}</label>
@@ -71,17 +67,11 @@
           />
           <span class="form-hint">{{ 'supervisor.customerCreate.emailsHint' | transloco }}</span>
         </div>
-
       </div>
 
       <div class="create-dialog__footer">
         <button class="btn btn-cancel" type="button" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
-        <button
-          class="btn btn-save"
-          type="submit"
-          [disabled]="form.invalid || saving()"
-          [attr.aria-busy]="saving()"
-        >
+        <button class="btn btn-save" type="submit" [disabled]="form.invalid || saving()" [attr.aria-busy]="saving()">
           @if (saving()) {
             {{ 'common.saving' | transloco }}
           } @else {

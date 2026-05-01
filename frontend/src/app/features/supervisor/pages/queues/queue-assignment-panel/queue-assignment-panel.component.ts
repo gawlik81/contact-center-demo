@@ -26,8 +26,7 @@ import { PagedResponse } from '../../../../../core/models/paged-response.model';
 @Component({
   selector: 'app-queue-assignment-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,],
+  imports: [TranslocoModule],
   templateUrl: './queue-assignment-panel.component.html',
   styleUrl: './queue-assignment-panel.component.scss',
 })
@@ -135,14 +134,18 @@ export class QueueAssignmentPanelComponent implements OnInit {
         next: (updated) => {
           this.assignment.set(updated);
           this.saving.set(false);
-          this.notifications.success(this.transloco.translate('supervisor.queueAssignment.successSave'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.queueAssignment.successSave'),
+          );
         },
         error: (err: HttpErrorResponse) => {
           this.saving.set(false);
           if (err.status === 400 && err.error?.message) {
             this.notifications.error(err.error.message);
           } else {
-            this.notifications.error(this.transloco.translate('supervisor.queueAssignment.errorSave'));
+            this.notifications.error(
+              this.transloco.translate('supervisor.queueAssignment.errorSave'),
+            );
           }
         },
       });

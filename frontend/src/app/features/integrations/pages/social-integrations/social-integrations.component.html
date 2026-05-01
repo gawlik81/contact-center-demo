@@ -1,14 +1,14 @@
 <div class="integrations-page">
   <header class="page-header">
     <div class="page-header__title-row">
-      <h1 class="page-header__title">Integracje Social Media</h1>
+      <h1 class="page-header__title">{{ 'integrations.social.title' | transloco }}</h1>
       <button
         class="btn btn--icon"
         type="button"
         [disabled]="loading()"
         (click)="loadIntegrations()"
-        aria-label="Odśwież listę integracji"
-        title="Odśwież"
+        [attr.aria-label]="'integrations.social.refreshLabel' | transloco"
+        [title]="'common.refresh' | transloco"
       >
         <svg
           class="btn-icon"
@@ -68,7 +68,9 @@
                   {{ 'integrations.social.connected' | transloco }}
                 </span>
               } @else {
-                <span class="status-badge status-badge--disconnected">{{ 'integrations.social.disconnected' | transloco }}</span>
+                <span class="status-badge status-badge--disconnected">{{
+                  'integrations.social.disconnected' | transloco
+                }}</span>
               }
             </div>
           </div>
@@ -77,11 +79,11 @@
             @if (isConnected) {
               <dl class="info-list">
                 <div class="info-list__row">
-                  <dt class="info-list__label">Nazwa strony</dt>
+                  <dt class="info-list__label">{{ 'integrations.social.pageName' | transloco }}</dt>
                   <dd class="info-list__value">{{ integration!.displayName }}</dd>
                 </div>
                 <div class="info-list__row">
-                  <dt class="info-list__label">Page ID</dt>
+                  <dt class="info-list__label">{{ 'integrations.social.pageIdLabel' | transloco }}</dt>
                   <dd class="info-list__value info-list__value--mono">{{ integration!.pageId }}</dd>
                 </div>
                 <div class="info-list__row">
@@ -101,7 +103,7 @@
                 </div>
                 @if (integration!.tokenExpiresAt) {
                   <div class="info-list__row">
-                    <dt class="info-list__label">Token wygasa</dt>
+                    <dt class="info-list__label">{{ 'integrations.social.tokenExpires' | transloco }}</dt>
                     <dd class="info-list__value">{{ formatDate(integration!.tokenExpiresAt) }}</dd>
                   </div>
                 }
@@ -111,7 +113,7 @@
                 </div>
               </dl>
             } @else {
-              <p class="platform-card__description">{{ card.description }}</p>
+              <p class="platform-card__description">{{ card.descriptionKey | transloco }}</p>
               @if (card.platform === 'WHATSAPP') {
                 <div class="whatsapp-notice" role="note">
                   <svg
@@ -183,7 +185,9 @@
   aria-describedby="disconnect-dialog-desc"
 >
   <div class="cc-dialog__content">
-    <h2 id="disconnect-dialog-title" class="cc-dialog__title">{{ 'integrations.social.confirmDisconnectTitle' | transloco }}</h2>
+    <h2 id="disconnect-dialog-title" class="cc-dialog__title">
+      {{ 'integrations.social.confirmDisconnectTitle' | transloco }}
+    </h2>
     @if (pendingDisconnect(); as integration) {
       <p id="disconnect-dialog-desc" class="cc-dialog__body">
         {{ 'integrations.social.disconnect' | transloco }}
@@ -195,7 +199,7 @@
     }
     <div class="cc-dialog__actions">
       <button class="btn btn--ghost" type="button" [disabled]="disconnecting()" (click)="closeDisconnectDialog()">
-        Anuluj
+        {{ 'common.cancel' | transloco }}
       </button>
       <button class="btn btn--danger" type="button" [disabled]="disconnecting()" (click)="confirmDisconnect()">
         @if (disconnecting()) {

@@ -19,13 +19,7 @@ import { DeduplicationMode, ImportJobStatus } from '../customer-import.model';
 
 export type ImportStep = 'upload' | 'mapping' | 'progress' | 'report';
 
-export type SystemField =
-  | 'phone'
-  | 'first_name'
-  | 'last_name'
-  | 'email'
-  | 'custom_fields'
-  | 'skip';
+export type SystemField = 'phone' | 'first_name' | 'last_name' | 'email' | 'custom_fields' | 'skip';
 
 export interface ColumnMapping {
   csvHeader: string;
@@ -39,8 +33,7 @@ const PREVIEW_ROWS = 5;
 @Component({
   selector: 'app-customer-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,FormsModule],
+  imports: [TranslocoModule, FormsModule],
   templateUrl: './customer-import.component.html',
   styleUrl: './customer-import.component.scss',
 })
@@ -198,9 +191,7 @@ export class CustomerImportComponent implements OnInit {
       const allRows = lines.map((l) => this.parseCSVLine(l, sep, quote));
       const firstRow = allRows[0];
 
-      const looksLikeHeader = firstRow.every(
-        (cell) => isNaN(Number(cell)) && cell.trim() !== '',
-      );
+      const looksLikeHeader = firstRow.every((cell) => isNaN(Number(cell)) && cell.trim() !== '');
       let headers: string[];
       let dataRows: string[][];
 

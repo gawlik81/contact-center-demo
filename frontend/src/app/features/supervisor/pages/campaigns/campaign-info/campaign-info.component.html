@@ -59,7 +59,9 @@
           <dd class="info-grid__value">{{ formatDialerType(campaign.dialerType) }}</dd>
         </div>
 
-        <div class="info-grid__section-label" role="presentation">{{ 'supervisor.campaignInfo.scheduleSection' | transloco }}</div>
+        <div class="info-grid__section-label" role="presentation">
+          {{ 'supervisor.campaignInfo.scheduleSection' | transloco }}
+        </div>
 
         <div class="info-grid__row info-grid__row--sub">
           <dt class="info-grid__label">{{ 'common.from' | transloco }}</dt>
@@ -86,7 +88,9 @@
           <dd class="info-grid__value">{{ campaign.schedule?.timezone || 'Europe/Warsaw' }}</dd>
         </div>
 
-        <div class="info-grid__section-label" role="presentation">{{ 'supervisor.campaignInfo.statsSection' | transloco }}</div>
+        <div class="info-grid__section-label" role="presentation">
+          {{ 'supervisor.campaignInfo.statsSection' | transloco }}
+        </div>
 
         <div class="info-grid__row">
           <dt class="info-grid__label">{{ 'supervisor.campaignInfo.recordsCount' | transloco }}</dt>
@@ -108,7 +112,9 @@
 
         <div class="info-grid__row">
           <dt class="info-grid__label">{{ 'supervisor.campaignInfo.retryDelay' | transloco }}</dt>
-          <dd class="info-grid__value">{{ campaign.retryDelayMinutes }} {{ 'supervisor.campaignInfo.minutes' | transloco }}</dd>
+          <dd class="info-grid__value">
+            {{ campaign.retryDelayMinutes }} {{ 'supervisor.campaignInfo.minutes' | transloco }}
+          </dd>
         </div>
       </dl>
     </div>

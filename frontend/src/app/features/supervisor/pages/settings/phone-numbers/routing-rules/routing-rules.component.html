@@ -65,9 +65,9 @@
                 <span
                   class="day-chip"
                   [class.day-chip--active]="rule.daysOfWeek.includes(day)"
-                  [attr.aria-label]="dayLabels[day] + (rule.daysOfWeek.includes(day) ? ' (aktywny)' : '')"
+                  [attr.aria-label]="(dayLabels[day] | transloco) + (rule.daysOfWeek.includes(day) ? ' (aktywny)' : '')"
                 >
-                  {{ dayLabels[day] }}
+                  {{ dayLabels[day] | transloco }}
                 </span>
               }
             </div>
@@ -100,7 +100,9 @@
               }
 
               @if (isConflicting(rule.ruleId)) {
-                <span class="conflict-badge" role="alert">{{ 'supervisor.settings.routingRules.conflict' | transloco }}</span>
+                <span class="conflict-badge" role="alert">{{
+                  'supervisor.settings.routingRules.conflict' | transloco
+                }}</span>
               }
             </div>
           </div>

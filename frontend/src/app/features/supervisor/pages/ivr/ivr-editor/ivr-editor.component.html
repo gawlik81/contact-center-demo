@@ -8,14 +8,21 @@
 } @else if (error()) {
   <div class="editor-error" role="alert">
     <p>{{ error() }}</p>
-    <button class="btn btn-secondary" type="button" (click)="goBack()">{{ 'supervisor.ivrEditor.backToList' | transloco }}</button>
+    <button class="btn btn-secondary" type="button" (click)="goBack()">
+      {{ 'supervisor.ivrEditor.backToList' | transloco }}
+    </button>
   </div>
 } @else {
   <div class="ivr-editor">
     <!-- ═══ HEADER ═══════════════════════════════════════════════════════════ -->
     <header class="editor-header">
       <div class="editor-header__left">
-        <button class="btn btn-icon" type="button" (click)="goBack()" [attr.aria-label]="'supervisor.ivrEditor.backToListLabel' | transloco">
+        <button
+          class="btn btn-icon"
+          type="button"
+          (click)="goBack()"
+          [attr.aria-label]="'supervisor.ivrEditor.backToListLabel' | transloco"
+        >
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20">
             <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
           </svg>
@@ -32,9 +39,9 @@
           <div class="editor-header__meta">
             <span class="version-badge">v{{ ivrVersion() }}</span>
             @if (ivrIsActive()) {
-              <span class="status-badge status-badge--active">AKTYWNE</span>
+              <span class="status-badge status-badge--active">{{ 'supervisor.ivr.statusActive' | transloco }}</span>
             } @else {
-              <span class="status-badge status-badge--inactive">NIEAKTYWNE</span>
+              <span class="status-badge status-badge--inactive">{{ 'supervisor.ivr.statusInactive' | transloco }}</span>
             }
           </div>
         </div>
@@ -73,7 +80,7 @@
     <!-- ═══ MAIN LAYOUT ══════════════════════════════════════════════════════ -->
     <div class="editor-body">
       <!-- ─── LEFT TOOLBAR ──────────────────────────────────────────────────── -->
-      <aside class="node-toolbar" aria-label="Paleta węzłów">
+      <aside class="node-toolbar" [attr.aria-label]="'supervisor.ivrEditor.nodePaletteLabel' | transloco">
         <h3 class="toolbar-title">{{ 'supervisor.ivr.editorNodes' | transloco }}</h3>
         <div class="toolbar-nodes">
           @for (type of nodeTypes; track type) {
@@ -93,15 +100,36 @@
         </div>
         <div class="toolbar-legend">
           <h4 class="toolbar-legend__title">{{ 'supervisor.ivr.editorLegend' | transloco }}</h4>
-          <div class="legend-item"><span class="legend-dot legend-dot--MENU"></span>{{ 'supervisor.ivrNodeLabels.MENU' | transloco }}</div>
-          <div class="legend-item"><span class="legend-dot legend-dot--PLAY_AUDIO"></span>{{ 'supervisor.ivrNodeLabels.PLAY_AUDIO' | transloco }}</div>
-          <div class="legend-item"><span class="legend-dot legend-dot--COLLECT_DTMF"></span>{{ 'supervisor.ivrNodeLabels.COLLECT_DTMF' | transloco }}</div>
-          <div class="legend-item"><span class="legend-dot legend-dot--QUEUE_TRANSFER"></span>{{ 'supervisor.ivrNodeLabels.QUEUE_TRANSFER' | transloco }}</div>
-          <div class="legend-item"><span class="legend-dot legend-dot--HANGUP"></span>{{ 'supervisor.ivr.legendHangup' | transloco }}</div>
-          <div class="legend-item"><span class="legend-dot legend-dot--SET"></span>{{ 'supervisor.ivrNodeLabels.SET' | transloco }}</div>
-          <div class="legend-item"><span class="legend-dot legend-dot--IF"></span>{{ 'supervisor.ivrNodeLabels.IF' | transloco }}</div>
-          <div class="legend-item"><span class="legend-dot legend-dot--SWITCH"></span>{{ 'supervisor.ivr.legendSwitch' | transloco }}</div>
-          <div class="legend-item"><span class="legend-dot legend-dot--VOICEBOT"></span>{{ 'supervisor.ivrNodeLabels.VOICEBOT' | transloco }}</div>
+          <div class="legend-item">
+            <span class="legend-dot legend-dot--MENU"></span>{{ 'supervisor.ivrNodeLabels.MENU' | transloco }}
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot legend-dot--PLAY_AUDIO"></span
+            >{{ 'supervisor.ivrNodeLabels.PLAY_AUDIO' | transloco }}
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot legend-dot--COLLECT_DTMF"></span
+            >{{ 'supervisor.ivrNodeLabels.COLLECT_DTMF' | transloco }}
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot legend-dot--QUEUE_TRANSFER"></span
+            >{{ 'supervisor.ivrNodeLabels.QUEUE_TRANSFER' | transloco }}
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot legend-dot--HANGUP"></span>{{ 'supervisor.ivr.legendHangup' | transloco }}
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot legend-dot--SET"></span>{{ 'supervisor.ivrNodeLabels.SET' | transloco }}
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot legend-dot--IF"></span>{{ 'supervisor.ivrNodeLabels.IF' | transloco }}
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot legend-dot--SWITCH"></span>{{ 'supervisor.ivr.legendSwitch' | transloco }}
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot legend-dot--VOICEBOT"></span>{{ 'supervisor.ivrNodeLabels.VOICEBOT' | transloco }}
+          </div>
         </div>
       </aside>
 
@@ -151,14 +179,20 @@
                 <span class="node-icon">{{ nodeTypeIcons[node.type] }}</span>
                 <span class="node-title">{{ getNodeLabel(node.type) }}</span>
                 @if (definition().entry_node_id === node.node_id) {
-                  <span class="node-entry-badge" aria-label="Węzeł startowy">START</span>
+                  <span
+                    class="node-entry-badge"
+                    [attr.aria-label]="'supervisor.ivrEditor.entryNodeBadgeLabel' | transloco"
+                    >START</span
+                  >
                 }
                 <button
                   class="node-delete"
                   type="button"
                   (click)="onDeleteNode($event, node.node_id)"
-                  [attr.aria-label]="'Usuń węzeł ' + getNodeLabel(node.type)"
-                  title="Usuń węzeł"
+                  [attr.aria-label]="
+                    ('supervisor.ivrEditor.deleteNodeLabel' | transloco) + ' ' + getNodeLabel(node.type)
+                  "
+                  [title]="'supervisor.ivrEditor.deleteNodeTitle' | transloco"
                 >
                   ✕
                 </button>
@@ -196,7 +230,7 @@
               <div
                 class="node-port node-input-port"
                 (click)="onNodeClick($event, node.node_id)"
-                title="Port wejściowy"
+                [title]="'supervisor.ivrEditor.inputPortTitle' | transloco"
               ></div>
               <!-- Output: PLAY_AUDIO – single "next" port -->
               @if (node.type === 'PLAY_AUDIO') {
@@ -210,8 +244,8 @@
                     class="node-port node-output-port"
                     [class.node-output-port--active]="isConnectingFromOption(node.node_id, 'next')"
                     (click)="onOutputPortClick($event, node.node_id, 'next')"
-                    aria-label="Port wyjściowy – następny węzeł"
-                    title="Kliknij, by połączyć z następnym węzłem"
+                    [attr.aria-label]="'supervisor.ivrEditor.outputPortNextLabel' | transloco"
+                    [title]="'supervisor.ivrEditor.outputPortNextTitle' | transloco"
                     role="button"
                     tabindex="0"
                   ></div>
@@ -231,8 +265,8 @@
                         class="node-port node-output-port"
                         [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
                         (click)="onOutputPortClick($event, node.node_id, opt.key)"
-                        [attr.aria-label]="'Port wyjściowy dla opcji ' + opt.key"
-                        title="Kliknij, by połączyć"
+                        [attr.aria-label]="('supervisor.ivrEditor.outputPortOptionLabel' | transloco) + ' ' + opt.key"
+                        [title]="'supervisor.ivrEditor.outputPortTitle' | transloco"
                         role="button"
                         tabindex="0"
                       ></div>
@@ -252,8 +286,8 @@
                     class="node-port node-output-port"
                     [class.node-output-port--active]="isConnectingFromOption(node.node_id, 'next')"
                     (click)="onOutputPortClick($event, node.node_id, 'next')"
-                    aria-label="Port wyjściowy – następny węzeł"
-                    title="Kliknij, by połączyć z następnym węzłem"
+                    [attr.aria-label]="'supervisor.ivrEditor.outputPortNextLabel' | transloco"
+                    [title]="'supervisor.ivrEditor.outputPortNextTitle' | transloco"
                     role="button"
                     tabindex="0"
                   ></div>
@@ -273,8 +307,8 @@
                         class="node-port node-output-port"
                         [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
                         (click)="onOutputPortClick($event, node.node_id, opt.key)"
-                        [attr.aria-label]="'Port wyjściowy dla opcji ' + opt.key"
-                        title="Kliknij, by połączyć"
+                        [attr.aria-label]="('supervisor.ivrEditor.outputPortOptionLabel' | transloco) + ' ' + opt.key"
+                        [title]="'supervisor.ivrEditor.outputPortTitle' | transloco"
                         role="button"
                         tabindex="0"
                       ></div>
@@ -296,8 +330,8 @@
                         class="node-port node-output-port"
                         [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
                         (click)="onOutputPortClick($event, node.node_id, opt.key)"
-                        [attr.aria-label]="'Port wyjściowy dla opcji ' + opt.key"
-                        title="Kliknij, by połączyć"
+                        [attr.aria-label]="('supervisor.ivrEditor.outputPortOptionLabel' | transloco) + ' ' + opt.key"
+                        [title]="'supervisor.ivrEditor.outputPortTitle' | transloco"
                         role="button"
                         tabindex="0"
                       ></div>
@@ -330,14 +364,16 @@
       </main>
 
       <!-- ─── PROPERTIES PANEL ────────────────────────────────────────────── -->
-      <aside class="props-panel" aria-label="Właściwości węzła">
+      <aside class="props-panel" [attr.aria-label]="'supervisor.ivrEditor.propsLabel' | transloco">
         @if (selectedNode(); as node) {
           <h3 class="props-title">{{ getNodeLabel(node.type) }}</h3>
           <div class="props-form">
             <!-- Prompt (not applicable for SET / IF / SWITCH) -->
             @if (node.type !== 'SET' && node.type !== 'IF' && node.type !== 'SWITCH') {
               <div class="form-group">
-                <label class="form-label" [for]="'prompt-' + node.node_id">Komunikat TTS</label>
+                <label class="form-label" [for]="'prompt-' + node.node_id">{{
+                  'supervisor.ivrEditor.promptLabel' | transloco
+                }}</label>
                 <textarea
                   [id]="'prompt-' + node.node_id"
                   class="form-control form-control--textarea"
@@ -352,7 +388,7 @@
             <!-- PLAY_AUDIO: audio file upload -->
             @if (node.type === 'PLAY_AUDIO') {
               <div class="form-group">
-                <label class="form-label">Plik audio</label>
+                <label class="form-label">{{ 'supervisor.ivrEditor.audioFileLabel' | transloco }}</label>
                 @if (node.audio_id) {
                   <div class="audio-info">
                     <span class="audio-filename">{{ node.audio_id }}</span>
@@ -382,24 +418,28 @@
                     aria-valuemax="100"
                   >
                     <div class="upload-progress__bar" [style.width.%]="uploadProgress()"></div>
-                    <span class="upload-progress__label">Symulacja uploadu (dev) {{ uploadProgress() }}%</span>
+                    <span class="upload-progress__label">{{
+                      'supervisor.ivrEditor.uploadSimulation' | transloco: { progress: uploadProgress() }
+                    }}</span>
                   </div>
                 }
-                <p class="form-hint">Prawdziwy upload wymaga endpointu BE-010.</p>
+                <p class="form-hint">{{ 'supervisor.ivrEditor.uploadHint' | transloco }}</p>
               </div>
             }
 
             <!-- QUEUE_TRANSFER: queue_id -->
             @if (node.type === 'QUEUE_TRANSFER') {
               <div class="form-group">
-                <label class="form-label" [for]="'queue-' + node.node_id">Kolejka docelowa</label>
+                <label class="form-label" [for]="'queue-' + node.node_id">{{
+                  'supervisor.ivrEditor.targetQueueLabel' | transloco
+                }}</label>
                 @if (queues().length > 0) {
                   <select
                     [id]="'queue-' + node.node_id"
                     class="form-control"
                     [ngModel]="node.queue_id ?? ''"
                     (ngModelChange)="updateSelectedNodeProp('queue_id', $event)"
-                    [attr.aria-label]="'Wybierz kolejkę'"
+                    [attr.aria-label]="'supervisor.ivrEditor.selectQueueLabel' | transloco"
                   >
                     <option value="">{{ 'supervisor.ivr.nodeQueuePlaceholder' | transloco }}</option>
                     @for (q of queues(); track q.id) {
@@ -423,7 +463,7 @@
             <!-- MENU: options DTMF (edytowalne klucze) -->
             @if (node.type === 'MENU') {
               <div class="form-group">
-                <label class="form-label">Opcje DTMF</label>
+                <label class="form-label">{{ 'supervisor.ivrEditor.dtmfOptionsLabel' | transloco }}</label>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track trackByIndex($index)) {
                     <div class="option-row">
@@ -434,15 +474,17 @@
                         (input)="updateOption($index, 'key', $any($event.target).value)"
                         placeholder="1–9,*,#,timeout"
                         maxlength="10"
-                        [attr.aria-label]="'Klawisz DTMF opcji ' + ($index + 1)"
+                        [attr.aria-label]="('supervisor.ivrEditor.dtmfKeyLabel' | transloco) + ' ' + ($index + 1)"
                       />
                       <select
                         class="form-control option-target"
                         [ngModel]="opt.next_node_id"
                         (ngModelChange)="updateOption($index, 'next_node_id', $event)"
-                        [attr.aria-label]="'Węzeł docelowy dla opcji ' + opt.key"
+                        [attr.aria-label]="
+                          ('supervisor.ivrEditor.targetNodeForOptionLabel' | transloco) + ' ' + opt.key
+                        "
                       >
-                        <option value="">— brak —</option>
+                        <option value="">{{ 'supervisor.ivrEditor.noTarget' | transloco }}</option>
                         @for (n of otherNodes(node.node_id); track n.node_id) {
                           <option [value]="n.node_id">
                             {{ getNodeLabel(n.type) }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
@@ -453,21 +495,25 @@
                         class="btn btn-sm btn-danger"
                         type="button"
                         (click)="removeOption($index)"
-                        [attr.aria-label]="'Usuń opcję ' + opt.key"
-                        title="Usuń opcję"
+                        [attr.aria-label]="('supervisor.ivrEditor.removeOptionLabel' | transloco) + ' ' + opt.key"
+                        [title]="'supervisor.ivrEditor.removeOptionTitle' | transloco"
                       >
                         ✕
                       </button>
                     </div>
                   }
                 </div>
-                <button class="btn btn-sm btn-secondary" type="button" (click)="addOption()">+ {{ 'supervisor.ivrEditor.addOption' | transloco }}</button>
+                <button class="btn btn-sm btn-secondary" type="button" (click)="addOption()">
+                  + {{ 'supervisor.ivrEditor.addOption' | transloco }}
+                </button>
               </div>
 
               <!-- Timeout & retries (MENU) -->
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-label" [for]="'timeout-' + node.node_id">Timeout (s)</label>
+                  <label class="form-label" [for]="'timeout-' + node.node_id">{{
+                    'supervisor.ivrEditor.timeoutLabel' | transloco
+                  }}</label>
                   <input
                     [id]="'timeout-' + node.node_id"
                     class="form-control"
@@ -479,7 +525,9 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label class="form-label" [for]="'retries-' + node.node_id">{{ 'supervisor.ivr.nodeMaxRetries' | transloco }}</label>
+                  <label class="form-label" [for]="'retries-' + node.node_id">{{
+                    'supervisor.ivr.nodeMaxRetries' | transloco
+                  }}</label>
                   <input
                     [id]="'retries-' + node.node_id"
                     class="form-control"
@@ -497,7 +545,9 @@
             @if (node.type === 'COLLECT_DTMF') {
               <!-- variable_name -->
               <div class="form-group">
-                <label class="form-label" [for]="'varname-' + node.node_id">Nazwa zmiennej</label>
+                <label class="form-label" [for]="'varname-' + node.node_id">{{
+                  'supervisor.ivrEditor.variableNameLabel' | transloco
+                }}</label>
                 <input
                   [id]="'varname-' + node.node_id"
                   class="form-control"
@@ -513,7 +563,9 @@
               <!-- min_digits / max_digits inline -->
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-label" [for]="'mindig-' + node.node_id">Min cyfr</label>
+                  <label class="form-label" [for]="'mindig-' + node.node_id">{{
+                    'supervisor.ivrEditor.minDigitsLabel' | transloco
+                  }}</label>
                   <input
                     [id]="'mindig-' + node.node_id"
                     class="form-control"
@@ -525,7 +577,9 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label class="form-label" [for]="'maxdig-' + node.node_id">Max cyfr</label>
+                  <label class="form-label" [for]="'maxdig-' + node.node_id">{{
+                    'supervisor.ivrEditor.maxDigitsLabel' | transloco
+                  }}</label>
                   <input
                     [id]="'maxdig-' + node.node_id"
                     class="form-control"
@@ -540,7 +594,9 @@
 
               <!-- finish_on_key -->
               <div class="form-group">
-                <label class="form-label" [for]="'fok-' + node.node_id">{{ 'supervisor.ivr.nodeFinishKey' | transloco }}</label>
+                <label class="form-label" [for]="'fok-' + node.node_id">{{
+                  'supervisor.ivr.nodeFinishKey' | transloco
+                }}</label>
                 <input
                   [id]="'fok-' + node.node_id"
                   class="form-control"
@@ -554,7 +610,7 @@
 
               <!-- Routing: success / timeout / no-input – stałe, tylko wybór węzła docelowego -->
               <div class="form-group">
-                <label class="form-label">Routing</label>
+                <label class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</label>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track opt.key) {
                     <div class="option-row option-row--fixed">
@@ -563,9 +619,9 @@
                         class="form-control option-target"
                         [ngModel]="opt.next_node_id"
                         (ngModelChange)="updateOption($index, 'next_node_id', $event)"
-                        [attr.aria-label]="'Węzeł docelowy dla ' + opt.key"
+                        [attr.aria-label]="('supervisor.ivrEditor.targetNodeForLabel' | transloco) + ' ' + opt.key"
                       >
-                        <option value="">— brak —</option>
+                        <option value="">{{ 'supervisor.ivrEditor.noTarget' | transloco }}</option>
                         @for (n of otherNodes(node.node_id); track n.node_id) {
                           <option [value]="n.node_id">
                             {{ getNodeLabel(n.type) }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
@@ -581,7 +637,9 @@
               <!-- Timeout & retries (COLLECT_DTMF) -->
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-label" [for]="'timeout-' + node.node_id">Timeout (s)</label>
+                  <label class="form-label" [for]="'timeout-' + node.node_id">{{
+                    'supervisor.ivrEditor.timeoutLabel' | transloco
+                  }}</label>
                   <input
                     [id]="'timeout-' + node.node_id"
                     class="form-control"
@@ -593,7 +651,9 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label class="form-label" [for]="'retries-' + node.node_id">{{ 'supervisor.ivr.nodeMaxRetries' | transloco }}</label>
+                  <label class="form-label" [for]="'retries-' + node.node_id">{{
+                    'supervisor.ivr.nodeMaxRetries' | transloco
+                  }}</label>
                   <input
                     [id]="'retries-' + node.node_id"
                     class="form-control"
@@ -610,7 +670,9 @@
             <!-- SET: variable_name + value + single next routing -->
             @if (node.type === 'SET') {
               <div class="form-group">
-                <label class="form-label" [for]="'setvar-' + node.node_id">Nazwa zmiennej</label>
+                <label class="form-label" [for]="'setvar-' + node.node_id">{{
+                  'supervisor.ivrEditor.variableNameLabel' | transloco
+                }}</label>
                 <input
                   [id]="'setvar-' + node.node_id"
                   class="form-control"
@@ -622,7 +684,9 @@
                 />
               </div>
               <div class="form-group">
-                <label class="form-label" [for]="'setval-' + node.node_id">{{ 'supervisor.ivr.nodeSetValue' | transloco }}</label>
+                <label class="form-label" [for]="'setval-' + node.node_id">{{
+                  'supervisor.ivr.nodeSetValue' | transloco
+                }}</label>
                 <input
                   [id]="'setval-' + node.node_id"
                   class="form-control"
@@ -641,7 +705,7 @@
                   [ngModel]="node.options?.[0]?.next_node_id ?? ''"
                   (ngModelChange)="updateOption(0, 'next_node_id', $event)"
                 >
-                  <option value="">— brak —</option>
+                  <option value="">{{ 'supervisor.ivrEditor.noTarget' | transloco }}</option>
                   @for (n of otherNodes(node.node_id); track n.node_id) {
                     <option [value]="n.node_id">
                       {{ getNodeLabel(n.type) }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
@@ -654,7 +718,9 @@
             <!-- IF: variable_name + operator + compare_value + fixed true/false routing -->
             @if (node.type === 'IF') {
               <div class="form-group">
-                <label class="form-label" [for]="'ifvar-' + node.node_id">Zmienna</label>
+                <label class="form-label" [for]="'ifvar-' + node.node_id">{{
+                  'supervisor.ivrEditor.variableLabel' | transloco
+                }}</label>
                 <input
                   [id]="'ifvar-' + node.node_id"
                   class="form-control"
@@ -666,7 +732,9 @@
                 />
               </div>
               <div class="form-group">
-                <label class="form-label" [for]="'ifop-' + node.node_id">Operator</label>
+                <label class="form-label" [for]="'ifop-' + node.node_id">{{
+                  'supervisor.ivrEditor.operatorLabel' | transloco
+                }}</label>
                 <select
                   [id]="'ifop-' + node.node_id"
                   class="form-control"
@@ -675,16 +743,18 @@
                 >
                   <option value="EQUALS">{{ 'supervisor.ivr.nodeConditionEquals' | transloco }}</option>
                   <option value="NOT_EQUALS">{{ 'supervisor.ivr.nodeConditionNotEquals' | transloco }}</option>
-                  <option value="CONTAINS">zawiera</option>
+                  <option value="CONTAINS">{{ 'supervisor.ivr.nodeConditionContains' | transloco }}</option>
                   <option value="STARTS_WITH">{{ 'supervisor.ivr.nodeConditionStartsWith' | transloco }}</option>
-                  <option value="IS_EMPTY">jest pusta</option>
-                  <option value="NOT_EMPTY">nie jest pusta</option>
-                  <option value="MATCHES_REGEX">pasuje do regex</option>
+                  <option value="IS_EMPTY">{{ 'supervisor.ivr.nodeConditionIsEmpty' | transloco }}</option>
+                  <option value="NOT_EMPTY">{{ 'supervisor.ivr.nodeConditionNotEmpty' | transloco }}</option>
+                  <option value="MATCHES_REGEX">{{ 'supervisor.ivr.nodeConditionMatchesRegex' | transloco }}</option>
                 </select>
               </div>
               @if (node.operator !== 'IS_EMPTY' && node.operator !== 'NOT_EMPTY') {
                 <div class="form-group">
-                  <label class="form-label" [for]="'ifcmp-' + node.node_id">{{ 'supervisor.ivr.nodeCompareValue' | transloco }}</label>
+                  <label class="form-label" [for]="'ifcmp-' + node.node_id">{{
+                    'supervisor.ivr.nodeCompareValue' | transloco
+                  }}</label>
                   <input
                     [id]="'ifcmp-' + node.node_id"
                     class="form-control"
@@ -697,7 +767,7 @@
                 </div>
               }
               <div class="form-group">
-                <label class="form-label">Routing</label>
+                <label class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</label>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track opt.key) {
                     <div class="option-row option-row--fixed">
@@ -713,7 +783,7 @@
                         [ngModel]="opt.next_node_id"
                         (ngModelChange)="updateOption($index, 'next_node_id', $event)"
                       >
-                        <option value="">— brak —</option>
+                        <option value="">{{ 'supervisor.ivrEditor.noTarget' | transloco }}</option>
                         @for (n of otherNodes(node.node_id); track n.node_id) {
                           <option [value]="n.node_id">
                             {{ getNodeLabel(n.type) }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
@@ -729,7 +799,9 @@
             <!-- SWITCH: variable_name + editable cases + fixed default -->
             @if (node.type === 'SWITCH') {
               <div class="form-group">
-                <label class="form-label" [for]="'swvar-' + node.node_id">Zmienna</label>
+                <label class="form-label" [for]="'swvar-' + node.node_id">{{
+                  'supervisor.ivrEditor.variableLabel' | transloco
+                }}</label>
                 <input
                   [id]="'swvar-' + node.node_id"
                   class="form-control"
@@ -741,7 +813,7 @@
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">Przypadki</label>
+                <label class="form-label">{{ 'supervisor.ivrEditor.casesLabel' | transloco }}</label>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track trackByIndex($index)) {
                     <div class="option-row">
@@ -755,7 +827,7 @@
                           (input)="updateOption($index, 'key', $any($event.target).value)"
                           [placeholder]="'supervisor.ivr.nodeSwitchValuePlaceholder' | transloco"
                           maxlength="50"
-                          [attr.aria-label]="'Wartość przypadku ' + ($index + 1)"
+                          [attr.aria-label]="('supervisor.ivrEditor.caseValueLabel' | transloco) + ' ' + ($index + 1)"
                         />
                       }
                       <select
@@ -763,7 +835,7 @@
                         [ngModel]="opt.next_node_id"
                         (ngModelChange)="updateOption($index, 'next_node_id', $event)"
                       >
-                        <option value="">— brak —</option>
+                        <option value="">{{ 'supervisor.ivrEditor.noTarget' | transloco }}</option>
                         @for (n of otherNodes(node.node_id); track n.node_id) {
                           <option [value]="n.node_id">
                             {{ getNodeLabel(n.type) }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
@@ -775,7 +847,7 @@
                           class="btn btn-sm btn-danger"
                           type="button"
                           (click)="removeOption($index)"
-                          title="Usuń przypadek"
+                          [title]="'supervisor.ivrEditor.removeCaseTitle' | transloco"
                         >
                           ✕
                         </button>
@@ -783,21 +855,25 @@
                     </div>
                   }
                 </div>
-                <button class="btn btn-sm btn-secondary" type="button" (click)="addOption()">+ {{ 'supervisor.ivrEditor.addCase' | transloco }}</button>
+                <button class="btn btn-sm btn-secondary" type="button" (click)="addOption()">
+                  + {{ 'supervisor.ivrEditor.addCase' | transloco }}
+                </button>
               </div>
             }
 
             <!-- VOICEBOT: queue_id (opcjonalne) + stały routing next/escalate/fallback -->
             @if (node.type === 'VOICEBOT') {
               <div class="form-group">
-                <label class="form-label" [for]="'vb-queue-' + node.node_id">Kolejka eskalacji (opcjonalnie)</label>
+                <label class="form-label" [for]="'vb-queue-' + node.node_id">{{
+                  'supervisor.ivrEditor.escalationQueueLabel' | transloco
+                }}</label>
                 @if (queues().length > 0) {
                   <select
                     [id]="'vb-queue-' + node.node_id"
                     class="form-control"
                     [ngModel]="node.queue_id ?? ''"
                     (ngModelChange)="updateSelectedNodeProp('queue_id', $event)"
-                    aria-label="Wybierz kolejkę eskalacji"
+                    [attr.aria-label]="'supervisor.ivrEditor.selectEscalationQueueLabel' | transloco"
                   >
                     <option value="">{{ 'supervisor.ivr.nodeFallbackQueue' | transloco }}</option>
                     @for (q of queues(); track q.id) {
@@ -820,7 +896,7 @@
                 </p>
               </div>
               <div class="form-group">
-                <label class="form-label">Routing</label>
+                <label class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</label>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track opt.key) {
                     <div class="option-row option-row--fixed">
@@ -829,9 +905,9 @@
                         class="form-control option-target"
                         [ngModel]="opt.next_node_id"
                         (ngModelChange)="updateOption($index, 'next_node_id', $event)"
-                        [attr.aria-label]="'Węzeł docelowy dla ' + opt.key"
+                        [attr.aria-label]="('supervisor.ivrEditor.targetNodeForLabel' | transloco) + ' ' + opt.key"
                       >
-                        <option value="">— brak —</option>
+                        <option value="">{{ 'supervisor.ivrEditor.noTarget' | transloco }}</option>
                         @for (n of otherNodes(node.node_id); track n.node_id) {
                           <option [value]="n.node_id">
                             {{ getNodeLabel(n.type) }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
@@ -880,11 +956,13 @@
 
     <!-- ═══ DEBUG PANEL ══════════════════════════════════════════════════════ -->
     @if (showDebugPanel()) {
-      <div class="debug-panel" role="region" aria-label="Podgląd JSON definicji">
+      <div class="debug-panel" role="region" [attr.aria-label]="'supervisor.ivrEditor.debugPanelLabel' | transloco">
         <div class="debug-panel__header">
           <span class="debug-panel__title">{{ 'supervisor.ivr.jsonPreview' | transloco }}</span>
           <div class="debug-panel__actions">
-            <button class="btn btn-sm btn-secondary" type="button" (click)="copyJsonToClipboard()">Kopiuj</button>
+            <button class="btn btn-sm btn-secondary" type="button" (click)="copyJsonToClipboard()">
+              {{ 'supervisor.ivrEditor.copyJson' | transloco }}
+            </button>
             <button
               class="btn btn-sm btn-ghost"
               type="button"
@@ -895,7 +973,9 @@
             </button>
           </div>
         </div>
-        <pre class="debug-json" aria-label="JSON definicji IVR">{{ apiDefinitionJson() }}</pre>
+        <pre class="debug-json" [attr.aria-label]="'supervisor.ivrEditor.jsonPreviewLabel' | transloco">{{
+          apiDefinitionJson()
+        }}</pre>
       </div>
     }
   </div>
@@ -936,8 +1016,12 @@
         <p class="modal__question">{{ 'supervisor.ivr.warningsQuestion' | transloco }}</p>
       </div>
       <div class="modal__footer">
-        <button class="btn btn-secondary" type="button" (click)="showWarningsModal.set(false)">{{ 'common.cancel' | transloco }}</button>
-        <button class="btn btn-primary" type="button" (click)="onSaveAnyway()">{{ 'supervisor.ivrEditor.saveAnyway' | transloco }}</button>
+        <button class="btn btn-secondary" type="button" (click)="showWarningsModal.set(false)">
+          {{ 'common.cancel' | transloco }}
+        </button>
+        <button class="btn btn-primary" type="button" (click)="onSaveAnyway()">
+          {{ 'supervisor.ivrEditor.saveAnyway' | transloco }}
+        </button>
       </div>
     </div>
   </div>

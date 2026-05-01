@@ -19,12 +19,13 @@
     </div>
   } @else {
     <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="email-settings__form">
-
       <!-- Section: Enable/Disable email -->
       <section class="form-section">
         <div class="form-field form-field--toggle">
           <div class="form-field__label-group">
-            <label class="form-label" for="email-enabled">{{ 'supervisor.settings.email.enabledLabel' | transloco }}</label>
+            <label class="form-label" for="email-enabled">{{
+              'supervisor.settings.email.enabledLabel' | transloco
+            }}</label>
             <span class="form-hint">{{ 'supervisor.settings.email.enabledHint' | transloco }}</span>
           </div>
           <label class="toggle-label" aria-label="Wlacz obsluge email">
@@ -38,7 +39,11 @@
             />
             <span class="toggle-track" aria-hidden="true"></span>
             <span class="toggle-text">
-              {{ form.get('emailEnabled')?.value ? ('supervisor.settings.email.enabled' | transloco) : ('supervisor.settings.email.disabled' | transloco) }}
+              {{
+                form.get('emailEnabled')?.value
+                  ? ('supervisor.settings.email.enabled' | transloco)
+                  : ('supervisor.settings.email.disabled' | transloco)
+              }}
             </span>
           </label>
         </div>
@@ -69,9 +74,7 @@
           </div>
 
           <div class="form-field form-field--port" [class.form-field--error]="imapPortError">
-            <label class="form-label" for="imap-port">
-              Port <span class="required" aria-hidden="true">*</span>
-            </label>
+            <label class="form-label" for="imap-port"> Port <span class="required" aria-hidden="true">*</span> </label>
             <input
               id="imap-port"
               type="number"
@@ -101,7 +104,11 @@
             />
             <span class="toggle-track" aria-hidden="true"></span>
             <span class="toggle-text">
-              {{ form.get('imapSsl')?.value ? ('supervisor.settings.email.sslEnabled' | transloco) : ('supervisor.settings.email.sslDisabled' | transloco) }}
+              {{
+                form.get('imapSsl')?.value
+                  ? ('supervisor.settings.email.sslEnabled' | transloco)
+                  : ('supervisor.settings.email.sslDisabled' | transloco)
+              }}
             </span>
           </label>
         </div>
@@ -132,9 +139,7 @@
           </div>
 
           <div class="form-field form-field--port" [class.form-field--error]="smtpPortError">
-            <label class="form-label" for="smtp-port">
-              Port <span class="required" aria-hidden="true">*</span>
-            </label>
+            <label class="form-label" for="smtp-port"> Port <span class="required" aria-hidden="true">*</span> </label>
             <input
               id="smtp-port"
               type="number"
@@ -164,7 +169,11 @@
             />
             <span class="toggle-track" aria-hidden="true"></span>
             <span class="toggle-text">
-              {{ form.get('smtpSsl')?.value ? ('supervisor.settings.email.sslEnabled' | transloco) : ('supervisor.settings.email.sslDisabled' | transloco) }}
+              {{
+                form.get('smtpSsl')?.value
+                  ? ('supervisor.settings.email.sslEnabled' | transloco)
+                  : ('supervisor.settings.email.sslDisabled' | transloco)
+              }}
             </span>
           </label>
         </div>
@@ -198,7 +207,7 @@
           @if (hasPassword()) {
             <span class="password-badge" aria-label="Haslo jest skonfigurowane">
               <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
               </svg>
               {{ 'supervisor.settings.email.passwordConfigured' | transloco }}
             </span>
@@ -220,12 +229,10 @@
         <h2 class="form-section__title">{{ 'supervisor.settings.email.routingTitle' | transloco }}</h2>
 
         <div class="form-field">
-          <label class="form-label" for="default-queue">{{ 'supervisor.settings.email.defaultQueueLabel' | transloco }}</label>
-          <select
-            id="default-queue"
-            class="form-input"
-            formControlName="defaultQueueId"
-          >
+          <label class="form-label" for="default-queue">{{
+            'supervisor.settings.email.defaultQueueLabel' | transloco
+          }}</label>
+          <select id="default-queue" class="form-input" formControlName="defaultQueueId">
             <option [value]="null">{{ 'supervisor.settings.email.noQueue' | transloco }}</option>
             @for (queue of queues(); track queue.queueId) {
               <option [value]="queue.queueId">{{ queue.name }}</option>
@@ -256,7 +263,9 @@
           @if (pollIntervalError) {
             <span id="poll-interval-error" class="form-error" role="alert">{{ pollIntervalError }}</span>
           } @else {
-            <span id="poll-interval-hint" class="form-hint">{{ 'supervisor.settings.email.pollHint' | transloco }}</span>
+            <span id="poll-interval-hint" class="form-hint">{{
+              'supervisor.settings.email.pollHint' | transloco
+            }}</span>
           }
         </div>
       </section>
@@ -272,11 +281,13 @@
         >
           @if (result.success) {
             <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
             </svg>
           } @else {
             <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+              />
             </svg>
           }
           <span>{{ result.message }}</span>
@@ -316,7 +327,6 @@
           }
         </button>
       </div>
-
     </form>
   }
 </div>

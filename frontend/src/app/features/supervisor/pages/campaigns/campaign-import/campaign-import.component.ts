@@ -42,8 +42,7 @@ const PREVIEW_ROWS = 5;
 @Component({
   selector: 'app-campaign-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,FormsModule],
+  imports: [TranslocoModule, FormsModule],
   templateUrl: './campaign-import.component.html',
   styleUrl: './campaign-import.component.scss',
   host: {

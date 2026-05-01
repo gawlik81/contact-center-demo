@@ -1,9 +1,4 @@
-<dialog
-  #dialogEl
-  class="callback-dialog"
-  aria-labelledby="callback-dialog-title"
-  (click)="onBackdropClick($event)"
->
+<dialog #dialogEl class="callback-dialog" aria-labelledby="callback-dialog-title" (click)="onBackdropClick($event)">
   <div class="callback-dialog__content" role="document">
     <!-- Header -->
     <div class="callback-dialog__header">
@@ -18,7 +13,9 @@
           </svg>
         </span>
         <div class="callback-dialog__title-block">
-          <h2 id="callback-dialog-title" class="callback-dialog__title">{{ 'agent.manualCallback.title' | transloco }}</h2>
+          <h2 id="callback-dialog-title" class="callback-dialog__title">
+            {{ 'agent.manualCallback.title' | transloco }}
+          </h2>
           <p class="callback-dialog__subtitle">{{ customerDisplayName() }}</p>
         </div>
       </div>
@@ -39,19 +36,11 @@
     </div>
 
     <!-- Body -->
-    <form
-      class="callback-dialog__body"
-      [formGroup]="form"
-      (ngSubmit)="submit()"
-      novalidate
-      id="callback-form"
-    >
+    <form class="callback-dialog__body" [formGroup]="form" (ngSubmit)="submit()" novalidate id="callback-form">
       <!-- Phone number -->
       <div
         class="form-field"
-        [class.form-field--error]="
-          form.controls.phoneNumber.touched && form.controls.phoneNumber.invalid
-        "
+        [class.form-field--error]="form.controls.phoneNumber.touched && form.controls.phoneNumber.invalid"
       >
         <label class="form-label" for="cb-phoneNumber">
           {{ 'common.phone' | transloco }} <span class="required" aria-hidden="true">*</span>
@@ -80,9 +69,7 @@
             aria-required="true"
             aria-describedby="phoneNumber-error phoneNumber-hint"
           />
-          <span id="phoneNumber-hint" class="form-hint">
-            Format miedzynarodowy, np. +48123456789
-          </span>
+          <span id="phoneNumber-hint" class="form-hint"> Format miedzynarodowy, np. +48123456789 </span>
         }
 
         @if (form.controls.phoneNumber.touched && form.controls.phoneNumber.hasError('required')) {
@@ -95,9 +82,7 @@
             </svg>
             Numer telefonu jest wymagany.
           </span>
-        } @else if (
-          form.controls.phoneNumber.touched && form.controls.phoneNumber.hasError('invalidE164')
-        ) {
+        } @else if (form.controls.phoneNumber.touched && form.controls.phoneNumber.hasError('invalidE164')) {
           <span id="phoneNumber-error" class="form-error" role="alert">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path
@@ -125,9 +110,7 @@
               [min]="minDate()"
               aria-required="true"
               aria-label="Data oddzwonienia"
-              [attr.aria-invalid]="
-                form.controls.scheduledDate.invalid && form.controls.scheduledDate.touched
-              "
+              [attr.aria-invalid]="form.controls.scheduledDate.invalid && form.controls.scheduledDate.touched"
             />
             @if (scheduledDateError) {
               <span class="form-error" role="alert">
@@ -196,9 +179,7 @@
 
       <!-- Notes -->
       <div class="form-field">
-        <label class="form-label" for="cb-notes">
-          Notatki <span class="optional">(opcjonalne)</span>
-        </label>
+        <label class="form-label" for="cb-notes"> Notatki <span class="optional">(opcjonalne)</span> </label>
         <textarea
           id="cb-notes"
           class="form-input form-input--textarea"
@@ -230,9 +211,7 @@
 
     <!-- Footer -->
     <div class="callback-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="cancel()" [disabled]="loading()">
-        Anuluj
-      </button>
+      <button class="btn btn-cancel" type="button" (click)="cancel()" [disabled]="loading()">Anuluj</button>
       <button
         class="btn btn-save"
         type="submit"

@@ -23,8 +23,7 @@ type ModalMode = 'create' | 'edit' | 'preview';
   selector: 'app-email-templates',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [
-    TranslocoModule,CommonModule, ReactiveFormsModule],
+  imports: [TranslocoModule, CommonModule, ReactiveFormsModule],
   templateUrl: './email-templates.component.html',
   styleUrl: './email-templates.component.scss',
 })
@@ -89,7 +88,9 @@ export class EmailTemplatesComponent implements OnInit {
           this.loading.set(false);
         },
         error: () => {
-          this.notifications.error(this.transloco.translate('supervisor.settings.emailTemplates.errorLoad'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.emailTemplates.errorLoad'),
+          );
           this.loading.set(false);
         },
       });
@@ -178,15 +179,21 @@ export class EmailTemplatesComponent implements OnInit {
         this.closeFormModal();
         if (mode === 'edit') {
           this.templates.update((list) => list.map((t) => (t.id === saved.id ? saved : t)));
-          this.notifications.success(this.transloco.translate('supervisor.settings.emailTemplates.successSave'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.emailTemplates.successSave'),
+          );
         } else {
           this.loadTemplates();
-          this.notifications.success(this.transloco.translate('supervisor.settings.emailTemplates.successSave'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.emailTemplates.successSave'),
+          );
         }
       },
       error: () => {
         this.saving.set(false);
-        this.notifications.error(this.transloco.translate('supervisor.settings.emailTemplates.errorSave'));
+        this.notifications.error(
+          this.transloco.translate('supervisor.settings.emailTemplates.errorSave'),
+        );
       },
     });
   }
@@ -205,11 +212,15 @@ export class EmailTemplatesComponent implements OnInit {
           this.closeDeleteModal();
           this.templates.update((list) => list.filter((t) => t.id !== template.id));
           this.totalElements.update((n) => n - 1);
-          this.notifications.success(this.transloco.translate('supervisor.settings.emailTemplates.successDelete'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.emailTemplates.successDelete'),
+          );
         },
         error: () => {
           this.deleting.set(false);
-          this.notifications.error(this.transloco.translate('supervisor.settings.emailTemplates.errorDelete'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.emailTemplates.errorDelete'),
+          );
         },
       });
   }
@@ -234,7 +245,9 @@ export class EmailTemplatesComponent implements OnInit {
         },
         error: () => {
           this.previewLoading.set(false);
-          this.notifications.error(this.transloco.translate('supervisor.settings.emailTemplates.errorLoad'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.emailTemplates.errorLoad'),
+          );
         },
       });
   }

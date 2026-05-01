@@ -12,8 +12,7 @@ import {
 @Component({
   selector: 'app-queue-delete-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,],
+  imports: [TranslocoModule],
   templateUrl: './queue-delete-modal.component.html',
   styleUrl: './queue-delete-modal.component.scss',
   host: {

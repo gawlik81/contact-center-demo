@@ -7,7 +7,11 @@
   <div class="queue-form-dialog__content" role="document">
     <div class="queue-form-dialog__header">
       <h2 id="queue-form-title" class="queue-form-dialog__title">
-        {{ isEditMode() ? ('supervisor.queueForm.titleEdit' | transloco) : ('supervisor.queueForm.titleCreate' | transloco) }}
+        {{
+          isEditMode()
+            ? ('supervisor.queueForm.titleEdit' | transloco)
+            : ('supervisor.queueForm.titleCreate' | transloco)
+        }}
       </h2>
       <button
         class="btn-close"
@@ -86,7 +90,8 @@
           <!-- Routing strategy -->
           <div class="form-field" [class.form-field--error]="routingStrategyError">
             <label class="form-label" for="routing-strategy">
-              {{ 'supervisor.queueForm.routingStrategyLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+              {{ 'supervisor.queueForm.routingStrategyLabel' | transloco }}
+              <span class="required" aria-hidden="true">*</span>
             </label>
             <select
               id="routing-strategy"
@@ -109,7 +114,11 @@
           <!-- Required skills multi-select -->
           <div class="form-field">
             <label class="form-label" for="skill-input">{{ 'supervisor.queueForm.skillsLabel' | transloco }}</label>
-            <div class="skills-container" role="group" [attr.aria-label]="'supervisor.queueForm.skillsLabel' | transloco">
+            <div
+              class="skills-container"
+              role="group"
+              [attr.aria-label]="'supervisor.queueForm.skillsLabel' | transloco"
+            >
               @for (skill of selectedSkills(); track skill) {
                 <span class="skill-chip">
                   {{ skill }}
@@ -184,7 +193,11 @@
                 />
                 <span class="toggle-track" aria-hidden="true"></span>
                 <span class="toggle-text">
-                  {{ form.get('active')?.value ? ('supervisor.queues.statusActive' | transloco) : ('supervisor.queues.statusInactive' | transloco) }}
+                  {{
+                    form.get('active')?.value
+                      ? ('supervisor.queues.statusActive' | transloco)
+                      : ('supervisor.queues.statusInactive' | transloco)
+                  }}
                 </span>
               </label>
             </div>

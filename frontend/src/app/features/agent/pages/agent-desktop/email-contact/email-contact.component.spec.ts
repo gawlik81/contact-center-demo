@@ -4,11 +4,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { of, throwError } from 'rxjs';
 
 import { EmailContactComponent } from './email-contact.component';
-import {
-  EmailService,
-  EmailMessage,
-  EmailTemplate,
-} from '../../../services/email.service';
+import { EmailService, EmailMessage, EmailTemplate } from '../../../services/email.service';
 import { PagedResponse } from '../../../../../core/models/paged-response.model';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

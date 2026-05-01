@@ -58,14 +58,20 @@
   >
     <div class="kpi-card kpi-calls" role="status">
       <span class="kpi-label">{{ 'supervisor.dashboard.kpiActiveCalls' | transloco }}</span>
-      <span class="kpi-value" [attr.aria-label]="('supervisor.dashboard.kpiActiveCalls' | transloco) + ': ' + activeCalls()">
+      <span
+        class="kpi-value"
+        [attr.aria-label]="('supervisor.dashboard.kpiActiveCalls' | transloco) + ': ' + activeCalls()"
+      >
         {{ activeCalls() }}
       </span>
     </div>
 
     <div class="kpi-card kpi-avail" role="status">
       <span class="kpi-label">{{ 'supervisor.dashboard.kpiAvailable' | transloco }}</span>
-      <span class="kpi-value" [attr.aria-label]="('supervisor.dashboard.kpiAvailable' | transloco) + ': ' + availableCount()">
+      <span
+        class="kpi-value"
+        [attr.aria-label]="('supervisor.dashboard.kpiAvailable' | transloco) + ': ' + availableCount()"
+      >
         {{ availableCount() }}
       </span>
     </div>
@@ -79,7 +85,10 @@
 
     <div class="kpi-card kpi-acw" role="status">
       <span class="kpi-label">{{ 'supervisor.dashboard.kpiAfterContact' | transloco }}</span>
-      <span class="kpi-value" [attr.aria-label]="('supervisor.dashboard.kpiAfterContact' | transloco) + ': ' + acwCount()">
+      <span
+        class="kpi-value"
+        [attr.aria-label]="('supervisor.dashboard.kpiAfterContact' | transloco) + ': ' + acwCount()"
+      >
         {{ acwCount() }}
       </span>
     </div>
@@ -119,7 +128,9 @@
                 <span
                   class="status-badge"
                   [class]="'status-badge badge-' + agent.status"
-                  [attr.aria-label]="('supervisor.dashboard.agentStatus' | transloco) + ': ' + statusLabel(agent.status)"
+                  [attr.aria-label]="
+                    ('supervisor.dashboard.agentStatus' | transloco) + ': ' + statusLabel(agent.status)
+                  "
                 >
                   {{ statusLabel(agent.status) }}
                 </span>
@@ -133,10 +144,7 @@
               </td>
               <td>
                 @if (agent.status === 'BREAK') {
-                  <span
-                    class="break-time"
-                    [class.break-time--alert]="isBreakAlert(agent)"
-                  >
+                  <span class="break-time" [class.break-time--alert]="isBreakAlert(agent)">
                     {{ breakMinutes(agent) }} {{ 'supervisor.dashboard.agentBreakMinutes' | transloco }}
                   </span>
                 } @else {
@@ -144,10 +152,9 @@
                 }
               </td>
             </tr>
-          }
-          @empty {
+          } @empty {
             <tr>
-              <td colspan="4" style="text-align:center; color:#9e9e9e; padding:24px">
+              <td colspan="4" style="text-align: center; color: #9e9e9e; padding: 24px">
                 {{ 'common.no_data' | transloco }}
               </td>
             </tr>
@@ -168,22 +175,17 @@
     } @else {
       <div class="queues-list" role="list" [attr.aria-label]="'supervisor.dashboard.queuesLabel' | transloco">
         @for (queue of queues(); track queue.id) {
-          <div
-            class="queue-row"
-            role="listitem"
-          >
+          <div class="queue-row" role="listitem">
             <span class="queue-name">{{ queue.name }}</span>
 
             <div class="queue-bar-track" aria-hidden="true">
-              <div
-                class="queue-bar-fill"
-                [class]="queueBarClass(queue)"
-                [style.width.%]="queueBarWidth(queue)"
-              ></div>
+              <div class="queue-bar-fill" [class]="queueBarClass(queue)" [style.width.%]="queueBarWidth(queue)"></div>
             </div>
 
             <div class="queue-stats" aria-hidden="true">
-              <span class="waiting-count">{{ queue.waiting }} {{ 'supervisor.dashboard.queueWaiting' | transloco }}</span>
+              <span class="waiting-count"
+                >{{ queue.waiting }} {{ 'supervisor.dashboard.queueWaiting' | transloco }}</span
+              >
               <span>{{ queue.availableAgents }} {{ 'supervisor.dashboard.queueAgents' | transloco }}</span>
             </div>
           </div>

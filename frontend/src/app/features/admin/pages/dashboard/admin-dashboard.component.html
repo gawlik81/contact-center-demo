@@ -18,7 +18,9 @@
         <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
       </svg>
       <div class="alert-banner__body">
-        <p class="alert-banner__title">{{ 'admin.dashboard.alertsTitle' | transloco }} ({{ metrics()!.systemAlerts.length }})</p>
+        <p class="alert-banner__title">
+          {{ 'admin.dashboard.alertsTitle' | transloco }} ({{ metrics()!.systemAlerts.length }})
+        </p>
         <ul class="alert-banner__list">
           @for (alert of metrics()!.systemAlerts; track alert) {
             <li>{{ alert }}</li>
@@ -121,7 +123,11 @@
       <div class="section__header">
         <h2 class="section__title">{{ 'admin.dashboard.tenantsTitle' | transloco }}</h2>
         @if (hasTenants()) {
-          <span class="section__count" [attr.aria-label]="tenants().length + ' ' + ('admin.dashboard.tenants' | transloco)">{{ tenants().length }}</span>
+          <span
+            class="section__count"
+            [attr.aria-label]="tenants().length + ' ' + ('admin.dashboard.tenants' | transloco)"
+            >{{ tenants().length }}</span
+          >
         }
       </div>
 

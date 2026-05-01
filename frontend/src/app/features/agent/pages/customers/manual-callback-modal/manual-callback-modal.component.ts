@@ -37,8 +37,7 @@ function e164Validator(control: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-manual-callback-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './manual-callback-modal.component.html',
   styleUrl: './manual-callback-modal.component.scss',
   host: {
@@ -96,10 +95,9 @@ export class ManualCallbackModalComponent implements AfterViewInit {
 
   readonly canSubmit = computed(() => this._formStatus() === 'VALID' && !this.loading());
 
-  private readonly _scheduledDateValue = toSignal(
-    this.form.controls.scheduledDate.valueChanges,
-    { initialValue: this.form.controls.scheduledDate.value },
-  );
+  private readonly _scheduledDateValue = toSignal(this.form.controls.scheduledDate.valueChanges, {
+    initialValue: this.form.controls.scheduledDate.value,
+  });
 
   /** True when the selected date is today — used to filter available hours */
   readonly isToday = computed(() => {
@@ -130,7 +128,8 @@ export class ManualCallbackModalComponent implements AfterViewInit {
     const ctrl = this.form.controls.phoneNumber;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
     if (ctrl.hasError('required')) return 'Numer telefonu jest wymagany.';
-    if (ctrl.hasError('invalidE164')) return 'Podaj numer w formacie miedzynarodowym (np. +48123456789).';
+    if (ctrl.hasError('invalidE164'))
+      return 'Podaj numer w formacie miedzynarodowym (np. +48123456789).';
     return null;
   }
 
@@ -175,8 +174,7 @@ export class ManualCallbackModalComponent implements AfterViewInit {
     if (defaultDt.getMinutes() === 60) {
       defaultDt.setHours(defaultDt.getHours() + 1, 0, 0, 0);
     }
-    const defaultDate =
-      `${defaultDt.getFullYear()}-${this.pad(defaultDt.getMonth() + 1)}-${this.pad(defaultDt.getDate())}`;
+    const defaultDate = `${defaultDt.getFullYear()}-${this.pad(defaultDt.getMonth() + 1)}-${this.pad(defaultDt.getDate())}`;
     const defaultHour = this.pad(defaultDt.getHours());
     const defaultMinute = this.pad(Math.floor(defaultDt.getMinutes() / 5) * 5);
 

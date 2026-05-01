@@ -55,12 +55,7 @@
             {{ 'agent.addBreak.confirmCancelText' | transloco }}
           </p>
           <div class="break-dialog__confirm-actions">
-            <button
-              type="button"
-              class="btn btn--secondary"
-              [disabled]="loading()"
-              (click)="abortCancelBreak()"
-            >
+            <button type="button" class="btn btn--secondary" [disabled]="loading()" (click)="abortCancelBreak()">
               {{ 'agent.addBreak.confirmNo' | transloco }}
             </button>
             <button
@@ -86,16 +81,15 @@
           <!-- Break type -->
           <div class="form-field" [class.form-field--error]="breakTypeError">
             <label class="form-field__label" for="break-type">
-              {{ 'agent.addBreak.breakTypeLabel' | transloco }} <span class="form-field__required" aria-hidden="true">*</span>
+              {{ 'agent.addBreak.breakTypeLabel' | transloco }}
+              <span class="form-field__required" aria-hidden="true">*</span>
             </label>
             <select
               id="break-type"
               class="form-field__select"
               formControlName="breakType"
               aria-required="true"
-              [attr.aria-invalid]="
-                form.controls.breakType.invalid && form.controls.breakType.touched
-              "
+              [attr.aria-invalid]="form.controls.breakType.invalid && form.controls.breakType.touched"
             >
               @for (opt of breakTypes; track opt.value) {
                 <option [value]="opt.value">{{ opt.label | transloco }}</option>
@@ -116,7 +110,8 @@
           <!-- Start date + time -->
           <div class="form-field">
             <span class="form-field__label" aria-hidden="true">
-              {{ 'agent.addBreak.startLabel' | transloco }} <span class="form-field__required" aria-hidden="true">*</span>
+              {{ 'agent.addBreak.startLabel' | transloco }}
+              <span class="form-field__required" aria-hidden="true">*</span>
             </span>
             <div class="form-row">
               <div class="form-row__col" [class.form-field--error]="startDateError">
@@ -128,9 +123,7 @@
                   [min]="minDate()"
                   aria-required="true"
                   aria-label="Data rozpoczęcia przerwy"
-                  [attr.aria-invalid]="
-                    form.controls.startDate.invalid && form.controls.startDate.touched
-                  "
+                  [attr.aria-invalid]="form.controls.startDate.invalid && form.controls.startDate.touched"
                 />
                 @if (startDateError) {
                   <span class="form-field__hint" role="alert">
@@ -143,10 +136,7 @@
                   </span>
                 }
               </div>
-              <div
-                class="form-row__col form-row__col--time"
-                [class.form-field--error]="startTimeError"
-              >
+              <div class="form-row__col form-row__col--time" [class.form-field--error]="startTimeError">
                 <div class="time-selects">
                   <select
                     class="form-field__select time-selects__select"
@@ -199,9 +189,7 @@
                   [min]="minDate()"
                   aria-required="true"
                   aria-label="Data zakończenia przerwy"
-                  [attr.aria-invalid]="
-                    form.controls.endDate.invalid && form.controls.endDate.touched
-                  "
+                  [attr.aria-invalid]="form.controls.endDate.invalid && form.controls.endDate.touched"
                 />
                 @if (endDateError) {
                   <span class="form-field__hint" role="alert">
@@ -335,7 +323,11 @@
             [disabled]="!canSubmit()"
             [class.btn--loading]="loading()"
             [attr.aria-busy]="loading()"
-            [attr.aria-label]="isEditMode() ? ('agent.addBreak.saveBtnLabelEdit' | transloco) : ('agent.addBreak.saveBtnLabelAdd' | transloco)"
+            [attr.aria-label]="
+              isEditMode()
+                ? ('agent.addBreak.saveBtnLabelEdit' | transloco)
+                : ('agent.addBreak.saveBtnLabelAdd' | transloco)
+            "
           >
             @if (loading()) {
               <span class="btn__spinner" aria-hidden="true"></span>
@@ -344,7 +336,9 @@
               <svg class="btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
               </svg>
-              <span>{{ isEditMode() ? ('agent.addBreak.saveBtnEdit' | transloco) : ('agent.addBreak.saveBtn' | transloco) }}</span>
+              <span>{{
+                isEditMode() ? ('agent.addBreak.saveBtnEdit' | transloco) : ('agent.addBreak.saveBtn' | transloco)
+              }}</span>
             }
           </button>
         }

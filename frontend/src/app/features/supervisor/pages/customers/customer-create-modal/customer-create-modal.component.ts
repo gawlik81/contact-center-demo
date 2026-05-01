@@ -20,8 +20,7 @@ import { CustomerResponse } from '../../../models/customer.model';
 @Component({
   selector: 'app-customer-create-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './customer-create-modal.component.html',
   styleUrl: './customer-create-modal.component.scss',
   host: {
@@ -105,14 +104,18 @@ export class CustomerCreateModalComponent implements AfterViewInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error(this.transloco.translate('supervisor.customerCreate.errorCreate'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.customerCreate.errorCreate'),
+          );
           return of(null);
         }),
         finalize(() => this.saving.set(false)),
       )
       .subscribe((result) => {
         if (result !== null) {
-          this.notifications.success(this.transloco.translate('supervisor.customerCreate.successCreate'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.customerCreate.successCreate'),
+          );
           this.customerCreated.emit(result);
           this.close();
         }

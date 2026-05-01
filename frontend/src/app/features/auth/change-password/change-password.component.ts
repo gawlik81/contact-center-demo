@@ -1,10 +1,4 @@
-import {
-  Component,
-  ChangeDetectionStrategy,
-  inject,
-  signal,
-  computed,
-} from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@angular/core';
 import {
   FormBuilder,
   ReactiveFormsModule,
@@ -171,9 +165,7 @@ export class ChangePasswordComponent {
         if (status === 401) {
           this.errorMessage.set(this.transloco.translate('auth.errors.currentPasswordWrong'));
         } else if (status === 422) {
-          this.errorMessage.set(
-            this.transloco.translate('auth.errors.passwordPolicyViolation'),
-          );
+          this.errorMessage.set(this.transloco.translate('auth.errors.passwordPolicyViolation'));
         } else {
           this.errorMessage.set(this.transloco.translate('auth.errors.serverError'));
         }

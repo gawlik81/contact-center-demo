@@ -7,7 +7,9 @@
   <div class="user-form-dialog__content" role="document">
     <div class="user-form-dialog__header">
       <h2 id="user-form-title" class="user-form-dialog__title">
-        {{ isEditMode() ? ('supervisor.userForm.titleEdit' | transloco) : ('supervisor.userForm.titleCreate' | transloco) }}
+        {{
+          isEditMode() ? ('supervisor.userForm.titleEdit' | transloco) : ('supervisor.userForm.titleCreate' | transloco)
+        }}
       </h2>
       <button
         class="btn-close"

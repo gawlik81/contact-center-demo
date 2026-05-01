@@ -27,8 +27,7 @@ export type { AgentOption };
   selector: 'app-supervisor-callbacks-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,DatePipe, ReactiveFormsModule, EditCallbackModalComponent],
+  imports: [TranslocoModule, DatePipe, ReactiveFormsModule, EditCallbackModalComponent],
   templateUrl: './supervisor-callbacks-page.component.html',
   styleUrl: './supervisor-callbacks-page.component.scss',
 })
@@ -183,7 +182,9 @@ export class SupervisorCallbacksPageComponent implements OnInit {
       )
       .subscribe((result) => {
         if (result !== undefined) {
-          this.notifications.success(this.transloco.translate('supervisor.callbacks.successCancel'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.callbacks.successCancel'),
+          );
           this.loadCallbacks();
         }
       });

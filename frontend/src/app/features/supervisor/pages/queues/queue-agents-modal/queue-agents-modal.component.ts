@@ -20,8 +20,7 @@ import { Queue } from '../../../models/queue.model';
   selector: 'app-queue-agents-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,],
+  imports: [TranslocoModule],
   templateUrl: './queue-agents-modal.component.html',
   styleUrl: './queue-agents-modal.component.scss',
 })

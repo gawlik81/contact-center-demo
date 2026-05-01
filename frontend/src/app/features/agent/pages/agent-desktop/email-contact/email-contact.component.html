@@ -12,20 +12,18 @@
   </div>
 } @else if (rootMessage()) {
   <div class="email-contact">
-
     <!-- ===== HEADER: subject + metadata ===== -->
     <header class="email-header">
       <div class="email-header__subject-row">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="email-header__icon">
-          <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+          <path
+            d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
+          />
         </svg>
         <h2 class="email-header__title" [title]="rootMessage()!.subject">
           {{ rootMessage()!.subject }}
         </h2>
-        <span
-          class="email-header__status"
-          [class.email-header__status--active]="rootMessage()!.status === 'ACTIVE'"
-        >
+        <span class="email-header__status" [class.email-header__status--active]="rootMessage()!.status === 'ACTIVE'">
           {{ rootMessage()!.status }}
         </span>
       </div>
@@ -40,7 +38,9 @@
       @if (error()) {
         <div class="email-header__error" role="alert" aria-live="polite">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            />
           </svg>
           {{ error() }}
         </div>
@@ -49,7 +49,6 @@
 
     <!-- ===== BODY: thread + reply ===== -->
     <div class="email-body">
-
       <!-- LEFT: message thread -->
       <section class="email-thread" role="region" [attr.aria-label]="'agent.emailContact.threadLabel' | transloco">
         @if (hasMore()) {
@@ -83,13 +82,13 @@
 
       <!-- RIGHT: reply panel -->
       <section class="email-reply" role="region" [attr.aria-label]="'agent.emailContact.replyLabel' | transloco">
-
         <!-- Scrollable form fields -->
         <div class="email-reply__inner">
-
           <!-- Template selector -->
           <div class="email-reply__field-group">
-            <label class="field-label" for="template-search">{{ 'agent.emailContact.templateLabel' | transloco }}</label>
+            <label class="field-label" for="template-search">{{
+              'agent.emailContact.templateLabel' | transloco
+            }}</label>
             <div class="autocomplete-wrapper">
               <input
                 id="template-search"
@@ -103,12 +102,7 @@
                 aria-controls="template-list"
               />
               @if (filteredTemplates().length > 0 && templateSearchControl.value) {
-                <ul
-                  id="template-list"
-                  class="autocomplete-list"
-                  role="listbox"
-                  aria-label="Dostepne szablony"
-                >
+                <ul id="template-list" class="autocomplete-list" role="listbox" aria-label="Dostepne szablony">
                   @for (tpl of filteredTemplates(); track trackByTemplateId($index, tpl)) {
                     <li
                       class="autocomplete-item"
@@ -120,9 +114,7 @@
                     >
                       <span class="autocomplete-item__name">{{ tpl.name }}</span>
                       @if (tpl.variables.length > 0) {
-                        <span class="autocomplete-item__vars">
-                          {{ tpl.variables.length }} zmiennych
-                        </span>
+                        <span class="autocomplete-item__vars"> {{ tpl.variables.length }} zmiennych </span>
                       }
                     </li>
                   }
@@ -174,11 +166,7 @@
 
           <!-- Rich text editor -->
           <div class="email-reply__editor-wrapper">
-            <div
-              class="email-reply__toolbar"
-              role="toolbar"
-              aria-label="Pasek narzedzi edytora"
-            >
+            <div class="email-reply__toolbar" role="toolbar" aria-label="Pasek narzedzi edytora">
               <button
                 type="button"
                 class="editor-btn"
@@ -215,7 +203,9 @@
                 (click)="insertLink()"
               >
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" />
+                  <path
+                    d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"
+                  />
                 </svg>
               </button>
             </div>
@@ -232,8 +222,8 @@
               (input)="onEditorInput($event)"
             ></div>
           </div>
-
-        </div><!-- /.email-reply__inner -->
+        </div>
+        <!-- /.email-reply__inner -->
 
         <!-- Sticky action bar — always visible at bottom of reply pane -->
         <div class="email-reply__actions">
@@ -263,9 +253,9 @@
             Anuluj
           </button>
         </div>
-
       </section>
-    </div><!-- /.email-body -->
-
-  </div><!-- /.email-contact -->
+    </div>
+    <!-- /.email-body -->
+  </div>
+  <!-- /.email-contact -->
 }

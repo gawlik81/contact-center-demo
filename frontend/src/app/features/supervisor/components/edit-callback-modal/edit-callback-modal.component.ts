@@ -42,8 +42,7 @@ function futureDateValidator(control: AbstractControl): ValidationErrors | null 
   selector: 'app-edit-callback-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './edit-callback-modal.component.html',
   styleUrl: './edit-callback-modal.component.scss',
 })

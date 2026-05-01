@@ -74,10 +74,18 @@
                     type="checkbox"
                     [checked]="selectedGroupIds().includes(group.groupId)"
                     (change)="toggleGroup(group.groupId)"
-                    [attr.aria-label]="group.name + ', ' + group.memberCount + ' ' + ('supervisor.queueAssignment.agentsCount' | transloco)"
+                    [attr.aria-label]="
+                      group.name +
+                      ', ' +
+                      group.memberCount +
+                      ' ' +
+                      ('supervisor.queueAssignment.agentsCount' | transloco)
+                    "
                   />
                   <span class="checkbox-option__text">{{ group.name }}</span>
-                  <span class="count-badge">{{ group.memberCount }} {{ 'supervisor.queueAssignment.agentsCount' | transloco }}</span>
+                  <span class="count-badge"
+                    >{{ group.memberCount }} {{ 'supervisor.queueAssignment.agentsCount' | transloco }}</span
+                  >
                 </label>
               </li>
             }

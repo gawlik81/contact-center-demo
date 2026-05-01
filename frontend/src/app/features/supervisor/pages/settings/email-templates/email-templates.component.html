@@ -132,7 +132,13 @@
 <dialog #formDialog class="et-dialog" (close)="closeFormModal()">
   <div class="et-dialog__inner">
     <header class="et-dialog__header">
-      <h2>{{ modalMode() === 'create' ? ('supervisor.settings.emailTemplates.addTemplate' | transloco) : ('supervisor.settings.emailTemplates.editTemplate' | transloco) }}</h2>
+      <h2>
+        {{
+          modalMode() === 'create'
+            ? ('supervisor.settings.emailTemplates.addTemplate' | transloco)
+            : ('supervisor.settings.emailTemplates.editTemplate' | transloco)
+        }}
+      </h2>
       <button class="et-dialog__close" (click)="closeFormModal()" aria-label="Zamknij">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -144,7 +150,9 @@
 
     <form [formGroup]="form" (ngSubmit)="saveTemplate()" class="et-form" novalidate>
       <div class="et-field">
-        <label class="et-label" for="field-name">{{ 'common.name' | transloco }} <span class="et-required">*</span></label>
+        <label class="et-label" for="field-name"
+          >{{ 'common.name' | transloco }} <span class="et-required">*</span></label
+        >
         <input
           id="field-name"
           class="et-input"
@@ -155,12 +163,16 @@
           autocomplete="off"
         />
         @if (isFieldInvalid('name')) {
-          <span class="et-error-msg" role="alert">{{ 'supervisor.settings.emailTemplates.nameError' | transloco }}</span>
+          <span class="et-error-msg" role="alert">{{
+            'supervisor.settings.emailTemplates.nameError' | transloco
+          }}</span>
         }
       </div>
 
       <div class="et-field">
-        <label class="et-label" for="field-subject">{{ 'supervisor.settings.emailTemplates.subject' | transloco }} <span class="et-required">*</span></label>
+        <label class="et-label" for="field-subject"
+          >{{ 'supervisor.settings.emailTemplates.subject' | transloco }} <span class="et-required">*</span></label
+        >
         <input
           id="field-subject"
           class="et-input"
@@ -171,12 +183,16 @@
           autocomplete="off"
         />
         @if (isFieldInvalid('subjectTemplate')) {
-          <span class="et-error-msg" role="alert">{{ 'supervisor.settings.emailTemplates.subjectError' | transloco }}</span>
+          <span class="et-error-msg" role="alert">{{
+            'supervisor.settings.emailTemplates.subjectError' | transloco
+          }}</span>
         }
       </div>
 
       <div class="et-field">
-        <label class="et-label" for="field-body">{{ 'supervisor.settings.emailTemplates.bodyLabel' | transloco }} <span class="et-required">*</span></label>
+        <label class="et-label" for="field-body"
+          >{{ 'supervisor.settings.emailTemplates.bodyLabel' | transloco }} <span class="et-required">*</span></label
+        >
         <textarea
           id="field-body"
           class="et-textarea"
@@ -186,7 +202,9 @@
           [placeholder]="'supervisor.settings.emailTemplates.bodyPlaceholder' | transloco"
         ></textarea>
         @if (isFieldInvalid('bodyHtml')) {
-          <span class="et-error-msg" role="alert">{{ 'supervisor.settings.emailTemplates.bodyError' | transloco }}</span>
+          <span class="et-error-msg" role="alert">{{
+            'supervisor.settings.emailTemplates.bodyError' | transloco
+          }}</span>
         }
         <p class="et-hint">
           {{ 'supervisor.settings.emailTemplates.variableHint' | transloco }}
@@ -235,13 +253,20 @@
       </div>
 
       <footer class="et-dialog__footer">
-        <button type="button" class="et-btn et-btn--ghost" (click)="closeFormModal()">{{ 'common.cancel' | transloco }}</button>
+        <button type="button" class="et-btn et-btn--ghost" (click)="closeFormModal()">
+          {{ 'common.cancel' | transloco }}
+        </button>
         <button type="submit" class="et-btn et-btn--primary" [disabled]="saving()">
           @if (saving()) {
             <span class="et-spinner" aria-hidden="true"></span>
             {{ 'common.saving' | transloco }}
           } @else {
-            {{ (modalMode() === 'create' ? 'supervisor.settings.emailTemplates.createButton' : 'supervisor.settings.emailTemplates.saveButton') | transloco }}
+            {{
+              (modalMode() === 'create'
+                ? 'supervisor.settings.emailTemplates.createButton'
+                : 'supervisor.settings.emailTemplates.saveButton'
+              ) | transloco
+            }}
           }
         </button>
       </footer>
@@ -268,7 +293,9 @@
       </p>
     </div>
     <footer class="et-dialog__footer">
-      <button type="button" class="et-btn et-btn--ghost" (click)="closeDeleteModal()">{{ 'common.cancel' | transloco }}</button>
+      <button type="button" class="et-btn et-btn--ghost" (click)="closeDeleteModal()">
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button type="button" class="et-btn et-btn--danger" (click)="confirmDelete()" [disabled]="deleting()">
         @if (deleting()) {
           <span class="et-spinner" aria-hidden="true"></span>
@@ -344,7 +371,9 @@
       @if (previewResult()) {
         <div class="et-preview-result">
           <div class="et-preview-subject">
-            <span class="et-preview-subject__label">{{ 'supervisor.settings.emailTemplates.subject' | transloco }}:</span>
+            <span class="et-preview-subject__label"
+              >{{ 'supervisor.settings.emailTemplates.subject' | transloco }}:</span
+            >
             <span class="et-preview-subject__value">{{ previewResult()!.subject }}</span>
           </div>
           <div class="et-preview-frame-wrapper">
@@ -360,7 +389,9 @@
     </div>
 
     <footer class="et-dialog__footer">
-      <button type="button" class="et-btn et-btn--ghost" (click)="closePreviewModal()">{{ 'common.close' | transloco }}</button>
+      <button type="button" class="et-btn et-btn--ghost" (click)="closePreviewModal()">
+        {{ 'common.close' | transloco }}
+      </button>
     </footer>
   </div>
 </dialog>

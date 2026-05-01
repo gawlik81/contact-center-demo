@@ -66,7 +66,11 @@
     <!-- Table -->
     @if (!loading()) {
       @if (contacts().length > 0) {
-        <div class="contacts-table-wrapper" role="region" [attr.aria-label]="'supervisor.campaignContacts.tableLabel' | transloco">
+        <div
+          class="contacts-table-wrapper"
+          role="region"
+          [attr.aria-label]="'supervisor.campaignContacts.tableLabel' | transloco"
+        >
           <table class="contacts-table" aria-live="polite">
             <thead>
               <tr>
@@ -127,7 +131,9 @@
                             {{ 'supervisor.campaignContacts.calling' | transloco }}
                           } @else {
                             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="15" height="15">
-                              <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                              <path
+                                d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                              />
                             </svg>
                             Zadzwon
                           }
@@ -162,7 +168,8 @@
               {{ 'common.previous' | transloco }}
             </button>
             <span class="contacts-pagination__pages" aria-current="page">
-              {{ 'common.page' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() || 1 }}
+              {{ 'common.page' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }}
+              {{ totalPages() || 1 }}
             </span>
             <button
               class="btn btn-pagination"

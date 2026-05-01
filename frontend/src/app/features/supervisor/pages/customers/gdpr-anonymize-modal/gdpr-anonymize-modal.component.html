@@ -58,13 +58,7 @@
     </div>
 
     <div class="anonymize-dialog__footer">
-      <button
-        class="btn btn-cancel"
-        type="button"
-        (click)="onCancel()"
-        [disabled]="isLoading()"
-        autofocus
-      >
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" [disabled]="isLoading()" autofocus>
         {{ 'common.cancel' | transloco }}
       </button>
       <button

@@ -4,7 +4,10 @@
     <h2 class="manual-panel__title">
       {{ 'agent.manualCampaign.title' | transloco }}
       @if (totalPending() > 0) {
-        <span class="manual-panel__badge" [attr.aria-label]="totalPending() + ' ' + ('agent.manualCampaign.recordsLabel' | transloco)">
+        <span
+          class="manual-panel__badge"
+          [attr.aria-label]="totalPending() + ' ' + ('agent.manualCampaign.recordsLabel' | transloco)"
+        >
           {{ totalPending() }}
         </span>
       }
@@ -45,7 +48,11 @@
 
   <!-- Loading skeleton (initial load) -->
   @if (loading() && campaignRows().length === 0) {
-    <div class="manual-panel__skeleton" aria-busy="true" [attr.aria-label]="'agent.manualCampaign.loadingLabel' | transloco">
+    <div
+      class="manual-panel__skeleton"
+      aria-busy="true"
+      [attr.aria-label]="'agent.manualCampaign.loadingLabel' | transloco"
+    >
       @for (i of [1, 2, 3]; track i) {
         <div class="skeleton-campaign">
           <div class="skeleton-line skeleton-line--title"></div>

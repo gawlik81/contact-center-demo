@@ -33,9 +33,7 @@
         <div class="softphone__caller-info">
           <p class="softphone__caller-name">{{ s.customerName }}</p>
           <p class="softphone__caller-phone">{{ s.customerPhone }}</p>
-          <p class="softphone__caller-queue">
-            {{ 'agent.softphone.queue' | transloco }} {{ s.queueName }}
-          </p>
+          <p class="softphone__caller-queue">{{ 'agent.softphone.queue' | transloco }} {{ s.queueName }}</p>
         </div>
 
         <div class="softphone__ringing-actions">
@@ -79,7 +77,8 @@
             class="softphone__timer"
             role="timer"
             [attr.aria-label]="('agent.softphone.callDuration' | transloco) + ' ' + formattedDuration()"
-          >{{ formattedDuration() }}</span>
+            >{{ formattedDuration() }}</span
+          >
           <div class="softphone__caller-compact">
             <span class="softphone__caller-name">{{ s.customerName }}</span>
             <span class="softphone__caller-phone">{{ s.customerPhone }}</span>
@@ -96,9 +95,7 @@
             class="softphone__ctrl-btn"
             [class.softphone__ctrl-btn--active]="s.isMuted"
             [attr.aria-label]="
-              s.isMuted
-                ? ('agent.softphone.unmuteLabel' | transloco)
-                : ('agent.softphone.muteLabel' | transloco)
+              s.isMuted ? ('agent.softphone.unmuteLabel' | transloco) : ('agent.softphone.muteLabel' | transloco)
             "
             [attr.aria-pressed]="s.isMuted"
             (click)="toggleMute()"
@@ -314,7 +311,8 @@
             class="softphone__hold-timer"
             role="timer"
             [attr.aria-label]="('agent.softphone.holdDuration' | transloco) + ' ' + formattedHoldDuration()"
-          >{{ formattedHoldDuration() }}</span>
+            >{{ formattedHoldDuration() }}</span
+          >
         </div>
 
         <div class="softphone__caller-info softphone__caller-info--sm">
@@ -328,9 +326,7 @@
             class="softphone__ctrl-btn"
             [class.softphone__ctrl-btn--active]="s.isMuted"
             [attr.aria-label]="
-              s.isMuted
-                ? ('agent.softphone.unmuteLabel' | transloco)
-                : ('agent.softphone.muteLabel' | transloco)
+              s.isMuted ? ('agent.softphone.unmuteLabel' | transloco) : ('agent.softphone.muteLabel' | transloco)
             "
             [attr.aria-pressed]="s.isMuted"
             (click)="toggleMute()"

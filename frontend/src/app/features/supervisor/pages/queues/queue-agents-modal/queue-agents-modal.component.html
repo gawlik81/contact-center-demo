@@ -9,7 +9,12 @@
         </h2>
         <p class="modal-subtitle">
           @if (!loading() && totalAgentCount() !== null) {
-            {{ totalAgentCount() }} {{ totalAgentCount() === 1 ? ('supervisor.queueAgents.agentSingular' | transloco) : ('supervisor.queueAgents.agentsPlural' | transloco) }}
+            {{ totalAgentCount() }}
+            {{
+              totalAgentCount() === 1
+                ? ('supervisor.queueAgents.agentSingular' | transloco)
+                : ('supervisor.queueAgents.agentsPlural' | transloco)
+            }}
           } @else {
             {{ 'supervisor.queueAgents.subtitle' | transloco }}
           }
@@ -63,7 +68,9 @@
                     />
                   </svg>
                   <span class="item-name">{{ group.name }}</span>
-                  <span class="item-count">{{ group.memberCount }} {{ 'supervisor.queueAgents.agentsAbbr' | transloco }}</span>
+                  <span class="item-count"
+                    >{{ group.memberCount }} {{ 'supervisor.queueAgents.agentsAbbr' | transloco }}</span
+                  >
                 </li>
               }
             </ul>

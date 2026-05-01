@@ -44,13 +44,17 @@
       </svg>
       <p class="empty-state__title">{{ 'supervisor.settings.phoneNumbers.emptyTitle' | transloco }}</p>
       <p class="empty-state__hint">{{ 'supervisor.settings.phoneNumbers.emptyHint' | transloco }}</p>
-      <button type="button" class="btn btn-primary" (click)="openAddDialog()">{{ 'supervisor.settings.phoneNumbers.addFirst' | transloco }}</button>
+      <button type="button" class="btn btn-primary" (click)="openAddDialog()">
+        {{ 'supervisor.settings.phoneNumbers.addFirst' | transloco }}
+      </button>
     </div>
   } @else {
     <!-- Numbers table -->
     <div class="numbers-table" role="table" aria-label="Lista numerów telefonów">
       <div class="numbers-table__head" role="row">
-        <span role="columnheader" class="col-number">{{ 'supervisor.settings.phoneNumbers.colNumber' | transloco }}</span>
+        <span role="columnheader" class="col-number">{{
+          'supervisor.settings.phoneNumbers.colNumber' | transloco
+        }}</span>
         <span role="columnheader" class="col-name">{{ 'supervisor.settings.phoneNumbers.colName' | transloco }}</span>
         <span role="columnheader" class="col-status">{{ 'common.status' | transloco }}</span>
         <span role="columnheader" class="col-rules">{{ 'supervisor.settings.routingRules.title' | transloco }}</span>
@@ -73,7 +77,11 @@
                 (click)="toggleExpand(number.phoneNumberId)"
                 [attr.aria-expanded]="isExpanded(number.phoneNumberId)"
                 [attr.aria-label]="
-                  (isExpanded(number.phoneNumberId) ? ('common.collapse' | transloco) : ('common.expand' | transloco)) + ' ' + ('common.rulesFor' | transloco) + ' ' + number.number
+                  (isExpanded(number.phoneNumberId) ? ('common.collapse' | transloco) : ('common.expand' | transloco)) +
+                  ' ' +
+                  ('common.rulesFor' | transloco) +
+                  ' ' +
+                  number.number
                 "
               >
                 <svg
@@ -99,9 +107,13 @@
             <!-- Status -->
             <div role="cell" class="col-status">
               @if (number.isActive) {
-                <span class="status-badge status-badge--active">{{ 'supervisor.settings.phoneNumbers.statusActive' | transloco }}</span>
+                <span class="status-badge status-badge--active">{{
+                  'supervisor.settings.phoneNumbers.statusActive' | transloco
+                }}</span>
               } @else {
-                <span class="status-badge status-badge--inactive">{{ 'supervisor.settings.phoneNumbers.statusInactive' | transloco }}</span>
+                <span class="status-badge status-badge--inactive">{{
+                  'supervisor.settings.phoneNumbers.statusInactive' | transloco
+                }}</span>
               }
             </div>
 
@@ -172,7 +184,9 @@
 <!-- Add number dialog -->
 <dialog #addDialogRef class="num-dialog" aria-labelledby="add-dialog-title">
   <div class="num-dialog__header">
-    <h2 id="add-dialog-title" class="num-dialog__title">{{ 'supervisor.settings.phoneNumbers.addTitle' | transloco }}</h2>
+    <h2 id="add-dialog-title" class="num-dialog__title">
+      {{ 'supervisor.settings.phoneNumbers.addTitle' | transloco }}
+    </h2>
     <button type="button" class="num-dialog__close" (click)="closeAddDialog()" aria-label="Zamknij dialog">
       <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
         <path
@@ -198,12 +212,16 @@
       @if (addNumberError) {
         <span id="add-number-error" class="form-error" role="alert">{{ addNumberError }}</span>
       } @else {
-        <span id="add-number-hint" class="form-hint">{{ 'supervisor.settings.phoneNumbers.phoneHint' | transloco }}</span>
+        <span id="add-number-hint" class="form-hint">{{
+          'supervisor.settings.phoneNumbers.phoneHint' | transloco
+        }}</span>
       }
     </div>
 
     <div class="form-field">
-      <label class="form-label" for="add-display-name">{{ 'supervisor.settings.phoneNumbers.displayNameLabel' | transloco }}</label>
+      <label class="form-label" for="add-display-name">{{
+        'supervisor.settings.phoneNumbers.displayNameLabel' | transloco
+      }}</label>
       <input
         id="add-display-name"
         type="text"
@@ -215,7 +233,9 @@
     </div>
 
     <div class="num-dialog__actions">
-      <button type="button" class="btn btn-secondary" (click)="closeAddDialog()">{{ 'common.cancel' | transloco }}</button>
+      <button type="button" class="btn btn-secondary" (click)="closeAddDialog()">
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         type="submit"
         class="btn btn-primary"
@@ -236,7 +256,9 @@
 <!-- Edit number dialog -->
 <dialog #editDialogRef class="num-dialog" aria-labelledby="edit-dialog-title">
   <div class="num-dialog__header">
-    <h2 id="edit-dialog-title" class="num-dialog__title">{{ 'supervisor.settings.phoneNumbers.editTitle' | transloco }}</h2>
+    <h2 id="edit-dialog-title" class="num-dialog__title">
+      {{ 'supervisor.settings.phoneNumbers.editTitle' | transloco }}
+    </h2>
     <button type="button" class="num-dialog__close" (click)="closeEditDialog()" aria-label="Zamknij dialog">
       <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
         <path
@@ -259,7 +281,9 @@
     }
 
     <div class="form-field">
-      <label class="form-label" for="edit-display-name">{{ 'supervisor.settings.phoneNumbers.displayNameLabel' | transloco }}</label>
+      <label class="form-label" for="edit-display-name">{{
+        'supervisor.settings.phoneNumbers.displayNameLabel' | transloco
+      }}</label>
       <input
         id="edit-display-name"
         type="text"
@@ -281,7 +305,9 @@
     </div>
 
     <div class="num-dialog__actions">
-      <button type="button" class="btn btn-secondary" (click)="closeEditDialog()">{{ 'common.cancel' | transloco }}</button>
+      <button type="button" class="btn btn-secondary" (click)="closeEditDialog()">
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         type="submit"
         class="btn btn-primary"
@@ -302,7 +328,9 @@
 <!-- Delete confirmation dialog -->
 <dialog #deleteDialogRef class="num-dialog num-dialog--sm" aria-labelledby="delete-dialog-title">
   <div class="num-dialog__header">
-    <h2 id="delete-dialog-title" class="num-dialog__title">{{ 'supervisor.settings.phoneNumbers.deleteTitle' | transloco }}</h2>
+    <h2 id="delete-dialog-title" class="num-dialog__title">
+      {{ 'supervisor.settings.phoneNumbers.deleteTitle' | transloco }}
+    </h2>
   </div>
   <div class="num-dialog__body">
     @if (pendingDeleteNumber()) {
@@ -325,7 +353,9 @@
       }
     }
     <div class="num-dialog__actions">
-      <button type="button" class="btn btn-secondary" (click)="closeDeleteDialog()">{{ 'common.cancel' | transloco }}</button>
+      <button type="button" class="btn btn-secondary" (click)="closeDeleteDialog()">
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         type="button"
         class="btn btn-danger"

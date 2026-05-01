@@ -1,17 +1,9 @@
 <!-- Skip link for WCAG keyboard navigation -->
 <a href="#main-content" class="skip-link">Przejdz do tresci</a>
 
-<div
-  class="shell"
-  [class.shell--sidenav-open]="sidenavOpen()"
-  [class.shell--sidenav-collapsed]="sidenavCollapsed()"
->
+<div class="shell" [class.shell--sidenav-open]="sidenavOpen()" [class.shell--sidenav-collapsed]="sidenavCollapsed()">
   <!-- Top Navbar -->
-  <cc-top-navbar
-    class="shell__navbar"
-    [sidenavOpen]="sidenavOpen()"
-    (toggleSidenav)="onToggleSidenav()"
-  />
+  <cc-top-navbar class="shell__navbar" [sidenavOpen]="sidenavOpen()" (toggleSidenav)="onToggleSidenav()" />
 
   <div class="shell__body">
     <!-- Sidenav -->

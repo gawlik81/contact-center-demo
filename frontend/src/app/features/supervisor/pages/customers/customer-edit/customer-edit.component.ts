@@ -29,8 +29,7 @@ import { CustomerResponse } from '../../../models/customer.model';
 @Component({
   selector: 'app-customer-edit',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './customer-edit.component.html',
   styleUrl: './customer-edit.component.scss',
   host: {
@@ -175,7 +174,9 @@ export class CustomerEditComponent implements OnInit, AfterViewInit {
       )
       .subscribe((result) => {
         if (result) {
-          this.notifications.success(this.transloco.translate('supervisor.customerEdit.successSave'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.customerEdit.successSave'),
+          );
           this.saved.emit();
         }
       });

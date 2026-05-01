@@ -17,8 +17,7 @@ import { NotificationService } from '../../../../../core/services/notification.s
 @Component({
   selector: 'app-gdpr-anonymize-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,FormsModule],
+  imports: [TranslocoModule, FormsModule],
   templateUrl: './gdpr-anonymize-modal.component.html',
   styleUrl: './gdpr-anonymize-modal.component.scss',
   host: {
@@ -66,15 +65,21 @@ export class GdprAnonymizeModalComponent implements AfterViewInit {
     this.gdprService.anonymize(this.customerId()).subscribe({
       next: () => {
         this.isLoading.set(false);
-        this.notifications.success(this.transloco.translate('supervisor.gdprAnonymize.successAnonymize'));
+        this.notifications.success(
+          this.transloco.translate('supervisor.gdprAnonymize.successAnonymize'),
+        );
         this.confirmed.emit();
       },
       error: (err: { status?: number }) => {
         this.isLoading.set(false);
         if (err.status === 403) {
-          this.notifications.error(this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'),
+          );
         } else {
-          this.notifications.error(this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.gdprAnonymize.errorAnonymize'),
+          );
         }
       },
     });

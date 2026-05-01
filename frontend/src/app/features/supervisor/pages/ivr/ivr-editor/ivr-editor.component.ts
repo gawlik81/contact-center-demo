@@ -48,8 +48,7 @@ const NODE_HEIGHT_BASE = 80;
 @Component({
   selector: 'app-ivr-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,FormsModule, SlicePipe],
+  imports: [TranslocoModule, FormsModule, SlicePipe],
   templateUrl: './ivr-editor.component.html',
   styleUrl: './ivr-editor.component.scss',
 })
@@ -173,7 +172,7 @@ export class IvrEditorComponent implements OnInit {
       .getIvr(id)
       .pipe(
         catchError((_err) => {
-          this.error.set('Nie udalo sie zaladowac drzewa IVR.');
+          this.error.set(this.transloco.translate('supervisor.ivrEditor.errorLoad'));
           this.loading.set(false);
           return of(null);
         }),
@@ -238,7 +237,7 @@ export class IvrEditorComponent implements OnInit {
       })
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie zapisac drzewa IVR.');
+          this.notifications.error(this.transloco.translate('supervisor.ivrEditor.errorSave'));
           this.saving.set(false);
           return of(null);
         }),
@@ -249,7 +248,7 @@ export class IvrEditorComponent implements OnInit {
         if (ivr) {
           this.ivrService.savePositions(this.ivrId(), this.definition().nodes);
           this.ivrVersion.set(ivr.version);
-          this.notifications.success('Drzewo IVR zostalo zapisane.');
+          this.notifications.success(this.transloco.translate('supervisor.ivrEditor.successSave'));
         }
       });
   }
@@ -261,9 +260,9 @@ export class IvrEditorComponent implements OnInit {
     const nodeIds = new Set(def.nodes.map((n) => n.node_id));
 
     if (!def.entry_node_id) {
-      warnings.push('Brak zdefiniowanego wezla startowego (entry node).');
+      warnings.push(this.transloco.translate('supervisor.ivr.warnNoEntryNode'));
     } else if (!nodeIds.has(def.entry_node_id)) {
-      warnings.push('Wezel startowy wskazuje na nieistniejacy wezel.');
+      warnings.push(this.transloco.translate('supervisor.ivr.warnEntryNodeMissing'));
     }
 
     for (const node of def.nodes) {
@@ -272,41 +271,66 @@ export class IvrEditorComponent implements OnInit {
         (!node.options || node.options.length === 0)
       ) {
         warnings.push(
-          `Wezel "${node.prompt?.slice(0, 30) ?? node.node_id}" (${node.type}) nie ma zadnej opcji wyjscia.`,
+          this.transloco.translate('supervisor.ivr.warnNoOptions', {
+            label: node.prompt?.slice(0, 30) ?? node.node_id,
+            type: node.type,
+          }),
         );
       }
       if (node.type === 'COLLECT_DTMF' && !node.variable_name?.trim()) {
         warnings.push(
-          `Wezel COLLECT_DTMF "${node.prompt?.slice(0, 30) ?? node.node_id}" nie ma ustawionej nazwy zmiennej.`,
+          this.transloco.translate('supervisor.ivr.warnDtmfNoVariable', {
+            label: node.prompt?.slice(0, 30) ?? node.node_id,
+          }),
         );
       }
       if (node.type === 'SET' && !node.variable_name?.trim()) {
-        warnings.push(`Wezel SET "${node.node_id}" nie ma ustawionej nazwy zmiennej.`);
+        warnings.push(
+          this.transloco.translate('supervisor.ivr.warnSetNoVariable', { id: node.node_id }),
+        );
       }
       if (node.type === 'IF' && !node.variable_name?.trim()) {
-        warnings.push(`Wezel IF "${node.node_id}" nie ma ustawionej nazwy zmiennej.`);
+        warnings.push(
+          this.transloco.translate('supervisor.ivr.warnIfNoVariable', { id: node.node_id }),
+        );
       }
       if (node.type === 'SWITCH') {
         if (!node.variable_name?.trim()) {
-          warnings.push(`Wezel SWITCH "${node.node_id}" nie ma ustawionej nazwy zmiennej.`);
+          warnings.push(
+            this.transloco.translate('supervisor.ivr.warnSwitchNoVariable', { id: node.node_id }),
+          );
         }
         const hasDefault = (node.options ?? []).some((o) => o.key === 'default');
         if (!hasDefault) {
-          warnings.push(`Wezel SWITCH "${node.node_id}" nie ma opcji "default".`);
+          warnings.push(
+            this.transloco.translate('supervisor.ivr.warnSwitchNoDefault', { id: node.node_id }),
+          );
         }
       }
       if (node.type === 'VOICEBOT') {
         const hasNext = (node.options ?? []).some((o) => o.key === 'next');
         const hasEscalate = (node.options ?? []).some((o) => o.key === 'escalate');
         const hasFallback = (node.options ?? []).some((o) => o.key === 'fallback');
-        if (!hasNext) warnings.push(`Wezel VOICEBOT "${node.node_id}" nie ma opcji "next".`);
-        if (!hasEscalate) warnings.push(`Wezel VOICEBOT "${node.node_id}" nie ma opcji "escalate".`);
-        if (!hasFallback) warnings.push(`Wezel VOICEBOT "${node.node_id}" nie ma opcji "fallback".`);
+        if (!hasNext)
+          warnings.push(
+            this.transloco.translate('supervisor.ivr.warnVoicebotNoNext', { id: node.node_id }),
+          );
+        if (!hasEscalate)
+          warnings.push(
+            this.transloco.translate('supervisor.ivr.warnVoicebotNoEscalate', { id: node.node_id }),
+          );
+        if (!hasFallback)
+          warnings.push(
+            this.transloco.translate('supervisor.ivr.warnVoicebotNoFallback', { id: node.node_id }),
+          );
       }
       for (const opt of node.options ?? []) {
         if (opt.next_node_id && !nodeIds.has(opt.next_node_id)) {
           warnings.push(
-            `Opcja klawisza "${opt.key}" w wezle "${node.node_id}" wskazuje na nieistniejacy wezel.`,
+            this.transloco.translate('supervisor.ivr.warnOptionBroken', {
+              key: opt.key,
+              id: node.node_id,
+            }),
           );
         }
       }
@@ -332,7 +356,9 @@ export class IvrEditorComponent implements OnInit {
       const unreachable = def.nodes.filter((n) => !visited.has(n.node_id));
       for (const n of unreachable) {
         warnings.push(
-          `Wezel "${n.prompt?.slice(0, 30) ?? n.node_id}" jest nieosiagalny z wezla startowego.`,
+          this.transloco.translate('supervisor.ivr.warnUnreachable', {
+            label: n.prompt?.slice(0, 30) ?? n.node_id,
+          }),
         );
       }
     }
@@ -638,12 +664,14 @@ export class IvrEditorComponent implements OnInit {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       if (file.size > 10 * 1024 * 1024) {
-        this.notifications.error('Plik jest za duzy. Maksymalny rozmiar to 10MB.');
+        this.notifications.error(
+          this.transloco.translate('supervisor.ivrEditor.errorFileTooLarge'),
+        );
         return;
       }
       const ext = file.name.split('.').pop()?.toLowerCase();
       if (ext !== 'mp3' && ext !== 'wav') {
-        this.notifications.error('Nieobslugiwany format. Wybierz plik MP3 lub WAV.');
+        this.notifications.error(this.transloco.translate('supervisor.ivrEditor.errorFileFormat'));
         return;
       }
       this.simulateUpload(nodeId, file.name);
@@ -668,7 +696,9 @@ export class IvrEditorComponent implements OnInit {
             // Trigger re-render of panel
             this.selectedNodeId.set(nodeId);
           }
-          this.notifications.success(`Plik "${fileName}" zostal zaladowany (symulacja).`);
+          this.notifications.success(
+            this.transloco.translate('supervisor.ivrEditor.uploadSuccess', { name: fileName }),
+          );
           return 100;
         }
         return p + 20;
@@ -709,8 +739,9 @@ export class IvrEditorComponent implements OnInit {
 
   copyJsonToClipboard(): void {
     navigator.clipboard.writeText(this.apiDefinitionJson()).then(
-      () => this.notifications.success('JSON skopiowany do schowka.'),
-      () => this.notifications.error('Blad kopiowania do schowka.'),
+      () =>
+        this.notifications.success(this.transloco.translate('supervisor.ivrEditor.successCopy')),
+      () => this.notifications.error(this.transloco.translate('supervisor.ivrEditor.errorCopy')),
     );
   }
 

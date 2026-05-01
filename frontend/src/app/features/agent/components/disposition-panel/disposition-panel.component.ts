@@ -122,7 +122,9 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
             next: () => {
-              this.notifications.success(this.transloco.translate('agent.disposition.statusChanged'));
+              this.notifications.success(
+                this.transloco.translate('agent.disposition.statusChanged'),
+              );
               this.saved.emit();
             },
             error: () => {

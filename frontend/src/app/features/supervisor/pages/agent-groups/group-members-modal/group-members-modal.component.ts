@@ -22,8 +22,7 @@ import { UserResponse } from '../../../models/user.model';
   selector: 'app-group-members-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,FormsModule],
+  imports: [TranslocoModule, FormsModule],
   templateUrl: './group-members-modal.component.html',
   styleUrl: './group-members-modal.component.scss',
 })

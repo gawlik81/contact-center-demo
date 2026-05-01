@@ -28,8 +28,7 @@ import { EmailThreadMessageComponent } from './email-thread-message/email-thread
 @Component({
   selector: 'cc-email-contact',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    TranslocoModule,ReactiveFormsModule, EmailThreadMessageComponent],
+  imports: [TranslocoModule, ReactiveFormsModule, EmailThreadMessageComponent],
   templateUrl: './email-contact.component.html',
   styleUrl: './email-contact.component.scss',
 })
@@ -83,7 +82,10 @@ export class EmailContactComponent implements OnInit {
     // Fire-and-forget — idempotent, failure is non-critical.
     this.contactService
       .acceptContact(this.contactId())
-      .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe();
 
     this.templateSearchControl.valueChanges
@@ -107,9 +109,7 @@ export class EmailContactComponent implements OnInit {
       .subscribe({
         next: (msg) => {
           this.rootMessage.set(msg);
-          this.replySubject.set(
-            msg.subject.startsWith('Re:') ? msg.subject : `Re: ${msg.subject}`,
-          );
+          this.replySubject.set(msg.subject.startsWith('Re:') ? msg.subject : `Re: ${msg.subject}`);
           this.loadThread(msg.threadRootMessageId ?? msg.messageIdHeader ?? msg.id, 0, true);
         },
         error: () => {
@@ -133,7 +133,7 @@ export class EmailContactComponent implements OnInit {
             this.thread.set(
               response.content.length > 0
                 ? response.content
-                : [this.rootMessage()].filter(Boolean) as EmailMessage[],
+                : ([this.rootMessage()].filter(Boolean) as EmailMessage[]),
             );
           } else {
             this.thread.update((current) => [...response.content, ...current]);
@@ -282,7 +282,10 @@ export class EmailContactComponent implements OnInit {
     // Fire-and-forget — idempotent, UI closes regardless of backend response.
     this.contactService
       .abandonContact(this.contactId())
-      .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe();
 
     this.replySent.emit(false);

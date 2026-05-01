@@ -13,13 +13,13 @@
         <h2 id="reschedule-dialog-title" class="reschedule-dialog__title">
           {{ 'agent.rescheduleCallback.title' | transloco }}
         </h2>
-        <p class="reschedule-dialog__subtitle">Aktualna data: {{ currentScheduledAtFormatted() }}</p>
+        <p class="reschedule-dialog__subtitle">{{ 'agent.rescheduleCallback.currentDate' | transloco }} {{ currentScheduledAtFormatted() }}</p>
       </div>
       <button
         type="button"
         class="reschedule-dialog__close-btn"
         [disabled]="loading()"
-        aria-label="Zamknij dialog"
+        [attr.aria-label]="'agent.rescheduleCallback.closeLabel' | transloco"
         (click)="cancel()"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -37,7 +37,7 @@
         <!-- Date and time -->
         <div class="form-field">
           <span class="form-field__label" aria-hidden="true">
-            Nowa data i czas <span class="form-field__required" aria-hidden="true">*</span>
+            {{ 'agent.rescheduleCallback.newDateLabel' | transloco }} <span class="form-field__required" aria-hidden="true">*</span>
           </span>
           <div class="form-row">
             <div class="form-row__col" [class.form-field--error]="scheduledDateError">
@@ -48,7 +48,7 @@
                 formControlName="scheduledDate"
                 [min]="minDate()"
                 aria-required="true"
-                aria-label="Data oddzwonienia"
+                [attr.aria-label]="'agent.rescheduleCallback.dateLabel' | transloco"
                 [attr.aria-invalid]="form.controls.scheduledDate.invalid && form.controls.scheduledDate.touched"
               />
               @if (scheduledDateError) {
@@ -67,7 +67,7 @@
                 <select
                   class="form-field__select time-selects__select"
                   formControlName="scheduledHour"
-                  aria-label="Godzina"
+                  [attr.aria-label]="'agent.rescheduleCallback.hourLabel' | transloco"
                   aria-required="true"
                 >
                   @for (h of hours; track h) {
@@ -80,7 +80,7 @@
                 <select
                   class="form-field__select time-selects__select"
                   formControlName="scheduledMinute"
-                  aria-label="Minuty"
+                  [attr.aria-label]="'agent.rescheduleCallback.minuteLabel' | transloco"
                   aria-required="true"
                 >
                   @for (m of minutes; track m) {
@@ -105,15 +105,15 @@
         <!-- Notes -->
         <div class="form-field">
           <label class="form-field__label" for="reschedule-notes">
-            Notatki
-            <span class="form-field__optional">(opcjonalne)</span>
+            {{ 'agent.rescheduleCallback.notesLabel' | transloco }}
+            <span class="form-field__optional">{{ 'agent.rescheduleCallback.notesOptional' | transloco }}</span>
           </label>
           <textarea
             id="reschedule-notes"
             class="form-field__textarea"
             rows="3"
             maxlength="500"
-            placeholder="Dodaj notatke do oddzwonienia..."
+            [placeholder]="'agent.rescheduleCallback.notesPlaceholder' | transloco"
             formControlName="notes"
             aria-multiline="true"
             [attr.aria-invalid]="form.controls.notes.invalid && form.controls.notes.touched"
@@ -144,10 +144,10 @@
         type="button"
         class="btn btn--secondary"
         [disabled]="loading()"
-        aria-label="Anuluj i zamknij modal"
+        [attr.aria-label]="'agent.rescheduleCallback.cancelLabel' | transloco"
         (click)="cancel()"
       >
-        Anuluj
+        {{ 'common.cancel' | transloco }}
       </button>
 
       <button
@@ -157,16 +157,16 @@
         [disabled]="!canSubmit()"
         [class.btn--loading]="loading()"
         [attr.aria-busy]="loading()"
-        aria-label="Zapisz nowy termin oddzwonienia"
+        [attr.aria-label]="'agent.rescheduleCallback.saveLabel' | transloco"
       >
         @if (loading()) {
           <span class="btn__spinner" aria-hidden="true"></span>
-          <span>Zapisywanie...</span>
+          <span>{{ 'agent.rescheduleCallback.saving' | transloco }}</span>
         } @else {
           <svg class="btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
           </svg>
-          <span>Zapisz</span>
+          <span>{{ 'agent.rescheduleCallback.save' | transloco }}</span>
         }
       </button>
     </footer>

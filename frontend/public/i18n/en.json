@@ -350,7 +350,14 @@
       "cancelLabel": "Cancel and close modal",
       "saveLabel": "Save new callback time",
       "save": "Save",
-      "saving": "Saving..."
+      "saving": "Saving...",
+      "errorMinTime": "Select a time at least 5 minutes in the future.",
+      "errorNotPending": "The callback is no longer pending.",
+      "errorForbidden": "You do not have permission to change this callback.",
+      "errorGeneric": "An error occurred. Please try again.",
+      "successRescheduled": "Callback rescheduled to {{ date }}",
+      "dateRequired": "Date is required.",
+      "timeRequired": "Time is required."
     },
     "scheduleCallback": {
       "title": "Schedule callback",
@@ -371,7 +378,11 @@
       "cancelLabel": "Cancel and close modal",
       "scheduleLabel": "Schedule callback",
       "schedule": "Schedule",
-      "scheduling": "Scheduling..."
+      "scheduling": "Scheduling...",
+      "errorContactNotFound": "Contact does not exist.",
+      "errorForbidden": "You do not have permission to schedule a callback.",
+      "errorGeneric": "An error occurred. Please try again.",
+      "successScheduled": "Callback scheduled for {{ date }}"
     },
     "manualCampaign": {
       "title": "Manual campaigns",
@@ -1875,7 +1886,48 @@
       "errorLoad": "Failed to load tenants.",
       "errorDeactivate": "Failed to deactivate tenant.",
       "successDeactivate": "Tenant deactivated.",
-      "confirmDeactivateTitle": "Deactivate tenant"
+      "confirmDeactivateTitle": "Deactivate tenant",
+      "addModal": {
+        "title": "New tenant",
+        "closeLabel": "Close form",
+        "nameLabel": "Name",
+        "checkingName": "Checking name availability",
+        "resourceLimits": "Resource limits",
+        "maxAgentsLabel": "Max agents",
+        "rangeAgents": "range: 1–500",
+        "maxQueuesLabel": "Max queues",
+        "rangeQueues": "range: 1–100",
+        "maxCampaignsLabel": "Max campaigns",
+        "rangeCampaigns": "range: 1–100",
+        "voipSection": "VoIP telephony (Twilio)",
+        "callerIdLabel": "Outbound number (Caller ID)",
+        "callerIdHint": "Number presented to the customer during outbound calls. Format: +48XXXXXXXXX",
+        "saveLabel": "Save tenant"
+      },
+      "deactivateModal": {
+        "title": "Deactivate tenant",
+        "confirmBtnLabel": "Confirm deactivation of tenant",
+        "confirmBtn": "Deactivate"
+      },
+      "editModal": {
+        "title": "Edit tenant",
+        "closeLabel": "Close form",
+        "nameLabel": "Name",
+        "checkingName": "Checking name availability",
+        "statusLabel": "Status",
+        "resourceLimits": "Resource limits",
+        "maxAgentsLabel": "Max agents",
+        "rangeAgents": "range: 1–500",
+        "maxQueuesLabel": "Max queues",
+        "rangeQueues": "range: 1–100",
+        "maxCampaignsLabel": "Max campaigns",
+        "rangeCampaigns": "range: 1–100",
+        "voipSection": "VoIP telephony (Twilio)",
+        "callerIdLabel": "Outbound number (Caller ID)",
+        "callerIdHint": "Number presented to the customer during outbound calls. Format: +48XXXXXXXXX",
+        "callbackUrlLabel": "Status webhook URL (optional)",
+        "saveLabel": "Save tenant changes"
+      }
     },
     "users": {
       "title": "User Management",

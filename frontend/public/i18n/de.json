@@ -350,7 +350,14 @@
       "cancelLabel": "Abbrechen und Modal schließen",
       "saveLabel": "Neuen Rückruftermin speichern",
       "save": "Speichern",
-      "saving": "Speichern..."
+      "saving": "Speichern...",
+      "errorMinTime": "Wählen Sie einen Zeitpunkt mindestens 5 Minuten in der Zukunft.",
+      "errorNotPending": "Der Rückruf ist nicht mehr ausstehend.",
+      "errorForbidden": "Keine Berechtigung, diesen Rückruf zu ändern.",
+      "errorGeneric": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+      "successRescheduled": "Rückruf verschoben auf {{ date }}",
+      "dateRequired": "Datum ist erforderlich.",
+      "timeRequired": "Uhrzeit ist erforderlich."
     },
     "scheduleCallback": {
       "title": "Rückruf planen",
@@ -371,7 +378,11 @@
       "cancelLabel": "Abbrechen und Modal schließen",
       "scheduleLabel": "Rückruf planen",
       "schedule": "Planen",
-      "scheduling": "Wird geplant..."
+      "scheduling": "Wird geplant...",
+      "errorContactNotFound": "Kontakt existiert nicht.",
+      "errorForbidden": "Keine Berechtigung zum Planen eines Rückrufs.",
+      "errorGeneric": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+      "successScheduled": "Rückruf geplant für {{ date }}"
     },
     "manualCampaign": {
       "title": "Manuelle Kampagnen",
@@ -1875,7 +1886,48 @@
       "confirmDeactivateTitle": "Mandant deaktivieren",
       "errorDeactivate": "Mandant konnte nicht deaktiviert werden.",
       "errorLoad": "Mandanten konnten nicht geladen werden.",
-      "successDeactivate": "Mandant wurde deaktiviert."
+      "successDeactivate": "Mandant wurde deaktiviert.",
+      "addModal": {
+        "title": "Neuer Tenant",
+        "closeLabel": "Formular schließen",
+        "nameLabel": "Name",
+        "checkingName": "Namensverfügbarkeit prüfen",
+        "resourceLimits": "Ressourcenlimits",
+        "maxAgentsLabel": "Max. Agenten",
+        "rangeAgents": "Bereich: 1–500",
+        "maxQueuesLabel": "Max. Warteschlangen",
+        "rangeQueues": "Bereich: 1–100",
+        "maxCampaignsLabel": "Max. Kampagnen",
+        "rangeCampaigns": "Bereich: 1–100",
+        "voipSection": "VoIP-Telefonie (Twilio)",
+        "callerIdLabel": "Ausgehende Nummer (Caller ID)",
+        "callerIdHint": "Dem Kunden präsentierte Nummer bei ausgehenden Anrufen. Format: +48XXXXXXXXX",
+        "saveLabel": "Tenant speichern"
+      },
+      "deactivateModal": {
+        "title": "Tenant deaktivieren",
+        "confirmBtnLabel": "Deaktivierung des Tenants bestätigen",
+        "confirmBtn": "Deaktivieren"
+      },
+      "editModal": {
+        "title": "Tenant bearbeiten",
+        "closeLabel": "Formular schließen",
+        "nameLabel": "Name",
+        "checkingName": "Namensverfügbarkeit prüfen",
+        "statusLabel": "Status",
+        "resourceLimits": "Ressourcenlimits",
+        "maxAgentsLabel": "Max. Agenten",
+        "rangeAgents": "Bereich: 1–500",
+        "maxQueuesLabel": "Max. Warteschlangen",
+        "rangeQueues": "Bereich: 1–100",
+        "maxCampaignsLabel": "Max. Kampagnen",
+        "rangeCampaigns": "Bereich: 1–100",
+        "voipSection": "VoIP-Telefonie (Twilio)",
+        "callerIdLabel": "Ausgehende Nummer (Caller ID)",
+        "callerIdHint": "Dem Kunden präsentierte Nummer bei ausgehenden Anrufen. Format: +48XXXXXXXXX",
+        "callbackUrlLabel": "Status-Webhook-URL (optional)",
+        "saveLabel": "Tenant-Änderungen speichern"
+      }
     },
     "users": {
       "title": "Benutzerverwaltung",

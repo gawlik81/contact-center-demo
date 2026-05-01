@@ -350,7 +350,14 @@
       "cancelLabel": "Anuluj i zamknij modal",
       "saveLabel": "Zapisz nowy termin oddzwonienia",
       "save": "Zapisz",
-      "saving": "Zapisywanie..."
+      "saving": "Zapisywanie...",
+      "errorMinTime": "Wybierz termin co najmniej 5 minut w przyszłości.",
+      "errorNotPending": "Oddzwonienie nie jest już oczekujące.",
+      "errorForbidden": "Brak uprawnień do zmiany tego oddzwonienia.",
+      "errorGeneric": "Wystąpił błąd. Spróbuj ponownie.",
+      "successRescheduled": "Oddzwonienie przesunięte na {{ date }}",
+      "dateRequired": "Data jest wymagana.",
+      "timeRequired": "Godzina jest wymagana."
     },
     "scheduleCallback": {
       "title": "Zaplanuj oddzwonienie",
@@ -371,7 +378,11 @@
       "cancelLabel": "Anuluj i zamknij modal",
       "scheduleLabel": "Zaplanuj oddzwonienie",
       "schedule": "Zaplanuj",
-      "scheduling": "Planowanie..."
+      "scheduling": "Planowanie...",
+      "errorContactNotFound": "Kontakt nie istnieje.",
+      "errorForbidden": "Brak uprawnień do zaplanowania oddzwonienia.",
+      "errorGeneric": "Wystąpił błąd. Spróbuj ponownie.",
+      "successScheduled": "Oddzwonienie zaplanowane na {{ date }}"
     },
     "manualCampaign": {
       "title": "Kampanie manualne",
@@ -1875,7 +1886,48 @@
       "errorLoad": "Nie udało się pobrać tenantów.",
       "errorDeactivate": "Nie udało się dezaktywować tenanta.",
       "successDeactivate": "Tenant został dezaktywowany.",
-      "confirmDeactivateTitle": "Dezaktywuj tenant"
+      "confirmDeactivateTitle": "Dezaktywuj tenant",
+      "addModal": {
+        "title": "Nowy tenant",
+        "closeLabel": "Zamknij formularz",
+        "nameLabel": "Nazwa",
+        "checkingName": "Sprawdzanie dostępności nazwy",
+        "resourceLimits": "Limity zasobów",
+        "maxAgentsLabel": "Maks. agentów",
+        "rangeAgents": "zakres: 1–500",
+        "maxQueuesLabel": "Maks. kolejek",
+        "rangeQueues": "zakres: 1–100",
+        "maxCampaignsLabel": "Maks. kampanii",
+        "rangeCampaigns": "zakres: 1–100",
+        "voipSection": "Telefonia VoIP (Twilio)",
+        "callerIdLabel": "Numer wychodzący (Caller ID)",
+        "callerIdHint": "Numer prezentowany klientowi podczas połączeń wychodzących. Format: +48XXXXXXXXX",
+        "saveLabel": "Zapisz tenanta"
+      },
+      "deactivateModal": {
+        "title": "Dezaktywacja tenanta",
+        "confirmBtnLabel": "Potwierdź dezaktywację tenanta",
+        "confirmBtn": "Dezaktywuj"
+      },
+      "editModal": {
+        "title": "Edytuj tenanta",
+        "closeLabel": "Zamknij formularz",
+        "nameLabel": "Nazwa",
+        "checkingName": "Sprawdzanie dostępności nazwy",
+        "statusLabel": "Status",
+        "resourceLimits": "Limity zasobów",
+        "maxAgentsLabel": "Maks. agentów",
+        "rangeAgents": "zakres: 1–500",
+        "maxQueuesLabel": "Maks. kolejek",
+        "rangeQueues": "zakres: 1–100",
+        "maxCampaignsLabel": "Maks. kampanii",
+        "rangeCampaigns": "zakres: 1–100",
+        "voipSection": "Telefonia VoIP (Twilio)",
+        "callerIdLabel": "Numer wychodzący (Caller ID)",
+        "callerIdHint": "Numer prezentowany klientowi podczas połączeń wychodzących. Format: +48XXXXXXXXX",
+        "callbackUrlLabel": "URL webhooka statusów (opcjonalny)",
+        "saveLabel": "Zapisz zmiany tenanta"
+      }
     },
     "users": {
       "title": "Zarządzanie użytkownikami",

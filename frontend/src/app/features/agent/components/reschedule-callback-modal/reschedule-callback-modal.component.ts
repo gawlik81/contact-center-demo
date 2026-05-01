@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -39,6 +39,7 @@ export class RescheduleCallbackModalComponent implements OnInit {
   private readonly dialerService = inject(DialerService);
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly transloco = inject(TranslocoService);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
 
@@ -98,7 +99,7 @@ export class RescheduleCallbackModalComponent implements OnInit {
   get scheduledDateError(): string | null {
     const ctrl = this.form.controls.scheduledDate;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Data jest wymagana.';
+    if (ctrl.hasError('required')) return this.transloco.translate('agent.rescheduleCallback.dateRequired');
     return null;
   }
 
@@ -107,7 +108,8 @@ export class RescheduleCallbackModalComponent implements OnInit {
     const m = this.form.controls.scheduledMinute;
     const touched = h.touched || m.touched;
     if (!touched) return null;
-    if (h.hasError('required') || m.hasError('required')) return 'Godzina jest wymagana.';
+    if (h.hasError('required') || m.hasError('required'))
+      return this.transloco.translate('agent.rescheduleCallback.timeRequired');
     return null;
   }
 
@@ -142,7 +144,7 @@ export class RescheduleCallbackModalComponent implements OnInit {
     const combined = new Date(`${raw.scheduledDate}T${raw.scheduledHour}:${raw.scheduledMinute}`);
     const minThreshold = new Date(Date.now() + 5 * 60 * 1000);
     if (combined < minThreshold) {
-      this.errorMessage.set('Wybierz termin co najmniej 5 minut w przyszlosci.');
+      this.errorMessage.set(this.transloco.translate('agent.rescheduleCallback.errorMinTime'));
       return;
     }
 
@@ -158,11 +160,11 @@ export class RescheduleCallbackModalComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
           if (err.status === 409) {
-            this.errorMessage.set('Oddzwonienie nie jest juz oczekujace.');
+            this.errorMessage.set(this.transloco.translate('agent.rescheduleCallback.errorNotPending'));
           } else if (err.status === 403) {
-            this.errorMessage.set('Brak uprawnien do zmiany tego oddzwonienia.');
+            this.errorMessage.set(this.transloco.translate('agent.rescheduleCallback.errorForbidden'));
           } else {
-            this.errorMessage.set('Wystapil blad. Sprobuj ponownie.');
+            this.errorMessage.set(this.transloco.translate('agent.rescheduleCallback.errorGeneric'));
           }
           return EMPTY;
         }),
@@ -170,8 +172,10 @@ export class RescheduleCallbackModalComponent implements OnInit {
       )
       .subscribe((dto) => {
         this.loading.set(false);
-        const newDate = new Date(dto.scheduledAt).toLocaleString('pl-PL');
-        this.notifications.success(`Oddzwonienie przesunięte na ${newDate}`);
+        const newDate = new Date(dto.scheduledAt).toLocaleString(this.transloco.getActiveLang());
+        this.notifications.success(
+          this.transloco.translate('agent.rescheduleCallback.successRescheduled', { date: newDate }),
+        );
         this.dialogRef().nativeElement.close();
         this.rescheduled.emit(dto);
       });

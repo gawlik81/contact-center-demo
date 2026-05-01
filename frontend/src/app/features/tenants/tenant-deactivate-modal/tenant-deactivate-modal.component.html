@@ -8,7 +8,9 @@
 >
   <div class="deactivate-dialog__content" role="document">
     <div class="deactivate-dialog__header">
-      <h2 id="deactivate-title" class="deactivate-dialog__title">Dezaktywacja tenanta</h2>
+      <h2 id="deactivate-title" class="deactivate-dialog__title">
+        {{ 'admin.tenants.deactivateModal.title' | transloco }}
+      </h2>
     </div>
 
     <div class="deactivate-dialog__body">
@@ -20,14 +22,16 @@
     </div>
 
     <div class="deactivate-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         class="btn btn-deactivate"
         type="button"
         (click)="onConfirm()"
-        [attr.aria-label]="'Potwierdz dezaktywacje tenanta ' + tenant().name"
+        [attr.aria-label]="('admin.tenants.deactivateModal.confirmBtnLabel' | transloco) + ' ' + tenant().name"
       >
-        Dezaktywuj
+        {{ 'admin.tenants.deactivateModal.confirmBtn' | transloco }}
       </button>
     </div>
   </div>

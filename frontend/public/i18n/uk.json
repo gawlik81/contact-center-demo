@@ -350,7 +350,14 @@
       "cancelLabel": "Скасувати та закрити модальне вікно",
       "saveLabel": "Зберегти новий час передзвону",
       "save": "Зберегти",
-      "saving": "Збереження..."
+      "saving": "Збереження...",
+      "errorMinTime": "Виберіть час щонайменше за 5 хвилин у майбутньому.",
+      "errorNotPending": "Передзвін більше не є очікуваним.",
+      "errorForbidden": "Немає дозволу на зміну цього передзвону.",
+      "errorGeneric": "Сталася помилка. Будь ласка, спробуйте ще раз.",
+      "successRescheduled": "Передзвін перенесено на {{ date }}",
+      "dateRequired": "Дата є обов'язковою.",
+      "timeRequired": "Час є обов'язковим."
     },
     "scheduleCallback": {
       "title": "Запланувати передзвін",
@@ -371,7 +378,11 @@
       "cancelLabel": "Скасувати та закрити модальне вікно",
       "scheduleLabel": "Запланувати передзвін",
       "schedule": "Запланувати",
-      "scheduling": "Планування..."
+      "scheduling": "Планування...",
+      "errorContactNotFound": "Контакт не існує.",
+      "errorForbidden": "Немає дозволу на планування передзвону.",
+      "errorGeneric": "Сталася помилка. Будь ласка, спробуйте ще раз.",
+      "successScheduled": "Передзвін заплановано на {{ date }}"
     },
     "manualCampaign": {
       "title": "Ручні кампанії",
@@ -1875,7 +1886,48 @@
       "errorLoad": "Не вдалося завантажити тенантів.",
       "errorDeactivate": "Не вдалося деактивувати тенанта.",
       "successDeactivate": "Тенанта деактивовано.",
-      "confirmDeactivateTitle": "Деактивувати тенанта"
+      "confirmDeactivateTitle": "Деактивувати тенанта",
+      "addModal": {
+        "title": "Новий тенант",
+        "closeLabel": "Закрити форму",
+        "nameLabel": "Назва",
+        "checkingName": "Перевірка доступності назви",
+        "resourceLimits": "Ліміти ресурсів",
+        "maxAgentsLabel": "Макс. агентів",
+        "rangeAgents": "діапазон: 1–500",
+        "maxQueuesLabel": "Макс. черг",
+        "rangeQueues": "діапазон: 1–100",
+        "maxCampaignsLabel": "Макс. кампаній",
+        "rangeCampaigns": "діапазон: 1–100",
+        "voipSection": "VoIP-телефонія (Twilio)",
+        "callerIdLabel": "Вихідний номер (Caller ID)",
+        "callerIdHint": "Номер, що відображається клієнту під час вихідних дзвінків. Формат: +48XXXXXXXXX",
+        "saveLabel": "Зберегти тенант"
+      },
+      "deactivateModal": {
+        "title": "Деактивація тенанта",
+        "confirmBtnLabel": "Підтвердити деактивацію тенанта",
+        "confirmBtn": "Деактивувати"
+      },
+      "editModal": {
+        "title": "Редагувати тенант",
+        "closeLabel": "Закрити форму",
+        "nameLabel": "Назва",
+        "checkingName": "Перевірка доступності назви",
+        "statusLabel": "Статус",
+        "resourceLimits": "Ліміти ресурсів",
+        "maxAgentsLabel": "Макс. агентів",
+        "rangeAgents": "діапазон: 1–500",
+        "maxQueuesLabel": "Макс. черг",
+        "rangeQueues": "діапазон: 1–100",
+        "maxCampaignsLabel": "Макс. кампаній",
+        "rangeCampaigns": "діапазон: 1–100",
+        "voipSection": "VoIP-телефонія (Twilio)",
+        "callerIdLabel": "Вихідний номер (Caller ID)",
+        "callerIdHint": "Номер, що відображається клієнту під час вихідних дзвінків. Формат: +48XXXXXXXXX",
+        "callbackUrlLabel": "URL вебхука статусів (необов'язково)",
+        "saveLabel": "Зберегти зміни тенанта"
+      }
     },
     "users": {
       "title": "Управління користувачами",

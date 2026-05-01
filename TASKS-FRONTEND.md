@@ -2369,7 +2369,7 @@ Interceptor musi wstrzykiwać `TranslocoService` i używać `transloco.translate
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2380,8 +2380,8 @@ Pliki:
 - `features/tenants/tenant-edit-modal/tenant-edit-modal.component.html` — "Edytuj tenanta", "Anuluj"
 
 **Kryteria akceptacji:**
-- [ ] Tytuły modali i etykiety sekcji używają `| transloco`
-- [ ] Klucze dodane do wszystkich 4 plików i18n (pl/en/de/uk)
+- [x] Tytuły modali i etykiety sekcji używają `| transloco`
+- [x] Klucze dodane do wszystkich 4 plików i18n (pl/en/de/uk)
 
 ---
 
@@ -2391,7 +2391,7 @@ Pliki:
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2401,8 +2401,8 @@ Pliki:
 - `features/agent/components/reschedule-callback-modal/` — HTML: `<span>Zapisz</span>`; TS: `errorMessage.set('Brak uprawnien...')`
 
 **Kryteria akceptacji:**
-- [ ] Widoczne teksty w obu modalach używają `| transloco`
-- [ ] Komunikaty błędów w TS pobierane z i18n
+- [x] Widoczne teksty w obu modalach używają `| transloco`
+- [x] Komunikaty błędów w TS pobierane z i18n
 
 ---
 

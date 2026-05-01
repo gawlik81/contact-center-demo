@@ -24,6 +24,7 @@ import { Observable, catchError, map, of, switchMap, timer, EMPTY, take } from '
 import { TenantService } from '../tenant.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { Tenant, TenantStatus } from '../tenant.model';
+import { TranslocoModule } from '@jsverse/transloco';
 import { TwilioConfigService } from '../../supervisor/services/twilio-config.service';
 
 function nameAvailabilityForUpdateValidator(
@@ -46,7 +47,7 @@ function nameAvailabilityForUpdateValidator(
 @Component({
   selector: 'app-tenant-edit-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, TranslocoModule],
   templateUrl: './tenant-edit-modal.component.html',
   styleUrl: './tenant-edit-modal.component.scss',
   host: {

@@ -1,13 +1,13 @@
 export interface DispositionCode {
   code: string;
-  label: string;
+  labelKey: string;
 }
 
 export const DISPOSITION_CODES: DispositionCode[] = [
-  { code: 'SALE', label: 'Sprzedaż' },
-  { code: 'NO_INTEREST', label: 'Brak zainteresowania' },
-  { code: 'CALLBACK', label: 'Oddzwonienie' },
-  { code: 'WRONG_NUMBER', label: 'Błędny numer' },
-  { code: 'TECH_ISSUE', label: 'Zgłoszenie techniczne' },
-  { code: 'OTHER', label: 'Inne' },
+  { code: 'SALE', labelKey: 'agent.dispositionCodes.SALE' },
+  { code: 'NO_INTEREST', labelKey: 'agent.dispositionCodes.NO_INTEREST' },
+  { code: 'CALLBACK', labelKey: 'agent.dispositionCodes.CALLBACK' },
+  { code: 'WRONG_NUMBER', labelKey: 'agent.dispositionCodes.WRONG_NUMBER' },
+  { code: 'TECH_ISSUE', labelKey: 'agent.dispositionCodes.TECH_ISSUE' },
+  { code: 'OTHER', labelKey: 'agent.dispositionCodes.OTHER' },
 ];

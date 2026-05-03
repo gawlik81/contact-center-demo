@@ -17,10 +17,11 @@
     </svg>
     @if (isReconnecting()) {
       <span class="ws-banner__text">
-        Laczenie z serwerem<span class="ws-banner__dots"><span>.</span><span>.</span><span>.</span></span>
+        {{ 'agent.desktop.wsReconnecting' | transloco
+        }}<span class="ws-banner__dots"><span>.</span><span>.</span><span>.</span></span>
       </span>
     } @else {
-      <span class="ws-banner__text">Utracono polaczenie – proba reconnect</span>
+      <span class="ws-banner__text">{{ 'agent.desktop.wsDisconnected' | transloco }}</span>
     }
   </div>
 }
@@ -39,7 +40,7 @@
   <!-- ===== HEADER: status panel ===== -->
   <header class="desktop__header">
     <div class="status-panel">
-      <span class="status-panel__label">Twoj status:</span>
+      <span class="status-panel__label">{{ 'agent.desktop.yourStatus' | transloco }}</span>
       <div class="status-panel__control">
         <button
           type="button"
@@ -49,15 +50,15 @@
           [style.background-color]="currentStatusConfig().bgColor"
           [attr.aria-expanded]="statusMenuOpen()"
           aria-haspopup="listbox"
-          aria-label="Zmien status"
+          [attr.aria-label]="'agent.desktop.changeStatus' | transloco"
           (click)="toggleStatusMenu()"
         >
           <svg class="status-btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path [attr.d]="currentStatusConfig().icon" />
           </svg>
-          <span class="status-btn__text">{{ currentStatusConfig().label }}</span>
+          <span class="status-btn__text">{{ currentStatusConfig().labelKey | transloco }}</span>
           @if (statusService.isChanging()) {
-            <span class="status-btn__spinner" aria-label="Zmiana statusu..."></span>
+            <span class="status-btn__spinner" [attr.aria-label]="'agent.desktop.changingStatus' | transloco"></span>
           } @else {
             <svg class="status-btn__chevron" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
               <path d="M7 10l5 5 5-5z" />
@@ -66,7 +67,12 @@
         </button>
 
         @if (statusMenuOpen()) {
-          <div class="status-menu" role="listbox" aria-label="Wybierz status" (blur)="closeStatusMenu()">
+          <div
+            class="status-menu"
+            role="listbox"
+            [attr.aria-label]="'agent.desktop.selectStatus' | transloco"
+            (blur)="closeStatusMenu()"
+          >
             @for (status of allStatuses; track status) {
               <button
                 type="button"
@@ -85,7 +91,7 @@
                 >
                   <path [attr.d]="statusConfig[status].icon" />
                 </svg>
-                <span>{{ statusConfig[status].label }}</span>
+                <span>{{ statusConfig[status].labelKey | transloco }}</span>
                 @if (statusService.currentStatus() === status) {
                   <svg class="status-menu__check" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
@@ -104,16 +110,20 @@
       <span
         class="header-info__ws-indicator"
         [class.header-info__ws-indicator--connected]="connectionState() === 'CONNECTED'"
-        [attr.aria-label]="connectionState() === 'CONNECTED' ? 'Polaczono' : 'Rozlaczono'"
+        [attr.aria-label]="
+          connectionState() === 'CONNECTED'
+            ? ('agent.desktop.connected' | transloco)
+            : ('agent.desktop.disconnected' | transloco)
+        "
       >
       </span>
       <span class="header-info__ws-label" aria-hidden="true">
         {{
           connectionState() === 'CONNECTED'
-            ? 'Polaczono'
+            ? ('agent.desktop.connected' | transloco)
             : connectionState() === 'CONNECTING'
-              ? 'Laczenie...'
-              : 'Rozlaczono'
+              ? ('agent.desktop.connecting' | transloco)
+              : ('agent.desktop.disconnected' | transloco)
         }}
       </span>
     </div>
@@ -122,19 +132,22 @@
   <!-- ===== BODY: sidebar + main ===== -->
   <div class="desktop__body">
     <!-- SIDEBAR: queue + manual campaigns -->
-    <aside class="desktop__sidebar" aria-label="Kolejka kontaktow i kampanie manualne">
+    <aside class="desktop__sidebar" [attr.aria-label]="'agent.desktop.sidebarLabel' | transloco">
       <div class="queue-panel">
         <div class="queue-panel__header">
-          <h2 class="queue-panel__title">Kolejka</h2>
+          <h2 class="queue-panel__title">{{ 'agent.desktop.queueTitle' | transloco }}</h2>
           @if (queueItems().length > 0) {
-            <span class="queue-panel__badge" aria-label="{{ queueItems().length }} oczekujacych">
+            <span
+              class="queue-panel__badge"
+              [attr.aria-label]="queueItems().length + ' ' + ('agent.desktop.queueWaiting' | transloco)"
+            >
               {{ queueItems().length }}
             </span>
           }
         </div>
 
         @if (queueItems().length === 0) {
-          <p class="queue-panel__empty">Brak oczekujacych kontaktow</p>
+          <p class="queue-panel__empty">{{ 'agent.desktop.queueEmpty' | transloco }}</p>
         } @else {
           <ul class="queue-list" role="list">
             @for (item of queueItems(); track trackByQueueId($index, item)) {
@@ -149,7 +162,12 @@
                   <span class="queue-item__identifier">{{ item.customerIdentifier }}</span>
                   <span class="queue-item__queue">{{ item.queueName }}</span>
                 </div>
-                <div class="queue-item__wait" aria-label="Czas oczekiwania {{ getWaitingTime(item.waitingSince) }}">
+                <div
+                  class="queue-item__wait"
+                  [attr.aria-label]="
+                    ('agent.desktop.queueWaitTime' | transloco) + ' ' + getWaitingTime(item.waitingSince)
+                  "
+                >
                   {{ getWaitingTime(item.waitingSince) }}
                 </div>
               </li>
@@ -164,7 +182,7 @@
 
     <!-- MAIN: contact tabs + customer panel -->
     <div class="desktop__content-area">
-      <main class="desktop__main" id="main-content" aria-label="Aktywne kontakty">
+      <main class="desktop__main" id="main-content" [attr.aria-label]="'agent.desktop.activeContactsLabel' | transloco">
         @if (calendarTabActive()) {
           <!-- ── Calendar view ── -->
           <app-agent-calendar />
@@ -177,15 +195,15 @@
                   d="M12 2C6.48 2 2 6.48 2 13v1h2v-1c0-4.41 3.59-8 8-8s8 3.59 8 8v1h2v-1c0-5.52-4.48-10-10-10zm0 4c-3.31 0-6 2.69-6 6v1h2v-1c0-2.21 1.79-4 4-4s4 1.79 4 4v1h2v-1c0-3.31-2.69-6-6-6zm0 4c-1.1 0-2 .9-2 2v4h4v-4c0-1.1-.9-2-2-2z"
                 />
               </svg>
-              <p class="no-contacts__text">Brak aktywnych kontaktow</p>
+              <p class="no-contacts__text">{{ 'agent.desktop.noActiveContacts' | transloco }}</p>
               <p class="no-contacts__subtext">
-                Oczekuj na przydzielenie kontaktu lub odbierz polaczenie z kolejki
+                {{ 'agent.desktop.noActiveContactsSub' | transloco }}
               </p>
             </div>
           } @else {
             <div class="contact-tabs">
               <!-- Tab bar -->
-              <div class="contact-tabs__bar" role="tablist" aria-label="Aktywne kontakty">
+              <div class="contact-tabs__bar" role="tablist" [attr.aria-label]="'agent.desktop.tabBarLabel' | transloco">
                 @for (tab of tabs(); track trackByTabId($index, tab)) {
                   <button
                     type="button"
@@ -209,7 +227,7 @@
                     <button
                       type="button"
                       class="contact-tab__close"
-                      [attr.aria-label]="'Zamknij kontakt ' + tab.customerName"
+                      [attr.aria-label]="('agent.desktop.closeContact' | transloco) + ' ' + tab.customerName"
                       (click)="closeTab($event, tab)"
                     >
                       <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -238,7 +256,10 @@
                       <div class="contact-panel__info">
                         <h2 class="contact-panel__name">{{ activeTab()!.customerName }}</h2>
                         <p class="contact-panel__identifier">{{ activeTab()!.customerIdentifier }}</p>
-                        <p class="contact-panel__since">Od {{ activeTab()!.startedAt | date: 'HH:mm:ss' }}</p>
+                        <p class="contact-panel__since">
+                          {{ 'agent.desktop.contactSince' | transloco }}
+                          {{ activeTab()!.startedAt | date: 'HH:mm:ss' }}
+                        </p>
                       </div>
                       <span
                         class="contact-panel__type-badge contact-panel__type-badge--{{ activeTab()!.type | lowercase }}"
@@ -258,8 +279,10 @@
                             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                               <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
                             </svg>
-                            <p>Panel chatu</p>
-                            <p class="chat-placeholder__sub">Tutaj zostanie zaladowany widok chatu</p>
+                            <p>{{ 'agent.desktop.chatPlaceholder' | transloco }}</p>
+                            <p class="chat-placeholder__sub">
+                              {{ 'agent.desktop.chatPlaceholderSub' | transloco }}
+                            </p>
                           </div>
                         }
                         @case ('EMAIL') {
@@ -286,7 +309,7 @@
 
       <!-- RIGHT PANEL: customer profile (hidden when calendar is active) -->
       @if (!calendarTabActive()) {
-        <aside class="desktop__customer-panel" aria-label="Profil klienta">
+        <aside class="desktop__customer-panel" [attr.aria-label]="'agent.desktop.profileLabel' | transloco">
           <cc-customer-panel [cli]="activeCli()" [email]="activeEmail()" />
         </aside>
       }
@@ -294,7 +317,7 @@
   </div>
 
   <!-- ===== BOTTOM TAB BAR: Calendar tab ===== -->
-  <nav class="desktop__tab-nav" aria-label="Przelacznik widoku">
+  <nav class="desktop__tab-nav" [attr.aria-label]="'agent.desktop.viewSwitcher' | transloco">
     <button
       type="button"
       class="desktop__tab-nav-btn"
@@ -307,7 +330,7 @@
           d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"
         />
       </svg>
-      <span class="desktop__tab-nav-label">Kalendarz</span>
+      <span class="desktop__tab-nav-label">{{ 'agent.desktop.calendar' | transloco }}</span>
     </button>
   </nav>
 </div>

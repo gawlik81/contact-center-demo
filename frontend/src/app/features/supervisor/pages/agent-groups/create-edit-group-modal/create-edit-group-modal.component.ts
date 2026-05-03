@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -19,7 +20,7 @@ import { AgentGroup } from '../../../../../core/models/agent-group.model';
   selector: 'app-create-edit-group-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './create-edit-group-modal.component.html',
   styleUrl: './create-edit-group-modal.component.scss',
 })

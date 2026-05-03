@@ -1,11 +1,11 @@
 <div class="email-settings">
   <div class="email-settings__header">
-    <h1 class="email-settings__title">Konfiguracja kanalu email</h1>
-    <p class="email-settings__subtitle">Skonfiguruj serwery IMAP i SMTP do obslugi wiadomosci email.</p>
+    <h1 class="email-settings__title">{{ 'supervisor.settings.email.title' | transloco }}</h1>
+    <p class="email-settings__subtitle">{{ 'supervisor.settings.email.subtitle' | transloco }}</p>
   </div>
 
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-label="Ladowanie konfiguracji...">
+    <div class="skeleton-wrapper" [attr.aria-label]="'common.loading_data' | transloco">
       <div class="skeleton skeleton--title"></div>
       <div class="skeleton skeleton--field"></div>
       <div class="skeleton skeleton--field"></div>
@@ -15,17 +15,18 @@
     </div>
   } @else if (loadError()) {
     <div class="error-state" role="alert">
-      <p class="error-state__message">Nie udalo sie zaladowac konfiguracji. Sprawdz polaczenie i odswierz strone.</p>
+      <p class="error-state__message">{{ 'common.error' | transloco }}</p>
     </div>
   } @else {
     <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="email-settings__form">
-
       <!-- Section: Enable/Disable email -->
       <section class="form-section">
         <div class="form-field form-field--toggle">
           <div class="form-field__label-group">
-            <label class="form-label" for="email-enabled">Obsluga email</label>
-            <span class="form-hint">Wlacz lub wylacz odbieranie i wysylanie wiadomosci email.</span>
+            <label class="form-label" for="email-enabled">{{
+              'supervisor.settings.email.enabledLabel' | transloco
+            }}</label>
+            <span class="form-hint">{{ 'supervisor.settings.email.enabledHint' | transloco }}</span>
           </div>
           <label class="toggle-label" aria-label="Wlacz obsluge email">
             <input
@@ -38,7 +39,11 @@
             />
             <span class="toggle-track" aria-hidden="true"></span>
             <span class="toggle-text">
-              {{ form.get('emailEnabled')?.value ? 'Wlaczona' : 'Wylaczona' }}
+              {{
+                form.get('emailEnabled')?.value
+                  ? ('supervisor.settings.email.enabled' | transloco)
+                  : ('supervisor.settings.email.disabled' | transloco)
+              }}
             </span>
           </label>
         </div>
@@ -46,12 +51,12 @@
 
       <!-- Section: IMAP -->
       <section class="form-section">
-        <h2 class="form-section__title">Serwer IMAP (odbieranie)</h2>
+        <h2 class="form-section__title">{{ 'supervisor.settings.email.imapTitle' | transloco }}</h2>
 
         <div class="form-row">
           <div class="form-field form-field--grow" [class.form-field--error]="imapHostError">
             <label class="form-label" for="imap-host">
-              Host IMAP <span class="required" aria-hidden="true">*</span>
+              {{ 'supervisor.settings.email.imapHost' | transloco }} <span class="required" aria-hidden="true">*</span>
             </label>
             <input
               id="imap-host"
@@ -69,9 +74,7 @@
           </div>
 
           <div class="form-field form-field--port" [class.form-field--error]="imapPortError">
-            <label class="form-label" for="imap-port">
-              Port <span class="required" aria-hidden="true">*</span>
-            </label>
+            <label class="form-label" for="imap-port"> Port <span class="required" aria-hidden="true">*</span> </label>
             <input
               id="imap-port"
               type="number"
@@ -101,7 +104,11 @@
             />
             <span class="toggle-track" aria-hidden="true"></span>
             <span class="toggle-text">
-              {{ form.get('imapSsl')?.value ? 'Wlaczone' : 'Wylaczone' }}
+              {{
+                form.get('imapSsl')?.value
+                  ? ('supervisor.settings.email.sslEnabled' | transloco)
+                  : ('supervisor.settings.email.sslDisabled' | transloco)
+              }}
             </span>
           </label>
         </div>
@@ -109,12 +116,12 @@
 
       <!-- Section: SMTP -->
       <section class="form-section">
-        <h2 class="form-section__title">Serwer SMTP (wysylanie)</h2>
+        <h2 class="form-section__title">{{ 'supervisor.settings.email.smtpTitle' | transloco }}</h2>
 
         <div class="form-row">
           <div class="form-field form-field--grow" [class.form-field--error]="smtpHostError">
             <label class="form-label" for="smtp-host">
-              Host SMTP <span class="required" aria-hidden="true">*</span>
+              {{ 'supervisor.settings.email.smtpHost' | transloco }} <span class="required" aria-hidden="true">*</span>
             </label>
             <input
               id="smtp-host"
@@ -132,9 +139,7 @@
           </div>
 
           <div class="form-field form-field--port" [class.form-field--error]="smtpPortError">
-            <label class="form-label" for="smtp-port">
-              Port <span class="required" aria-hidden="true">*</span>
-            </label>
+            <label class="form-label" for="smtp-port"> Port <span class="required" aria-hidden="true">*</span> </label>
             <input
               id="smtp-port"
               type="number"
@@ -164,7 +169,11 @@
             />
             <span class="toggle-track" aria-hidden="true"></span>
             <span class="toggle-text">
-              {{ form.get('smtpSsl')?.value ? 'Wlaczone' : 'Wylaczone' }}
+              {{
+                form.get('smtpSsl')?.value
+                  ? ('supervisor.settings.email.sslEnabled' | transloco)
+                  : ('supervisor.settings.email.sslDisabled' | transloco)
+              }}
             </span>
           </label>
         </div>
@@ -172,11 +181,11 @@
 
       <!-- Section: Account credentials -->
       <section class="form-section">
-        <h2 class="form-section__title">Dane konta</h2>
+        <h2 class="form-section__title">{{ 'supervisor.settings.email.accountTitle' | transloco }}</h2>
 
         <div class="form-field" [class.form-field--error]="usernameError">
           <label class="form-label" for="username">
-            Adres email <span class="required" aria-hidden="true">*</span>
+            {{ 'common.email' | transloco }} <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="username"
@@ -194,13 +203,13 @@
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="password">Haslo</label>
+          <label class="form-label" for="password">{{ 'supervisor.settings.email.passwordLabel' | transloco }}</label>
           @if (hasPassword()) {
             <span class="password-badge" aria-label="Haslo jest skonfigurowane">
               <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
               </svg>
-              Haslo skonfigurowane
+              {{ 'supervisor.settings.email.passwordConfigured' | transloco }}
             </span>
           }
           <input
@@ -211,37 +220,35 @@
             placeholder="Pozostaw puste aby zachowac aktualne haslo"
             autocomplete="new-password"
           />
-          <span class="form-hint">Podaj nowe haslo tylko jesli chcesz je zmienic.</span>
+          <span class="form-hint">{{ 'supervisor.settings.email.passwordHint' | transloco }}</span>
         </div>
       </section>
 
       <!-- Section: Routing wiadomosci -->
       <section class="form-section">
-        <h2 class="form-section__title">Routing wiadomosci</h2>
+        <h2 class="form-section__title">{{ 'supervisor.settings.email.routingTitle' | transloco }}</h2>
 
         <div class="form-field">
-          <label class="form-label" for="default-queue">Domyslna kolejka</label>
-          <select
-            id="default-queue"
-            class="form-input"
-            formControlName="defaultQueueId"
-          >
-            <option [value]="null">— brak (wiadomosci bez kolejki) —</option>
+          <label class="form-label" for="default-queue">{{
+            'supervisor.settings.email.defaultQueueLabel' | transloco
+          }}</label>
+          <select id="default-queue" class="form-input" formControlName="defaultQueueId">
+            <option [value]="null">{{ 'supervisor.settings.email.noQueue' | transloco }}</option>
             @for (queue of queues(); track queue.queueId) {
               <option [value]="queue.queueId">{{ queue.name }}</option>
             }
           </select>
-          <span class="form-hint">Przychodzace emaile trafia do tej kolejki gdy zadna regula routingu nie pasuje.</span>
+          <span class="form-hint">{{ 'supervisor.settings.email.defaultQueueHint' | transloco }}</span>
         </div>
       </section>
 
       <!-- Section: Polling interval -->
       <section class="form-section">
-        <h2 class="form-section__title">Harmonogram sprawdzania</h2>
+        <h2 class="form-section__title">{{ 'supervisor.settings.email.pollTitle' | transloco }}</h2>
 
         <div class="form-field" [class.form-field--error]="pollIntervalError">
           <label class="form-label" for="poll-interval">
-            Interwal sprawdzania (sekundy) <span class="required" aria-hidden="true">*</span>
+            {{ 'supervisor.settings.email.pollLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="poll-interval"
@@ -256,7 +263,9 @@
           @if (pollIntervalError) {
             <span id="poll-interval-error" class="form-error" role="alert">{{ pollIntervalError }}</span>
           } @else {
-            <span id="poll-interval-hint" class="form-hint">Zakres: 10–3600 sekund (domyslnie 60).</span>
+            <span id="poll-interval-hint" class="form-hint">{{
+              'supervisor.settings.email.pollHint' | transloco
+            }}</span>
           }
         </div>
       </section>
@@ -272,11 +281,13 @@
         >
           @if (result.success) {
             <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
             </svg>
           } @else {
             <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+              />
             </svg>
           }
           <span>{{ result.message }}</span>
@@ -295,9 +306,9 @@
         >
           @if (testing()) {
             <span class="spinner spinner--dark" aria-hidden="true"></span>
-            Testowanie...
+            {{ 'supervisor.settings.email.testing' | transloco }}
           } @else {
-            Testuj polaczenie IMAP
+            {{ 'supervisor.settings.email.testButton' | transloco }}
           }
         </button>
 
@@ -316,7 +327,6 @@
           }
         </button>
       </div>
-
     </form>
   }
 </div>

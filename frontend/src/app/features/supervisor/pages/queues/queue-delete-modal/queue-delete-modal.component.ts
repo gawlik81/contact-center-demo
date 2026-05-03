@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -11,7 +12,7 @@ import {
 @Component({
   selector: 'app-queue-delete-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [TranslocoModule],
   templateUrl: './queue-delete-modal.component.html',
   styleUrl: './queue-delete-modal.component.scss',
   host: {

@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -22,7 +23,7 @@ import { PagedResponse } from '../../models/user.model';
 @Component({
   selector: 'app-reports',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './reports-placeholder.component.html',
   styleUrl: './reports-placeholder.component.scss',
 })
@@ -97,7 +98,9 @@ export class ReportsComponent implements OnInit {
     this.loadData();
   }
 
-  private dateRangeValidator(group: ReturnType<FormBuilder['group']>): Record<string, boolean> | null {
+  private dateRangeValidator(
+    group: ReturnType<FormBuilder['group']>,
+  ): Record<string, boolean> | null {
     const from = group.get('dateFrom')?.value as string;
     const to = group.get('dateTo')?.value as string;
     if (!from || !to) return null;
@@ -286,8 +289,9 @@ export class ReportsComponent implements OnInit {
   }
 
   secondsToTime(seconds: number): string {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+    const total = Math.round(seconds);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 

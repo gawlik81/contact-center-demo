@@ -95,9 +95,7 @@ describe('CustomerListComponent', () => {
     getCustomersSpy.mockReturnValue(throwError(() => new Error('Network error')));
     component.loadCustomers();
     fixture.detectChanges();
-    expect(errorSpy).toHaveBeenCalledWith(
-      'Nie udało się pobrać listy klientów. Spróbuj ponownie.',
-    );
+    expect(errorSpy).toHaveBeenCalledWith('Nie udało się pobrać listy klientów. Spróbuj ponownie.');
     expect(component.customers()).toEqual([]);
   });
 

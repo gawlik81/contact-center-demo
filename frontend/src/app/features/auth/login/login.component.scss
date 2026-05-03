@@ -21,8 +21,7 @@ $transition-speed: 0.35s;
   min-height: 100vh;
   background:
     radial-gradient(ellipse at 30% 20%, rgba(21, 101, 192, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse at 70% 80%, rgba(107, 70, 193, 0.06) 0%, transparent 60%),
-    $bg-page;
+    radial-gradient(ellipse at 70% 80%, rgba(107, 70, 193, 0.06) 0%, transparent 60%), $bg-page;
   padding: 1rem;
 }
 

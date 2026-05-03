@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -8,7 +9,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, EMPTY } from 'rxjs';
 import { AgentCalendarService } from '../../../services/agent-calendar.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
@@ -43,29 +44,38 @@ interface CalendarDay {
   selector: 'app-agent-calendar',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [RescheduleCallbackModalComponent, AddBreakModalComponent],
+  imports: [TranslocoModule, RescheduleCallbackModalComponent, AddBreakModalComponent],
   templateUrl: './agent-calendar.component.html',
   styleUrl: './agent-calendar.component.scss',
 })
 export class AgentCalendarComponent implements OnInit {
   private readonly calendarService = inject(AgentCalendarService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   // ── View state ──────────────────────────────────────────────────────────────
   readonly viewMode = signal<CalendarViewMode>(window.innerWidth < 640 ? 'day' : 'week');
   readonly currentDate = signal<Date>(new Date());
   readonly isLoading = signal(false);
-  readonly calendarData = signal<AgentCalendarResponse>({ callbacks: [], campaigns: [], breaks: [] });
+  readonly calendarData = signal<AgentCalendarResponse>({
+    callbacks: [],
+    campaigns: [],
+    breaks: [],
+  });
 
   // ── Modal state ──────────────────────────────────────────────────────────────
   readonly selectedCallback = signal<CalendarCallback | null>(null);
   readonly selectedBreak = signal<CalendarBreak | null>(null);
   readonly selectedCampaign = signal<CalendarCampaign | null>(null);
   readonly addBreakMode = signal(false);
+  readonly currentLang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
 
   // ── Derived state ────────────────────────────────────────────────────────────
   readonly weekDays = computed<CalendarDay[]>(() => {
+    this.currentLang();
     const mode = this.viewMode();
     const base = this.currentDate();
     const today = new Date();
@@ -145,7 +155,9 @@ export class AgentCalendarComponent implements OnInit {
       // Campaigns are all-day: appear before timed events
       const events: CalendarEventEntry[] = [
         ...campaigns.map((c): CalendarEventEntry => ({ kind: 'campaign', item: c })),
-        ...timedEvents.map(({ kind, item }): CalendarEventEntry => ({ kind, item } as CalendarEventEntry)),
+        ...timedEvents.map(
+          ({ kind, item }): CalendarEventEntry => ({ kind, item }) as CalendarEventEntry,
+        ),
       ];
 
       const isToday = dayStart.getTime() === today.getTime();
@@ -318,73 +330,27 @@ export class AgentCalendarComponent implements OnInit {
   }
 
   breakTypeLabel(type: string): string {
-    const map: Record<string, string> = {
-      LUNCH: 'Obiad',
-      SHORT_BREAK: 'Krotka przerwa',
-      TRAINING: 'Szkolenie',
-      MEETING: 'Spotkanie',
-      OTHER: 'Inna',
-    };
-    return map[type] ?? type;
+    return this.transloco.translate(`agent.calendarStatus.breakLabels.${type}`);
   }
 
   breakStatusLabel(status: string): string {
-    const map: Record<string, string> = {
-      PLANNED: 'Zaplanowana',
-      ACTIVE: 'Aktywna',
-      COMPLETED: 'Zakonczona',
-      CANCELLED: 'Odwolana',
-    };
-    return map[status] ?? status;
+    return this.transloco.translate(`agent.calendarStatus.breakStatusLabels.${status}`);
   }
 
   callbackSourceLabel(source: string): string {
-    const map: Record<string, string> = {
-      CAMPAIGN_CALLBACK: 'Kampania',
-      INBOUND_CALLBACK: 'Przychodzy',
-      AGENT_MANUAL: 'Manualny',
-    };
-    return map[source] ?? source;
+    return this.transloco.translate(`agent.calendarStatus.callbackSourceLabels.${source}`);
   }
 
   callbackStatusLabel(status: string): string {
-    const map: Record<string, string> = {
-      PENDING: 'Oczekujacy',
-      SCHEDULED: 'Zaplanowany',
-      IN_PROGRESS: 'W toku',
-      COMPLETED: 'Zakończony',
-      CANCELLED: 'Odwołany',
-      NO_ANSWER: 'Brak odpowiedzi',
-      RESCHEDULED: 'Przesunięty',
-    };
-    return map[status] ?? status;
+    return this.transloco.translate(`agent.calendarStatus.callbackStatusLabels.${status}`);
   }
 
   campaignStatusLabel(status: string): string {
-    const map: Record<string, string> = {
-      ACTIVE: 'Aktywna',
-      RUNNING: 'Aktywna',
-      SCHEDULED: 'Zaplanowana',
-      DRAFT: 'Szkic',
-      PAUSED: 'Wstrzymana',
-      STOPPED: 'Zatrzymana',
-      COMPLETED: 'Zakończona',
-      CANCELLED: 'Odwołana',
-    };
-    return map[status] ?? status;
+    return this.transloco.translate(`agent.calendarStatus.campaignStatusLabels.${status}`);
   }
 
   formatActiveDays(days: string[]): string {
-    const map: Record<string, string> = {
-      MON: 'Pon',
-      TUE: 'Wt',
-      WED: 'Sr',
-      THU: 'Czw',
-      FRI: 'Pt',
-      SAT: 'Sob',
-      SUN: 'Ndz',
-    };
-    return days.map((d) => map[d] ?? d).join(', ');
+    return days.map((d) => this.transloco.translate(`agent.calendar.days.${d}`)).join(', ');
   }
 
   readonly trackByDay = (_i: number, day: CalendarDay) => day.date.toISOString().slice(0, 10);
@@ -416,21 +382,18 @@ export class AgentCalendarComponent implements OnInit {
   }
 
   private formatDayLabel(date: Date, isToday: boolean): string {
-    const dayNames = ['Ndz', 'Pon', 'Wt', 'Sr', 'Czw', 'Pt', 'Sob'];
-    const dayName = dayNames[date.getDay()];
+    const dayName = this.transloco.translate(`agent.calendar.shortDayNames.${date.getDay()}`);
     const month = this.monthName(date.getMonth());
-    const prefix = isToday ? 'Dzisiaj' : dayName;
+    const prefix = isToday ? this.transloco.translate('agent.calendar.today') : dayName;
     return `${prefix} ${date.getDate()} ${month}`;
   }
 
   private formatSingleDay(date: Date): string {
-    const dayNames = ['Niedziela', 'Poniedzialek', 'Wtorek', 'Sroda', 'Czwartek', 'Piatek', 'Sobota'];
-    const day = dayNames[date.getDay()];
+    const day = this.transloco.translate(`agent.calendar.dayNames.${date.getDay()}`);
     return `${day}, ${date.getDate()} ${this.monthName(date.getMonth())} ${date.getFullYear()}`;
   }
 
   private monthName(month: number): string {
-    const names = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paz', 'lis', 'gru'];
-    return names[month] ?? '';
+    return this.transloco.translate(`agent.calendar.months.${month}`);
   }
 }

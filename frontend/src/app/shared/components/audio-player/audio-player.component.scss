@@ -136,7 +136,9 @@ $radius: 10px;
     border-radius: 6px;
     color: $text-muted;
     text-decoration: none;
-    transition: color 0.15s ease, background 0.15s ease;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease;
 
     &:hover {
       color: $text;

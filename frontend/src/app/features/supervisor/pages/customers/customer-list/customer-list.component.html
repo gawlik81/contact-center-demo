@@ -1,29 +1,39 @@
 <div class="customer-list">
   <div class="customer-list__header">
-    <h1 class="customer-list__title">Baza klientów</h1>
+    <h1 class="customer-list__title">{{ 'supervisor.customers.title' | transloco }}</h1>
     <div class="customer-list__actions">
       <button
         class="btn btn-secondary"
         type="button"
         (click)="navigateToImport()"
-        aria-label="Importuj klientów z pliku CSV"
+        [attr.aria-label]="'supervisor.customers.importLabel' | transloco"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
           <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
         </svg>
-        Importuj CSV
+        {{ 'supervisor.customers.importCsv' | transloco }}
       </button>
-      <button class="btn btn-primary" type="button" (click)="openCreateModal()" aria-label="Dodaj nowego klienta">
+      <button
+        class="btn btn-primary"
+        type="button"
+        (click)="openCreateModal()"
+        [attr.aria-label]="'supervisor.customers.addCustomerLabel' | transloco"
+      >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
           <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
         </svg>
-        Nowy klient
+        {{ 'supervisor.customers.addCustomer' | transloco }}
       </button>
     </div>
   </div>
 
   <!-- Search bar -->
-  <div class="customer-list__search" [formGroup]="searchForm" role="search" aria-label="Wyszukaj klienta">
+  <div
+    class="customer-list__search"
+    [formGroup]="searchForm"
+    role="search"
+    [attr.aria-label]="'supervisor.customers.searchLabel' | transloco"
+  >
     <div class="search-field">
       <svg class="search-field__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
         <path
@@ -35,16 +45,16 @@
         type="search"
         class="search-field__input"
         formControlName="query"
-        placeholder="Szukaj po imieniu, nazwisku, telefonie lub emailu..."
+        [placeholder]="'supervisor.customers.searchPlaceholder' | transloco"
         autocomplete="off"
-        aria-label="Wyszukaj klienta (min. 2 znaki)"
+        [attr.aria-label]="'supervisor.customers.searchAriaLabel' | transloco"
       />
     </div>
   </div>
 
   <!-- Loading skeleton -->
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+    <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <div class="skeleton-row">
           <div class="skeleton-cell skeleton-cell--wide"></div>
@@ -61,7 +71,7 @@
   <!-- Table -->
   @if (!loading()) {
     @if (customers().length > 0) {
-      <div class="table-wrapper" role="region" aria-label="Lista klientów">
+      <div class="table-wrapper" role="region" [attr.aria-label]="'supervisor.customers.tableLabel' | transloco">
         <table class="customer-table" aria-live="polite">
           <thead>
             <tr>
@@ -71,12 +81,12 @@
                   type="button"
                   (click)="onSort('firstName')"
                   [class.sort-btn--active]="isSortActive('firstName')"
-                  [attr.aria-label]="'Imię - ' + getSortAriaLabel('firstName')"
+                  [attr.aria-label]="('common.firstName' | transloco) + ' - ' + getSortAriaLabel('firstName')"
                   aria-sort="{{
                     isSortActive('firstName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
                   }}"
                 >
-                  Imię
+                  {{ 'common.firstName' | transloco }}
                   <span class="sort-icon" aria-hidden="true">
                     @if (isSortActive('firstName')) {
                       {{ sortDir() === 'asc' ? '↑' : '↓' }}
@@ -92,12 +102,12 @@
                   type="button"
                   (click)="onSort('lastName')"
                   [class.sort-btn--active]="isSortActive('lastName')"
-                  [attr.aria-label]="'Nazwisko - ' + getSortAriaLabel('lastName')"
+                  [attr.aria-label]="('common.lastName' | transloco) + ' - ' + getSortAriaLabel('lastName')"
                   aria-sort="{{
                     isSortActive('lastName') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
                   }}"
                 >
-                  Nazwisko
+                  {{ 'common.lastName' | transloco }}
                   <span class="sort-icon" aria-hidden="true">
                     @if (isSortActive('lastName')) {
                       {{ sortDir() === 'asc' ? '↑' : '↓' }}
@@ -107,20 +117,22 @@
                   </span>
                 </button>
               </th>
-              <th scope="col" class="hide-xs">Telefon</th>
-              <th scope="col" class="hide-sm">Email</th>
+              <th scope="col" class="hide-xs">{{ 'common.phone' | transloco }}</th>
+              <th scope="col" class="hide-sm">{{ 'common.email' | transloco }}</th>
               <th scope="col">
                 <button
                   class="sort-btn"
                   type="button"
                   (click)="onSort('createdAt')"
                   [class.sort-btn--active]="isSortActive('createdAt')"
-                  [attr.aria-label]="'Data dodania - ' + getSortAriaLabel('createdAt')"
+                  [attr.aria-label]="
+                    ('supervisor.customers.tableAddedDate' | transloco) + ' - ' + getSortAriaLabel('createdAt')
+                  "
                   aria-sort="{{
                     isSortActive('createdAt') ? (sortDir() === 'asc' ? 'ascending' : 'descending') : 'none'
                   }}"
                 >
-                  Data dodania
+                  {{ 'supervisor.customers.tableAddedDate' | transloco }}
                   <span class="sort-icon" aria-hidden="true">
                     @if (isSortActive('createdAt')) {
                       {{ sortDir() === 'asc' ? '↑' : '↓' }}
@@ -130,7 +142,9 @@
                   </span>
                 </button>
               </th>
-              <th scope="col"><span class="sr-only">Akcje</span></th>
+              <th scope="col">
+                <span class="sr-only">{{ 'common.actions' | transloco }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -140,16 +154,16 @@
                 <td class="customer-name">{{ customer.lastName ?? '—' }}</td>
                 <td class="customer-secondary hide-xs">{{ getFirstPhone(customer) }}</td>
                 <td class="customer-secondary hide-sm">{{ getFirstEmail(customer) }}</td>
-                <td class="customer-secondary">
-                  {{ customer.createdAt | date: 'dd.MM.yyyy' }}
-                </td>
+                <td class="customer-secondary">{{ customer.createdAt | date: 'dd.MM.yyyy' }}</td>
                 <td class="customer-actions">
                   <button
                     class="btn btn-icon-outline"
                     type="button"
                     (click)="navigateToProfile(customer)"
-                    [attr.aria-label]="'Profil klienta ' + getCustomerName(customer)"
-                    title="Profil"
+                    [attr.aria-label]="
+                      ('supervisor.customers.profileLabel' | transloco) + ' ' + getCustomerName(customer)
+                    "
+                    [title]="'supervisor.customers.profileLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path
@@ -161,8 +175,8 @@
                     class="btn btn-icon-outline"
                     type="button"
                     (click)="openEditModal(customer)"
-                    [attr.aria-label]="'Edytuj klienta ' + getCustomerName(customer)"
-                    title="Edytuj"
+                    [attr.aria-label]="('common.edit' | transloco) + ' ' + getCustomerName(customer)"
+                    [title]="'common.edit' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path
@@ -174,8 +188,10 @@
                     class="btn btn-icon-danger"
                     type="button"
                     (click)="openDeleteModal(customer)"
-                    [attr.aria-label]="'Usuń (RODO) klienta ' + getCustomerName(customer)"
-                    title="Usuń (RODO)"
+                    [attr.aria-label]="
+                      ('supervisor.customers.deleteLabel' | transloco) + ' ' + getCustomerName(customer)
+                    "
+                    [title]="'supervisor.customers.deleteLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
@@ -189,10 +205,10 @@
       </div>
 
       <!-- Pagination -->
-      <nav class="pagination" aria-label="Nawigacja stron">
+      <nav class="pagination" [attr.aria-label]="'supervisor.customers.paginationLabel' | transloco">
         <span class="pagination__info" aria-live="polite">
           @if (totalElements() > 0) {
-            Wyświetlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }} klientów
+            {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ totalElements() }}
           }
         </span>
         <div class="pagination__controls">
@@ -201,24 +217,24 @@
             type="button"
             (click)="onPrevPage()"
             [disabled]="currentPage() === 0"
-            aria-label="Poprzednia strona"
+            [attr.aria-label]="'common.previous' | transloco"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
             </svg>
-            Poprzednia
+            {{ 'common.previous' | transloco }}
           </button>
           <span class="pagination__pages" aria-current="page">
-            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+            {{ 'common.page' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
           </span>
           <button
             class="btn btn-pagination"
             type="button"
             (click)="onNextPage()"
             [disabled]="currentPage() + 1 >= totalPages()"
-            aria-label="Następna strona"
+            [attr.aria-label]="'common.next' | transloco"
           >
-            Następna
+            {{ 'common.next' | transloco }}
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
             </svg>
@@ -226,30 +242,29 @@
         </div>
       </nav>
     } @else {
-      <!-- Empty state -->
       <div class="empty-state" role="status" aria-live="polite">
         <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path
             d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
           />
         </svg>
-        <p class="empty-state__message">Brak klientów do wyświetlenia.</p>
+        <p class="empty-state__message">{{ 'supervisor.customers.emptyText' | transloco }}</p>
         @if (searchForm.controls.query.value) {
-          <p class="empty-state__hint">Brak wyników dla podanej frazy. Spróbuj zmienić wyszukiwanie.</p>
+          <p class="empty-state__hint">{{ 'supervisor.customers.emptySearchHint' | transloco }}</p>
         } @else {
-          <p class="empty-state__hint">Dodaj pierwszego klienta lub zaimportuj z CSV.</p>
+          <p class="empty-state__hint">{{ 'supervisor.customers.emptyHint' | transloco }}</p>
           <div class="empty-state__buttons">
             <button class="btn btn-secondary" type="button" (click)="navigateToImport()">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
                 <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
               </svg>
-              Importuj CSV
+              {{ 'supervisor.customers.importCsv' | transloco }}
             </button>
             <button class="btn btn-primary" type="button" (click)="openCreateModal()">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
               </svg>
-              Dodaj pierwszego klienta
+              {{ 'supervisor.customers.addFirst' | transloco }}
             </button>
           </div>
         }

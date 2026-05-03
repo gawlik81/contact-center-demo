@@ -7,27 +7,30 @@
 >
   <div class="delete-dialog__content" role="document">
     <div class="delete-dialog__header">
-      <h2 id="queue-delete-title" class="delete-dialog__title">Usuniecie kolejki</h2>
+      <h2 id="queue-delete-title" class="delete-dialog__title">{{ 'supervisor.queueDelete.title' | transloco }}</h2>
     </div>
 
     <div class="delete-dialog__body">
       <p id="queue-delete-desc" class="delete-dialog__message">
-        Czy na pewno chcesz usunac kolejke <strong>{{ queueName() }}</strong>?
+        {{ 'supervisor.queueDelete.body' | transloco }} <strong>{{ queueName() }}</strong
+        >?
       </p>
       <p class="delete-dialog__warning" role="alert">
-        Operacja jest <strong>nieodwracalna</strong>. Kolejki z aktywnymi kontaktami nie mozna usunac.
+        {{ 'supervisor.queueDelete.warning' | transloco }}
       </p>
     </div>
 
     <div class="delete-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         class="btn btn-delete"
         type="button"
         (click)="onConfirm()"
-        [attr.aria-label]="'Usun kolejke ' + queueName()"
+        [attr.aria-label]="('common.delete' | transloco) + ' ' + queueName()"
       >
-        Usun
+        {{ 'common.delete' | transloco }}
       </button>
     </div>
   </div>

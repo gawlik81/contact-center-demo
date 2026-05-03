@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -18,13 +19,7 @@ import { DeduplicationMode, ImportJobStatus } from '../customer-import.model';
 
 export type ImportStep = 'upload' | 'mapping' | 'progress' | 'report';
 
-export type SystemField =
-  | 'phone'
-  | 'first_name'
-  | 'last_name'
-  | 'email'
-  | 'custom_fields'
-  | 'skip';
+export type SystemField = 'phone' | 'first_name' | 'last_name' | 'email' | 'custom_fields' | 'skip';
 
 export interface ColumnMapping {
   csvHeader: string;
@@ -38,13 +33,14 @@ const PREVIEW_ROWS = 5;
 @Component({
   selector: 'app-customer-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [TranslocoModule, FormsModule],
   templateUrl: './customer-import.component.html',
   styleUrl: './customer-import.component.scss',
 })
 export class CustomerImportComponent implements OnInit {
   private readonly customerService = inject(CustomerService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -195,9 +191,7 @@ export class CustomerImportComponent implements OnInit {
       const allRows = lines.map((l) => this.parseCSVLine(l, sep, quote));
       const firstRow = allRows[0];
 
-      const looksLikeHeader = firstRow.every(
-        (cell) => isNaN(Number(cell)) && cell.trim() !== '',
-      );
+      const looksLikeHeader = firstRow.every((cell) => isNaN(Number(cell)) && cell.trim() !== '');
       let headers: string[];
       let dataRows: string[][];
 
@@ -321,7 +315,7 @@ export class CustomerImportComponent implements OnInit {
       )
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie rozpoczac importu. Sprobuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.customerImport.errorMsg'));
           this.submitting.set(false);
           this.currentStep.set('mapping');
           return of(null);
@@ -369,7 +363,7 @@ export class CustomerImportComponent implements OnInit {
       .downloadImportErrors(job.jobId)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac pliku bledow.');
+          this.notifications.error(this.transloco.translate('supervisor.customerImport.errorMsg'));
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),

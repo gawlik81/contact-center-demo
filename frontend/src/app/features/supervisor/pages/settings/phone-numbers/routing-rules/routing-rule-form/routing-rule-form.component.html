@@ -1,9 +1,13 @@
 <dialog #dialogRef class="rule-dialog" aria-labelledby="rule-dialog-title">
   <div class="rule-dialog__header">
     <h2 id="rule-dialog-title" class="rule-dialog__title">
-      {{ isEditMode() ? 'Edytuj regułę routingu' : 'Dodaj regułę routingu' }}
+      {{
+        isEditMode()
+          ? ('supervisor.settings.routingRuleForm.titleEdit' | transloco)
+          : ('supervisor.settings.routingRuleForm.titleCreate' | transloco)
+      }}
     </h2>
-    <button type="button" class="rule-dialog__close" (click)="close()" aria-label="Zamknij dialog">
+    <button type="button" class="rule-dialog__close" (click)="close()" [attr.aria-label]="'common.close' | transloco">
       <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
         <path
           d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -15,7 +19,7 @@
   <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="rule-dialog__body">
     <!-- Days of week -->
     <div class="form-field" [class.form-field--error]="daysError">
-      <span class="form-label" id="days-label">Dni tygodnia</span>
+      <span class="form-label" id="days-label">{{ 'supervisor.settings.routingRuleForm.daysLabel' | transloco }}</span>
       <div class="days-picker" role="group" aria-labelledby="days-label">
         @for (day of allDays; track day) {
           <button
@@ -24,21 +28,21 @@
             [class.day-btn--active]="isDaySelected(day)"
             (click)="toggleDay(day)"
             [attr.aria-pressed]="isDaySelected(day)"
-            [attr.aria-label]="dayLabels[day]"
+            [attr.aria-label]="dayLabels[day] | transloco"
           >
-            {{ dayLabels[day] }}
+            {{ dayLabels[day] | transloco }}
           </button>
         }
       </div>
       @if (daysError) {
-        <span class="form-error" role="alert">Wybierz co najmniej jeden dzień tygodnia.</span>
+        <span class="form-error" role="alert">{{ 'supervisor.settings.routingRuleForm.daysError' | transloco }}</span>
       }
     </div>
 
     <!-- Time range -->
     <div class="form-row">
       <div class="form-field" [class.form-field--error]="timeRangeError">
-        <label class="form-label" for="time-start">Od</label>
+        <label class="form-label" for="time-start">{{ 'common.from' | transloco }}</label>
         <input
           id="time-start"
           type="time"
@@ -48,7 +52,7 @@
         />
       </div>
       <div class="form-field" [class.form-field--error]="timeRangeError">
-        <label class="form-label" for="time-end">Do</label>
+        <label class="form-label" for="time-end">{{ 'common.to' | transloco }}</label>
         <input
           id="time-end"
           type="time"
@@ -59,20 +63,22 @@
       </div>
     </div>
     @if (timeRangeError) {
-      <span class="form-error" role="alert">Godzina "Do" musi być późniejsza niż "Od".</span>
+      <span class="form-error" role="alert">{{ 'supervisor.settings.routingRuleForm.timeError' | transloco }}</span>
     }
 
     <!-- Target type -->
     <div class="form-field">
-      <span class="form-label" id="target-label">Cel routingu</span>
+      <span class="form-label" id="target-label">{{
+        'supervisor.settings.routingRuleForm.targetLabel' | transloco
+      }}</span>
       <div class="radio-group" role="radiogroup" aria-labelledby="target-label">
         <label class="radio-label">
           <input type="radio" formControlName="targetType" value="ivr" />
-          <span>Drzewo IVR</span>
+          <span>{{ 'supervisor.settings.routingRuleForm.targetIvr' | transloco }}</span>
         </label>
         <label class="radio-label">
           <input type="radio" formControlName="targetType" value="queue" />
-          <span>Kolejka</span>
+          <span>{{ 'supervisor.settings.routingRuleForm.targetQueue' | transloco }}</span>
         </label>
       </div>
     </div>
@@ -80,12 +86,14 @@
     <!-- IVR select -->
     @if (targetType() === 'ivr') {
       <div class="form-field">
-        <label class="form-label" for="ivr-select">Drzewo IVR</label>
+        <label class="form-label" for="ivr-select">{{
+          'supervisor.settings.routingRuleForm.ivrLabel' | transloco
+        }}</label>
         @if (loadingOptions()) {
           <div class="skeleton skeleton--field"></div>
         } @else {
           <select id="ivr-select" class="form-select" formControlName="ivrTreeId">
-            <option value="">-- Wybierz drzewo IVR --</option>
+            <option value="">{{ 'supervisor.settings.routingRuleForm.ivrPlaceholder' | transloco }}</option>
             @for (ivr of ivrTrees(); track ivr.ivr_id) {
               <option [value]="ivr.ivr_id">{{ ivr.name }}</option>
             }
@@ -97,12 +105,14 @@
     <!-- Queue select -->
     @if (targetType() === 'queue') {
       <div class="form-field">
-        <label class="form-label" for="queue-select">Kolejka</label>
+        <label class="form-label" for="queue-select">{{
+          'supervisor.settings.routingRuleForm.queueLabel' | transloco
+        }}</label>
         @if (loadingOptions()) {
           <div class="skeleton skeleton--field"></div>
         } @else {
           <select id="queue-select" class="form-select" formControlName="queueId">
-            <option value="">-- Wybierz kolejkę --</option>
+            <option value="">{{ 'supervisor.settings.routingRuleForm.queuePlaceholder' | transloco }}</option>
             @for (queue of queues(); track queue.queueId) {
               <option [value]="queue.queueId">{{ queue.name }}</option>
             }
@@ -113,7 +123,7 @@
 
     <!-- Actions -->
     <div class="rule-dialog__actions">
-      <button type="button" class="btn btn-secondary" (click)="close()">Anuluj</button>
+      <button type="button" class="btn btn-secondary" (click)="close()">{{ 'common.cancel' | transloco }}</button>
       <button
         type="submit"
         class="btn btn-primary"
@@ -122,9 +132,9 @@
       >
         @if (submitting()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Zapisz regułę
+          {{ 'supervisor.settings.routingRules.addButton' | transloco }}
         }
       </button>
     </div>

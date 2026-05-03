@@ -113,13 +113,16 @@ export class AudioPlayerComponent implements AfterViewInit, OnDestroy {
       audio.pause();
       this.isPlaying.set(false);
     } else {
-      void audio.play().then(() => {
-        this.isPlaying.set(true);
-        this.cdr.markForCheck();
-      }).catch(() => {
-        this.loadError.set(true);
-        this.cdr.markForCheck();
-      });
+      void audio
+        .play()
+        .then(() => {
+          this.isPlaying.set(true);
+          this.cdr.markForCheck();
+        })
+        .catch(() => {
+          this.loadError.set(true);
+          this.cdr.markForCheck();
+        });
     }
   }
 

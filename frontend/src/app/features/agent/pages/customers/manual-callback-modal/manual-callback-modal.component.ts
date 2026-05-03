@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -36,7 +37,7 @@ function e164Validator(control: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-manual-callback-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './manual-callback-modal.component.html',
   styleUrl: './manual-callback-modal.component.scss',
   host: {
@@ -53,6 +54,7 @@ export class ManualCallbackModalComponent implements AfterViewInit {
   private readonly callbackService = inject(ManualCallbackService);
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly translocoService = inject(TranslocoService);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
 
@@ -94,10 +96,9 @@ export class ManualCallbackModalComponent implements AfterViewInit {
 
   readonly canSubmit = computed(() => this._formStatus() === 'VALID' && !this.loading());
 
-  private readonly _scheduledDateValue = toSignal(
-    this.form.controls.scheduledDate.valueChanges,
-    { initialValue: this.form.controls.scheduledDate.value },
-  );
+  private readonly _scheduledDateValue = toSignal(this.form.controls.scheduledDate.valueChanges, {
+    initialValue: this.form.controls.scheduledDate.value,
+  });
 
   /** True when the selected date is today — used to filter available hours */
   readonly isToday = computed(() => {
@@ -127,15 +128,18 @@ export class ManualCallbackModalComponent implements AfterViewInit {
   get phoneError(): string | null {
     const ctrl = this.form.controls.phoneNumber;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Numer telefonu jest wymagany.';
-    if (ctrl.hasError('invalidE164')) return 'Podaj numer w formacie miedzynarodowym (np. +48123456789).';
+    if (ctrl.hasError('required'))
+      return this.translocoService.translate('agent.manualCallbackModal.phoneRequired');
+    if (ctrl.hasError('invalidE164'))
+      return this.translocoService.translate('agent.manualCallbackModal.phoneInvalidFormat');
     return null;
   }
 
   get scheduledDateError(): string | null {
     const ctrl = this.form.controls.scheduledDate;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Data jest wymagana.';
+    if (ctrl.hasError('required'))
+      return this.translocoService.translate('agent.manualCallbackModal.dateRequired');
     return null;
   }
 
@@ -144,14 +148,16 @@ export class ManualCallbackModalComponent implements AfterViewInit {
     const m = this.form.controls.scheduledMinute;
     const touched = h.touched || m.touched;
     if (!touched) return null;
-    if (h.hasError('required') || m.hasError('required')) return 'Godzina jest wymagana.';
+    if (h.hasError('required') || m.hasError('required'))
+      return this.translocoService.translate('agent.manualCallbackModal.timeRequired');
     return null;
   }
 
   get notesError(): string | null {
     const ctrl = this.form.controls.notes;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('maxlength')) return 'Notatka nie moze przekraczac 500 znakow.';
+    if (ctrl.hasError('maxlength'))
+      return this.translocoService.translate('agent.manualCallbackModal.notesMaxLength');
     return null;
   }
 
@@ -173,8 +179,7 @@ export class ManualCallbackModalComponent implements AfterViewInit {
     if (defaultDt.getMinutes() === 60) {
       defaultDt.setHours(defaultDt.getHours() + 1, 0, 0, 0);
     }
-    const defaultDate =
-      `${defaultDt.getFullYear()}-${this.pad(defaultDt.getMonth() + 1)}-${this.pad(defaultDt.getDate())}`;
+    const defaultDate = `${defaultDt.getFullYear()}-${this.pad(defaultDt.getMonth() + 1)}-${this.pad(defaultDt.getDate())}`;
     const defaultHour = this.pad(defaultDt.getHours());
     const defaultMinute = this.pad(Math.floor(defaultDt.getMinutes() / 5) * 5);
 
@@ -228,7 +233,9 @@ export class ManualCallbackModalComponent implements AfterViewInit {
     const combined = new Date(`${raw.scheduledDate}T${raw.scheduledHour}:${raw.scheduledMinute}`);
     const minThreshold = new Date(Date.now() + 5 * 60 * 1000);
     if (combined < minThreshold) {
-      this.errorMessage.set('Wybierz termin co najmniej 5 minut w przyszlosci.');
+      this.errorMessage.set(
+        this.translocoService.translate('agent.manualCallbackModal.errorMinTime'),
+      );
       return;
     }
 
@@ -246,14 +253,23 @@ export class ManualCallbackModalComponent implements AfterViewInit {
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
           if (err.status === 400) {
-            const message = err.error?.message ?? err.error?.error ?? 'Nieprawidlowe dane zadania.';
+            const message =
+              err.error?.message ??
+              err.error?.error ??
+              this.translocoService.translate('agent.manualCallbackModal.errorInvalidData');
             this.errorMessage.set(message);
           } else if (err.status === 403) {
-            this.errorMessage.set('Brak uprawnien do zamowienia oddzwonienia.');
+            this.errorMessage.set(
+              this.translocoService.translate('agent.manualCallbackModal.errorForbidden'),
+            );
           } else if (err.status === 404) {
-            this.errorMessage.set('Klient nie zostal znaleziony.');
+            this.errorMessage.set(
+              this.translocoService.translate('agent.manualCallbackModal.errorNotFound'),
+            );
           } else {
-            this.errorMessage.set('Wystapil blad serwera. Sprobuj ponownie.');
+            this.errorMessage.set(
+              this.translocoService.translate('agent.manualCallbackModal.errorServer'),
+            );
           }
           return EMPTY;
         }),

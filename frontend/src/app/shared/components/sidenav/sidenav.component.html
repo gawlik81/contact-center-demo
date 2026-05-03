@@ -12,10 +12,10 @@
   [class.sidenav--open]="isOpen()"
   [class.sidenav--collapsed]="isCollapsed()"
   role="navigation"
-  aria-label="Nawigacja glowna"
+  [attr.aria-label]="'nav.mainNav' | transloco"
 >
   <div class="sidenav__header">
-    <span class="sidenav__title">Menu</span>
+    <span class="sidenav__title">{{ 'nav.menu' | transloco }}</span>
   </div>
 
   <ul class="sidenav__list" role="list">
@@ -27,16 +27,16 @@
             type="button"
             class="sidenav__link sidenav__link--section"
             [class.sidenav__link--section-active]="isChildActive(item)"
-            [attr.aria-label]="item.ariaLabel"
-            [attr.aria-expanded]="isCollapsed() ? null : (isSectionExpanded(item.route) || isChildActive(item))"
-            [attr.title]="isCollapsed() ? item.label : null"
-            [attr.data-tooltip]="isCollapsed() ? item.label : null"
+            [attr.aria-label]="item.ariaLabel | transloco"
+            [attr.aria-expanded]="isCollapsed() ? null : isSectionExpanded(item.route) || isChildActive(item)"
+            [attr.title]="isCollapsed() ? (item.label | transloco) : null"
+            [attr.data-tooltip]="isCollapsed() ? (item.label | transloco) : null"
             (click)="toggleSection(item.route)"
           >
             <svg class="sidenav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
               <path [attr.d]="item.svgPath" />
             </svg>
-            <span class="sidenav__label">{{ item.label }}</span>
+            <span class="sidenav__label">{{ item.label | transloco }}</span>
             <svg
               class="sidenav__chevron"
               [class.sidenav__chevron--open]="isSectionExpanded(item.route) || isChildActive(item)"
@@ -58,15 +58,21 @@
                     [routerLink]="child.route"
                     routerLinkActive="sidenav__sublink--active"
                     [routerLinkActiveOptions]="{ exact: true }"
-                    [attr.aria-label]="child.ariaLabel"
+                    [attr.aria-label]="child.ariaLabel | transloco"
                     (click)="onLinkClick()"
                     #crla="routerLinkActive"
                     [attr.aria-current]="crla.isActive ? 'page' : null"
                   >
-                    <svg class="sidenav__icon sidenav__icon--sm" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+                    <svg
+                      class="sidenav__icon sidenav__icon--sm"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
                       <path [attr.d]="child.svgPath" />
                     </svg>
-                    <span class="sidenav__label">{{ child.label }}</span>
+                    <span class="sidenav__label">{{ child.label | transloco }}</span>
                   </a>
                 </li>
               }
@@ -81,9 +87,9 @@
             [routerLink]="item.route"
             routerLinkActive="sidenav__link--active"
             [routerLinkActiveOptions]="{ exact: true }"
-            [attr.aria-label]="item.ariaLabel"
-            [attr.title]="isCollapsed() ? item.label : null"
-            [attr.data-tooltip]="isCollapsed() ? item.label : null"
+            [attr.aria-label]="item.ariaLabel | transloco"
+            [attr.title]="isCollapsed() ? (item.label | transloco) : null"
+            [attr.data-tooltip]="isCollapsed() ? (item.label | transloco) : null"
             (click)="onLinkClick()"
             #rla="routerLinkActive"
             [attr.aria-current]="rla.isActive ? 'page' : null"
@@ -91,7 +97,7 @@
             <svg class="sidenav__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
               <path [attr.d]="item.svgPath" />
             </svg>
-            <span class="sidenav__label">{{ item.label }}</span>
+            <span class="sidenav__label">{{ item.label | transloco }}</span>
 
             @if (item.route === '/admin/dashboard' && showAlertBadge()) {
               <span class="sidenav__alert-badge" [attr.aria-label]="alertCount() + ' alertow systemowych'">{{
@@ -109,9 +115,9 @@
     <button
       type="button"
       class="sidenav__collapse-btn"
-      [attr.aria-label]="isCollapsed() ? 'Rozwin nawigacje' : 'Zwij nawigacje'"
-      [attr.title]="isCollapsed() ? 'Rozwin nawigacje' : 'Zwij nawigacje'"
-      [attr.data-tooltip]="isCollapsed() ? 'Rozwin' : null"
+      [attr.aria-label]="(isCollapsed() ? 'nav.expandNav' : 'nav.collapseNav') | transloco"
+      [attr.title]="(isCollapsed() ? 'nav.expandNav' : 'nav.collapseNav') | transloco"
+      [attr.data-tooltip]="isCollapsed() ? ('nav.expandNav' | transloco) : null"
       (click)="toggleCollapsed()"
     >
       <svg
@@ -123,9 +129,11 @@
         focusable="false"
       >
         <!-- Double chevron left -->
-        <path d="M11.41 7.41L10 6l-6 6 6 6 1.41-1.41L6.83 12l4.58-4.59zm6 0L16 6l-6 6 6 6 1.41-1.41L12.83 12l4.58-4.59z" />
+        <path
+          d="M11.41 7.41L10 6l-6 6 6 6 1.41-1.41L6.83 12l4.58-4.59zm6 0L16 6l-6 6 6 6 1.41-1.41L12.83 12l4.58-4.59z"
+        />
       </svg>
-      <span class="sidenav__collapse-label">Zwij</span>
+      <span class="sidenav__collapse-label">{{ 'nav.collapse' | transloco }}</span>
     </button>
   </div>
 </nav>

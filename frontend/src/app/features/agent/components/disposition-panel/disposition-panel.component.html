@@ -12,14 +12,19 @@
         </svg>
       </div>
       <div class="disposition-dialog__title-block">
-        <h2 id="disposition-dialog-title" class="disposition-dialog__title">Zakoncz kontakt</h2>
+        <h2 id="disposition-dialog-title" class="disposition-dialog__title">
+          {{ 'agent.disposition.title' | transloco }}
+        </h2>
         @if (customerName()) {
           <p class="disposition-dialog__subtitle">{{ customerName() }}</p>
         }
       </div>
       <div class="disposition-dialog__acw" aria-live="polite" aria-atomic="true">
-        <span class="acw__label">Czas ACW</span>
-        <span class="acw__timer" [attr.aria-label]="'Czas po kontakcie: ' + formattedAcwTime()">
+        <span class="acw__label">{{ 'agent.disposition.acwLabel' | transloco }}</span>
+        <span
+          class="acw__timer"
+          [attr.aria-label]="('agent.disposition.acwTimer' | transloco) + ' ' + formattedAcwTime()"
+        >
           {{ formattedAcwTime() }}
         </span>
       </div>
@@ -30,7 +35,8 @@
       <!-- Disposition code -->
       <div class="form-field">
         <label class="form-field__label" for="disposition-code">
-          Dyspozycja <span class="form-field__required" aria-hidden="true">*</span>
+          {{ 'agent.disposition.codeLabel' | transloco }}
+          <span class="form-field__required" aria-hidden="true">*</span>
         </label>
         <select
           id="disposition-code"
@@ -40,31 +46,34 @@
           aria-required="true"
           [attr.aria-invalid]="selectedCode().length === 0"
         >
-          <option value="" disabled selected>-- Wybierz dyspozycję --</option>
+          <option value="" disabled selected>{{ 'agent.disposition.codePlaceholder' | transloco }}</option>
           @for (item of dispositionCodes; track item.code) {
-            <option [value]="item.code">{{ item.label }}</option>
+            <option [value]="item.code">{{ item.labelKey | transloco }}</option>
           }
         </select>
         @if (selectedCode().length === 0) {
-          <span class="form-field__hint" role="alert">Wybierz dyspozycję przed zapisem</span>
+          <span class="form-field__hint" role="alert">
+            {{ 'agent.disposition.codeRequired' | transloco }}
+          </span>
         }
       </div>
 
       <!-- Notes -->
       <div class="form-field">
         <label class="form-field__label" for="disposition-notes">
-          Notatka <span class="form-field__optional">(opcjonalna)</span>
+          {{ 'agent.disposition.notesLabel' | transloco }}
+          <span class="form-field__optional">{{ 'agent.disposition.notesOptional' | transloco }}</span>
         </label>
         <textarea
           id="disposition-notes"
           class="form-field__textarea"
           rows="4"
           maxlength="1000"
-          placeholder="Dodaj notatke do kontaktu..."
+          [attr.placeholder]="'agent.disposition.notesPlaceholder' | transloco"
           [value]="notes()"
           (input)="onNotesChange($any($event.target).value)"
           aria-multiline="true"
-          aria-label="Notatka do kontaktu, opcjonalna"
+          [attr.aria-label]="'agent.disposition.notesAriaLabel' | transloco"
         ></textarea>
         <span class="form-field__char-count" aria-live="polite"> {{ notes().length }}/1000 </span>
       </div>
@@ -77,17 +86,17 @@
         class="btn btn--primary"
         [disabled]="!canSave()"
         [attr.aria-busy]="isSaving()"
-        aria-label="Zapisz dyspozycje i zmien status na dostepny"
+        [attr.aria-label]="'agent.disposition.saveLabel' | transloco"
         (click)="save()"
       >
         @if (isSaving()) {
           <span class="btn__spinner" aria-hidden="true"></span>
-          <span>Zapisywanie...</span>
+          <span>{{ 'agent.disposition.saving' | transloco }}</span>
         } @else {
           <svg class="btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
           </svg>
-          <span>Zapisz i zamknij</span>
+          <span>{{ 'agent.disposition.save' | transloco }}</span>
         }
       </button>
     </footer>

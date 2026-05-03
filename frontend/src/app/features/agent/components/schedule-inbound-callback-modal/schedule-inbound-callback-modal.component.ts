@@ -23,6 +23,7 @@ import {
 import { map } from 'rxjs';
 import { catchError, EMPTY } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { DialerService } from '../../../supervisor/services/dialer.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { CreateInboundCallbackRequest, ScheduledCallbackDto } from '../../models/callback.model';
@@ -45,7 +46,7 @@ function phoneValidator(control: AbstractControl): ValidationErrors | null {
   selector: 'app-schedule-inbound-callback-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, TranslocoModule],
   templateUrl: './schedule-inbound-callback-modal.component.html',
   styleUrl: './schedule-inbound-callback-modal.component.scss',
 })
@@ -62,6 +63,7 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
   private readonly dialerService = inject(DialerService);
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly transloco = inject(TranslocoService);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
 
@@ -138,11 +140,11 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
           if (err.status === 404) {
-            this.errorMessage.set('Kontakt nie istnieje.');
+            this.errorMessage.set(this.transloco.translate('agent.scheduleCallback.errorContactNotFound'));
           } else if (err.status === 403) {
-            this.errorMessage.set('Brak uprawnien do zaplanowania oddzwonienia.');
+            this.errorMessage.set(this.transloco.translate('agent.scheduleCallback.errorForbidden'));
           } else {
-            this.errorMessage.set('Wystapil blad. Sprobuj ponownie.');
+            this.errorMessage.set(this.transloco.translate('agent.scheduleCallback.errorGeneric'));
           }
           // Trigger shake animation on error banner
           this.shakeError.set(true);
@@ -153,8 +155,10 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
       )
       .subscribe((dto) => {
         this.loading.set(false);
-        const formattedDate = new Date(dto.scheduledAt).toLocaleString('pl-PL');
-        this.notifications.success(`Oddzwonienie zaplanowane na ${formattedDate}`);
+        const formattedDate = new Date(dto.scheduledAt).toLocaleString(this.transloco.getActiveLang());
+        this.notifications.success(
+          this.transloco.translate('agent.scheduleCallback.successScheduled', { date: formattedDate }),
+        );
         this.dialogRef().nativeElement.close();
         this.scheduled.emit(dto);
       });

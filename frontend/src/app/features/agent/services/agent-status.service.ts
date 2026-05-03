@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { catchError, EMPTY, filter, Observable, switchMap, tap } from 'rxjs';
+import { TranslocoService } from '@jsverse/transloco';
 import { environment } from '../../../../environments/environment';
 import { AgentStatus } from '../models/agent-status.model';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -27,6 +28,7 @@ const ACTIVE_STATUSES: ReadonlySet<AgentStatus> = new Set<AgentStatus>([
 export class AgentStatusService {
   private readonly http = inject(HttpClient);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly ws = inject(WebSocketService);
 
   readonly currentStatus = signal<AgentStatus>('OFFLINE');
@@ -53,7 +55,7 @@ export class AgentStatusService {
           return this.changeStatus('AVAILABLE');
         }),
         catchError(() => {
-          this.notifications.error('Nie udało się pobrać statusu agenta.');
+          this.notifications.error(this.transloco.translate('agent.status.errorLoad'));
           return EMPTY;
         }),
       )
@@ -88,7 +90,7 @@ export class AgentStatusService {
         this.isChanging.set(false);
       }),
       catchError(() => {
-        this.notifications.error('Nie udało się zmienić statusu. Spróbuj ponownie.');
+        this.notifications.error(this.transloco.translate('agent.status.errorChange'));
         this.isChanging.set(false);
         return EMPTY;
       }),

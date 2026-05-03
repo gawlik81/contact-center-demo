@@ -14,14 +14,14 @@
         </svg>
       </div>
       <div class="callback-dialog__title-block">
-        <h2 id="callback-dialog-title" class="callback-dialog__title">Zaplanuj oddzwonienie</h2>
-        <p class="callback-dialog__subtitle">Oddzwonienie zostanie dodane do kolejki agentow</p>
+        <h2 id="callback-dialog-title" class="callback-dialog__title">{{ 'agent.scheduleCallback.title' | transloco }}</h2>
+        <p class="callback-dialog__subtitle">{{ 'agent.scheduleCallback.subtitle' | transloco }}</p>
       </div>
       <button
         type="button"
         class="callback-dialog__close-btn"
         [disabled]="loading()"
-        aria-label="Zamknij dialog"
+        [attr.aria-label]="'agent.scheduleCallback.closeLabel' | transloco"
         (click)="cancel()"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -49,7 +49,7 @@
                 />
               </svg>
             </span>
-            Numer telefonu
+            {{ 'agent.scheduleCallback.phoneLabel' | transloco }}
             <span class="form-field__required" aria-hidden="true">*</span>
           </label>
           <div class="form-field__input-wrapper">
@@ -73,7 +73,7 @@
                   d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                 />
               </svg>
-              Numer telefonu jest wymagany.
+              {{ 'agent.scheduleCallback.phoneRequired' | transloco }}
             </span>
           } @else if (form.controls.phone.touched && form.controls.phone.hasError('invalidPhone')) {
             <span id="cb-phone-error" class="form-field__hint form-field__hint--error" role="alert">
@@ -82,14 +82,14 @@
                   d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                 />
               </svg>
-              Podaj poprawny numer (7-20 cyfr, dozwolone: spacje, myslniki).
+              {{ 'agent.scheduleCallback.phoneInvalid' | transloco }}
             </span>
           }
         </div>
 
         <!-- Divider -->
         <div class="form-divider" aria-hidden="true">
-          <span>Dane kontaktowe (opcjonalne)</span>
+          <span>{{ 'agent.scheduleCallback.contactDataDivider' | transloco }}</span>
         </div>
 
         <!-- First name / Last name in a row -->
@@ -104,7 +104,7 @@
                   />
                 </svg>
               </span>
-              Imie
+              {{ 'agent.scheduleCallback.firstNameLabel' | transloco }}
             </label>
             <input
               id="cb-firstName"
@@ -117,7 +117,7 @@
           </div>
 
           <div class="form-field">
-            <label class="form-field__label" for="cb-lastName">Nazwisko</label>
+            <label class="form-field__label" for="cb-lastName">{{ 'agent.scheduleCallback.lastNameLabel' | transloco }}</label>
             <input
               id="cb-lastName"
               type="text"
@@ -140,7 +140,7 @@
                 />
               </svg>
             </span>
-            Data i godzina oddzwonienia
+            {{ 'agent.scheduleCallback.scheduledAtLabel' | transloco }}
             <span class="form-field__required" aria-hidden="true">*</span>
           </label>
           <div class="form-field__input-wrapper form-field__input-wrapper--date">
@@ -163,7 +163,7 @@
                   d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                 />
               </svg>
-              Data i godzina sa wymagane.
+              {{ 'agent.scheduleCallback.scheduledAtRequired' | transloco }}
             </span>
           } @else if (form.controls.scheduledAt.touched && form.controls.scheduledAt.hasError('pastDate')) {
             <span id="cb-scheduledAt-error" class="form-field__hint form-field__hint--error" role="alert">
@@ -172,7 +172,7 @@
                   d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                 />
               </svg>
-              Wybierz date w przyszlosci.
+              {{ 'agent.scheduleCallback.scheduledAtPast' | transloco }}
             </span>
           }
         </div>
@@ -188,15 +188,15 @@
                 />
               </svg>
             </span>
-            Notatki
-            <span class="form-field__optional">(opcjonalne)</span>
+            {{ 'agent.scheduleCallback.notesLabel' | transloco }}
+            <span class="form-field__optional">{{ 'agent.scheduleCallback.notesOptional' | transloco }}</span>
           </label>
           <textarea
             id="cb-notes"
             class="form-field__textarea"
             rows="3"
             maxlength="500"
-            placeholder="Dodaj notatke do oddzwonienia..."
+            [placeholder]="'agent.scheduleCallback.notesPlaceholder' | transloco"
             formControlName="notes"
             aria-multiline="true"
             [class.form-field__textarea--near-limit]="notesNearLimit()"
@@ -241,10 +241,10 @@
         type="button"
         class="btn btn--ghost"
         [disabled]="loading()"
-        aria-label="Anuluj i zamknij modal"
+        [attr.aria-label]="'agent.scheduleCallback.cancelLabel' | transloco"
         (click)="cancel()"
       >
-        Anuluj
+        {{ 'common.cancel' | transloco }}
       </button>
 
       <button
@@ -254,11 +254,11 @@
         [disabled]="!canSubmit()"
         [class.btn--loading]="loading()"
         [attr.aria-busy]="loading()"
-        aria-label="Zaplanuj oddzwonienie"
+        [attr.aria-label]="'agent.scheduleCallback.scheduleLabel' | transloco"
       >
         @if (loading()) {
           <span class="btn__spinner" aria-hidden="true"></span>
-          <span>Planowanie...</span>
+          <span>{{ 'agent.scheduleCallback.scheduling' | transloco }}</span>
         } @else {
           <svg class="btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path
@@ -268,7 +268,7 @@
                1.02l-2.2 2.2z"
             />
           </svg>
-          <span>Zaplanuj</span>
+          <span>{{ 'agent.scheduleCallback.schedule' | transloco }}</span>
         }
       </button>
     </footer>

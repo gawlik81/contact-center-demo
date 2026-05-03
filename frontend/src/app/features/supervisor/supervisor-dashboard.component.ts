@@ -7,29 +7,23 @@ import {
   OnDestroy,
   OnInit,
 } from '@angular/core';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../../core/services/auth.service';
 import { WebSocketService } from '../../core/services/websocket.service';
 import { SupervisorMetricsService } from './services/supervisor-metrics.service';
 import { AgentMetric, AgentStatus, QueueMetric } from './models/supervisor-metrics.model';
 
-const STATUS_LABEL: Record<AgentStatus, string> = {
-  AVAILABLE: 'Dostępny',
-  BUSY: 'Zajęty',
-  BREAK: 'Przerwa',
-  AFTER_CONTACT: 'Po kontakcie',
-  OFFLINE: 'Offline',
-};
-
 @Component({
   selector: 'app-supervisor-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [],
+  imports: [TranslocoModule],
   templateUrl: './supervisor-dashboard.component.html',
   styleUrl: './supervisor-dashboard.component.scss',
 })
 export class SupervisorDashboardComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
+  private readonly transloco = inject(TranslocoService);
   protected readonly wsService = inject(WebSocketService);
   protected readonly metricsService = inject(SupervisorMetricsService);
   private readonly el = inject(ElementRef<HTMLElement>);
@@ -90,7 +84,14 @@ export class SupervisorDashboardComponent implements OnInit, OnDestroy {
   }
 
   protected statusLabel(status: AgentStatus): string {
-    return STATUS_LABEL[status] ?? status;
+    const keyMap: Record<AgentStatus, string> = {
+      AVAILABLE: 'agent.status.available',
+      BUSY: 'agent.status.busy',
+      BREAK: 'agent.status.break',
+      AFTER_CONTACT: 'agent.status.afterContact',
+      OFFLINE: 'agent.status.offline',
+    };
+    return this.transloco.translate(keyMap[status] ?? status);
   }
 
   protected isBreakAlert(agent: AgentMetric): boolean {

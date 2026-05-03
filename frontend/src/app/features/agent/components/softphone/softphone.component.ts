@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslocoModule } from '@jsverse/transloco';
 import { SoftphoneService } from '../../services/softphone.service';
 import { ContactTab } from '../../models/contact-tab.model';
 import { CallSession } from '../../models/call-session.model';
@@ -21,7 +22,7 @@ type TransferMode = 'BLIND' | 'ATTENDED';
   selector: 'app-softphone',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, ScheduleInboundCallbackModalComponent],
+  imports: [FormsModule, TranslocoModule, ScheduleInboundCallbackModalComponent],
   templateUrl: './softphone.component.html',
   styleUrl: './softphone.component.scss',
 })

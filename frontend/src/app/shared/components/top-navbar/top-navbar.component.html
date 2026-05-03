@@ -24,14 +24,10 @@
     </button>
 
     <div class="navbar__brand">
-      <svg
-        class="navbar__logo"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2zm-9 9H9V9h2v2zm4 0h-2V9h2v2zm4 0h-2V9h2v2z" />
+      <svg class="navbar__logo" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+        <path
+          d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2zm-9 9H9V9h2v2zm4 0h-2V9h2v2zm4 0h-2V9h2v2z"
+        />
       </svg>
       <span class="navbar__brand-name">Contact Center</span>
     </div>
@@ -40,7 +36,7 @@
   <div class="navbar__right">
     @if (auth.currentPayload()) {
       <div class="navbar__tenant" aria-label="Nazwa tenanta">
-        <span class="navbar__tenant-label">Tenant:</span>
+        <span class="navbar__tenant-label">{{ 'nav.tenantLabel' | transloco }}</span>
         <span class="navbar__tenant-id">{{ auth.currentTenantName() ?? auth.currentTenantId() }}</span>
       </div>
 
@@ -50,16 +46,14 @@
           class="badge"
           [ngClass]="getRoleBadgeClass(auth.currentRole())"
           aria-label="Rola: {{ getRoleLabel(auth.currentRole()) }}"
-        >{{ getRoleLabel(auth.currentRole()) }}</span>
+          >{{ getRoleLabel(auth.currentRole()) }}</span
+        >
       </div>
     }
 
-    <button
-      class="navbar__logout"
-      type="button"
-      aria-label="Wyloguj sie z aplikacji"
-      (click)="onLogout()"
-    >
+    <app-language-switcher />
+
+    <button class="navbar__logout" type="button" aria-label="Wyloguj sie z aplikacji" (click)="onLogout()">
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -74,7 +68,7 @@
         <polyline points="16 17 21 12 16 7" />
         <line x1="21" y1="12" x2="9" y2="12" />
       </svg>
-      <span class="navbar__logout-label">Wyloguj</span>
+      <span class="navbar__logout-label">{{ 'nav.logout' | transloco }}</span>
     </button>
   </div>
 </header>

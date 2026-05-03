@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   debounceTime,
   distinctUntilChanged,
@@ -23,10 +24,7 @@ import { NotificationService } from '../../../../../core/services/notification.s
 import { AuthService } from '../../../../../core/services/auth.service';
 import { WebSocketService } from '../../../../../core/services/websocket.service';
 import { PagedResponse, UserResponse, UserRole, UserStatus } from '../../../models/user.model';
-import {
-  AgentStatusChangedPayload,
-  WsEvent,
-} from '../../../../agent/models/ws-event.model';
+import { AgentStatusChangedPayload, WsEvent } from '../../../../agent/models/ws-event.model';
 import { UserFormComponent } from '../user-form/user-form.component';
 import { UserDeleteModalComponent } from '../user-delete-modal/user-delete-modal.component';
 import { UserResetPasswordModalComponent } from '../user-reset-password-modal/user-reset-password-modal.component';
@@ -42,6 +40,7 @@ const POLLING_INTERVAL_MS = 30_000;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    TranslocoModule,
     UserFormComponent,
     UserDeleteModalComponent,
     UserResetPasswordModalComponent,
@@ -52,6 +51,7 @@ const POLLING_INTERVAL_MS = 30_000;
 export class UserListComponent implements OnInit {
   private readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly auth = inject(AuthService);
   private readonly ws = inject(WebSocketService);
   private readonly fb = inject(FormBuilder);
@@ -82,21 +82,21 @@ export class UserListComponent implements OnInit {
   });
 
   readonly statusOptions: { value: UserStatus | ''; label: string }[] = [
-    { value: '', label: 'Wszystkie statusy' },
-    { value: 'AVAILABLE', label: 'Dostępny' },
-    { value: 'BUSY', label: 'Zajęty' },
-    { value: 'AFTER_CONTACT', label: 'Po kontakcie' },
-    { value: 'BREAK', label: 'Przerwa' },
-    { value: 'ACTIVE', label: 'Aktywny' },
-    { value: 'INACTIVE', label: 'Nieaktywny' },
-    { value: 'OFFLINE', label: 'Offline' },
+    { value: '', label: 'supervisor.users.statusAll' },
+    { value: 'AVAILABLE', label: 'agent.status.available' },
+    { value: 'BUSY', label: 'agent.status.busy' },
+    { value: 'AFTER_CONTACT', label: 'agent.status.afterContact' },
+    { value: 'BREAK', label: 'agent.status.break' },
+    { value: 'ACTIVE', label: 'common.active' },
+    { value: 'INACTIVE', label: 'common.inactive' },
+    { value: 'OFFLINE', label: 'agent.status.offline' },
   ];
 
   readonly roleOptions: { value: UserRole | ''; label: string }[] = [
-    { value: '', label: 'Wszystkie role' },
-    { value: 'AGENT', label: 'Agent' },
-    { value: 'SUPERVISOR', label: 'Supervisor' },
-    { value: 'ADMIN', label: 'Admin' },
+    { value: '', label: 'supervisor.users.roleAll' },
+    { value: 'AGENT', label: 'role.agent' },
+    { value: 'SUPERVISOR', label: 'role.supervisor' },
+    { value: 'ADMIN', label: 'role.admin' },
   ];
 
   ngOnInit(): void {
@@ -156,9 +156,7 @@ export class UserListComponent implements OnInit {
           return state === 'DISCONNECTED' || state === 'ERROR';
         }),
         switchMap(() =>
-          this.userService
-            .getUsers(this.buildFilterParams())
-            .pipe(catchError(() => of(null))),
+          this.userService.getUsers(this.buildFilterParams()).pipe(catchError(() => of(null))),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -217,7 +215,7 @@ export class UserListComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się pobrać listy agentów. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.users.errorLoad'));
           const empty: PagedResponse<UserResponse> = {
             content: [],
             page: 0,
@@ -281,10 +279,10 @@ export class UserListComponent implements OnInit {
         catchError((err) => {
           if (err?.status === 409) {
             this.notifications.warning(
-              `Agent "${user.firstName} ${user.lastName}" ma aktywne kontakty i nie może być usunięty.`,
+              `"${user.firstName} ${user.lastName}" ${this.transloco.translate('supervisor.users.errorDeleteActive')}`,
             );
           } else {
-            this.notifications.error('Nie udało się usunąć agenta. Spróbuj ponownie.');
+            this.notifications.error(this.transloco.translate('supervisor.users.errorDelete'));
           }
           return of(null);
         }),
@@ -292,7 +290,9 @@ export class UserListComponent implements OnInit {
       )
       .subscribe((result) => {
         if (result !== null) {
-          this.notifications.success(`Agent "${user.firstName} ${user.lastName}" został usunięty.`);
+          this.notifications.success(
+            `"${user.firstName} ${user.lastName}" ${this.transloco.translate('supervisor.users.successDelete')}`,
+          );
           this.loadUsers();
         }
       });
@@ -317,13 +317,13 @@ export class UserListComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się wymusić resetu hasła. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.users.errorResetPassword'));
           return of(undefined);
         }),
       )
       .subscribe(() => {
         this.notifications.success(
-          `Agent "${user.firstName} ${user.lastName}" będzie musiał zmienić hasło przy następnym logowaniu.`,
+          `"${user.firstName} ${user.lastName}" ${this.transloco.translate('supervisor.users.successResetPassword')}`,
         );
         this.closeResetPasswordModal();
         this.loadUsers();

@@ -1,5 +1,6 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { catchError, throwError } from 'rxjs';
 import { NotificationService } from '../services/notification.service';
 
@@ -14,21 +15,26 @@ import { NotificationService } from '../services/notification.service';
  */
 export const errorHandlerInterceptor: HttpInterceptorFn = (req, next) => {
   const notifications = inject(NotificationService);
+  const transloco = inject(TranslocoService);
 
   return next(req).pipe(
     catchError((error: unknown) => {
       if (error instanceof HttpErrorResponse) {
-        handleHttpError(error, notifications);
+        handleHttpError(error, notifications, transloco);
       }
       return throwError(() => error);
     }),
   );
 };
 
-function handleHttpError(error: HttpErrorResponse, notifications: NotificationService): void {
+function handleHttpError(
+  error: HttpErrorResponse,
+  notifications: NotificationService,
+  transloco: TranslocoService,
+): void {
   // Network error or server unreachable (status 0)
   if (error.status === 0) {
-    notifications.error('Brak połączenia z serwerem');
+    notifications.error(transloco.translate('common.errorNetwork'));
     return;
   }
 
@@ -38,27 +44,29 @@ function handleHttpError(error: HttpErrorResponse, notifications: NotificationSe
   }
 
   if (error.status === 403) {
-    notifications.error('Brak uprawnień');
+    notifications.error(transloco.translate('common.errorForbidden'));
     return;
   }
 
   if (error.status === 404) {
     // Only show toast for API calls, not for asset/route not-found
     if (isApiRequest(error.url)) {
-      notifications.warning('Zasób nie został znaleziony');
+      notifications.warning(transloco.translate('common.errorNotFound'));
     }
     return;
   }
 
   if (error.status >= 500) {
-    notifications.error('Błąd serwera, spróbuj ponownie');
+    notifications.error(transloco.translate('common.errorServer'));
     return;
   }
 
   // 400/409/422 and other 4xx — surface the server message if available
   if (error.status >= 400) {
-    const message = extractServerMessage(error) ?? 'Wystąpił błąd. Sprawdź dane i spróbuj ponownie.';
-    notifications.warning(message);
+    const serverMessage = extractServerMessage(error);
+    notifications.warning(
+      serverMessage !== null ? serverMessage : transloco.translate('common.errorBadRequest'),
+    );
   }
 }
 

@@ -17,24 +17,25 @@
       >
         <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
       </svg>
-      <h2 id="anonymize-title" class="anonymize-dialog__title">Anonimizacja danych klienta (Art. 17 RODO)</h2>
+      <h2 id="anonymize-title" class="anonymize-dialog__title">{{ 'supervisor.gdprAnonymize.title' | transloco }}</h2>
     </div>
 
     <div class="anonymize-dialog__body">
       <p id="anonymize-desc" class="anonymize-dialog__message">
-        Ta operacja jest <strong>nieodwracalna</strong>. Wszystkie dane osobowe klienta
-        <strong>{{ customerName() }}</strong> zostaną trwale zanonimizowane i nie będzie możliwości ich przywrócenia.
+        {{ 'supervisor.gdprAnonymize.message' | transloco }}
+        <strong>{{ customerName() }}</strong>
+        {{ 'supervisor.gdprAnonymize.messageEnd' | transloco }}
       </p>
-      <ul class="anonymize-dialog__effects" aria-label="Skutki anonimizacji">
-        <li>Imię i nazwisko zostaną zastąpione wartością <code>ANONYMIZED</code></li>
-        <li>Wszystkie numery telefonów zostaną usunięte</li>
-        <li>Wszystkie adresy e-mail zostaną usunięte</li>
-        <li>Historia kontaktów zostanie zachowana bez danych osobowych</li>
+      <ul class="anonymize-dialog__effects" [attr.aria-label]="'supervisor.gdprAnonymize.effectsLabel' | transloco">
+        <li>{{ 'supervisor.gdprAnonymize.effect1' | transloco }}</li>
+        <li>{{ 'supervisor.gdprAnonymize.effect2' | transloco }}</li>
+        <li>{{ 'supervisor.gdprAnonymize.effect3' | transloco }}</li>
+        <li>{{ 'supervisor.gdprAnonymize.effect4' | transloco }}</li>
       </ul>
 
       <div class="anonymize-dialog__confirm-field">
         <label for="confirm-input" class="anonymize-dialog__confirm-label">
-          Aby potwierdzić, wpisz <strong>ANONIMIZUJ</strong>:
+          {{ 'supervisor.gdprAnonymize.confirmLabel' | transloco }} <strong>ANONIMIZUJ</strong>:
         </label>
         <input
           id="confirm-input"
@@ -49,28 +50,30 @@
           [attr.aria-invalid]="confirmText().length > 0 && confirmText() !== 'ANONIMIZUJ'"
         />
         @if (confirmText().length > 0 && confirmText() !== 'ANONIMIZUJ') {
-          <p class="anonymize-dialog__confirm-hint" role="alert" aria-live="polite">Wpisz dokładnie: ANONIMIZUJ</p>
+          <p class="anonymize-dialog__confirm-hint" role="alert" aria-live="polite">
+            {{ 'supervisor.gdprAnonymize.confirmHint' | transloco }}
+          </p>
         }
       </div>
     </div>
 
     <div class="anonymize-dialog__footer">
       <button class="btn btn-cancel" type="button" (click)="onCancel()" [disabled]="isLoading()" autofocus>
-        Anuluj
+        {{ 'common.cancel' | transloco }}
       </button>
       <button
         class="btn btn-anonymize"
         type="button"
         (click)="onConfirm()"
         [disabled]="!isConfirmEnabled()"
-        [attr.aria-label]="'Potwierdź anonimizację danych klienta ' + customerName()"
+        [attr.aria-label]="('supervisor.gdprAnonymize.confirmButtonLabel' | transloco) + ' ' + customerName()"
         [attr.aria-busy]="isLoading()"
       >
         @if (isLoading()) {
           <span class="btn-spinner" aria-hidden="true"></span>
-          Anonimizowanie...
+          {{ 'supervisor.gdprAnonymize.anonymizing' | transloco }}
         } @else {
-          Potwierdź anonimizację
+          {{ 'supervisor.gdprAnonymize.confirmButton' | transloco }}
         }
       </button>
     </div>

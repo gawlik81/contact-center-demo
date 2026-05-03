@@ -38,9 +38,7 @@ export class ReportsService {
   }
 
   private buildParams(filters: AgentReportFilters): HttpParams {
-    let params = new HttpParams()
-      .set('dateFrom', filters.dateFrom)
-      .set('dateTo', filters.dateTo);
+    let params = new HttpParams().set('dateFrom', filters.dateFrom).set('dateTo', filters.dateTo);
 
     if (filters.agentId) {
       params = params.set('agentId', filters.agentId);

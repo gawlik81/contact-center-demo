@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -26,7 +27,7 @@ export type { AgentOption };
   selector: 'app-supervisor-callbacks-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, ReactiveFormsModule, EditCallbackModalComponent],
+  imports: [TranslocoModule, DatePipe, ReactiveFormsModule, EditCallbackModalComponent],
   templateUrl: './supervisor-callbacks-page.component.html',
   styleUrl: './supervisor-callbacks-page.component.scss',
 })
@@ -34,6 +35,7 @@ export class SupervisorCallbacksPageComponent implements OnInit {
   private readonly callbackService = inject(CallbackService);
   private readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder);
 
@@ -108,7 +110,7 @@ export class SupervisorCallbacksPageComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się pobrać listy oddzwonień. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.callbacks.errorLoad'));
           return of({
             content: [],
             totalElements: 0,
@@ -170,7 +172,7 @@ export class SupervisorCallbacksPageComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się anulować oddzwonienia. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.callbacks.errorCancel'));
           return of(null);
         }),
         finalize(() => {
@@ -180,7 +182,9 @@ export class SupervisorCallbacksPageComponent implements OnInit {
       )
       .subscribe((result) => {
         if (result !== undefined) {
-          this.notifications.success('Oddzwonienie anulowane.');
+          this.notifications.success(
+            this.transloco.translate('supervisor.callbacks.successCancel'),
+          );
           this.loadCallbacks();
         }
       });
@@ -201,13 +205,7 @@ export class SupervisorCallbacksPageComponent implements OnInit {
   }
 
   getStatusLabel(status: string): string {
-    const labels: Record<string, string> = {
-      PENDING: 'Oczekujące',
-      PROCESSING: 'W trakcie',
-      COMPLETED: 'Zakończone',
-      CANCELLED: 'Anulowane',
-    };
-    return labels[status] ?? status;
+    return this.transloco.translate(`supervisor.callbacks.statusLabels.${status}`);
   }
 
   getStatusClass(status: string): string {

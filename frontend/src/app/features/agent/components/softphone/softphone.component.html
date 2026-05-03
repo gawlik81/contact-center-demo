@@ -23,7 +23,7 @@
               d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
             />
           </svg>
-          Polaczenie przychodzace
+          {{ 'agent.softphone.incomingCall' | transloco }}
         </p>
 
         <div class="softphone__avatar softphone__avatar--pulse" aria-hidden="true">
@@ -33,14 +33,14 @@
         <div class="softphone__caller-info">
           <p class="softphone__caller-name">{{ s.customerName }}</p>
           <p class="softphone__caller-phone">{{ s.customerPhone }}</p>
-          <p class="softphone__caller-queue">Kolejka: {{ s.queueName }}</p>
+          <p class="softphone__caller-queue">{{ 'agent.softphone.queue' | transloco }} {{ s.queueName }}</p>
         </div>
 
         <div class="softphone__ringing-actions">
           <button
             type="button"
             class="softphone__btn softphone__btn--reject"
-            aria-label="Odrzuc polaczenie"
+            [attr.aria-label]="'agent.softphone.rejectLabel' | transloco"
             (click)="reject()"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -48,13 +48,13 @@
                 d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"
               />
             </svg>
-            <span>Odrzuc</span>
+            <span>{{ 'agent.softphone.reject' | transloco }}</span>
           </button>
 
           <button
             type="button"
             class="softphone__btn softphone__btn--answer"
-            aria-label="Odbierz polaczenie"
+            [attr.aria-label]="'agent.softphone.answerLabel' | transloco"
             (click)="answer()"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -62,7 +62,7 @@
                 d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
               />
             </svg>
-            <span>Odbierz</span>
+            <span>{{ 'agent.softphone.answer' | transloco }}</span>
           </button>
         </div>
       </div>
@@ -73,23 +73,30 @@
       <div class="softphone__active">
         <div class="softphone__active-header">
           <span class="softphone__recording-dot" aria-hidden="true"></span>
-          <span class="softphone__timer" role="timer" aria-label="Czas polaczenia {{ formattedDuration() }}">{{
-            formattedDuration()
-          }}</span>
+          <span
+            class="softphone__timer"
+            role="timer"
+            [attr.aria-label]="('agent.softphone.callDuration' | transloco) + ' ' + formattedDuration()"
+            >{{ formattedDuration() }}</span
+          >
           <div class="softphone__caller-compact">
             <span class="softphone__caller-name">{{ s.customerName }}</span>
             <span class="softphone__caller-phone">{{ s.customerPhone }}</span>
           </div>
         </div>
 
-        <p class="softphone__caller-queue softphone__caller-queue--sm">Kolejka: {{ s.queueName }}</p>
+        <p class="softphone__caller-queue softphone__caller-queue--sm">
+          {{ 'agent.softphone.queue' | transloco }} {{ s.queueName }}
+        </p>
 
         <div class="softphone__controls">
           <button
             type="button"
             class="softphone__ctrl-btn"
             [class.softphone__ctrl-btn--active]="s.isMuted"
-            [attr.aria-label]="s.isMuted ? 'Wlacz mikrofon' : 'Wycisz mikrofon'"
+            [attr.aria-label]="
+              s.isMuted ? ('agent.softphone.unmuteLabel' | transloco) : ('agent.softphone.muteLabel' | transloco)
+            "
             [attr.aria-pressed]="s.isMuted"
             (click)="toggleMute()"
           >
@@ -106,26 +113,33 @@
                 />
               </svg>
             }
-            <span>{{ s.isMuted ? 'Włącz mic' : 'Wycisz' }}</span>
-          </button>
-
-          <button type="button" class="softphone__ctrl-btn" aria-label="Wstrzymaj polaczenie" (click)="toggleHold()">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-            </svg>
-            <span>Hold</span>
+            <span>
+              {{ s.isMuted ? ('agent.softphone.unmute' | transloco) : ('agent.softphone.mute' | transloco) }}
+            </span>
           </button>
 
           <button
             type="button"
             class="softphone__ctrl-btn"
-            aria-label="Transfer polaczenia"
+            [attr.aria-label]="'agent.softphone.holdLabel' | transloco"
+            (click)="toggleHold()"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+            </svg>
+            <span>{{ 'agent.softphone.hold' | transloco }}</span>
+          </button>
+
+          <button
+            type="button"
+            class="softphone__ctrl-btn"
+            [attr.aria-label]="'agent.softphone.transferLabel' | transloco"
             (click)="openTransferView()"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
               <path d="M17 5H3V3H1v6h2V7h14v3l4-4-4-4v3zM7 19h14v2h2v-6h-2v2H7v-3l-4 4 4 4v-3z" />
             </svg>
-            <span>Transfer</span>
+            <span>{{ 'agent.softphone.transfer' | transloco }}</span>
           </button>
         </div>
 
@@ -137,13 +151,13 @@
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                 </svg>
-                Oddzwonienie zaplanowane
+                {{ 'agent.softphone.callbackScheduled' | transloco }}
               </span>
             } @else {
               <button
                 type="button"
                 class="softphone__ctrl-btn softphone__ctrl-btn--callback"
-                aria-label="Zaplanuj oddzwonienie"
+                [attr.aria-label]="'agent.softphone.scheduleCallbackLabel' | transloco"
                 (click)="openCallbackModal()"
               >
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -151,19 +165,24 @@
                     d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
                   />
                 </svg>
-                <span>Zaplanuj oddzwonienie</span>
+                <span>{{ 'agent.softphone.scheduleCallback' | transloco }}</span>
               </button>
             }
           </div>
         }
 
-        <button type="button" class="softphone__hangup-btn" aria-label="Rozlacz polaczenie" (click)="hangup()">
+        <button
+          type="button"
+          class="softphone__hangup-btn"
+          [attr.aria-label]="'agent.softphone.hangupLabel' | transloco"
+          (click)="hangup()"
+        >
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"
             />
           </svg>
-          Rozlacz
+          {{ 'agent.softphone.hangup' | transloco }}
         </button>
       </div>
     }
@@ -175,18 +194,22 @@
           <button
             type="button"
             class="softphone__back-btn"
-            aria-label="Wróc do polaczenia"
+            [attr.aria-label]="'agent.softphone.transferBackLabel' | transloco"
             (click)="closeTransferPanel()"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
               <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
             </svg>
-            Wstecz
+            {{ 'agent.softphone.transferBack' | transloco }}
           </button>
-          <span class="softphone__transfer-title">Transfer polaczenia</span>
+          <span class="softphone__transfer-title">{{ 'agent.softphone.transferTitle' | transloco }}</span>
         </div>
 
-        <div class="softphone__transfer-modes" role="group" aria-label="Tryb transferu">
+        <div
+          class="softphone__transfer-modes"
+          role="group"
+          [attr.aria-label]="'agent.softphone.transferMode' | transloco"
+        >
           <button
             type="button"
             class="softphone__mode-btn"
@@ -194,7 +217,7 @@
             aria-pressed="{{ transferMode() === 'BLIND' }}"
             (click)="setTransferMode('BLIND')"
           >
-            Blind transfer
+            {{ 'agent.softphone.blindTransfer' | transloco }}
           </button>
           <button
             type="button"
@@ -203,12 +226,14 @@
             aria-pressed="{{ transferMode() === 'ATTENDED' }}"
             (click)="setTransferMode('ATTENDED')"
           >
-            Attended transfer
+            {{ 'agent.softphone.attendedTransfer' | transloco }}
           </button>
         </div>
 
         <div class="softphone__transfer-form">
-          <label class="softphone__transfer-label" for="transfer-target"> Numer docelowy </label>
+          <label class="softphone__transfer-label" for="transfer-target">
+            {{ 'agent.softphone.transferTarget' | transloco }}
+          </label>
           <input
             id="transfer-target"
             type="tel"
@@ -220,7 +245,7 @@
             aria-describedby="transfer-target-hint"
           />
           <span id="transfer-target-hint" class="softphone__transfer-hint">
-            Minimum 3 cyfry, dozwolone: cyfry, +, spacje
+            {{ 'agent.softphone.transferHint' | transloco }}
           </span>
         </div>
 
@@ -229,10 +254,10 @@
             type="button"
             class="softphone__transfer-submit"
             [disabled]="!transferTargetValid()"
-            aria-label="Wykonaj blind transfer"
+            [attr.aria-label]="'agent.softphone.transferSubmitLabel' | transloco"
             (click)="submitTransfer()"
           >
-            Transferuj
+            {{ 'agent.softphone.transferSubmit' | transloco }}
           </button>
         } @else {
           @if (!attendedConnected()) {
@@ -240,28 +265,28 @@
               type="button"
               class="softphone__transfer-submit"
               [disabled]="!transferTargetValid()"
-              aria-label="Polacz konsultacyjnie"
+              [attr.aria-label]="'agent.softphone.attendedConnectLabel' | transloco"
               (click)="submitTransfer()"
             >
-              Polacz konsultacyjnie
+              {{ 'agent.softphone.attendedConnect' | transloco }}
             </button>
           } @else {
             <div class="softphone__attended-actions">
               <button
                 type="button"
                 class="softphone__transfer-submit softphone__transfer-submit--complete"
-                aria-label="Przekaz polaczenie"
+                [attr.aria-label]="'agent.softphone.attendedCompleteLabel' | transloco"
                 (click)="completeAttended()"
               >
-                Przekaz
+                {{ 'agent.softphone.attendedComplete' | transloco }}
               </button>
               <button
                 type="button"
                 class="softphone__transfer-submit softphone__transfer-submit--cancel"
-                aria-label="Anuluj transfer"
+                [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
                 (click)="cancelTransfer()"
               >
-                Anuluj
+                {{ 'agent.softphone.attendedCancel' | transloco }}
               </button>
             </div>
           }
@@ -281,11 +306,11 @@
           >
             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
           </svg>
-          <span class="softphone__hold-label">Na wstrzymaniu</span>
+          <span class="softphone__hold-label">{{ 'agent.softphone.onHold' | transloco }}</span>
           <span
             class="softphone__hold-timer"
             role="timer"
-            aria-label="Czas wstrzymania {{ formattedHoldDuration() }}"
+            [attr.aria-label]="('agent.softphone.holdDuration' | transloco) + ' ' + formattedHoldDuration()"
             >{{ formattedHoldDuration() }}</span
           >
         </div>
@@ -300,7 +325,9 @@
             type="button"
             class="softphone__ctrl-btn"
             [class.softphone__ctrl-btn--active]="s.isMuted"
-            [attr.aria-label]="s.isMuted ? 'Wlacz mikrofon' : 'Wycisz mikrofon'"
+            [attr.aria-label]="
+              s.isMuted ? ('agent.softphone.unmuteLabel' | transloco) : ('agent.softphone.muteLabel' | transloco)
+            "
             [attr.aria-pressed]="s.isMuted"
             (click)="toggleMute()"
           >
@@ -309,41 +336,46 @@
                 d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"
               />
             </svg>
-            <span>Wycisz</span>
+            <span>{{ 'agent.softphone.mute' | transloco }}</span>
           </button>
 
           <button
             type="button"
             class="softphone__ctrl-btn softphone__ctrl-btn--resume"
-            aria-label="Wznow polaczenie"
+            [attr.aria-label]="'agent.softphone.resumeLabel' | transloco"
             (click)="toggleHold()"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5v14l11-7z" />
             </svg>
-            <span>Wznow</span>
+            <span>{{ 'agent.softphone.resume' | transloco }}</span>
           </button>
 
           <button
             type="button"
             class="softphone__ctrl-btn"
-            aria-label="Transfer polaczenia"
+            [attr.aria-label]="'agent.softphone.transferLabel' | transloco"
             (click)="openTransferView()"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
               <path d="M17 5H3V3H1v6h2V7h14v3l4-4-4-4v3zM7 19h14v2h2v-6h-2v2H7v-3l-4 4 4 4v-3z" />
             </svg>
-            <span>Transfer</span>
+            <span>{{ 'agent.softphone.transfer' | transloco }}</span>
           </button>
         </div>
 
-        <button type="button" class="softphone__hangup-btn" aria-label="Rozlacz polaczenie" (click)="hangup()">
+        <button
+          type="button"
+          class="softphone__hangup-btn"
+          [attr.aria-label]="'agent.softphone.hangupLabel' | transloco"
+          (click)="hangup()"
+        >
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"
             />
           </svg>
-          Rozlacz
+          {{ 'agent.softphone.hangup' | transloco }}
         </button>
       </div>
     }
@@ -359,7 +391,7 @@
         >
           <path d="M17 5H3V3H1v6h2V7h14v3l4-4-4-4v3zM7 19h14v2h2v-6h-2v2H7v-3l-4 4 4 4v-3z" />
         </svg>
-        <p class="softphone__transferring-label">Trwa transfer do</p>
+        <p class="softphone__transferring-label">{{ 'agent.softphone.transferring' | transloco }}</p>
         <p class="softphone__transferring-target">{{ s.transferTarget }}</p>
 
         @if (attendedConnected()) {
@@ -367,22 +399,25 @@
             <button
               type="button"
               class="softphone__transfer-submit softphone__transfer-submit--complete"
-              aria-label="Przekaz polaczenie"
+              [attr.aria-label]="'agent.softphone.attendedCompleteLabel' | transloco"
               (click)="completeAttended()"
             >
-              Przekaz
+              {{ 'agent.softphone.attendedComplete' | transloco }}
             </button>
             <button
               type="button"
               class="softphone__transfer-submit softphone__transfer-submit--cancel"
-              aria-label="Anuluj transfer"
+              [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
               (click)="cancelTransfer()"
             >
-              Anuluj
+              {{ 'agent.softphone.attendedCancel' | transloco }}
             </button>
           </div>
         } @else {
-          <span class="softphone__transferring-spinner" aria-label="Laczenie..."></span>
+          <span
+            class="softphone__transferring-spinner"
+            [attr.aria-label]="'agent.softphone.connecting' | transloco"
+          ></span>
         }
       </div>
     }
@@ -398,8 +433,10 @@
         >
           <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
         </svg>
-        <p class="softphone__ended-label">Polaczenie zakonczone</p>
-        <p class="softphone__ended-duration">Czas: {{ formattedDuration() }}</p>
+        <p class="softphone__ended-label">{{ 'agent.softphone.callEnded' | transloco }}</p>
+        <p class="softphone__ended-duration">
+          {{ 'agent.softphone.callDurationLabel' | transloco }} {{ formattedDuration() }}
+        </p>
       </div>
     }
   </div>
@@ -410,7 +447,7 @@
         d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
       />
     </svg>
-    <p class="softphone__idle-text">Oczekiwanie na polaczenie...</p>
+    <p class="softphone__idle-text">{{ 'agent.softphone.idle' | transloco }}</p>
   </div>
 }
 

@@ -118,7 +118,9 @@ $shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08);
   border: none;
   border-radius: $radius;
   cursor: pointer;
-  transition: background-color 0.15s, opacity 0.15s;
+  transition:
+    background-color 0.15s,
+    opacity 0.15s;
   white-space: nowrap;
 
   &:disabled {
@@ -180,7 +182,9 @@ $shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08);
   background: transparent;
   color: $color-text-secondary;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 
   &:hover {
     background: rgba($color-primary, 0.08);
@@ -190,8 +194,12 @@ $shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08);
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 @keyframes shimmer {
-  0% { background-position: -800px 0; }
-  100% { background-position: 800px 0; }
+  0% {
+    background-position: -800px 0;
+  }
+  100% {
+    background-position: 800px 0;
+  }
 }
 
 .skeleton-wrapper {
@@ -220,10 +228,18 @@ $shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08);
   animation: shimmer 1.4s infinite linear;
   flex-shrink: 0;
 
-  &--narrow { width: 70px; }
-  &--medium { width: 130px; }
-  &--wide { width: 180px; }
-  &--icon { width: 32px; }
+  &--narrow {
+    width: 70px;
+  }
+  &--medium {
+    width: 130px;
+  }
+  &--wide {
+    width: 180px;
+  }
+  &--icon {
+    width: 32px;
+  }
 }
 
 // ─── Table ────────────────────────────────────────────────────────────────────
@@ -457,7 +473,9 @@ $shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 // ─── Responsive ───────────────────────────────────────────────────────────────

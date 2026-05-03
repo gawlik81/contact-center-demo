@@ -17,8 +17,7 @@ export const routes: Routes = [
   // Auth feature (login + change-password)
   {
     path: 'auth',
-    loadChildren: () =>
-      import('./features/auth/auth.routes').then((m) => m.AUTH_ROUTES),
+    loadChildren: () => import('./features/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
 
   // Legacy /login redirect → /auth/login
@@ -40,8 +39,7 @@ export const routes: Routes = [
     path: 'admin',
     canActivate: [authGuard, roleGuard],
     data: { roles: ['ADMIN'] as UserRole[] },
-    loadChildren: () =>
-      import('./features/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
+    loadChildren: () => import('./features/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },
 
   // Supervisor – protected: SUPERVISOR role only
@@ -58,8 +56,7 @@ export const routes: Routes = [
     path: 'agent',
     canActivate: [authGuard, roleGuard],
     data: { roles: ['AGENT'] as UserRole[] },
-    loadChildren: () =>
-      import('./features/agent/agent.routes').then((m) => m.AGENT_ROUTES),
+    loadChildren: () => import('./features/agent/agent.routes').then((m) => m.AGENT_ROUTES),
   },
 
   // Wildcard – redirect to root (which handles role-based redirect)

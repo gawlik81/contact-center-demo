@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { TranslocoModule } from '@jsverse/transloco';
 import { CustomerSummary } from '../../models/customer-search.model';
 
 @Component({
   selector: 'app-agent-customer-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe],
+  imports: [DatePipe, TranslocoModule],
   template: `
     <div class="customer-card">
       <div class="customer-card__avatar" aria-hidden="true">{{ initials }}</div>
@@ -49,9 +50,9 @@ import { CustomerSummary } from '../../models/customer-search.model';
 
         <p class="customer-card__meta customer-card__meta--muted">
           @if (customer.lastContactAt) {
-            Ostatni kontakt: {{ customer.lastContactAt | date: 'dd.MM.yyyy HH:mm' }}
+            {{ 'agent.customers.lastContact' | transloco }}: {{ customer.lastContactAt | date: 'dd.MM.yyyy HH:mm' }}
           } @else {
-            Brak kontaktow
+            {{ 'agent.customers.noContacts' | transloco }}
           }
         </p>
       </div>
@@ -61,21 +62,21 @@ import { CustomerSummary } from '../../models/customer-search.model';
           type="button"
           class="customer-card__btn customer-card__btn--primary"
           [attr.aria-label]="
-            'Szczegoly klienta ' + (customer.firstName || '') + ' ' + (customer.lastName || '')
+            ('agent.customers.detailsLabel' | transloco) + ' ' + (customer.firstName || '') + ' ' + (customer.lastName || '')
           "
           (click)="viewDetails.emit(customer)"
         >
-          Szczegoly
+          {{ 'agent.customers.details' | transloco }}
         </button>
         <button
           type="button"
           class="customer-card__btn customer-card__btn--secondary"
           [attr.aria-label]="
-            'Zamow oddzwonienie dla ' + (customer.firstName || '') + ' ' + (customer.lastName || '')
+            ('agent.customers.callbackFor' | transloco) + ' ' + (customer.firstName || '') + ' ' + (customer.lastName || '')
           "
           (click)="scheduleCallback.emit(customer)"
         >
-          Oddzwonienie
+          {{ 'agent.customers.scheduleCallback' | transloco }}
         </button>
       </div>
     </div>

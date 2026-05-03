@@ -2,8 +2,13 @@
   <div class="contact-dialog__content" role="document">
     <!-- ── Header ───────────────────────────────────────────────────── -->
     <div class="contact-dialog__header">
-      <h2 id="contact-dialog-title" class="contact-dialog__title">Szczegoly kontaktu</h2>
-      <button class="contact-dialog__close-btn" type="button" aria-label="Zamknij szczegoly kontaktu" (click)="close()">
+      <h2 id="contact-dialog-title" class="contact-dialog__title">{{ 'contactDetailModal.title' | transloco }}</h2>
+      <button
+        class="contact-dialog__close-btn"
+        type="button"
+        [attr.aria-label]="'contactDetailModal.closeLabel' | transloco"
+        (click)="close()"
+      >
         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
           <path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -14,7 +19,11 @@
 
     <!-- ── Loading skeleton ─────────────────────────────────────────── -->
     @if (loadState() === 'loading') {
-      <div class="contact-dialog__body" aria-busy="true" aria-label="Wczytywanie danych kontaktu...">
+      <div
+        class="contact-dialog__body"
+        aria-busy="true"
+        [attr.aria-label]="'contactDetailModal.loadingLabel' | transloco"
+      >
         <div class="skeleton-section">
           @for (i of [1, 2, 3, 4]; track i) {
             <div class="skeleton-row">
@@ -43,7 +52,7 @@
               d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
             />
           </svg>
-          <span>Nie udalo sie zaladowac danych kontaktu.</span>
+          <span>{{ 'contactDetailModal.errorText' | transloco }}</span>
         </div>
       </div>
     }
@@ -53,10 +62,10 @@
       <div class="contact-dialog__body">
         <!-- Section 1: Header info -->
         <section class="contact-section" aria-labelledby="contact-section-info">
-          <h3 id="contact-section-info" class="contact-section__title">Informacje ogolne</h3>
+          <h3 id="contact-section-info" class="contact-section__title">{{ 'contactDetailModal.sectionInfo' | transloco }}</h3>
           <dl class="contact-dl">
             <div class="contact-dl__row">
-              <dt class="contact-dl__term">Kanal</dt>
+              <dt class="contact-dl__term">{{ 'contactDetailModal.fieldChannel' | transloco }}</dt>
               <dd class="contact-dl__desc">
                 <span [class]="'channel-badge channel-badge--' + c.channel.toLowerCase()">
                   {{ getChannelLabel(c.channel) }}
@@ -65,7 +74,7 @@
             </div>
 
             <div class="contact-dl__row">
-              <dt class="contact-dl__term">Kierunek</dt>
+              <dt class="contact-dl__term">{{ 'contactDetailModal.fieldDirection' | transloco }}</dt>
               <dd class="contact-dl__desc">
                 <span [class]="'direction-badge direction-badge--' + c.direction.toLowerCase()">
                   {{ getDirectionLabel(c.direction) }}
@@ -75,26 +84,26 @@
 
             @if (c.remoteAddress) {
               <div class="contact-dl__row">
-                <dt class="contact-dl__term">Numer / adres</dt>
+                <dt class="contact-dl__term">{{ 'contactDetailModal.fieldAddress' | transloco }}</dt>
                 <dd class="contact-dl__desc contact-dl__desc--mono">{{ c.remoteAddress }}</dd>
               </div>
             }
 
             <div class="contact-dl__row">
-              <dt class="contact-dl__term">Data i czas</dt>
+              <dt class="contact-dl__term">{{ 'contactDetailModal.fieldDateTime' | transloco }}</dt>
               <dd class="contact-dl__desc">{{ c.startedAt | date: 'dd.MM.yyyy HH:mm:ss' }}</dd>
             </div>
 
             @if (c.answeredAt) {
               <div class="contact-dl__row">
-                <dt class="contact-dl__term">Odbrano</dt>
+                <dt class="contact-dl__term">{{ 'contactDetailModal.fieldAnswered' | transloco }}</dt>
                 <dd class="contact-dl__desc">{{ c.answeredAt | date: 'HH:mm:ss' }}</dd>
               </div>
             }
 
             @if (c.endedAt) {
               <div class="contact-dl__row">
-                <dt class="contact-dl__term">Zakonczono</dt>
+                <dt class="contact-dl__term">{{ 'contactDetailModal.fieldEnded' | transloco }}</dt>
                 <dd class="contact-dl__desc">{{ c.endedAt | date: 'HH:mm:ss' }}</dd>
               </div>
             }
@@ -103,10 +112,10 @@
 
         <!-- Section 2: Duration & status -->
         <section class="contact-section" aria-labelledby="contact-section-status">
-          <h3 id="contact-section-status" class="contact-section__title">Status i czas trwania</h3>
+          <h3 id="contact-section-status" class="contact-section__title">{{ 'contactDetailModal.sectionStatus' | transloco }}</h3>
           <dl class="contact-dl">
             <div class="contact-dl__row">
-              <dt class="contact-dl__term">Status</dt>
+              <dt class="contact-dl__term">{{ 'contactDetailModal.fieldStatus' | transloco }}</dt>
               <dd class="contact-dl__desc">
                 <span [class]="'status-badge status-badge--' + c.status.toLowerCase().replace('_', '-')">
                   {{ getStatusLabel(c.status) }}
@@ -115,20 +124,20 @@
             </div>
 
             <div class="contact-dl__row">
-              <dt class="contact-dl__term">Czas trwania</dt>
+              <dt class="contact-dl__term">{{ 'contactDetailModal.fieldDuration' | transloco }}</dt>
               <dd class="contact-dl__desc contact-dl__desc--mono">{{ durationFormatted() }}</dd>
             </div>
 
             @if (c.dispositionCode) {
               <div class="contact-dl__row">
-                <dt class="contact-dl__term">Kod dyspozycji</dt>
+                <dt class="contact-dl__term">{{ 'contactDetailModal.fieldDisposition' | transloco }}</dt>
                 <dd class="contact-dl__desc">{{ c.dispositionCode }}</dd>
               </div>
             }
 
             @if (c.notes) {
               <div class="contact-dl__row contact-dl__row--tall">
-                <dt class="contact-dl__term">Notatka</dt>
+                <dt class="contact-dl__term">{{ 'contactDetailModal.fieldNotes' | transloco }}</dt>
                 <dd class="contact-dl__desc contact-dl__desc--notes">{{ c.notes }}</dd>
               </div>
             }
@@ -139,7 +148,7 @@
         @if (hasRecording()) {
           <section class="contact-section" aria-labelledby="contact-section-recording">
             <h3 id="contact-section-recording" class="contact-section__title">
-              {{ isEmailRecording() ? 'Wiadomosc email (EML)' : 'Nagranie rozmowy' }}
+              {{ isEmailRecording() ? ('contactDetailModal.sectionEmail' | transloco) : ('contactDetailModal.sectionRecording' | transloco) }}
             </h3>
 
             @if (recordingState() === 'idle') {
@@ -148,12 +157,12 @@
                   <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
                     <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
                   </svg>
-                  Pobierz wiadomosc EML
+                  {{ 'contactDetailModal.downloadEml' | transloco }}
                 } @else {
                   <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
                     <path d="M8 5v14l11-7z" />
                   </svg>
-                  Zaladuj nagranie
+                  {{ 'contactDetailModal.loadRecording' | transloco }}
                 }
               </button>
             }
@@ -162,7 +171,7 @@
               <div
                 class="recording-loading"
                 aria-busy="true"
-                [attr.aria-label]="isEmailRecording() ? 'Pobieranie pliku EML...' : 'Pobieranie nagrania...'"
+                [attr.aria-label]="isEmailRecording() ? ('contactDetailModal.loadingEml' | transloco) : ('contactDetailModal.loadingRecording' | transloco)"
               >
                 <div class="skeleton-block skeleton-block--player"></div>
               </div>
@@ -175,8 +184,8 @@
                     d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                   />
                 </svg>
-                <span>Nie udalo sie pobrac {{ isEmailRecording() ? 'wiadomosci EML' : 'nagrania' }}.</span>
-                <button class="btn-link" type="button" (click)="loadRecording()">Sprobuj ponownie</button>
+                <span>{{ 'contactDetailModal.errorFetchPrefix' | transloco }} {{ isEmailRecording() ? ('contactDetailModal.errorEmlSubject' | transloco) : ('contactDetailModal.errorRecordingSubject' | transloco) }}.</span>
+                <button class="btn-link" type="button" (click)="loadRecording()">{{ 'contactDetailModal.retry' | transloco }}</button>
               </div>
             }
 
@@ -185,7 +194,7 @@
                 <p class="recording-meta">
                   <span class="recording-meta__name">{{ rec.fileName }}</span>
                   <span class="recording-meta__expires">
-                    Link wazny do: {{ rec.expiresAt | date: 'dd.MM.yyyy HH:mm' }}
+                    {{ 'contactDetailModal.linkExpires' | transloco }} {{ rec.expiresAt | date: 'dd.MM.yyyy HH:mm' }}
                   </span>
                 </p>
                 @if (isEmailRecording()) {
@@ -194,7 +203,7 @@
                       <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
                         <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
                       </svg>
-                      Pobierz plik EML
+                      {{ 'contactDetailModal.downloadEmlBtn' | transloco }}
                     </a>
                     @if (emailPreviewState() === 'idle') {
                       <button class="btn btn-secondary" type="button" (click)="loadEmailPreview()">
@@ -203,12 +212,16 @@
                             d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
                           />
                         </svg>
-                        Podglad HTML
+                        {{ 'contactDetailModal.previewHtml' | transloco }}
                       </button>
                     }
                   </div>
                   @if (emailPreviewState() === 'loading') {
-                    <div class="recording-loading" aria-busy="true" aria-label="Ladowanie podgladu...">
+                    <div
+                      class="recording-loading"
+                      aria-busy="true"
+                      [attr.aria-label]="'contactDetailModal.loadingPreview' | transloco"
+                    >
                       <div class="skeleton-block skeleton-block--player"></div>
                     </div>
                   }
@@ -219,29 +232,29 @@
                           d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                         />
                       </svg>
-                      <span>Nie udalo sie zaladowac podgladu.</span>
-                      <button class="btn-link" type="button" (click)="loadEmailPreview()">Sprobuj ponownie</button>
+                      <span>{{ 'contactDetailModal.errorPreviewText' | transloco }}</span>
+                      <button class="btn-link" type="button" (click)="loadEmailPreview()">{{ 'contactDetailModal.retry' | transloco }}</button>
                     </div>
                   }
                   @if (emailPreviewState() === 'loaded' && emailPreview(); as ep) {
                     <div class="email-preview">
                       <div class="email-preview__header">
-                        <div><strong>Od:</strong> {{ ep.from }}</div>
-                        <div><strong>Do:</strong> {{ ep.to }}</div>
+                        <div><strong>{{ 'contactDetailModal.emailFrom' | transloco }}</strong> {{ ep.from }}</div>
+                        <div><strong>{{ 'contactDetailModal.emailTo' | transloco }}</strong> {{ ep.to }}</div>
                         @if (ep.cc) {
-                          <div><strong>CC:</strong> {{ ep.cc }}</div>
+                          <div><strong>{{ 'contactDetailModal.emailCc' | transloco }}</strong> {{ ep.cc }}</div>
                         }
                         @if (ep.subject) {
-                          <div><strong>Temat:</strong> {{ ep.subject }}</div>
+                          <div><strong>{{ 'contactDetailModal.emailSubject' | transloco }}</strong> {{ ep.subject }}</div>
                         }
-                        <div><strong>Data:</strong> {{ ep.receivedAt | date: 'dd.MM.yyyy HH:mm' }}</div>
+                        <div><strong>{{ 'contactDetailModal.emailDate' | transloco }}</strong> {{ ep.receivedAt | date: 'dd.MM.yyyy HH:mm' }}</div>
                       </div>
                       @if (safeEmailHtml()) {
                         <div class="email-preview__body" [innerHTML]="safeEmailHtml()"></div>
                       } @else if (ep.bodyText) {
                         <pre class="email-preview__text">{{ ep.bodyText }}</pre>
                       } @else {
-                        <p class="email-preview__empty">Brak tresci wiadomosci.</p>
+                        <p class="email-preview__empty">{{ 'contactDetailModal.emailEmpty' | transloco }}</p>
                       }
                     </div>
                   }
@@ -256,8 +269,12 @@
         <!-- Section 4: Powiazane kontakty -->
         @if (relatedLoading()) {
           <section class="contact-section" aria-labelledby="contact-section-related">
-            <h3 id="contact-section-related" class="contact-section__title">Powiazane kontakty</h3>
-            <div class="related-contacts-loading" aria-busy="true" aria-label="Wczytywanie powiazanych kontaktow...">
+            <h3 id="contact-section-related" class="contact-section__title">{{ 'contactDetailModal.sectionRelated' | transloco }}</h3>
+            <div
+              class="related-contacts-loading"
+              aria-busy="true"
+              [attr.aria-label]="'contactDetailModal.loadingRelatedLabel' | transloco"
+            >
               @for (i of [1, 2]; track i) {
                 <div class="skeleton-block skeleton-block--related"></div>
               }
@@ -267,7 +284,9 @@
 
         @if (!relatedLoading() && relatedContacts().length > 0) {
           <section class="contact-section" aria-labelledby="contact-section-related">
-            <h3 id="contact-section-related" class="contact-section__title">Powiązania</h3>
+            <h3 id="contact-section-related" class="contact-section__title">
+              {{ 'contactDetailModal.related' | transloco }}
+            </h3>
             <ul class="related-contacts-list">
               @for (item of relatedContacts(); track item.contactId ?? item.callbackId) {
                 <li class="related-contact-item">
@@ -277,11 +296,11 @@
                     "
                   >
                     @if (item.relationType === 'PARENT') {
-                      Kontakt źródłowy
+                      {{ 'contactDetailModal.parentContact' | transloco }}
                     } @else if (item.itemType === 'CALLBACK') {
-                      Oddzwonienie
+                      {{ 'agent.rescheduleCallback.title' | transloco }}
                     } @else {
-                      Kontakt wynikowy
+                      {{ 'contactDetailModal.childContact' | transloco }}
                     }
                   </span>
 
@@ -308,8 +327,8 @@
                       class="related-contact-item__nav-btn"
                       [attr.aria-label]="
                         item.relationType === 'PARENT'
-                          ? 'Przejdź do kontaktu źródłowego'
-                          : 'Przejdź do kontaktu wynikowego'
+                          ? ('contactDetailModal.goToParent' | transloco)
+                          : ('contactDetailModal.goToChild' | transloco)
                       "
                       (click)="openRelatedContact(item.contactId!)"
                     >
@@ -334,7 +353,9 @@
 
     <!-- ── Footer ────────────────────────────────────────────────────── -->
     <div class="contact-dialog__footer">
-      <button class="btn btn-close" type="button" (click)="close()" autofocus>Zamknij</button>
+      <button class="btn btn-close" type="button" (click)="close()" autofocus>
+        {{ 'contactDetailModal.close' | transloco }}
+      </button>
     </div>
   </div>
 </dialog>

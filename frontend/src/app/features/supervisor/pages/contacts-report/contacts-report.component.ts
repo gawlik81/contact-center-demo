@@ -1,19 +1,33 @@
-import {ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, OnInit, signal, ViewChild,} from '@angular/core';
-import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {FormBuilder, ReactiveFormsModule} from '@angular/forms';
-import {ActivatedRoute, Router} from '@angular/router';
-import {catchError, debounceTime, distinctUntilChanged, finalize, of} from 'rxjs';
-import {ContactFilterParams, ContactResponse, ContactService} from '../../../agent/services/contact.service';
-import {QueueService} from '../../services/queue.service';
-import {NotificationService} from '../../../../core/services/notification.service';
-import {Queue} from '../../models/queue.model';
-import {PagedResponse} from '../../../../core/models/paged-response.model';
-import {ContactDetailModalComponent} from '../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  inject,
+  OnInit,
+  signal,
+  ViewChild,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { catchError, debounceTime, distinctUntilChanged, finalize, of } from 'rxjs';
+import {
+  ContactFilterParams,
+  ContactResponse,
+  ContactService,
+} from '../../../agent/services/contact.service';
+import { QueueService } from '../../services/queue.service';
+import { NotificationService } from '../../../../core/services/notification.service';
+import { Queue } from '../../models/queue.model';
+import { PagedResponse } from '../../../../core/models/paged-response.model';
+import { ContactDetailModalComponent } from '../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
 
 @Component({
   selector: 'app-contacts-report',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, ContactDetailModalComponent],
+  imports: [TranslocoModule, ReactiveFormsModule, ContactDetailModalComponent],
   templateUrl: './contacts-report.component.html',
   styleUrl: './contacts-report.component.scss',
 })
@@ -27,6 +41,7 @@ export class ContactsReportComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly translocoService = inject(TranslocoService);
 
   readonly loading = signal(false);
   readonly exportingCsv = signal(false);
@@ -39,11 +54,11 @@ export class ContactsReportComponent implements OnInit {
 
   readonly selectedContactId = signal<string | null>(null);
 
-  readonly channels: { value: string; label: string }[] = [
-    { value: 'PHONE', label: 'Telefon' },
-    { value: 'EMAIL', label: 'Email' },
-    { value: 'CHAT', label: 'Chat' },
-    { value: 'SOCIAL', label: 'Social Media' },
+  readonly channels: { value: string; labelKey: string }[] = [
+    { value: 'PHONE', labelKey: 'supervisor.contactsReport.channelPhone' },
+    { value: 'EMAIL', labelKey: 'supervisor.contactsReport.channelEmail' },
+    { value: 'CHAT', labelKey: 'supervisor.contactsReport.channelChat' },
+    { value: 'SOCIAL', labelKey: 'supervisor.contactsReport.channelSocial' },
   ];
   readonly statuses = ['COMPLETED', 'ABANDONED', 'FAILED', 'ACTIVE', 'QUEUED', 'ON_HOLD'];
 
@@ -84,10 +99,10 @@ export class ContactsReportComponent implements OnInit {
     this.filterForm
       .get('remoteAddress')!
       .valueChanges.pipe(
-      debounceTime(400),
-      distinctUntilChanged(),
-      takeUntilDestroyed(this.destroyRef),
-    )
+        debounceTime(400),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(() => {
         this.currentPage.set(0);
         this.loadData();
@@ -96,10 +111,10 @@ export class ContactsReportComponent implements OnInit {
     this.filterForm
       .get('durationMin')!
       .valueChanges.pipe(
-      debounceTime(400),
-      distinctUntilChanged(),
-      takeUntilDestroyed(this.destroyRef),
-    )
+        debounceTime(400),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(() => {
         this.currentPage.set(0);
         this.loadData();
@@ -108,10 +123,10 @@ export class ContactsReportComponent implements OnInit {
     this.filterForm
       .get('durationMax')!
       .valueChanges.pipe(
-      debounceTime(400),
-      distinctUntilChanged(),
-      takeUntilDestroyed(this.destroyRef),
-    )
+        debounceTime(400),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(() => {
         this.currentPage.set(0);
         this.loadData();
@@ -177,8 +192,10 @@ export class ContactsReportComponent implements OnInit {
     if (v.status) queryParams['status'] = v.status;
     if (v.queueId) queryParams['queueId'] = v.queueId;
     if (v.remoteAddress) queryParams['remoteAddress'] = v.remoteAddress;
-    if (v.durationMin !== null && v.durationMin !== undefined) queryParams['durationMin'] = v.durationMin;
-    if (v.durationMax !== null && v.durationMax !== undefined) queryParams['durationMax'] = v.durationMax;
+    if (v.durationMin !== null && v.durationMin !== undefined)
+      queryParams['durationMin'] = v.durationMin;
+    if (v.durationMax !== null && v.durationMax !== undefined)
+      queryParams['durationMax'] = v.durationMax;
 
     this.router.navigate([], {
       relativeTo: this.route,
@@ -195,7 +212,9 @@ export class ContactsReportComponent implements OnInit {
       .getContacts(this.buildFilters(), this.currentPage(), this.pageSize)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac listy kontaktow. Sprobuj ponownie.');
+          this.notifications.error(
+            this.translocoService.translate('supervisor.contactsReport.errorLoad'),
+          );
           return of<PagedResponse<ContactResponse>>({
             content: [],
             totalElements: 0,
@@ -254,7 +273,7 @@ export class ContactsReportComponent implements OnInit {
 
   private scrollToTable(): void {
     if (this.tableTopRef?.nativeElement) {
-      this.tableTopRef.nativeElement.scrollIntoView({behavior: 'smooth', block: 'start'});
+      this.tableTopRef.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
 
@@ -262,15 +281,16 @@ export class ContactsReportComponent implements OnInit {
     this.exportingCsv.set(true);
     const data = this.rows();
     try {
+      const t = (key: string) => this.translocoService.translate(key);
       const headers = [
-        'Data i czas',
-        'Kanal',
-        'Kierunek',
-        'Numer/adres',
-        'Kolejka',
-        'Czas trwania (s)',
-        'Status',
-        'Dyspozycja',
+        t('supervisor.contactsReport.csvColDateTime'),
+        t('supervisor.contactsReport.csvColChannel'),
+        t('supervisor.contactsReport.csvColDirection'),
+        t('supervisor.contactsReport.csvColAddress'),
+        t('supervisor.contactsReport.csvColQueue'),
+        t('supervisor.contactsReport.csvColDuration'),
+        t('supervisor.contactsReport.csvColStatus'),
+        t('supervisor.contactsReport.csvColDisposition'),
       ];
       const csvRows = data.map((c) => [
         this.formatDateTime(c.startedAt),
@@ -285,7 +305,7 @@ export class ContactsReportComponent implements OnInit {
       const csvContent = [headers, ...csvRows]
         .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
         .join('\n');
-      const blob = new Blob(['\uFEFF' + csvContent], {type: 'text/csv;charset=utf-8;'});
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const today = this.formatDate(new Date());
       this.downloadFile(blob, `contacts-${today}.csv`);
     } finally {
@@ -329,11 +349,16 @@ export class ContactsReportComponent implements OnInit {
   }
 
   getChannelLabel(channel: string): string {
-    return this.channels.find(c => c.value === channel)?.label ?? channel;
+    const ch = this.channels.find((c) => c.value === channel);
+    return ch ? this.translocoService.translate(ch.labelKey) : channel;
   }
 
   getDirectionLabel(direction: string): string {
-    return direction === 'INBOUND' ? 'Przych.' : 'Wych.';
+    const key =
+      direction === 'INBOUND'
+        ? 'supervisor.contactsReport.inboundShort'
+        : 'supervisor.contactsReport.outboundShort';
+    return this.translocoService.translate(key);
   }
 
   trackByContact(_index: number, row: ContactResponse): string {

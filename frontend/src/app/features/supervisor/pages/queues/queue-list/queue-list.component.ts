@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -28,6 +29,7 @@ import { QueueAgentsModalComponent } from '../queue-agents-modal/queue-agents-mo
   selector: 'app-queue-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    TranslocoModule,
     ReactiveFormsModule,
     QueueFormComponent,
     QueueDeleteModalComponent,

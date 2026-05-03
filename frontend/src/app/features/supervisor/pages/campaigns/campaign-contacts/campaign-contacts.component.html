@@ -3,10 +3,10 @@
     <!-- Header -->
     <div class="contacts-modal__header">
       <div class="contacts-modal__title-block">
-        <h2 class="contacts-modal__title" id="contacts-title">Kontakty kampanii</h2>
+        <h2 class="contacts-modal__title" id="contacts-title">{{ 'supervisor.campaignContacts.title' | transloco }}</h2>
         <span class="contacts-modal__campaign-name">{{ campaign().name }}</span>
       </div>
-      <button class="btn btn-close" type="button" (click)="close()" aria-label="Zamknij podglad kontaktow">
+      <button class="btn btn-close" type="button" (click)="close()" [attr.aria-label]="'common.close' | transloco">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20">
           <path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -19,13 +19,13 @@
     <div class="contacts-modal__toolbar">
       <span class="contacts-modal__count" aria-live="polite">
         @if (!loading() && totalElements() > 0) {
-          Lacznie <strong>{{ totalElements() }}</strong> kontaktow
+          {{ 'supervisor.campaignContacts.total' | transloco: { count: totalElements() } }}
         } @else if (!loading() && totalElements() === 0) {
-          Brak kontaktow
+          {{ 'common.no_data' | transloco }}
         }
       </span>
       <div class="contacts-modal__filters">
-        <label class="filter-label" for="status-filter">Status:</label>
+        <label class="filter-label" for="status-filter">{{ 'common.status' | transloco }}:</label>
         <select id="status-filter" class="filter-select" [value]="selectedStatus()" (change)="onStatusChange($event)">
           @for (opt of statusOptions; track opt.value) {
             <option [value]="opt.value">{{ opt.label }}</option>
@@ -46,7 +46,7 @@
 
     <!-- Loading skeleton -->
     @if (loading()) {
-      <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie kontaktow...">
+      <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
         @for (i of [1, 2, 3, 4, 5, 6, 7, 8]; track i) {
           <div class="skeleton-row">
             <div class="skeleton-cell skeleton-cell--phone"></div>
@@ -66,16 +66,20 @@
     <!-- Table -->
     @if (!loading()) {
       @if (contacts().length > 0) {
-        <div class="contacts-table-wrapper" role="region" aria-label="Lista kontaktow kampanii">
+        <div
+          class="contacts-table-wrapper"
+          role="region"
+          [attr.aria-label]="'supervisor.campaignContacts.tableLabel' | transloco"
+        >
           <table class="contacts-table" aria-live="polite">
             <thead>
               <tr>
-                <th scope="col">Telefon</th>
-                <th scope="col">Imie</th>
-                <th scope="col">Nazwisko</th>
-                <th scope="col">Status</th>
-                <th scope="col">Blad</th>
-                <th scope="col">Data importu</th>
+                <th scope="col">{{ 'common.phone' | transloco }}</th>
+                <th scope="col">{{ 'common.firstName' | transloco }}</th>
+                <th scope="col">{{ 'common.lastName' | transloco }}</th>
+                <th scope="col">{{ 'common.status' | transloco }}</th>
+                <th scope="col">{{ 'supervisor.campaignContacts.errorCol' | transloco }}</th>
+                <th scope="col">{{ 'supervisor.campaignContacts.importDate' | transloco }}</th>
                 @if (isAgent() && isManualCampaign()) {
                   <th scope="col" class="col-action">Akcja</th>
                 }
@@ -119,15 +123,17 @@
                           [disabled]="callingRecordId() !== null"
                           [class.btn-call--loading]="callingRecordId() === contact.recordId"
                           (click)="callRecord(contact)"
-                          [attr.aria-label]="'Zadzwon do ' + contact.phone"
+                          [attr.aria-label]="('supervisor.campaignContacts.call' | transloco) + ' ' + contact.phone"
                           [attr.aria-busy]="callingRecordId() === contact.recordId"
                         >
                           @if (callingRecordId() === contact.recordId) {
                             <span class="btn-call__spinner" aria-hidden="true"></span>
-                            Dzwonie...
+                            {{ 'supervisor.campaignContacts.calling' | transloco }}
                           } @else {
                             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="15" height="15">
-                              <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                              <path
+                                d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                              />
                             </svg>
                             Zadzwon
                           }
@@ -145,7 +151,7 @@
         <nav class="contacts-pagination" aria-label="Nawigacja stron kontaktow">
           <span class="contacts-pagination__info" aria-live="polite">
             @if (totalElements() > 0) {
-              Wyswietlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }}
+              {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ totalElements() }}
             }
           </span>
           <div class="contacts-pagination__controls">
@@ -154,15 +160,16 @@
               type="button"
               (click)="onPrevPage()"
               [disabled]="currentPage() === 0"
-              aria-label="Poprzednia strona kontaktow"
+              [attr.aria-label]="'common.previous' | transloco"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                 <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
               </svg>
-              Poprzednia
+              {{ 'common.previous' | transloco }}
             </button>
             <span class="contacts-pagination__pages" aria-current="page">
-              Strona {{ currentPage() + 1 }} z {{ totalPages() || 1 }}
+              {{ 'common.page' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }}
+              {{ totalPages() || 1 }}
             </span>
             <button
               class="btn btn-pagination"
@@ -186,11 +193,11 @@
               d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
             />
           </svg>
-          <p class="contacts-empty__message">Brak kontaktow spelniajacych kryteria.</p>
+          <p class="contacts-empty__message">{{ 'supervisor.campaignContacts.emptyText' | transloco }}</p>
           @if (selectedStatus()) {
-            <p class="contacts-empty__hint">Zmien filtr statusu, aby zobaczyc inne kontakty.</p>
+            <p class="contacts-empty__hint">{{ 'supervisor.campaignContacts.changeFilter' | transloco }}</p>
           } @else {
-            <p class="contacts-empty__hint">Do tej kampanii nie zaimportowano jeszcze zadnych kontaktow.</p>
+            <p class="contacts-empty__hint">{{ 'supervisor.campaignContacts.noContacts' | transloco }}</p>
           }
         </div>
       }
@@ -198,7 +205,7 @@
 
     <!-- Footer -->
     <div class="contacts-modal__footer">
-      <button class="btn btn-secondary" type="button" (click)="close()">Zamknij</button>
+      <button class="btn btn-secondary" type="button" (click)="close()">{{ 'common.close' | transloco }}</button>
     </div>
   </div>
 </dialog>

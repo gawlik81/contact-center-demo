@@ -2,10 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { filter } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { WebSocketService } from '../../../core/services/websocket.service';
-import {
-  SupervisorMetrics,
-  SupervisorMetricsRawPayload,
-} from '../models/supervisor-metrics.model';
+import { SupervisorMetrics, SupervisorMetricsRawPayload } from '../models/supervisor-metrics.model';
 
 @Injectable({ providedIn: 'root' })
 export class SupervisorMetricsService {

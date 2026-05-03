@@ -17,7 +17,7 @@ export interface QueueMetric {
 
 export interface KpiMetric {
   activeCalls: number;
-  avgWaitTime: number;   // seconds
+  avgWaitTime: number; // seconds
   avgHandleTime: number; // seconds
 }
 

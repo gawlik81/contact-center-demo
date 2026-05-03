@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -19,7 +20,7 @@ const E164_PATTERN = /^\+[1-9]\d{6,14}$/;
 @Component({
   selector: 'app-twilio-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './twilio-settings.component.html',
   styleUrl: './twilio-settings.component.scss',
 })

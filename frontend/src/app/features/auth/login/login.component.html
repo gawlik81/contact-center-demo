@@ -1,6 +1,5 @@
 <div class="auth-page">
   <div class="auth-card">
-
     <!-- Logo / Brand -->
     <header class="auth-header">
       <div class="brand-icon" aria-hidden="true">CC</div>
@@ -18,12 +17,11 @@
     <!-- ── Step 1: Email ── -->
     @if (step() === 'email') {
       <div class="step-wrapper">
-        <h2 class="step-title">Logowanie</h2>
+        <h2 class="step-title">{{ 'auth.login.title' | transloco }}</h2>
 
         <form [formGroup]="emailStepForm" (ngSubmit)="onSubmitEmail()" novalidate>
-
           <div class="form-field">
-            <label for="email-step" class="form-label">Adres e-mail</label>
+            <label for="email-step" class="form-label">{{ 'auth.login.emailLabel' | transloco }}</label>
             <input
               id="email-step"
               type="email"
@@ -41,20 +39,14 @@
             }
           </div>
 
-          <button
-            type="submit"
-            class="btn btn-primary"
-            [disabled]="loading()"
-            [attr.aria-busy]="loading()"
-          >
+          <button type="submit" class="btn btn-primary" [disabled]="loading()" [attr.aria-busy]="loading()">
             @if (loading()) {
               <span class="spinner" aria-hidden="true"></span>
-              Sprawdzanie...
+              {{ 'auth.login.checking' | transloco }}
             } @else {
-              Dalej
+              {{ 'auth.login.nextButton' | transloco }}
             }
           </button>
-
         </form>
       </div>
     }
@@ -62,17 +54,16 @@
     <!-- ── Step 2: Credentials ── -->
     @if (step() === 'credentials') {
       <div class="step-wrapper">
-        <h2 class="step-title">Logowanie</h2>
+        <h2 class="step-title">{{ 'auth.login.title' | transloco }}</h2>
 
         <p class="email-display" aria-label="Logujesz się jako {{ emailValue }}">
           {{ emailValue }}
         </p>
 
         <form [formGroup]="credentialsForm" (ngSubmit)="onSubmitCredentials()" novalidate>
-
           @if (showTenantSelect()) {
             <div class="form-field">
-              <label for="tenantId" class="form-label">Organizacja</label>
+              <label for="tenantId" class="form-label">{{ 'auth.login.orgLabel' | transloco }}</label>
               <select
                 id="tenantId"
                 formControlName="tenantId"
@@ -80,27 +71,27 @@
                 aria-required="true"
                 [attr.aria-describedby]="tenantIdInvalid() ? 'tenantId-error' : null"
               >
-                <option value="" disabled>-- wybierz organizację --</option>
+                <option value="" disabled>{{ 'auth.login.orgPlaceholder' | transloco }}</option>
                 @for (tenant of matchedTenants(); track tenant.id) {
                   <option [value]="tenant.id">{{ tenant.name }}</option>
                 }
               </select>
               @if (tenantIdInvalid()) {
                 <span id="tenantId-error" class="field-error" role="alert">
-                  Wybór organizacji jest wymagany.
+                  {{ 'auth.validation.tenantRequired' | transloco }}
                 </span>
               }
             </div>
           }
 
           <div class="form-field">
-            <label for="password" class="form-label">Hasło</label>
+            <label for="password" class="form-label">{{ 'auth.login.passwordLabel' | transloco }}</label>
             <input
               id="password"
               type="password"
               formControlName="password"
               autocomplete="current-password"
-              placeholder="Minimum 8 znaków"
+              [placeholder]="'common.minimumChars' | transloco"
               [class.input-invalid]="passwordInvalid()"
               aria-required="true"
               [attr.aria-describedby]="passwordInvalid() ? 'password-error' : null"
@@ -112,29 +103,18 @@
             }
           </div>
 
-          <button
-            type="submit"
-            class="btn btn-primary"
-            [disabled]="loading()"
-            [attr.aria-busy]="loading()"
-          >
+          <button type="submit" class="btn btn-primary" [disabled]="loading()" [attr.aria-busy]="loading()">
             @if (loading()) {
               <span class="spinner" aria-hidden="true"></span>
-              Logowanie...
+              {{ 'auth.login.loggingIn' | transloco }}
             } @else {
-              Zaloguj się
+              {{ 'auth.login.submitButton' | transloco }}
             }
           </button>
-
         </form>
 
-        <button
-          type="button"
-          class="btn btn-ghost back-btn"
-          (click)="backToEmail()"
-          [disabled]="loading()"
-        >
-          &larr; Wróć
+        <button type="button" class="btn btn-ghost back-btn" (click)="backToEmail()" [disabled]="loading()">
+          {{ 'auth.login.back' | transloco }}
         </button>
       </div>
     }
@@ -142,15 +122,14 @@
     <!-- ── Step 3: MFA ── -->
     @if (isMfaStep()) {
       <div class="step-wrapper">
-        <h2 class="step-title">Weryfikacja dwuetapowa</h2>
+        <h2 class="step-title">{{ 'auth.login.mfaTitle' | transloco }}</h2>
         <p class="step-subtitle">
-          Wprowadź 6-cyfrowy kod z aplikacji uwierzytelniającej.
+          {{ 'auth.login.mfaSubtitle' | transloco }}
         </p>
 
         <form [formGroup]="mfaForm" (ngSubmit)="onSubmitMfa()" novalidate>
-
           <div class="form-field">
-            <label for="mfa-code" class="form-label">Kod weryfikacyjny</label>
+            <label for="mfa-code" class="form-label">{{ 'auth.login.mfaCodeLabel' | transloco }}</label>
             <input
               id="mfa-code"
               type="text"
@@ -170,32 +149,20 @@
             }
           </div>
 
-          <button
-            type="submit"
-            class="btn btn-primary"
-            [disabled]="loading()"
-            [attr.aria-busy]="loading()"
-          >
+          <button type="submit" class="btn btn-primary" [disabled]="loading()" [attr.aria-busy]="loading()">
             @if (loading()) {
               <span class="spinner" aria-hidden="true"></span>
-              Weryfikacja...
+              {{ 'auth.login.verifying' | transloco }}
             } @else {
-              Weryfikuj
+              {{ 'auth.login.mfaSubmitButton' | transloco }}
             }
           </button>
-
         </form>
 
-        <button
-          type="button"
-          class="btn btn-ghost back-btn"
-          (click)="backToCredentials()"
-          [disabled]="loading()"
-        >
-          &larr; Wróć do logowania
+        <button type="button" class="btn btn-ghost back-btn" (click)="backToCredentials()" [disabled]="loading()">
+          {{ 'auth.login.backToLogin' | transloco }}
         </button>
       </div>
     }
-
   </div>
 </div>

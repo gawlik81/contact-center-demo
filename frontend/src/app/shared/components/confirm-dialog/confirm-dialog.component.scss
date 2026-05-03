@@ -1,3 +1,5 @@
+@use 'sass:color';
+
 $text-primary: #212121;
 $text-secondary: #616161;
 $border-color: #e2e8f0;
@@ -93,7 +95,7 @@ $danger-bg: #ffebee;
     color: $brand-blue;
 
     &:hover:not(:disabled) {
-      background: darken($brand-blue-bg, 4%);
+      background: color.adjust($brand-blue-bg, $lightness: -4%);
     }
   }
 

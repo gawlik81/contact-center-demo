@@ -1,8 +1,10 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
   ViewChild,
+  inject,
   input,
   signal,
 } from '@angular/core';
@@ -12,12 +14,14 @@ import { EmailMessage } from '../../../../services/email.service';
 @Component({
   selector: 'cc-email-thread-message',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe],
+  imports: [TranslocoModule, DatePipe],
   templateUrl: './email-thread-message.component.html',
   styleUrl: './email-thread-message.component.scss',
 })
 export class EmailThreadMessageComponent {
   message = input.required<EmailMessage>();
+
+  private readonly transloco = inject(TranslocoService);
 
   @ViewChild('iframe') iframeRef?: ElementRef<HTMLIFrameElement>;
 
@@ -37,7 +41,12 @@ export class EmailThreadMessageComponent {
   }
 
   protected getSrcdoc(html: string | null | undefined, text?: string | null): string {
-    const content = html || (text ? `<pre style="white-space:pre-wrap;word-break:break-word">${text.replace(/</g, '&lt;')}</pre>` : '<p style="color:#64748b;font-style:italic">Brak treści wiadomości</p>');
+    const noContentLabel = this.transloco.translate('agent.emailThread.noContent');
+    const content =
+      html ||
+      (text
+        ? `<pre style="white-space:pre-wrap;word-break:break-word">${text.replace(/</g, '&lt;')}</pre>`
+        : `<p style="color:#64748b;font-style:italic">${noContentLabel}</p>`);
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
   * { box-sizing: border-box; }

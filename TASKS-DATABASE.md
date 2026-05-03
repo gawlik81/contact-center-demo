@@ -1022,6 +1022,39 @@ CREATE POLICY agent_break_tenant_isolation ON agent_break
 
 ---
 
+## MODUŁ: Wielojęzyczność – preferencje użytkownika (EPIC-19)
+
+### DB-029 – Kolumna `preferred_language` w tabeli `app_user`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-003 (tabela `app_user`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
+**Blokuje:** BE-054
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Nowa migracja Flyway `V050__add_preferred_language_to_app_user.sql`. Dodanie kolumny `preferred_language VARCHAR(10)` do tabeli `app_user` z domyślną wartością `'pl'`. Kolumna przechowuje kod języka (ISO 639-1: `pl`, `en`, `de`, itd.). Brak RLS — każdy użytkownik ma dostęp tylko do własnego rekordu egzekwowanego przez logikę aplikacji (nie wymaga policy RLS na tej kolumnie).
+
+**Schema:**
+```sql
+ALTER TABLE app_user
+  ADD COLUMN preferred_language VARCHAR(10) NOT NULL DEFAULT 'pl';
+
+COMMENT ON COLUMN app_user.preferred_language IS 'ISO 639-1 language code for UI locale preference';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja `V050__add_preferred_language_to_app_user.sql` aplikuje się bez błędów
+- [ ] Kolumna `preferred_language VARCHAR(10) NOT NULL DEFAULT 'pl'` istnieje w tabeli `app_user`
+- [ ] Istniejące rekordy po migracji mają wartość `'pl'`
+- [ ] `ng build` i testy backendu przechodzą po migracji
+
+---
+
 ## Macierz gotowości: DB → BE → FE
 
 Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do widoku FE:
@@ -1050,3 +1083,4 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | Zarządzanie przypisaniem agentów | DB-024, DB-025, DB-026 | BE-043, BE-044, BE-045, BE-046, BE-047 | FE-036 ✅, FE-037, FE-038, FE-039 |
 | Zakładka Klienci w Agent Desktop | DB-027 | BE-048 | FE-040, FE-041 |
 | Kalendarz Agenta (EPIC-16) | DB-028 | BE-049, BE-050, BE-051 | FE-042, FE-043, FE-044, FE-045 |
+| Wielojęzyczność UI (EPIC-19) | DB-029 | BE-054 | FE-049, FE-050, FE-051, FE-052, FE-053 |

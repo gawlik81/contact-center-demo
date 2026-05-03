@@ -77,12 +77,10 @@ export class AuthService {
    */
   verifyMfa(mfaToken: string, code: string): Observable<AuthTokens> {
     const body: MfaVerifyRequest = { mfaToken, code };
-    return this.http
-      .post<AuthTokens>(`${environment.apiUrl}/auth/mfa/verify`, body)
-      .pipe(
-        tap((tokens) => this.handleTokens(tokens)),
-        catchError((err) => throwError(() => err)),
-      );
+    return this.http.post<AuthTokens>(`${environment.apiUrl}/auth/mfa/verify`, body).pipe(
+      tap((tokens) => this.handleTokens(tokens)),
+      catchError((err) => throwError(() => err)),
+    );
   }
 
   /**
@@ -91,25 +89,21 @@ export class AuthService {
    */
   changePassword(currentPassword: string, newPassword: string): Observable<AuthTokens> {
     const body: ChangePasswordRequest = { currentPassword, newPassword };
-    return this.http
-      .post<AuthTokens>(`${environment.apiUrl}/auth/change-password`, body)
-      .pipe(
-        tap((tokens) => this.handleTokens(tokens)),
-        catchError((err) => throwError(() => err)),
-      );
+    return this.http.post<AuthTokens>(`${environment.apiUrl}/auth/change-password`, body).pipe(
+      tap((tokens) => this.handleTokens(tokens)),
+      catchError((err) => throwError(() => err)),
+    );
   }
 
   refresh(): Observable<AuthTokens> {
     const refreshToken = this.tokenService.getRefreshToken();
-    return this.http
-      .post<AuthTokens>(`${environment.apiUrl}/auth/refresh`, { refreshToken })
-      .pipe(
-        tap((tokens) => this.handleTokens(tokens)),
-        catchError((err) => {
-          this.logout();
-          return throwError(() => err);
-        }),
-      );
+    return this.http.post<AuthTokens>(`${environment.apiUrl}/auth/refresh`, { refreshToken }).pipe(
+      tap((tokens) => this.handleTokens(tokens)),
+      catchError((err) => {
+        this.logout();
+        return throwError(() => err);
+      }),
+    );
   }
 
   logout(): void {

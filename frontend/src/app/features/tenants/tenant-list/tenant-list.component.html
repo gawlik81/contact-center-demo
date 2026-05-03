@@ -1,12 +1,7 @@
 <div class="tenant-list">
   <div class="tenant-list__header">
     <h1 class="tenant-list__title">Zarzadzanie tenantami</h1>
-    <button
-      class="btn btn-primary"
-      (click)="openAddModal()"
-      type="button"
-      aria-label="Dodaj nowego tenanta"
-    >
+    <button class="btn btn-primary" (click)="openAddModal()" type="button" aria-label="Dodaj nowego tenanta">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
       </svg>
@@ -79,9 +74,15 @@
                     [attr.aria-label]="'Status: ' + tenant.status"
                   >
                     @switch (tenant.status) {
-                      @case ('ACTIVE') { Aktywny }
-                      @case ('INACTIVE') { Nieaktywny }
-                      @case ('SUSPENDED') { Zawieszony }
+                      @case ('ACTIVE') {
+                        Aktywny
+                      }
+                      @case ('INACTIVE') {
+                        Nieaktywny
+                      }
+                      @case ('SUSPENDED') {
+                        Zawieszony
+                      }
                     }
                   </span>
                 </td>
@@ -104,7 +105,7 @@
                         (click)="openDeactivateModal(tenant)"
                         [attr.aria-label]="'Dezaktywuj tenanta ' + tenant.name"
                       >
-                        Dezaktywuj
+                        {{ 'common.inactive' | transloco }}
                       </button>
                     }
                   </div>
@@ -118,7 +119,8 @@
       <!-- Pagination -->
       <div class="pagination" aria-label="Paginacja tenantów" role="navigation">
         <span class="pagination__info" aria-live="polite">
-          Łącznie: {{ totalElements() }} | Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+          {{ 'common.showing' | transloco }}: {{ totalElements() }} | {{ 'common.page' | transloco }}
+          {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
         </span>
         <div class="pagination__controls">
           <button
@@ -128,7 +130,7 @@
             (click)="previousPage()"
             aria-label="Poprzednia strona"
           >
-            &laquo; Poprzednia
+            &laquo; {{ 'common.previous' | transloco }}
           </button>
           <button
             class="btn btn-outline btn-sm"
@@ -137,7 +139,7 @@
             (click)="nextPage()"
             aria-label="Następna strona"
           >
-            Następna &raquo;
+            {{ 'common.next' | transloco }} &raquo;
           </button>
         </div>
       </div>
@@ -147,7 +149,7 @@
         <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M3 21V7l9-4 9 4v14H3zm6-2h2v-4H9v4zm4 0h2v-4h-2v4zm4 0h2v-6h-2v6zm-8-6h2v-2H9v2zm4 0h2v-2h-2v2z" />
         </svg>
-        <p class="empty-state__message">Brak tenantow do wyswietlenia.</p>
+        <p class="empty-state__message">{{ 'common.no_data' | transloco }}</p>
         <p class="empty-state__hint">Zmien filtry lub dodaj nowego tenanta.</p>
       </div>
     }
@@ -165,11 +167,7 @@
 
 <!-- Edit modal -->
 @if (showEditModal() && editingTenant()) {
-  <app-tenant-edit-modal
-    [tenant]="editingTenant()!"
-    (saved)="onEditSaved()"
-    (cancelled)="closeEditModal()"
-  />
+  <app-tenant-edit-modal [tenant]="editingTenant()!" (saved)="onEditSaved()" (cancelled)="closeEditModal()" />
 }
 
 <!-- Add modal -->

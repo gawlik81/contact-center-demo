@@ -3,7 +3,7 @@ import { Routes } from '@angular/router';
 export const TENANT_ROUTES: Routes = [
   {
     path: '',
-    data: { breadcrumb: 'Tenanci' },
+    data: { breadcrumb: 'nav.tenants' },
     loadComponent: () =>
       import('./tenant-list/tenant-list.component').then((m) => m.TenantListComponent),
   },

@@ -21,6 +21,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, catchError, map, of, switchMap, timer, EMPTY } from 'rxjs';
 import { TenantService } from '../tenant.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { TranslocoModule } from '@jsverse/transloco';
 import { TwilioConfigService } from '../../supervisor/services/twilio-config.service';
 import { Tenant } from '../tenant.model';
 
@@ -43,7 +44,7 @@ const E164_REGEX = /^\+[1-9]\d{6,14}$/;
 @Component({
   selector: 'app-tenant-add-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, TranslocoModule],
   templateUrl: './tenant-add-modal.component.html',
   styleUrl: './tenant-add-modal.component.scss',
   host: {

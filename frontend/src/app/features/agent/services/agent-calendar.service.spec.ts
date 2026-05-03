@@ -26,6 +26,10 @@ const MOCK_CALENDAR: AgentCalendarResponse = {
       startDate: '2026-04-01',
       endDate: '2026-04-30',
       status: 'ACTIVE',
+      activeDays: null,
+      activeHoursFrom: null,
+      activeHoursTo: null,
+      timezone: null,
     },
   ],
   breaks: [

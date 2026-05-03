@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -44,7 +45,7 @@ function atLeastOneDayValidator(control: AbstractControl): ValidationErrors | nu
 @Component({
   selector: 'app-routing-rule-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './routing-rule-form.component.html',
   styleUrl: './routing-rule-form.component.scss',
 })
@@ -61,6 +62,7 @@ export class RoutingRuleFormComponent implements OnInit {
   private readonly queueService = inject(QueueService);
   private readonly phoneNumberService = inject(PhoneNumberService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
@@ -175,7 +177,9 @@ export class RoutingRuleFormComponent implements OnInit {
             const msg = httpErr?.error?.message ?? 'Reguła koliduje z istniejącą regułą.';
             this.notifications.error(msg);
           } else {
-            this.notifications.error('Nie udało się zapisać reguły. Spróbuj ponownie.');
+            this.notifications.error(
+              this.transloco.translate('supervisor.settings.routingRules.errorSave'),
+            );
           }
           return of(null);
         }),
@@ -184,7 +188,9 @@ export class RoutingRuleFormComponent implements OnInit {
       .subscribe((result) => {
         if (!result) return;
         this.submitting.set(false);
-        this.notifications.success(rule ? 'Reguła zaktualizowana.' : 'Reguła dodana.');
+        this.notifications.success(
+          this.transloco.translate('supervisor.settings.routingRules.successSave'),
+        );
         this.saved.emit(result);
         this.dialogRef.nativeElement.close();
       });

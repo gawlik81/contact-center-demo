@@ -1,12 +1,38 @@
-import {AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, input, OnInit, output, signal, viewChild,} from '@angular/core';
-import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators,} from '@angular/forms';
-import {catchError, of} from 'rxjs';
-import {CampaignService} from '../../../services/campaign.service';
-import {QueueService} from '../../../services/queue.service';
-import {NotificationService} from '../../../../../core/services/notification.service';
-import {ActiveDay, Campaign, CampaignSchedule, CampaignType, DialerType,} from '../../../models/campaign.model';
-import {Queue} from '../../../models/queue.model';
+import { TranslocoModule } from '@jsverse/transloco';
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  inject,
+  input,
+  OnInit,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl,
+  FormBuilder,
+  ReactiveFormsModule,
+  ValidationErrors,
+  ValidatorFn,
+  Validators,
+} from '@angular/forms';
+import { catchError, of } from 'rxjs';
+import { CampaignService } from '../../../services/campaign.service';
+import { QueueService } from '../../../services/queue.service';
+import { NotificationService } from '../../../../../core/services/notification.service';
+import {
+  ActiveDay,
+  Campaign,
+  CampaignSchedule,
+  CampaignType,
+  DialerType,
+} from '../../../models/campaign.model';
+import { Queue } from '../../../models/queue.model';
 
 /** Validates HH:MM time format */
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -38,20 +64,20 @@ function timeToValidator(): ValidatorFn {
   };
 }
 
-const ALL_DAYS: { value: ActiveDay; label: string }[] = [
-  { value: 'MON', label: 'Pon' },
-  { value: 'TUE', label: 'Wt' },
-  { value: 'WED', label: 'Sr' },
-  { value: 'THU', label: 'Czw' },
-  { value: 'FRI', label: 'Pt' },
-  { value: 'SAT', label: 'Sob' },
-  { value: 'SUN', label: 'Nie' },
+const ALL_DAYS: { value: ActiveDay; labelKey: string }[] = [
+  { value: 'MON', labelKey: 'agent.calendar.days.MON' },
+  { value: 'TUE', labelKey: 'agent.calendar.days.TUE' },
+  { value: 'WED', labelKey: 'agent.calendar.days.WED' },
+  { value: 'THU', labelKey: 'agent.calendar.days.THU' },
+  { value: 'FRI', labelKey: 'agent.calendar.days.FRI' },
+  { value: 'SAT', labelKey: 'agent.calendar.days.SAT' },
+  { value: 'SUN', labelKey: 'agent.calendar.days.SUN' },
 ];
 
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './campaign-form.component.html',
   styleUrl: './campaign-form.component.scss',
   host: {

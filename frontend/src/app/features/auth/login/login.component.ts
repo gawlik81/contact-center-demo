@@ -1,12 +1,7 @@
-import {
-  Component,
-  ChangeDetectionStrategy,
-  inject,
-  signal,
-  computed,
-} from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AuthService, LoginResponse } from '../../../core/services/auth.service';
 import { PublicTenantService, PublicTenant } from '../services/public-tenant.service';
 
@@ -15,7 +10,7 @@ type LoginStep = 'email' | 'credentials' | 'mfa';
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, TranslocoModule],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
 })
@@ -24,6 +19,7 @@ export class LoginComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly publicTenantService = inject(PublicTenantService);
+  private readonly transloco = inject(TranslocoService);
 
   readonly step = signal<LoginStep>('email');
   readonly matchedTenants = signal<PublicTenant[]>([]);
@@ -55,10 +51,7 @@ export class LoginComponent {
   // ── Step 3: MFA form ──────────────────────────────────────────────────────
 
   readonly mfaForm = this.fb.group({
-    code: [
-      '',
-      [Validators.required, Validators.pattern(/^\d{6}$/)],
-    ],
+    code: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
   });
 
   // ── Computed helpers: email step ──────────────────────────────────────────
@@ -73,8 +66,8 @@ export class LoginComponent {
   readonly emailStepErrorMessage = computed(() => {
     const ctrl = this.emailStepControl();
     if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Adres e-mail jest wymagany.';
-    if (ctrl.hasError('email')) return 'Podaj prawidłowy adres e-mail.';
+    if (ctrl.hasError('required')) return this.transloco.translate('auth.validation.emailRequired');
+    if (ctrl.hasError('email')) return this.transloco.translate('auth.validation.emailInvalid');
     return null;
   });
 
@@ -96,8 +89,10 @@ export class LoginComponent {
   readonly passwordErrorMessage = computed(() => {
     const ctrl = this.passwordControl();
     if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Hasło jest wymagane.';
-    if (ctrl.hasError('minlength')) return 'Hasło musi mieć co najmniej 8 znaków.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('auth.validation.passwordRequired');
+    if (ctrl.hasError('minlength'))
+      return this.transloco.translate('auth.validation.passwordTooShort');
     return null;
   });
 
@@ -113,8 +108,9 @@ export class LoginComponent {
   readonly codeErrorMessage = computed(() => {
     const ctrl = this.codeControl();
     if (!ctrl.invalid || !(ctrl.dirty || ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Kod weryfikacyjny jest wymagany.';
-    if (ctrl.hasError('pattern')) return 'Kod musi składać się z 6 cyfr.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('auth.validation.mfaCodeRequired');
+    if (ctrl.hasError('pattern')) return this.transloco.translate('auth.validation.mfaCodeInvalid');
     return null;
   });
 
@@ -179,23 +175,21 @@ export class LoginComponent {
 
     const password = this.credentialsForm.getRawValue().password!;
 
-    this.authService
-      .login({ tenantId, email: this.emailValue, password })
-      .subscribe({
-        next: (response: LoginResponse) => {
-          this.loading.set(false);
-          this.handleLoginResponse(response);
-        },
-        error: (err) => {
-          this.loading.set(false);
-          const status = err?.status;
-          if (status === 401) {
-            this.errorMessage.set('Nieprawidłowy e-mail lub hasło.');
-          } else {
-            this.errorMessage.set('Wystąpił błąd serwera. Spróbuj ponownie.');
-          }
-        },
-      });
+    this.authService.login({ tenantId, email: this.emailValue, password }).subscribe({
+      next: (response: LoginResponse) => {
+        this.loading.set(false);
+        this.handleLoginResponse(response);
+      },
+      error: (err) => {
+        this.loading.set(false);
+        const status = err?.status;
+        if (status === 401) {
+          this.errorMessage.set(this.transloco.translate('auth.errors.invalidCredentials'));
+        } else {
+          this.errorMessage.set(this.transloco.translate('auth.errors.serverError'));
+        }
+      },
+    });
   }
 
   onSubmitMfa(): void {
@@ -217,9 +211,9 @@ export class LoginComponent {
         this.loading.set(false);
         const status = err?.status;
         if (status === 401) {
-          this.errorMessage.set('Nieprawidłowy kod weryfikacyjny.');
+          this.errorMessage.set(this.transloco.translate('auth.errors.invalidMfaCode'));
         } else {
-          this.errorMessage.set('Weryfikacja nie powiodła się. Spróbuj ponownie.');
+          this.errorMessage.set(this.transloco.translate('auth.errors.mfaFailed'));
         }
       },
     });

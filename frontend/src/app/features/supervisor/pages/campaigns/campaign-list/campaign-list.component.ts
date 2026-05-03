@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -23,6 +24,7 @@ const POLLING_INTERVAL_MS = 10_000;
   selector: 'app-campaign-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    TranslocoModule,
     CampaignFormComponent,
     CampaignImportComponent,
     CampaignContactsComponent,
@@ -35,6 +37,7 @@ const POLLING_INTERVAL_MS = 10_000;
 export class CampaignListComponent implements OnInit {
   private readonly campaignService = inject(CampaignService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(false);
@@ -249,7 +252,7 @@ export class CampaignListComponent implements OnInit {
 
   onPause(campaign: Campaign): void {
     this.requestConfirm(
-      `Czy na pewno chcesz wstrzymać kampanię "${campaign.name}"?`,
+      `${this.transloco.translate('supervisor.campaigns.confirmPause')} "${campaign.name}"?`,
       false,
       () => this.executePause(campaign),
     );
@@ -262,7 +265,9 @@ export class CampaignListComponent implements OnInit {
       .pauseCampaign(id)
       .pipe(
         catchError(() => {
-          this.notifications.error(`Nie udało się wstrzymać kampanii "${campaign.name}".`);
+          this.notifications.error(
+            `${this.transloco.translate('supervisor.campaigns.errorPause')} "${campaign.name}".`,
+          );
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -270,7 +275,9 @@ export class CampaignListComponent implements OnInit {
       .subscribe((updated) => {
         this.setActionInProgress(id, false);
         if (updated) {
-          this.notifications.success(`Kampania "${campaign.name}" została wstrzymana.`);
+          this.notifications.success(
+            `"${campaign.name}" ${this.transloco.translate('supervisor.campaigns.successPause')}`,
+          );
           this.updateCampaignInList(updated);
         }
       });
@@ -278,7 +285,7 @@ export class CampaignListComponent implements OnInit {
 
   onStop(campaign: Campaign): void {
     this.requestConfirm(
-      `Czy na pewno chcesz zatrzymać kampanię "${campaign.name}"? Tej operacji nie można cofnąć.`,
+      `${this.transloco.translate('supervisor.campaigns.confirmStop')} "${campaign.name}"? ${this.transloco.translate('supervisor.campaigns.confirmStopWarning')}`,
       true,
       () => this.executeStop(campaign),
     );
@@ -291,7 +298,9 @@ export class CampaignListComponent implements OnInit {
       .stopCampaign(id)
       .pipe(
         catchError(() => {
-          this.notifications.error(`Nie udało się zatrzymać kampanii "${campaign.name}".`);
+          this.notifications.error(
+            `${this.transloco.translate('supervisor.campaigns.errorStop')} "${campaign.name}".`,
+          );
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -299,7 +308,9 @@ export class CampaignListComponent implements OnInit {
       .subscribe((updated) => {
         this.setActionInProgress(id, false);
         if (updated) {
-          this.notifications.success(`Kampania "${campaign.name}" została zatrzymana.`);
+          this.notifications.success(
+            `"${campaign.name}" ${this.transloco.translate('supervisor.campaigns.successStop')}`,
+          );
           this.updateCampaignInList(updated);
         }
       });
@@ -307,7 +318,7 @@ export class CampaignListComponent implements OnInit {
 
   onRevertToDraft(campaign: Campaign): void {
     this.requestConfirm(
-      `Czy na pewno chcesz cofnąć kampanię "${campaign.name}" do statusu Szkic?`,
+      `${this.transloco.translate('supervisor.campaigns.confirmRevert')} "${campaign.name}" ${this.transloco.translate('supervisor.campaigns.confirmRevertSuffix')}`,
       false,
       () => this.executeRevertToDraft(campaign),
     );
@@ -320,7 +331,9 @@ export class CampaignListComponent implements OnInit {
       .revertToDraft(id)
       .pipe(
         catchError(() => {
-          this.notifications.error(`Nie udało się cofnąć kampanii "${campaign.name}" do szkicu.`);
+          this.notifications.error(
+            `${this.transloco.translate('supervisor.campaigns.errorRevert')} "${campaign.name}" ${this.transloco.translate('supervisor.campaigns.errorRevertSuffix')}`,
+          );
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -328,7 +341,9 @@ export class CampaignListComponent implements OnInit {
       .subscribe((updated) => {
         this.setActionInProgress(id, false);
         if (updated) {
-          this.notifications.success(`Kampania "${campaign.name}" cofnięta do statusu Szkic.`);
+          this.notifications.success(
+            `"${campaign.name}" ${this.transloco.translate('supervisor.campaigns.successRevert')}`,
+          );
           this.updateCampaignInList(updated);
         }
       });

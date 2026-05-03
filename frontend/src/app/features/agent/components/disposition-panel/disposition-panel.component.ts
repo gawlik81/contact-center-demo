@@ -14,6 +14,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { catchError, EMPTY } from 'rxjs';
 import { ContactService } from '../../services/contact.service';
 import { AgentStatusService } from '../../services/agent-status.service';
@@ -24,7 +25,7 @@ import { DISPOSITION_CODES, DispositionCode } from '../../models/disposition.mod
   selector: 'app-disposition-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslocoModule],
   templateUrl: './disposition-panel.component.html',
   styleUrl: './disposition-panel.component.scss',
 })
@@ -40,6 +41,7 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
   private readonly statusService = inject(AgentStatusService);
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly transloco = inject(TranslocoService);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
 
@@ -103,7 +105,7 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
       .setDisposition(this.contactId(), this.selectedCode(), this.notes())
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało się zapisać dyspozycji. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('agent.disposition.errorSave'));
           this.isSaving.set(false);
           this.startAcwTimer();
           return EMPTY;
@@ -112,7 +114,7 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
       )
       .subscribe(() => {
         this.isSaving.set(false);
-        this.notifications.success('Dyspozycja zapisana. Zmieniam status na Dostępny...');
+        this.notifications.success(this.transloco.translate('agent.disposition.successSave'));
         // Wait for status change confirmation before emitting saved — prevents the tab from
         // closing before the server acknowledges the AVAILABLE status change.
         this.statusService
@@ -120,7 +122,9 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
             next: () => {
-              this.notifications.success('Status zmieniony na Dostępny.');
+              this.notifications.success(
+                this.transloco.translate('agent.disposition.statusChanged'),
+              );
               this.saved.emit();
             },
             error: () => {

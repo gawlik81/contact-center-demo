@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -26,7 +27,7 @@ type PanelState = 'loading' | 'known' | 'unknown' | 'empty' | 'error';
 @Component({
   selector: 'cc-customer-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, LowerCasePipe],
+  imports: [DatePipe, LowerCasePipe, TranslocoModule],
   templateUrl: './customer-panel.component.html',
   styleUrl: './customer-panel.component.scss',
 })

@@ -9,9 +9,14 @@
             />
           </svg>
         </span>
-        <h2 id="tenant-add-title" class="tenant-add-dialog__title">Nowy tenant</h2>
+        <h2 id="tenant-add-title" class="tenant-add-dialog__title">{{ 'admin.tenants.addModal.title' | transloco }}</h2>
       </div>
-      <button class="btn-close" type="button" (click)="onCancel()" aria-label="Zamknij formularz">
+      <button
+        class="btn-close"
+        type="button"
+        (click)="onCancel()"
+        [attr.aria-label]="'admin.tenants.addModal.closeLabel' | transloco"
+      >
         <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
           <path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -24,7 +29,7 @@
       <!-- Name field -->
       <div class="form-field" [class.form-field--error]="nameError">
         <label class="form-label" for="add-tenant-name">
-          Nazwa <span class="required" aria-hidden="true">*</span>
+          {{ 'admin.tenants.addModal.nameLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
         <div class="form-input-wrapper">
           <input
@@ -39,7 +44,11 @@
             [attr.aria-describedby]="nameError ? 'add-name-error' : null"
           />
           @if (nameCtrl.pending) {
-            <span class="form-validating" aria-live="polite" aria-label="Sprawdzanie dostepnosci nazwy">
+            <span
+              class="form-validating"
+              aria-live="polite"
+              [attr.aria-label]="'admin.tenants.addModal.checkingName' | transloco"
+            >
               <span class="spinner spinner--dark" aria-hidden="true"></span>
             </span>
           }
@@ -73,13 +82,13 @@
               />
             </svg>
           </span>
-          <span class="form-section__label">Limity zasobow</span>
+          <span class="form-section__label">{{ 'admin.tenants.addModal.resourceLimits' | transloco }}</span>
         </div>
 
         <!-- Max agents -->
         <div class="form-field" [class.form-field--error]="maxAgentsError">
           <label class="form-label" for="add-max-agents">
-            Maks. agentow <span class="required" aria-hidden="true">*</span>
+            {{ 'admin.tenants.addModal.maxAgentsLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="add-max-agents"
@@ -92,7 +101,7 @@
             [attr.aria-invalid]="maxAgentsCtrl.invalid && (maxAgentsCtrl.dirty || maxAgentsCtrl.touched)"
             [attr.aria-describedby]="maxAgentsError ? 'add-max-agents-error' : null"
           />
-          <span class="form-hint">zakres: 1&ndash;500</span>
+          <span class="form-hint">{{ 'admin.tenants.addModal.rangeAgents' | transloco }}</span>
           @if (maxAgentsError) {
             <span id="add-max-agents-error" class="form-error" role="alert">
               <svg
@@ -115,7 +124,7 @@
         <!-- Max queues -->
         <div class="form-field" [class.form-field--error]="maxQueuesError">
           <label class="form-label" for="add-max-queues">
-            Maks. kolejek <span class="required" aria-hidden="true">*</span>
+            {{ 'admin.tenants.addModal.maxQueuesLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="add-max-queues"
@@ -128,7 +137,7 @@
             [attr.aria-invalid]="maxQueuesCtrl.invalid && (maxQueuesCtrl.dirty || maxQueuesCtrl.touched)"
             [attr.aria-describedby]="maxQueuesError ? 'add-max-queues-error' : null"
           />
-          <span class="form-hint">zakres: 1&ndash;100</span>
+          <span class="form-hint">{{ 'admin.tenants.addModal.rangeQueues' | transloco }}</span>
           @if (maxQueuesError) {
             <span id="add-max-queues-error" class="form-error" role="alert">
               <svg
@@ -151,7 +160,8 @@
         <!-- Max campaigns -->
         <div class="form-field" [class.form-field--error]="maxCampaignsError">
           <label class="form-label" for="add-max-campaigns">
-            Maks. kampanii <span class="required" aria-hidden="true">*</span>
+            {{ 'admin.tenants.addModal.maxCampaignsLabel' | transloco }}
+            <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="add-max-campaigns"
@@ -164,7 +174,7 @@
             [attr.aria-invalid]="maxCampaignsCtrl.invalid && (maxCampaignsCtrl.dirty || maxCampaignsCtrl.touched)"
             [attr.aria-describedby]="maxCampaignsError ? 'add-max-campaigns-error' : null"
           />
-          <span class="form-hint">zakres: 1&ndash;100</span>
+          <span class="form-hint">{{ 'admin.tenants.addModal.rangeCampaigns' | transloco }}</span>
           @if (maxCampaignsError) {
             <span id="add-max-campaigns-error" class="form-error" role="alert">
               <svg
@@ -195,10 +205,12 @@
               />
             </svg>
           </span>
-          <span class="form-section__label">Telefonia VoIP (Twilio)</span>
+          <span class="form-section__label">{{ 'admin.tenants.addModal.voipSection' | transloco }}</span>
         </div>
         <div class="form-field" [class.form-field--error]="twilioPhoneNumberError">
-          <label class="form-label" for="add-twilio-phone-number">Numer wychodzacy (Caller ID)</label>
+          <label class="form-label" for="add-twilio-phone-number">{{
+            'admin.tenants.addModal.callerIdLabel' | transloco
+          }}</label>
           <input
             id="add-twilio-phone-number"
             type="tel"
@@ -229,14 +241,16 @@
             </span>
           }
           <span id="add-twilio-phone-hint" class="form-hint">
-            Numer prezentowany klientowi podczas polaczen wychodzacych. Format: +48XXXXXXXXX
+            {{ 'admin.tenants.addModal.callerIdHint' | transloco }}
           </span>
         </div>
       </div>
     </form>
 
     <div class="tenant-add-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()" [disabled]="submitting()">Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" [disabled]="submitting()">
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         class="btn btn-save"
         type="submit"
@@ -244,13 +258,13 @@
         [disabled]="isSaveDisabled"
         [attr.aria-disabled]="isSaveDisabled"
         [attr.aria-busy]="submitting()"
-        aria-label="Zapisz tenanta"
+        [attr.aria-label]="'admin.tenants.addModal.saveLabel' | transloco"
       >
         @if (submitting()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Zapisz
+          {{ 'common.save' | transloco }}
         }
       </button>
     </div>

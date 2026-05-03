@@ -262,8 +262,12 @@ $focus-ring: rgba(26, 86, 219, 0.18);
     scrollbar-width: thin;
     scrollbar-color: $border transparent;
 
-    &::-webkit-scrollbar { width: 5px; }
-    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar {
+      width: 5px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
     &::-webkit-scrollbar-thumb {
       background: $border;
       border-radius: 3px;
@@ -299,8 +303,12 @@ $focus-ring: rgba(26, 86, 219, 0.18);
     scrollbar-width: thin;
     scrollbar-color: $border transparent;
 
-    &::-webkit-scrollbar { width: 5px; }
-    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar {
+      width: 5px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
     &::-webkit-scrollbar-thumb {
       background: $border;
       border-radius: 3px;
@@ -376,8 +384,12 @@ $focus-ring: rgba(26, 86, 219, 0.18);
       pointer-events: none;
     }
 
-    p { margin: 0 0 0.5em; }
-    a { color: $brand; }
+    p {
+      margin: 0 0 0.5em;
+    }
+    a {
+      color: $brand;
+    }
   }
 
   // Sticky footer — always visible, clearly separated
@@ -518,8 +530,12 @@ $focus-ring: rgba(26, 86, 219, 0.18);
     outline-offset: 2px;
   }
 
-  &--italic em { font-style: italic; }
-  &--underline u { text-decoration: underline; }
+  &--italic em {
+    font-style: italic;
+  }
+  &--underline u {
+    text-decoration: underline;
+  }
 }
 
 .editor-separator {
@@ -621,7 +637,9 @@ $focus-ring: rgba(26, 86, 219, 0.18);
 // ===== Animations =====
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes menu-enter {

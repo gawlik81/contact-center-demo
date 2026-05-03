@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -19,13 +20,14 @@ import { HttpErrorResponse } from '@angular/common/http';
   selector: 'app-agent-groups-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CreateEditGroupModalComponent, GroupMembersModalComponent],
+  imports: [TranslocoModule, CreateEditGroupModalComponent, GroupMembersModalComponent],
   templateUrl: './agent-groups-page.component.html',
   styleUrl: './agent-groups-page.component.scss',
 })
 export class AgentGroupsPageComponent implements OnInit {
   private readonly agentGroupService = inject(AgentGroupService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly groups = signal<AgentGroup[]>([]);
@@ -53,7 +55,7 @@ export class AgentGroupsPageComponent implements OnInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się pobrać listy grup agentów. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.agentGroups.errorLoad'));
           return of({
             content: [],
             totalElements: 0,
@@ -92,11 +94,11 @@ export class AgentGroupsPageComponent implements OnInit {
     const existing = this.groups().find((g) => g.groupId === group.groupId);
     if (existing) {
       this.groups.update((list) => list.map((g) => (g.groupId === group.groupId ? group : g)));
-      this.notifications.success('Grupa zaktualizowana.');
+      this.notifications.success(this.transloco.translate('supervisor.agentGroups.successEdit'));
     } else {
       this.groups.update((list) => [group, ...list]);
       this.total.update((t) => t + 1);
-      this.notifications.success('Grupa utworzona.');
+      this.notifications.success(this.transloco.translate('supervisor.agentGroups.successCreate'));
     }
   }
 
@@ -113,7 +115,9 @@ export class AgentGroupsPageComponent implements OnInit {
   onMembersSaved(): void {
     this.closeMembersModal();
     this.loadGroups();
-    this.notifications.success('Skład grupy zaktualizowany.');
+    this.notifications.success(
+      this.transloco.translate('supervisor.agentGroupMembers.saveComposition'),
+    );
   }
 
   openDeleteModal(group: AgentGroup): void {
@@ -138,10 +142,12 @@ export class AgentGroupsPageComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           if (err.status === 409) {
             this.notifications.error(
-              'Nie można usunąć grupy przypisanej do kolejki. Usuń najpierw powiązanie z kolejką.',
+              this.transloco.translate('supervisor.agentGroups.errorDelete'),
             );
           } else {
-            this.notifications.error('Nie udało się usunąć grupy. Spróbuj ponownie.');
+            this.notifications.error(
+              this.transloco.translate('supervisor.agentGroups.errorDelete'),
+            );
           }
           return of(null);
         }),
@@ -154,7 +160,9 @@ export class AgentGroupsPageComponent implements OnInit {
         if (result !== null) {
           this.groups.update((list) => list.filter((g) => g.groupId !== group.groupId));
           this.total.update((t) => t - 1);
-          this.notifications.success('Grupa usunięta.');
+          this.notifications.success(
+            this.transloco.translate('supervisor.agentGroups.successDelete'),
+          );
         }
       });
   }

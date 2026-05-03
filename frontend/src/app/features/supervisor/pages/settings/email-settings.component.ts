@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -21,13 +22,14 @@ import { NotificationService } from '../../../../core/services/notification.serv
 @Component({
   selector: 'app-email-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './email-settings.component.html',
   styleUrl: './email-settings.component.scss',
 })
 export class EmailSettingsComponent implements OnInit {
   private readonly emailConfigService = inject(EmailConfigService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly http = inject(HttpClient);
@@ -54,16 +56,21 @@ export class EmailSettingsComponent implements OnInit {
     defaultQueueId: [null as string | null],
   });
 
-  private readonly formStatus = toSignal(this.form.statusChanges, { initialValue: this.form.status });
+  private readonly formStatus = toSignal(this.form.statusChanges, {
+    initialValue: this.form.status,
+  });
 
-  readonly isSaveDisabled = computed(() => this.formStatus() === 'INVALID' || this.submitting() || this.loading());
+  readonly isSaveDisabled = computed(
+    () => this.formStatus() === 'INVALID' || this.submitting() || this.loading(),
+  );
   readonly isTestDisabled = computed(
     () => this.formStatus() === 'INVALID' || this.testing() || this.submitting() || this.loading(),
   );
 
   ngOnInit(): void {
     this.loadConfig();
-    this.http.get<{ content: { queueId: string; name: string }[] }>('/api/queues')
+    this.http
+      .get<{ content: { queueId: string; name: string }[] }>('/api/queues')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: (res) => this.queues.set(res.content), error: () => {} });
   }
@@ -119,7 +126,8 @@ export class EmailSettingsComponent implements OnInit {
       username: raw.username!.trim(),
       password: passwordValue,
       pollIntervalSeconds: raw.pollIntervalSeconds!,
-      defaultQueueId: (raw.defaultQueueId && raw.defaultQueueId !== 'undefined') ? raw.defaultQueueId : null,
+      defaultQueueId:
+        raw.defaultQueueId && raw.defaultQueueId !== 'undefined' ? raw.defaultQueueId : null,
     };
   }
 
@@ -139,7 +147,10 @@ export class EmailSettingsComponent implements OnInit {
           this.testing.set(false);
         },
         error: () => {
-          this.testResult.set({ success: false, message: 'Blad polaczenia. Sprawdz ustawienia serwera.' });
+          this.testResult.set({
+            success: false,
+            message: 'Blad polaczenia. Sprawdz ustawienia serwera.',
+          });
           this.testing.set(false);
         },
       });
@@ -210,8 +221,10 @@ export class EmailSettingsComponent implements OnInit {
   get pollIntervalError(): string | null {
     const ctrl = this.form.get('pollIntervalSeconds')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Interwal jest wymagany.';
-    if (ctrl.hasError('min') || ctrl.hasError('max')) return 'Interwał musi byc w zakresie 10-3600 sekund.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.settings.email.errorPollInterval');
+    if (ctrl.hasError('min') || ctrl.hasError('max'))
+      return this.transloco.translate('supervisor.settings.email.errorPollRange');
     return null;
   }
 }

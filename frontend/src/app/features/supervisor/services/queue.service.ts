@@ -11,9 +11,7 @@ export class QueueService {
   private readonly baseUrl = `${environment.apiUrl}/queues`;
 
   getQueues(page: number, size: number, name?: string): Observable<PagedResponse<Queue>> {
-    let params = new HttpParams()
-      .set('page', page.toString())
-      .set('size', size.toString());
+    let params = new HttpParams().set('page', page.toString()).set('size', size.toString());
 
     if (name && name.trim()) {
       params = params.set('name', name.trim());

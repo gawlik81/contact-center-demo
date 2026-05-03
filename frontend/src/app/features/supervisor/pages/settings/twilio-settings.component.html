@@ -1,17 +1,20 @@
 <div class="twilio-settings">
   <div class="twilio-settings__header">
     <div class="twilio-settings__title-row">
-      <h1 class="twilio-settings__title">Telefonia VoIP / Twilio</h1>
+      <h1 class="twilio-settings__title">{{ 'supervisor.settings.twilio.title' | transloco }}</h1>
       @if (!loading()) {
         @if (hasPerTenantConfig()) {
-          <span class="badge badge--active" aria-label="Aktywna konfiguracja per-tenant">
+          <span class="badge badge--active" aria-label="{{ 'supervisor.settings.twilio.activeConfig' | transloco }}">
             <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" aria-hidden="true">
               <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
             </svg>
             Aktywna konfiguracja per-tenant
           </span>
         } @else {
-          <span class="badge badge--fallback" aria-label="Uzywany globalny numer fallback">
+          <span
+            class="badge badge--fallback"
+            aria-label="{{ 'supervisor.settings.twilio.fallbackConfig' | transloco }}"
+          >
             <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" aria-hidden="true">
               <path
                 d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
@@ -23,29 +26,28 @@
       }
     </div>
     <p class="twilio-settings__subtitle">
-      Skonfiguruj numer telefonu Twilio i URL webhooka dla tego tenanta. Jesli nie skonfigurujesz numeru per-tenant,
-      system uzyje globalnego numeru fallback.
+      {{ 'supervisor.settings.twilio.subtitle' | transloco }}
     </p>
   </div>
 
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-label="Ladowanie konfiguracji...">
+    <div class="skeleton-wrapper" [attr.aria-label]="'common.loading_data' | transloco">
       <div class="skeleton skeleton--title"></div>
       <div class="skeleton skeleton--field"></div>
       <div class="skeleton skeleton--field"></div>
     </div>
   } @else if (loadError()) {
     <div class="error-state" role="alert">
-      <p class="error-state__message">Nie udalo sie zaladowac konfiguracji. Sprawdz polaczenie i odswierz strone.</p>
+      <p class="error-state__message">{{ 'common.error' | transloco }}</p>
     </div>
   } @else {
     <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="twilio-settings__form">
       <!-- Section: Numer Twilio -->
       <section class="form-section">
-        <h2 class="form-section__title">Numer telefonu</h2>
+        <h2 class="form-section__title">{{ 'supervisor.settings.twilio.phoneTitle' | transloco }}</h2>
 
         <div class="form-field" [class.form-field--error]="phoneNumberError">
-          <label class="form-label" for="twilio-phone">Numer telefonu Twilio</label>
+          <label class="form-label" for="twilio-phone">{{ 'supervisor.settings.twilio.phoneLabel' | transloco }}</label>
           <input
             id="twilio-phone"
             type="tel"
@@ -60,7 +62,7 @@
             <span id="phone-error" class="form-error" role="alert">{{ phoneNumberError }}</span>
           } @else {
             <span id="phone-hint" class="form-hint">
-              Format E.164 – np. +48123456789. Pozostaw puste aby uzywac globalnego numeru fallback.
+              {{ 'supervisor.settings.twilio.phoneHint' | transloco }}
             </span>
           }
         </div>
@@ -69,10 +71,12 @@
       <!-- Section: Webhook (widoczna tylko gdy perTenantCallbackUrlEnabled) -->
       @if (perTenantCallbackUrlEnabled()) {
         <section class="form-section">
-          <h2 class="form-section__title">URL webhooka statusow</h2>
+          <h2 class="form-section__title">{{ 'supervisor.settings.twilio.webhookTitle' | transloco }}</h2>
 
           <div class="form-field" [class.form-field--error]="callbackUrlError">
-            <label class="form-label" for="twilio-callback">URL webhooka statusow (opcjonalny)</label>
+            <label class="form-label" for="twilio-callback">{{
+              'supervisor.settings.twilio.webhookLabel' | transloco
+            }}</label>
             <input
               id="twilio-callback"
               type="url"
@@ -92,7 +96,7 @@
                 <code class="callback-preview__url">{{ autoCallbackUrlPreview() }}</code>
               </div>
             } @else {
-              <span class="form-hint">Adres URL do odbierania statusow polaczen od Twilio.</span>
+              <span class="form-hint">{{ 'supervisor.settings.twilio.webhookHint' | transloco }}</span>
             }
           </div>
         </section>
@@ -109,9 +113,9 @@
         >
           @if (submitting()) {
             <span class="spinner" aria-hidden="true"></span>
-            Zapisywanie...
+            {{ 'common.saving' | transloco }}
           } @else {
-            Zapisz konfiguracje
+            {{ 'supervisor.settings.twilio.saveButton' | transloco }}
           }
         </button>
 

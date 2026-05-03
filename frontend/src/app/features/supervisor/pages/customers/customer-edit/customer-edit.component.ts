@@ -1,3 +1,4 @@
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -28,7 +29,7 @@ import { CustomerResponse } from '../../../models/customer.model';
 @Component({
   selector: 'app-customer-edit',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './customer-edit.component.html',
   styleUrl: './customer-edit.component.scss',
   host: {
@@ -43,6 +44,7 @@ export class CustomerEditComponent implements OnInit, AfterViewInit {
 
   private readonly customerService = inject(CustomerService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -165,14 +167,16 @@ export class CustomerEditComponent implements OnInit, AfterViewInit {
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         catchError(() => {
-          this.notifications.error('Nie udało się zapisać zmian. Spróbuj ponownie.');
+          this.notifications.error(this.transloco.translate('supervisor.customerEdit.errorSave'));
           return of(null);
         }),
         finalize(() => this.saving.set(false)),
       )
       .subscribe((result) => {
         if (result) {
-          this.notifications.success('Dane klienta zostały zaktualizowane.');
+          this.notifications.success(
+            this.transloco.translate('supervisor.customerEdit.successSave'),
+          );
           this.saved.emit();
         }
       });

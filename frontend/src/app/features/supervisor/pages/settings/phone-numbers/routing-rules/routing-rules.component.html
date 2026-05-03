@@ -2,7 +2,7 @@
   <div class="routing-rules__header">
     <div class="routing-rules__header-left">
       <h3 class="routing-rules__title">
-        Reguły routingu
+        {{ 'supervisor.settings.routingRules.title' | transloco }}
         @if (phoneNumber()) {
           <span class="routing-rules__phone">{{ phoneNumber() }}</span>
         }
@@ -12,7 +12,7 @@
           <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15" aria-hidden="true">
             <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
           </svg>
-          Połączenia poza harmonogramem będą odrzucane
+          {{ 'supervisor.settings.routingRules.gapsWarning' | transloco }}
         </div>
       }
     </div>
@@ -21,23 +21,23 @@
       class="btn btn-primary btn--sm"
       (click)="openAddForm()"
       [disabled]="loading()"
-      aria-label="Dodaj regułę routingu"
+      [attr.aria-label]="'supervisor.settings.routingRules.addLabel' | transloco"
     >
       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
       </svg>
-      Dodaj regułę
+      {{ 'supervisor.settings.routingRules.addButton' | transloco }}
     </button>
   </div>
 
   @if (loading()) {
-    <div class="skeleton-list" aria-label="Ładowanie reguł...">
+    <div class="skeleton-list" [attr.aria-label]="'common.loading_data' | transloco">
       <div class="skeleton skeleton--card"></div>
       <div class="skeleton skeleton--card"></div>
     </div>
   } @else if (loadError()) {
     <div class="error-state" role="alert">
-      <p class="error-state__message">Nie udało się załadować reguł routingu.</p>
+      <p class="error-state__message">{{ 'common.error' | transloco }}</p>
     </div>
   } @else if (rules().length === 0) {
     <div class="empty-state">
@@ -46,8 +46,8 @@
           d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z"
         />
       </svg>
-      <p class="empty-state__text">Brak reguł routingu dla tego numeru.</p>
-      <p class="empty-state__hint">Dodaj regułę aby kierować przychodzące połączenia.</p>
+      <p class="empty-state__text">{{ 'supervisor.settings.routingRules.emptyText' | transloco }}</p>
+      <p class="empty-state__hint">{{ 'supervisor.settings.routingRules.emptyHint' | transloco }}</p>
     </div>
   } @else {
     <div class="rules-list" role="list">
@@ -65,9 +65,9 @@
                 <span
                   class="day-chip"
                   [class.day-chip--active]="rule.daysOfWeek.includes(day)"
-                  [attr.aria-label]="dayLabels[day] + (rule.daysOfWeek.includes(day) ? ' (aktywny)' : '')"
+                  [attr.aria-label]="(dayLabels[day] | transloco) + (rule.daysOfWeek.includes(day) ? ' (aktywny)' : '')"
                 >
-                  {{ dayLabels[day] }}
+                  {{ dayLabels[day] | transloco }}
                 </span>
               }
             </div>
@@ -95,12 +95,14 @@
                   <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" aria-hidden="true">
                     <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
                   </svg>
-                  Kolejka: {{ getQueueName(rule.queueId) }}
+                  {{ 'supervisor.settings.routingRules.queue' | transloco }}: {{ getQueueName(rule.queueId) }}
                 </span>
               }
 
               @if (isConflicting(rule.ruleId)) {
-                <span class="conflict-badge" role="alert">Kolizja reguł</span>
+                <span class="conflict-badge" role="alert">{{
+                  'supervisor.settings.routingRules.conflict' | transloco
+                }}</span>
               }
             </div>
           </div>
@@ -111,7 +113,7 @@
               type="button"
               class="icon-btn"
               (click)="openEditForm(rule)"
-              aria-label="Edytuj regułę"
+              [attr.aria-label]="'supervisor.settings.routingRules.editLabel' | transloco"
               title="Edytuj"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
@@ -125,7 +127,7 @@
               class="icon-btn icon-btn--danger"
               (click)="deleteRule(rule)"
               [disabled]="deletingRuleId() === rule.ruleId"
-              aria-label="Usuń regułę"
+              [attr.aria-label]="'supervisor.settings.routingRules.deleteLabel' | transloco"
               title="Usuń"
             >
               @if (deletingRuleId() === rule.ruleId) {

@@ -2,6 +2,7 @@ import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
+import { TranslocoService } from '@jsverse/transloco';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ContactTabStore, TabLimitReason } from './contact-tab.store';
@@ -17,16 +18,17 @@ export interface IncomingCallAlert {
   receivedAt: Date;
 }
 
-const LIMIT_MESSAGES: Record<Exclude<TabLimitReason, null>, string> = {
-  MAX_PHONE: 'Możesz obsługiwać tylko 1 połączenie telefoniczne jednocześnie.',
-  MAX_ASYNC: 'Osiągnąłeś limit 3 kontaktów chat/email jednocześnie.',
-  MAX_TOTAL: 'Osiągnąłeś maksymalny limit 4 aktywnych kontaktów.',
+const LIMIT_MESSAGE_KEYS: Record<Exclude<TabLimitReason, null>, string> = {
+  MAX_PHONE: 'agent.incomingCall.limitMaxPhone',
+  MAX_ASYNC: 'agent.incomingCall.limitMaxAsync',
+  MAX_TOTAL: 'agent.incomingCall.limitMaxTotal',
 };
 
 @Injectable({ providedIn: 'root' })
 export class IncomingCallAlertService implements OnDestroy {
   private readonly ws = inject(WebSocketService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly tabStore = inject(ContactTabStore);
   private readonly softphoneService = inject(SoftphoneService);
   private readonly lookupService = inject(CustomerLookupService);
@@ -105,7 +107,7 @@ export class IncomingCallAlertService implements OnDestroy {
     const reason = this.tabStore.openFromCallIncoming(payload);
 
     if (reason !== null) {
-      this.notifications.warning(LIMIT_MESSAGES[reason]);
+      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
       return;
     }
 
@@ -127,7 +129,7 @@ export class IncomingCallAlertService implements OnDestroy {
     const reason = this.tabStore.openFromContactAssigned(payload);
 
     if (reason !== null) {
-      this.notifications.warning('Osiągnąłeś limit aktywnych kontaktów.');
+      this.notifications.warning(this.transloco.translate('agent.incomingCall.limitGeneral'));
       return;
     }
 
@@ -195,10 +197,13 @@ export class IncomingCallAlertService implements OnDestroy {
     try {
       this.closeSystemNotification();
 
-      const notification = new Notification('Przychodzące połączenie', {
-        body: `${alert.customerName} (${alert.customerPhone}) — ${alert.queueName}`,
-        icon: 'favicon.ico',
-      });
+      const notification = new Notification(
+        this.transloco.translate('agent.incomingCall.systemNotificationTitle'),
+        {
+          body: `${alert.customerName} (${alert.customerPhone}) — ${alert.queueName}`,
+          icon: 'favicon.ico',
+        },
+      );
 
       notification.onclick = () => {
         window.focus();

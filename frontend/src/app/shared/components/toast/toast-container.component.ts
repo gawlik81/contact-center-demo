@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { NotificationService, Toast } from '../../../core/services/notification.service';
 
 @Component({
@@ -122,7 +123,7 @@ import { NotificationService, Toast } from '../../../core/services/notification.
         <button
           class="toast__close"
           type="button"
-          [attr.aria-label]="'Zamknij: ' + toast.message"
+          [attr.aria-label]="transloco.translate('toast.closeLabel') + toast.message"
           (click)="notifications.dismiss(toast.id)"
         >
           &#x2715;
@@ -133,6 +134,7 @@ import { NotificationService, Toast } from '../../../core/services/notification.
 })
 export class ToastContainerComponent {
   readonly notifications = inject(NotificationService);
+  readonly transloco = inject(TranslocoService);
 
   icon(type: Toast['type']): string {
     switch (type) {
@@ -148,14 +150,7 @@ export class ToastContainerComponent {
   }
 
   ariaLabel(toast: Toast): string {
-    const prefix =
-      toast.type === 'success'
-        ? 'Sukces'
-        : toast.type === 'error'
-          ? 'Błąd'
-          : toast.type === 'warning'
-            ? 'Ostrzeżenie'
-            : 'Informacja';
+    const prefix = this.transloco.translate(`toast.${toast.type}`);
     return `${prefix}: ${toast.message}`;
   }
 }

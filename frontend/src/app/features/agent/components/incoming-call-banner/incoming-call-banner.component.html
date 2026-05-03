@@ -9,7 +9,7 @@
       </svg>
     </div>
     <div class="banner__info">
-      <div class="banner__label">Przychodzące połączenie</div>
+      <div class="banner__label">{{ 'agent.incomingCall.label' | transloco }}</div>
       <div class="banner__name">{{ pendingAlert()?.customerName }}</div>
       <div class="banner__details">
         {{ pendingAlert()?.customerPhone }}
@@ -18,7 +18,7 @@
         }
       </div>
     </div>
-    <button class="banner__cta" (click)="goToDesktop()">Przejdź do pulpitu i odbierz</button>
+    <button class="banner__cta" (click)="goToDesktop()">{{ 'agent.incomingCall.goToDesktop' | transloco }}</button>
     <button class="banner__close" (click)="dismiss()" aria-label="Zamknij">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white">
         <path

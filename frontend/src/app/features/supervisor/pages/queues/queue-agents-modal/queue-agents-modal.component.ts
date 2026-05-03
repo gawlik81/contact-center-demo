@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -19,7 +20,7 @@ import { Queue } from '../../../models/queue.model';
   selector: 'app-queue-agents-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [TranslocoModule],
   templateUrl: './queue-agents-modal.component.html',
   styleUrl: './queue-agents-modal.component.scss',
 })

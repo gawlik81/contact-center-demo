@@ -1,19 +1,13 @@
 @if (breadcrumbService.breadcrumbs().length > 0) {
-  <nav class="breadcrumbs" aria-label="Sciezka nawigacji">
+  <nav class="breadcrumbs" [attr.aria-label]="'nav.breadcrumbNav' | transloco">
     <ol class="breadcrumbs__list">
       @for (item of breadcrumbService.breadcrumbs(); track item.url; let last = $last) {
         <li class="breadcrumbs__item">
           @if (!last) {
-            <a
-              class="breadcrumbs__link"
-              [routerLink]="item.url"
-            >{{ item.label }}</a>
+            <a class="breadcrumbs__link" [routerLink]="item.url">{{ item.label | transloco }}</a>
             <span class="breadcrumbs__separator" aria-hidden="true">/</span>
           } @else {
-            <span
-              class="breadcrumbs__current"
-              aria-current="page"
-            >{{ item.label }}</span>
+            <span class="breadcrumbs__current" aria-current="page">{{ item.label | transloco }}</span>
           }
         </li>
       }

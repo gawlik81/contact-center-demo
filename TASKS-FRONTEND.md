@@ -2088,6 +2088,406 @@ export class AgentShellComponent {}
 
 ---
 
+## MODUL: Wielojęzyczność UI (EPIC-19)
+
+### FE-049 – Konfiguracja Transloco i pliki tłumaczeń (PL / EN / DE)
+
+**Typ:** Infrastructure
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-001
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
+**Czeka na BE:** brak
+**Blokuje:** FE-050, FE-051, FE-052
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Instalacja i konfiguracja biblioteki **Transloco** (`@jsverse/transloco`). Ustawienie providerów w `app.config.ts` z loaderem HTTP lazy-loading plików `assets/i18n/{lang}.json`. Stworzenie szkieletowych plików tłumaczeń dla języków: `pl`, `en`, `de`. Konfiguracja `availableLangs`, `defaultLang = 'pl'`, `fallbackLang = 'en'`. Dodanie `assets/i18n/` do `angular.json` assets.
+
+**Kryteria akceptacji:**
+- [ ] `@jsverse/transloco` zainstalowany i skonfigurowany w `app.config.ts`
+- [ ] Pliki `assets/i18n/pl.json`, `en.json`, `de.json` obecne i ładowane przez HTTP
+- [ ] `TranslocoService.setActiveLang()` zmienia język bez przeładowania strony
+- [ ] Fallback na `en` gdy klucz brakuje w aktywnym języku
+- [ ] `ng build` i `npm test` kończą się bez błędów
+- [ ] Loader skonfigurowany do lazy-load (nie inline translations)
+
+---
+
+### FE-050 – `LanguageService`: zarządzanie językiem i persystencja
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-049, BE-054
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
+**Czeka na BE:** BE-054 (endpoint preferencji użytkownika)
+**Blokuje:** FE-051
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Serwis `LanguageService` (`core/services/language.service.ts`) odpowiedzialny za:
+1. **Init przy starcie** (`APP_INITIALIZER`): odczyt `preferred_language` z profilu zalogowanego użytkownika (`GET /api/users/me/preferences`) → localStorage → język przeglądarki (`navigator.language`) → fallback `pl`.
+2. **Zmiana języka**: `setLanguage(lang: SupportedLanguage)` → wywołuje `TranslocoService.setActiveLang()` → persystuje w localStorage → jeśli zalogowany, synchronizuje z backendem `PUT /api/users/me/preferences`.
+3. Eksponuje `currentLang = signal<SupportedLanguage>()`.
+4. Typ `SupportedLanguage = 'pl' | 'en' | 'de'` w `core/models/language.model.ts`.
+
+**Kryteria akceptacji:**
+- [ ] `LanguageService` zarejestrowany jako `providedIn: 'root'`
+- [ ] `APP_INITIALIZER` ładuje preferencję z backendu (gdy zalogowany) lub localStorage
+- [ ] `setLanguage()` aktualizuje Transloco, localStorage i backend (w tle, bez blokowania UI)
+- [ ] `currentLang` signal reaguje na zmiany
+- [ ] Gdy backend zwróci błąd przy zapisie, zmiana języka w UI nie jest cofana
+- [ ] Testy jednostkowe: init flow, fallback chain, sync z backendem
+
+---
+
+### FE-051 – `LanguageSwitcherComponent`: wybór języka w nagłówku
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-050
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Standalone component `LanguageSwitcherComponent` (`shared/components/language-switcher/`) wyświetlający dropdown z listą dostępnych języków. Każdy język reprezentowany flagą + skrótem (PL, EN, DE). Aktywny język wyróżniony. Komponent dodany do `AppShellComponent` (nagłówek lub menu użytkownika). Używa `LanguageService` do odczytu i zmiany języka.
+
+**Selektor:** `app-language-switcher`
+
+**Kryteria akceptacji:**
+- [ ] Dropdown z opcjami: PL / EN / DE z etykietami języka
+- [ ] Aktywny język oznaczony (checkmark lub pogrubienie)
+- [ ] Kliknięcie zmienia natychmiast widoczne teksty w UI (bez przeładowania)
+- [ ] Komponent widoczny w `AppShellComponent` dla wszystkich zalogowanych ról
+- [ ] Dostępność: `aria-label`, `role="listbox"` lub natywny `<select>` na mobile
+- [ ] Responsywny: na małych ekranach pokazuje tylko skrót (PL/EN/DE)
+
+---
+
+### FE-052 – Internacjonalizacja: moduł Auth i AppShell
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-049, FE-050
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
+**Czeka na BE:** brak
+**Blokuje:** FE-053
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Zastąpienie hardkodowanych ciągów tekstowych kluczami Transloco w priorytetowych modułach:
+- **Auth**: formularz logowania, komunikaty błędów, etykiety pól
+- **AppShell / nawigacja**: etykiety menu, nagłówki sekcji, tooltips
+- **Komponenty shared**: komunikaty `NotificationService`, etykiety przycisków, okna dialogowe
+
+Uzupełnienie plików `pl.json`, `en.json`, `de.json` o przetłumaczone klucze dla ww. tekstów. Użycie pipe `{{ 'key' | transloco }}` w szablonach i `TranslocoService.translate()` w logice serwisowej.
+
+**Kryteria akceptacji:**
+- [ ] Formularz logowania w pełni przetłumaczony (PL/EN/DE)
+- [ ] Nawigacja AppShell przetłumaczona (PL/EN/DE)
+- [ ] Komunikaty błędów HTTP i walidacji przetłumaczone
+- [ ] Brak hardkodowanych polskich ciągów w ww. komponentach
+- [ ] Zmiana języka przez `LanguageSwitcherComponent` widoczna natychmiast
+
+---
+
+### FE-053 – Internacjonalizacja: Agent Desktop, Supervisor, Admin
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** L
+**Zależy od:** FE-052
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-29
+**Czeka na BE:** brak
+**Blokuje:** brak
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Pełna internacjonalizacja pozostałych modułów aplikacji:
+- **Agent Desktop**: zakładki (Softphone, Email, Chat, Social, Klienci, Kalendarz), etykiety statusów agenta, przyciski akcji
+- **Supervisor Dashboard**: nagłówki tabel, statusy, filtry, etykiety wykresów
+- **Admin Panel**: formularze tenantów, agentów, kolejek, kampanii; komunikaty sukcesu/błędu
+- **Modale / dialogi**: wszystkie okna dialogowe w aplikacji
+
+Klucze organizowane hierarchicznie w JSON: `{ "agent": { "desktop": { ... } }, "supervisor": { ... }, "admin": { ... } }`.
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie moduły aplikacji nie zawierają hardkodowanych polskich ciągów
+- [ ] Pliki `pl.json`, `en.json`, `de.json` kompletne (brak brakujących kluczy)
+- [ ] Testy snapshot/unit przechodzą z domyślnym językiem `pl`
+- [ ] Dynamiczne wartości (imię użytkownika, liczby) obsługiwane przez Transloco params
+
+---
+
+### FE-054 – i18n fix: contacts-report — hardcoded nagłówki tabeli
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** ✅ Zrobione
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `features/supervisor/pages/contacts-report/contacts-report.component.html`
+Nagłówki `<th>` ("Data i czas", "Kanal", "Kierunek", "Kolejka", "Czas trwania", "Status", "Dyspozycja", "Akcje") oraz `<option>Wszystkie</option>` są hardcoded po polsku.
+
+**Kryteria akceptacji:**
+- [x] Wszystkie nagłówki tabeli używają `| transloco` pipe
+- [x] Opcja "Wszystkie" w filtrze używa klucza `common.all` lub `supervisor.contactsReport.*`
+- [x] Tekst poprawnie wyświetla się w PL / EN / DE / UK
+
+---
+
+### FE-055 – i18n fix: customer-detail — hardcoded etykiety i nagłówki
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** ✅ Zrobione
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `features/supervisor/pages/customers/customer-detail/customer-detail.component.html`
+Hardcoded: "Dane kontaktowe", "Ostatnia aktualizacja", "Zgoda na przetwarzanie", "Tak"/"Nie" (badge), "Data zgody", "Zgoda marketingowa", "Dodatkowe pola", nagłówki tabeli historii kontaktów oraz aria-labels nawigacji.
+
+**Kryteria akceptacji:**
+- [x] Wszystkie etykiety `<dt>`, `<th>`, tytuły sekcji używają `| transloco`
+- [x] Badge "Tak"/"Nie" używają `common.yes` / `common.no`
+- [x] Aria-labels nawigacji używają kluczy `supervisor.customerDetail.*`
+
+---
+
+### FE-056 – i18n fix: social-integrations — hardcoded tytuł i etykiety
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** ✅ Zrobione
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki: `features/integrations/pages/social-integrations/social-integrations.component.html` + `.ts`
+HTML: "Integracje Social Media", "Nazwa strony", "Token wygasa" hardcoded po polsku.
+TS: metoda zwraca hardcoded `'Błąd'` zamiast przetłumaczonego stringa.
+
+**Kryteria akceptacji:**
+- [x] Tytuł i etykiety `<dt>` używają `| transloco` z kluczami `integrations.social.*`
+- [x] Metoda w TS używa `transloco.translate()` lub klucz jest rozwiązywany w template
+
+---
+
+### FE-057 – i18n fix: ivr-editor — hardcoded etykiety formularza i aria-labels
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-053
+**Status:** ✅ Zrobione
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `features/supervisor/pages/ivr/ivr-editor/ivr-editor.component.html` + `.ts`
+HTML: `<label>` "Plik audio", "Routing", "Przypadki"; przycisk "Kopiuj"; aria-labels węzłów ("Węzeł startowy", "Port wejściowy/wyjściowy", "Kliknij, by połączyć", "Paleta węzłów", "Właściwości węzła", "Podgląd JSON"); title attrs "Usuń węzeł/opcję/przypadek".
+TS: `warnings.push('Brak zdefiniowanego wezla startowego...')` hardcoded po polsku.
+
+**Kryteria akceptacji:**
+- [x] Wszystkie `<label>`, aria-label, title w edytorze używają `| transloco`
+- [x] Warning o braku węzła startowego używa `transloco.translate()` z kluczem `supervisor.ivr.*`
+- [x] Przycisk "Kopiuj" używa `common.copy` lub `supervisor.ivrEditor.copyJson`
+
+---
+
+### FE-058 – i18n fix: dni tygodnia w campaign-form, campaign-info, phone-number.model
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** ✅ Zrobione
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/supervisor/pages/campaigns/campaign-form/campaign-form.component.ts` — tablica `WEEK_DAYS` z `{ value: 'MON', label: 'Pon' }` itp.
+- `features/supervisor/pages/campaigns/campaign-info/campaign-info.component.ts` — mapa `{ MON: 'Pon', TUE: 'Wt', ... }`
+- `features/supervisor/models/phone-number.model.ts` — mapa `{ 1: 'Pon', 2: 'Wt', ... }`
+Zastąpić `transloco.translate()` z kluczami `agent.calendar.days.MON` itp. + reaktywność na zmianę języka.
+
+**Kryteria akceptacji:**
+- [x] Nazwy dni renderują się w aktywnym języku po przełączeniu
+- [x] Brak hardcodowanych polskich skrótów w plikach TS
+
+---
+
+### FE-059 – i18n fix: error-handler.interceptor — hardcoded komunikaty błędów
+
+**Typ:** Bug / i18n
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** ✅ Zrobione
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `core/interceptors/error-handler.interceptor.ts`
+Hardcoded: `notifications.error('Brak połączenia z serwerem')`, `'Brak uprawnień'`, `'Błąd serwera, spróbuj ponownie'`.
+Interceptor musi wstrzykiwać `TranslocoService` i używać `transloco.translate()` z kluczami np. `common.errorNetwork`, `common.errorForbidden`, `common.errorServer`.
+
+**Kryteria akceptacji:**
+- [x] Wszystkie 3 komunikaty błędów pobierane z pliku i18n
+- [x] Powiadomienia wyświetlają się w aktywnym języku
+
+---
+
+### FE-060 – i18n fix: tenant modals — hardcoded tytuły i etykiety
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** ✅ Zrobione
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/tenants/tenant-add-modal/tenant-add-modal.component.html` — "Nowy tenant", "Limity zasobow"
+- `features/tenants/tenant-deactivate-modal/tenant-deactivate-modal.component.html` — "Dezaktywacja tenanta"
+- `features/tenants/tenant-edit-modal/tenant-edit-modal.component.html` — "Edytuj tenanta", "Anuluj"
+
+**Kryteria akceptacji:**
+- [x] Tytuły modali i etykiety sekcji używają `| transloco`
+- [x] Klucze dodane do wszystkich 4 plików i18n (pl/en/de/uk)
+
+---
+
+### FE-061 – i18n fix: schedule/reschedule-callback-modal — hardcoded stringi
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** ✅ Zrobione
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/agent/components/schedule-inbound-callback-modal/` — HTML: "Zaplanuj oddzwonienie", "Oddzwonienie zostanie dodane do kolejki agentow", "Nazwisko", "Zaplanuj"; TS: `errorMessage.set('Brak uprawnien...')`
+- `features/agent/components/reschedule-callback-modal/` — HTML: `<span>Zapisz</span>`; TS: `errorMessage.set('Brak uprawnien...')`
+
+**Kryteria akceptacji:**
+- [x] Widoczne teksty w obu modalach używają `| transloco`
+- [x] Komunikaty błędów w TS pobierane z i18n
+
+---
+
+### FE-062 – i18n fix: email-contact i social-contact — hardcoded etykiety
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/agent/pages/agent-desktop/email-contact/email-contact.component.html` — "Temat odpowiedzi", "Wyslij odpowiedz"
+- `features/agent/pages/agent-desktop/social-contact/social-contact.component.html` — "Zaladuj wczesniejsze"
+
+**Kryteria akceptacji:**
+- [ ] Etykiety używają kluczy `agent.emailContact.*` i `agent.socialContact.*`
+
+---
+
+### FE-063 – i18n fix: customer-panel — hardcoded etykiety
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Plik: `features/agent/components/customer-panel/customer-panel.component.html`
+Hardcoded: "Brak aktywnego kontaktu", "Nieznany klient", "Ostatnie kontakty".
+
+**Kryteria akceptacji:**
+- [ ] Etykiety używają kluczy `agent.customerPanel.*`
+
+---
+
+### FE-064 – i18n fix: agent-groups, admin-user-list — hardcoded aria-labels i title
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/supervisor/pages/agent-groups/agent-groups-page/agent-groups-page.component.html` — title "Edytuj grupę", "Zarządzaj agentami", "Usuń grupę"
+- `features/supervisor/pages/agent-groups/group-members-modal/group-members-modal.component.html` — aria-label "Filtruj agentów", "Lista agentów"
+- `features/admin/pages/users/admin-user-list/admin-user-list.component.html` — aria-label "Skills użytkownika", "Potwierdź usuniecie", `<span>Brak</span>`
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie title i aria-label używają `[attr.aria-label]` / `[title]` z `| transloco`
+- [ ] `<span>Brak</span>` zastąpiony kluczem `common.no_data` lub `common.none`
+
+---
+
+### FE-065 – i18n fix: manual-callback-modal i agent-callbacks-page — pozostałe stringi
+
+**Typ:** Bug / i18n
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** FE-053
+**Status:** 🔲 Do zrobienia
+**Blokuje:** -
+**Epic:** EPIC-19 Wielojęzyczność
+
+**Opis:**
+Pliki:
+- `features/agent/pages/customers/manual-callback-modal/manual-callback-modal.component.ts` — `errorMessage.set('Brak uprawnien do zamowienia oddzwonienia.')`
+- `features/agent/pages/callbacks/agent-callbacks-page.component.html` — `title="Przełóż oddzwonienie"`, `<span class="sr-only">Akcje</span>`
+
+**Kryteria akceptacji:**
+- [ ] Komunikat błędu w TS pobierany z i18n
+- [ ] title i sr-only "Akcje" używają `| transloco`
+
+---
+
 ## Podsumowanie zadań Frontend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |
@@ -2111,6 +2511,7 @@ export class AgentShellComponent {}
 | Kalendarz Agenta (EPIC-16) | 4 | 0 | 4 |
 | Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
 | Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
+| i18n fixes (EPIC-19) | 12 | 6 | 6 |
 
 ---
 

@@ -45,13 +45,13 @@ export interface UpdateRoutingRuleRequest {
 }
 
 export const DAY_LABELS: Record<number, string> = {
-  1: 'Pon',
-  2: 'Wt',
-  3: 'Sr',
-  4: 'Czw',
-  5: 'Pt',
-  6: 'Sob',
-  7: 'Nie',
+  1: 'agent.calendar.days.MON',
+  2: 'agent.calendar.days.TUE',
+  3: 'agent.calendar.days.WED',
+  4: 'agent.calendar.days.THU',
+  5: 'agent.calendar.days.FRI',
+  6: 'agent.calendar.days.SAT',
+  7: 'agent.calendar.days.SUN',
 };
 
 export const ALL_DAYS = [1, 2, 3, 4, 5, 6, 7];

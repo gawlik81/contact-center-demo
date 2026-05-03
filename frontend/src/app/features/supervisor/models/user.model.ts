@@ -1,6 +1,13 @@
 export type UserRole = 'ADMIN' | 'SUPERVISOR' | 'AGENT';
 
-export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'BREAK' | 'AVAILABLE' | 'BUSY' | 'AFTER_CONTACT' | 'OFFLINE';
+export type UserStatus =
+  | 'ACTIVE'
+  | 'INACTIVE'
+  | 'BREAK'
+  | 'AVAILABLE'
+  | 'BUSY'
+  | 'AFTER_CONTACT'
+  | 'OFFLINE';
 
 export interface UserResponse {
   id: string;

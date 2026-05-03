@@ -7,30 +7,31 @@
 >
   <div class="delete-dialog__content" role="document">
     <div class="delete-dialog__header">
-      <h2 id="gdpr-delete-title" class="delete-dialog__title">Usunięcie klienta (RODO)</h2>
+      <h2 id="gdpr-delete-title" class="delete-dialog__title">{{ 'supervisor.customerDelete.title' | transloco }}</h2>
     </div>
 
     <div class="delete-dialog__body">
       <p id="gdpr-delete-desc" class="delete-dialog__message">
-        Dane klienta <strong>{{ customerName() }}</strong> zostaną
-        <strong>zanonimizowane</strong> zgodnie z wymogami RODO. Imię i nazwisko zostaną
-        zastąpione wartością <code>ANONYMIZED</code>, numery telefonów i adresy e-mail zostaną
-        usunięte.
+        {{ 'supervisor.customerDelete.message1' | transloco }}
+        <strong>{{ customerName() }}</strong>
+        {{ 'supervisor.customerDelete.message2' | transloco }}
       </p>
       <p class="delete-dialog__warning" role="alert">
-        Operacja jest <strong>nieodwracalna</strong>. Danych nie będzie można odzyskać.
+        {{ 'supervisor.customerDelete.warning' | transloco }}
       </p>
     </div>
 
     <div class="delete-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="onCancel()" autofocus>
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         class="btn btn-delete"
         type="button"
         (click)="onConfirm()"
-        [attr.aria-label]="'Anonimizuj dane klienta ' + customerName()"
+        [attr.aria-label]="('supervisor.customerDelete.confirmLabel' | transloco) + ' ' + customerName()"
       >
-        Anonimizuj
+        {{ 'supervisor.customerDelete.confirm' | transloco }}
       </button>
     </div>
   </div>

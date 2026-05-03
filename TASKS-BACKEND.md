@@ -2095,6 +2095,43 @@ Scheduled component `CampaignWindowActivator` sprawdzający cyklicznie kampanie 
 
 ---
 
+## MODUL: Wielojęzyczność – preferencje użytkownika (EPIC-19)
+
+### BE-054 – `UserPreferencesController`: GET/PUT preferencji zalogowanego użytkownika
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-003 (auth), DB-029
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
+**Blokuje:** FE-050
+**Epic:** EPIC-19 Wielojęzyczność
+**Odniesienie PRD:** przekrojowe
+
+**Opis:**
+Nowy kontroler `UserPreferencesController` z dwoma endpointami dla zalogowanego użytkownika:
+
+- `GET /api/users/me/preferences` — zwraca aktualne preferencje (`preferred_language`, ewentualnie inne w przyszłości)
+- `PUT /api/users/me/preferences` — aktualizuje preferencje (body: `{ "preferredLanguage": "en" }`)
+
+Serwis `UserPreferencesService` operuje na encji `AppUser`, aktualizując pole `preferred_language` w tabeli `app_user`. Endpointy wymagają autoryzacji (JWT), operują na kontekście zalogowanego użytkownika (wyciągają `userId` z tokenu, nie z path variable). Izolacja tenant_id — zapis dotyczy tylko własnego rekordu.
+
+**DTO:**
+```java
+record UserPreferencesDto(String preferredLanguage) {}
+```
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/users/me/preferences` zwraca 200 z `{ "preferredLanguage": "pl" }` dla zalogowanego użytkownika
+- [ ] `PUT /api/users/me/preferences` aktualizuje pole i zwraca 200 z nową wartością
+- [ ] Walidacja: `preferredLanguage` musi być jednym z `["pl", "en", "de"]` (można rozszerzać)
+- [ ] Nieuprawniony request (brak JWT) zwraca 401
+- [ ] Endpoint udokumentowany przez OpenAPI (`springdoc`)
+- [ ] Testy jednostkowe kontrolera i serwisu
+
+---
+
 ## Podsumowanie zadań Backend
 
 | Kategoria | Liczba zadań | Must Have | Should Have |

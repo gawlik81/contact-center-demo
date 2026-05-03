@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe, LowerCasePipe } from '@angular/common';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { filter } from 'rxjs';
 import { WebSocketService } from '../../../../core/services/websocket.service';
 import { AgentStatusService } from '../../services/agent-status.service';
@@ -46,6 +47,7 @@ import {
   imports: [
     DatePipe,
     LowerCasePipe,
+    TranslocoModule,
     SoftphoneComponent,
     CustomerPanelComponent,
     DispositionPanelComponent,
@@ -66,6 +68,7 @@ export class AgentDesktopComponent implements OnInit {
   protected readonly softphoneService = inject(SoftphoneService);
   private readonly lookupService = inject(CustomerLookupService);
   private readonly incomingCallAlert = inject(IncomingCallAlertService);
+  private readonly transloco = inject(TranslocoService);
 
   protected readonly statusConfig = AGENT_STATUS_CONFIG;
   protected readonly allStatuses = ALL_AGENT_STATUSES;
@@ -159,9 +162,7 @@ export class AgentDesktopComponent implements OnInit {
         } else {
           // Softphone w stanie RINGING — agent czeka aż klient odbierze
           this.softphoneService.incomingCall(payload);
-          this.notifications.info(
-            `Polaczenie wychodzace do ${payload.customerName} (${payload.customerPhone})`,
-          );
+          this.notifications.info(`${payload.customerName} (${payload.customerPhone})`);
         }
       });
 
@@ -177,7 +178,7 @@ export class AgentDesktopComponent implements OnInit {
         if (reason !== null) {
           this.showLimitMessage(reason);
         } else {
-          this.notifications.info(`Nowy kontakt przydzielony: ${payload.customerName}`);
+          this.notifications.info(payload.customerName);
         }
       });
 
@@ -261,13 +262,13 @@ export class AgentDesktopComponent implements OnInit {
   protected getTabTypeLabel(tab: ContactTab): string {
     switch (tab.type) {
       case 'PHONE':
-        return 'Telefon';
+        return this.transloco.translate('agent.desktop.tabPhone');
       case 'CHAT':
-        return 'Chat';
+        return this.transloco.translate('agent.desktop.tabChat');
       case 'EMAIL':
-        return 'Email';
+        return this.transloco.translate('agent.desktop.tabEmail');
       case 'SOCIAL':
-        return 'Social';
+        return this.transloco.translate('agent.desktop.tabSocial');
     }
   }
 
@@ -301,17 +302,19 @@ export class AgentDesktopComponent implements OnInit {
   protected onEmailReplySent(tab: ContactTab, sent: boolean): void {
     this.tabStore.closeTab(tab.id);
     if (sent) {
-      this.notifications.success('Odpowiedz wyslana');
+      this.notifications.success(this.transloco.translate('agent.desktop.replySent'));
     }
   }
 
   private showLimitMessage(reason: 'MAX_PHONE' | 'MAX_ASYNC' | 'MAX_TOTAL'): void {
     const messages: Record<string, string> = {
-      MAX_PHONE: 'Możesz obsługiwać tylko 1 połączenie telefoniczne jednocześnie.',
-      MAX_ASYNC: 'Osiągnąłeś limit 3 kontaktów chat/email jednocześnie.',
-      MAX_TOTAL: 'Osiągnąłeś maksymalny limit 4 aktywnych kontaktów.',
+      MAX_PHONE: this.transloco.translate('agent.desktop.tabLimitPhone'),
+      MAX_ASYNC: this.transloco.translate('agent.desktop.tabLimitAsync'),
+      MAX_TOTAL: this.transloco.translate('agent.desktop.tabLimitTotal'),
     };
-    this.tabLimitMessage.set(messages[reason] ?? 'Osiągnąłeś limit aktywnych kontaktów.');
+    this.tabLimitMessage.set(
+      messages[reason] ?? this.transloco.translate('agent.desktop.tabLimit'),
+    );
     setTimeout(() => this.tabLimitMessage.set(null), 5_000);
   }
 }

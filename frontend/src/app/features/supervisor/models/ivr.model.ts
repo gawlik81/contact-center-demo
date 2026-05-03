@@ -68,15 +68,15 @@ export interface UpdateIvrRequest {
 }
 
 export const IVR_NODE_LABELS: Record<IvrNodeType, string> = {
-  MENU: 'Menu DTMF',
-  PLAY_AUDIO: 'Odtworzenie audio',
-  COLLECT_DTMF: 'Zbieranie DTMF',
-  QUEUE_TRANSFER: 'Transfer do kolejki',
-  HANGUP: 'Rozlaczenie',
-  SET: 'Ustaw zmienną',
-  IF: 'Warunek',
-  SWITCH: 'Przełącznik',
-  VOICEBOT: 'Voicebot ASR/NLU',
+  MENU: 'supervisor.ivrNodeLabels.MENU',
+  PLAY_AUDIO: 'supervisor.ivrNodeLabels.PLAY_AUDIO',
+  COLLECT_DTMF: 'supervisor.ivrNodeLabels.COLLECT_DTMF',
+  QUEUE_TRANSFER: 'supervisor.ivrNodeLabels.QUEUE_TRANSFER',
+  HANGUP: 'supervisor.ivrNodeLabels.HANGUP',
+  SET: 'supervisor.ivrNodeLabels.SET',
+  IF: 'supervisor.ivrNodeLabels.IF',
+  SWITCH: 'supervisor.ivrNodeLabels.SWITCH',
+  VOICEBOT: 'supervisor.ivrNodeLabels.VOICEBOT',
 };
 
 export const IVR_NODE_ICONS: Record<IvrNodeType, string> = {

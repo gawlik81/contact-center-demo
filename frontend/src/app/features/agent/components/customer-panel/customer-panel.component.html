@@ -6,13 +6,13 @@
         d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
       />
     </svg>
-    <p class="cp__empty-text">Brak aktywnego kontaktu</p>
+    <p class="cp__empty-text">{{ 'agent.customerPanel.empty' | transloco }}</p>
   </div>
 }
 
 <!-- ===== Loading state: skeleton ===== -->
 @if (state() === 'loading') {
-  <div class="cp cp--loading" aria-busy="true" aria-label="Ladowanie danych klienta">
+  <div class="cp cp--loading" aria-busy="true" [attr.aria-label]="'agent.customerPanel.loadingLabel' | transloco">
     <div class="cp__section">
       <div class="skeleton skeleton--avatar"></div>
       <div class="cp__skeleton-lines">
@@ -43,19 +43,19 @@
         d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"
       />
     </svg>
-    <h3 class="cp__unknown-title">Nieznany klient</h3>
+    <h3 class="cp__unknown-title">{{ 'agent.customerPanel.unknownTitle' | transloco }}</h3>
     <p class="cp__unknown-phone">{{ cli() }}</p>
-    <p class="cp__unknown-desc">Brak profilu klienta dla tego numeru telefonu.</p>
+    <p class="cp__unknown-desc">{{ 'agent.customerPanel.unknownDesc' | transloco }}</p>
     <button
       type="button"
       class="cp__cta-btn"
       (click)="navigateToCreateProfile()"
-      aria-label="Utw&oacute;rz profil klienta dla numeru {{ cli() }}"
+      [attr.aria-label]="('agent.customerPanel.createProfileLabel' | transloco) + ' ' + cli()"
     >
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
       </svg>
-      Utw&oacute;rz profil
+      {{ 'agent.customerPanel.createProfile' | transloco }}
     </button>
   </div>
 }
@@ -66,7 +66,7 @@
     <svg class="cp__error-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
     </svg>
-    <p class="cp__error-text">Nie można pobrać danych klienta (błąd serwera).</p>
+    <p class="cp__error-text">{{ 'agent.customerPanel.errorText' | transloco }}</p>
   </div>
 }
 
@@ -109,14 +109,14 @@
         type="button"
         class="cp__profile-link"
         (click)="navigateToFullProfile()"
-        aria-label="Zobacz pelny profil klienta {{ profile()!.firstName }} {{ profile()!.lastName }}"
+        [attr.aria-label]="('agent.customerPanel.viewProfile' | transloco) + ' ' + profile()!.firstName + ' ' + profile()!.lastName"
       >
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
           <path
             d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
           />
         </svg>
-        Zobacz pelny profil
+        {{ 'agent.customerPanel.viewProfile' | transloco }}
       </button>
     }
 
@@ -124,10 +124,10 @@
 
     <!-- Contact history -->
     <div class="cp__history">
-      <h4 class="cp__history-title">Ostatnie kontakty</h4>
+      <h4 class="cp__history-title">{{ 'agent.customerPanel.recentContacts' | transloco }}</h4>
 
       @if (!profile()!.recentContacts || profile()!.recentContacts.length === 0) {
-        <p class="cp__history-empty">Brak historii kontakt&oacute;w</p>
+        <p class="cp__history-empty">{{ 'agent.customerPanel.noHistory' | transloco }}</p>
       } @else {
         <ul class="cp__history-list" role="list">
           @for (item of profile()!.recentContacts; track trackByContactId($index, item)) {

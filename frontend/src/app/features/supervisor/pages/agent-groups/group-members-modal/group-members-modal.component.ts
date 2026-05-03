@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -21,7 +22,7 @@ import { UserResponse } from '../../../models/user.model';
   selector: 'app-group-members-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [TranslocoModule, FormsModule],
   templateUrl: './group-members-modal.component.html',
   styleUrl: './group-members-modal.component.scss',
 })

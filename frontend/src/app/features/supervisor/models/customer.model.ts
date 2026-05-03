@@ -6,12 +6,7 @@ export interface GdprConsent {
   data_processing_consent?: boolean;
 }
 
-export type CustomerSource =
-  | 'MANUAL'
-  | 'CSV_IMPORT'
-  | 'INBOUND_PHONE'
-  | 'AUTO'
-  | string;
+export type CustomerSource = 'MANUAL' | 'CSV_IMPORT' | 'INBOUND_PHONE' | 'AUTO' | string;
 
 export interface CustomerResponse {
   customerId: string;

@@ -2,9 +2,9 @@
   <!-- Page header -->
   <div class="phone-numbers__header">
     <div>
-      <h1 class="phone-numbers__title">Numery telefonów</h1>
+      <h1 class="phone-numbers__title">{{ 'supervisor.settings.phoneNumbers.title' | transloco }}</h1>
       <p class="phone-numbers__subtitle">
-        Zarządzaj numerami telefonów tenanta i regułami routingu przychodzących połączeń.
+        {{ 'supervisor.settings.phoneNumbers.subtitle' | transloco }}
       </p>
     </div>
     <button
@@ -12,18 +12,18 @@
       class="btn btn-primary"
       (click)="openAddDialog()"
       [disabled]="loading()"
-      aria-label="Dodaj numer telefonu"
+      [attr.aria-label]="'supervisor.settings.phoneNumbers.addLabel' | transloco"
     >
       <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
       </svg>
-      Dodaj numer
+      {{ 'supervisor.settings.phoneNumbers.addButton' | transloco }}
     </button>
   </div>
 
   <!-- Loading skeleton -->
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-label="Ładowanie numerów...">
+    <div class="skeleton-wrapper" [attr.aria-label]="'common.loading_data' | transloco">
       <div class="skeleton skeleton--row"></div>
       <div class="skeleton skeleton--row"></div>
       <div class="skeleton skeleton--row"></div>
@@ -33,7 +33,7 @@
       <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32" class="error-state__icon" aria-hidden="true">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
       </svg>
-      <p class="error-state__message">Nie udało się załadować numerów telefonów. Odśwież stronę i spróbuj ponownie.</p>
+      <p class="error-state__message">{{ 'common.error' | transloco }}</p>
     </div>
   } @else if (phoneNumbers().length === 0) {
     <div class="empty-state">
@@ -42,19 +42,23 @@
           d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
         />
       </svg>
-      <p class="empty-state__title">Brak numerów – dodaj pierwszy numer Twilio</p>
-      <p class="empty-state__hint">Numery telefonów umożliwiają odbieranie połączeń przychodzących przez Twilio.</p>
-      <button type="button" class="btn btn-primary" (click)="openAddDialog()">Dodaj pierwszy numer</button>
+      <p class="empty-state__title">{{ 'supervisor.settings.phoneNumbers.emptyTitle' | transloco }}</p>
+      <p class="empty-state__hint">{{ 'supervisor.settings.phoneNumbers.emptyHint' | transloco }}</p>
+      <button type="button" class="btn btn-primary" (click)="openAddDialog()">
+        {{ 'supervisor.settings.phoneNumbers.addFirst' | transloco }}
+      </button>
     </div>
   } @else {
     <!-- Numbers table -->
     <div class="numbers-table" role="table" aria-label="Lista numerów telefonów">
       <div class="numbers-table__head" role="row">
-        <span role="columnheader" class="col-number">Numer</span>
-        <span role="columnheader" class="col-name">Nazwa</span>
-        <span role="columnheader" class="col-status">Status</span>
-        <span role="columnheader" class="col-rules">Reguły</span>
-        <span role="columnheader" class="col-actions">Akcje</span>
+        <span role="columnheader" class="col-number">{{
+          'supervisor.settings.phoneNumbers.colNumber' | transloco
+        }}</span>
+        <span role="columnheader" class="col-name">{{ 'supervisor.settings.phoneNumbers.colName' | transloco }}</span>
+        <span role="columnheader" class="col-status">{{ 'common.status' | transloco }}</span>
+        <span role="columnheader" class="col-rules">{{ 'supervisor.settings.routingRules.title' | transloco }}</span>
+        <span role="columnheader" class="col-actions">{{ 'common.actions' | transloco }}</span>
       </div>
 
       @for (number of phoneNumbers(); track number.phoneNumberId) {
@@ -73,7 +77,11 @@
                 (click)="toggleExpand(number.phoneNumberId)"
                 [attr.aria-expanded]="isExpanded(number.phoneNumberId)"
                 [attr.aria-label]="
-                  (isExpanded(number.phoneNumberId) ? 'Zwiń' : 'Rozwiń') + ' reguły dla ' + number.number
+                  (isExpanded(number.phoneNumberId) ? ('common.collapse' | transloco) : ('common.expand' | transloco)) +
+                  ' ' +
+                  ('common.rulesFor' | transloco) +
+                  ' ' +
+                  number.number
                 "
               >
                 <svg
@@ -99,9 +107,13 @@
             <!-- Status -->
             <div role="cell" class="col-status">
               @if (number.isActive) {
-                <span class="status-badge status-badge--active">Aktywny</span>
+                <span class="status-badge status-badge--active">{{
+                  'supervisor.settings.phoneNumbers.statusActive' | transloco
+                }}</span>
               } @else {
-                <span class="status-badge status-badge--inactive">Nieaktywny</span>
+                <span class="status-badge status-badge--inactive">{{
+                  'supervisor.settings.phoneNumbers.statusInactive' | transloco
+                }}</span>
               }
             </div>
 
@@ -132,13 +144,13 @@
                 [disabled]="deletingId() === number.phoneNumberId || hasActiveRules(number.phoneNumberId)"
                 [title]="
                   hasActiveRules(number.phoneNumberId)
-                    ? 'Usuń wszystkie reguły routingu przed usunięciem numeru'
-                    : 'Usuń'
+                    ? ('supervisor.settings.phoneNumbers.removeRulesFirst' | transloco)
+                    : ('common.delete' | transloco)
                 "
                 [attr.aria-label]="
                   hasActiveRules(number.phoneNumberId)
-                    ? 'Nie można usunąć – numer ' + number.number + ' ma aktywne reguły routingu'
-                    : 'Usuń numer ' + number.number
+                    ? ('supervisor.settings.phoneNumbers.cannotDeleteWithRules' | transloco) + ' ' + number.number
+                    : ('common.delete' | transloco) + ' ' + number.number
                 "
                 [attr.aria-disabled]="hasActiveRules(number.phoneNumberId) || deletingId() === number.phoneNumberId"
               >
@@ -172,7 +184,9 @@
 <!-- Add number dialog -->
 <dialog #addDialogRef class="num-dialog" aria-labelledby="add-dialog-title">
   <div class="num-dialog__header">
-    <h2 id="add-dialog-title" class="num-dialog__title">Dodaj numer telefonu</h2>
+    <h2 id="add-dialog-title" class="num-dialog__title">
+      {{ 'supervisor.settings.phoneNumbers.addTitle' | transloco }}
+    </h2>
     <button type="button" class="num-dialog__close" (click)="closeAddDialog()" aria-label="Zamknij dialog">
       <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
         <path
@@ -184,7 +198,7 @@
 
   <form [formGroup]="addForm" (ngSubmit)="onAddSubmit()" novalidate class="num-dialog__body">
     <div class="form-field" [class.form-field--error]="!!addNumberError">
-      <label class="form-label" for="add-number">Numer telefonu *</label>
+      <label class="form-label" for="add-number">{{ 'common.phone' | transloco }} *</label>
       <input
         id="add-number"
         type="tel"
@@ -198,24 +212,30 @@
       @if (addNumberError) {
         <span id="add-number-error" class="form-error" role="alert">{{ addNumberError }}</span>
       } @else {
-        <span id="add-number-hint" class="form-hint">Format E.164, np. +48123456789</span>
+        <span id="add-number-hint" class="form-hint">{{
+          'supervisor.settings.phoneNumbers.phoneHint' | transloco
+        }}</span>
       }
     </div>
 
     <div class="form-field">
-      <label class="form-label" for="add-display-name">Nazwa wyświetlana (opcjonalna)</label>
+      <label class="form-label" for="add-display-name">{{
+        'supervisor.settings.phoneNumbers.displayNameLabel' | transloco
+      }}</label>
       <input
         id="add-display-name"
         type="text"
         class="form-input"
         formControlName="displayName"
-        placeholder="np. Infolinia główna"
+        [placeholder]="'supervisor.settings.phoneNumbers.namePlaceholder' | transloco"
         autocomplete="off"
       />
     </div>
 
     <div class="num-dialog__actions">
-      <button type="button" class="btn btn-secondary" (click)="closeAddDialog()">Anuluj</button>
+      <button type="button" class="btn btn-secondary" (click)="closeAddDialog()">
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         type="submit"
         class="btn btn-primary"
@@ -224,9 +244,9 @@
       >
         @if (submitting()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Dodaj numer
+          {{ 'supervisor.settings.phoneNumbers.addButton' | transloco }}
         }
       </button>
     </div>
@@ -236,7 +256,9 @@
 <!-- Edit number dialog -->
 <dialog #editDialogRef class="num-dialog" aria-labelledby="edit-dialog-title">
   <div class="num-dialog__header">
-    <h2 id="edit-dialog-title" class="num-dialog__title">Edytuj numer telefonu</h2>
+    <h2 id="edit-dialog-title" class="num-dialog__title">
+      {{ 'supervisor.settings.phoneNumbers.editTitle' | transloco }}
+    </h2>
     <button type="button" class="num-dialog__close" (click)="closeEditDialog()" aria-label="Zamknij dialog">
       <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
         <path
@@ -259,13 +281,15 @@
     }
 
     <div class="form-field">
-      <label class="form-label" for="edit-display-name">Nazwa wyświetlana</label>
+      <label class="form-label" for="edit-display-name">{{
+        'supervisor.settings.phoneNumbers.displayNameLabel' | transloco
+      }}</label>
       <input
         id="edit-display-name"
         type="text"
         class="form-input"
         formControlName="displayName"
-        placeholder="np. Infolinia główna"
+        [placeholder]="'supervisor.settings.phoneNumbers.namePlaceholder' | transloco"
         autocomplete="off"
       />
     </div>
@@ -276,12 +300,14 @@
         <span class="toggle-track">
           <span class="toggle-thumb"></span>
         </span>
-        <span>Aktywny</span>
+        <span>{{ 'supervisor.settings.phoneNumbers.statusActive' | transloco }}</span>
       </label>
     </div>
 
     <div class="num-dialog__actions">
-      <button type="button" class="btn btn-secondary" (click)="closeEditDialog()">Anuluj</button>
+      <button type="button" class="btn btn-secondary" (click)="closeEditDialog()">
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         type="submit"
         class="btn btn-primary"
@@ -290,9 +316,9 @@
       >
         @if (submitting()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Zapisz zmiany
+          {{ 'common.save' | transloco }}
         }
       </button>
     </div>
@@ -302,16 +328,18 @@
 <!-- Delete confirmation dialog -->
 <dialog #deleteDialogRef class="num-dialog num-dialog--sm" aria-labelledby="delete-dialog-title">
   <div class="num-dialog__header">
-    <h2 id="delete-dialog-title" class="num-dialog__title">Usuń numer telefonu</h2>
+    <h2 id="delete-dialog-title" class="num-dialog__title">
+      {{ 'supervisor.settings.phoneNumbers.deleteTitle' | transloco }}
+    </h2>
   </div>
   <div class="num-dialog__body">
     @if (pendingDeleteNumber()) {
       <p class="delete-confirm-text">
-        Czy na pewno chcesz usunąć numer
+        {{ 'supervisor.settings.phoneNumbers.confirmDeleteBody' | transloco }}
         <strong>{{ pendingDeleteNumber()!.number }}</strong
         >?
         <br />
-        Ta operacja jest nieodwracalna.
+        {{ 'supervisor.settings.phoneNumbers.irreversible' | transloco }}
       </p>
       @if (hasActiveRules(pendingDeleteNumber()!.phoneNumberId)) {
         <p class="delete-rules-warning" role="alert">
@@ -320,12 +348,14 @@
               d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
             />
           </svg>
-          Dezaktywuj lub usuń wszystkie reguły routingu, aby usunąć numer.
+          {{ 'supervisor.settings.phoneNumbers.removeRulesFirst' | transloco }}
         </p>
       }
     }
     <div class="num-dialog__actions">
-      <button type="button" class="btn btn-secondary" (click)="closeDeleteDialog()">Anuluj</button>
+      <button type="button" class="btn btn-secondary" (click)="closeDeleteDialog()">
+        {{ 'common.cancel' | transloco }}
+      </button>
       <button
         type="button"
         class="btn btn-danger"
@@ -333,15 +363,15 @@
         [disabled]="!!deletingId() || (!!pendingDeleteNumber() && hasActiveRules(pendingDeleteNumber()!.phoneNumberId))"
         [title]="
           pendingDeleteNumber() && hasActiveRules(pendingDeleteNumber()!.phoneNumberId)
-            ? 'Dezaktywuj lub usuń wszystkie reguły routingu, aby usunąć numer'
+            ? ('supervisor.settings.phoneNumbers.removeRulesFirst' | transloco)
             : ''
         "
       >
         @if (deletingId()) {
           <span class="spinner" aria-hidden="true"></span>
-          Usuwanie...
+          {{ 'common.loading' | transloco }}
         } @else {
-          Usuń numer
+          {{ 'supervisor.settings.phoneNumbers.deleteButton' | transloco }}
         }
       </button>
     </div>

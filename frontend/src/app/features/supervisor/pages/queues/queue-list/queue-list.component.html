@@ -1,16 +1,26 @@
 <div class="queue-list">
   <div class="queue-list__header">
-    <h1 class="queue-list__title">Kolejki</h1>
-    <button class="btn btn-primary" type="button" (click)="openCreateModal()" aria-label="Dodaj nowa kolejke">
+    <h1 class="queue-list__title">{{ 'supervisor.queues.title' | transloco }}</h1>
+    <button
+      class="btn btn-primary"
+      type="button"
+      (click)="openCreateModal()"
+      [attr.aria-label]="'supervisor.queues.addQueueLabel' | transloco"
+    >
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
       </svg>
-      Nowa kolejka
+      {{ 'supervisor.queues.addQueue' | transloco }}
     </button>
   </div>
 
   <!-- Search bar -->
-  <div class="queue-list__search" [formGroup]="searchForm" role="search" aria-label="Wyszukaj kolejke">
+  <div
+    class="queue-list__search"
+    [formGroup]="searchForm"
+    role="search"
+    [attr.aria-label]="'supervisor.queues.searchLabel' | transloco"
+  >
     <div class="search-field">
       <svg class="search-field__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
         <path
@@ -22,16 +32,16 @@
         type="search"
         class="search-field__input"
         formControlName="name"
-        placeholder="Szukaj po nazwie kolejki..."
+        [placeholder]="'supervisor.queues.searchPlaceholder' | transloco"
         autocomplete="off"
-        aria-label="Wyszukaj kolejke po nazwie"
+        [attr.aria-label]="'supervisor.queues.searchLabel' | transloco"
       />
     </div>
   </div>
 
   <!-- Loading skeleton -->
   @if (loading()) {
-    <div class="skeleton-wrapper" aria-busy="true" aria-label="Wczytywanie danych...">
+    <div class="skeleton-wrapper" aria-busy="true" [attr.aria-label]="'common.loading_data' | transloco">
       @for (i of [1, 2, 3, 4, 5]; track i) {
         <div class="skeleton-row">
           <div class="skeleton-cell skeleton-cell--wide"></div>
@@ -47,15 +57,17 @@
   <!-- Table -->
   @if (!loading()) {
     @if (queues().length > 0) {
-      <div class="table-wrapper" role="region" aria-label="Lista kolejek">
+      <div class="table-wrapper" role="region" [attr.aria-label]="'supervisor.queues.tableLabel' | transloco">
         <table class="queue-table" aria-live="polite">
           <thead>
             <tr>
-              <th scope="col">Nazwa</th>
-              <th scope="col" class="hide-sm">Strategia routingu</th>
-              <th scope="col" class="hide-sm">Wymagane skills</th>
-              <th scope="col">Status</th>
-              <th scope="col"><span class="sr-only">Akcje</span></th>
+              <th scope="col">{{ 'common.name' | transloco }}</th>
+              <th scope="col" class="hide-sm">{{ 'supervisor.queues.tableRoutingStrategy' | transloco }}</th>
+              <th scope="col" class="hide-sm">{{ 'supervisor.queues.tableSkills' | transloco }}</th>
+              <th scope="col">{{ 'common.status' | transloco }}</th>
+              <th scope="col">
+                <span class="sr-only">{{ 'common.actions' | transloco }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -68,7 +80,7 @@
                     <div
                       class="skills-list"
                       role="list"
-                      [attr.aria-label]="'Skills wymagane przez kolejke ' + queue.name"
+                      [attr.aria-label]="('supervisor.queues.tableSkills' | transloco) + ' ' + queue.name"
                     >
                       @for (skill of queue.requiredSkills; track skill) {
                         <span class="skill-badge" role="listitem">{{ skill }}</span>
@@ -83,9 +95,17 @@
                     class="status-badge"
                     [class.status-badge--active]="queue.active"
                     [class.status-badge--inactive]="!queue.active"
-                    [attr.aria-label]="queue.active ? 'Kolejka aktywna' : 'Kolejka nieaktywna'"
+                    [attr.aria-label]="
+                      queue.active
+                        ? ('supervisor.queues.statusActive' | transloco)
+                        : ('supervisor.queues.statusInactive' | transloco)
+                    "
                   >
-                    {{ queue.active ? 'Aktywna' : 'Nieaktywna' }}
+                    {{
+                      queue.active
+                        ? ('supervisor.queues.statusActive' | transloco)
+                        : ('supervisor.queues.statusInactive' | transloco)
+                    }}
                   </span>
                 </td>
                 <td class="queue-actions">
@@ -93,8 +113,8 @@
                     class="btn btn-icon-outline"
                     type="button"
                     (click)="openAgentsModal(queue)"
-                    [attr.aria-label]="'Agenci kolejki ' + queue.name"
-                    title="Agenci"
+                    [attr.aria-label]="('supervisor.queues.agentsLabel' | transloco) + ' ' + queue.name"
+                    [title]="'supervisor.queues.agentsLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path
@@ -106,8 +126,8 @@
                     class="btn btn-icon-outline"
                     type="button"
                     (click)="openEditModal(queue)"
-                    [attr.aria-label]="'Edytuj kolejke ' + queue.name"
-                    title="Edytuj"
+                    [attr.aria-label]="('common.edit' | transloco) + ' ' + queue.name"
+                    [title]="'common.edit' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path
@@ -120,20 +140,28 @@
                     type="button"
                     (click)="toggleActive(queue)"
                     [disabled]="toggling() === queue.queueId"
-                    [attr.aria-label]="(queue.active ? 'Dezaktywuj' : 'Aktywuj') + ' kolejke ' + queue.name"
-                    [title]="queue.active ? 'Dezaktywuj' : 'Aktywuj'"
+                    [attr.aria-label]="
+                      (queue.active
+                        ? ('supervisor.queues.deactivate' | transloco)
+                        : ('supervisor.queues.activate' | transloco)) +
+                      ' ' +
+                      queue.name
+                    "
+                    [title]="
+                      queue.active
+                        ? ('supervisor.queues.deactivate' | transloco)
+                        : ('supervisor.queues.activate' | transloco)
+                    "
                   >
                     @if (toggling() === queue.queueId) {
                       <span class="spinner" aria-hidden="true"></span>
                     } @else if (queue.active) {
-                      <!-- pause icon: kliknij aby dezaktywować -->
                       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                         <path
                           d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"
                         />
                       </svg>
                     } @else {
-                      <!-- play icon: kliknij aby aktywować -->
                       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                         <path
                           d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
@@ -145,8 +173,8 @@
                     class="btn btn-icon-danger"
                     type="button"
                     (click)="openDeleteModal(queue)"
-                    [attr.aria-label]="'Usun kolejke ' + queue.name"
-                    title="Usun"
+                    [attr.aria-label]="('common.delete' | transloco) + ' ' + queue.name"
+                    [title]="'common.delete' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
@@ -160,10 +188,10 @@
       </div>
 
       <!-- Pagination -->
-      <nav class="pagination" aria-label="Nawigacja stron">
+      <nav class="pagination" [attr.aria-label]="'supervisor.queues.paginationLabel' | transloco">
         <span class="pagination__info" aria-live="polite">
           @if (totalElements() > 0) {
-            Wyswietlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }} kolejek
+            {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ totalElements() }}
           }
         </span>
         <div class="pagination__controls">
@@ -172,24 +200,24 @@
             type="button"
             (click)="onPrevPage()"
             [disabled]="currentPage() === 0"
-            aria-label="Poprzednia strona"
+            [attr.aria-label]="'common.previous' | transloco"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
             </svg>
-            Poprzednia
+            {{ 'common.previous' | transloco }}
           </button>
           <span class="pagination__pages" aria-current="page">
-            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+            {{ 'common.page' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
           </span>
           <button
             class="btn btn-pagination"
             type="button"
             (click)="onNextPage()"
             [disabled]="currentPage() + 1 >= totalPages()"
-            aria-label="Nastepna strona"
+            [attr.aria-label]="'common.next' | transloco"
           >
-            Nastepna
+            {{ 'common.next' | transloco }}
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
             </svg>
@@ -202,16 +230,16 @@
         <svg class="empty-state__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
         </svg>
-        <p class="empty-state__message">Brak kolejek do wyswietlenia.</p>
+        <p class="empty-state__message">{{ 'supervisor.queues.emptyText' | transloco }}</p>
         @if (searchForm.controls.name.value) {
-          <p class="empty-state__hint">Brak wynikow dla podanej frazy. Sprobuj zmienic wyszukiwanie.</p>
+          <p class="empty-state__hint">{{ 'supervisor.queues.emptySearchHint' | transloco }}</p>
         } @else {
-          <p class="empty-state__hint">Dodaj pierwsza kolejke, aby skonfigurowac routing kontaktow.</p>
+          <p class="empty-state__hint">{{ 'supervisor.queues.emptyHint' | transloco }}</p>
           <button class="btn btn-primary" type="button" (click)="openCreateModal()">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
               <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
             </svg>
-            Dodaj kolejke
+            {{ 'supervisor.queues.addQueue' | transloco }}
           </button>
         }
       </div>

@@ -84,9 +84,7 @@ export class AgentRecoveryService {
       const type = contact.channel as 'EMAIL' | 'CHAT';
 
       // Check if this tab is already open (e.g. component already mounted)
-      const alreadyOpen = this.tabStore
-        .tabs()
-        .some((t) => t.contactId === contact.contactId);
+      const alreadyOpen = this.tabStore.tabs().some((t) => t.contactId === contact.contactId);
       if (alreadyOpen) return;
 
       const payload: ContactAssignedPayload = {
@@ -108,7 +106,9 @@ export class AgentRecoveryService {
           .subscribe();
 
         console.warn(
-          '[AgentRecovery] Recovered pending', type, 'contact after WS reconnect:',
+          '[AgentRecovery] Recovered pending',
+          type,
+          'contact after WS reconnect:',
           contact.contactId,
         );
       }

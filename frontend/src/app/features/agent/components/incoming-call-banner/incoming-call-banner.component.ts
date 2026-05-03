@@ -1,3 +1,4 @@
+import { TranslocoModule } from '@jsverse/transloco';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { IncomingCallAlertService } from '../../services/incoming-call-alert.service';
@@ -5,6 +6,7 @@ import { IncomingCallAlertService } from '../../services/incoming-call-alert.ser
 @Component({
   selector: 'cc-incoming-call-banner',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TranslocoModule],
   templateUrl: './incoming-call-banner.component.html',
   styleUrl: './incoming-call-banner.component.scss',
 })

@@ -6,7 +6,7 @@ export const SUPERVISOR_ROUTES: Routes = [
     path: '',
     loadComponent: () =>
       import('./supervisor-shell.component').then((m) => m.SupervisorShellComponent),
-    data: { breadcrumb: 'Supervisor' },
+    data: { breadcrumb: 'role.supervisor' },
     children: [
       {
         path: '',
@@ -15,19 +15,19 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'dashboard',
-        data: { breadcrumb: 'Dashboard' },
+        data: { breadcrumb: 'nav.dashboard' },
         loadComponent: () =>
           import('./supervisor-dashboard.component').then((m) => m.SupervisorDashboardComponent),
       },
       {
         path: 'agents',
-        data: { breadcrumb: 'Użytkownicy' },
+        data: { breadcrumb: 'nav.users' },
         loadComponent: () =>
           import('./pages/users/user-list/user-list.component').then((m) => m.UserListComponent),
       },
       {
         path: 'queues',
-        data: { breadcrumb: 'Kolejki', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.queues', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/queues/queue-list/queue-list.component').then(
@@ -36,7 +36,7 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'campaigns',
-        data: { breadcrumb: 'Kampanie', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.campaigns', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/campaigns/campaign-list/campaign-list.component').then(
@@ -45,7 +45,7 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'customers',
-        data: { breadcrumb: 'Klienci' },
+        data: { breadcrumb: 'nav.customers' },
         loadComponent: () =>
           import('./pages/customers/customer-list/customer-list.component').then(
             (m) => m.CustomerListComponent,
@@ -53,7 +53,7 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'customers/import',
-        data: { breadcrumb: 'Import CSV', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.importCsv', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/customers/customer-import/customer-import.component').then(
@@ -67,7 +67,7 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'customers/:id',
-        data: { breadcrumb: 'Profil klienta', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.customerProfile', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/customers/customer-detail/customer-detail.component').then(
@@ -76,14 +76,14 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'reports',
-        data: { breadcrumb: 'Raporty', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.reports', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/reports/reports-placeholder.component').then((m) => m.ReportsComponent),
       },
       {
         path: 'reports/contacts',
-        data: { breadcrumb: 'Kontakty', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.reportsContacts', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/contacts-report/contacts-report.component').then(
@@ -92,13 +92,13 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'settings',
-        data: { breadcrumb: 'Konfiguracja', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.configuration', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         children: [
           { path: '', redirectTo: 'email', pathMatch: 'full' },
           {
             path: 'email',
-            data: { breadcrumb: 'Email' },
+            data: { breadcrumb: 'nav.settingsEmail' },
             loadComponent: () =>
               import('./pages/settings/email-settings.component').then(
                 (m) => m.EmailSettingsComponent,
@@ -106,7 +106,7 @@ export const SUPERVISOR_ROUTES: Routes = [
           },
           {
             path: 'phone-numbers',
-            data: { breadcrumb: 'Numery telefonów' },
+            data: { breadcrumb: 'nav.settingsPhoneNumbers' },
             loadComponent: () =>
               import('./pages/settings/phone-numbers/phone-numbers.component').then(
                 (m) => m.PhoneNumbersComponent,
@@ -114,13 +114,13 @@ export const SUPERVISOR_ROUTES: Routes = [
           },
           {
             path: 'integrations',
-            data: { breadcrumb: 'Integracje Social Media' },
+            data: { breadcrumb: 'nav.settingsSocialMedia' },
             loadChildren: () =>
               import('../integrations/integrations.routes').then((m) => m.INTEGRATIONS_ROUTES),
           },
           {
             path: 'email-templates',
-            data: { breadcrumb: 'Szablony email', roles: ['SUPERVISOR', 'ADMIN'] },
+            data: { breadcrumb: 'nav.settingsEmailTemplates', roles: ['SUPERVISOR', 'ADMIN'] },
             canActivate: [roleGuard],
             loadComponent: () =>
               import('./pages/settings/email-templates/email-templates.component').then(
@@ -131,7 +131,7 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'agent-groups',
-        data: { breadcrumb: 'Grupy agentów', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.agentGroups', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/agent-groups/agent-groups-page/agent-groups-page.component').then(
@@ -140,7 +140,7 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'callbacks',
-        data: { breadcrumb: 'Oddzwonienia', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.callbacks', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/callbacks/supervisor-callbacks-page.component').then(
@@ -149,14 +149,14 @@ export const SUPERVISOR_ROUTES: Routes = [
       },
       {
         path: 'ivr',
-        data: { breadcrumb: 'Edytor IVR', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.ivrEditor', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/ivr/ivr-list/ivr-list.component').then((m) => m.IvrListComponent),
       },
       {
         path: 'ivr/:ivrId',
-        data: { breadcrumb: 'Edytor', roles: ['SUPERVISOR', 'ADMIN'] },
+        data: { breadcrumb: 'nav.ivrEditor', roles: ['SUPERVISOR', 'ADMIN'] },
         canActivate: [roleGuard],
         loadComponent: () =>
           import('./pages/ivr/ivr-editor/ivr-editor.component').then((m) => m.IvrEditorComponent),

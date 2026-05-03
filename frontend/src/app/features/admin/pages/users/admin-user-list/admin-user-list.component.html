@@ -62,7 +62,7 @@
               <th scope="col">{{ 'common.role' | transloco }}</th>
               <th scope="col">{{ 'common.status' | transloco }}</th>
               <th scope="col">{{ 'supervisor.users.tableSkills' | transloco }}</th>
-              <th scope="col"><span class="sr-only">Akcje</span></th>
+              <th scope="col"><span class="sr-only">{{ 'common.actions' | transloco }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -97,7 +97,7 @@
                     [class.role-badge--admin]="user.role === 'ADMIN'"
                     [class.role-badge--supervisor]="user.role === 'SUPERVISOR'"
                     [class.role-badge--agent]="user.role === 'AGENT'"
-                    [attr.aria-label]="'Rola: ' + user.role"
+                    [attr.aria-label]="('common.role' | transloco) + ': ' + user.role"
                   >
                     {{ getRoleLabel(user.role) }}
                   </span>
@@ -110,18 +110,18 @@
                     [class.status-badge--break]="user.status === 'BREAK'"
                     [class.status-badge--active]="user.status === 'ACTIVE'"
                     [class.status-badge--inactive]="user.status === 'INACTIVE'"
-                    [attr.aria-label]="'Status: ' + user.status"
+                    [attr.aria-label]="('common.status' | transloco) + ': ' + user.status"
                   >
                     {{ getStatusLabel(user.status) }}
                   </span>
                 </td>
                 <td>
-                  <div class="skills-list" role="list" aria-label="Skills użytkownika">
+                  <div class="skills-list" role="list" [attr.aria-label]="'admin.userList.skillsListLabel' | transloco">
                     @for (skill of user.skills; track skill) {
                       <span class="skill-tag" role="listitem">{{ skill }}</span>
                     }
                     @if (user.skills.length === 0) {
-                      <span class="no-skills">Brak</span>
+                      <span class="no-skills">{{ 'common.none' | transloco }}</span>
                     }
                   </div>
                 </td>
@@ -129,14 +129,14 @@
                   <div
                     class="action-group"
                     role="group"
-                    [attr.aria-label]="'Akcje dla ' + user.firstName + ' ' + user.lastName"
+                    [attr.aria-label]="('common.actions' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
                   >
                     <button
                       class="btn btn-icon btn-edit"
                       type="button"
                       (click)="openEditModal(user)"
-                      [attr.aria-label]="'Edytuj użytkownika ' + user.firstName + ' ' + user.lastName"
-                      title="Edytuj"
+                      [attr.aria-label]="('admin.userList.editLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                      [title]="'common.edit' | transloco"
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
                         <path
@@ -148,8 +148,8 @@
                       class="btn btn-icon btn-force-reset"
                       type="button"
                       (click)="openForceResetModal(user)"
-                      [attr.aria-label]="'Wymus zmiane hasla dla ' + user.firstName + ' ' + user.lastName"
-                      title="Wymus zmiane hasla"
+                      [attr.aria-label]="('supervisor.users.resetPasswordLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                      [title]="'supervisor.userResetPassword.title' | transloco"
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
                         <path
@@ -161,8 +161,8 @@
                       class="btn btn-icon btn-delete"
                       type="button"
                       (click)="openDeleteModal(user)"
-                      [attr.aria-label]="'Usun użytkownika ' + user.firstName + ' ' + user.lastName"
-                      title="Usun"
+                      [attr.aria-label]="('admin.userList.deleteLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                      [title]="'common.delete' | transloco"
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
                         <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
@@ -177,10 +177,10 @@
       </div>
 
       <!-- Pagination -->
-      <nav class="pagination" aria-label="Nawigacja stron">
+      <nav class="pagination" [attr.aria-label]="'supervisor.users.paginationLabel' | transloco">
         <span class="pagination__info" aria-live="polite">
           @if (totalElements() > 0) {
-            Wyswietlanie {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} z {{ totalElements() }} wynikow
+            {{ 'supervisor.users.showing' | transloco }} {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ totalElements() }} {{ 'supervisor.users.ofUsers' | transloco }}
           }
         </span>
         <div class="pagination__controls">
@@ -189,24 +189,24 @@
             type="button"
             (click)="onPrevPage()"
             [disabled]="currentPage() === 0"
-            aria-label="Poprzednia strona"
+            [attr.aria-label]="'supervisor.users.prevPage' | transloco"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
             </svg>
-            Poprzednia
+            {{ 'supervisor.users.prevPage' | transloco }}
           </button>
           <span class="pagination__pages" aria-current="page">
-            Strona {{ currentPage() + 1 }} z {{ totalPages() }}
+            {{ 'supervisor.users.pageInfo' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
           </span>
           <button
             class="btn btn-pagination"
             type="button"
             (click)="onNextPage()"
             [disabled]="currentPage() + 1 >= totalPages()"
-            aria-label="Nastepna strona"
+            [attr.aria-label]="'supervisor.users.nextPage' | transloco"
           >
-            Nastepna
+            {{ 'supervisor.users.nextPage' | transloco }}
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
             </svg>
@@ -268,7 +268,7 @@
           (click)="confirmDelete()"
           [disabled]="deleteSubmitting()"
           [attr.aria-disabled]="deleteSubmitting()"
-          aria-label="Potwierdź usuniecie użytkownika"
+          [attr.aria-label]="'admin.userList.confirmDeleteLabel' | transloco"
         >
           @if (deleteSubmitting()) {
             <span class="spinner" aria-hidden="true"></span>
@@ -318,7 +318,7 @@
           (click)="confirmForceReset()"
           [disabled]="forceResetSubmitting()"
           [attr.aria-disabled]="forceResetSubmitting()"
-          aria-label="Potwierdz wymuszenie zmiany hasla"
+          [attr.aria-label]="'supervisor.userResetPassword.confirmLabel' | transloco"
         >
           @if (forceResetSubmitting()) {
             <span class="spinner" aria-hidden="true"></span>

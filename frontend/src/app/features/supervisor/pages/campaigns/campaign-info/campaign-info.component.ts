@@ -144,7 +144,7 @@ export class CampaignInfoComponent implements OnInit, AfterViewInit {
 
   formatActiveDays(days: ActiveDay[] | undefined): string {
     if (!days || days.length === 0) return '—';
-    return days.map((d) => this.transloco.translate(`agent.calendar.days.${d}`, {}, d)).join(', ');
+    return days.map((d) => this.transloco.translate(`agent.calendar.days.${d}`)).join(', ');
   }
 
   formatActiveHours(hours: { from: string; to: string } | undefined): string {

@@ -128,7 +128,7 @@ export class IvrEditorComponent implements OnInit {
   readonly nodeLabels = IVR_NODE_LABELS;
 
   getNodeLabel(type: IvrNodeType): string {
-    return this.transloco.translate(IVR_NODE_LABELS[type], {}, IVR_NODE_LABELS[type]);
+    return this.transloco.translate(IVR_NODE_LABELS[type]);
   }
 
   readonly nodeTypes: IvrNodeType[] = [

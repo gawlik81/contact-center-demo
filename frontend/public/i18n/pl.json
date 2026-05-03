@@ -32,6 +32,7 @@
     "saving": "Zapisywanie...",
     "loading_data": "Wczytywanie danych...",
     "no_data": "Brak danych",
+    "none": "Brak",
     "import": "Importuj",
     "export": "Eksportuj",
     "create": "Utwórz",
@@ -142,7 +143,7 @@
     "collapseNav": "Zwij nawigację",
     "expandNav": "Rozwiń nawigację",
     "desktop": "Desktop",
-    "tenants": "Tenants",
+    "tenants": "Tenanci",
     "users": "Użytkownicy",
     "metrics": "Metryki",
     "agentGroups": "Grupy agentów",
@@ -154,7 +155,12 @@
     "settingsSocialMedia": "Social Media",
     "settingsEmailTemplates": "Szablony email",
     "reportsHistorical": "Historyczne",
-    "reportsContacts": "Kontakty"
+    "reportsContacts": "Kontakty",
+    "importCsv": "Import CSV",
+    "customerProfile": "Profil klienta",
+    "ivrEditor": "Edytor IVR",
+    "oauthCallback": "OAuth Callback",
+    "breadcrumbNav": "Ścieżka nawigacji"
   },
   "role": {
     "admin": "Admin",
@@ -638,7 +644,9 @@
       "lastContact": "Ostatni kontakt",
       "noContacts": "Brak kontaktów",
       "scheduleCallback": "Zamów oddzwonienie",
-      "closeDetails": "Zamknij szczegóły"
+      "closeDetails": "Zamknij szczegóły",
+      "details": "Szczegóły",
+      "callbackFor": "Zamów oddzwonienie dla"
     },
     "manualCallbackModal": {
       "title": "Zamów oddzwonienie",
@@ -648,7 +656,22 @@
       "notesLabel": "Notatki",
       "notesOptional": "(opcjonalne)",
       "schedule": "Zamów",
-      "cancel": "Anuluj"
+      "cancel": "Anuluj",
+      "errorMinTime": "Wybierz termin co najmniej 5 minut w przyszłości.",
+      "errorInvalidData": "Nieprawidłowe dane żądania.",
+      "errorForbidden": "Brak uprawnień do zamówienia oddzwonienia.",
+      "errorNotFound": "Klient nie został znaleziony.",
+      "errorServer": "Wystąpił błąd serwera. Spróbuj ponownie.",
+      "phoneRequired": "Numer telefonu jest wymagany.",
+      "phoneInvalidFormat": "Podaj numer w formacie międzynarodowym (np. +48123456789).",
+      "dateRequired": "Data jest wymagana.",
+      "timeRequired": "Godzina jest wymagana.",
+      "notesMaxLength": "Notatka nie może przekraczać 500 znaków.",
+      "phoneHint": "Format międzynarodowy, np. +48123456789",
+      "scheduledDateLabel": "Data oddzwonienia",
+      "hourLabel": "Godzina",
+      "minuteLabel": "Minuty",
+      "notesPlaceholder": "Dodaj notatkę do oddzwonienia..."
     },
     "callbacksPage": {
       "title": "Moje oddzwonienia",
@@ -678,7 +701,8 @@
         "PROCESSING": "W trakcie",
         "COMPLETED": "Zakończone",
         "CANCELLED": "Anulowane"
-      }
+      },
+      "paginationLabel": "Nawigacja stron"
     },
     "customersTab": {
       "title": "Klienci",
@@ -1203,6 +1227,7 @@
       "gdprAnonymizeBtnLabel": "Anonimizuj dane klienta zgodnie z Art. 17 RODO",
       "gdprAnonymizeBtn": "Anonimizuj klienta (Art. 17)",
       "channelLabels": {
+        "PHONE": "Telefon",
         "VOICE": "Telefon",
         "EMAIL": "Email",
         "CHAT": "Chat",
@@ -1620,6 +1645,7 @@
       "tableActions": "Akcje",
       "editLabel": "Edytuj grupę",
       "deleteLabel": "Usuń grupę",
+      "manageMembersLabel": "Zarządzaj agentami",
       "membersLabel": "Zarządzaj członkami",
       "emptyText": "Brak grup agentów.",
       "loadingLabel": "Wczytywanie...",
@@ -1659,7 +1685,11 @@
       "searchPlaceholder": "Szukaj agenta...",
       "noResults": "Brak wyników dla „{{ query }}\"",
       "selected": "Wybrano {{ count }} z {{ total }} agentów",
-      "saveComposition": "Zapisz skład"
+      "saveComposition": "Zapisz skład",
+      "filterLabel": "Filtruj agentów",
+      "agentsListLabel": "Lista agentów",
+      "addAgentPrefix": "Dodaj",
+      "addAgentSuffix": "do grupy"
     },
     "settings": {
       "emailTitle": "Ustawienia email",
@@ -1992,7 +2022,9 @@
       "confirmDeleteBtn": "Usuń",
       "deleting": "Usuwanie...",
       "emptyMessage": "Brak użytkowników do wyświetlenia.",
-      "emptyHint": "Zmień filtry lub dodaj nowego użytkownika."
+      "emptyHint": "Zmień filtry lub dodaj nowego użytkownika.",
+      "skillsListLabel": "Skills użytkownika",
+      "confirmDeleteLabel": "Potwierdź usunięcie użytkownika"
     },
     "userForm": {
       "titleCreate": "Nowy użytkownik",
@@ -2035,6 +2067,45 @@
     "uk": "Українська"
   },
   "contactDetailModal": {
+    "title": "Szczegóły kontaktu",
+    "closeLabel": "Zamknij szczegóły kontaktu",
+    "loadingLabel": "Wczytywanie danych kontaktu...",
+    "errorText": "Nie udało się załadować danych kontaktu.",
+    "sectionInfo": "Informacje ogólne",
+    "fieldChannel": "Kanał",
+    "fieldDirection": "Kierunek",
+    "fieldAddress": "Numer / adres",
+    "fieldDateTime": "Data i czas",
+    "fieldAnswered": "Odebrano",
+    "fieldEnded": "Zakończono",
+    "sectionStatus": "Status i czas trwania",
+    "fieldStatus": "Status",
+    "fieldDuration": "Czas trwania",
+    "fieldDisposition": "Kod dyspozycji",
+    "fieldNotes": "Notatka",
+    "sectionEmail": "Wiadomość email (EML)",
+    "sectionRecording": "Nagranie rozmowy",
+    "downloadEml": "Pobierz wiadomość EML",
+    "loadRecording": "Załaduj nagranie",
+    "loadingEml": "Pobieranie pliku EML...",
+    "loadingRecording": "Pobieranie nagrania...",
+    "errorFetchPrefix": "Nie udało się pobrać",
+    "errorEmlSubject": "wiadomości EML",
+    "errorRecordingSubject": "nagrania",
+    "retry": "Spróbuj ponownie",
+    "linkExpires": "Link ważny do:",
+    "downloadEmlBtn": "Pobierz plik EML",
+    "previewHtml": "Podgląd HTML",
+    "loadingPreview": "Ładowanie podglądu...",
+    "errorPreviewText": "Nie udało się załadować podglądu.",
+    "emailFrom": "Od:",
+    "emailTo": "Do:",
+    "emailCc": "CC:",
+    "emailSubject": "Temat:",
+    "emailDate": "Data:",
+    "emailEmpty": "Brak treści wiadomości.",
+    "sectionRelated": "Powiązane kontakty",
+    "loadingRelatedLabel": "Wczytywanie powiązanych kontaktów...",
     "related": "Powiązania",
     "parentContact": "Kontakt źródłowy",
     "childContact": "Kontakt wynikowy",

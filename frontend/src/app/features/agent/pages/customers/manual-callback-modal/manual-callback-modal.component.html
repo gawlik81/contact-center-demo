@@ -69,28 +69,15 @@
             aria-required="true"
             aria-describedby="phoneNumber-error phoneNumber-hint"
           />
-          <span id="phoneNumber-hint" class="form-hint"> Format miedzynarodowy, np. +48123456789 </span>
+          <span id="phoneNumber-hint" class="form-hint">{{ 'agent.manualCallbackModal.phoneHint' | transloco }}</span>
         }
 
-        @if (form.controls.phoneNumber.touched && form.controls.phoneNumber.hasError('required')) {
+        @if (phoneError) {
           <span id="phoneNumber-error" class="form-error" role="alert">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12
-                   2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-              />
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
-            Numer telefonu jest wymagany.
-          </span>
-        } @else if (form.controls.phoneNumber.touched && form.controls.phoneNumber.hasError('invalidE164')) {
-          <span id="phoneNumber-error" class="form-error" role="alert">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12
-                   2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-              />
-            </svg>
-            Podaj numer w formacie miedzynarodowym (np. +48123456789).
+            {{ phoneError }}
           </span>
         }
       </div>
@@ -98,7 +85,7 @@
       <!-- Date and time — two separate inputs for reliable cross-browser time selection -->
       <div class="form-field">
         <span class="form-label" aria-hidden="true">
-          Data i godzina oddzwonienia <span class="required" aria-hidden="true">*</span>
+          {{ 'agent.manualCallbackModal.scheduledAtLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
         </span>
         <div class="form-row">
           <div class="form-row__col" [class.form-field--error]="scheduledDateError">
@@ -109,7 +96,7 @@
               formControlName="scheduledDate"
               [min]="minDate()"
               aria-required="true"
-              aria-label="Data oddzwonienia"
+              [attr.aria-label]="'agent.manualCallbackModal.scheduledDateLabel' | transloco"
               [attr.aria-invalid]="form.controls.scheduledDate.invalid && form.controls.scheduledDate.touched"
             />
             @if (scheduledDateError) {
@@ -135,7 +122,7 @@
               <select
                 class="form-select time-selects__select"
                 formControlName="scheduledHour"
-                aria-label="Godzina"
+                [attr.aria-label]="'agent.manualCallbackModal.hourLabel' | transloco"
                 aria-required="true"
               >
                 @for (h of hours; track h) {
@@ -148,7 +135,7 @@
               <select
                 class="form-select time-selects__select"
                 formControlName="scheduledMinute"
-                aria-label="Minuty"
+                [attr.aria-label]="'agent.manualCallbackModal.minuteLabel' | transloco"
                 aria-required="true"
               >
                 @for (m of minutes; track m) {
@@ -179,13 +166,16 @@
 
       <!-- Notes -->
       <div class="form-field">
-        <label class="form-label" for="cb-notes"> Notatki <span class="optional">(opcjonalne)</span> </label>
+        <label class="form-label" for="cb-notes">
+          {{ 'agent.manualCallbackModal.notesLabel' | transloco }}
+          <span class="optional">{{ 'agent.manualCallbackModal.notesOptional' | transloco }}</span>
+        </label>
         <textarea
           id="cb-notes"
           class="form-input form-input--textarea"
           rows="3"
           maxlength="500"
-          placeholder="Dodaj notatke do oddzwonienia..."
+          [attr.placeholder]="'agent.manualCallbackModal.notesPlaceholder' | transloco"
           formControlName="notes"
           aria-multiline="true"
           aria-describedby="cb-notes-count"
@@ -211,7 +201,7 @@
 
     <!-- Footer -->
     <div class="callback-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="cancel()" [disabled]="loading()">Anuluj</button>
+      <button class="btn btn-cancel" type="button" (click)="cancel()" [disabled]="loading()">{{ 'agent.manualCallbackModal.cancel' | transloco }}</button>
       <button
         class="btn btn-save"
         type="submit"
@@ -221,9 +211,9 @@
       >
         @if (loading()) {
           <span class="spinner" aria-hidden="true"></span>
-          Zapisywanie...
+          {{ 'common.saving' | transloco }}
         } @else {
-          Zamow oddzwonienie
+          {{ 'agent.manualCallbackModal.schedule' | transloco }}
         }
       </button>
     </div>

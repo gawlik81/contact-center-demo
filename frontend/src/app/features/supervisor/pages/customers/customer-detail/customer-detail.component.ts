@@ -220,16 +220,11 @@ export class CustomerDetailComponent implements OnInit {
   }
 
   getChannelLabel(channel: string): string {
-    const key = `supervisor.customerDetail.channelLabels.${channel}`;
-    return this.transloco.translate(key, {}, channel);
+    return this.transloco.translate(`supervisor.customerDetail.channelLabels.${channel}`);
   }
 
   getStatusLabel(status: string): string {
-    return this.transloco.translate(
-      `supervisor.customerDetail.contactStatusLabels.${status}`,
-      {},
-      status,
-    );
+    return this.transloco.translate(`supervisor.customerDetail.contactStatusLabels.${status}`);
   }
 
   onGdprExport(): void {

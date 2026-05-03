@@ -27,7 +27,7 @@
             type="button"
             class="load-more-btn"
             [disabled]="loadingMore()"
-            aria-label="{{ 'agent.socialContact.loadOlder' | transloco }} wiadomosci"
+            [attr.aria-label]="'agent.socialContact.loadOlderLabel' | transloco"
             (click)="loadMoreMessages()"
           >
             @if (loadingMore()) {
@@ -37,7 +37,7 @@
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M7 14l5-5 5 5z" />
               </svg>
-              <span>Zaladuj wczesniejsze</span>
+              <span>{{ 'agent.socialContact.loadEarlier' | transloco }}</span>
             }
           </button>
         </div>
@@ -67,7 +67,7 @@
               <span
                 class="platform-badge"
                 [style.background-color]="getPlatformColor(msg.platform)"
-                [attr.aria-label]="'Platforma: ' + msg.platform"
+                [attr.aria-label]="('agent.socialContact.platformLabel' | transloco) + ' ' + msg.platform"
                 [title]="msg.platform"
               >
                 {{ getPlatformLabel(msg.platform) }}
@@ -118,12 +118,10 @@
         <textarea
           class="social-reply__textarea"
           rows="3"
-          placeholder="{{
-            isReadOnly() ? 'Kontakt zakonczony' : 'Wpisz wiadomosc... (Enter = wyslij, Shift+Enter = nowa linia)'
-          }}"
+          [attr.placeholder]="isReadOnly() ? ('agent.socialContact.inputReadonly' | transloco) : ('agent.socialContact.inputPlaceholder' | transloco)"
           [value]="replyText()"
           [disabled]="isReadOnly() || sending()"
-          [attr.aria-label]="'Pole wiadomosci social media'"
+          [attr.aria-label]="'agent.socialContact.inputLabel' | transloco"
           [attr.aria-disabled]="isReadOnly()"
           (input)="onReplyInput($event)"
           (keydown)="onKeydown($event)"

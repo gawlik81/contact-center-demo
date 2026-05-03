@@ -32,6 +32,7 @@
     "saving": "Saving...",
     "loading_data": "Loading data...",
     "no_data": "No data",
+    "none": "None",
     "import": "Import",
     "export": "Export",
     "create": "Create",
@@ -154,7 +155,12 @@
     "settingsSocialMedia": "Social Media",
     "settingsEmailTemplates": "Email templates",
     "reportsHistorical": "Historical",
-    "reportsContacts": "Contacts"
+    "reportsContacts": "Contacts",
+    "importCsv": "Import CSV",
+    "customerProfile": "Customer profile",
+    "ivrEditor": "IVR Editor",
+    "oauthCallback": "OAuth Callback",
+    "breadcrumbNav": "Navigation path"
   },
   "role": {
     "admin": "Admin",
@@ -638,7 +644,9 @@
       "lastContact": "Last contact",
       "noContacts": "No contacts",
       "scheduleCallback": "Schedule callback",
-      "closeDetails": "Close details"
+      "closeDetails": "Close details",
+      "details": "Details",
+      "callbackFor": "Schedule callback for"
     },
     "manualCallbackModal": {
       "title": "Schedule callback",
@@ -648,7 +656,22 @@
       "notesLabel": "Notes",
       "notesOptional": "(optional)",
       "schedule": "Schedule",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "errorMinTime": "Please select a time at least 5 minutes in the future.",
+      "errorInvalidData": "Invalid request data.",
+      "errorForbidden": "You do not have permission to schedule a callback.",
+      "errorNotFound": "Customer not found.",
+      "errorServer": "A server error occurred. Please try again.",
+      "phoneRequired": "Phone number is required.",
+      "phoneInvalidFormat": "Please enter a number in international format (e.g. +48123456789).",
+      "dateRequired": "Date is required.",
+      "timeRequired": "Time is required.",
+      "notesMaxLength": "Note cannot exceed 500 characters.",
+      "phoneHint": "International format, e.g. +48123456789",
+      "scheduledDateLabel": "Callback date",
+      "hourLabel": "Hour",
+      "minuteLabel": "Minutes",
+      "notesPlaceholder": "Add callback notes..."
     },
     "callbacksPage": {
       "title": "My callbacks",
@@ -678,7 +701,8 @@
         "PROCESSING": "Processing",
         "COMPLETED": "Completed",
         "CANCELLED": "Cancelled"
-      }
+      },
+      "paginationLabel": "Page navigation"
     },
     "customersTab": {
       "title": "Customers",
@@ -1203,6 +1227,7 @@
       "gdprAnonymizeBtnLabel": "Anonymize customer data under Art. 17 GDPR",
       "gdprAnonymizeBtn": "Anonymize customer (Art. 17)",
       "channelLabels": {
+        "PHONE": "Phone",
         "VOICE": "Phone",
         "EMAIL": "Email",
         "CHAT": "Chat",
@@ -1620,6 +1645,7 @@
       "tableActions": "Actions",
       "editLabel": "Edit group",
       "deleteLabel": "Delete group",
+      "manageMembersLabel": "Manage agents",
       "membersLabel": "Manage members",
       "emptyText": "No agent groups.",
       "loadingLabel": "Loading...",
@@ -1659,7 +1685,11 @@
       "searchPlaceholder": "Search agent...",
       "noResults": "No results for \"{{ query }}\"",
       "selected": "Selected {{ count }} of {{ total }} agents",
-      "saveComposition": "Save composition"
+      "saveComposition": "Save composition",
+      "filterLabel": "Filter agents",
+      "agentsListLabel": "Agents list",
+      "addAgentPrefix": "Add",
+      "addAgentSuffix": "to group"
     },
     "settings": {
       "emailTitle": "Email settings",
@@ -1992,7 +2022,9 @@
       "confirmDeleteBtn": "Delete",
       "deleting": "Deleting...",
       "emptyMessage": "No users to display.",
-      "emptyHint": "Change filters or add a new user."
+      "emptyHint": "Change filters or add a new user.",
+      "skillsListLabel": "User's skills",
+      "confirmDeleteLabel": "Confirm user deletion"
     },
     "userForm": {
       "titleCreate": "New user",
@@ -2035,6 +2067,45 @@
     "uk": "Українська"
   },
   "contactDetailModal": {
+    "title": "Contact details",
+    "closeLabel": "Close contact details",
+    "loadingLabel": "Loading contact data...",
+    "errorText": "Failed to load contact data.",
+    "sectionInfo": "General information",
+    "fieldChannel": "Channel",
+    "fieldDirection": "Direction",
+    "fieldAddress": "Number / address",
+    "fieldDateTime": "Date and time",
+    "fieldAnswered": "Answered",
+    "fieldEnded": "Ended",
+    "sectionStatus": "Status and duration",
+    "fieldStatus": "Status",
+    "fieldDuration": "Duration",
+    "fieldDisposition": "Disposition code",
+    "fieldNotes": "Notes",
+    "sectionEmail": "Email message (EML)",
+    "sectionRecording": "Call recording",
+    "downloadEml": "Download EML",
+    "loadRecording": "Load recording",
+    "loadingEml": "Downloading EML file...",
+    "loadingRecording": "Loading recording...",
+    "errorFetchPrefix": "Failed to retrieve",
+    "errorEmlSubject": "EML message",
+    "errorRecordingSubject": "recording",
+    "retry": "Try again",
+    "linkExpires": "Link valid until:",
+    "downloadEmlBtn": "Download EML file",
+    "previewHtml": "HTML preview",
+    "loadingPreview": "Loading preview...",
+    "errorPreviewText": "Failed to load preview.",
+    "emailFrom": "From:",
+    "emailTo": "To:",
+    "emailCc": "CC:",
+    "emailSubject": "Subject:",
+    "emailDate": "Date:",
+    "emailEmpty": "No message content.",
+    "sectionRelated": "Related contacts",
+    "loadingRelatedLabel": "Loading related contacts...",
     "related": "Related",
     "parentContact": "Source contact",
     "childContact": "Result contact",

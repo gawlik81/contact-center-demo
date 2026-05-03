@@ -205,7 +205,7 @@ export class SupervisorCallbacksPageComponent implements OnInit {
   }
 
   getStatusLabel(status: string): string {
-    return this.transloco.translate(`supervisor.callbacks.statusLabels.${status}`, {}, status);
+    return this.transloco.translate(`supervisor.callbacks.statusLabels.${status}`);
   }
 
   getStatusClass(status: string): string {

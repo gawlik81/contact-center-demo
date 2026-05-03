@@ -32,6 +32,7 @@
     "saving": "Збереження...",
     "loading_data": "Завантаження даних...",
     "no_data": "Немає даних",
+    "none": "Немає",
     "import": "Імпортувати",
     "export": "Експортувати",
     "create": "Створити",
@@ -142,7 +143,7 @@
     "collapseNav": "Згорнути навігацію",
     "expandNav": "Розгорнути навігацію",
     "desktop": "Desktop",
-    "tenants": "Tenants",
+    "tenants": "Тенанти",
     "users": "Користувачі",
     "metrics": "Метрики",
     "agentGroups": "Групи агентів",
@@ -154,12 +155,17 @@
     "settingsSocialMedia": "Соціальні мережі",
     "settingsEmailTemplates": "Шаблони email",
     "reportsHistorical": "Історичні",
-    "reportsContacts": "Контакти"
+    "reportsContacts": "Контакти",
+    "importCsv": "Імпорт CSV",
+    "customerProfile": "Профіль клієнта",
+    "ivrEditor": "Редактор IVR",
+    "oauthCallback": "OAuth Callback",
+    "breadcrumbNav": "Шлях навігації"
   },
   "role": {
-    "admin": "Admin",
-    "supervisor": "Supervisor",
-    "agent": "Agent"
+    "admin": "Адмін",
+    "supervisor": "Супервізор",
+    "agent": "Агент"
   },
   "agent": {
     "status": {
@@ -638,7 +644,9 @@
       "lastContact": "Останній контакт",
       "noContacts": "Немає контактів",
       "scheduleCallback": "Замовити передзвін",
-      "closeDetails": "Закрити деталі"
+      "closeDetails": "Закрити деталі",
+      "details": "Деталі",
+      "callbackFor": "Замовити передзвін для"
     },
     "manualCallbackModal": {
       "title": "Замовити передзвін",
@@ -648,7 +656,22 @@
       "notesLabel": "Нотатки",
       "notesOptional": "(необов'язково)",
       "schedule": "Замовити",
-      "cancel": "Скасувати"
+      "cancel": "Скасувати",
+      "errorMinTime": "Виберіть час щонайменше через 5 хвилин.",
+      "errorInvalidData": "Невірні дані запиту.",
+      "errorForbidden": "У вас немає дозволу на планування передзвону.",
+      "errorNotFound": "Клієнта не знайдено.",
+      "errorServer": "Сталася помилка сервера. Спробуйте ще раз.",
+      "phoneRequired": "Номер телефону обов'язковий.",
+      "phoneInvalidFormat": "Введіть номер у міжнародному форматі (наприклад +48123456789).",
+      "dateRequired": "Дата обов'язкова.",
+      "timeRequired": "Час обов'язковий.",
+      "notesMaxLength": "Нотатка не може перевищувати 500 символів.",
+      "phoneHint": "Міжнародний формат, напр. +48123456789",
+      "scheduledDateLabel": "Дата передзвону",
+      "hourLabel": "Година",
+      "minuteLabel": "Хвилини",
+      "notesPlaceholder": "Додайте нотатку до передзвону..."
     },
     "callbacksPage": {
       "title": "Мої зворотні дзвінки",
@@ -678,7 +701,8 @@
         "PROCESSING": "В обробці",
         "COMPLETED": "Завершено",
         "CANCELLED": "Скасовано"
-      }
+      },
+      "paginationLabel": "Навігація по сторінках"
     },
     "customersTab": {
       "title": "Клієнти",
@@ -1203,6 +1227,7 @@
       "gdprAnonymizeBtnLabel": "Анонімізувати дані клієнта відповідно до Ст. 17 GDPR",
       "gdprAnonymizeBtn": "Анонімізувати клієнта (Ст. 17)",
       "channelLabels": {
+        "PHONE": "Телефон",
         "VOICE": "Телефон",
         "EMAIL": "Email",
         "CHAT": "Чат",
@@ -1620,6 +1645,7 @@
       "tableActions": "Дії",
       "editLabel": "Редагувати групу",
       "deleteLabel": "Видалити групу",
+      "manageMembersLabel": "Керувати агентами",
       "membersLabel": "Управляти членами",
       "emptyText": "Немає груп агентів.",
       "loadingLabel": "Завантаження...",
@@ -1659,7 +1685,11 @@
       "searchPlaceholder": "Пошук агента...",
       "noResults": "Немає результатів для «{{ query }}»",
       "selected": "Вибрано {{ count }} з {{ total }} агентів",
-      "saveComposition": "Зберегти склад"
+      "saveComposition": "Зберегти склад",
+      "filterLabel": "Фільтрувати агентів",
+      "agentsListLabel": "Список агентів",
+      "addAgentPrefix": "Додати",
+      "addAgentSuffix": "до групи"
     },
     "settings": {
       "emailTitle": "Налаштування email",
@@ -1992,7 +2022,9 @@
       "confirmDeleteBtn": "Видалити",
       "deleting": "Видалення...",
       "emptyMessage": "Немає користувачів для відображення.",
-      "emptyHint": "Змініть фільтри або додайте нового користувача."
+      "emptyHint": "Змініть фільтри або додайте нового користувача.",
+      "skillsListLabel": "Скіли користувача",
+      "confirmDeleteLabel": "Підтвердити видалення користувача"
     },
     "userForm": {
       "titleCreate": "Новий користувач",
@@ -2035,6 +2067,45 @@
     "uk": "Українська"
   },
   "contactDetailModal": {
+    "title": "Деталі контакту",
+    "closeLabel": "Закрити деталі контакту",
+    "loadingLabel": "Завантаження даних контакту...",
+    "errorText": "Не вдалося завантажити дані контакту.",
+    "sectionInfo": "Загальна інформація",
+    "fieldChannel": "Канал",
+    "fieldDirection": "Напрямок",
+    "fieldAddress": "Номер / адреса",
+    "fieldDateTime": "Дата і час",
+    "fieldAnswered": "Відповідь",
+    "fieldEnded": "Завершено",
+    "sectionStatus": "Статус і тривалість",
+    "fieldStatus": "Статус",
+    "fieldDuration": "Тривалість",
+    "fieldDisposition": "Код диспозиції",
+    "fieldNotes": "Нотатка",
+    "sectionEmail": "Електронний лист (EML)",
+    "sectionRecording": "Запис розмови",
+    "downloadEml": "Завантажити EML",
+    "loadRecording": "Завантажити запис",
+    "loadingEml": "Завантаження файлу EML...",
+    "loadingRecording": "Завантаження запису...",
+    "errorFetchPrefix": "Не вдалося отримати",
+    "errorEmlSubject": "повідомлення EML",
+    "errorRecordingSubject": "запис",
+    "retry": "Спробувати ще раз",
+    "linkExpires": "Посилання дійсне до:",
+    "downloadEmlBtn": "Завантажити файл EML",
+    "previewHtml": "HTML-перегляд",
+    "loadingPreview": "Завантаження попереднього перегляду...",
+    "errorPreviewText": "Не вдалося завантажити попередній перегляд.",
+    "emailFrom": "Від:",
+    "emailTo": "Кому:",
+    "emailCc": "CC:",
+    "emailSubject": "Тема:",
+    "emailDate": "Дата:",
+    "emailEmpty": "Вміст повідомлення відсутній.",
+    "sectionRelated": "Пов'язані контакти",
+    "loadingRelatedLabel": "Завантаження пов'язаних контактів...",
     "related": "Пов'язані",
     "parentContact": "Вихідний контакт",
     "childContact": "Результуючий контакт",

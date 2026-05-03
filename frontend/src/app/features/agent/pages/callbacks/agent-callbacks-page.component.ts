@@ -167,7 +167,7 @@ export class AgentCallbacksPageComponent implements OnInit {
   }
 
   getStatusLabel(status: string): string {
-    return this.transloco.translate(`agent.callbacksPage.statusLabels.${status}`, {}, status);
+    return this.transloco.translate(`agent.callbacksPage.statusLabels.${status}`);
   }
 
   getStatusClass(status: string): string {

@@ -4,7 +4,7 @@ export const AGENT_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => import('./agent-shell.component').then((m) => m.AgentShellComponent),
-    data: { breadcrumb: 'Agent' },
+    data: { breadcrumb: 'role.agent' },
     children: [
       {
         path: '',
@@ -13,7 +13,7 @@ export const AGENT_ROUTES: Routes = [
       },
       {
         path: 'desktop',
-        data: { breadcrumb: 'Desktop' },
+        data: { breadcrumb: 'nav.desktop' },
         loadComponent: () =>
           import('./pages/agent-desktop/agent-desktop.component').then(
             (m) => m.AgentDesktopComponent,
@@ -21,7 +21,7 @@ export const AGENT_ROUTES: Routes = [
       },
       {
         path: 'customers',
-        data: { breadcrumb: 'Klienci' },
+        data: { breadcrumb: 'nav.customers' },
         loadComponent: () =>
           import('./pages/customers/agent-customers-tab.component').then(
             (m) => m.AgentCustomersTabComponent,
@@ -29,7 +29,7 @@ export const AGENT_ROUTES: Routes = [
       },
       {
         path: 'callbacks',
-        data: { breadcrumb: 'Oddzwonienia' },
+        data: { breadcrumb: 'nav.callbacks' },
         loadComponent: () =>
           import('./pages/callbacks/agent-callbacks-page.component').then(
             (m) => m.AgentCallbacksPageComponent,

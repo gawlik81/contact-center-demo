@@ -330,39 +330,27 @@ export class AgentCalendarComponent implements OnInit {
   }
 
   breakTypeLabel(type: string): string {
-    return this.transloco.translate(`agent.calendarStatus.breakLabels.${type}`, {}, type);
+    return this.transloco.translate(`agent.calendarStatus.breakLabels.${type}`);
   }
 
   breakStatusLabel(status: string): string {
-    return this.transloco.translate(`agent.calendarStatus.breakStatusLabels.${status}`, {}, status);
+    return this.transloco.translate(`agent.calendarStatus.breakStatusLabels.${status}`);
   }
 
   callbackSourceLabel(source: string): string {
-    return this.transloco.translate(
-      `agent.calendarStatus.callbackSourceLabels.${source}`,
-      {},
-      source,
-    );
+    return this.transloco.translate(`agent.calendarStatus.callbackSourceLabels.${source}`);
   }
 
   callbackStatusLabel(status: string): string {
-    return this.transloco.translate(
-      `agent.calendarStatus.callbackStatusLabels.${status}`,
-      {},
-      status,
-    );
+    return this.transloco.translate(`agent.calendarStatus.callbackStatusLabels.${status}`);
   }
 
   campaignStatusLabel(status: string): string {
-    return this.transloco.translate(
-      `agent.calendarStatus.campaignStatusLabels.${status}`,
-      {},
-      status,
-    );
+    return this.transloco.translate(`agent.calendarStatus.campaignStatusLabels.${status}`);
   }
 
   formatActiveDays(days: string[]): string {
-    return days.map((d) => this.transloco.translate(`agent.calendar.days.${d}`, {}, d)).join(', ');
+    return days.map((d) => this.transloco.translate(`agent.calendar.days.${d}`)).join(', ');
   }
 
   readonly trackByDay = (_i: number, day: CalendarDay) => day.date.toISOString().slice(0, 10);

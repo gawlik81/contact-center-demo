@@ -23,7 +23,7 @@
         class="filter-select"
         formControlName="status"
         (change)="onFilterChange()"
-        aria-label="Filtruj po statusie"
+        [attr.aria-label]="'agent.callbacks.filterStatusLabel' | transloco"
       >
         <option [ngValue]="null">{{ 'common.all' | transloco }}</option>
         <option value="PENDING">{{ 'supervisor.callbacks.statusPending' | transloco }}</option>
@@ -40,7 +40,7 @@
         class="filter-select"
         formControlName="sortDir"
         (change)="onFilterChange()"
-        aria-label="Sortuj oddzwonienia"
+        [attr.aria-label]="'agent.callbacks.filterSortLabel' | transloco"
       >
         <option value="ASC">{{ 'common.sortAsc' | transloco }}</option>
         <option value="DESC">{{ 'common.sortDesc' | transloco }}</option>
@@ -76,7 +76,9 @@
               <th scope="col">{{ 'agent.callbacksPage.tableDateTime' | transloco }}</th>
               <th scope="col" class="hide-xs">{{ 'common.notes' | transloco }}</th>
               <th scope="col">{{ 'common.status' | transloco }}</th>
-              <th scope="col"><span class="sr-only">Akcje</span></th>
+              <th scope="col">
+                <span class="sr-only">{{ 'common.actions' | transloco }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -94,7 +96,7 @@
                   <span
                     class="badge"
                     [class]="getStatusClass(cb.status)"
-                    [attr.aria-label]="'Status: ' + getStatusLabel(cb.status)"
+                    [attr.aria-label]="('common.status' | transloco) + ': ' + getStatusLabel(cb.status)"
                   >
                     {{ getStatusLabel(cb.status) }}
                   </span>
@@ -105,8 +107,8 @@
                     type="button"
                     (click)="openEditModal(cb)"
                     [disabled]="!isEditable(cb.status)"
-                    [attr.aria-label]="'Edytuj oddzwonienie dla ' + cb.phone"
-                    title="Przełóż oddzwonienie"
+                    [attr.aria-label]="('agent.callbacks.editLabel' | transloco) + ' ' + cb.phone"
+                    [title]="'agent.callbacks.editTitle' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path
@@ -119,8 +121,8 @@
                     type="button"
                     (click)="openDeleteModal(cb)"
                     [disabled]="!isEditable(cb.status)"
-                    [attr.aria-label]="'Anuluj oddzwonienie dla ' + cb.phone"
-                    title="Anuluj oddzwonienie"
+                    [attr.aria-label]="('agent.callbacks.deleteLabel' | transloco) + ' ' + cb.phone"
+                    [title]="'agent.callbacks.deleteTitle' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
@@ -134,7 +136,7 @@
       </div>
 
       <!-- Pagination -->
-      <nav class="pagination" aria-label="Nawigacja stron">
+      <nav class="pagination" [attr.aria-label]="'agent.callbacksPage.paginationLabel' | transloco">
         <span class="pagination__info" aria-live="polite">
           @if (total() > 0) {
             {{ 'agent.callbacksPage.showing' | transloco }} {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }}

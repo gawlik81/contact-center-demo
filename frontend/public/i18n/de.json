@@ -32,6 +32,7 @@
     "saving": "Speichern...",
     "loading_data": "Daten werden geladen...",
     "no_data": "Keine Daten",
+    "none": "Keine",
     "import": "Importieren",
     "export": "Exportieren",
     "create": "Erstellen",
@@ -154,10 +155,15 @@
     "settingsSocialMedia": "Social Media",
     "settingsEmailTemplates": "E-Mail-Vorlagen",
     "reportsHistorical": "Historisch",
-    "reportsContacts": "Kontakte"
+    "reportsContacts": "Kontakte",
+    "importCsv": "Import CSV",
+    "customerProfile": "Kundenprofil",
+    "ivrEditor": "IVR-Editor",
+    "oauthCallback": "OAuth Callback",
+    "breadcrumbNav": "Navigationspfad"
   },
   "role": {
-    "admin": "Admin",
+    "admin": "Administrator",
     "supervisor": "Supervisor",
     "agent": "Agent"
   },
@@ -638,7 +644,9 @@
       "lastContact": "Letzter Kontakt",
       "noContacts": "Keine Kontakte",
       "scheduleCallback": "Rückruf planen",
-      "closeDetails": "Details schließen"
+      "closeDetails": "Details schließen",
+      "details": "Details",
+      "callbackFor": "Rückruf planen für"
     },
     "manualCallbackModal": {
       "title": "Rückruf planen",
@@ -648,7 +656,22 @@
       "notesLabel": "Notizen",
       "notesOptional": "(optional)",
       "schedule": "Planen",
-      "cancel": "Abbrechen"
+      "cancel": "Abbrechen",
+      "errorMinTime": "Bitte wählen Sie einen Termin mindestens 5 Minuten in der Zukunft.",
+      "errorInvalidData": "Ungültige Anfragedaten.",
+      "errorForbidden": "Sie haben keine Berechtigung, einen Rückruf zu planen.",
+      "errorNotFound": "Kunde nicht gefunden.",
+      "errorServer": "Ein Serverfehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+      "phoneRequired": "Telefonnummer ist erforderlich.",
+      "phoneInvalidFormat": "Bitte geben Sie eine Nummer im internationalen Format ein (z.B. +48123456789).",
+      "dateRequired": "Datum ist erforderlich.",
+      "timeRequired": "Uhrzeit ist erforderlich.",
+      "notesMaxLength": "Notiz darf 500 Zeichen nicht überschreiten.",
+      "phoneHint": "Internationales Format, z.B. +48123456789",
+      "scheduledDateLabel": "Rückrufdatum",
+      "hourLabel": "Stunde",
+      "minuteLabel": "Minuten",
+      "notesPlaceholder": "Rückrufnotiz hinzufügen..."
     },
     "callbacksPage": {
       "title": "Meine Rückrufe",
@@ -678,7 +701,8 @@
         "PROCESSING": "In Bearbeitung",
         "COMPLETED": "Abgeschlossen",
         "CANCELLED": "Storniert"
-      }
+      },
+      "paginationLabel": "Seitennavigation"
     },
     "customersTab": {
       "title": "Kunden",
@@ -1203,6 +1227,7 @@
       "gdprAnonymizeBtnLabel": "Kundendaten gemäß Art. 17 DSGVO anonymisieren",
       "gdprAnonymizeBtn": "Kunde anonymisieren (Art. 17)",
       "channelLabels": {
+        "PHONE": "Telefon",
         "VOICE": "Telefon",
         "EMAIL": "E-Mail",
         "CHAT": "Chat",
@@ -1620,6 +1645,7 @@
       "tableActions": "Aktionen",
       "editLabel": "Gruppe bearbeiten",
       "deleteLabel": "Gruppe löschen",
+      "manageMembersLabel": "Agenten verwalten",
       "membersLabel": "Mitglieder verwalten",
       "emptyText": "Keine Agentengruppen.",
       "loadingLabel": "Wird geladen...",
@@ -1659,7 +1685,11 @@
       "searchPlaceholder": "Agent suchen...",
       "noResults": "Keine Ergebnisse für \"{{ query }}\"",
       "selected": "{{ count }} von {{ total }} Agenten ausgewählt",
-      "saveComposition": "Zusammensetzung speichern"
+      "saveComposition": "Zusammensetzung speichern",
+      "filterLabel": "Agenten filtern",
+      "agentsListLabel": "Agentenliste",
+      "addAgentPrefix": "Hinzufügen",
+      "addAgentSuffix": "zur Gruppe"
     },
     "settings": {
       "emailTitle": "E-Mail-Einstellungen",
@@ -1992,7 +2022,9 @@
       "deleting": "Wird gelöscht...",
       "errorDelete": "Benutzer konnte nicht gelöscht werden.",
       "errorLoad": "Benutzer konnten nicht geladen werden.",
-      "successDelete": "Benutzer wurde gelöscht."
+      "successDelete": "Benutzer wurde gelöscht.",
+      "skillsListLabel": "Benutzer-Skills",
+      "confirmDeleteLabel": "Benutzerlöschung bestätigen"
     },
     "userForm": {
       "titleCreate": "Neuer Benutzer",
@@ -2035,6 +2067,45 @@
     "uk": "Українська"
   },
   "contactDetailModal": {
+    "title": "Kontaktdetails",
+    "closeLabel": "Kontaktdetails schließen",
+    "loadingLabel": "Kontaktdaten werden geladen...",
+    "errorText": "Kontaktdaten konnten nicht geladen werden.",
+    "sectionInfo": "Allgemeine Informationen",
+    "fieldChannel": "Kanal",
+    "fieldDirection": "Richtung",
+    "fieldAddress": "Nummer / Adresse",
+    "fieldDateTime": "Datum und Uhrzeit",
+    "fieldAnswered": "Beantwortet",
+    "fieldEnded": "Beendet",
+    "sectionStatus": "Status und Dauer",
+    "fieldStatus": "Status",
+    "fieldDuration": "Dauer",
+    "fieldDisposition": "Dispositionscode",
+    "fieldNotes": "Notizen",
+    "sectionEmail": "E-Mail-Nachricht (EML)",
+    "sectionRecording": "Gesprächsaufnahme",
+    "downloadEml": "EML herunterladen",
+    "loadRecording": "Aufnahme laden",
+    "loadingEml": "EML-Datei wird heruntergeladen...",
+    "loadingRecording": "Aufnahme wird geladen...",
+    "errorFetchPrefix": "Konnte nicht abgerufen werden:",
+    "errorEmlSubject": "EML-Nachricht",
+    "errorRecordingSubject": "Aufnahme",
+    "retry": "Erneut versuchen",
+    "linkExpires": "Link gültig bis:",
+    "downloadEmlBtn": "EML-Datei herunterladen",
+    "previewHtml": "HTML-Vorschau",
+    "loadingPreview": "Vorschau wird geladen...",
+    "errorPreviewText": "Vorschau konnte nicht geladen werden.",
+    "emailFrom": "Von:",
+    "emailTo": "An:",
+    "emailCc": "CC:",
+    "emailSubject": "Betreff:",
+    "emailDate": "Datum:",
+    "emailEmpty": "Kein Nachrichteninhalt.",
+    "sectionRelated": "Verwandte Kontakte",
+    "loadingRelatedLabel": "Verwandte Kontakte werden geladen...",
     "related": "Verknüpfte",
     "parentContact": "Quellkontakt",
     "childContact": "Ergebniskontakt",

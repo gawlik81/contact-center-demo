@@ -253,7 +253,12 @@
       "Bash(chmod +x /tmp/search_polish.sh)",
       "Bash(/tmp/search_polish.sh)",
       "Bash(chmod +x /tmp/find_hardcoded_polish.sh)",
-      "Bash(/tmp/find_hardcoded_polish.sh)"
+      "Bash(/tmp/find_hardcoded_polish.sh)",
+      "Bash(sed -n '1,10p' /home/pawelm/contact-center/frontend/src/app/features/supervisor/pages/settings/email-templates/email-templates.component.scss)",
+      "Bash(sed -n '1,10p' /home/pawelm/contact-center/frontend/src/app/features/integrations/pages/social-integrations/social-integrations.component.scss)",
+      "Bash(sed -n '20,30p' /home/pawelm/contact-center/frontend/src/app/features/supervisor/pages/customers/customer-import/customer-import.component.scss)",
+      "Bash(sed -n '165,172p' /home/pawelm/contact-center/frontend/public/i18n/pl.json)",
+      "Bash(sed -n '165,172p' /home/pawelm/contact-center/frontend/public/i18n/uk.json)"
     ]
   }
 }

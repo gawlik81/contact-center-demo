@@ -37,7 +37,7 @@
             <tr>
               <th scope="col">{{ 'common.name' | transloco }}</th>
               <th scope="col">{{ 'supervisor.agentGroups.membersCount' | transloco }}</th>
-              <th scope="col"><span class="sr-only">Akcje</span></th>
+              <th scope="col"><span class="sr-only">{{ 'common.actions' | transloco }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -52,8 +52,8 @@
                     class="btn btn-icon-outline"
                     type="button"
                     (click)="openEditModal(group)"
-                    [attr.aria-label]="'Edytuj grupę ' + group.name"
-                    title="Edytuj grupę"
+                    [attr.aria-label]="('supervisor.agentGroups.editLabel' | transloco) + ' ' + group.name"
+                    [title]="'supervisor.agentGroups.editLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path
@@ -65,8 +65,8 @@
                     class="btn btn-icon-members"
                     type="button"
                     (click)="openMembersModal(group)"
-                    [attr.aria-label]="'Zarządzaj agentami grupy ' + group.name"
-                    title="Zarządzaj agentami"
+                    [attr.aria-label]="('supervisor.agentGroups.manageMembersLabel' | transloco) + ' ' + group.name"
+                    [title]="'supervisor.agentGroups.manageMembersLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path
@@ -78,8 +78,8 @@
                     class="btn btn-icon-danger"
                     type="button"
                     (click)="openDeleteModal(group)"
-                    [attr.aria-label]="'Usuń grupę ' + group.name"
-                    title="Usuń grupę"
+                    [attr.aria-label]="('supervisor.agentGroups.deleteLabel' | transloco) + ' ' + group.name"
+                    [title]="'supervisor.agentGroups.deleteLabel' | transloco"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                       <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />

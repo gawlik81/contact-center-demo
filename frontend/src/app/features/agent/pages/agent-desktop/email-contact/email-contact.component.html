@@ -94,15 +94,15 @@
                 id="template-search"
                 type="text"
                 class="field-input"
-                placeholder="Zacznij pisac nazwe szablonu..."
+                [attr.placeholder]="'agent.emailContact.templateSearch' | transloco"
                 [formControl]="templateSearchControl"
-                aria-label="Wyszukaj szablon odpowiedzi"
+                [attr.aria-label]="'agent.emailContact.templateSearch' | transloco"
                 aria-autocomplete="list"
                 [attr.aria-expanded]="filteredTemplates().length > 0 && templateSearchControl.value !== ''"
                 aria-controls="template-list"
               />
               @if (filteredTemplates().length > 0 && templateSearchControl.value) {
-                <ul id="template-list" class="autocomplete-list" role="listbox" aria-label="Dostepne szablony">
+                <ul id="template-list" class="autocomplete-list" role="listbox" [attr.aria-label]="'agent.emailContact.templateListLabel' | transloco">
                   @for (tpl of filteredTemplates(); track trackByTemplateId($index, tpl)) {
                     <li
                       class="autocomplete-item"
@@ -114,7 +114,7 @@
                     >
                       <span class="autocomplete-item__name">{{ tpl.name }}</span>
                       @if (tpl.variables.length > 0) {
-                        <span class="autocomplete-item__vars"> {{ tpl.variables.length }} zmiennych </span>
+                        <span class="autocomplete-item__vars"> {{ tpl.variables.length }} {{ 'agent.emailContact.variables' | transloco }} </span>
                       }
                     </li>
                   }
@@ -125,8 +125,8 @@
 
           <!-- Template variable form -->
           @if (showVariableForm() && hasTemplateVariables()) {
-            <div class="email-reply__variables" role="group" aria-label="Zmienne szablonu">
-              <p class="email-reply__variables-title">Uzupelnij zmienne szablonu:</p>
+            <div class="email-reply__variables" role="group" [attr.aria-label]="'agent.emailContact.templateVariablesLabel' | transloco">
+              <p class="email-reply__variables-title">{{ 'agent.emailContact.templateVariablesTitle' | transloco }}</p>
               @for (key of getVariableKeys(); track trackByKey($index, key)) {
                 <div class="email-reply__field-group">
                   <label class="field-label" [for]="'var-' + key">{{ key }}</label>
@@ -135,7 +135,7 @@
                     type="text"
                     class="field-input"
                     [value]="templateVariables()[key]"
-                    [attr.aria-label]="'Wartosc zmiennej ' + key"
+                    [attr.aria-label]="('agent.emailContact.templateVariableValue' | transloco) + ' ' + key"
                     (input)="onVariableChange(key, $any($event.target).value)"
                   />
                 </div>
@@ -143,35 +143,35 @@
               <button
                 type="button"
                 class="btn btn--secondary"
-                aria-label="Podgladnij szablon z uzupelnionymi zmiennymi"
+                [attr.aria-label]="'agent.emailContact.templatePreviewLabel' | transloco"
                 (click)="previewTemplate()"
               >
-                Podgladnij szablon
+                {{ 'agent.emailContact.templatePreview' | transloco }}
               </button>
             </div>
           }
 
           <!-- Subject line -->
           <div class="email-reply__field-group">
-            <label class="field-label" for="reply-subject">Temat odpowiedzi</label>
+            <label class="field-label" for="reply-subject">{{ 'agent.emailContact.subjectLabel' | transloco }}</label>
             <input
               id="reply-subject"
               type="text"
               class="field-input"
               [value]="replySubject()"
-              aria-label="Temat odpowiedzi email"
+              [attr.aria-label]="'agent.emailContact.subjectLabel' | transloco"
               (input)="replySubject.set($any($event.target).value)"
             />
           </div>
 
           <!-- Rich text editor -->
           <div class="email-reply__editor-wrapper">
-            <div class="email-reply__toolbar" role="toolbar" aria-label="Pasek narzedzi edytora">
+            <div class="email-reply__toolbar" role="toolbar" [attr.aria-label]="'agent.emailContact.editorToolbarLabel' | transloco">
               <button
                 type="button"
                 class="editor-btn"
-                title="Pogrubienie"
-                aria-label="Pogrubienie (Ctrl+B)"
+                [title]="'agent.emailContact.bold' | transloco"
+                [attr.aria-label]="'agent.emailContact.boldLabel' | transloco"
                 (click)="execCommand('bold')"
               >
                 <strong>B</strong>
@@ -179,8 +179,8 @@
               <button
                 type="button"
                 class="editor-btn editor-btn--italic"
-                title="Kursywa"
-                aria-label="Kursywa (Ctrl+I)"
+                [title]="'agent.emailContact.italic' | transloco"
+                [attr.aria-label]="'agent.emailContact.italicLabel' | transloco"
                 (click)="execCommand('italic')"
               >
                 <em>I</em>
@@ -188,8 +188,8 @@
               <button
                 type="button"
                 class="editor-btn editor-btn--underline"
-                title="Podkreslenie"
-                aria-label="Podkreslenie (Ctrl+U)"
+                [title]="'agent.emailContact.underline' | transloco"
+                [attr.aria-label]="'agent.emailContact.underlineLabel' | transloco"
                 (click)="execCommand('underline')"
               >
                 <u>U</u>
@@ -198,8 +198,8 @@
               <button
                 type="button"
                 class="editor-btn"
-                title="Wstaw link"
-                aria-label="Wstaw hiperlink"
+                [title]="'agent.emailContact.insertLink' | transloco"
+                [attr.aria-label]="'agent.emailContact.insertLinkLabel' | transloco"
                 (click)="insertLink()"
               >
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -217,8 +217,8 @@
               #editor
               role="textbox"
               aria-multiline="true"
-              aria-label="Tresc odpowiedzi"
-              data-placeholder="Wpisz odpowiedz..."
+              [attr.aria-label]="'agent.emailContact.editorLabel' | transloco"
+              [attr.data-placeholder]="'agent.emailContact.editorPlaceholder' | transloco"
               (input)="onEditorInput($event)"
             ></div>
           </div>
@@ -231,26 +231,26 @@
             type="button"
             class="btn btn--primary"
             [disabled]="!canSend()"
-            aria-label="Wyslij odpowiedz email"
+            [attr.aria-label]="'agent.emailContact.sendLabel' | transloco"
             (click)="sendReply()"
           >
             @if (sending()) {
               <span class="btn-spinner btn-spinner--light" aria-hidden="true"></span>
-              <span>Wysylanie...</span>
+              <span>{{ 'agent.emailContact.sending' | transloco }}</span>
             } @else {
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
               </svg>
-              <span>Wyslij odpowiedz</span>
+              <span>{{ 'agent.emailContact.send' | transloco }}</span>
             }
           </button>
           <button
             type="button"
             class="btn btn--ghost"
-            aria-label="Anuluj i zamknij zakladke email"
+            [attr.aria-label]="'agent.emailContact.cancelLabel' | transloco"
             (click)="cancelReply()"
           >
-            Anuluj
+            {{ 'agent.emailContact.cancel' | transloco }}
           </button>
         </div>
       </section>

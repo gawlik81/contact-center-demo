@@ -166,7 +166,7 @@ export class SocialIntegrationsComponent implements OnInit {
   }
 
   getWebhookStatusLabel(status: string): string {
-    return this.transloco.translate(`integrations.social.webhookStatus.${status}`, {}, status);
+    return this.transloco.translate(`integrations.social.webhookStatus.${status}`);
   }
 
   formatDate(iso: string | null): string {

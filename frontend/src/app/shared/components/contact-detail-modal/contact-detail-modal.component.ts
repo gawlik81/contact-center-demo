@@ -250,27 +250,19 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   }
 
   getChannelLabel(channel: string): string {
-    return this.transloco.translate(`contactDetailModal.channelLabels.${channel}`, {}, channel);
+    return this.transloco.translate(`contactDetailModal.channelLabels.${channel}`);
   }
 
   getStatusLabel(status: string): string {
-    return this.transloco.translate(`contactDetailModal.statusLabels.${status}`, {}, status);
+    return this.transloco.translate(`contactDetailModal.statusLabels.${status}`);
   }
 
   getDirectionLabel(direction: string): string {
-    return this.transloco.translate(
-      `contactDetailModal.directionLabels.${direction}`,
-      {},
-      direction,
-    );
+    return this.transloco.translate(`contactDetailModal.directionLabels.${direction}`);
   }
 
   getCallbackStatusLabel(status: string): string {
-    return this.transloco.translate(
-      `contactDetailModal.callbackStatusLabels.${status}`,
-      {},
-      status,
-    );
+    return this.transloco.translate(`contactDetailModal.callbackStatusLabels.${status}`);
   }
 
   private formatDurationSeconds(totalSeconds: number): string {

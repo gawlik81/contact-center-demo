@@ -40,6 +40,12 @@ Stan migracji po V035 (2026-04-08):
   - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
   - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
 
+Stan migracji po V052 (2026-05-05):
+- V049__add_version_columns.sql: kolumny wersjonowania
+- V050__add_preferred_language_to_app_user.sql: preferred_language na app_user
+- V051__create_tenant_twilio_config.sql (DB-030): tabela tenant_twilio_config – konfiguracja Twilio per tenant, UNIQUE (tenant_id), FK ON DELETE CASCADE, wrażliwe pola (account_sid, auth_token, api_key_sid, api_key_secret) szyfrowane AES-256-GCM przez JPA AttributeConverter (baza przechowuje Base64(IV||ciphertext)), partial index WHERE is_active, RLS USING current_setting('app.current_tenant_id', TRUE)::uuid, komentarze kolumn dokumentujące szyfrowanie. Seed V999 uzupełniony o placeholder konfiguracje dla obu tenantów testowych.
+- V052__add_caller_id_to_campaign.sql (DB-031): kolumna caller_id VARCHAR(30) NULL na tabeli campaign (format E.164, addytywna/idempotentna), partial index idx_campaign_caller_id ON (tenant_id, caller_id) WHERE caller_id IS NOT NULL AND is_deleted = FALSE. NULL = fallback do tenant_twilio_config.phone_number.
+
 Stan migracji po V048 (2026-04-25):
 - V048__agent_break.sql: tabela przerw agentów (agent_break), klucz UUID (uuid_generate_v4()), FK do tenant i app_user ON DELETE RESTRICT, CHECK constraints na break_type (LUNCH/SHORT_BREAK/TRAINING/OTHER), status (PLANNED/ACTIVE/COMPLETED/CANCELLED) i end_time > start_time, indeks kompozytowy (tenant_id, agent_id, start_time), RLS USING (current_setting('app.current_tenant_id', TRUE)::uuid)
 

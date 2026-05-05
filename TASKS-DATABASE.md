@@ -1055,6 +1055,108 @@ COMMENT ON COLUMN app_user.preferred_language IS 'ISO 639-1 language code for UI
 
 ---
 
+## MODUL: Per-tenant konfiguracja Twilio (EPIC-20)
+
+### DB-030 – Tabela `tenant_twilio_config`: per-tenant kredencjały Twilio z szyfrowaniem
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** M
+**Zależy od:** DB-001 (rozszerzenie pgcrypto), DB-002 (tabela `tenant`), DB-015 (RLS)
+**Status:** ✅ Ukończone
+**Blokuje:** BE-055, BE-056, BE-057
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+**Flyway:** V051__create_tenant_twilio_config.sql
+
+**Opis:**
+Nowa tabela przechowująca konfigurację Twilio per tenant. Wrażliwe pola (`account_sid`, `auth_token`, `api_key_sid`, `api_key_secret`) będą szyfrowane na poziomie aplikacji (AES-256-GCM przez AttributeConverter w JPA) – baza przechowuje zaszyfrowany tekst. Kolumna `twiml_app_sid` i `phone_number` przechowywane jako plaintext (nie są tokenami autentykacyjnymi). Tabela ma relację 1:1 z tenantami (UNIQUE na `tenant_id`). RLS policy izoluje konfiguracje między tenantami.
+
+**DDL migracji (V051):**
+```sql
+CREATE TABLE tenant_twilio_config (
+    config_id          UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id          UUID        NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE,
+    account_sid        VARCHAR(255) NOT NULL,           -- szyfrowane AES-256-GCM przez aplikację
+    auth_token         TEXT        NOT NULL,            -- szyfrowane AES-256-GCM przez aplikację
+    api_key_sid        VARCHAR(255),                   -- szyfrowane, NULL gdy brak
+    api_key_secret     TEXT,                           -- szyfrowane, NULL gdy brak
+    twiml_app_sid      VARCHAR(64),                    -- plaintext, opcjonalne
+    phone_number       VARCHAR(30),                    -- E.164, numer prezentacji tenanta
+    status_callback_url TEXT,                          -- URL dla webhooków statusowych
+    is_active          BOOLEAN     NOT NULL DEFAULT TRUE,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ,
+    CONSTRAINT uq_tenant_twilio_config UNIQUE (tenant_id)
+);
+
+CREATE INDEX idx_tenant_twilio_config_tenant ON tenant_twilio_config (tenant_id) WHERE is_active;
+
+ALTER TABLE tenant_twilio_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_twilio_config_isolation ON tenant_twilio_config
+    USING (tenant_id = current_setting('app.tenant_id', TRUE)::uuid);
+
+-- Komentarze dokumentujące szyfrowanie (ważne dla audytu)
+COMMENT ON COLUMN tenant_twilio_config.account_sid IS
+    'Szyfrowane AES-256-GCM przez aplikację; wartość w bazie to Base64(IV||ciphertext)';
+COMMENT ON COLUMN tenant_twilio_config.auth_token IS
+    'Szyfrowane AES-256-GCM przez aplikację; wartość w bazie to Base64(IV||ciphertext)';
+COMMENT ON COLUMN tenant_twilio_config.api_key_sid IS
+    'Szyfrowane AES-256-GCM przez aplikację; NULL gdy tenant używa globalnych kredencjałów';
+COMMENT ON COLUMN tenant_twilio_config.api_key_secret IS
+    'Szyfrowane AES-256-GCM przez aplikację; NULL gdy tenant używa globalnych kredencjałów';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja `V051__create_tenant_twilio_config.sql` aplikuje się bez błędów na dev i test
+- [ ] Constraint `UNIQUE (tenant_id)` zapobiega duplikatom konfiguracji (jeden config per tenant)
+- [ ] FK `tenant_id REFERENCES tenant(tenant_id) ON DELETE CASCADE` – usunięcie tenanta usuwa config
+- [ ] RLS policy izoluje konfiguracje – tenant A nie widzi konfiguracji tenanta B
+- [ ] `CHECK` walidacja formatu `phone_number` (E.164: `^\+[1-9][0-9]{6,14}$`) jako constraint lub na poziomie aplikacji
+- [ ] Komentarze kolumn dokumentują mechanizm szyfrowania (widoczne w `\d+ tenant_twilio_config`)
+- [ ] Migracja idempotentna: `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`
+- [ ] Tabela seed dev (V999) zawiera przykładową konfigurację dla tenant testowego z placeholder values
+
+---
+
+### DB-031 – Kolumna `caller_id` w tabeli `campaign`: numer prezentacji dla kampanii wychodzących
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** DB-011 (tabela `campaign`), DB-030 (tenant_twilio_config jako źródło domyślnego numeru)
+**Status:** ✅ Ukończone
+**Blokuje:** BE-058
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+**Flyway:** V052__add_caller_id_to_campaign.sql
+
+**Opis:**
+Addytywna migracja dodająca kolumnę `caller_id` (nullable) do tabeli `campaign`. Pole przechowuje numer prezentacji (caller ID) w formacie E.164, który będzie używany przez dialer podczas wychodzących połączeń z tej kampanii. Wartość `NULL` oznacza fallback do domyślnego numeru tenanta (z `tenant_twilio_config.phone_number` lub `TwilioProperties` z konfiguracji globalnej).
+
+**DDL migracji (V052):**
+```sql
+ALTER TABLE campaign
+    ADD COLUMN IF NOT EXISTS caller_id VARCHAR(30) NULL;
+
+COMMENT ON COLUMN campaign.caller_id IS
+    'Numer prezentacji (caller ID) dla połączeń wychodzących w formacie E.164. '
+    'NULL = użyj domyślnego numeru tenanta z tenant_twilio_config lub konfiguracji globalnej.';
+
+-- Partial index dla szybkiego lookup kampanii z własnym caller_id
+CREATE INDEX IF NOT EXISTS idx_campaign_caller_id
+    ON campaign (tenant_id, caller_id)
+    WHERE caller_id IS NOT NULL AND is_deleted = FALSE;
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja `V052__add_caller_id_to_campaign.sql` aplikuje się bez błędów
+- [ ] Kolumna `caller_id VARCHAR(30) NULL` istnieje w tabeli `campaign`
+- [ ] Istniejące kampanie po migracji mają `caller_id = NULL` (zachowanie backward-compatible)
+- [ ] Partial index `idx_campaign_caller_id` widoczny w `pg_indexes`
+- [ ] Komentarz kolumny dokumentuje semantykę NULL
+- [ ] Migracja idempotentna (`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`)
+
+---
+
 ## Macierz gotowości: DB → BE → FE
 
 Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do widoku FE:

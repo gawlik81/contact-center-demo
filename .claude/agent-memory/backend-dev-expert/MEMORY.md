@@ -26,6 +26,7 @@
 - [feedback_jdbc_set_tenant_context.md](feedback_jdbc_set_tenant_context.md) – JdbcTemplate set_tenant_context: `jdbcTemplate.update("SELECT set_tenant_context(?::uuid)", id)` nie string concat
 - [feedback_tenant_context_http_vs_async.md](feedback_tenant_context_http_vs_async.md) – TenantContext.clear() tylko w ścieżce async (RabbitMQ), NIE w metodach wywoływanych z HTTP
 - [feedback_rabbitmq_queue_bean_vs_binding_annotation.md](feedback_rabbitmq_queue_bean_vs_binding_annotation.md) – Kolejki RabbitMQ jako @Bean w RabbitMQConfig + stała QUEUE_NAME; @RabbitListener(queues = STAŁA)
+- [Testy repozytoriów – styl i podejście](feedback_repository_tests.md) — brak H2, Mockito EntityManager + ReflectionTestUtils; generics pitfall przy thenReturn(List<Object[]>)
 
 ## Znane pułapki
 
@@ -57,6 +58,7 @@
 
 - [feedback_twilio_sdk_api.md](feedback_twilio_sdk_api.md) – Twilio SDK 10.1.5: `CallCreator` (nie `Call.Creator`), `Call.UpdateStatus` (nie
   `CallUpdater.Status`), ambiguous mocks w testach
+- [feedback_twilio_sdk_create_update_overloads.md](feedback_twilio_sdk_create_update_overloads.md) – Po BE-058: `create(TwilioRestClient)` i `update(TwilioRestClient)` to jedyne sygnatury – mock musi używać `any(TwilioRestClient.class)`
 - [feedback_twilio_webhook_async_pattern.md](feedback_twilio_webhook_async_pattern.md) – Webhook handler zwraca 204 natychmiast; logika Twilio REST API (Conference.fetcher) w @Async; X-Twilio-Signature walidacja przez RequestValidator; HttpClient jako pole
 - [feedback_oauth_csrf_state_redis.md](feedback_oauth_csrf_state_redis.md) – OAuth state w Redis: klucz `oauth:state:{state}` → tenantId, TTL 10min, single-use; ustawia TenantContext w publicznym callbacku
 - [feedback_transactional_no_external_io.md](feedback_transactional_no_external_io.md) – @Transactional bez blokującego HTTP I/O: podziel na readOnly→delete→external-call; metody pomocnicze muszą być protected (nie private)
@@ -86,3 +88,7 @@
 - [BE-018 Social Media Adapter](project_be018_social_adapter.md) – webhook handler FB/IG/WA, SocialMessage encja, adapter stubs, async RabbitMQ (cc.queue.social-incoming), cross-tenant findByPlatformAndPageId
 - [WS Resilience – ASSIGNED Status](project_ws_resilience_assigned_status.md) — Opcja B: status ASSIGNED, ContactAssignmentMonitor, retry Redis, GET /api/agent/me/assigned-contact (V046, 2026-04-22)
 - [BE-048 Manual Callback Endpoint](project_be048_manual_callback.md) — POST /api/callbacks/manual, ManualCallbackController, sourceType=AGENT_MANUAL, walidacja scheduledAt min. 5min, cross-tenant guard via CrossTenantAccessException (403)
+- [BE-043 AgentGroup domain package](project_agent_groups.md) — pakiet domain/agentgroup; encja + repo; BE-044 doda serwis+kontroler
+- [BE-050 AgentBreak REST API](project_agent_breaks.md) — api/agentbreak + domain/agentbreak; serwis+kontroler+DTO+testy; wzorzec właścicielski per-agent
+- [BE-056 TenantTwilioConfig serwis domenowy](project_twilio_config.md) — upsert+masking+decrypted DTO+delete+event; nowy katalog domain/event/
+- [BE-057 TenantTwilioConfig REST API (kontroler)](project_twilio_config_controller.md) — GET/PUT/DELETE/test; 204 przy braku; walidacja Jakarta na DTO; SecurityConfig

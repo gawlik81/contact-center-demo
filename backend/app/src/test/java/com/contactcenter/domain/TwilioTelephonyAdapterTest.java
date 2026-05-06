@@ -1,10 +1,13 @@
 package com.contactcenter.domain;
 
+import com.contactcenter.domain.event.TwilioConfigChangedEvent;
 import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
+import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -80,6 +83,9 @@ class TwilioTelephonyAdapterTest {
     @Mock
     private TwilioRecordingDownloadService recordingDownloadService;
 
+    @Mock
+    private TenantTwilioConfigService tenantTwilioConfigService;
+
     private TwilioProperties twilioProperties;
     private TwilioTelephonyAdapter adapter;
 
@@ -100,6 +106,9 @@ class TwilioTelephonyAdapterTest {
 
         // Domyślnie tenantRepository nie zwraca per-tenant konfiguracji
         when(tenantRepository.findById(any())).thenReturn(Optional.empty());
+
+        // Domyślnie brak per-tenant konfiguracji Twilio (fallback do globalnej)
+        when(tenantTwilioConfigService.getDecryptedConfig(any())).thenReturn(Optional.empty());
 
         // Mock RedisTemplate z in-memory HashMap jako backing store.
         // Adapter korzysta wyłącznie z opsForValue().set/get i delete(),
@@ -131,10 +140,15 @@ class TwilioTelephonyAdapterTest {
         when(stringRedisTemplate.opsForValue()).thenReturn(stringValueOps);
         when(stringValueOps.get(anyString())).thenReturn(null);
 
-        // Nie wywołujemy @PostConstruct init() – omijamy Twilio.init() w testach
+        // Tworzymy adapter ręcznie i wywołujemy init() – @PostConstruct nie inicjalizuje Caffeine cache przez SDK,
+        // więc clientCache musi być ustawiony przed testami korzystającymi z resolveRestClient().
         adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher,
                 contactRepository, customerRepository, tenantRepository,
-                redisTemplate, stringRedisTemplate, recordingDownloadService);
+                redisTemplate, stringRedisTemplate, recordingDownloadService,
+                tenantTwilioConfigService);
+        // init() inicjalizuje Caffeine cache bez wywoływania Twilio.init() (usunięte w BE-058)
+        // oraz bez konfigurowania statusCallbacków (tenantRepository zwraca pustą listę)
+        adapter.init();
     }
 
     // =========================================================================
@@ -302,7 +316,7 @@ class TwilioTelephonyAdapterTest {
             try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
                 CallUpdater mockUpdater = mock(CallUpdater.class);
                 when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
-                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
                 mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
 
                 adapter.hangupCall(CALL_SID);
@@ -334,7 +348,7 @@ class TwilioTelephonyAdapterTest {
                 CallUpdater mockUpdater = mock(CallUpdater.class);
                 when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
                 ApiException notFound = new ApiException("Call not found", 20404, null, 404, null);
-                when(mockUpdater.update()).thenThrow(notFound);
+                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenThrow(notFound);
                 mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
 
                 // Nie rzuca wyjątku – traktuje 404 jako "już zakończone"
@@ -351,7 +365,7 @@ class TwilioTelephonyAdapterTest {
                 CallUpdater mockUpdater = mock(CallUpdater.class);
                 when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
                 ApiException serverError = new ApiException("Internal Server Error", 0, null, 500, null);
-                when(mockUpdater.update()).thenThrow(serverError);
+                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenThrow(serverError);
                 mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
 
                 assertThatThrownBy(() -> adapter.hangupCall(CALL_SID))
@@ -384,7 +398,7 @@ class TwilioTelephonyAdapterTest {
             try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
                 CallUpdater mockUpdater = mock(CallUpdater.class);
                 when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
-                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
                 mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
 
                 adapter.holdCall(CALL_SID, true);
@@ -402,7 +416,7 @@ class TwilioTelephonyAdapterTest {
             try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
                 CallUpdater mockUpdater = mock(CallUpdater.class);
                 when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
-                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
                 mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
 
                 adapter.holdCall(CALL_SID, true);
@@ -421,7 +435,7 @@ class TwilioTelephonyAdapterTest {
             try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
                 CallUpdater mockUpdater = mock(CallUpdater.class);
                 when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
-                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
                 mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
 
                 adapter.holdCall(CALL_SID, true); // → ON_HOLD
@@ -570,7 +584,7 @@ class TwilioTelephonyAdapterTest {
             try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
                 CallUpdater mockUpdater = mock(CallUpdater.class);
                 when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
-                when(mockUpdater.update()).thenReturn(mock(Call.class));
+                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
                 mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
 
                 adapter.bridgeCalls(CALL_SID, CALL_SID_2);
@@ -674,7 +688,8 @@ class TwilioTelephonyAdapterTest {
                 when(mockCreator.setStatusCallbackMethod(any())).thenReturn(mockCreator);
                 when(mockCreator.setStatusCallbackEvent(anyList())).thenReturn(mockCreator);
                 ApiException apiError = new ApiException("Authentication failed", 20003, null, 401, null);
-                when(mockCreator.create()).thenThrow(apiError);
+                // BE-058: adapter wywołuje create(TwilioRestClient), nie create()
+                when(mockCreator.create(any(com.twilio.http.TwilioRestClient.class))).thenThrow(apiError);
 
                 mockedCall.when(() -> Call.creator(any(), any(), (Twiml) any()))
                         .thenReturn(mockCreator);
@@ -770,6 +785,56 @@ class TwilioTelephonyAdapterTest {
 
             assertThat(result).isEqualTo(GLOBAL_NUMBER);
             verify(tenantRepository, never()).findById(any());
+        }
+    }
+
+    // =========================================================================
+    // resolveAccountSid i onTwilioConfigChanged – per-tenant cache
+    // =========================================================================
+
+    @Nested
+    @DisplayName("resolveAccountSid() i onTwilioConfigChanged() – per-tenant cache")
+    class PerTenantClientCacheTests {
+
+        @Test
+        @DisplayName("resolveAccountSid() zwraca per-tenant accountSid gdy config istnieje")
+        void resolveAccountSid_perTenantConfig_returnsPerTenantSid() {
+            TenantTwilioConfigDecrypted config = new TenantTwilioConfigDecrypted(
+                    "ACperTenant123456789012345678901234", "perTenantAuthToken",
+                    null, null, null, null, null);
+            when(tenantTwilioConfigService.getDecryptedConfig(TENANT_ID))
+                    .thenReturn(Optional.of(config));
+
+            String result = adapter.resolveAccountSid(TENANT_ID);
+
+            assertThat(result).isEqualTo("ACperTenant123456789012345678901234");
+        }
+
+        @Test
+        @DisplayName("resolveAccountSid() zwraca globalny accountSid gdy brak per-tenant config")
+        void resolveAccountSid_noPerTenantConfig_returnsGlobal() {
+            when(tenantTwilioConfigService.getDecryptedConfig(TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            String result = adapter.resolveAccountSid(TENANT_ID);
+
+            assertThat(result).isEqualTo("ACtest12345678901234567890123456");
+        }
+
+        @Test
+        @DisplayName("resolveAccountSid(null) zwraca globalny accountSid")
+        void resolveAccountSid_nullTenantId_returnsGlobal() {
+            String result = adapter.resolveAccountSid(null);
+            assertThat(result).isEqualTo("ACtest12345678901234567890123456");
+        }
+
+        @Test
+        @DisplayName("onTwilioConfigChanged() inwaliduje cache dla tenanta bez rzucania wyjątku")
+        void onTwilioConfigChanged_invalidatesCache() {
+            // Upewnij się że cache jest zainicjowany (init() wywołano w setUp)
+            // onTwilioConfigChanged nie rzuca wyjątku nawet gdy wpis nie był w cache
+            assertThatNoException().isThrownBy(() ->
+                    adapter.onTwilioConfigChanged(new TwilioConfigChangedEvent(TENANT_ID)));
         }
     }
 }

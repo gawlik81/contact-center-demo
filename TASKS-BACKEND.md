@@ -2391,7 +2391,7 @@ POST   /api/supervisor/twilio-config/test     → 200 TwilioConnectionTestResult
 **Priorytet:** Should Have
 **Szacowany rozmiar:** L
 **Zależy od:** BE-055 (TenantTwilioConfig encja), BE-056 (serwis z getDecryptedConfig), DB-030
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-059, BE-060
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 

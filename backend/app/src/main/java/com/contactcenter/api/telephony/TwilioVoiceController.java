@@ -101,7 +101,8 @@ public class TwilioVoiceController {
                     """,
             responses = {
                     @ApiResponse(responseCode = "200", description = "Token wygenerowany pomyślnie"),
-                    @ApiResponse(responseCode = "403", description = "Brak JWT lub niewystarczająca rola")
+                    @ApiResponse(responseCode = "403", description = "Brak JWT lub niewystarczająca rola"),
+                    @ApiResponse(responseCode = "404", description = "Brak konfiguracji Twilio dla tenanta")
             }
     )
     public ResponseEntity<Map<String, String>> getVoiceToken() {
@@ -122,6 +123,16 @@ public class TwilioVoiceController {
 
         log.debug("[TwilioVoice] Używam {} konfiguracji Twilio dla tenant={}",
                 perTenantConfig != null ? "per-tenant" : "globalnej", tenantId);
+
+        if (!StringUtils.hasText(accountSid)) {
+            log.info("[TwilioVoice] Brak konfiguracji Twilio (accountSid) dla tenant={} – Voice SDK wyłączony", tenantId);
+            return ResponseEntity.status(404).<Map<String, String>>body(Map.of("code", "TWILIO_NOT_CONFIGURED"));
+        }
+        if (!StringUtils.hasText(apiKeySid) || !StringUtils.hasText(apiKeySecret)) {
+            log.warn("[TwilioVoice] Konfiguracja Twilio dla tenant={} nie zawiera API Key (apiKeySid/apiKeySecret) – " +
+                    "Voice SDK wyłączony. Dodaj API Key w konsoli Twilio i uzupełnij konfigurację tenanta.", tenantId);
+            return ResponseEntity.status(404).<Map<String, String>>body(Map.of("code", "TWILIO_APIKEY_MISSING"));
+        }
 
         VoiceGrant grant = new VoiceGrant();
         grant.setOutgoingApplicationSid(twimlAppSid);

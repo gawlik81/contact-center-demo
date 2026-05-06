@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
+
+// ── Legacy DTOs (used by twilio-settings.component.ts – do not remove) ────────
 
 export interface TwilioConfigRequest {
   twilioPhoneNumber: string | null;
@@ -18,10 +20,50 @@ export interface TenantConfig {
   };
 }
 
+// ── New supervisor-scoped DTOs (FE-066) ────────────────────────────────────────
+
+export interface TenantTwilioConfigResponse {
+  configId: string;
+  tenantId: string;
+  accountSid: string;
+  authToken: string | null;
+  apiKeySid: string | null;
+  apiKeySecret: string | null;
+  twimlAppSid: string | null;
+  phoneNumber: string | null;
+  statusCallbackUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantTwilioConfigRequest {
+  accountSid: string;
+  authToken: string;
+  apiKeySid?: string | null;
+  apiKeySecret?: string | null;
+  twimlAppSid?: string | null;
+  phoneNumber?: string | null;
+  statusCallbackUrl?: string | null;
+}
+
+export interface TwilioConnectionTestResult {
+  success: boolean;
+  message: string;
+  testedAt: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TwilioConfigService {
   private readonly http = inject(HttpClient);
+
+  // ── Legacy base URL (used by twilio-settings.component.ts) ──────────────────
   private readonly baseUrl = `${environment.apiUrl}/tenants`;
+
+  // ── New supervisor-scoped base URL ───────────────────────────────────────────
+  private readonly supervisorBaseUrl = `${environment.apiUrl}/supervisor/twilio-config`;
+
+  // ── Legacy methods (kept for twilio-settings.component.ts) ──────────────────
 
   getTenantConfig(tenantId: string): Observable<TenantConfig> {
     return this.http.get<TenantConfig>(`${this.baseUrl}/${tenantId}/config`);
@@ -35,5 +77,25 @@ export class TwilioConfigService {
     return this.http.get<{ perTenantCallbackUrlEnabled: boolean }>(
       `${environment.apiUrl}/telephony/features`,
     );
+  }
+
+  // ── New supervisor-scoped methods (FE-066) ───────────────────────────────────
+
+  getConfig(): Observable<TenantTwilioConfigResponse | null> {
+    return this.http
+      .get<TenantTwilioConfigResponse>(this.supervisorBaseUrl, { observe: 'response' })
+      .pipe(map((r) => (r.status === 204 ? null : r.body)));
+  }
+
+  saveConfig(data: TenantTwilioConfigRequest): Observable<TenantTwilioConfigResponse> {
+    return this.http.put<TenantTwilioConfigResponse>(this.supervisorBaseUrl, data);
+  }
+
+  deleteConfig(): Observable<void> {
+    return this.http.delete<void>(this.supervisorBaseUrl);
+  }
+
+  testConnection(): Observable<TwilioConnectionTestResult> {
+    return this.http.post<TwilioConnectionTestResult>(`${this.supervisorBaseUrl}/test`, {});
   }
 }

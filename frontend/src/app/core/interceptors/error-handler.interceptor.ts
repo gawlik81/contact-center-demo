@@ -1,8 +1,11 @@
-import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { HttpContextToken, HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
 import { catchError, throwError } from 'rxjs';
 import { NotificationService } from '../services/notification.service';
+
+/** Pass this token via HttpContext to suppress the global error toast for a request. */
+export const SKIP_ERROR_TOAST = new HttpContextToken<boolean>(() => false);
 
 /**
  * Global HTTP error handler.
@@ -19,7 +22,7 @@ export const errorHandlerInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((error: unknown) => {
-      if (error instanceof HttpErrorResponse) {
+      if (error instanceof HttpErrorResponse && !req.context.get(SKIP_ERROR_TOAST)) {
         handleHttpError(error, notifications, transloco);
       }
       return throwError(() => error);

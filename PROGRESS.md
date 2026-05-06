@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-04-27 (DB-027 ✅, DB-028 ✅; BE-048 ✅, BE-049 ✅, BE-050 ✅, BE-051 ✅, BE-052 ✅ AgentBreakActivator, BE-053 ✅ CampaignWindowActivator; FE-040 ✅, FE-041 ✅, FE-042 ✅, FE-043 ✅, FE-044 ✅, FE-045 ✅; łączny stan: DB 28/28, BE 55/55, FE 44/47)
+**Ostatnia aktualizacja:** 2026-05-06 (FE-066 ✅ TwilioConfigComponent; łączny stan: DB 28/28, BE 55/55, FE 45/47)
 
 ---
 
@@ -167,6 +167,7 @@
 | FE-043 | `AgentCalendarComponent`: widok kalendarza agenta | ✅ | AgentCalendarComponent: siatka tygodniowa/dzienna, 3 typy zdarzeń (callbacki/kampanie/przerwy), FAB Dodaj przerwę, nawigacja między tygodniami/dniami, standalone OnPush signal(). Zrealizowane 2026-04-27. |
 | FE-044 | `RescheduleCallbackModalComponent`: zmiana daty callbacku z kalendarza | ✅ | RescheduleCallbackModalComponent: date-time picker z preładowaną datą callbacku, walidacja @Future, PUT /api/callbacks/{id}/reschedule, odświeżenie kalendarza po zapisie. Zrealizowane 2026-04-26. |
 | FE-045 | `AddBreakModalComponent`: dodanie i edycja zaplanowanej przerwy | ✅ | AddBreakModalComponent: select typ przerwy, datetime pickers, notatki, tryb tworzenia (POST /api/agent/breaks) i edycji (PUT), przycisk Anuluj przerwę (DELETE). Zrealizowane 2026-04-27. |
+| FE-066 | `TwilioConfigComponent`: formularz konfiguracji Twilio w panelu supervisora | ✅ | TwilioConfigComponent (standalone, OnPush, ReactiveFormsModule), TwilioConfigService (getConfig/saveConfig/deleteConfig/testConnection → /api/supervisor/twilio-config), trasa /supervisor/settings/twilio, pozycja "Integracja Twilio" w sidenavie, klucze i18n pl/en/de. Zrealizowane 2026-05-06. |
 
 ---
 
@@ -176,8 +177,8 @@
 |--------|-----------|-----------|----------------|-------|
 | Database (DB) | 28/28 | 0 | 0 | 28 |
 | Backend (BE) | 55/55 | 0 | 0 | 55 |
-| Frontend (FE) | 44/47 | 0 | 3 | 47 |
-| **RAZEM** | **127/130** | **0** | **3** | **130** |
+| Frontend (FE) | 45/47 | 0 | 2 | 47 |
+| **RAZEM** | **128/130** | **0** | **2** | **130** |
 
 ---
 

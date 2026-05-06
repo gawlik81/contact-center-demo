@@ -1,0 +1,418 @@
+@use 'sass:color';
+
+$brand-blue: #1565c0;
+$brand-blue-dark: #0d47a1;
+$text-primary: #212121;
+$text-secondary: #616161;
+$border-color: #e2e8f0;
+$error: #c62828;
+$danger: #b71c1c;
+$danger-bg: #ffebee;
+$danger-border: color.adjust(#ffebee, $lightness: -12%);
+$success: #2e7d32;
+$success-bg: #e8f5e9;
+$success-border: color.adjust(#e8f5e9, $lightness: -12%);
+$error-bg: #ffebee;
+$error-border: color.adjust(#ffebee, $lightness: -12%);
+$radius: 8px;
+
+// ── Page layout ────────────────────────────────────────────────────────────────
+.twilio-config {
+  max-width: 720px;
+  padding: 2rem;
+
+  &__header {
+    margin-bottom: 2rem;
+  }
+
+  &__title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0 0 0.375rem;
+  }
+
+  &__subtitle {
+    font-size: 0.9375rem;
+    color: $text-secondary;
+    margin: 0;
+  }
+
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
+// ── No config card ─────────────────────────────────────────────────────────────
+.no-config-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 3rem 2rem;
+  border: 2px dashed $border-color;
+  border-radius: $radius;
+  background: #fafafa;
+  text-align: center;
+
+  &__icon {
+    color: #bdbdbd;
+  }
+
+  &__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0;
+  }
+
+  &__hint {
+    font-size: 0.9375rem;
+    color: $text-secondary;
+    margin: 0;
+    max-width: 400px;
+  }
+}
+
+// ── Form sections ──────────────────────────────────────────────────────────────
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1.5px solid $border-color;
+  border-radius: $radius;
+  background: #fff;
+  margin-bottom: 1rem;
+
+  &__title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0 0 0.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid $border-color;
+  }
+}
+
+// ── Form fields ────────────────────────────────────────────────────────────────
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+
+  &--error {
+    .form-input {
+      border-color: $error;
+
+      &:focus {
+        box-shadow: 0 0 0 3px rgba($error, 0.12);
+      }
+    }
+  }
+}
+
+.form-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: $text-primary;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.required {
+  color: $error;
+}
+
+.form-hint-inline {
+  font-size: 0.8125rem;
+  color: $text-secondary;
+  font-weight: 400;
+}
+
+.form-input {
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid $border-color;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  color: $text-primary;
+  background: #fff;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:focus {
+    border-color: $brand-blue;
+    box-shadow: 0 0 0 3px rgba($brand-blue, 0.12);
+  }
+
+  &:disabled,
+  &[readonly] {
+    background: #f5f5f5;
+    color: $text-secondary;
+    cursor: not-allowed;
+  }
+}
+
+.form-error {
+  font-size: 0.8125rem;
+  color: $error;
+}
+
+// ── Masked field (secret inputs with unlock button) ───────────────────────────
+.masked-field {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+
+  &__input {
+    flex: 1;
+  }
+
+  &__btn {
+    flex-shrink: 0;
+  }
+}
+
+// ── Secret input with reveal toggle ───────────────────────────────────────────
+.secret-input-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+
+  &__input {
+    flex: 1;
+    padding-right: 2.75rem;
+  }
+
+  &__eye {
+    position: absolute;
+    right: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    color: $text-secondary;
+    line-height: 1;
+
+    &:hover {
+      color: $text-primary;
+    }
+  }
+}
+
+// ── Test result ────────────────────────────────────────────────────────────────
+.test-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  margin-bottom: 0.5rem;
+
+  &--success {
+    background: $success-bg;
+    color: $success;
+    border: 1px solid $success-border;
+  }
+
+  &--error {
+    background: $error-bg;
+    color: $error;
+    border: 1px solid $error-border;
+  }
+
+  svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────────
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+// ── Danger zone ────────────────────────────────────────────────────────────────
+.danger-zone {
+  padding: 1.25rem 1.5rem;
+  border: 1.5px solid $danger-border;
+  border-radius: $radius;
+  background: $danger-bg;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+
+  &__title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: $danger;
+    margin: 0;
+  }
+}
+
+// ── Buttons ────────────────────────────────────────────────────────────────────
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5625rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+  line-height: 1;
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+.btn-primary {
+  background: $brand-blue;
+  color: #fff;
+  min-width: 140px;
+
+  &:hover:not(:disabled) {
+    background: $brand-blue-dark;
+  }
+}
+
+.btn-secondary {
+  background: transparent;
+  color: $brand-blue;
+  border: 1.5px solid $brand-blue;
+  min-width: 180px;
+
+  &:hover:not(:disabled) {
+    background: rgba($brand-blue, 0.06);
+  }
+}
+
+.btn-outline {
+  background: transparent;
+  color: $text-secondary;
+  border: 1.5px solid $border-color;
+
+  &:hover:not(:disabled) {
+    background: #f5f5f5;
+  }
+}
+
+.btn-ghost {
+  background: transparent;
+  color: $brand-blue;
+  border: 1.5px solid $border-color;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: rgba($brand-blue, 0.06);
+    border-color: $brand-blue;
+  }
+}
+
+.btn-danger {
+  background: $danger;
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: color.adjust($danger, $lightness: -8%);
+  }
+
+  &:focus-visible {
+    outline-color: $danger;
+  }
+}
+
+// ── Skeleton loader ────────────────────────────────────────────────────────────
+@keyframes shimmer {
+  0% {
+    background-position: -600px 0;
+  }
+  100% {
+    background-position: 600px 0;
+  }
+}
+
+.skeleton-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s infinite linear;
+
+  &--title {
+    height: 28px;
+    width: 280px;
+    max-width: 100%;
+  }
+
+  &--field {
+    height: 44px;
+    width: 100%;
+  }
+}
+
+// ── Error state ────────────────────────────────────────────────────────────────
+.error-state {
+  padding: 1.5rem;
+  border: 1.5px solid $error-border;
+  border-radius: $radius;
+  background: $error-bg;
+
+  &__message {
+    margin: 0;
+    color: $error;
+    font-size: 0.9375rem;
+  }
+}
+
+// ── Spinner ────────────────────────────────────────────────────────────────────
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+
+  &--dark {
+    border-color: rgba($brand-blue, 0.25);
+    border-top-color: $brand-blue;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

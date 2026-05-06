@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, OnDestroy } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import {
   Observable,
   catchError,
@@ -9,6 +9,7 @@ import {
   Subscription,
   firstValueFrom,
 } from 'rxjs';
+import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.interceptor';
 import { Device, Call as TwilioCall } from '@twilio/voice-sdk';
 import { CallSession } from '../models/call-session.model';
 import { CallIncomingPayload, ContactAssignedPayload } from '../models/ws-event.model';
@@ -54,9 +55,15 @@ export class SoftphoneService implements OnDestroy {
     let response: VoiceTokenResponse;
     try {
       response = await firstValueFrom(
-        this.http.get<VoiceTokenResponse>(`${environment.apiUrl}/telephony/voice-token`),
+        this.http.get<VoiceTokenResponse>(`${environment.apiUrl}/telephony/voice-token`, {
+          context: new HttpContext().set(SKIP_ERROR_TOAST, true),
+        }),
       );
     } catch (err) {
+      if (err instanceof HttpErrorResponse && err.status === 404) {
+        console.info('[SoftphoneService] Brak konfiguracji Twilio dla tenanta – Voice SDK wyłączony.');
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(
         '[SoftphoneService] Nie udało się pobrać voice-token — Twilio Device nie zostanie zainicjalizowany.',

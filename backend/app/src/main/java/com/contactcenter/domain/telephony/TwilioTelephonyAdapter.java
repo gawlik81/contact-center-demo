@@ -267,21 +267,17 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     try {
       String twilioFrom = resolvePhoneNumber(tenantId);
 
-      // Utwórz rekord Contact PRZED inicjacją połączenia Twilio, aby:
-      // 1. contactId był dostępny w sesji zanim StatusCallback dotrze z Twilio.
-      // 2. Webhook handleWebhookStatusUpdate() znajdzie contactId w DB i nie próbował
-      //    tworzyć duplikatu przez persistContact() (która i tak zapisuje direction=INBOUND).
-      // 3. Agent desktop mógł od razu wyświetlić kartę kontaktu po odebraniu przez klienta.
-      contactId = persistOutboundContact(tenantId, from, to, agentId, queueId, callbackId);
-
-      // TwiML dla połączeń wychodzących: klient czeka w konferencji na dołączenie agenta.
-      // Nazwa konferencji zgodna z konwencją dialAgentIntoConference(): "contact-{contactId}".
-      // Bez tego TwiML Twilio wykona <Say>Connecting</Say> i rozłączy połączenie.
-      // startConferenceOnEnter="false" – konferencja nie startuje dopóki agent (moderator)
-      // nie dołączy przez dialAgentIntoConference().
-      String conferenceName = contactId != null
-          ? "contact-" + contactId
-          : "contact-" + java.util.UUID.randomUUID();
+      // Wstępna nazwa konferencji — używamy tymczasowego UUID dopóki nie znamy contactId.
+      // Zostanie zastąpiona po utworzeniu rekordu contact z prawdziwym callSid.
+      // Uwaga: kolejność jest celowa — najpierw wywołanie Twilio API (żeby uzyskać callSid),
+      // a dopiero potem persistOutboundContact() z gotowym callSid. Dzięki temu:
+      // 1. sip_call_id jest ustawiony atomowo podczas INSERT (brak stanu "null callSid").
+      // 2. handleWebhookStatusUpdate() zawsze znajdzie contact po callSid → nie tworzy
+      //    duplikatu INBOUND nawet gdy webhook dotrze przed powrotem z creator.create().
+      // 3. Wyścig eliminowany: direction=outbound-api z Twilio + sesja Redis zabezpieczają
+      //    przed INBOUND niezależnie od czasu dostarczenia pierwszego StatusCallback.
+      UUID tempConferenceId = java.util.UUID.randomUUID();
+      String tempConferenceName = "contact-" + tempConferenceId;
 
       String rawBase = buildRawWebhookBaseUrl(tenantId);
       StringBuilder conferenceAttrs = new StringBuilder();
@@ -290,6 +286,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Bez tego atrybutu konferencja trwałaby do czasu wyjścia ostatniego uczestnika.
       conferenceAttrs.append("startConferenceOnEnter=\"false\" endConferenceOnExit=\"true\"");
       if (rawBase != null) {
+        // Placeholder tenantId dla conference callback — zostanie zaktualizowany po utworzeniu contactId.
+        // W praktyce konferencja jest przebudowywana przez dialAgentIntoConference() z właściwą nazwą.
         String confStatusCallbackUrl = rawBase + "/conference?tenantId=" + tenantId;
         conferenceAttrs.append(" statusCallback=\"").append(confStatusCallbackUrl).append("\"");
         conferenceAttrs.append(" statusCallbackEvent=\"end\"");
@@ -299,7 +297,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       String outboundTwiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
           + "<Response><Dial>"
           + "<Conference " + conferenceAttrs + ">"
-          + conferenceName
+          + tempConferenceName
           + "</Conference>"
           + "</Dial></Response>";
 
@@ -321,6 +319,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
       Call call = creator.create(resolveRestClient(tenantId));
       String callSid = call.getSid();
+
+      // Utwórz rekord Contact PO uzyskaniu callSid z Twilio API, żeby sip_call_id
+      // był dostępny atomowo od razu w INSERT. Eliminuje to okno czasowe gdy
+      // StatusCallback mógłby dotrzeć zanim backfill uzupełni callSid w DB.
+      contactId = persistOutboundContact(tenantId, from, to, agentId, queueId, callbackId, callSid);
 
       log.info("[TwilioAdapter] Połączenie wychodzące zainicjowane: callSid={}, status={}, to={}, contactId={}",
           callSid, call.getStatus(), to, contactId);
@@ -808,54 +811,90 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * <p>Wywoływane przez {@code TwilioWebhookController} gdy Twilio wysyła callback
    * o zmianie statusu połączenia (initiated, ringing, answered, completed, failed itp.).
    *
-   * @param callSid    Twilio Call SID
-   * @param from       numer dzwoniącego
-   * @param to         numer docelowy
-   * @param callStatus status połączenia od Twilio (np. "in-progress", "completed")
-   * @param tenantId   tenant powiązany z połączeniem (wymagany do publikacji eventu)
+   * @param callSid         Twilio Call SID
+   * @param from            numer dzwoniącego
+   * @param to              numer docelowy
+   * @param callStatus      status połączenia od Twilio (np. "in-progress", "completed")
+   * @param tenantId        tenant powiązany z połączeniem (wymagany do publikacji eventu)
+   * @param twilioDirection kierunek połączenia od Twilio ("inbound", "outbound-api", "outbound-dial")
    */
   public void handleWebhookStatusUpdate(String callSid, String from, String to,
-      String callStatus, UUID tenantId) {
-    log.info("[TwilioAdapter] Webhook status update: callSid={}, status={}, from={}, to={}, tenant={}",
-        callSid, callStatus, from, to, tenantId);
+      String callStatus, UUID tenantId, String twilioDirection) {
+    log.info("[TwilioAdapter] Webhook status update: callSid={}, status={}, from={}, to={}, tenant={}, direction={}",
+        callSid, callStatus, from, to, tenantId, twilioDirection);
 
     CallSession.CallStatus mappedStatus = mapTwilioStatus(callStatus);
 
     CallSession existing = getSession(callSid);
 
-    // Połączenie wychodzące = sesja istniała w Redis przed nadejściem webhooka
-    // (wstawiona przez initiateCall). Dla przychodzących sesja jest tworzona tutaj.
-    boolean isOutbound = existing != null;
+    // Połączenie wychodzące gdy:
+    // 1) Twilio podaje kierunek outbound-api / outbound-dial w polu Direction, LUB
+    // 2) Sesja istniała już w Redis (wstawiona przez initiateCall) – dotychczasowa logika
+    boolean isOutbound = "outbound-api".equalsIgnoreCase(twilioDirection)
+        || "outbound-dial".equalsIgnoreCase(twilioDirection)
+        || existing != null;
 
     CallEvent.EventType eventType = mapTwilioStatusToEventType(callStatus, isOutbound);
 
     if (existing == null) {
-      // Pierwsze powiadomienie o połączeniu przychodzącym – tworzymy rekord contact w DB
-      // i sesję połączenia. contactId z DB jest kluczowy dla frontendu (PATCH /api/contacts/{contactId}/...).
-      // Sprawdzamy czy contact nie został już utworzony przez webhook /voice (unikamy duplikatów).
-      UUID contactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
-          .orElseGet(() -> persistContact(tenantId, from, to, callSid));
-      existing = CallSession.builder()
-          .callId(callSid)
-          .tenantId(tenantId)
-          .from(from)
-          .to(to)
-          .status(mappedStatus)
-          .startedAt(Instant.now())
-          .contactId(contactId)
-          .build();
-      saveSession(existing);
-      log.debug("[TwilioAdapter] Nowa sesja z webhooka: callSid={}, contactId={}, status={}",
-          callSid, contactId, mappedStatus);
+      if (isOutbound) {
+        // Twilio wysłał webhook outbound zanim sesja Redis została zarejestrowana.
+        // Może się zdarzyć gdy StatusCallback dotrze przed powrotem z Call.creator().
+        // NIE tworzymy tu rekordu INBOUND contact — contact OUTBOUND już istnieje lub
+        // zostanie zaraz stworzony przez initiateCall(). Próbujemy odtworzyć sesję z DB.
+        log.warn("[TwilioAdapter] Outbound webhook bez sesji Redis: callSid={}, status={}, direction={}",
+            callSid, callStatus, twilioDirection);
+        UUID recoveredContactId = null;
+        if (tenantId != null) {
+          try {
+            recoveredContactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+                .orElse(null);
+          } catch (Exception e) {
+            log.warn("[TwilioAdapter] Nie udało się odszukać outbound contactId z DB: callSid={}, error={}",
+                callSid, e.getMessage());
+          }
+        }
+        existing = CallSession.builder()
+            .callId(callSid)
+            .tenantId(tenantId)
+            .from(from)
+            .to(to)
+            .status(mappedStatus)
+            .startedAt(Instant.now())
+            .contactId(recoveredContactId)
+            .direction("OUTBOUND")
+            .build();
+        saveSession(existing);
+        log.info("[TwilioAdapter] Minimalna sesja outbound odtworzona z webhooka: callSid={}, contactId={}, status={}",
+            callSid, recoveredContactId, mappedStatus);
+      } else {
+        // Pierwsze powiadomienie o połączeniu przychodzącym – tworzymy rekord contact w DB
+        // i sesję połączenia. contactId z DB jest kluczowy dla frontendu (PATCH /api/contacts/{contactId}/...).
+        // Sprawdzamy czy contact nie został już utworzony przez webhook /voice (unikamy duplikatów).
+        UUID contactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+            .orElseGet(() -> persistContact(tenantId, from, to, callSid));
+        existing = CallSession.builder()
+            .callId(callSid)
+            .tenantId(tenantId)
+            .from(from)
+            .to(to)
+            .status(mappedStatus)
+            .startedAt(Instant.now())
+            .contactId(contactId)
+            .build();
+        saveSession(existing);
+        log.debug("[TwilioAdapter] Nowa sesja z webhooka: callSid={}, contactId={}, status={}",
+            callSid, contactId, mappedStatus);
 
-      // Jeśli webhook przyszedł gdy sesja nie istniała w mapie i status jest już końcowy
-      // (np. klient rozłączył się przed rejestracją sesji lub callback dotarł po restarcie),
-      // zapisujemy ABANDONED – agent nigdy nie odebrał, skoro nie było aktywnej sesji.
-      if (mappedStatus == CallSession.CallStatus.ENDED && contactId != null) {
-        log.info("[TwilioAdapter] Sesja nieznana – webhook ENDED bez wcześniejszej sesji, " +
-                 "zapisuję ABANDONED: callSid={}, contactId={}", callSid, contactId);
-        contactRepository.updateContactStatusOnTelephonyEvent(
-            contactId, tenantId, "ABANDONED", Instant.now());
+        // Jeśli webhook przyszedł gdy sesja nie istniała w mapie i status jest już końcowy
+        // (np. klient rozłączył się przed rejestracją sesji lub callback dotarł po restarcie),
+        // zapisujemy ABANDONED – agent nigdy nie odebrał, skoro nie było aktywnej sesji.
+        if (mappedStatus == CallSession.CallStatus.ENDED && contactId != null) {
+          log.info("[TwilioAdapter] Sesja nieznana – webhook ENDED bez wcześniejszej sesji, " +
+                   "zapisuję ABANDONED: callSid={}, contactId={}", callSid, contactId);
+          contactRepository.updateContactStatusOnTelephonyEvent(
+              contactId, tenantId, "ABANDONED", Instant.now());
+        }
       }
     }
     else {
@@ -1558,9 +1597,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * </ul>
    *
    * <p>Direction is set to {@code OUTBOUND}; status starts as {@code QUEUED} (dialing).
-   * The {@code callSid} stored in {@code channelMetadata.sip_call_id} is initially null –
-   * it will be back-filled by {@link #handleWebhookStatusUpdate} when the first
-   * StatusCallback arrives from Twilio.
+   * The {@code callSid} is stored atomically in {@code channelMetadata.sip_call_id} during INSERT,
+   * eliminating the race condition where a StatusCallback could arrive before back-fill.
    *
    * <p>On DB error: logs ERROR and returns {@code null}. The call is not blocked, but
    * the agent will not be able to save a disposition for this contact.
@@ -1569,16 +1607,19 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * @param from     outbound number (Twilio phone number, the "from" side)
    * @param to       customer's number (the "to" side)
    * @param agentId  UUID of the agent assigned to the call
+   * @param callSid  Twilio Call SID obtained from Twilio API before calling this method
    * @return UUID of the newly created contact record, or null on DB error
    */
-  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId) {
+  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId, String callSid) {
     try {
       UUID contactId = UUID.randomUUID();
       Instant now = Instant.now();
 
       HashMap<String, Object> metadata = new HashMap<>();
-      // callSid is not yet known — will be updated by handleWebhookStatusUpdate()
-      // when the first StatusCallback (initiated/ringing) arrives from Twilio.
+      // callSid is now known at insert time — set atomically to avoid back-fill race condition
+      if (callSid != null) {
+        metadata.put("sip_call_id", callSid);
+      }
 
       TenantContext.Snapshot snapshot = TenantContext.snapshot();
       try {

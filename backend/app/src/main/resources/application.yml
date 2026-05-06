@@ -334,7 +334,7 @@ s3:
 email:
   # Opóźnienie między kolejnymi pollami IMAP w ms (domyślnie 60s)
   poll-delay-ms: ${EMAIL_POLL_DELAY_MS:60000}
-  # Klucz szyfrowania AES-256 dla haseł IMAP/SMTP (32-bajtowy hex = 64 znaki)
+  # Klucz szyfrowania AES-256 dla haseł IMAP/SMTP (32-bajtowy hex = 64 znaki) (openssl rand -hex 32)
   # PROD: ustaw przez ENV var EMAIL_ENCRYPTION_KEY (mocny losowy klucz)
   # DEV: zerowy klucz domyślny – NIGDY nie używaj w produkcji
   encryption-key: ${EMAIL_ENCRYPTION_KEY:0000000000000000000000000000000000000000000000000000000000000000}
@@ -343,7 +343,7 @@ email:
 
 # =============================================================================
 # Social Media OAuth – integracje Facebook Messenger, Instagram, WhatsApp Business (BE-017)
-# Klucz szyfrowania tokenów: 64-znakowy hex (32 bajty AES-256)
+# Klucz szyfrowania tokenów: 64-znakowy hex (32 bajty AES-256) (openssl rand -hex 32)
 # PROD: ustaw przez ENV var SOCIAL_TOKEN_ENCRYPTION_KEY (mocny losowy klucz)
 # DEV: domyślny fallback (SHA-256 z podanego stringa) – NIGDY nie używaj w produkcji
 # =============================================================================

@@ -2610,7 +2610,7 @@ Napisać testy Vitest dla `AgentGroupService`.
 **Priorytet:** Should Have
 **Zlozonosc:** M
 **Zależy od:** BE-057 (REST API konfiguracji Twilio)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** brak
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 

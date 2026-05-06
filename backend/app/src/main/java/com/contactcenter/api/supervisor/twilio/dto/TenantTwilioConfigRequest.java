@@ -8,7 +8,6 @@ public record TenantTwilioConfigRequest(
         @Pattern(regexp = "^AC[0-9a-fA-F]{32}$", message = "Invalid Twilio Account SID format")
         String accountSid,
 
-        @NotBlank(message = "authToken jest wymagany")
         String authToken,
 
         String apiKeySid,

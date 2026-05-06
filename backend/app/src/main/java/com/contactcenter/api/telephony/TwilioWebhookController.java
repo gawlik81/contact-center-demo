@@ -402,7 +402,7 @@ public class TwilioWebhookController {
     }
 
     try {
-      twilioAdapter.handleWebhookStatusUpdate(callSid, from, to, callStatus, tenantId);
+      twilioAdapter.handleWebhookStatusUpdate(callSid, from, to, callStatus, tenantId, direction);
     }
     catch (Exception e) {
       // Logujemy błąd, ale zwracamy 204 – Twilio nie powinno ponownie wysyłać callbacku

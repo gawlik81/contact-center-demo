@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -50,9 +51,15 @@ public class TenantTwilioConfigService {
                         .build());
 
         config.setAccountSid(request.accountSid());
-        config.setAuthToken(request.authToken());
-        config.setApiKeySid(request.apiKeySid());
-        config.setApiKeySecret(request.apiKeySecret());
+        // Secrets: only overwrite when a new non-empty value is explicitly provided.
+        // Empty/null means "keep existing" — the frontend sends empty for masked fields.
+        if (StringUtils.hasText(request.authToken())) {
+            config.setAuthToken(request.authToken());
+        }
+        config.setApiKeySid(request.apiKeySid()); // not masked – frontend always sends current value
+        if (StringUtils.hasText(request.apiKeySecret())) {
+            config.setApiKeySecret(request.apiKeySecret());
+        }
         config.setTwimlAppSid(request.twimlAppSid());
         config.setPhoneNumber(request.phoneNumber());
         config.setStatusCallbackUrl(request.statusCallbackUrl());

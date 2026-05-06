@@ -1,5 +1,7 @@
 package com.contactcenter.api.telephony;
 
+import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
+import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
 import com.twilio.jwt.accesstoken.AccessToken;
@@ -13,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.util.StringUtils;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -55,6 +58,7 @@ public class TwilioVoiceController {
 
     private final TwilioProperties twilioProperties;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final TenantTwilioConfigService tenantTwilioConfigService;
 
     // =========================================================================
     // Voice Token
@@ -102,18 +106,31 @@ public class TwilioVoiceController {
     )
     public ResponseEntity<Map<String, String>> getVoiceToken() {
         UUID userId = TenantContext.getUserId();
+        UUID tenantId = TenantContext.getTenantId();
         String identity = "agent-" + userId.toString();
 
-        log.debug("[TwilioVoice] Generowanie Access Token dla identity={}", identity);
+        log.debug("[TwilioVoice] Generowanie Access Token dla identity={}, tenant={}", identity, tenantId);
+
+        TenantTwilioConfigDecrypted perTenantConfig = tenantTwilioConfigService
+                .getDecryptedConfig(tenantId)
+                .orElse(null);
+
+        String accountSid   = resolve(perTenantConfig != null ? perTenantConfig.accountSid()   : null, twilioProperties.getAccountSid());
+        String apiKeySid    = resolve(perTenantConfig != null ? perTenantConfig.apiKeySid()    : null, twilioProperties.getApiKeySid());
+        String apiKeySecret = resolve(perTenantConfig != null ? perTenantConfig.apiKeySecret() : null, twilioProperties.getApiKeySecret());
+        String twimlAppSid  = resolve(perTenantConfig != null ? perTenantConfig.twimlAppSid()  : null, twilioProperties.getTwimlAppSid());
+
+        log.debug("[TwilioVoice] Używam {} konfiguracji Twilio dla tenant={}",
+                perTenantConfig != null ? "per-tenant" : "globalnej", tenantId);
 
         VoiceGrant grant = new VoiceGrant();
-        grant.setOutgoingApplicationSid(twilioProperties.getTwimlAppSid());
+        grant.setOutgoingApplicationSid(twimlAppSid);
         grant.setIncomingAllow(true);
 
         AccessToken token = new AccessToken.Builder(
-                twilioProperties.getAccountSid(),
-                twilioProperties.getApiKeySid(),
-                twilioProperties.getApiKeySecret().getBytes(StandardCharsets.UTF_8)
+                accountSid,
+                apiKeySid,
+                apiKeySecret != null ? apiKeySecret.getBytes(StandardCharsets.UTF_8) : new byte[0]
         )
                 .identity(identity)
                 .ttl(VOICE_TOKEN_TTL_SECONDS)
@@ -121,12 +138,16 @@ public class TwilioVoiceController {
                 .build();
 
         String jwt = token.toJwt();
-        log.info("[TwilioVoice] Access Token wygenerowany dla identity={}", identity);
+        log.info("[TwilioVoice] Access Token wygenerowany dla identity={}, tenant={}", identity, tenantId);
 
         return ResponseEntity.ok(Map.of(
                 "token", jwt,
                 "identity", identity
         ));
+    }
+
+    private static String resolve(String perTenant, String global) {
+        return StringUtils.hasText(perTenant) ? perTenant : global;
     }
 
     // =========================================================================

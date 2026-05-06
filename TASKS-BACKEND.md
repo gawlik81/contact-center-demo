@@ -2451,7 +2451,7 @@ Zastąpienie globalnej inicjalizacji Twilio SDK (`@PostConstruct Twilio.init(acc
 **Priorytet:** Should Have
 **Szacowany rozmiar:** S
 **Zależy od:** BE-058 (resolveRestClient, resolveAccountSid), BE-055 (getDecryptedConfig)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** brak
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 

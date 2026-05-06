@@ -289,6 +289,12 @@ app:
   # Twilio pobiera URL i odtwarza audio klientowi (<Play>). Powinien być krótki (~30s).
   # Pusty string = cisza (<Pause length="25"/>). Nadpisywany przez HOLD_MUSIC_URL ENV var.
   hold-music-url: ${HOLD_MUSIC_URL:https://com.twilio.sounds.music.s3.amazonaws.com/MARKOVICHAMP-Borghestral.mp3}
+  # Klucz szyfrowania AES-256 dla wrażliwych pól w bazie (np. kredencjały Twilio per tenant).
+  # Wartość: Base64-encoded 32 bajty (wynik: openssl rand -base64 32).
+  # PROD: ustaw przez ENV var APP_ENCRYPTION_SECRET (mocny losowy klucz – NIGDY nie commituj do repo).
+  # DEV: domyślny klucz dev (32 bajty zer) – NIGDY nie używaj w produkcji.
+  encryption:
+    secret: ${APP_ENCRYPTION_SECRET:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
 
 # =============================================================================
 # ETL – pipeline synchronizacji danych do Data Warehouse (BE-030)

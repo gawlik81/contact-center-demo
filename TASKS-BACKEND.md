@@ -2257,7 +2257,7 @@ Napisać testy jednostkowe dla `IvrService`.
 **Priorytet:** Should Have
 **Szacowany rozmiar:** M
 **Zależy od:** DB-030 (tabela `tenant_twilio_config`)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-056, BE-057, BE-058
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
@@ -2294,7 +2294,7 @@ Warstwa danych dla konfiguracji Twilio per tenant. Trzy elementy:
 **Priorytet:** Should Have
 **Szacowany rozmiar:** M
 **Zależy od:** BE-055 (encja i repozytorium)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** BE-057
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
@@ -2340,7 +2340,7 @@ Serwis `TenantTwilioConfigService` (`domain/service/TenantTwilioConfigService.ja
 **Priorytet:** Should Have
 **Szacowany rozmiar:** S
 **Zależy od:** BE-056 (serwis)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** FE-066
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 

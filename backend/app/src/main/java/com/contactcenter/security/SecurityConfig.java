@@ -127,6 +127,8 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/tenants/*/config").hasAnyRole("ADMIN", "SUPERVISOR")
                 // Tenant management – tylko ADMIN (BE-006)
                 .requestMatchers("/api/tenants/**").hasRole("ADMIN")
+                // Twilio config – zarządzanie per-tenant konfiguracją Twilio (BE-057)
+                .requestMatchers("/api/supervisor/twilio-config/**").hasRole("SUPERVISOR")
                 // Wszystkie pozostałe endpointy – wymagają autentykacji
                 .anyRequest().authenticated()
             )

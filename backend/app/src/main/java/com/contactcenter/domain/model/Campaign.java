@@ -110,6 +110,13 @@ public class Campaign {
     private int retryDelayMinutes = 60;
 
     /**
+     * Numer prezentacji (caller ID) w formacie E.164 dla połączeń wychodzących z tej kampanii.
+     * NULL = użyj domyślnego numeru tenanta (tenant_twilio_config.phone_number lub TwilioProperties).
+     */
+    @Column(name = "caller_id", length = 30)
+    private String callerId;
+
+    /**
      * UUID użytkownika, który utworzył kampanię.
      */
     @Column(name = "created_by")

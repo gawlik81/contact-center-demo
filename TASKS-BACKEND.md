@@ -2488,7 +2488,7 @@ Refaktoryzacja serwisu generującego Access Token dla Twilio Voice JS SDK (front
 **Priorytet:** Should Have
 **Szacowany rozmiar:** M
 **Zależy od:** DB-031 (kolumna `caller_id` w `campaign`), BE-058 (resolveAccountSid dla fallbacku)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
 **Blokuje:** FE-067
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 

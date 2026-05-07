@@ -267,17 +267,20 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     try {
       String twilioFrom = resolvePhoneNumber(tenantId);
 
-      // Wstępna nazwa konferencji — używamy tymczasowego UUID dopóki nie znamy contactId.
-      // Zostanie zastąpiona po utworzeniu rekordu contact z prawdziwym callSid.
-      // Uwaga: kolejność jest celowa — najpierw wywołanie Twilio API (żeby uzyskać callSid),
-      // a dopiero potem persistOutboundContact() z gotowym callSid. Dzięki temu:
+      // contactId jest generowany PRZED wywołaniem Twilio API, żeby nazwa konferencji
+      // była identyczna z tą używaną przez dialAgentIntoConference() ("contact-{contactId}").
+      // Bez tej spójności klient ląduje w innej konferencji niż agent → brak audio.
+      //
+      // Kolejność: generate contactId → build TwiML z "contact-{contactId}" → Twilio API
+      // (uzyskujemy callSid) → persistOutboundContact() z gotowym callSid i pre-wygenerowanym contactId.
+      // Dzięki temu:
       // 1. sip_call_id jest ustawiony atomowo podczas INSERT (brak stanu "null callSid").
       // 2. handleWebhookStatusUpdate() zawsze znajdzie contact po callSid → nie tworzy
       //    duplikatu INBOUND nawet gdy webhook dotrze przed powrotem z creator.create().
       // 3. Wyścig eliminowany: direction=outbound-api z Twilio + sesja Redis zabezpieczają
       //    przed INBOUND niezależnie od czasu dostarczenia pierwszego StatusCallback.
-      UUID tempConferenceId = java.util.UUID.randomUUID();
-      String tempConferenceName = "contact-" + tempConferenceId;
+      contactId = java.util.UUID.randomUUID();
+      String tempConferenceName = "contact-" + contactId;
 
       String rawBase = buildRawWebhookBaseUrl(tenantId);
       StringBuilder conferenceAttrs = new StringBuilder();
@@ -286,8 +289,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Bez tego atrybutu konferencja trwałaby do czasu wyjścia ostatniego uczestnika.
       conferenceAttrs.append("startConferenceOnEnter=\"false\" endConferenceOnExit=\"true\"");
       if (rawBase != null) {
-        // Placeholder tenantId dla conference callback — zostanie zaktualizowany po utworzeniu contactId.
-        // W praktyce konferencja jest przebudowywana przez dialAgentIntoConference() z właściwą nazwą.
+        // URL callbacku konferencji — konferencja nosi nazwę "contact-{contactId}" (już wygenerowane wyżej).
         String confStatusCallbackUrl = rawBase + "/conference?tenantId=" + tenantId;
         conferenceAttrs.append(" statusCallback=\"").append(confStatusCallbackUrl).append("\"");
         conferenceAttrs.append(" statusCallbackEvent=\"end\"");
@@ -323,7 +325,14 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Utwórz rekord Contact PO uzyskaniu callSid z Twilio API, żeby sip_call_id
       // był dostępny atomowo od razu w INSERT. Eliminuje to okno czasowe gdy
       // StatusCallback mógłby dotrzeć zanim backfill uzupełni callSid w DB.
-      contactId = persistOutboundContact(tenantId, from, to, agentId, queueId, callbackId, callSid);
+      // contactId zostało wygenerowane wcześniej i użyte jako nazwa konferencji w TwiML —
+      // persistOutboundContact() używa tego samego UUID, zapewniając spójność z dialAgentIntoConference().
+      UUID persistResult = persistOutboundContact(tenantId, from, to, agentId, queueId, callbackId, callSid, contactId);
+      if (persistResult == null) {
+        // Nadpisz tylko gdy persist się nie powiódł (null oznacza błąd DB), żeby zmienna
+        // contactId w catch była null — analogicznie jak dotychczas.
+        contactId = null;
+      }
 
       log.info("[TwilioAdapter] Połączenie wychodzące zainicjowane: callSid={}, status={}, to={}, contactId={}",
           callSid, call.getStatus(), to, contactId);
@@ -1055,7 +1064,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     CompletableFuture.delayedExecutor(90, TimeUnit.SECONDS).execute(() -> {
       TenantContext.restore(snapshot);
       try {
-        log.info("[TwilioAdapter] Fallback nagrania: sprawdzam Twilio Recording API dla callSid={}, " +
+        log.debug("[TwilioAdapter] Fallback nagrania: sprawdzam Twilio Recording API dla callSid={}, " +
                  "contactId={}, tenantId={}", callSid, contactId, tenantId);
 
         // Sprawdź czy nagranie nie zostało już zapisane przez normalny webhook
@@ -1063,7 +1072,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .filter(url -> url != null && !url.isBlank())
             .isPresent();
         if (alreadySaved) {
-          log.info("[TwilioAdapter] Fallback nagrania: recording_url już istnieje, pomijam. " +
+          log.debug("[TwilioAdapter] Fallback nagrania: recording_url już istnieje, pomijam. " +
                    "callSid={}, contactId={}", callSid, contactId);
           return;
         }
@@ -1610,9 +1619,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * @param callSid  Twilio Call SID obtained from Twilio API before calling this method
    * @return UUID of the newly created contact record, or null on DB error
    */
-  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId, String callSid) {
+  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId, String callSid, UUID preGeneratedContactId) {
     try {
-      UUID contactId = UUID.randomUUID();
+      // Use the pre-generated contactId so the conference name in TwiML ("contact-{contactId}")
+      // matches the name used in dialAgentIntoConference() — both sides join the same conference.
+      UUID contactId = preGeneratedContactId;
       Instant now = Instant.now();
 
       HashMap<String, Object> metadata = new HashMap<>();

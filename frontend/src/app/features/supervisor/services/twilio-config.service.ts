@@ -53,6 +53,12 @@ export interface TwilioConnectionTestResult {
   testedAt: string;
 }
 
+export interface TwilioPhoneNumberDto {
+  sid: string;
+  phoneNumber: string;
+  friendlyName: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TwilioConfigService {
   private readonly http = inject(HttpClient);
@@ -97,5 +103,11 @@ export class TwilioConfigService {
 
   testConnection(): Observable<TwilioConnectionTestResult> {
     return this.http.post<TwilioConnectionTestResult>(`${this.supervisorBaseUrl}/test`, {});
+  }
+
+  getPhoneNumbers(): Observable<TwilioPhoneNumberDto[]> {
+    return this.http
+      .get<{ phoneNumbers: TwilioPhoneNumberDto[] }>(`${this.supervisorBaseUrl}/phone-numbers`)
+      .pipe(map((r) => r.phoneNumbers));
   }
 }

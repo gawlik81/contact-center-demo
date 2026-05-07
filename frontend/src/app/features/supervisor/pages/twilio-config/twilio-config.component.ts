@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { TwilioPhoneNumberSelectComponent } from '../../components/twilio-phone-number-select/twilio-phone-number-select.component';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, map, of, startWith } from 'rxjs';
@@ -23,7 +24,12 @@ import { NotificationService } from '../../../../core/services/notification.serv
 @Component({
   selector: 'app-twilio-config',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, ConfirmDialogComponent],
+  imports: [
+    TranslocoModule,
+    ReactiveFormsModule,
+    ConfirmDialogComponent,
+    TwilioPhoneNumberSelectComponent,
+  ],
   templateUrl: './twilio-config.component.html',
   styleUrl: './twilio-config.component.scss',
 })
@@ -61,7 +67,7 @@ export class TwilioConfigComponent implements OnInit {
     apiKeySid: [''],
     apiKeySecret: [''],
     twimlAppSid: [''],
-    phoneNumber: ['', [Validators.pattern(/^\+[1-9]\d{7,14}$/)]],
+    phoneNumber: [null as string | null],
     statusCallbackUrl: [''],
   });
 
@@ -82,7 +88,7 @@ export class TwilioConfigComponent implements OnInit {
       if (authHasOnlyRequired) {
         // Only authToken required error — ignore it, rest of form may be valid
         const otherControlsInvalid = Object.entries(
-          (this.form.controls as Record<string, { invalid: boolean; value: unknown }>)
+          this.form.controls as Record<string, { invalid: boolean; value: unknown }>,
         )
           .filter(([key]) => key !== 'authToken')
           .some(([, ctrl]) => ctrl.invalid);
@@ -320,7 +326,10 @@ export class TwilioConfigComponent implements OnInit {
     const ctrl = this.form.get('accountSid')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
     if (ctrl.hasError('required'))
-      return this.transloco.translate('supervisor.settings.twilioConfig.accountSidLabel') + ' jest wymagany.';
+      return (
+        this.transloco.translate('supervisor.settings.twilioConfig.accountSidLabel') +
+        ' jest wymagany.'
+      );
     if (ctrl.hasError('pattern'))
       return this.transloco.translate('supervisor.settings.twilioConfig.accountSidError');
     return null;
@@ -333,15 +342,10 @@ export class TwilioConfigComponent implements OnInit {
     const ctrl = this.form.get('authToken')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
     if (ctrl.hasError('required'))
-      return this.transloco.translate('supervisor.settings.twilioConfig.authTokenLabel') + ' jest wymagany.';
-    return null;
-  }
-
-  get phoneNumberError(): string | null {
-    const ctrl = this.form.get('phoneNumber')!;
-    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('pattern'))
-      return this.transloco.translate('supervisor.settings.twilioConfig.phoneNumberError');
+      return (
+        this.transloco.translate('supervisor.settings.twilioConfig.authTokenLabel') +
+        ' jest wymagany.'
+      );
     return null;
   }
 }

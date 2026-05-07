@@ -198,23 +198,16 @@
 
   <form [formGroup]="addForm" (ngSubmit)="onAddSubmit()" novalidate class="num-dialog__body">
     <div class="form-field" [class.form-field--error]="!!addNumberError">
-      <label class="form-label" for="add-number">{{ 'common.phone' | transloco }} *</label>
-      <input
-        id="add-number"
-        type="tel"
-        class="form-input"
+      <!-- eslint-disable-next-line @angular-eslint/template/label-has-associated-control -->
+      <label class="form-label">{{ 'common.phone' | transloco }} *</label>
+      <app-twilio-phone-number-select
         formControlName="number"
-        placeholder="+48123456789"
-        autocomplete="off"
-        [attr.aria-describedby]="addNumberError ? 'add-number-error' : 'add-number-hint'"
-        [attr.aria-invalid]="addNumberError ? 'true' : null"
+        [required]="true"
+        [disabledNumbers]="phoneNumbers().map(n => n.number)"
+        [placeholder]="'supervisor.settings.phoneNumbers.phoneSelectPlaceholder' | transloco"
       />
       @if (addNumberError) {
-        <span id="add-number-error" class="form-error" role="alert">{{ addNumberError }}</span>
-      } @else {
-        <span id="add-number-hint" class="form-hint">{{
-          'supervisor.settings.phoneNumbers.phoneHint' | transloco
-        }}</span>
+        <span class="form-error" role="alert">{{ addNumberError }}</span>
       }
     </div>
 

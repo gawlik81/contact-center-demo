@@ -101,27 +101,20 @@
 
       <!-- Caller ID – only for OUTBOUND_VOICE -->
       @if (campaignType() === 'OUTBOUND_VOICE') {
-        <div class="form-field" [class.form-field--error]="callerIdError">
-          <label class="form-label" for="callerId">
+        <div class="form-field">
+          <label class="form-label" [for]="callerIdSelectRef.selectId">
             {{ 'supervisor.campaignForm.callerId.label' | transloco }}
           </label>
-          <input
-            id="callerId"
-            type="text"
-            class="form-input"
+          <app-twilio-phone-number-select
+            #callerIdSelectRef
             formControlName="callerId"
-            [placeholder]="defaultPhoneNumber() || ('supervisor.campaignForm.callerId.placeholder' | transloco)"
-            autocomplete="off"
-            [attr.aria-describedby]="callerIdError ? 'callerId-error' : 'callerId-hint'"
-            [attr.aria-invalid]="callerIdError ? 'true' : null"
+            [allowNull]="true"
+            [nullLabel]="'supervisor.campaignForm.callerId.defaultTenant' | transloco"
+            [placeholder]="'supervisor.campaignForm.callerId.placeholder' | transloco"
           />
-          @if (callerIdError) {
-            <span id="callerId-error" class="form-error" role="alert">{{ callerIdError }}</span>
-          } @else {
-            <span id="callerId-hint" class="form-hint">
-              {{ 'supervisor.campaignForm.callerId.hint' | transloco }}
-            </span>
-          }
+          <span class="form-hint">
+            {{ 'supervisor.campaignForm.callerId.hint' | transloco }}
+          </span>
         </div>
       }
 

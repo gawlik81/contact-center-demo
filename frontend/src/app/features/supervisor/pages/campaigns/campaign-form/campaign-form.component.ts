@@ -25,8 +25,8 @@ import {
 import { catchError, of } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
 import { QueueService } from '../../../services/queue.service';
-import { TwilioConfigService } from '../../../services/twilio-config.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
+import { TwilioPhoneNumberSelectComponent } from '../../../components/twilio-phone-number-select/twilio-phone-number-select.component';
 import {
   ActiveDay,
   Campaign,
@@ -79,7 +79,7 @@ const ALL_DAYS: { value: ActiveDay; labelKey: string }[] = [
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule, TwilioPhoneNumberSelectComponent],
   templateUrl: './campaign-form.component.html',
   styleUrl: './campaign-form.component.scss',
   host: {
@@ -95,7 +95,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
 
   private readonly campaignService = inject(CampaignService);
   private readonly queueService = inject(QueueService);
-  private readonly twilioConfigService = inject(TwilioConfigService);
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
@@ -106,7 +105,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   readonly queuesLoading = signal(false);
   readonly queues = signal<Queue[]>([]);
   readonly allDays = ALL_DAYS;
-  readonly defaultPhoneNumber = signal<string | null>(null);
 
   readonly typeOptions: { value: CampaignType; label: string }[] = [
     { value: 'OUTBOUND_VOICE', label: 'Wychodzace glosy' },
@@ -143,7 +141,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     type: ['OUTBOUND_VOICE' as CampaignType, Validators.required],
     dialerType: ['PROGRESSIVE' as DialerType, Validators.required],
     queueId: ['', Validators.required],
-    callerId: this.fb.control<string | null>(null, [Validators.pattern(/^\+[1-9]\d{7,14}$/)]),
+    callerId: this.fb.control<string | null>(null),
     maxAttempts: [3, [Validators.required, Validators.min(1)]],
     retryDelayMinutes: [60, [Validators.required, Validators.min(0)]],
     schedule: this.scheduleGroup,
@@ -157,16 +155,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     this.loadQueues();
-
-    this.twilioConfigService
-      .getConfig()
-      .pipe(
-        catchError(() => of(null)),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((config) => {
-        this.defaultPhoneNumber.set(config?.phoneNumber ?? null);
-      });
 
     this.form
       .get('type')!
@@ -316,13 +304,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     if (this.scheduleGroup.hasError('timeToNotAfterFrom') && this.scheduleGroup.touched) {
       return 'Godzina "do" musi byc pozniej niz godzina "od".';
     }
-    return null;
-  }
-
-  get callerIdError(): string | null {
-    const ctrl = this.form.get('callerId')!;
-    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('pattern')) return 'Format E.164, np. +48123456789';
     return null;
   }
 

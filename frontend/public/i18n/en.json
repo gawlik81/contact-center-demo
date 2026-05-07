@@ -1067,8 +1067,9 @@
       "saveLabel": "Save campaign",
       "callerId": {
         "label": "Caller ID (optional)",
-        "placeholder": "Tenant default number",
-        "hint": "Leave empty to use the tenant default number. E.164 format, e.g. +48123456789"
+        "placeholder": "— Select a number —",
+        "defaultTenant": "— Tenant default number —",
+        "hint": "Select a number from your Twilio account or leave empty to use the tenant default."
       }
     },
     "campaignImport": {
@@ -1824,6 +1825,14 @@
         "deleteSuccess": "Twilio configuration deleted",
         "loadError": "Failed to load Twilio configuration."
       },
+      "twilioPhoneSelect": {
+        "loading": "Loading phone numbers...",
+        "errorLoad": "Cannot load phone numbers from Twilio",
+        "retry": "Try again",
+        "noConfig": "Please configure your Twilio account first",
+        "empty": "No phone numbers configured in Twilio account",
+        "defaultOption": "— Select a number —"
+      },
       "phoneNumbers": {
         "title": "Phone numbers",
         "subtitle": "Manage tenant phone numbers and incoming call routing rules.",
@@ -1855,7 +1864,8 @@
         "confirmDeleteBody": "Are you sure you want to delete number",
         "cannotDeleteWithRules": "Cannot delete – number has active routing rules",
         "namePlaceholder": "e.g. Main helpline",
-        "toggleRulesLabel": "{{action}} rules for {{number}}"
+        "toggleRulesLabel": "{{action}} rules for {{number}}",
+        "phoneSelectPlaceholder": "-- Select Twilio number --"
       },
       "routingRules": {
         "title": "Routing rules",

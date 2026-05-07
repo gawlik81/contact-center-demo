@@ -3,6 +3,7 @@ package com.contactcenter.api.supervisor.twilio;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigResponse;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioConnectionTestResult;
+import com.contactcenter.api.supervisor.twilio.dto.TwilioPhoneNumberListResponse;
 import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -103,6 +104,28 @@ public class TenantTwilioConfigController {
         configService.deleteConfig(tenantId);
         log.debug("[TwilioConfigController] DELETE /api/supervisor/twilio-config → 204, tenant={}", tenantId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/phone-numbers")
+    @Operation(
+        summary = "Pobierz listę aktywnych numerów Twilio",
+        description = "Zwraca listę numerów telefonu przypisanych do konta Twilio tenanta. " +
+                      "Wymaga skonfigurowanej konfiguracji Twilio per-tenant. " +
+                      "Zwraca pustą listę gdy konto Twilio nie ma żadnych numerów.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Lista numerów (może być pusta)"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagana rola SUPERVISOR)"),
+            @ApiResponse(responseCode = "404", description = "Brak konfiguracji Twilio dla tenanta"),
+            @ApiResponse(responseCode = "502", description = "Twilio API niedostępne lub błąd autoryzacji")
+        }
+    )
+    public ResponseEntity<TwilioPhoneNumberListResponse> listPhoneNumbers() {
+        UUID tenantId = TenantContext.getTenantId();
+        TwilioPhoneNumberListResponse response = configService.listActivePhoneNumbers(tenantId);
+        log.debug("[TwilioConfigController] GET /api/supervisor/twilio-config/phone-numbers → 200, tenant={}, count={}",
+                tenantId, response.phoneNumbers().size());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/test")

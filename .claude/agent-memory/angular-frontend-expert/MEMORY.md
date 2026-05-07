@@ -62,3 +62,4 @@
 - [Transloco i18n setup (FE-049)](./project_fe049_transloco.md) – @jsverse/transloco v8, własny HttpLoader (brak gotowego), public/i18n/ dla pl/en/de, provideTransloco w app.config
 - [LanguageService and language model (FE-050)](./project_fe050_language_service.md) – LanguageService (priority chain backend→localStorage→navigator→'pl'), APP_INITIALIZER, Signal mock pattern dla isAuthenticated w testach
 - [Language switcher component (FE-051)](./project_fe051_language_switcher.md) – LanguageSwitcherComponent (custom dropdown, HostListener outside-click, signal isOpen), osadzony w TopNavbar
+- [Twilio phone number select (FE-068)](./project_fe068_twilio_phone_select.md) – TwilioPhoneNumberSelectComponent (ControlValueAccessor, 5 stanów, allowNull), TwilioConfigService.getPhoneNumbers(), integracja w TwilioConfig + CampaignForm

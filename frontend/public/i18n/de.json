@@ -1067,8 +1067,9 @@
       "saveLabel": "Kampagne speichern",
       "callerId": {
         "label": "Präsentationsnummer (optional)",
-        "placeholder": "Standard-Mandantennummer",
-        "hint": "Leer lassen, um die Standard-Mandantennummer zu verwenden. E.164-Format, z. B. +48123456789"
+        "placeholder": "— Nummer auswählen —",
+        "defaultTenant": "— Standard-Mandantennummer —",
+        "hint": "Wählen Sie eine Nummer aus Ihrem Twilio-Konto oder lassen Sie das Feld leer für die Standard-Mandantennummer."
       }
     },
     "campaignImport": {
@@ -1824,6 +1825,14 @@
         "deleteSuccess": "Twilio-Konfiguration gelöscht",
         "loadError": "Twilio-Konfiguration konnte nicht geladen werden."
       },
+      "twilioPhoneSelect": {
+        "loading": "Telefonnummern werden geladen...",
+        "errorLoad": "Telefonnummern von Twilio können nicht abgerufen werden",
+        "retry": "Erneut versuchen",
+        "noConfig": "Bitte konfigurieren Sie zuerst Ihr Twilio-Konto",
+        "empty": "Keine Telefonnummern im Twilio-Konto konfiguriert",
+        "defaultOption": "— Nummer auswählen —"
+      },
       "phoneNumbers": {
         "title": "Telefonnummern",
         "subtitle": "Mandanten-Telefonnummern und Routing-Regeln für eingehende Anrufe verwalten.",
@@ -1855,7 +1864,8 @@
         "errorPhoneRequired": "Telefonnummer ist erforderlich.",
         "errorSave": "Nummer konnte nicht gespeichert werden.",
         "successDelete": "Nummer wurde gelöscht.",
-        "successSave": "Nummer wurde gespeichert."
+        "successSave": "Nummer wurde gespeichert.",
+        "phoneSelectPlaceholder": "-- Twilio-Nummer auswählen --"
       },
       "routingRules": {
         "title": "Routing-Regeln",

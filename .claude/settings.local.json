@@ -260,7 +260,9 @@
       "Bash(sed -n '165,172p' /home/pawelm/contact-center/frontend/public/i18n/pl.json)",
       "Bash(sed -n '165,172p' /home/pawelm/contact-center/frontend/public/i18n/uk.json)",
       "Bash(sed -n '77,115p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/service/CampaignService.java)",
-      "Bash(sed -n '157,195p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/service/CampaignService.java)"
+      "Bash(sed -n '157,195p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/service/CampaignService.java)",
+      "Bash(sed -n '1068,1074p' /home/pawelm/contact-center/frontend/public/i18n/de.json)",
+      "Bash(sed -n '1068,1074p' /home/pawelm/contact-center/frontend/public/i18n/uk.json)"
     ]
   }
 }

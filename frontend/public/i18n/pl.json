@@ -1067,8 +1067,9 @@
       "saveLabel": "Zapisz kampanię",
       "callerId": {
         "label": "Numer prezentacji (opcjonalny)",
-        "placeholder": "Domyślny numer tenanta",
-        "hint": "Pozostaw puste aby użyć domyślnego numeru tenanta. Format E.164, np. +48123456789"
+        "placeholder": "— Wybierz numer —",
+        "defaultTenant": "— Domyślny numer tenanta —",
+        "hint": "Wybierz numer z konta Twilio lub pozostaw pusty aby użyć domyślnego numeru tenanta."
       }
     },
     "campaignImport": {
@@ -1824,6 +1825,14 @@
         "deleteSuccess": "Konfiguracja Twilio usunięta",
         "loadError": "Nie udało się załadować konfiguracji Twilio."
       },
+      "twilioPhoneSelect": {
+        "loading": "Pobieranie numerów...",
+        "errorLoad": "Nie można pobrać numerów z Twilio",
+        "retry": "Spróbuj ponownie",
+        "noConfig": "Najpierw skonfiguruj konto Twilio",
+        "empty": "Brak skonfigurowanych numerów w koncie Twilio",
+        "defaultOption": "— Wybierz numer —"
+      },
       "phoneNumbers": {
         "title": "Numery telefonów",
         "subtitle": "Zarządzaj numerami telefonów tenanta i regułami routingu przychodzących połączeń.",
@@ -1855,7 +1864,8 @@
         "confirmDeleteBody": "Czy na pewno chcesz usunąć numer",
         "cannotDeleteWithRules": "Nie można usunąć – numer ma aktywne reguły routingu",
         "namePlaceholder": "np. Infolinia główna",
-        "toggleRulesLabel": "{{action}} reguły dla {{number}}"
+        "toggleRulesLabel": "{{action}} reguły dla {{number}}",
+        "phoneSelectPlaceholder": "-- Wybierz numer z Twilio --"
       },
       "routingRules": {
         "title": "Reguły routingu",

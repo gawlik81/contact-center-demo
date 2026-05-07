@@ -1064,7 +1064,12 @@
       "timeToLabel": "To time",
       "activeDaysLabel": "Active days",
       "timezoneLabel": "Timezone",
-      "saveLabel": "Save campaign"
+      "saveLabel": "Save campaign",
+      "callerId": {
+        "label": "Caller ID (optional)",
+        "placeholder": "Tenant default number",
+        "hint": "Leave empty to use the tenant default number. E.164 format, e.g. +48123456789"
+      }
     },
     "campaignImport": {
       "title": "Import contacts",

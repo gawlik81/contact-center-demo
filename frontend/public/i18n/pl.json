@@ -1064,7 +1064,12 @@
       "timeToLabel": "Godzina do",
       "activeDaysLabel": "Aktywne dni",
       "timezoneLabel": "Strefa czasowa",
-      "saveLabel": "Zapisz kampanię"
+      "saveLabel": "Zapisz kampanię",
+      "callerId": {
+        "label": "Numer prezentacji (opcjonalny)",
+        "placeholder": "Domyślny numer tenanta",
+        "hint": "Pozostaw puste aby użyć domyślnego numeru tenanta. Format E.164, np. +48123456789"
+      }
     },
     "campaignImport": {
       "title": "Importuj kontakty",

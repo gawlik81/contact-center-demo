@@ -1064,7 +1064,12 @@
       "timeToLabel": "Bis Uhrzeit",
       "activeDaysLabel": "Aktive Tage",
       "timezoneLabel": "Zeitzone",
-      "saveLabel": "Kampagne speichern"
+      "saveLabel": "Kampagne speichern",
+      "callerId": {
+        "label": "Präsentationsnummer (optional)",
+        "placeholder": "Standard-Mandantennummer",
+        "hint": "Leer lassen, um die Standard-Mandantennummer zu verwenden. E.164-Format, z. B. +48123456789"
+      }
     },
     "campaignImport": {
       "title": "Kontakte importieren",

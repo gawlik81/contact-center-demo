@@ -99,6 +99,32 @@
         }
       </div>
 
+      <!-- Caller ID – only for OUTBOUND_VOICE -->
+      @if (campaignType() === 'OUTBOUND_VOICE') {
+        <div class="form-field" [class.form-field--error]="callerIdError">
+          <label class="form-label" for="callerId">
+            {{ 'supervisor.campaignForm.callerId.label' | transloco }}
+          </label>
+          <input
+            id="callerId"
+            type="text"
+            class="form-input"
+            formControlName="callerId"
+            [placeholder]="defaultPhoneNumber() || ('supervisor.campaignForm.callerId.placeholder' | transloco)"
+            autocomplete="off"
+            [attr.aria-describedby]="callerIdError ? 'callerId-error' : 'callerId-hint'"
+            [attr.aria-invalid]="callerIdError ? 'true' : null"
+          />
+          @if (callerIdError) {
+            <span id="callerId-error" class="form-error" role="alert">{{ callerIdError }}</span>
+          } @else {
+            <span id="callerId-hint" class="form-hint">
+              {{ 'supervisor.campaignForm.callerId.hint' | transloco }}
+            </span>
+          }
+        </div>
+      }
+
       <!-- Max attempts + retry delay (inline row) -->
       <div class="form-row">
         <div class="form-field" [class.form-field--error]="maxAttemptsError">

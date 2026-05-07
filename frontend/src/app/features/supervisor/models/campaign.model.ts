@@ -25,6 +25,7 @@ export interface Campaign {
   schedule: CampaignSchedule;
   status: CampaignStatus;
   queueId?: string;
+  callerId?: string | null;
   dispositionCodes: DispositionCode[];
   maxAttempts: number;
   retryDelayMinutes: number;
@@ -41,6 +42,7 @@ export interface CreateCampaignRequest {
   maxAttempts: number;
   retryDelayMinutes: number;
   schedule?: CampaignSchedule;
+  callerId?: string | null;
 }
 
 export interface UpdateCampaignRequest {
@@ -49,6 +51,7 @@ export interface UpdateCampaignRequest {
   maxAttempts?: number;
   retryDelayMinutes?: number;
   schedule?: CampaignSchedule;
+  callerId?: string | null;
 }
 
 export interface PagedResponse<T> {

@@ -289,6 +289,12 @@ app:
   # Twilio pobiera URL i odtwarza audio klientowi (<Play>). Powinien być krótki (~30s).
   # Pusty string = cisza (<Pause length="25"/>). Nadpisywany przez HOLD_MUSIC_URL ENV var.
   hold-music-url: ${HOLD_MUSIC_URL:https://com.twilio.sounds.music.s3.amazonaws.com/MARKOVICHAMP-Borghestral.mp3}
+  # Klucz szyfrowania AES-256 dla wrażliwych pól w bazie (np. kredencjały Twilio per tenant).
+  # Wartość: Base64-encoded 32 bajty (wynik: openssl rand -base64 32).
+  # PROD: ustaw przez ENV var APP_ENCRYPTION_SECRET (mocny losowy klucz – NIGDY nie commituj do repo).
+  # DEV: domyślny klucz dev (32 bajty zer) – NIGDY nie używaj w produkcji.
+  encryption:
+    secret: ${APP_ENCRYPTION_SECRET:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
 
 # =============================================================================
 # ETL – pipeline synchronizacji danych do Data Warehouse (BE-030)
@@ -328,7 +334,7 @@ s3:
 email:
   # Opóźnienie między kolejnymi pollami IMAP w ms (domyślnie 60s)
   poll-delay-ms: ${EMAIL_POLL_DELAY_MS:60000}
-  # Klucz szyfrowania AES-256 dla haseł IMAP/SMTP (32-bajtowy hex = 64 znaki)
+  # Klucz szyfrowania AES-256 dla haseł IMAP/SMTP (32-bajtowy hex = 64 znaki) (openssl rand -hex 32)
   # PROD: ustaw przez ENV var EMAIL_ENCRYPTION_KEY (mocny losowy klucz)
   # DEV: zerowy klucz domyślny – NIGDY nie używaj w produkcji
   encryption-key: ${EMAIL_ENCRYPTION_KEY:0000000000000000000000000000000000000000000000000000000000000000}
@@ -337,7 +343,7 @@ email:
 
 # =============================================================================
 # Social Media OAuth – integracje Facebook Messenger, Instagram, WhatsApp Business (BE-017)
-# Klucz szyfrowania tokenów: 64-znakowy hex (32 bajty AES-256)
+# Klucz szyfrowania tokenów: 64-znakowy hex (32 bajty AES-256) (openssl rand -hex 32)
 # PROD: ustaw przez ENV var SOCIAL_TOKEN_ENCRYPTION_KEY (mocny losowy klucz)
 # DEV: domyślny fallback (SHA-256 z podanego stringa) – NIGDY nie używaj w produkcji
 # =============================================================================

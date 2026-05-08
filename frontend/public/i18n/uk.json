@@ -6,6 +6,8 @@
     "edit": "Редагувати",
     "add": "Додати",
     "close": "Закрити",
+    "show": "Показати",
+    "hide": "Приховати",
     "confirm": "Підтвердити",
     "search": "Пошук",
     "loading": "Завантаження...",
@@ -154,6 +156,7 @@
     "settingsPhoneNumbers": "Номери телефонів",
     "settingsSocialMedia": "Соціальні мережі",
     "settingsEmailTemplates": "Шаблони email",
+    "settingsTwilioConfig": "Інтеграція Twilio",
     "reportsHistorical": "Історичні",
     "reportsContacts": "Контакти",
     "importCsv": "Імпорт CSV",
@@ -1061,7 +1064,13 @@
       "timeToLabel": "Час до",
       "activeDaysLabel": "Активні дні",
       "timezoneLabel": "Часовий пояс",
-      "saveLabel": "Зберегти кампанію"
+      "saveLabel": "Зберегти кампанію",
+      "callerId": {
+        "label": "Номер презентації (необов'язково)",
+        "placeholder": "— Вибрати номер —",
+        "defaultTenant": "— Номер за замовчуванням тенанта —",
+        "hint": "Виберіть номер з облікового запису Twilio або залиште порожнім для використання номера за замовчуванням."
+      }
     },
     "campaignImport": {
       "title": "Імпортувати контакти",
@@ -1786,6 +1795,44 @@
         "saveButton": "Зберегти конфігурацію",
         "removeButton": "Видалити конфігурацію тенанта"
       },
+      "twilioConfig": {
+        "title": "Конфігурація Twilio",
+        "subtitle": "Керуйте інтеграцією Twilio для цього тенанта.",
+        "noConfigTitle": "Конфігурація Twilio відсутня",
+        "noConfigHint": "Налаштуйте інтеграцію Twilio для використання голосових дзвінків.",
+        "setupButton": "Налаштувати",
+        "accountSidLabel": "Account SID",
+        "accountSidError": "Account SID повинен мати формат: AC + 32 символи hex",
+        "authTokenLabel": "Auth Token",
+        "authTokenPlaceholder": "Введіть новий Auth Token",
+        "apiKeySidLabel": "API Key SID",
+        "apiKeySecretLabel": "API Key Secret",
+        "apiKeySecretPlaceholder": "Введіть новий API Key Secret",
+        "twimlAppSidLabel": "TwiML App SID",
+        "phoneNumberLabel": "Номер телефону (E.164)",
+        "phoneNumberPlaceholder": "+380XXXXXXXXX",
+        "phoneNumberError": "Номер повинен бути у форматі E.164 (напр. +380123456789)",
+        "statusCallbackUrlLabel": "Status Callback URL",
+        "editSecretButton": "Змінити",
+        "saveButton": "Зберегти",
+        "cancelButton": "Скасувати",
+        "deleteButton": "Видалити конфігурацію",
+        "deleteConfirm": "Ви впевнені, що хочете видалити конфігурацію Twilio? Ця операція є незворотною.",
+        "testButton": "Перевірити з'єднання",
+        "testSuccess": "З'єднання успішне",
+        "testFailed": "Помилка з'єднання",
+        "saveSuccess": "Конфігурацію Twilio збережено успішно",
+        "deleteSuccess": "Конфігурацію Twilio видалено",
+        "loadError": "Не вдалося завантажити конфігурацію Twilio."
+      },
+      "twilioPhoneSelect": {
+        "loading": "Завантаження номерів...",
+        "errorLoad": "Не вдалося отримати номери з Twilio",
+        "retry": "Спробувати ще раз",
+        "noConfig": "Спочатку налаштуйте обліковий запис Twilio",
+        "empty": "У обліковому записі Twilio немає налаштованих номерів",
+        "defaultOption": "— Виберіть номер —"
+      },
       "phoneNumbers": {
         "title": "Номери телефонів",
         "subtitle": "Управляйте номерами телефонів тенанта та правилами маршрутизації вхідних дзвінків.",
@@ -1817,7 +1864,8 @@
         "confirmDeleteBody": "Ви впевнені, що хочете видалити номер",
         "cannotDeleteWithRules": "Неможливо видалити – номер має активні правила маршрутизації",
         "namePlaceholder": "напр. Головна гаряча лінія",
-        "toggleRulesLabel": "{{action}} правила для {{number}}"
+        "toggleRulesLabel": "{{action}} правила для {{number}}",
+        "phoneSelectPlaceholder": "-- Виберіть номер Twilio --"
       },
       "routingRules": {
         "title": "Правила маршрутизації",

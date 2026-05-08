@@ -3,6 +3,7 @@ import {
   AfterViewInit,
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   ElementRef,
   inject,
@@ -25,6 +26,7 @@ import { catchError, of } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
 import { QueueService } from '../../../services/queue.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
+import { TwilioPhoneNumberSelectComponent } from '../../../components/twilio-phone-number-select/twilio-phone-number-select.component';
 import {
   ActiveDay,
   Campaign,
@@ -77,7 +79,7 @@ const ALL_DAYS: { value: ActiveDay; labelKey: string }[] = [
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule, TwilioPhoneNumberSelectComponent],
   templateUrl: './campaign-form.component.html',
   styleUrl: './campaign-form.component.scss',
   host: {
@@ -139,16 +141,25 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     type: ['OUTBOUND_VOICE' as CampaignType, Validators.required],
     dialerType: ['PROGRESSIVE' as DialerType, Validators.required],
     queueId: ['', Validators.required],
+    callerId: this.fb.control<string | null>(null),
     maxAttempts: [3, [Validators.required, Validators.min(1)]],
     retryDelayMinutes: [60, [Validators.required, Validators.min(0)]],
     schedule: this.scheduleGroup,
   });
+
+  readonly campaignType = signal<string>(this.form.get('type')!.value ?? 'OUTBOUND_VOICE');
+  readonly isOutboundVoice = computed(() => this.campaignType() === 'OUTBOUND_VOICE');
 
   /** Separate signal for active_days checkboxes (not in reactive form to keep it simple) */
   readonly selectedDays = signal<Set<ActiveDay>>(new Set());
 
   ngOnInit(): void {
     this.loadQueues();
+
+    this.form
+      .get('type')!
+      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((val) => this.campaignType.set(val ?? 'OUTBOUND_VOICE'));
 
     const editCampaign = this.campaign();
     if (this.isEditMode() && editCampaign) {
@@ -157,6 +168,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         type: editCampaign.type,
         dialerType: editCampaign.dialerType,
         queueId: editCampaign.queueId ?? '',
+        callerId: editCampaign.callerId ?? null,
         maxAttempts: editCampaign.maxAttempts,
         retryDelayMinutes: editCampaign.retryDelayMinutes,
       });
@@ -331,6 +343,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
           maxAttempts: raw.maxAttempts!,
           retryDelayMinutes: raw.retryDelayMinutes!,
           schedule,
+          callerId: raw.callerId || null,
         })
         .pipe(
           catchError(() => {
@@ -356,6 +369,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
           maxAttempts: raw.maxAttempts!,
           retryDelayMinutes: raw.retryDelayMinutes!,
           schedule,
+          callerId: raw.callerId || null,
         })
         .pipe(
           catchError((err: { status?: number }) => {

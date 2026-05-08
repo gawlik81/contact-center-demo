@@ -1,17 +1,22 @@
 package com.contactcenter.domain.telephony;
 
+import com.contactcenter.domain.event.TwilioConfigChangedEvent;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
+import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
-import com.twilio.Twilio;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.twilio.exception.ApiException;
+import com.twilio.http.TwilioRestClient;
 import com.twilio.rest.api.v2010.account.Call;
 import com.twilio.rest.api.v2010.account.IncomingPhoneNumber;
 import com.twilio.rest.api.v2010.account.call.Recording;
@@ -22,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -31,6 +37,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -92,6 +99,13 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   /** Używany wyłącznie dla prostych kluczy String (indeks odwrotny contactId → callSid). */
   private final StringRedisTemplate stringRedisTemplate;
   private final TwilioRecordingDownloadService recordingDownloadService;
+  private final TenantTwilioConfigService tenantTwilioConfigService;
+
+  /**
+   * Cache per-tenant TwilioRestClient (max 100, TTL 15 min).
+   * Inicjowany w {@link #init()} – nie jest final, żeby można było wywołać init() w testach.
+   */
+  private Cache<UUID, TwilioRestClient> clientCache;
 
   // =========================================================================
   // Inicjalizacja
@@ -104,7 +118,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * @throws IllegalStateException gdy accountSid lub authToken jest pusty
    */
   @PostConstruct
-  void init() {
+  public void init() {
     if (!StringUtils.hasText(twilioProperties.getAccountSid())) {
       throw new IllegalStateException(
           "[TwilioAdapter] twilio.account-sid jest wymagany gdy twilio.enabled=true");
@@ -114,9 +128,13 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           "[TwilioAdapter] twilio.auth-token jest wymagany gdy twilio.enabled=true");
     }
 
-    Twilio.init(twilioProperties.getAccountSid(), twilioProperties.getAuthToken());
+    clientCache = Caffeine.newBuilder()
+            .maximumSize(100)
+            .expireAfterWrite(15, TimeUnit.MINUTES)
+            .build();
 
-    log.info("[TwilioAdapter] Twilio SDK zainicjalizowany. accountSid={}..., phoneNumber={}",
+    log.info("[TwilioAdapter] Zainicjalizowany z per-tenant TwilioRestClient cache (max=100, ttl=15min). " +
+             "accountSid={}..., phoneNumber={}",
         maskSid(twilioProperties.getAccountSid()),
         twilioProperties.getPhoneNumber());
 
@@ -175,9 +193,10 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           }
 
           // Wyszukaj numer w koncie Twilio po numerze E.164
+          TwilioRestClient tenantClient = resolveRestClient(tenant.getId());
           var phoneNumbers = IncomingPhoneNumber.reader()
               .setPhoneNumber(new PhoneNumber(phoneNumber))
-              .read();
+              .read(tenantClient);
 
           if (phoneNumbers == null || !phoneNumbers.iterator().hasNext()) {
             log.warn("[TwilioAdapter] Numer {} (tenant {}) nie znaleziony w koncie Twilio – pomijam.",
@@ -194,9 +213,9 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           IncomingPhoneNumber.updater(sid)
               .setStatusCallback(URI.create(callbackUrl))
               .setStatusCallbackMethod(com.twilio.http.HttpMethod.POST)
-              .update();
+              .update(tenantClient);
 
-          setStatusCallbackEvents(sid, callbackUrl);
+          setStatusCallbackEvents(sid, callbackUrl, tenant.getId());
 
           log.info("[TwilioAdapter] Skonfigurowano StatusCallback + StatusCallbackEvents dla numeru {}, tenant {}",
               phoneNumber, tenant.getId());
@@ -248,21 +267,20 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     try {
       String twilioFrom = resolvePhoneNumber(tenantId);
 
-      // Utwórz rekord Contact PRZED inicjacją połączenia Twilio, aby:
-      // 1. contactId był dostępny w sesji zanim StatusCallback dotrze z Twilio.
-      // 2. Webhook handleWebhookStatusUpdate() znajdzie contactId w DB i nie próbował
-      //    tworzyć duplikatu przez persistContact() (która i tak zapisuje direction=INBOUND).
-      // 3. Agent desktop mógł od razu wyświetlić kartę kontaktu po odebraniu przez klienta.
-      contactId = persistOutboundContact(tenantId, from, to, agentId, queueId, callbackId);
-
-      // TwiML dla połączeń wychodzących: klient czeka w konferencji na dołączenie agenta.
-      // Nazwa konferencji zgodna z konwencją dialAgentIntoConference(): "contact-{contactId}".
-      // Bez tego TwiML Twilio wykona <Say>Connecting</Say> i rozłączy połączenie.
-      // startConferenceOnEnter="false" – konferencja nie startuje dopóki agent (moderator)
-      // nie dołączy przez dialAgentIntoConference().
-      String conferenceName = contactId != null
-          ? "contact-" + contactId
-          : "contact-" + java.util.UUID.randomUUID();
+      // contactId jest generowany PRZED wywołaniem Twilio API, żeby nazwa konferencji
+      // była identyczna z tą używaną przez dialAgentIntoConference() ("contact-{contactId}").
+      // Bez tej spójności klient ląduje w innej konferencji niż agent → brak audio.
+      //
+      // Kolejność: generate contactId → build TwiML z "contact-{contactId}" → Twilio API
+      // (uzyskujemy callSid) → persistOutboundContact() z gotowym callSid i pre-wygenerowanym contactId.
+      // Dzięki temu:
+      // 1. sip_call_id jest ustawiony atomowo podczas INSERT (brak stanu "null callSid").
+      // 2. handleWebhookStatusUpdate() zawsze znajdzie contact po callSid → nie tworzy
+      //    duplikatu INBOUND nawet gdy webhook dotrze przed powrotem z creator.create().
+      // 3. Wyścig eliminowany: direction=outbound-api z Twilio + sesja Redis zabezpieczają
+      //    przed INBOUND niezależnie od czasu dostarczenia pierwszego StatusCallback.
+      contactId = java.util.UUID.randomUUID();
+      String tempConferenceName = "contact-" + contactId;
 
       String rawBase = buildRawWebhookBaseUrl(tenantId);
       StringBuilder conferenceAttrs = new StringBuilder();
@@ -271,6 +289,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Bez tego atrybutu konferencja trwałaby do czasu wyjścia ostatniego uczestnika.
       conferenceAttrs.append("startConferenceOnEnter=\"false\" endConferenceOnExit=\"true\"");
       if (rawBase != null) {
+        // URL callbacku konferencji — konferencja nosi nazwę "contact-{contactId}" (już wygenerowane wyżej).
         String confStatusCallbackUrl = rawBase + "/conference?tenantId=" + tenantId;
         conferenceAttrs.append(" statusCallback=\"").append(confStatusCallbackUrl).append("\"");
         conferenceAttrs.append(" statusCallbackEvent=\"end\"");
@@ -280,7 +299,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       String outboundTwiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
           + "<Response><Dial>"
           + "<Conference " + conferenceAttrs + ">"
-          + conferenceName
+          + tempConferenceName
           + "</Conference>"
           + "</Dial></Response>";
 
@@ -300,8 +319,20 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             "initiated", "ringing", "answered", "completed"));
       }
 
-      Call call = creator.create();
+      Call call = creator.create(resolveRestClient(tenantId));
       String callSid = call.getSid();
+
+      // Utwórz rekord Contact PO uzyskaniu callSid z Twilio API, żeby sip_call_id
+      // był dostępny atomowo od razu w INSERT. Eliminuje to okno czasowe gdy
+      // StatusCallback mógłby dotrzeć zanim backfill uzupełni callSid w DB.
+      // contactId zostało wygenerowane wcześniej i użyte jako nazwa konferencji w TwiML —
+      // persistOutboundContact() używa tego samego UUID, zapewniając spójność z dialAgentIntoConference().
+      UUID persistResult = persistOutboundContact(tenantId, from, to, agentId, queueId, callbackId, callSid, contactId);
+      if (persistResult == null) {
+        // Nadpisz tylko gdy persist się nie powiódł (null oznacza błąd DB), żeby zmienna
+        // contactId w catch była null — analogicznie jak dotychczas.
+        contactId = null;
+      }
 
       log.info("[TwilioAdapter] Połączenie wychodzące zainicjowane: callSid={}, status={}, to={}, contactId={}",
           callSid, call.getStatus(), to, contactId);
@@ -486,7 +517,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           new PhoneNumber("client:" + agentClientId),
           new PhoneNumber(resolvePhoneNumber(session.getTenantId())),
           new Twiml(agentTwiml)
-      ).create().getSid();
+      ).create(resolveRestClient(session.getTenantId())).getSid();
 
       log.info("[TwilioAdapter] Połączenie do agenta zainicjowane: agentClientId={}, conference={}, agentCallSid={}",
           agentClientId, conferenceName, agentCallSid);
@@ -542,7 +573,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     try {
       Call.updater(callId)
           .setStatus(Call.UpdateStatus.COMPLETED)
-          .update();
+          .update(resolveRestClient(session.getTenantId()));
 
     }
     catch (ApiException e) {
@@ -567,7 +598,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       try {
         Call.updater(agentCallSid)
             .setStatus(Call.UpdateStatus.COMPLETED)
-            .update();
+            .update(resolveRestClient(session.getTenantId()));
         log.info("[TwilioAdapter] Noga agenta rozłączona: agentCallSid={}, contactId={}",
             agentCallSid, session.getContactId());
       } catch (ApiException e) {
@@ -636,7 +667,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Twilio realizuje hold przez wyciszenie uczestnika po stronie agenta
       Call.updater(callId)
           .setStatus(hold ? Call.UpdateStatus.CANCELED : Call.UpdateStatus.COMPLETED)
-          .update();
+          .update(resolveRestClient(session.getTenantId()));
 
     }
     catch (ApiException e) {
@@ -741,7 +772,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Zakańczamy pierwszą nogę – klient jest teraz połączony z drugą nogą
       Call.updater(callId1)
           .setStatus(Call.UpdateStatus.COMPLETED)
-          .update();
+          .update(resolveRestClient(session1.getTenantId()));
 
     }
     catch (ApiException e) {
@@ -789,54 +820,90 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * <p>Wywoływane przez {@code TwilioWebhookController} gdy Twilio wysyła callback
    * o zmianie statusu połączenia (initiated, ringing, answered, completed, failed itp.).
    *
-   * @param callSid    Twilio Call SID
-   * @param from       numer dzwoniącego
-   * @param to         numer docelowy
-   * @param callStatus status połączenia od Twilio (np. "in-progress", "completed")
-   * @param tenantId   tenant powiązany z połączeniem (wymagany do publikacji eventu)
+   * @param callSid         Twilio Call SID
+   * @param from            numer dzwoniącego
+   * @param to              numer docelowy
+   * @param callStatus      status połączenia od Twilio (np. "in-progress", "completed")
+   * @param tenantId        tenant powiązany z połączeniem (wymagany do publikacji eventu)
+   * @param twilioDirection kierunek połączenia od Twilio ("inbound", "outbound-api", "outbound-dial")
    */
   public void handleWebhookStatusUpdate(String callSid, String from, String to,
-      String callStatus, UUID tenantId) {
-    log.info("[TwilioAdapter] Webhook status update: callSid={}, status={}, from={}, to={}, tenant={}",
-        callSid, callStatus, from, to, tenantId);
+      String callStatus, UUID tenantId, String twilioDirection) {
+    log.info("[TwilioAdapter] Webhook status update: callSid={}, status={}, from={}, to={}, tenant={}, direction={}",
+        callSid, callStatus, from, to, tenantId, twilioDirection);
 
     CallSession.CallStatus mappedStatus = mapTwilioStatus(callStatus);
 
     CallSession existing = getSession(callSid);
 
-    // Połączenie wychodzące = sesja istniała w Redis przed nadejściem webhooka
-    // (wstawiona przez initiateCall). Dla przychodzących sesja jest tworzona tutaj.
-    boolean isOutbound = existing != null;
+    // Połączenie wychodzące gdy:
+    // 1) Twilio podaje kierunek outbound-api / outbound-dial w polu Direction, LUB
+    // 2) Sesja istniała już w Redis (wstawiona przez initiateCall) – dotychczasowa logika
+    boolean isOutbound = "outbound-api".equalsIgnoreCase(twilioDirection)
+        || "outbound-dial".equalsIgnoreCase(twilioDirection)
+        || existing != null;
 
     CallEvent.EventType eventType = mapTwilioStatusToEventType(callStatus, isOutbound);
 
     if (existing == null) {
-      // Pierwsze powiadomienie o połączeniu przychodzącym – tworzymy rekord contact w DB
-      // i sesję połączenia. contactId z DB jest kluczowy dla frontendu (PATCH /api/contacts/{contactId}/...).
-      // Sprawdzamy czy contact nie został już utworzony przez webhook /voice (unikamy duplikatów).
-      UUID contactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
-          .orElseGet(() -> persistContact(tenantId, from, to, callSid));
-      existing = CallSession.builder()
-          .callId(callSid)
-          .tenantId(tenantId)
-          .from(from)
-          .to(to)
-          .status(mappedStatus)
-          .startedAt(Instant.now())
-          .contactId(contactId)
-          .build();
-      saveSession(existing);
-      log.debug("[TwilioAdapter] Nowa sesja z webhooka: callSid={}, contactId={}, status={}",
-          callSid, contactId, mappedStatus);
+      if (isOutbound) {
+        // Twilio wysłał webhook outbound zanim sesja Redis została zarejestrowana.
+        // Może się zdarzyć gdy StatusCallback dotrze przed powrotem z Call.creator().
+        // NIE tworzymy tu rekordu INBOUND contact — contact OUTBOUND już istnieje lub
+        // zostanie zaraz stworzony przez initiateCall(). Próbujemy odtworzyć sesję z DB.
+        log.warn("[TwilioAdapter] Outbound webhook bez sesji Redis: callSid={}, status={}, direction={}",
+            callSid, callStatus, twilioDirection);
+        UUID recoveredContactId = null;
+        if (tenantId != null) {
+          try {
+            recoveredContactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+                .orElse(null);
+          } catch (Exception e) {
+            log.warn("[TwilioAdapter] Nie udało się odszukać outbound contactId z DB: callSid={}, error={}",
+                callSid, e.getMessage());
+          }
+        }
+        existing = CallSession.builder()
+            .callId(callSid)
+            .tenantId(tenantId)
+            .from(from)
+            .to(to)
+            .status(mappedStatus)
+            .startedAt(Instant.now())
+            .contactId(recoveredContactId)
+            .direction("OUTBOUND")
+            .build();
+        saveSession(existing);
+        log.info("[TwilioAdapter] Minimalna sesja outbound odtworzona z webhooka: callSid={}, contactId={}, status={}",
+            callSid, recoveredContactId, mappedStatus);
+      } else {
+        // Pierwsze powiadomienie o połączeniu przychodzącym – tworzymy rekord contact w DB
+        // i sesję połączenia. contactId z DB jest kluczowy dla frontendu (PATCH /api/contacts/{contactId}/...).
+        // Sprawdzamy czy contact nie został już utworzony przez webhook /voice (unikamy duplikatów).
+        UUID contactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+            .orElseGet(() -> persistContact(tenantId, from, to, callSid));
+        existing = CallSession.builder()
+            .callId(callSid)
+            .tenantId(tenantId)
+            .from(from)
+            .to(to)
+            .status(mappedStatus)
+            .startedAt(Instant.now())
+            .contactId(contactId)
+            .build();
+        saveSession(existing);
+        log.debug("[TwilioAdapter] Nowa sesja z webhooka: callSid={}, contactId={}, status={}",
+            callSid, contactId, mappedStatus);
 
-      // Jeśli webhook przyszedł gdy sesja nie istniała w mapie i status jest już końcowy
-      // (np. klient rozłączył się przed rejestracją sesji lub callback dotarł po restarcie),
-      // zapisujemy ABANDONED – agent nigdy nie odebrał, skoro nie było aktywnej sesji.
-      if (mappedStatus == CallSession.CallStatus.ENDED && contactId != null) {
-        log.info("[TwilioAdapter] Sesja nieznana – webhook ENDED bez wcześniejszej sesji, " +
-                 "zapisuję ABANDONED: callSid={}, contactId={}", callSid, contactId);
-        contactRepository.updateContactStatusOnTelephonyEvent(
-            contactId, tenantId, "ABANDONED", Instant.now());
+        // Jeśli webhook przyszedł gdy sesja nie istniała w mapie i status jest już końcowy
+        // (np. klient rozłączył się przed rejestracją sesji lub callback dotarł po restarcie),
+        // zapisujemy ABANDONED – agent nigdy nie odebrał, skoro nie było aktywnej sesji.
+        if (mappedStatus == CallSession.CallStatus.ENDED && contactId != null) {
+          log.info("[TwilioAdapter] Sesja nieznana – webhook ENDED bez wcześniejszej sesji, " +
+                   "zapisuję ABANDONED: callSid={}, contactId={}", callSid, contactId);
+          contactRepository.updateContactStatusOnTelephonyEvent(
+              contactId, tenantId, "ABANDONED", Instant.now());
+        }
       }
     }
     else {
@@ -997,7 +1064,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     CompletableFuture.delayedExecutor(90, TimeUnit.SECONDS).execute(() -> {
       TenantContext.restore(snapshot);
       try {
-        log.info("[TwilioAdapter] Fallback nagrania: sprawdzam Twilio Recording API dla callSid={}, " +
+        log.debug("[TwilioAdapter] Fallback nagrania: sprawdzam Twilio Recording API dla callSid={}, " +
                  "contactId={}, tenantId={}", callSid, contactId, tenantId);
 
         // Sprawdź czy nagranie nie zostało już zapisane przez normalny webhook
@@ -1005,7 +1072,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .filter(url -> url != null && !url.isBlank())
             .isPresent();
         if (alreadySaved) {
-          log.info("[TwilioAdapter] Fallback nagrania: recording_url już istnieje, pomijam. " +
+          log.debug("[TwilioAdapter] Fallback nagrania: recording_url już istnieje, pomijam. " +
                    "callSid={}, contactId={}", callSid, contactId);
           return;
         }
@@ -1013,7 +1080,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         // Pobierz nagrania przez Twilio call.Recording REST API
         Iterable<Recording> recordings;
         try {
-          recordings = Recording.reader(callSid).read();
+          recordings = Recording.reader(callSid).read(resolveRestClient(tenantId));
         } catch (ApiException e) {
           // Nagranie może nie istnieć gdy rozmowa trwała <1s lub nagrywanie było wyłączone
           log.info("[TwilioAdapter] Fallback nagrania: brak nagrań w Twilio API dla callSid={} " +
@@ -1031,7 +1098,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         String recordingSid = recording.getSid();
         // Twilio Recording URL – dopisanie .mp3 daje bezpośredni link do pliku audio
         String recordingUrl = "https://api.twilio.com/2010-04-01/Accounts/"
-            + twilioProperties.getAccountSid()
+            + resolveAccountSid(tenantId)
             + "/Recordings/" + recordingSid + ".mp3";
 
         log.info("[TwilioAdapter] Fallback nagrania: znaleziono nagranie – pobieranie. " +
@@ -1117,7 +1184,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
       Call.updater(callId)
           .setTwiml(new Twiml(twiml))
-          .update();
+          .update(resolveRestClient(session.getTenantId()));
 
     }
     catch (ApiException e) {
@@ -1153,7 +1220,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           new PhoneNumber(target),
           new PhoneNumber(resolvePhoneNumber(session.getTenantId())),
           new Twiml("<Response><Say>Attending transfer</Say></Response>")
-      ).create();
+      ).create(resolveRestClient(session.getTenantId()));
 
       String secondLegSid = secondLegCall.getSid();
       Instant now = Instant.now();
@@ -1327,6 +1394,100 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     return globalNumber;
   }
 
+  // =========================================================================
+  // Per-tenant TwilioRestClient – cache + fallback
+  // =========================================================================
+
+  /**
+   * Zwraca TwilioRestClient dla danego tenanta – per-tenant lub globalny fallback.
+   * Wynik jest cache'owany w Caffeine (max 100 wpisów, TTL 15 min).
+   */
+  private TwilioRestClient resolveRestClient(UUID tenantId) {
+    if (tenantId == null) {
+      return buildGlobalClient();
+    }
+    TwilioRestClient cached = clientCache.getIfPresent(tenantId);
+    if (cached != null) {
+      return cached;
+    }
+    TwilioRestClient client = buildClientForTenant(tenantId);
+    clientCache.put(tenantId, client);
+    return client;
+  }
+
+  private TwilioRestClient buildClientForTenant(UUID tenantId) {
+    try {
+      Optional<TenantTwilioConfigDecrypted> configOpt =
+              tenantTwilioConfigService.getDecryptedConfig(tenantId);
+      if (configOpt.isPresent()) {
+        TenantTwilioConfigDecrypted cfg = configOpt.get();
+        if (StringUtils.hasText(cfg.apiKeySid()) && StringUtils.hasText(cfg.apiKeySecret())
+                && StringUtils.hasText(cfg.accountSid())) {
+          log.debug("[Twilio] tenant={} używa per-tenant konfiguracji (API key)", tenantId);
+          return new TwilioRestClient.Builder(cfg.apiKeySid(), cfg.apiKeySecret())
+                  .accountSid(cfg.accountSid())
+                  .build();
+        }
+        if (StringUtils.hasText(cfg.accountSid()) && StringUtils.hasText(cfg.authToken())) {
+          log.debug("[Twilio] tenant={} używa per-tenant konfiguracji (authToken)", tenantId);
+          return new TwilioRestClient.Builder(cfg.accountSid(), cfg.authToken()).build();
+        }
+      }
+    } catch (Exception e) {
+      log.warn("[Twilio] Błąd pobrania per-tenant config dla tenant={}: {} – fallback do globalnej konfiguracji",
+              tenantId, e.getMessage());
+    }
+    log.debug("[Twilio] tenant={} używa globalnej konfiguracji", tenantId);
+    return buildGlobalClient();
+  }
+
+  private TwilioRestClient buildGlobalClient() {
+    if (StringUtils.hasText(twilioProperties.getApiKeySid())
+            && StringUtils.hasText(twilioProperties.getApiKeySecret())) {
+      return new TwilioRestClient.Builder(
+              twilioProperties.getApiKeySid(),
+              twilioProperties.getApiKeySecret())
+              .accountSid(twilioProperties.getAccountSid())
+              .build();
+    }
+    return new TwilioRestClient.Builder(
+            twilioProperties.getAccountSid(),
+            twilioProperties.getAuthToken())
+            .build();
+  }
+
+  /**
+   * Zwraca accountSid dla tenanta (per-tenant lub globalny fallback).
+   * Używany do budowania URL nagrań i TwiML callbacków.
+   */
+  public String resolveAccountSid(UUID tenantId) {
+    if (tenantId != null) {
+      try {
+        Optional<TenantTwilioConfigDecrypted> cfg =
+                tenantTwilioConfigService.getDecryptedConfig(tenantId);
+        if (cfg.isPresent() && StringUtils.hasText(cfg.get().accountSid())) {
+          return cfg.get().accountSid();
+        }
+      } catch (Exception e) {
+        log.warn("[Twilio] Błąd odczytu per-tenant accountSid dla tenant={} – fallback",
+                tenantId, e.getMessage());
+      }
+    }
+    return twilioProperties.getAccountSid();
+  }
+
+  /**
+   * Inwaliduje cache TwilioRestClient po zmianie konfiguracji tenanta.
+   */
+  @EventListener
+  public void onTwilioConfigChanged(TwilioConfigChangedEvent event) {
+    if (clientCache != null) {
+      clientCache.invalidate(event.tenantId());
+      log.info("[TwilioAdapter] Cache TwilioRestClient zinwalidowany dla tenant={}",
+              event.tenantId());
+    }
+  }
+
   private String buildStatusCallbackUrl(UUID tenantId) {
     String base = buildRawWebhookBaseUrl(tenantId);
     if (base == null) return null;
@@ -1445,9 +1606,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * </ul>
    *
    * <p>Direction is set to {@code OUTBOUND}; status starts as {@code QUEUED} (dialing).
-   * The {@code callSid} stored in {@code channelMetadata.sip_call_id} is initially null –
-   * it will be back-filled by {@link #handleWebhookStatusUpdate} when the first
-   * StatusCallback arrives from Twilio.
+   * The {@code callSid} is stored atomically in {@code channelMetadata.sip_call_id} during INSERT,
+   * eliminating the race condition where a StatusCallback could arrive before back-fill.
    *
    * <p>On DB error: logs ERROR and returns {@code null}. The call is not blocked, but
    * the agent will not be able to save a disposition for this contact.
@@ -1456,16 +1616,21 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * @param from     outbound number (Twilio phone number, the "from" side)
    * @param to       customer's number (the "to" side)
    * @param agentId  UUID of the agent assigned to the call
+   * @param callSid  Twilio Call SID obtained from Twilio API before calling this method
    * @return UUID of the newly created contact record, or null on DB error
    */
-  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId) {
+  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId, String callSid, UUID preGeneratedContactId) {
     try {
-      UUID contactId = UUID.randomUUID();
+      // Use the pre-generated contactId so the conference name in TwiML ("contact-{contactId}")
+      // matches the name used in dialAgentIntoConference() — both sides join the same conference.
+      UUID contactId = preGeneratedContactId;
       Instant now = Instant.now();
 
       HashMap<String, Object> metadata = new HashMap<>();
-      // callSid is not yet known — will be updated by handleWebhookStatusUpdate()
-      // when the first StatusCallback (initiated/ringing) arrives from Twilio.
+      // callSid is now known at insert time — set atomically to avoid back-fill race condition
+      if (callSid != null) {
+        metadata.put("sip_call_id", callSid);
+      }
 
       TenantContext.Snapshot snapshot = TenantContext.snapshot();
       try {
@@ -1618,10 +1783,20 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * {@code canceled} jest kluczowy – Twilio wysyła go gdy klient rozłączy się w trakcie
    * oczekiwania w kolejce (przed odpowiedzią agenta), co pozwala ustawić status ABANDONED.
    */
-  private void setStatusCallbackEvents(String phoneNumberSid, String callbackUrl) {
+  private void setStatusCallbackEvents(String phoneNumberSid, String callbackUrl, UUID tenantId) {
     try {
-      String accountSid = twilioProperties.getAccountSid();
-      String authToken  = twilioProperties.getAuthToken();
+      String accountSid = resolveAccountSid(tenantId);
+      String authToken;
+      try {
+        Optional<TenantTwilioConfigDecrypted> cfg =
+                tenantTwilioConfigService.getDecryptedConfig(tenantId);
+        authToken = cfg.isPresent() && StringUtils.hasText(cfg.get().authToken())
+                ? cfg.get().authToken()
+                : twilioProperties.getAuthToken();
+      } catch (Exception e) {
+        log.warn("[Twilio] Błąd pobrania authToken per-tenant dla setStatusCallbackEvents, tenant={} – fallback", tenantId);
+        authToken = twilioProperties.getAuthToken();
+      }
 
       String body = "StatusCallback=" + java.net.URLEncoder.encode(callbackUrl, java.nio.charset.StandardCharsets.UTF_8)
           + "&StatusCallbackMethod=POST"

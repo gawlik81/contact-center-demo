@@ -24,6 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -80,6 +81,7 @@ public class ProgressiveDialerService {
     private final TelephonyAdapter telephonyAdapter;
     private final StringRedisTemplate redisTemplate;
     private final JdbcTemplate jdbcTemplate;
+    private final TenantTwilioConfigService tenantTwilioConfigService;
 
     /**
      * Self-reference przez @Lazy – pozwala wywoływać @Transactional przez proxy Springa.
@@ -89,6 +91,34 @@ public class ProgressiveDialerService {
     @Autowired
     @Lazy
     private ProgressiveDialerService self;
+
+    /**
+     * Resolwuje numer "from" dla połączenia wychodzącego.
+     * Priorytet: campaign.callerId → tenant_twilio_config.phone_number → TwilioProperties.phoneNumber
+     */
+    private String resolveFromNumber(Campaign campaign, UUID tenantId) {
+        if (StringUtils.hasText(campaign.getCallerId())) {
+            log.debug("[Dialer] Używam caller_id kampanii: {}, kampania={}",
+                    maskPhone(campaign.getCallerId()), campaign.getCampaignId());
+            return campaign.getCallerId();
+        }
+        try {
+            String perTenantNumber = tenantTwilioConfigService.getDecryptedConfig(tenantId)
+                    .map(cfg -> cfg.phoneNumber())
+                    .filter(StringUtils::hasText)
+                    .orElse(null);
+            if (perTenantNumber != null) {
+                log.debug("[Dialer] Używam numeru per-tenant z TenantTwilioConfig: {}, tenant={}",
+                        maskPhone(perTenantNumber), tenantId);
+                return perTenantNumber;
+            }
+        } catch (Exception e) {
+            log.warn("[Dialer] Błąd odczytu per-tenant phone_number, tenant={}: {} – fallback do defaultOutboundNumber",
+                    tenantId, e.getMessage());
+        }
+        log.debug("[Dialer] Używam defaultOutboundNumber: {}, tenant={}", maskPhone(defaultOutboundNumber), tenantId);
+        return defaultOutboundNumber;
+    }
 
     // =========================================================================
     // RabbitMQ listener – zmiana statusu agenta
@@ -223,7 +253,8 @@ public class ProgressiveDialerService {
                 // Oznacz kontakt jako DIALING (pessimistic update)
                 markContactStatus(recordId, campaign.getCampaignId(), tenantId, "DIALING", agentId);
 
-                CallSession session = telephonyAdapter.initiateCall(tenantId, defaultOutboundNumber, phone, agentId,
+                String fromNumber = resolveFromNumber(campaign, tenantId);
+                CallSession session = telephonyAdapter.initiateCall(tenantId, fromNumber, phone, agentId,
                         campaign.getQueueId(), null); // callbackId null – połączenie z kampanii, nie oddzwonienie
 
                 // Zapisz stan w Redis

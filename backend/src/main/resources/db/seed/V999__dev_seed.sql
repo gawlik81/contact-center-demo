@@ -433,3 +433,50 @@ VALUES
     TRUE
 )
 ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- DB-030: Konfiguracja Twilio per tenant (V051)
+-- UWAGA: Wartości account_sid i auth_token to PLACEHOLDERY symulujące format
+--        Base64(IV||ciphertext) po szyfrowaniu AES-256-GCM przez aplikację.
+--        W środowisku DEV aplikacja i tak odszyfrowuje je przez JPA
+--        AttributeConverter – tu wstawiamy wartości tekstowe omijając szyfrowanie,
+--        ponieważ seed działa jako superuser poza kontekstem aplikacji.
+-- ---------------------------------------------------------------------------
+
+INSERT INTO tenant_twilio_config (
+    config_id,
+    tenant_id,
+    account_sid,
+    auth_token,
+    api_key_sid,
+    api_key_secret,
+    twiml_app_sid,
+    phone_number,
+    status_callback_url,
+    is_active
+) VALUES
+(
+    '11111111-0000-0000-0000-000000000001',
+    'aaaaaaaa-0000-0000-0000-000000000001',   -- Acme Corporation
+    'PLACEHOLDER_ENCRYPTED_ACMExxACCOUNT_SID',  -- Base64(IV||ciphertext) – zastąp prawdziwą wartością
+    'PLACEHOLDER_ENCRYPTED_ACMExxxxxxxxAUTH_TOKEN',  -- Base64(IV||ciphertext) – zastąp prawdziwą wartością
+    NULL,          -- brak API Key – tenant używa globalnych kredencjałów
+    NULL,          -- brak API Key Secret
+    'APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',   -- placeholder TwiML App SID
+    '+48221234001',
+    'https://acme.contact-center.dev/twilio/status',
+    TRUE
+),
+(
+    '11111111-0000-0000-0000-000000000002',
+    'aaaaaaaa-0000-0000-0000-000000000002',   -- Beta Telecom
+    'PLACEHOLDER_ENCRYPTED_BETAxxACCOUNT_SID',  -- Base64(IV||ciphertext) – zastąp prawdziwą wartością
+    'PLACEHOLDER_ENCRYPTED_BETAxxxxxxxxAUTH_TOKEN',  -- Base64(IV||ciphertext) – zastąp prawdziwą wartością
+    NULL,
+    NULL,
+    NULL,
+    '+48221234002',
+    'https://beta.contact-center.dev/twilio/status',
+    TRUE
+)
+ON CONFLICT DO NOTHING;

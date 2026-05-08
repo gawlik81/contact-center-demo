@@ -6,6 +6,8 @@
     "edit": "Edytuj",
     "add": "Dodaj",
     "close": "Zamknij",
+    "show": "Pokaż",
+    "hide": "Ukryj",
     "confirm": "Potwierdź",
     "search": "Szukaj",
     "loading": "Ładowanie...",
@@ -160,7 +162,8 @@
     "customerProfile": "Profil klienta",
     "ivrEditor": "Edytor IVR",
     "oauthCallback": "OAuth Callback",
-    "breadcrumbNav": "Ścieżka nawigacji"
+    "breadcrumbNav": "Ścieżka nawigacji",
+    "settingsTwilioConfig": "Integracja Twilio"
   },
   "role": {
     "admin": "Admin",
@@ -1061,7 +1064,13 @@
       "timeToLabel": "Godzina do",
       "activeDaysLabel": "Aktywne dni",
       "timezoneLabel": "Strefa czasowa",
-      "saveLabel": "Zapisz kampanię"
+      "saveLabel": "Zapisz kampanię",
+      "callerId": {
+        "label": "Numer prezentacji (opcjonalny)",
+        "placeholder": "— Wybierz numer —",
+        "defaultTenant": "— Domyślny numer tenanta —",
+        "hint": "Wybierz numer z konta Twilio lub pozostaw pusty aby użyć domyślnego numeru tenanta."
+      }
     },
     "campaignImport": {
       "title": "Importuj kontakty",
@@ -1786,6 +1795,44 @@
         "saveButton": "Zapisz konfigurację",
         "removeButton": "Usuń konfigurację per-tenant"
       },
+      "twilioConfig": {
+        "title": "Konfiguracja Twilio",
+        "subtitle": "Zarządzaj integracją Twilio dla tego tenanta.",
+        "noConfigTitle": "Brak konfiguracji Twilio",
+        "noConfigHint": "Skonfiguruj integrację Twilio, aby korzystać z połączeń głosowych.",
+        "setupButton": "Skonfiguruj",
+        "accountSidLabel": "Account SID",
+        "accountSidError": "Account SID musi mieć format: AC + 32 znaki hex",
+        "authTokenLabel": "Auth Token",
+        "authTokenPlaceholder": "Wpisz nowy Auth Token",
+        "apiKeySidLabel": "API Key SID",
+        "apiKeySecretLabel": "API Key Secret",
+        "apiKeySecretPlaceholder": "Wpisz nowy API Key Secret",
+        "twimlAppSidLabel": "TwiML App SID",
+        "phoneNumberLabel": "Numer telefonu (E.164)",
+        "phoneNumberPlaceholder": "+48XXXXXXXXX",
+        "phoneNumberError": "Numer musi być w formacie E.164 (np. +48123456789)",
+        "statusCallbackUrlLabel": "Status Callback URL",
+        "editSecretButton": "Zmień",
+        "saveButton": "Zapisz",
+        "cancelButton": "Anuluj",
+        "deleteButton": "Usuń konfigurację",
+        "deleteConfirm": "Czy na pewno chcesz usunąć konfigurację Twilio? Ta operacja jest nieodwracalna.",
+        "testButton": "Testuj połączenie",
+        "testSuccess": "Połączenie OK",
+        "testFailed": "Błąd połączenia",
+        "saveSuccess": "Konfiguracja Twilio zapisana pomyślnie",
+        "deleteSuccess": "Konfiguracja Twilio usunięta",
+        "loadError": "Nie udało się załadować konfiguracji Twilio."
+      },
+      "twilioPhoneSelect": {
+        "loading": "Pobieranie numerów...",
+        "errorLoad": "Nie można pobrać numerów z Twilio",
+        "retry": "Spróbuj ponownie",
+        "noConfig": "Najpierw skonfiguruj konto Twilio",
+        "empty": "Brak skonfigurowanych numerów w koncie Twilio",
+        "defaultOption": "— Wybierz numer —"
+      },
       "phoneNumbers": {
         "title": "Numery telefonów",
         "subtitle": "Zarządzaj numerami telefonów tenanta i regułami routingu przychodzących połączeń.",
@@ -1817,7 +1864,8 @@
         "confirmDeleteBody": "Czy na pewno chcesz usunąć numer",
         "cannotDeleteWithRules": "Nie można usunąć – numer ma aktywne reguły routingu",
         "namePlaceholder": "np. Infolinia główna",
-        "toggleRulesLabel": "{{action}} reguły dla {{number}}"
+        "toggleRulesLabel": "{{action}} reguły dla {{number}}",
+        "phoneSelectPlaceholder": "-- Wybierz numer z Twilio --"
       },
       "routingRules": {
         "title": "Reguły routingu",

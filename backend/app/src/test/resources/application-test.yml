@@ -44,3 +44,8 @@ logging:
     com.contactcenter: DEBUG
     org.springframework.security: DEBUG
     org.flywaydb: DEBUG
+
+# Szyfrowanie – klucz testowy (32 bajty zer w Base64)
+app:
+  encryption:
+    secret: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=

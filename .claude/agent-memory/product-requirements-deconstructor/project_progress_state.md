@@ -1,27 +1,21 @@
 ---
 name: Aktualny stan realizacji projektu Contact Center
-description: Stan ukończenia zadań DB/BE/FE – aktualizacja 2026-04-27; stosuj przy szacowaniu pozostałych prac i obliczaniu liczników PROGRESS.md
+description: Stan ukończenia zadań DB/BE/FE – aktualizacja 2026-05-07; stosuj przy szacowaniu pozostałych prac i obliczaniu liczników PROGRESS.md
 type: project
 ---
 
-Stan na 2026-04-27: DB: 28/28 | BE: 55/55 | FE: 44/47 | RAZEM: 127/130
+Stan na 2026-05-07: DB: 30/30 ✅ | BE: 62/62 ✅ | FE: 54/54 ✅ — WSZYSTKIE ZADANIA UKOŃCZONE
 
-**Why:** Zaktualizowano 2026-04-27 po dodaniu zadań EPIC-15 i EPIC-16: DB-027 (source_type AGENT_MANUAL), DB-028 (tabela agent_break), BE-048 (Manual Callback API), BE-049 (AgentBreak entity+repo), BE-050 (breaks CRUD API), BE-051 (AgentCalendarController), BE-052 (AgentBreakActivator scheduler), BE-053 (CampaignWindowActivator scheduler), FE-040 (AgentCustomersTabComponent), FE-041 (ManualCallbackModalComponent), FE-042 (AgentCalendarService), FE-043 (AgentCalendarComponent), FE-044 (RescheduleCallbackModalComponent), FE-045 (AddBreakModalComponent).
+**Why:** Zaktualizowano 2026-05-07 po zrealizowaniu EPIC-20 (Per-tenant konfiguracja Twilio):
+- BE-061: GET /api/supervisor/twilio-config/phone-numbers (lista aktywnych numerów Twilio per-tenant)
+- FE-067: Pole callerId w CampaignFormComponent (OUTBOUND_VOICE)
+- FE-068: TwilioPhoneNumberSelectComponent (ControlValueAccessor, integracja w TwilioConfigComponent i CampaignFormComponent)
+- Ponadto zaktualizowano wcześniej nieoznaczone jako ukończone: FE-046/047/048 (EPIC-17, 2026-04-28), FE-049–FE-065 (EPIC-19 i18n, 2026-04-28–2026-05-03), DB-029 (V050, 2026-04-28), DB-030/031 (V051/V052, 2026-05-05), BE-054–BE-060 (EPIC-20, 2026-05-06)
 
-**How to apply:** Przed tworzeniem nowych zadań sprawdź PRD.md. FE-046/047/048 to kolejne nierozpoczęte zadania EPIC-16 (IncomingCallAlertService, IncomingCallBannerComponent, integracja bannera). Ostatnia migracja Flyway w EPIC-16: V047__agent_break.sql.
+**How to apply:** Projekt Contact Center SaaS jest w pełni zaimplementowany. Następna migracja Flyway: V053. Ostatni numer zadań: DB-031, BE-061, FE-068. Przy dodawaniu nowych tasków numeruj od DB-032, BE-062, FE-069.
 
-## Nieukończone zadania
+## Ostatnie ukończone EPIC (chronologicznie)
 
-### Database (0)
-Wszystkie 28 zadań DB ukończone.
-
-### Backend (0)
-Wszystkie 55 zadań BE ukończone.
-Ostatnie: BE-052 ✅ AgentBreakActivator (2026-04-26), BE-053 ✅ CampaignWindowActivator (2026-04-27).
-
-### Frontend (3 nierozpoczęte)
-44/47 zadań FE ukończone.
-Nierozpoczęte:
-- FE-046: IncomingCallAlertService (globalny serwis alertów o przychodzącym połączeniu)
-- FE-047: IncomingCallBannerComponent (pływający banner powiadomienia)
-- FE-048: Integracja bannera w AgentShellComponent
+- EPIC-17 (Incoming Call Alert): FE-046, FE-047, FE-048 — 2026-04-28
+- EPIC-19 (Wielojęzyczność): DB-029, BE-054, FE-049–FE-065 — 2026-04-28 do 2026-05-03
+- EPIC-20 (Per-tenant Twilio config): DB-030, DB-031, BE-055–BE-061, FE-066–FE-068 — 2026-05-05 do 2026-05-07

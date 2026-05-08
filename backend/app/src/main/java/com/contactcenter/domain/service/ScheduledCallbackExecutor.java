@@ -49,6 +49,7 @@ public class ScheduledCallbackExecutor {
     private final ScheduledCallbackRepository callbackRepository;
     private final TelephonyAdapter telephonyAdapter;
     private final AppUserRepository appUserRepository;
+    private final TenantTwilioConfigService tenantTwilioConfigService;
 
     @Value("${dialer.callback-executor.batch-size:50}")
     private int batchSize;
@@ -114,7 +115,7 @@ public class ScheduledCallbackExecutor {
                     dueCallbacks.size(), tenant.getId());
 
             for (ScheduledCallback callback : dueCallbacks) {
-                processCallback(callback, tenant);
+                processCallback(callback);
             }
 
         } catch (Exception e) {
@@ -136,9 +137,8 @@ public class ScheduledCallbackExecutor {
      * Błąd → status FAILED + log ERROR (pętla kontynuuje).
      *
      * @param callback callback do realizacji
-     * @param tenant   tenant, do którego należy callback
      */
-    private void processCallback(ScheduledCallback callback, Tenant tenant) {
+    private void processCallback(ScheduledCallback callback) {
         // Atomowa zmiana statusu – ochrona przed race condition przy wielu węzłach
         int updated = callbackRepository.updateStatusIfPending(
                 callback.getCallbackId(), callback.getTenantId(), "PROCESSING");
@@ -168,10 +168,7 @@ public class ScheduledCallbackExecutor {
                 callback.getAgentId(), callback.getTenantId());
 
         try {
-            // Numer wychodzący: per-tenant z konfiguracji JSONB lub fallback domyślny
-            String fromNumber = tenant.getTwilioPhoneNumber() != null
-                    ? tenant.getTwilioPhoneNumber()
-                    : defaultOutboundNumber;
+            String fromNumber = resolveCallbackFromNumber(callback.getTenantId());
 
             telephonyAdapter.initiateCall(
                     callback.getTenantId(),
@@ -204,6 +201,29 @@ public class ScheduledCallbackExecutor {
     // =========================================================================
     // Pomocnicze
     // =========================================================================
+
+    /**
+     * Resolwuje numer wychodzący ("from") dla oddzwonienia.
+     * Priorytet: tenant_twilio_config.phone_number → domyślny numer globalny.
+     *
+     * @param tenantId UUID tenanta
+     * @return numer w formacie E.164
+     */
+    private String resolveCallbackFromNumber(java.util.UUID tenantId) {
+        try {
+            String perTenantNumber = tenantTwilioConfigService.getDecryptedConfig(tenantId)
+                    .map(cfg -> cfg.phoneNumber())
+                    .filter(num -> num != null && !num.isBlank())
+                    .orElse(null);
+            if (perTenantNumber != null) {
+                return perTenantNumber;
+            }
+        } catch (Exception e) {
+            log.warn("[CallbackExecutor] Błąd odczytu per-tenant phone_number, tenant={}: {} – fallback",
+                    tenantId, e.getMessage());
+        }
+        return defaultOutboundNumber;
+    }
 
     /**
      * Maskuje numer telefonu dla logów (widoczne ostatnie 4 cyfry).

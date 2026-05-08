@@ -24,6 +24,7 @@ public record CampaignResponse(
         List<Map<String, Object>> dispositionCodes,
         int maxAttempts,
         int retryDelayMinutes,
+        String callerId,
         UUID createdBy,
         Instant createdAt,
         Instant updatedAt
@@ -48,6 +49,7 @@ public record CampaignResponse(
                 campaign.getDispositionCodes(),
                 campaign.getMaxAttempts(),
                 campaign.getRetryDelayMinutes(),
+                campaign.getCallerId(),
                 campaign.getCreatedBy(),
                 campaign.getCreatedAt(),
                 campaign.getUpdatedAt()

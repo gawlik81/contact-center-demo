@@ -1,0 +1,92 @@
+$border-color: #e2e8f0;
+$text-primary: #212121;
+$text-secondary: #616161;
+$brand-blue: #1565c0;
+$error: #c62828;
+
+.form-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid $border-color;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  color: $text-primary;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:focus {
+    border-color: $brand-blue;
+    box-shadow: 0 0 0 3px rgba($brand-blue, 0.12);
+  }
+
+  &:disabled {
+    background: #f5f5f5;
+    color: $text-secondary;
+    cursor: not-allowed;
+  }
+}
+
+.form-skeleton {
+  height: 38px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.phone-select-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 38px;
+  padding: 0.25rem 0;
+  font-size: 0.875rem;
+
+  &__msg {
+    flex: 1;
+    color: $text-secondary;
+
+    &--error {
+      color: $error;
+    }
+  }
+}
+
+.phone-select-retry {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border: 1.5px solid $border-color;
+  border-radius: 6px;
+  background: #fff;
+  color: $text-secondary;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    background: #f5f5f5;
+    border-color: #bdbdbd;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand-blue;
+    outline-offset: 2px;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

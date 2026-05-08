@@ -1,5 +1,6 @@
 package com.contactcenter.api.campaign.dto;
 
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -33,6 +34,16 @@ public record UpdateCampaignRequest(
         Integer maxAttempts,
 
         /** Opóźnienie między próbami w minutach (null = nie zmieniaj). */
-        Integer retryDelayMinutes
+        Integer retryDelayMinutes,
+
+        /**
+         * Numer prezentacji (caller ID) w formacie E.164 (np. +48123456789).
+         * Opcjonalny – null = nie zmieniaj.
+         */
+        @Pattern(
+            regexp = "^\\+[1-9]\\d{7,14}$",
+            message = "callerId musi być w formacie E.164, np. +48123456789"
+        )
+        String callerId
 ) {
 }

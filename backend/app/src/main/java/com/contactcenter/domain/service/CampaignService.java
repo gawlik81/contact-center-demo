@@ -89,6 +89,7 @@ public class CampaignService {
                 .dispositionCodes(request.dispositionCodes() != null ? request.dispositionCodes() : new ArrayList<>())
                 .maxAttempts(request.maxAttempts() != null ? request.maxAttempts() : 3)
                 .retryDelayMinutes(request.retryDelayMinutes() != null ? request.retryDelayMinutes() : 60)
+                .callerId(request.callerId())
                 .createdBy(userId)
                 .build();
 
@@ -181,6 +182,9 @@ public class CampaignService {
         }
         if (request.retryDelayMinutes() != null) {
             campaign.setRetryDelayMinutes(request.retryDelayMinutes());
+        }
+        if (request.callerId() != null) {
+            campaign.setCallerId(request.callerId());
         }
 
         Campaign saved = campaignRepository.save(campaign);

@@ -2155,6 +2155,8 @@ record UserPreferencesDto(String preferredLanguage) {}
 | Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
 | Kalendarz Agenta (EPIC-16) | 5 | 0 | 5 |
 | Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
+| Wielojęzyczność (EPIC-19) | 1 | 1 | 0 |
+| Per-tenant konfiguracja Twilio (EPIC-20) | 7 | 0 | 7 |
 
 ---
 
@@ -2246,3 +2248,348 @@ Napisać testy jednostkowe dla `IvrService`.
 - [ ] Tenant isolation: blokada odczytu/zapisu IVR z obcego tenanta
 - [ ] Wszystkie testy przechodzą (`mvn test -pl app -Dtest=IvrServiceTest`)
 | **RAZEM** | **56** | **46** | **10** |
+
+---
+
+## MODUL: Per-tenant konfiguracja Twilio (EPIC-20)
+
+### BE-055 – Encja `TenantTwilioConfig` + `TenantTwilioConfigRepository` + konwerter szyfrowania
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Szacowany rozmiar:** M
+**Zależy od:** DB-030 (tabela `tenant_twilio_config`)
+**Status:** ✅ Ukończone
+**Blokuje:** BE-056, BE-057, BE-058
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Warstwa danych dla konfiguracji Twilio per tenant. Trzy elementy:
+
+1. **`EncryptedStringConverter`** (`infrastructure/persistence/converter/EncryptedStringConverter.java`) – `AttributeConverter<String, String>` implementujący AES-256-GCM szyfrowanie/deszyfrowanie. Klucz pobierany z `application.yml` (`app.encryption.secret`, minimum 32 bajty). Każdy zapis generuje nowy losowy IV (16 bajtów) i przechowuje `Base64(IV || ciphertext)`. Konwerter rejestrowany jako Spring bean (`@Converter`).
+
+2. **`TenantTwilioConfig`** (`domain/model/TenantTwilioConfig.java`) – encja JPA mapująca tabelę `tenant_twilio_config`. Pola `accountSid`, `authToken`, `apiKeySid`, `apiKeySecret` annotowane `@Convert(converter = EncryptedStringConverter.class)`. Pola `twimlAppSid`, `phoneNumber`, `statusCallbackUrl` bez konwertera (plaintext). Encja rozszerza lub stosuje wzorzec analogiczny do `TenantAwareEntity`.
+
+3. **`TenantTwilioConfigRepository`** (`domain/repository/TenantTwilioConfigRepository.java`) – rozszerza `TenantAwareRepository`. Metoda `findByTenantId(UUID tenantId): Optional<TenantTwilioConfig>`. Przed każdym `save()` wywołanie `assertSameTenant(entity.getTenantId())`.
+
+**Wskazówki techniczne:**
+- AES-256-GCM: `Cipher.getInstance("AES/GCM/NoPadding")`, `GCMParameterSpec(128, iv)` (128-bitowy tag)
+- Klucz: `SecretKeySpec(Base64.decode(secret), "AES")` – secret musi mieć 32 bajty po decode
+- `SecureRandom` do generowania IV przy każdym `convertToDatabaseColumn()`
+- Przy `null` input konwerter zwraca `null` (nullable pola jak `apiKeySid`)
+
+**Kryteria akceptacji:**
+- [ ] `EncryptedStringConverter` szyfruje i deszyfruje poprawnie roundtrip (`encrypt(decrypt(x)) == x`)
+- [ ] Różne wywołania `convertToDatabaseColumn()` dla tej samej wartości generują różne ciphertexty (losowy IV)
+- [ ] `TenantTwilioConfig` zapisuje się do bazy – `account_sid` w bazie jest zaszyfrowany (nie plaintext)
+- [ ] `findByTenantId()` zwraca odszyfrowane wartości pól automatycznie przez JPA
+- [ ] `save()` na encji z obcym `tenant_id` rzuca wyjątek z `assertSameTenant()`
+- [ ] `EncryptedStringConverter` obsługuje `null` – pola nullable nie rzucają NPE
+- [ ] Testy jednostkowe `EncryptedStringConverterTest`: roundtrip, null safety, losowość IV
+- [ ] Testy repozytorium (TestcontainerS PostgreSQL lub H2): zapis i odczyt z weryfikacją że w bazie dane są zaszyfrowane
+
+---
+
+### BE-056 – `TenantTwilioConfigService`: logika biznesowa zarządzania konfiguracją
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Szacowany rozmiar:** M
+**Zależy od:** BE-055 (encja i repozytorium)
+**Status:** ✅ Ukończone
+**Blokuje:** BE-057
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Serwis `TenantTwilioConfigService` (`domain/service/TenantTwilioConfigService.java`) z logiką biznesową zarządzania konfiguracją Twilio per tenant.
+
+**Metody publiczne:**
+- `saveConfig(UUID tenantId, TenantTwilioConfigRequest request): TenantTwilioConfigResponse` – upsert (INSERT lub UPDATE jeśli istnieje). Waliduje format `accountSid` (prefix `AC`, długość 34 znaki), format `phoneNumber` (E.164). Publikuje event `TwilioConfigChangedEvent` do invalidacji cache (potrzebny przez BE-058).
+- `getConfig(UUID tenantId): Optional<TenantTwilioConfigResponse>` – zwraca konfigurację z wrażliwymi polami maskowanymi w response DTO (patrz: format masking poniżej).
+- `getDecryptedConfig(UUID tenantId): Optional<TenantTwilioConfigDecrypted>` – wewnętrzna metoda (package-private lub osobny interfejs), zwraca odszyfrowane dane dla adaptera Twilio. Nie używać w kontrolerach.
+- `deleteConfig(UUID tenantId): void` – usuwa konfigurację. Publikuje `TwilioConfigChangedEvent`.
+- `testConnection(UUID tenantId): TwilioConnectionTestResult` – pobiera odszyfrowaną konfigurację, wywołuje Twilio API (`TwilioRestClient.accounts().fetch()` lub równoważne) i zwraca wynik testu z komunikatem błędu jeśli niepoprawne.
+
+**Format masking wrażliwych pól w response:**
+- `accountSid`: zwraca plaintext (nie jest sekretem – widoczne w dashboard Twilio)
+- `authToken`: `"●●●●●●●●...` + ostatnie 4 znaki" np. `"●●●●●●●●...a3f2"`
+- `apiKeySid`: zwraca plaintext (identyfikator klucza, nie sekret)
+- `apiKeySecret`: `"●●●●●●●●...` + ostatnie 4 znaki"`
+
+**Klasy DTO:**
+- `TenantTwilioConfigRequest` (record): `accountSid`, `authToken`, `apiKeySid`, `apiKeySecret`, `twimlAppSid`, `phoneNumber`, `statusCallbackUrl`
+- `TenantTwilioConfigResponse` (record): wszystkie pola jak wyżej + `isActive`, `createdAt`, `updatedAt` – z maskingiem dla sekretów
+- `TenantTwilioConfigDecrypted` (record, nie eksponować przez REST): pełne odszyfrowane dane
+- `TwilioConnectionTestResult` (record): `success: boolean`, `message: String`, `testedAt: Instant`
+
+**Kryteria akceptacji:**
+- [ ] `saveConfig()` tworzy nowy rekord jeśli nie istnieje lub aktualizuje istniejący (upsert)
+- [ ] `saveConfig()` z niepoprawnym `accountSid` (brak prefixu `AC`) rzuca `ValidationException`
+- [ ] `saveConfig()` z niepoprawnym `phoneNumber` (nie E.164) rzuca `ValidationException`
+- [ ] `getConfig()` zwraca `authToken` i `apiKeySecret` z maskingiem (nie w plaintext)
+- [ ] `getDecryptedConfig()` zwraca plaintext – nie dostępna przez REST (test: nie ma adnotacji `@RequestMapping`)
+- [ ] `deleteConfig()` usuwa rekord i publikuje event invalidacji cache
+- [ ] `testConnection()` z poprawnymi kredencjałami zwraca `success = true`
+- [ ] `testConnection()` z niepoprawnymi kredencjałami zwraca `success = false` + komunikat błędu z Twilio API (nie rzuca wyjątku do klienta)
+- [ ] `TwilioConfigChangedEvent` publikowany przez `ApplicationEventPublisher` po save i delete
+- [ ] Testy jednostkowe z mockowanym repozytorium i Twilio client
+
+---
+
+### BE-057 – `TenantTwilioConfigController`: REST API konfiguracji Twilio dla supervisora
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Szacowany rozmiar:** S
+**Zależy od:** BE-056 (serwis)
+**Status:** ✅ Ukończone
+**Blokuje:** FE-066
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Kontroler REST `TenantTwilioConfigController` (`api/controller/TenantTwilioConfigController.java`) eksponujący endpointy zarządzania konfiguracją Twilio w scope supervisora bieżącego tenanta. Wszystkie endpointy wymagają autoryzacji `ROLE_SUPERVISOR`.
+
+**Endpointy:**
+```
+GET    /api/supervisor/twilio-config          → 200 TenantTwilioConfigResponse (lub 204 gdy brak)
+PUT    /api/supervisor/twilio-config          → 200 TenantTwilioConfigResponse (upsert)
+DELETE /api/supervisor/twilio-config          → 204 No Content
+POST   /api/supervisor/twilio-config/test     → 200 TwilioConnectionTestResult
+```
+
+**Autoryzacja:**
+- `ROLE_SUPERVISOR` dla wszystkich endpointów (sprawdzić przez `@PreAuthorize("hasRole('SUPERVISOR')")`)
+- `TenantContext.getTenantId()` jako źródło `tenantId` – nie przyjmować z path/query params
+
+**Walidacja (PUT):**
+- `accountSid`: `@NotBlank`, `@Pattern(regexp = "^AC[0-9a-fA-F]{32}$", message = "Invalid Twilio Account SID format")`
+- `authToken`: `@NotBlank`
+- `phoneNumber`: `@Pattern(regexp = "^\\+[1-9]\\d{7,14}$", message = "Phone number must be in E.164 format")` (nullable)
+- `apiKeySid`, `apiKeySecret`, `twimlAppSid`, `statusCallbackUrl`: opcjonalne
+
+**Rejestracja w SecurityConfig:**
+- Dodać `/api/supervisor/twilio-config/**` do listy `requestMatchers` z `hasRole('SUPERVISOR')`
+
+**Rejestracja w TenantFilter:**
+- Ścieżka `/api/supervisor/twilio-config` NIE powinna być w `PUBLIC_PATH_PREFIXES` (wymaga JWT)
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/supervisor/twilio-config` zwraca `200` z zamaskowanymi sekretami lub `204` gdy brak konfiguracji
+- [ ] `PUT /api/supervisor/twilio-config` z poprawnymi danymi → `200` z zapisaną konfiguracją
+- [ ] `PUT` z niepoprawnym `accountSid` → `400 Bad Request` z komunikatem walidacji
+- [ ] `PUT` z niepoprawnym `phoneNumber` → `400 Bad Request`
+- [ ] `DELETE /api/supervisor/twilio-config` → `204 No Content`; ponowny `GET` → `204`
+- [ ] `POST /api/supervisor/twilio-config/test` → `200` z `success: true/false` i komunikatem
+- [ ] Żądanie bez JWT → `401 Unauthorized`
+- [ ] Żądanie z rolą `ROLE_AGENT` → `403 Forbidden`
+- [ ] OpenAPI (springdoc) dokumentuje wszystkie 4 endpointy z przykładami request/response
+- [ ] Tenant supervisora z tokenem JWT tenanta B nie widzi konfiguracji tenanta A
+
+---
+
+### BE-058 – Refaktoryzacja `TwilioTelephonyAdapter` na per-tenant z cache i fallbackiem
+
+**Typ:** Refactor
+**Priorytet:** Should Have
+**Szacowany rozmiar:** L
+**Zależy od:** BE-055 (TenantTwilioConfig encja), BE-056 (serwis z getDecryptedConfig), DB-030
+**Status:** ✅ Ukończone
+**Blokuje:** BE-059, BE-060
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Zastąpienie globalnej inicjalizacji Twilio SDK (`@PostConstruct Twilio.init(accountSid, authToken)`) dynamicznym tworzeniem per-tenant klientów REST z cache'owaniem. Adapter musi zachować pełną kompatybilność wsteczną (fallback do globalnej konfiguracji gdy tenant nie ma własnych kredencjałów).
+
+**Zmiany w `TwilioTelephonyAdapter`:**
+
+1. **Usunięcie `@PostConstruct Twilio.init()`** – globalna inicjalizacja zastąpiona przez `resolveRestClient()`.
+
+2. **Cache per-tenant** – Caffeine cache (`CaffeineCache` lub `@Cacheable("twilioClients")`) z kluczem `tenantId`:
+   ```java
+   // Przykładowa konfiguracja Caffeine (application.yml lub @Bean):
+   // maximumSize: 100, expireAfterWrite: 15min
+   private final LoadingCache<UUID, TwilioRestClient> clientCache;
+   ```
+
+3. **`resolveRestClient(UUID tenantId): TwilioRestClient`** – metoda prywatna:
+   - Próba pobrania `TenantTwilioConfigDecrypted` przez `tenantTwilioConfigService.getDecryptedConfig(tenantId)`
+   - Jeśli istnieje i `isActive = true`: `new TwilioRestClient(apiKeySid, apiKeySecret, accountSid)`
+   - Fallback: `new TwilioRestClient(twilioProperties.getApiKeySid(), twilioProperties.getApiKeySecret(), twilioProperties.getAccountSid())`
+   - Log na poziomie `DEBUG`: `"[Twilio] tenant={} używa {} konfiguracji"` (per-tenant / globalnej)
+
+4. **Invalidacja cache** – nasłuch na `TwilioConfigChangedEvent` (pubish przez BE-056):
+   ```java
+   @EventListener
+   public void onTwilioConfigChanged(TwilioConfigChangedEvent event) {
+       clientCache.invalidate(event.tenantId());
+   }
+   ```
+
+5. **`configureStatusCallbacksForAllTenants()`** – iteracja przez tenant configs w bazie, dla każdego tenanta użycie własnego `resolveRestClient(tenantId)` zamiast globalnego klienta.
+
+6. **`resolveAccountSid(UUID tenantId): String`** – pomocnicza metoda zwracająca `accountSid` (per-tenant lub globalny) potrzebna do budowania TwiML callback URLs.
+
+**Wskazówki techniczne:**
+- `TwilioRestClient` jest thread-safe – jeden instancja na tenant w cache jest bezpieczna
+- Nie używać statycznych metod `Twilio.*` (są oparte na globalnym stanie) – wyłącznie przez `TwilioRestClient` instancję
+- Przy przekraczaniu granic wątków: `TenantContext.snapshot()` / `restore()` / `clear()` zgodnie z regułami CLAUDE.md
+
+**Kryteria akceptacji:**
+- [ ] Aplikacja startuje bez `@PostConstruct Twilio.init()` – brak błędów inicjalizacji
+- [ ] Tenant z własną konfiguracją (DB-030) używa swoich kredencjałów do połączeń (weryfikacja przez logi DEBUG lub test integracyjny z mockiem Twilio)
+- [ ] Tenant bez konfiguracji używa globalnych `TwilioProperties` (fallback)
+- [ ] Cache jest invalidowany po wywołaniu `PUT /api/supervisor/twilio-config` lub `DELETE`
+- [ ] Po invalidacji cache kolejne wywołanie tworzy nowy `TwilioRestClient` z aktualnymi danymi
+- [ ] `configureStatusCallbacksForAllTenants()` iteruje przez konfigi tenantów i używa ich kredencjałów
+- [ ] Brak wycieków `TenantContext` przy wywołaniach asynchronicznych
+- [ ] Istniejące testy integracyjne telefonii nie failują (kompatybilność wsteczna z globalnym fallbackiem)
+- [ ] Caffeine cache: max 100 wpisów, TTL 15 minut (konfigurowalne przez `application.yml`)
+
+---
+
+### BE-059 – Per-tenant Access Token dla Twilio Voice JS SDK
+
+**Typ:** Refactor
+**Priorytet:** Should Have
+**Szacowany rozmiar:** S
+**Zależy od:** BE-058 (resolveRestClient, resolveAccountSid), BE-055 (getDecryptedConfig)
+**Status:** ✅ Ukończone
+**Blokuje:** brak
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Refaktoryzacja serwisu generującego Access Token dla Twilio Voice JS SDK (frontend softphone). Obecna implementacja używa globalnych `apiKeySid`, `apiKeySecret`, `accountSid` i `twimlAppSid` z `TwilioProperties`. Po refaktoryzacji serwis pobiera per-tenant wartości z `TenantTwilioConfigDecrypted` (jeśli istnieje) lub fallback do globalnych.
+
+**Zmiany:**
+- W serwisie generującym token (`TwilioTokenService` lub analogiczny):
+  ```java
+  TenantTwilioConfigDecrypted config = tenantTwilioConfigService
+      .getDecryptedConfig(tenantId)
+      .orElse(null);
+
+  String accountSid   = config != null ? config.accountSid()   : twilioProperties.getAccountSid();
+  String apiKeySid    = config != null ? config.apiKeySid()    : twilioProperties.getApiKeySid();
+  String apiKeySecret = config != null ? config.apiKeySecret() : twilioProperties.getApiKeySecret();
+  String twimlAppSid  = config != null ? config.twimlAppSid()  : twilioProperties.getTwimlAppSid();
+  ```
+- Jeśli per-tenant config nie ma `apiKeySid` / `apiKeySecret` (pola nullable), fallback do globalnych
+- `tenantId` pobierany z `TenantContext.getTenantId()`
+
+**Kryteria akceptacji:**
+- [ ] Token generowany dla tenanta z per-tenant confgiem używa jego `apiKeySid`/`apiKeySecret`/`accountSid`/`twimlAppSid`
+- [ ] Token generowany dla tenanta bez konfiguracji używa globalnych `TwilioProperties`
+- [ ] Gdy per-tenant config ma `accountSid` ale brak `apiKeySid` – fallback do globalnego `apiKeySid`
+- [ ] Endpoint zwracający token (`GET /api/agent/twilio-token` lub analogiczny) zwraca `200` dla obu scenariuszy
+- [ ] Testy jednostkowe: scenariusz per-tenant, scenariusz globalny, scenariusz częściowego fallbacku
+
+---
+
+### BE-060 – Caller ID dla kampanii: propagacja do `ProgressiveDialerService`
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Szacowany rozmiar:** M
+**Zależy od:** DB-031 (kolumna `caller_id` w `campaign`), BE-058 (resolveAccountSid dla fallbacku)
+**Status:** ✅ Ukończone
+**Blokuje:** FE-067
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Implementacja obsługi pola `caller_id` w kampaniach wychodzących. Zmiany w trzech miejscach:
+
+1. **Encja `Campaign`** – dodanie pola `callerId` (mapowanie kolumny `caller_id` z DB-031):
+   ```java
+   @Column(name = "caller_id", length = 30)
+   private String callerId;  // null = użyj domyślnego numeru tenanta
+   ```
+
+2. **`ProgressiveDialerService`** i **`ScheduledCallbackExecutor`** – przy budowaniu parametrów połączenia wychodzącego:
+   ```java
+   String from = campaign.getCallerId() != null
+       ? campaign.getCallerId()
+       : resolveDefaultPhoneNumber(campaign.getTenantId());
+
+   // resolveDefaultPhoneNumber():
+   // 1. TenantTwilioConfigService.getDecryptedConfig(tenantId).phoneNumber
+   // 2. Fallback: TwilioProperties.getPhoneNumber()
+   ```
+
+3. **`CampaignRequest` / `CampaignResponse` DTO** – dodanie pola `callerId` (opcjonalne):
+   - W `CampaignRequest`: `@Pattern(regexp = "^\\+[1-9]\\d{7,14}$") String callerId` (nullable)
+   - W `CampaignResponse`: `String callerId` (może być null)
+
+4. **`CampaignService`** – obsługa `callerId` przy tworzeniu i aktualizacji kampanii (save/update).
+
+**Kryteria akceptacji:**
+- [ ] Encja `Campaign` ma pole `callerId` mapujące kolumnę `caller_id`
+- [ ] `CampaignRequest` akceptuje opcjonalne pole `callerId` z walidacją E.164
+- [ ] `CampaignResponse` zawiera pole `callerId` (null gdy nieustalone)
+- [ ] `ProgressiveDialerService` używa `campaign.callerId` jako `from` numeru gdy ustawiony
+- [ ] `ProgressiveDialerService` fallbackuje do `tenant_twilio_config.phone_number` gdy `callerId = null`
+- [ ] `ProgressiveDialerService` fallbackuje do `TwilioProperties.phoneNumber` gdy brak per-tenant config
+- [ ] `ScheduledCallbackExecutor` stosuje tę samą logikę resolwowania `from` numeru
+- [ ] `POST /api/supervisor/campaigns` z `callerId: "+48123456789"` zapisuje i zwraca pole
+- [ ] `POST /api/supervisor/campaigns` z `callerId: "invalid"` zwraca `400 Bad Request`
+- [ ] `POST /api/supervisor/campaigns` bez `callerId` zapisuje `null` (domyślny numer tenanta przy dzwonieniu)
+- [ ] Istniejące testy dialera nie failują (backward compatible – `callerId = null` = stare zachowanie)
+
+---
+
+### BE-061 – Endpoint listowania aktywnych numerów Twilio per-tenant
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Szacowany rozmiar:** S
+**Zależy od:** BE-058 (per-tenant klient Twilio z resolveRestClient), BE-056 (getDecryptedConfig)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-07
+**Blokuje:** FE-068
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Nowy endpoint w `TenantTwilioConfigController` pobierający listę aktywnych numerów (`IncomingPhoneNumber`) z konta Twilio przypisanego do aktualnego tenanta. Lista używana przez frontend do budowania selecta w formularzu konfiguracji Twilio i formularzu kampanii — zamiast ręcznego wpisywania numeru w formacie E.164.
+
+Logika pobierania numerów jest już częściowo zaimplementowana w `TwilioTelephonyAdapter.configureStatusCallbacksForAllTenants()` (używa `IncomingPhoneNumber.reader()`). Tutaj wystawiamy to jako dedykowany endpoint z per-tenant klientem.
+
+**Endpoint:**
+```
+GET /api/supervisor/twilio-config/phone-numbers
+```
+- Autoryzacja: `ROLE_SUPERVISOR`
+- Odpowiedź `200 OK`:
+  ```json
+  {
+    "phoneNumbers": [
+      {
+        "sid": "PN...",
+        "phoneNumber": "+48123456789",
+        "friendlyName": "Contact Center PL"
+      }
+    ]
+  }
+  ```
+- Odpowiedź `404 Not Found` gdy tenant nie ma skonfigurowanego konta Twilio (brak rekordu w `tenant_twilio_config`)
+- Odpowiedź `502 Bad Gateway` gdy Twilio API zwróci błąd (z komunikatem przyczyny)
+
+**Implementacja w `TenantTwilioConfigService`:**
+```java
+List<TwilioPhoneNumberDto> listActivePhoneNumbers(UUID tenantId) {
+    // 1. Pobierz odszyfrowane kredencjały per-tenant (lub rzuć NotFoundException)
+    // 2. Wywołaj IncomingPhoneNumber.reader() z per-tenant klientem Twilio
+    //    (ten sam mechanizm co resolveRestClient() w BE-058)
+    // 3. Zmapuj wyniki na TwilioPhoneNumberDto {sid, phoneNumber, friendlyName}
+    // 4. Zwróć pustą listę jeśli konto Twilio nie ma żadnych numerów
+}
+```
+
+Nie należy buforować wyników (lista może się zmieniać po zakupie/usunięciu numeru w konsoli Twilio). Timeout wywołania Twilio API: 10 sekund.
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/supervisor/twilio-config/phone-numbers` wymaga roli `SUPERVISOR`
+- [ ] Zwraca listę numerów z konta Twilio przypisanego do tenanta (per-tenant kredencjały z BE-058)
+- [ ] Każdy element listy zawiera `sid`, `phoneNumber` (format E.164), `friendlyName`
+- [ ] Zwraca `404` gdy tenant nie ma rekordu w `tenant_twilio_config`
+- [ ] Zwraca `502` z opisem błędu gdy Twilio API jest niedostępne lub zwróci błąd autoryzacji
+- [ ] Zwraca `200` z pustą tablicą `phoneNumbers: []` gdy konto Twilio nie ma żadnych numerów
+- [ ] Endpoint udokumentowany w OpenAPI/Swagger
+- [ ] Brak fallbacku do globalnych `TwilioProperties` — endpoint operuje tylko na per-tenant konfiguracji

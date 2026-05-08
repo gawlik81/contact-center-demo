@@ -3,6 +3,7 @@ package com.contactcenter.api;
 import com.contactcenter.domain.email.TemplateRenderException;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
+import com.contactcenter.domain.exception.TwilioApiException;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.InvalidOperationException;
@@ -533,6 +534,26 @@ public class GlobalExceptionHandler {
 
         log.warn("[API][Telephony] Sesja połączenia nie znaleziona: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    /**
+     * Błąd zewnętrznego API Twilio – HTTP 502 Bad Gateway.
+     *
+     * <p>Rzucany gdy wywołanie Twilio REST API zakończy się niepowodzeniem
+     * (niedostępność usługi, błąd autoryzacji, timeout).
+     */
+    @ExceptionHandler(TwilioApiException.class)
+    public ResponseEntity<ProblemDetail> handleTwilioApiException(
+            TwilioApiException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_GATEWAY);
+        problem.setType(URI.create(ERROR_BASE_URI + "twilio-api-error"));
+        problem.setTitle("Błąd zewnętrznego API Twilio");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API][Twilio] Błąd Twilio API: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
     }
 
     /**

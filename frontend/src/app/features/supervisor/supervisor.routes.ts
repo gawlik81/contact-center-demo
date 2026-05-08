@@ -127,6 +127,15 @@ export const SUPERVISOR_ROUTES: Routes = [
                 (m) => m.EmailTemplatesComponent,
               ),
           },
+          {
+            path: 'twilio',
+            data: { breadcrumb: 'nav.settingsTwilioConfig', roles: ['SUPERVISOR', 'ADMIN'] },
+            canActivate: [roleGuard],
+            loadComponent: () =>
+              import('./pages/twilio-config/twilio-config.component').then(
+                (m) => m.TwilioConfigComponent,
+              ),
+          },
         ],
       },
       {

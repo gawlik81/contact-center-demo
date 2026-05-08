@@ -1,0 +1,42 @@
+@switch (loadState()) {
+  @case ('loading') {
+    <div class="form-skeleton" aria-label="{{ 'supervisor.twilioPhoneSelect.loading' | transloco }}"></div>
+  }
+  @case ('error-502') {
+    <div class="phone-select-inline" role="alert">
+      <span class="phone-select-inline__msg phone-select-inline__msg--error">
+        {{ 'supervisor.twilioPhoneSelect.errorLoad' | transloco }}
+      </span>
+      <button type="button" class="phone-select-retry" (click)="fetchPhoneNumbers()">
+        {{ 'supervisor.twilioPhoneSelect.retry' | transloco }}
+      </button>
+    </div>
+  }
+  @case ('no-config') {
+    <div class="phone-select-inline" role="status">
+      <span class="phone-select-inline__msg">{{ 'supervisor.twilioPhoneSelect.noConfig' | transloco }}</span>
+    </div>
+  }
+  @case ('empty') {
+    <div class="phone-select-inline" role="status">
+      <span class="phone-select-inline__msg">{{ 'supervisor.twilioPhoneSelect.empty' | transloco }}</span>
+    </div>
+  }
+  @case ('ready') {
+    <select
+      [id]="selectId"
+      class="form-select"
+      [ngModel]="value() ?? ''"
+      (ngModelChange)="onSelectChange($event)"
+      [disabled]="isDisabled()"
+      [attr.aria-required]="required()"
+    >
+      @if (!allowNull()) {
+        <option value="">{{ placeholder() || ('supervisor.twilioPhoneSelect.defaultOption' | transloco) }}</option>
+      }
+      @for (opt of options(); track opt.value) {
+        <option [value]="opt.value ?? ''" [disabled]="opt.disabled">{{ opt.label }}</option>
+      }
+    </select>
+  }
+}

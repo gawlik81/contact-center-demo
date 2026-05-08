@@ -213,6 +213,15 @@
         </dependency>
 
         <!-- =================================================================
+             Caffeine – per-tenant TwilioRestClient cache (BE-058)
+             Spring Boot 3.3.5 zarządza wersją przez BOM
+             ================================================================= -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
+        <!-- =================================================================
              Twilio SDK – adapter telefonii (BE-029)
              ================================================================= -->
 

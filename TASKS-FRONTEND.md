@@ -1941,7 +1941,8 @@ Modal do dodania nowej zaplanowanej przerwy lub edycji istniejącej (tryb przeka
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-009 (Agent Desktop, WebSocket, SoftphoneService, ContactTabStore)
-**Status:** ✅ Zrobione
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Blokuje:** FE-047, FE-048
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 
@@ -2002,7 +2003,8 @@ interface IncomingCallAlert {
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-046
-**Status:** ✅ Zrobione
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Blokuje:** FE-048
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 
@@ -2048,7 +2050,8 @@ Standalone komponent wyświetlający pulsujący banner u góry ekranu gdy agent 
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-046, FE-047
-**Status:** ✅ Zrobione
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 
@@ -2412,7 +2415,8 @@ Pliki:
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-03
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2432,7 +2436,8 @@ Pliki:
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-03
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2451,7 +2456,8 @@ Hardcoded: "Brak aktywnego kontaktu", "Nieznany klient", "Ostatnie kontakty".
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-03
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2473,7 +2479,8 @@ Pliki:
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-03
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2512,6 +2519,7 @@ Pliki:
 | Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
 | Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
 | i18n fixes (EPIC-19) | 12 | 6 | 6 |
+| Per-tenant konfiguracja Twilio (EPIC-20) | 3 | 0 | 3 |
 
 ---
 
@@ -2598,4 +2606,175 @@ Napisać testy Vitest dla `AgentGroupService`.
 - [ ] `addAgentToGroup()` — HTTP POST, aktualizacja lokalnej listy
 - [ ] `removeAgentFromGroup()` — HTTP DELETE, rollback przy błędzie 404
 - [ ] Wszystkie testy przechodzą (`npm test`)
-| **RAZEM** | **51** | **42** | **9** |
+| **RAZEM** | **54** | **42** | **12** |
+
+---
+
+## MODUL: Per-tenant konfiguracja Twilio (EPIC-20)
+
+### FE-066 – `TwilioConfigComponent`: formularz konfiguracji Twilio w panelu supervisora
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** M
+**Zależy od:** BE-057 (REST API konfiguracji Twilio)
+**Status:** ✅ Ukończone
+**Blokuje:** brak
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Standalone komponent `TwilioConfigComponent` (`features/supervisor/pages/twilio-config/twilio-config.component.ts`) wyświetlający formularz zarządzania integracją Twilio dla supervisora bieżącego tenanta. Komponent dostępny pod ścieżką `/supervisor/settings/twilio` (lub `/supervisor/twilio-config` w zależności od struktury routingu).
+
+**Serwis:**
+`TwilioConfigService` (`features/supervisor/services/twilio-config.service.ts`) – wrapper HTTP:
+- `getConfig(): Observable<TwilioConfigResponse>` → `GET /api/supervisor/twilio-config`
+- `saveConfig(data: TwilioConfigRequest): Observable<TwilioConfigResponse>` → `PUT /api/supervisor/twilio-config`
+- `deleteConfig(): Observable<void>` → `DELETE /api/supervisor/twilio-config`
+- `testConnection(): Observable<TwilioConnectionTestResult>` → `POST /api/supervisor/twilio-config/test`
+
+**Formularz (ReactiveFormsModule):**
+Pola formularza:
+- `accountSid` – input text, required, walidacja: `pattern(/^AC[0-9a-fA-F]{32}$/)`, label "Account SID"
+- `authToken` – input password (type="password"), required przy tworzeniu, przy edycji placeholder "••••••••...{ostatnie 4 znaki}" (nie wstrzykiwać zamaskowanej wartości jako value), label "Auth Token"
+- `apiKeySid` – input text, opcjonalne, label "API Key SID"
+- `apiKeySecret` – input password, opcjonalne przy edycji (analogicznie jak authToken), label "API Key Secret"
+- `twimlAppSid` – input text, opcjonalne, label "TwiML App SID"
+- `phoneNumber` – input text, opcjonalne, walidacja: `pattern(/^\+[1-9]\d{7,14}$/)`, label "Numer telefonu (E.164)", placeholder "+48XXXXXXXXX"
+- `statusCallbackUrl` – input text, opcjonalne, label "Status Callback URL"
+
+**UX masked inputs (authToken, apiKeySecret):**
+- Przy ładowaniu istniejącego configu: pola hasła wyświetlają placeholder z maską (np. "••••••••...a3f2") ale value formularza jest puste (wymagane ponowne wpisanie przy aktualizacji)
+- Checkbox "Zmień token" lub ikona edycji odblokowuje pole do wpisania nowej wartości
+- Przy PUT: jeśli pole hasła pozostaje puste, backend nie aktualizuje sekretu (logika po stronie BE – lub wysyłamy flagę `changeAuthToken: false`)
+
+**Przyciski i akcje:**
+- "Zapisz" – submit formularza → `PUT /api/supervisor/twilio-config` → snackbar sukces
+- "Anuluj" – reset formularza do stanu załadowanego
+- "Usuń konfigurację" – dialog potwierdzenia → `DELETE /api/supervisor/twilio-config` → powrót do stanu "brak konfiguracji"
+- "Testuj połączenie" – `POST /api/supervisor/twilio-config/test` → wskaźnik statusu: zielona ikona checkmark + "Połączenie OK" lub czerwona X + komunikat błędu z Twilio
+
+**Wskaźnik statusu połączenia:**
+- Signal `connectionTestResult = signal<TwilioConnectionTestResult | null>(null)`
+- Wyświetlany pod przyciskiem "Testuj połączenie"
+- Auto-ukrycie po 30s lub po edycji formularza
+
+**Nawigacja:**
+Dodać pozycję "Integracja Twilio" (lub "Ustawienia telefonii") do menu supervisora – sekcja "Ustawienia" lub "Integracje". Ikona: telefon lub chmura.
+
+**Kryteria akceptacji:**
+- [ ] Komponent standalone (`ChangeDetectionStrategy.OnPush`, `ReactiveFormsModule`)
+- [ ] Formularz ładuje istniejącą konfigurację przy wejściu na stronę (`GET /api/supervisor/twilio-config`)
+- [ ] Gdy brak konfiguracji (204): formularz wyświetla stan "Brak konfiguracji" z przyciskiem "Skonfiguruj"
+- [ ] Walidacja `accountSid` (pattern AC + 32 hex) – błąd inline przy niepoprawnym formacie
+- [ ] Walidacja `phoneNumber` (E.164) – błąd inline przy niepoprawnym formacie
+- [ ] Pola hasła (authToken, apiKeySecret) nie zwracają zamaskowanej wartości jako value formularza
+- [ ] Przycisk "Zapisz" nieaktywny gdy formularz invalid lub pristine (brak zmian)
+- [ ] "Testuj połączenie" wyświetla wynik testu z kolorowym wskaźnikiem (zielony/czerwony)
+- [ ] "Usuń konfigurację" wymaga potwierdzenia w dialogu przed DELETE
+- [ ] Snackbar po zapisaniu: "Konfiguracja Twilio zapisana pomyślnie"
+- [ ] Snackbar po usunięciu: "Konfiguracja Twilio usunięta"
+- [ ] Pozycja menu supervisora "Integracja Twilio" nawiguje do komponentu
+- [ ] Klucze i18n dla wszystkich tekstów (przygotuj klucze w `pl.json`, `en.json`, `de.json`)
+- [ ] Komponent widoczny tylko dla roli SUPERVISOR (guard lub `*ngIf` na roli)
+
+---
+
+### FE-067 – Pole "Numer prezentacji" w formularzu kampanii
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** BE-060 (API kampanii z polem `caller_id`), FE-015 (formularz kampanii)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-07
+**Blokuje:** brak
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Rozszerzenie formularza tworzenia i edycji kampanii (`CampaignFormComponent`) o opcjonalne pole "Numer prezentacji" (caller ID) dla kampanii wychodzących głosowych (`type = OUTBOUND_VOICE`).
+
+**Zmiany w `CampaignFormComponent`:**
+- Dodanie kontrolki `callerId` do `FormGroup`:
+  ```typescript
+  callerId: new FormControl<string | null>(null, [
+    Validators.pattern(/^\+[1-9]\d{7,14}$/)
+  ])
+  ```
+- Pole widoczne tylko gdy `type === 'OUTBOUND_VOICE'` (ukryte dla email kampanii)
+- Label: "Numer prezentacji (opcjonalny)"
+- Placeholder: numer domyślny tenanta (odczytany z `TwilioConfigService.getConfig()` → `phoneNumber`, lub tekst "Domyślny numer tenanta" gdy brak konfiguracji)
+- Hint pod polem: "Pozostaw puste aby użyć domyślnego numeru tenanta. Format E.164, np. +48123456789"
+- Walidacja: `pattern(/^\+[1-9]\d{7,14}$/)` tylko gdy wartość jest podana (nie jest required)
+
+**Zmiany w modelu/serwisie:**
+- `CampaignRequest` DTO (TypeScript): dodanie opcjonalnego `callerId?: string | null`
+- `CampaignResponse` DTO: dodanie `callerId: string | null`
+- `CampaignService.createCampaign()` i `updateCampaign()`: przekazywanie `callerId` w body
+
+**Kryteria akceptacji:**
+- [ ] Pole "Numer prezentacji" widoczne w formularzu kampanii dla `type = OUTBOUND_VOICE`
+- [ ] Pole ukryte dla `type = OUTBOUND_EMAIL`
+- [ ] Walidacja formatu E.164 inline (błąd przy niepoprawnym formacie, brak błędu gdy puste)
+- [ ] Hint informuje o domyślnym numerze tenanta
+- [ ] `POST /api/supervisor/campaigns` z `callerId: "+48123456789"` – pole wysyłane w body
+- [ ] `POST /api/supervisor/campaigns` z pustym polem – `callerId: null` wysyłany lub pole pominięte
+- [ ] Formularz edycji kampanii ładuje istniejący `callerId` z API i wyświetla w polu
+- [ ] Klucze i18n dla etykiety, placeholder i hint (`supervisor.campaignForm.callerId.*`)
+
+---
+
+### FE-068 – Dropdown aktywnych numerów Twilio: reużywalny komponent i integracja
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Zlozonosc:** S
+**Zależy od:** BE-061 (endpoint listowania numerów), FE-066 (formularz konfiguracji Twilio), FE-067 (formularz kampanii)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-07
+**Blokuje:** brak
+**Epic:** EPIC-20 Per-tenant konfiguracja Twilio
+
+**Opis:**
+Reużywalny komponent `TwilioPhoneNumberSelectComponent` zastępujący ręczne pole tekstowe dla numeru telefonu Twilio. Pobiera aktywne numery z `GET /api/supervisor/twilio-config/phone-numbers` i wyświetla je jako `<mat-select>` (lub natywny `<select>`). Używany w dwóch miejscach: formularz konfiguracji Twilio (FE-066) i formularz kampanii (FE-067).
+
+**Komponent `TwilioPhoneNumberSelectComponent`:**
+- Selector: `app-twilio-phone-number-select`
+- Standalone, implementuje `ControlValueAccessor` (działa jako pole formularza reaktywnego)
+- Inputs:
+  - `placeholder: string` – tekst gdy brak wyboru (np. "Wybierz numer" / "Domyślny numer tenanta")
+  - `required: boolean` – czy pole jest wymagane (false = opcjonalne, jak w kampanii)
+- Stan ładowania: skeleton/spinner dopóki lista nie wróci z API
+- Stan błędu: komunikat "Nie można pobrać numerów z Twilio" z przyciskiem "Spróbuj ponownie" gdy API zwróci 502
+- Stan pusty: komunikat "Brak skonfigurowanych numerów w koncie Twilio" gdy lista jest pusta
+- Stan brak konfiguracji: komunikat "Najpierw skonfiguruj konto Twilio" gdy API zwróci 404
+- Każda opcja wyświetla: `{friendlyName} — {phoneNumber}` (np. "Contact Center PL — +48123456789")
+- Wartość formularza: string `phoneNumber` w formacie E.164 (nie `sid`)
+
+**Integracja w `TwilioConfigComponent` (FE-066):**
+- Zastąp pole tekstowe "Numer telefonu" (typ `<input>`) komponentem `app-twilio-phone-number-select` z `required: true`
+- Po załadowaniu formularza, jeśli `config.phoneNumber` jest ustawiony, komponent pre-selekcjonuje odpowiednią opcję
+
+**Integracja w `CampaignFormComponent` (FE-067):**
+- Zastąp pole tekstowe "Numer prezentacji" komponentem `app-twilio-phone-number-select` z `required: false`
+- Opcja "— Domyślny numer tenanta —" jako pierwsza pozycja listy (wartość `null`)
+- Komponenty ładuje listę numerów tylko gdy `type === 'OUTBOUND_VOICE'` (lazy load)
+
+**Serwis `TwilioConfigService` (rozszerzenie istniejącego):**
+```typescript
+getPhoneNumbers(): Observable<TwilioPhoneNumberDto[]> {
+  return this.http.get<{ phoneNumbers: TwilioPhoneNumberDto[] }>(
+    '/api/supervisor/twilio-config/phone-numbers'
+  ).pipe(map(r => r.phoneNumbers));
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Komponent `app-twilio-phone-number-select` implementuje `ControlValueAccessor` i działa z `FormControl`
+- [ ] Wyświetla spinner podczas ładowania listy z API
+- [ ] Wyświetla opcje w formacie `{friendlyName} — {phoneNumber}`
+- [ ] Wyświetla komunikat błędu z przyciskiem "Spróbuj ponownie" gdy API zwróci 502
+- [ ] Wyświetla komunikat o braku konfiguracji gdy API zwróci 404
+- [ ] W `TwilioConfigComponent` pole "Numer telefonu" jest selectem z aktywnych numerów (required)
+- [ ] W `CampaignFormComponent` pole "Numer prezentacji" jest selectem z opcją null jako pierwszą (not required)
+- [ ] W formularzu kampanii lista ładowana tylko dla `type = OUTBOUND_VOICE`
+- [ ] Klucze i18n dla wszystkich komunikatów (`supervisor.twilioPhoneSelect.*`)

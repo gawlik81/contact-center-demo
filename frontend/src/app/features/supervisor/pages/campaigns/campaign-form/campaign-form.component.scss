@@ -186,6 +186,11 @@ $radius: 8px;
   color: $error;
 }
 
+.form-hint {
+  font-size: 0.8125rem;
+  color: $text-secondary;
+}
+
 // ── Schedule section ──────────────────────────────────────────────────────────
 .schedule-section {
   border: 1.5px solid $border-color;

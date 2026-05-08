@@ -17,13 +17,17 @@ import { PhoneNumberService } from '../../../services/phone-number.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { PhoneNumber, PhoneRoutingRule } from '../../../models/phone-number.model';
 import { RoutingRulesComponent } from './routing-rules/routing-rules.component';
-
-const E164_PATTERN = /^\+[1-9]\d{1,14}$/;
+import { TwilioPhoneNumberSelectComponent } from '../../../components/twilio-phone-number-select/twilio-phone-number-select.component';
 
 @Component({
   selector: 'app-phone-numbers',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, RoutingRulesComponent],
+  imports: [
+    TranslocoModule,
+    ReactiveFormsModule,
+    RoutingRulesComponent,
+    TwilioPhoneNumberSelectComponent,
+  ],
   templateUrl: './phone-numbers.component.html',
   styleUrl: './phone-numbers.component.scss',
 })
@@ -55,7 +59,7 @@ export class PhoneNumbersComponent implements OnInit {
   readonly pendingDeleteNumber = signal<PhoneNumber | null>(null);
 
   readonly addForm = this.fb.group({
-    number: ['', [Validators.required, Validators.pattern(E164_PATTERN)]],
+    number: ['', Validators.required],
     displayName: ['', Validators.maxLength(100)],
   });
 
@@ -296,8 +300,6 @@ export class PhoneNumbersComponent implements OnInit {
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
     if (ctrl.hasError('required'))
       return this.transloco.translate('supervisor.settings.phoneNumbers.errorPhoneRequired');
-    if (ctrl.hasError('pattern'))
-      return this.transloco.translate('supervisor.settings.phoneNumbers.errorPhoneFormat');
     return null;
   }
 

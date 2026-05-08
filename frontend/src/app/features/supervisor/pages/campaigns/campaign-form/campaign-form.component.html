@@ -99,6 +99,25 @@
         }
       </div>
 
+      <!-- Caller ID – only for OUTBOUND_VOICE -->
+      @if (campaignType() === 'OUTBOUND_VOICE') {
+        <div class="form-field">
+          <label class="form-label" [for]="callerIdSelectRef.selectId">
+            {{ 'supervisor.campaignForm.callerId.label' | transloco }}
+          </label>
+          <app-twilio-phone-number-select
+            #callerIdSelectRef
+            formControlName="callerId"
+            [allowNull]="true"
+            [nullLabel]="'supervisor.campaignForm.callerId.defaultTenant' | transloco"
+            [placeholder]="'supervisor.campaignForm.callerId.placeholder' | transloco"
+          />
+          <span class="form-hint">
+            {{ 'supervisor.campaignForm.callerId.hint' | transloco }}
+          </span>
+        </div>
+      }
+
       <!-- Max attempts + retry delay (inline row) -->
       <div class="form-row">
         <div class="form-field" [class.form-field--error]="maxAttemptsError">

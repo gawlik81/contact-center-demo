@@ -2757,7 +2757,7 @@ Stała `private static final int NO_ANSWER_RETRY_HOURS = 4;` jest martwa po zmia
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
 **Status:** ⏳ Do zrobienia
-**Zależy od:** DB-032
+**Zależy od:** DB-032, DB-033
 **Blokuje:** BE-066, FE-069
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
 
@@ -2781,24 +2781,26 @@ Metoda `updateCampaignContact()` musi zachować `attempt_count` bez zmiany — w
 
 **Powiązanie `ScheduledCallback` z `campaign_contact`:**
 
-Pole `ScheduledCallback.customerId` jest używane jako `record_id` (UUID rekordu `campaign_contact`). Nazwa jest myląca, ale zmiana schematu DB jest oddzielnym zadaniem. Dokumentacja w JavaDoc:
+Po DB-033 tabela `scheduled_callback` ma dedykowane pole `campaign_contact_record_id`. Używać go zamiast `customer_id`:
 
 ```java
-/**
- * UUID rekordu campaign_contact, z którego wywodzi się callback (campaign_contact.record_id).
- * Pomimo nazwy "customerId", pole przechowuje record_id – nie ID klienta/kontaktu.
- * Używane przez ScheduledCallbackExecutor do aktualizacji statusu campaign_contact.
- */
-@Column(name = "customer_id")
-private UUID customerId;
+@Column(name = "campaign_contact_record_id")
+private UUID campaignContactRecordId;
+```
+
+Przy tworzeniu rekordu `ScheduledCallback` z dyspozycji CALLBACK:
+
+```java
+scheduledCallback.setCampaignContactRecordId(recordId);  // campaign_contact.record_id
+// customer_id nadal wskazuje na prawdziwego klienta z tabeli customer
 ```
 
 **Kryteria akceptacji:**
 - [ ] Po dyspozycji CALLBACK: `campaign_contact.status = 'CALLBACK'`
 - [ ] Po dyspozycji CALLBACK: `campaign_contact.next_attempt_at = scheduledAt` (czas agenta)
 - [ ] `campaign_contact.attempt_count` NIE zmienia się przy ustawieniu CALLBACK
-- [ ] `ScheduledCallback.customerId` zawiera `record_id` rekordu `campaign_contact`
-- [ ] JavaDoc wyjaśnia znaczenie pola `customerId`
+- [ ] `ScheduledCallback.campaignContactRecordId` zawiera `record_id` rekordu `campaign_contact`
+- [ ] `ScheduledCallback.customerId` zawiera prawdziwe ID klienta z tabeli `customer` (nie record_id)
 - [ ] Test jednostkowy: po `handleCallbackDisposition()` rekord ma status CALLBACK, nie COMPLETED
 
 ---
@@ -2855,7 +2857,7 @@ Zmiana wymaga indeksu `idx_campaign_contact_dialer` pokrywającego `WHERE status
 **Priorytet:** Should Have
 **Szacowany rozmiar:** M
 **Status:** ⏳ Do zrobienia
-**Zależy od:** DB-032, BE-062, BE-064
+**Zależy od:** DB-032, DB-033, BE-062, BE-064
 **Blokuje:** –
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
 
@@ -2885,7 +2887,7 @@ public void markAsDialingForCallback(UUID recordId, UUID campaignId, UUID tenant
 
 ```java
 UUID campaignId = callback.getCampaignId();
-UUID recordId = callback.getCustomerId();  // to jest record_id campaign_contact
+UUID recordId = callback.getCampaignContactRecordId();  // DB-033: dedykowane pole, nie customer_id
 
 if (campaignId != null && recordId != null) {
     // Oznacz rekord jako DIALING (bez inkrementacji attempt_count)

@@ -1186,7 +1186,7 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | Zakładka Klienci w Agent Desktop | DB-027 | BE-048 | FE-040, FE-041 |
 | Kalendarz Agenta (EPIC-16) | DB-028 | BE-049, BE-050, BE-051 | FE-042, FE-043, FE-044, FE-045 |
 | Wielojęzyczność UI (EPIC-19) | DB-029 | BE-054 | FE-049, FE-050, FE-051, FE-052, FE-053 |
-| Retry i callback w kampaniach wychodzących (EPIC-21) | DB-032 | BE-062, BE-063, BE-064, BE-065, BE-066 | FE-069, FE-070 |
+| Retry i callback w kampaniach wychodzących (EPIC-21) | DB-032, DB-033 | BE-062, BE-063, BE-064, BE-065, BE-066 | FE-069, FE-070 |
 
 ---
 
@@ -1197,9 +1197,10 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 **Typ:** Schema change
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Status:** ⏳ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
 **Zależy od:** DB-011, V034
-**Blokuje:** BE-063, BE-064, BE-065, FE-069
+**Blokuje:** BE-063, BE-064, BE-065, BE-066, DB-033, FE-069
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
 
 **Opis:**
@@ -1297,10 +1298,57 @@ COMMENT ON COLUMN campaign_contact.status IS
 - `mv_campaign_stats` jest refreshowany przez pg_cron (DB-018) — rekonstrukcja widoku nie wymaga zmian w schedulerze.
 
 **Kryteria akceptacji:**
-- [ ] Migracja V053 zastosowana bez błędów na czystej bazie i na bazie z danymi
-- [ ] `INSERT INTO campaign_contact (..., status, ...) VALUES (..., 'NOT_REACHED', ...)` nie rzuca wyjątku CHECK violation
-- [ ] `INSERT INTO campaign_contact (..., status, ...) VALUES (..., 'CALLBACK', ...)` nie rzuca wyjątku CHECK violation
-- [ ] `INSERT INTO campaign_contact (..., status, ...) VALUES (..., 'INVALID', ...)` rzuca CHECK violation
-- [ ] Indeks `idx_campaign_contact_dialer` pokrywa `WHERE status IN ('PENDING', 'NO_ANSWER')`
-- [ ] Widok `mv_campaign_stats` zawiera kolumny `not_reached_records` i `callback_records`
-- [ ] Tabele archiwalne (`campaign_contact_archive`) mają taki sam constraint
+- [x] Migracja V053 zastosowana bez błędów na czystej bazie i na bazie z danymi
+- [x] `INSERT INTO campaign_contact (..., status, ...) VALUES (..., 'NOT_REACHED', ...)` nie rzuca wyjątku CHECK violation
+- [x] `INSERT INTO campaign_contact (..., status, ...) VALUES (..., 'CALLBACK', ...)` nie rzuca wyjątku CHECK violation
+- [x] `INSERT INTO campaign_contact (..., status, ...) VALUES (..., 'INVALID', ...)` rzuca CHECK violation
+- [x] Indeks `idx_campaign_contact_dialer` pokrywa `WHERE status IN ('PENDING', 'NO_ANSWER')`
+- [x] Widok `mv_campaign_stats` zawiera kolumny `not_reached_records` i `callback_records`
+- [x] Tabele archiwalne (`campaign_contact_archive`) mają taki sam constraint
+
+---
+
+### DB-033 – Dedykowane pole `campaign_contact_record_id` w `scheduled_callback` — migracja V054
+
+**Typ:** Schema change
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Status:** ✅ Ukończone
+**Zależy od:** DB-032
+**Blokuje:** BE-064, BE-066
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+Tabela `scheduled_callback` nie ma dedykowanego pola do powiązania z rekordem `campaign_contact`. Dotychczasowy plan (BE-064) zakładał reużycie kolumny `customer_id` jako kontenera na `campaign_contact.record_id` — to anti-pattern: jedna kolumna przechowuje dwie semantycznie różne wartości (ID klienta vs ID rekordu kampanijnego).
+
+Rozwiązanie: nowa kolumna `campaign_contact_record_id UUID` z jasną semantyką.
+
+- `customer_id` pozostaje bez zmian — nadal wskazuje na klienta z tabeli `customer`
+- `campaign_contact_record_id` — UUID rekordu `campaign_contact` (brak FK: `campaign_contact` ma composite PK)
+- Kolumna nullable: `NULL` dla `INBOUND_CALLBACK` i `AGENT_MANUAL`
+
+**Migracja Flyway V054** (`V054__add_campaign_contact_record_id_to_scheduled_callback.sql`):
+
+```sql
+ALTER TABLE scheduled_callback
+    ADD COLUMN campaign_contact_record_id UUID;
+
+COMMENT ON COLUMN scheduled_callback.campaign_contact_record_id IS
+    'UUID rekordu campaign_contact (campaign_contact.record_id) powiązanego z tym callbackiem. '
+    'NULL dla INBOUND_CALLBACK i AGENT_MANUAL. '
+    'Brak FK – campaign_contact ma composite PK (record_id, campaign_id).';
+
+CREATE INDEX idx_scheduled_callback_cc_record
+    ON scheduled_callback (campaign_contact_record_id)
+    WHERE campaign_contact_record_id IS NOT NULL AND is_deleted = FALSE;
+
+COMMENT ON INDEX idx_scheduled_callback_cc_record IS
+    'DB-033: Lookup callbacków kampanijnych po record_id rekordu campaign_contact.';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V054 zastosowana bez błędów
+- [ ] Kolumna `campaign_contact_record_id` istnieje i przyjmuje NULL (dla non-campaign callbacków)
+- [ ] Indeks `idx_scheduled_callback_cc_record` istnieje z predykatem `IS NOT NULL AND is_deleted = FALSE`
+- [ ] Istniejące wiersze `scheduled_callback` nie są naruszone (kolumna domyślnie NULL)

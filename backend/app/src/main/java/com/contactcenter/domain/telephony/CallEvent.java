@@ -53,6 +53,16 @@ public class CallEvent {
     private final Instant timestamp;
 
     /**
+     * Wynik połączenia zwrócony przez Twilio (lub dostawcę telefonii).
+     *
+     * <p>Możliwe wartości: {@code "completed"} (rozmowa odbyła się), {@code "no-answer"}
+     * (brak odpowiedzi), {@code "busy"} (zajęty), {@code "failed"} (błąd sieci/providera),
+     * {@code "canceled"} (połączenie anulowane przed odebraniem).
+     * Wartość {@code null} dla eventów innych niż CALL_HANGUP.
+     */
+    private final String callOutcome;
+
+    /**
      * Dodatkowe metadane specyficzne dla typu zdarzenia lub providera.
      * Przykład: {"transferTarget": "+48987654321", "transferType": "BLIND"}
      */

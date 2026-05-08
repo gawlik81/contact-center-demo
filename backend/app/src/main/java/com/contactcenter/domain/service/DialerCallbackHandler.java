@@ -1,6 +1,8 @@
 package com.contactcenter.domain.service;
 
+import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.model.ScheduledCallback;
+import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -50,7 +52,12 @@ public class DialerCallbackHandler {
     // Domyślne opóźnienie między próbami (4 godziny)
     private static final int NO_ANSWER_RETRY_HOURS = 4;
 
+    // Wartości domyślne gdy kampania nie jest dostępna
+    private static final int DEFAULT_MAX_ATTEMPTS = 3;
+    private static final int DEFAULT_RETRY_DELAY_MINUTES = 60;
+
     private final ScheduledCallbackRepository scheduledCallbackRepository;
+    private final CampaignRepository campaignRepository;
     private final StringRedisTemplate redisTemplate;
     private final JdbcTemplate jdbcTemplate;
 
@@ -123,22 +130,30 @@ public class DialerCallbackHandler {
             return;
         }
 
-        log.info("[DialerHandler] Kończę połączenie kampanijne: callSid={}, rekord={}, kampania={}, agent={}, tenant={}",
-                callSid, recordId, campaignId, agentId, tenantId);
+        log.info("[DialerHandler] Kończę połączenie kampanijne: callSid={}, rekord={}, kampania={}, agent={}, tenant={}, outcome={}",
+                callSid, recordId, campaignId, agentId, tenantId, callEvent.getCallOutcome());
 
         TenantContext.setTenantId(tenantId);
         TenantContext.setUserId(agentId);
         try {
-            // Oznacz rekord campaign_contact jako COMPLETED – klient rozmawiał z agentem
-            // (dla NO_ANSWER Twilio wysyła status no-answer, nie completed – obsługiwane przez handleNoAnswer)
-            updateCampaignContact(recordId, campaignId, tenantId, "COMPLETED", null, null);
-            log.info("[DialerHandler] Rekord kampanijny {} → COMPLETED po hangup (callSid={})", recordId, callSid);
+            String outcome = callEvent.getCallOutcome();
+            if (isNoAnswerOutcome(outcome)) {
+                // Brak odpowiedzi lub zajętość – odczytaj parametry kampanii i zaplanuj ponowną próbę
+                Campaign campaign = loadCampaignOrNull(campaignId, tenantId);
+                int maxAttempts = campaign != null ? campaign.getMaxAttempts() : DEFAULT_MAX_ATTEMPTS;
+                int retryDelayMinutes = campaign != null ? campaign.getRetryDelayMinutes() : DEFAULT_RETRY_DELAY_MINUTES;
+                handleNoAnswer(callSid, tenantId, campaignId, recordId, agentId, maxAttempts, retryDelayMinutes);
+            } else {
+                // completed, canceled, failed, null → zakończ jako COMPLETED
+                updateCampaignContact(recordId, campaignId, tenantId, "COMPLETED", null, null);
+                log.info("[DialerHandler] Rekord kampanijny {} → COMPLETED po hangup (outcome={}, callSid={})",
+                        recordId, outcome, callSid);
+                cleanupRedisKeys(callSid, agentId);
+            }
         } catch (Exception e) {
             log.error("[DialerHandler] Błąd aktualizacji rekordu kampanijnego {} po hangup (callSid={}): {}",
                     recordId, callSid, e.getMessage(), e);
         } finally {
-            // Zawsze zwalniaj zasoby Redis niezależnie od wyniku aktualizacji DB
-            cleanupRedisKeys(callSid, agentId);
             TenantContext.clear();
         }
     }
@@ -165,11 +180,13 @@ public class DialerCallbackHandler {
      * @param campaignId UUID kampanii
      * @param recordId   UUID rekordu campaign_contact
      * @param agentId    UUID agenta (do zwolnienia blokady)
-     * @param maxAttempts maksymalna liczba prób dla kampanii
+     * @param maxAttempts         maksymalna liczba prób dla kampanii
+     * @param retryDelayMinutes   opóźnienie przed kolejną próbą w minutach
+     *                            (docelowo używane przez BE-063 – tu parametr dla przyszłej logiki)
      */
     @Transactional
     public void handleNoAnswer(String callSid, UUID tenantId, UUID campaignId,
-                               UUID recordId, UUID agentId, int maxAttempts) {
+                               UUID recordId, UUID agentId, int maxAttempts, int retryDelayMinutes) {
         log.info("[DialerHandler] NO_ANSWER: callSid={}, kontakt={}, kampania={}", callSid, recordId, campaignId);
 
         // Odczyt aktualnego attempt_count
@@ -480,5 +497,42 @@ public class DialerCallbackHandler {
         }
         return phone.substring(0, phone.length() - 4).replaceAll("\\d", "*")
                 + phone.substring(phone.length() - 4);
+    }
+
+    // =========================================================================
+    // Pomocnicze – wynik połączenia
+    // =========================================================================
+
+    /**
+     * Sprawdza czy wynik połączenia oznacza brak odpowiedzi lub zajętość.
+     *
+     * @param outcome wartość {@code callOutcome} z {@link CallEvent} (może być null)
+     * @return true gdy outcome to "no-answer" lub "busy" (case-insensitive)
+     */
+    private boolean isNoAnswerOutcome(String outcome) {
+        if (outcome == null) {
+            return false;
+        }
+        String lower = outcome.toLowerCase();
+        return "no-answer".equals(lower) || "busy".equals(lower);
+    }
+
+    /**
+     * Wczytuje kampanię z repozytorium; zwraca null gdy kampania nie istnieje lub wystąpił błąd.
+     *
+     * <p>Defensywny fallback: brak kampanii nie może blokować przetwarzania hangup.
+     *
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     * @return encja {@link Campaign} lub null
+     */
+    private Campaign loadCampaignOrNull(UUID campaignId, UUID tenantId) {
+        try {
+            return campaignRepository.findById(campaignId, tenantId).orElse(null);
+        } catch (Exception e) {
+            log.warn("[DialerHandler] Nie udało się wczytać kampanii {}: {} – używam wartości domyślnych",
+                    campaignId, e.getMessage());
+            return null;
+        }
     }
 }

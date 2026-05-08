@@ -2603,7 +2603,8 @@ Nie należy buforować wyników (lista może się zmieniać po zakupie/usunięci
 **Typ:** Bug fix / Feature
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Status:** ⏳ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
 **Zależy od:** –
 **Blokuje:** BE-063
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących

@@ -626,7 +626,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     eventPublisher.publishHangup(callId, updated.getContactId(),
         updated.getTenantId(), updated.getAgentId(),
-        updated.getFrom(), updated.getTo());
+        updated.getFrom(), updated.getTo(), "completed");
 
     // Naprawa 3: Fallback pobierania nagrania po 90 sekundach.
     // Twilio wysyła recordingStatusCallback asynchronicznie (~2 min po zakończeniu).
@@ -986,7 +986,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             callSid, eventType);
       }
       publishWebhookEvent(eventType, callSid, effectiveTenantId,
-          existing.getAgentId(), from, to, existing.getContactId());
+          existing.getAgentId(), from, to, existing.getContactId(), callStatus);
     }
   }
 
@@ -1583,11 +1583,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
   private void publishWebhookEvent(CallEvent.EventType eventType, String callSid,
       UUID tenantId, UUID agentId,
-      String from, String to, UUID contactId) {
+      String from, String to, UUID contactId, String callStatus) {
     switch (eventType) {
       case CALL_INCOMING -> eventPublisher.publishIncoming(callSid, contactId, tenantId, agentId, from, to);
       case CALL_ANSWERED -> eventPublisher.publishAnswered(callSid, tenantId, agentId, from, to);
-      case CALL_HANGUP -> eventPublisher.publishHangup(callSid, contactId, tenantId, agentId, from, to);
+      case CALL_HANGUP -> eventPublisher.publishHangup(callSid, contactId, tenantId, agentId, from, to, callStatus);
       default -> log.debug("[TwilioAdapter] Brak publikacji dla eventType={}", eventType);
     }
   }

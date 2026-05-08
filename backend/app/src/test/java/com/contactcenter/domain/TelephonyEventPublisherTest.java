@@ -171,12 +171,34 @@ class TelephonyEventPublisherTest {
         @Test
         @DisplayName("publishHangup powinien ustawić poprawny eventType i routing key")
         void publishHangupShouldSetCorrectEventType() {
-            publisher.publishHangup(CALL_ID, null, TENANT_ID, AGENT_ID, FROM, TO);
+            publisher.publishHangup(CALL_ID, null, TENANT_ID, AGENT_ID, FROM, TO, "completed");
 
             ArgumentCaptor<CallEvent> captor = ArgumentCaptor.forClass(CallEvent.class);
             verify(rabbitTemplate).convertAndSend(eq(EXCHANGE_EVENTS), eq("call.hangup"), captor.capture());
 
             assertThat(captor.getValue().getEventType()).isEqualTo(CallEvent.EventType.CALL_HANGUP);
+        }
+
+        @Test
+        @DisplayName("publishHangup powinien propagować callOutcome do CallEvent")
+        void publishHangupShouldPropagateCallOutcome() {
+            publisher.publishHangup(CALL_ID, null, TENANT_ID, AGENT_ID, FROM, TO, "no-answer");
+
+            ArgumentCaptor<CallEvent> captor = ArgumentCaptor.forClass(CallEvent.class);
+            verify(rabbitTemplate).convertAndSend(eq(EXCHANGE_EVENTS), eq("call.hangup"), captor.capture());
+
+            assertThat(captor.getValue().getCallOutcome()).isEqualTo("no-answer");
+        }
+
+        @Test
+        @DisplayName("publishHangup z callOutcome=null powinien ustawić null w CallEvent")
+        void publishHangupWithNullOutcomeShouldSetNullInEvent() {
+            publisher.publishHangup(CALL_ID, null, TENANT_ID, AGENT_ID, FROM, TO, null);
+
+            ArgumentCaptor<CallEvent> captor = ArgumentCaptor.forClass(CallEvent.class);
+            verify(rabbitTemplate).convertAndSend(eq(EXCHANGE_EVENTS), eq("call.hangup"), captor.capture());
+
+            assertThat(captor.getValue().getCallOutcome()).isNull();
         }
 
         @Test

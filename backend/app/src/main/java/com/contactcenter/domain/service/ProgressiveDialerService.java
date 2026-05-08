@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -177,6 +178,54 @@ public class ProgressiveDialerService {
             redisTemplate.delete(agentLockKey);
         } finally {
             TenantContext.clear();
+        }
+    }
+
+    // =========================================================================
+    // Scheduled polling – uzupełnienie event-driven triggering
+    // =========================================================================
+
+    /**
+     * Cyklicznie wyzwala logikę dialera dla wszystkich aktualnie AVAILABLE agentów.
+     *
+     * <p>Uzupełnienie event-driven triggeringu (RabbitMQ): obsługuje przypadki gdy
+     * kontakt kampanijny trafił do kolejki zanim agent zmienił status lub gdy event zaginął.
+     *
+     * <p>Używa {@code fixedDelay} – kolejna iteracja startuje PO zakończeniu poprzedniej
+     * (ochrona przed nakładaniem się przy wolnych tenantach).
+     *
+     * <p>Ochrona przed race condition jest w {@link #initiateDialForAgent} (Redis SET NX)
+     * – jeśli agent jest już obsługiwany przez dialer, metoda zwróci bez działania.
+     */
+    @Scheduled(fixedDelayString = "${dialer.agent-poll-interval-ms:30000}")
+    public void pollAvailableAgents() {
+        List<AppUser> availableAgents =
+                appUserRepository.findAllByStatusAndDeletedFalse(UserStatus.AVAILABLE);
+
+        if (availableAgents.isEmpty()) {
+            log.debug("[Dialer] pollAvailableAgents: brak AVAILABLE agentów – pomijam");
+            return;
+        }
+
+        log.debug("[Dialer] pollAvailableAgents: sprawdzam {} AVAILABLE agentów",
+                availableAgents.size());
+
+        for (AppUser agent : availableAgents) {
+            UUID agentId  = agent.getId();
+            UUID tenantId = agent.getTenantId();
+
+            TenantContext.setTenantId(tenantId);
+            TenantContext.setUserId(agentId);
+            try {
+                // Ochrona przed race condition jest w initiateDialForAgent (Redis SET NX)
+                // – jeśli agent jest już obsługiwany, metoda zwróci bez działania
+                self.initiateDialForAgent(agentId, tenantId);
+            } catch (Exception e) {
+                log.warn("[Dialer] pollAvailableAgents: błąd dla agenta {}: {}",
+                        agentId, e.getMessage());
+            } finally {
+                TenantContext.clear();
+            }
         }
     }
 

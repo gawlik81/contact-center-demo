@@ -400,6 +400,12 @@ dialer:
     interval-ms: ${DIALER_CALLBACK_EXECUTOR_INTERVAL_MS:60000}
     # Maksymalna liczba callbacków przetwarzanych w jednym cyklu per tenant.
     batch-size: ${DIALER_CALLBACK_EXECUTOR_BATCH_SIZE:50}
+  # Opóźnienie między zakończeniem jednego cyklu pollAvailableAgents a startem kolejnego (ms).
+  # Uzupełnia event-driven triggering (RabbitMQ): obsługuje przypadki gdy kontakt trafił
+  # do kolejki zanim agent zmienił status lub gdy event zaginął.
+  # fixedDelay (nie fixedRate) – kolejna iteracja startuje PO zakończeniu poprzedniej.
+  # Nadpisywalne przez DIALER_AGENT_POLL_INTERVAL_MS ENV var.
+  agent-poll-interval-ms: ${DIALER_AGENT_POLL_INTERVAL_MS:30000}
 
 # =============================================================================
 # Agent Breaks Activator – automatyczna aktywacja i kończenie przerw agentów

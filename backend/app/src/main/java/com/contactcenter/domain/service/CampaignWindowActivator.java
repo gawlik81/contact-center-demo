@@ -64,6 +64,8 @@ public class CampaignWindowActivator {
             processScheduledCampaignsForTenant(tenant);
         }
 
+        completePastDeadlineCampaigns(activeTenants);
+
         log.debug("[CampaignWindowActivator] Zakończono cykl aktywacji kampanii SCHEDULED");
     }
 
@@ -111,6 +113,68 @@ public class CampaignWindowActivator {
         } finally {
             TenantContext.clear();
         }
+    }
+
+    // =========================================================================
+    // Kończenie kampanii po upłynięciu end_date
+    // =========================================================================
+
+    private void completePastDeadlineCampaigns(List<Tenant> activeTenants) {
+        log.debug("[CampaignWindowActivator] Sprawdzam kampanie po upłynięciu end_date");
+        for (Tenant tenant : activeTenants) {
+            processRunningCampaignsForTenant(tenant);
+        }
+    }
+
+    private void processRunningCampaignsForTenant(Tenant tenant) {
+        TenantContext.setTenantId(tenant.getId());
+        try {
+            List<Campaign> candidates = campaignRepository.findRunningOrPausedByTenantId(tenant.getId());
+            if (candidates.isEmpty()) {
+                return;
+            }
+
+            int completed = 0;
+            for (Campaign campaign : candidates) {
+                if (isPastEndDate(campaign)) {
+                    String previousStatus = campaign.getStatus();
+                    campaign.setStatus("COMPLETED");
+                    campaignRepository.save(campaign);
+                    completed++;
+                    log.info("[CampaignWindowActivator] Kampania '{}' (id={}) {} → COMPLETED (tenant={})",
+                            campaign.getName(), campaign.getCampaignId(), previousStatus, tenant.getId());
+                }
+            }
+
+            if (completed > 0) {
+                log.info("[CampaignWindowActivator] Zakończono {} kampanii po upłynięciu end_date (tenant={})",
+                        completed, tenant.getId());
+            }
+        } catch (Exception e) {
+            log.error("[CampaignWindowActivator] Błąd podczas kończenia kampanii dla tenanta {}: {}",
+                    tenant.getId(), e.getMessage(), e);
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    /**
+     * Zwraca true jeśli kampania ma harmonogram z end_date i end_date minął już w strefie czasowej kampanii.
+     */
+    private boolean isPastEndDate(Campaign campaign) {
+        Map<String, Object> schedule = campaign.getSchedule();
+        if (schedule == null || schedule.isEmpty()) {
+            return false;
+        }
+
+        String endDateStr = (String) schedule.get("end_date");
+        if (endDateStr == null || endDateStr.isBlank()) {
+            return false;
+        }
+
+        ZoneId zoneId = resolveTimezone(schedule);
+        LocalDate today = ZonedDateTime.now(zoneId).toLocalDate();
+        return today.isAfter(LocalDate.parse(endDateStr));
     }
 
     // =========================================================================

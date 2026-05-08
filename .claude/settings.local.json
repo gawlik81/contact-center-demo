@@ -266,7 +266,8 @@
       "Bash(awk '/### FE-046/,/### FE-049/' /home/pawelm/contact-center/TASKS-FRONTEND.md)",
       "Bash(awk '/### FE-062/,/### FE-066/' /home/pawelm/contact-center/TASKS-FRONTEND.md)",
       "Bash(awk '/### BE-061/,/\\\\*\\\\*Opis:/' /home/pawelm/contact-center/TASKS-BACKEND.md)",
-      "Bash(awk '/### FE-065/,/### FE-069/' /home/pawelm/contact-center/TASKS-FRONTEND.md)"
+      "Bash(awk '/### FE-065/,/### FE-069/' /home/pawelm/contact-center/TASKS-FRONTEND.md)",
+      "Bash(GIT_SEQUENCE_EDITOR=true git rebase *)"
     ]
   }
 }

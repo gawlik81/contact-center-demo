@@ -231,13 +231,33 @@ public class ScheduledCallbackExecutor {
         } catch (TelephonyAdapter.TelephonyException e) {
             log.error("[CallbackExecutor] Błąd telefonii dla callbackId={}: {}",
                     callback.getCallbackId(), e.getMessage(), e);
-            // Oznacz jako FAILED – nie przerywaj pętli, kontynuuj kolejne callbacki
             callbackRepository.updateStatus(callback.getCallbackId(), "FAILED", callback.getTenantId());
+            // Cofnij DIALING → CALLBACK: initiateCall() nie zostało wykonane, rekord musi wrócić do kolejki
+            if (isCampaignCallback) {
+                campaignContactRepository.revertDialingToCallback(
+                        callback.getCampaignContactRecordId(),
+                        callback.getCampaignId(),
+                        callback.getTenantId(),
+                        callback.getScheduledAt()
+                );
+                log.warn("[CallbackExecutor] campaign_contact {} cofnięty DIALING → CALLBACK po błędzie telefonii (callbackId={})",
+                        callback.getCampaignContactRecordId(), callback.getCallbackId());
+            }
 
         } catch (Exception e) {
             log.error("[CallbackExecutor] Nieoczekiwany błąd dla callbackId={}: {}",
                     callback.getCallbackId(), e.getMessage(), e);
             callbackRepository.updateStatus(callback.getCallbackId(), "FAILED", callback.getTenantId());
+            if (isCampaignCallback) {
+                campaignContactRepository.revertDialingToCallback(
+                        callback.getCampaignContactRecordId(),
+                        callback.getCampaignId(),
+                        callback.getTenantId(),
+                        callback.getScheduledAt()
+                );
+                log.warn("[CallbackExecutor] campaign_contact {} cofnięty DIALING → CALLBACK po nieoczekiwanym błędzie (callbackId={})",
+                        callback.getCampaignContactRecordId(), callback.getCallbackId());
+            }
         }
     }
 

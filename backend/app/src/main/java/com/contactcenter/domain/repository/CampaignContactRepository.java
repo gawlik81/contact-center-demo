@@ -306,7 +306,6 @@ public class CampaignContactRepository extends TenantAwareRepository {
     @Transactional
     public void markAsDialingForCallback(UUID recordId, UUID campaignId, UUID tenantId) {
         setTenantContextInDb(tenantId);
-        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
 
         jdbcTemplate.update(
                 """
@@ -318,6 +317,39 @@ public class CampaignContactRepository extends TenantAwareRepository {
                   AND campaign_id = ?::uuid
                   AND tenant_id = ?::uuid
                 """,
+                recordId.toString(),
+                campaignId.toString(),
+                tenantId.toString()
+        );
+    }
+
+    /**
+     * Cofa status rekordu z DIALING z powrotem na CALLBACK po błędzie telefonii podczas callback attempt.
+     *
+     * <p>Wywoływane gdy {@code ScheduledCallbackExecutor} zdążył ustawić DIALING, ale
+     * {@code TelephonyAdapter.initiateCall()} rzucił wyjątek. Przywraca {@code next_attempt_at}
+     * do wartości {@code scheduledAt} callbacku, aby rekord mógł wrócić do kolejki dialera.
+     *
+     * @param recordId      UUID rekordu
+     * @param campaignId    UUID kampanii
+     * @param tenantId      UUID tenanta
+     * @param nextAttemptAt moment kolejnej próby (scheduledAt z callbacku)
+     */
+    @Transactional
+    public void revertDialingToCallback(UUID recordId, UUID campaignId, UUID tenantId, Instant nextAttemptAt) {
+        setTenantContextInDb(tenantId);
+
+        jdbcTemplate.update(
+                """
+                UPDATE campaign_contact
+                SET status = 'CALLBACK',
+                    next_attempt_at = ?,
+                    updated_at = NOW()
+                WHERE record_id = ?::uuid
+                  AND campaign_id = ?::uuid
+                  AND tenant_id = ?::uuid
+                """,
+                java.sql.Timestamp.from(nextAttemptAt),
                 recordId.toString(),
                 campaignId.toString(),
                 tenantId.toString()

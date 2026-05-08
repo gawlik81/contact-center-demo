@@ -2,6 +2,132 @@
 
 ---
 
+## Review: EPIC-21 — Retry i callback w kampaniach wychodzących — 2026-05-08
+
+**Branch:** EPIC-21  
+**Reviewer:** senior-code-reviewer agent  
+**Zakres:** BE-062 … BE-066 + CampaignWindowActivator
+
+---
+
+### CRITICAL
+
+#### [ScheduledCallbackExecutor.java:181-241] campaign_contact utknie na DIALING po błędzie telefonii
+
+`markAsDialingForCallback()` jest wywoływany PRZED `telephonyAdapter.initiateCall()`. Gdy `initiateCall()` rzuci `TelephonyException`, `campaign_contact` pozostaje na zawsze w statusie `DIALING` — rekord nie wróci do kolejki dialera.
+
+**Naprawa** — rollback w bloku `catch`:
+
+```java
+} catch (TelephonyAdapter.TelephonyException e) {
+    callbackRepository.updateStatus(callback.getCallbackId(), "FAILED", callback.getTenantId());
+    if (isCampaignCallback) {
+        campaignContactRepository.updateStatus(
+            callback.getCampaignContactRecordId(), callback.getCampaignId(),
+            callback.getTenantId(), "CALLBACK", callback.getScheduledAt(), "CALLBACK");
+    }
+}
+```
+
+---
+
+#### [DialerCallbackHandler.java:149-155] Permanentna blokada agenta przy wyjątku w ścieżce NO_ANSWER
+
+Gdy `handleNoAnswer(...)` rzuci wyjątek, `cleanupRedisKeys(callSid, agentId)` NIE jest wywoływane. Klucz `dialer:agent:{agentId}` blokuje agenta przez TTL=60s.
+
+**Naprawa** — przenieś `cleanupRedisKeys` do `finally`:
+
+```java
+} finally {
+    cleanupRedisKeys(callSid, agentId);
+    TenantContext.clear();
+}
+```
+
+---
+
+### HIGH
+
+#### [CampaignWindowActivator.java:177] DateTimeParseException nie jest obsługiwany w isPastEndDate
+
+Błędny `end_date` (np. `"2026-13-01"`) przerywa iterację wszystkich kampanii tenanta. Pozostałe kampanie RUNNING nie są sprawdzane.
+
+**Naprawa** — wrap w `try/catch (DateTimeParseException e)` z logiem WARN i `return false`.
+
+---
+
+#### [CampaignContactRepository.java:308-309] Podwójne wywołanie set_tenant_context w markAsDialingForCallback
+
+Linia 308: `setTenantContextInDb(tenantId)`, linia 309: ten sam stored procedure przez `jdbcTemplate`. Zbędny podwójny round-trip do DB.
+
+**Naprawa** — usuń linię 309.
+
+---
+
+### MEDIUM
+
+#### [DialerCallbackHandler.java:144] Twilio outcome "failed" traktowany jako COMPLETED
+
+`"failed"` = błąd sieci Twilio, semantycznie bliżej `NOT_REACHED`. Zaburza raportowanie. Jeśli decyzja biznesowa — wymaga komentarza w kodzie.
+
+---
+
+#### [ScheduledCallbackExecutor.java:218] Hardkodowany TTL 1800 zamiast stałej
+
+`ProgressiveDialerService.CALL_STATE_TTL_SECONDS = 1800` nie jest reużywany. Wyodrębnij do `DialerConstants`.
+
+---
+
+#### [CampaignWindowActivator.java:135-152] Zamykanie PAUSED kampanii po end_date — nieudokumentowane
+
+Kampanie PAUSED są automatycznie zamykane jako COMPLETED po minięciu `end_date`. Może zaskoczyć użytkownika. Udokumentować lub dodać property konfiguracyjny.
+
+---
+
+#### [DialerCallbackHandler.java:258] Nieaktualny Javadoc po BE-064
+
+Javadoc mówi `COMPLETED`, po zmianie status to `CALLBACK`.
+
+---
+
+#### [TwilioTelephonyAdapter.java:626-629] hangupCall() zawsze publikuje outcome "completed"
+
+Nawet gdy połączenie jest w fazie `ringing`. Może powodować konflikt z webhokiem Twilio.
+
+---
+
+### LOW
+
+#### [DialerCallbackHandlerTest.java:57] @MockitoSettings LENIENT na całej klasie — powinno być STRICT_STUBS
+
+#### [ProgressiveDialerServiceTest.java:886] Test campaignOutOfSchedule niestabilny w 00:00–00:01 — użyj Clock mock
+
+#### [DialerCallbackHandler.java:474] setTenantContextInJdbc jako one-liner — ujednolicić formatowanie
+
+---
+
+### Pozytywne obserwacje
+
+- Wzorzec dwóch kluczy Redis dla callback attempt — elegancki
+- Usunięcie hardkodowanego guard 4h na rzecz `next_attempt_at <= NOW()`
+- Test refleksji `isCalledTooRecently_methodDoesNotExist` — wartościowy test regresji
+- `markAsDialingForCallback` nie inkrementuje `attempt_count` — poprawna semantyka
+- `NOT_REACHED` vs `FAILED` — lepsza semantyka statusów kampanijnych
+- Testy z helperami `assertStatusParamUsed/NeverUsed` — dobra jakość
+
+---
+
+### Pliki wymagające poprawki przed merge
+
+| Priorytet | Plik | Problem |
+|-----------|------|---------|
+| CRITICAL | `ScheduledCallbackExecutor.java` | Rollback DIALING→CALLBACK w catch |
+| CRITICAL | `DialerCallbackHandler.java` | cleanupRedisKeys w finally |
+| HIGH | `CampaignWindowActivator.java` | Guard DateTimeParseException |
+| HIGH | `CampaignContactRepository.java` | Usunięcie zduplikowanego set_tenant_context |
+
+---
+
 ## Review: BE-017 – OAuth flow i zarządzanie tokenami social media — 2026-04-16
 
 Przejrzane pliki:

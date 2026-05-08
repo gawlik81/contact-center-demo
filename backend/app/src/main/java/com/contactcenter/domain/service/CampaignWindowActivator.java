@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 
@@ -172,9 +173,15 @@ public class CampaignWindowActivator {
             return false;
         }
 
-        ZoneId zoneId = resolveTimezone(schedule);
-        LocalDate today = ZonedDateTime.now(zoneId).toLocalDate();
-        return today.isAfter(LocalDate.parse(endDateStr));
+        try {
+            ZoneId zoneId = resolveTimezone(schedule);
+            LocalDate today = ZonedDateTime.now(zoneId).toLocalDate();
+            return today.isAfter(LocalDate.parse(endDateStr));
+        } catch (DateTimeParseException e) {
+            log.warn("[CampaignWindowActivator] Nieprawidłowy format end_date '{}' dla kampanii {} (id={}) – pomijam zamknięcie",
+                    endDateStr, campaign.getName(), campaign.getCampaignId());
+            return false;
+        }
     }
 
     // =========================================================================
@@ -208,14 +215,28 @@ public class CampaignWindowActivator {
 
         // Sprawdź start_date
         String startDateStr = (String) schedule.get("start_date");
-        if (startDateStr != null && today.isBefore(LocalDate.parse(startDateStr))) {
-            return false;
+        if (startDateStr != null) {
+            try {
+                if (today.isBefore(LocalDate.parse(startDateStr))) {
+                    return false;
+                }
+            } catch (DateTimeParseException e) {
+                log.warn("[CampaignWindowActivator] Nieprawidłowy format start_date '{}' dla kampanii {} (id={}) – pomijam warunek",
+                        startDateStr, campaign.getName(), campaign.getCampaignId());
+            }
         }
 
         // Sprawdź end_date
         String endDateStr = (String) schedule.get("end_date");
-        if (endDateStr != null && today.isAfter(LocalDate.parse(endDateStr))) {
-            return false;
+        if (endDateStr != null) {
+            try {
+                if (today.isAfter(LocalDate.parse(endDateStr))) {
+                    return false;
+                }
+            } catch (DateTimeParseException e) {
+                log.warn("[CampaignWindowActivator] Nieprawidłowy format end_date '{}' dla kampanii {} (id={}) – pomijam warunek",
+                        endDateStr, campaign.getName(), campaign.getCampaignId());
+            }
         }
 
         // Sprawdź active_days

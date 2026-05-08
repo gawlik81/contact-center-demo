@@ -145,12 +145,14 @@ public class DialerCallbackHandler {
                 updateCampaignContact(recordId, campaignId, tenantId, "COMPLETED", null, null);
                 log.info("[DialerHandler] Rekord kampanijny {} → COMPLETED po hangup (outcome={}, callSid={})",
                         recordId, outcome, callSid);
-                cleanupRedisKeys(callSid, agentId);
             }
         } catch (Exception e) {
             log.error("[DialerHandler] Błąd aktualizacji rekordu kampanijnego {} po hangup (callSid={}): {}",
                     recordId, callSid, e.getMessage(), e);
         } finally {
+            // Zwolnij zasoby Redis zawsze – niezależnie od sukcesu lub wyjątku w try.
+            // cleanupRedisKeys jest idempotentne, więc podwójne wywołanie (np. z handleNoAnswer) jest bezpieczne.
+            cleanupRedisKeys(callSid, agentId);
             TenantContext.clear();
         }
     }
@@ -257,7 +259,7 @@ public class DialerCallbackHandler {
     /**
      * Tworzy zaplanowane oddzwonienie po dyspozycji agenta CALLBACK.
      *
-     * <p>Aktualizuje status rekordu campaign_contact na COMPLETED
+     * <p>Aktualizuje status rekordu campaign_contact na CALLBACK
      * i tworzy nowy rekord {@link ScheduledCallback} z podaną datą i godziną.
      *
      * @param tenantId          UUID tenanta

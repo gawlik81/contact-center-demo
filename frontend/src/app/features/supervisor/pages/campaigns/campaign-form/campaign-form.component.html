@@ -169,6 +169,32 @@
         </div>
       }
 
+      <!-- Ring timeout – only for OUTBOUND_VOICE -->
+      @if (isOutboundVoice()) {
+        <div class="form-field" [class.form-field--error]="ringTimeoutError">
+          <label class="form-label" for="ringTimeoutSeconds">
+            Czas oczekiwania na odebranie (sekundy)
+            <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="ringTimeoutSeconds"
+            type="number"
+            class="form-input form-input--number"
+            formControlName="ringTimeoutSeconds"
+            min="15"
+            max="120"
+            [attr.aria-describedby]="ringTimeoutError ? 'ringTimeout-error' : 'ringTimeout-hint'"
+            [attr.aria-invalid]="ringTimeoutError ? 'true' : null"
+          />
+          <span id="ringTimeout-hint" class="form-hint">
+            Ile sekund dzwonić do klienta — jeśli nie odbierze w tym czasie, połączenie zostanie uznane za nieodebrane
+          </span>
+          @if (ringTimeoutError) {
+            <span id="ringTimeout-error" class="form-error" role="alert">{{ ringTimeoutError }}</span>
+          }
+        </div>
+      }
+
       <!-- Schedule section -->
       <fieldset class="schedule-section" formGroupName="schedule">
         <legend class="schedule-section__legend">{{ 'supervisor.campaignForm.scheduleLabel' | transloco }}</legend>

@@ -54,7 +54,7 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code dialer:agent:{agentId}} → callSid, TTL 60s (guard przed duplikacją)</li>
  *   <li>{@code dialer:call:{callSid}} → JSON z campaignContactId/agentId/tenantId/campaignId, TTL 60s</li>
- *   <li>{@code dialer:timeout:{callSid}} → "", TTL 30s (po wygaśnięciu = NO_ANSWER)</li>
+ *   <li>{@code dialer:timeout:{callSid}} → "", TTL = campaign.ringTimeoutSeconds (po wygaśnięciu = NO_ANSWER)</li>
  * </ul>
  */
 @Slf4j
@@ -66,7 +66,6 @@ public class ProgressiveDialerService {
     // Redis TTL (sekundy)
     private static final int AGENT_LOCK_TTL_SECONDS   = 60;
     private static final int CALL_STATE_TTL_SECONDS   = 1800; // 30 minut – chroni przed wygaśnięciem klucza w trakcie dłuższej rozmowy
-    private static final int NO_ANSWER_TIMEOUT_SECONDS = 30;
 
     // Domyślna strefa czasowa kampanii
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Europe/Warsaw");
@@ -253,7 +252,7 @@ public class ProgressiveDialerService {
 
                 // Zapisz stan w Redis
                 saveCallState(session.getCallId(), recordId, campaign.getCampaignId(), agentId, tenantId);
-                scheduleNoAnswerTimeout(session.getCallId());
+                scheduleNoAnswerTimeout(session.getCallId(), campaign.getRingTimeoutSeconds());
 
                 log.info("[Dialer] Połączenie zainicjowane: callId={}, kontakt={}, kampania={}",
                         session.getCallId(), recordId, campaign.getCampaignId());
@@ -466,15 +465,16 @@ public class ProgressiveDialerService {
     /**
      * Ustawia klucz timeout w Redis dla połączenia dialera.
      *
-     * <p>Po wygaśnięciu TTL (30s) zewnętrzny komponent (np. Redis Keyspace Notification
+     * <p>Po wygaśnięciu TTL zewnętrzny komponent (np. Redis Keyspace Notification
      * lub scheduled job) może zareagować na brak odpowiedzi. W tej implementacji
      * {@link DialerCallbackHandler} sprawdza klucz przy przetwarzaniu wyników połączeń.
      *
-     * @param callSid identyfikator sesji telefonicznej
+     * @param callSid        identyfikator sesji telefonicznej
+     * @param timeoutSeconds czas oczekiwania na odebranie (konfigurowany per kampania)
      */
-    private void scheduleNoAnswerTimeout(String callSid) {
+    private void scheduleNoAnswerTimeout(String callSid, int timeoutSeconds) {
         String timeoutKey = "dialer:timeout:" + callSid;
-        redisTemplate.opsForValue().set(timeoutKey, "", Duration.ofSeconds(NO_ANSWER_TIMEOUT_SECONDS));
+        redisTemplate.opsForValue().set(timeoutKey, "", Duration.ofSeconds(timeoutSeconds));
     }
 
     /**

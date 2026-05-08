@@ -29,6 +29,7 @@ export interface Campaign {
   dispositionCodes: DispositionCode[];
   maxAttempts: number;
   retryDelayMinutes: number;
+  ringTimeoutSeconds: number;
   createdBy?: string;
   createdAt: string;
   updatedAt?: string;
@@ -41,6 +42,7 @@ export interface CreateCampaignRequest {
   queueId: string;
   maxAttempts: number;
   retryDelayMinutes: number;
+  ringTimeoutSeconds: number;
   schedule?: CampaignSchedule;
   callerId?: string | null;
 }
@@ -50,6 +52,7 @@ export interface UpdateCampaignRequest {
   dialerType?: DialerType;
   maxAttempts?: number;
   retryDelayMinutes?: number;
+  ringTimeoutSeconds?: number;
   schedule?: CampaignSchedule;
   callerId?: string | null;
 }

@@ -39,9 +39,16 @@ public class ScheduledCallback {
     @Column(name = "campaign_id")
     private UUID campaignId;
 
-    /** UUID rekordu campaign_contact, z którego wywodzi się callback. */
+    /** UUID klienta z tabeli customer (opcjonalny). */
     @Column(name = "customer_id")
     private UUID customerId;
+
+    /**
+     * UUID rekordu campaign_contact powiązanego z tym callbackiem (campaign_contact.record_id).
+     * NULL dla INBOUND_CALLBACK i AGENT_MANUAL. Brak FK – campaign_contact ma composite PK.
+     */
+    @Column(name = "campaign_contact_record_id")
+    private UUID campaignContactRecordId;
 
     /** Preferowany agent – sticky agent dla oddzwonienia (opcjonalny). */
     @Column(name = "agent_id")

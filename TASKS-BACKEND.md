@@ -2758,7 +2758,8 @@ Stała `private static final int NO_ANSWER_RETRY_HOURS = 4;` jest martwa po zmia
 **Typ:** Bug fix
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Status:** ⏳ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
 **Zależy od:** DB-032, DB-033
 **Blokuje:** BE-066, FE-069
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących

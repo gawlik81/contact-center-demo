@@ -21,6 +21,9 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;
 
+import com.contactcenter.domain.model.ScheduledCallback;
+
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -191,6 +194,83 @@ class DialerCallbackHandlerTest {
 
             assertStatusParamUsed("COMPLETED");
             assertStatusParamNeverUsed("NO_ANSWER");
+        }
+    }
+
+    // =========================================================================
+    // BE-064: handleCallbackDisposition – status CALLBACK, campaignContactRecordId
+    // =========================================================================
+
+    @Nested
+    @DisplayName("handleCallbackDisposition – status CALLBACK i powiązanie z rekordem kampanii (BE-064)")
+    class HandleCallbackDisposition {
+
+        private static final Instant SCHEDULED_AT = Instant.parse("2026-05-10T10:00:00Z");
+
+        @BeforeEach
+        void stubSave() {
+            when(scheduledCallbackRepository.save(any(ScheduledCallback.class)))
+                    .thenAnswer(inv -> inv.getArgument(0));
+        }
+
+        @Test
+        @DisplayName("status campaign_contact powinien być CALLBACK, nie COMPLETED")
+        void shouldSetCallbackStatusNotCompleted() {
+            handler.handleCallbackDisposition(TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID,
+                    "+48123456789", "Jan", "Kowalski", SCHEDULED_AT, null);
+
+            assertStatusParamUsed("CALLBACK");
+            assertStatusParamNeverUsed("COMPLETED");
+        }
+
+        @Test
+        @DisplayName("next_attempt_at powinien być ustawiony na scheduledAt")
+        void shouldSetNextAttemptAtToScheduledAt() {
+            handler.handleCallbackDisposition(TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID,
+                    "+48123456789", "Jan", "Kowalski", SCHEDULED_AT, null);
+
+            ArgumentCaptor<Object[]> captor = ArgumentCaptor.forClass(Object[].class);
+            verify(jdbcTemplate, atLeastOnce()).update(anyString(), captor.capture());
+
+            boolean hasTimestamp = captor.getAllValues().stream()
+                    .flatMap(java.util.Arrays::stream)
+                    .anyMatch(arg -> arg instanceof java.sql.Timestamp ts
+                            && ts.toInstant().equals(SCHEDULED_AT));
+            assertThat(hasTimestamp)
+                    .as("next_attempt_at powinien być równy scheduledAt=%s", SCHEDULED_AT)
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("ScheduledCallback powinien mieć campaignContactRecordId = recordId")
+        void savedCallbackShouldHaveCampaignContactRecordId() {
+            ArgumentCaptor<ScheduledCallback> captor = ArgumentCaptor.forClass(ScheduledCallback.class);
+
+            handler.handleCallbackDisposition(TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID,
+                    "+48123456789", "Jan", "Kowalski", SCHEDULED_AT, null);
+
+            verify(scheduledCallbackRepository).save(captor.capture());
+            assertThat(captor.getValue().getCampaignContactRecordId()).isEqualTo(RECORD_ID);
+        }
+
+        @Test
+        @DisplayName("attempt_count nie powinien być inkrementowany (brak kolumny attempt_count w UPDATE)")
+        void shouldNotIncrementAttemptCount() {
+            handler.handleCallbackDisposition(TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID,
+                    "+48123456789", "Jan", "Kowalski", SCHEDULED_AT, null);
+
+            boolean attemptCountModified = Mockito.mockingDetails(jdbcTemplate).getInvocations().stream()
+                    .filter(inv -> inv.getMethod().getName().equals("update"))
+                    .anyMatch(inv -> {
+                        Object[] args = inv.getArguments();
+                        if (args.length > 0 && args[0] instanceof String sql) {
+                            return sql.contains("attempt_count");
+                        }
+                        return false;
+                    });
+            assertThat(attemptCountModified)
+                    .as("attempt_count nie powinien być modyfikowany przez handleCallbackDisposition")
+                    .isFalse();
         }
     }
 

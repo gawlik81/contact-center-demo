@@ -270,13 +270,14 @@ public class DialerCallbackHandler {
         // gdzie TenantFilter już zarządza cyklem życia kontekstu. Dostęp do tenantId przez
         // jawny parametr, nie przez ThreadLocal.
 
-        // Oznacz kontakt jako COMPLETED (dyspozycja CALLBACK = zakończona obsługa)
-        updateCampaignContact(recordId, campaignId, tenantId, "COMPLETED", null, "CALLBACK");
+        // Oznacz kontakt jako CALLBACK – rekord aktywny, czeka na oddzwonienie
+        updateCampaignContact(recordId, campaignId, tenantId, "CALLBACK", scheduledAt, "CALLBACK");
 
-        // Utwórz rekord scheduled_callback
+        // Utwórz rekord scheduled_callback z powiązaniem do rekordu kampanijnego
         ScheduledCallback callback = ScheduledCallback.builder()
                 .tenantId(tenantId)
                 .campaignId(campaignId)
+                .campaignContactRecordId(recordId)
                 .agentId(agentId)
                 .phone(phone)
                 .firstName(firstName)

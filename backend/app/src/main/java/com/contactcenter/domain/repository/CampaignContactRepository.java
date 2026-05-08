@@ -294,6 +294,37 @@ public class CampaignContactRepository extends TenantAwareRepository {
     }
 
     /**
+     * Aktualizuje status rekordu campaign_contact na DIALING przy realizacji callbacku kampanijnego.
+     *
+     * <p>Różni się od {@link #markAsDialing} tym, że <strong>NIE inkrementuje {@code attempt_count}</strong> –
+     * oddzwonienie to callback attempt, a nie nowa próba dialera w kampanii.
+     *
+     * @param recordId   UUID rekordu
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     */
+    @Transactional
+    public void markAsDialingForCallback(UUID recordId, UUID campaignId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        jdbcTemplate.execute("SELECT set_tenant_context(?::uuid)", (PreparedStatementCallback<Void>) ps -> { ps.setString(1, tenantId.toString()); ps.execute(); return null; });
+
+        jdbcTemplate.update(
+                """
+                UPDATE campaign_contact
+                SET status = 'DIALING',
+                    last_attempt_at = NOW(),
+                    updated_at = NOW()
+                WHERE record_id = ?::uuid
+                  AND campaign_id = ?::uuid
+                  AND tenant_id = ?::uuid
+                """,
+                recordId.toString(),
+                campaignId.toString(),
+                tenantId.toString()
+        );
+    }
+
+    /**
      * Oznacza rekord campaign_contact jako ERROR (trwały błąd techniczny adaptera telefonii).
      *
      * <p>Używane gdy Twilio API rzuci {@code ApiException} podczas {@code initiateCall()}

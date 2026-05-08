@@ -4,18 +4,23 @@ import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Scheduler oddzwonień – cyklicznie inicjuje zaplanowane połączenia wychodzące.
@@ -50,6 +55,8 @@ public class ScheduledCallbackExecutor {
     private final TelephonyAdapter telephonyAdapter;
     private final AppUserRepository appUserRepository;
     private final TenantTwilioConfigService tenantTwilioConfigService;
+    private final CampaignContactRepository campaignContactRepository;
+    private final StringRedisTemplate redisTemplate;
 
     @Value("${dialer.callback-executor.batch-size:50}")
     private int batchSize;
@@ -163,23 +170,59 @@ public class ScheduledCallbackExecutor {
             }
         }
 
-        log.info("[CallbackExecutor] Inicjowanie oddzwonienia: callbackId={}, phone={}, agentId={}, tenant={}",
+        boolean isCampaignCallback = callback.getCampaignId() != null
+                && callback.getCampaignContactRecordId() != null;
+
+        log.info("[CallbackExecutor] Inicjowanie oddzwonienia: callbackId={}, phone={}, agentId={}, tenant={}, kampanijny={}",
                 callback.getCallbackId(), maskPhone(callback.getPhone()),
-                callback.getAgentId(), callback.getTenantId());
+                callback.getAgentId(), callback.getTenantId(), isCampaignCallback);
+
+        // Dla callbacków kampanijnych: ustaw status DIALING bez inkrementowania attempt_count
+        if (isCampaignCallback) {
+            campaignContactRepository.markAsDialingForCallback(
+                    callback.getCampaignContactRecordId(),
+                    callback.getCampaignId(),
+                    callback.getTenantId()
+            );
+            log.debug("[CallbackExecutor] campaign_contact {} → DIALING (callback attempt, bez inkrementacji attempt_count)",
+                    callback.getCampaignContactRecordId());
+        }
 
         try {
             String fromNumber = resolveCallbackFromNumber(callback.getTenantId());
 
-            telephonyAdapter.initiateCall(
+            CallSession session = telephonyAdapter.initiateCall(
                     callback.getTenantId(),
                     fromNumber,
                     callback.getPhone(),
                     callback.getAgentId(),
-                    null,                       // queueId null – callback nie pochodzi z kampanii
+                    null,                       // queueId null – callback nie pochodzi z kolejki kampanii
                     callback.getCallbackId()    // powiąż kontakt z oddzwonieniem
             );
 
-            // Sukces – oznacz jako COMPLETED
+            // Dla callbacków kampanijnych: zapisz klucze Redis umożliwiające obsługę wyniku przez DialerCallbackHandler
+            if (isCampaignCallback && session != null && session.getCallId() != null) {
+                String callSid = session.getCallId();
+                String redisCallKey = "dialer:call:" + callSid;
+                String redisCallbackMarkerKey = "dialer:callback-attempt:" + callSid;
+
+                // Format zgodny z DialerCallbackHandler.onCallHangup(): recordId,campaignId,agentId,tenantId
+                // agentId może być null dla callbacków bez przypisanego agenta – używamy zero UUID jako placeholder
+                UUID agentId = callback.getAgentId();
+                String agentIdStr = agentId != null ? agentId.toString() : "00000000-0000-0000-0000-000000000000";
+                String callState = callback.getCampaignContactRecordId() + ","
+                        + callback.getCampaignId() + ","
+                        + agentIdStr
+                        + "," + callback.getTenantId();
+
+                redisTemplate.opsForValue().set(redisCallKey, callState, 1800, TimeUnit.SECONDS);
+                redisTemplate.opsForValue().set(redisCallbackMarkerKey, "true", 1800, TimeUnit.SECONDS);
+
+                log.debug("[CallbackExecutor] Redis: dialer:call:{}={}, dialer:callback-attempt:{}=true (TTL 1800s)",
+                        callSid, callState, callSid);
+            }
+
+            // Sukces – oznacz callback jako COMPLETED
             callbackRepository.updateStatus(callback.getCallbackId(), "COMPLETED", callback.getTenantId());
 
             log.info("[CallbackExecutor] Oddzwonienie zakończone sukcesem: callbackId={}",

@@ -2860,7 +2860,8 @@ Zmiana wymaga indeksu `idx_campaign_contact_dialer` pokrywającego `WHERE status
 **Typ:** Feature
 **Priorytet:** Should Have
 **Szacowany rozmiar:** M
-**Status:** ⏳ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
 **Zależy od:** DB-032, DB-033, BE-062, BE-064
 **Blokuje:** –
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących

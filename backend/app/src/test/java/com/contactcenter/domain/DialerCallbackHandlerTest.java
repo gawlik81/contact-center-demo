@@ -320,6 +320,67 @@ class DialerCallbackHandlerTest {
     }
 
     // =========================================================================
+    // BE-066: handleNoAnswer – obsługa callback attempt
+    // =========================================================================
+
+    @Nested
+    @DisplayName("handleNoAnswer – obsługa callback attempt (BE-066)")
+    class HandleNoAnswerCallbackAttempt {
+
+        @Test
+        @DisplayName("dialer:callback-attempt:{callSid} istnieje → status NO_ANSWER bez odczytu attempt_count, marker usunięty")
+        void callbackAttemptMarkerPresent_shouldScheduleNoAnswerWithoutAttemptCount() {
+            // given – klucz callback-attempt istnieje (callback kampanijny)
+            when(redisTemplate.hasKey("dialer:callback-attempt:" + CALL_SID)).thenReturn(Boolean.TRUE);
+
+            // when
+            handler.handleNoAnswer(CALL_SID, TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID, 3, 60);
+
+            // then – status NO_ANSWER ustawiony
+            assertStatusParamUsed("NO_ANSWER");
+            assertStatusParamNeverUsed("NOT_REACHED");
+
+            // attempt_count NIE jest odczytywany (brak zapytania SELECT attempt_count)
+            verify(jdbcTemplate, never()).queryForObject(anyString(), eq(Integer.class), any(Object[].class));
+
+            // Marker callback-attempt usunięty (może być 1-2 razy: raz jawnie w handleNoAnswer,
+            // raz przez cleanupRedisKeys – obie ścieżki są poprawne, Redis delete nieistniejącego klucza jest no-op)
+            verify(redisTemplate, atLeastOnce()).delete("dialer:callback-attempt:" + CALL_SID);
+        }
+
+        @Test
+        @DisplayName("dialer:callback-attempt:{callSid} NIE istnieje → normalny flow (attempt_count odczytany)")
+        void callbackAttemptMarkerAbsent_shouldUseNormalFlow() {
+            // given – klucz nie istnieje (normalny dialer call)
+            when(redisTemplate.hasKey("dialer:callback-attempt:" + CALL_SID)).thenReturn(Boolean.FALSE);
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(1);
+
+            // when
+            handler.handleNoAnswer(CALL_SID, TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID, 3, 60);
+
+            // then – attempt_count odczytany (normalny flow)
+            verify(jdbcTemplate).queryForObject(anyString(), eq(Integer.class), any(Object[].class));
+            assertStatusParamUsed("NO_ANSWER");
+            assertStatusParamNeverUsed("NOT_REACHED");
+        }
+
+        @Test
+        @DisplayName("dialer:callback-attempt:{callSid} NIE istnieje + attempt_count >= maxAttempts → NOT_REACHED")
+        void callbackAttemptMarkerAbsent_atMaxAttempts_shouldSetNotReached() {
+            // given – normalny flow, wyczerpano próby
+            when(redisTemplate.hasKey("dialer:callback-attempt:" + CALL_SID)).thenReturn(Boolean.FALSE);
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(3);
+
+            // when
+            handler.handleNoAnswer(CALL_SID, TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID, 3, 60);
+
+            // then – normalny flow: NOT_REACHED gdy wyczerpano próby
+            assertStatusParamUsed("NOT_REACHED");
+            assertStatusParamNeverUsed("NO_ANSWER");
+        }
+    }
+
+    // =========================================================================
     // Scenariusz braku klucza Redis (nie jest połączenie dialera)
     // =========================================================================
 

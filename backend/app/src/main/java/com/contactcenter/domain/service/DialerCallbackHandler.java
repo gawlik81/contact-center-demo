@@ -186,20 +186,33 @@ public class DialerCallbackHandler {
                                UUID recordId, UUID agentId, int maxAttempts, int retryDelayMinutes) {
         log.info("[DialerHandler] NO_ANSWER: callSid={}, kontakt={}, kampania={}", callSid, recordId, campaignId);
 
-        // Odczyt aktualnego attempt_count
-        int attemptCount = getCurrentAttemptCount(recordId, campaignId, tenantId);
+        // Sprawdź czy to był callback attempt (zainicjowany przez ScheduledCallbackExecutor)
+        boolean isCallbackAttempt = Boolean.TRUE.equals(
+                redisTemplate.hasKey("dialer:callback-attempt:" + callSid));
 
-        if (attemptCount >= maxAttempts) {
-            // Wyczerpano próby – rekord finalny (niedodzwoniony)
-            updateCampaignContact(recordId, campaignId, tenantId, "NOT_REACHED", null, null);
-            log.info("[DialerHandler] Kontakt {} wyczerpał próby ({}/{}), status=NOT_REACHED",
-                    recordId, attemptCount, maxAttempts);
-        } else {
-            // Zaplanuj kolejną próbę wg konfiguracji kampanii
+        if (isCallbackAttempt) {
+            // Callback attempt: zaplanuj kolejną próbę BEZ sprawdzania attempt_count
             Instant nextAttempt = Instant.now().plus(retryDelayMinutes, ChronoUnit.MINUTES);
             updateCampaignContact(recordId, campaignId, tenantId, "NO_ANSWER", nextAttempt, null);
-            log.info("[DialerHandler] Kontakt {} – NO_ANSWER, próba {}/{}, next_attempt_at={} (+{}min)",
-                    recordId, attemptCount, maxAttempts, nextAttempt, retryDelayMinutes);
+            redisTemplate.delete("dialer:callback-attempt:" + callSid);
+            log.info("[DialerHandler] Kontakt {} – NO_ANSWER po callback attempt, next_attempt_at={} (+{}min), callSid={}",
+                    recordId, nextAttempt, retryDelayMinutes, callSid);
+        } else {
+            // Normalny flow dialera: odczyt attempt_count i decyzja o dalszych próbach
+            int attemptCount = getCurrentAttemptCount(recordId, campaignId, tenantId);
+
+            if (attemptCount >= maxAttempts) {
+                // Wyczerpano próby – rekord finalny (niedodzwoniony)
+                updateCampaignContact(recordId, campaignId, tenantId, "NOT_REACHED", null, null);
+                log.info("[DialerHandler] Kontakt {} wyczerpał próby ({}/{}), status=NOT_REACHED",
+                        recordId, attemptCount, maxAttempts);
+            } else {
+                // Zaplanuj kolejną próbę wg konfiguracji kampanii
+                Instant nextAttempt = Instant.now().plus(retryDelayMinutes, ChronoUnit.MINUTES);
+                updateCampaignContact(recordId, campaignId, tenantId, "NO_ANSWER", nextAttempt, null);
+                log.info("[DialerHandler] Kontakt {} – NO_ANSWER, próba {}/{}, next_attempt_at={} (+{}min)",
+                        recordId, attemptCount, maxAttempts, nextAttempt, retryDelayMinutes);
+            }
         }
 
         // Zwolnij zasoby Redis
@@ -475,6 +488,7 @@ public class DialerCallbackHandler {
         if (callSid != null) {
             redisTemplate.delete("dialer:call:" + callSid);
             redisTemplate.delete("dialer:timeout:" + callSid);
+            redisTemplate.delete("dialer:callback-attempt:" + callSid);
         }
         if (agentId != null) {
             redisTemplate.delete("dialer:agent:" + agentId);

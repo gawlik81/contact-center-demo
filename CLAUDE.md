@@ -117,6 +117,18 @@ Lokalne usługi po `docker compose up -d`:
 
 ---
 
+## Anti-patterns — zakaz stosowania
+
+### Przeciążone kolumny (overloaded columns)
+
+**Zakaz:** Nie używaj istniejącej kolumny do przechowywania semantycznie innej wartości tylko dlatego, że typ się zgadza.
+
+**Przykład błędu:** `scheduled_callback.customer_id` (FK → `customer`) użyty do przechowywania `campaign_contact.record_id` — dwie różne encje, jeden UUID, zero czytelności.
+
+**Reguła:** Każde nowe powiązanie = nowa kolumna z opisową nazwą. Koszt migracji jest jednorazowy; koszt utrzymania przeciążonej kolumny jest wieczny.
+
+---
+
 ## Architektura i wymagania
 
 Szczegóły: `ARCHITECTURE.md`, `PRD.md`.

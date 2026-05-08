@@ -269,6 +269,49 @@ $radius: 6px;
     background: $blue-bg;
     color: $brand-blue;
   }
+
+  &--connected,
+  &--completed {
+    background: rgba(34, 197, 94, 0.15);
+    color: #15803d;
+  }
+
+  &--no-answer {
+    background: rgba(251, 146, 60, 0.15);
+    color: #c2410c;
+  }
+
+  &--not-reached {
+    background: rgba(239, 68, 68, 0.15);
+    color: #b91c1c;
+  }
+
+  &--callback {
+    background: rgba(139, 92, 246, 0.15);
+    color: #6d28d9;
+  }
+
+  &--error {
+    background: rgba(239, 68, 68, 0.15);
+    color: #b91c1c;
+  }
+}
+
+// ── Attempt count column ──────────────────────────────────────────────────────
+.contact-attempts {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+// ── Next attempt column ───────────────────────────────────────────────────────
+.contact-next-attempt {
+  white-space: nowrap;
+  font-size: 0.875rem;
+
+  &__time {
+    color: var(--text-primary, #111827);
+  }
 }
 
 // ── Buttons ───────────────────────────────────────────────────────────────────

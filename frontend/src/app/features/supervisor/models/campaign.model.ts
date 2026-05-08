@@ -85,7 +85,18 @@ export interface ImportJobStartResponse {
   status: ImportJobStatusType;
 }
 
-export type CampaignContactStatus = 'PENDING' | 'CALLED' | 'FAILED' | 'SKIPPED' | 'DIALING';
+export type CampaignContactStatus =
+  | 'PENDING'
+  | 'DIALING'
+  | 'CONNECTED'
+  | 'COMPLETED'
+  | 'NO_ANSWER'
+  | 'NOT_REACHED'
+  | 'CALLBACK'
+  | 'FAILED'
+  | 'SKIPPED'
+  | 'ERROR'
+  | 'CALLED'; // backwards compatibility
 
 export interface ManualCallResponse {
   callId: string;
@@ -102,6 +113,8 @@ export interface CampaignContact {
   status: CampaignContactStatus;
   dispositionCode: string | null;
   createdAt: string;
+  attemptCount: number;
+  nextAttemptAt: string | null;
 }
 
 export interface ManualCampaignRecord {

@@ -554,7 +554,8 @@ public class CampaignContactRepository extends TenantAwareRepository {
         if (hasStatusFilter) {
             selectSql = """
                     SELECT record_id, phone, first_name, last_name,
-                           custom_fields::text, status, disposition_code, created_at
+                           custom_fields::text, status, disposition_code, created_at,
+                           attempt_count, next_attempt_at
                     FROM campaign_contact
                     WHERE campaign_id = ?::uuid
                       AND tenant_id = ?::uuid
@@ -568,7 +569,8 @@ public class CampaignContactRepository extends TenantAwareRepository {
         } else {
             selectSql = """
                     SELECT record_id, phone, first_name, last_name,
-                           custom_fields::text, status, disposition_code, created_at
+                           custom_fields::text, status, disposition_code, created_at,
+                           attempt_count, next_attempt_at
                     FROM campaign_contact
                     WHERE campaign_id = ?::uuid
                       AND tenant_id = ?::uuid
@@ -597,6 +599,10 @@ public class CampaignContactRepository extends TenantAwareRepository {
 
                     Map<String, String> customFields = parseCustomFields(customFieldsJson);
 
+                    int attemptCount = rs.getInt("attempt_count");
+                    Timestamp nextAttemptAtTs = rs.getTimestamp("next_attempt_at");
+                    Instant nextAttemptAt = nextAttemptAtTs != null ? nextAttemptAtTs.toInstant() : null;
+
                     return new CampaignContactResponse(
                             recordId,
                             phone,
@@ -605,7 +611,9 @@ public class CampaignContactRepository extends TenantAwareRepository {
                             customFields,
                             status,
                             errorMessage,
-                            createdAt
+                            createdAt,
+                            attemptCount,
+                            nextAttemptAt
                     );
                 }
         );

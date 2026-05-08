@@ -55,6 +55,8 @@
             <div class="skeleton-cell skeleton-cell--badge"></div>
             <div class="skeleton-cell skeleton-cell--error"></div>
             <div class="skeleton-cell skeleton-cell--date"></div>
+            <div class="skeleton-cell skeleton-cell--badge"></div>
+            <div class="skeleton-cell skeleton-cell--date"></div>
             @if (isAgent() && isManualCampaign()) {
               <div class="skeleton-cell skeleton-cell--action"></div>
             }
@@ -80,6 +82,8 @@
                 <th scope="col">{{ 'common.status' | transloco }}</th>
                 <th scope="col">{{ 'supervisor.campaignContacts.errorCol' | transloco }}</th>
                 <th scope="col">{{ 'supervisor.campaignContacts.importDate' | transloco }}</th>
+                <th scope="col">Próby</th>
+                <th scope="col">Następna próba</th>
                 @if (isAgent() && isManualCampaign()) {
                   <th scope="col" class="col-action">Akcja</th>
                 }
@@ -96,9 +100,14 @@
                       class="contact-status-badge"
                       [class.contact-status-badge--pending]="contact.status === 'PENDING'"
                       [class.contact-status-badge--dialing]="contact.status === 'DIALING'"
-                      [class.contact-status-badge--called]="contact.status === 'CALLED'"
-                      [class.contact-status-badge--failed]="contact.status === 'FAILED'"
+                      [class.contact-status-badge--connected]="contact.status === 'CONNECTED'"
+                      [class.contact-status-badge--completed]="contact.status === 'COMPLETED'"
+                      [class.contact-status-badge--no-answer]="contact.status === 'NO_ANSWER'"
+                      [class.contact-status-badge--not-reached]="contact.status === 'NOT_REACHED'"
+                      [class.contact-status-badge--callback]="contact.status === 'CALLBACK'"
+                      [class.contact-status-badge--failed]="contact.status === 'FAILED' || contact.status === 'CALLED'"
                       [class.contact-status-badge--skipped]="contact.status === 'SKIPPED'"
+                      [class.contact-status-badge--error]="contact.status === 'ERROR'"
                       [attr.aria-label]="'Status: ' + statusLabel(contact.status)"
                     >
                       {{ statusLabel(contact.status) }}
@@ -114,6 +123,20 @@
                     }
                   </td>
                   <td class="contact-date">{{ formatDate(contact.createdAt) }}</td>
+                  <td class="contact-attempts">
+                    @if (contact.status !== 'PENDING') {
+                      {{ contact.attemptCount }}/{{ maxAttempts }}
+                    } @else {
+                      <span class="contact-empty">—</span>
+                    }
+                  </td>
+                  <td class="contact-next-attempt">
+                    @if (contact.status === 'NO_ANSWER' || contact.status === 'CALLBACK') {
+                      <span class="contact-next-attempt__time">{{ formatRelativeTime(contact.nextAttemptAt) }}</span>
+                    } @else {
+                      <span class="contact-empty">—</span>
+                    }
+                  </td>
                   @if (isAgent() && isManualCampaign()) {
                     <td class="col-action">
                       @if (contact.status === 'PENDING') {

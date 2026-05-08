@@ -262,7 +262,11 @@
       "Bash(sed -n '77,115p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/service/CampaignService.java)",
       "Bash(sed -n '157,195p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/service/CampaignService.java)",
       "Bash(sed -n '1068,1074p' /home/pawelm/contact-center/frontend/public/i18n/de.json)",
-      "Bash(sed -n '1068,1074p' /home/pawelm/contact-center/frontend/public/i18n/uk.json)"
+      "Bash(sed -n '1068,1074p' /home/pawelm/contact-center/frontend/public/i18n/uk.json)",
+      "Bash(awk '/### FE-046/,/### FE-049/' /home/pawelm/contact-center/TASKS-FRONTEND.md)",
+      "Bash(awk '/### FE-062/,/### FE-066/' /home/pawelm/contact-center/TASKS-FRONTEND.md)",
+      "Bash(awk '/### BE-061/,/\\\\*\\\\*Opis:/' /home/pawelm/contact-center/TASKS-BACKEND.md)",
+      "Bash(awk '/### FE-065/,/### FE-069/' /home/pawelm/contact-center/TASKS-FRONTEND.md)"
     ]
   }
 }

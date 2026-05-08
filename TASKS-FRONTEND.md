@@ -1941,7 +1941,8 @@ Modal do dodania nowej zaplanowanej przerwy lub edycji istniejącej (tryb przeka
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** FE-009 (Agent Desktop, WebSocket, SoftphoneService, ContactTabStore)
-**Status:** ✅ Zrobione
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Blokuje:** FE-047, FE-048
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 
@@ -2002,7 +2003,8 @@ interface IncomingCallAlert {
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-046
-**Status:** ✅ Zrobione
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Blokuje:** FE-048
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 
@@ -2048,7 +2050,8 @@ Standalone komponent wyświetlający pulsujący banner u góry ekranu gdy agent 
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** FE-046, FE-047
-**Status:** ✅ Zrobione
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-04-28
 **Blokuje:** brak
 **Odniesienie PRD:** EPIC-17 – Incoming Call Alert
 
@@ -2412,7 +2415,8 @@ Pliki:
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-03
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2432,7 +2436,8 @@ Pliki:
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-03
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2451,7 +2456,8 @@ Hardcoded: "Brak aktywnego kontaktu", "Nieznany klient", "Ostatnie kontakty".
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-03
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2473,7 +2479,8 @@ Pliki:
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** FE-053
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-03
 **Blokuje:** -
 **Epic:** EPIC-19 Wielojęzyczność
 
@@ -2512,6 +2519,7 @@ Pliki:
 | Powiadomienia o połączeniu (EPIC-17) | 3 | 3 | 0 |
 | Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
 | i18n fixes (EPIC-19) | 12 | 6 | 6 |
+| Per-tenant konfiguracja Twilio (EPIC-20) | 3 | 0 | 3 |
 
 ---
 
@@ -2598,7 +2606,7 @@ Napisać testy Vitest dla `AgentGroupService`.
 - [ ] `addAgentToGroup()` — HTTP POST, aktualizacja lokalnej listy
 - [ ] `removeAgentFromGroup()` — HTTP DELETE, rollback przy błędzie 404
 - [ ] Wszystkie testy przechodzą (`npm test`)
-| **RAZEM** | **51** | **42** | **9** |
+| **RAZEM** | **54** | **42** | **12** |
 
 ---
 
@@ -2677,7 +2685,8 @@ Dodać pozycję "Integracja Twilio" (lub "Ustawienia telefonii") do menu supervi
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** BE-060 (API kampanii z polem `caller_id`), FE-015 (formularz kampanii)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-07
 **Blokuje:** brak
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 
@@ -2720,7 +2729,8 @@ Rozszerzenie formularza tworzenia i edycji kampanii (`CampaignFormComponent`) o 
 **Priorytet:** Should Have
 **Zlozonosc:** S
 **Zależy od:** BE-061 (endpoint listowania numerów), FE-066 (formularz konfiguracji Twilio), FE-067 (formularz kampanii)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-07
 **Blokuje:** brak
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 

@@ -1,37 +1,21 @@
 ---
 name: Aktualny stan realizacji projektu Contact Center
-description: Stan ukończenia zadań DB/BE/FE – aktualizacja 2026-05-05; stosuj przy szacowaniu pozostałych prac i obliczaniu liczników PROGRESS.md
+description: Stan ukończenia zadań DB/BE/FE – aktualizacja 2026-05-07; stosuj przy szacowaniu pozostałych prac i obliczaniu liczników PROGRESS.md
 type: project
 ---
 
-Stan na 2026-05-05: DB: 29/31 | BE: 54/60 | FE: 65/67 (w tym FE-046/047/048 ✅, FE-049-065 z EPIC-19 i18n)
+Stan na 2026-05-07: DB: 30/30 ✅ | BE: 62/62 ✅ | FE: 54/54 ✅ — WSZYSTKIE ZADANIA UKOŃCZONE
 
-**Why:** Zaktualizowano 2026-05-05 po dodaniu zadań EPIC-20 (Per-tenant konfiguracja Twilio): DB-030, DB-031, BE-055, BE-056, BE-057, BE-058, BE-059, BE-060, FE-066, FE-067. FE-046/047/048 (EPIC-17) okazały się ✅ ukończone na podstawie TASKS-FRONTEND.md. FE-049–FE-065 to EPIC-19 i18n — większość ukończona, FE-062/063/064/065 to ⬜ Do zrobienia.
+**Why:** Zaktualizowano 2026-05-07 po zrealizowaniu EPIC-20 (Per-tenant konfiguracja Twilio):
+- BE-061: GET /api/supervisor/twilio-config/phone-numbers (lista aktywnych numerów Twilio per-tenant)
+- FE-067: Pole callerId w CampaignFormComponent (OUTBOUND_VOICE)
+- FE-068: TwilioPhoneNumberSelectComponent (ControlValueAccessor, integracja w TwilioConfigComponent i CampaignFormComponent)
+- Ponadto zaktualizowano wcześniej nieoznaczone jako ukończone: FE-046/047/048 (EPIC-17, 2026-04-28), FE-049–FE-065 (EPIC-19 i18n, 2026-04-28–2026-05-03), DB-029 (V050, 2026-04-28), DB-030/031 (V051/V052, 2026-05-05), BE-054–BE-060 (EPIC-20, 2026-05-06)
 
-**How to apply:** Przed tworzeniem nowych zadań sprawdź aktualne numery w plikach TASKS-*.md. Następna migracja Flyway: V053 (V051 i V052 zarezerwowane przez DB-030/DB-031 EPIC-20). Ostatni numer zadań: DB-031, BE-060, FE-067.
+**How to apply:** Projekt Contact Center SaaS jest w pełni zaimplementowany. Następna migracja Flyway: V053. Ostatni numer zadań: DB-031, BE-061, FE-068. Przy dodawaniu nowych tasków numeruj od DB-032, BE-062, FE-069.
 
-## Nowe zadania EPIC-20 (Per-tenant konfiguracja Twilio) – dodane 2026-05-05
+## Ostatnie ukończone EPIC (chronologicznie)
 
-### Database (2 nowe, ⬜ Nie rozpoczęte)
-- DB-030: Tabela `tenant_twilio_config` (V051__create_tenant_twilio_config.sql) — kredencjały Twilio per tenant z RLS i szyfrowaniem
-- DB-031: Kolumna `caller_id` w `campaign` (V052__add_caller_id_to_campaign.sql) — numer prezentacji kampanii
-
-### Backend (6 nowych, ⬜ Nie rozpoczęte)
-- BE-055: Encja `TenantTwilioConfig` + `TenantTwilioConfigRepository` + `EncryptedStringConverter` (AES-256-GCM)
-- BE-056: `TenantTwilioConfigService` — upsert, masking sekretów, testConnection, TwilioConfigChangedEvent
-- BE-057: `TenantTwilioConfigController` — REST API CRUD dla supervisora (GET/PUT/DELETE/test)
-- BE-058: Refaktoryzacja `TwilioTelephonyAdapter` na per-tenant z Caffeine cache i fallbackiem
-- BE-059: Per-tenant Access Token dla Twilio Voice JS SDK z fallbackiem do globalnych properties
-- BE-060: Caller ID dla kampanii — pole callerId w Campaign + propagacja do ProgressiveDialerService
-
-### Frontend (2 nowe, ⬜ Nie rozpoczęte)
-- FE-066: `TwilioConfigComponent` — formularz konfiguracji Twilio w panelu supervisora (ReactiveFormsModule, masked inputs, test connection)
-- FE-067: Pole "Numer prezentacji" w formularzu kampanii — opcjonalne, E.164 walidacja, tylko dla OUTBOUND_VOICE
-
-## Nieukończone zadania FE z wcześniejszych EPIC
-
-### Frontend (4 nieukończone z EPIC-19 i18n)
-- FE-062: i18n fix email-contact i social-contact
-- FE-063: i18n fix customer-panel
-- FE-064: i18n fix agent-groups, admin-user-list
-- FE-065: i18n fix manual-callback-modal i agent-callbacks-page
+- EPIC-17 (Incoming Call Alert): FE-046, FE-047, FE-048 — 2026-04-28
+- EPIC-19 (Wielojęzyczność): DB-029, BE-054, FE-049–FE-065 — 2026-04-28 do 2026-05-03
+- EPIC-20 (Per-tenant Twilio config): DB-030, DB-031, BE-055–BE-061, FE-066–FE-068 — 2026-05-05 do 2026-05-07

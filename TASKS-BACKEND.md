@@ -2155,6 +2155,8 @@ record UserPreferencesDto(String preferredLanguage) {}
 | Zakładka Klienci w Agent Desktop (EPIC-15) | 1 | 1 | 0 |
 | Kalendarz Agenta (EPIC-16) | 5 | 0 | 5 |
 | Testy jednostkowe (EPIC-18) | 4 | 0 | 4 |
+| Wielojęzyczność (EPIC-19) | 1 | 1 | 0 |
+| Per-tenant konfiguracja Twilio (EPIC-20) | 7 | 0 | 7 |
 
 ---
 
@@ -2539,7 +2541,8 @@ Implementacja obsługi pola `caller_id` w kampaniach wychodzących. Zmiany w trz
 **Priorytet:** Should Have
 **Szacowany rozmiar:** S
 **Zależy od:** BE-058 (per-tenant klient Twilio z resolveRestClient), BE-056 (getDecryptedConfig)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-07
 **Blokuje:** FE-068
 **Epic:** EPIC-20 Per-tenant konfiguracja Twilio
 

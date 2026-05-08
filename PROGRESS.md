@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-05-06 (FE-066 ✅ TwilioConfigComponent; łączny stan: DB 28/28, BE 55/55, FE 45/47)
+**Ostatnia aktualizacja:** 2026-05-07 (BE-061 ✅ + FE-067 ✅ + FE-068 ✅ EPIC-20 zakończony; łączny stan: DB 30/30, BE 62/62, FE 54/54)
 
 ---
 
@@ -47,6 +47,9 @@
 | DB-026 | Indeksy wydajnościowe dla rozwiązania łączonego: kolejka + agenci/grupy | ✅ | V044__queue_agent_assignment_indexes.sql: idx_queue_agent_queue, idx_queue_agent_group_lookup (INCLUDE group_id), idx_agent_group_member_lookup (INCLUDE group_id). Wszystkie idempotentne (IF NOT EXISTS) |
 | DB-027 | Rozszerzenie `scheduled_callback.source_type` o wartość `AGENT_MANUAL` | ✅ | V047__scheduled_callback_agent_manual_source.sql: rozszerzony CHECK constraint (CAMPAIGN_CALLBACK / INBOUND_CALLBACK / AGENT_MANUAL), kolumna notes TEXT, indeks idx_scheduled_callback_agent_manual, indeks idx_scheduled_callback_agent_calendar. Odblokowano BE-048. Zrealizowane 2026-04-24. |
 | DB-028 | Tabela `agent_break`: zaplanowane przerwy agentów | ✅ | V047__agent_break.sql: tabela agent_break z CHECKami break_type / status / end_time>start_time, FK agent_id→app_user, FK tenant_id→tenant, RLS policy, indeks idx_agent_break_tenant_agent_time. Odblokowano BE-049, BE-050. Zrealizowane 2026-04-26. |
+| DB-029 | Kolumna `preferred_language` w tabeli `app_user` | ✅ | V050__add_preferred_language_to_app_user.sql: kolumna VARCHAR(10) NOT NULL DEFAULT 'pl'. Zrealizowane 2026-04-28. |
+| DB-030 | Tabela `tenant_twilio_config`: per-tenant kredencjały Twilio z szyfrowaniem | ✅ | V051__create_tenant_twilio_config.sql: tabela z polami zaszyfrowanymi AES-256-GCM, UNIQUE(tenant_id), RLS policy. Zrealizowane 2026-05-05. |
+| DB-031 | Kolumna `caller_id` w tabeli `campaign`: numer prezentacji dla kampanii wychodzących | ✅ | V052__add_caller_id_to_campaign.sql: kolumna VARCHAR(30) NULL, partial index. Zrealizowane 2026-05-05. |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -115,6 +118,14 @@
 | BE-051 | Agregujące API kalendarza agenta (`AgentCalendarController`) | ✅ | GET /api/agent/calendar?from&to: zwraca {callbacks, campaigns, breaks} z trzech źródeł, domyślnie bieżący tydzień, max 90 dni, izolacja tenant+agent_id z JWT. Zrealizowane 2026-04-27. |
 | BE-052 | Scheduler automatycznej aktywacji i zamykania przerw (`AgentBreakActivator`) | ✅ | @Scheduled: PLANNED→ACTIVE gdy start_time<=NOW(), ACTIVE→COMPLETED gdy end_time<=NOW(), batch UPDATE, błąd per-rekordu nie zatrzymuje przetwarzania. Zrealizowane 2026-04-26. |
 | BE-053 | Scheduler automatycznej aktywacji kampanii wg harmonogramu (`CampaignWindowActivator`) | ✅ | @Scheduled: SCHEDULED→RUNNING gdy czas w oknie harmonogramu, RUNNING→SCHEDULED gdy poza oknem, strefa czasowa z tenant.config.timezone. Zrealizowane 2026-04-27. |
+| BE-054 | `UserPreferencesController`: GET/PUT preferencji zalogowanego użytkownika | ✅ | GET/PUT /api/users/me/preferences, walidacja języka (pl/en/de). Zrealizowane 2026-04-28. |
+| BE-055 | Encja `TenantTwilioConfig` + `TenantTwilioConfigRepository` + konwerter szyfrowania | ✅ | EncryptedStringConverter (AES-256-GCM), TenantTwilioConfig JPA, TenantTwilioConfigRepository. Zrealizowane 2026-05-06. |
+| BE-056 | `TenantTwilioConfigService`: logika biznesowa zarządzania konfiguracją | ✅ | saveConfig, getConfig (masking), getDecryptedConfig, deleteConfig, testConnection. Zrealizowane 2026-05-06. |
+| BE-057 | `TenantTwilioConfigController`: REST API konfiguracji Twilio dla supervisora | ✅ | GET/PUT/DELETE /api/supervisor/twilio-config, POST /api/supervisor/twilio-config/test. Zrealizowane 2026-05-06. |
+| BE-058 | Refaktoryzacja `TwilioTelephonyAdapter` na per-tenant z cache i fallbackiem | ✅ | Caffeine cache per-tenant, resolveRestClient(), @EventListener TwilioConfigChangedEvent. Zrealizowane 2026-05-06. |
+| BE-059 | Per-tenant Access Token dla Twilio Voice JS SDK | ✅ | TwilioVoiceController generuje token per-tenant z fallbackiem do globalnych TwilioProperties. Zrealizowane 2026-05-06. |
+| BE-060 | Caller ID dla kampanii: propagacja do `ProgressiveDialerService` | ✅ | Pole callerId w Campaign entity i DTO, ProgressiveDialerService resolwuje from numer (per-tenant → fallback). Zrealizowane 2026-05-06. |
+| BE-061 | Endpoint listowania aktywnych numerów Twilio per-tenant | ✅ | GET /api/supervisor/twilio-config/phone-numbers → lista {sid, phoneNumber, friendlyName}. Zrealizowane 2026-05-07. |
 
 ---
 
@@ -167,7 +178,29 @@
 | FE-043 | `AgentCalendarComponent`: widok kalendarza agenta | ✅ | AgentCalendarComponent: siatka tygodniowa/dzienna, 3 typy zdarzeń (callbacki/kampanie/przerwy), FAB Dodaj przerwę, nawigacja między tygodniami/dniami, standalone OnPush signal(). Zrealizowane 2026-04-27. |
 | FE-044 | `RescheduleCallbackModalComponent`: zmiana daty callbacku z kalendarza | ✅ | RescheduleCallbackModalComponent: date-time picker z preładowaną datą callbacku, walidacja @Future, PUT /api/callbacks/{id}/reschedule, odświeżenie kalendarza po zapisie. Zrealizowane 2026-04-26. |
 | FE-045 | `AddBreakModalComponent`: dodanie i edycja zaplanowanej przerwy | ✅ | AddBreakModalComponent: select typ przerwy, datetime pickers, notatki, tryb tworzenia (POST /api/agent/breaks) i edycji (PUT), przycisk Anuluj przerwę (DELETE). Zrealizowane 2026-04-27. |
+| FE-046 | `IncomingCallAlertService`: globalny serwis alertów o przychodzącym połączeniu | ✅ | Singleton providedIn:root, nasłuchuje CALL_INCOMING, Web Notifications API, dźwięk dzwonka. Zrealizowane 2026-04-28. |
+| FE-047 | `IncomingCallBannerComponent`: pływający banner powiadomienia | ✅ | Banner position:fixed z animacją, CTA "Przejdź do pulpitu i odbierz". Zrealizowane 2026-04-28. |
+| FE-048 | Integracja bannera w AgentShellComponent i refaktoryzacja AgentDesktopComponent | ✅ | Baner w AgentShellComponent, usunięto subskrypcję CALL_INCOMING z AgentDesktopComponent. Zrealizowane 2026-04-28. |
+| FE-049 | Konfiguracja Transloco i pliki tłumaczeń (PL / EN / DE) | ✅ | Transloco setup, pliki pl.json / en.json / de.json. Zrealizowane 2026-04-28. |
+| FE-050 | `LanguageService`: zarządzanie językiem i persystencja | ✅ | LanguageService: persystencja w localStorage + sync z BE-054. Zrealizowane 2026-04-28. |
+| FE-051 | `LanguageSwitcherComponent`: wybór języka w nagłówku | ✅ | Dropdown flag + nazwy języka w TopNavbar. Zrealizowane 2026-04-28. |
+| FE-052 | Internacjonalizacja: moduł Auth i AppShell | ✅ | Auth + AppShell + Sidenav przetłumaczone. Zrealizowane 2026-04-28. |
+| FE-053 | Internacjonalizacja: Agent Desktop, Supervisor, Admin | ✅ | Pełna i18n wszystkich modułów. Zrealizowane 2026-04-30. |
+| FE-054 | i18n fix: contacts-report | ✅ | Zrealizowane 2026-05-01. |
+| FE-055 | i18n fix: customer-detail | ✅ | Zrealizowane 2026-05-01. |
+| FE-056 | i18n fix: social-integrations | ✅ | Zrealizowane 2026-05-01. |
+| FE-057 | i18n fix: ivr-editor | ✅ | Zrealizowane 2026-05-01. |
+| FE-058 | i18n fix: campaign-form (dni tygodnia) | ✅ | Zrealizowane 2026-05-01. |
+| FE-059 | i18n fix: error-handler.interceptor | ✅ | Zrealizowane 2026-05-01. |
+| FE-060 | i18n fix: tenant modals | ✅ | Zrealizowane 2026-05-01. |
+| FE-061 | i18n fix: reschedule-callback-modal | ✅ | Zrealizowane 2026-05-01. |
+| FE-062 | i18n fix: email-contact i social-contact | ✅ | Zrealizowane 2026-05-03. |
+| FE-063 | i18n fix: customer-panel | ✅ | Zrealizowane 2026-05-03. |
+| FE-064 | i18n fix: agent-groups, admin-user-list | ✅ | Zrealizowane 2026-05-03. |
+| FE-065 | i18n fix: manual-callback-modal i agent-callbacks-page | ✅ | Zrealizowane 2026-05-03. |
 | FE-066 | `TwilioConfigComponent`: formularz konfiguracji Twilio w panelu supervisora | ✅ | TwilioConfigComponent (standalone, OnPush, ReactiveFormsModule), TwilioConfigService (getConfig/saveConfig/deleteConfig/testConnection → /api/supervisor/twilio-config), trasa /supervisor/settings/twilio, pozycja "Integracja Twilio" w sidenavie, klucze i18n pl/en/de. Zrealizowane 2026-05-06. |
+| FE-067 | Pole "Numer prezentacji" w formularzu kampanii | ✅ | Pole callerId w CampaignFormComponent, widoczne tylko dla OUTBOUND_VOICE. Zrealizowane 2026-05-07. |
+| FE-068 | Dropdown aktywnych numerów Twilio: reużywalny komponent i integracja | ✅ | TwilioPhoneNumberSelectComponent (ControlValueAccessor), integracja w TwilioConfigComponent i CampaignFormComponent. Zrealizowane 2026-05-07. |
 
 ---
 
@@ -175,10 +208,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 28/28 | 0 | 0 | 28 |
-| Backend (BE) | 55/55 | 0 | 0 | 55 |
-| Frontend (FE) | 45/47 | 0 | 2 | 47 |
-| **RAZEM** | **128/130** | **0** | **2** | **130** |
+| Database (DB) | 30/30 | 0 | 0 | 30 |
+| Backend (BE) | 62/62 | 0 | 0 | 62 |
+| Frontend (FE) | 54/54 | 0 | 0 | 54 |
+| **RAZEM** | **146/146** | **0** | **0** | **146** |
 
 ---
 
@@ -274,7 +307,7 @@ Panel RODO w CustomerDetailComponent:
 
 ## Mapa procesów i kolejność realizacji zadań
 
-**Stan na:** DB: 26/26 ✅ | BE: 49/49 ✅ (wszystkie ukończone) | FE: 38/38 ✅ (wszystkie ukończone)
+**Stan na:** DB: 30/30 ✅ | BE: 62/62 ✅ (wszystkie ukończone) | FE: 54/54 ✅ (wszystkie ukończone)
 
 ---
 
@@ -291,6 +324,11 @@ Panel RODO w CustomerDetailComponent:
 | Tabele CAMPAIGN, CAMPAIGN_CONTACT | DB-011 | ✅ |
 | Indeksy, RLS, RODO, pg_cron, DW | DB-013..DB-019 | ✅ |
 | Kolumna email_address w QUEUE (V029) | DB-020 | ✅ |
+| Numery telefonów i routing IVR (V039) | DB-021 | ✅ |
+| Indeksy kontaktów, callback source, grupy agentów | DB-022..DB-028 | ✅ |
+| Kolumna preferred_language (V050) | DB-029 | ✅ |
+| Tabela tenant_twilio_config (V051) | DB-030 | ✅ |
+| Kolumna caller_id w campaign (V052) | DB-031 | ✅ |
 
 Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm), funkcje RODO i schemat ClickHouse DW są zaimplementowane. BE i FE mogą budować na stabilnej bazie.
 
@@ -366,11 +404,15 @@ Cała warstwa DB jest gotowa. Wszystkie schematy, RLS, indeksy trigram (pg_trgm)
 | FE-046 | IncomingCallAlertService: globalny serwis alertów o przychodzącym połączeniu, Web Notification API, auto-dismiss, signal currentAlert. | ✅ |
 | FE-047 | IncomingCallBannerComponent: pływający banner z danymi dzwoniącego, przycisk odbierz/odrzuć, animacja wejścia. | ✅ |
 | FE-048 | Integracja bannera w AgentShellComponent, refaktoryzacja AgentDesktopComponent (usunięcie zduplikowanej logiki CALL_INCOMING). | ✅ |
-| **FE-049** | **Konfiguracja Transloco + pliki tłumaczeń PL/EN/DE** | **🔲 Do zrealizowania** |
-| **FE-050** | **LanguageService: zarządzanie językiem, persystencja localStorage + backend** | **🔲 Do zrealizowania** |
-| **FE-051** | **LanguageSwitcherComponent: dropdown wyboru języka w AppShell** | **🔲 Do zrealizowania** |
-| **FE-052** | **Internacjonalizacja: moduł Auth + AppShell** | **🔲 Do zrealizowania** |
-| **FE-053** | **Internacjonalizacja: Agent Desktop, Supervisor, Admin** | **🔲 Do zrealizowania** |
+| FE-049 | Konfiguracja Transloco + pliki tłumaczeń PL/EN/DE | ✅ |
+| FE-050 | LanguageService: zarządzanie językiem, persystencja localStorage + backend | ✅ |
+| FE-051 | LanguageSwitcherComponent: dropdown wyboru języka w AppShell | ✅ |
+| FE-052 | Internacjonalizacja: moduł Auth + AppShell | ✅ |
+| FE-053 | Internacjonalizacja: Agent Desktop, Supervisor, Admin | ✅ |
+| FE-054..FE-065 | i18n fixups (contacts-report, customer-detail, social-integrations, ivr-editor, campaign-form, error-handler, tenant modals, reschedule-callback, email-contact, customer-panel, agent-groups, manual-callback) | ✅ |
+| FE-066 | TwilioConfigComponent: formularz konfiguracji Twilio w panelu supervisora | ✅ |
+| FE-067 | Pole "Numer prezentacji" w formularzu kampanii (callerId OUTBOUND_VOICE) | ✅ |
+| FE-068 | TwilioPhoneNumberSelectComponent: dropdown aktywnych numerów Twilio | ✅ |
 
 ---
 

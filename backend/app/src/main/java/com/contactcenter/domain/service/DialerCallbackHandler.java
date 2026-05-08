@@ -49,9 +49,6 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "dialer.enabled", havingValue = "true", matchIfMissing = true)
 public class DialerCallbackHandler {
 
-    // Domyślne opóźnienie między próbami (4 godziny)
-    private static final int NO_ANSWER_RETRY_HOURS = 4;
-
     // Wartości domyślne gdy kampania nie jest dostępna
     private static final int DEFAULT_MAX_ATTEMPTS = 3;
     private static final int DEFAULT_RETRY_DELAY_MINUTES = 60;
@@ -167,22 +164,22 @@ public class DialerCallbackHandler {
      *
      * <p>Aktualizuje rekord campaign_contact:
      * <ul>
-     *   <li>status → NO_ANSWER</li>
-     *   <li>next_attempt_at → NOW() + 4h (jeśli attempt_count < max_attempts)</li>
-     *   <li>next_attempt_at → null, status → FAILED (jeśli wyczerpano próby)</li>
+     *   <li>status → {@code NO_ANSWER}, next_attempt_at → NOW() + retryDelayMinutes
+     *       (jeśli attempt_count &lt; max_attempts)</li>
+     *   <li>status → {@code NOT_REACHED}, next_attempt_at → null
+     *       (jeśli wyczerpano próby — rekord finalny, nie wraca do kolejki)</li>
      * </ul>
      *
      * <p>Czyści klucze Redis: {@code dialer:call:{callSid}}, {@code dialer:timeout:{callSid}},
      * {@code dialer:agent:{agentId}}.
      *
-     * @param callSid    identyfikator sesji połączenia
-     * @param tenantId   UUID tenanta
-     * @param campaignId UUID kampanii
-     * @param recordId   UUID rekordu campaign_contact
-     * @param agentId    UUID agenta (do zwolnienia blokady)
-     * @param maxAttempts         maksymalna liczba prób dla kampanii
-     * @param retryDelayMinutes   opóźnienie przed kolejną próbą w minutach
-     *                            (docelowo używane przez BE-063 – tu parametr dla przyszłej logiki)
+     * @param callSid           identyfikator sesji połączenia
+     * @param tenantId          UUID tenanta
+     * @param campaignId        UUID kampanii
+     * @param recordId          UUID rekordu campaign_contact
+     * @param agentId           UUID agenta (do zwolnienia blokady)
+     * @param maxAttempts       maksymalna liczba prób dla kampanii
+     * @param retryDelayMinutes opóźnienie przed kolejną próbą w minutach (z konfiguracji kampanii)
      */
     @Transactional
     public void handleNoAnswer(String callSid, UUID tenantId, UUID campaignId,
@@ -193,18 +190,16 @@ public class DialerCallbackHandler {
         int attemptCount = getCurrentAttemptCount(recordId, campaignId, tenantId);
 
         if (attemptCount >= maxAttempts) {
-            // Wyczerpano próby – oznacz jako FAILED
-            updateCampaignContact(recordId, campaignId, tenantId,
-                    "FAILED", null, null);
-            log.info("[DialerHandler] Kontakt {} wyczerpał próby ({}/{}), status=FAILED",
+            // Wyczerpano próby – rekord finalny (niedodzwoniony)
+            updateCampaignContact(recordId, campaignId, tenantId, "NOT_REACHED", null, null);
+            log.info("[DialerHandler] Kontakt {} wyczerpał próby ({}/{}), status=NOT_REACHED",
                     recordId, attemptCount, maxAttempts);
         } else {
-            // Planuj kolejną próbę za 4 godziny
-            Instant nextAttempt = Instant.now().plus(NO_ANSWER_RETRY_HOURS, ChronoUnit.HOURS);
-            updateCampaignContact(recordId, campaignId, tenantId,
-                    "NO_ANSWER", nextAttempt, null);
-            log.info("[DialerHandler] Kontakt {} – NO_ANSWER, próba {}/{}, next_attempt_at={}",
-                    recordId, attemptCount, maxAttempts, nextAttempt);
+            // Zaplanuj kolejną próbę wg konfiguracji kampanii
+            Instant nextAttempt = Instant.now().plus(retryDelayMinutes, ChronoUnit.MINUTES);
+            updateCampaignContact(recordId, campaignId, tenantId, "NO_ANSWER", nextAttempt, null);
+            log.info("[DialerHandler] Kontakt {} – NO_ANSWER, próba {}/{}, next_attempt_at={} (+{}min)",
+                    recordId, attemptCount, maxAttempts, nextAttempt, retryDelayMinutes);
         }
 
         // Zwolnij zasoby Redis

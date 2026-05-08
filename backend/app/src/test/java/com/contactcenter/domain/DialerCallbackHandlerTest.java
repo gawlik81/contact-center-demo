@@ -195,6 +195,51 @@ class DialerCallbackHandlerTest {
     }
 
     // =========================================================================
+    // BE-063: handleNoAnswer – retry vs NOT_REACHED
+    // =========================================================================
+
+    @Nested
+    @DisplayName("handleNoAnswer – logika retry i NOT_REACHED (BE-063)")
+    class HandleNoAnswerLogic {
+
+        @Test
+        @DisplayName("attempt_count < max_attempts → status NO_ANSWER z next_attempt_at")
+        void belowMaxAttemptsShouldScheduleRetry() {
+            // attempt_count = 1, maxAttempts = 3 → retry
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(1);
+
+            handler.handleNoAnswer(CALL_SID, TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID, 3, 60);
+
+            assertStatusParamUsed("NO_ANSWER");
+            assertStatusParamNeverUsed("NOT_REACHED");
+            assertStatusParamNeverUsed("FAILED");
+        }
+
+        @Test
+        @DisplayName("attempt_count >= max_attempts → status NOT_REACHED (finalny)")
+        void atMaxAttemptsShouldSetNotReached() {
+            // attempt_count = 3, maxAttempts = 3 → wyczerpano
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(3);
+
+            handler.handleNoAnswer(CALL_SID, TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID, 3, 60);
+
+            assertStatusParamUsed("NOT_REACHED");
+            assertStatusParamNeverUsed("NO_ANSWER");
+            assertStatusParamNeverUsed("FAILED");
+        }
+
+        @Test
+        @DisplayName("status FAILED nie jest nigdy używany")
+        void failedStatusShouldNeverBeUsed() {
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(3);
+
+            handler.handleNoAnswer(CALL_SID, TENANT_ID, CAMPAIGN_ID, RECORD_ID, AGENT_ID, 3, 60);
+
+            assertStatusParamNeverUsed("FAILED");
+        }
+    }
+
+    // =========================================================================
     // Scenariusz braku klucza Redis (nie jest połączenie dialera)
     // =========================================================================
 

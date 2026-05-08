@@ -2692,7 +2692,8 @@ if (isNoAnswer) {
 **Typ:** Bug fix
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Status:** ⏳ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
 **Zależy od:** DB-032, BE-062
 **Blokuje:** BE-065
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących

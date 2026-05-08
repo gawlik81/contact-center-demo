@@ -2813,7 +2813,8 @@ scheduledCallback.setCampaignContactRecordId(recordId);  // campaign_contact.rec
 **Typ:** Bug fix
 **Priorytet:** Must Have
 **Szacowany rozmiar:** S
-**Status:** ⏳ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
 **Zależy od:** DB-032, BE-063
 **Blokuje:** –
 **Epic:** EPIC-21 Retry i callback w kampaniach wychodzących

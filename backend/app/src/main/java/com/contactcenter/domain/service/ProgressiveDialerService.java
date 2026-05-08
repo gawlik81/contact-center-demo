@@ -239,12 +239,6 @@ public class ProgressiveDialerService {
                 continue;
             }
 
-            // Sprawdź minimalny odstęp między próbami (4h) – ochrona przed natarczywym dzwonieniem
-            if (isCalledTooRecently(contact)) {
-                log.debug("[Dialer] Kontakt {} dzwoniony zbyt niedawno – pomijam", recordId);
-                continue;
-            }
-
             // Inicjuj połączenie przez TelephonyAdapter
             try {
                 log.info("[Dialer] Inicjowanie połączenia: kampania={}, kontakt={}, numer={}, agent={}, tenant={}",
@@ -381,7 +375,7 @@ public class ProgressiveDialerService {
                 FROM campaign_contact
                 WHERE campaign_id = ?::uuid
                   AND tenant_id = ?::uuid
-                  AND status = 'PENDING'
+                  AND status IN ('PENDING', 'NO_ANSWER')
                   AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
                 ORDER BY created_at ASC
                 LIMIT 1
@@ -546,25 +540,6 @@ public class ProgressiveDialerService {
                     agentId, agentSkills, requiredSkills, campaign.getCampaignId());
         }
         return hasAll;
-    }
-
-    /**
-     * Sprawdza czy kontakt był dzwoniony zbyt niedawno (minimum 4h między próbami).
-     *
-     * @param contact mapa kolumn rekordu campaign_contact
-     * @return true gdy od ostatniej próby minęło mniej niż 4 godziny
-     */
-    private boolean isCalledTooRecently(Map<String, Object> contact) {
-        Object lastAttemptAtObj = contact.get("last_attempt_at");
-        if (lastAttemptAtObj == null) {
-            return false;
-        }
-
-        java.sql.Timestamp lastAttemptTs = (java.sql.Timestamp) lastAttemptAtObj;
-        java.time.Instant lastAttempt = lastAttemptTs.toInstant();
-        java.time.Instant fourHoursAgo = java.time.Instant.now().minus(Duration.ofHours(4));
-
-        return lastAttempt.isAfter(fourHoursAgo);
     }
 
     /**

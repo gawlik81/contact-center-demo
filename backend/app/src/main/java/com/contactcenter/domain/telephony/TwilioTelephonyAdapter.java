@@ -620,8 +620,9 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     saveSession(updated);
 
     if (updated.getContactId() != null) {
+      String contactDbStatus = resolveContactEndStatus(updated);
       contactRepository.updateContactStatusOnTelephonyEvent(
-          updated.getContactId(), updated.getTenantId(), "COMPLETED", endedAt);
+          updated.getContactId(), updated.getTenantId(), contactDbStatus, endedAt);
     }
 
     eventPublisher.publishHangup(callId, updated.getContactId(),
@@ -912,6 +913,16 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       if (mappedStatus == CallSession.CallStatus.ACTIVE && existing.getAnsweredAt() == null) {
         updated = updated.withAnsweredAt(Instant.now());
       }
+      // Dla połączeń OUTBOUND: oznacz moment faktycznego odebrania przez klienta.
+      // answeredAt jest ustawiane przez answerCall() (agent kliknął "Odbierz"),
+      // ale clientAnsweredAt ustawiamy dopiero gdy Twilio potwierdza in-progress –
+      // tylko wtedy rozmowa naprawdę się odbyła i status końcowy powinien być COMPLETED.
+      if (mappedStatus == CallSession.CallStatus.ACTIVE
+          && "OUTBOUND".equals(existing.getDirection())
+          && existing.getClientAnsweredAt() == null) {
+        updated = updated.withClientAnsweredAt(Instant.now());
+        log.debug("[TwilioAdapter] OUTBOUND: klient odebrał (in-progress), clientAnsweredAt ustawione: callSid={}", callSid);
+      }
       Instant webhookEndedAt = null;
       if (mappedStatus == CallSession.CallStatus.ENDED && existing.getEndedAt() == null) {
         webhookEndedAt = Instant.now();
@@ -930,6 +941,12 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         log.info("[TwilioAdapter] OUTBOUND in-progress: klient odebrał, inicjuję wejście agenta do konferencji: " +
                  "callSid={}, agentId={}, contactId={}",
             callSid, updated.getAgentId(), updated.getContactId());
+        // Klient odebrał – anuluj ring timeout aby checkRingTimeouts() nie rozłączył aktywnej rozmowy
+        stringRedisTemplate.delete("dialer:timeout:" + callSid);
+        // Ustaw flagę "answered" – checkRingTimeouts() rozróżnia wygasły timeout od celowego usunięcia klucza
+        stringRedisTemplate.opsForValue().set(
+            "dialer:answered:" + callSid, "1", java.time.Duration.ofMinutes(60));
+        log.debug("[TwilioAdapter] Połączenie oznaczone jako odebrane przez klienta: callSid={}", callSid);
         dialAgentIntoConference(updated);
       }
 
@@ -970,8 +987,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
       if (webhookEndedAt != null && updated.getContactId() != null) {
         // Jeśli klient rozłączył się zanim agent odebrał (answeredAt == null),
-        // status kontaktu to ABANDONED (porzucenie kolejki), a nie COMPLETED.
-        String contactDbStatus = updated.getAnsweredAt() == null ? "ABANDONED" : "COMPLETED";
+        // status kontaktu to ABANDONED (inbound) lub NOT_REACHED (outbound), a nie COMPLETED.
+        String contactDbStatus = resolveContactEndStatus(updated);
         log.info("[TwilioAdapter] Aktualizacja statusu kontaktu na {}: contactId={}, answeredAt={}",
             contactDbStatus, updated.getContactId(), updated.getAnsweredAt());
         contactRepository.updateContactStatusOnTelephonyEvent(
@@ -1041,6 +1058,30 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   // =========================================================================
   // Fallback nagrania (Naprawa 3)
   // =========================================================================
+
+  /**
+   * Wyznacza końcowy status rekordu contact na podstawie stanu sesji.
+   *
+   * <ul>
+   *   <li>Połączenie OUTBOUND, klient odebrał ({@code clientAnsweredAt != null}) → {@code COMPLETED}</li>
+   *   <li>Połączenie OUTBOUND, klient nie odebrał ({@code clientAnsweredAt == null}) → {@code NOT_REACHED}</li>
+   *   <li>Połączenie INBOUND, agent odebrał ({@code answeredAt != null}) → {@code COMPLETED}</li>
+   *   <li>Połączenie INBOUND, nikt nie odebrał → {@code ABANDONED}</li>
+   * </ul>
+   *
+   * <p>Dla OUTBOUND używamy {@link CallSession#getClientAnsweredAt()} zamiast {@link CallSession#getAnsweredAt()},
+   * ponieważ {@code answeredAt} jest ustawiane gdy agent kliknie "Odbierz" (nawet zanim klient podniesie
+   * słuchawkę), a {@code clientAnsweredAt} dopiero gdy Twilio wyśle {@code StatusCallback in-progress}
+   * — czyli gdy rozmowa naprawdę się nawiązała.
+   */
+  private String resolveContactEndStatus(CallSession session) {
+    if ("OUTBOUND".equals(session.getDirection())) {
+      // Dla OUTBOUND: COMPLETED tylko gdy klient faktycznie odebrał (Twilio in-progress webhook)
+      return session.getClientAnsweredAt() != null ? "COMPLETED" : "NOT_REACHED";
+    }
+    // Dla INBOUND: COMPLETED gdy agent odebrał, ABANDONED gdy nie
+    return session.getAnsweredAt() != null ? "COMPLETED" : "ABANDONED";
+  }
 
   /**
    * Planuje asynchroniczne sprawdzenie nagrania przez Twilio REST API po 90 sekundach.

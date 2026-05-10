@@ -5,6 +5,7 @@ import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.service.DialerCallbackHandler;
 import com.contactcenter.domain.telephony.CallEvent;
+import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +66,7 @@ class DialerCallbackHandlerTest {
     @Mock private CampaignRepository campaignRepository;
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private JdbcTemplate jdbcTemplate;
+    @Mock private TelephonyAdapter telephonyAdapter;
     @Mock private ValueOperations<String, String> valueOps;
 
     private DialerCallbackHandler handler;
@@ -76,7 +78,8 @@ class DialerCallbackHandlerTest {
                 scheduledCallbackRepository,
                 campaignRepository,
                 redisTemplate,
-                jdbcTemplate
+                jdbcTemplate,
+                telephonyAdapter
         );
 
         // Redis – klucz dialer:call:{callSid} zawsze zwraca stan połączenia dialera

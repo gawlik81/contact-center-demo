@@ -64,6 +64,20 @@ public class CallSession {
     /** Moment odebrania przez agenta (null gdy jeszcze nie odebrane). */
     private final Instant answeredAt;
 
+    /**
+     * Moment faktycznego odebrania przez klienta – ustawiany wyłącznie gdy Twilio
+     * wysyła {@code StatusCallback} z {@code CallStatus=in-progress} dla połączenia OUTBOUND.
+     *
+     * <p>Różni się od {@link #answeredAt}, który jest ustawiany przez {@code answerCall()}
+     * gdy agent kliknie "Odbierz" – nawet zanim klient fizycznie podniesie słuchawkę.
+     * {@code clientAnsweredAt != null} jest warunkiem koniecznym do uznania rozmowy
+     * za zakończoną z wynikiem {@code COMPLETED} (a nie {@code NOT_REACHED}).
+     *
+     * <p>Null dla połączeń INBOUND (semantyka jest inna – klient już dzwoni)
+     * i dla połączeń OUTBOUND gdzie klient nie odebrał.
+     */
+    private final Instant clientAnsweredAt;
+
     /** Moment zakończenia połączenia (null gdy aktywne). */
     private final Instant endedAt;
 

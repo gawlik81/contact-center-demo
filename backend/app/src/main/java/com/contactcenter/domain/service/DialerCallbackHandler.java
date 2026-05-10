@@ -5,6 +5,7 @@ import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.telephony.CallEvent;
+import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.scheduling.annotation.Scheduled;
 
 /**
  * Handler wyników połączeń inicjowanych przez Progressive Dialer.
@@ -57,6 +62,7 @@ public class DialerCallbackHandler {
     private final CampaignRepository campaignRepository;
     private final StringRedisTemplate redisTemplate;
     private final JdbcTemplate jdbcTemplate;
+    private final TelephonyAdapter telephonyAdapter;
 
     // =========================================================================
     // RabbitMQ listener – zakończenie połączenia kampanijnego (call.hangup)
@@ -158,6 +164,113 @@ public class DialerCallbackHandler {
     }
 
     // =========================================================================
+    // Scheduled – wykrywanie wygasłych ring timeout
+    // =========================================================================
+
+    /**
+     * Co kilka sekund sprawdza połączenia dialera, którym wygasł ring timeout.
+     *
+     * <p>Logika: jeśli {@code dialer:call:{callSid}} istnieje, ale {@code dialer:timeout:{callSid}}
+     * już nie → TTL timeout wygasł → klient nie odebrał → rozłącz i oznacz NO_ANSWER.
+     *
+     * <p>Atomowość: używa {@code GETDEL} (pobierz i usuń atomicznie) na kluczu {@code dialer:call},
+     * co gwarantuje że tylko jeden wywołujący (ten job lub {@code onCallHangup}) przetworzy zdarzenie.
+     */
+    @Scheduled(fixedDelayString = "${dialer.ring-timeout-check-interval-ms:5000}")
+    public void checkRingTimeouts() {
+        // SCAN zamiast KEYS – nieblokujące, bezpieczne przy dużej liczbie kluczy
+        ScanOptions scanOptions = ScanOptions.scanOptions()
+                .match("dialer:call:*")
+                .count(200)
+                .build();
+
+        List<String> callKeys = new ArrayList<>();
+        try (var cursor = redisTemplate.scan(scanOptions)) {
+            cursor.forEachRemaining(callKeys::add);
+        }
+
+        if (callKeys.isEmpty()) {
+            return;
+        }
+
+        log.debug("[DialerHandler] checkRingTimeouts: sprawdzam {} aktywnych połączeń", callKeys.size());
+
+        for (String callKey : callKeys) {
+            String callSid = callKey.substring("dialer:call:".length());
+            String timeoutKey = "dialer:timeout:" + callSid;
+
+            // Jeśli timeout klucz wciąż istnieje – czas jeszcze nie upłynął, pomijamy
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(timeoutKey))) {
+                continue;
+            }
+
+            // Jeśli klient odebrał – timeout key usunięto celowo, ale to nie jest ring timeout
+            String answeredKey = "dialer:answered:" + callSid;
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(answeredKey))) {
+                log.debug("[DialerHandler] checkRingTimeouts: callSid={} – klient odebrał, pomijam", callSid);
+                continue;
+            }
+
+            // Atomowe GETDEL – zwraca wartość i usuwa klucz; jeśli null → onCallHangup był pierwszy
+            String callState = redisTemplate.opsForValue().getAndDelete(callKey);
+            if (callState == null) {
+                continue; // inny wątek (onCallHangup) już przetworzył to połączenie
+            }
+
+            // Format: recordId,campaignId,agentId,tenantId
+            String[] parts = callState.split(",");
+            if (parts.length != 4) {
+                log.warn("[DialerHandler] checkRingTimeouts: nieprawidłowy format stanu Redis dla callSid={}: '{}'",
+                        callSid, callState);
+                continue;
+            }
+
+            UUID recordId;
+            UUID campaignId;
+            UUID agentId;
+            UUID tenantId;
+            try {
+                recordId   = UUID.fromString(parts[0]);
+                campaignId = UUID.fromString(parts[1]);
+                agentId    = UUID.fromString(parts[2]);
+                tenantId   = UUID.fromString(parts[3]);
+            } catch (IllegalArgumentException e) {
+                log.error("[DialerHandler] checkRingTimeouts: błąd parsowania UUID dla callSid={}: {}",
+                        callSid, e.getMessage());
+                continue;
+            }
+
+            log.info("[DialerHandler] Ring timeout wygasł – rozłączam: callSid={}, kontakt={}, kampania={}, agent={}",
+                    callSid, recordId, campaignId, agentId);
+
+            TenantContext.setTenantId(tenantId);
+            TenantContext.setUserId(agentId);
+            try {
+                // Rozłącz aktywne połączenie Twilio
+                try {
+                    telephonyAdapter.hangupCall(callSid);
+                    log.debug("[DialerHandler] Połączenie {} rozłączone przez ring timeout", callSid);
+                } catch (Exception e) {
+                    log.warn("[DialerHandler] Błąd hangup dla callSid={}: {} – kontynuuję aktualizację statusu",
+                            callSid, e.getMessage());
+                }
+
+                // Oznacz NO_ANSWER w bazie – z parametrami kampanii
+                Campaign campaign = loadCampaignOrNull(campaignId, tenantId);
+                int maxAttempts       = campaign != null ? campaign.getMaxAttempts()       : DEFAULT_MAX_ATTEMPTS;
+                int retryDelayMinutes = campaign != null ? campaign.getRetryDelayMinutes() : DEFAULT_RETRY_DELAY_MINUTES;
+
+                handleNoAnswer(callSid, tenantId, campaignId, recordId, agentId, maxAttempts, retryDelayMinutes);
+
+            } catch (Exception e) {
+                log.error("[DialerHandler] checkRingTimeouts: błąd dla callSid={}: {}", callSid, e.getMessage(), e);
+            } finally {
+                TenantContext.clear();
+            }
+        }
+    }
+
+    // =========================================================================
     // Obsługa braku odpowiedzi (NO_ANSWER)
     // =========================================================================
 
@@ -248,6 +361,9 @@ public class DialerCallbackHandler {
 
         // Timeout key już nie jest potrzebny (połączenie odebrane)
         redisTemplate.delete("dialer:timeout:" + callSid);
+        // Ustaw flagę "answered" – checkRingTimeouts() rozróżnia wygasły timeout od celowego usunięcia klucza
+        redisTemplate.opsForValue().set(
+            "dialer:answered:" + callSid, "1", java.time.Duration.ofMinutes(60));
 
         log.info("[DialerHandler] Kontakt {} → CONNECTED, agent={}", recordId, agentId);
     }
@@ -491,9 +607,21 @@ public class DialerCallbackHandler {
             redisTemplate.delete("dialer:call:" + callSid);
             redisTemplate.delete("dialer:timeout:" + callSid);
             redisTemplate.delete("dialer:callback-attempt:" + callSid);
+            redisTemplate.delete("dialer:answered:" + callSid);
         }
         if (agentId != null) {
             redisTemplate.delete("dialer:agent:" + agentId);
+            // Ustaw AFTER_CONTACT – zapobiega ponownemu wydzwonieniu przez pollAvailableAgents()
+            // zanim agent zapisze dyspozycję i ręcznie wróci do AVAILABLE.
+            // Zmiana tylko z AVAILABLE/BUSY – nie nadpisuje BREAK/OFFLINE/INACTIVE.
+            int updated = jdbcTemplate.update(
+                "UPDATE app_user SET status = 'AFTER_CONTACT', updated_at = NOW() " +
+                "WHERE user_id = ?::uuid AND status IN ('AVAILABLE', 'BUSY')",
+                agentId.toString()
+            );
+            if (updated > 0) {
+                log.debug("[DialerHandler] Agent {} → AFTER_CONTACT (ACW po połączeniu kampanijnym)", agentId);
+            }
         }
     }
 

@@ -100,6 +100,8 @@ class ProgressiveDialerServiceTest {
 
         // Stub Redis ValueOperations (wymagany przez setIfAbsent i set)
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // Blokada agenta: domyślnie udana akwizycja (lock wolny) – testy weryfikują logikę po przejściu blokady
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
 
         // Stub JdbcTemplate.execute (setTenantContextInJdbc)
         when(jdbcTemplate.execute(anyString(), any(PreparedStatementCallback.class))).thenReturn(null);

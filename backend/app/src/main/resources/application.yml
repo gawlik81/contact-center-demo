@@ -406,6 +406,10 @@ dialer:
   # fixedDelay (nie fixedRate) – kolejna iteracja startuje PO zakończeniu poprzedniej.
   # Nadpisywalne przez DIALER_AGENT_POLL_INTERVAL_MS ENV var.
   agent-poll-interval-ms: ${DIALER_AGENT_POLL_INTERVAL_MS:30000}
+  # Częstotliwość sprawdzania wygasłych ring timeout (ms).
+  # Job skanuje Redis co N ms w poszukiwaniu połączeń bez dialer:timeout:{callSid}.
+  # Nadpisywalne przez DIALER_RING_TIMEOUT_CHECK_INTERVAL_MS ENV var.
+  ring-timeout-check-interval-ms: ${DIALER_RING_TIMEOUT_CHECK_INTERVAL_MS:5000}
 
 # =============================================================================
 # Agent Breaks Activator – automatyczna aktywacja i kończenie przerw agentów

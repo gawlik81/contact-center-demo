@@ -44,9 +44,10 @@ import java.util.UUID;
  * mieszcząca się w oknie harmonogramu, dialer pobiera następny kontakt PENDING
  * z listy kampanii i inicjuje połączenie przez {@link TelephonyAdapter}.
  *
- * <p>Ochrona przed race condition: przed inicjacją połączenia ustawia klucz Redis
- * {@code dialer:agent:{agentId}} z TTL 60s. Jeśli klucz istnieje → agent już
- * obsługiwany przez dialer, pomijamy zdarzenie.
+ * <p>Ochrona przed race condition: {@link #initiateDialForAgent} ustawia klucz Redis
+ * {@code dialer:agent:{agentId}} z TTL 60s (SET NX). Jeśli klucz istnieje → agent już
+ * obsługiwany przez dialer, metoda zwraca bez działania. Dzięki temu zarówno eventy
+ * RabbitMQ jak i cykliczny scheduler korzystają z tej samej blokady.
  *
  * <p>Aktywny warunkowo przez właściwość {@code dialer.enabled} (domyślnie: true).
  * Wyłącz przez {@code DIALER_ENABLED=false} w ENV vars.
@@ -155,27 +156,16 @@ public class ProgressiveDialerService {
 
         log.debug("[Dialer] Agent {} zmienił status na AVAILABLE (tenant={})", agentId, tenantId);
 
-        // Ochrona przed race condition: SET NX z TTL 60s
-        String agentLockKey = "dialer:agent:" + agentId;
-        Boolean acquired = redisTemplate.opsForValue()
-                .setIfAbsent(agentLockKey, "locked", Duration.ofSeconds(AGENT_LOCK_TTL_SECONDS));
-
-        if (!Boolean.TRUE.equals(acquired)) {
-            log.debug("[Dialer] Agent {} już obsługiwany przez dialer – pomijam", agentId);
-            return;
-        }
-
         // Ustawiamy TenantContext dla wątku RabbitMQ
         TenantContext.setTenantId(tenantId);
         TenantContext.setUserId(agentId);
 
         try {
             // Wywołanie przez self-proxy – gwarantuje działanie @Transactional (uniknięcie self-invocation)
+            // Blokada Redis (SET NX) jest zarządzana wewnątrz initiateDialForAgent
             self.initiateDialForAgent(agentId, tenantId);
         } catch (Exception e) {
             log.error("[Dialer] Błąd podczas inicjowania połączenia dla agenta {}: {}", agentId, e.getMessage(), e);
-            // Zwolnij blokadę przy błędzie – agenta można ponowić
-            redisTemplate.delete(agentLockKey);
         } finally {
             TenantContext.clear();
         }
@@ -217,8 +207,6 @@ public class ProgressiveDialerService {
             TenantContext.setTenantId(tenantId);
             TenantContext.setUserId(agentId);
             try {
-                // Ochrona przed race condition jest w initiateDialForAgent (Redis SET NX)
-                // – jeśli agent jest już obsługiwany, metoda zwróci bez działania
                 self.initiateDialForAgent(agentId, tenantId);
             } catch (Exception e) {
                 log.warn("[Dialer] pollAvailableAgents: błąd dla agenta {}: {}",
@@ -236,14 +224,33 @@ public class ProgressiveDialerService {
     /**
      * Inicjuje połączenie wychodzące dla dostępnego agenta.
      *
-     * <p>Przeszukuje aktywne kampanie tenanta (RUNNING), sprawdza harmonogram
-     * i pobiera następny kontakt PENDING z pessimistic lock.
+     * <p>Przed właściwą logiką ustawia blokadę Redis (SET NX) dla agenta – chroni przed
+     * race condition gdy {@code onAgentStatusChanged} i {@code pollAvailableAgents} wywołają
+     * tę metodę równolegle dla tego samego agenta. Blokada jest zwalniana gdy:
+     * <ul>
+     *   <li>brak kampanii lub kontaktów (zwolnienie jawne)</li>
+     *   <li>błąd po stronie wywołującego (zwolnienie przez wywołującego, nie tę metodę)</li>
+     *   <li>wygaśnięcie TTL (60s, failsafe)</li>
+     * </ul>
+     * Gdy połączenie zostaje zainicjowane, blokada pozostaje aktywna przez cały czas trwania
+     * połączenia (do momentu obsługi dyspozycji przez {@link DialerCallbackHandler}).
      *
      * @param agentId  UUID agenta
      * @param tenantId UUID tenanta
      */
     @Transactional
     public void initiateDialForAgent(UUID agentId, UUID tenantId) {
+        // Ochrona przed race condition: SET NX z TTL 60s
+        // Pojedyncze miejsce zarządzania blokadą – niezależnie od tego, czy wywołanie pochodzi
+        // z onAgentStatusChanged (RabbitMQ) czy pollAvailableAgents (Scheduler)
+        String agentLockKey = "dialer:agent:" + agentId;
+        Boolean acquired = redisTemplate.opsForValue()
+                .setIfAbsent(agentLockKey, "locked", Duration.ofSeconds(AGENT_LOCK_TTL_SECONDS));
+        if (!Boolean.TRUE.equals(acquired)) {
+            log.debug("[Dialer] Agent {} już obsługiwany przez dialer – blokada aktywna, pomijam", agentId);
+            return;
+        }
+
         // Pobierz kampanie RUNNING z typem PROGRESSIVE dla tenanta.
         // Kampanie MANUAL są celowo wykluczone – wymagają ręcznej inicjacji przez agenta
         // (endpoint POST /api/dialer/manual/call). Kampanie PREDICTIVE również wykluczone

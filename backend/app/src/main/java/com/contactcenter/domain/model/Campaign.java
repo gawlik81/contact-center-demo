@@ -110,6 +110,14 @@ public class Campaign {
     private int retryDelayMinutes = 60;
 
     /**
+     * Czas oczekiwania na odebranie przez klienta (sekundy).
+     * Po upływie tego czasu połączenie jest traktowane jako nieodebrane (NO_ANSWER).
+     */
+    @Column(name = "ring_timeout_seconds", nullable = false)
+    @Builder.Default
+    private int ringTimeoutSeconds = 30;
+
+    /**
      * Numer prezentacji (caller ID) w formacie E.164 dla połączeń wychodzących z tej kampanii.
      * NULL = użyj domyślnego numeru tenanta (tenant_twilio_config.phone_number lub TwilioProperties).
      */

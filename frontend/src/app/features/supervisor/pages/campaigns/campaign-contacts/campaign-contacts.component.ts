@@ -67,11 +67,16 @@ export class CampaignContactsComponent implements AfterViewInit {
 
   readonly statusOptions: StatusOption[] = [
     { value: '', label: 'Wszystkie' },
-    { value: 'PENDING', label: 'Oczekujace' },
-    { value: 'DIALING', label: 'Dzwoni' },
-    { value: 'CALLED', label: 'Zadzwonione' },
-    { value: 'FAILED', label: 'Blad' },
-    { value: 'SKIPPED', label: 'Pominiete' },
+    { value: 'PENDING', label: 'Oczekuje' },
+    { value: 'DIALING', label: 'Wybieranie' },
+    { value: 'CONNECTED', label: 'Połączony' },
+    { value: 'COMPLETED', label: 'Zakończono' },
+    { value: 'NO_ANSWER', label: 'Brak odpowiedzi' },
+    { value: 'NOT_REACHED', label: 'Niedodzwoniony' },
+    { value: 'CALLBACK', label: 'Oddzwonienie' },
+    { value: 'FAILED', label: 'Błąd połączenia' },
+    { value: 'SKIPPED', label: 'Pominięto' },
+    { value: 'ERROR', label: 'Błąd techniczny' },
   ];
 
   ngAfterViewInit(): void {
@@ -163,18 +168,59 @@ export class CampaignContactsComponent implements AfterViewInit {
   statusLabel(status: CampaignContactStatus): string {
     switch (status) {
       case 'PENDING':
-        return 'Oczekujacy';
+        return 'Oczekuje';
       case 'DIALING':
-        return 'Dzwoni';
+        return 'Wybieranie';
+      case 'CONNECTED':
+        return 'Połączony';
+      case 'COMPLETED':
+        return 'Zakończono';
+      case 'NO_ANSWER':
+        return 'Brak odpowiedzi';
+      case 'NOT_REACHED':
+        return 'Niedodzwoniony';
+      case 'CALLBACK':
+        return 'Oddzwonienie';
+      case 'FAILED':
+        return 'Błąd połączenia';
+      case 'SKIPPED':
+        return 'Pominięto';
+      case 'ERROR':
+        return 'Błąd techniczny';
       case 'CALLED':
         return 'Zadzwoniony';
-      case 'FAILED':
-        return 'Blad';
-      case 'SKIPPED':
-        return 'Pominieto';
       default:
         return status;
     }
+  }
+
+  formatRelativeTime(dateStr: string | null): string {
+    if (!dateStr) return '—';
+    try {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = date.getTime() - now.getTime();
+      const diffMin = Math.round(diffMs / 60000);
+
+      if (diffMin < 0) return 'Teraz';
+      if (diffMin < 60) return `za ${diffMin} min`;
+
+      const diffHours = Math.floor(diffMin / 60);
+      if (diffHours < 24) return `za ${diffHours} h`;
+
+      return date.toLocaleString('pl-PL', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateStr;
+    }
+  }
+
+  get maxAttempts(): number {
+    return this.campaign().maxAttempts;
   }
 
   callRecord(contact: CampaignContact): void {

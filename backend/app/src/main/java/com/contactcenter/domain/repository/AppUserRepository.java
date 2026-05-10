@@ -342,6 +342,28 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     // BE-009: Admin cross-tenant user management
     // =========================================================================
 
+    // =========================================================================
+    // BE-067: Scheduled polling dostępnych agentów (dialer + routing)
+    // =========================================================================
+
+    /**
+     * Zwraca wszystkich nieusunietych agentów o podanym statusie, cross-tenant.
+     *
+     * <p>Używana przez {@code ProgressiveDialerService.pollAvailableAgents()} i
+     * {@code RoutingService.pollAvailableAgents()} do cyklicznego "podkręcenia"
+     * logiki dialera/routingu dla wszystkich aktualnie AVAILABLE agentów.
+     *
+     * <p>Zapytanie jest cross-tenant z założenia – caller odpowiada za ustawienie
+     * TenantContext per-agent przed wywołaniem logiki domenowej.
+     *
+     * <p>Brak paginacji – lista agentów online jest zazwyczaj krótka (kilkuset agentów
+     * na instalację). Jeśli w przyszłości wzrośnie, dodaj stronicowanie.
+     *
+     * @param status  status agenta (np. {@link AppUser.UserStatus#AVAILABLE})
+     * @return lista agentów z danym statusem, is_deleted=false
+     */
+    List<AppUser> findAllByStatusAndDeletedFalse(AppUser.UserStatus status);
+
     /**
      * Lista wszystkich użytkowników ze wszystkich tenantów (nie usuniętych) z paginacją.
      *

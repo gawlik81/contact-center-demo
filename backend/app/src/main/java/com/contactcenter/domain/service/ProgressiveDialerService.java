@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -43,9 +44,10 @@ import java.util.UUID;
  * mieszcząca się w oknie harmonogramu, dialer pobiera następny kontakt PENDING
  * z listy kampanii i inicjuje połączenie przez {@link TelephonyAdapter}.
  *
- * <p>Ochrona przed race condition: przed inicjacją połączenia ustawia klucz Redis
- * {@code dialer:agent:{agentId}} z TTL 60s. Jeśli klucz istnieje → agent już
- * obsługiwany przez dialer, pomijamy zdarzenie.
+ * <p>Ochrona przed race condition: {@link #initiateDialForAgent} ustawia klucz Redis
+ * {@code dialer:agent:{agentId}} z TTL 60s (SET NX). Jeśli klucz istnieje → agent już
+ * obsługiwany przez dialer, metoda zwraca bez działania. Dzięki temu zarówno eventy
+ * RabbitMQ jak i cykliczny scheduler korzystają z tej samej blokady.
  *
  * <p>Aktywny warunkowo przez właściwość {@code dialer.enabled} (domyślnie: true).
  * Wyłącz przez {@code DIALER_ENABLED=false} w ENV vars.
@@ -54,7 +56,7 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code dialer:agent:{agentId}} → callSid, TTL 60s (guard przed duplikacją)</li>
  *   <li>{@code dialer:call:{callSid}} → JSON z campaignContactId/agentId/tenantId/campaignId, TTL 60s</li>
- *   <li>{@code dialer:timeout:{callSid}} → "", TTL 30s (po wygaśnięciu = NO_ANSWER)</li>
+ *   <li>{@code dialer:timeout:{callSid}} → "", TTL = campaign.ringTimeoutSeconds (po wygaśnięciu = NO_ANSWER)</li>
  * </ul>
  */
 @Slf4j
@@ -66,7 +68,6 @@ public class ProgressiveDialerService {
     // Redis TTL (sekundy)
     private static final int AGENT_LOCK_TTL_SECONDS   = 60;
     private static final int CALL_STATE_TTL_SECONDS   = 1800; // 30 minut – chroni przed wygaśnięciem klucza w trakcie dłuższej rozmowy
-    private static final int NO_ANSWER_TIMEOUT_SECONDS = 30;
 
     // Domyślna strefa czasowa kampanii
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Europe/Warsaw");
@@ -155,29 +156,64 @@ public class ProgressiveDialerService {
 
         log.debug("[Dialer] Agent {} zmienił status na AVAILABLE (tenant={})", agentId, tenantId);
 
-        // Ochrona przed race condition: SET NX z TTL 60s
-        String agentLockKey = "dialer:agent:" + agentId;
-        Boolean acquired = redisTemplate.opsForValue()
-                .setIfAbsent(agentLockKey, "locked", Duration.ofSeconds(AGENT_LOCK_TTL_SECONDS));
-
-        if (!Boolean.TRUE.equals(acquired)) {
-            log.debug("[Dialer] Agent {} już obsługiwany przez dialer – pomijam", agentId);
-            return;
-        }
-
         // Ustawiamy TenantContext dla wątku RabbitMQ
         TenantContext.setTenantId(tenantId);
         TenantContext.setUserId(agentId);
 
         try {
             // Wywołanie przez self-proxy – gwarantuje działanie @Transactional (uniknięcie self-invocation)
+            // Blokada Redis (SET NX) jest zarządzana wewnątrz initiateDialForAgent
             self.initiateDialForAgent(agentId, tenantId);
         } catch (Exception e) {
             log.error("[Dialer] Błąd podczas inicjowania połączenia dla agenta {}: {}", agentId, e.getMessage(), e);
-            // Zwolnij blokadę przy błędzie – agenta można ponowić
-            redisTemplate.delete(agentLockKey);
         } finally {
             TenantContext.clear();
+        }
+    }
+
+    // =========================================================================
+    // Scheduled polling – uzupełnienie event-driven triggering
+    // =========================================================================
+
+    /**
+     * Cyklicznie wyzwala logikę dialera dla wszystkich aktualnie AVAILABLE agentów.
+     *
+     * <p>Uzupełnienie event-driven triggeringu (RabbitMQ): obsługuje przypadki gdy
+     * kontakt kampanijny trafił do kolejki zanim agent zmienił status lub gdy event zaginął.
+     *
+     * <p>Używa {@code fixedDelay} – kolejna iteracja startuje PO zakończeniu poprzedniej
+     * (ochrona przed nakładaniem się przy wolnych tenantach).
+     *
+     * <p>Ochrona przed race condition jest w {@link #initiateDialForAgent} (Redis SET NX)
+     * – jeśli agent jest już obsługiwany przez dialer, metoda zwróci bez działania.
+     */
+    @Scheduled(fixedDelayString = "${dialer.agent-poll-interval-ms:30000}")
+    public void pollAvailableAgents() {
+        List<AppUser> availableAgents =
+                appUserRepository.findAllByStatusAndDeletedFalse(UserStatus.AVAILABLE);
+
+        if (availableAgents.isEmpty()) {
+            log.debug("[Dialer] pollAvailableAgents: brak AVAILABLE agentów – pomijam");
+            return;
+        }
+
+        log.debug("[Dialer] pollAvailableAgents: sprawdzam {} AVAILABLE agentów",
+                availableAgents.size());
+
+        for (AppUser agent : availableAgents) {
+            UUID agentId  = agent.getId();
+            UUID tenantId = agent.getTenantId();
+
+            TenantContext.setTenantId(tenantId);
+            TenantContext.setUserId(agentId);
+            try {
+                self.initiateDialForAgent(agentId, tenantId);
+            } catch (Exception e) {
+                log.warn("[Dialer] pollAvailableAgents: błąd dla agenta {}: {}",
+                        agentId, e.getMessage());
+            } finally {
+                TenantContext.clear();
+            }
         }
     }
 
@@ -188,14 +224,33 @@ public class ProgressiveDialerService {
     /**
      * Inicjuje połączenie wychodzące dla dostępnego agenta.
      *
-     * <p>Przeszukuje aktywne kampanie tenanta (RUNNING), sprawdza harmonogram
-     * i pobiera następny kontakt PENDING z pessimistic lock.
+     * <p>Przed właściwą logiką ustawia blokadę Redis (SET NX) dla agenta – chroni przed
+     * race condition gdy {@code onAgentStatusChanged} i {@code pollAvailableAgents} wywołają
+     * tę metodę równolegle dla tego samego agenta. Blokada jest zwalniana gdy:
+     * <ul>
+     *   <li>brak kampanii lub kontaktów (zwolnienie jawne)</li>
+     *   <li>błąd po stronie wywołującego (zwolnienie przez wywołującego, nie tę metodę)</li>
+     *   <li>wygaśnięcie TTL (60s, failsafe)</li>
+     * </ul>
+     * Gdy połączenie zostaje zainicjowane, blokada pozostaje aktywna przez cały czas trwania
+     * połączenia (do momentu obsługi dyspozycji przez {@link DialerCallbackHandler}).
      *
      * @param agentId  UUID agenta
      * @param tenantId UUID tenanta
      */
     @Transactional
     public void initiateDialForAgent(UUID agentId, UUID tenantId) {
+        // Ochrona przed race condition: SET NX z TTL 60s
+        // Pojedyncze miejsce zarządzania blokadą – niezależnie od tego, czy wywołanie pochodzi
+        // z onAgentStatusChanged (RabbitMQ) czy pollAvailableAgents (Scheduler)
+        String agentLockKey = "dialer:agent:" + agentId;
+        Boolean acquired = redisTemplate.opsForValue()
+                .setIfAbsent(agentLockKey, "locked", Duration.ofSeconds(AGENT_LOCK_TTL_SECONDS));
+        if (!Boolean.TRUE.equals(acquired)) {
+            log.debug("[Dialer] Agent {} już obsługiwany przez dialer – blokada aktywna, pomijam", agentId);
+            return;
+        }
+
         // Pobierz kampanie RUNNING z typem PROGRESSIVE dla tenanta.
         // Kampanie MANUAL są celowo wykluczone – wymagają ręcznej inicjacji przez agenta
         // (endpoint POST /api/dialer/manual/call). Kampanie PREDICTIVE również wykluczone
@@ -239,12 +294,6 @@ public class ProgressiveDialerService {
                 continue;
             }
 
-            // Sprawdź minimalny odstęp między próbami (4h) – ochrona przed natarczywym dzwonieniem
-            if (isCalledTooRecently(contact)) {
-                log.debug("[Dialer] Kontakt {} dzwoniony zbyt niedawno – pomijam", recordId);
-                continue;
-            }
-
             // Inicjuj połączenie przez TelephonyAdapter
             try {
                 log.info("[Dialer] Inicjowanie połączenia: kampania={}, kontakt={}, numer={}, agent={}, tenant={}",
@@ -259,7 +308,7 @@ public class ProgressiveDialerService {
 
                 // Zapisz stan w Redis
                 saveCallState(session.getCallId(), recordId, campaign.getCampaignId(), agentId, tenantId);
-                scheduleNoAnswerTimeout(session.getCallId());
+                scheduleNoAnswerTimeout(session.getCallId(), campaign.getRingTimeoutSeconds());
 
                 log.info("[Dialer] Połączenie zainicjowane: callId={}, kontakt={}, kampania={}",
                         session.getCallId(), recordId, campaign.getCampaignId());
@@ -381,7 +430,7 @@ public class ProgressiveDialerService {
                 FROM campaign_contact
                 WHERE campaign_id = ?::uuid
                   AND tenant_id = ?::uuid
-                  AND status = 'PENDING'
+                  AND status IN ('PENDING', 'NO_ANSWER')
                   AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
                 ORDER BY created_at ASC
                 LIMIT 1
@@ -472,15 +521,16 @@ public class ProgressiveDialerService {
     /**
      * Ustawia klucz timeout w Redis dla połączenia dialera.
      *
-     * <p>Po wygaśnięciu TTL (30s) zewnętrzny komponent (np. Redis Keyspace Notification
+     * <p>Po wygaśnięciu TTL zewnętrzny komponent (np. Redis Keyspace Notification
      * lub scheduled job) może zareagować na brak odpowiedzi. W tej implementacji
      * {@link DialerCallbackHandler} sprawdza klucz przy przetwarzaniu wyników połączeń.
      *
-     * @param callSid identyfikator sesji telefonicznej
+     * @param callSid        identyfikator sesji telefonicznej
+     * @param timeoutSeconds czas oczekiwania na odebranie (konfigurowany per kampania)
      */
-    private void scheduleNoAnswerTimeout(String callSid) {
+    private void scheduleNoAnswerTimeout(String callSid, int timeoutSeconds) {
         String timeoutKey = "dialer:timeout:" + callSid;
-        redisTemplate.opsForValue().set(timeoutKey, "", Duration.ofSeconds(NO_ANSWER_TIMEOUT_SECONDS));
+        redisTemplate.opsForValue().set(timeoutKey, "", Duration.ofSeconds(timeoutSeconds));
     }
 
     /**
@@ -546,25 +596,6 @@ public class ProgressiveDialerService {
                     agentId, agentSkills, requiredSkills, campaign.getCampaignId());
         }
         return hasAll;
-    }
-
-    /**
-     * Sprawdza czy kontakt był dzwoniony zbyt niedawno (minimum 4h między próbami).
-     *
-     * @param contact mapa kolumn rekordu campaign_contact
-     * @return true gdy od ostatniej próby minęło mniej niż 4 godziny
-     */
-    private boolean isCalledTooRecently(Map<String, Object> contact) {
-        Object lastAttemptAtObj = contact.get("last_attempt_at");
-        if (lastAttemptAtObj == null) {
-            return false;
-        }
-
-        java.sql.Timestamp lastAttemptTs = (java.sql.Timestamp) lastAttemptAtObj;
-        java.time.Instant lastAttempt = lastAttemptTs.toInstant();
-        java.time.Instant fourHoursAgo = java.time.Instant.now().minus(Duration.ofHours(4));
-
-        return lastAttempt.isAfter(fourHoursAgo);
     }
 
     /**

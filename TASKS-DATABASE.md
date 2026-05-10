@@ -1186,3 +1186,169 @@ Poniższa tabela przedstawia minimalny lancuch zależnosci od schematu DB do wid
 | Zakładka Klienci w Agent Desktop | DB-027 | BE-048 | FE-040, FE-041 |
 | Kalendarz Agenta (EPIC-16) | DB-028 | BE-049, BE-050, BE-051 | FE-042, FE-043, FE-044, FE-045 |
 | Wielojęzyczność UI (EPIC-19) | DB-029 | BE-054 | FE-049, FE-050, FE-051, FE-052, FE-053 |
+| Retry i callback w kampaniach wychodzących (EPIC-21) | DB-032, DB-033 | BE-062, BE-063, BE-064, BE-065, BE-066 | FE-069, FE-070 |
+
+---
+
+## MODUL: Retry i callback w kampaniach wychodzących (EPIC-21)
+
+### DB-032 – Nowe statusy `campaign_contact`: `NOT_REACHED` i `CALLBACK` — migracja V053
+
+**Typ:** Schema change
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
+**Zależy od:** DB-011, V034
+**Blokuje:** BE-063, BE-064, BE-065, BE-066, DB-033, FE-069
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+Rozszerzenie CHECK constraintu `chk_campaign_contact_status` w tabeli `campaign_contact` o dwa nowe statusy:
+
+- **`NOT_REACHED`** – rekord osiągnął limit `max_attempts` bez nawiązania rozmowy (niedodzwoniony). Status finalny, rekord nie wraca do kolejki dialera.
+- **`CALLBACK`** – agent podczas rozmowy ustawił dyspozycję CALLBACK. Rekord ma zaplanowane oddzwonienie w `scheduled_callback`. Nie inkrementuje `attempt_count` przy wykonaniu callbacku.
+
+Bieżący constraint (po V034):
+```sql
+CHECK (status IN ('PENDING', 'DIALING', 'CONNECTED', 'NO_ANSWER', 'FAILED', 'COMPLETED', 'SKIPPED', 'ERROR'))
+```
+
+**Migracja Flyway V053** (`V053__add_not_reached_callback_status.sql`):
+
+```sql
+-- 1. campaign_contact – rozszerzenie CHECK constraint
+ALTER TABLE campaign_contact
+    DROP CONSTRAINT IF EXISTS chk_campaign_contact_status;
+
+ALTER TABLE campaign_contact
+    ADD CONSTRAINT chk_campaign_contact_status
+        CHECK (status IN (
+            'PENDING', 'DIALING', 'CONNECTED', 'NO_ANSWER',
+            'FAILED', 'COMPLETED', 'SKIPPED', 'ERROR',
+            'NOT_REACHED', 'CALLBACK'
+        ));
+
+-- 2. campaign_contact_archive – analogicznie
+ALTER TABLE campaign_contact_archive
+    DROP CONSTRAINT IF EXISTS chk_campaign_contact_archive_status;
+
+ALTER TABLE campaign_contact_archive
+    ADD CONSTRAINT chk_campaign_contact_archive_status
+        CHECK (status IN (
+            'PENDING', 'DIALING', 'CONNECTED', 'NO_ANSWER',
+            'FAILED', 'COMPLETED', 'SKIPPED', 'ERROR',
+            'NOT_REACHED', 'CALLBACK'
+        ));
+
+-- 3. Aktualizacja indeksu dialera – teraz obejmuje też NO_ANSWER (retry)
+DROP INDEX IF EXISTS idx_campaign_contact_dialer;
+CREATE INDEX idx_campaign_contact_dialer
+    ON campaign_contact (campaign_id, status, next_attempt_at)
+    WHERE status IN ('PENDING', 'NO_ANSWER');
+
+-- 4. Odświeżenie mv_campaign_stats – dodanie kolumn dla nowych statusów
+DROP MATERIALIZED VIEW IF EXISTS mv_campaign_stats;
+CREATE MATERIALIZED VIEW mv_campaign_stats AS
+SELECT
+    cc.campaign_id,
+    c.tenant_id,
+    c.name                                                              AS campaign_name,
+    c.type                                                              AS campaign_type,
+    COUNT(*)                                                            AS total_records,
+    COUNT(*) FILTER (WHERE cc.status = 'PENDING')                      AS pending_records,
+    COUNT(*) FILTER (WHERE cc.status = 'DIALING')                      AS dialing_records,
+    COUNT(*) FILTER (WHERE cc.status = 'CONNECTED')                    AS connected_records,
+    COUNT(*) FILTER (WHERE cc.status = 'NO_ANSWER')                    AS no_answer_records,
+    COUNT(*) FILTER (WHERE cc.status = 'NOT_REACHED')                  AS not_reached_records,
+    COUNT(*) FILTER (WHERE cc.status = 'CALLBACK')                     AS callback_records,
+    COUNT(*) FILTER (WHERE cc.status = 'COMPLETED')                    AS completed_records,
+    COUNT(*) FILTER (WHERE cc.status = 'FAILED')                       AS failed_records,
+    COUNT(*) FILTER (WHERE cc.status = 'ERROR')                        AS error_records,
+    ROUND(AVG(cc.attempt_count), 2)                                     AS avg_attempt_count,
+    SUM(cc.attempt_count)                                               AS total_attempts,
+    COUNT(*) FILTER (WHERE cc.disposition_code IS NOT NULL)             AS contacts_with_disposition,
+    MAX(cc.last_attempt_at)                                             AS last_activity_at
+FROM  campaign_contact cc
+JOIN  campaign          c  ON c.campaign_id = cc.campaign_id
+GROUP BY cc.campaign_id, c.tenant_id, c.name, c.type;
+
+CREATE UNIQUE INDEX uq_mv_campaign_stats ON mv_campaign_stats (campaign_id);
+CREATE INDEX idx_mv_campaign_stats_tenant ON mv_campaign_stats (tenant_id);
+
+-- 5. Aktualizacja komentarza dokumentacyjnego
+COMMENT ON COLUMN campaign_contact.status IS
+    'Status rekordu kampanii. '
+    'PENDING = oczekuje na polaczenie, '
+    'DIALING = w trakcie wybierania (attempt_count zostal zinkrementowany), '
+    'CONNECTED = polaczono z agentem, '
+    'NO_ANSWER = brak odpowiedzi – zaplanowana kolejna proba (next_attempt_at), '
+    'NOT_REACHED = wyczerpano max_attempts bez odpowiedzi (finalny – niedodzwoniony), '
+    'CALLBACK = agent zaplanował oddzwonienie (scheduled_callback powiazan), '
+    'COMPLETED = zakonczono z dyspozycja agenta, '
+    'FAILED = blad polaczenia (np. numer niedostepny), '
+    'SKIPPED = pominieto recznie, '
+    'ERROR = blad techniczny adaptera telefonii.';
+```
+
+**Uwagi:**
+- Tabela `campaign_contact` jest partycjonowana LIST po `campaign_id` — ALTER TABLE propaguje na wszystkie partycje i domyślną partycję automatycznie.
+- Indeks `idx_campaign_contact_dialer` zmieniony: `WHERE status IN ('PENDING', 'NO_ANSWER')` — konieczny dla BE-065 (dialer pobiera również NO_ANSWER z przeterminowanym `next_attempt_at`).
+- `mv_campaign_stats` jest refreshowany przez pg_cron (DB-018) — rekonstrukcja widoku nie wymaga zmian w schedulerze.
+
+**Kryteria akceptacji:**
+- [x] Migracja V053 zastosowana bez błędów na czystej bazie i na bazie z danymi
+- [x] `INSERT INTO campaign_contact (..., status, ...) VALUES (..., 'NOT_REACHED', ...)` nie rzuca wyjątku CHECK violation
+- [x] `INSERT INTO campaign_contact (..., status, ...) VALUES (..., 'CALLBACK', ...)` nie rzuca wyjątku CHECK violation
+- [x] `INSERT INTO campaign_contact (..., status, ...) VALUES (..., 'INVALID', ...)` rzuca CHECK violation
+- [x] Indeks `idx_campaign_contact_dialer` pokrywa `WHERE status IN ('PENDING', 'NO_ANSWER')`
+- [x] Widok `mv_campaign_stats` zawiera kolumny `not_reached_records` i `callback_records`
+- [x] Tabele archiwalne (`campaign_contact_archive`) mają taki sam constraint
+
+---
+
+### DB-033 – Dedykowane pole `campaign_contact_record_id` w `scheduled_callback` — migracja V054
+
+**Typ:** Schema change
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Status:** ✅ Ukończone
+**Zależy od:** DB-032
+**Blokuje:** BE-064, BE-066
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+Tabela `scheduled_callback` nie ma dedykowanego pola do powiązania z rekordem `campaign_contact`. Dotychczasowy plan (BE-064) zakładał reużycie kolumny `customer_id` jako kontenera na `campaign_contact.record_id` — to anti-pattern: jedna kolumna przechowuje dwie semantycznie różne wartości (ID klienta vs ID rekordu kampanijnego).
+
+Rozwiązanie: nowa kolumna `campaign_contact_record_id UUID` z jasną semantyką.
+
+- `customer_id` pozostaje bez zmian — nadal wskazuje na klienta z tabeli `customer`
+- `campaign_contact_record_id` — UUID rekordu `campaign_contact` (brak FK: `campaign_contact` ma composite PK)
+- Kolumna nullable: `NULL` dla `INBOUND_CALLBACK` i `AGENT_MANUAL`
+
+**Migracja Flyway V054** (`V054__add_campaign_contact_record_id_to_scheduled_callback.sql`):
+
+```sql
+ALTER TABLE scheduled_callback
+    ADD COLUMN campaign_contact_record_id UUID;
+
+COMMENT ON COLUMN scheduled_callback.campaign_contact_record_id IS
+    'UUID rekordu campaign_contact (campaign_contact.record_id) powiązanego z tym callbackiem. '
+    'NULL dla INBOUND_CALLBACK i AGENT_MANUAL. '
+    'Brak FK – campaign_contact ma composite PK (record_id, campaign_id).';
+
+CREATE INDEX idx_scheduled_callback_cc_record
+    ON scheduled_callback (campaign_contact_record_id)
+    WHERE campaign_contact_record_id IS NOT NULL AND is_deleted = FALSE;
+
+COMMENT ON INDEX idx_scheduled_callback_cc_record IS
+    'DB-033: Lookup callbacków kampanijnych po record_id rekordu campaign_contact.';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V054 zastosowana bez błędów
+- [ ] Kolumna `campaign_contact_record_id` istnieje i przyjmuje NULL (dla non-campaign callbacków)
+- [ ] Indeks `idx_scheduled_callback_cc_record` istnieje z predykatem `IS NOT NULL AND is_deleted = FALSE`
+- [ ] Istniejące wiersze `scheduled_callback` nie są naruszone (kolumna domyślnie NULL)

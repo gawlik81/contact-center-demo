@@ -159,6 +159,38 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - `HttpClient` / external HTTP clients instantiated as beans, not per-call?
 - `assertSameTenant()` present before every native UPDATE in `ContactRepository` and similar repos?
 
+## EPIC-21 (Retry/Callback in Outbound Campaigns) — issues found 2026-05-08
+
+**Critical — must fix before production deploy:**
+- `ScheduledCallbackExecutor.processCallback`: `markAsDialingForCallback()` is called BEFORE `telephonyAdapter.initiateCall()` inside the `try` block, but outside of it. On `TelephonyException`, the `campaign_contact` stays in `DIALING` forever — no rollback to `CALLBACK`. Requires adding rollback in `catch` block.
+- `DialerCallbackHandler.onCallHangup`: Redis `cleanupRedisKeys()` is NOT called in the `catch` block for the NO_ANSWER path. If `handleNoAnswer()` throws, the `dialer:agent:{agentId}` lock is never released, permanently blocking the agent. `cleanupRedisKeys()` must be moved inside the `finally` block for all paths.
+- `isPastEndDate` in `CampaignWindowActivator` calls `LocalDate.parse(endDateStr)` without try/catch for `DateTimeParseException` — malformed `end_date` in the `schedule` JSONB field throws unchecked exception that escapes the `try` block in `processRunningCampaignsForTenant`, disrupting ALL campaigns for the tenant for that scheduler tick.
+- `CampaignContactRepository.markAsDialingForCallback`: calls `setTenantContextInDb(tenantId)` AND then immediately calls `jdbcTemplate.execute("SELECT set_tenant_context(...)` again — double set_tenant_context. Second call is unreachable no-op but adds latency and confusion. Remove the duplicate.
+
+**Architecture violations:**
+- `CampaignWindowActivator.processRunningCampaignsForTenant`: calls `campaignRepository.save(campaign)` which calls `assertSameTenant()`. `TenantContext` is set via `TenantContext.setTenantId()` but never via `TenantContext.setUserId()` — `assertSameTenant()` only checks tenantId (not userId) so this works, but pattern is documented as "set full context before write". Acceptable here as scheduler has no userId; document explicitly.
+- `handleCallbackDisposition` Javadoc still says "Aktualizuje status rekordu campaign_contact na COMPLETED" — stale after BE-064 changed status to CALLBACK. Should be fixed to avoid misunderstanding.
+- Redis `dialer:call:*` TTL is 1800s in `ProgressiveDialerService.CALL_STATE_TTL_SECONDS` and hardcoded 1800 in `ScheduledCallbackExecutor`. Not using the constant. Should reference the same source.
+
+**Minor issues:**
+- `isNoAnswerOutcome` handles null explicitly (returns false = treated as COMPLETED). This is documented in `CallEvent.callOutcome` Javadoc, correct. However, a `failed` Twilio outcome (network error) is treated as `COMPLETED` rather than `FAILED`. Business decision should be documented.
+- `DEFAULT_RETRY_DELAY_MINUTES = 60` in `DialerCallbackHandler` is the fallback when campaign is not loadable. This fallback is silently applied — only a WARN log. In production, if `campaignRepository.findById` fails, retries will use 60min regardless of campaign config. Acceptable but should be noted.
+- `CampaignWindowActivator.completePastDeadlineCampaigns` iterates active tenants and calls `processRunningCampaignsForTenant` which iterates RUNNING+PAUSED campaigns. There is a risk of completing PAUSED campaigns that the user manually paused, which might not be intended. Business logic gap — should consider only RUNNING.
+
+**Positive patterns in EPIC-21:**
+- `dialer:callback-attempt:{callSid}` marker key correctly separates callback-attempt from normal dialer flow in `handleNoAnswer` — clean two-path design.
+- `updateStatusIfPending` optimistic lock correctly prevents double-processing in multi-node deployment.
+- `NOT_REACHED` status (vs old `FAILED`) correctly distinguishes "exhausted retries" from "technical error" — good semantic clarity.
+- Removal of `isCalledTooRecently` hardcoded 4h guard in favor of database-authoritative `next_attempt_at <= NOW()` — correct simplification.
+- Test coverage of edge cases (callback-attempt marker present/absent, attempt_count boundaries) — solid.
+- New migration `V054` explicitly documents lack of FK with explanation about composite PK — honest and clear.
+
+**Check in future Dialer/Callback related reviews:**
+- Does `processCallback` rollback `campaign_contact` to CALLBACK status on telephony failure?
+- Is `cleanupRedisKeys` called in `finally` (not only in success path)?
+- Are all `LocalDate.parse` calls in scheduler wrapped with `DateTimeParseException` catch?
+- Does `markAsDialingForCallback` call `setTenantContextInDb` exactly once?
+
 ## BE-024 (Progressive Dialer) — issues found 2026-04-08
 
 **Critical:**

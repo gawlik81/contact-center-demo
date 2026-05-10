@@ -118,46 +118,82 @@
         </div>
       }
 
-      <!-- Max attempts + retry delay (inline row) -->
-      <div class="form-row">
-        <div class="form-field" [class.form-field--error]="maxAttemptsError">
-          <label class="form-label" for="maxAttempts">
-            {{ 'supervisor.campaignForm.maxAttemptsLabel' | transloco }}
-            <span class="required" aria-hidden="true">*</span>
-          </label>
-          <input
-            id="maxAttempts"
-            type="number"
-            class="form-input form-input--number"
-            formControlName="maxAttempts"
-            min="1"
-            [attr.aria-describedby]="maxAttemptsError ? 'maxAttempts-error' : null"
-            [attr.aria-invalid]="maxAttemptsError ? 'true' : null"
-          />
-          @if (maxAttemptsError) {
-            <span id="maxAttempts-error" class="form-error" role="alert">{{ maxAttemptsError }}</span>
-          }
-        </div>
+      <!-- Max attempts + retry delay (inline row) — only for OUTBOUND_VOICE -->
+      @if (isOutboundVoice()) {
+        <div class="form-row">
+          <div class="form-field" [class.form-field--error]="maxAttemptsError">
+            <label class="form-label" for="maxAttempts">
+              Maksymalna liczba prób
+              <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="maxAttempts"
+              type="number"
+              class="form-input form-input--number"
+              formControlName="maxAttempts"
+              min="1"
+              max="10"
+              [attr.aria-describedby]="maxAttemptsError ? 'maxAttempts-error' : 'maxAttempts-hint'"
+              [attr.aria-invalid]="maxAttemptsError ? 'true' : null"
+            />
+            <span id="maxAttempts-hint" class="form-hint">
+              Po ilu nieudanych próbach oznaczyć rekord jako Niedodzwoniony
+            </span>
+            @if (maxAttemptsError) {
+              <span id="maxAttempts-error" class="form-error" role="alert">{{ maxAttemptsError }}</span>
+            }
+          </div>
 
-        <div class="form-field" [class.form-field--error]="retryDelayError">
-          <label class="form-label" for="retryDelayMinutes">
-            {{ 'supervisor.campaignForm.retryDelayLabel' | transloco }}
+          <div class="form-field" [class.form-field--error]="retryDelayError">
+            <label class="form-label" for="retryDelayMinutes">
+              Czas między próbami (minuty)
+              <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="retryDelayMinutes"
+              type="number"
+              class="form-input form-input--number"
+              formControlName="retryDelayMinutes"
+              min="1"
+              max="1440"
+              [attr.aria-describedby]="retryDelayError ? 'retryDelay-error' : 'retryDelay-hint'"
+              [attr.aria-invalid]="retryDelayError ? 'true' : null"
+            />
+            <span id="retryDelay-hint" class="form-hint">
+              Ile minut odczekać przed kolejną próbą połączenia gdy klient nie odbierze
+            </span>
+            @if (retryDelayError) {
+              <span id="retryDelay-error" class="form-error" role="alert">{{ retryDelayError }}</span>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Ring timeout – only for OUTBOUND_VOICE -->
+      @if (isOutboundVoice()) {
+        <div class="form-field" [class.form-field--error]="ringTimeoutError">
+          <label class="form-label" for="ringTimeoutSeconds">
+            Czas oczekiwania na odebranie (sekundy)
             <span class="required" aria-hidden="true">*</span>
           </label>
           <input
-            id="retryDelayMinutes"
+            id="ringTimeoutSeconds"
             type="number"
             class="form-input form-input--number"
-            formControlName="retryDelayMinutes"
-            min="0"
-            [attr.aria-describedby]="retryDelayError ? 'retryDelay-error' : null"
-            [attr.aria-invalid]="retryDelayError ? 'true' : null"
+            formControlName="ringTimeoutSeconds"
+            min="15"
+            max="120"
+            [attr.aria-describedby]="ringTimeoutError ? 'ringTimeout-error' : 'ringTimeout-hint'"
+            [attr.aria-invalid]="ringTimeoutError ? 'true' : null"
           />
-          @if (retryDelayError) {
-            <span id="retryDelay-error" class="form-error" role="alert">{{ retryDelayError }}</span>
+          <span id="ringTimeout-hint" class="form-hint">
+            Ile sekund dzwonić do klienta — jeśli nie odbierze w tym czasie, połączenie zostanie uznane za nieodebrane
+          </span>
+          @if (ringTimeoutError) {
+            <span id="ringTimeout-error" class="form-error" role="alert">{{ ringTimeoutError }}</span>
           }
         </div>
-      </div>
+      }
 
       <!-- Schedule section -->
       <fieldset class="schedule-section" formGroupName="schedule">

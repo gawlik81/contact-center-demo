@@ -2170,7 +2170,8 @@
       "ON_HOLD": "Утримання",
       "COMPLETED": "Завершений",
       "ABANDONED": "Покинутий",
-      "FAILED": "Невдалий"
+      "FAILED": "Невдалий",
+      "NOT_REACHED": "Не досягнуто"
     },
     "callbackStatusLabels": {
       "PENDING": "Очікує",

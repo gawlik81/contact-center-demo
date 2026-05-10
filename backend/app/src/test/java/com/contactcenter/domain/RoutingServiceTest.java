@@ -4,6 +4,7 @@ import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -74,12 +75,15 @@ class RoutingServiceTest {
     @Mock
     private QueueAssignmentRepository queueAssignmentRepository;
 
+    @Mock
+    private AppUserRepository appUserRepository;
+
     private RoutingService routingService;
 
     @BeforeEach
     void setUp() {
         routingService = new RoutingService(routingEngine, queueRepository, contactRepository,
-                rabbitTemplate, queueAssignmentRepository);
+                rabbitTemplate, queueAssignmentRepository, appUserRepository);
         // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047
         lenient().when(queueAssignmentRepository.isAllAgents(any(UUID.class), any(UUID.class)))
                 .thenReturn(true);

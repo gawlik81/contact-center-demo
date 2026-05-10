@@ -134,10 +134,12 @@ public class TelephonyEventPublisher {
     /**
      * Publikuje zdarzenie CALL_HANGUP (połączenie zakończone).
      *
-     * @param contactId UUID rekordu kontaktu w tabeli {@code contact} (null gdy brak rekordu)
+     * @param contactId   UUID rekordu kontaktu w tabeli {@code contact} (null gdy brak rekordu)
+     * @param callOutcome wynik połączenia zwrócony przez dostawcę telefonii
+     *                    (np. "completed", "no-answer", "busy", "failed", "canceled"); może być null
      */
     public void publishHangup(String callId, UUID contactId, UUID tenantId, UUID agentId,
-                               String from, String to) {
+                               String from, String to, String callOutcome) {
         publish(CallEvent.builder()
                 .eventType(CallEvent.EventType.CALL_HANGUP)
                 .callId(callId)
@@ -146,6 +148,7 @@ public class TelephonyEventPublisher {
                 .agentId(agentId)
                 .from(from)
                 .to(to)
+                .callOutcome(callOutcome)
                 .timestamp(Instant.now())
                 .build());
     }

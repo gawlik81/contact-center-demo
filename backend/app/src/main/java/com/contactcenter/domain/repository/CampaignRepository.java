@@ -279,6 +279,35 @@ public class CampaignRepository extends TenantAwareRepository {
     }
 
     /**
+     * Pobiera wszystkie kampanie w statusach RUNNING lub PAUSED dla danego tenanta.
+     *
+     * <p>Używane przez {@link com.contactcenter.domain.service.CampaignWindowActivator}
+     * do automatycznego kończenia kampanii po upłynięciu end_date.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista kampanii w statusach RUNNING lub PAUSED
+     */
+    @Transactional(readOnly = true)
+    public List<Campaign> findRunningOrPausedByTenantId(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Campaign> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM campaign
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND status IN ('RUNNING', 'PAUSED')
+                        ORDER BY created_at ASC
+                        """,
+                        Campaign.class)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        log.debug("[CampaignRepo] Kampanie RUNNING/PAUSED: tenant={}, znaleziono={}", tenantId, results.size());
+        return results;
+    }
+
+    /**
      * Pobiera wszystkie kampanie w statusie SCHEDULED dla danego tenanta.
      *
      * <p>Używane przez {@link com.contactcenter.domain.service.CampaignWindowActivator}

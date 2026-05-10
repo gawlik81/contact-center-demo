@@ -497,11 +497,12 @@ public class TwilioWebhookController {
 
     try {
       TenantContext.setTenantId(tenantId);
-      // Pobierz aktualny status kontaktu – zabezpieczenie przed nadpisaniem COMPLETED/ABANDONED
+      // Pobierz aktualny status kontaktu – zabezpieczenie przed nadpisaniem statusów terminalnych
       contactRepository.findById(contactId, tenantId).ifPresentOrElse(
           contact -> {
             String currentStatus = contact.getStatus();
-            if ("COMPLETED".equals(currentStatus) || "ABANDONED".equals(currentStatus)) {
+            if ("COMPLETED".equals(currentStatus) || "ABANDONED".equals(currentStatus)
+                || "NOT_REACHED".equals(currentStatus) || "ERROR".equals(currentStatus)) {
               log.debug("[TwilioConference] Kontakt już zakończony (status={}), pomijam: contactId={}",
                   currentStatus, contactId);
               return;

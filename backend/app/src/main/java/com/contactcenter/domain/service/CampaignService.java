@@ -89,6 +89,7 @@ public class CampaignService {
                 .dispositionCodes(request.dispositionCodes() != null ? request.dispositionCodes() : new ArrayList<>())
                 .maxAttempts(request.maxAttempts() != null ? request.maxAttempts() : 3)
                 .retryDelayMinutes(request.retryDelayMinutes() != null ? request.retryDelayMinutes() : 60)
+                .ringTimeoutSeconds(request.ringTimeoutSeconds() != null ? request.ringTimeoutSeconds() : 30)
                 .callerId(request.callerId())
                 .createdBy(userId)
                 .build();
@@ -182,6 +183,9 @@ public class CampaignService {
         }
         if (request.retryDelayMinutes() != null) {
             campaign.setRetryDelayMinutes(request.retryDelayMinutes());
+        }
+        if (request.ringTimeoutSeconds() != null) {
+            campaign.setRingTimeoutSeconds(request.ringTimeoutSeconds());
         }
         if (request.callerId() != null) {
             campaign.setCallerId(request.callerId());

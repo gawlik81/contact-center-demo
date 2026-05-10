@@ -61,7 +61,9 @@ export class SoftphoneService implements OnDestroy {
       );
     } catch (err) {
       if (err instanceof HttpErrorResponse && err.status === 404) {
-        console.info('[SoftphoneService] Brak konfiguracji Twilio dla tenanta – Voice SDK wyłączony.');
+        console.info(
+          '[SoftphoneService] Brak konfiguracji Twilio dla tenanta – Voice SDK wyłączony.',
+        );
         return;
       }
       const msg = err instanceof Error ? err.message : String(err);
@@ -256,6 +258,7 @@ export class SoftphoneService implements OnDestroy {
     }
     this.session.set({ ...s, state: 'ENDED' });
     this.cleanupTimeout = setTimeout(() => {
+      this.session.set(null);
       this.activeCall = null;
     }, 2000);
   }

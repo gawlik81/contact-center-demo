@@ -21,5 +21,7 @@ public record CampaignContactResponse(
         Map<String, String> customFields,
         String status,
         String dispositionCode,
-        Instant createdAt
+        Instant createdAt,
+        int attemptCount,
+        Instant nextAttemptAt
 ) {}

@@ -2170,7 +2170,8 @@
       "ON_HOLD": "On Hold",
       "COMPLETED": "Completed",
       "ABANDONED": "Abandoned",
-      "FAILED": "Failed"
+      "FAILED": "Failed",
+      "NOT_REACHED": "Not Reached"
     },
     "callbackStatusLabels": {
       "PENDING": "Pending",

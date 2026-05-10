@@ -142,8 +142,9 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     dialerType: ['PROGRESSIVE' as DialerType, Validators.required],
     queueId: ['', Validators.required],
     callerId: this.fb.control<string | null>(null),
-    maxAttempts: [3, [Validators.required, Validators.min(1)]],
-    retryDelayMinutes: [60, [Validators.required, Validators.min(0)]],
+    maxAttempts: [3, [Validators.required, Validators.min(1), Validators.max(10)]],
+    retryDelayMinutes: [60, [Validators.required, Validators.min(1), Validators.max(1440)]],
+    ringTimeoutSeconds: [30, [Validators.required, Validators.min(15), Validators.max(120)]],
     schedule: this.scheduleGroup,
   });
 
@@ -171,6 +172,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         callerId: editCampaign.callerId ?? null,
         maxAttempts: editCampaign.maxAttempts,
         retryDelayMinutes: editCampaign.retryDelayMinutes,
+        ringTimeoutSeconds: editCampaign.ringTimeoutSeconds ?? 30,
       });
       if (editCampaign.schedule) {
         const s = editCampaign.schedule;
@@ -274,7 +276,8 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     const ctrl = this.form.get('maxAttempts')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
     if (ctrl.hasError('required')) return 'Pole jest wymagane.';
-    if (ctrl.hasError('min')) return 'Minimalna liczba prob to 1.';
+    if (ctrl.hasError('min')) return 'Minimalna liczba prób to 1.';
+    if (ctrl.hasError('max')) return 'Maksymalna liczba prób to 10.';
     return null;
   }
 
@@ -282,7 +285,17 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     const ctrl = this.form.get('retryDelayMinutes')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
     if (ctrl.hasError('required')) return 'Pole jest wymagane.';
-    if (ctrl.hasError('min')) return 'Opoznienie nie moze byc ujemne.';
+    if (ctrl.hasError('min')) return 'Minimalny czas między próbami to 1 minuta.';
+    if (ctrl.hasError('max')) return 'Maksymalny czas między próbami to 1440 minut (24h).';
+    return null;
+  }
+
+  get ringTimeoutError(): string | null {
+    const ctrl = this.form.get('ringTimeoutSeconds')!;
+    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
+    if (ctrl.hasError('required')) return 'Pole jest wymagane.';
+    if (ctrl.hasError('min')) return 'Minimalny czas to 15 sekund.';
+    if (ctrl.hasError('max')) return 'Maksymalny czas to 120 sekund.';
     return null;
   }
 
@@ -342,6 +355,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
           dialerType: raw.dialerType as DialerType,
           maxAttempts: raw.maxAttempts!,
           retryDelayMinutes: raw.retryDelayMinutes!,
+          ringTimeoutSeconds: raw.ringTimeoutSeconds ?? undefined,
           schedule,
           callerId: raw.callerId || null,
         })
@@ -368,6 +382,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
           queueId: raw.queueId!,
           maxAttempts: raw.maxAttempts!,
           retryDelayMinutes: raw.retryDelayMinutes!,
+          ringTimeoutSeconds: raw.ringTimeoutSeconds!,
           schedule,
           callerId: raw.callerId || null,
         })

@@ -2778,3 +2778,146 @@ getPhoneNumbers(): Observable<TwilioPhoneNumberDto[]> {
 - [ ] W `CampaignFormComponent` pole "Numer prezentacji" jest selectem z opcją null jako pierwszą (not required)
 - [ ] W formularzu kampanii lista ładowana tylko dla `type = OUTBOUND_VOICE`
 - [ ] Klucze i18n dla wszystkich komunikatów (`supervisor.twilioPhoneSelect.*`)
+
+---
+
+## MODUL: Retry i callback w kampaniach wychodzących (EPIC-21)
+
+### FE-069 – Aktualizacja widoku listy kontaktów kampanii — nowe statusy `NOT_REACHED` i `CALLBACK`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Status:** ⏳ Do zrobienia
+**Zależy od:** DB-032, BE-063, BE-064
+**Blokuje:** –
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+Lista kontaktów kampanii (`CampaignContactsComponent` lub analogiczny) wyświetla status każdego rekordu. Po dodaniu statusów `NOT_REACHED` i `CALLBACK` widok musi je poprawnie etykietować i kolorować. Ponadto dla rekordów `NO_ANSWER` i `CALLBACK` należy pokazać czas kolejnej próby.
+
+**Zmiany:**
+
+### 1. Mapowanie statusów na etykiety i kolory
+
+| Status        | Etykieta PL          | Kolor (chip/badge)     |
+|---------------|----------------------|------------------------|
+| `PENDING`     | Oczekuje             | szary (neutral)        |
+| `DIALING`     | Wybieranie           | niebieski (info)       |
+| `CONNECTED`   | Połączony            | zielony (success)      |
+| `COMPLETED`   | Zakończono           | zielony (success)      |
+| `NO_ANSWER`   | Brak odpowiedzi      | pomarańczowy (warning) |
+| `NOT_REACHED` | Niedodzwoniony       | czerwony (error)       |
+| `CALLBACK`    | Oddzwonienie         | fioletowy (accent)     |
+| `FAILED`      | Błąd połączenia      | czerwony (error)       |
+| `SKIPPED`     | Pominięto            | szary (neutral)        |
+| `ERROR`       | Błąd techniczny      | czerwony (error)       |
+
+### 2. Kolumna „Próby" i „Następna próba"
+
+W tabeli kontaktów dodać dwie nowe kolumny (lub rozszerzyć istniejącą kolumnę statusu):
+
+- **Próby**: `attempt_count / max_attempts` — wyświetlaj tylko dla statusów innych niż PENDING
+  - Np. `2/3`
+  - Wymagana zmiana w API response DTO: `CampaignContactResponse` musi zawierać `attemptCount` i `maxAttempts`
+    - `maxAttempts` pochodzi z Campaign, może być dodane do endpointu `GET /api/campaigns/{id}/contacts` jako pole w metadata response lub dołączone do każdego rekordu
+- **Następna próba** (`next_attempt_at`): wyświetlaj dla statusów `NO_ANSWER` i `CALLBACK`
+  - Format: data i godzina względna (`za 45 min`, `jutro 09:15`)
+  - Wymagana zmiana: `CampaignContactResponse` musi zawierać `nextAttemptAt` (Instant / ISO-8601)
+
+### 3. Filtr statusów w UI
+
+Rozszerzyć filtr `status` (select/chips) o nowe wartości:
+- Dodać: `NOT_REACHED`, `CALLBACK`
+- Zachować istniejące: `PENDING`, `DIALING`, `NO_ANSWER`, `COMPLETED`, `FAILED`, `SKIPPED`, `ERROR`
+
+**Zmiany backendowe wymagane przez FE-069 (mogą być zrealizowane w ramach tego zadania lub osobnego bugfix):**
+
+`CampaignContactResponse` (BE) musi zostać rozszerzony o:
+```java
+public record CampaignContactResponse(
+    UUID recordId,
+    String phone,
+    String firstName,
+    String lastName,
+    Map<String, String> customFields,
+    String status,
+    String dispositionCode,
+    Instant createdAt,
+    int attemptCount,         // nowe
+    Instant nextAttemptAt     // nowe (nullable)
+) {}
+```
+
+Odpowiednie kolumny (`attempt_count`, `next_attempt_at`) muszą być dołączone do SELECT w `CampaignContactRepository.findByCampaign()`.
+
+**Kryteria akceptacji:**
+- [ ] Status `NOT_REACHED` wyświetla etykietę "Niedodzwoniony" w kolorze czerwonym
+- [ ] Status `CALLBACK` wyświetla etykietę "Oddzwonienie" w kolorze fioletowym
+- [ ] Dla rekordów `NO_ANSWER` i `CALLBACK` wyświetlana jest kolumna "Następna próba" z formatowanym czasem
+- [ ] Kolumna "Próby" pokazuje `attempt_count / max_attempts`
+- [ ] Filtr statusów zawiera opcje `NOT_REACHED` i `CALLBACK`
+- [ ] `CampaignContactResponse` zawiera `attemptCount` i `nextAttemptAt`
+
+---
+
+### FE-070 – Konfiguracja parametru retry w formularzu kampanii — `retryDelayMinutes`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Status:** ⏳ Do zrobienia
+**Zależy od:** –
+**Blokuje:** –
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+Formularz tworzenia/edycji kampanii (`CampaignFormComponent`) nie eksponuje parametru `retryDelayMinutes` — jest on zapisywany w DB z wartością domyślną 60 min i nigdy nie można go zmienić z UI. Pole `maxAttempts` najprawdopodobniej jest już w formularzu, ale należy to zweryfikować.
+
+**Zmiany w `CampaignFormComponent`:**
+
+### 1. Pole `retryDelayMinutes` — czas między próbami (gdy brak odpowiedzi)
+
+- Typ: liczba całkowita, zakres: 1–1440 minut (1 min – 24h)
+- Label: "Czas między próbami (minuty)" lub z select presetów:
+  - 15 min, 30 min, 1h (domyślna), 2h, 4h, 8h, 24h + pole własne
+- Widoczność: tylko dla kampanii `OUTBOUND_VOICE`
+- Sekcja: „Ustawienia dialera" obok `maxAttempts`
+
+### 2. Pole `maxAttempts` — weryfikacja i ewentualne dodanie
+
+Sprawdzić czy `maxAttempts` jest już w formularzu. Jeśli nie — dodać:
+- Typ: liczba całkowita, zakres: 1–10
+- Label: "Maksymalna liczba prób"
+- Widoczność: tylko dla `OUTBOUND_VOICE`
+
+### 3. Walidacja pól
+
+```typescript
+retryDelayMinutes: new FormControl(60, [
+    Validators.required,
+    Validators.min(1),
+    Validators.max(1440)
+]),
+maxAttempts: new FormControl(3, [
+    Validators.required,
+    Validators.min(1),
+    Validators.max(10)
+])
+```
+
+### 4. Tooltips / help text
+
+- `retryDelayMinutes`: "Ile minut odczekać przed kolejną próbą połączenia gdy klient nie odbierze"
+- `maxAttempts`: "Po ilu nieudanych próbach oznaczyć rekord jako Niedodzwoniony"
+
+**Kryteria akceptacji:**
+- [ ] Pole `retryDelayMinutes` dostępne w formularzu tworzenia i edycji kampanii
+- [ ] Pole `maxAttempts` dostępne w formularzu (dodać jeśli brak)
+- [ ] Oba pola widoczne tylko dla `type = 'OUTBOUND_VOICE'`
+- [ ] Walidacja: `retryDelayMinutes` w zakresie 1–1440, `maxAttempts` w zakresie 1–10
+- [ ] Wartości zapisywane na `POST /api/campaigns` i `PUT /api/campaigns/{id}`
+- [ ] Wartości ładowane poprawnie przy edycji istniejącej kampanii
+- [ ] Helptexty/tooltips przy obu polach

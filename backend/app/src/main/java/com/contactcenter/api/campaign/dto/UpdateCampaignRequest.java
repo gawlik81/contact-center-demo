@@ -36,6 +36,11 @@ public record UpdateCampaignRequest(
         /** Opóźnienie między próbami w minutach (null = nie zmieniaj). */
         Integer retryDelayMinutes,
 
+        /** Czas oczekiwania na odebranie przez klienta (sekundy, null = nie zmieniaj). */
+        @jakarta.validation.constraints.Min(value = 15, message = "ringTimeoutSeconds musi wynosić minimum 15")
+        @jakarta.validation.constraints.Max(value = 120, message = "ringTimeoutSeconds może wynosić maksimum 120")
+        Integer ringTimeoutSeconds,
+
         /**
          * Numer prezentacji (caller ID) w formacie E.164 (np. +48123456789).
          * Opcjonalny – null = nie zmieniaj.

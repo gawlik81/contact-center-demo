@@ -2593,3 +2593,361 @@ Nie należy buforować wyników (lista może się zmieniać po zakupie/usunięci
 - [ ] Zwraca `200` z pustą tablicą `phoneNumbers: []` gdy konto Twilio nie ma żadnych numerów
 - [ ] Endpoint udokumentowany w OpenAPI/Swagger
 - [ ] Brak fallbacku do globalnych `TwilioProperties` — endpoint operuje tylko na per-tenant konfiguracji
+
+---
+
+## MODUL: Retry i callback w kampaniach wychodzących (EPIC-21)
+
+### BE-062 – Propagacja wyniku połączenia Twilio przez `CallEvent` — rozróżnienie no-answer od completed
+
+**Typ:** Bug fix / Feature
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
+**Zależy od:** –
+**Blokuje:** BE-063
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+Aktualnie `TelephonyEventPublisher.publishHangup()` nie przekazuje rzeczywistego statusu Twilio (`no-answer`, `busy`, `failed`, `completed`, `canceled`) — wszystkie trafiają jako `CALL_HANGUP` bez rozróżnienia. W efekcie `DialerCallbackHandler.onCallHangup()` oznacza każde zakończone połączenie kampanijne jako `COMPLETED`, nawet gdy klient nie odebrał.
+
+**Zmiany:**
+
+### 1. `CallEvent` — nowe pole `callOutcome`
+
+```java
+// Dodać pole do klasy CallEvent (Builder)
+/** Wynik połączenia zwrócony przez Twilio. Np. "completed", "no-answer", "busy", "failed", "canceled". */
+private final String callOutcome;
+```
+
+### 2. `TelephonyEventPublisher.publishHangup()` — przyjmuje `callOutcome`
+
+```java
+public void publishHangup(String callId, UUID contactId, UUID tenantId, UUID agentId,
+                           String from, String to, String callOutcome) {
+    publish(CallEvent.builder()
+            .eventType(CallEvent.EventType.CALL_HANGUP)
+            .callId(callId)
+            .contactId(contactId)
+            .tenantId(tenantId)
+            .agentId(agentId)
+            .from(from)
+            .to(to)
+            .callOutcome(callOutcome)  // nowe pole
+            .timestamp(Instant.now())
+            .build());
+}
+```
+
+### 3. `TwilioTelephonyAdapter` — przekazanie statusu Twilio
+
+W metodzie `handleWebhookStatusUpdate()` przy wywołaniu `publishHangup()` przekazać oryginalny `callStatus` (np. `"no-answer"`, `"busy"`, `"completed"`):
+
+```java
+// Zamiast:
+eventPublisher.publishHangup(callSid, contactId, tenantId, agentId, from, to);
+// Użyć:
+eventPublisher.publishHangup(callSid, contactId, tenantId, agentId, from, to, callStatus);
+```
+
+### 4. `DialerCallbackHandler.onCallHangup()` — obsługa wyniku
+
+```java
+String outcome = callEvent.getCallOutcome();
+boolean isNoAnswer = outcome != null &&
+    (outcome.equalsIgnoreCase("no-answer") || outcome.equalsIgnoreCase("busy"));
+
+if (isNoAnswer) {
+    // Pobierz kampanię żeby uzyskać maxAttempts i retryDelayMinutes
+    Campaign campaign = campaignRepository.findById(campaignId).orElse(null);
+    int maxAttempts = campaign != null ? campaign.getMaxAttempts() : 3;
+    int retryDelayMinutes = campaign != null ? campaign.getRetryDelayMinutes() : 60;
+    handleNoAnswer(callSid, tenantId, campaignId, recordId, agentId, maxAttempts, retryDelayMinutes);
+} else {
+    // completed, canceled, failed → COMPLETED
+    updateCampaignContact(recordId, campaignId, tenantId, "COMPLETED", null, null);
+}
+```
+
+**Uwagi:**
+- `DialerCallbackHandler` potrzebuje wstrzyknięcia `CampaignRepository` (do odczytu `maxAttempts` i `retryDelayMinutes`)
+- `MockTelephonyAdapter` powinien przekazywać `"completed"` jako `callOutcome` domyślnie
+- Zmiana sygnatury `publishHangup()` może wymagać aktualizacji innych wywołań (wyszukać przez `publishHangup(`)
+
+**Kryteria akceptacji:**
+- [ ] `CallEvent` ma pole `callOutcome` (String, nullable)
+- [ ] `publishHangup()` przyjmuje i propaguje `callOutcome`
+- [ ] Przy statusie Twilio `"no-answer"` lub `"busy"` → `onCallHangup()` wywołuje `handleNoAnswer()`
+- [ ] Przy statusie `"completed"` lub `"canceled"` → rekord kampanijny → `COMPLETED`
+- [ ] `MockTelephonyAdapter` nie rzuca NPE (przekazuje `"completed"` lub null)
+- [ ] Testy jednostkowe `DialerCallbackHandlerTest` weryfikują obie gałęzie (no-answer i completed)
+
+---
+
+### BE-063 – Naprawa logiki `handleNoAnswer()` — używaj `retryDelayMinutes` z kampanii, status `NOT_REACHED`
+
+**Typ:** Bug fix
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
+**Zależy od:** DB-032, BE-062
+**Blokuje:** BE-065
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+`DialerCallbackHandler.handleNoAnswer()` ma dwa błędy:
+1. Używa stałej `NO_ANSWER_RETRY_HOURS = 4` zamiast `campaign.retryDelayMinutes` — ignoruje konfigurację kampanii.
+2. Używa statusu `FAILED` jako terminal zamiast `NOT_REACHED` (niedodzwoniony).
+
+**Zmiany w `DialerCallbackHandler`:**
+
+### 1. Zmień sygnaturę metody — dodaj `retryDelayMinutes`
+
+```java
+// Stara sygnatura:
+public void handleNoAnswer(String callSid, UUID tenantId, UUID campaignId,
+                           UUID recordId, UUID agentId, int maxAttempts)
+
+// Nowa sygnatura:
+public void handleNoAnswer(String callSid, UUID tenantId, UUID campaignId,
+                           UUID recordId, UUID agentId, int maxAttempts, int retryDelayMinutes)
+```
+
+### 2. Użyj `retryDelayMinutes` zamiast stałej
+
+```java
+if (attemptCount >= maxAttempts) {
+    // Terminal: wyczerpano próby → NOT_REACHED (niedodzwoniony)
+    updateCampaignContact(recordId, campaignId, tenantId, "NOT_REACHED", null, null);
+    log.info("[DialerHandler] Kontakt {} wyczerpał próby ({}/{}), status=NOT_REACHED",
+            recordId, attemptCount, maxAttempts);
+} else {
+    // Zaplanuj kolejną próbę wg konfiguracji kampanii
+    Instant nextAttempt = Instant.now().plus(retryDelayMinutes, ChronoUnit.MINUTES);
+    updateCampaignContact(recordId, campaignId, tenantId, "NO_ANSWER", nextAttempt, null);
+    log.info("[DialerHandler] Kontakt {} – NO_ANSWER, próba {}/{}, next_attempt_at={} (+{}min)",
+            recordId, attemptCount, maxAttempts, nextAttempt, retryDelayMinutes);
+}
+```
+
+### 3. Usuń stałą `NO_ANSWER_RETRY_HOURS`
+
+Stała `private static final int NO_ANSWER_RETRY_HOURS = 4;` jest martwa po zmianie — usunąć.
+
+**Uwagi:**
+- Status `NO_ANSWER` z `next_attempt_at` w przyszłości = rekord czeka na kolejną próbę. Dialer pobiera go przez zmieniony query (BE-065).
+- Status `NOT_REACHED` = finalny, rekord nie wraca do kolejki.
+- Usunąć wzmiankę o `FAILED` z dokumentacji JavaDoc metody.
+
+**Kryteria akceptacji:**
+- [ ] Po nieodebraniu, gdy `attempt_count < max_attempts`: status = `NO_ANSWER`, `next_attempt_at = NOW() + retryDelayMinutes`
+- [ ] Po nieodebraniu, gdy `attempt_count >= max_attempts`: status = `NOT_REACHED` (nie `FAILED`)
+- [ ] Stała `NO_ANSWER_RETRY_HOURS` usunięta
+- [ ] Testy jednostkowe: scenariusz retry (attempt_count < max), scenariusz finał (attempt_count == max)
+- [ ] `handleNoAnswer()` wywoływany z `retryDelayMinutes` przekazanym przez `onCallHangup()` (BE-062)
+
+---
+
+### BE-064 – Naprawa `handleCallbackDisposition()` — status `CALLBACK`, powiązanie z rekordem kampanii
+
+**Typ:** Bug fix
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
+**Zależy od:** DB-032, DB-033
+**Blokuje:** BE-066, FE-069
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+`DialerCallbackHandler.handleCallbackDisposition()` ustawia status rekordu `campaign_contact` na `COMPLETED`, co jest błędem. Rekord z callbackiem powinien mieć status `CALLBACK` — jest nadal aktywny, czeka na oddzwonienie. Dyspozycja `COMPLETED` powinna być ustawiona dopiero po faktycznym zakończeniu oddzwonienia.
+
+Dodatkowo: `next_attempt_at` nie jest ustawiane, przez co brak informacji o zaplanowanym czasie.
+
+**Zmiany w `handleCallbackDisposition()`:**
+
+```java
+// Zamiast:
+updateCampaignContact(recordId, campaignId, tenantId, "COMPLETED", null, "CALLBACK");
+
+// Użyć:
+updateCampaignContact(recordId, campaignId, tenantId, "CALLBACK", scheduledAt, "CALLBACK");
+```
+
+Metoda `updateCampaignContact()` musi zachować `attempt_count` bez zmiany — weryfikacja: `updateCampaignContact()` nie inkrementuje `attempt_count` (inkrementacja dzieje się tylko przy przejściu na `DIALING`). **Sprawdzić i potwierdzić w teście.**
+
+**Powiązanie `ScheduledCallback` z `campaign_contact`:**
+
+Po DB-033 tabela `scheduled_callback` ma dedykowane pole `campaign_contact_record_id`. Używać go zamiast `customer_id`:
+
+```java
+@Column(name = "campaign_contact_record_id")
+private UUID campaignContactRecordId;
+```
+
+Przy tworzeniu rekordu `ScheduledCallback` z dyspozycji CALLBACK:
+
+```java
+scheduledCallback.setCampaignContactRecordId(recordId);  // campaign_contact.record_id
+// customer_id nadal wskazuje na prawdziwego klienta z tabeli customer
+```
+
+**Kryteria akceptacji:**
+- [ ] Po dyspozycji CALLBACK: `campaign_contact.status = 'CALLBACK'`
+- [ ] Po dyspozycji CALLBACK: `campaign_contact.next_attempt_at = scheduledAt` (czas agenta)
+- [ ] `campaign_contact.attempt_count` NIE zmienia się przy ustawieniu CALLBACK
+- [ ] `ScheduledCallback.campaignContactRecordId` zawiera `record_id` rekordu `campaign_contact`
+- [ ] `ScheduledCallback.customerId` zawiera prawdziwe ID klienta z tabeli `customer` (nie record_id)
+- [ ] Test jednostkowy: po `handleCallbackDisposition()` rekord ma status CALLBACK, nie COMPLETED
+
+---
+
+### BE-065 – Naprawa `ProgressiveDialerService` — retry rekordów NO_ANSWER, usunięcie stałego 4h guard
+
+**Typ:** Bug fix
+**Priorytet:** Must Have
+**Szacowany rozmiar:** S
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
+**Zależy od:** DB-032, BE-063
+**Blokuje:** –
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+Dwa problemy w `ProgressiveDialerService`:
+
+1. **Dialer nie pobiera rekordów `NO_ANSWER`** do ponowienia — `fetchNextPendingContact()` filtruje wyłącznie `status = 'PENDING'`. Rekordy po `handleNoAnswer()` mają status `NO_ANSWER` z `next_attempt_at` i nigdy nie wróciłyby do kolejki.
+
+2. **`isCalledTooRecently()` używa stałej 4h** — stała gwardia `4h` jest architektonicznie błędna: powielenie logiki z `retryDelayMinutes` i działa nawet gdy kampania ma skonfigurowany krótszy/dłuższy interwał. Kolumna `next_attempt_at` jest już autorytatywna.
+
+**Zmiany w `fetchNextPendingContact()`:**
+
+```java
+// Zamiast:
+AND status = 'PENDING'
+// Użyć:
+AND status IN ('PENDING', 'NO_ANSWER')
+```
+
+Zapytanie już filtruje `next_attempt_at IS NULL OR next_attempt_at <= NOW()` — rekordy `NO_ANSWER` będą pobierane automatycznie gdy minie czas `next_attempt_at`.
+
+**Usunięcie `isCalledTooRecently()`:**
+
+Metoda `isCalledTooRecently()` (sprawdza 4h od `last_attempt_at`) jest wywoływana w `initiateDialForAgent()`. Usunąć wywołanie i samą metodę — `next_attempt_at` przejął tę rolę. Usunąć również log debug z komunikatem "dzwoniony zbyt niedawno".
+
+**Uwaga na indeks DB:**
+
+Zmiana wymaga indeksu `idx_campaign_contact_dialer` pokrywającego `WHERE status IN ('PENDING', 'NO_ANSWER')` (dostarczany przez DB-032). Bez niego zapytanie będzie seq-scanem na dużych kampaniach.
+
+**Kryteria akceptacji:**
+- [ ] `fetchNextPendingContact()` pobiera rekordy `NO_ANSWER` gdy `next_attempt_at <= NOW()`
+- [ ] `fetchNextPendingContact()` nadal pomija `NO_ANSWER` gdy `next_attempt_at > NOW()` (jeszcze za wcześnie)
+- [ ] Metoda `isCalledTooRecently()` usunięta z klasy i z wywołania
+- [ ] Test integracyjny: rekord NO_ANSWER z `next_attempt_at` w przeszłości → dialer go pobiera
+- [ ] Test integracyjny: rekord NO_ANSWER z `next_attempt_at` w przyszłości → dialer go pomija
+
+---
+
+### BE-066 – `ScheduledCallbackExecutor` — aktualizacja statusu `campaign_contact` przy wykonaniu callbacku kampanijnego
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Szacowany rozmiar:** M
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-08
+**Zależy od:** DB-032, DB-033, BE-062, BE-064
+**Blokuje:** –
+**Epic:** EPIC-21 Retry i callback w kampaniach wychodzących
+
+**Opis:**
+
+`ScheduledCallbackExecutor` inicjuje połączenia dla zaplanowanych oddzwonień, ale przy callbackach kampanijnych (gdzie `callback.getCampaignId() != null`) nie aktualizuje statusu `campaign_contact`. Wymagana jest pełna integracja:
+
+1. Przed dzwonieniem: `campaign_contact.status = DIALING` **bez inkrementacji `attempt_count`**
+2. Wynik połączenia przekazany przez mechanizm Redis → `DialerCallbackHandler.onCallHangup()`
+
+**Zmiany:**
+
+### 1. Nowa prywatna metoda w `ProgressiveDialerService` (lub osobny `DialerStateRepository`)
+
+Wyodrębnić `markAsDialingWithoutAttemptIncrement()` do repozytorium/serwisu:
+
+```java
+// W CampaignContactRepository lub ProgressiveDialerService:
+public void markAsDialingForCallback(UUID recordId, UUID campaignId, UUID tenantId) {
+    // UPDATE campaign_contact SET status = 'DIALING', last_attempt_at = NOW(), updated_at = NOW()
+    // WHERE record_id = ? AND campaign_id = ? AND tenant_id = ?
+    // UWAGA: attempt_count NIE jest inkrementowany
+}
+```
+
+### 2. W `ScheduledCallbackExecutor.processCallback()` — dla callbacków kampanijnych
+
+```java
+UUID campaignId = callback.getCampaignId();
+UUID recordId = callback.getCampaignContactRecordId();  // DB-033: dedykowane pole, nie customer_id
+
+if (campaignId != null && recordId != null) {
+    // Oznacz rekord jako DIALING (bez inkrementacji attempt_count)
+    campaignContactRepository.markAsDialingForCallback(recordId, campaignId, callback.getTenantId());
+}
+
+// Inicjuj połączenie jak dotychczas...
+telephonyAdapter.initiateCall(...);
+
+// Zapisz stan w Redis (jak ProgressiveDialerService.saveCallState)
+// WAŻNE: dodaj marker że to jest callback attempt
+String callKey = "dialer:call:" + callSid;
+String value = recordId + "," + campaignId + "," + callback.getAgentId() + "," + callback.getTenantId();
+redisTemplate.opsForValue().set(callKey, value, Duration.ofSeconds(1800));
+
+// Marker że nie inkrementować attempt_count przy no-answer
+redisTemplate.opsForValue().set("dialer:callback-attempt:" + callSid, "true", Duration.ofSeconds(1800));
+```
+
+### 3. W `DialerCallbackHandler.handleNoAnswer()` — obsługa callback attempt
+
+```java
+// Sprawdź czy to był callback attempt (attempt_count nie ma być inkrementowany)
+boolean isCallbackAttempt = Boolean.TRUE.equals(
+    redisTemplate.hasKey("dialer:callback-attempt:" + callSid));
+
+if (!isCallbackAttempt) {
+    // Odczytaj aktualny attempt_count (normalny flow)
+    int attemptCount = getCurrentAttemptCount(recordId, campaignId, tenantId);
+    // ... normalny retry logic
+} else {
+    // Callback attempt – brak inkrementacji attempt_count
+    // Rekord wraca do PENDING (będzie czekał na kolejną próbę z normalnym timeoutem)
+    Instant nextAttempt = Instant.now().plus(retryDelayMinutes, ChronoUnit.MINUTES);
+    updateCampaignContact(recordId, campaignId, tenantId, "NO_ANSWER", nextAttempt, null);
+    redisTemplate.delete("dialer:callback-attempt:" + callSid);
+}
+```
+
+### 4. W `DialerCallbackHandler.cleanupRedisKeys()` — czyszczenie nowego klucza
+
+```java
+redisTemplate.delete("dialer:callback-attempt:" + callSid);
+```
+
+**Uwagi:**
+- `ScheduledCallbackExecutor` potrzebuje wstrzyknięcia: `CampaignContactRepository`, `StringRedisTemplate`, `ProgressiveDialerService` (lub jego SaveCallState)
+- Aby uniknąć circular dependency, wyciągnąć `saveCallState()` do osobnego bean lub przekazać `JdbcTemplate` do executora
+- Dla nie-kampanijnych callbacków (`campaignId == null`): brak zmian w logice
+- Zakładany TTL klucza `dialer:callback-attempt:*`: 30 minut (taki sam jak `dialer:call:*`)
+
+**Kryteria akceptacji:**
+- [ ] Przy wykonaniu callbacku kampanijnego: `campaign_contact.status = 'DIALING'`, `attempt_count` bez zmiany
+- [ ] Po zakończeniu rozmowy przez agenta: `campaign_contact.status = 'COMPLETED'`
+- [ ] Po braku odpowiedzi przy callbacku: `campaign_contact.status = 'NO_ANSWER'`, `attempt_count` bez zmiany
+- [ ] Klucz Redis `dialer:callback-attempt:{callSid}` czyszczony po obsłudze
+- [ ] Dla callbacków bez `campaignId`: brak zmian w działaniu (backward compatible)
+- [ ] Test jednostkowy: callback attempt nie inkrementuje `attempt_count`

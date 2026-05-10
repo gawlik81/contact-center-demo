@@ -1,9 +1,11 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
+import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -19,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +63,7 @@ public class RoutingService {
     private final ContactRepository contactRepository;
     private final RabbitTemplate rabbitTemplate;
     private final QueueAssignmentRepository queueAssignmentRepository;
+    private final AppUserRepository appUserRepository;
 
     // =========================================================================
     // Główna metoda routingu
@@ -281,6 +285,76 @@ public class RoutingService {
             throw new RuntimeException("Błąd retry routingu dla tenanta " + event.tenantId(), e);
         } finally {
             TenantContext.clear();
+        }
+    }
+
+    // =========================================================================
+    // Scheduled polling – uzupełnienie event-driven triggering
+    // =========================================================================
+
+    /**
+     * Cyklicznie wyzwala routing dla wszystkich aktualnie AVAILABLE agentów.
+     *
+     * <p>Uzupełnienie event-driven triggeringu: obsługuje przypadki gdy kontakt
+     * trafił do kolejki zanim agent zmienił status lub gdy event RabbitMQ zaginął.
+     *
+     * <p>Używa {@code fixedDelay} – kolejna iteracja startuje PO zakończeniu poprzedniej
+     * (ochrona przed nakładaniem się przy wolnych tenantach).
+     */
+    @Scheduled(fixedDelayString = "${dialer.agent-poll-interval-ms:30000}")
+    public void pollAvailableAgents() {
+        List<AppUser> availableAgents =
+                appUserRepository.findAllByStatusAndDeletedFalse(UserStatus.AVAILABLE);
+
+        if (availableAgents.isEmpty()) {
+            log.debug("[RoutingService] pollAvailableAgents: brak AVAILABLE agentów – pomijam");
+            return;
+        }
+
+        log.debug("[RoutingService] pollAvailableAgents: sprawdzam {} AVAILABLE agentów",
+                availableAgents.size());
+
+        for (AppUser agent : availableAgents) {
+            UUID agentId  = agent.getId();
+            UUID tenantId = agent.getTenantId();
+
+            TenantContext.Snapshot snapshot =
+                    new TenantContext.Snapshot(tenantId, agentId, null, "SYSTEM");
+            TenantContext.restore(snapshot);
+            try {
+                List<Contact> queuedContacts = contactRepository.findQueuedContacts(tenantId);
+                if (queuedContacts.isEmpty()) {
+                    continue;
+                }
+
+                for (Contact contact : queuedContacts) {
+                    // Kontakty OUTBOUND z kampanii mają agenta przypisanego przez dialer –
+                    // RoutingService nie powinien ich dotykać (duplikacja przypisania).
+                    if ("OUTBOUND".equals(contact.getDirection()) && contact.getAgentId() != null) {
+                        continue;
+                    }
+
+                    if (contact.getQueueId() == null) {
+                        continue;
+                    }
+
+                    Optional<UUID> assignedAgent = routeContact(
+                            contact.getContactId(),
+                            contact.getQueueId(),
+                            tenantId
+                    );
+
+                    if (assignedAgent.isPresent()) {
+                        // Agent zajęty po przydzieleniu kontaktu – przejdź do następnego agenta
+                        break;
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[RoutingService] pollAvailableAgents: błąd dla agenta {}: {}",
+                        agentId, e.getMessage());
+            } finally {
+                TenantContext.clear();
+            }
         }
     }
 

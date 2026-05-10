@@ -1,3 +1,50 @@
+## Review: EPIC-21 — V053 + V054 — 2026-05-08
+
+**Branch:** EPIC-21  
+**Reviewer:** senior-code-reviewer agent  
+**Migracje:** `V053__add_not_reached_callback_status.sql`, `V054__add_campaign_contact_record_id_to_scheduled_callback.sql`
+
+---
+
+### MEDIUM
+
+#### [V053:26-29] Indeks częściowy idx_campaign_contact_dialer — uwaga na typ kolumny status
+
+Predykat `WHERE status IN ('PENDING', 'NO_ANSWER')` jest poprawny dla TEXT/VARCHAR. Jeśli kolumna zostanie zmieniona na PostgreSQL ENUM — indeks przestanie być używany bez ostrzeżenia. Warto dodać komentarz ostrzegający.
+
+Dodatkowo: `DROP INDEX IF EXISTS` bez `CONCURRENTLY` — na dużej tabeli może blokować DML. Rozważ `CONCURRENTLY`.
+
+---
+
+#### [V053:32-58] DROP MATERIALIZED VIEW bez maintenance window
+
+`DROP MATERIALIZED VIEW` wymaga `AccessExclusiveLock`. Przy regularnym odświeżaniu lub zapytaniach dashboardowych może trwać długo. Brak komentarza ostrzegawczego.
+
+Brak RLS na `mv_campaign_stats` — widok zawiera `tenant_id` ale nie ma row-level security. Bezpieczeństwo w pełni po stronie aplikacji.
+
+---
+
+### LOW
+
+#### [V054:1-14] Indeks idx_scheduled_callback_cc_record bez tenant_id
+
+Indeks `(campaign_contact_record_id)` bez `tenant_id`. UUID może nie być globalnie unikalne między tenantami. Powinno być `(tenant_id, campaign_contact_record_id)`.
+
+---
+
+#### [V053] Brak statusu SKIPPED w materialized view mv_campaign_stats
+
+`SKIPPED` jest prawidłowym statusem (CHECK constraint), ale nie ma kolumny `skipped_records` w MV. Dashboard nie wyświetli pominiętych rekordów.
+
+---
+
+### Pozytywne obserwacje
+
+- Migracja V053 aktualizuje zarówno `campaign_contact` jak i `campaign_contact_archive` — zachowanie spójności archive często pomijane w analogicznych PR.
+- Poprawna konwencja: nowa kolumna `campaign_contact_record_id` zamiast przeciążenia istniejącej kolumny (zgodnie z anti-pattern z CLAUDE.md).
+
+---
+
 ## Review: V031__add_dialer_indexes.sql — 2026-04-08
 
 ### Bugs / Critical Issues

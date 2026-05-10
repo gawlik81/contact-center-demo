@@ -294,6 +294,69 @@ public class CampaignContactRepository extends TenantAwareRepository {
     }
 
     /**
+     * Aktualizuje status rekordu campaign_contact na DIALING przy realizacji callbacku kampanijnego.
+     *
+     * <p>Różni się od {@link #markAsDialing} tym, że <strong>NIE inkrementuje {@code attempt_count}</strong> –
+     * oddzwonienie to callback attempt, a nie nowa próba dialera w kampanii.
+     *
+     * @param recordId   UUID rekordu
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     */
+    @Transactional
+    public void markAsDialingForCallback(UUID recordId, UUID campaignId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        jdbcTemplate.update(
+                """
+                UPDATE campaign_contact
+                SET status = 'DIALING',
+                    last_attempt_at = NOW(),
+                    updated_at = NOW()
+                WHERE record_id = ?::uuid
+                  AND campaign_id = ?::uuid
+                  AND tenant_id = ?::uuid
+                """,
+                recordId.toString(),
+                campaignId.toString(),
+                tenantId.toString()
+        );
+    }
+
+    /**
+     * Cofa status rekordu z DIALING z powrotem na CALLBACK po błędzie telefonii podczas callback attempt.
+     *
+     * <p>Wywoływane gdy {@code ScheduledCallbackExecutor} zdążył ustawić DIALING, ale
+     * {@code TelephonyAdapter.initiateCall()} rzucił wyjątek. Przywraca {@code next_attempt_at}
+     * do wartości {@code scheduledAt} callbacku, aby rekord mógł wrócić do kolejki dialera.
+     *
+     * @param recordId      UUID rekordu
+     * @param campaignId    UUID kampanii
+     * @param tenantId      UUID tenanta
+     * @param nextAttemptAt moment kolejnej próby (scheduledAt z callbacku)
+     */
+    @Transactional
+    public void revertDialingToCallback(UUID recordId, UUID campaignId, UUID tenantId, Instant nextAttemptAt) {
+        setTenantContextInDb(tenantId);
+
+        jdbcTemplate.update(
+                """
+                UPDATE campaign_contact
+                SET status = 'CALLBACK',
+                    next_attempt_at = ?,
+                    updated_at = NOW()
+                WHERE record_id = ?::uuid
+                  AND campaign_id = ?::uuid
+                  AND tenant_id = ?::uuid
+                """,
+                java.sql.Timestamp.from(nextAttemptAt),
+                recordId.toString(),
+                campaignId.toString(),
+                tenantId.toString()
+        );
+    }
+
+    /**
      * Oznacza rekord campaign_contact jako ERROR (trwały błąd techniczny adaptera telefonii).
      *
      * <p>Używane gdy Twilio API rzuci {@code ApiException} podczas {@code initiateCall()}
@@ -491,7 +554,8 @@ public class CampaignContactRepository extends TenantAwareRepository {
         if (hasStatusFilter) {
             selectSql = """
                     SELECT record_id, phone, first_name, last_name,
-                           custom_fields::text, status, disposition_code, created_at
+                           custom_fields::text, status, disposition_code, created_at,
+                           attempt_count, next_attempt_at
                     FROM campaign_contact
                     WHERE campaign_id = ?::uuid
                       AND tenant_id = ?::uuid
@@ -505,7 +569,8 @@ public class CampaignContactRepository extends TenantAwareRepository {
         } else {
             selectSql = """
                     SELECT record_id, phone, first_name, last_name,
-                           custom_fields::text, status, disposition_code, created_at
+                           custom_fields::text, status, disposition_code, created_at,
+                           attempt_count, next_attempt_at
                     FROM campaign_contact
                     WHERE campaign_id = ?::uuid
                       AND tenant_id = ?::uuid
@@ -534,6 +599,10 @@ public class CampaignContactRepository extends TenantAwareRepository {
 
                     Map<String, String> customFields = parseCustomFields(customFieldsJson);
 
+                    int attemptCount = rs.getInt("attempt_count");
+                    Timestamp nextAttemptAtTs = rs.getTimestamp("next_attempt_at");
+                    Instant nextAttemptAt = nextAttemptAtTs != null ? nextAttemptAtTs.toInstant() : null;
+
                     return new CampaignContactResponse(
                             recordId,
                             phone,
@@ -542,7 +611,9 @@ public class CampaignContactRepository extends TenantAwareRepository {
                             customFields,
                             status,
                             errorMessage,
-                            createdAt
+                            createdAt,
+                            attemptCount,
+                            nextAttemptAt
                     );
                 }
         );

@@ -4,6 +4,7 @@ import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.service.ScheduledCallbackExecutor;
@@ -20,10 +21,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -56,12 +60,23 @@ class ScheduledCallbackExecutorTest {
     @Mock
     private AppUserRepository appUserRepository;
 
+    @Mock
+    private CampaignContactRepository campaignContactRepository;
+
+    @Mock
+    private StringRedisTemplate redisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOps;
+
     @InjectMocks
     private ScheduledCallbackExecutor executor;
 
-    private static final UUID TENANT_ID  = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
+    private static final UUID TENANT_ID   = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
     private static final UUID CALLBACK_ID = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002");
-    private static final UUID AGENT_ID   = UUID.fromString("cccccccc-0000-0000-0000-000000000003");
+    private static final UUID AGENT_ID    = UUID.fromString("cccccccc-0000-0000-0000-000000000003");
+    private static final UUID CAMPAIGN_ID = UUID.fromString("dddddddd-0000-0000-0000-000000000004");
+    private static final UUID RECORD_ID   = UUID.fromString("eeeeeeee-0000-0000-0000-000000000005");
 
     private Tenant activeTenant;
 
@@ -72,6 +87,9 @@ class ScheduledCallbackExecutorTest {
                 .name("TestTenant")
                 .status(Tenant.TenantStatus.ACTIVE)
                 .build();
+
+        // Redis – domyślnie skonfigurowane ValueOperations
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
     }
 
     @AfterEach
@@ -299,6 +317,79 @@ class ScheduledCallbackExecutorTest {
     }
 
     // =========================================================================
+    // Test 8: Callback kampanijny → markAsDialingForCallback + klucze Redis
+    // =========================================================================
+
+    @Test
+    @DisplayName("Callback z campaignId i campaignContactRecordId → markAsDialingForCallback wywołany, klucze Redis ustawione")
+    void processCallback_campaignCallback_marksDialingAndSetsRedisKeys() {
+        // given – callback powiązany z kampanią i rekordem kontaktu
+        ScheduledCallback callback = buildCampaignCallback(CALLBACK_ID, TENANT_ID, AGENT_ID,
+                "+48123456789", CAMPAIGN_ID, RECORD_ID);
+        String expectedCallSid = "CA_campaign_callback_001";
+
+        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
+                .thenReturn(List.of(callback));
+        when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
+                .thenReturn(1);
+        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+                .thenReturn(java.util.Optional.of(buildAvailableAgent(AGENT_ID, TENANT_ID)));
+
+        CallSession mockSession = mock(CallSession.class);
+        when(mockSession.getCallId()).thenReturn(expectedCallSid);
+        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), eq(AGENT_ID), isNull(), eq(CALLBACK_ID)))
+                .thenReturn(mockSession);
+
+        // when
+        executor.executeScheduledCallbacks();
+
+        // then – markAsDialingForCallback wywołany (bez inkrementacji attempt_count)
+        verify(campaignContactRepository).markAsDialingForCallback(RECORD_ID, CAMPAIGN_ID, TENANT_ID);
+
+        // Redis: dialer:call:{callSid} i dialer:callback-attempt:{callSid} ustawione z TTL 1800s
+        verify(valueOps).set(eq("dialer:call:" + expectedCallSid), anyString(), eq(1800L), eq(TimeUnit.SECONDS));
+        verify(valueOps).set(eq("dialer:callback-attempt:" + expectedCallSid), eq("true"), eq(1800L), eq(TimeUnit.SECONDS));
+
+        // Callback oznaczony jako COMPLETED
+        verify(callbackRepository).updateStatus(CALLBACK_ID, "COMPLETED", TENANT_ID);
+    }
+
+    // =========================================================================
+    // Test 9: Callback bez campaignId → backward compatible (brak zmian w DB kampanii)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Callback bez campaignId → markAsDialingForCallback NIE wywołany (backward compatible)")
+    void processCallback_nonCampaignCallback_doesNotCallMarkAsDialingForCallback() {
+        // given – callback bez powiązania z kampanią (klasyczny callback agenta)
+        ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48999999999");
+        // callback nie ma campaignId ani campaignContactRecordId
+
+        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
+                .thenReturn(List.of(callback));
+        when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
+                .thenReturn(1);
+        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+                .thenReturn(java.util.Optional.of(buildAvailableAgent(AGENT_ID, TENANT_ID)));
+
+        CallSession mockSession = mock(CallSession.class);
+        when(mockSession.getCallId()).thenReturn("CA_non_campaign_001");
+        when(telephonyAdapter.initiateCall(any(), any(), any(), any(), any(), any()))
+                .thenReturn(mockSession);
+
+        // when
+        executor.executeScheduledCallbacks();
+
+        // then – brak interakcji z campaignContactRepository
+        verifyNoInteractions(campaignContactRepository);
+
+        // Redis: brak kluczy dialer:callback-attempt (nie kampanijny)
+        verify(valueOps, never()).set(contains("dialer:callback-attempt:"), any(), anyLong(), any());
+    }
+
+    // =========================================================================
     // Pomocnicze – budowanie encji testowych
     // =========================================================================
 
@@ -308,6 +399,21 @@ class ScheduledCallbackExecutorTest {
                 .tenantId(tenantId)
                 .agentId(agentId)
                 .phone(phone)
+                .status("PENDING")
+                .scheduledAt(Instant.now().minusSeconds(300))
+                .createdAt(Instant.now().minusSeconds(3600))
+                .build();
+    }
+
+    private ScheduledCallback buildCampaignCallback(UUID callbackId, UUID tenantId, UUID agentId,
+                                                     String phone, UUID campaignId, UUID campaignContactRecordId) {
+        return ScheduledCallback.builder()
+                .callbackId(callbackId)
+                .tenantId(tenantId)
+                .agentId(agentId)
+                .phone(phone)
+                .campaignId(campaignId)
+                .campaignContactRecordId(campaignContactRecordId)
                 .status("PENDING")
                 .scheduledAt(Instant.now().minusSeconds(300))
                 .createdAt(Instant.now().minusSeconds(3600))

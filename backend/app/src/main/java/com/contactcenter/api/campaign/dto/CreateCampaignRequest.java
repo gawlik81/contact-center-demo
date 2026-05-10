@@ -57,6 +57,11 @@ public record CreateCampaignRequest(
         /** Opóźnienie między próbami w minutach. Domyślnie: 60. */
         Integer retryDelayMinutes,
 
+        /** Czas oczekiwania na odebranie przez klienta (sekundy). Zakres: 15–120. Domyślnie: 30. */
+        @jakarta.validation.constraints.Min(value = 15, message = "ringTimeoutSeconds musi wynosić minimum 15")
+        @jakarta.validation.constraints.Max(value = 120, message = "ringTimeoutSeconds może wynosić maksimum 120")
+        Integer ringTimeoutSeconds,
+
         /**
          * Numer prezentacji (caller ID) w formacie E.164 (np. +48123456789).
          * Opcjonalny – null = używaj domyślnego numeru tenanta.

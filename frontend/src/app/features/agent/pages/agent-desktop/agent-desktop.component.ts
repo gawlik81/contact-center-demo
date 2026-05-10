@@ -118,19 +118,35 @@ export class AgentDesktopComponent implements OnInit {
   protected readonly calendarTabActive = signal(false);
 
   /**
+   * Derived signal that emits only the session state string (or null).
+   * Changes value only when the actual call state transitions (RINGING → ACTIVE → ENDED etc.),
+   * NOT when the duration counter increments every second. This prevents effects below
+   * from firing spuriously on every timer tick.
+   */
+  private readonly sessionState = computed(() => this.softphoneService.session()?.state ?? null);
+
+  /**
    * Monitors SoftphoneService session state.
    * When a call transitions to ENDED, puts the active PHONE tab into WRAPPING state
-   * so the disposition panel appears automatically.
+   * so the disposition panel appears automatically, and sets agent status to AFTER_CONTACT.
+   * Uses sessionState (not session()) to avoid re-triggering on every duration tick.
+   * tabStore.tabs() is read inside untracked() to prevent tab closure from re-triggering.
    */
   private readonly softphoneEndedEffect = effect(() => {
-    const session = this.softphoneService.session();
-    if (session?.state === 'ENDED') {
-      const phoneTab = this.tabStore
-        .tabs()
-        .find((t) => t.type === 'PHONE' && t.status !== 'WRAPPING');
-      if (phoneTab) {
-        this.tabStore.markAsWrapping(phoneTab.id);
-      }
+    const state = this.sessionState();
+    if (state === 'ENDED') {
+      untracked(() => {
+        const phoneTab = this.tabStore
+          .tabs()
+          .find((t) => t.type === 'PHONE' && t.status !== 'WRAPPING');
+        if (phoneTab) {
+          this.tabStore.markAsWrapping(phoneTab.id);
+        }
+        this.statusService
+          .changeStatus('AFTER_CONTACT')
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe();
+      });
     }
   });
 
@@ -139,9 +155,25 @@ export class AgentDesktopComponent implements OnInit {
    * and the session transitions to ACTIVE state.
    */
   private readonly incomingCallDismissEffect = effect(() => {
-    const session = this.softphoneService.session();
-    if (session?.state === 'ACTIVE') {
+    const state = this.sessionState();
+    if (state === 'ACTIVE') {
       untracked(() => this.incomingCallAlert.dismissAlert());
+    }
+  });
+
+  /**
+   * When a call transitions to ACTIVE (agent answers), sets the agent status to BUSY
+   * so the backend dialer skips this agent during poll for available agents.
+   */
+  private readonly softphoneActiveEffect = effect(() => {
+    const state = this.sessionState();
+    if (state === 'ACTIVE') {
+      untracked(() => {
+        this.statusService
+          .changeStatus('BUSY')
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe();
+      });
     }
   });
 

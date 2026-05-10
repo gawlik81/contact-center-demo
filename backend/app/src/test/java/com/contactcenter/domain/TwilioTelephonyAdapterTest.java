@@ -326,7 +326,7 @@ class TwilioTelephonyAdapterTest {
             assertThat(session.getStatus()).isEqualTo(CallSession.CallStatus.ENDED);
             assertThat(session.getEndedAt()).isNotNull();
 
-            verify(eventPublisher).publishHangup(eq(CALL_SID), any(), eq(TENANT_ID), any(), eq(FROM), eq(TO));
+            verify(eventPublisher).publishHangup(eq(CALL_SID), any(), eq(TENANT_ID), any(), eq(FROM), eq(TO), eq("completed"));
         }
 
         @Test
@@ -336,7 +336,7 @@ class TwilioTelephonyAdapterTest {
             clearInvocations(eventPublisher);
 
             assertThatNoException().isThrownBy(() -> adapter.hangupCall(CALL_SID));
-            verify(eventPublisher, never()).publishHangup(anyString(), any(), any(), any(), anyString(), anyString());
+            verify(eventPublisher, never()).publishHangup(anyString(), any(), any(), any(), anyString(), anyString(), anyString());
         }
 
         @Test
@@ -523,7 +523,7 @@ class TwilioTelephonyAdapterTest {
 
             adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "completed", TENANT_ID, "inbound");
 
-            verify(eventPublisher).publishHangup(eq(CALL_SID), any(), eq(TENANT_ID), any(), eq(FROM), eq(TO));
+            verify(eventPublisher).publishHangup(eq(CALL_SID), any(), eq(TENANT_ID), any(), eq(FROM), eq(TO), eq("completed"));
         }
 
         @Test

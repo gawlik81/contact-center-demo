@@ -587,7 +587,9 @@
       "loading": "Ładowanie kalendarza",
       "prevPeriod": "Poprzedni okres",
       "nextPeriod": "Następny okres",
-      "viewMode": "Tryb widoku"
+      "viewMode": "Tryb widoku",
+      "showClosedCampaigns": "Pokaż zakończone kampanie",
+      "hideClosedCampaigns": "Ukryj zakończone kampanie"
     },
     "callbacks": {
       "title": "Moje oddzwonienia",
@@ -1037,7 +1039,9 @@
       "successStop": "została zatrzymana.",
       "errorRevert": "Nie udało się cofnąć kampanii",
       "successRevert": "cofnięta do statusu Szkic.",
-      "errorRevertSuffix": "do szkicu."
+      "errorRevertSuffix": "do szkicu.",
+      "showClosed": "Pokaż zakończone",
+      "hideClosed": "Ukryj zakończone"
     },
     "campaignForm": {
       "titleCreate": "Nowa kampania",

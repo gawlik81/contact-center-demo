@@ -131,6 +131,34 @@ $break-color: #22c55e;
     overflow: hidden;
   }
 
+  &__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-left: auto;
+  }
+
+  &__closed-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: $text-secondary;
+    white-space: nowrap;
+
+    &-input {
+      accent-color: $brand;
+      width: 0.875rem;
+      height: 0.875rem;
+      cursor: pointer;
+    }
+
+    &-label {
+      user-select: none;
+    }
+  }
+
   &__mode-btn {
     padding: 0.3125rem 0.75rem;
     border: none;

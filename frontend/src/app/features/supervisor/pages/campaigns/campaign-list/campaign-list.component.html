@@ -1,17 +1,34 @@
 <div class="campaign-list">
   <div class="campaign-list__header">
     <h1 class="campaign-list__title">{{ 'supervisor.campaigns.title' | transloco }}</h1>
-    <button
-      class="btn btn-primary"
-      type="button"
-      (click)="openCreateModal()"
-      [attr.aria-label]="'supervisor.campaigns.addCampaignLabel' | transloco"
-    >
-      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
-        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-      </svg>
-      {{ 'supervisor.campaigns.addCampaign' | transloco }}
-    </button>
+    <div class="campaign-list__header-actions">
+      <label class="toggle-closed">
+        <input
+          type="checkbox"
+          class="toggle-closed__input"
+          [checked]="!hideClosedCampaigns()"
+          (change)="hideClosedCampaigns.set(!hideClosedCampaigns())"
+        />
+        <span class="toggle-closed__label">
+          @if (hideClosedCampaigns()) {
+            {{ 'supervisor.campaigns.showClosed' | transloco }}
+          } @else {
+            {{ 'supervisor.campaigns.hideClosed' | transloco }}
+          }
+        </span>
+      </label>
+      <button
+        class="btn btn-primary"
+        type="button"
+        (click)="openCreateModal()"
+        [attr.aria-label]="'supervisor.campaigns.addCampaignLabel' | transloco"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" class="btn__icon">
+          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+        </svg>
+        {{ 'supervisor.campaigns.addCampaign' | transloco }}
+      </button>
+    </div>
   </div>
 
   <!-- Loading skeleton -->
@@ -32,7 +49,7 @@
 
   <!-- Table -->
   @if (!loading()) {
-    @if (campaigns().length > 0) {
+    @if (filteredCampaigns().length > 0) {
       <div class="table-wrapper" role="region" [attr.aria-label]="'supervisor.campaigns.tableLabel' | transloco">
         <table class="campaign-table" aria-live="polite">
           <thead>
@@ -48,7 +65,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (campaign of campaigns(); track campaign.campaignId) {
+            @for (campaign of filteredCampaigns(); track campaign.campaignId) {
               <tr class="campaign-row">
                 <td class="campaign-name">{{ campaign.name }}</td>
                 <td>

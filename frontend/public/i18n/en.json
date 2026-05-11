@@ -587,7 +587,9 @@
       "loading": "Loading calendar",
       "prevPeriod": "Previous period",
       "nextPeriod": "Next period",
-      "viewMode": "View mode"
+      "viewMode": "View mode",
+      "showClosedCampaigns": "Show closed campaigns",
+      "hideClosedCampaigns": "Hide closed campaigns"
     },
     "callbacks": {
       "title": "My callbacks",
@@ -1037,7 +1039,9 @@
       "successStop": "has been stopped.",
       "errorRevert": "Failed to revert campaign",
       "successRevert": "reverted to Draft.",
-      "errorRevertSuffix": "to draft."
+      "errorRevertSuffix": "to draft.",
+      "showClosed": "Show closed",
+      "hideClosed": "Hide closed"
     },
     "campaignForm": {
       "titleCreate": "New campaign",

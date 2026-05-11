@@ -69,6 +69,7 @@ export class AgentCalendarComponent implements OnInit {
   readonly selectedBreak = signal<CalendarBreak | null>(null);
   readonly selectedCampaign = signal<CalendarCampaign | null>(null);
   readonly addBreakMode = signal(false);
+  readonly showClosedCampaigns = signal(false);
   readonly currentLang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
   });
@@ -90,7 +91,9 @@ export class AgentCalendarComponent implements OnInit {
       const dayEnd = new Date(date);
       dayEnd.setHours(23, 59, 59, 999);
 
-      const DONE_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
+      const DONE_STATUSES = this.showClosedCampaigns()
+        ? new Set(['CANCELLED'])
+        : new Set(['COMPLETED', 'STOPPED', 'CANCELLED']);
 
       const callbacks = data.callbacks.filter((cb) => {
         if (DONE_STATUSES.has(cb.status)) return false;
@@ -136,10 +139,10 @@ export class AgentCalendarComponent implements OnInit {
       });
 
       // Merge callbacks and breaks into one chronologically sorted timed-events list
-      const timedEvents: Array<
+      const timedEvents: (
         | { kind: 'callback'; item: CalendarCallback; t: number }
         | { kind: 'break'; item: CalendarBreak; t: number }
-      > = [
+      )[] = [
         ...callbacks.map((cb) => ({
           kind: 'callback' as const,
           item: cb,

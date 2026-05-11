@@ -587,7 +587,9 @@
       "loading": "Kalender wird geladen",
       "prevPeriod": "Vorheriger Zeitraum",
       "nextPeriod": "Nächster Zeitraum",
-      "viewMode": "Anzeigemodus"
+      "viewMode": "Anzeigemodus",
+      "showClosedCampaigns": "Abgeschlossene Kampagnen anzeigen",
+      "hideClosedCampaigns": "Abgeschlossene Kampagnen ausblenden"
     },
     "callbacks": {
       "title": "Meine Rückrufe",
@@ -1037,7 +1039,9 @@
       "errorStop": "Kampagne konnte nicht gestoppt werden.",
       "successPause": "wurde pausiert.",
       "successRevert": "auf Entwurf zurückgesetzt.",
-      "successStop": "wurde gestoppt."
+      "successStop": "wurde gestoppt.",
+      "showClosed": "Abgeschlossene anzeigen",
+      "hideClosed": "Abgeschlossene ausblenden"
     },
     "campaignForm": {
       "titleCreate": "Neue Kampagne",

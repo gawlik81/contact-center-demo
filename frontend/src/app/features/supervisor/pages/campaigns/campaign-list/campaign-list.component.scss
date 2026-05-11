@@ -44,6 +44,12 @@ $radius: 6px;
     color: $text-primary;
     margin: 0;
   }
+
+  &__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
@@ -459,6 +465,28 @@ $radius: 6px;
     font-size: 0.875rem;
     color: $text-secondary;
     margin: 0;
+  }
+}
+
+// ── Hide closed toggle ─────────────────────────────────────────────────────────
+.toggle-closed {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: $text-secondary;
+  white-space: nowrap;
+
+  &__input {
+    accent-color: $brand-blue;
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+  }
+
+  &__label {
+    user-select: none;
   }
 }
 

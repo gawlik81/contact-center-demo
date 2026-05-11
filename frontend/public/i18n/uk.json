@@ -587,7 +587,9 @@
       "loading": "Завантаження календаря",
       "prevPeriod": "Попередній період",
       "nextPeriod": "Наступний період",
-      "viewMode": "Режим перегляду"
+      "viewMode": "Режим перегляду",
+      "showClosedCampaigns": "Показати закриті кампанії",
+      "hideClosedCampaigns": "Сховати закриті кампанії"
     },
     "callbacks": {
       "title": "Мої передзвони",
@@ -1037,7 +1039,9 @@
       "successStop": "зупинено.",
       "errorRevert": "Не вдалося повернути кампанію",
       "successRevert": "повернуто до статусу Чернетка.",
-      "errorRevertSuffix": "до чернетки."
+      "errorRevertSuffix": "до чернетки.",
+      "showClosed": "Показати закриті",
+      "hideClosed": "Сховати закриті"
     },
     "campaignForm": {
       "titleCreate": "Нова кампанія",

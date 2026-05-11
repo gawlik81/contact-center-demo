@@ -4,6 +4,7 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -19,6 +20,7 @@ import { CampaignInfoComponent } from '../campaign-info/campaign-info.component'
 import { ConfirmDialogComponent } from '../../../../../shared/components/confirm-dialog/confirm-dialog.component';
 
 const POLLING_INTERVAL_MS = 10_000;
+const CLOSED_STATUSES = new Set<CampaignStatus>(['STOPPED', 'COMPLETED']);
 
 @Component({
   selector: 'app-campaign-list',
@@ -42,6 +44,12 @@ export class CampaignListComponent implements OnInit {
 
   readonly loading = signal(false);
   readonly campaigns = signal<Campaign[]>([]);
+  readonly hideClosedCampaigns = signal(true);
+  readonly filteredCampaigns = computed(() =>
+    this.hideClosedCampaigns()
+      ? this.campaigns().filter((c) => !CLOSED_STATUSES.has(c.status))
+      : this.campaigns(),
+  );
   readonly totalElements = signal(0);
   readonly totalPages = signal(0);
   readonly currentPage = signal(0);

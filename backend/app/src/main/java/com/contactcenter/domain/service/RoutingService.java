@@ -14,6 +14,8 @@ import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.routing.RoutingEngine;
 import com.contactcenter.domain.routing.RoutingRequest;
 import com.contactcenter.domain.routing.RoutingResult;
+import com.contactcenter.domain.websocket.WebSocketEvent;
+import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
@@ -64,6 +66,7 @@ public class RoutingService {
     private final RabbitTemplate rabbitTemplate;
     private final QueueAssignmentRepository queueAssignmentRepository;
     private final AppUserRepository appUserRepository;
+    private final WebSocketEventBroadcaster broadcaster;
 
     // =========================================================================
     // Główna metoda routingu
@@ -186,6 +189,7 @@ public class RoutingService {
             // Rzucamy wyjątek – Spring AMQP ponowi próbę, a po wyczerpaniu prób wyśle do DLQ
             throw new RuntimeException("Routing kontaktu " + event.contactId() + " zakończony błędem", e);
         } finally {
+            broadcastQueueStateToAgents(event.tenantId());
             TenantContext.clear();
         }
     }
@@ -284,6 +288,7 @@ public class RoutingService {
                     event.tenantId(), e.getMessage(), e);
             throw new RuntimeException("Błąd retry routingu dla tenanta " + event.tenantId(), e);
         } finally {
+            broadcastQueueStateToAgents(event.tenantId());
             TenantContext.clear();
         }
     }
@@ -419,6 +424,51 @@ public class RoutingService {
             log.error("[RoutingService] Błąd publikacji contact.assigned: contactId={}, error={}",
                     contactId, e.getMessage());
         }
+    }
+
+    /**
+     * Broadcasts the current QUEUED contact list to all agents of the tenant.
+     *
+     * <p>Called after every routing attempt (both {@code contact.queued} and
+     * {@code agent.status.changed} events) so the agent sidebar stays up to date.
+     * Errors are swallowed – a failed broadcast must not roll back the routing transaction.
+     *
+     * @param tenantId UUID of the tenant whose agents should receive the update
+     */
+    private void broadcastQueueStateToAgents(UUID tenantId) {
+        try {
+            List<ContactRepository.QueuedContactView> views =
+                    contactRepository.findQueuedContactsForAgentView(tenantId);
+
+            List<WebSocketEvent.QueueItemDto> items = views.stream()
+                    .map(v -> new WebSocketEvent.QueueItemDto(
+                            v.contactId().toString(),
+                            mapChannelToType(v.channel()),
+                            v.customerName(),
+                            v.remoteAddress(),
+                            v.queuedAt(),
+                            v.queueName(),
+                            0
+                    ))
+                    .toList();
+
+            broadcaster.sendToTenantAgents(tenantId, WebSocketEvent.queueAgentUpdate(tenantId, items));
+            log.debug("[RoutingService] Queue update sent to agents: tenantId={}, items={}",
+                    tenantId, items.size());
+        } catch (Exception e) {
+            log.warn("[RoutingService] Failed to broadcast queue update to agents: tenantId={}, error={}",
+                    tenantId, e.getMessage());
+        }
+    }
+
+    /**
+     * Maps a contact channel value to the frontend ContactType.
+     * All {@code SOCIAL_*} variants are collapsed to {@code SOCIAL}.
+     */
+    private static String mapChannelToType(String channel) {
+        if (channel == null) return "PHONE";
+        if (channel.startsWith("SOCIAL")) return "SOCIAL";
+        return channel;
     }
 
     /**

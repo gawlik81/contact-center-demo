@@ -12,7 +12,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe, LowerCasePipe } from '@angular/common';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
-import { filter } from 'rxjs';
+import { filter, interval } from 'rxjs';
 import { WebSocketService } from '../../../../core/services/websocket.service';
 import { AgentStatusService } from '../../services/agent-status.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
@@ -20,6 +20,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { SoftphoneService } from '../../services/softphone.service';
 import { CustomerLookupService } from '../../services/customer-lookup.service';
 import { IncomingCallAlertService } from '../../services/incoming-call-alert.service';
+import { QueueStateService } from '../../services/queue-state.service';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
 import { CustomerPanelComponent } from '../../components/customer-panel/customer-panel.component';
 import { DispositionPanelComponent } from '../../components/disposition-panel/disposition-panel.component';
@@ -38,7 +39,6 @@ import {
   WsEvent,
   CallOutboundPayload,
   ContactAssignedPayload,
-  QueueUpdatePayload,
 } from '../../models/ws-event.model';
 
 @Component({
@@ -69,12 +69,14 @@ export class AgentDesktopComponent implements OnInit {
   private readonly lookupService = inject(CustomerLookupService);
   private readonly incomingCallAlert = inject(IncomingCallAlertService);
   private readonly transloco = inject(TranslocoService);
+  private readonly queueStateService = inject(QueueStateService);
 
   protected readonly statusConfig = AGENT_STATUS_CONFIG;
   protected readonly allStatuses = ALL_AGENT_STATUSES;
 
-  protected readonly queueItems = signal<QueueItem[]>([]);
+  protected readonly queueItems = this.queueStateService.queueItems;
   protected readonly statusMenuOpen = signal(false);
+  protected readonly now = signal(Date.now());
 
   protected readonly connectionState = this.ws.connectionState;
   protected readonly isOffline = computed(
@@ -180,6 +182,10 @@ export class AgentDesktopComponent implements OnInit {
   ngOnInit(): void {
     this.statusService.initStatus();
 
+    interval(1000)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.now.set(Date.now()));
+
     this.ws.events$
       .pipe(
         takeUntilDestroyed(this.destroyRef),
@@ -212,16 +218,6 @@ export class AgentDesktopComponent implements OnInit {
         } else {
           this.notifications.info(payload.customerName);
         }
-      });
-
-    this.ws.events$
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.eventType === 'QUEUE_UPDATE'),
-      )
-      .subscribe((e) => {
-        const payload = e.payload as QueueUpdatePayload;
-        this.queueItems.set(payload.items ?? []);
       });
 
     // Gdy klient rozłączy połączenie wychodzące (lub przychodzące) po stronie Twilio,
@@ -271,8 +267,7 @@ export class AgentDesktopComponent implements OnInit {
   }
 
   protected getWaitingTime(waitingSince: Date): string {
-    const now = new Date();
-    const diffMs = now.getTime() - new Date(waitingSince).getTime();
+    const diffMs = this.now() - new Date(waitingSince).getTime();
     const minutes = Math.floor(diffMs / 60_000);
     const seconds = Math.floor((diffMs % 60_000) / 1_000);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;

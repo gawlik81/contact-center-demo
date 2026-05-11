@@ -174,6 +174,21 @@ public record WebSocketEvent(
     }
 
     /**
+     * Tworzy event QUEUE_UPDATE z listą oczekujących kontaktów – wysyłany do agentów.
+     *
+     * @param tenantId UUID tenanta
+     * @param items    lista oczekujących kontaktów
+     */
+    public static WebSocketEvent queueAgentUpdate(UUID tenantId, List<QueueItemDto> items) {
+        return new WebSocketEvent(
+                TYPE_QUEUE_UPDATE,
+                tenantId,
+                new QueueAgentUpdatePayload(items),
+                Instant.now()
+        );
+    }
+
+    /**
      * Tworzy event PONG w odpowiedzi na PING od klienta.
      *
      * @param tenantId UUID tenanta bieżącej sesji
@@ -319,5 +334,30 @@ public record WebSocketEvent(
             String queueId,
             int waitingCount,
             int agentsAvailable
+    ) {}
+
+    /**
+     * Payload dla eventów QUEUE_UPDATE wysyłanych do agentów – pełna lista oczekujących kontaktów.
+     */
+    public record QueueAgentUpdatePayload(
+            List<QueueItemDto> items
+    ) {}
+
+    /**
+     * DTO pojedynczego elementu kolejki widocznego przez agenta.
+     *
+     * <p>Pole {@code type} odpowiada wartościom Angular {@code ContactType}:
+     * {@code PHONE}, {@code EMAIL}, {@code SOCIAL}.
+     * Kanały {@code SOCIAL_FACEBOOK}, {@code SOCIAL_INSTAGRAM}, {@code SOCIAL_WHATSAPP}
+     * są mapowane do {@code SOCIAL} przez {@code RoutingService.mapChannelToType()}.
+     */
+    public record QueueItemDto(
+            String id,
+            String type,
+            String customerName,
+            String customerIdentifier,
+            Instant waitingSince,
+            String queueName,
+            int priority
     ) {}
 }

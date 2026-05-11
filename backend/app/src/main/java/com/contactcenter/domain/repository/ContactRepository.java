@@ -1499,12 +1499,96 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
-  // Inner record
+  // Agent queue view – dane potrzebne do sidebaru agenta
+  // =========================================================================
+
+  /**
+   * Zwraca listę oczekujących kontaktów (status QUEUED) z detalami potrzebnymi
+   * do wyświetlenia w sidebarze agenta.
+   *
+   * <p>Zapytanie natywne z LEFT JOIN do {@code queue} i {@code customer}.
+   * Gdy klient jest znany – zwraca imię i nazwisko; w przeciwnym razie {@code remote_address}.
+   * Limit 50 – spójny z {@link #findQueuedContacts}.
+   *
+   * @param tenantId UUID tenanta
+   * @return lista projekcji {@link QueuedContactView} posortowana wg queued_at ASC
+   */
+  @Transactional(readOnly = true)
+  public List<QueuedContactView> findQueuedContactsForAgentView(UUID tenantId) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepo] findQueuedContactsForAgentView: tenant={}", tenantId);
+
+    List<Object[]> rows = jdbcTemplate.query(
+        """
+            SELECT
+                c.contact_id::text,
+                c.channel,
+                c.remote_address,
+                c.queued_at,
+                COALESCE(
+                    NULLIF(TRIM(COALESCE(cu.first_name,'') || ' ' || COALESCE(cu.last_name,'')), ''),
+                    c.remote_address
+                ) AS customer_name,
+                COALESCE(q.name, '') AS queue_name
+            FROM contact c
+            LEFT JOIN queue q
+                   ON c.queue_id  = q.queue_id
+                  AND q.tenant_id = c.tenant_id
+            LEFT JOIN customer cu
+                   ON c.customer_id  = cu.customer_id
+                  AND cu.tenant_id   = c.tenant_id
+            WHERE c.tenant_id = CAST(? AS uuid)
+              AND c.status    = 'QUEUED'
+            ORDER BY c.queued_at ASC NULLS LAST
+            LIMIT 50
+            """,
+        (rs, rowNum) -> new Object[]{
+            rs.getString("contact_id"),
+            rs.getString("channel"),
+            rs.getString("remote_address"),
+            rs.getTimestamp("queued_at"),
+            rs.getString("customer_name"),
+            rs.getString("queue_name")
+        },
+        tenantId.toString()
+    );
+
+    List<QueuedContactView> views = rows.stream()
+        .map(row -> new QueuedContactView(
+            UUID.fromString((String) row[0]),
+            (String) row[1],
+            (String) row[2],
+            row[3] != null ? ((java.sql.Timestamp) row[3]).toInstant() : null,
+            (String) row[4],
+            (String) row[5]
+        ))
+        .toList();
+
+    log.debug("[ContactRepo] findQueuedContactsForAgentView: znaleziono {} kontaktów", views.size());
+    return views;
+  }
+
+  // =========================================================================
+  // Inner records
   // =========================================================================
 
   /**
    * Para (contactId, recordingUrl) zwracana przez findExpiredRecordings.
    */
   public record ContactRecordingEntry(UUID contactId, String recordingUrl) {
+  }
+
+  /**
+   * Projekcja kontaktu QUEUED z detalami do sidebaru agenta.
+   */
+  public record QueuedContactView(
+      UUID contactId,
+      String channel,
+      String remoteAddress,
+      Instant queuedAt,
+      String customerName,
+      String queueName
+  ) {
   }
 }

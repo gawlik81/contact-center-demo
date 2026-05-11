@@ -14,6 +14,7 @@ import com.contactcenter.domain.routing.RoutingEngine;
 import com.contactcenter.domain.routing.RoutingRequest;
 import com.contactcenter.domain.routing.RoutingResult;
 import com.contactcenter.domain.service.RoutingService;
+import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,15 +79,21 @@ class RoutingServiceTest {
     @Mock
     private AppUserRepository appUserRepository;
 
+    @Mock
+    private WebSocketEventBroadcaster broadcaster;
+
     private RoutingService routingService;
 
     @BeforeEach
     void setUp() {
         routingService = new RoutingService(routingEngine, queueRepository, contactRepository,
-                rabbitTemplate, queueAssignmentRepository, appUserRepository);
+                rabbitTemplate, queueAssignmentRepository, appUserRepository, broadcaster);
         // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047
         lenient().when(queueAssignmentRepository.isAllAgents(any(UUID.class), any(UUID.class)))
                 .thenReturn(true);
+        // Broadcast po routingu – domyślnie pusta lista żeby nie rzucać NPE w testach
+        lenient().when(contactRepository.findQueuedContactsForAgentView(any(UUID.class)))
+                .thenReturn(List.of());
     }
 
     // =========================================================================

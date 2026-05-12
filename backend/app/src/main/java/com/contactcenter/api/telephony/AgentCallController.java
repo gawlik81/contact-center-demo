@@ -1,20 +1,26 @@
 package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.contact.dto.ContactResponse;
+import com.contactcenter.api.telephony.dto.OutboundCallRequest;
+import com.contactcenter.api.telephony.dto.OutboundCallResponse;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.service.ContactService;
+import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -49,6 +55,74 @@ public class AgentCallController {
     private final TelephonyAdapter telephonyAdapter;
     private final ContactService contactService;
     private final ContactRepository contactRepository;
+    private final TenantTwilioConfigService tenantTwilioConfigService;
+    private final TwilioProperties twilioProperties;
+
+    // =========================================================================
+    // Initiate outbound call (ad hoc – without campaign)
+    // =========================================================================
+
+    /**
+     * Agent initiates an outbound call to an arbitrary phone number.
+     *
+     * <p>The call is ad hoc – not linked to any campaign or scheduled callback.
+     * A new contact record is created by the telephony adapter with direction=OUTBOUND.
+     *
+     * <p>Resolves the "from" number in the following priority:
+     * <ol>
+     *   <li>Per-tenant {@code TenantTwilioConfig.phoneNumber}</li>
+     *   <li>Global {@code TwilioProperties.phoneNumber} (fallback)</li>
+     *   <li>Empty string (mock / dev environment)</li>
+     * </ol>
+     *
+     * @param request body containing {@code phoneNumber} (E.164) and optional {@code customerId}
+     * @return {@link OutboundCallResponse} with {@code contactId} and {@code callId}
+     */
+    @PostMapping("/outbound")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Initiate an outbound call (ad hoc)",
+            description = """
+                    Agent initiates an outbound call to the given phone number.
+                    The call is not tied to any campaign or scheduled callback.
+
+                    The response contains:
+                    - contactId: UUID of the newly created contact record in the database.
+                    - callId: telephony session identifier (Twilio CallSid or mock UUID).
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Call initiated, contactId and callId returned"),
+                    @ApiResponse(responseCode = "400", description = "Invalid phone number format (not E.164)"),
+                    @ApiResponse(responseCode = "401", description = "Missing or invalid JWT token"),
+                    @ApiResponse(responseCode = "403", description = "Insufficient role"),
+                    @ApiResponse(responseCode = "500", description = "Telephony adapter error")
+            }
+    )
+    public ResponseEntity<OutboundCallResponse> initiateOutboundCall(
+            @Valid @RequestBody OutboundCallRequest request
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID agentId  = TenantContext.getUserId();
+
+        String resolvedFromNumber = resolveFromNumber(tenantId);
+
+        log.info("[AgentCallController] OUTBOUND: to={}, agentId={}, tenant={}, from={}",
+                request.phoneNumber(), agentId, tenantId, maskPhone(resolvedFromNumber));
+
+        CallSession session = telephonyAdapter.initiateCall(
+                tenantId,
+                resolvedFromNumber,
+                request.phoneNumber(),
+                agentId,
+                null,  // queueId – not applicable for ad hoc calls
+                null   // callbackId – not a scheduled callback
+        );
+
+        log.info("[AgentCallController] Połączenie wychodzące zainicjowane: callId={}, contactId={}, agentId={}",
+                session.getCallId(), session.getContactId(), agentId);
+
+        return ResponseEntity.ok(new OutboundCallResponse(session.getContactId(), session.getCallId()));
+    }
 
     // =========================================================================
     // Answer call
@@ -275,6 +349,62 @@ public class AgentCallController {
     // =========================================================================
     // Private helpers
     // =========================================================================
+
+    /**
+     * Resolves the "from" phone number for outbound calls.
+     *
+     * <p>Priority:
+     * <ol>
+     *   <li>Per-tenant phone number from {@link TenantTwilioConfigService}</li>
+     *   <li>Global {@link TwilioProperties#getPhoneNumber()} (fallback for Twilio)</li>
+     *   <li>Empty string (mock / dev environment – adapter ignores the value)</li>
+     * </ol>
+     *
+     * @param tenantId tenant scope
+     * @return resolved "from" number, never null
+     */
+    private String resolveFromNumber(UUID tenantId) {
+        try {
+            String perTenantNumber = tenantTwilioConfigService.getDecryptedConfig(tenantId)
+                    .map(cfg -> cfg.phoneNumber())
+                    .filter(StringUtils::hasText)
+                    .orElse(null);
+            if (perTenantNumber != null) {
+                log.debug("[AgentCallController] Używam numeru per-tenant: {}, tenant={}",
+                        maskPhone(perTenantNumber), tenantId);
+                return perTenantNumber;
+            }
+        } catch (Exception e) {
+            log.warn("[AgentCallController] Błąd odczytu per-tenant phone_number, tenant={}: {} – fallback",
+                    tenantId, e.getMessage());
+        }
+
+        String globalNumber = twilioProperties.getPhoneNumber();
+        if (StringUtils.hasText(globalNumber)) {
+            log.debug("[AgentCallController] Używam globalnego numeru Twilio: {}, tenant={}",
+                    maskPhone(globalNumber), tenantId);
+            return globalNumber;
+        }
+
+        log.debug("[AgentCallController] Brak skonfigurowanego numeru from – używam pustego (mock), tenant={}", tenantId);
+        return "";
+    }
+
+    /**
+     * Masks a phone number for log output (last 4 digits visible).
+     *
+     * @param phone raw phone number
+     * @return masked phone number (e.g. "+48****5678")
+     */
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() <= 4) {
+            return "****";
+        }
+        return phone.substring(0, phone.length() - 4).replaceAll("\\d", "*")
+                + phone.substring(phone.length() - 4);
+    }
+
+
 
     /**
      * Translates a callId to a Twilio CallSid if the callId looks like a UUID (contactId from DB).

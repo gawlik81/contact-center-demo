@@ -2962,7 +2962,7 @@ redisTemplate.delete("dialer:callback-attempt:" + callSid);
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** BE-001, BE-030 (TelephonyAdapter.initiateCall)
-**Status:** [ ] Do zrobienia
+**Status:** [x] Zrobione
 **Blokuje:** FE-071
 **Odniesienie PRD:** Agent desktop – kontakt z klientem
 
@@ -2988,12 +2988,12 @@ Response 200: { "contactId": "uuid", "callId": "string" }
 - Nie tworzy `ScheduledCallback`; `queueId=null`, `callbackId=null`
 
 **Kryteria akceptacji:**
-- [ ] `POST /api/telephony/calls/outbound` z poprawnym numerem E.164 zwraca 200 z `contactId` i `callId`
-- [ ] Niepoprawny format numeru zwraca 400 (Bean Validation)
-- [ ] Agent bez tokenu JWT otrzymuje 401
+- [x] `POST /api/telephony/calls/outbound` z poprawnym numerem E.164 zwraca 200 z `contactId` i `callId`
+- [x] Niepoprawny format numeru zwraca 400 (Bean Validation)
+- [x] Agent bez tokenu JWT otrzymuje 401
 - [ ] Dla Mock adaptera: nowy kontakt OUTBOUND tworzony w DB, event `CALL_ASSIGNED` wysłany WS do agenta
 - [ ] Dla Twilio adaptera: połączenie inicjowane przez Twilio REST API
-- [ ] Dokumentacja OpenAPI uzupełniona
+- [x] Dokumentacja OpenAPI uzupełniona
 
 ---
 

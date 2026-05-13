@@ -651,7 +651,11 @@
       "scheduleCallback": "Zamów oddzwonienie",
       "closeDetails": "Zamknij szczegóły",
       "details": "Szczegóły",
-      "callbackFor": "Zamów oddzwonienie dla"
+      "callbackFor": "Zamów oddzwonienie dla",
+      "initiateCall": "Zadzwoń",
+      "selectPhone": "Wybierz numer",
+      "callInitiated": "Połączenie zostało zainicjowane",
+      "callError": "Nie udało się zainicjować połączenia"
     },
     "manualCallbackModal": {
       "title": "Zamów oddzwonienie",

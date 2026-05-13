@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -27,6 +27,7 @@ import { CustomerSearchService } from '../../services/customer-search.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AgentCustomerCardComponent } from './agent-customer-card.component';
 import { ManualCallbackModalComponent } from './manual-callback-modal/manual-callback-modal.component';
+import { OutboundCallService } from '../../services/outbound-call.service';
 
 const MIN_QUERY_LENGTH = 2;
 
@@ -49,6 +50,8 @@ export class AgentCustomersTabComponent implements OnInit {
 
   private readonly searchService = inject(CustomerSearchService);
   private readonly notifications = inject(NotificationService);
+  private readonly outboundCallService = inject(OutboundCallService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly searchQuery = signal('');
@@ -124,6 +127,24 @@ export class AgentCustomersTabComponent implements OnInit {
     this.customers.set([]);
     this.hasSearched.set(false);
     this.selectedCustomer.set(null);
+  }
+
+  protected onInitiateCall(event: { customer: CustomerSummary; phoneNumber: string }): void {
+    this.outboundCallService
+      .call(event.phoneNumber, event.customer.customerId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () =>
+          this.notifications.success(this.transloco.translate('agent.customers.callInitiated')),
+        error: () =>
+          this.notifications.error(this.transloco.translate('agent.customers.callError')),
+      });
+  }
+
+  protected onInitiateCallFromDrawer(phoneNumber: string): void {
+    const customer = this.selectedCustomer();
+    if (!customer) return;
+    this.onInitiateCall({ customer, phoneNumber });
   }
 
   protected readonly trackByCustomerId = (_i: number, c: CustomerSummary) => c.customerId;

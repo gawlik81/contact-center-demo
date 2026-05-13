@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  signal,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { TranslocoModule } from '@jsverse/transloco';
 import { CustomerSummary } from '../../models/customer-search.model';
@@ -50,7 +57,8 @@ import { CustomerSummary } from '../../models/customer-search.model';
 
         <p class="customer-card__meta customer-card__meta--muted">
           @if (customer.lastContactAt) {
-            {{ 'agent.customers.lastContact' | transloco }}: {{ customer.lastContactAt | date: 'dd.MM.yyyy HH:mm' }}
+            {{ 'agent.customers.lastContact' | transloco }}:
+            {{ customer.lastContactAt | date: 'dd.MM.yyyy HH:mm' }}
           } @else {
             {{ 'agent.customers.noContacts' | transloco }}
           }
@@ -62,7 +70,11 @@ import { CustomerSummary } from '../../models/customer-search.model';
           type="button"
           class="customer-card__btn customer-card__btn--primary"
           [attr.aria-label]="
-            ('agent.customers.detailsLabel' | transloco) + ' ' + (customer.firstName || '') + ' ' + (customer.lastName || '')
+            ('agent.customers.detailsLabel' | transloco) +
+            ' ' +
+            (customer.firstName || '') +
+            ' ' +
+            (customer.lastName || '')
           "
           (click)="viewDetails.emit(customer)"
         >
@@ -72,12 +84,63 @@ import { CustomerSummary } from '../../models/customer-search.model';
           type="button"
           class="customer-card__btn customer-card__btn--secondary"
           [attr.aria-label]="
-            ('agent.customers.callbackFor' | transloco) + ' ' + (customer.firstName || '') + ' ' + (customer.lastName || '')
+            ('agent.customers.callbackFor' | transloco) +
+            ' ' +
+            (customer.firstName || '') +
+            ' ' +
+            (customer.lastName || '')
           "
           (click)="scheduleCallback.emit(customer)"
         >
           {{ 'agent.customers.scheduleCallback' | transloco }}
         </button>
+
+        @if (customer.phone.length > 0) {
+          <div class="customer-card__call-wrapper">
+            <button
+              type="button"
+              class="customer-card__btn customer-card__btn--call"
+              [attr.aria-label]="
+                ('agent.customers.initiateCall' | transloco) +
+                ' ' +
+                (customer.firstName || '') +
+                ' ' +
+                (customer.lastName || '')
+              "
+              (click)="onCallButtonClick()"
+            >
+              <svg
+                class="customer-card__btn-icon"
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                />
+              </svg>
+              {{ 'agent.customers.initiateCall' | transloco }}
+            </button>
+
+            @if (phoneDropdownOpen() && customer.phone.length > 1) {
+              <div class="customer-card__phone-dropdown" role="menu">
+                <p class="customer-card__phone-dropdown-label">
+                  {{ 'agent.customers.selectPhone' | transloco }}
+                </p>
+                @for (phone of customer.phone; track phone) {
+                  <button
+                    type="button"
+                    class="customer-card__phone-option"
+                    role="menuitem"
+                    (click)="selectPhone(phone)"
+                  >
+                    {{ phone }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
       </div>
     </div>
   `,
@@ -206,6 +269,77 @@ import { CustomerSummary } from '../../models/customer-search.model';
           background: #eff6ff;
         }
       }
+
+      &--call {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        background: #16a34a;
+        color: #fff;
+        border-color: #16a34a;
+
+        &:hover {
+          background: #15803d;
+          border-color: #15803d;
+        }
+      }
+    }
+
+    .customer-card__btn-icon {
+      width: 0.875rem;
+      height: 0.875rem;
+      flex-shrink: 0;
+    }
+
+    .customer-card__call-wrapper {
+      position: relative;
+    }
+
+    .customer-card__phone-dropdown {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 100;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      min-width: 160px;
+      overflow: hidden;
+    }
+
+    .customer-card__phone-dropdown-label {
+      margin: 0;
+      padding: 0.375rem 0.625rem;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .customer-card__phone-option {
+      display: block;
+      width: 100%;
+      padding: 0.4375rem 0.625rem;
+      font-size: 0.8125rem;
+      color: #1e293b;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      transition: background 100ms ease;
+
+      &:hover {
+        background: #f0fdf4;
+        color: #15803d;
+      }
+
+      &:focus-visible {
+        outline: 2px solid #16a34a;
+        outline-offset: -2px;
+      }
     }
   `,
 })
@@ -213,10 +347,26 @@ export class AgentCustomerCardComponent {
   @Input({ required: true }) customer!: CustomerSummary;
   @Output() viewDetails = new EventEmitter<CustomerSummary>();
   @Output() scheduleCallback = new EventEmitter<CustomerSummary>();
+  @Output() initiateCall = new EventEmitter<{ customer: CustomerSummary; phoneNumber: string }>();
+
+  protected readonly phoneDropdownOpen = signal(false);
 
   get initials(): string {
     const first = (this.customer.firstName ?? '').charAt(0).toUpperCase();
     const last = (this.customer.lastName ?? '').charAt(0).toUpperCase();
     return first + last || '?';
+  }
+
+  protected onCallButtonClick(): void {
+    if (this.customer.phone.length === 1) {
+      this.initiateCall.emit({ customer: this.customer, phoneNumber: this.customer.phone[0] });
+    } else {
+      this.phoneDropdownOpen.update((open) => !open);
+    }
+  }
+
+  protected selectPhone(phoneNumber: string): void {
+    this.phoneDropdownOpen.set(false);
+    this.initiateCall.emit({ customer: this.customer, phoneNumber });
   }
 }

@@ -109,7 +109,9 @@
         type="button"
         class="cp__profile-link"
         (click)="navigateToFullProfile()"
-        [attr.aria-label]="('agent.customerPanel.viewProfile' | transloco) + ' ' + profile()!.firstName + ' ' + profile()!.lastName"
+        [attr.aria-label]="
+          ('agent.customerPanel.viewProfile' | transloco) + ' ' + profile()!.firstName + ' ' + profile()!.lastName
+        "
       >
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
           <path

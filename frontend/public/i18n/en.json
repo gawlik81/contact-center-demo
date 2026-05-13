@@ -651,7 +651,11 @@
       "scheduleCallback": "Schedule callback",
       "closeDetails": "Close details",
       "details": "Details",
-      "callbackFor": "Schedule callback for"
+      "callbackFor": "Schedule callback for",
+      "initiateCall": "Call",
+      "selectPhone": "Select phone number",
+      "callInitiated": "Call initiated successfully",
+      "callError": "Failed to initiate call"
     },
     "manualCallbackModal": {
       "title": "Schedule callback",

@@ -62,7 +62,9 @@
       <div class="contact-dialog__body">
         <!-- Section 1: Header info -->
         <section class="contact-section" aria-labelledby="contact-section-info">
-          <h3 id="contact-section-info" class="contact-section__title">{{ 'contactDetailModal.sectionInfo' | transloco }}</h3>
+          <h3 id="contact-section-info" class="contact-section__title">
+            {{ 'contactDetailModal.sectionInfo' | transloco }}
+          </h3>
           <dl class="contact-dl">
             <div class="contact-dl__row">
               <dt class="contact-dl__term">{{ 'contactDetailModal.fieldChannel' | transloco }}</dt>
@@ -112,7 +114,9 @@
 
         <!-- Section 2: Duration & status -->
         <section class="contact-section" aria-labelledby="contact-section-status">
-          <h3 id="contact-section-status" class="contact-section__title">{{ 'contactDetailModal.sectionStatus' | transloco }}</h3>
+          <h3 id="contact-section-status" class="contact-section__title">
+            {{ 'contactDetailModal.sectionStatus' | transloco }}
+          </h3>
           <dl class="contact-dl">
             <div class="contact-dl__row">
               <dt class="contact-dl__term">{{ 'contactDetailModal.fieldStatus' | transloco }}</dt>
@@ -148,7 +152,11 @@
         @if (hasRecording()) {
           <section class="contact-section" aria-labelledby="contact-section-recording">
             <h3 id="contact-section-recording" class="contact-section__title">
-              {{ isEmailRecording() ? ('contactDetailModal.sectionEmail' | transloco) : ('contactDetailModal.sectionRecording' | transloco) }}
+              {{
+                isEmailRecording()
+                  ? ('contactDetailModal.sectionEmail' | transloco)
+                  : ('contactDetailModal.sectionRecording' | transloco)
+              }}
             </h3>
 
             @if (recordingState() === 'idle') {
@@ -171,7 +179,11 @@
               <div
                 class="recording-loading"
                 aria-busy="true"
-                [attr.aria-label]="isEmailRecording() ? ('contactDetailModal.loadingEml' | transloco) : ('contactDetailModal.loadingRecording' | transloco)"
+                [attr.aria-label]="
+                  isEmailRecording()
+                    ? ('contactDetailModal.loadingEml' | transloco)
+                    : ('contactDetailModal.loadingRecording' | transloco)
+                "
               >
                 <div class="skeleton-block skeleton-block--player"></div>
               </div>
@@ -184,8 +196,17 @@
                     d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                   />
                 </svg>
-                <span>{{ 'contactDetailModal.errorFetchPrefix' | transloco }} {{ isEmailRecording() ? ('contactDetailModal.errorEmlSubject' | transloco) : ('contactDetailModal.errorRecordingSubject' | transloco) }}.</span>
-                <button class="btn-link" type="button" (click)="loadRecording()">{{ 'contactDetailModal.retry' | transloco }}</button>
+                <span
+                  >{{ 'contactDetailModal.errorFetchPrefix' | transloco }}
+                  {{
+                    isEmailRecording()
+                      ? ('contactDetailModal.errorEmlSubject' | transloco)
+                      : ('contactDetailModal.errorRecordingSubject' | transloco)
+                  }}.</span
+                >
+                <button class="btn-link" type="button" (click)="loadRecording()">
+                  {{ 'contactDetailModal.retry' | transloco }}
+                </button>
               </div>
             }
 
@@ -233,21 +254,34 @@
                         />
                       </svg>
                       <span>{{ 'contactDetailModal.errorPreviewText' | transloco }}</span>
-                      <button class="btn-link" type="button" (click)="loadEmailPreview()">{{ 'contactDetailModal.retry' | transloco }}</button>
+                      <button class="btn-link" type="button" (click)="loadEmailPreview()">
+                        {{ 'contactDetailModal.retry' | transloco }}
+                      </button>
                     </div>
                   }
                   @if (emailPreviewState() === 'loaded' && emailPreview(); as ep) {
                     <div class="email-preview">
                       <div class="email-preview__header">
-                        <div><strong>{{ 'contactDetailModal.emailFrom' | transloco }}</strong> {{ ep.from }}</div>
-                        <div><strong>{{ 'contactDetailModal.emailTo' | transloco }}</strong> {{ ep.to }}</div>
+                        <div>
+                          <strong>{{ 'contactDetailModal.emailFrom' | transloco }}</strong> {{ ep.from }}
+                        </div>
+                        <div>
+                          <strong>{{ 'contactDetailModal.emailTo' | transloco }}</strong> {{ ep.to }}
+                        </div>
                         @if (ep.cc) {
-                          <div><strong>{{ 'contactDetailModal.emailCc' | transloco }}</strong> {{ ep.cc }}</div>
+                          <div>
+                            <strong>{{ 'contactDetailModal.emailCc' | transloco }}</strong> {{ ep.cc }}
+                          </div>
                         }
                         @if (ep.subject) {
-                          <div><strong>{{ 'contactDetailModal.emailSubject' | transloco }}</strong> {{ ep.subject }}</div>
+                          <div>
+                            <strong>{{ 'contactDetailModal.emailSubject' | transloco }}</strong> {{ ep.subject }}
+                          </div>
                         }
-                        <div><strong>{{ 'contactDetailModal.emailDate' | transloco }}</strong> {{ ep.receivedAt | date: 'dd.MM.yyyy HH:mm' }}</div>
+                        <div>
+                          <strong>{{ 'contactDetailModal.emailDate' | transloco }}</strong>
+                          {{ ep.receivedAt | date: 'dd.MM.yyyy HH:mm' }}
+                        </div>
                       </div>
                       @if (safeEmailHtml()) {
                         <div class="email-preview__body" [innerHTML]="safeEmailHtml()"></div>
@@ -269,7 +303,9 @@
         <!-- Section 4: Powiazane kontakty -->
         @if (relatedLoading()) {
           <section class="contact-section" aria-labelledby="contact-section-related">
-            <h3 id="contact-section-related" class="contact-section__title">{{ 'contactDetailModal.sectionRelated' | transloco }}</h3>
+            <h3 id="contact-section-related" class="contact-section__title">
+              {{ 'contactDetailModal.sectionRelated' | transloco }}
+            </h3>
             <div
               class="related-contacts-loading"
               aria-busy="true"

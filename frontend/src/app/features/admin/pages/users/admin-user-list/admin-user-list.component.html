@@ -62,7 +62,9 @@
               <th scope="col">{{ 'common.role' | transloco }}</th>
               <th scope="col">{{ 'common.status' | transloco }}</th>
               <th scope="col">{{ 'supervisor.users.tableSkills' | transloco }}</th>
-              <th scope="col"><span class="sr-only">{{ 'common.actions' | transloco }}</span></th>
+              <th scope="col">
+                <span class="sr-only">{{ 'common.actions' | transloco }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -135,7 +137,9 @@
                       class="btn btn-icon btn-edit"
                       type="button"
                       (click)="openEditModal(user)"
-                      [attr.aria-label]="('admin.userList.editLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                      [attr.aria-label]="
+                        ('admin.userList.editLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName
+                      "
                       [title]="'common.edit' | transloco"
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
@@ -148,7 +152,9 @@
                       class="btn btn-icon btn-force-reset"
                       type="button"
                       (click)="openForceResetModal(user)"
-                      [attr.aria-label]="('supervisor.users.resetPasswordLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                      [attr.aria-label]="
+                        ('supervisor.users.resetPasswordLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName
+                      "
                       [title]="'supervisor.userResetPassword.title' | transloco"
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
@@ -161,7 +167,9 @@
                       class="btn btn-icon btn-delete"
                       type="button"
                       (click)="openDeleteModal(user)"
-                      [attr.aria-label]="('admin.userList.deleteLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName"
+                      [attr.aria-label]="
+                        ('admin.userList.deleteLabel' | transloco) + ' ' + user.firstName + ' ' + user.lastName
+                      "
                       [title]="'common.delete' | transloco"
                     >
                       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
@@ -180,7 +188,8 @@
       <nav class="pagination" [attr.aria-label]="'supervisor.users.paginationLabel' | transloco">
         <span class="pagination__info" aria-live="polite">
           @if (totalElements() > 0) {
-            {{ 'supervisor.users.showing' | transloco }} {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ totalElements() }} {{ 'supervisor.users.ofUsers' | transloco }}
+            {{ 'supervisor.users.showing' | transloco }} {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }}
+            {{ 'common.of' | transloco }} {{ totalElements() }} {{ 'supervisor.users.ofUsers' | transloco }}
           }
         </span>
         <div class="pagination__controls">
@@ -197,7 +206,8 @@
             {{ 'supervisor.users.prevPage' | transloco }}
           </button>
           <span class="pagination__pages" aria-current="page">
-            {{ 'supervisor.users.pageInfo' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }} {{ totalPages() }}
+            {{ 'supervisor.users.pageInfo' | transloco }} {{ currentPage() + 1 }} {{ 'common.of' | transloco }}
+            {{ totalPages() }}
           </span>
           <button
             class="btn btn-pagination"

@@ -447,6 +447,42 @@ $brand: #1a56db;
     outline: 2px solid $brand;
     outline-offset: 2px;
   }
+
+  &--call {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #16a34a;
+    margin-top: 0;
+
+    &:hover {
+      background: #15803d;
+    }
+
+    &:focus-visible {
+      outline-color: #16a34a;
+    }
+  }
+
+  &__icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  &__phone {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    opacity: 0.85;
+    margin-left: auto;
+  }
+}
+
+.drawer-call-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 // ===== Accessibility =====

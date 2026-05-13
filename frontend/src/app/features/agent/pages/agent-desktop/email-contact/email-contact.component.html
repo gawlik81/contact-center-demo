@@ -102,7 +102,12 @@
                 aria-controls="template-list"
               />
               @if (filteredTemplates().length > 0 && templateSearchControl.value) {
-                <ul id="template-list" class="autocomplete-list" role="listbox" [attr.aria-label]="'agent.emailContact.templateListLabel' | transloco">
+                <ul
+                  id="template-list"
+                  class="autocomplete-list"
+                  role="listbox"
+                  [attr.aria-label]="'agent.emailContact.templateListLabel' | transloco"
+                >
                   @for (tpl of filteredTemplates(); track trackByTemplateId($index, tpl)) {
                     <li
                       class="autocomplete-item"
@@ -114,7 +119,9 @@
                     >
                       <span class="autocomplete-item__name">{{ tpl.name }}</span>
                       @if (tpl.variables.length > 0) {
-                        <span class="autocomplete-item__vars"> {{ tpl.variables.length }} {{ 'agent.emailContact.variables' | transloco }} </span>
+                        <span class="autocomplete-item__vars">
+                          {{ tpl.variables.length }} {{ 'agent.emailContact.variables' | transloco }}
+                        </span>
                       }
                     </li>
                   }
@@ -125,7 +132,11 @@
 
           <!-- Template variable form -->
           @if (showVariableForm() && hasTemplateVariables()) {
-            <div class="email-reply__variables" role="group" [attr.aria-label]="'agent.emailContact.templateVariablesLabel' | transloco">
+            <div
+              class="email-reply__variables"
+              role="group"
+              [attr.aria-label]="'agent.emailContact.templateVariablesLabel' | transloco"
+            >
               <p class="email-reply__variables-title">{{ 'agent.emailContact.templateVariablesTitle' | transloco }}</p>
               @for (key of getVariableKeys(); track trackByKey($index, key)) {
                 <div class="email-reply__field-group">
@@ -166,7 +177,11 @@
 
           <!-- Rich text editor -->
           <div class="email-reply__editor-wrapper">
-            <div class="email-reply__toolbar" role="toolbar" [attr.aria-label]="'agent.emailContact.editorToolbarLabel' | transloco">
+            <div
+              class="email-reply__toolbar"
+              role="toolbar"
+              [attr.aria-label]="'agent.emailContact.editorToolbarLabel' | transloco"
+            >
               <button
                 type="button"
                 class="editor-btn"

@@ -35,11 +35,7 @@ import {
 } from '../../models/agent-status.model';
 import { ContactTab } from '../../models/contact-tab.model';
 import { QueueItem } from '../../models/queue-item.model';
-import {
-  WsEvent,
-  CallOutboundPayload,
-  ContactAssignedPayload,
-} from '../../models/ws-event.model';
+import { WsEvent, CallOutboundPayload, ContactAssignedPayload } from '../../models/ws-event.model';
 
 @Component({
   selector: 'app-agent-desktop',

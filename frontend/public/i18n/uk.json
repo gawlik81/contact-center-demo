@@ -651,7 +651,11 @@
       "scheduleCallback": "Замовити передзвін",
       "closeDetails": "Закрити деталі",
       "details": "Деталі",
-      "callbackFor": "Замовити передзвін для"
+      "callbackFor": "Замовити передзвін для",
+      "initiateCall": "Зателефонувати",
+      "selectPhone": "Оберіть номер телефону",
+      "callInitiated": "Виклик успішно ініційовано",
+      "callError": "Не вдалося ініціювати виклик"
     },
     "manualCallbackModal": {
       "title": "Замовити передзвін",

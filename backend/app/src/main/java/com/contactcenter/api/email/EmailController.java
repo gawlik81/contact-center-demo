@@ -5,6 +5,7 @@ import com.contactcenter.api.email.dto.EmailConfigRequest;
 import com.contactcenter.api.email.dto.EmailConfigResponse;
 import com.contactcenter.api.email.dto.EmailMessageResponse;
 import com.contactcenter.api.email.dto.EmailReplyRequest;
+import com.contactcenter.api.email.dto.OutboundEmailRequest;
 import com.contactcenter.domain.email.*;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.EmailMessageRepository;
@@ -152,6 +153,31 @@ public class EmailController {
                 reply.getId(), id, agentId);
 
         return ResponseEntity.ok(EmailMessageResponse.from(reply));
+    }
+
+    /**
+     * Wysyłka nowej wiadomości email ad hoc – bez powiązania z istniejącym wątkiem.
+     *
+     * <p>Tworzy nowy wątek emailowy (brak nagłówków In-Reply-To / References).
+     * Dostępne dla agentów, supervisorów i administratorów.
+     */
+    @PostMapping("/messages/outbound")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(summary = "Wyślij nowy email ad hoc",
+               description = "Wysyła nową wiadomość email do klienta bez powiązania z istniejącym wątkiem")
+    public ResponseEntity<EmailMessageResponse> sendOutboundEmail(
+            @Valid @RequestBody OutboundEmailRequest request) {
+
+        UUID tenantId = TenantContext.getTenantId();
+        UUID agentId  = TenantContext.getUserId();
+
+        EmailMessage sent = emailSendService.sendNew(tenantId, request.toAddress(),
+                request.subject(), request.bodyHtml(), agentId);
+
+        log.info("[EmailController] Email ad hoc wysłany: id={}, to={}, agent={}",
+                sent.getId(), request.toAddress(), agentId);
+
+        return ResponseEntity.ok(EmailMessageResponse.from(sent));
     }
 
     // =========================================================================

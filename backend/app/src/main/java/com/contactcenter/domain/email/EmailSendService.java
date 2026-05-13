@@ -171,6 +171,85 @@ public class EmailSendService {
     }
 
     // =========================================================================
+    // Wysyłka nowej wiadomości (ad hoc)
+    // =========================================================================
+
+    /**
+     * Wysyła nową wiadomość email do podanego odbiorcy – bez powiązania z istniejącym wątkiem.
+     *
+     * <p>Nie ustawia nagłówków {@code In-Reply-To} ani {@code References}, dzięki czemu
+     * wiadomość tworzy nowy wątek w kliencie email odbiorcy.
+     *
+     * @param tenantId  UUID tenanta (z TenantContext)
+     * @param toAddress adres odbiorcy (format RFC 2822)
+     * @param subject   temat wiadomości
+     * @param bodyHtml  treść wiadomości w HTML
+     * @param agentId   UUID agenta wysyłającego wiadomość
+     * @return zapisana encja wiadomości OUTBOUND
+     * @throws ResourceNotFoundException gdy tenant nie istnieje
+     * @throws EmailSendException        gdy brak konfiguracji SMTP lub wysyłka się nie powiedzie
+     */
+    @Transactional
+    public EmailMessage sendNew(UUID tenantId, String toAddress, String subject,
+                                String bodyHtml, UUID agentId) {
+
+        // 1. Pobierz konfigurację SMTP tenanta
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
+
+        EmailAccountConfig config = EmailAccountConfig.fromTenantConfig(tenant.getConfig());
+        if (config == null) {
+            throw new EmailSendException("Tenant " + tenantId + " nie ma skonfigurowanego konta SMTP");
+        }
+
+        String password;
+        try {
+            password = encryptionService.decrypt(config.getPassword());
+        } catch (EmailEncryptionService.EmailEncryptionException e) {
+            throw new EmailSendException("Nie można odszyfrować hasła SMTP", e);
+        }
+
+        // 2. Generuj nowy Message-ID (bez In-Reply-To i References – nowy wątek)
+        String newMessageId = "<" + UUID.randomUUID() + "@" + extractDomain(config.getUsername()) + ">";
+
+        // 3. Wyślij przez SMTP
+        log.info("[EmailSend] Wysyłam nową wiadomość: to={}, tenant={}, agent={}", toAddress, tenantId, agentId);
+
+        try {
+            sendSmtp(config, password, config.getUsername(), toAddress,
+                    subject, bodyHtml, newMessageId, null, null);
+        } catch (MessagingException e) {
+            log.error("[EmailSend] Błąd SMTP: tenant={}, to={}, error={}",
+                    tenantId, toAddress, e.getMessage(), e);
+            throw new EmailSendException("Wysyłka SMTP nie powiodła się: " + e.getMessage(), e);
+        }
+
+        // 4. Zapisz jako OUTBOUND w DB (contactId = null dla ad hoc)
+        EmailMessage outbound = EmailMessage.builder()
+                .tenantId(tenantId)
+                .contactId(null)
+                .direction(EmailMessage.Direction.OUTBOUND.name())
+                .fromAddress(config.getUsername())
+                .toAddress(toAddress)
+                .subject(subject)
+                .bodyHtml(bodyHtml)
+                .messageIdHeader(newMessageId)
+                .sentAt(Instant.now())
+                .deliveryStatus(EmailMessage.DeliveryStatus.SENT.name())
+                .build();
+
+        EmailMessage saved = emailMessageRepository.save(outbound);
+
+        // 5. Publikuj event email.sent
+        emailEventPublisher.publishSent(saved, agentId);
+
+        log.info("[EmailSend] Nowa wiadomość wysłana i zapisana: id={}, to={}, agent={}",
+                saved.getId(), toAddress, agentId);
+
+        return saved;
+    }
+
+    // =========================================================================
     // SMTP
     // =========================================================================
 

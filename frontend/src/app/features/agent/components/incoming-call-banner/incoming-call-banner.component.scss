@@ -8,13 +8,13 @@
   left: 0;
   right: 0;
   z-index: 9000;
-  background: #dc2626;
-  color: #ffffff;
+  background: var(--danger);
+  color: var(--accent-fg);
   padding: 0.75rem 1.5rem;
   display: flex;
   align-items: center;
   gap: 1rem;
-  box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4);
+  box-shadow: 0 4px 20px color-mix(in oklch, var(--danger) 40%, transparent);
   animation: slideDown 0.3s ease-out;
 
   &__icon {
@@ -54,10 +54,10 @@
 
   &__cta {
     flex-shrink: 0;
-    background: #ffffff;
-    color: #dc2626;
+    background: var(--accent-fg);
+    color: var(--danger);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
@@ -74,7 +74,7 @@
     flex-shrink: 0;
     background: none;
     border: none;
-    color: #ffffff;
+    color: var(--accent-fg);
     opacity: 0.7;
     cursor: pointer;
     padding: 0.25rem;

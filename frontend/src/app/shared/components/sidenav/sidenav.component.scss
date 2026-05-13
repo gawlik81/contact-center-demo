@@ -1,29 +1,20 @@
-$sidenav-width: 240px;
-$sidenav-collapsed-width: 60px;
-$sidenav-bg: #1e2a3a;
-$sidenav-text: #e2e8f0;
-$sidenav-active-bg: #2d6cdf;
-$sidenav-hover-bg: rgba(255, 255, 255, 0.07);
-$sidenav-border: rgba(255, 255, 255, 0.08);
-
+$sidenav-width: 232px;
+$sidenav-collapsed-width: 72px;
 $breakpoint-tablet: 1024px;
 $breakpoint-desktop: 1280px;
-
-$transition-sidenav: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-$transition-label:
-  opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-  transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 
 // Overlay (mobile/tablet only)
 .sidenav-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: oklch(0% 0 0 / 0.35);
   z-index: 199;
   opacity: 0;
   transition: opacity 0.25s;
   pointer-events: none;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 
   @media (max-width: #{$breakpoint-desktop - 1px}) {
     display: block;
@@ -42,38 +33,47 @@ $transition-label:
   left: 0;
   bottom: 0;
   width: $sidenav-width;
-  background: $sidenav-bg;
-  color: $sidenav-text;
+  background: var(--bg-sidebar, oklch(96% 0.004 80));
+  border-right: 1px solid var(--border-1, #e2e8f0);
+  color: var(--text-1, #1e293b);
   display: flex;
   flex-direction: column;
   z-index: 200;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-1, #e2e8f0) transparent;
   transition:
     transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform, width;
 
-  // Mobile: hidden by default, slides in when open
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-1, #e2e8f0);
+    border-radius: 2px;
+  }
+
+  // Mobile: hidden by default
   @media (max-width: #{$breakpoint-tablet - 1px}) {
     transform: translateX(-100%);
-    box-shadow: none;
 
     &--open {
       transform: translateX(0);
-      box-shadow: 4px 0 20px rgba(0, 0, 0, 0.35);
+      box-shadow: 8px 0 32px oklch(0% 0 0 / 0.12);
     }
   }
 
-  // Tablet: hidden by default (overlay drawer)
+  // Tablet: overlay drawer
   @media (min-width: $breakpoint-tablet) and (max-width: #{$breakpoint-desktop - 1px}) {
     transform: translateX(-100%);
-    top: 60px; // below navbar
-    box-shadow: none;
+    top: 64px;
 
     &--open {
       transform: translateX(0);
-      box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+      box-shadow: 8px 0 32px oklch(0% 0 0 / 0.1);
     }
   }
 
@@ -87,7 +87,6 @@ $transition-label:
     flex-shrink: 0;
     height: 100%;
 
-    // Collapsed state – icon-only mode
     &--collapsed {
       width: $sidenav-collapsed-width;
     }
@@ -96,106 +95,102 @@ $transition-label:
   &__header {
     display: flex;
     align-items: center;
-    height: 60px;
-    padding: 0 1.25rem;
-    border-bottom: 1px solid $sidenav-border;
+    height: 64px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border-1, #e2e8f0);
     flex-shrink: 0;
 
     @media (min-width: $breakpoint-desktop) {
-      display: none; // on desktop the global navbar already shows brand
+      display: none;
     }
   }
 
   &__title {
-    font-size: 0.875rem;
-    font-weight: 600;
+    font-size: 0.75rem;
+    font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: rgba(226, 232, 240, 0.5);
+    color: var(--text-muted, #94a3b8);
   }
 
   &__list {
     list-style: none;
     margin: 0;
-    padding: 0.5rem 0;
+    padding: 10px;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   &__item {
     margin: 0;
-    padding: 0 0.5rem;
-
-    // In collapsed mode reduce horizontal padding so icon fits centred
-    .sidenav--collapsed & {
-      padding: 0 0.25rem;
-    }
   }
 
   &__link {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.625rem 0.75rem;
-    border-radius: 6px;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md, 10px);
     text-decoration: none;
-    color: $sidenav-text;
-    font-size: 0.9375rem;
-    font-weight: 400;
+    color: var(--text-2, #475569);
+    font-size: 0.875rem;
+    font-weight: 500;
     transition:
-      background 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
-      color 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
-      transform 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+      background 150ms var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
+      color 150ms var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     position: relative;
-    overflow: hidden;
 
-    &:hover {
-      background: $sidenav-hover-bg;
-      transform: translateX(2px);
+    &:hover:not(&--active):not(&--section-active) {
+      background: var(--bg-subtle, #f1f5f9);
+      color: var(--text-1, #1e293b);
     }
 
     &:focus-visible {
-      outline: 2px solid #60a5fa;
+      outline: 2px solid var(--accent, #1a56db);
       outline-offset: 2px;
     }
 
-    // Collapsed mode: center icon, hide text elements
     .sidenav--collapsed & {
-      padding: 0.625rem;
+      padding: 8px;
       justify-content: center;
       gap: 0;
-      transform: none !important;
     }
 
     &--active {
-      background: $sidenav-active-bg;
-      color: #ffffff;
-      font-weight: 500;
-
-      &::before {
-        content: '';
-        position: absolute;
-        left: -0.5rem;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 3px;
-        height: 60%;
-        background: #ffffff;
-        border-radius: 0 2px 2px 0;
-        opacity: 0.9;
-      }
+      background: var(--accent-soft, #e3f2fd);
+      color: var(--accent-text, #1d4ed8);
+      font-weight: 600;
 
       .sidenav__icon {
-        color: #ffffff;
+        color: var(--accent, #1a56db);
+      }
+    }
+
+    &--section {
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+    }
+
+    &--section-active {
+      color: var(--accent-text, #1d4ed8);
+
+      .sidenav__icon {
+        color: var(--accent, #1a56db);
       }
     }
   }
 
   &__icon {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
-    color: rgba(226, 232, 240, 0.7);
-    transition: color 0.15s;
+    color: var(--text-muted, #94a3b8);
+    transition: color 150ms;
   }
 
   &__label {
@@ -203,10 +198,10 @@ $transition-label:
     overflow: hidden;
     text-overflow: ellipsis;
     flex: 1;
-    transition: $transition-label;
-    transform-origin: left center;
+    transition:
+      opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      width 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
-    // Hide text in collapsed mode with fade+slide
     .sidenav--collapsed & {
       opacity: 0;
       width: 0;
@@ -215,28 +210,11 @@ $transition-label:
     }
   }
 
-  // Section toggle button (nav item with children)
-  &__link--section {
-    background: none;
-    border: none;
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
-  }
-
-  &__link--section-active {
-    color: #ffffff;
-
-    .sidenav__icon {
-      color: rgba(255, 255, 255, 0.9);
-    }
-  }
-
   &__chevron {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
-    color: rgba(226, 232, 240, 0.5);
+    color: var(--text-muted, #94a3b8);
     transition:
       transform 0.2s ease,
       opacity 0.15s ease;
@@ -246,7 +224,6 @@ $transition-label:
       transform: rotate(180deg);
     }
 
-    // Hide chevron in collapsed mode
     .sidenav--collapsed & {
       display: none;
     }
@@ -255,58 +232,58 @@ $transition-label:
   // Submenu
   &__submenu {
     list-style: none;
-    margin: 0;
-    padding: 0;
+    margin: 2px 0 0;
+    padding: 0 0 0 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
 
   &__subitem {
     margin: 0;
-    padding: 0 0.5rem 0 1rem;
   }
 
   &__sublink {
     display: flex;
     align-items: center;
-    gap: 0.625rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm, 6px);
     text-decoration: none;
-    color: rgba(226, 232, 240, 0.8);
-    font-size: 0.875rem;
+    color: var(--text-2, #64748b);
+    font-size: 0.8125rem;
     font-weight: 400;
     transition:
-      background 0.15s,
-      color 0.15s;
-    position: relative;
+      background 150ms,
+      color 150ms;
 
     &:hover {
-      background: $sidenav-hover-bg;
-      color: $sidenav-text;
+      background: var(--bg-subtle, #f1f5f9);
+      color: var(--text-1, #1e293b);
     }
 
     &:focus-visible {
-      outline: 2px solid #60a5fa;
+      outline: 2px solid var(--accent, #1a56db);
       outline-offset: 2px;
     }
 
     &--active {
-      background: $sidenav-active-bg;
-      color: #ffffff;
-      font-weight: 500;
+      background: var(--accent-soft, #e3f2fd);
+      color: var(--accent-text, #1d4ed8);
+      font-weight: 600;
 
       .sidenav__icon {
-        color: #ffffff;
+        color: var(--accent, #1a56db);
       }
     }
   }
 
   &__icon--sm {
-    width: 18px;
-    height: 18px;
+    width: 15px;
+    height: 15px;
   }
 
-  // CSS tooltip shown in collapsed mode via data-tooltip attribute
-  // Positioned to the right of the icon
+  // Tooltip in collapsed mode
   [data-tooltip] {
     position: relative;
 
@@ -316,20 +293,20 @@ $transition-label:
       left: calc(100% + 10px);
       top: 50%;
       transform: translateY(-50%) translateX(-4px);
-      background: #0f172a;
-      color: #f1f5f9;
+      background: var(--text-1, #0f172a);
+      color: var(--bg-app, #f1f5f9);
       font-size: 0.8125rem;
       font-weight: 500;
       white-space: nowrap;
       padding: 0.3rem 0.65rem;
-      border-radius: 6px;
+      border-radius: var(--radius-sm, 6px);
       pointer-events: none;
       opacity: 0;
       transition:
-        opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-        transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+        transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
       z-index: 300;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.15));
     }
 
     &:hover::after,
@@ -343,13 +320,13 @@ $transition-label:
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 5px;
-    border-radius: 10px;
-    background: #ef4444;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: var(--danger, #ef4444);
     color: #ffffff;
-    font-size: 0.6875rem;
+    font-size: 0.625rem;
     font-weight: 700;
     line-height: 1;
     flex-shrink: 0;
@@ -361,13 +338,48 @@ $transition-label:
     }
   }
 
-  // Footer with collapse toggle – desktop only
+  // Footer with collapse toggle + connection indicator
   &__footer {
     flex-shrink: 0;
-    padding: 0.5rem;
-    border-top: 1px solid $sidenav-border;
+    padding: 8px 10px;
+    border-top: 1px solid var(--border-1, #e2e8f0);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 
     @media (max-width: #{$breakpoint-desktop - 1px}) {
+      display: none;
+    }
+  }
+
+  &__connection {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    color: var(--text-muted, #94a3b8);
+
+    .sidenav--collapsed & {
+      justify-content: center;
+      padding: 5px;
+    }
+  }
+
+  &__connection-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--success, #22c55e);
+    flex-shrink: 0;
+    animation: pulse-dot 2s ease-in-out infinite;
+    box-shadow: 0 0 0 2px var(--success-soft, #dcfce7);
+  }
+
+  &__connection-label {
+    white-space: nowrap;
+
+    .sidenav--collapsed & {
       display: none;
     }
   }
@@ -375,40 +387,39 @@ $transition-label:
   &__collapse-btn {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 10px;
     width: 100%;
-    padding: 0.5rem 0.75rem;
+    padding: 7px 10px;
     background: none;
     border: none;
-    border-radius: 6px;
-    color: rgba(226, 232, 240, 0.5);
-    font-size: 0.875rem;
-    font-weight: 400;
+    border-radius: var(--radius-sm, 6px);
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.8125rem;
+    font-weight: 500;
     cursor: pointer;
     transition:
-      background 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
-      color 0.15s var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
-    overflow: hidden;
+      background 150ms var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
+      color 150ms var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 
     &:hover {
-      background: $sidenav-hover-bg;
-      color: $sidenav-text;
+      background: var(--bg-subtle, #f1f5f9);
+      color: var(--text-1, #1e293b);
     }
 
     &:focus-visible {
-      outline: 2px solid #60a5fa;
+      outline: 2px solid var(--accent, #1a56db);
       outline-offset: 2px;
     }
 
     .sidenav--collapsed & {
       justify-content: center;
-      padding: 0.5rem;
+      padding: 7px;
     }
   }
 
   &__collapse-icon {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -420,7 +431,10 @@ $transition-label:
   &__collapse-label {
     white-space: nowrap;
     overflow: hidden;
-    transition: $transition-label;
+    flex: 1;
+    transition:
+      opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      width 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
     .sidenav--collapsed & {
       opacity: 0;
@@ -434,9 +448,9 @@ $transition-label:
 @keyframes badge-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+    box-shadow: 0 0 0 0 oklch(60% 0.18 25 / 0.4);
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
+    box-shadow: 0 0 0 5px oklch(60% 0.18 25 / 0);
   }
 }

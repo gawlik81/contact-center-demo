@@ -87,8 +87,8 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
     }
   }
 
-  protected onCodeChange(event: Event): void {
-    this.selectedCode.set((event.target as HTMLSelectElement).value);
+  protected selectCode(code: string): void {
+    this.selectedCode.set(code);
   }
 
   protected onNotesChange(value: string): void {

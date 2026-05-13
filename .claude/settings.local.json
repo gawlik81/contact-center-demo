@@ -268,7 +268,17 @@
       "Bash(awk '/### BE-061/,/\\\\*\\\\*Opis:/' /home/pawelm/contact-center/TASKS-BACKEND.md)",
       "Bash(awk '/### FE-065/,/### FE-069/' /home/pawelm/contact-center/TASKS-FRONTEND.md)",
       "Bash(GIT_SEQUENCE_EDITOR=true git rebase *)",
-      "Bash(sort -t- -k2 -n)"
+      "Bash(sort -t- -k2 -n)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(cp \"/home/pawelm/.claude/projects/-home-pawelm-contact-center/2954b5ed-d68e-45fe-bbaa-143ab49720b3/tool-results/webfetch-1778678982955-8kilb1.bin\" /tmp/design_project.gz)",
+      "Bash(gunzip -f /tmp/design_project.gz)",
+      "Bash(mkdir -p /tmp/design_extracted)",
+      "Bash(tar -xf /tmp/design_project -C /tmp/design_extracted)",
+      "Bash(sed -i 's|fill='\\\\''%23616161'\\\\''%3E%3Cpath d='\\\\''M7 10l5 5 5-5z'\\\\''|fill='\\\\''%23888'\\\\''%3E%3Cpath d='\\\\''M7 10l5 5 5-5z'\\\\''|g' /home/pawelm/contact-center/frontend/src/app/features/agent/components/disposition-panel/disposition-panel.component.scss)",
+      "Bash(sed -i 's|fill='\\\\''%2364748b'\\\\''%3E%3Cpath d='\\\\''M7 10l5 5 5-5z'\\\\''|fill='\\\\''%23888'\\\\''%3E%3Cpath d='\\\\''M7 10l5 5 5-5z'\\\\''|g' /home/pawelm/contact-center/frontend/src/app/features/agent/components/add-break-modal/add-break-modal.component.scss)",
+      "Bash(sed -i 's|fill='\\\\''%2364748b'\\\\''%3E%3Cpath d='\\\\''M7 10l5 5 5-5z'\\\\''|fill='\\\\''%23888'\\\\''%3E%3Cpath d='\\\\''M7 10l5 5 5-5z'\\\\''|g' /home/pawelm/contact-center/frontend/src/app/features/agent/components/reschedule-callback-modal/reschedule-callback-modal.component.scss)",
+      "Bash(sed -i 's|fill='\\\\''%2364748b'\\\\''%3E%3Cpath d='\\\\''M7 10l5 5 5-5z'\\\\''|fill='\\\\''%23888'\\\\''%3E%3Cpath d='\\\\''M7 10l5 5 5-5z'\\\\''|g' /home/pawelm/contact-center/frontend/src/app/features/agent/pages/customers/manual-callback-modal/manual-callback-modal.component.scss)",
+      "Bash(sed -i 's|fill='\\\\''%23616161'\\\\'' d='\\\\''M7 10l5 5 5-5z'\\\\''|fill='\\\\''%23888'\\\\'' d='\\\\''M7 10l5 5 5-5z'\\\\''|g' /home/pawelm/contact-center/frontend/src/app/features/agent/pages/callbacks/agent-callbacks-page.component.scss)"
     ]
   }
 }

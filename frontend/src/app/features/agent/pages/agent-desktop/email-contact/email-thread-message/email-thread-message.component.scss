@@ -1,24 +1,15 @@
-// ===== Design tokens =====
+// Channel-specific accent palette — mapped to design tokens
+$inbound-accent:     var(--accent);
+$inbound-bg:         var(--accent-soft);
+$inbound-border:     color-mix(in oklch, var(--accent) 30%, transparent);
+$inbound-badge-bg:   var(--accent-soft);
+$inbound-badge-text: var(--accent-text);
 
-$surface: #ffffff;
-$surface-2: #f8fafc;
-$border: #e2e8f0;
-$text-primary: #1e293b;
-$text-secondary: #475569;
-$text-muted: #94a3b8;
-
-// Channel-specific accent palette
-$inbound-accent: #2563eb;
-$inbound-bg: #f0f5ff;
-$inbound-border: #c7d7fd;
-$inbound-badge-bg: #dbeafe;
-$inbound-badge-text: #1e40af;
-
-$outbound-accent: #7c3aed;
-$outbound-bg: #faf5ff;
-$outbound-border: #ddd6fe;
-$outbound-badge-bg: #ede9fe;
-$outbound-badge-text: #5b21b6;
+$outbound-accent:     var(--violet);
+$outbound-bg:         var(--violet-soft);
+$outbound-border:     color-mix(in oklch, var(--violet) 30%, transparent);
+$outbound-badge-bg:   var(--violet-soft);
+$outbound-badge-text: var(--violet-text);
 
 // ===== Thread message card =====
 // Each email message is a clearly distinct card with visible direction cues.
@@ -26,18 +17,14 @@ $outbound-badge-text: #5b21b6;
 
 .thread-message {
   border-radius: 10px;
-  border: 1px solid $border;
+  border: 1px solid var(--border-1);
   overflow: hidden;
   animation: msg-enter 240ms var(--ease-spring, cubic-bezier(0.16, 1, 0.3, 1)) both;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-sm);
   transition: box-shadow var(--duration-fast, 120ms);
 
   &:hover {
-    box-shadow:
-      0 2px 8px rgba(0, 0, 0, 0.09),
-      0 1px 3px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-md);
   }
 
   // Inbound: customer message — blue left bar, light blue tint
@@ -108,21 +95,21 @@ $outbound-badge-text: #5b21b6;
   &__from,
   &__to {
     font-size: 0.8125rem;
-    color: $text-secondary;
+    color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 200px;
 
     strong {
-      color: $text-primary;
+      color: var(--text-1);
       font-weight: 600;
     }
   }
 
   &__time {
     font-size: 0.6875rem;
-    color: $text-muted;
+    color: var(--text-muted);
     white-space: nowrap;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
@@ -133,7 +120,7 @@ $outbound-badge-text: #5b21b6;
   // Body: iframe-rendered email content
   &__body {
     padding: 0;
-    background: $surface;
+    background: var(--bg-surface);
   }
 
   &__iframe {

@@ -1,12 +1,12 @@
 <div class="callbacks-page">
   <!-- Page header -->
   <div class="callbacks-page__header">
-    <h1 class="callbacks-page__title">
-      {{ 'agent.callbacksPage.title' | transloco }}
+    <div class="callbacks-page__title-row">
+      <h1 class="callbacks-page__title">{{ 'agent.callbacksPage.title' | transloco }}</h1>
       @if (!loading() && total() > 0) {
-        <span class="callbacks-page__count">({{ total() }})</span>
+        <span class="callbacks-page__count">{{ total() }}</span>
       }
-    </h1>
+    </div>
   </div>
 
   <!-- Filters bar -->

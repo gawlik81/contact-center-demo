@@ -237,6 +237,11 @@ export class AgentDesktopComponent implements OnInit {
     this.calendarTabActive.set(false);
   }
 
+  /** Opens calendar tab (break can be added from the FAB inside the calendar) */
+  protected openCalendarAndAddBreak(): void {
+    this.calendarTabActive.set(true);
+  }
+
   protected changeStatus(status: AgentStatus): void {
     this.statusMenuOpen.set(false);
     this.statusService.changeStatus(status).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();

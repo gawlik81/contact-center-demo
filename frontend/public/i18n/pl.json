@@ -263,6 +263,8 @@
       "scheduleCallback": "Zaplanuj oddzwonienie",
       "scheduleCallbackLabel": "Zaplanuj oddzwonienie",
       "callbackScheduled": "Oddzwonienie zaplanowane",
+      "note": "Notatka",
+      "noteLabel": "Dodaj notatkę do połączenia",
       "idle": "Oczekiwanie na połączenie..."
     },
     "disposition": {
@@ -284,7 +286,8 @@
       "statusChanged": "Status zmieniony na Dostępny."
     },
     "customerPanel": {
-      "empty": "Brak aktywnego kontaktu",
+      "empty": "Karta klienta pojawi się tutaj po podjęciu rozmowy.",
+      "emptyTitle": "Brak aktywnego kontaktu",
       "loadingLabel": "Ładowanie danych klienta",
       "unknownTitle": "Nieznany klient",
       "unknownDesc": "Brak profilu klienta dla tego numeru telefonu.",

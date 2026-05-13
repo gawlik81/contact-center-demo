@@ -110,8 +110,14 @@
     }
   </ul>
 
-  <!-- Collapse toggle button – visible on desktop only -->
+  <!-- Collapse toggle button + connection status – visible on desktop only -->
   <div class="sidenav__footer">
+    <!-- Connection indicator -->
+    <div class="sidenav__connection" aria-label="Status połączenia: Połączono">
+      <span class="sidenav__connection-dot"></span>
+      <span class="sidenav__connection-label">Połączono</span>
+    </div>
+
     <button
       type="button"
       class="sidenav__collapse-btn"
@@ -128,7 +134,6 @@
         aria-hidden="true"
         focusable="false"
       >
-        <!-- Double chevron left -->
         <path
           d="M11.41 7.41L10 6l-6 6 6 6 1.41-1.41L6.83 12l4.58-4.59zm6 0L16 6l-6 6 6 6 1.41-1.41L12.83 12l4.58-4.59z"
         />

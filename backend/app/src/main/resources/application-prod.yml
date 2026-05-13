@@ -49,6 +49,13 @@ spring:
       register-mbeans: false
       # Leak detection – wykrywanie niezamkniętych połączeń (60s)
       leak-detection-threshold: 60000
+    # ---------------------------------------------------------------------------
+    # DataSource – ClickHouse (ETL Data Warehouse)
+    # Wymagane zmienne środowiskowe:
+    #   CLICKHOUSE_URL – jdbc:clickhouse://host:8123/contact_center_dw
+    # ---------------------------------------------------------------------------
+    clickhouse:
+      url: ${CLICKHOUSE_URL}
 
   # ---------------------------------------------------------------------------
   # Flyway – migracje (profil PROD: tylko produkcyjne migracje, BEZ seed)
@@ -169,6 +176,15 @@ agent:
     activator:
       enabled: ${AGENT_BREAKS_ACTIVATOR_ENABLED:true}
       interval-ms: ${AGENT_BREAKS_ACTIVATOR_INTERVAL_MS:60000}
+
+# =============================================================================
+# ETL – Data Warehouse
+# =============================================================================
+etl:
+  dw:
+    type: ${ETL_DW_TYPE:clickhouse}
+  sync:
+    fixed-delay-ms: ${ETL_SYNC_DELAY_MS:60000}
 
 # =============================================================================
 # Logowanie – prod: INFO (bez SQL dump, bez debug security)

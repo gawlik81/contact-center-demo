@@ -450,6 +450,21 @@
     }
   }
 
+  &--email {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    margin-top: 0;
+
+    &:hover {
+      opacity: 1;
+      background: color-mix(in oklch, var(--accent) 20%, transparent);
+    }
+
+    &:focus-visible {
+      outline-color: var(--accent);
+    }
+  }
+
   &__icon {
     width: 1rem;
     height: 1rem;

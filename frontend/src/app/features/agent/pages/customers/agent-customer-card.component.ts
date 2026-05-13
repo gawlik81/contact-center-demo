@@ -95,6 +95,23 @@ import { CustomerSummary } from '../../models/customer-search.model';
           {{ 'agent.customers.scheduleCallback' | transloco }}
         </button>
 
+        @if (customer.email.length > 0) {
+          <button
+            type="button"
+            class="customer-card__btn customer-card__btn--email"
+            [attr.aria-label]="
+              ('agent.customers.sendEmail' | transloco) +
+              ' ' +
+              (customer.firstName || '') +
+              ' ' +
+              (customer.lastName || '')
+            "
+            (click)="sendEmail.emit(customer)"
+          >
+            {{ 'agent.customers.sendEmail' | transloco }}
+          </button>
+        }
+
         @if (customer.phone.length > 0) {
           <div class="customer-card__call-wrapper">
             <button
@@ -244,6 +261,7 @@ import { CustomerSummary } from '../../models/customer-search.model';
       border: 1.5px solid transparent;
       white-space: nowrap;
       font-family: inherit;
+      width: 100%;
       transition:
         background 160ms ease,
         color 160ms ease,
@@ -278,6 +296,7 @@ import { CustomerSummary } from '../../models/customer-search.model';
       &--call {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 0.25rem;
         background: var(--success);
         color: var(--accent-fg);
@@ -285,6 +304,17 @@ import { CustomerSummary } from '../../models/customer-search.model';
 
         &:hover {
           filter: brightness(1.08);
+        }
+      }
+
+      &--email {
+        background: var(--bg-elevated);
+        color: var(--accent-text);
+        border-color: var(--border-2);
+
+        &:hover {
+          background: var(--accent-soft);
+          border-color: color-mix(in oklch, var(--accent) 40%, transparent);
         }
       }
     }
@@ -353,6 +383,7 @@ export class AgentCustomerCardComponent {
   @Output() viewDetails = new EventEmitter<CustomerSummary>();
   @Output() scheduleCallback = new EventEmitter<CustomerSummary>();
   @Output() initiateCall = new EventEmitter<{ customer: CustomerSummary; phoneNumber: string }>();
+  @Output() sendEmail = new EventEmitter<CustomerSummary>();
 
   protected readonly phoneDropdownOpen = signal(false);
 

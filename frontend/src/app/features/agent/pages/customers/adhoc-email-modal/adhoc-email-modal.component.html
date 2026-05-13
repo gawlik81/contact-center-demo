@@ -1,0 +1,174 @@
+<dialog #dialogEl class="email-dialog" aria-labelledby="email-dialog-title" (click)="onBackdropClick($event)">
+  <div class="email-dialog__content" role="document">
+    <!-- Header -->
+    <div class="email-dialog__header">
+      <div class="email-dialog__header-inner">
+        <span class="email-dialog__header-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
+            />
+          </svg>
+        </span>
+        <div class="email-dialog__title-block">
+          <h2 id="email-dialog-title" class="email-dialog__title">
+            {{ 'agent.adhocEmail.title' | transloco }}
+          </h2>
+          <p class="email-dialog__subtitle">{{ customerDisplayName() }}</p>
+        </div>
+      </div>
+      <button
+        class="btn-close"
+        type="button"
+        (click)="cancel()"
+        [attr.aria-label]="'supervisor.userForm.closeLabel' | transloco"
+        [disabled]="loading()"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <form class="email-dialog__body" [formGroup]="form" (ngSubmit)="submit()" novalidate id="adhoc-email-form">
+      <!-- To address -->
+      <div
+        class="form-field"
+        [class.form-field--error]="form.controls.toAddress.touched && form.controls.toAddress.invalid"
+      >
+        <label class="form-label" for="email-toAddress">
+          {{ 'agent.adhocEmail.toLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+        </label>
+
+        @if (hasMultipleEmails()) {
+          <select
+            id="email-toAddress"
+            class="form-select"
+            formControlName="toAddress"
+            aria-required="true"
+            aria-describedby="toAddress-error"
+          >
+            @for (email of customer().email; track email) {
+              <option [value]="email">{{ email }}</option>
+            }
+          </select>
+        } @else {
+          <input
+            id="email-toAddress"
+            type="email"
+            class="form-input"
+            formControlName="toAddress"
+            autocomplete="email"
+            aria-required="true"
+            aria-describedby="toAddress-error"
+          />
+        }
+
+        @if (toAddressError) {
+          <span id="toAddress-error" class="form-error" role="alert">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+              />
+            </svg>
+            {{ toAddressError }}
+          </span>
+        }
+      </div>
+
+      <!-- Subject -->
+      <div
+        class="form-field"
+        [class.form-field--error]="form.controls.subject.touched && form.controls.subject.invalid"
+      >
+        <label class="form-label" for="email-subject">
+          {{ 'agent.adhocEmail.subjectLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="email-subject"
+          type="text"
+          class="form-input"
+          formControlName="subject"
+          maxlength="500"
+          aria-required="true"
+          aria-describedby="subject-error"
+        />
+        @if (subjectError) {
+          <span id="subject-error" class="form-error" role="alert">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+              />
+            </svg>
+            {{ subjectError }}
+          </span>
+        }
+      </div>
+
+      <!-- Body -->
+      <div
+        class="form-field"
+        [class.form-field--error]="form.controls.bodyHtml.touched && form.controls.bodyHtml.invalid"
+      >
+        <label class="form-label" for="email-bodyHtml">
+          {{ 'agent.adhocEmail.bodyLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+        </label>
+        <textarea
+          id="email-bodyHtml"
+          class="form-input form-input--textarea"
+          rows="6"
+          formControlName="bodyHtml"
+          aria-required="true"
+          aria-multiline="true"
+          aria-describedby="bodyHtml-error"
+        ></textarea>
+        @if (bodyHtmlError) {
+          <span id="bodyHtml-error" class="form-error" role="alert">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+              />
+            </svg>
+            {{ bodyHtmlError }}
+          </span>
+        }
+      </div>
+
+      <!-- Server error -->
+      @if (errorMessage()) {
+        <div class="email-dialog__error" role="alert" aria-live="assertive">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            />
+          </svg>
+          <span>{{ errorMessage() }}</span>
+        </div>
+      }
+    </form>
+
+    <!-- Footer -->
+    <div class="email-dialog__footer">
+      <button class="btn btn-cancel" type="button" (click)="cancel()" [disabled]="loading()">
+        {{ 'agent.adhocEmail.cancel' | transloco }}
+      </button>
+      <button
+        class="btn btn-save"
+        type="submit"
+        form="adhoc-email-form"
+        [disabled]="isSubmitDisabled"
+        [attr.aria-busy]="loading()"
+      >
+        @if (loading()) {
+          <span class="spinner" aria-hidden="true"></span>
+          {{ 'common.saving' | transloco }}
+        } @else {
+          {{ 'agent.adhocEmail.send' | transloco }}
+        }
+      </button>
+    </div>
+  </div>
+</dialog>

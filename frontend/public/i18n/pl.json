@@ -140,9 +140,9 @@
     "logout": "Wyloguj się",
     "tenantLabel": "Tenant:",
     "menu": "Menu",
-    "collapse": "Zwij",
+    "collapse": "Zwiń",
     "mainNav": "Nawigacja główna",
-    "collapseNav": "Zwij nawigację",
+    "collapseNav": "Zwiń nawigację",
     "expandNav": "Rozwiń nawigację",
     "desktop": "Desktop",
     "tenants": "Tenanci",
@@ -658,7 +658,24 @@
       "initiateCall": "Zadzwoń",
       "selectPhone": "Wybierz numer",
       "callInitiated": "Połączenie zostało zainicjowane",
-      "callError": "Nie udało się zainicjować połączenia"
+      "callError": "Nie udało się zainicjować połączenia",
+      "sendEmail": "Wyślij email"
+    },
+    "adhocEmail": {
+      "title": "Wyślij email do klienta",
+      "toLabel": "Do",
+      "subjectLabel": "Temat",
+      "bodyLabel": "Treść wiadomości",
+      "send": "Wyślij",
+      "cancel": "Anuluj",
+      "sent": "Email został wysłany",
+      "errorNoSmtp": "Brak konfiguracji SMTP. Skontaktuj się z administratorem.",
+      "errorSend": "Nie udało się wysłać emaila. Spróbuj ponownie.",
+      "toRequired": "Adres email jest wymagany.",
+      "toInvalid": "Podaj poprawny adres email.",
+      "subjectRequired": "Temat jest wymagany.",
+      "subjectMaxLength": "Temat nie może przekraczać 500 znaków.",
+      "bodyRequired": "Treść wiadomości jest wymagana."
     },
     "manualCallbackModal": {
       "title": "Zamów oddzwonienie",

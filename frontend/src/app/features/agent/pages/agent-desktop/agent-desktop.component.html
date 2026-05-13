@@ -1,3 +1,11 @@
+<!-- Add Break Modal -->
+@if (addBreakOpen()) {
+  <app-add-break-modal
+    (saved)="addBreakOpen.set(false)"
+    (cancelled)="addBreakOpen.set(false)"
+  />
+}
+
 <!-- After Contact Work – Disposition Panel -->
 @if (wrappingTab()) {
   <app-disposition-panel
@@ -147,7 +155,7 @@
         type="button"
         class="desktop__header-action-btn"
         [attr.aria-label]="'agent.calendar.addBreak' | transloco"
-        (click)="openCalendarAndAddBreak()"
+        (click)="openAddBreak()"
       >
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z" />
@@ -349,21 +357,4 @@
     </div>
   </div>
 
-  <!-- ===== BOTTOM TAB BAR: Calendar tab ===== -->
-  <nav class="desktop__tab-nav" [attr.aria-label]="'agent.desktop.viewSwitcher' | transloco">
-    <button
-      type="button"
-      class="desktop__tab-nav-btn"
-      [class.desktop__tab-nav-btn--active]="calendarTabActive()"
-      [attr.aria-pressed]="calendarTabActive()"
-      (click)="calendarTabActive() ? closeCalendarTab() : openCalendarTab()"
-    >
-      <svg class="desktop__tab-nav-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-        <path
-          d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"
-        />
-      </svg>
-      <span class="desktop__tab-nav-label">{{ 'agent.desktop.calendar' | transloco }}</span>
-    </button>
-  </nav>
 </div>

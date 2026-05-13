@@ -78,6 +78,7 @@
               (viewDetails)="onViewDetails($event)"
               (scheduleCallback)="onScheduleCallback($event)"
               (initiateCall)="onInitiateCall($event)"
+              (sendEmail)="onSendEmail($event)"
             />
           </li>
         }
@@ -115,6 +116,11 @@
       (scheduled)="onCallbackScheduled()"
       (cancelled)="onCallbackCancelled()"
     />
+  }
+
+  <!-- ===== Ad hoc email modal ===== -->
+  @if (emailCustomer()) {
+    <app-adhoc-email-modal [customer]="emailCustomer()!" (sent)="onEmailSent()" (cancelled)="onEmailCancelled()" />
   }
 
   <!-- ===== Customer detail drawer ===== -->
@@ -177,6 +183,12 @@
         <button type="button" class="drawer-action-btn" (click)="onScheduleCallback(selectedCustomer()!)">
           {{ 'agent.customers.scheduleCallback' | transloco }}
         </button>
+
+        @if (selectedCustomer()!.email.length > 0) {
+          <button type="button" class="drawer-action-btn drawer-action-btn--email" (click)="onSendEmailFromDrawer()">
+            {{ 'agent.customers.sendEmail' | transloco }}
+          </button>
+        }
 
         @if (selectedCustomer()!.phone.length > 0) {
           <div class="drawer-call-actions">

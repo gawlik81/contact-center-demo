@@ -27,7 +27,9 @@ import { CustomerSearchService } from '../../services/customer-search.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AgentCustomerCardComponent } from './agent-customer-card.component';
 import { ManualCallbackModalComponent } from './manual-callback-modal/manual-callback-modal.component';
+import { AdHocEmailModalComponent } from './adhoc-email-modal/adhoc-email-modal.component';
 import { OutboundCallService } from '../../services/outbound-call.service';
+import { EmailService } from '../../services/email.service';
 
 const MIN_QUERY_LENGTH = 2;
 
@@ -40,6 +42,7 @@ const MIN_QUERY_LENGTH = 2;
     FormsModule,
     AgentCustomerCardComponent,
     ManualCallbackModalComponent,
+    AdHocEmailModalComponent,
   ],
   templateUrl: './agent-customers-tab.component.html',
   styleUrl: './agent-customers-tab.component.scss',
@@ -51,6 +54,7 @@ export class AgentCustomersTabComponent implements OnInit {
   private readonly searchService = inject(CustomerSearchService);
   private readonly notifications = inject(NotificationService);
   private readonly outboundCallService = inject(OutboundCallService);
+  private readonly emailService = inject(EmailService);
   private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -60,6 +64,7 @@ export class AgentCustomersTabComponent implements OnInit {
   protected readonly hasSearched = signal(false);
   protected readonly selectedCustomer = signal<CustomerSummary | null>(null);
   protected readonly callbackCustomer = signal<CustomerSummary | null>(null);
+  protected readonly emailCustomer = signal<CustomerSummary | null>(null);
 
   /** Intermediate subject for debouncing raw input events */
   private readonly queryInput$ = new Subject<string>();
@@ -145,6 +150,23 @@ export class AgentCustomersTabComponent implements OnInit {
     const customer = this.selectedCustomer();
     if (!customer) return;
     this.onInitiateCall({ customer, phoneNumber });
+  }
+
+  protected onSendEmail(customer: CustomerSummary): void {
+    this.emailCustomer.set(customer);
+  }
+
+  protected onEmailSent(): void {
+    this.emailCustomer.set(null);
+  }
+
+  protected onEmailCancelled(): void {
+    this.emailCustomer.set(null);
+  }
+
+  protected onSendEmailFromDrawer(): void {
+    const customer = this.selectedCustomer();
+    if (customer) this.emailCustomer.set(customer);
   }
 
   protected readonly trackByCustomerId = (_i: number, c: CustomerSummary) => c.customerId;

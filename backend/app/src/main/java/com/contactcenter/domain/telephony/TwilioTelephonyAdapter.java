@@ -61,8 +61,10 @@ import java.util.concurrent.TimeUnit;
  * callbacków Twilio docierających do ~2 min po zakończeniu rozmowy.
  *
  * <h2>Hold/Mute</h2>
- * <p>Hold realizowany przez modyfikację TwiML (wstrzymanie strumienia audio).
- * Mute realizowany przez {@link com.twilio.rest.api.v2010.account.CallUpdater} z parametrem {@code muted=true}.
+ * <p>Hold realizowany przez Twilio Conference Participant API ({@code hold=true/false} na nodze klienta).
+ * Mute realizowany przez Twilio Conference Participant API ({@code muted=true/false} na nodze agenta).
+ * Obie operacje wyszukują aktywną konferencję po friendly name ({@code contact-{contactId}})
+ * i aktualizują odpowiedniego uczestnika przez {@link com.twilio.rest.api.v2010.account.conference.Participant#updater(String, String)}.
  *
  * <h2>Transfer</h2>
  * <p>Blind transfer: przekierowanie przez aktualizację TwiML z {@code <Dial>}.
@@ -644,12 +646,21 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   /**
    * {@inheritDoc}
    *
-   * <p>Hold w Twilio nie ma dedykowanego REST API endpoint – realizowany przez
-   * odtwarzanie muzyki w oczekiwaniu ({@code <Play loop=0>}) lub wyciszenie
-   * strumienia. Aktualizujemy stan przez {@code muted=true/false} i aktualizujemy
-   * lokalny stan sesji.
+   * <p>Hold realizowany przez Twilio Conference Participant API ({@code hold=true/false}).
+   * Algorytm identyczny jak {@link #muteCall} – wyszukujemy aktywną konferencję po friendly name
+   * ({@code contact-{contactId}}), następnie aktualizujemy uczestnika (noga klienta) przez
+   * {@link Participant#updater(String, String)} z parametrem {@code hold=true/false}.
    *
-   * @throws TelephonyException gdy sesja jest w złym stanie lub Twilio API zwróci błąd
+   * <p>UWAGA: hold jest ustawiany na nodze <strong>klienta</strong> (callId z sesji, nie agentCallSid).
+   * Klient słyszy muzykę hold (holdUrl Twilio lub domyślna muzyka Twilio), agent pozostaje
+   * w konferencji ale nie słyszy klienta. Pozwala to agentowi np. konsultować się z supervisorem.
+   *
+   * <p>Poprzednia implementacja używała {@code Call.updater(callId).setStatus(CANCELED/COMPLETED)},
+   * co fizycznie kończyło nogę połączenia w konferencji i wywoływało {@code conference-end} callback
+   * → kontakt był błędnie klasyfikowany jako ABANDONED.
+   *
+   * @throws TelephonyException gdy sesja jest w złym stanie, brak wymaganych danych sesji,
+   *                            konferencja nie istnieje lub Twilio API zwróci błąd
    */
   @Override
   public void holdCall(String callId, boolean hold) {
@@ -665,22 +676,61 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
               hold ? "wstrzymać" : "wznowić", callId, session.getStatus()));
     }
 
+    if (session.getContactId() == null) {
+      throw new TelephonyException(callId,
+          "Nie można wykonać hold – brak contactId w sesji (nie można odtworzyć nazwy konferencji). callId=" + callId);
+    }
+
     log.info("[TwilioAdapter] Hold: callId={}, hold={}", callId, hold);
 
-    try {
-      // Twilio realizuje hold przez wyciszenie uczestnika po stronie agenta
-      Call.updater(callId)
-          .setStatus(hold ? Call.UpdateStatus.CANCELED : Call.UpdateStatus.COMPLETED)
-          .update(resolveRestClient(session.getTenantId()));
+    String conferenceName = "contact-" + session.getContactId().toString();
+    TwilioRestClient client = resolveRestClient(session.getTenantId());
 
-    }
-    catch (ApiException e) {
-      // Hold przez modyfikację statusu może nie być obsługiwany przez Twilio w ten sposób.
-      // Zamiast rzucać wyjątek, logujemy ostrzeżenie i aktualizujemy tylko lokalny stan.
-      // W produkcji hold powinien być realizowany przez TwiML Conference z muted participant.
-      log.warn("[TwilioAdapter] Twilio API nie obsługuje hold przez status update (callId={}): {}. " +
-              "Stan lokalny zaktualizowany – audio może nie być wstrzymane po stronie Twilio.",
-          callId, e.getMessage());
+    try {
+      // Krok 1: znajdź aktywną konferencję po friendly name (nazewnictwo: "contact-{contactId}")
+      ResourceSet<Conference> conferences = Conference.reader()
+          .setFriendlyName(conferenceName)
+          .setStatus(Conference.Status.IN_PROGRESS)
+          .read(client);
+
+      Conference conference = null;
+      for (Conference c : conferences) {
+        conference = c;
+        break;
+      }
+      if (conference == null) {
+        throw new TelephonyException(callId,
+            "Nie znaleziono aktywnej konferencji Twilio dla contactId=" + session.getContactId()
+            + " (conferenceName=" + conferenceName + ")");
+      }
+
+      String conferenceSid = conference.getSid();
+      log.debug("[TwilioAdapter] Znaleziono konferencję do hold: conferenceName={}, conferenceSid={}",
+          conferenceName, conferenceSid);
+
+      // Krok 2: ustaw hold na nodze klienta (callId) przez Participant API.
+      // Noga klienta identyfikowana jest przez callId przekazane do holdCall (CA... klienta).
+      // Klient słyszy muzykę hold; agent pozostaje aktywny w konferencji.
+      Participant.updater(conferenceSid, callId)
+          .setHold(hold)
+          .update(client);
+
+      log.info("[TwilioAdapter] Hold uczestnika przez Twilio Participant API: " +
+               "conferenceSid={}, clientCallSid={}, hold={}",
+          conferenceSid, callId, hold);
+
+    } catch (TelephonyException te) {
+      throw te;
+    } catch (ApiException e) {
+      log.error("[TwilioAdapter] Błąd Twilio API przy holdCall: callId={}, hold={}, code={}, message={}",
+          callId, hold, e.getCode(), e.getMessage(), e);
+      throw new TelephonyException(callId,
+          "Nie można wykonać hold przez Twilio: " + e.getMessage(), e);
+    } catch (Exception e) {
+      log.error("[TwilioAdapter] Nieoczekiwany błąd przy holdCall: callId={}, hold={}, error={}",
+          callId, hold, e.getMessage(), e);
+      throw new TelephonyException(callId,
+          "Nie można wykonać hold: " + e.getMessage(), e);
     }
 
     CallSession.CallStatus newStatus = hold

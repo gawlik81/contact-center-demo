@@ -18,7 +18,6 @@ import { AgentStatusService } from '../../services/agent-status.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SoftphoneService } from '../../services/softphone.service';
-import { CustomerLookupService } from '../../services/customer-lookup.service';
 import { IncomingCallAlertService } from '../../services/incoming-call-alert.service';
 import { QueueStateService } from '../../services/queue-state.service';
 import { SoftphoneComponent } from '../../components/softphone/softphone.component';
@@ -36,7 +35,7 @@ import {
 } from '../../models/agent-status.model';
 import { ContactTab } from '../../models/contact-tab.model';
 import { QueueItem } from '../../models/queue-item.model';
-import { WsEvent, CallOutboundPayload, ContactAssignedPayload } from '../../models/ws-event.model';
+import { WsEvent, ContactAssignedPayload } from '../../models/ws-event.model';
 
 @Component({
   selector: 'app-agent-desktop',
@@ -64,7 +63,6 @@ export class AgentDesktopComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly softphoneService = inject(SoftphoneService);
-  private readonly lookupService = inject(CustomerLookupService);
   private readonly incomingCallAlert = inject(IncomingCallAlertService);
   private readonly transloco = inject(TranslocoService);
   private readonly queueStateService = inject(QueueStateService);
@@ -186,24 +184,6 @@ export class AgentDesktopComponent implements OnInit {
     interval(1000)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.now.set(Date.now()));
-
-    this.ws.events$
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        filter((e: WsEvent) => e.eventType === 'CALL_OUTBOUND'),
-      )
-      .subscribe((e) => {
-        const payload = e.payload as CallOutboundPayload;
-        this.lookupService.evict(payload.customerPhone);
-        const reason = this.tabStore.openFromCallOutbound(payload);
-        if (reason !== null) {
-          this.showLimitMessage(reason);
-        } else {
-          // Softphone w stanie RINGING — agent czeka aż klient odbierze
-          this.softphoneService.incomingCall(payload);
-          this.notifications.info(`${payload.customerName} (${payload.customerPhone})`);
-        }
-      });
 
     this.ws.events$
       .pipe(

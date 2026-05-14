@@ -8,7 +8,7 @@ import { NotificationService } from '../../../core/services/notification.service
 import { ContactTabStore, TabLimitReason } from './contact-tab.store';
 import { SoftphoneService } from './softphone.service';
 import { CustomerLookupService } from './customer-lookup.service';
-import { CallIncomingPayload, ContactAssignedPayload } from '../models/ws-event.model';
+import { CallIncomingPayload, CallOutboundPayload, ContactAssignedPayload } from '../models/ws-event.model';
 
 export interface IncomingCallAlert {
   contactId: string;
@@ -86,12 +86,19 @@ export class IncomingCallAlertService implements OnDestroy {
   private subscribeToWsEvents(): void {
     this.ws.events$
       .pipe(
-        filter((e) => e.eventType === 'CALL_INCOMING' || e.eventType === 'CONTACT_ASSIGNED'),
+        filter(
+          (e) =>
+            e.eventType === 'CALL_INCOMING' ||
+            e.eventType === 'CALL_OUTBOUND' ||
+            e.eventType === 'CONTACT_ASSIGNED',
+        ),
         takeUntil(this.destroy$),
       )
       .subscribe((event) => {
         if (event.eventType === 'CALL_INCOMING') {
           this.handleCallIncoming(event.payload as CallIncomingPayload);
+        } else if (event.eventType === 'CALL_OUTBOUND') {
+          this.handleCallOutbound(event.payload as CallOutboundPayload);
         } else if (event.eventType === 'CONTACT_ASSIGNED') {
           const payload = event.payload as ContactAssignedPayload;
           if (payload.type === 'PHONE') {
@@ -105,6 +112,30 @@ export class IncomingCallAlertService implements OnDestroy {
     this.lookupService.evict(payload.customerPhone);
 
     const reason = this.tabStore.openFromCallIncoming(payload);
+
+    if (reason !== null) {
+      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
+      return;
+    }
+
+    this.softphoneService.incomingCall(payload);
+
+    const alert: IncomingCallAlert = {
+      contactId: payload.contactId,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      queueName: payload.queueName,
+      receivedAt: new Date(),
+    };
+    this.pendingAlert.set(alert);
+    this.playAudio();
+    this.showSystemNotification(alert);
+  }
+
+  private handleCallOutbound(payload: CallOutboundPayload): void {
+    this.lookupService.evict(payload.customerPhone);
+
+    const reason = this.tabStore.openFromCallOutbound(payload);
 
     if (reason !== null) {
       this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));

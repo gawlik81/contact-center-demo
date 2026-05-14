@@ -17,9 +17,12 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.twilio.exception.ApiException;
 import com.twilio.http.TwilioRestClient;
+import com.twilio.base.ResourceSet;
 import com.twilio.rest.api.v2010.account.Call;
+import com.twilio.rest.api.v2010.account.Conference;
 import com.twilio.rest.api.v2010.account.IncomingPhoneNumber;
 import com.twilio.rest.api.v2010.account.call.Recording;
+import com.twilio.rest.api.v2010.account.conference.Participant;
 import com.twilio.type.PhoneNumber;
 import com.twilio.type.Twiml;
 import jakarta.annotation.PostConstruct;
@@ -689,9 +692,19 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   /**
    * {@inheritDoc}
    *
-   * <p>Wyciszenie/odciszenie uczestnika przez Twilio {@link CallUpdater} z parametrem {@code muted}.
+   * <p>Wyciszenie/odciszenie uczestnika przez Twilio Conference Participant API.
+   * Połączenia oparte są na konferencji Twilio (nazwa: {@code contact-{contactId}}),
+   * dlatego mute realizowany jest przez {@link Participant#updater(String, String)}
+   * z parametrem {@code muted=true/false}.
    *
-   * @throws TelephonyException gdy sesja nie jest aktywna lub Twilio API zwróci błąd
+   * <p>Algorytm:
+   * <ol>
+   *   <li>Wyszukaj aktywną konferencję Twilio po friendly name ({@code conferenceName}).
+   *   <li>Zaktualizuj uczestnika ({@code agentCallSid}) przez Participant API.
+   * </ol>
+   *
+   * @throws TelephonyException gdy sesja nie jest aktywna, brak agentCallSid/contactId,
+   *                            konferencja nie istnieje lub Twilio API zwróci błąd
    */
   @Override
   public void muteCall(String callId, boolean mute) {
@@ -705,16 +718,60 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     log.info("[TwilioAdapter] Mute: callId={}, mute={}", callId, mute);
 
-    try {
-      // Twilio nie ma bezpośredniego endpoint mute na Call – wymaga Participant API
-      // (konferencje) lub modyfikacji TwiML. Tutaj logujemy operację jako intencję.
-      // Pełna implementacja mute wymaga użycia Twilio Conference Participant API.
-      log.warn("[TwilioAdapter] Operacja mute wymaga Twilio Conference Participant API. " +
-          "callId={}, mute={} – stan lokalny zaktualizowany, audio Twilio bez zmian.", callId, mute);
-
+    String agentCallSid = session.getAgentCallSid();
+    if (agentCallSid == null) {
+      throw new TelephonyException(callId,
+          "Nie można wyciszyć połączenia – brak agentCallSid w sesji (agent nie dołączył jeszcze do konferencji). callId=" + callId);
     }
-    catch (Exception e) {
-      log.error("[TwilioAdapter] Błąd przy muteCall: callId={}, mute={}, error={}",
+
+    if (session.getContactId() == null) {
+      throw new TelephonyException(callId,
+          "Nie można wyciszyć połączenia – brak contactId w sesji (nie można odtworzyć nazwy konferencji). callId=" + callId);
+    }
+
+    String conferenceName = "contact-" + session.getContactId().toString();
+    TwilioRestClient client = resolveRestClient(session.getTenantId());
+
+    try {
+      // Krok 1: znajdź aktywną konferencję po friendly name (nazewnictwo: "contact-{contactId}")
+      ResourceSet<Conference> conferences = Conference.reader()
+          .setFriendlyName(conferenceName)
+          .setStatus(Conference.Status.IN_PROGRESS)
+          .read(client);
+
+      Conference conference = null;
+      for (Conference c : conferences) {
+        conference = c;
+        break;
+      }
+      if (conference == null) {
+        throw new TelephonyException(callId,
+            "Nie znaleziono aktywnej konferencji Twilio dla contactId=" + session.getContactId()
+            + " (conferenceName=" + conferenceName + ")");
+      }
+
+      String conferenceSid = conference.getSid();
+      log.debug("[TwilioAdapter] Znaleziono konferencję: conferenceName={}, conferenceSid={}",
+          conferenceName, conferenceSid);
+
+      // Krok 2: wycisz/odcisz uczestnika (noga agenta) przez Participant API
+      Participant.updater(conferenceSid, agentCallSid)
+          .setMuted(mute)
+          .update(client);
+
+      log.info("[TwilioAdapter] Uczestnik wyciszony przez Twilio Participant API: " +
+               "conferenceSid={}, agentCallSid={}, mute={}",
+          conferenceSid, agentCallSid, mute);
+
+    } catch (TelephonyException te) {
+      throw te;
+    } catch (ApiException e) {
+      log.error("[TwilioAdapter] Błąd Twilio API przy muteCall: callId={}, mute={}, code={}, message={}",
+          callId, mute, e.getCode(), e.getMessage(), e);
+      throw new TelephonyException(callId,
+          "Nie można wyciszyć połączenia przez Twilio: " + e.getMessage(), e);
+    } catch (Exception e) {
+      log.error("[TwilioAdapter] Nieoczekiwany błąd przy muteCall: callId={}, mute={}, error={}",
           callId, mute, e.getMessage(), e);
       throw new TelephonyException(callId,
           "Nie można wyciszyć połączenia: " + e.getMessage(), e);

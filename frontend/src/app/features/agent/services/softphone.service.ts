@@ -125,21 +125,24 @@ export class SoftphoneService implements OnDestroy {
     this.activeCall = call;
 
     const session = this.session();
-    const shouldAutoAccept =
-      session !== null && (session.state === 'RINGING' || session.state === 'ACTIVE');
 
-    if (shouldAutoAccept) {
-      console.log(
-        '[SoftphoneService] Auto-accepting Twilio incoming call for contact:',
-        session?.contactId,
-      );
-      call.accept();
-    } else {
+    if (session === null) {
       console.warn(
         '[SoftphoneService] Incoming Twilio call received but no active softphone session — rejecting.',
       );
       call.reject();
+      return;
     }
+
+    if (session.state === 'ACTIVE') {
+      // Agent clicked "Odbierz" before Twilio call arrived — accept immediately
+      console.log(
+        '[SoftphoneService] Auto-accepting Twilio incoming call for contact:',
+        session.contactId,
+      );
+      call.accept();
+    }
+    // state === 'RINGING': store the call and wait for answerCall() to call acceptIncomingCall()
   }
 
   /**

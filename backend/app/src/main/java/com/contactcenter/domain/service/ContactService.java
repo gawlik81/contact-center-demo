@@ -330,6 +330,7 @@ public class ContactService {
         }
 
         contact.setDispositionCode(request.dispositionCode());
+        contact.setNotes(request.notes());
 
         int updated = contactRepository.update(contact);
         if (updated == 0) {

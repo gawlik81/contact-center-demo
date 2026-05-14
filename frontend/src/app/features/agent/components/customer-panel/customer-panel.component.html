@@ -172,6 +172,22 @@
                 @if (item.agentName) {
                   <span class="cp__history-agent">{{ item.agentName }}</span>
                 }
+                @if (item.notes) {
+                  <div class="cp__history-note-wrap">
+                    <p class="cp__history-note" [class.cp__history-note--collapsed]="!isNoteExpanded(item.id)">
+                      {{ item.notes }}
+                    </p>
+                    @if (hasLongNote(item.notes)) {
+                      <button type="button" class="cp__history-note-toggle" (click)="toggleNote(item.id)">
+                        {{
+                          isNoteExpanded(item.id)
+                            ? ('agent.customerPanel.noteCollapse' | transloco)
+                            : ('agent.customerPanel.noteExpand' | transloco)
+                        }}
+                      </button>
+                    }
+                  </div>
+                }
               </div>
             </li>
           }

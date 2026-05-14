@@ -131,6 +131,9 @@ public class Contact {
     @Column(name = "disposition_code", length = 50)
     private String dispositionCode;
 
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
     /** URL nagrania w S3-compatible storage. NULL jeśli brak nagrania. */
     @Column(name = "recording_url", columnDefinition = "TEXT")
     private String recordingUrl;

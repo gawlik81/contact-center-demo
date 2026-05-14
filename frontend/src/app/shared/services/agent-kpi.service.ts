@@ -25,11 +25,7 @@ export class AgentKpiService {
         return EMPTY;
       }
       return timer(0, POLL_INTERVAL_MS).pipe(
-        switchMap(() =>
-          this.http.get<AgentKpiResponse>(this.url).pipe(
-            catchError(() => [null]),
-          ),
-        ),
+        switchMap(() => this.http.get<AgentKpiResponse>(this.url).pipe(catchError(() => [null]))),
       );
     }),
     shareReplay({ bufferSize: 1, refCount: true }),

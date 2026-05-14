@@ -419,7 +419,7 @@ public class CustomerRepository extends TenantAwareRepository {
      * @param customerId UUID klienta
      * @param tenantId   UUID tenanta
      * @param limit      maksymalna liczba zwracanych rekordów
-     * @return lista rekordów kontaktów jako Object[] (contact_id, channel, status, started_at)
+     * @return lista rekordów kontaktów jako Object[] (contact_id, channel, status, started_at, notes)
      */
     @Transactional(readOnly = true)
     public List<Object[]> findLastContactsForCustomer(UUID customerId, UUID tenantId, int limit) {
@@ -431,7 +431,7 @@ public class CustomerRepository extends TenantAwareRepository {
         @SuppressWarnings("unchecked")
         List<Object[]> rows = em.createNativeQuery(
                         """
-                        SELECT contact_id, channel::text, status::text, started_at
+                        SELECT contact_id, channel::text, status::text, started_at, notes
                         FROM contact
                         WHERE tenant_id = CAST(:tenantId AS uuid)
                           AND customer_id = CAST(:customerId AS uuid)

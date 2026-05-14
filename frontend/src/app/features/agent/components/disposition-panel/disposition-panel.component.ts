@@ -34,6 +34,8 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
   readonly contactId = input.required<string>();
   /** Nazwa klienta do wyświetlenia w nagłówku */
   readonly customerName = input<string>('');
+  /** Notatka z rozmowy wpisana przez agenta – pre-fills pole notatki */
+  readonly prefillNotes = input<string>('');
   /** Emitowane po poprawnym zapisie dyspozycji */
   readonly saved = output<void>();
 
@@ -66,6 +68,9 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.dialogRef().nativeElement.showModal();
+    if (this.prefillNotes()) {
+      this.notes.set(this.prefillNotes());
+    }
     this.startAcwTimer();
   }
 

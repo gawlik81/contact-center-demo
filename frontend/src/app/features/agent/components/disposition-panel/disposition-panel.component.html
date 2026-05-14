@@ -34,16 +34,11 @@
     <div class="disposition-dialog__body">
       <!-- Disposition code — card grid -->
       <div class="form-field">
-        <label class="form-field__label" id="disp-code-label">
+        <p class="form-field__label" id="disp-code-label" aria-hidden="true">
           {{ 'agent.disposition.codeLabel' | transloco }}
           <span class="form-field__required" aria-hidden="true">*</span>
-        </label>
-        <div
-          class="disp-grid"
-          role="radiogroup"
-          aria-labelledby="disp-code-label"
-          aria-required="true"
-        >
+        </p>
+        <div class="disp-grid" role="radiogroup" aria-labelledby="disp-code-label" aria-required="true">
           @for (item of dispositionCodes; track item.code) {
             <button
               type="button"
@@ -57,10 +52,17 @@
               <span class="disp-card__dot"></span>
               <span class="disp-card__label">{{ item.labelKey | transloco }}</span>
               @if (selectedCode() === item.code) {
-                <svg class="disp-card__check" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-                     stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="20 6 9 17 4 12"/>
+                <svg
+                  class="disp-card__check"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="20 6 9 17 4 12" />
                 </svg>
               }
             </button>

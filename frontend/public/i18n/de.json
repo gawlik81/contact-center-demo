@@ -263,6 +263,13 @@
       "scheduleCallback": "Rückruf planen",
       "scheduleCallbackLabel": "Rückruf planen",
       "callbackScheduled": "Rückruf geplant",
+      "note": "Notiz",
+      "noteLabel": "Notiz zum Anruf hinzufügen",
+      "noteBack": "Zurück",
+      "noteBackLabel": "Zurück zum Anruf",
+      "noteTitle": "Anrufnotiz",
+      "notePlaceholder": "Anrufnotiz eingeben...",
+      "noteHint": "Notiz erscheint im Dispositionsformular",
       "idle": "Warten auf Anruf..."
     },
     "disposition": {
@@ -294,7 +301,9 @@
       "errorText": "Kundendaten können nicht geladen werden (Serverfehler).",
       "recentContacts": "Letzte Kontakte",
       "noHistory": "Keine Kontakthistorie",
-      "lookupError": "Kundendaten konnten nicht abgerufen werden."
+      "lookupError": "Kundendaten konnten nicht abgerufen werden.",
+      "noteExpand": "Mehr anzeigen",
+      "noteCollapse": "Weniger anzeigen"
     },
     "incomingCall": {
       "label": "Eingehender Anruf",

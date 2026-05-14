@@ -130,14 +130,16 @@
 </div>
 
 @if (showCreateModal()) {
+  <div class="modal-overlay" aria-hidden="true"></div>
   <div
-    class="modal-overlay"
+    class="modal-overlay modal-overlay--panel"
     role="dialog"
     aria-modal="true"
     aria-labelledby="create-ivr-title"
-    (click)="closeCreateModal()"
+    (keydown.escape)="closeCreateModal()"
+    tabindex="-1"
   >
-    <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal">
       <div class="modal__header">
         <h2 class="modal__title" id="create-ivr-title">{{ 'supervisor.ivr.addIvr' | transloco }}</h2>
         <button
@@ -163,7 +165,6 @@
           (input)="newIvrName.set($any($event.target).value)"
           [placeholder]="'supervisor.ivr.namePlaceholder' | transloco"
           maxlength="100"
-          autofocus
           aria-required="true"
         />
       </div>
@@ -189,14 +190,16 @@
 }
 
 @if (confirmDeleteId()) {
+  <div class="modal-overlay" aria-hidden="true"></div>
   <div
-    class="modal-overlay"
+    class="modal-overlay modal-overlay--panel"
     role="dialog"
     aria-modal="true"
     aria-labelledby="delete-ivr-title"
-    (click)="cancelDelete()"
+    (keydown.escape)="cancelDelete()"
+    tabindex="-1"
   >
-    <div class="modal modal--danger" (click)="$event.stopPropagation()">
+    <div class="modal modal--danger">
       <div class="modal__header">
         <h2 class="modal__title" id="delete-ivr-title">{{ 'supervisor.ivr.deleteTitle' | transloco }}</h2>
       </div>

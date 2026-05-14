@@ -1,9 +1,4 @@
-<dialog
-  #dialogEl
-  class="tenant-edit-dialog"
-  aria-labelledby="tenant-edit-title"
-  (click)="$event.target === dialogEl ? onCancel() : null"
->
+<dialog #dialogEl class="tenant-edit-dialog" aria-labelledby="tenant-edit-title">
   <div class="tenant-edit-dialog__content" role="document">
     <div class="tenant-edit-dialog__header">
       <div class="tenant-edit-dialog__header-inner">

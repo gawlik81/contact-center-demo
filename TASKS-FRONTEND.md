@@ -3004,3 +3004,178 @@ Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila d
 - [ ] Anulowanie: modal zamknięty, brak wywołania API
 - [ ] Tłumaczenia w pl.json i en.json
 - [ ] Brak emaila klienta: przycisk niewidoczny lub disabled
+
+---
+
+## MODUŁ: Notatki do kontaktów (EPIC-22)
+
+### FE-073 – Wyświetlanie notatki w widoku szczegółów kontaktu (`contact-detail-modal`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-069 (pole `notes` w `ContactResponse`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Modal szczegółów kontaktu (`contact-detail-modal.component.html`) zawiera już martwy kod wyświetlający `c.notes` (sekcja "Status", linie ~142-147):
+```html
+@if (c.notes) {
+  <div class="contact-dl__row contact-dl__row--tall">
+    <dt class="contact-dl__term">{{ 'contactDetailModal.fieldNotes' | transloco }}</dt>
+    <dd class="contact-dl__desc contact-dl__desc--notes">{{ c.notes }}</dd>
+  </div>
+}
+```
+Po wdrożeniu BE-069 ten kod "ożyje" automatycznie. Zadanie obejmuje weryfikację i dopracowanie UX dla długich notatek — `dd` musi obsługiwać wieloliniowy tekst bez obcinania.
+
+**Zakres pracy:**
+
+1. **`contact-detail-modal.component.scss`** — sprawdź czy klasa `.contact-dl__desc--notes` istnieje; jeśli nie, dodaj:
+   ```scss
+   .contact-dl__desc--notes {
+     white-space: pre-wrap;   // zachowaj znaki nowej linii z notatki
+     word-break: break-word;  // łam długie słowa
+     max-height: 200px;
+     overflow-y: auto;
+     line-height: 1.5;
+   }
+   ```
+
+2. **`contact-detail-modal.component.ts`** — sprawdź czy model `ContactResponse` w `src/app/core/models/contact.model.ts` ma pole `notes?: string | null`. Jeśli tak — brak zmian w TypeScript. Jeśli nie — dodaj.
+
+3. **Tłumaczenia** — klucz `contactDetailModal.fieldNotes` powinien już istnieć w pl.json (sprawdź). Upewnij się że jest też w `en.json`, `de.json`, `uk.json`.
+
+**Kryteria akceptacji:**
+- [ ] Kontakt z notatką: pole „Notatka" widoczne w sekcji Status modala
+- [ ] Kontakt bez notatki: sekcja notatki nie renderuje się (warunek `@if (c.notes)`)
+- [ ] Długa notatka (>500 znaków): wyświetla się w scrollowalnym obszarze, nie rozrywa layoutu
+- [ ] Notatka z wieloma liniami (`\n`): znaki nowej linii są respektowane (nie zwinięte w jedną linię)
+- [ ] Klucz `contactDetailModal.fieldNotes` przetłumaczony w pl, en, de, uk
+
+---
+
+### FE-074 – Notatki z ostatnich kontaktów w panelu klienta (`customer-panel`) — truncation + expand
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-070 (pole `notes` w `ContactSummaryDto` → `CustomerLookupResponse`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w sekcji "Historia kontaktów". Aktualnie pokazuje: ikonę kanału, dyspozycję i datę. Po wdrożeniu BE-070 API zwróci `notes` przy każdym kontakcie. Notatki mogą być długie — nie mogą być wyświetlane w całości w zwartej liście.
+
+**Rozwiązanie UX:** każdy element historii pokazuje maksymalnie 2 linie notatki z przyciskiem „Rozwiń / Zwiń" gdy notatka jest dłuższa.
+
+**Pliki do modyfikacji:**
+
+1. **`customer-profile.model.ts`** (`src/app/core/models/`) — dodaj `notes?: string | null` do `ContactHistoryItem`:
+   ```typescript
+   export interface ContactHistoryItem {
+     id: string;
+     channel: 'PHONE' | 'EMAIL' | 'CHAT' | 'SOCIAL';
+     date: string;
+     disposition: string;
+     agentName?: string;
+     notes?: string | null;  // nowe pole
+   }
+   ```
+
+2. **`customer-panel.component.ts`** — dodaj mechanizm expand/collapse:
+   ```typescript
+   protected readonly expandedNotes = signal<Set<string>>(new Set());
+
+   protected toggleNote(contactId: string): void {
+     this.expandedNotes.update(set => {
+       const next = new Set(set);
+       next.has(contactId) ? next.delete(contactId) : next.add(contactId);
+       return next;
+     });
+   }
+
+   protected isNoteExpanded(contactId: string): boolean {
+     return this.expandedNotes().has(contactId);
+   }
+
+   protected hasLongNote(note: string | null | undefined): boolean {
+     return !!note && note.length > 120;
+   }
+   ```
+
+3. **`customer-panel.component.html`** — w bloku `@for (item of profile()!.recentContacts; ...)`, wewnątrz `<div class="cp__history-details">`, po `cp__history-agent` dodaj:
+   ```html
+   @if (item.notes) {
+     <div class="cp__history-note-wrap">
+       <p class="cp__history-note"
+          [class.cp__history-note--collapsed]="!isNoteExpanded(item.id)">
+         {{ item.notes }}
+       </p>
+       @if (hasLongNote(item.notes)) {
+         <button
+           type="button"
+           class="cp__history-note-toggle"
+           (click)="toggleNote(item.id)">
+           {{ isNoteExpanded(item.id)
+               ? ('agent.customerPanel.noteCollapse' | transloco)
+               : ('agent.customerPanel.noteExpand' | transloco) }}
+         </button>
+       }
+     </div>
+   }
+   ```
+
+4. **`customer-panel.component.scss`** — dodaj style:
+   ```scss
+   .cp__history-note-wrap {
+     margin-top: 4px;
+   }
+
+   .cp__history-note {
+     font-size: 0.75rem;
+     color: var(--color-text-secondary);
+     line-height: 1.4;
+     white-space: pre-wrap;
+     word-break: break-word;
+     margin: 0;
+
+     &--collapsed {
+       display: -webkit-box;
+       -webkit-line-clamp: 2;
+       -webkit-box-orient: vertical;
+       overflow: hidden;
+     }
+   }
+
+   .cp__history-note-toggle {
+     background: none;
+     border: none;
+     padding: 0;
+     font-size: 0.7rem;
+     color: var(--color-primary);
+     cursor: pointer;
+     margin-top: 2px;
+
+     &:hover {
+       text-decoration: underline;
+     }
+   }
+   ```
+
+5. **Tłumaczenia** (`public/i18n/pl.json`, `en.json`, `de.json`, `uk.json`) — w sekcji `agent.customerPanel` dodaj:
+   - `noteExpand`: `"Pokaż więcej"` / `"Show more"` / `"Mehr anzeigen"` / `"Показати більше"`
+   - `noteCollapse`: `"Pokaż mniej"` / `"Show less"` / `"Weniger anzeigen"` / `"Показати менше"`
+
+**Kryteria akceptacji:**
+- [ ] Kontakt bez notatki: brak elementu notatki w historii
+- [ ] Kontakt z krótką notatką (≤120 znaków): wyświetlana w całości, bez przycisku "Pokaż więcej"
+- [ ] Kontakt z długą notatką (>120 znaków): widoczne 2 linie + przycisk "Pokaż więcej"
+- [ ] Kliknięcie "Pokaż więcej": pełna notatka widoczna, przycisk zmienia się na "Pokaż mniej"
+- [ ] Kliknięcie "Pokaż mniej": notatka zwinięta z powrotem do 2 linii
+- [ ] Notatka z `\n`: znaki nowej linii zachowane (`white-space: pre-wrap`)
+- [ ] Stan expand/collapse niezależny per element historii (rozwinięcie jednego nie wpływa na inne)
+- [ ] Tłumaczenia `noteExpand` i `noteCollapse` w pl, en, de, uk

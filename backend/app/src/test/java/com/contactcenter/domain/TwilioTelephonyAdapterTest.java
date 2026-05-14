@@ -18,6 +18,11 @@ import com.twilio.exception.ApiException;
 import com.twilio.rest.api.v2010.account.Call;
 import com.twilio.rest.api.v2010.account.CallCreator;
 import com.twilio.rest.api.v2010.account.CallUpdater;
+import com.twilio.rest.api.v2010.account.Conference;
+import com.twilio.rest.api.v2010.account.ConferenceReader;
+import com.twilio.rest.api.v2010.account.conference.Participant;
+import com.twilio.rest.api.v2010.account.conference.ParticipantUpdater;
+import com.twilio.base.ResourceSet;
 import com.twilio.type.Twiml;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,11 +67,13 @@ import static org.mockito.Mockito.*;
 @DisplayName("TwilioTelephonyAdapter – zarządzanie sesjami i mapowanie statusów")
 class TwilioTelephonyAdapterTest {
 
-    private static final UUID TENANT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
-    private static final UUID AGENT_ID  = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-    private static final String FROM    = "+48123456789";
-    private static final String TO      = "+48987654321";
-    private static final String CALL_SID = "CA1234567890abcdef1234567890abcdef";
+    private static final UUID TENANT_ID   = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID AGENT_ID    = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static final UUID CONTACT_ID  = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static final String FROM      = "+48123456789";
+    private static final String TO        = "+48987654321";
+    private static final String CALL_SID  = "CA1234567890abcdef1234567890abcdef";
+    private static final String AGENT_CALL_SID = "CAagent1234567890abcdef1234567890";
 
     @Mock
     private TelephonyEventPublisher eventPublisher;
@@ -149,6 +156,37 @@ class TwilioTelephonyAdapterTest {
         // init() inicjalizuje Caffeine cache bez wywoływania Twilio.init() (usunięte w BE-058)
         // oraz bez konfigurowania statusCallbacków (tenantRepository zwraca pustą listę)
         adapter.init();
+    }
+
+    /**
+     * Wstrzykuje gotową sesję bezpośrednio do backing store (in-memory HashMap symulujący Redis).
+     * Używane gdy test potrzebuje sesji z polami, których handleWebhookStatusUpdate() nie ustawia
+     * (np. contactId, agentCallSid). Klucz musi odpowiadać SESSION_KEY_PREFIX w adapterze.
+     */
+    private void putSessionIntoRedis(CallSession session) {
+        redisStore.put("call-session:" + session.getCallId(), session);
+    }
+
+    /**
+     * Tworzy ConferenceReader mock, który zwraca jedną konferencję z danym SID.
+     * Przy każdym wywołaniu read() zwracany jest ResourceSet z nowym iteratorem,
+     * dzięki czemu mock działa poprawnie przy wielokrotnych wywołaniach (hold + unhold).
+     */
+    @SuppressWarnings("unchecked")
+    private ConferenceReader mockConferenceReader(String conferenceSid) {
+        Conference mockConference = mock(Conference.class);
+        when(mockConference.getSid()).thenReturn(conferenceSid);
+
+        // ResourceSet.iterator() musi zwracać świeży iterator przy każdym wywołaniu,
+        // bo po wyczerpaniu iteratora kolejne wywołanie for-each nie znajdzie elementów.
+        ResourceSet<Conference> resourceSet = mock(ResourceSet.class);
+        when(resourceSet.iterator()).thenAnswer(inv -> List.of(mockConference).iterator());
+
+        ConferenceReader mockReader = mock(ConferenceReader.class);
+        when(mockReader.setFriendlyName(anyString())).thenReturn(mockReader);
+        when(mockReader.setStatus(any())).thenReturn(mockReader);
+        when(mockReader.read(any(com.twilio.http.TwilioRestClient.class))).thenReturn(resourceSet);
+        return mockReader;
     }
 
     // =========================================================================
@@ -390,16 +428,41 @@ class TwilioTelephonyAdapterTest {
     @DisplayName("holdCall()")
     class HoldCall {
 
+        private static final String CONFERENCE_SID = "CFtest1234567890abcdef1234567890ab";
+
+        /** Sesja ACTIVE z wymaganym contactId (potrzebne przez holdCall do budowy nazwy konferencji). */
+        private CallSession activeSessionWithContact() {
+            return CallSession.builder()
+                    .callId(CALL_SID)
+                    .tenantId(TENANT_ID)
+                    .from(FROM)
+                    .to(TO)
+                    .status(CallSession.CallStatus.ACTIVE)
+                    .contactId(CONTACT_ID)
+                    .startedAt(java.time.Instant.now())
+                    .answeredAt(java.time.Instant.now())
+                    .build();
+        }
+
         @Test
         @DisplayName("hold=true powinien przejść ACTIVE → ON_HOLD")
         void holdShouldTransitionActiveToOnHold() {
-            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID, "inbound");
+            putSessionIntoRedis(activeSessionWithContact());
 
-            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
-                CallUpdater mockUpdater = mock(CallUpdater.class);
-                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
-                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
-                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+            // Tworzymy mockowane zależności PRZED otwarciem MockedStatic,
+            // żeby uniknąć konfliktu Mockito przy stubbowaniu wewnątrz bloku static mock.
+            ConferenceReader mockReader = mockConferenceReader(CONFERENCE_SID);
+            ParticipantUpdater mockParticipantUpdater = mock(ParticipantUpdater.class);
+            when(mockParticipantUpdater.setHold(anyBoolean())).thenReturn(mockParticipantUpdater);
+            when(mockParticipantUpdater.update(any(com.twilio.http.TwilioRestClient.class)))
+                    .thenReturn(mock(Participant.class));
+
+            try (MockedStatic<Conference> mockedConference = mockStatic(Conference.class);
+                 MockedStatic<Participant> mockedParticipant = mockStatic(Participant.class)) {
+
+                mockedConference.when(Conference::reader).thenReturn(mockReader);
+                mockedParticipant.when(() -> Participant.updater(CONFERENCE_SID, CALL_SID))
+                        .thenReturn(mockParticipantUpdater);
 
                 adapter.holdCall(CALL_SID, true);
             }
@@ -411,16 +474,23 @@ class TwilioTelephonyAdapterTest {
         @Test
         @DisplayName("hold=false powinien przejść ON_HOLD → ACTIVE")
         void unholdShouldTransitionOnHoldToActive() {
-            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID, "inbound");
+            putSessionIntoRedis(activeSessionWithContact());
 
-            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
-                CallUpdater mockUpdater = mock(CallUpdater.class);
-                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
-                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
-                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+            ConferenceReader mockReader = mockConferenceReader(CONFERENCE_SID);
+            ParticipantUpdater mockParticipantUpdater = mock(ParticipantUpdater.class);
+            when(mockParticipantUpdater.setHold(anyBoolean())).thenReturn(mockParticipantUpdater);
+            when(mockParticipantUpdater.update(any(com.twilio.http.TwilioRestClient.class)))
+                    .thenReturn(mock(Participant.class));
 
-                adapter.holdCall(CALL_SID, true);
-                adapter.holdCall(CALL_SID, false);
+            try (MockedStatic<Conference> mockedConference = mockStatic(Conference.class);
+                 MockedStatic<Participant> mockedParticipant = mockStatic(Participant.class)) {
+
+                mockedConference.when(Conference::reader).thenReturn(mockReader);
+                mockedParticipant.when(() -> Participant.updater(eq(CONFERENCE_SID), anyString()))
+                        .thenReturn(mockParticipantUpdater);
+
+                adapter.holdCall(CALL_SID, true);  // → ON_HOLD
+                adapter.holdCall(CALL_SID, false); // → ACTIVE
             }
 
             assertThat(adapter.getCallSession(CALL_SID).getStatus())
@@ -430,16 +500,24 @@ class TwilioTelephonyAdapterTest {
         @Test
         @DisplayName("hold=true na sesji ON_HOLD powinien rzucić TelephonyException")
         void holdOnAlreadyHeldCallShouldThrow() {
-            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID, "inbound");
+            putSessionIntoRedis(activeSessionWithContact());
 
-            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
-                CallUpdater mockUpdater = mock(CallUpdater.class);
-                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
-                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
-                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+            ConferenceReader mockReader = mockConferenceReader(CONFERENCE_SID);
+            ParticipantUpdater mockParticipantUpdater = mock(ParticipantUpdater.class);
+            when(mockParticipantUpdater.setHold(anyBoolean())).thenReturn(mockParticipantUpdater);
+            when(mockParticipantUpdater.update(any(com.twilio.http.TwilioRestClient.class)))
+                    .thenReturn(mock(Participant.class));
+
+            try (MockedStatic<Conference> mockedConference = mockStatic(Conference.class);
+                 MockedStatic<Participant> mockedParticipant = mockStatic(Participant.class)) {
+
+                mockedConference.when(Conference::reader).thenReturn(mockReader);
+                mockedParticipant.when(() -> Participant.updater(CONFERENCE_SID, CALL_SID))
+                        .thenReturn(mockParticipantUpdater);
 
                 adapter.holdCall(CALL_SID, true); // → ON_HOLD
 
+                // Drugi hold=true na sesji ON_HOLD powinien rzucić – stan sesji nie odpowiada oczekiwanemu ACTIVE
                 assertThatThrownBy(() -> adapter.holdCall(CALL_SID, true))
                         .isInstanceOf(TelephonyAdapter.TelephonyException.class);
             }
@@ -463,12 +541,44 @@ class TwilioTelephonyAdapterTest {
     @DisplayName("muteCall()")
     class MuteCall {
 
+        private static final String CONFERENCE_SID = "CFmute1234567890abcdef1234567890ab";
+
+        /** Sesja ACTIVE z wymaganymi polami: contactId (nazwa konferencji) i agentCallSid (uczestnik). */
+        private CallSession activeSessionWithContactAndAgent() {
+            return CallSession.builder()
+                    .callId(CALL_SID)
+                    .tenantId(TENANT_ID)
+                    .from(FROM)
+                    .to(TO)
+                    .status(CallSession.CallStatus.ACTIVE)
+                    .contactId(CONTACT_ID)
+                    .agentCallSid(AGENT_CALL_SID)
+                    .startedAt(java.time.Instant.now())
+                    .answeredAt(java.time.Instant.now())
+                    .build();
+        }
+
         @Test
         @DisplayName("mute na aktywnym połączeniu nie powinien rzucić wyjątku")
         void muteShouldNotThrowForActiveCall() {
-            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID, "inbound");
+            putSessionIntoRedis(activeSessionWithContactAndAgent());
 
-            assertThatNoException().isThrownBy(() -> adapter.muteCall(CALL_SID, true));
+            // Tworzymy mockowane zależności PRZED otwarciem MockedStatic.
+            ConferenceReader mockReader = mockConferenceReader(CONFERENCE_SID);
+            ParticipantUpdater mockParticipantUpdater = mock(ParticipantUpdater.class);
+            when(mockParticipantUpdater.setMuted(anyBoolean())).thenReturn(mockParticipantUpdater);
+            when(mockParticipantUpdater.update(any(com.twilio.http.TwilioRestClient.class)))
+                    .thenReturn(mock(Participant.class));
+
+            try (MockedStatic<Conference> mockedConference = mockStatic(Conference.class);
+                 MockedStatic<Participant> mockedParticipant = mockStatic(Participant.class)) {
+
+                mockedConference.when(Conference::reader).thenReturn(mockReader);
+                mockedParticipant.when(() -> Participant.updater(CONFERENCE_SID, AGENT_CALL_SID))
+                        .thenReturn(mockParticipantUpdater);
+
+                assertThatNoException().isThrownBy(() -> adapter.muteCall(CALL_SID, true));
+            }
         }
 
         @Test

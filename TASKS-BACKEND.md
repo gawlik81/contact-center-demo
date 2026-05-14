@@ -3040,3 +3040,126 @@ Response 200: EmailMessageResponse
 - [ ] Wiadomość zapisana w DB jako `direction=OUTBOUND`
 - [ ] Wysyłka przez SMTP przebiega poprawnie (test integracyjny z mock SMTP lub Greenmail)
 - [ ] Dokumentacja OpenAPI uzupełniona
+
+---
+
+## MODUŁ: Notatki do kontaktów (EPIC-22)
+
+### BE-069 – Zapis notatki agenta do kontaktu — `Contact`, `DispositionRequest`, `ContactResponse`, `ContactRepository`, `ContactService`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-034 (kolumna `notes` w tabeli `contact`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** FE-073
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Agent wpisuje notatkę w panelu softphone (zaimplementowane po stronie frontendu — `SetDispositionRequest` wysyła `notes` jako string). Aktualnie backend ignoruje to pole: `DispositionRequest` nie ma pola `notes`, a `Contact` nie ma odpowiedniej kolumny. Zadanie domyka pętlę: odbiór → zapis → zwrot notatki w API.
+
+**Pliki do modyfikacji:**
+
+1. **`Contact.java`** (`domain/model/`) — dodaj pole:
+   ```java
+   @Column(name = "notes", columnDefinition = "TEXT")
+   private String notes;
+   ```
+
+2. **`DispositionRequest.java`** (`api/contact/dto/`) — dodaj opcjonalne pole:
+   ```java
+   @Size(max = 5000, message = "notes nie może przekraczać 5000 znaków")
+   String notes
+   ```
+   Pole nullable (nie `@NotBlank`) — notatka jest opcjonalna.
+
+3. **`ContactService.setDisposition()`** — po `contact.setDispositionCode(...)` dodaj:
+   ```java
+   contact.setNotes(request.notes());
+   ```
+
+4. **`ContactResponse.java`** — dodaj pole `String notes` do rekordu i zmapuj w `from(contact)`:
+   ```java
+   contact.getNotes()
+   ```
+   Pole na pozycji po `dispositionCode`, przed `recordingUrl`.
+
+5. **`ContactRepository.java`** — dwa miejsca:
+   - **`insert()`**: dodaj `notes` do listy kolumn i `:notes` do VALUES; dodaj `.setParameter("notes", contact.getNotes())`
+   - **`update()`**: dodaj `notes = :notes` do SET i `.setParameter("notes", contact.getNotes())`
+
+**Uwagi implementacyjne:**
+- `notes` w `DispositionRequest` nullable — agent może zapisać dyspozycję bez notatki
+- `@Size(max = 5000)` to limit aplikacyjny; kolumna DB jest TEXT — chroni przed patologicznie dużymi payloadami
+- Zapis `notes` w `update()` nadpisuje poprzednią wartość — celowe (agent może poprawić notatkę)
+
+**Kryteria akceptacji:**
+- [ ] `PATCH /api/contacts/{id}/disposition` z `{"dispositionCode":"SALE","notes":"Klient zainteresowany"}` zapisuje notatkę w DB
+- [ ] `GET /api/contacts/{id}` zwraca pole `notes` z zapisaną wartością
+- [ ] `PATCH` z `notes: null` lub bez pola `notes` — kontakt zapisywany z `notes = null` w DB
+- [ ] `PATCH` z `notes` przekraczającym 5000 znaków → 400 z komunikatem walidacyjnym
+- [ ] Istniejące kontakty bez notatki — `GET` zwraca `notes: null`
+- [ ] `ContactRepository.insert()` — nowa kolumna `notes` przekazywana (NULL domyślnie przy tworzeniu kontaktu)
+
+---
+
+### BE-070 – Notatka w historii klienta — `CustomerLookupResponse`, `CustomerRepository`, `CustomerService`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-034, BE-069
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** FE-074
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Panel klienta (prawy panel w Agent Desktop) wyświetla ostatnie 5 kontaktów klienta. Aktualnie dla każdego kontaktu pokazuje kanał, dyspozycję i datę — bez notatki. Zadanie rozszerza endpoint `GET /api/customers/lookup` o pole `notes` w każdym elemencie historii, żeby agent widział notatki z poprzednich rozmów z klientem.
+
+**Pliki do modyfikacji:**
+
+1. **`CustomerRepository.findLastContactsForCustomer()`** — rozszerz natywny SELECT o kolumnę `notes`:
+   ```sql
+   SELECT contact_id, channel::text, status::text, started_at, notes
+   FROM contact
+   WHERE tenant_id  = CAST(:tenantId AS uuid)
+     AND customer_id = CAST(:customerId AS uuid)
+     AND status NOT IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
+   ORDER BY started_at DESC
+   LIMIT :limit
+   ```
+   Zwracane `Object[]` ma teraz 5 elementów: `[0]=contact_id, [1]=channel, [2]=status, [3]=started_at, [4]=notes`.
+   Zaktualizuj javadoc metody (zmień `(contact_id, channel, status, started_at)` na `(contact_id, channel, status, started_at, notes)`).
+
+2. **`CustomerLookupResponse.ContactSummaryDto`** — dodaj pole `String notes` jako ostatnie:
+   ```java
+   public record ContactSummaryDto(
+       UUID id,
+       String channel,
+       String disposition,
+       String date,
+       String agentName,
+       String notes
+   ) {}
+   ```
+
+3. **`CustomerService.fetchRecentContactsForLookup()`** — zmapuj `row[4]` na `notes`:
+   ```java
+   String notes = row[4] != null ? row[4].toString() : null;
+   result.add(new CustomerLookupResponse.ContactSummaryDto(
+       contactId, channel, status, date, null, notes));
+   ```
+
+**Uwagi implementacyjne:**
+- `agentName` jest hardcodowane jako `null` — bez zmian (osobny zakres)
+- `notes` może być bardzo długi — frontend odpowiada za truncation/expand; backend zwraca pełny tekst bez przycinania
+- Dodanie pola do rekordu `ContactSummaryDto` jest addytywne — JSON z nowym polem `notes` nie łamie istniejących klientów API
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/customers/lookup?phone=+48123456789` zwraca `recentContacts[].notes` (string lub null)
+- [ ] Kontakt z notatką — `notes` zawiera pełny tekst notatki (bez truncacji backendowej)
+- [ ] Kontakt bez notatki — `notes: null` (nie pusty string)
+- [ ] `GET /api/customers/lookup/email?email=test@example.com` — analogicznie zwraca `notes`
+- [ ] Brak regresji w istniejących testach `CustomerServiceTest` / `CustomerControllerTest`

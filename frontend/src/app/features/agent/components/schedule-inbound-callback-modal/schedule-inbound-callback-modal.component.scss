@@ -64,7 +64,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
       top: 0;
       bottom: 0;
       width: 3px;
-      background: linear-gradient(180deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+      background: linear-gradient(
+        180deg,
+        var(--accent) 0%,
+        color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+      );
       border-radius: 0 2px 2px 0;
     }
   }
@@ -74,7 +78,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--accent) 0%,
+      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+    );
     color: var(--accent-fg);
     display: flex;
     align-items: center;
@@ -528,7 +536,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
   // Primary – brand accent gradient
   &--primary {
-    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--accent) 0%,
+      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+    );
     color: var(--accent-fg);
     box-shadow:
       0 1px 2px color-mix(in oklch, var(--accent) 30%, transparent),
@@ -560,7 +572,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
   // Loading state for primary button
   &--loading {
-    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%) !important;
+    background: linear-gradient(
+      135deg,
+      var(--accent) 0%,
+      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+    ) !important;
     opacity: 0.85;
     cursor: wait;
     pointer-events: none;

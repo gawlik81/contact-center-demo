@@ -15,6 +15,7 @@ import { ContactTab } from '../../models/contact-tab.model';
 import { CallSession } from '../../models/call-session.model';
 import { ScheduleInboundCallbackModalComponent } from '../schedule-inbound-callback-modal/schedule-inbound-callback-modal.component';
 import { ScheduledCallbackDto } from '../../models/callback.model';
+import { ContactTabStore } from '../../services/contact-tab.store';
 
 type TransferMode = 'BLIND' | 'ATTENDED';
 
@@ -30,6 +31,7 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   @Input({ required: true }) tab!: ContactTab;
 
   protected readonly softphone = inject(SoftphoneService);
+  private readonly tabStore = inject(ContactTabStore);
 
   protected readonly session = this.softphone.session;
 
@@ -146,6 +148,11 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   }
 
   protected readonly _showTransferPanel = signal(false);
+  protected readonly _showNotePanel = signal(false);
+
+  protected readonly currentNote = computed(
+    () => this.tabStore.tabs().find((t) => t.id === this.tab.id)?.note ?? '',
+  );
 
   /** Whether the schedule-callback modal is open */
   protected readonly _showCallbackModal = signal(false);
@@ -162,6 +169,18 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
       this.tab.type === 'PHONE' &&
       (this.tab.direction === 'INBOUND' || this.tab.direction === 'OUTBOUND'),
   );
+
+  protected openNotePanel(): void {
+    this._showNotePanel.set(true);
+  }
+
+  protected closeNotePanel(): void {
+    this._showNotePanel.set(false);
+  }
+
+  protected onNoteChange(value: string): void {
+    this.tabStore.updateTabNote(this.tab.id, value);
+  }
 
   protected openCallbackModal(): void {
     this._showCallbackModal.set(true);

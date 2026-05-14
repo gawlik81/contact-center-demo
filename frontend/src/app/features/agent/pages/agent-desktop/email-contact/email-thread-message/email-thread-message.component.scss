@@ -1,14 +1,14 @@
 // Channel-specific accent palette — mapped to design tokens
-$inbound-accent:     var(--accent);
-$inbound-bg:         var(--accent-soft);
-$inbound-border:     color-mix(in oklch, var(--accent) 30%, transparent);
-$inbound-badge-bg:   var(--accent-soft);
+$inbound-accent: var(--accent);
+$inbound-bg: var(--accent-soft);
+$inbound-border: color-mix(in oklch, var(--accent) 30%, transparent);
+$inbound-badge-bg: var(--accent-soft);
 $inbound-badge-text: var(--accent-text);
 
-$outbound-accent:     var(--violet);
-$outbound-bg:         var(--violet-soft);
-$outbound-border:     color-mix(in oklch, var(--violet) 30%, transparent);
-$outbound-badge-bg:   var(--violet-soft);
+$outbound-accent: var(--violet);
+$outbound-bg: var(--violet-soft);
+$outbound-border: color-mix(in oklch, var(--violet) 30%, transparent);
+$outbound-badge-bg: var(--violet-soft);
 $outbound-badge-text: var(--violet-text);
 
 // ===== Thread message card =====

@@ -254,15 +254,67 @@
   transition: box-shadow 150ms ease;
 
   &:hover {
-    box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06));
+    box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.06));
   }
 
   // Tone variants — only icon gets the color, tile stays neutral
-  &--accent  { .kpi-tile__icon { background: var(--accent-soft);  color: var(--accent);  } .kpi-tile__value { color: var(--accent-text);  } .kpi-tile__bar-fill { background: var(--accent);  } }
-  &--success { .kpi-tile__icon { background: var(--success-soft); color: var(--success); } .kpi-tile__value { color: var(--success-text); } .kpi-tile__bar-fill { background: var(--success); } }
-  &--warning { .kpi-tile__icon { background: var(--warning-soft); color: var(--warning); } .kpi-tile__value { color: var(--warning-text); } }
-  &--violet  { .kpi-tile__icon { background: var(--violet-soft);  color: var(--violet);  } .kpi-tile__value { color: var(--violet-text);  } .kpi-tile__bar-fill { background: var(--violet);  } }
-  &--neutral { .kpi-tile__icon { background: var(--neutral-soft); color: var(--neutral); } .kpi-tile__value { color: var(--neutral-text); } .kpi-tile__bar-fill { background: var(--neutral); } }
+  &--accent {
+    .kpi-tile__icon {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .kpi-tile__value {
+      color: var(--accent-text);
+    }
+    .kpi-tile__bar-fill {
+      background: var(--accent);
+    }
+  }
+  &--success {
+    .kpi-tile__icon {
+      background: var(--success-soft);
+      color: var(--success);
+    }
+    .kpi-tile__value {
+      color: var(--success-text);
+    }
+    .kpi-tile__bar-fill {
+      background: var(--success);
+    }
+  }
+  &--warning {
+    .kpi-tile__icon {
+      background: var(--warning-soft);
+      color: var(--warning);
+    }
+    .kpi-tile__value {
+      color: var(--warning-text);
+    }
+  }
+  &--violet {
+    .kpi-tile__icon {
+      background: var(--violet-soft);
+      color: var(--violet);
+    }
+    .kpi-tile__value {
+      color: var(--violet-text);
+    }
+    .kpi-tile__bar-fill {
+      background: var(--violet);
+    }
+  }
+  &--neutral {
+    .kpi-tile__icon {
+      background: var(--neutral-soft);
+      color: var(--neutral);
+    }
+    .kpi-tile__value {
+      color: var(--neutral-text);
+    }
+    .kpi-tile__bar-fill {
+      background: var(--neutral);
+    }
+  }
 
   &__icon {
     display: flex;

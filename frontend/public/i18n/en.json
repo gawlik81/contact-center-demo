@@ -265,6 +265,11 @@
       "callbackScheduled": "Callback scheduled",
       "note": "Note",
       "noteLabel": "Add a note to the call",
+      "noteBack": "Back",
+      "noteBackLabel": "Back to call",
+      "noteTitle": "Call note",
+      "notePlaceholder": "Enter call note...",
+      "noteHint": "Note will appear in the disposition form",
       "idle": "Waiting for a call..."
     },
     "disposition": {
@@ -297,7 +302,9 @@
       "errorText": "Unable to load customer data (server error).",
       "recentContacts": "Recent contacts",
       "noHistory": "No contact history",
-      "lookupError": "Failed to load customer data."
+      "lookupError": "Failed to load customer data.",
+      "noteExpand": "Show more",
+      "noteCollapse": "Show less"
     },
     "incomingCall": {
       "label": "Incoming call",

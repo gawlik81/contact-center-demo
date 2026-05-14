@@ -638,7 +638,9 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     font-size: 13px;
     font-family: inherit;
     cursor: pointer;
-    transition: border-color 160ms ease, box-shadow 160ms ease;
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease;
     text-align: left;
 
     &:hover {

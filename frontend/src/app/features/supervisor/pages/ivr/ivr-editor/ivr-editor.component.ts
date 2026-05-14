@@ -516,7 +516,7 @@ export class IvrEditorComponent implements OnInit {
     this.selectedNodeId.set(null);
   }
 
-  onNodeClick(event: MouseEvent, nodeId: string): void {
+  onNodeClick(event: Event, nodeId: string): void {
     event.stopPropagation();
     const connecting = this.connectingFrom();
     if (connecting && connecting.nodeId !== nodeId) {

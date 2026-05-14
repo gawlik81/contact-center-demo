@@ -345,12 +345,42 @@
   }
 
   // Tone-specific selected state via data-tone attribute
-  &[data-tone='accent'].disp-card--selected   { border-color: var(--accent);   background: var(--accent-soft);   color: var(--accent-text);   box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent)  18%, transparent); }
-  &[data-tone='success'].disp-card--selected  { border-color: var(--success);  background: var(--success-soft);  color: var(--success-text);  box-shadow: 0 0 0 3px color-mix(in oklch, var(--success) 18%, transparent); }
-  &[data-tone='warning'].disp-card--selected  { border-color: var(--warning);  background: var(--warning-soft);  color: var(--warning-text);  box-shadow: 0 0 0 3px color-mix(in oklch, var(--warning) 18%, transparent); }
-  &[data-tone='danger'].disp-card--selected   { border-color: var(--danger);   background: var(--danger-soft);   color: var(--danger-text);   box-shadow: 0 0 0 3px color-mix(in oklch, var(--danger)  18%, transparent); }
-  &[data-tone='violet'].disp-card--selected   { border-color: var(--violet);   background: var(--violet-soft);   color: var(--violet-text);   box-shadow: 0 0 0 3px color-mix(in oklch, var(--violet)  18%, transparent); }
-  &[data-tone='neutral'].disp-card--selected  { border-color: var(--neutral);  background: var(--neutral-soft);  color: var(--neutral-text);  box-shadow: 0 0 0 3px color-mix(in oklch, var(--neutral) 18%, transparent); }
+  &[data-tone='accent'].disp-card--selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent);
+  }
+  &[data-tone='success'].disp-card--selected {
+    border-color: var(--success);
+    background: var(--success-soft);
+    color: var(--success-text);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--success) 18%, transparent);
+  }
+  &[data-tone='warning'].disp-card--selected {
+    border-color: var(--warning);
+    background: var(--warning-soft);
+    color: var(--warning-text);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--warning) 18%, transparent);
+  }
+  &[data-tone='danger'].disp-card--selected {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--danger) 18%, transparent);
+  }
+  &[data-tone='violet'].disp-card--selected {
+    border-color: var(--violet);
+    background: var(--violet-soft);
+    color: var(--violet-text);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--violet) 18%, transparent);
+  }
+  &[data-tone='neutral'].disp-card--selected {
+    border-color: var(--neutral);
+    background: var(--neutral-soft);
+    color: var(--neutral-text);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--neutral) 18%, transparent);
+  }
 
   &__dot {
     width: 9px;
@@ -359,12 +389,24 @@
     flex-shrink: 0;
     background: var(--border-strong);
 
-    .disp-card[data-tone='accent']  > & { background: var(--accent);  }
-    .disp-card[data-tone='success'] > & { background: var(--success); }
-    .disp-card[data-tone='warning'] > & { background: var(--warning); }
-    .disp-card[data-tone='danger']  > & { background: var(--danger);  }
-    .disp-card[data-tone='violet']  > & { background: var(--violet);  }
-    .disp-card[data-tone='neutral'] > & { background: var(--neutral); }
+    .disp-card[data-tone='accent'] > & {
+      background: var(--accent);
+    }
+    .disp-card[data-tone='success'] > & {
+      background: var(--success);
+    }
+    .disp-card[data-tone='warning'] > & {
+      background: var(--warning);
+    }
+    .disp-card[data-tone='danger'] > & {
+      background: var(--danger);
+    }
+    .disp-card[data-tone='violet'] > & {
+      background: var(--violet);
+    }
+    .disp-card[data-tone='neutral'] > & {
+      background: var(--neutral);
+    }
   }
 
   &__label {

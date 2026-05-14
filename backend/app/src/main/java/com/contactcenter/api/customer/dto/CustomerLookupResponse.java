@@ -30,12 +30,14 @@ public record CustomerLookupResponse(
      * @param disposition status/dyspozycja kontaktu
      * @param date        czas rozpoczęcia w formacie ISO 8601
      * @param agentName   imię agenta (opcjonalne)
+     * @param notes       notatki agenta do kontaktu (opcjonalne)
      */
     public record ContactSummaryDto(
             UUID id,
             String channel,
             String disposition,
             String date,
-            String agentName
+            String agentName,
+            String notes
     ) {}
 }

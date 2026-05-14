@@ -133,5 +133,27 @@ export class CustomerPanelComponent implements OnChanges {
     });
   }
 
+  protected readonly expandedNotes = signal<Set<string>>(new Set());
+
+  protected toggleNote(contactId: string): void {
+    this.expandedNotes.update((set) => {
+      const next = new Set(set);
+      if (next.has(contactId)) {
+        next.delete(contactId);
+      } else {
+        next.add(contactId);
+      }
+      return next;
+    });
+  }
+
+  protected isNoteExpanded(contactId: string): boolean {
+    return this.expandedNotes().has(contactId);
+  }
+
+  protected hasLongNote(note: string | null | undefined): boolean {
+    return !!note && note.length > 120;
+  }
+
   protected readonly trackByContactId = (_i: number, item: ContactHistoryItem) => item.id;
 }

@@ -1109,8 +1109,57 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         log.warn("[TwilioAdapter] Brak tenantId dla callSid={} – event {} nie zostanie wysłany do WebSocket",
             callSid, eventType);
       }
+
+      // Bug 1a: Gdy klient rozłączył się przed odebraniem przez agenta, sesja Redis nie ma agentId
+      // (routing ustawia agentId tylko w Contact DB, nie w CallSession).
+      // Pobieramy agentId z DB aby CALL_HANGUP dotarł do właściwego agenta i jego softfon przestał dzwonić.
+      UUID effectiveAgentId = existing.getAgentId();
+      if (eventType == CallEvent.EventType.CALL_HANGUP
+          && effectiveAgentId == null
+          && existing.getContactId() != null
+          && effectiveTenantId != null) {
+        try {
+          Optional<Contact> contactOpt = contactRepository.findById(existing.getContactId(), effectiveTenantId);
+          if (contactOpt.isPresent() && contactOpt.get().getAgentId() != null) {
+            effectiveAgentId = contactOpt.get().getAgentId();
+            log.debug("[TwilioAdapter] Uzupełniono agentId z Contact DB dla CALL_HANGUP: " +
+                      "callSid={}, contactId={}, agentId={}",
+                callSid, existing.getContactId(), effectiveAgentId);
+          }
+        } catch (Exception e) {
+          log.warn("[TwilioAdapter] Nie udało się pobrać agentId z Contact DB dla CALL_HANGUP: " +
+                   "callSid={}, contactId={}, error={}",
+              callSid, existing.getContactId(), e.getMessage());
+        }
+      }
+
+      // Bug 1b: Gdy klient rozłącza się zanim agent odebrał (softfon dzwoni), noga agenta
+      // (agentCallSid) musi być aktywnie rozłączona przez Twilio REST API.
+      // Bez tego softfon agenta pozostaje w stanie RINGING w nieskończoność.
+      if (eventType == CallEvent.EventType.CALL_HANGUP && existing.getAgentCallSid() != null) {
+        try {
+          Call.updater(existing.getAgentCallSid())
+              .setStatus(Call.UpdateStatus.COMPLETED)
+              .update(resolveRestClient(effectiveTenantId));
+          log.info("[TwilioAdapter] Noga agenta anulowana po rozłączeniu klienta: " +
+                   "agentCallSid={}, callSid={}", existing.getAgentCallSid(), callSid);
+        } catch (ApiException e) {
+          if (e.getCode() == 20404 || e.getStatusCode() == 404) {
+            log.debug("[TwilioAdapter] Noga agenta już zakończona (idempotentne): " +
+                      "agentCallSid={}, code={}", existing.getAgentCallSid(), e.getCode());
+          } else {
+            log.warn("[TwilioAdapter] Błąd przy anulowaniu nogi agenta: " +
+                     "agentCallSid={}, code={}, msg={}",
+                existing.getAgentCallSid(), e.getCode(), e.getMessage());
+          }
+        } catch (Exception e) {
+          log.warn("[TwilioAdapter] Nieoczekiwany błąd przy anulowaniu nogi agenta: " +
+                   "agentCallSid={}, error={}", existing.getAgentCallSid(), e.getMessage());
+        }
+      }
+
       publishWebhookEvent(eventType, callSid, effectiveTenantId,
-          existing.getAgentId(), from, to, existing.getContactId(), callStatus);
+          effectiveAgentId, from, to, existing.getContactId(), callStatus);
     }
   }
 

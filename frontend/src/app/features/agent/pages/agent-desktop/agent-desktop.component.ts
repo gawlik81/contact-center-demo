@@ -210,7 +210,16 @@ export class AgentDesktopComponent implements OnInit {
         filter((e: WsEvent) => e.eventType === 'CALL_HANGUP'),
       )
       .subscribe(() => {
+        const wasRinging = this.softphoneService.session()?.state === 'RINGING';
         this.softphoneService.remoteHangup();
+        if (wasRinging) {
+          // remoteHangup() sets session to null immediately for RINGING state (no ACW needed),
+          // so softphoneEndedEffect never fires — close the PHONE tab manually here.
+          const phoneTab = this.tabStore.tabs().find((t) => t.type === 'PHONE');
+          if (phoneTab) {
+            this.tabStore.closeTab(phoneTab.id);
+          }
+        }
       });
   }
 

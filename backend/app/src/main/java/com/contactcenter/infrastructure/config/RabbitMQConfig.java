@@ -81,6 +81,14 @@ public class RabbitMQConfig {
     public static final String QUEUE_DIALER_AGENT_STATUS    = "cc.queue.dialer-agent-status";
     /** Kolejka dla przychodzących zdarzeń social media – BE-018: Social Media Adapter. */
     public static final String QUEUE_SOCIAL_INCOMING         = "cc.queue.social-incoming";
+    /**
+     * Dedykowana kolejka dla RoutingService – eventy call.hangup.
+     *
+     * <p>Oddzielna od {@link #QUEUE_CALL_EVENTS} i {@link #QUEUE_DIALER_HANGUP}, bo RabbitMQ
+     * przy zwykłej kolejce dostarcza każdą wiadomość tylko JEDNEMU konsumentowi (round-robin).
+     * RoutingService musi niezależnie odświeżyć stan kolejki w panelu agenta po każdym hangup.
+     */
+    public static final String QUEUE_ROUTING_HANGUP          = "cc.queue.routing-hangup";
 
     // =========================================================================
     // Routing keys
@@ -381,6 +389,32 @@ public class RabbitMQConfig {
                 .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
                 .withArgument("x-dead-letter-routing-key", "dlq")
                 .build();
+    }
+
+    /**
+     * Kolejka dla RoutingService – eventy call.hangup.
+     *
+     * <p>Po rozłączeniu klienta RoutingService musi odświeżyć stan kolejki w panelu agenta.
+     * Oddzielna od {@link #QUEUE_CALL_EVENTS} i {@link #QUEUE_DIALER_HANGUP} – każdy consumer
+     * musi otrzymać każdy event call.hangup niezależnie (brak round-robin).
+     */
+    @Bean
+    public Queue routingHangupQueue() {
+        return QueueBuilder.durable(QUEUE_ROUTING_HANGUP)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", "dlq")
+                .build();
+    }
+
+    /**
+     * Binding kolejki routing-hangup do exchange cc.events z routing key call.hangup.
+     * RoutingService odświeża stan kolejki agenta po każdym zakończonym połączeniu.
+     */
+    @Bean
+    public Binding bindingRoutingHangup(Queue routingHangupQueue, TopicExchange eventsExchange) {
+        return BindingBuilder.bind(routingHangupQueue)
+                .to(eventsExchange)
+                .with("call.hangup");
     }
 
     // =========================================================================

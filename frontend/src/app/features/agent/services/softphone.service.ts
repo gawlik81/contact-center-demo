@@ -243,6 +243,19 @@ export class SoftphoneService implements OnDestroy {
       return;
     }
     this.stopDurationTimer();
+    if (s.state === 'RINGING') {
+      if (this.activeCall) {
+        try {
+          this.activeCall.reject();
+        } catch {
+          // ignore
+        }
+        this.activeCall = null;
+      }
+      this.clearTimers();
+      this.session.set(null);
+      return;
+    }
     // Disconnect the Twilio call leg on the agent side if still active.
     // disconnectAll() covers outbound calls where activeCall reference may be null
     // (the outbound leg is owned by the Device, not stored in activeCall).

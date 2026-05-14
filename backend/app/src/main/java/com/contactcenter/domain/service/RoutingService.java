@@ -14,6 +14,7 @@ import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.routing.RoutingEngine;
 import com.contactcenter.domain.routing.RoutingRequest;
 import com.contactcenter.domain.routing.RoutingResult;
+import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -289,6 +290,44 @@ public class RoutingService {
             throw new RuntimeException("Błąd retry routingu dla tenanta " + event.tenantId(), e);
         } finally {
             broadcastQueueStateToAgents(event.tenantId());
+            TenantContext.clear();
+        }
+    }
+
+    // =========================================================================
+    // RabbitMQ Listener – odświeżenie kolejki agenta po rozłączeniu klienta
+    // =========================================================================
+
+    /**
+     * Nasłuchuje eventów {@code call.hangup} i odświeża stan kolejki w panelu agenta.
+     *
+     * <p>Gdy klient się rozłącza, kontakt znika z DB (status COMPLETED), ale panel agenta
+     * nie jest aktualizowany aż do następnego eventu contact.queued lub agent.status.changed.
+     * Ten listener naprawia lukę – po każdym hangup rozsyła aktualny stan kolejki do wszystkich
+     * agentów danego tenanta.
+     *
+     * <p>Błędy są pochłaniane (nie rzucamy wyjątku) – nieudane odświeżenie UI to nie powód,
+     * aby zatruwać kolejkę RabbitMQ (DLQ).
+     *
+     * @param event event zakończenia połączenia
+     */
+    @RabbitListener(queues = RabbitMQConfig.QUEUE_ROUTING_HANGUP)
+    public void onCallHangup(CallEvent event) {
+        UUID tenantId = event.getTenantId();
+        log.info("[RoutingService] Odebrano call.hangup – odświeżam kolejkę agentów: " +
+                "callId={}, contactId={}, tenantId={}",
+                event.getCallId(), event.getContactId(), tenantId);
+
+        TenantContext.Snapshot snapshot = new TenantContext.Snapshot(tenantId, null, null, "SYSTEM");
+        TenantContext.restore(snapshot);
+        try {
+            broadcastQueueStateToAgents(tenantId);
+        } catch (Exception e) {
+            log.warn("[RoutingService] Błąd odświeżania kolejki agentów po hangup: " +
+                    "callId={}, tenantId={}, error={}",
+                    event.getCallId(), tenantId, e.getMessage());
+            // Celowo nie rzucamy – nieudany broadcast UI nie powinien trafiać do DLQ
+        } finally {
             TenantContext.clear();
         }
     }

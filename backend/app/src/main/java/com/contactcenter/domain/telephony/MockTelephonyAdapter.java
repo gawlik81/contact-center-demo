@@ -148,10 +148,13 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
         }
 
         // Aktualizacja statusu kontaktu w DB – wymagane żeby agent mógł ustawić disposition
-        // (ContactService.setDisposition blokuje kontakty ze statusem QUEUED/ACTIVE)
+        // (ContactService.setDisposition blokuje kontakty ze statusem QUEUED/ACTIVE).
+        // Jeśli agent nigdy nie odebrał (answeredAt == null), status to ABANDONED – klient rozłączył się
+        // zanim agent odpowiedział (softfon dzwonił, agent nie kliknął "Odbierz").
         if (session.getContactId() != null) {
+            String endStatus = session.getAnsweredAt() != null ? "COMPLETED" : "ABANDONED";
             contactRepository.updateContactStatusOnTelephonyEvent(
-                    session.getContactId(), session.getTenantId(), "COMPLETED", endedAt);
+                    session.getContactId(), session.getTenantId(), endStatus, endedAt);
         }
 
         eventPublisher.publishHangup(

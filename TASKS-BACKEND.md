@@ -3174,7 +3174,8 @@ Panel klienta (prawy panel w Agent Desktop) wyświetla ostatnie 5 kontaktów kli
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** DB-035 (tabela `contact_event`)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
 **Blokuje:** BE-072, BE-073
 **Epic:** EPIC-23 Historia etapów kontaktu
 

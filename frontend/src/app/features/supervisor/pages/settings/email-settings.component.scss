@@ -16,6 +16,8 @@ $radius: 8px;
 // ── Page layout ────────────────────────────────────────────────────────────────
 .email-settings {
   max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
   padding: 2rem;
 
   &__header {

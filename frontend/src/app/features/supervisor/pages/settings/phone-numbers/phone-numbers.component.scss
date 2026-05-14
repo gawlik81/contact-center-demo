@@ -17,6 +17,8 @@ $radius: 8px;
 // ── Page layout ────────────────────────────────────────────────────────────────
 .phone-numbers {
   max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
   padding: 2rem;
 
   &__header {

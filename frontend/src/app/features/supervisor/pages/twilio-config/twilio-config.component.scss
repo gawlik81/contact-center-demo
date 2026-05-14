@@ -19,6 +19,8 @@ $radius: 8px;
 // ── Page layout ────────────────────────────────────────────────────────────────
 .twilio-config {
   max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
   padding: 2rem;
 
   &__header {

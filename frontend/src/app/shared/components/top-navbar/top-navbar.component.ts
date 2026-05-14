@@ -1,15 +1,18 @@
 import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
-import { NgClass } from '@angular/common';
+import { DecimalPipe, NgClass } from '@angular/common';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserRole } from '../../../core/models/jwt-payload.model';
 import { LanguageSwitcherComponent } from '../language-switcher/language-switcher.component';
 import { ThemeService, ThemeMode } from '../../../core/services/theme.service';
+import { AgentKpiService } from '../../services/agent-kpi.service';
+import { AgentKpiResponse } from '../../models/agent-kpi.model';
 
 @Component({
   selector: 'cc-top-navbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgClass, LanguageSwitcherComponent, TranslocoModule],
+  imports: [NgClass, DecimalPipe, LanguageSwitcherComponent, TranslocoModule],
   templateUrl: './top-navbar.component.html',
   styleUrl: './top-navbar.component.scss',
 })
@@ -17,6 +20,15 @@ export class TopNavbarComponent {
   protected readonly auth = inject(AuthService);
   private readonly transloco = inject(TranslocoService);
   protected readonly theme = inject(ThemeService);
+  private readonly agentKpiService = inject(AgentKpiService);
+
+  /** Latest KPI snapshot — null until first successful response or on HTTP error. */
+  protected readonly kpi = toSignal<AgentKpiResponse | null>(this.agentKpiService.kpi$, {
+    initialValue: null,
+  });
+
+  /** Expose Math so the template can call Math.min() without workarounds. */
+  protected readonly Math = Math;
 
   /** Whether the sidenav is currently open (used for aria-expanded) */
   readonly sidenavOpen = input<boolean>(false);
@@ -26,6 +38,12 @@ export class TopNavbarComponent {
 
   onToggleSidenav(): void {
     this.toggleSidenav.emit();
+  }
+
+  protected formatSeconds(totalSeconds: number): string {
+    const m = Math.floor(totalSeconds / 60);
+    const s = Math.floor(totalSeconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
   onLogout(): void {

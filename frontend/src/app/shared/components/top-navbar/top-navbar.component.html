@@ -53,7 +53,7 @@
         <div class="kpi-tile__body">
           <span class="kpi-tile__label">Obsłużone</span>
           <div class="kpi-tile__value-row">
-            <span class="kpi-tile__value">47</span>
+            <span class="kpi-tile__value">{{ kpi()?.contactsHandledToday ?? '—' }}</span>
             <span class="kpi-tile__sub">dziś</span>
           </div>
         </div>
@@ -69,10 +69,14 @@
         <div class="kpi-tile__body">
           <span class="kpi-tile__label">SLA</span>
           <div class="kpi-tile__value-row">
-            <span class="kpi-tile__value">94%</span>
+            <span class="kpi-tile__value">
+              {{ kpi() ? ((kpi()!.slaPercent | number: '1.0-0') + '%') : '—' }}
+            </span>
             <span class="kpi-tile__sub">cel 90%</span>
           </div>
-          <div class="kpi-tile__bar"><div class="kpi-tile__bar-fill" style="width: 94%"></div></div>
+          <div class="kpi-tile__bar">
+            <div class="kpi-tile__bar-fill" [style.width]="(kpi()?.slaPercent ?? 0) + '%'"></div>
+          </div>
         </div>
       </div>
 
@@ -86,7 +90,9 @@
         <div class="kpi-tile__body">
           <span class="kpi-tile__label">AHT</span>
           <div class="kpi-tile__value-row">
-            <span class="kpi-tile__value">4:32</span>
+            <span class="kpi-tile__value">
+              {{ kpi() ? formatSeconds(kpi()!.avgHandleTimeSeconds) : '—' }}
+            </span>
             <span class="kpi-tile__sub">śr. czas</span>
           </div>
         </div>
@@ -102,25 +108,16 @@
         <div class="kpi-tile__body">
           <span class="kpi-tile__label">Czas pracy</span>
           <div class="kpi-tile__value-row">
-            <span class="kpi-tile__value">5:23</span>
+            <span class="kpi-tile__value">
+              {{ kpi() ? formatSeconds(kpi()!.workTimeSeconds) : '—' }}
+            </span>
             <span class="kpi-tile__sub">z 8:00</span>
           </div>
-          <div class="kpi-tile__bar"><div class="kpi-tile__bar-fill" style="width: 67%"></div></div>
-        </div>
-      </div>
-
-      <!-- CSAT -->
-      <div class="kpi-tile kpi-tile--warning">
-        <div class="kpi-tile__icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-          </svg>
-        </div>
-        <div class="kpi-tile__body">
-          <span class="kpi-tile__label">CSAT</span>
-          <div class="kpi-tile__value-row">
-            <span class="kpi-tile__value">4.8</span>
-            <span class="kpi-tile__sub">/ 5.0</span>
+          <div class="kpi-tile__bar">
+            <div
+              class="kpi-tile__bar-fill"
+              [style.width]="(kpi() ? Math.min(kpi()!.workTimeSeconds / 28800 * 100, 100) : 0) + '%'"
+            ></div>
           </div>
         </div>
       </div>

@@ -1570,6 +1570,66 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
+  // AgentKPI – statystyki agenta za bieżący dzień (BE-AgentKPI)
+  // =========================================================================
+
+  /**
+   * Pobiera zagregowane KPI agenta za podany zakres dat (dzień UTC).
+   *
+   * <p>Zapytanie zawsze zwraca dokładnie jeden wiersz – COUNT może wynosić 0,
+   * a COALESCE zapewnia wartości domyślne 0 dla pozostałych kolumn.
+   *
+   * <p>Kolumny wynikowe (w kolejności):
+   * <ol>
+   *   <li>{@code contacts_count}   – liczba zakończonych kontaktów</li>
+   *   <li>{@code avg_handle_time}  – AVG(duration_seconds), 0 gdy brak</li>
+   *   <li>{@code sla_percent}      – % kontaktów z (assigned_at - queued_at) &lt; 30s, 0 gdy brak</li>
+   *   <li>{@code work_time_seconds} – sekundy od pierwszego started_at do NOW(), 0 gdy brak</li>
+   * </ol>
+   *
+   * @param agentId  UUID agenta
+   * @param tenantId UUID tenanta
+   * @param dayStart początek dnia UTC (włącznie)
+   * @param dayEnd   koniec dnia UTC (wyłącznie)
+   * @return tablica Object[] z czterema wartościami liczbowymi
+   */
+  @Transactional(readOnly = true)
+  public Object[] findAgentKpiToday(UUID agentId, UUID tenantId, Instant dayStart, Instant dayEnd) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepo] findAgentKpiToday: agentId={}, tenant={}, dayStart={}, dayEnd={}",
+        agentId, tenantId, dayStart, dayEnd);
+
+    return (Object[]) em.createNativeQuery(
+            """
+                SELECT
+                    COUNT(*)                                                        AS contacts_count,
+                    COALESCE(AVG(c.duration_seconds), 0)                           AS avg_handle_time,
+                    COALESCE(
+                        AVG(CASE
+                            WHEN c.assigned_at IS NOT NULL AND c.queued_at IS NOT NULL
+                             AND EXTRACT(EPOCH FROM (c.assigned_at - c.queued_at)) < 30
+                            THEN 1.0 ELSE 0.0
+                        END) * 100,
+                        0
+                    )                                                               AS sla_percent,
+                    COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(c.started_at))), 0)   AS work_time_seconds
+                FROM contact c
+                WHERE c.tenant_id  = CAST(:tenantId AS uuid)
+                  AND c.agent_id   = CAST(:agentId AS uuid)
+                  AND c.started_at >= :dayStart
+                  AND c.started_at <  :dayEnd
+                  AND c.status     = 'COMPLETED'
+                  AND c.duration_seconds IS NOT NULL
+                """)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("agentId", agentId.toString())
+        .setParameter("dayStart", dayStart)
+        .setParameter("dayEnd", dayEnd)
+        .getSingleResult();
+  }
+
+  // =========================================================================
   // Inner records
   // =========================================================================
 

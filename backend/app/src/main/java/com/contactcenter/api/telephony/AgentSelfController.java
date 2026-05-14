@@ -1,6 +1,7 @@
 package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.contact.dto.AssignedContactResponse;
+import com.contactcenter.api.telephony.dto.AgentKpiResponse;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -17,6 +18,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /**
@@ -101,6 +106,66 @@ public class AgentSelfController {
                     log.debug("[AgentSelf] Brak kontaktu ASSIGNED dla agenta: agentId={}", agentId);
                     return ResponseEntity.noContent().build();
                 });
+    }
+
+    /**
+     * Zwraca statystyki KPI zalogowanego agenta za bieżący dzień (UTC).
+     *
+     * <p>Oblicza zakres dnia jako {@code [dayStart, dayEnd)} w UTC i wykonuje
+     * jedno zagregowane zapytanie SQL do tabeli {@code contact}. Zapytanie zawsze
+     * zwraca wynik – gdy agent nie obsłużył dziś żadnego kontaktu, wszystkie wartości
+     * wynoszą 0.
+     *
+     * <p>Dane używane przez frontend do wyświetlania paska KPI w top-navbar.
+     *
+     * @return {@link AgentKpiResponse} ze statystykami agenta za dziś
+     */
+    @GetMapping("/kpi")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Pobierz KPI agenta za bieżący dzień",
+            description = """
+                    Zwraca zagregowane statystyki KPI zalogowanego agenta za bieżący dzień UTC:
+                    - contactsHandledToday – liczba zakończonych kontaktów
+                    - slaPercent – % kontaktów z czasem oczekiwania < 30s (0.0 gdy brak danych)
+                    - avgHandleTimeSeconds – średni czas obsługi w sekundach (0.0 gdy brak danych)
+                    - workTimeSeconds – sekundy od pierwszego kontaktu do teraz (0 gdy brak kontaktów)
+
+                    Używane przez frontend do wyświetlania paska KPI w top-navbar.
+                    Zawsze zwraca 200 OK – wartości zerowe oznaczają brak danych na dziś.
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Statystyki KPI agenta za bieżący dzień"),
+                    @ApiResponse(responseCode = "403", description = "JWT brakuje lub niewystarczająca rola")
+            }
+    )
+    public ResponseEntity<AgentKpiResponse> getKpi() {
+        UUID agentId = TenantContext.getUserId();
+        UUID tenantId = TenantContext.getTenantId();
+
+        log.debug("[AgentSelf] kpi: agentId={}, tenantId={}", agentId, tenantId);
+
+        Instant dayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant dayEnd = dayStart.plus(1, ChronoUnit.DAYS);
+
+        Object[] row = contactRepository.findAgentKpiToday(agentId, tenantId, dayStart, dayEnd);
+
+        long contactsHandledToday = ((Number) row[0]).longValue();
+        double avgHandleTimeSeconds = ((Number) row[1]).doubleValue();
+        double slaPercent = ((Number) row[2]).doubleValue();
+        long workTimeSeconds = ((Number) row[3]).longValue();
+
+        AgentKpiResponse response = new AgentKpiResponse(
+                contactsHandledToday,
+                slaPercent,
+                avgHandleTimeSeconds,
+                workTimeSeconds
+        );
+
+        log.debug("[AgentSelf] kpi wynik: agentId={}, contacts={}, sla={}, aht={}, workTime={}",
+                agentId, contactsHandledToday, slaPercent, avgHandleTimeSeconds, workTimeSeconds);
+
+        return ResponseEntity.ok(response);
     }
 
     // =========================================================================

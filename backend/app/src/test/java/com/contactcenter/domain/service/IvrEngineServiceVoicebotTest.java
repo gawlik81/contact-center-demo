@@ -7,6 +7,7 @@ import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.IvrAudioRepository;
 import com.contactcenter.domain.repository.IvrTreeRepository;
 import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,6 +70,7 @@ class IvrEngineServiceVoicebotTest {
     @Mock private ValueOperations<String, String> valueOps;
     @Mock private TaskScheduler taskScheduler;
     @Mock private VoicebotClient voicebotClient;
+    @Mock private ContactEventService contactEventService;
 
     private IvrEngineService ivrEngineService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -84,7 +86,8 @@ class IvrEngineServiceVoicebotTest {
                 rabbitTemplate,
                 stringRedisTemplate,
                 taskScheduler,
-                objectMapper
+                objectMapper,
+                contactEventService
         );
         lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
     }

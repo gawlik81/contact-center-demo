@@ -3319,7 +3319,8 @@ Każda metoda `open*` zapisuje nowy rekord z `started_at = Instant.now()` i `end
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** BE-071
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
 **Blokuje:** BE-073
 **Epic:** EPIC-23 Historia etapów kontaktu
 

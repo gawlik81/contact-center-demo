@@ -95,6 +95,7 @@ public class IvrEngineService {
     private final StringRedisTemplate stringRedisTemplate;
     private final TaskScheduler taskScheduler;
     private final ObjectMapper objectMapper;
+    private final ContactEventService contactEventService;
 
     /**
      * Opcjonalne właściwości Twilio – wstrzykiwane gdy Twilio jest dostępne w kontekście.
@@ -362,6 +363,7 @@ public class IvrEngineService {
         if (session != null && contactId != null) {
             session.setContactId(contactId);
             saveSession(session);
+            contactEventService.openIvr(contactId, tenantId, ivr.getIvrId(), ivr.getName());
         }
         if (session == null) {
             // Sesja nie istnieje – fallback musiał usunąć sesję i przekazać do kolejki
@@ -426,6 +428,11 @@ public class IvrEngineService {
                 } finally {
                     TenantContext.clear();
                 }
+            }
+
+            if (contactId != null && queueOpt.isPresent()) {
+                contactEventService.openQueue(contactId, tenantId,
+                    queueId, queueOpt.get().getName(), Instant.now());
             }
 
             // Opublikuj event – agenci w kolejce zostaną powiadomieni
@@ -569,6 +576,8 @@ public class IvrEngineService {
             if (pendingContactId != null) {
                 log.info("[IVR] VOICEBOT QUEUE_TRANSFER – kieruję klienta do konferencji: callId={}, contactId={}, queueId={}",
                         callId, pendingContactId, pendingQueueId);
+                contactEventService.closeVoicebot(pendingContactId, tenantId, "ESCALATED");
+                contactEventService.openQueue(pendingContactId, tenantId, pendingQueueId, null, Instant.now());
                 return buildWaitInConferenceTwiml(pendingContactId, pendingQueueId, tenantId, baseUrl);
             }
             return buildCompletedTwiml();
@@ -594,6 +603,14 @@ public class IvrEngineService {
                 log.info("[IVR] VOICEBOT multi-turn: generuję TwiML dla kolejnej tury z responseText; callId={}", callId);
                 return buildVoicebotRecordTwiml(nextNode, callId, tenantId, baseUrl, pendingResponseText);
             }
+        }
+
+        if (nextNode.type() != com.contactcenter.domain.ivr.IvrNodeType.VOICEBOT
+                && updatedSession.getContactId() != null) {
+            contactEventService.closeVoicebot(updatedSession.getContactId(), tenantId, "COMPLETED");
+            contactEventService.openIvr(updatedSession.getContactId(), tenantId,
+                updatedIvr != null ? updatedIvr.getIvrId() : null,
+                updatedIvr != null ? updatedIvr.getName() : null);
         }
 
         return buildTwimlForNode(nextNode, callId, tenantId, baseUrl);
@@ -713,6 +730,14 @@ public class IvrEngineService {
      */
     private String buildVoicebotRecordTwiml(IvrNode node, String callId, UUID tenantId, String baseUrl,
                                              String responseText) {
+        IvrSessionData voicebotSession = loadSession(callId);
+        if (voicebotSession != null && voicebotSession.getContactId() != null) {
+            IvrTree voicebotTree = resolveIvrTree(tenantId, voicebotSession.getIvrId()).orElse(null);
+            contactEventService.openVoicebot(voicebotSession.getContactId(), tenantId,
+                voicebotTree != null ? voicebotTree.getIvrId() : null,
+                voicebotTree != null ? voicebotTree.getName() : null);
+        }
+
         String voicebotRecordingActionUrl = baseUrl
             + "/api/telephony/webhook/twilio/voicebot-recording?tenantId=" + tenantId
             + "&callId=" + callId;
@@ -1231,6 +1256,12 @@ public class IvrEngineService {
                 }
             }
 
+            if (contactId != null) {
+                contactEventService.closeIvr(contactId, session.getTenantId());
+                String queueName = queueOpt.map(q -> q.getName()).orElse(null);
+                contactEventService.openQueue(contactId, session.getTenantId(), queueId, queueName, Instant.now());
+            }
+
             // Przekaż zmienne zebrane przez COLLECT_DTMF (mapa może być pusta, nigdy null)
             ContactQueuedMessage message = new ContactQueuedMessage(
                 contactId, queueId, session.getTenantId(),
@@ -1583,6 +1614,13 @@ public class IvrEngineService {
                 UUID contactId = (sessionForFallback != null && sessionForFallback.getContactId() != null)
                     ? sessionForFallback.getContactId()
                     : deriveContactId(callId);
+
+                if (contactId != null && defaultQueue.isPresent()) {
+                    contactEventService.closeIvr(contactId, tenantId);
+                    contactEventService.openQueue(contactId, tenantId,
+                        defaultQueue.get().getQueueId(), defaultQueue.get().getName(), Instant.now());
+                }
+
                 ContactQueuedMessage message = new ContactQueuedMessage(
                     contactId, defaultQueue.get().getQueueId(), tenantId);
 

@@ -7,6 +7,7 @@ import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
@@ -105,6 +106,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final StringRedisTemplate stringRedisTemplate;
   private final TwilioRecordingDownloadService recordingDownloadService;
   private final TenantTwilioConfigService tenantTwilioConfigService;
+  private final ContactEventService contactEventService;
 
   /**
    * Cache per-tenant TwilioRestClient (max 100, TTL 15 min).
@@ -737,6 +739,18 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         ? CallSession.CallStatus.ON_HOLD
         : CallSession.CallStatus.ACTIVE;
     saveSession(session.withStatus(newStatus));
+
+    UUID contactId = session.getContactId();
+    UUID tenantId = session.getTenantId();
+    if (contactId != null) {
+      if (hold) {
+        contactEventService.closeAgent(contactId, tenantId);
+        contactEventService.openHold(contactId, tenantId);
+      } else {
+        contactEventService.closeHold(contactId, tenantId);
+        contactEventService.openAgent(contactId, tenantId, session.getAgentId(), "");
+      }
+    }
   }
 
   /**

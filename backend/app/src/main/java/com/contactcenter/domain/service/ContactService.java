@@ -11,6 +11,8 @@ import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.EmailMessage;
+import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.infrastructure.aspect.Audited;
@@ -65,6 +67,8 @@ public class ContactService {
     private final ContactRepository contactRepository;
     private final RecordingService recordingService;
     private final EmailMessageRepository emailMessageRepository;
+    private final AppUserRepository appUserRepository;
+    private final ContactEventService contactEventService;
 
     // =========================================================================
     // Tworzenie kontaktu
@@ -263,6 +267,11 @@ public class ContactService {
         if (request.status() != null) {
             contact.setStatus(request.status());
         }
+        if ("COMPLETED".equals(request.status()) || "ABANDONED".equals(request.status())) {
+            contactEventService.closeAgent(contactId, tenantId);
+            contactEventService.closeQueue(contactId, tenantId);
+            contactEventService.closeHold(contactId, tenantId);
+        }
         if (request.assignedAt() != null) {
             contact.setAssignedAt(request.assignedAt());
         }
@@ -380,6 +389,12 @@ public class ContactService {
                     "Nie udało się przypisać agenta do kontaktu (zły status lub brak rekordu): " + contactId);
         }
 
+        contactEventService.closeQueue(contactId, tenantId);
+        String agentName = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+            .map(u -> u.getFirstName() + " " + u.getLastName())
+            .orElse("");
+        contactEventService.openAgent(contactId, tenantId, agentId, agentName);
+
         log.info("[ContactService] Agent przypisany do kontaktu: contactId={}, agentId={}, tenant={}",
                 contactId, agentId, tenantId);
 
@@ -483,6 +498,9 @@ public class ContactService {
         contact.setEndedAt(now);
         contact.setUpdatedAt(now);
         contactRepository.update(contact);
+
+        contactEventService.closeAgent(contactId, tenantId);
+        contactEventService.closeQueue(contactId, tenantId);
 
         log.info("[ContactService] Kontakt porzucony przez agenta: contactId={}, agentId={}, tenant={}",
                 contactId, agentId, tenantId);

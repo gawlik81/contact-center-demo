@@ -3163,3 +3163,338 @@ Panel klienta (prawy panel w Agent Desktop) wyświetla ostatnie 5 kontaktów kli
 - [ ] Kontakt bez notatki — `notes: null` (nie pusty string)
 - [ ] `GET /api/customers/lookup/email?email=test@example.com` — analogicznie zwraca `notes`
 - [ ] Brak regresji w istniejących testach `CustomerServiceTest` / `CustomerControllerTest`
+
+---
+
+## MODUŁ: Historia etapów kontaktu (EPIC-23)
+
+### BE-071 – Model `ContactEvent`, repozytorium i serwis zarządzania etapami
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-035 (tabela `contact_event`)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** BE-072, BE-073
+**Epic:** EPIC-23 Historia etapów kontaktu
+
+**Opis:**
+Fundament warstwy domenowej dla historii etapów: encja JPA, repozytorium (natywny SQL — tabela bez partycjonowania, można użyć `JpaRepository`), i serwis z metodami do otwierania i zamykania etapów.
+
+**Pliki do stworzenia/modyfikacji:**
+
+**1. `domain/model/ContactEvent.java`** — encja JPA:
+```java
+@Entity
+@Table(name = "contact_event")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class ContactEvent {
+
+    @Id
+    @Column(name = "event_id", nullable = false)
+    private UUID eventId;
+
+    @Column(name = "contact_id", nullable = false)
+    private UUID contactId;
+
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
+
+    @Column(name = "stage", nullable = false, length = 20)
+    private String stage; // IVR | QUEUE | AGENT | ON_HOLD
+
+    @Column(name = "started_at", nullable = false)
+    private Instant startedAt;
+
+    @Column(name = "ended_at")
+    private Instant endedAt;
+
+    @Column(name = "duration_seconds")
+    private Integer durationSeconds;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private Map<String, Object> metadata = new HashMap<>();
+}
+```
+
+**2. `domain/repository/ContactEventRepository.java`** — rozszerzenie `TenantAwareRepository`:
+```java
+@Repository
+public class ContactEventRepository extends TenantAwareRepository {
+
+    // Zapisz nowe zdarzenie
+    public ContactEvent save(ContactEvent event) { ... }
+
+    // Zamknij ostatnie otwarte zdarzenie danego etapu dla kontaktu
+    // Ustawia ended_at = NOW(); trigger DB obliczy duration_seconds
+    public int closeLastOpenEvent(UUID contactId, UUID tenantId, String stage, Instant endedAt) { ... }
+
+    // Pobierz wszystkie zdarzenia kontaktu posortowane chronologicznie
+    public List<ContactEvent> findByContactId(UUID contactId, UUID tenantId) { ... }
+
+    // Pobierz ostatnie otwarte zdarzenie danego etapu (ended_at IS NULL)
+    public Optional<ContactEvent> findLastOpen(UUID contactId, UUID tenantId, String stage) { ... }
+}
+```
+Metody `save()` i `closeLastOpenEvent()` używają natywnego SQL (INSERT / UPDATE). `findByContactId()` i `findLastOpen()` używają JPQL lub natywnego SELECT.
+
+**3. `domain/service/ContactEventService.java`** — fasada domenowa:
+```java
+@Service
+@RequiredArgsConstructor
+public class ContactEventService {
+
+    private final ContactEventRepository repository;
+
+    // Otwórz nowy etap IVR
+    public void openIvr(UUID contactId, UUID tenantId, UUID ivrTreeId, String ivrTreeName) { ... }
+
+    // Zamknij etap IVR
+    public void closeIvr(UUID contactId, UUID tenantId) { ... }
+
+    // Otwórz etap QUEUE
+    public void openQueue(UUID contactId, UUID tenantId, UUID queueId, String queueName, Instant queuedAt) { ... }
+
+    // Zamknij etap QUEUE
+    public void closeQueue(UUID contactId, UUID tenantId) { ... }
+
+    // Otwórz etap AGENT
+    public void openAgent(UUID contactId, UUID tenantId, UUID agentId, String agentName) { ... }
+
+    // Zamknij etap AGENT
+    public void closeAgent(UUID contactId, UUID tenantId) { ... }
+
+    // Otwórz etap ON_HOLD
+    public void openHold(UUID contactId, UUID tenantId) { ... }
+
+    // Zamknij etap ON_HOLD
+    public void closeHold(UUID contactId, UUID tenantId) { ... }
+
+    // Otwórz etap VOICEBOT (wejście w węzeł VOICEBOT w IVR)
+    public void openVoicebot(UUID contactId, UUID tenantId, UUID ivrTreeId, String ivrTreeName) { ... }
+
+    // Zamknij etap VOICEBOT; outcome: "ESCALATED" | "COMPLETED" | "ERROR"
+    public void closeVoicebot(UUID contactId, UUID tenantId, String outcome) { ... }
+
+    // Otwórz etap CONSULTING (faza konsultacji przy attended transfer)
+    public void openConsulting(UUID contactId, UUID tenantId, String target) { ... }
+
+    // Zamknij etap CONSULTING
+    public void closeConsulting(UUID contactId, UUID tenantId) { ... }
+
+    // Zapisz zdarzenie TRANSFER (punkt w czasie — started_at = ended_at)
+    // transferType: "BLIND" | "ATTENDED"; targetAgentName nullable
+    public void recordTransfer(UUID contactId, UUID tenantId,
+                               String target, String transferType, String targetAgentName) { ... }
+
+    // Pobierz pełną historię etapów kontaktu
+    public List<ContactEvent> getHistory(UUID contactId, UUID tenantId) { ... }
+}
+```
+
+Każda metoda `open*` zapisuje nowy rekord z `started_at = Instant.now()` i `ended_at = null`. Każda metoda `close*` woła `closeLastOpenEvent()` z `ended_at = Instant.now()`. Metody są odporne na brak otwartego etapu (gdy `closeLastOpenEvent` zwraca 0 wierszy — loguj WARN, nie rzucaj wyjątku).
+
+**Uwagi implementacyjne:**
+- `assertSameTenant(tenantId)` przed każdym zapisem (wzorzec z `ContactRepository`)
+- `TenantContext.snapshot()` / `restore()` / `clear()` jeśli `ContactEventService` jest wołany z wątku `@Async`
+- Metody serwisu NIE są `@Transactional` — każde zdarzenie to osobna operacja; rollback rodzica nie powinien cofać historii etapów
+
+**Kryteria akceptacji:**
+- [ ] `ContactEvent` mapuje tabelę `contact_event` poprawnie (kolumny, typy, JSONB)
+- [ ] `ContactEventRepository.save()` zapisuje rekord z `ended_at = null`
+- [ ] `ContactEventRepository.closeLastOpenEvent()` ustawia `ended_at`; trigger DB oblicza `duration_seconds`
+- [ ] `ContactEventRepository.findByContactId()` zwraca rekordy posortowane po `started_at ASC`
+- [ ] `ContactEventService.openIvr()` + `closeIvr()` tworzą parę rekordów IVR
+- [ ] `ContactEventService.closeAgent()` gdy brak otwartego etapu AGENT — loguje WARN, nie rzuca wyjątku
+- [ ] `mvn verify -pl app` przechodzi po dodaniu klasy
+
+---
+
+### BE-072 – Rejestracja etapów w punktach przejścia kontaktu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-071
+**Status:** 🔲 Do zrobienia
+**Blokuje:** BE-073
+**Epic:** EPIC-23 Historia etapów kontaktu
+
+**Opis:**
+Podpięcie `ContactEventService` w punktach, gdzie kontakt faktycznie zmienia etap. Wszystkie modyfikacje są addytywne — nie zmieniają istniejącej logiki biznesowej.
+
+**Punkty integracji:**
+
+**1. `IvrEngineService.startIvrSession()` (lub `startIvrSessionAndBuildTwiml()`):**
+Po pobraniu `ivrTree` i ustawieniu `session.setContactId(contactId)`:
+```java
+if (contactId != null) {
+    contactEventService.openIvr(contactId, tenantId,
+        ivrTree.getIvrId(), ivrTree.getName());
+}
+```
+
+**2. `IvrEngineService` — wyjście z IVR do kolejki** (metoda `routeToQueue()` lub `fallbackToDefaultQueue()`):
+Gdy kontakt opuszcza IVR i trafia do kolejki:
+```java
+contactEventService.closeIvr(contactId, tenantId);
+contactEventService.openQueue(contactId, tenantId, queueId, queue.getName(), Instant.now());
+```
+
+**3. `ContactService.assignAgent()` — agent odpowiada:**
+Po sukcesie `contactRepository.assignAgent(...)`:
+```java
+contactEventService.closeQueue(contactId, tenantId);
+contactEventService.openAgent(contactId, tenantId, agentId, resolveAgentName(agentId, tenantId));
+```
+`resolveAgentName()` — pobierz imię+nazwisko agenta z `AppUserRepository.findById()` (nullable safe: jeśli brak → pusty string).
+
+**4. `TwilioTelephonyAdapter.holdCall()` / `unholdCall()`:**
+W `holdCall()` przy sukcesie Twilio:
+```java
+contactEventService.closeAgent(contactId, tenantId);
+contactEventService.openHold(contactId, tenantId);
+```
+W `unholdCall()` przy sukcesie:
+```java
+contactEventService.closeHold(contactId, tenantId);
+contactEventService.openAgent(contactId, tenantId, agentId, agentName);
+```
+`contactId` i `agentId` odczytaj z `CallSession` (dostępne przez `softphone.session()`).
+
+**5. `ContactService.updateContact()` — zakończenie kontaktu:**
+Gdy `request.status()` to `COMPLETED` lub `ABANDONED`:
+```java
+// Zamknij każdy potencjalnie otwarty etap
+contactEventService.closeAgent(contactId, tenantId);
+contactEventService.closeQueue(contactId, tenantId);
+contactEventService.closeHold(contactId, tenantId);
+contactEventService.closeConsulting(contactId, tenantId);
+```
+Wielokrotne wywołania `close*` gdy etap nie istnieje — serwis loguje WARN i kontynuuje.
+
+**6. `IvrEngineService` — wejście i wyjście z węzła VOICEBOT:**
+Gdy silnik IVR przetwarza węzeł typu `VOICEBOT`:
+```java
+// Zamknij bieżący etap IVR i otwórz VOICEBOT
+contactEventService.closeIvr(contactId, tenantId);
+contactEventService.openVoicebot(contactId, tenantId, ivrTree.getIvrId(), ivrTree.getName());
+```
+Po odpowiedzi voicebota (callback `/voicebot-recording`, metoda `handleVoicebotCallback()`):
+```java
+// outcome: "ESCALATED" gdy routing do kolejki, "COMPLETED" gdy kontynuacja IVR, "ERROR" przy błędzie
+contactEventService.closeVoicebot(contactId, tenantId, outcome);
+if ("ESCALATED".equals(outcome)) {
+    contactEventService.openQueue(contactId, tenantId, queueId, queueName, Instant.now());
+} else {
+    contactEventService.openIvr(contactId, tenantId, ivrTree.getIvrId(), ivrTree.getName());
+}
+```
+
+**7. `TwilioTelephonyAdapter.transferCall()` — faza konsultacji i transfer:**
+
+Blind transfer (`TransferType.BLIND`) — po sukcesie:
+```java
+contactEventService.closeAgent(contactId, tenantId);
+contactEventService.recordTransfer(contactId, tenantId, target, "BLIND", null);
+```
+
+Attended transfer (`TransferType.ATTENDED`) — po sukcesie (2. noga nawiązana):
+```java
+contactEventService.closeAgent(contactId, tenantId);
+contactEventService.openConsulting(contactId, tenantId, target);
+```
+
+`completeAttendedTransfer()` — gdy agent potwierdza przekazanie:
+```java
+contactEventService.closeConsulting(contactId, tenantId);
+contactEventService.recordTransfer(contactId, tenantId, target, "ATTENDED", targetAgentName);
+```
+
+`cancelTransfer()` — gdy agent anuluje attended (klient wraca do agenta):
+```java
+contactEventService.closeConsulting(contactId, tenantId);
+contactEventService.openAgent(contactId, tenantId, agentId, agentName);
+```
+
+**Uwagi implementacyjne:**
+- Wstrzyknij `ContactEventService` przez konstruktor (`@RequiredArgsConstructor`) w każdym z powyższych serwisów
+- Błąd zapisu historii NIE powinien przerywać głównego przepływu — owijaj wywołania `contactEventService.*` w `try/catch(Exception e) { log.warn(...) }` w krytycznych miejscach
+- `IvrEngineService` działa synchronicznie — `TenantContext` jest już ustawiony, brak potrzeby `snapshot()`
+- `TwilioTelephonyAdapter` może być wołany z wątku asynchronicznego — sprawdź czy `TenantContext` jest dostępny; jeśli nie — przekaż `tenantId` explicite
+
+**Kryteria akceptacji:**
+- [ ] Połączenie przez IVR bez VOICEBOT → rekordy: IVR → QUEUE → AGENT (chronologicznie)
+- [ ] Połączenie przez IVR z węzłem VOICEBOT → rekordy: IVR → VOICEBOT → QUEUE → AGENT
+- [ ] VOICEBOT zakończony eskalacją → `outcome = "ESCALATED"` w metadata
+- [ ] Hold → rekord ON_HOLD; Unhold → nowy rekord AGENT
+- [ ] Blind transfer → AGENT zakończony + rekord TRANSFER z `transfer_type = "BLIND"` i `target`
+- [ ] Attended transfer → AGENT zakończony + CONSULTING → po potwierdzeniu: TRANSFER z `transfer_type = "ATTENDED"`
+- [ ] Anulowanie attended transfer → CONSULTING zakończony + nowy rekord AGENT (agent wraca)
+- [ ] ABANDONED w kolejce → rekord QUEUE (bez rekordu AGENT)
+- [ ] Błąd zapisu historii nie rzuca wyjątku do klienta — tylko WARN w logu
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-073 – Endpoint `GET /api/contacts/{id}/events` — historia etapów kontaktu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-071, BE-072
+**Status:** 🔲 Do zrobienia
+**Blokuje:** FE-075
+**Epic:** EPIC-23 Historia etapów kontaktu
+
+**Opis:**
+Nowy endpoint zwracający listę etapów kontaktu. Używany przez modal szczegółów kontaktu na frontendzie.
+
+**DTO — `ContactEventResponse.java`:**
+```java
+public record ContactEventResponse(
+    UUID eventId,
+    String stage,           // IVR | QUEUE | AGENT | ON_HOLD
+    Instant startedAt,
+    Instant endedAt,        // null jeśli etap trwa
+    Integer durationSeconds,
+    Map<String, Object> metadata
+) {
+    public static ContactEventResponse from(ContactEvent e) { ... }
+}
+```
+
+**Endpoint w `ContactController`:**
+```
+GET /api/contacts/{id}/events
+Authorization: AGENT (tylko własne kontakty), SUPERVISOR, ADMIN
+Response: List<ContactEventResponse>  (posortowana po startedAt ASC)
+HTTP 200 — lista (może być pusta)
+HTTP 404 — kontakt nie istnieje lub inny tenant
+HTTP 403 — AGENT próbuje pobrać historię cudzego kontaktu
+```
+
+**Implementacja w `ContactService`:**
+```java
+public List<ContactEventResponse> getContactEvents(
+        UUID contactId, UUID tenantId, UUID userId, boolean isAgent) {
+    // 1. Zweryfikuj istnienie i dostęp (użyj findContactOrThrow + sprawdzenie agentId)
+    // 2. Zwróć contactEventService.getHistory(contactId, tenantId)
+    //    .stream().map(ContactEventResponse::from).toList()
+}
+```
+
+**Uwagi implementacyjne:**
+- Dodaj endpoint do `SecurityConfig` i `TenantFilter.PUBLIC_PATH_PREFIXES` NIE jest potrzebne — endpoint wymaga JWT
+- `@PreAuthorize` lub logika w serwisie (wzorzec jak `getContact()`)
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/contacts/{id}/events` zwraca 200 z listą `ContactEventResponse`
+- [ ] Lista jest posortowana po `startedAt ASC`
+- [ ] Kontakt bez historii → pusta lista `[]`
+- [ ] Nieistniejący kontakt → 404
+- [ ] AGENT dla cudzego kontaktu → 409 (zgodnie z wzorcem `getContact()`)
+- [ ] Dokumentacja OpenAPI: endpoint opisany w Swagger UI
+- [ ] `mvn verify -pl app` przechodzi

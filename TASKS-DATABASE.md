@@ -1394,3 +1394,115 @@ COMMENT ON COLUMN contact.notes IS
 - [ ] Istniejące wiersze kontaktów nie są naruszone
 - [ ] `ALTER TABLE` propaguje na wszystkie partycje miesięczne (weryfikacja przez `\d+ contact_y2026m01` itp.)
 - [ ] Migracja idempotentna (`ADD COLUMN IF NOT EXISTS`)
+
+---
+
+## MODUŁ: Historia etapów kontaktu (EPIC-23)
+
+### DB-035 – Tabela `contact_event`: rejestracja etapów kontaktu (IVR, kolejka, agent, hold)
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-006 (tabela `contact`), DB-002 (tabela `tenant`)
+**Status:** 🔲 Do zrobienia
+**Blokuje:** BE-071, BE-072, BE-073
+**Epic:** EPIC-23 Historia etapów kontaktu
+**Flyway:** V059__create_contact_event.sql
+
+**Opis:**
+Każdy kontakt przechodzi przez kolejne etapy: IVR → Kolejka → Agent → (Hold → Agent → ...). Aktualnie tabela `contact` przechowuje tylko `queued_at` (wejście do kolejki) i `assigned_at` (przypisanie agenta) — brak czasu IVR i persystencji zdarzeń hold/unhold. Nowa tabela `contact_event` rejestruje każde zdarzenie z dokładnym znacznikiem czasu, umożliwiając pełną rekonstrukcję historii przepływu kontaktu.
+
+**DDL migracji (`V059__create_contact_event.sql`):**
+
+```sql
+CREATE TABLE contact_event (
+    event_id         UUID         NOT NULL DEFAULT uuid_generate_v4(),
+    contact_id       UUID         NOT NULL,
+    tenant_id        UUID         NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE,
+    stage            VARCHAR(20)  NOT NULL,
+    started_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    ended_at         TIMESTAMPTZ,
+    duration_seconds INT,
+    metadata         JSONB        NOT NULL DEFAULT '{}',
+    CONSTRAINT pk_contact_event PRIMARY KEY (event_id),
+    CONSTRAINT chk_contact_event_stage CHECK (
+        stage IN ('IVR', 'VOICEBOT', 'QUEUE', 'AGENT', 'ON_HOLD', 'CONSULTING', 'TRANSFER')
+    ),
+    CONSTRAINT chk_contact_event_times CHECK (
+        ended_at IS NULL OR ended_at >= started_at
+    )
+);
+
+COMMENT ON TABLE contact_event IS
+    'Historia etapów kontaktu. Jeden rekord per zdarzenie: wejście do IVR, '
+    'oczekiwanie w kolejce, obsługa przez agenta, wstrzymanie (hold). '
+    'metadata JSONB zawiera kontekst etapu: nazwę IVR, kolejki lub agenta.';
+
+COMMENT ON COLUMN contact_event.stage IS
+    'IVR = obsługa w drzewie IVR (węzły MENU/DTMF/PLAY_AUDIO), '
+    'VOICEBOT = obsługa przez bota ASR+NLU (węzeł VOICEBOT), '
+    'QUEUE = oczekiwanie w kolejce, '
+    'AGENT = obsługa przez agenta, '
+    'ON_HOLD = wstrzymanie połączenia, '
+    'CONSULTING = faza konsultacji przy attended transfer (agent rozmawia z celem przed przekazaniem), '
+    'TRANSFER = zdarzenie przekazania kontaktu (punkt w czasie, started_at = ended_at).';
+
+COMMENT ON COLUMN contact_event.metadata IS
+    'Kontekst etapu. '
+    'IVR/VOICEBOT: {"ivr_tree_id":"...", "ivr_tree_name":"...", "outcome":"ESCALATED|COMPLETED|ERROR"}. '
+    'QUEUE: {"queue_id":"...", "queue_name":"..."}. '
+    'AGENT: {"agent_id":"...", "agent_name":"..."}. '
+    'ON_HOLD: {}. '
+    'CONSULTING: {"target":"+48...", "transfer_type":"ATTENDED"}. '
+    'TRANSFER: {"target":"+48...", "transfer_type":"BLIND|ATTENDED", "target_agent_name":"..."}.';
+
+-- Trigger: automatyczne obliczanie duration_seconds przy zamknięciu etapu
+CREATE OR REPLACE FUNCTION fn_contact_event_on_update()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.ended_at IS NOT NULL AND OLD.ended_at IS NULL THEN
+        NEW.duration_seconds :=
+            EXTRACT(EPOCH FROM (NEW.ended_at - NEW.started_at))::INT;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_contact_event_on_update
+    BEFORE UPDATE ON contact_event
+    FOR EACH ROW EXECUTE FUNCTION fn_contact_event_on_update();
+
+-- Indeks główny: pobierz wszystkie etapy kontaktu posortowane chronologicznie
+CREATE INDEX idx_contact_event_contact
+    ON contact_event (contact_id, started_at ASC);
+
+-- Indeks tenant: zapytania raportowe i RLS
+CREATE INDEX idx_contact_event_tenant
+    ON contact_event (tenant_id, started_at DESC);
+
+-- RLS
+ALTER TABLE contact_event ENABLE ROW LEVEL SECURITY;
+CREATE POLICY contact_event_tenant_isolation ON contact_event
+    USING (tenant_id = current_setting('app.tenant_id', TRUE)::uuid);
+```
+
+**Semantyka etapów (`stage`):**
+| Etap | Znaczenie | Punkt startu | Punkt końca |
+|------|-----------|-------------|-------------|
+| `IVR` | Węzły MENU/DTMF/PLAY_AUDIO — interaktywne drzewo IVR | `IvrEngineService.startIvrSession()` | Wejście w węzeł VOICEBOT lub wyjście do kolejki |
+| `VOICEBOT` | Węzeł VOICEBOT — bot ASR+NLU prowadzi konwersację | Wejście w węzeł VOICEBOT | Eskalacja do kolejki lub przejście do `next` node |
+| `QUEUE` | Kontakt oczekuje na agenta | Publikacja `ContactQueuedMessage` | Agent odbiera kontakt |
+| `AGENT` | Agent obsługuje kontakt | Agent odpowiada | Zakończenie, hold lub transfer |
+| `ON_HOLD` | Połączenie wstrzymane | `holdCall()` | `unholdCall()` |
+| `CONSULTING` | Faza konsultacji — agent rozmawia z celem attended transfer zanim przekaże klienta | `transferCall(ATTENDED)` sukces | `completeAttendedTransfer()` lub `cancelTransfer()` |
+| `TRANSFER` | Zdarzenie przekazania — punkt w czasie (`started_at = ended_at`) | Transfer zakończony | = `started_at` |
+
+**Kryteria akceptacji:**
+- [ ] Migracja V059 aplikuje się bez błędów na dev i test
+- [ ] CHECK constraint `stage` akceptuje: IVR, VOICEBOT, QUEUE, AGENT, ON_HOLD, CONSULTING, TRANSFER i odrzuca inne
+- [ ] CHECK constraint `ended_at >= started_at` działa poprawnie (TRANSFER: `started_at = ended_at` jest dozwolone)
+- [ ] Trigger `trg_contact_event_on_update` oblicza `duration_seconds` przy ustawieniu `ended_at`
+- [ ] Indeks `idx_contact_event_contact` widoczny w `pg_indexes`
+- [ ] RLS policy izoluje zdarzenia między tenantami
+- [ ] Istniejące kontakty nie są naruszone (tabela pusta na starcie)

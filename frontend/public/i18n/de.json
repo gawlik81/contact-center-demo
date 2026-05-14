@@ -301,7 +301,9 @@
       "errorText": "Kundendaten können nicht geladen werden (Serverfehler).",
       "recentContacts": "Letzte Kontakte",
       "noHistory": "Keine Kontakthistorie",
-      "lookupError": "Kundendaten konnten nicht abgerufen werden."
+      "lookupError": "Kundendaten konnten nicht abgerufen werden.",
+      "noteExpand": "Mehr anzeigen",
+      "noteCollapse": "Weniger anzeigen"
     },
     "incomingCall": {
       "label": "Eingehender Anruf",

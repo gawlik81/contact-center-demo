@@ -150,7 +150,9 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   protected readonly _showTransferPanel = signal(false);
   protected readonly _showNotePanel = signal(false);
 
-  protected readonly currentNote = computed(() => this.tab.note ?? '');
+  protected readonly currentNote = computed(
+    () => this.tabStore.tabs().find((t) => t.id === this.tab.id)?.note ?? '',
+  );
 
   /** Whether the schedule-callback modal is open */
   protected readonly _showCallbackModal = signal(false);

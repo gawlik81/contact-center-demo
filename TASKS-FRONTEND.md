@@ -3063,7 +3063,8 @@ Po wdrożeniu BE-069 ten kod "ożyje" automatycznie. Zadanie obejmuje weryfikacj
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** BE-070 (pole `notes` w `ContactSummaryDto` → `CustomerLookupResponse`)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
 **Epic:** EPIC-22 Notatki do kontaktów
 
 **Opis:**

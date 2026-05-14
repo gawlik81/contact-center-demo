@@ -302,7 +302,9 @@
       "errorText": "Nie można pobrać danych klienta (błąd serwera).",
       "recentContacts": "Ostatnie kontakty",
       "noHistory": "Brak historii kontaktów",
-      "lookupError": "Nie udało się pobrać danych klienta."
+      "lookupError": "Nie udało się pobrać danych klienta.",
+      "noteExpand": "Pokaż więcej",
+      "noteCollapse": "Pokaż mniej"
     },
     "incomingCall": {
       "label": "Przychodzące połączenie",

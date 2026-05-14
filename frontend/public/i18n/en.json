@@ -302,7 +302,9 @@
       "errorText": "Unable to load customer data (server error).",
       "recentContacts": "Recent contacts",
       "noHistory": "No contact history",
-      "lookupError": "Failed to load customer data."
+      "lookupError": "Failed to load customer data.",
+      "noteExpand": "Show more",
+      "noteCollapse": "Show less"
     },
     "incomingCall": {
       "label": "Incoming call",

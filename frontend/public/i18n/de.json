@@ -263,6 +263,13 @@
       "scheduleCallback": "Rückruf planen",
       "scheduleCallbackLabel": "Rückruf planen",
       "callbackScheduled": "Rückruf geplant",
+      "note": "Notiz",
+      "noteLabel": "Notiz zum Anruf hinzufügen",
+      "noteBack": "Zurück",
+      "noteBackLabel": "Zurück zum Anruf",
+      "noteTitle": "Anrufnotiz",
+      "notePlaceholder": "Anrufnotiz eingeben...",
+      "noteHint": "Notiz erscheint im Dispositionsformular",
       "idle": "Warten auf Anruf..."
     },
     "disposition": {

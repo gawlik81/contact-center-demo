@@ -265,6 +265,11 @@
       "callbackScheduled": "Callback scheduled",
       "note": "Note",
       "noteLabel": "Add a note to the call",
+      "noteBack": "Back",
+      "noteBackLabel": "Back to call",
+      "noteTitle": "Call note",
+      "notePlaceholder": "Enter call note...",
+      "noteHint": "Note will appear in the disposition form",
       "idle": "Waiting for a call..."
     },
     "disposition": {

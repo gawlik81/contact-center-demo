@@ -118,6 +118,10 @@ export class ContactTabStore {
     this.updateTabStatus(id, 'WRAPPING');
   }
 
+  updateTabNote(id: string, note: string): void {
+    this.tabs.update((current) => current.map((t) => (t.id === id ? { ...t, note } : t)));
+  }
+
   private checkLimits(type: ContactType): TabLimitReason {
     if (this.totalTabCount() >= MAX_TOTAL_TABS) return 'MAX_TOTAL';
     if (type === 'PHONE' && this.phoneTabCount() >= MAX_PHONE_TABS) return 'MAX_PHONE';

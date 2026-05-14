@@ -11,6 +11,7 @@
   <app-disposition-panel
     [contactId]="wrappingTab()!.contactId"
     [customerName]="wrappingTab()!.customerName"
+    [prefillNotes]="wrappingTab()!.note ?? ''"
     (saved)="onDispositionSaved()"
   />
 }

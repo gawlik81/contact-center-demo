@@ -20,4 +20,6 @@ export interface ContactTab {
   direction?: CallDirection;
   /** Customer UUID – propagated from ContactAssignedPayload when available */
   customerId?: string;
+  /** Free-text note entered by agent during the call; pre-fills disposition form */
+  note?: string;
 }

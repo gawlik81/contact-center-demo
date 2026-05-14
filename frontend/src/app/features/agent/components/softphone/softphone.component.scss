@@ -621,6 +621,63 @@
     }
   }
 
+  // ── Note panel ───────────────────────────────────────────
+  &__note {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 14px;
+  }
+
+  &__note-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__note-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-1);
+    flex: 1;
+  }
+
+  &__note-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__note-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    color: var(--text-1);
+    background: var(--bg-input, var(--bg-surface));
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+    line-height: 1.5;
+    transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    &::placeholder {
+      color: var(--text-muted);
+    }
+  }
+
+  &__note-hint {
+    font-size: 0.6875rem;
+    color: var(--text-2);
+  }
+
   // ── Transferring spinner state ───────────────────────────
   &__transferring {
     display: flex;

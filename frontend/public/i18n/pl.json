@@ -265,6 +265,11 @@
       "callbackScheduled": "Oddzwonienie zaplanowane",
       "note": "Notatka",
       "noteLabel": "Dodaj notatkę do połączenia",
+      "noteBack": "Wróć",
+      "noteBackLabel": "Wróć do połączenia",
+      "noteTitle": "Notatka z rozmowy",
+      "notePlaceholder": "Wpisz notatkę do rozmowy...",
+      "noteHint": "Notatka będzie widoczna w formularzu dyspozycji",
       "idle": "Oczekiwanie na połączenie..."
     },
     "disposition": {

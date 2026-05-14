@@ -1352,3 +1352,45 @@ COMMENT ON INDEX idx_scheduled_callback_cc_record IS
 - [ ] Kolumna `campaign_contact_record_id` istnieje i przyjmuje NULL (dla non-campaign callbacków)
 - [ ] Indeks `idx_scheduled_callback_cc_record` istnieje z predykatem `IS NOT NULL AND is_deleted = FALSE`
 - [ ] Istniejące wiersze `scheduled_callback` nie są naruszone (kolumna domyślnie NULL)
+
+---
+
+## MODUŁ: Notatki do kontaktów (EPIC-22)
+
+### DB-034 – Kolumna `notes` w tabeli `contact` — migracja V058
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-006 (tabela `contact`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** BE-069, BE-070
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Agent może wpisać notatkę podczas obsługi połączenia telefonicznego (panel softphone). Notatka powinna zostać zapisana przy kontakcie i być prezentowana w widoku szczegółów kontaktu oraz w historii klienta w panelu agenta. Notatki mogą być długie — kolumna musi być typu `TEXT`.
+
+**DDL migracji (`V058__add_notes_to_contact.sql`):**
+
+```sql
+ALTER TABLE contact
+    ADD COLUMN IF NOT EXISTS notes TEXT;
+
+COMMENT ON COLUMN contact.notes IS
+    'Notatka agenta wpisana podczas lub po zakończeniu kontaktu. '
+    'Opcjonalna, bez limitu długości. Ustawiana przez PATCH /api/contacts/{id}/disposition.';
+```
+
+**Uwagi implementacyjne:**
+- Kolumna nullable — backward-compatible z istniejącymi kontaktami
+- Brak indeksu — pole nie jest używane w filtrach wyszukiwania, tylko do odczytu
+- Tabela jest partycjonowana RANGE po `started_at` — `ALTER TABLE ADD COLUMN` propaguje automatycznie na wszystkie partycje
+- RLS na tabeli `contact` pokrywa nową kolumnę bez dodatkowych zmian (policy oparta na `tenant_id`)
+
+**Kryteria akceptacji:**
+- [ ] Migracja `V058__add_notes_to_contact.sql` aplikuje się bez błędów na dev i test
+- [ ] Kolumna `notes TEXT` istnieje w tabeli `contact` i przyjmuje NULL
+- [ ] Istniejące wiersze kontaktów nie są naruszone
+- [ ] `ALTER TABLE` propaguje na wszystkie partycje miesięczne (weryfikacja przez `\d+ contact_y2026m01` itp.)
+- [ ] Migracja idempotentna (`ADD COLUMN IF NOT EXISTS`)

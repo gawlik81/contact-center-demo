@@ -3447,7 +3447,8 @@ contactEventService.openAgent(contactId, tenantId, agentId, agentName);
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** BE-071, BE-072
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
 **Blokuje:** FE-075
 **Epic:** EPIC-23 Historia etapów kontaktu
 

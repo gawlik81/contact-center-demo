@@ -7,6 +7,7 @@ import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.api.contact.dto.DispositionRequest;
 import com.contactcenter.api.contact.dto.EmailPreviewResponse;
+import com.contactcenter.api.contact.dto.ContactEventResponse;
 import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
@@ -694,6 +695,41 @@ public class ContactService {
                 message.getReceivedAt(),
                 message.getDirection()
         );
+    }
+
+    // =========================================================================
+    // Historia etapów kontaktu (BE-073)
+    // =========================================================================
+
+    /**
+     * Pobiera historię etapów kontaktu posortowaną chronologicznie.
+     *
+     * <p>AGENT może przeglądać historię tylko własnych kontaktów.
+     * SUPERVISOR/ADMIN mają dostęp do historii wszystkich kontaktów tenanta.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     * @param userId    UUID zalogowanego użytkownika (weryfikacja dla AGENT)
+     * @param isAgent   true gdy zalogowany użytkownik jest AGENT
+     * @return lista zdarzeń posortowana chronologicznie (może być pusta)
+     * @throws EntityNotFoundException   HTTP 404 gdy kontakt nie istnieje lub inny tenant
+     * @throws InvalidOperationException HTTP 409 gdy AGENT próbuje pobrać historię cudzego kontaktu
+     */
+    @Transactional(readOnly = true)
+    public List<ContactEventResponse> getContactEvents(
+            UUID contactId, UUID tenantId, UUID userId, boolean isAgent) {
+
+        Contact contact = findContactOrThrow(contactId, tenantId);
+
+        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Agent może przeglądać tylko historię własnych kontaktów: " + contactId);
+        }
+
+        return contactEventService.getHistory(contactId, tenantId)
+                .stream()
+                .map(ContactEventResponse::from)
+                .toList();
     }
 
     // =========================================================================

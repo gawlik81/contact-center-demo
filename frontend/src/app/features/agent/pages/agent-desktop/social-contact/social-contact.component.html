@@ -118,7 +118,11 @@
         <textarea
           class="social-reply__textarea"
           rows="3"
-          [attr.placeholder]="isReadOnly() ? ('agent.socialContact.inputReadonly' | transloco) : ('agent.socialContact.inputPlaceholder' | transloco)"
+          [attr.placeholder]="
+            isReadOnly()
+              ? ('agent.socialContact.inputReadonly' | transloco)
+              : ('agent.socialContact.inputPlaceholder' | transloco)
+          "
           [value]="replyText()"
           [disabled]="isReadOnly() || sending()"
           [attr.aria-label]="'agent.socialContact.inputLabel' | transloco"

@@ -1,28 +1,12 @@
-@use 'sass:color';
-
-$text-primary: #212121;
-$text-secondary: #616161;
-$border-color: #e2e8f0;
-$bg-white: #ffffff;
-$radius: 8px;
-$brand-blue: #1565c0;
-$brand-blue-dark: #0d47a1;
-$brand-blue-bg: #e3f2fd;
-$danger: #c62828;
-$danger-dark: #b71c1c;
-$danger-bg: #ffebee;
-
 .confirm-dialog {
   border: none;
-  border-radius: $radius;
+  border-radius: var(--radius-md);
   padding: 0;
-  box-shadow:
-    0 8px 16px rgba(0, 0, 0, 0.12),
-    0 24px 48px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-pop);
   width: 100%;
   max-width: 400px;
-  background: $bg-white;
-  color: $text-primary;
+  background: var(--bg-elevated);
+  color: var(--text-1);
   overflow: hidden;
 
   &[open] {
@@ -31,7 +15,7 @@ $danger-bg: #ffebee;
   }
 
   &::backdrop {
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklch, oklch(0% 0 0) 50%, transparent);
     backdrop-filter: blur(2px);
   }
 
@@ -50,7 +34,7 @@ $danger-bg: #ffebee;
     margin: 0;
     font-size: 0.9375rem;
     line-height: 1.5;
-    color: $text-primary;
+    color: var(--text-1);
   }
 
   &__actions {
@@ -67,7 +51,7 @@ $danger-bg: #ffebee;
   gap: 6px;
   padding: 8px 16px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -77,34 +61,34 @@ $danger-bg: #ffebee;
   white-space: nowrap;
 
   &:focus-visible {
-    outline: 2px solid $brand-blue;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 
   &-primary {
-    background: $brand-blue;
-    color: #fff;
+    background: var(--accent);
+    color: var(--accent-fg);
 
     &:hover:not(:disabled) {
-      background: $brand-blue-dark;
+      opacity: 0.88;
     }
   }
 
   &-secondary {
-    background: $brand-blue-bg;
-    color: $brand-blue;
+    background: var(--accent-soft);
+    color: var(--accent-text);
 
     &:hover:not(:disabled) {
-      background: color.adjust($brand-blue-bg, $lightness: -4%);
+      filter: brightness(0.96);
     }
   }
 
   &-danger {
-    background: $danger;
-    color: #fff;
+    background: var(--danger);
+    color: var(--accent-fg);
 
     &:hover:not(:disabled) {
-      background: $danger-dark;
+      opacity: 0.88;
     }
   }
 }

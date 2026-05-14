@@ -1,29 +1,5 @@
-@use 'sass:color';
-
-// ── Design tokens (local aliases – mirrors global :root) ─────────────────────
-$accent: #1565c0;
-$accent-dark: #0d47a1;
-$accent-light: #e3f2fd;
-$accent-ring: rgba(21, 101, 192, 0.18);
-
-$color-text-primary: var(--color-text-primary, #1e293b);
-$color-text-secondary: var(--color-text-secondary, #64748b);
-$color-text-muted: var(--color-text-muted, #94a3b8);
-
-$color-surface: var(--color-surface, #ffffff);
-$color-surface-2: var(--color-surface-2, #f8fafc);
-$color-border: var(--color-border, #e2e8f0);
-
-$color-danger: var(--color-danger, #c62828);
-$color-danger-bg: var(--color-danger-bg, #ffebee);
-$color-danger-border: #fca5a5;
-
-$radius-md: var(--radius-md, 6px);
-$radius-lg: var(--radius-lg, 10px);
-$radius-xl: var(--radius-xl, 12px);
-
-$ease-spring: var(--ease-spring, cubic-bezier(0.16, 1, 0.3, 1));
-$ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+$ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+$ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ── Dialog shell ──────────────────────────────────────────────────────────────
 .callback-dialog {
@@ -46,9 +22,9 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &__backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: color-mix(in oklch, oklch(0% 0 0) 60%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     z-index: 0;
     animation: backdrop-in 220ms $ease-standard forwards;
   }
@@ -57,14 +33,10 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &__panel {
     position: relative;
     z-index: 1;
-    background: $color-surface;
+    background: var(--bg-elevated);
     border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.8);
-    box-shadow:
-      0 0 0 1px rgba(21, 101, 192, 0.08),
-      0 4px 6px rgba(0, 0, 0, 0.04),
-      0 10px 25px rgba(0, 0, 0, 0.1),
-      0 30px 60px rgba(0, 0, 0, 0.12);
+    border: 1px solid var(--border-1);
+    box-shadow: var(--shadow-pop);
     width: 100%;
     max-width: 520px;
     margin: 16px;
@@ -80,8 +52,8 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     align-items: center;
     gap: 14px;
     padding: 20px 20px 20px 24px;
-    background: linear-gradient(135deg, $accent-light 0%, #e8f4fd 100%);
-    border-bottom: 1px solid rgba(21, 101, 192, 0.12);
+    background: var(--accent-soft);
+    border-bottom: 1px solid color-mix(in oklch, var(--accent) 12%, transparent);
     position: relative;
 
     // Left accent bar
@@ -92,7 +64,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
       top: 0;
       bottom: 0;
       width: 3px;
-      background: linear-gradient(180deg, $accent 0%, $accent-dark 100%);
+      background: linear-gradient(180deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
       border-radius: 0 2px 2px 0;
     }
   }
@@ -102,14 +74,14 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background: linear-gradient(135deg, $accent 0%, $accent-dark 100%);
-    color: #fff;
+    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+    color: var(--accent-fg);
     display: flex;
     align-items: center;
     justify-content: center;
     box-shadow:
-      0 4px 8px rgba(21, 101, 192, 0.3),
-      0 1px 2px rgba(21, 101, 192, 0.2);
+      0 4px 8px color-mix(in oklch, var(--accent) 30%, transparent),
+      0 1px 2px color-mix(in oklch, var(--accent) 20%, transparent);
 
     svg {
       width: 20px;
@@ -125,14 +97,14 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &__title {
     font-size: 1rem;
     font-weight: 600;
-    color: #0d47a1;
+    color: var(--accent-text);
     margin: 0 0 2px;
     letter-spacing: -0.01em;
   }
 
   &__subtitle {
     font-size: 0.8125rem;
-    color: $accent;
+    color: var(--accent-text);
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -145,9 +117,9 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     width: 32px;
     height: 32px;
     border: none;
-    background: rgba(21, 101, 192, 0.08);
+    background: color-mix(in oklch, var(--accent) 8%, transparent);
     border-radius: 8px;
-    color: $accent;
+    color: var(--accent-text);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -163,8 +135,9 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
 
     &:hover:not(:disabled) {
-      background: rgba(21, 101, 192, 0.16);
-      color: $accent-dark;
+      background: color-mix(in oklch, var(--accent) 16%, transparent);
+      color: var(--accent-text);
+      filter: brightness(0.85);
     }
 
     &:active:not(:disabled) {
@@ -172,7 +145,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
 
     &:focus-visible {
-      outline: 2px solid $accent;
+      outline: 2px solid var(--accent);
       outline-offset: 2px;
     }
 
@@ -193,7 +166,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 
     // Custom scrollbar
     scrollbar-width: thin;
-    scrollbar-color: rgba(21, 101, 192, 0.2) transparent;
+    scrollbar-color: color-mix(in oklch, var(--accent) 20%, transparent) transparent;
 
     &::-webkit-scrollbar {
       width: 4px;
@@ -204,7 +177,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
 
     &::-webkit-scrollbar-thumb {
-      background: rgba(21, 101, 192, 0.2);
+      background: color-mix(in oklch, var(--accent) 20%, transparent);
       border-radius: 2px;
     }
   }
@@ -212,12 +185,12 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   // Footer
   &__footer {
     padding: 16px 24px;
-    border-top: 1px solid $color-border;
+    border-top: 1px solid var(--border-1);
     display: flex;
     justify-content: flex-end;
     align-items: center;
     gap: 10px;
-    background: $color-surface-2;
+    background: var(--bg-subtle);
   }
 
   // Error banner
@@ -226,10 +199,10 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     align-items: flex-start;
     gap: 10px;
     padding: 12px 14px;
-    background: $color-danger-bg;
-    border: 1px solid $color-danger-border;
-    border-radius: $radius-lg;
-    color: $color-danger;
+    background: var(--danger-soft);
+    border: 1px solid color-mix(in oklch, var(--danger) 30%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--danger-text);
     font-size: 0.875rem;
     line-height: 1.5;
 
@@ -251,7 +224,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   display: flex;
   align-items: center;
   gap: 10px;
-  color: $color-text-muted;
+  color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -263,7 +236,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     content: '';
     flex: 1;
     height: 1px;
-    background: $color-border;
+    background: var(--border-1);
   }
 }
 
@@ -288,14 +261,14 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &--prominent {
     .form-field__input-wrapper {
       box-shadow:
-        0 0 0 1px rgba(21, 101, 192, 0.15),
-        0 2px 8px rgba(21, 101, 192, 0.08);
+        0 0 0 1px color-mix(in oklch, var(--accent) 15%, transparent),
+        0 2px 8px color-mix(in oklch, var(--accent) 8%, transparent);
     }
 
     .form-field__input {
       font-size: 1.0625rem;
       font-weight: 500;
-      color: $color-text-primary;
+      color: var(--text-1);
     }
   }
 
@@ -313,7 +286,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
         width: 18px;
         height: 18px;
         pointer-events: none;
-        background-color: $accent;
+        background-color: var(--accent);
         mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z'/%3E%3C/svg%3E");
         mask-repeat: no-repeat;
         mask-size: contain;
@@ -332,7 +305,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     gap: 6px;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: $color-text-primary;
+    color: var(--text-1);
     letter-spacing: 0.01em;
   }
 
@@ -341,7 +314,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     align-items: center;
     width: 15px;
     height: 15px;
-    color: $accent;
+    color: var(--accent-text);
     opacity: 0.8;
 
     svg {
@@ -351,7 +324,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   }
 
   &__required {
-    color: $color-danger;
+    color: var(--danger-text);
     margin-left: 1px;
     font-weight: 400;
   }
@@ -359,7 +332,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &__optional {
     font-size: 0.6875rem;
     font-weight: 400;
-    color: $color-text-muted;
+    color: var(--text-muted);
   }
 
   // Input wrapper (for prefix + field combos)
@@ -367,18 +340,16 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     position: relative;
     display: flex;
     align-items: center;
-    border: 1.5px solid $color-border;
-    border-radius: $radius-lg;
-    background: $color-surface;
+    border: 1.5px solid var(--border-1);
+    border-radius: var(--radius-md);
+    background: var(--bg-input, var(--bg-surface));
     transition:
       border-color 180ms $ease-standard,
       box-shadow 180ms $ease-standard;
 
     &:focus-within {
-      border-color: $accent;
-      box-shadow:
-        0 0 0 3px $accent-ring,
-        0 1px 4px rgba(21, 101, 192, 0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
   }
 
@@ -388,36 +359,34 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     min-width: 0;
     padding: 11px 12px;
     font-size: 0.9375rem;
-    color: $color-text-primary;
+    color: var(--text-1);
     background: transparent;
-    border: 1.5px solid $color-border;
-    border-radius: $radius-lg;
+    border: 1.5px solid var(--border-1);
+    border-radius: var(--radius-md);
     font-family: inherit;
     transition:
       border-color 180ms $ease-standard,
       box-shadow 180ms $ease-standard;
 
     &::placeholder {
-      color: $color-text-muted;
+      color: var(--text-muted);
       font-weight: 400;
     }
 
     &:focus {
       outline: none;
-      border-color: $accent;
-      box-shadow:
-        0 0 0 3px $accent-ring,
-        0 1px 4px rgba(21, 101, 192, 0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
 
     &:hover:not(:focus) {
-      border-color: #cbd5e1;
+      border-color: var(--border-2, var(--border-1));
     }
 
     // When inside a wrapper – no standalone border
     .form-field__input-wrapper & {
       border: none;
-      border-radius: 0 $radius-lg $radius-lg 0;
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
       box-shadow: none;
       padding-left: 10px;
 
@@ -428,7 +397,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
 
     &--error {
-      border-color: $color-danger !important;
+      border-color: var(--danger) !important;
 
       .form-field__input-wrapper & {
         border: none;
@@ -440,7 +409,6 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
       padding-right: 40px;
       color-scheme: light;
 
-      // Style the date-picker calendar icon in Chromium
       &::-webkit-calendar-picker-indicator {
         opacity: 0;
         position: absolute;
@@ -454,50 +422,46 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 
   // Wrapper error state
   &__input-wrapper:has(.form-field__input--error) {
-    border-color: $color-danger;
-    box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1);
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px var(--danger-soft);
   }
 
   // Textarea
   &__textarea {
     padding: 11px 12px;
     font-size: 0.875rem;
-    color: $color-text-primary;
-    border: 1.5px solid $color-border;
-    border-radius: $radius-lg;
+    color: var(--text-1);
+    border: 1.5px solid var(--border-1);
+    border-radius: var(--radius-md);
     resize: vertical;
     font-family: inherit;
     line-height: 1.6;
-    background: $color-surface;
+    background: var(--bg-input, var(--bg-surface));
     transition:
       border-color 180ms $ease-standard,
       box-shadow 180ms $ease-standard;
     min-height: 80px;
 
     &::placeholder {
-      color: $color-text-muted;
+      color: var(--text-muted);
     }
 
     &:hover:not(:focus) {
-      border-color: #cbd5e1;
+      border-color: var(--border-2, var(--border-1));
     }
 
     &:focus {
       outline: none;
-      border-color: $accent;
-      box-shadow:
-        0 0 0 3px $accent-ring,
-        0 1px 4px rgba(21, 101, 192, 0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
 
     &--near-limit {
-      border-color: #f59e0b;
+      border-color: var(--warning);
 
       &:focus {
-        border-color: #f59e0b;
-        box-shadow:
-          0 0 0 3px rgba(245, 158, 11, 0.18),
-          0 1px 4px rgba(245, 158, 11, 0.1);
+        border-color: var(--warning);
+        box-shadow: 0 0 0 3px var(--warning-soft);
       }
     }
   }
@@ -510,7 +474,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
       display: flex;
       align-items: center;
       gap: 5px;
-      color: $color-danger;
+      color: var(--danger-text);
 
       svg {
         flex-shrink: 0;
@@ -529,11 +493,11 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &__char-count {
     font-size: 0.6875rem;
     font-weight: 500;
-    color: $color-text-muted;
+    color: var(--text-muted);
     transition: color 180ms $ease-standard;
 
     &--warning {
-      color: #b45309;
+      color: var(--warning-text);
     }
   }
 }
@@ -545,7 +509,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   justify-content: center;
   gap: 7px;
   padding: 10px 20px;
-  border-radius: $radius-lg;
+  border-radius: var(--radius-md);
   font-size: 0.9375rem;
   font-weight: 500;
   font-family: inherit;
@@ -562,24 +526,24 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     transform: scale(0.97);
   }
 
-  // Primary – brand blue gradient
+  // Primary – brand accent gradient
   &--primary {
-    background: linear-gradient(135deg, $accent 0%, $accent-dark 100%);
-    color: #fff;
+    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+    color: var(--accent-fg);
     box-shadow:
-      0 1px 2px rgba(13, 71, 161, 0.3),
-      0 4px 12px rgba(21, 101, 192, 0.25);
+      0 1px 2px color-mix(in oklch, var(--accent) 30%, transparent),
+      0 4px 12px color-mix(in oklch, var(--accent) 25%, transparent);
 
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, color.adjust(#1565c0, $lightness: 6%) 0%, $accent 100%);
+      opacity: 0.92;
       box-shadow:
-        0 2px 4px rgba(13, 71, 161, 0.35),
-        0 6px 16px rgba(21, 101, 192, 0.3);
+        0 2px 4px color-mix(in oklch, var(--accent) 35%, transparent),
+        0 6px 16px color-mix(in oklch, var(--accent) 30%, transparent);
       transform: translateY(-1px);
     }
 
     &:focus-visible {
-      outline: 2px solid $accent;
+      outline: 2px solid var(--accent);
       outline-offset: 3px;
     }
 
@@ -596,7 +560,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 
   // Loading state for primary button
   &--loading {
-    background: linear-gradient(135deg, $accent 0%, $accent-dark 100%) !important;
+    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%) !important;
     opacity: 0.85;
     cursor: wait;
     pointer-events: none;
@@ -605,17 +569,17 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   // Ghost / outline – cancel button
   &--ghost {
     background: transparent;
-    color: $color-text-secondary;
-    border: 1.5px solid $color-border;
+    color: var(--text-2);
+    border: 1.5px solid var(--border-1);
 
     &:hover:not(:disabled) {
-      background: $color-surface-2;
-      border-color: #cbd5e1;
-      color: $color-text-primary;
+      background: var(--bg-subtle);
+      border-color: var(--border-2, var(--border-1));
+      color: var(--text-1);
     }
 
     &:focus-visible {
-      outline: 2px solid $accent;
+      outline: 2px solid var(--accent);
       outline-offset: 3px;
     }
 

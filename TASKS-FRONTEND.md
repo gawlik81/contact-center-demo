@@ -2921,3 +2921,86 @@ maxAttempts: new FormControl(3, [
 - [ ] Wartości zapisywane na `POST /api/campaigns` i `PUT /api/campaigns/{id}`
 - [ ] Wartości ładowane poprawnie przy edycji istniejącej kampanii
 - [ ] Helptexty/tooltips przy obu polach
+
+---
+
+## MODUŁ: Ad hoc połączenia i email z panelu agenta
+
+### FE-071 – Przycisk „Zadzwoń" na karcie klienta i w szufladzie szczegółów
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-067
+**Status:** [ ] Do zrobienia
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Dodanie przycisku „Zadzwoń" do `AgentCustomerCardComponent` oraz do szuflady szczegółów klienta w `AgentCustomersTabComponent`. Po kliknięciu:
+- Jeśli klient ma jeden numer telefonu — od razu inicjuje połączenie
+- Jeśli klient ma wiele numerów — wyświetla mini-dropdown z wyborem numeru
+- Po wyborze numeru: wywołuje `POST /api/telephony/calls/outbound` i pokazuje powiadomienie sukcesu/błędu
+
+**Implementacja:**
+- `AgentCustomerCardComponent`: nowy `@Output() initiateCall = new EventEmitter<{customer, phoneNumber}>()`
+- Nowy przycisk z ikoną telefonu (`customer-card__btn--call`) — zielony akcent, widoczny gdy `customer.phone.length > 0`
+- `AgentCustomersTabComponent.onInitiateCall()`: wywołuje nowy `OutboundCallService.call(phoneNumber, customerId)`
+- `OutboundCallService` (nowy, `providedIn: 'root'`): HTTP `POST /api/telephony/calls/outbound`, zwraca `Observable<{contactId, callId}>`
+- Szuflada szczegółów: analogiczny przycisk obok istniejącego „Zamów oddzwonienie"
+- Po sukcesie: `NotificationService.success('Połączenie zainicjowane')` + opcjonalne przejście do zakładki desktop
+- i18n: `agent.customers.initiateCall`, `agent.customers.selectPhone`, `agent.customers.callInitiated`, `agent.customers.callError`
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Zadzwoń" widoczny na karcie gdy klient ma ≥1 numer telefonu
+- [ ] Klient z 1 numerem: kliknięcie od razu inicjuje połączenie (bez dropdown)
+- [ ] Klient z wieloma numerami: dropdown z listą numerów przed wywołaniem
+- [ ] Wywołanie `POST /api/telephony/calls/outbound` z poprawnym `phoneNumber` i `customerId`
+- [ ] Sukces: powiadomienie toast
+- [ ] Błąd HTTP: powiadomienie z komunikatem błędu
+- [ ] Brak numeru: przycisk niewidoczny lub disabled
+- [ ] Tłumaczenia w pl.json i en.json
+
+---
+
+### FE-072 – Modal „Wyślij email" do klienta ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-068
+**Status:** [ ] Do zrobienia
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila do klienta, otwierany z karty klienta lub szuflady szczegółów. Formularz zawiera: pole `Do` (pre-wypełnione adresem klienta, edytowalne), `Temat`, edytor treści HTML (lub textarea), przycisk „Wyślij".
+
+**Plik:** `frontend/src/app/features/agent/pages/customers/adhoc-email-modal/adhoc-email-modal.component.ts`
+
+**Implementacja:**
+- Standalone component, `ChangeDetectionStrategy.OnPush`
+- `@Input() customer: CustomerSummary` — do pre-wypełnienia pola `Do`
+- `@Output() sent = new EventEmitter<void>()`
+- `@Output() cancelled = new EventEmitter<void>()`
+- Formularz reaktywny (`ReactiveFormsModule`): `toAddress` (@Email, pre-fill z `customer.email[0]` jeśli istnieje), `subject` (required, max 500), `bodyHtml` (textarea, required)
+- Jeśli klient ma wiele emaili: dropdown wyboru adresu (zamiast ręcznego wpisywania)
+- Serwis: `EmailService.sendOutbound(toAddress, subject, bodyHtml, customerId)` — nowa metoda wywołująca `POST /api/email/messages/outbound`
+- Po sukcesie: `sent.emit()`, zamknięcie modala, toast sukcesu
+- Po błędzie: komunikat w modalu (nie toast) — np. „Brak konfiguracji SMTP" lub „Błąd wysyłki"
+- Integracja w `AgentCustomersTabComponent`:
+  - Nowy `@Output() sendEmail` na `AgentCustomerCardComponent` → `onSendEmail(customer)` w tabie
+  - Signal `emailCustomer = signal<CustomerSummary | null>(null)`
+  - `@if (emailCustomer()) { <app-adhoc-email-modal ... /> }`
+- Szuflada szczegółów: przycisk „Wyślij email" obok „Zamów oddzwonienie"
+- i18n: `agent.customers.sendEmail`, `agent.adhocEmail.title`, `agent.adhocEmail.toLabel`, `agent.adhocEmail.subjectLabel`, `agent.adhocEmail.bodyLabel`, `agent.adhocEmail.send`, `agent.adhocEmail.cancel`, `agent.adhocEmail.sent`, `agent.adhocEmail.errorNoSmtp`, `agent.adhocEmail.errorSend`
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Wyślij email" widoczny na karcie gdy klient ma ≥1 adres email
+- [ ] Kliknięcie otwiera modal z pre-wypełnionym polem `Do`
+- [ ] Klient z wieloma emailami: dropdown wyboru adresu
+- [ ] Walidacja formularza: `toAddress` poprawny email, `subject` i `bodyHtml` niepuste
+- [ ] Kliknięcie „Wyślij" wywołuje `POST /api/email/messages/outbound`
+- [ ] Sukces: modal zamknięty, toast z potwierdzeniem
+- [ ] Błąd SMTP: komunikat wewnątrz modala (nie toast), modal pozostaje otwarty
+- [ ] Anulowanie: modal zamknięty, brak wywołania API
+- [ ] Tłumaczenia w pl.json i en.json
+- [ ] Brak emaila klienta: przycisk niewidoczny lub disabled

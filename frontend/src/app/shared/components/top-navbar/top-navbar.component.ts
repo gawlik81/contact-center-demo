@@ -4,6 +4,7 @@ import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserRole } from '../../../core/models/jwt-payload.model';
 import { LanguageSwitcherComponent } from '../language-switcher/language-switcher.component';
+import { ThemeService, ThemeMode } from '../../../core/services/theme.service';
 
 @Component({
   selector: 'cc-top-navbar',
@@ -15,6 +16,7 @@ import { LanguageSwitcherComponent } from '../language-switcher/language-switche
 export class TopNavbarComponent {
   protected readonly auth = inject(AuthService);
   private readonly transloco = inject(TranslocoService);
+  protected readonly theme = inject(ThemeService);
 
   /** Whether the sidenav is currently open (used for aria-expanded) */
   readonly sidenavOpen = input<boolean>(false);
@@ -28,6 +30,10 @@ export class TopNavbarComponent {
 
   onLogout(): void {
     this.auth.logout();
+  }
+
+  setTheme(mode: ThemeMode): void {
+    this.theme.setMode(mode);
   }
 
   getRoleBadgeClass(role: UserRole | null): string {

@@ -2951,3 +2951,92 @@ redisTemplate.delete("dialer:callback-attempt:" + callSid);
 - [ ] Klucz Redis `dialer:callback-attempt:{callSid}` czyszczony po obsłudze
 - [ ] Dla callbacków bez `campaignId`: brak zmian w działaniu (backward compatible)
 - [ ] Test jednostkowy: callback attempt nie inkrementuje `attempt_count`
+
+---
+
+## MODUŁ: Ad hoc połączenia i email z panelu agenta
+
+### BE-067 – Endpoint `POST /api/telephony/calls/outbound` — inicjowanie wychodzącego połączenia ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-001, BE-030 (TelephonyAdapter.initiateCall)
+**Status:** [x] Zrobione
+**Blokuje:** FE-071
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy endpoint REST umożliwiający agentowi zainicjowanie wychodzącego połączenia telefonicznego do dowolnego numeru (ad hoc, bez kampanii). Reużywa istniejącego `TelephonyAdapter.initiateCall()`. Numer `from` pobierany z konfiguracji Twilio tenanta (`TenantTwilioConfig.phoneNumber`), analogicznie jak w `ProgressiveDialerService`.
+
+**Endpoint:**
+```
+POST /api/telephony/calls/outbound
+Body: { "phoneNumber": "+48123456789", "customerId": "uuid" (opcjonalne) }
+Response 200: { "contactId": "uuid", "callId": "string" }
+```
+
+**Implementacja:**
+- Kontroler: `AgentCallController` — nowa metoda `initiateOutboundCall()`
+- DTO request: `OutboundCallRequest` (record) — `phoneNumber` (@Pattern E.164, @NotBlank), `customerId` (UUID, nullable)
+- DTO response: `OutboundCallResponse` (record) — `contactId`, `callId`
+- Walidacja: numer E.164 przez Bean Validation
+- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")`
+- Logika: `telephonyAdapter.initiateCall(tenantId, resolvedFromNumber, phoneNumber, agentId, null, null)`
+- `resolvedFromNumber`: odczyt z `TenantTwilioConfig` (jeśli null — `TwilioProperties.defaultFrom` lub pusty string dla mock)
+- Wynik: kontakt tworzony przez adapter (jak dla callbacków); zwróć `contactId` i `callId` z `CallSession`
+- Nie tworzy `ScheduledCallback`; `queueId=null`, `callbackId=null`
+
+**Kryteria akceptacji:**
+- [x] `POST /api/telephony/calls/outbound` z poprawnym numerem E.164 zwraca 200 z `contactId` i `callId`
+- [x] Niepoprawny format numeru zwraca 400 (Bean Validation)
+- [x] Agent bez tokenu JWT otrzymuje 401
+- [ ] Dla Mock adaptera: nowy kontakt OUTBOUND tworzony w DB, event `CALL_ASSIGNED` wysłany WS do agenta
+- [ ] Dla Twilio adaptera: połączenie inicjowane przez Twilio REST API
+- [x] Dokumentacja OpenAPI uzupełniona
+
+---
+
+### BE-068 – Endpoint `POST /api/email/messages/outbound` — wysyłka nowego emaila ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-001, BE-038 (EmailSendService)
+**Status:** [ ] Do zrobienia
+**Blokuje:** FE-072
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy endpoint REST do wysyłki nowej wiadomości email (nie odpowiedzi na istniejącą). Reużywa infrastruktury SMTP z `EmailSendService`, ale bez wymagania `originalMessageId`. Tworzy nowy wątek emailowy.
+
+**Endpoint:**
+```
+POST /api/email/messages/outbound
+Body: {
+  "toAddress": "klient@example.com",
+  "subject": "Temat",
+  "bodyHtml": "<p>Treść</p>",
+  "customerId": "uuid" (opcjonalne)
+}
+Response 200: EmailMessageResponse
+```
+
+**Implementacja:**
+- Kontroler: `EmailController` — nowa metoda `sendOutboundEmail()`
+- DTO request: `OutboundEmailRequest` (record) — `toAddress` (@Email, @NotBlank), `subject` (@NotBlank, max 500), `bodyHtml` (@NotBlank), `customerId` (UUID, nullable)
+- Logika w nowej metodzie `EmailSendService.sendNew()`:
+  - Pobiera konfigurację SMTP tenanta (jak w `sendReply`)
+  - Generuje nowy `Message-ID`, brak nagłówków `In-Reply-To` / `References`
+  - Wywołuje `sendSmtp()` bez `inReplyTo` i `references` (null)
+  - Zapisuje `EmailMessage` z `direction=OUTBOUND`, `contactId` = null lub powiązany z `customerId` jeśli podano
+  - Opcjonalnie: tworzy kontakt typu EMAIL_OUTBOUND jeśli `customerId` podano (przez `EmailContactCreator` lub bezpośrednio)
+- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")`
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/email/messages/outbound` z poprawnymi danymi zwraca 200 z `EmailMessageResponse`
+- [ ] Brak skonfigurowanego SMTP → 422/500 z czytelnym komunikatem
+- [ ] `toAddress` nie jest emailem → 400 (Bean Validation)
+- [ ] Wiadomość zapisana w DB jako `direction=OUTBOUND`
+- [ ] Wysyłka przez SMTP przebiega poprawnie (test integracyjny z mock SMTP lub Greenmail)
+- [ ] Dokumentacja OpenAPI uzupełniona

@@ -42,6 +42,13 @@ export interface SendReplyRequest {
   templateVariables?: Record<string, string>;
 }
 
+export interface SendOutboundEmailRequest {
+  toAddress: string;
+  subject: string;
+  bodyHtml: string;
+  customerId?: string;
+}
+
 export interface CreateTemplateRequest {
   name: string;
   subjectTemplate: string;
@@ -106,5 +113,9 @@ export class EmailService {
 
   deleteTemplate(id: string): Observable<void> {
     return this.http.delete<void>(`/api/email-templates/${id}`);
+  }
+
+  sendOutbound(request: SendOutboundEmailRequest): Observable<EmailMessage> {
+    return this.http.post<EmailMessage>(`${this.baseUrl}/messages/outbound`, request);
   }
 }

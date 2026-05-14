@@ -263,6 +263,8 @@
       "scheduleCallback": "Schedule callback",
       "scheduleCallbackLabel": "Schedule callback",
       "callbackScheduled": "Callback scheduled",
+      "note": "Note",
+      "noteLabel": "Add a note to the call",
       "idle": "Waiting for a call..."
     },
     "disposition": {
@@ -284,7 +286,8 @@
       "statusChanged": "Status changed to Available."
     },
     "customerPanel": {
-      "empty": "No active contact",
+      "empty": "Customer card will appear here when a contact is assigned.",
+      "emptyTitle": "No active contact",
       "loadingLabel": "Loading customer data",
       "unknownTitle": "Unknown customer",
       "unknownDesc": "No customer profile for this phone number.",
@@ -651,7 +654,28 @@
       "scheduleCallback": "Schedule callback",
       "closeDetails": "Close details",
       "details": "Details",
-      "callbackFor": "Schedule callback for"
+      "callbackFor": "Schedule callback for",
+      "initiateCall": "Call",
+      "selectPhone": "Select phone number",
+      "callInitiated": "Call initiated successfully",
+      "callError": "Failed to initiate call",
+      "sendEmail": "Send email"
+    },
+    "adhocEmail": {
+      "title": "Send email to customer",
+      "toLabel": "To",
+      "subjectLabel": "Subject",
+      "bodyLabel": "Message body",
+      "send": "Send",
+      "cancel": "Cancel",
+      "sent": "Email sent successfully",
+      "errorNoSmtp": "No SMTP configuration. Please contact your administrator.",
+      "errorSend": "Failed to send email. Please try again.",
+      "toRequired": "Email address is required.",
+      "toInvalid": "Please enter a valid email address.",
+      "subjectRequired": "Subject is required.",
+      "subjectMaxLength": "Subject cannot exceed 500 characters.",
+      "bodyRequired": "Message body is required."
     },
     "manualCallbackModal": {
       "title": "Schedule callback",

@@ -4,11 +4,7 @@ import { LoggingService } from './services/logging.service';
 /** Detects a chunk-load failure caused by a stale HTML referencing old build hashes. */
 function isChunkLoadError(error: unknown): boolean {
   const msg =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : String(error);
+    error instanceof Error ? error.message : typeof error === 'string' ? error : String(error);
   return (
     msg.includes('Failed to fetch dynamically imported module') ||
     msg.includes('ChunkLoadError') ||

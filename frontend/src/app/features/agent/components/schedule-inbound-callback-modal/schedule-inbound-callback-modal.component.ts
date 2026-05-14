@@ -140,9 +140,13 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
           if (err.status === 404) {
-            this.errorMessage.set(this.transloco.translate('agent.scheduleCallback.errorContactNotFound'));
+            this.errorMessage.set(
+              this.transloco.translate('agent.scheduleCallback.errorContactNotFound'),
+            );
           } else if (err.status === 403) {
-            this.errorMessage.set(this.transloco.translate('agent.scheduleCallback.errorForbidden'));
+            this.errorMessage.set(
+              this.transloco.translate('agent.scheduleCallback.errorForbidden'),
+            );
           } else {
             this.errorMessage.set(this.transloco.translate('agent.scheduleCallback.errorGeneric'));
           }
@@ -155,9 +159,13 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
       )
       .subscribe((dto) => {
         this.loading.set(false);
-        const formattedDate = new Date(dto.scheduledAt).toLocaleString(this.transloco.getActiveLang());
+        const formattedDate = new Date(dto.scheduledAt).toLocaleString(
+          this.transloco.getActiveLang(),
+        );
         this.notifications.success(
-          this.transloco.translate('agent.scheduleCallback.successScheduled', { date: formattedDate }),
+          this.transloco.translate('agent.scheduleCallback.successScheduled', {
+            date: formattedDate,
+          }),
         );
         this.dialogRef().nativeElement.close();
         this.scheduled.emit(dto);

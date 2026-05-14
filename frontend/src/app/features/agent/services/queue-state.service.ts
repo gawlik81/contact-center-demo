@@ -11,11 +11,9 @@ export class QueueStateService {
   readonly queueItems = signal<QueueItem[]>([]);
 
   constructor() {
-    this.ws.events$
-      .pipe(filter((e: WsEvent) => e.eventType === 'QUEUE_UPDATE'))
-      .subscribe((e) => {
-        const payload = e.payload as QueueUpdatePayload;
-        this.queueItems.set(payload.items ?? []);
-      });
+    this.ws.events$.pipe(filter((e: WsEvent) => e.eventType === 'QUEUE_UPDATE')).subscribe((e) => {
+      const payload = e.payload as QueueUpdatePayload;
+      this.queueItems.set(payload.items ?? []);
+    });
   }
 }

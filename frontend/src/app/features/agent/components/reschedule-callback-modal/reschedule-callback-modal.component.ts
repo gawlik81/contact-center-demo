@@ -99,7 +99,8 @@ export class RescheduleCallbackModalComponent implements OnInit {
   get scheduledDateError(): string | null {
     const ctrl = this.form.controls.scheduledDate;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('agent.rescheduleCallback.dateRequired');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('agent.rescheduleCallback.dateRequired');
     return null;
   }
 
@@ -160,11 +161,17 @@ export class RescheduleCallbackModalComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
           if (err.status === 409) {
-            this.errorMessage.set(this.transloco.translate('agent.rescheduleCallback.errorNotPending'));
+            this.errorMessage.set(
+              this.transloco.translate('agent.rescheduleCallback.errorNotPending'),
+            );
           } else if (err.status === 403) {
-            this.errorMessage.set(this.transloco.translate('agent.rescheduleCallback.errorForbidden'));
+            this.errorMessage.set(
+              this.transloco.translate('agent.rescheduleCallback.errorForbidden'),
+            );
           } else {
-            this.errorMessage.set(this.transloco.translate('agent.rescheduleCallback.errorGeneric'));
+            this.errorMessage.set(
+              this.transloco.translate('agent.rescheduleCallback.errorGeneric'),
+            );
           }
           return EMPTY;
         }),
@@ -174,7 +181,9 @@ export class RescheduleCallbackModalComponent implements OnInit {
         this.loading.set(false);
         const newDate = new Date(dto.scheduledAt).toLocaleString(this.transloco.getActiveLang());
         this.notifications.success(
-          this.transloco.translate('agent.rescheduleCallback.successRescheduled', { date: newDate }),
+          this.transloco.translate('agent.rescheduleCallback.successRescheduled', {
+            date: newDate,
+          }),
         );
         this.dialogRef().nativeElement.close();
         this.rescheduled.emit(dto);

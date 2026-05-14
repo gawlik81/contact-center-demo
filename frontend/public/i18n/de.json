@@ -651,7 +651,11 @@
       "scheduleCallback": "Rückruf planen",
       "closeDetails": "Details schließen",
       "details": "Details",
-      "callbackFor": "Rückruf planen für"
+      "callbackFor": "Rückruf planen für",
+      "initiateCall": "Anrufen",
+      "selectPhone": "Telefonnummer auswählen",
+      "callInitiated": "Anruf wurde erfolgreich initiiert",
+      "callError": "Anruf konnte nicht initiiert werden"
     },
     "manualCallbackModal": {
       "title": "Rückruf planen",

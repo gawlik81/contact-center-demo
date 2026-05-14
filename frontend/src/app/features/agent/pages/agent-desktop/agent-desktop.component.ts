@@ -28,6 +28,7 @@ import { EmailContactComponent } from './email-contact/email-contact.component';
 import { SocialContactComponent } from './social-contact/social-contact.component';
 import { ManualCampaignPanelComponent } from '../../components/manual-campaign-panel/manual-campaign-panel.component';
 import { AgentCalendarComponent } from './agent-calendar/agent-calendar.component';
+import { AddBreakModalComponent } from '../../components/add-break-modal/add-break-modal.component';
 import {
   AgentStatus,
   ALL_AGENT_STATUSES,
@@ -35,11 +36,7 @@ import {
 } from '../../models/agent-status.model';
 import { ContactTab } from '../../models/contact-tab.model';
 import { QueueItem } from '../../models/queue-item.model';
-import {
-  WsEvent,
-  CallOutboundPayload,
-  ContactAssignedPayload,
-} from '../../models/ws-event.model';
+import { WsEvent, CallOutboundPayload, ContactAssignedPayload } from '../../models/ws-event.model';
 
 @Component({
   selector: 'app-agent-desktop',
@@ -55,6 +52,7 @@ import {
     SocialContactComponent,
     ManualCampaignPanelComponent,
     AgentCalendarComponent,
+    AddBreakModalComponent,
   ],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
@@ -118,6 +116,9 @@ export class AgentDesktopComponent implements OnInit {
 
   /** Calendar tab visibility */
   protected readonly calendarTabActive = signal(false);
+
+  /** Add-break modal visibility */
+  protected readonly addBreakOpen = signal(false);
 
   /**
    * Derived signal that emits only the session state string (or null).
@@ -239,6 +240,10 @@ export class AgentDesktopComponent implements OnInit {
 
   protected closeCalendarTab(): void {
     this.calendarTabActive.set(false);
+  }
+
+  protected openAddBreak(): void {
+    this.addBreakOpen.set(true);
   }
 
   protected changeStatus(status: AgentStatus): void {

@@ -75,6 +75,7 @@ export class AddBreakModalComponent implements OnInit {
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
   readonly confirmCancel = signal(false);
+  readonly breakTypeOpen = signal(false);
 
   readonly breakTypes: BreakTypeOption[] = [
     { value: 'LUNCH', label: 'agent.addBreak.breakTypes.LUNCH' },
@@ -113,6 +114,16 @@ export class AddBreakModalComponent implements OnInit {
   private readonly _formStatus = toSignal(this.form.statusChanges, {
     initialValue: this.form.status,
   });
+
+  private readonly _breakTypeValue = toSignal(this.form.controls.breakType.valueChanges, {
+    initialValue: 'LUNCH' as BreakType,
+  });
+
+  readonly currentBreakTypeLabel = computed(
+    () =>
+      this.breakTypes.find((t) => t.value === this._breakTypeValue())?.label ??
+      'agent.addBreak.breakTypes.LUNCH',
+  );
 
   readonly canSubmit = computed(() => this._formStatus() === 'VALID' && !this.loading());
 
@@ -206,6 +217,11 @@ export class AddBreakModalComponent implements OnInit {
   }
 
   // ── UI actions ───────────────────────────────────────────────────────────────
+
+  protected selectBreakType(value: BreakType): void {
+    this.form.controls.breakType.setValue(value);
+    this.breakTypeOpen.set(false);
+  }
 
   protected onBackdropClick(event: MouseEvent): void {
     if (event.target === this.dialogRef().nativeElement) {

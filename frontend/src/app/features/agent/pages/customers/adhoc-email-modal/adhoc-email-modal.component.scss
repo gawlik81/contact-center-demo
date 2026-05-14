@@ -1,5 +1,5 @@
-// Manual Callback Dialog
-// Visual style aligned with TenantAddModalComponent — dark blue gradient header, native <dialog>.
+// Ad Hoc Email Dialog
+// Visual style aligned with ManualCallbackModalComponent — dark gradient header, native <dialog>.
 
 *,
 *::before,
@@ -29,13 +29,13 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 // ── Dialog shell ──────────────────────────────────────────────────────────────
-.callback-dialog {
+.email-dialog {
   border: none;
   border-radius: var(--radius-lg);
   padding: 0;
   box-shadow: var(--shadow-pop);
   width: 100%;
-  max-width: 480px;
+  max-width: 520px;
   background: var(--bg-elevated);
   animation: dialog-enter 280ms $ease-spring both;
   overflow: hidden;
@@ -58,10 +58,13 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     align-items: center;
     justify-content: space-between;
     padding: 1.25rem 1.5rem;
-    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--accent) 0%,
+      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+    );
     position: relative;
 
-    // Subtle shine overlay
     &::after {
       content: '';
       position: absolute;
@@ -115,7 +118,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 260px;
+    max-width: 280px;
   }
 
   // ── Body (form) ───────────────────────────────────────────────────────────
@@ -252,12 +255,6 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   margin-left: 1px;
 }
 
-.optional {
-  font-size: 0.6875rem;
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
 .form-input {
   padding: 0.46rem 0.75rem;
   font-size: 0.875rem;
@@ -288,54 +285,8 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
   &--textarea {
     resize: vertical;
-    min-height: 70px;
+    min-height: 120px;
     line-height: 1.5;
-  }
-}
-
-// ── Hour : minute selects ─────────────────────────────────────────────────────
-.time-selects {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-
-  // Nested as descendant (specificity 0,2,0) to win over .form-select (0,1,0)
-  .time-selects__select {
-    width: 58px;
-    flex-shrink: 0;
-    padding-left: 0.5rem;
-    padding-right: 1.25rem;
-    background-position: right 4px center;
-    background-size: 16px;
-    text-align: center;
-    text-align-last: center;
-  }
-
-  &__sep {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-2);
-    flex-shrink: 0;
-    line-height: 1;
-  }
-}
-
-// ── Date + time side-by-side layout ──────────────────────────────────────────
-.form-row {
-  display: flex;
-  gap: 0.625rem;
-  min-width: 0;
-
-  &__col {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1 1 0;
-    min-width: 0;
-
-    &--time {
-      flex: 0 0 152px;
-    }
   }
 }
 
@@ -380,16 +331,6 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     flex-shrink: 0;
     width: 13px;
     height: 13px;
-  }
-}
-
-.form-hint {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-
-  &--right {
-    text-align: right;
-    font-weight: 500;
   }
 }
 
@@ -441,7 +382,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-save {
-  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--accent) 0%,
+    color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+  );
   color: var(--accent-fg);
   box-shadow:
     0 1px 2px color-mix(in oklch, var(--accent) 30%, transparent),
@@ -485,7 +430,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ── Reduced motion ────────────────────────────────────────────────────────────
 @media (prefers-reduced-motion: reduce) {
-  .callback-dialog {
+  .email-dialog {
     animation: none;
   }
 
@@ -497,8 +442,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ── Dark mode chevron override ────────────────────────────────────────────────
 :host-context([data-theme='dark']) {
-  .form-select,
-  .time-selects__select {
+  .form-select {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23bbb'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
   }
 }

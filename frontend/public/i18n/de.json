@@ -2190,6 +2190,8 @@
     "emailSubject": "Betreff:",
     "emailDate": "Datum:",
     "emailEmpty": "Kein Nachrichteninhalt.",
+    "sectionEvents": "Kontaktverlauf",
+    "eventInProgress": "laufend",
     "sectionRelated": "Verwandte Kontakte",
     "loadingRelatedLabel": "Verwandte Kontakte werden geladen...",
     "related": "Verknüpfte",

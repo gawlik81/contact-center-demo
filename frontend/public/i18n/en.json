@@ -2192,6 +2192,8 @@
     "emailSubject": "Subject:",
     "emailDate": "Date:",
     "emailEmpty": "No message content.",
+    "sectionEvents": "Contact timeline",
+    "eventInProgress": "in progress",
     "sectionRelated": "Related contacts",
     "loadingRelatedLabel": "Loading related contacts...",
     "related": "Related",

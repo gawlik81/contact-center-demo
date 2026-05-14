@@ -17,6 +17,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
 import {
+  ContactEventResponse,
   ContactResponse,
   EmailPreviewResponse,
   RecordingUrlResponse,
@@ -62,6 +63,9 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
 
   readonly emailPreviewState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   readonly emailPreview = signal<EmailPreviewResponse | null>(null);
+
+  readonly events = signal<ContactEventResponse[]>([]);
+  readonly eventsState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
 
   readonly hasRecording = computed(() => {
     const c = this.contact();
@@ -133,6 +137,8 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     this.relatedContacts.set([]);
     this.emailPreviewState.set('idle');
     this.emailPreview.set(null);
+    this.events.set([]);
+    this.eventsState.set('idle');
 
     this.contactService
       .getContact(id)
@@ -148,7 +154,19 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
           this.contact.set(c);
           this.loadState.set('loaded');
           this.loadRelatedContacts(id);
+          this.loadEvents(id);
         }
+      });
+  }
+
+  private loadEvents(id: string): void {
+    this.eventsState.set('loading');
+    this.contactService
+      .getContactEvents(id)
+      .pipe(catchError(() => of([])))
+      .subscribe((list) => {
+        this.events.set(list);
+        this.eventsState.set('loaded');
       });
   }
 
@@ -214,6 +232,36 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
       });
   }
 
+  protected getStageLabel(stage: ContactEventResponse['stage']): string {
+    const labels: Record<string, string> = {
+      IVR: 'IVR',
+      VOICEBOT: 'Bot',
+      QUEUE: 'Kolejka',
+      AGENT: 'Agent',
+      ON_HOLD: 'Wstrzym.',
+      CONSULTING: 'Konsult.',
+      TRANSFER: 'Transfer',
+    };
+    return labels[stage] ?? stage;
+  }
+
+  protected formatDuration(seconds: number | null): string {
+    if (seconds === null || seconds === undefined) return '—';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+
+  protected getStageContext(event: ContactEventResponse): string {
+    const m = event.metadata;
+    if (event.stage === 'TRANSFER' || event.stage === 'CONSULTING') {
+      const who = m['target_agent_name'] ?? m['target'] ?? '';
+      const type = m['transfer_type'] ? ` (${m['transfer_type']})` : '';
+      return who + type;
+    }
+    return m['ivr_tree_name'] ?? m['queue_name'] ?? m['agent_name'] ?? '';
+  }
+
   private reset(): void {
     this.loadState.set('idle');
     this.contact.set(null);
@@ -223,6 +271,8 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     this.relatedLoading.set(false);
     this.emailPreviewState.set('idle');
     this.emailPreview.set(null);
+    this.events.set([]);
+    this.eventsState.set('idle');
     this.currentContactId.set(null);
   }
 

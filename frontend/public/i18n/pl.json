@@ -2192,6 +2192,8 @@
     "emailSubject": "Temat:",
     "emailDate": "Data:",
     "emailEmpty": "Brak treści wiadomości.",
+    "sectionEvents": "Historia kontaktu",
+    "eventInProgress": "w toku",
     "sectionRelated": "Powiązane kontakty",
     "loadingRelatedLabel": "Wczytywanie powiązanych kontaktów...",
     "related": "Powiązania",

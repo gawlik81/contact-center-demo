@@ -3190,7 +3190,8 @@ Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w s
 **Priorytet:** Must Have
 **Zlozonosc:** M
 **Zależy od:** BE-073 (endpoint `GET /api/contacts/{id}/events`)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
 **Epic:** EPIC-23 Historia etapów kontaktu
 
 **Opis:**

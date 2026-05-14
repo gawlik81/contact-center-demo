@@ -61,3 +61,12 @@ export interface EmailPreviewResponse {
   receivedAt: string;
   direction: 'INBOUND' | 'OUTBOUND';
 }
+
+export interface ContactEventResponse {
+  eventId: string;
+  stage: 'IVR' | 'VOICEBOT' | 'QUEUE' | 'AGENT' | 'ON_HOLD' | 'CONSULTING' | 'TRANSFER';
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  metadata: Record<string, string>;
+}

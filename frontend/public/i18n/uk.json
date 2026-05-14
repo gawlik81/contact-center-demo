@@ -2190,6 +2190,8 @@
     "emailSubject": "Тема:",
     "emailDate": "Дата:",
     "emailEmpty": "Вміст повідомлення відсутній.",
+    "sectionEvents": "Історія контакту",
+    "eventInProgress": "у процесі",
     "sectionRelated": "Пов'язані контакти",
     "loadingRelatedLabel": "Завантаження пов'язаних контактів...",
     "related": "Пов'язані",

@@ -148,6 +148,46 @@
           </dl>
         </section>
 
+        <!-- Section: Historia kontaktu -->
+        @if (eventsState() === 'loading') {
+          <section class="contact-section" aria-labelledby="contact-section-events-label">
+            <h3 id="contact-section-events-label" class="contact-section__title">
+              {{ 'contactDetailModal.sectionEvents' | transloco }}
+            </h3>
+            <div class="events-skeleton" aria-busy="true">
+              @for (i of [1, 2, 3]; track i) {
+                <div class="skeleton-block skeleton-block--event"></div>
+              }
+            </div>
+          </section>
+        }
+
+        @if (eventsState() === 'loaded' && events().length > 0) {
+          <section class="contact-section" aria-labelledby="contact-section-events-label">
+            <h3 id="contact-section-events-label" class="contact-section__title">
+              {{ 'contactDetailModal.sectionEvents' | transloco }}
+            </h3>
+            <ol class="contact-events" aria-label="Historia etapów kontaktu">
+              @for (event of events(); track event.eventId) {
+                <li class="contact-event contact-event--{{ event.stage.toLowerCase().replace('_', '-') }}">
+                  <span class="contact-event__badge">{{ getStageLabel(event.stage) }}</span>
+                  <span class="contact-event__time">{{ event.startedAt | date: 'HH:mm:ss' }}</span>
+                  <span class="contact-event__duration">
+                    @if (event.endedAt) {
+                      {{ formatDuration(event.durationSeconds) }}
+                    } @else {
+                      {{ 'contactDetailModal.eventInProgress' | transloco }}
+                    }
+                  </span>
+                  @if (getStageContext(event)) {
+                    <span class="contact-event__context">{{ getStageContext(event) }}</span>
+                  }
+                </li>
+              }
+            </ol>
+          </section>
+        }
+
         <!-- Section 3: Recording (PHONE) or EML download (EMAIL) -->
         @if (hasRecording()) {
           <section class="contact-section" aria-labelledby="contact-section-recording">

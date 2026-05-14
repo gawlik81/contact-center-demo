@@ -3051,7 +3051,8 @@ Response 200: EmailMessageResponse
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** DB-034 (kolumna `notes` w tabeli `contact`)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
 **Blokuje:** FE-073
 **Epic:** EPIC-22 Notatki do kontaktów
 

@@ -549,7 +549,7 @@ class ContactServiceTest {
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(contactRepository.update(any(Contact.class))).thenReturn(1);
 
-            DispositionRequest request = new DispositionRequest("SALE");
+            DispositionRequest request = new DispositionRequest("SALE", null);
 
             // when
             contactService.setDisposition(CONTACT_ID, request, TENANT_ID, AGENT_ID, true);
@@ -566,7 +566,7 @@ class ContactServiceTest {
             contact.setAgentId(OTHER_AGENT);
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
 
-            DispositionRequest request = new DispositionRequest("DECLINED");
+            DispositionRequest request = new DispositionRequest("DECLINED", null);
 
             // when / then
             assertThatThrownBy(() ->
@@ -583,7 +583,7 @@ class ContactServiceTest {
             contact.setAgentId(AGENT_ID);
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
 
-            DispositionRequest request = new DispositionRequest("SALE");
+            DispositionRequest request = new DispositionRequest("SALE", null);
 
             // when / then
             assertThatThrownBy(() ->
@@ -600,7 +600,7 @@ class ContactServiceTest {
             contact.setAgentId(AGENT_ID);
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
 
-            DispositionRequest request = new DispositionRequest("NO_ANSWER");
+            DispositionRequest request = new DispositionRequest("NO_ANSWER", null);
 
             // when / then
             assertThatThrownBy(() ->
@@ -618,7 +618,7 @@ class ContactServiceTest {
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(contactRepository.update(any(Contact.class))).thenReturn(1);
 
-            DispositionRequest request = new DispositionRequest("CALLBACK");
+            DispositionRequest request = new DispositionRequest("CALLBACK", null);
 
             // when – isAgent=false = SUPERVISOR
             assertThatNoException().isThrownBy(() ->

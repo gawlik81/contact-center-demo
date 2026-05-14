@@ -427,7 +427,7 @@ public class ContactRepository extends TenantAwareRepository {
                 contact_id, tenant_id, customer_id, agent_id, queue_id, campaign_id,
                 channel, direction, status, remote_address,
                 queued_at, assigned_at, started_at, ended_at,
-                duration_seconds, disposition_code, recording_url,
+                duration_seconds, disposition_code, notes, recording_url,
                 channel_metadata, created_at, updated_at, callback_id
             ) VALUES (
                 CAST(:contactId AS uuid),
@@ -446,6 +446,7 @@ public class ContactRepository extends TenantAwareRepository {
                 :endedAt,
                 :durationSeconds,
                 :dispositionCode,
+                :notes,
                 :recordingUrl,
                 CAST(:channelMetadata AS jsonb),
                 :createdAt,
@@ -469,6 +470,7 @@ public class ContactRepository extends TenantAwareRepository {
         .setParameter("endedAt", contact.getEndedAt())
         .setParameter("durationSeconds", contact.getDurationSeconds())
         .setParameter("dispositionCode", contact.getDispositionCode())
+        .setParameter("notes", contact.getNotes())
         .setParameter("recordingUrl", contact.getRecordingUrl())
         .setParameter("channelMetadata", channelMetadataToJson(contact.getChannelMetadata()))
         .setParameter("createdAt", contact.getCreatedAt())
@@ -518,6 +520,7 @@ public class ContactRepository extends TenantAwareRepository {
                 ended_at          = :endedAt,
                 remote_address    = :remoteAddress,
                 disposition_code  = :dispositionCode,
+                notes             = :notes,
                 channel_metadata  = CAST(:channelMetadata AS jsonb)
             WHERE contact_id = CAST(:contactId AS uuid)
               AND tenant_id  = CAST(:tenantId AS uuid)
@@ -529,6 +532,7 @@ public class ContactRepository extends TenantAwareRepository {
         .setParameter("endedAt", contact.getEndedAt())
         .setParameter("remoteAddress", contact.getRemoteAddress())
         .setParameter("dispositionCode", contact.getDispositionCode())
+        .setParameter("notes", contact.getNotes())
         .setParameter("channelMetadata", channelMetadataToJson(contact.getChannelMetadata()))
         .setParameter("contactId", contact.getContactId().toString())
         .setParameter("tenantId", contact.getTenantId().toString())

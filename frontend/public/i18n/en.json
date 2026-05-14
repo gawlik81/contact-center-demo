@@ -675,7 +675,12 @@
       "toInvalid": "Please enter a valid email address.",
       "subjectRequired": "Subject is required.",
       "subjectMaxLength": "Subject cannot exceed 500 characters.",
-      "bodyRequired": "Message body is required."
+      "bodyRequired": "Message body is required.",
+      "templateLabel": "Template",
+      "templatePlaceholder": "— No template —",
+      "templateVariablesLabel": "Template variables",
+      "applyTemplate": "Apply template",
+      "errorTemplateApply": "Failed to apply template."
     },
     "manualCallbackModal": {
       "title": "Schedule callback",

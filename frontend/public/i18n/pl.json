@@ -675,7 +675,12 @@
       "toInvalid": "Podaj poprawny adres email.",
       "subjectRequired": "Temat jest wymagany.",
       "subjectMaxLength": "Temat nie może przekraczać 500 znaków.",
-      "bodyRequired": "Treść wiadomości jest wymagana."
+      "bodyRequired": "Treść wiadomości jest wymagana.",
+      "templateLabel": "Szablon",
+      "templatePlaceholder": "— Brak szablonu —",
+      "templateVariablesLabel": "Zmienne szablonu",
+      "applyTemplate": "Zastosuj szablon",
+      "errorTemplateApply": "Nie udało się zastosować szablonu."
     },
     "manualCallbackModal": {
       "title": "Zamów oddzwonienie",

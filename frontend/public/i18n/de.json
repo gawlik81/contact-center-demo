@@ -657,6 +657,27 @@
       "callInitiated": "Anruf wurde erfolgreich initiiert",
       "callError": "Anruf konnte nicht initiiert werden"
     },
+    "adhocEmail": {
+      "title": "E-Mail an Kunden senden",
+      "toLabel": "An",
+      "subjectLabel": "Betreff",
+      "bodyLabel": "Nachrichtentext",
+      "send": "Senden",
+      "cancel": "Abbrechen",
+      "sent": "E-Mail wurde erfolgreich gesendet",
+      "errorNoSmtp": "Keine SMTP-Konfiguration. Bitte kontaktieren Sie Ihren Administrator.",
+      "errorSend": "E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
+      "toRequired": "E-Mail-Adresse ist erforderlich.",
+      "toInvalid": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+      "subjectRequired": "Betreff ist erforderlich.",
+      "subjectMaxLength": "Betreff darf 500 Zeichen nicht überschreiten.",
+      "bodyRequired": "Nachrichtentext ist erforderlich.",
+      "templateLabel": "Vorlage",
+      "templatePlaceholder": "— Keine Vorlage —",
+      "templateVariablesLabel": "Vorlagenvariablen",
+      "applyTemplate": "Vorlage anwenden",
+      "errorTemplateApply": "Vorlage konnte nicht angewendet werden."
+    },
     "manualCallbackModal": {
       "title": "Rückruf planen",
       "customerLabel": "Kunde:",

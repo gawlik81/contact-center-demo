@@ -16,7 +16,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, EMPTY } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
-import { EmailService } from '../../../services/email.service';
+import { EmailService, EmailTemplate } from '../../../services/email.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerSummary } from '../../../models/customer-search.model';
 
@@ -48,7 +48,16 @@ export class AdHocEmailModalComponent implements AfterViewInit {
   readonly visible = signal(false);
   readonly errorMessage = signal<string | null>(null);
 
+  readonly templates = signal<EmailTemplate[]>([]);
+  readonly templatesLoading = signal(false);
+  readonly selectedTemplate = signal<EmailTemplate | null>(null);
+  readonly templateVariables = signal<Record<string, string>>({});
+
   readonly hasMultipleEmails = computed(() => this.customer().email.length > 1);
+
+  readonly selectedTemplateHasVariables = computed(
+    () => (this.selectedTemplate()?.variables.length ?? 0) > 0,
+  );
 
   readonly customerDisplayName = computed(() => {
     const c = this.customer();
@@ -56,6 +65,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
   });
 
   readonly form = this.fb.group({
+    templateId: [null as string | null],
     toAddress: ['', [Validators.required, Validators.email]],
     subject: ['', [Validators.required, Validators.maxLength(500)]],
     bodyHtml: ['', [Validators.required]],
@@ -98,7 +108,85 @@ export class AdHocEmailModalComponent implements AfterViewInit {
     if (emails.length > 0) {
       this.form.controls.toAddress.patchValue(emails[0]);
     }
+    this.loadTemplates();
     this.open();
+  }
+
+  private loadTemplates(): void {
+    if (this.templates().length > 0) return;
+    this.templatesLoading.set(true);
+    this.emailService
+      .getTemplates(0, 100)
+      .pipe(
+        catchError(() => {
+          this.templatesLoading.set(false);
+          return EMPTY;
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((page) => {
+        this.templates.set(page.content);
+        this.templatesLoading.set(false);
+      });
+  }
+
+  onTemplateChange(templateId: string | null): void {
+    if (!templateId) {
+      this.selectedTemplate.set(null);
+      this.templateVariables.set({});
+      this.form.controls.subject.patchValue('');
+      this.form.controls.bodyHtml.patchValue('');
+      return;
+    }
+
+    const template = this.templates().find((t) => t.id === templateId) ?? null;
+    this.selectedTemplate.set(template);
+
+    if (!template) return;
+
+    const emptyVars: Record<string, string> = {};
+    for (const v of template.variables) {
+      emptyVars[v] = '';
+    }
+    this.templateVariables.set(emptyVars);
+
+    if (template.variables.length === 0) {
+      this.applyTemplate();
+    }
+  }
+
+  onVariableInput(variable: string, value: string): void {
+    this.templateVariables.update((vars) => ({ ...vars, [variable]: value }));
+  }
+
+  applyTemplate(): void {
+    const template = this.selectedTemplate();
+    if (!template) return;
+
+    this.errorMessage.set(null);
+    this.templatesLoading.set(true);
+
+    this.emailService
+      .previewTemplate(template.id, this.templateVariables())
+      .pipe(
+        catchError(() => {
+          this.templatesLoading.set(false);
+          this.errorMessage.set(
+            this.translocoService.translate('agent.adhocEmail.errorTemplateApply'),
+          );
+          return EMPTY;
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((preview) => {
+        this.templatesLoading.set(false);
+        this.form.controls.subject.patchValue(preview.subject);
+        this.form.controls.bodyHtml.patchValue(preview.bodyHtml);
+      });
+  }
+
+  templateVariableKeys(): string[] {
+    return Object.keys(this.templateVariables());
   }
 
   open(): void {

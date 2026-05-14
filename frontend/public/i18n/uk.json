@@ -657,6 +657,27 @@
       "callInitiated": "Виклик успішно ініційовано",
       "callError": "Не вдалося ініціювати виклик"
     },
+    "adhocEmail": {
+      "title": "Надіслати email клієнту",
+      "toLabel": "Кому",
+      "subjectLabel": "Тема",
+      "bodyLabel": "Текст повідомлення",
+      "send": "Надіслати",
+      "cancel": "Скасувати",
+      "sent": "Email успішно надіслано",
+      "errorNoSmtp": "Відсутня конфігурація SMTP. Зверніться до адміністратора.",
+      "errorSend": "Не вдалося надіслати email. Спробуйте ще раз.",
+      "toRequired": "Адреса email є обов'язковою.",
+      "toInvalid": "Введіть коректну адресу email.",
+      "subjectRequired": "Тема є обов'язковою.",
+      "subjectMaxLength": "Тема не може перевищувати 500 символів.",
+      "bodyRequired": "Текст повідомлення є обов'язковим.",
+      "templateLabel": "Шаблон",
+      "templatePlaceholder": "— Без шаблону —",
+      "templateVariablesLabel": "Змінні шаблону",
+      "applyTemplate": "Застосувати шаблон",
+      "errorTemplateApply": "Не вдалося застосувати шаблон."
+    },
     "manualCallbackModal": {
       "title": "Замовити передзвін",
       "customerLabel": "Клієнт:",

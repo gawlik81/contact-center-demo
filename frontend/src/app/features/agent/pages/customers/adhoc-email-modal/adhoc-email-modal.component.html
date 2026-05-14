@@ -79,6 +79,64 @@
         }
       </div>
 
+      <!-- Template selector -->
+      <div class="form-field">
+        <label class="form-label" for="email-templateId">
+          {{ 'agent.adhocEmail.templateLabel' | transloco }}
+        </label>
+        <select
+          id="email-templateId"
+          class="form-select"
+          formControlName="templateId"
+          [disabled]="templatesLoading()"
+          (change)="onTemplateChange(form.controls.templateId.value)"
+        >
+          <option [value]="null">{{ 'agent.adhocEmail.templatePlaceholder' | transloco }}</option>
+          @for (tpl of templates(); track tpl.id) {
+            <option [value]="tpl.id">{{ tpl.name }}</option>
+          }
+        </select>
+        @if (templatesLoading()) {
+          <span class="template-loading-hint">
+            <span class="spinner spinner--sm" aria-hidden="true"></span>
+          </span>
+        }
+      </div>
+
+      <!-- Template variables -->
+      @if (selectedTemplate() && selectedTemplateHasVariables()) {
+        <div class="template-variables">
+          <p class="template-variables__label">
+            {{ 'agent.adhocEmail.templateVariablesLabel' | transloco }}
+          </p>
+          @for (key of templateVariableKeys(); track key) {
+            <div class="template-variables__row">
+              <label class="form-label template-variables__var-label" [for]="'tpl-var-' + key">
+                {{ key }}
+              </label>
+              <input
+                [id]="'tpl-var-' + key"
+                type="text"
+                class="form-input"
+                [value]="templateVariables()[key]"
+                (input)="onVariableInput(key, $any($event.target).value)"
+              />
+            </div>
+          }
+          <button
+            type="button"
+            class="btn btn-apply-template"
+            [disabled]="templatesLoading()"
+            (click)="applyTemplate()"
+          >
+            @if (templatesLoading()) {
+              <span class="spinner" aria-hidden="true"></span>
+            }
+            {{ 'agent.adhocEmail.applyTemplate' | transloco }}
+          </button>
+        </div>
+      }
+
       <!-- Subject -->
       <div
         class="form-field"

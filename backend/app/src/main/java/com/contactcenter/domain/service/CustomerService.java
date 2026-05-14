@@ -320,7 +320,8 @@ public class CustomerService {
                 } else if (row[3] instanceof java.time.OffsetDateTime odt) {
                     date = odt.toInstant().toString();
                 }
-                result.add(new CustomerLookupResponse.ContactSummaryDto(contactId, channel, status, date, null));
+                String notes = row[4] != null ? row[4].toString() : null;
+                result.add(new CustomerLookupResponse.ContactSummaryDto(contactId, channel, status, date, null, notes));
             }
             return result;
         } catch (Exception e) {

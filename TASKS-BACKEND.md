@@ -3110,7 +3110,8 @@ Agent wpisuje notatkę w panelu softphone (zaimplementowane po stronie frontendu
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** DB-034, BE-069
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
 **Blokuje:** FE-074
 **Epic:** EPIC-22 Notatki do kontaktów
 

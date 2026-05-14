@@ -8,7 +8,11 @@ import { NotificationService } from '../../../core/services/notification.service
 import { ContactTabStore, TabLimitReason } from './contact-tab.store';
 import { SoftphoneService } from './softphone.service';
 import { CustomerLookupService } from './customer-lookup.service';
-import { CallIncomingPayload, CallOutboundPayload, ContactAssignedPayload } from '../models/ws-event.model';
+import {
+  CallIncomingPayload,
+  CallOutboundPayload,
+  ContactAssignedPayload,
+} from '../models/ws-event.model';
 
 export interface IncomingCallAlert {
   contactId: string;

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { TranslocoTestingModule } from '@jsverse/transloco';
 import { of, throwError } from 'rxjs';
 
 import { EmailContactComponent } from './email-contact.component';
@@ -53,19 +54,19 @@ const MOCK_TEMPLATES_RESPONSE: PagedResponse<EmailTemplate> = {
 };
 
 // Helper type to access protected/private members in tests
-type EmailContactAccess = {
+interface EmailContactAccess {
   replyHtml: { (): string; set: (v: string) => void };
   replySubject: { (): string; set: (v: string) => void };
-  sending: { (): boolean };
-  error: { (): string | null };
-  thread: { (): EmailMessage[] };
-  showVariableForm: { (): boolean };
-  templateVariables: { (): Record<string, string> };
-  canSend: { (): boolean };
+  sending: () => boolean;
+  error: () => string | null;
+  thread: () => EmailMessage[];
+  showVariableForm: () => boolean;
+  templateVariables: () => Record<string, string>;
+  canSend: () => boolean;
   onTemplateSelected: (t: EmailTemplate) => void;
   sendReply: () => void;
   cancelReply: () => void;
-};
+}
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -94,7 +95,13 @@ describe('EmailContactComponent', () => {
     };
 
     await TestBed.configureTestingModule({
-      imports: [EmailContactComponent],
+      imports: [
+        EmailContactComponent,
+        TranslocoTestingModule.forRoot({
+          langs: { pl: {} },
+          translocoConfig: { availableLangs: ['pl'], defaultLang: 'pl' },
+        }),
+      ],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),

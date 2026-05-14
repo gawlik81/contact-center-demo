@@ -146,7 +146,10 @@
     font-size: 0.8125rem;
     font-weight: 500;
     color: var(--text-2, #64748b);
-    transition: background 150ms, color 150ms, border-color 150ms;
+    transition:
+      background 150ms,
+      color 150ms,
+      border-color 150ms;
     white-space: nowrap;
 
     svg {

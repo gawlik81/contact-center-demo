@@ -45,7 +45,7 @@ export class AudioPlayerComponent implements AfterViewInit, OnDestroy {
     return hint !== undefined ? this.formatTime(hint) : '--:--';
   });
 
-  private eventListeners: Array<{ event: string; fn: EventListener }> = [];
+  private eventListeners: { event: string; fn: EventListener }[] = [];
 
   ngAfterViewInit(): void {
     const audio = this.audioRef()?.nativeElement;

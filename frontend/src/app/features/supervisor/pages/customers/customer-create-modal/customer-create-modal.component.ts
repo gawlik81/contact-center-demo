@@ -1,6 +1,5 @@
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
@@ -27,7 +26,7 @@ import { CustomerResponse } from '../../../models/customer.model';
     '(document:keydown.escape)': 'onEscapeKey($event)',
   },
 })
-export class CustomerCreateModalComponent implements AfterViewInit {
+export class CustomerCreateModalComponent {
   readonly customerCreated = output<CustomerResponse>();
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
@@ -46,10 +45,6 @@ export class CustomerCreateModalComponent implements AfterViewInit {
     phones: [''],
     emails: [''],
   });
-
-  ngAfterViewInit(): void {
-    // dialog is controlled via open()/close() — not opened automatically
-  }
 
   open(): void {
     this.form.reset();

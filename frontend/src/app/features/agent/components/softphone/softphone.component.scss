@@ -34,7 +34,11 @@
   }
 
   &--transferring {
-    background: linear-gradient(160deg, color-mix(in oklch, oklch(60% 0.18 310) 15%, var(--bg-surface)) 0%, var(--bg-subtle) 60%);
+    background: linear-gradient(
+      160deg,
+      color-mix(in oklch, oklch(60% 0.18 310) 15%, var(--bg-surface)) 0%,
+      var(--bg-subtle) 60%
+    );
   }
 
   &--ended {
@@ -141,16 +145,19 @@
 
   @keyframes softphone-pulse {
     0% {
-      box-shadow: 0 0 0 0 color-mix(in oklch, var(--accent) 45%, transparent),
-                  0 10px 30px color-mix(in oklch, var(--accent) 40%, transparent);
+      box-shadow:
+        0 0 0 0 color-mix(in oklch, var(--accent) 45%, transparent),
+        0 10px 30px color-mix(in oklch, var(--accent) 40%, transparent);
     }
     70% {
-      box-shadow: 0 0 0 20px color-mix(in oklch, var(--accent) 0%, transparent),
-                  0 10px 30px color-mix(in oklch, var(--accent) 40%, transparent);
+      box-shadow:
+        0 0 0 20px color-mix(in oklch, var(--accent) 0%, transparent),
+        0 10px 30px color-mix(in oklch, var(--accent) 40%, transparent);
     }
     100% {
-      box-shadow: 0 0 0 0 color-mix(in oklch, var(--accent) 0%, transparent),
-                  0 10px 30px color-mix(in oklch, var(--accent) 40%, transparent);
+      box-shadow:
+        0 0 0 0 color-mix(in oklch, var(--accent) 0%, transparent),
+        0 10px 30px color-mix(in oklch, var(--accent) 40%, transparent);
     }
   }
 
@@ -409,7 +416,9 @@
     align-items: center;
     justify-content: center;
     gap: 0.625rem;
-    transition: opacity 0.15s, box-shadow 0.15s;
+    transition:
+      opacity 0.15s,
+      box-shadow 0.15s;
     margin-top: auto;
     box-shadow: 0 8px 20px color-mix(in oklch, var(--danger) 35%, transparent);
 

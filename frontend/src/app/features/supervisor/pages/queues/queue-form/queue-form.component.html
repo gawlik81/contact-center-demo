@@ -1,9 +1,4 @@
-<dialog
-  #dialogEl
-  class="queue-form-dialog"
-  aria-labelledby="queue-form-title"
-  (click)="$event.target === $event.currentTarget ? onCancel() : null"
->
+<dialog #dialogEl class="queue-form-dialog" aria-labelledby="queue-form-title">
   <div class="queue-form-dialog__content" role="document">
     <div class="queue-form-dialog__header">
       <h2 id="queue-form-title" class="queue-form-dialog__title">

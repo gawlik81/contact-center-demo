@@ -58,7 +58,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     align-items: center;
     justify-content: space-between;
     padding: 1.25rem 1.5rem;
-    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--accent) 0%,
+      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+    );
     position: relative;
 
     // Subtle shine overlay
@@ -441,7 +445,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-save {
-  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--accent) 0%,
+    color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+  );
   color: var(--accent-fg);
   box-shadow:
     0 1px 2px color-mix(in oklch, var(--accent) 30%, transparent),

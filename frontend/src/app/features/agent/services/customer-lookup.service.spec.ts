@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { TranslocoTestingModule } from '@jsverse/transloco';
 import { firstValueFrom } from 'rxjs';
 import { CustomerLookupService } from './customer-lookup.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -32,6 +33,12 @@ describe('CustomerLookupService', () => {
     notifySpy = { error: vi.fn() };
 
     TestBed.configureTestingModule({
+      imports: [
+        TranslocoTestingModule.forRoot({
+          langs: { pl: {} },
+          translocoConfig: { availableLangs: ['pl'], defaultLang: 'pl' },
+        }),
+      ],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),

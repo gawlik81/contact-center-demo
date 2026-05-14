@@ -136,11 +136,13 @@
       <!-- ─── CANVAS ─────────────────────────────────────────────────────────── -->
       <main
         class="canvas-wrapper"
+        tabindex="-1"
         (dragover)="onCanvasDragOver($event)"
         (drop)="onCanvasDrop($event)"
         (mousemove)="onCanvasMouseMove($event)"
         (mouseup)="onCanvasMouseUp()"
         (click)="onCanvasClick()"
+        (keydown.escape)="onCanvasClick()"
       >
         <div class="ivr-canvas" #canvasRef>
           <!-- SVG overlay for connections -->
@@ -170,10 +172,13 @@
                 (selectedNodeId() === node.node_id ? ' ivr-node--selected' : '') +
                 (definition().entry_node_id === node.node_id ? ' ivr-node--entry' : '')
               "
+              role="button"
+              tabindex="0"
               [style.left.px]="node.x"
               [style.top.px]="node.y"
               (mousedown)="onNodeMouseDown($event, node.node_id)"
               (click)="onNodeClick($event, node.node_id)"
+              (keydown.enter)="onNodeClick($event, node.node_id)"
             >
               <div class="node-header">
                 <span class="node-icon">{{ nodeTypeIcons[node.type] }}</span>
@@ -229,7 +234,10 @@
               <!-- Input port (top-center) -->
               <div
                 class="node-port node-input-port"
+                role="button"
+                tabindex="0"
                 (click)="onNodeClick($event, node.node_id)"
+                (keydown.enter)="onNodeClick($event, node.node_id)"
                 [title]="'supervisor.ivrEditor.inputPortTitle' | transloco"
               ></div>
               <!-- Output: PLAY_AUDIO – single "next" port -->
@@ -388,7 +396,7 @@
             <!-- PLAY_AUDIO: audio file upload -->
             @if (node.type === 'PLAY_AUDIO') {
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.audioFileLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.audioFileLabel' | transloco }}</p>
                 @if (node.audio_id) {
                   <div class="audio-info">
                     <span class="audio-filename">{{ node.audio_id }}</span>
@@ -463,7 +471,7 @@
             <!-- MENU: options DTMF (edytowalne klucze) -->
             @if (node.type === 'MENU') {
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.dtmfOptionsLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.dtmfOptionsLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track trackByIndex($index)) {
                     <div class="option-row">
@@ -610,7 +618,7 @@
 
               <!-- Routing: success / timeout / no-input – stałe, tylko wybór węzła docelowego -->
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track opt.key) {
                     <div class="option-row option-row--fixed">
@@ -699,7 +707,7 @@
                 <p class="form-hint">{{ 'supervisor.ivr.nodeSetValueHint' | transloco }}</p>
               </div>
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.nextNode' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.nextNode' | transloco }}</p>
                 <select
                   class="form-control"
                   [ngModel]="node.options?.[0]?.next_node_id ?? ''"
@@ -767,7 +775,7 @@
                 </div>
               }
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track opt.key) {
                     <div class="option-row option-row--fixed">
@@ -813,7 +821,7 @@
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.casesLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.casesLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track trackByIndex($index)) {
                     <div class="option-row">
@@ -896,7 +904,7 @@
                 </p>
               </div>
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track opt.key) {
                     <div class="option-row option-row--fixed">
@@ -983,14 +991,16 @@
 
 <!-- ═══ WARNINGS MODAL ════════════════════════════════════════════════════════ -->
 @if (showWarningsModal()) {
+  <div class="modal-overlay" aria-hidden="true"></div>
   <div
-    class="modal-overlay"
+    class="modal-overlay modal-overlay--panel"
     role="dialog"
     aria-modal="true"
     aria-labelledby="warnings-title"
-    (click)="showWarningsModal.set(false)"
+    (keydown.escape)="showWarningsModal.set(false)"
+    tabindex="-1"
   >
-    <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal">
       <div class="modal__header">
         <h2 class="modal__title" id="warnings-title">{{ 'supervisor.ivr.warningsTitle' | transloco }}</h2>
       </div>

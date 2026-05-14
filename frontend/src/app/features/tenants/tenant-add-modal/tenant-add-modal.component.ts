@@ -1,5 +1,4 @@
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
@@ -51,7 +50,7 @@ const E164_REGEX = /^\+[1-9]\d{6,14}$/;
     '(document:keydown.escape)': 'onEscapeKey($event)',
   },
 })
-export class TenantAddModalComponent implements AfterViewInit {
+export class TenantAddModalComponent {
   readonly tenantAdded = output<Tenant>();
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
@@ -88,10 +87,6 @@ export class TenantAddModalComponent implements AfterViewInit {
     ],
     twilioPhoneNumber: ['', [Validators.pattern(E164_REGEX)]],
   });
-
-  ngAfterViewInit(): void {
-    // dialog is controlled via open()/close() — not opened automatically
-  }
 
   open(): void {
     this.form.reset({

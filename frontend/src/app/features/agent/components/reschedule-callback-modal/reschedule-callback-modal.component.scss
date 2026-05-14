@@ -30,7 +30,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     align-items: center;
     gap: 14px;
     padding: 20px 20px 20px 24px;
-    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--accent) 0%,
+      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+    );
     position: relative;
 
     &::after {
@@ -399,7 +403,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &--primary {
-    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--accent) 0%,
+      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+    );
     color: var(--accent-fg);
     box-shadow:
       0 1px 2px color-mix(in oklch, var(--accent) 30%, transparent),
@@ -431,7 +439,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &--loading {
-    background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%) !important;
+    background: linear-gradient(
+      135deg,
+      var(--accent) 0%,
+      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+    ) !important;
     opacity: 0.85;
     cursor: wait;
     pointer-events: none;

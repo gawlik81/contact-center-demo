@@ -2,7 +2,6 @@
   #dialogEl
   class="break-dialog"
   [attr.aria-labelledby]="isEditMode() ? 'break-dialog-title-edit' : 'break-dialog-title-add'"
-  (click)="onBackdropClick($event)"
 >
   <div class="break-dialog__content">
     <!-- Header -->
@@ -80,15 +79,16 @@
         <form [formGroup]="form" (ngSubmit)="submit()" id="break-form" novalidate>
           <!-- Break type — custom dropdown -->
           <div class="form-field" [class.form-field--error]="breakTypeError">
-            <label class="form-field__label" id="break-type-label">
+            <label class="form-field__label" for="break-type-btn" id="break-type-label">
               {{ 'agent.addBreak.breakTypeLabel' | transloco }}
               <span class="form-field__required" aria-hidden="true">*</span>
             </label>
             <div class="custom-select">
               @if (breakTypeOpen()) {
-                <div class="custom-select__backdrop" (click)="breakTypeOpen.set(false)"></div>
+                <div class="custom-select__backdrop" aria-hidden="true"></div>
               }
               <button
+                id="break-type-btn"
                 type="button"
                 class="custom-select__trigger"
                 aria-haspopup="listbox"
@@ -97,10 +97,18 @@
                 (click)="breakTypeOpen.update(v => !v)"
               >
                 <span>{{ currentBreakTypeLabel() | transloco }}</span>
-                <svg class="custom-select__chevron" [class.custom-select__chevron--open]="breakTypeOpen()"
-                     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="6 9 12 15 18 9"/>
+                <svg
+                  class="custom-select__chevron"
+                  [class.custom-select__chevron--open]="breakTypeOpen()"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="6 9 12 15 18 9" />
                 </svg>
               </button>
               @if (breakTypeOpen()) {
@@ -109,15 +117,24 @@
                     <li
                       role="option"
                       class="custom-select__option"
+                      tabindex="0"
                       [class.custom-select__option--active]="form.controls.breakType.value === opt.value"
                       [attr.aria-selected]="form.controls.breakType.value === opt.value"
                       (click)="selectBreakType(opt.value)"
+                      (keydown.enter)="selectBreakType(opt.value)"
                     >
                       @if (form.controls.breakType.value === opt.value) {
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
-                             class="custom-select__check">
-                          <polyline points="20 6 9 17 4 12"/>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                          class="custom-select__check"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
                         </svg>
                       }
                       {{ opt.label | transloco }}

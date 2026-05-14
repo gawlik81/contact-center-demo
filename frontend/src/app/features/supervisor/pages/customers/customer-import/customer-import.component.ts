@@ -3,7 +3,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  OnInit,
   computed,
   effect,
   inject,
@@ -37,7 +36,7 @@ const PREVIEW_ROWS = 5;
   templateUrl: './customer-import.component.html',
   styleUrl: './customer-import.component.scss',
 })
-export class CustomerImportComponent implements OnInit {
+export class CustomerImportComponent {
   private readonly customerService = inject(CustomerService);
   private readonly notifications = inject(NotificationService);
   private readonly transloco = inject(TranslocoService);
@@ -119,10 +118,6 @@ export class CustomerImportComponent implements OnInit {
         this.parseCsvPreview(file);
       }
     });
-  }
-
-  ngOnInit(): void {
-    // nothing to init – state is signal-driven
   }
 
   // ── Step 1 handlers ──────────────────────────────────────────────────────

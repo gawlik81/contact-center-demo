@@ -1405,7 +1405,8 @@ COMMENT ON COLUMN contact.notes IS
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** DB-006 (tabela `contact`), DB-002 (tabela `tenant`)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
 **Blokuje:** BE-071, BE-072, BE-073
 **Epic:** EPIC-23 Historia etapów kontaktu
 **Flyway:** V059__create_contact_event.sql

@@ -3015,7 +3015,8 @@ Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila d
 **Priorytet:** Must Have
 **Zlozonosc:** S
 **Zależy od:** BE-069 (pole `notes` w `ContactResponse`)
-**Status:** 🔲 Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
 **Epic:** EPIC-22 Notatki do kontaktów
 
 **Opis:**

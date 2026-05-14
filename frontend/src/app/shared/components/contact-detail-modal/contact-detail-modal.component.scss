@@ -154,6 +154,9 @@
 
     &--notes {
       white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
       font-size: 0.875rem;
       color: var(--text-2);
       line-height: 1.5;

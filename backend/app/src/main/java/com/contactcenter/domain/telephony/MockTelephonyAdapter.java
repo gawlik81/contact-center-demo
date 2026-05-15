@@ -305,9 +305,9 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                             session.getFrom(), session.getTo(),
                             request.agentId().toString(), TransferType.BLIND.name(),
                             Map.of(
-                                    "transfer_type", "BLIND",
-                                    "target_type", "AGENT",
-                                    "target_agent_id", request.agentId().toString()
+                                    META_TRANSFER_TYPE,   "BLIND",
+                                    META_TARGET_TYPE,     "AGENT",
+                                    META_TARGET_AGENT_ID, request.agentId().toString()
                             )
                     );
 
@@ -344,8 +344,8 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                             secondLegCallId, null, session.getTenantId(), request.agentId(),
                             session.getTo(), request.agentId().toString(),
                             Map.of(
-                                    "target_type", "AGENT",
-                                    "target_agent_id", request.agentId().toString()
+                                    META_TARGET_TYPE,     "AGENT",
+                                    META_TARGET_AGENT_ID, request.agentId().toString()
                             )
                     );
 
@@ -376,9 +376,9 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                         session.getFrom(), session.getTo(),
                         request.queueId().toString(), TransferType.BLIND.name(),
                         Map.of(
-                                "transfer_type", "BLIND",
-                                "target_type", "QUEUE",
-                                "target_queue_id", request.queueId().toString()
+                                META_TRANSFER_TYPE,   "BLIND",
+                                META_TARGET_TYPE,     "QUEUE",
+                                META_TARGET_QUEUE_ID, request.queueId().toString()
                         )
                 );
 

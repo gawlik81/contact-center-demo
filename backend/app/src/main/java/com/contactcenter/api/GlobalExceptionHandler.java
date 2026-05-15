@@ -537,6 +537,30 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Operacja nieobsługiwana przez bieżącą implementację – HTTP 501 Not Implemented.
+     *
+     * <p>Rzucany np. przez {@code TwilioTelephonyAdapter.initiateTransfer()} gdy
+     * adapter nie obsługuje danego {@code TransferTargetType} (np. QUEUE lub AGENT
+     * wymagające osobnej integracji Twilio). Zwracamy 501, a nie 500, bo to informacja
+     * dla klienta, że operacja jest planowana lecz jeszcze niezrealizowana.
+     */
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<ProblemDetail> handleUnsupportedOperationException(
+            UnsupportedOperationException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_IMPLEMENTED);
+        problem.setType(URI.create(ERROR_BASE_URI + "not-implemented"));
+        problem.setTitle("Operacja niezaimplementowana");
+        problem.setDetail(ex.getMessage() != null
+                ? ex.getMessage()
+                : "Ta operacja nie jest obsługiwana przez bieżącą implementację.");
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API] Wywołanie niezaimplementowanej operacji: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(problem);
+    }
+
+    /**
      * Błąd zewnętrznego API Twilio – HTTP 502 Bad Gateway.
      *
      * <p>Rzucany gdy wywołanie Twilio REST API zakończy się niepowodzeniem

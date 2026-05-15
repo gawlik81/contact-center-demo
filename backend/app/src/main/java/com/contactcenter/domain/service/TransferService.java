@@ -8,7 +8,6 @@ import com.contactcenter.domain.repository.TransferAgentQueueRepository;
 import com.contactcenter.domain.repository.TransferQueueStatsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,11 +52,6 @@ public class TransferService {
             AppUser.UserStatus.INACTIVE,       5
     );
 
-    /** Statusy wykluczone z listy transferu – agent niedostępny. */
-    private static final Set<AppUser.UserStatus> EXCLUDED_STATUSES = Set.of(
-            AppUser.UserStatus.OFFLINE
-    );
-
     /**
      * Zwraca posortowaną listę agentów dostępnych do przyjęcia transferu.
      *
@@ -70,15 +64,9 @@ public class TransferService {
         log.debug("[TransferService] Pobieranie agentów do transferu: tenant={}, exclude={}",
                 tenantId, excludeUserId);
 
-        // 1. Pobierz wszystkich nieusunietych agentów tenanta z rolą AGENT
+        // 1. Pobierz kandydatów do transferu – filtrowanie wykonane w SQL (brak N+1 / full-scan)
         List<AppUser> candidates = appUserRepository
-                .findAllByTenantIdAndDeletedFalse(tenantId, Pageable.unpaged())
-                .getContent()
-                .stream()
-                .filter(u -> u.getRole() == AppUser.UserRole.AGENT)
-                .filter(u -> !EXCLUDED_STATUSES.contains(u.getStatus()))
-                .filter(u -> !u.getId().equals(excludeUserId))
-                .toList();
+                .findTransferCandidates(tenantId, excludeUserId);
 
         if (candidates.isEmpty()) {
             log.debug("[TransferService] Brak kandydatów do transferu dla tenant={}", tenantId);

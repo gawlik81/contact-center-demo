@@ -259,6 +259,26 @@ public class ContactEventService {
      */
     public void recordTransfer(UUID contactId, UUID tenantId,
                                String target, String transferType, String targetAgentName) {
+        recordTransfer(contactId, tenantId, target, transferType, targetAgentName, null);
+    }
+
+    /**
+     * Rejestruje zdarzenie transferu kontaktu z dodatkowymi metadanymi.
+     *
+     * <p>Przeciążona wersja pozwalająca przekazać pełny zestaw metadanych specyficznych
+     * dla typu celu (target_type, target_agent_id, target_queue_id itp.).
+     * Metadane z parametru {@code extraMeta} są scalane z domyślnymi (target, transfer_type).
+     *
+     * @param contactId       UUID kontaktu
+     * @param tenantId        UUID tenanta
+     * @param target          cel transferu (numer telefonu, kolejka lub identyfikator agenta)
+     * @param transferType    typ transferu (np. "BLIND", "ATTENDED")
+     * @param targetAgentName imię agenta docelowego (może być null)
+     * @param extraMeta       dodatkowe metadane do scalenia (może być null)
+     */
+    public void recordTransfer(UUID contactId, UUID tenantId,
+                               String target, String transferType, String targetAgentName,
+                               Map<String, Object> extraMeta) {
         try {
             Instant now = Instant.now();
             Map<String, Object> meta = new HashMap<>();
@@ -266,6 +286,9 @@ public class ContactEventService {
             meta.put("transfer_type", transferType);
             if (targetAgentName != null) {
                 meta.put("target_agent_name", targetAgentName);
+            }
+            if (extraMeta != null) {
+                meta.putAll(extraMeta);
             }
             ContactEvent event = ContactEvent.builder()
                     .eventId(UUID.randomUUID())

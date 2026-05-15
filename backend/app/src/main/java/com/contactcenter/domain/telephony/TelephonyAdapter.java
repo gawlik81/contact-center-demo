@@ -1,5 +1,6 @@
 package com.contactcenter.domain.telephony;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -129,6 +130,37 @@ public interface TelephonyAdapter {
      * @throws TelephonyException gdy połączenie nie istnieje
      */
     CallSession getCallSession(String callId);
+
+    /**
+     * Pobiera sesję połączenia jako Optional – nie rzuca wyjątku gdy sesja nie istnieje.
+     *
+     * <p>Używane do weryfikacji cross-tenant przy bridge/transfer:
+     * pozwala sprawdzić czy {@code secondCallId} należy do tego samego tenanta
+     * bez konieczności łapania wyjątku w warstwie domenowej.
+     *
+     * @param callId identyfikator sesji połączenia
+     * @return Optional z sesją lub empty gdy sesja nie istnieje
+     */
+    default Optional<CallSession> getSession(String callId) {
+        try {
+            return Optional.of(getCallSession(callId));
+        } catch (TelephonyException e) {
+            return Optional.empty();
+        }
+    }
+
+    // =========================================================================
+    // Stałe kluczy metadanych zdarzeń transferu
+    // =========================================================================
+
+    /** Klucz metadanych: typ transferu (BLIND / ATTENDED). */
+    String META_TRANSFER_TYPE   = "transfer_type";
+    /** Klucz metadanych: typ celu transferu (PHONE / AGENT / QUEUE). */
+    String META_TARGET_TYPE     = "target_type";
+    /** Klucz metadanych: UUID agenta docelowego (targetType=AGENT). */
+    String META_TARGET_AGENT_ID = "target_agent_id";
+    /** Klucz metadanych: UUID kolejki docelowej (targetType=QUEUE). */
+    String META_TARGET_QUEUE_ID = "target_queue_id";
 
     // =========================================================================
     // Typy i wyjątki

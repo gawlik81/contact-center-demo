@@ -32,6 +32,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -773,18 +774,15 @@ public class ContactService {
      * @throws ConflictException         HTTP 409 gdy kontakt nie jest w statusie ACTIVE
      * @throws InvalidOperationException HTTP 409 gdy agent nie jest właścicielem kontaktu
      */
-    @Transactional
-    public CallSession initiateTransfer(String callId, TransferCallRequest req,
-                                        UUID tenantId, UUID userId) {
-
-        // 1. Walidacja domenowego obiektu (kombinacje targetType + transferType)
-        TransferRequest domainReq = new TransferRequest(
-                req.transferType(), req.targetType(),
-                req.phoneNumber(), req.agentId(), req.queueId());
-        domainReq.validate();
-
-        // 2. Znajdź kontakt – najpierw próbujemy callId jako contactId (UUID),
-        //    dla Twilio CA... szukamy przez channel_metadata->>'sip_call_id'.
+    /**
+     * Inicjuje transfer – faza walidacji (read-only transakcja, brak I/O zewnętrznego).
+     *
+     * <p>Walidacja domenowa + weryfikacja stanu kontaktu. Zwraca kontakt gdy warunki
+     * są spełnione – lub rzuca wyjątek domenowy.
+     */
+    @Transactional(readOnly = true)
+    protected Contact validateTransferPreconditions(String callId, TransferCallRequest req,
+                                                     UUID tenantId, UUID userId) {
         UUID contactId = resolveContactIdFromCallId(callId, tenantId);
         if (contactId == null) {
             throw new EntityNotFoundException(
@@ -795,33 +793,55 @@ public class ContactService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Kontakt nie istnieje lub nie należy do tego tenanta: " + contactId));
 
-        // 3. Guard cross-tenant (findById filtruje po tenantId, ale chronimy explicite)
         if (!tenantId.equals(contact.getTenantId())) {
             throw new CrossTenantAccessException(contactId, tenantId, contact.getTenantId());
         }
 
-        // 4. Weryfikacja własności – agent musi być właścicielem kontaktu
         if (contact.getAgentId() == null || !userId.equals(contact.getAgentId())) {
             throw new InvalidOperationException(
                     "Agent nie jest właścicielem kontaktu (transfer niedozwolony): " + contactId);
         }
 
-        // 5. Weryfikacja stanu kontaktu – tylko ACTIVE może być transferowany
         if (!"ACTIVE".equals(contact.getStatus())) {
             throw new ConflictException(
                     "Transfer możliwy tylko dla kontaktu w statusie ACTIVE " +
                     "(aktualny status: " + contact.getStatus() + "): " + contactId);
         }
 
-        // 6. Wywołaj adapter
+        return contact;
+    }
+
+    /**
+     * Zapisuje zdarzenie TRANSFER w ramach własnej transakcji (odseparowane od I/O adaptera).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    protected void persistTransferEvent(UUID contactId, UUID tenantId, TransferCallRequest req) {
+        recordTransferEvent(contactId, tenantId, req);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public CallSession initiateTransfer(String callId, TransferCallRequest req,
+                                        UUID tenantId, UUID userId) {
+
+        // 1. Walidacja domenowego obiektu (kombinacje targetType + transferType)
+        TransferRequest domainReq = new TransferRequest(
+                req.transferType(), req.targetType(),
+                req.phoneNumber(), req.agentId(), req.queueId());
+        domainReq.validate();
+
+        // 2-5. Walidacja kontaktu i uprawnień (read-only transakcja)
+        Contact contact = validateTransferPreconditions(callId, req, tenantId, userId);
+        UUID contactId = contact.getContactId();
+
+        // 6. Wywołaj adapter (poza transakcją – zewnętrzne I/O)
         log.info("[ContactService] Inicjowanie transferu: callId={}, targetType={}, transferType={}, " +
                  "contactId={}, agentId={}, tenant={}",
                 callId, req.targetType(), req.transferType(), contactId, userId, tenantId);
 
         CallSession resultSession = telephonyAdapter.initiateTransfer(callId, domainReq);
 
-        // 7. Zapisz zdarzenie TRANSFER (błąd nie przerywa przepływu)
-        recordTransferEvent(contactId, tenantId, req);
+        // 7. Zapisz zdarzenie TRANSFER w osobnej transakcji (błąd nie przerywa przepływu)
+        persistTransferEvent(contactId, tenantId, req);
 
         log.info("[ContactService] Transfer zainicjowany: callId={}, contactId={}, " +
                  "targetType={}, newSessionCallId={}",
@@ -862,17 +882,17 @@ public class ContactService {
     private void recordTransferEvent(UUID contactId, UUID tenantId, TransferCallRequest req) {
         try {
             Map<String, Object> meta = new HashMap<>();
-            meta.put("transfer_type", req.transferType().name());
-            meta.put("target_type",   req.targetType().name());
+            meta.put(TelephonyAdapter.META_TRANSFER_TYPE, req.transferType().name());
+            meta.put(TelephonyAdapter.META_TARGET_TYPE,   req.targetType().name());
 
             switch (req.targetType()) {
-                case TransferTargetType.PHONE ->
+                case PHONE ->
                         meta.put("target", req.phoneNumber());
-                case TransferTargetType.AGENT ->
-                        meta.put("target_agent_id",
+                case AGENT ->
+                        meta.put(TelephonyAdapter.META_TARGET_AGENT_ID,
                                 req.agentId() != null ? req.agentId().toString() : null);
-                case TransferTargetType.QUEUE ->
-                        meta.put("target_queue_id",
+                case QUEUE ->
+                        meta.put(TelephonyAdapter.META_TARGET_QUEUE_ID,
                                 req.queueId() != null ? req.queueId().toString() : null);
             }
 
@@ -880,7 +900,8 @@ public class ContactService {
                     contactId, tenantId,
                     resolveTransferTarget(req),
                     req.transferType().name(),
-                    null   // targetAgentName – opcjonalne, nie pobieramy dla uproszczenia
+                    null,  // targetAgentName – opcjonalne, nie pobieramy dla uproszczenia
+                    meta   // przekazujemy zbudowane metadane
             );
         } catch (Exception e) {
             log.warn("[ContactService] Błąd zapisu zdarzenia TRANSFER: contactId={}, error={}",
@@ -951,6 +972,20 @@ public class ContactService {
             throw new InvalidOperationException(
                     "Agent nie jest właścicielem kontaktu (bridge niedozwolony): " + contactId);
         }
+
+        // 3b. Weryfikacja cross-tenant dla drugiej nogi połączenia
+        telephonyAdapter.getSession(secondCallId).ifPresentOrElse(
+                secondSession -> {
+                    if (!tenantId.equals(secondSession.getTenantId())) {
+                        throw new CrossTenantAccessException(
+                                contactId, tenantId, secondSession.getTenantId());
+                    }
+                },
+                () -> {
+                    throw new EntityNotFoundException(
+                            "Sesja drugiej nogi nie istnieje: " + secondCallId);
+                }
+        );
 
         log.info("[ContactService] Inicjowanie bridge: callId={}, secondCallId={}, " +
                  "contactId={}, agentId={}, tenant={}",

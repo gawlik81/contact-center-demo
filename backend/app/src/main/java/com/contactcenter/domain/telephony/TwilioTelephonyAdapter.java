@@ -976,7 +976,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     CallSession.CallStatus mappedStatus = mapTwilioStatus(callStatus);
 
-    CallSession existing = getSession(callSid);
+    CallSession existing = loadSessionFromRedis(callSid);
 
     // Połączenie wychodzące gdy:
     // 1) Twilio podaje kierunek outbound-api / outbound-dial w polu Direction, LUB
@@ -1232,7 +1232,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   public void registerIncomingCall(String callSid, String from, String to,
                                     UUID tenantId, UUID contactId) {
     // Idempotentne – nie nadpisujemy istniejącej sesji (computeIfAbsent semantics przez Redis)
-    if (getSession(callSid) == null) {
+    if (loadSessionFromRedis(callSid) == null) {
       CallSession session = CallSession.builder()
           .callId(callSid)
           .tenantId(tenantId)
@@ -1394,7 +1394,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * @param callId Twilio Call SID
    * @return sesja lub {@code null} gdy nie istnieje
    */
-  private CallSession getSession(String callId) {
+  private CallSession loadSessionFromRedis(String callId) {
     Object raw = redisTemplate.opsForValue().get(SESSION_KEY_PREFIX + callId);
     if (raw instanceof CallSession session) {
       return session;
@@ -1403,12 +1403,26 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   }
 
   /**
+   * Implementacja interfejsowej metody {@link TelephonyAdapter#getSession(String)}.
+   *
+   * <p>Zwraca Optional zamiast rzucania wyjątku – używane do weryfikacji cross-tenant
+   * przy bridge/transfer bez konieczności łapania TelephonyException w warstwie domenowej.
+   *
+   * @param callId Twilio Call SID
+   * @return Optional z sesją lub empty gdy sesja nie istnieje w Redis
+   */
+  @Override
+  public java.util.Optional<CallSession> getSession(String callId) {
+    return java.util.Optional.ofNullable(loadSessionFromRedis(callId));
+  }
+
+  /**
    * Usuwa sesję z Redis. Gdy sesja zawiera {@code contactId}, usuwa też indeks odwrotny.
    *
    * @param callId Twilio Call SID
    */
   private void deleteSession(String callId) {
-    CallSession session = getSession(callId);
+    CallSession session = loadSessionFromRedis(callId);
     redisTemplate.delete(SESSION_KEY_PREFIX + callId);
     if (session != null && session.getContactId() != null) {
       stringRedisTemplate.delete(CONTACT_SESSION_INDEX_PREFIX + session.getContactId().toString());
@@ -1496,7 +1510,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   }
 
   private CallSession requireSession(String callId) {
-    CallSession session = getSession(callId);
+    CallSession session = loadSessionFromRedis(callId);
     if (session == null) {
       // Fallback 1: callId may be a contactId (UUID from DB) sent by the frontend.
       // First try the Redis reverse index (contact-session-index:{contactId} → callSid).
@@ -1513,7 +1527,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         String indexKey = CONTACT_SESSION_INDEX_PREFIX + contactId.toString();
         String resolvedCallSid = stringRedisTemplate.opsForValue().get(indexKey);
         if (resolvedCallSid != null) {
-          session = getSession(resolvedCallSid);
+          session = loadSessionFromRedis(resolvedCallSid);
           if (session != null) {
             log.debug("[TwilioAdapter] Sesja znaleziona przez indeks Redis: contactId={}, callSid={}",
                 contactId, resolvedCallSid);
@@ -1525,7 +1539,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           UUID tenantId = TenantContext.getTenantId();
           if (tenantId != null) {
             session = contactRepository.findCallSidByContactId(contactId, tenantId)
-                .map(this::getSession)
+                .map(this::loadSessionFromRedis)
                 .orElse(null);
             if (session != null) {
               log.debug("[TwilioAdapter] Sesja znaleziona przez DB lookup sip_call_id: contactId={}", contactId);

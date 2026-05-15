@@ -17,11 +17,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -44,6 +46,7 @@ import java.util.UUID;
  * This ensures {@code ContactService.setDisposition} can validate agent ownership.
  */
 @Slf4j
+@Validated
 @RestController
 @RequestMapping("/api/telephony/calls")
 @RequiredArgsConstructor
@@ -371,7 +374,7 @@ public class AgentCallController {
     )
     public ResponseEntity<CallSession> transferCall(
             @Parameter(description = "Contact UUID or Twilio Call SID", required = true)
-            @PathVariable String callId,
+            @PathVariable @Size(max = 64) String callId,
             @Valid @RequestBody TransferCallRequest req
     ) {
         UUID tenantId = TenantContext.getTenantId();
@@ -432,9 +435,9 @@ public class AgentCallController {
     )
     public void bridgeCalls(
             @Parameter(description = "Original call leg (customer) – UUID or Twilio SID", required = true)
-            @PathVariable String callId,
+            @PathVariable @Size(max = 64) String callId,
             @Parameter(description = "Second call leg (consultation target) – UUID or Twilio SID", required = true)
-            @PathVariable String secondCallId,
+            @PathVariable @Size(max = 64) String secondCallId,
             org.springframework.security.core.Authentication auth
     ) {
         UUID tenantId = TenantContext.getTenantId();

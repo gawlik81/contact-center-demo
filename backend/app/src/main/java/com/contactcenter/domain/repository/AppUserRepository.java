@@ -258,6 +258,38 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
                                        @Param("tenantId") UUID tenantId);
 
     /**
+     * Zwraca agentów dostępnych jako kandydaci do przyjęcia transferu połączenia.
+     *
+     * <p>Filtruje w DB (nie w Javie) eliminując problem N+1 / full-scan:
+     * <ul>
+     *   <li>Tylko rola AGENT</li>
+     *   <li>Nieusunięci i aktywni</li>
+     *   <li>Status OFFLINE wykluczony</li>
+     *   <li>Wykluczony agent wywołujący (excludeUserId)</li>
+     * </ul>
+     * Sortowanie: AVAILABLE primeiro, następnie pozostałe statusy alfabetycznie po nazwisku.
+     *
+     * @param tenantId      UUID tenanta
+     * @param excludeUserId UUID agenta wykluczanego z wyników (zalogowany agent)
+     * @return lista kandydatów do transferu – posortowana przez aplikację
+     */
+    @Query(value = """
+            SELECT * FROM app_user
+            WHERE tenant_id = CAST(:tenantId AS uuid)
+              AND is_deleted = FALSE
+              AND is_active  = TRUE
+              AND role       = 'AGENT'
+              AND status    <> 'OFFLINE'
+              AND user_id   <> CAST(:excludeUserId AS uuid)
+            ORDER BY
+                CASE status WHEN 'AVAILABLE' THEN 0 ELSE 1 END,
+                last_name ASC,
+                first_name ASC
+            """, nativeQuery = true)
+    List<AppUser> findTransferCandidates(@Param("tenantId") UUID tenantId,
+                                          @Param("excludeUserId") UUID excludeUserId);
+
+    /**
      * Zwraca liczbę aktywnych kontaktów dla listy agentów w jednym zapytaniu SQL (batch).
      *
      * <p>Zastępuje N osobnych wywołań {@link #countActiveContactsByAgentId} w strategii SKILL_BASED,

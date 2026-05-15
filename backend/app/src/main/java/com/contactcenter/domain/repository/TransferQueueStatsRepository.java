@@ -80,9 +80,10 @@ public class TransferQueueStatsRepository extends TenantAwareRepository {
         List<Object[]> rows = em.createNativeQuery("""
                 SELECT c.queue_id::text, COUNT(*) AS cnt
                 FROM contact c
-                WHERE c.tenant_id = CAST(:tenantId AS uuid)
-                  AND c.queue_id  = ANY(CAST(:queueIds AS uuid[]))
-                  AND c.status    = 'QUEUED'
+                WHERE c.tenant_id  = CAST(:tenantId AS uuid)
+                  AND c.queue_id   = ANY(CAST(:queueIds AS uuid[]))
+                  AND c.status     = 'QUEUED'
+                  AND c.is_deleted = FALSE
                 GROUP BY c.queue_id
                 """)
                 .setParameter("tenantId", tenantId.toString())

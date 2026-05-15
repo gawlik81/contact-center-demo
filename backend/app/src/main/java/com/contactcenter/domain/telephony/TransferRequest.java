@@ -38,7 +38,13 @@ public record TransferRequest(
         Objects.requireNonNull(targetType, "targetType is required");
 
         switch (targetType) {
-            case PHONE -> Objects.requireNonNull(phoneNumber, "phoneNumber required for PHONE transfer");
+            case PHONE -> {
+                Objects.requireNonNull(phoneNumber, "phoneNumber required for PHONE transfer");
+                if (!phoneNumber.matches("^\\+[1-9]\\d{6,14}$")) {
+                    throw new IllegalArgumentException(
+                            "phoneNumber must be in E.164 format (e.g. +48123456789), got: " + phoneNumber);
+                }
+            }
             case AGENT -> Objects.requireNonNull(agentId, "agentId required for AGENT transfer");
             case QUEUE -> {
                 Objects.requireNonNull(queueId, "queueId required for QUEUE transfer");

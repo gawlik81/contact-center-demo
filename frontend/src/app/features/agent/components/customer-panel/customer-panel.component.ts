@@ -7,6 +7,7 @@ import {
   SimpleChanges,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -37,6 +38,9 @@ export class CustomerPanelComponent implements OnChanges {
 
   /** Email address of the active contact (EMAIL channel). Pass empty string when not applicable. */
   readonly email = input<string>('');
+
+  /** Emitted when the user clicks "Szczegóły" on a contact history item. */
+  readonly contactSelected = output<string>();
 
   private readonly lookupService = inject(CustomerLookupService);
   private readonly router = inject(Router);
@@ -156,4 +160,8 @@ export class CustomerPanelComponent implements OnChanges {
   }
 
   protected readonly trackByContactId = (_i: number, item: ContactHistoryItem) => item.id;
+
+  protected onContactDetails(item: ContactHistoryItem): void {
+    this.contactSelected.emit(item.id);
+  }
 }

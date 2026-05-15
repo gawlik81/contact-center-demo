@@ -10,7 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DatePipe } from '@angular/common';
+import { DatePipe, LowerCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   EMPTY,
@@ -19,6 +19,7 @@ import {
   debounceTime,
   distinctUntilChanged,
   filter,
+  finalize,
   switchMap,
   tap,
 } from 'rxjs';
@@ -30,6 +31,8 @@ import { ManualCallbackModalComponent } from './manual-callback-modal/manual-cal
 import { AdHocEmailModalComponent } from './adhoc-email-modal/adhoc-email-modal.component';
 import { OutboundCallService } from '../../services/outbound-call.service';
 import { EmailService } from '../../services/email.service';
+import { ContactResponse } from '../../../../core/models/contact.model';
+import { ContactDetailModalComponent } from '../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
 
 const MIN_QUERY_LENGTH = 2;
 
@@ -39,10 +42,12 @@ const MIN_QUERY_LENGTH = 2;
   imports: [
     TranslocoModule,
     DatePipe,
+    LowerCasePipe,
     FormsModule,
     AgentCustomerCardComponent,
     ManualCallbackModalComponent,
     AdHocEmailModalComponent,
+    ContactDetailModalComponent,
   ],
   templateUrl: './agent-customers-tab.component.html',
   styleUrl: './agent-customers-tab.component.scss',
@@ -65,6 +70,9 @@ export class AgentCustomersTabComponent implements OnInit {
   protected readonly selectedCustomer = signal<CustomerSummary | null>(null);
   protected readonly callbackCustomer = signal<CustomerSummary | null>(null);
   protected readonly emailCustomer = signal<CustomerSummary | null>(null);
+  protected readonly lastContact = signal<ContactResponse | null>(null);
+  protected readonly lastContactLoading = signal(false);
+  protected readonly selectedContactId = signal<string | null>(null);
 
   /** Intermediate subject for debouncing raw input events */
   private readonly queryInput$ = new Subject<string>();
@@ -111,6 +119,18 @@ export class AgentCustomersTabComponent implements OnInit {
 
   protected onViewDetails(customer: CustomerSummary): void {
     this.selectedCustomer.set(customer);
+    this.lastContact.set(null);
+    this.lastContactLoading.set(true);
+    this.searchService
+      .getLastContact(customer.customerId)
+      .pipe(
+        finalize(() => this.lastContactLoading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (contact) => this.lastContact.set(contact),
+        error: () => this.lastContact.set(null),
+      });
   }
 
   protected onScheduleCallback(customer: CustomerSummary): void {
@@ -167,6 +187,15 @@ export class AgentCustomersTabComponent implements OnInit {
   protected onSendEmailFromDrawer(): void {
     const customer = this.selectedCustomer();
     if (customer) this.emailCustomer.set(customer);
+  }
+
+  protected openContactDetail(): void {
+    const c = this.lastContact();
+    if (c) this.selectedContactId.set(c.contactId);
+  }
+
+  protected onContactDetailClosed(): void {
+    this.selectedContactId.set(null);
   }
 
   protected readonly trackByCustomerId = (_i: number, c: CustomerSummary) => c.customerId;

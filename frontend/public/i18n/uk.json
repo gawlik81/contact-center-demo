@@ -291,7 +291,8 @@
       "statusChanged": "Статус змінено на Доступний."
     },
     "customerPanel": {
-      "empty": "Немає активного контакту",
+      "emptyTitle": "Немає активного контакту",
+      "empty": "Картка клієнта з'явиться тут після відповіді на дзвінок.",
       "loadingLabel": "Завантаження даних клієнта",
       "unknownTitle": "Невідомий клієнт",
       "unknownDesc": "Немає профілю клієнта для цього номера телефону.",
@@ -664,7 +665,10 @@
       "initiateCall": "Зателефонувати",
       "selectPhone": "Оберіть номер телефону",
       "callInitiated": "Виклик успішно ініційовано",
-      "callError": "Не вдалося ініціювати виклик"
+      "callError": "Не вдалося ініціювати виклик",
+      "sendEmail": "Надіслати email",
+      "noContactDetails": "Немає деталей",
+      "viewContactDetails": "Деталі контакту"
     },
     "adhocEmail": {
       "title": "Надіслати email клієнту",
@@ -2190,6 +2194,16 @@
     "emailSubject": "Тема:",
     "emailDate": "Дата:",
     "emailEmpty": "Вміст повідомлення відсутній.",
+    "sectionEvents": "Історія контакту",
+    "noEvents": "Немає зареєстрованих етапів.",
+    "eventInProgress": "у процесі",
+    "stageIVR": "IVR",
+    "stageVOICEBOT": "Бот",
+    "stageQUEUE": "Черга",
+    "stageAGENT": "Агент",
+    "stageON_HOLD": "Утрим.",
+    "stageCONSULTING": "Консульт.",
+    "stageTRANSFER": "Передача",
     "sectionRelated": "Пов'язані контакти",
     "loadingRelatedLabel": "Завантаження пов'язаних контактів...",
     "related": "Пов'язані",

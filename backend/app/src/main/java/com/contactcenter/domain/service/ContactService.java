@@ -7,10 +7,13 @@ import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.api.contact.dto.DispositionRequest;
 import com.contactcenter.api.contact.dto.EmailPreviewResponse;
+import com.contactcenter.api.contact.dto.ContactEventResponse;
 import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.EmailMessage;
+import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.infrastructure.aspect.Audited;
@@ -65,6 +68,8 @@ public class ContactService {
     private final ContactRepository contactRepository;
     private final RecordingService recordingService;
     private final EmailMessageRepository emailMessageRepository;
+    private final AppUserRepository appUserRepository;
+    private final ContactEventService contactEventService;
 
     // =========================================================================
     // Tworzenie kontaktu
@@ -263,6 +268,11 @@ public class ContactService {
         if (request.status() != null) {
             contact.setStatus(request.status());
         }
+        if ("COMPLETED".equals(request.status()) || "ABANDONED".equals(request.status())) {
+            contactEventService.closeAgent(contactId, tenantId);
+            contactEventService.closeQueue(contactId, tenantId);
+            contactEventService.closeHold(contactId, tenantId);
+        }
         if (request.assignedAt() != null) {
             contact.setAssignedAt(request.assignedAt());
         }
@@ -380,6 +390,12 @@ public class ContactService {
                     "Nie udało się przypisać agenta do kontaktu (zły status lub brak rekordu): " + contactId);
         }
 
+        contactEventService.closeQueue(contactId, tenantId);
+        String agentName = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+            .map(u -> u.getFirstName() + " " + u.getLastName())
+            .orElse("");
+        contactEventService.openAgent(contactId, tenantId, agentId, agentName);
+
         log.info("[ContactService] Agent przypisany do kontaktu: contactId={}, agentId={}, tenant={}",
                 contactId, agentId, tenantId);
 
@@ -483,6 +499,9 @@ public class ContactService {
         contact.setEndedAt(now);
         contact.setUpdatedAt(now);
         contactRepository.update(contact);
+
+        contactEventService.closeAgent(contactId, tenantId);
+        contactEventService.closeQueue(contactId, tenantId);
 
         log.info("[ContactService] Kontakt porzucony przez agenta: contactId={}, agentId={}, tenant={}",
                 contactId, agentId, tenantId);
@@ -676,6 +695,41 @@ public class ContactService {
                 message.getReceivedAt(),
                 message.getDirection()
         );
+    }
+
+    // =========================================================================
+    // Historia etapów kontaktu (BE-073)
+    // =========================================================================
+
+    /**
+     * Pobiera historię etapów kontaktu posortowaną chronologicznie.
+     *
+     * <p>AGENT może przeglądać historię tylko własnych kontaktów.
+     * SUPERVISOR/ADMIN mają dostęp do historii wszystkich kontaktów tenanta.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     * @param userId    UUID zalogowanego użytkownika (weryfikacja dla AGENT)
+     * @param isAgent   true gdy zalogowany użytkownik jest AGENT
+     * @return lista zdarzeń posortowana chronologicznie (może być pusta)
+     * @throws EntityNotFoundException   HTTP 404 gdy kontakt nie istnieje lub inny tenant
+     * @throws InvalidOperationException HTTP 409 gdy AGENT próbuje pobrać historię cudzego kontaktu
+     */
+    @Transactional(readOnly = true)
+    public List<ContactEventResponse> getContactEvents(
+            UUID contactId, UUID tenantId, UUID userId, boolean isAgent) {
+
+        Contact contact = findContactOrThrow(contactId, tenantId);
+
+        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Agent może przeglądać tylko historię własnych kontaktów: " + contactId);
+        }
+
+        return contactEventService.getHistory(contactId, tenantId)
+                .stream()
+                .map(ContactEventResponse::from)
+                .toList();
     }
 
     // =========================================================================

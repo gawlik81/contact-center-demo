@@ -3179,3 +3179,222 @@ Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w s
 - [ ] Notatka z `\n`: znaki nowej linii zachowane (`white-space: pre-wrap`)
 - [ ] Stan expand/collapse niezależny per element historii (rozwinięcie jednego nie wpływa na inne)
 - [ ] Tłumaczenia `noteExpand` i `noteCollapse` w pl, en, de, uk
+
+---
+
+## MODUŁ: Historia etapów kontaktu (EPIC-23)
+
+### FE-075 – Sekcja „Historia kontaktu" w modalu szczegółów kontaktu (`contact-detail-modal`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-073 (endpoint `GET /api/contacts/{id}/events`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Epic:** EPIC-23 Historia etapów kontaktu
+
+**Opis:**
+Modal szczegółów kontaktu (`contact-detail-modal`) pokazuje aktualnie: kanał, kierunek, status, czas trwania, dyspozycję, notatkę, nagranie i powiązane kontakty. Nowa sekcja „Historia kontaktu" prezentuje pełny przepływ kontaktu przez etapy: IVR → Kolejka → Agent → (Hold → Agent), z datą rozpoczęcia i czasem trwania każdego etapu.
+
+**Projekt UI (mockup sekcji):**
+```
+── Historia kontaktu ──────────────────────────────────────
+  [IVR]      10:00:05    2m 30s    "Powitanie"
+  [KOLEJKA]  10:02:35    5m 10s    "Sprzedaż"
+  [AGENT]    10:07:45    6m 00s    "Jan Kowalski"
+  [WSTRZYM.] 10:09:45    1m 30s
+  [AGENT]    10:11:15    3m 30s    "Jan Kowalski"
+───────────────────────────────────────────────────────────
+```
+Każdy wiersz: ikona/badge etapu | czas startu | czas trwania (lub „w toku" gdy `ended_at = null`) | kontekst z metadata.
+
+**Pliki do stworzenia/modyfikacji:**
+
+**1. `src/app/core/models/contact.model.ts`** — dodaj interfejsy:
+```typescript
+export interface ContactEventResponse {
+  eventId: string;
+  stage: 'IVR' | 'VOICEBOT' | 'QUEUE' | 'AGENT' | 'ON_HOLD' | 'CONSULTING' | 'TRANSFER';
+  startedAt: string;           // ISO 8601
+  endedAt: string | null;      // null = etap aktywny; dla TRANSFER = startedAt
+  durationSeconds: number | null;
+  metadata: Record<string, string>;
+  // IVR/VOICEBOT: ivr_tree_name, outcome (ESCALATED|COMPLETED|ERROR)
+  // QUEUE: queue_name
+  // AGENT: agent_name
+  // CONSULTING: target, transfer_type
+  // TRANSFER: target, transfer_type, target_agent_name (nullable)
+}
+```
+
+**2. `src/app/features/agent/services/contact.service.ts`** (lub shared) — dodaj metodę:
+```typescript
+getContactEvents(contactId: string): Observable<ContactEventResponse[]> {
+  return this.http.get<ContactEventResponse[]>(
+    `${environment.apiUrl}/contacts/${contactId}/events`
+  );
+}
+```
+
+**3. `contact-detail-modal.component.ts`** — dodaj logikę pobierania historii:
+```typescript
+protected readonly events = signal<ContactEventResponse[]>([]);
+protected readonly eventsState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+// W ngOnInit lub po załadowaniu kontaktu:
+private loadEvents(contactId: string): void {
+  this.eventsState.set('loading');
+  this.contactService.getContactEvents(contactId)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({
+      next: (list) => { this.events.set(list); this.eventsState.set('loaded'); },
+      error: () => this.eventsState.set('error'),
+    });
+}
+
+// Helper do formatowania czasu trwania:
+protected formatDuration(seconds: number | null): string {
+  if (seconds === null) return '—';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+// Helper do etykiety etapu (i18n przez klucze transloco):
+protected getStageLabel(stage: ContactEventResponse['stage']): string {
+  const labels: Record<string, string> = {
+    IVR: 'IVR',
+    VOICEBOT: 'Bot',
+    QUEUE: 'Kolejka',
+    AGENT: 'Agent',
+    ON_HOLD: 'Wstrzym.',
+    CONSULTING: 'Konsult.',
+    TRANSFER: 'Transfer',
+  };
+  return labels[stage] ?? stage;
+}
+
+// Helper do metadanych (nazwa IVR / bota / kolejki / agenta / celu transferu):
+protected getStageContext(event: ContactEventResponse): string {
+  const m = event.metadata;
+  if (event.stage === 'TRANSFER' || event.stage === 'CONSULTING') {
+    const who = m['target_agent_name'] ?? m['target'] ?? '';
+    const type = m['transfer_type'] ? ` (${m['transfer_type']})` : '';
+    return who + type;
+  }
+  return m['ivr_tree_name'] ?? m['queue_name'] ?? m['agent_name'] ?? '';
+}
+```
+
+**4. `contact-detail-modal.component.html`** — nowa sekcja po sekcji „Status", przed nagraniem:
+```html
+<!-- Section: Historia kontaktu -->
+@if (eventsState() === 'loading') {
+  <section class="contact-section" aria-labelledby="contact-section-events">
+    <h3 id="contact-section-events" class="contact-section__title">
+      {{ 'contactDetailModal.sectionEvents' | transloco }}
+    </h3>
+    <div class="events-skeleton">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="skeleton-block skeleton-block--event"></div>
+      }
+    </div>
+  </section>
+}
+
+@if (eventsState() === 'loaded' && events().length > 0) {
+  <section class="contact-section" aria-labelledby="contact-section-events">
+    <h3 id="contact-section-events" class="contact-section__title">
+      {{ 'contactDetailModal.sectionEvents' | transloco }}
+    </h3>
+    <ol class="contact-events" aria-label="Historia etapów kontaktu">
+      @for (event of events(); track event.eventId) {
+        <li class="contact-event contact-event--{{ event.stage.toLowerCase() }}">
+          <span class="contact-event__badge">
+            {{ getStageLabel(event.stage) }}
+          </span>
+          <span class="contact-event__time">
+            {{ event.startedAt | date: 'HH:mm:ss' }}
+          </span>
+          <span class="contact-event__duration">
+            {{ event.endedAt ? formatDuration(event.durationSeconds) : ('contactDetailModal.eventInProgress' | transloco) }}
+          </span>
+          @if (getStageContext(event)) {
+            <span class="contact-event__context">{{ getStageContext(event) }}</span>
+          }
+        </li>
+      }
+    </ol>
+  </section>
+}
+```
+
+**5. `contact-detail-modal.component.scss`** — style dla listy etapów:
+```scss
+.contact-events {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contact-event {
+  display: grid;
+  grid-template-columns: 90px 70px 80px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--color-surface-secondary, #f5f5f5);
+  font-size: 0.8rem;
+
+  &__badge {
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  &__time   { font-variant-numeric: tabular-nums; }
+  &__duration { color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+  &__context  { color: var(--color-text-secondary); font-size: 0.75rem; truncate: ellipsis; }
+
+  &--ivr        .contact-event__badge { background: #e3f2fd; color: #1565c0; }  // niebieski
+  &--voicebot   .contact-event__badge { background: #ede7f6; color: #4527a0; }  // fioletowy
+  &--queue      .contact-event__badge { background: #fff8e1; color: #f57f17; }  // żółty
+  &--agent      .contact-event__badge { background: #e8f5e9; color: #2e7d32; }  // zielony
+  &--on_hold    .contact-event__badge { background: #fff3e0; color: #e65100; }  // pomarańczowy
+  &--consulting .contact-event__badge { background: #e0f7fa; color: #006064; }  // cyjanowy
+  &--transfer   .contact-event__badge { background: #f5f5f5; color: #424242; }  // szary
+}
+
+.skeleton-block--event {
+  height: 36px;
+  border-radius: 6px;
+}
+```
+
+**6. Tłumaczenia** (`public/i18n/pl.json`, `en.json`, `de.json`, `uk.json`) — w sekcji `contactDetailModal`:
+- `sectionEvents`: `"Historia kontaktu"` / `"Contact timeline"` / `"Kontaktverlauf"` / `"Історія контакту"`
+- `eventInProgress`: `"w toku"` / `"in progress"` / `"laufend"` / `"у процесі"`
+
+**Uwagi implementacyjne:**
+- `loadEvents()` wywołaj po załadowaniu kontaktu (`loadState() === 'loaded'`), nie przy inicjalizacji komponentu — unikaj zbędnego requestu gdy kontakt nie załaduje się poprawnie
+- Sekcja historii nie wyświetla się gdy `eventsState === 'idle'` lub `eventsState === 'error'` (cicha degradacja — brak historii nie powinien blokować wyświetlania pozostałych danych kontaktu)
+- Lista `events()` posortowana po `startedAt ASC` przez backend — frontend nie sortuje
+
+**Kryteria akceptacji:**
+- [ ] Po otwarciu modalu kontaktu z historią → sekcja „Historia kontaktu" widoczna z listą etapów
+- [ ] Każdy etap: badge z nazwą etapu, godzina startu, czas trwania, kontekst (IVR/kolejka/agent)
+- [ ] Etap bez `ended_at` (aktywny) → wyświetla „w toku" zamiast czasu trwania
+- [ ] Kontakt bez historii etapów → sekcja się nie renderuje
+- [ ] Stany ładowania: skeleton podczas ładowania historii
+- [ ] Badge etapów mają różne kolory: IVR=niebieski, VOICEBOT=fioletowy, QUEUE=żółty, AGENT=zielony, ON_HOLD=pomarańczowy, CONSULTING=cyjanowy, TRANSFER=szary
+- [ ] Tłumaczenia `sectionEvents` i `eventInProgress` w pl, en, de, uk
+- [ ] Brak regresji: pozostałe sekcje modalu działają bez zmian

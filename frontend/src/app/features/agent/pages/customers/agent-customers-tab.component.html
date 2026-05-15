@@ -123,6 +123,9 @@
     <app-adhoc-email-modal [customer]="emailCustomer()!" (sent)="onEmailSent()" (cancelled)="onEmailCancelled()" />
   }
 
+  <!-- ===== Contact detail modal ===== -->
+  <app-contact-detail-modal [contactId]="selectedContactId()" (closed)="onContactDetailClosed()" />
+
   <!-- ===== Customer detail drawer ===== -->
   @if (selectedCustomer()) {
     <div class="customer-drawer" role="complementary" [attr.aria-label]="'agent.customers.detailsLabel' | transloco">
@@ -171,13 +174,38 @@
 
         <div class="drawer-section">
           <p class="drawer-section__label">{{ 'agent.customers.lastContact' | transloco }}</p>
-          <p class="drawer-section__value">
-            @if (selectedCustomer()!.lastContactAt) {
-              {{ selectedCustomer()!.lastContactAt | date: 'dd.MM.yyyy, HH:mm' }}
-            } @else {
-              {{ 'agent.customers.noContacts' | transloco }}
+          @if (lastContactLoading()) {
+            <div class="drawer-contact-skeleton">
+              <div class="skeleton-line skeleton-pulse"></div>
+              <div class="skeleton-line skeleton-line--short skeleton-pulse"></div>
+            </div>
+          } @else if (lastContact()) {
+            <p class="drawer-section__value">{{ lastContact()!.startedAt | date: 'dd.MM.yyyy, HH:mm' }}</p>
+            <div class="drawer-contact-meta">
+              <span class="drawer-contact-channel drawer-contact-channel--{{ lastContact()!.channel | lowercase }}">{{
+                lastContact()!.channel
+              }}</span>
+              @if (lastContact()!.dispositionCode) {
+                <span class="drawer-contact-disposition">{{ lastContact()!.dispositionCode }}</span>
+              }
+            </div>
+            @if (lastContact()!.notes) {
+              <p class="drawer-contact-note">{{ lastContact()!.notes }}</p>
             }
-          </p>
+            <button type="button" class="drawer-contact-details-btn" (click)="openContactDetail()">
+              {{ 'agent.customers.viewContactDetails' | transloco }}
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+              </svg>
+            </button>
+          } @else if (selectedCustomer()!.lastContactAt) {
+            <p class="drawer-section__value">
+              {{ selectedCustomer()!.lastContactAt | date: 'dd.MM.yyyy, HH:mm' }}
+            </p>
+            <p class="drawer-section__value--muted">{{ 'agent.customers.noContactDetails' | transloco }}</p>
+          } @else {
+            <p class="drawer-section__value">{{ 'agent.customers.noContacts' | transloco }}</p>
+          }
         </div>
 
         <button type="button" class="drawer-action-btn" (click)="onScheduleCallback(selectedCustomer()!)">

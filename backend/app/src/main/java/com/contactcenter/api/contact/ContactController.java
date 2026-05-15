@@ -35,6 +35,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.contactcenter.api.contact.dto.ContactEventResponse;
 import com.contactcenter.api.contact.dto.EmailPreviewResponse;
 import com.contactcenter.api.contact.dto.RelatedItem;
 
@@ -422,6 +423,34 @@ public class ContactController {
         ContactRecordingUrlResponse response = contactService.getRecordingUrl(
                 contactId, tenantId, userId, isAgent);
         return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Historia etapów kontaktu (BE-073)
+    // =========================================================================
+
+    @GetMapping("/{id}/events")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+            summary = "Get contact event history",
+            description = "Returns the ordered list of lifecycle stages for a contact (IVR, QUEUE, AGENT, ON_HOLD, etc.).",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Event history (may be empty)"),
+                    @ApiResponse(responseCode = "404", description = "Contact not found"),
+                    @ApiResponse(responseCode = "409", description = "Agent accessing another agent's contact")
+            }
+    )
+    public ResponseEntity<List<ContactEventResponse>> getContactEvents(
+            @Parameter(description = "Contact UUID", required = true)
+            @PathVariable String id
+    ) {
+        UUID contactId = parseContactId(id);
+        UUID tenantId = TenantContext.getTenantId();
+        UUID userId = TenantContext.getUserId();
+        boolean isAgent = currentUserIsAgent();
+        log.debug("[ContactController] Historia etapów: contactId={}, tenant={}", contactId, tenantId);
+        List<ContactEventResponse> events = contactService.getContactEvents(contactId, tenantId, userId, isAgent);
+        return ResponseEntity.ok(events);
     }
 
     // =========================================================================

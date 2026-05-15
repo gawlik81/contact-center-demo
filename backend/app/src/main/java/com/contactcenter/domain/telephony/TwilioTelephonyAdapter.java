@@ -1,11 +1,15 @@
 package com.contactcenter.domain.telephony;
 
 import com.contactcenter.domain.event.TwilioConfigChangedEvent;
+import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
@@ -29,6 +33,7 @@ import com.twilio.type.Twiml;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.event.EventListener;
@@ -107,6 +112,17 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final TwilioRecordingDownloadService recordingDownloadService;
   private final TenantTwilioConfigService tenantTwilioConfigService;
   private final ContactEventService contactEventService;
+  /** Repozytorium użytkowników – wymagane do lookup agenta przy transferze AGENT. */
+  private final AppUserRepository appUserRepository;
+  /** Repozytorium kolejek – wymagane do lookup kolejki przy transferze QUEUE. */
+  private final QueueRepository queueRepository;
+
+  /**
+   * Bazowy URL aplikacji (np. https://example.com) – wymagany do budowania TwiML
+   * dla transferu do kolejki (URL callbacków konferencji i muzyki oczekiwania).
+   */
+  @Value("${app.base-url:http://localhost:8080}")
+  private String appBaseUrl;
 
   /**
    * Cache per-tenant TwilioRestClient (max 100, TTL 15 min).
@@ -878,18 +894,168 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * {@inheritDoc}
    *
    * <p>Dla {@link TransferTargetType#PHONE} deleguje do {@link #transferCall}.
-   * Dla {@link TransferTargetType#AGENT} i {@link TransferTargetType#QUEUE} rzuca
-   * {@link UnsupportedOperationException} – obsługa planowana w przyszłym sprincie.
+   *
+   * <p>Dla {@link TransferTargetType#AGENT}:
+   * <ul>
+   *   <li>Pobiera agenta po {@code request.agentId()} z {@link AppUserRepository}.</li>
+   *   <li>Ustala cel Twilio: {@code client:agent-{agentId}} (Twilio Client SDK),
+   *       taki sam format jak używany w {@link #dialAgentIntoConference}.</li>
+   *   <li>Deleguje do {@link #transferCall} – obsługuje BLIND i ATTENDED.</li>
+   * </ul>
+   *
+   * <p>Dla {@link TransferTargetType#QUEUE} (tylko BLIND – walidacja w {@link TransferRequest#validate()}):
+   * <ul>
+   *   <li>Pobiera kolejkę po {@code request.queueId()} z {@link QueueRepository}.</li>
+   *   <li>Redirectuje bieżące połączenie klienta przez TwiML {@code <Conference>}
+   *       z nową nazwą konferencji ({@code contact-{newContactId}}), analogicznie do
+   *       {@code IvrEngineService.buildWaitInConferenceTwiml}.</li>
+   *   <li>Publikuje event transferu.</li>
+   * </ul>
+   *
+   * @throws TelephonyException gdy agent/kolejka nie istnieje, sesja jest w złym stanie
+   *                            lub Twilio API zwróci błąd
    */
   @Override
   public CallSession initiateTransfer(String callId, TransferRequest request) {
     request.validate();
     return switch (request.targetType()) {
       case PHONE -> transferCall(callId, request.phoneNumber(), request.transferType());
-      case AGENT, QUEUE -> throw new UnsupportedOperationException(
-          "initiateTransfer to AGENT/QUEUE not yet implemented for Twilio adapter. targetType="
-              + request.targetType());
+      case AGENT -> transferToAgent(callId, request);
+      case QUEUE -> transferToQueue(callId, request);
     };
+  }
+
+  /**
+   * Transfer do agenta przez Twilio Client SDK.
+   *
+   * <p>Agent identyfikowany jest przez {@code client:agent-{agentId}} – ten sam format
+   * co {@link #dialAgentIntoConference}. Obsługuje BLIND i ATTENDED.
+   */
+  private CallSession transferToAgent(String callId, TransferRequest request) {
+    UUID tenantId = TenantContext.getTenantId();
+    UUID agentId = request.agentId();
+
+    // Weryfikacja agenta – musi należeć do tego samego tenanta
+    AppUser agent = appUserRepository
+        .findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+        .orElseThrow(() -> new TelephonyException(callId,
+            "Agent nie istnieje lub należy do innego tenanta: agentId=" + agentId));
+
+    // Twilio Client SDK target: identyczny format jak w dialAgentIntoConference()
+    String target = "client:agent-" + agentId.toString();
+
+    log.info("[TwilioAdapter] Transfer do agenta: callId={}, agentId={}, agent={} {}, target={}, type={}",
+        callId, agentId, agent.getFirstName(), agent.getLastName(), target, request.transferType());
+
+    return transferCall(callId, target, request.transferType());
+  }
+
+  /**
+   * Blind transfer do kolejki przez redirect TwiML z {@code <Conference>}.
+   *
+   * <p>Klient zostaje przekierowany do nowej konferencji Twilio o nazwie
+   * {@code contact-{newContactId}}, która obsługuje oczekiwanie na agenta z danej kolejki.
+   * Format TwiML identyczny jak {@code IvrEngineService.buildWaitInConferenceTwiml}.
+   *
+   * <p>Nowy {@code contactId} jest generowany deterministycznie jako losowy UUID,
+   * ponieważ oryginalny kontakt przechodzi w stan TRANSFERRED i nie może być
+   * ponownie użyty dla nowego oczekiwania w kolejce.
+   */
+  private CallSession transferToQueue(String callId, TransferRequest request) {
+    CallSession session = requireSession(callId);
+
+    if (session.getStatus() != CallSession.CallStatus.ACTIVE
+        && session.getStatus() != CallSession.CallStatus.ON_HOLD) {
+      throw new TelephonyException(callId,
+          "Transfer do kolejki możliwy tylko dla połączenia ACTIVE lub ON_HOLD. Status: "
+              + session.getStatus());
+    }
+
+    UUID tenantId = session.getTenantId();
+    UUID queueId = request.queueId();
+
+    // Weryfikacja kolejki – musi należeć do tego samego tenanta
+    Queue queue = queueRepository
+        .findByIdAndTenantId(queueId, tenantId)
+        .orElseThrow(() -> new TelephonyException(callId,
+            "Kolejka nie istnieje lub należy do innego tenanta: queueId=" + queueId));
+
+    if (!queue.isActive()) {
+      throw new TelephonyException(callId,
+          "Nie można transferować do nieaktywnej kolejki: queueId=" + queueId
+              + ", queue=" + queue.getName());
+    }
+
+    // Nowy contactId dla oczekiwania w kolejce po transferze
+    UUID newContactId = UUID.randomUUID();
+    String newConferenceName = "contact-" + newContactId;
+
+    log.info("[TwilioAdapter] Transfer do kolejki: callId={}, queueId={}, queueName={}, newContactId={}",
+        callId, queueId, queue.getName(), newContactId);
+
+    // Buduj TwiML analogicznie do IvrEngineService.buildWaitInConferenceTwiml
+    String rawBase = buildRawWebhookBaseUrl(tenantId);
+    String conferenceStatusCallbackUrl = rawBase != null
+        ? rawBase + "/conference?tenantId=" + tenantId
+        : null;
+    String recordingCallbackUrl = rawBase != null
+        ? rawBase + "/recording?tenantId=" + tenantId
+        : null;
+    String waitUrl = appBaseUrl + "/api/telephony/hold-music?queueId=" + queueId;
+
+    StringBuilder conferenceAttrs = new StringBuilder();
+    conferenceAttrs.append("startConferenceOnEnter=\"false\"");
+    conferenceAttrs.append(" endConferenceOnExit=\"true\"");
+    if (twilioProperties.isRecordingEnabled() && recordingCallbackUrl != null) {
+      conferenceAttrs.append(" record=\"record-from-start\"");
+      conferenceAttrs.append(" recordingStatusCallback=\"").append(recordingCallbackUrl).append("\"");
+      conferenceAttrs.append(" recordingStatusCallbackMethod=\"POST\"");
+    }
+    if (conferenceStatusCallbackUrl != null) {
+      conferenceAttrs.append(" statusCallback=\"").append(conferenceStatusCallbackUrl).append("\"");
+      conferenceAttrs.append(" statusCallbackEvent=\"end\"");
+      conferenceAttrs.append(" statusCallbackMethod=\"POST\"");
+    }
+    conferenceAttrs.append(" waitUrl=\"").append(waitUrl).append("\"");
+    conferenceAttrs.append(" waitMethod=\"GET\"");
+
+    String queueTwiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        + "<Response>"
+        + "<Say language=\"pl-PL\">Przekazuję do kolejki, proszę czekać.</Say>"
+        + "<Dial>"
+        + "<Conference " + conferenceAttrs + ">"
+        + newConferenceName
+        + "</Conference>"
+        + "</Dial>"
+        + "</Response>";
+
+    try {
+      Call.updater(callId)
+          .setTwiml(new Twiml(queueTwiml))
+          .update(resolveRestClient(tenantId));
+    } catch (ApiException e) {
+      log.error("[TwilioAdapter] Błąd Twilio API przy transfer do kolejki: callId={}, queueId={}, code={}, msg={}",
+          callId, queueId, e.getCode(), e.getMessage(), e);
+      throw new TelephonyException(callId,
+          "Nie można wykonać transferu do kolejki przez Twilio: " + e.getMessage(), e);
+    }
+
+    Instant now = Instant.now();
+    CallSession transferred = session
+        .withStatus(CallSession.CallStatus.TRANSFERRED)
+        .withEndedAt(now);
+    saveSession(transferred);
+
+    log.info("[TwilioAdapter] Transfer do kolejki wykonany: callId={}, queueId={}, queueName={}, newContactId={}",
+        callId, queueId, queue.getName(), newContactId);
+
+    eventPublisher.publishTransferred(
+        callId, tenantId, session.getAgentId(),
+        session.getFrom(), session.getTo(),
+        "queue:" + queueId, TransferType.BLIND.name()
+    );
+
+    return transferred;
   }
 
   /**

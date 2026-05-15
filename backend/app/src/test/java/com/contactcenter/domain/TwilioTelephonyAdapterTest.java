@@ -3,8 +3,10 @@ package com.contactcenter.domain;
 import com.contactcenter.domain.event.TwilioConfigChangedEvent;
 import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
@@ -97,6 +99,12 @@ class TwilioTelephonyAdapterTest {
     @Mock
     private ContactEventService contactEventService;
 
+    @Mock
+    private AppUserRepository appUserRepository;
+
+    @Mock
+    private QueueRepository queueRepository;
+
     private TwilioProperties twilioProperties;
     private TwilioTelephonyAdapter adapter;
 
@@ -156,7 +164,8 @@ class TwilioTelephonyAdapterTest {
         adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher,
                 contactRepository, customerRepository, tenantRepository,
                 redisTemplate, stringRedisTemplate, recordingDownloadService,
-                tenantTwilioConfigService, contactEventService);
+                tenantTwilioConfigService, contactEventService,
+                appUserRepository, queueRepository);
         // init() inicjalizuje Caffeine cache bez wywoływania Twilio.init() (usunięte w BE-058)
         // oraz bez konfigurowania statusCallbacków (tenantRepository zwraca pustą listę)
         adapter.init();

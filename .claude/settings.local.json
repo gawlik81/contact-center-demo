@@ -282,7 +282,8 @@
       "Bash(cp \"/home/pawelm/.claude/projects/-home-pawelm-contact-center/ee64258e-9d28-45fc-be58-de5be88c6e65/tool-results/webfetch-1778819844875-s2nd2l.bin\" /tmp/design.gz)",
       "Bash(gunzip -f /tmp/design.gz)",
       "Bash(tar -xf /tmp/design -C /tmp/design_extracted)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Skill(fullstack-dev-skills:code-reviewer)"
     ]
   }
 }

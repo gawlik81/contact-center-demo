@@ -815,3 +815,154 @@ Pole jest opisane jako "(opcjonalnie)" w etykiecie tekstowej — to dobra prakty
 Implementacja frontendowa jest wysokiej jakości: pole email jest poprawnie opcjonalne, walidacja działa, null/pusty string jest prawidłowo konwertowany, a ARIA jest zaimplementowane starannie. Jeden potencjalny problem z inicjalizacją `''` zamiast `null` w trybie edycji jest edge case bez realnego wpływu na działanie (bo `onSubmit` konwertuje oba na `null`). Martwy kod w bloku `if (!this.isEditMode())` powinien być usunięty dla czystości.
 
 **Ocena: 4.5/5** — poprawna implementacja z drobnymi usprawnieniami kosmetycznymi, brak błędów krytycznych.
+
+---
+
+## Review: EPIC-24 Transfer połączenia — pliki frontendowe — 2026-05-15
+
+Scope: call-session.model.ts, softphone.service.ts, softphone.component.ts/html/scss, transfer-agent-list.component.ts/html/scss, transfer-queue-list.component.ts/html/scss, i18n/pl.json, en.json, de.json.
+
+---
+
+## [KRYTYCZNE] Sesja zostaje w stanie TRANSFERRING po błędzie attended transfer do agenta
+
+**Plik:** `softphone.service.ts` — metody `initiateAttendedTransferToAgent`, `initiateAttendedTransfer`
+
+**Problem:** Wzorzec stosowany przy attended transfer:
+```typescript
+this.session.set({ ...s, state: 'TRANSFERRING' }); // optymistyczna zmiana przed HTTP
+this.http.post(...).pipe(catchError(() => of(null))).subscribe((resp) => {
+  // po błędzie: onSettled() -> isTransferring.set(false), attendedConnected.set(true)
+  // sesja zostaje w TRANSFERRING, secondLegCallId === null
+});
+```
+`catchError(() => of(null))` konwertuje błąd HTTP na null — subscribe zawsze się uruchamia. Gdy backend zwraca błąd (409, 500, 403), sesja przechodzi w `TRANSFERRING`, `attendedConnected.set(true)` jest wywołane, ale `secondLegCallId` pozostaje null. Agent widzi panel "konsultacji" bez możliwości powrotu do połączenia — jest zablokowany w stanie TRANSFERRING.
+
+**Rekomendacja:** Obsłużyć błąd HTTP i przywrócić stan sesji do `ACTIVE`:
+```typescript
+this.http.post<{ secondLegCallId?: string }>(url, body)
+  .pipe(
+    catchError(() => {
+      this.session.set({ ...s, state: 'ACTIVE', transferTarget: null });
+      onSettled?.();
+      return EMPTY;
+    })
+  )
+  .subscribe((resp) => {
+    if (resp?.secondLegCallId) {
+      this.secondLegCallId = resp.secondLegCallId;
+    }
+    this.attendedConnected.set(true);
+    onSettled?.();
+  });
+```
+Ten sam problem dotyczy `initiateAttendedTransfer` (PHONE attended) i `initiateAttendedTransferToAgent`.
+
+---
+
+## [WAŻNE] Niezgodność typów statusu agenta między backendem a frontendem
+
+**Plik:** `call-session.model.ts` linia 11
+
+**Problem:** `TransferAgentItem.status` jest typowany jako:
+```typescript
+status: 'AVAILABLE' | 'BUSY' | 'BREAK' | 'ON_CALL';
+```
+Backend (`TransferAgentResponse.java`) zwraca statusy: `AVAILABLE`, `BUSY`, `AFTER_CONTACT`, `ACTIVE`, `BREAK`, `INACTIVE`. Brakuje `AFTER_CONTACT`, `ACTIVE`, `INACTIVE` na frontendzie; `ON_CALL` nie istnieje w backendzie. TypeScript nie wykryje tego w runtime — stringi zawsze zostaną przypisane, ale klasy CSS oparte na statusie nie będą miały dopasowania.
+
+**Rekomendacja:** Zsynchronizować typ ze specyfikacją backendu:
+```typescript
+status: 'AVAILABLE' | 'BUSY' | 'AFTER_CONTACT' | 'ACTIVE' | 'BREAK' | 'INACTIVE';
+```
+I dodać obsługę CSS klas dla brakujących statusów w SCSS transfer-agent-list.
+
+---
+
+## [WAŻNE] Hardcoded polskie stringi zamiast i18n — zakładki i teksty w transfer komponentach
+
+**Pliki:**
+- `softphone.component.ts` linia 52–54 — etykiety zakładek `'Telefon'`, `'Agent'`, `'Kolejka'`
+- `transfer-agent-list.component.html` — placeholder `"Szukaj agenta..."`, aria-label, "Przekaż"/"Konsultuj", "Brak dostępnych agentów.", "Nie udało się załadować listy agentów."
+- `transfer-queue-list.component.html` — "Nie udało się załadować listy kolejek.", "czeka", "agentów", "Brak dostępnych kolejek."
+- `softphone.component.html` linia ~248 — `aria-label="Cel transferu"`
+
+**Problem:** Projekt używa Transloco, wszystkie widoczne teksty muszą być w plikach i18n. Nowe komponenty zawierają kilkanaście hardcoded polskich stringów, co narusza standard i18n projektu. Aplikacja obsługuje pl/en/de.
+
+**Rekomendacja:** Przenieść wszystkie stringi do `pl.json`/`en.json`/`de.json` i użyć `| transloco`. Przykład dla szablonu:
+```html
+<input [placeholder]="'agent.transfer.searchAgent' | transloco" />
+<p>{{ 'agent.transfer.noAgentsAvailable' | transloco }}</p>
+```
+Dla zakładek w TypeScript — etykiety powinny być pobierane przez TranslocoService lub wbudowane bezpośrednio w template zamiast tablicy w komponencie.
+
+---
+
+## [WAŻNE] Brak `[disabled]` na przyciskach w `transfer-agent-list` i `transfer-queue-list` podczas transferu
+
+**Plik:** `transfer-agent-list.component.html`, `transfer-queue-list.component.html`
+
+**Problem:** Blokada podwójnych kliknięć (`isTransferring`) jest obsługiwana wyłącznie w `softphone.component.ts` (`onAgentSelected`, `onQueueSelected`). Przyciski w komponentach dzieci nie mają `[disabled]` binding — użytkownik może kliknąć w agenta lub kolejkę wielokrotnie (np. klawiaturą) i wywołać kilka requestów HTTP.
+
+**Rekomendacja:**
+1. Przekazać stan `isTransferring` jako `input()` do obu komponentów:
+```typescript
+isTransferring = input<boolean>(false);
+```
+2. Dodać `[disabled]="isTransferring()"` na każdym przycisku agenta/kolejki w template.
+
+---
+
+## [WAŻNE] Dead code — przyciski "Complete attended" w sekcji PHONE attended są nieosiągalne
+
+**Plik:** `softphone.component.html` linia ~320–353
+
+**Problem:** Sekcja `@else { completeAttended button }` w PHONE attended (linia ~340) jest widoczna tylko gdy `s.state === 'ACTIVE' && _showTransferPanel()`. Jednak `initiateAttendedTransfer` natychmiast ustawia `session.state = 'TRANSFERRING'` — panel transferu (wymagający `s.state === 'ACTIVE'`) znika przed wywołaniem `attendedConnected.set(true)`. Przycisk "Complete" w tej sekcji jest zatem **nieosiągalny** w praktyce — attended PHONE complete jest obsługiwany przez panel TRANSFERRING (linia 507–514).
+
+**Rekomendacja:** Usunąć martwy kod `@else` bloku dla PHONE attended z sekcji panelu transferu (linie ~343–353).
+
+---
+
+## [WAŻNE] Brak obsługi `secondLegCallId === null` w `completeAttendedTransfer`
+
+**Plik:** `softphone.service.ts` linia ~403–424
+
+**Problem:** Gdy `secondLegCallId` jest null (backend nie zwrócił `secondLegCallId` lub błąd HTTP przy attended), `completeAttendedTransfer` wywołuje `of(null)` zamiast bridge HTTP — sesja zostaje ustawiona na `ENDED` bez faktycznego bridge. Agent nie wie, że bridge się nie wykonał.
+
+**Rekomendacja:**
+```typescript
+if (!this.secondLegCallId) {
+  // brak secondLegCallId - błąd operacji, nie można sfinalizować attended transfer
+  onSettled?.();
+  return;
+  // + pokazać toast error użytkownikowi
+}
+```
+
+---
+
+## [SUGESTIA] `transferTargetTabs` nie reaguje na zmianę języka Transloco
+
+**Plik:** `softphone.component.ts` linia 51–55
+
+**Problem:** Tablica `transferTargetTabs` jest zadeklarowana jako statyczna stała z hardcoded polskimi etykietami — nie odświeży się po zmianie języka.
+
+**Rekomendacja:** Przenieść etykiety do szablonu bezpośrednio z `| transloco` pipe zamiast budować tablicę etykiet w TypeScript:
+```html
+@for (tab of transferTargetTabValues; track tab) {
+  <button ...>{{ 'agent.transfer.tab.' + tab | transloco }}</button>
+}
+```
+gdzie `transferTargetTabValues = ['PHONE', 'AGENT', 'QUEUE'] as const`.
+
+---
+
+## Podsumowanie EPIC-24 Frontend
+
+**Ocena: 3/5** — Architektura jest poprawna: `OnPush`, signals, `takeUntilDestroyed`, standalone components, spinner blokujący podwójne kliknięcia, skeleton loading states — solidne fundamenty. Jednak wykryto jeden krytyczny bug (sesja zablokowana w TRANSFERRING po błędzie attended HTTP), ważne problemy z typami (status niezgodny z backendem) i wszechobecne hardcoded polskie stringi zamiast i18n.
+
+**Najważniejsze do poprawy przed merge:**
+1. Przywrócenie stanu `ACTIVE` po błędzie attended transfer HTTP — blokuje agenta
+2. Synchronizacja `TransferAgentItem.status` z wartościami backendu (AFTER_CONTACT, ACTIVE, INACTIVE)
+3. Przeniesienie hardcoded polskich stringów do plików i18n (zakładki, placeholdery, komunikaty błędów)
+4. Dodanie `[disabled]="isTransferring"` na przyciskach w `transfer-agent-list` i `transfer-queue-list`
+5. Usunięcie dead code — blok "Complete" w PHONE attended section panelu transferu

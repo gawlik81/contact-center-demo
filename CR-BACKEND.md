@@ -1625,3 +1625,184 @@ log.debug("[EWT] Queue {}: waiting={}, agents={}, avgHT={}s, EWT={}s",
 Implementacja EWT jest architektonicznie spójna i demonstruje dobre decyzje projektowe (jednorazowy SCAN, izolacja błędów per-kolejka, fallback 300s). Trzy problemy wymagają uwagi przed merge: (1) brak `is_deleted = false` w SQL zawyża `waitingCount` dla soft-deleted kontaktów QUEUED, (2) rekonstrukcja encji `Queue` z DTO w kontrolerze to anty-wzorzec tworzący partial object podatny na NPE przy rozszerzeniu, (3) `GET /api/queues/{id}/stats` triggeruje pełny Redis SCAN per żądanie HTTP bez cache — wektor DoS. Pominięcie `findAllByStatusOrderByNameAsc` (wczytywanie wszystkich tenantów zamiast aktywnych) to niepotrzebny narzut przy każdym ticku schedulera. Problem z `fixedRate` (nakładanie się wywołań) i brak ShedLock (multi-instancja) to znany dług techniczny wymagający adresowania przed wdrożeniem produkcyjnym.
 
 **Ocena: 3.5/5** — solidna logika biznesowa i dobra odporność na błędy, ale bug soft-delete w SQL i anty-wzorzec partial-entity w kontrolerze muszą być naprawione przed merge.
+
+---
+
+## Review: EPIC-24 Transfer połączenia — pliki backendowe — 2026-05-15
+
+Scope: TransferTargetType, TransferRequest, TelephonyAdapter, TelephonyEventPublisher, MockTelephonyAdapter, TwilioTelephonyAdapter, TransferController, AgentCallController, TransferAgentResponse, TransferCallRequest, TransferQueueResponse, TransferAgentQueueRepository, TransferQueueStatsRepository, TransferService, ContactService (metody initiateTransfer + bridgeCalls).
+
+---
+
+## [KRYTYCZNE] secondCallId w bridge endpoint nie jest weryfikowany relative do tenanta
+
+**Plik:** `ContactService.java` linia ~930–961 (metoda `bridgeCalls`)
+
+**Problem:** Metoda weryfikuje własność `callId` (pierwsza noga), ale `secondCallId` jest przekazywany bezpośrednio do `telephonyAdapter.bridgeCalls(callId, secondCallId)` bez żadnej weryfikacji, że ta sesja należy do tego samego tenanta lub do tego samego agenta. `MockTelephonyAdapter.requireSession()` nie sprawdza tenant — pobiera sesję wyłącznie po kluczu z globalnej `ConcurrentHashMap`. Agent tenanta A mógłby wywołać `POST /api/telephony/calls/{własnyCallId}/bridge/{callIdInnegoTenanta}` i połączyć dwie nogi należące do różnych tenantów.
+
+**Rekomendacja:** Przed wywołaniem adaptera zweryfikuj, że sesja pod `secondCallId` istnieje i należy do tego samego tenanta:
+```java
+CallSession secondSession = telephonyAdapter.getSession(secondCallId)
+    .orElseThrow(() -> new EntityNotFoundException("Sesja drugiej nogi nie istnieje: " + secondCallId));
+if (!tenantId.equals(secondSession.getTenantId())) {
+    throw new CrossTenantAccessException(UUID.fromString(secondCallId), tenantId, secondSession.getTenantId());
+}
+```
+Wymaga to dodania metody `getSession(String callId): Optional<CallSession>` do interfejsu `TelephonyAdapter`.
+
+---
+
+## [KRYTYCZNE] UnsupportedOperationException w TwilioAdapter przekłada się na HTTP 500
+
+**Plik:** `TwilioTelephonyAdapter.java` — metoda `initiateTransfer`, case `AGENT, QUEUE`
+
+**Problem:** `UnsupportedOperationException` rzucana przez `TwilioTelephonyAdapter.initiateTransfer()` dla `AGENT` i `QUEUE` nie jest obsługiwana przez `GlobalExceptionHandler` — nie ma tam dedykowanego handlera. Zostanie złapana przez ogólny fallback i zwrócona jako HTTP 500 z technicznym komunikatem. W środowisku produkcyjnym (Twilio), transfer do agenta lub kolejki zwróci 500 zamiast zrozumiałego 501/400.
+
+**Rekomendacja:** Dwie opcje:
+
+1. Dodać handler w `GlobalExceptionHandler`:
+```java
+@ExceptionHandler(UnsupportedOperationException.class)
+public ResponseEntity<ProblemDetail> handleUnsupportedOp(UnsupportedOperationException ex, WebRequest req) {
+    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, ex.getMessage());
+    return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(pd);
+}
+```
+2. Zamiast `UnsupportedOperationException` rzucać dedykowany `TelephonyException` lub `FeatureNotSupportedException`, który jest już obsługiwany.
+
+---
+
+## [WAŻNE] Dead code — mapa `meta` budowana, lecz nigdy nie przekazywana do `contactEventService`
+
+**Plik:** `ContactService.java` linie 864–884 (metoda `recordTransferEvent`)
+
+**Problem:** `Map<String, Object> meta` jest tworzona i wypełniana (transfer_type, target_type, target_agent_id / target_queue_id), ale do `contactEventService.recordTransfer(...)` przekazywana jest jedynie zakodowana wartość `resolveTransferTarget(req)` i `req.transferType().name()`. Mapa `meta` nie jest nigdzie użyta — dead code wprowadzający mylące wrażenie, że metadane są zapisywane.
+
+**Rekomendacja:** Usunąć mapę `meta` jeśli `contactEventService.recordTransfer` nie przyjmuje parametru metadata, albo rozszerzyć sygnaturę `recordTransfer` o `Map<String, Object> metadata` i faktycznie persystować te metadane. Metadane transferu (type, target) są przydatne do raportowania i historii.
+
+---
+
+## [WAŻNE] Brak filtra `is_deleted = FALSE` przy zliczaniu kontaktów QUEUED
+
+**Plik:** `TransferQueueStatsRepository.java` linia 83–86 (metoda `countWaitingContactsByQueueIds`)
+
+**Problem:** Zapytanie:
+```sql
+WHERE c.tenant_id = CAST(:tenantId AS uuid)
+  AND c.queue_id  = ANY(CAST(:queueIds AS uuid[]))
+  AND c.status    = 'QUEUED'
+```
+nie filtruje `c.is_deleted = FALSE`. Kontakty soft-deleted, które mają status `QUEUED`, zostaną wliczone do metryki `waitingContacts`. RLS na tabeli `contact` (V012) filtruje tylko po `tenant_id`, nie po `is_deleted`. Wynik: zawyżona liczba oczekujących kontaktów w `TransferQueueResponse`.
+
+**Rekomendacja:**
+```sql
+WHERE c.tenant_id  = CAST(:tenantId AS uuid)
+  AND c.queue_id   = ANY(CAST(:queueIds AS uuid[]))
+  AND c.status     = 'QUEUED'
+  AND c.is_deleted = FALSE
+```
+
+---
+
+## [WAŻNE] `TransferService.getAvailableAgents` ładuje wszystkich agentów tenanta bez limitu
+
+**Plik:** `TransferService.java` linia 75 (metoda `getAvailableAgents`)
+
+**Problem:** `appUserRepository.findAllByTenantIdAndDeletedFalse(tenantId, Pageable.unpaged())` ładuje **wszystkich** nieusunętych użytkowników tenanta do pamięci bez żadnego limitu. Dla dużych call center (np. 500–1000 agentów) jest to nadmiarowe obciążenie pamięci przy każdym otwarciu panelu transferu przez każdego agenta. Filtrowanie po roli `AGENT`, statusie i `excludeUserId` odbywa się w Javie (stream), zamiast na poziomie zapytania SQL.
+
+**Rekomendacja:** Dodać dedykowane zapytanie filtrujące na poziomie bazy:
+```java
+@Query("SELECT u FROM AppUser u WHERE u.tenantId = :tenantId AND u.deleted = false " +
+       "AND u.role = 'AGENT' AND u.status != 'OFFLINE' AND u.id != :excludeId")
+List<AppUser> findTransferCandidates(@Param("tenantId") UUID tenantId, @Param("excludeId") UUID excludeId);
+```
+Alternatywnie: cachowanie wyników na ~10–15 sekund w Redis z kluczem `transfer:agents:{tenantId}`.
+
+---
+
+## [WAŻNE] Brak walidacji formatu E.164 dla `phoneNumber`
+
+**Plik:** `TransferRequest.java` linia 40–44 oraz `TransferCallRequest.java`
+
+**Problem:** `TransferRequest.validate()` sprawdza jedynie czy `phoneNumber != null` dla `PHONE` transferów. Nie waliduje formatu E.164. Backend przekaże do adaptera dowolny string jako numer telefonu. Dodatkowo `TransferCallRequest` (DTO HTTP) nie ma żadnej adnotacji walidującej `phoneNumber`.
+
+**Rekomendacja:** Dodać walidację w `TransferRequest.validate()`:
+```java
+case PHONE -> {
+    Objects.requireNonNull(phoneNumber, "phoneNumber required for PHONE transfer");
+    if (!phoneNumber.matches("^\\+[1-9]\\d{6,14}$")) {
+        throw new IllegalArgumentException("phoneNumber must be in E.164 format: " + phoneNumber);
+    }
+}
+```
+Oraz w `TransferCallRequest`:
+```java
+@Pattern(regexp = "^\\+[1-9]\\d{6,14}$", message = "phoneNumber must be in E.164 format")
+String phoneNumber,
+```
+
+---
+
+## [WAŻNE] `@Transactional` obejmuje wywołanie zewnętrznego adaptera telefonii
+
+**Plik:** `ContactService.java` linia ~770 (metoda `initiateTransfer`)
+
+**Problem:** Metoda jest oznaczona `@Transactional`. W tej samej transakcji wczytywany jest kontakt z bazy, wywoływany jest `telephonyAdapter.initiateTransfer()` (efekt uboczny poza bazą — wywołanie do Twilio lub operacja na sesji w pamięci) i zapisywane jest zdarzenie do historii. Jeśli transakcja zostanie wycofana z dowolnego powodu po wywołaniu adaptera, operacja telefoniczna jest nieodwracalna — rozbieżność między stanem DB a stanem telefonii.
+
+**Rekomendacja:** Rozdzielić na dwie fazy:
+- Faza 1 `@Transactional(readOnly=true)`: wczytanie i walidacja kontaktu.
+- Faza 2 (bez `@Transactional`): wywołanie adaptera.
+- Faza 3 `@Transactional`: zapis zdarzenia.
+
+---
+
+## [WAŻNE] Brak testów jednostkowych i integracyjnych dla nowego kodu
+
+**Problem:** Zero testów dla `TransferRequest.validate()`, `TransferService`, `ContactService.initiateTransfer/bridgeCalls`, `TransferController`, `AgentCallController` (nowe endpointy), `MockTelephonyAdapter.initiateTransfer`. Krytyczne ścieżki multi-tenancy i walidacja nie są pokryte testami.
+
+**Rekomendacja:** Jako minimum:
+- Testy jednostkowe `TransferRequest.validate()` — wszystkie kombinacje targetType + transferType
+- Testy `TransferService` z mockiem repozytoriów
+- Test integracyjny `POST /api/telephony/calls/{callId}/transfer` z weryfikacją 403 dla innego agenta i cross-tenant
+
+---
+
+## [SUGESTIA] Brak stałych dla kluczy metadanych w `TelephonyEventPublisher`
+
+**Plik:** `TelephonyEventPublisher.java` — nowe przeciążenie `publishTransferred(..., Map<String, String> metadata)`
+
+**Problem:** Klucze mapy (`transfer_type`, `target_type`, `target_agent_id`, `target_queue_id`) są hardcoded jako string literały w `MockTelephonyAdapter` bez wspólnego kontraktu. Różne implementacje mogą użyć innych kluczy niekompatybilnie.
+
+**Rekomendacja:** Zdefiniować stałe w `TelephonyEventPublisher`:
+```java
+public static final String META_TRANSFER_TYPE    = "transfer_type";
+public static final String META_TARGET_TYPE      = "target_type";
+public static final String META_TARGET_AGENT_ID  = "target_agent_id";
+public static final String META_TARGET_QUEUE_ID  = "target_queue_id";
+```
+
+---
+
+## [SUGESTIA] Brak `@Size` na `@PathVariable callId` i `secondCallId`
+
+**Plik:** `AgentCallController.java` — endpointy `/{callId}/transfer` i `/{callId}/bridge/{secondCallId}`
+
+**Rekomendacja:**
+```java
+@PathVariable @Size(max = 64) String callId,
+@PathVariable @Size(max = 64) String secondCallId,
+```
+
+---
+
+## Podsumowanie EPIC-24 Backend
+
+**Ocena: 3/5** — Architektura jest solidna: N+1 rozwiązany przez zbiorowe SQL, `TransferRequest.validate()` eleganckie, dokumentacja Javadoc obszerna. Wykryto dwa problemy bezpieczeństwa (cross-tenant bridge, UnsupportedOperationException → 500) i kilka ważnych błędów poprawności (dead code meta, brak is_deleted, brak walidacji E.164, transakcja wokół zewnętrznego adaptera). Brak testów dla całego nowego kodu jest poważną luką.
+
+**Najważniejsze do poprawy przed merge:**
+1. Weryfikacja tenanta dla `secondCallId` w `bridgeCalls` — luka bezpieczeństwa
+2. Obsługa `UnsupportedOperationException` w `GlobalExceptionHandler` — HTTP 500 w produkcji z Twilio
+3. Usunięcie dead code mapy `meta` lub jej faktyczne użycie
+4. Dodanie `AND c.is_deleted = FALSE` do `countWaitingContactsByQueueIds`
+5. Walidacja formatu E.164 dla `phoneNumber`
+6. Przynajmniej minimalne testy jednostkowe dla krytycznych ścieżek

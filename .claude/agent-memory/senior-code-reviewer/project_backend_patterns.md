@@ -191,6 +191,35 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - Are all `LocalDate.parse` calls in scheduler wrapped with `DateTimeParseException` catch?
 - Does `markAsDialingForCallback` call `setTenantContextInDb` exactly once?
 
+## EPIC-24 (Call Transfer) — issues found 2026-05-15
+
+**Critical — must fix before production deploy:**
+- `ContactService.bridgeCalls`: `secondCallId` passed to `telephonyAdapter.bridgeCalls()` without tenant verification. `MockTelephonyAdapter.requireSession()` has no tenant check — cross-tenant bridge possible. Fix: add `TelephonyAdapter.getSession(callId): Optional<CallSession>` and verify `secondSession.getTenantId().equals(tenantId)` before bridge.
+- `TwilioTelephonyAdapter.initiateTransfer` throws `UnsupportedOperationException` for AGENT/QUEUE targets. No handler in `GlobalExceptionHandler` → HTTP 500 in production. Fix: add `@ExceptionHandler(UnsupportedOperationException.class)` returning HTTP 501, or throw `TelephonyException` instead.
+
+**Bugs:**
+- `ContactService.recordTransferEvent`: `Map<String, Object> meta` built (lines 864–877) but never passed to `contactEventService.recordTransfer()` — dead code, metadata silently discarded.
+- `TransferQueueStatsRepository.countWaitingContactsByQueueIds`: missing `AND c.is_deleted = FALSE` filter — soft-deleted QUEUED contacts inflate `waitingContacts` metric. RLS on `contact` only filters `tenant_id`, not `is_deleted`. Recurring pattern from BE-021.
+- `TransferRequest.validate()` checks `phoneNumber != null` but not E.164 format — any string accepted. Add `^\\+[1-9]\\d{6,14}$` regex check.
+
+**Architecture issues:**
+- `TransferService.getAvailableAgents` uses `Pageable.unpaged()` to load ALL users, filters in Java stream. For large tenants (500+ agents) this causes unnecessary memory load at every transfer panel open. Needs dedicated query `findTransferCandidates(tenantId, excludeId)` filtering role/status/is_deleted in SQL.
+- `ContactService.initiateTransfer` is `@Transactional` but calls external `telephonyAdapter.initiateTransfer()` inside the transaction — DB lock held during telephony API call, non-atomicity risk. Pattern: validate in readOnly @Transactional, call adapter outside, record event in new @Transactional.
+- Zero tests for new transfer code (TransferRequest.validate, TransferService, initiateTransfer, bridgeCalls, TransferController, AgentCallController new endpoints).
+
+**Positive patterns:**
+- N+1 solved: `TransferAgentQueueRepository` batches queue-names for all agents in single UNION SQL; `TransferQueueStatsRepository` uses 3 separate GROUP BY queries instead of N queries.
+- `TransferRequest.validate()` is a clean domain validation record with explicit switch-case rules per targetType.
+- Javadoc quality is high — `@throws` documented, expected error codes in `@ApiResponse`, doc comments on all complex SQL queries.
+- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")` on all new endpoints with correct `anyRequest().authenticated()` fallback.
+- `SecurityConfig` and `PublicPathsConfig` correctly NOT updated for these endpoints (they are authenticated, not public).
+
+**Check in future telephony-related reviews:**
+- Is `secondCallId` in bridge operations verified against the same tenantId?
+- Does `GlobalExceptionHandler` cover `UnsupportedOperationException` (HTTP 501)?
+- Are new `contact` table queries filtering `AND c.is_deleted = FALSE`?
+- Is `@Transactional` used around external adapter calls (telephony, email, etc.)?
+
 ## BE-024 (Progressive Dialer) — issues found 2026-04-08
 
 **Critical:**

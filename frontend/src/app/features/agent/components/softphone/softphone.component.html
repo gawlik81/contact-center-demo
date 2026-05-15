@@ -230,7 +230,13 @@
             </svg>
             {{ 'agent.softphone.transferBack' | transloco }}
           </button>
-          <span class="softphone__transfer-title">{{ 'agent.softphone.transferTitle' | transloco }}</span>
+          <span class="softphone__transfer-title">
+            @if (transferTargetType() === 'AGENT' && attendedConnected()) {
+              {{ 'agent.softphone.consultingAgent' | transloco }}
+            } @else {
+              {{ 'agent.softphone.transferTitle' | transloco }}
+            }
+          </span>
         </div>
 
         <!-- Zakładki celu transferu -->
@@ -301,10 +307,13 @@
             <button
               type="button"
               class="softphone__transfer-submit"
-              [disabled]="!transferTargetValid()"
+              [disabled]="!transferTargetValid() || isTransferring()"
               [attr.aria-label]="'agent.softphone.transferSubmitLabel' | transloco"
               (click)="submitTransfer()"
             >
+              @if (isTransferring()) {
+                <span class="softphone__btn-spinner" aria-hidden="true"></span>
+              }
               {{ 'agent.softphone.transferSubmit' | transloco }}
             </button>
           } @else {
@@ -312,10 +321,13 @@
               <button
                 type="button"
                 class="softphone__transfer-submit"
-                [disabled]="!transferTargetValid()"
+                [disabled]="!transferTargetValid() || isTransferring()"
                 [attr.aria-label]="'agent.softphone.attendedConnectLabel' | transloco"
                 (click)="submitTransfer()"
               >
+                @if (isTransferring()) {
+                  <span class="softphone__btn-spinner" aria-hidden="true"></span>
+                }
                 {{ 'agent.softphone.attendedConnect' | transloco }}
               </button>
             } @else {
@@ -323,9 +335,13 @@
                 <button
                   type="button"
                   class="softphone__transfer-submit softphone__transfer-submit--complete"
+                  [disabled]="isTransferring()"
                   [attr.aria-label]="'agent.softphone.attendedCompleteLabel' | transloco"
                   (click)="completeAttended()"
                 >
+                  @if (isTransferring()) {
+                    <span class="softphone__btn-spinner" aria-hidden="true"></span>
+                  }
                   {{ 'agent.softphone.attendedComplete' | transloco }}
                 </button>
                 <button
@@ -493,9 +509,13 @@
             <button
               type="button"
               class="softphone__transfer-submit softphone__transfer-submit--complete"
+              [disabled]="isTransferring()"
               [attr.aria-label]="'agent.softphone.attendedCompleteLabel' | transloco"
               (click)="completeAttended()"
             >
+              @if (isTransferring()) {
+                <span class="softphone__btn-spinner" aria-hidden="true"></span>
+              }
               {{ 'agent.softphone.attendedComplete' | transloco }}
             </button>
             <button

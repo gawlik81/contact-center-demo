@@ -281,7 +281,8 @@
       "Bash(sed -i 's|fill='\\\\''%23616161'\\\\'' d='\\\\''M7 10l5 5 5-5z'\\\\''|fill='\\\\''%23888'\\\\'' d='\\\\''M7 10l5 5 5-5z'\\\\''|g' /home/pawelm/contact-center/frontend/src/app/features/agent/pages/callbacks/agent-callbacks-page.component.scss)",
       "Bash(cp \"/home/pawelm/.claude/projects/-home-pawelm-contact-center/ee64258e-9d28-45fc-be58-de5be88c6e65/tool-results/webfetch-1778819844875-s2nd2l.bin\" /tmp/design.gz)",
       "Bash(gunzip -f /tmp/design.gz)",
-      "Bash(tar -xf /tmp/design -C /tmp/design_extracted)"
+      "Bash(tar -xf /tmp/design -C /tmp/design_extracted)",
+      "Bash(echo \"EXIT:$?\")"
     ]
   }
 }

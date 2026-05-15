@@ -342,9 +342,12 @@ export class SoftphoneService implements OnDestroy {
     }
   }
 
-  initiateBlindTransfer(target: string): void {
+  initiateBlindTransfer(target: string, onSettled?: () => void): void {
     const s = this.session();
-    if (!s || s.state !== 'ACTIVE') return;
+    if (!s || s.state !== 'ACTIVE') {
+      onSettled?.();
+      return;
+    }
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: target });
     this.http
@@ -355,6 +358,7 @@ export class SoftphoneService implements OnDestroy {
       })
       .pipe(catchError(() => of(null)))
       .subscribe(() => {
+        onSettled?.();
         this.transferTimeout = setTimeout(() => {
           const current = this.session();
           if (current) {
@@ -368,9 +372,12 @@ export class SoftphoneService implements OnDestroy {
       });
   }
 
-  initiateAttendedTransfer(target: string): void {
+  initiateAttendedTransfer(target: string, onSettled?: () => void): void {
     const s = this.session();
-    if (!s || s.state !== 'ACTIVE') return;
+    if (!s || s.state !== 'ACTIVE') {
+      onSettled?.();
+      return;
+    }
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: target });
     this.http
@@ -387,12 +394,16 @@ export class SoftphoneService implements OnDestroy {
         if (resp?.secondLegCallId) {
           this.secondLegCallId = resp.secondLegCallId;
         }
+        onSettled?.();
       });
   }
 
-  completeAttendedTransfer(): void {
+  completeAttendedTransfer(onSettled?: () => void): void {
     const s = this.session();
-    if (!s || s.state !== 'TRANSFERRING') return;
+    if (!s || s.state !== 'TRANSFERRING') {
+      onSettled?.();
+      return;
+    }
     const bridgeOp = this.secondLegCallId
       ? this.http
           .post(
@@ -403,6 +414,7 @@ export class SoftphoneService implements OnDestroy {
       : of(null);
 
     bridgeOp.subscribe(() => {
+      onSettled?.();
       this.secondLegCallId = null;
       this.session.set({ ...s, state: 'ENDED' });
       this.cleanupTimeout = setTimeout(() => {
@@ -422,9 +434,12 @@ export class SoftphoneService implements OnDestroy {
 
   // ── Transfer to AGENT ──────────────────────────────────────────────────────
 
-  initiateBlindTransferToAgent(callId: string, agentId: string): void {
+  initiateBlindTransferToAgent(callId: string, agentId: string, onSettled?: () => void): void {
     const s = this.session();
-    if (!s || s.state !== 'ACTIVE') return;
+    if (!s || s.state !== 'ACTIVE') {
+      onSettled?.();
+      return;
+    }
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: agentId });
     this.http
@@ -435,6 +450,7 @@ export class SoftphoneService implements OnDestroy {
       })
       .pipe(catchError(() => of(null)))
       .subscribe(() => {
+        onSettled?.();
         this.transferTimeout = setTimeout(() => {
           const current = this.session();
           if (current) {
@@ -448,9 +464,12 @@ export class SoftphoneService implements OnDestroy {
       });
   }
 
-  initiateAttendedTransferToAgent(callId: string, agentId: string): void {
+  initiateAttendedTransferToAgent(callId: string, agentId: string, onSettled?: () => void): void {
     const s = this.session();
-    if (!s || s.state !== 'ACTIVE') return;
+    if (!s || s.state !== 'ACTIVE') {
+      onSettled?.();
+      return;
+    }
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: agentId });
     this.http
@@ -467,14 +486,18 @@ export class SoftphoneService implements OnDestroy {
         if (resp?.secondLegCallId) {
           this.secondLegCallId = resp.secondLegCallId;
         }
+        onSettled?.();
       });
   }
 
   // ── Transfer to QUEUE ──────────────────────────────────────────────────────
 
-  initiateBlindTransferToQueue(callId: string, queueId: string): void {
+  initiateBlindTransferToQueue(callId: string, queueId: string, onSettled?: () => void): void {
     const s = this.session();
-    if (!s || s.state !== 'ACTIVE') return;
+    if (!s || s.state !== 'ACTIVE') {
+      onSettled?.();
+      return;
+    }
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: queueId });
     this.http
@@ -485,6 +508,7 @@ export class SoftphoneService implements OnDestroy {
       })
       .pipe(catchError(() => of(null)))
       .subscribe(() => {
+        onSettled?.();
         this.transferTimeout = setTimeout(() => {
           const current = this.session();
           if (current) {

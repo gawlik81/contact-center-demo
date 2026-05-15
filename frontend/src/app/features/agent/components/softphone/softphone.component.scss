@@ -770,6 +770,18 @@
     display: block;
   }
 
+  &__btn-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid color-mix(in oklch, currentColor 30%, transparent);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: softphone-spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
   @keyframes softphone-spin {
     to {
       transform: rotate(360deg);

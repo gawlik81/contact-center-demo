@@ -45,6 +45,8 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   protected readonly transferTarget = signal<string>('');
   protected readonly attendedConnected = signal<boolean>(false);
   protected readonly transferTargetType = signal<TransferTargetType>('PHONE');
+  /** True while an HTTP transfer request is in flight — disables transfer buttons */
+  protected readonly isTransferring = signal<boolean>(false);
 
   protected readonly transferTargetTabs: { label: string; value: TransferTargetType }[] = [
     { label: 'Telefon', value: 'PHONE' },
@@ -132,23 +134,31 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
 
   protected submitTransfer(): void {
     const target = this.transferTarget();
-    if (!this.transferTargetValid()) return;
+    if (!this.transferTargetValid() || this.isTransferring()) return;
+    this.isTransferring.set(true);
     if (this.transferMode() === 'BLIND') {
-      this.softphone.initiateBlindTransfer(target);
+      this.softphone.initiateBlindTransfer(target, () => this.isTransferring.set(false));
     } else {
-      this.softphone.initiateAttendedTransfer(target);
-      this.attendedConnected.set(true);
+      this.softphone.initiateAttendedTransfer(target, () => {
+        this.isTransferring.set(false);
+        this.attendedConnected.set(true);
+      });
     }
   }
 
   protected completeAttended(): void {
-    this.softphone.completeAttendedTransfer();
+    if (this.isTransferring()) return;
+    this.isTransferring.set(true);
+    this.softphone.completeAttendedTransfer(() => this.isTransferring.set(false));
   }
 
   protected cancelTransfer(): void {
     this.softphone.cancelTransfer();
     this.transferTarget.set('');
     this.attendedConnected.set(false);
+    this.isTransferring.set(false);
+    // After cancelling attended, close the transfer panel so the main ACTIVE view shows
+    this._showTransferPanel.set(false);
   }
 
   protected openTransferView(): void {
@@ -233,19 +243,27 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
 
   protected onAgentSelected(event: { agentId: string; mode: TransferMode }): void {
     const session = this.session();
-    if (!session) return;
+    if (!session || this.isTransferring()) return;
+    this.isTransferring.set(true);
     if (event.mode === 'BLIND') {
-      this.softphone.initiateBlindTransferToAgent(session.contactId, event.agentId);
+      this.softphone.initiateBlindTransferToAgent(session.contactId, event.agentId, () =>
+        this.isTransferring.set(false),
+      );
     } else {
-      this.softphone.initiateAttendedTransferToAgent(session.contactId, event.agentId);
-      this.attendedConnected.set(true);
+      this.softphone.initiateAttendedTransferToAgent(session.contactId, event.agentId, () => {
+        this.isTransferring.set(false);
+        this.attendedConnected.set(true);
+      });
     }
   }
 
   protected onQueueSelected(event: { queueId: string }): void {
     const session = this.session();
-    if (!session) return;
-    this.softphone.initiateBlindTransferToQueue(session.contactId, event.queueId);
+    if (!session || this.isTransferring()) return;
+    this.isTransferring.set(true);
+    this.softphone.initiateBlindTransferToQueue(session.contactId, event.queueId, () =>
+      this.isTransferring.set(false),
+    );
   }
 
   protected formatSeconds(total: number): string {

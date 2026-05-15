@@ -898,6 +898,85 @@ public class ContactService {
     }
 
     // =========================================================================
+    // Bridge calls – finalizacja attended transfer (BE-078)
+    // =========================================================================
+
+    /**
+     * Finalizuje attended transfer łącząc dwie nogi połączenia (bridge).
+     *
+     * <p>Wywoływana po tym jak agent skonsultował się z drugą stroną i potwierdza przekazanie.
+     * {@code callId} to oryginalne połączenie z klientem (status ON_HOLD lub ACTIVE),
+     * {@code secondCallId} to druga noga transferu (konsultacyjna) do docelowego agenta/numeru.
+     *
+     * <p>Kroki:
+     * <ol>
+     *   <li>Znajdź kontakt powiązany z {@code callId} – zweryfikuj tenant i własność agenta.</li>
+     *   <li>Sprawdź że stan sesji jest kompatybilny z bridge (adapter rzuci {@link TelephonyAdapter.TelephonyException}).</li>
+     *   <li>Wywołaj {@link TelephonyAdapter#bridgeCalls(String, String)}.</li>
+     *   <li>Zamknij otwarte etapy CONSULTING i ON_HOLD w historii kontaktu.</li>
+     *   <li>Zapisz zdarzenie TRANSFER (bridge finalizuje attended transfer).</li>
+     * </ol>
+     *
+     * @param callId       identyfikator pierwotnej sesji (UUID kontaktu lub Twilio SID)
+     * @param secondCallId identyfikator drugiej nogi transferu
+     * @param tenantId     UUID tenanta z TenantContext
+     * @param userId       UUID zalogowanego agenta z TenantContext
+     * @throws EntityNotFoundException    HTTP 404 gdy kontakt powiązany z callId nie istnieje
+     * @throws CrossTenantAccessException HTTP 403 gdy kontakt należy do innego tenanta
+     * @throws InvalidOperationException  HTTP 409 gdy agent nie jest właścicielem kontaktu
+     * @throws TelephonyAdapter.TelephonyException HTTP 409 gdy sesja nie jest w stanie kompatybilnym z bridge
+     */
+    @Transactional
+    public void bridgeCalls(String callId, String secondCallId, UUID tenantId, UUID userId) {
+
+        // 1. Znajdź kontakt – najpierw próbujemy callId jako contactId (UUID),
+        //    dla Twilio CA... szukamy przez channel_metadata->>'sip_call_id'.
+        UUID contactId = resolveContactIdFromCallId(callId, tenantId);
+        if (contactId == null) {
+            throw new EntityNotFoundException(
+                    "Kontakt powiązany z callId nie istnieje lub nie należy do tego tenanta: " + callId);
+        }
+
+        Contact contact = contactRepository.findById(contactId, tenantId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Kontakt nie istnieje lub nie należy do tego tenanta: " + contactId));
+
+        // 2. Guard cross-tenant
+        if (!tenantId.equals(contact.getTenantId())) {
+            throw new CrossTenantAccessException(contactId, tenantId, contact.getTenantId());
+        }
+
+        // 3. Weryfikacja własności – tylko właściciel kontaktu może finalizować bridge
+        if (contact.getAgentId() == null || !userId.equals(contact.getAgentId())) {
+            throw new InvalidOperationException(
+                    "Agent nie jest właścicielem kontaktu (bridge niedozwolony): " + contactId);
+        }
+
+        log.info("[ContactService] Inicjowanie bridge: callId={}, secondCallId={}, " +
+                 "contactId={}, agentId={}, tenant={}",
+                callId, secondCallId, contactId, userId, tenantId);
+
+        // 4. Wywołaj adapter – walidację stanów sesji delegujemy do adaptera
+        //    (MockAdapter sprawdza ACTIVE/ON_HOLD, TwilioAdapter analogicznie)
+        telephonyAdapter.bridgeCalls(callId, secondCallId);
+
+        // 5. Zamknij etapy CONSULTING i ON_HOLD (attended transfer był poprzedzony hold + consult)
+        contactEventService.closeConsulting(contactId, tenantId);
+        contactEventService.closeHold(contactId, tenantId);
+
+        // 6. Zapisz zdarzenie TRANSFER (bridge finalizuje attended transfer)
+        contactEventService.recordTransfer(
+                contactId, tenantId,
+                secondCallId,
+                TelephonyAdapter.TransferType.ATTENDED.name(),
+                null
+        );
+
+        log.info("[ContactService] Bridge wykonany: callId={}, secondCallId={}, contactId={}",
+                callId, secondCallId, contactId);
+    }
+
+    // =========================================================================
     // Cleanup – terminacja błędnych/przeterminowanych kontaktów w kolejce
     // =========================================================================
 

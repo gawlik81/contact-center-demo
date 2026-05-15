@@ -386,6 +386,70 @@ public class AgentCallController {
     }
 
     // =========================================================================
+    // Bridge calls – finalizacja attended transfer (BE-078)
+    // =========================================================================
+
+    /**
+     * Finalizuje attended transfer łącząc dwie nogi połączenia (bridge).
+     *
+     * <p>Wywołać po tym jak agent skonsultował się z drugą stroną i chce przekazać klienta.
+     * {@code callId} to oryginalne połączenie z klientem (ON_HOLD),
+     * {@code secondCallId} to noga konsultacyjna (druga sesja).
+     *
+     * @param callId       identyfikator pierwotnej sesji (UUID lub Twilio SID)
+     * @param secondCallId identyfikator drugiej nogi transferu
+     * @param auth         kontekst uwierzytelnienia (JWT)
+     * @return 204 No Content
+     */
+    @PostMapping("/{callId}/bridge/{secondCallId}")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Bridge two call legs (finalize attended transfer)",
+            description = """
+                    Connects two call legs after an attended transfer consultation.
+
+                    callId is the original call (customer leg, typically ON_HOLD).
+                    secondCallId is the consultation leg (to the target agent or number).
+
+                    After a successful bridge:
+                    - First leg (callId) transitions to TRANSFERRED.
+                    - Second leg (secondCallId) transitions to ACTIVE.
+                    - CONSULTING and ON_HOLD stages are closed in contact history.
+                    - A TRANSFER event is recorded.
+
+                    Validation:
+                    - Caller must be the assigned agent of callId (403).
+                    - Both sessions must exist and belong to the same tenant (404).
+                    - Sessions must be in ACTIVE or ON_HOLD state (409).
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "Bridge executed, calls connected"),
+                    @ApiResponse(responseCode = "403", description = "Agent is not the owner of callId or cross-tenant access"),
+                    @ApiResponse(responseCode = "404", description = "Contact or call session not found for this callId"),
+                    @ApiResponse(responseCode = "409", description = "Call sessions not in bridgeable state (ACTIVE or ON_HOLD)")
+            }
+    )
+    public void bridgeCalls(
+            @Parameter(description = "Original call leg (customer) – UUID or Twilio SID", required = true)
+            @PathVariable String callId,
+            @Parameter(description = "Second call leg (consultation target) – UUID or Twilio SID", required = true)
+            @PathVariable String secondCallId,
+            org.springframework.security.core.Authentication auth
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID agentId  = TenantContext.getUserId();
+
+        log.info("[AgentCallController] BRIDGE: callId={}, secondCallId={}, agentId={}, tenant={}",
+                callId, secondCallId, agentId, tenantId);
+
+        contactService.bridgeCalls(callId, secondCallId, tenantId, agentId);
+
+        log.info("[AgentCallController] Bridge wykonany: callId={}, secondCallId={}, agentId={}",
+                callId, secondCallId, agentId);
+    }
+
+    // =========================================================================
     // Session info
     // =========================================================================
 

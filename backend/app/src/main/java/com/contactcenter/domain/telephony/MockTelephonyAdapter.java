@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -271,6 +272,124 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
 
             return secondLeg;
         }
+    }
+
+    @Override
+    public CallSession initiateTransfer(String callId, TransferRequest request) {
+        request.validate();
+
+        return switch (request.targetType()) {
+            case PHONE -> transferCall(callId, request.phoneNumber(), request.transferType());
+
+            case AGENT -> {
+                CallSession session = requireSession(callId);
+                if (session.getStatus() != CallSession.CallStatus.ACTIVE
+                        && session.getStatus() != CallSession.CallStatus.ON_HOLD) {
+                    throw new TelephonyException(callId,
+                            "Przekazanie możliwe tylko dla połączenia ACTIVE lub ON_HOLD. Aktualny status: "
+                                    + session.getStatus());
+                }
+
+                if (request.transferType() == TransferType.BLIND) {
+                    // Blind transfer do agenta – oznaczamy sesję TRANSFERRED i kończymy
+                    CallSession transferred = session
+                            .withStatus(CallSession.CallStatus.TRANSFERRED)
+                            .withEndedAt(Instant.now());
+                    sessions.put(callId, transferred);
+
+                    log.info("[MockTelephony] Blind transfer do agenta: callId={}, targetAgentId={}, tenant={}",
+                            callId, request.agentId(), session.getTenantId());
+
+                    eventPublisher.publishTransferred(
+                            callId, session.getTenantId(), session.getAgentId(),
+                            session.getFrom(), session.getTo(),
+                            request.agentId().toString(), TransferType.BLIND.name(),
+                            Map.of(
+                                    "transfer_type", "BLIND",
+                                    "target_type", "AGENT",
+                                    "target_agent_id", request.agentId().toString()
+                            )
+                    );
+
+                    // Sesja zakończona – usuń z mapy odwrotnej
+                    if (session.getContactId() != null) {
+                        contactIdToCallId.remove(session.getContactId());
+                    }
+
+                    yield transferred;
+
+                } else {
+                    // Attended transfer do agenta – oryginalna sesja na ON_HOLD, tworzymy drugą nogę
+                    sessions.put(callId, session.withStatus(CallSession.CallStatus.ON_HOLD));
+
+                    String secondLegCallId = generateCallId();
+                    Instant now = Instant.now();
+
+                    CallSession secondLeg = CallSession.builder()
+                            .callId(secondLegCallId)
+                            .tenantId(session.getTenantId())
+                            .agentId(request.agentId())
+                            .from(session.getTo())
+                            .to(request.agentId().toString())   // symboliczny "numer" agenta
+                            .status(CallSession.CallStatus.RINGING)
+                            .startedAt(now)
+                            .build();
+
+                    sessions.put(secondLegCallId, secondLeg);
+
+                    log.info("[MockTelephony] Attended transfer do agenta – 2nd leg: callId={}, secondLegCallId={}, targetAgentId={}",
+                            callId, secondLegCallId, request.agentId());
+
+                    eventPublisher.publishOutbound(
+                            secondLegCallId, null, session.getTenantId(), request.agentId(),
+                            session.getTo(), request.agentId().toString(),
+                            Map.of(
+                                    "target_type", "AGENT",
+                                    "target_agent_id", request.agentId().toString()
+                            )
+                    );
+
+                    yield secondLeg;
+                }
+            }
+
+            case QUEUE -> {
+                // Specyfikacja: ATTENDED do kolejki odrzucone przez validate() – tu zawsze BLIND
+                CallSession session = requireSession(callId);
+                if (session.getStatus() != CallSession.CallStatus.ACTIVE
+                        && session.getStatus() != CallSession.CallStatus.ON_HOLD) {
+                    throw new TelephonyException(callId,
+                            "Przekazanie możliwe tylko dla połączenia ACTIVE lub ON_HOLD. Aktualny status: "
+                                    + session.getStatus());
+                }
+
+                CallSession transferred = session
+                        .withStatus(CallSession.CallStatus.TRANSFERRED)
+                        .withEndedAt(Instant.now());
+                sessions.put(callId, transferred);
+
+                log.info("[MockTelephony] Blind transfer do kolejki: callId={}, targetQueueId={}, tenant={}",
+                        callId, request.queueId(), session.getTenantId());
+
+                eventPublisher.publishTransferred(
+                        callId, session.getTenantId(), session.getAgentId(),
+                        session.getFrom(), session.getTo(),
+                        request.queueId().toString(), TransferType.BLIND.name(),
+                        Map.of(
+                                "transfer_type", "BLIND",
+                                "target_type", "QUEUE",
+                                "target_queue_id", request.queueId().toString()
+                        )
+                );
+
+                // Sesja zakończona – usuń z mapy odwrotnej
+                if (session.getContactId() != null) {
+                    contactIdToCallId.remove(session.getContactId());
+                }
+
+                yield transferred;
+            }
+        };
     }
 
     @Override

@@ -93,6 +93,23 @@ public interface TelephonyAdapter {
     CallSession transferCall(String callId, String target, TransferType transferType);
 
     /**
+     * Przekazuje połączenie do agenta, kolejki lub numeru telefonu.
+     *
+     * <p>Uogólnienie {@link #transferCall(String, String, TransferType)} wspierające
+     * przekazanie do agenta ({@link TransferTargetType#AGENT}) i kolejki ({@link TransferTargetType#QUEUE})
+     * poza dotychczasowym przekazaniem na numer telefonu ({@link TransferTargetType#PHONE}).
+     *
+     * <p>Przed wywołaniem należy wykonać {@link TransferRequest#validate()}.
+     *
+     * @param callId  identyfikator pierwotnej sesji
+     * @param request żądanie przekazania z typem celu i odpowiednimi polami
+     * @return nowa sesja drugiej nogi (dla ATTENDED) lub oryginalna sesja ze statusem TRANSFERRED (dla BLIND)
+     * @throws TelephonyAdapter.TelephonyException gdy połączenie nie jest w stanie ACTIVE/ON_HOLD
+     * @throws UnsupportedOperationException       gdy implementacja nie obsługuje danego targetType
+     */
+    CallSession initiateTransfer(String callId, TransferRequest request);
+
+    /**
      * Łączy dwie nogi połączenia po attended transfer.
      *
      * <p>Wywołaj po tym jak agent potwierdził połączenie z {@code callId2}.

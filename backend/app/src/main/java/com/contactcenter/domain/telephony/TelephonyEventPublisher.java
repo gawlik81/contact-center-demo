@@ -162,6 +162,27 @@ public class TelephonyEventPublisher {
     public void publishTransferred(String callId, UUID tenantId, UUID agentId,
                                     String from, String to,
                                     String transferTarget, String transferType) {
+        publishTransferred(callId, tenantId, agentId, from, to, transferTarget, transferType,
+                Map.of(
+                        "transferTarget", transferTarget,
+                        "transferType", transferType
+                ));
+    }
+
+    /**
+     * Publikuje zdarzenie CALL_TRANSFERRED z dodatkowymi metadanymi.
+     *
+     * <p>Używane przez {@code initiateTransfer()} gdy cel transferu to AGENT lub QUEUE –
+     * metadane zawierają wtedy {@code target_type}, {@code target_agent_id} lub {@code target_queue_id}.
+     *
+     * @param transferTarget symboliczny identyfikator celu (numer E.164, UUID agenta lub UUID kolejki)
+     * @param transferType   typ przekazania (BLIND/ATTENDED)
+     * @param metadata       dodatkowe metadane specyficzne dla typu celu
+     */
+    public void publishTransferred(String callId, UUID tenantId, UUID agentId,
+                                    String from, String to,
+                                    String transferTarget, String transferType,
+                                    Map<String, String> metadata) {
         publish(CallEvent.builder()
                 .eventType(CallEvent.EventType.CALL_TRANSFERRED)
                 .callId(callId)
@@ -170,10 +191,31 @@ public class TelephonyEventPublisher {
                 .from(from)
                 .to(to)
                 .timestamp(Instant.now())
-                .metadata(Map.of(
-                        "transferTarget", transferTarget,
-                        "transferType", transferType
-                ))
+                .metadata(metadata)
+                .build());
+    }
+
+    /**
+     * Publikuje zdarzenie CALL_OUTBOUND z dodatkowymi metadanymi.
+     *
+     * <p>Używane przy attended transfer do agenta – metadane zawierają {@code target_type}
+     * i {@code target_agent_id}, które pozwalają frontendowi odróżnić drugą nogę transferu
+     * od zwykłego połączenia wychodzącego.
+     *
+     * @param metadata dodatkowe metadane specyficzne dla kontekstu transferu
+     */
+    public void publishOutbound(String callId, UUID contactId, UUID tenantId, UUID agentId,
+                                String from, String to, Map<String, String> metadata) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_OUTBOUND)
+                .callId(callId)
+                .contactId(contactId)
+                .tenantId(tenantId)
+                .agentId(agentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .metadata(metadata)
                 .build());
     }
 }

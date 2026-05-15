@@ -877,6 +877,24 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   /**
    * {@inheritDoc}
    *
+   * <p>Dla {@link TransferTargetType#PHONE} deleguje do {@link #transferCall}.
+   * Dla {@link TransferTargetType#AGENT} i {@link TransferTargetType#QUEUE} rzuca
+   * {@link UnsupportedOperationException} – obsługa planowana w przyszłym sprincie.
+   */
+  @Override
+  public CallSession initiateTransfer(String callId, TransferRequest request) {
+    request.validate();
+    return switch (request.targetType()) {
+      case PHONE -> transferCall(callId, request.phoneNumber(), request.transferType());
+      case AGENT, QUEUE -> throw new UnsupportedOperationException(
+          "initiateTransfer to AGENT/QUEUE not yet implemented for Twilio adapter. targetType="
+              + request.targetType());
+    };
+  }
+
+  /**
+   * {@inheritDoc}
+   *
    * <p>Bridge realizowany przez zakończenie pierwszego połączenia (przekazanie)
    * i przeniesienie drugiej nogi do stanu ACTIVE.
    *

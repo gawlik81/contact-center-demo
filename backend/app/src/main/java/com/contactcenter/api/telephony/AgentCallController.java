@@ -3,6 +3,7 @@ package com.contactcenter.api.telephony;
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.telephony.dto.OutboundCallRequest;
 import com.contactcenter.api.telephony.dto.OutboundCallResponse;
+import com.contactcenter.api.telephony.dto.TransferCallRequest;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.TenantTwilioConfigService;
@@ -312,6 +313,76 @@ public class AgentCallController {
 
         telephonyAdapter.muteCall(resolvedCallSid, mute);
         return ResponseEntity.noContent().build();
+    }
+
+    // =========================================================================
+    // Transfer call (BE-077)
+    // =========================================================================
+
+    /**
+     * Inicjuje transfer aktywnego połączenia do numeru telefonu, agenta lub kolejki.
+     *
+     * <p>Obsługiwane typy celu ({@code targetType}):
+     * <ul>
+     *   <li>{@code PHONE} – przekazanie na numer E.164; wymaga {@code phoneNumber}</li>
+     *   <li>{@code AGENT} – przekazanie do innego agenta; wymaga {@code agentId}</li>
+     *   <li>{@code QUEUE} – przekazanie do kolejki; wymaga {@code queueId}; tylko BLIND</li>
+     * </ul>
+     *
+     * <p>Obsługiwane typy transferu ({@code transferType}):
+     * <ul>
+     *   <li>{@code BLIND} – natychmiastowe przekazanie bez konsultacji (dostępne dla wszystkich celów)</li>
+     *   <li>{@code ATTENDED} – z konsultacją, druga noga tworzona przed przekazaniem (PHONE i AGENT)</li>
+     * </ul>
+     *
+     * @param callId identyfikator sesji (contactId jako UUID lub Twilio SID CA...)
+     * @param req    ciało żądania z typem transferu i danymi celu
+     * @return sesja połączenia zwrócona przez adapter (HTTP 200)
+     */
+    @PostMapping("/{callId}/transfer")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Initiate call transfer (BE-077)",
+            description = """
+                    Transfers an active call to a phone number, another agent, or a queue.
+
+                    Target types:
+                    - PHONE: transfers to an E.164 phone number (requires phoneNumber)
+                    - AGENT: transfers to another agent (requires agentId)
+                    - QUEUE: transfers to a queue (requires queueId; BLIND only)
+
+                    Transfer types:
+                    - BLIND: immediate transfer without consultation
+                    - ATTENDED: consultation leg first; bridge calls after confirmation
+
+                    Validation:
+                    - QUEUE + ATTENDED combination is rejected (400)
+                    - Contact must be ACTIVE (409)
+                    - Caller must be the assigned agent (403)
+                    - Contact must exist and belong to the same tenant (404)
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Transfer initiated, session returned"),
+                    @ApiResponse(responseCode = "400", description = "Invalid targetType/transferType combination or missing required field"),
+                    @ApiResponse(responseCode = "403", description = "Agent is not the owner of this contact or cross-tenant access"),
+                    @ApiResponse(responseCode = "404", description = "Contact not found for this callId"),
+                    @ApiResponse(responseCode = "409", description = "Contact is not in ACTIVE state")
+            }
+    )
+    public ResponseEntity<CallSession> transferCall(
+            @Parameter(description = "Contact UUID or Twilio Call SID", required = true)
+            @PathVariable String callId,
+            @Valid @RequestBody TransferCallRequest req
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID agentId  = TenantContext.getUserId();
+
+        log.info("[AgentCallController] TRANSFER: callId={}, targetType={}, transferType={}, agentId={}, tenant={}",
+                callId, req.targetType(), req.transferType(), agentId, tenantId);
+
+        CallSession session = contactService.initiateTransfer(callId, req, tenantId, agentId);
+
+        return ResponseEntity.ok(session);
     }
 
     // =========================================================================

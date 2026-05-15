@@ -83,7 +83,6 @@ public class TransferQueueStatsRepository extends TenantAwareRepository {
                 WHERE c.tenant_id  = CAST(:tenantId AS uuid)
                   AND c.queue_id   = ANY(CAST(:queueIds AS uuid[]))
                   AND c.status     = 'QUEUED'
-                  AND c.is_deleted = FALSE
                 GROUP BY c.queue_id
                 """)
                 .setParameter("tenantId", tenantId.toString())

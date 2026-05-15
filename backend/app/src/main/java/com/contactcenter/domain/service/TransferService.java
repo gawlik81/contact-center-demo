@@ -1,0 +1,115 @@
+package com.contactcenter.domain.service;
+
+import com.contactcenter.api.telephony.dto.TransferAgentResponse;
+import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.TransferAgentQueueRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Serwis zwracający listę agentów dostępnych do transferu połączenia.
+ *
+ * <p>Logika filtrowania:
+ * <ul>
+ *   <li>Tylko agenci tego samego tenanta</li>
+ *   <li>Wykluczone statusy: OFFLINE (agenci niezalogowani)</li>
+ *   <li>Wykluczony zalogowany agent (nie możemy transferować do samego siebie)</li>
+ *   <li>Tylko rola AGENT (brak ADMIN/SUPERVISOR, którzy nie obsługują połączeń)</li>
+ * </ul>
+ *
+ * <p>Sortowanie: AVAILABLE najpierw, następnie pozostałe statusy,
+ * w ramach statusu – alfabetycznie po lastName.
+ *
+ * <p>Nazwy kolejek są pobierane jednym zapytaniem zbiorczym (brak N+1).
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class TransferService {
+
+    private final AppUserRepository appUserRepository;
+    private final TransferAgentQueueRepository transferAgentQueueRepository;
+
+    /**
+     * Kolejność wyświetlania statusów na liście transferu.
+     * Niższy numer = wyższy priorytet (AVAILABLE jako pierwszy).
+     */
+    private static final Map<AppUser.UserStatus, Integer> STATUS_ORDER = Map.of(
+            AppUser.UserStatus.AVAILABLE,      0,
+            AppUser.UserStatus.BUSY,           1,
+            AppUser.UserStatus.AFTER_CONTACT,  2,
+            AppUser.UserStatus.ACTIVE,         3,
+            AppUser.UserStatus.BREAK,          4,
+            AppUser.UserStatus.INACTIVE,       5
+    );
+
+    /** Statusy wykluczone z listy transferu – agent niedostępny. */
+    private static final Set<AppUser.UserStatus> EXCLUDED_STATUSES = Set.of(
+            AppUser.UserStatus.OFFLINE
+    );
+
+    /**
+     * Zwraca posortowaną listę agentów dostępnych do przyjęcia transferu.
+     *
+     * @param tenantId      UUID tenanta zalogowanego agenta
+     * @param excludeUserId UUID zalogowanego agenta (wykluczony z wyników)
+     * @return lista agentów posortowana według statusu i nazwiska
+     */
+    @Transactional(readOnly = true)
+    public List<TransferAgentResponse> getAvailableAgents(UUID tenantId, UUID excludeUserId) {
+        log.debug("[TransferService] Pobieranie agentów do transferu: tenant={}, exclude={}",
+                tenantId, excludeUserId);
+
+        // 1. Pobierz wszystkich nieusunietych agentów tenanta z rolą AGENT
+        List<AppUser> candidates = appUserRepository
+                .findAllByTenantIdAndDeletedFalse(tenantId, Pageable.unpaged())
+                .getContent()
+                .stream()
+                .filter(u -> u.getRole() == AppUser.UserRole.AGENT)
+                .filter(u -> !EXCLUDED_STATUSES.contains(u.getStatus()))
+                .filter(u -> !u.getId().equals(excludeUserId))
+                .toList();
+
+        if (candidates.isEmpty()) {
+            log.debug("[TransferService] Brak kandydatów do transferu dla tenant={}", tenantId);
+            return Collections.emptyList();
+        }
+
+        // 2. Pobierz nazwy kolejek dla wszystkich kandydatów jednym zapytaniem (bez N+1)
+        List<UUID> agentIds = candidates.stream()
+                .map(AppUser::getId)
+                .toList();
+
+        Map<UUID, List<String>> queueNamesByAgent =
+                transferAgentQueueRepository.findQueueNamesByAgentIds(tenantId, agentIds);
+
+        // 3. Zamapuj na DTO i posortuj
+        List<TransferAgentResponse> result = candidates.stream()
+                .map(agent -> new TransferAgentResponse(
+                        agent.getId(),
+                        agent.getFirstName(),
+                        agent.getLastName(),
+                        agent.getStatus().name(),
+                        queueNamesByAgent.getOrDefault(agent.getId(), Collections.emptyList())
+                ))
+                .sorted(Comparator
+                        .comparingInt((TransferAgentResponse r) ->
+                                STATUS_ORDER.getOrDefault(
+                                        AppUser.UserStatus.valueOf(r.status()), 99))
+                        .thenComparing(r -> r.lastName() != null ? r.lastName() : "")
+                        .thenComparing(r -> r.firstName() != null ? r.firstName() : ""))
+                .collect(Collectors.toList());
+
+        log.debug("[TransferService] Znaleziono {} agentów do transferu dla tenant={}",
+                result.size(), tenantId);
+
+        return result;
+    }
+}

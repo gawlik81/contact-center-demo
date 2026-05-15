@@ -93,3 +93,4 @@
 - [BE-056 TenantTwilioConfig serwis domenowy](project_twilio_config.md) — upsert+masking+decrypted DTO+delete+event; nowy katalog domain/event/
 - [BE-057 TenantTwilioConfig REST API (kontroler)](project_twilio_config_controller.md) — GET/PUT/DELETE/test; 204 przy braku; walidacja Jakarta na DTO; SecurityConfig
 - [BE-059 per-tenant Twilio config](project_be059_per_tenant_twilio.md) — getVoiceToken() z per-tenant fallbackiem; klucze testowe muszą mieć >= 32 znaków
+- [BE-075 Transfer Agents endpoint](project_be075_transfer_agents.md) — GET /api/telephony/transfer/agents; TransferService + TransferAgentQueueRepository (UNION 3 źródeł kolejek); batch query bez N+1

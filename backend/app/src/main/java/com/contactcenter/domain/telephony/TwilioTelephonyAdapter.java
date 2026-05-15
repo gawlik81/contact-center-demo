@@ -591,10 +591,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       return;
     }
 
-    log.info("[TwilioAdapter] Rozłączam połączenie: callId={}, tenant={}", callId, session.getTenantId());
+    String twilioCallSid = session.getCallId();
+    log.info("[TwilioAdapter] Rozłączam połączenie: callId={}, twilioCallSid={}, tenant={}", callId, twilioCallSid, session.getTenantId());
 
     try {
-      Call.updater(callId)
+      Call.updater(twilioCallSid)
           .setStatus(Call.UpdateStatus.COMPLETED)
           .update(resolveRestClient(session.getTenantId()));
 
@@ -603,11 +604,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Status 20404 = call already completed – traktuj idempotentnie
       if (e.getCode() == 20404 || e.getStatusCode() == 404) {
         log.debug("[TwilioAdapter] Połączenie {} już zakończone po stronie Twilio ({})",
-            callId, e.getCode());
+            twilioCallSid, e.getCode());
       }
       else {
-        log.error("[TwilioAdapter] Błąd Twilio API przy hangupCall: callId={}, code={}, message={}",
-            callId, e.getCode(), e.getMessage(), e);
+        log.error("[TwilioAdapter] Błąd Twilio API przy hangupCall: callId={}, twilioCallSid={}, code={}, message={}",
+            callId, twilioCallSid, e.getCode(), e.getMessage(), e);
         throw new TelephonyException(callId,
             "Nie można rozłączyć połączenia przez Twilio: " + e.getMessage(), e);
       }
@@ -1029,13 +1030,14 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         + "</Dial>"
         + "</Response>";
 
+    String twilioCallSid = session.getCallId();
     try {
-      Call.updater(callId)
+      Call.updater(twilioCallSid)
           .setTwiml(new Twiml(queueTwiml))
           .update(resolveRestClient(tenantId));
     } catch (ApiException e) {
-      log.error("[TwilioAdapter] Błąd Twilio API przy transfer do kolejki: callId={}, queueId={}, code={}, msg={}",
-          callId, queueId, e.getCode(), e.getMessage(), e);
+      log.error("[TwilioAdapter] Błąd Twilio API przy transfer do kolejki: callId={}, twilioCallSid={}, queueId={}, code={}, msg={}",
+          callId, twilioCallSid, queueId, e.getCode(), e.getMessage(), e);
       throw new TelephonyException(callId,
           "Nie można wykonać transferu do kolejki przez Twilio: " + e.getMessage(), e);
     }
@@ -1074,19 +1076,20 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     validateBridgeable(session1);
     validateBridgeable(session2);
 
-    log.info("[TwilioAdapter] Bridge: callId1={}, callId2={}", callId1, callId2);
+    String twilioCallSid1 = session1.getCallId();
+    log.info("[TwilioAdapter] Bridge: callId1={}, twilioCallSid1={}, callId2={}", callId1, twilioCallSid1, callId2);
 
     try {
       // Zakańczamy pierwszą nogę – klient jest teraz połączony z drugą nogą
-      Call.updater(callId1)
+      Call.updater(twilioCallSid1)
           .setStatus(Call.UpdateStatus.COMPLETED)
           .update(resolveRestClient(session1.getTenantId()));
 
     }
     catch (ApiException e) {
       if (e.getCode() != 20404 && e.getStatusCode() != 404) {
-        log.error("[TwilioAdapter] Błąd Twilio API przy bridgeCalls callId1={}: {}",
-            callId1, e.getMessage(), e);
+        log.error("[TwilioAdapter] Błąd Twilio API przy bridgeCalls callId1={}, twilioCallSid1={}: {}",
+            callId1, twilioCallSid1, e.getMessage(), e);
         throw new TelephonyException(callId1,
             "Błąd podczas bridgowania połączeń: " + e.getMessage(), e);
       }
@@ -1596,18 +1599,19 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   }
 
   private CallSession executeBlindTransfer(String callId, String target, CallSession session) {
+    String twilioCallSid = session.getCallId();
     try {
       String twiml = String.format(
           "<Response><Dial><Number>%s</Number></Dial></Response>", target);
 
-      Call.updater(callId)
+      Call.updater(twilioCallSid)
           .setTwiml(new Twiml(twiml))
           .update(resolveRestClient(session.getTenantId()));
 
     }
     catch (ApiException e) {
-      log.error("[TwilioAdapter] Błąd Twilio API przy blind transfer callId={}: {}",
-          callId, e.getMessage(), e);
+      log.error("[TwilioAdapter] Błąd Twilio API przy blind transfer callId={}, twilioCallSid={}: {}",
+          callId, twilioCallSid, e.getMessage(), e);
       throw new TelephonyException(callId,
           "Nie można wykonać blind transfer: " + e.getMessage(), e);
     }

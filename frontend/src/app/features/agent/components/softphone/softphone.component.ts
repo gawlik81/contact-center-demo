@@ -12,18 +12,17 @@ import { FormsModule } from '@angular/forms';
 import { TranslocoModule } from '@jsverse/transloco';
 import { SoftphoneService } from '../../services/softphone.service';
 import { ContactTab } from '../../models/contact-tab.model';
-import { CallSession, TransferTargetType } from '../../models/call-session.model';
+import { CallSession, TransferMode, TransferTargetType } from '../../models/call-session.model';
 import { ScheduleInboundCallbackModalComponent } from '../schedule-inbound-callback-modal/schedule-inbound-callback-modal.component';
 import { ScheduledCallbackDto } from '../../models/callback.model';
 import { ContactTabStore } from '../../services/contact-tab.store';
-
-type TransferMode = 'BLIND' | 'ATTENDED';
+import { TransferAgentListComponent } from '../transfer-agent-list/transfer-agent-list.component';
 
 @Component({
   selector: 'app-softphone',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, TranslocoModule, ScheduleInboundCallbackModalComponent],
+  imports: [FormsModule, TranslocoModule, ScheduleInboundCallbackModalComponent, TransferAgentListComponent],
   templateUrl: './softphone.component.html',
   styleUrl: './softphone.component.scss',
 })
@@ -222,6 +221,17 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     const s = this.softphone.session();
     if (!s || s.state === 'ENDED') {
       this.tabStore.markAsWrapping(this.tab.id);
+    }
+  }
+
+  protected onAgentSelected(event: { agentId: string; mode: TransferMode }): void {
+    const session = this.session();
+    if (!session) return;
+    if (event.mode === 'BLIND') {
+      this.softphone.initiateBlindTransferToAgent(session.contactId, event.agentId);
+    } else {
+      this.softphone.initiateAttendedTransferToAgent(session.contactId, event.agentId);
+      this.attendedConnected.set(true);
     }
   }
 

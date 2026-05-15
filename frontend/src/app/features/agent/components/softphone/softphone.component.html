@@ -341,12 +341,12 @@
           }
         }
 
-        <!-- Zawartość zakładki AGENT — placeholder do FE-078 -->
+        <!-- Zawartość zakładki AGENT -->
         @if (transferTargetType() === 'AGENT') {
-          <div class="softphone__transfer-placeholder">
-            <!-- app-transfer-agent-list będzie tutaj (FE-078) -->
-            <p class="softphone__transfer-placeholder-text">Lista agentów (wkrótce)</p>
-          </div>
+          <app-transfer-agent-list
+            [transferMode]="transferMode()"
+            (agentSelected)="onAgentSelected($event)"
+          />
         }
 
         <!-- Zawartość zakładki QUEUE — placeholder do FE-079 -->

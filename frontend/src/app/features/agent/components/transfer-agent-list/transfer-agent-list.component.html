@@ -1,0 +1,52 @@
+<div class="transfer-agent-list">
+  <input
+    class="transfer-agent-list__search"
+    type="search"
+    placeholder="Szukaj agenta..."
+    [ngModel]="searchQuery()"
+    (ngModelChange)="searchQuery.set($event)"
+    aria-label="Szukaj agenta"
+  />
+
+  @if (loadState() === 'loading') {
+    <div class="transfer-agent-list__skeletons" aria-busy="true" aria-label="Ładowanie listy agentów">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="transfer-agent-list__skeleton"></div>
+      }
+    </div>
+  }
+
+  @if (loadState() === 'error') {
+    <p class="transfer-agent-list__error" role="alert">
+      Nie udało się załadować listy agentów.
+    </p>
+  }
+
+  @if (loadState() === 'loaded') {
+    @for (agent of filteredAgents(); track agent.agentId) {
+      <button
+        type="button"
+        class="transfer-agent-list__item"
+        (click)="selectAgent(agent)"
+        [attr.aria-label]="agent.firstName + ' ' + agent.lastName + ', ' + (transferMode() === 'BLIND' ? 'Przekaż' : 'Konsultuj')"
+      >
+        <span
+          class="transfer-agent-list__status-dot"
+          [class]="'transfer-agent-list__status-dot--' + agent.status.toLowerCase()"
+          aria-hidden="true"
+        ></span>
+        <span class="transfer-agent-list__info">
+          <span class="transfer-agent-list__name">{{ agent.firstName }} {{ agent.lastName }}</span>
+          @if (agent.queueNames.length) {
+            <span class="transfer-agent-list__queues">{{ agent.queueNames.join(', ') }}</span>
+          }
+        </span>
+        <span class="transfer-agent-list__mode-badge">
+          {{ transferMode() === 'BLIND' ? 'Przekaż' : 'Konsultuj' }}
+        </span>
+      </button>
+    } @empty {
+      <p class="transfer-agent-list__empty">Brak dostępnych agentów.</p>
+    }
+  }
+</div>

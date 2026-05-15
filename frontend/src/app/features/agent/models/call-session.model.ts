@@ -2,6 +2,8 @@ export type CallState = 'RINGING' | 'ACTIVE' | 'ON_HOLD' | 'TRANSFERRING' | 'END
 
 export type TransferTargetType = 'PHONE' | 'AGENT' | 'QUEUE';
 
+export type TransferMode = 'BLIND' | 'ATTENDED';
+
 export interface TransferAgentItem {
   agentId: string;
   firstName: string;

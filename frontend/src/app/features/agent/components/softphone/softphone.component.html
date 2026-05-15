@@ -233,91 +233,128 @@
           <span class="softphone__transfer-title">{{ 'agent.softphone.transferTitle' | transloco }}</span>
         </div>
 
-        <div
-          class="softphone__transfer-modes"
-          role="group"
-          [attr.aria-label]="'agent.softphone.transferMode' | transloco"
-        >
-          <button
-            type="button"
-            class="softphone__mode-btn"
-            [class.softphone__mode-btn--active]="transferMode() === 'BLIND'"
-            aria-pressed="{{ transferMode() === 'BLIND' }}"
-            (click)="setTransferMode('BLIND')"
-          >
-            {{ 'agent.softphone.blindTransfer' | transloco }}
-          </button>
-          <button
-            type="button"
-            class="softphone__mode-btn"
-            [class.softphone__mode-btn--active]="transferMode() === 'ATTENDED'"
-            aria-pressed="{{ transferMode() === 'ATTENDED' }}"
-            (click)="setTransferMode('ATTENDED')"
-          >
-            {{ 'agent.softphone.attendedTransfer' | transloco }}
-          </button>
+        <!-- Zakładki celu transferu -->
+        <div class="softphone__target-tabs" role="group" aria-label="Cel transferu">
+          @for (tab of transferTargetTabs; track tab.value) {
+            <button
+              type="button"
+              class="softphone__target-tab"
+              [class.softphone__target-tab--active]="transferTargetType() === tab.value"
+              [attr.aria-pressed]="transferTargetType() === tab.value"
+              (click)="setTransferTargetType(tab.value)"
+            >
+              {{ tab.label }}
+            </button>
+          }
         </div>
 
-        <div class="softphone__transfer-form">
-          <label class="softphone__transfer-label" for="transfer-target">
-            {{ 'agent.softphone.transferTarget' | transloco }}
-          </label>
-          <input
-            id="transfer-target"
-            type="tel"
-            class="softphone__transfer-input"
-            placeholder="+48 123 456 789"
-            [value]="transferTarget()"
-            (input)="onTransferTargetChange($any($event.target).value)"
-            [attr.aria-invalid]="transferTarget().length > 0 && !transferTargetValid()"
-            aria-describedby="transfer-target-hint"
-          />
-          <span id="transfer-target-hint" class="softphone__transfer-hint">
-            {{ 'agent.softphone.transferHint' | transloco }}
-          </span>
-        </div>
-
-        @if (transferMode() === 'BLIND') {
-          <button
-            type="button"
-            class="softphone__transfer-submit"
-            [disabled]="!transferTargetValid()"
-            [attr.aria-label]="'agent.softphone.transferSubmitLabel' | transloco"
-            (click)="submitTransfer()"
+        <!-- Selektor trybu BLIND/ATTENDED — ukryty dla QUEUE -->
+        @if (transferTargetType() !== 'QUEUE') {
+          <div
+            class="softphone__transfer-modes"
+            role="group"
+            [attr.aria-label]="'agent.softphone.transferMode' | transloco"
           >
-            {{ 'agent.softphone.transferSubmit' | transloco }}
-          </button>
-        } @else {
-          @if (!attendedConnected()) {
+            <button
+              type="button"
+              class="softphone__mode-btn"
+              [class.softphone__mode-btn--active]="transferMode() === 'BLIND'"
+              aria-pressed="{{ transferMode() === 'BLIND' }}"
+              (click)="setTransferMode('BLIND')"
+            >
+              {{ 'agent.softphone.blindTransfer' | transloco }}
+            </button>
+            <button
+              type="button"
+              class="softphone__mode-btn"
+              [class.softphone__mode-btn--active]="transferMode() === 'ATTENDED'"
+              aria-pressed="{{ transferMode() === 'ATTENDED' }}"
+              (click)="setTransferMode('ATTENDED')"
+            >
+              {{ 'agent.softphone.attendedTransfer' | transloco }}
+            </button>
+          </div>
+        }
+
+        <!-- Zawartość zakładki PHONE -->
+        @if (transferTargetType() === 'PHONE') {
+          <div class="softphone__transfer-form">
+            <label class="softphone__transfer-label" for="transfer-target">
+              {{ 'agent.softphone.transferTarget' | transloco }}
+            </label>
+            <input
+              id="transfer-target"
+              type="tel"
+              class="softphone__transfer-input"
+              placeholder="+48 123 456 789"
+              [value]="transferTarget()"
+              (input)="onTransferTargetChange($any($event.target).value)"
+              [attr.aria-invalid]="transferTarget().length > 0 && !transferTargetValid()"
+              aria-describedby="transfer-target-hint"
+            />
+            <span id="transfer-target-hint" class="softphone__transfer-hint">
+              {{ 'agent.softphone.transferHint' | transloco }}
+            </span>
+          </div>
+
+          @if (transferMode() === 'BLIND') {
             <button
               type="button"
               class="softphone__transfer-submit"
               [disabled]="!transferTargetValid()"
-              [attr.aria-label]="'agent.softphone.attendedConnectLabel' | transloco"
+              [attr.aria-label]="'agent.softphone.transferSubmitLabel' | transloco"
               (click)="submitTransfer()"
             >
-              {{ 'agent.softphone.attendedConnect' | transloco }}
+              {{ 'agent.softphone.transferSubmit' | transloco }}
             </button>
           } @else {
-            <div class="softphone__attended-actions">
+            @if (!attendedConnected()) {
               <button
                 type="button"
-                class="softphone__transfer-submit softphone__transfer-submit--complete"
-                [attr.aria-label]="'agent.softphone.attendedCompleteLabel' | transloco"
-                (click)="completeAttended()"
+                class="softphone__transfer-submit"
+                [disabled]="!transferTargetValid()"
+                [attr.aria-label]="'agent.softphone.attendedConnectLabel' | transloco"
+                (click)="submitTransfer()"
               >
-                {{ 'agent.softphone.attendedComplete' | transloco }}
+                {{ 'agent.softphone.attendedConnect' | transloco }}
               </button>
-              <button
-                type="button"
-                class="softphone__transfer-submit softphone__transfer-submit--cancel"
-                [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
-                (click)="cancelTransfer()"
-              >
-                {{ 'agent.softphone.attendedCancel' | transloco }}
-              </button>
-            </div>
+            } @else {
+              <div class="softphone__attended-actions">
+                <button
+                  type="button"
+                  class="softphone__transfer-submit softphone__transfer-submit--complete"
+                  [attr.aria-label]="'agent.softphone.attendedCompleteLabel' | transloco"
+                  (click)="completeAttended()"
+                >
+                  {{ 'agent.softphone.attendedComplete' | transloco }}
+                </button>
+                <button
+                  type="button"
+                  class="softphone__transfer-submit softphone__transfer-submit--cancel"
+                  [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
+                  (click)="cancelTransfer()"
+                >
+                  {{ 'agent.softphone.attendedCancel' | transloco }}
+                </button>
+              </div>
+            }
           }
+        }
+
+        <!-- Zawartość zakładki AGENT — placeholder do FE-078 -->
+        @if (transferTargetType() === 'AGENT') {
+          <div class="softphone__transfer-placeholder">
+            <!-- app-transfer-agent-list będzie tutaj (FE-078) -->
+            <p class="softphone__transfer-placeholder-text">Lista agentów (wkrótce)</p>
+          </div>
+        }
+
+        <!-- Zawartość zakładki QUEUE — placeholder do FE-079 -->
+        @if (transferTargetType() === 'QUEUE') {
+          <div class="softphone__transfer-placeholder">
+            <!-- app-transfer-queue-list będzie tutaj (FE-079) -->
+            <p class="softphone__transfer-placeholder-text">Lista kolejek (wkrótce)</p>
+          </div>
         }
       </div>
     }

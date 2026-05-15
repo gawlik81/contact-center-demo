@@ -12,7 +12,7 @@ import { FormsModule } from '@angular/forms';
 import { TranslocoModule } from '@jsverse/transloco';
 import { SoftphoneService } from '../../services/softphone.service';
 import { ContactTab } from '../../models/contact-tab.model';
-import { CallSession } from '../../models/call-session.model';
+import { CallSession, TransferTargetType } from '../../models/call-session.model';
 import { ScheduleInboundCallbackModalComponent } from '../schedule-inbound-callback-modal/schedule-inbound-callback-modal.component';
 import { ScheduledCallbackDto } from '../../models/callback.model';
 import { ContactTabStore } from '../../services/contact-tab.store';
@@ -38,6 +38,13 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   protected readonly transferMode = signal<TransferMode>('BLIND');
   protected readonly transferTarget = signal<string>('');
   protected readonly attendedConnected = signal<boolean>(false);
+  protected readonly transferTargetType = signal<TransferTargetType>('PHONE');
+
+  protected readonly transferTargetTabs: { label: string; value: TransferTargetType }[] = [
+    { label: 'Telefon', value: 'PHONE' },
+    { label: 'Agent', value: 'AGENT' },
+    { label: 'Kolejka', value: 'QUEUE' },
+  ];
 
   protected readonly transferTargetValid = computed(
     () => this.transferTarget().replace(/[\s+]/g, '').length >= 3,
@@ -107,6 +114,12 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     this.attendedConnected.set(false);
   }
 
+  protected setTransferTargetType(type: TransferTargetType): void {
+    this.transferTargetType.set(type);
+    this.transferTarget.set('');
+    this.attendedConnected.set(false);
+  }
+
   protected onTransferTargetChange(value: string): void {
     this.transferTarget.set(value);
   }
@@ -145,6 +158,7 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     this._showTransferPanel.set(false);
     this.transferTarget.set('');
     this.attendedConnected.set(false);
+    this.transferTargetType.set('PHONE');
   }
 
   protected readonly _showTransferPanel = signal(false);

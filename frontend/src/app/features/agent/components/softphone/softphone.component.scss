@@ -630,6 +630,56 @@
     }
   }
 
+  &__target-tabs {
+    display: flex;
+    gap: 4px;
+  }
+
+  &__target-tab {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    background: var(--bg-subtle);
+    color: var(--text-2);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: inherit;
+
+    &:hover:not(&--active) {
+      background: var(--bg-elevated);
+      border-color: var(--border-2, var(--border-1));
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    &--active {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+  }
+
+  &__transfer-placeholder {
+    padding: 24px 16px;
+    text-align: center;
+    border: 1px dashed var(--border-1);
+    border-radius: var(--radius-sm);
+    background: var(--bg-subtle);
+  }
+
+  &__transfer-placeholder-text {
+    color: var(--text-2);
+    font-size: 0.875rem;
+    margin: 0;
+  }
+
   // ── Note panel ───────────────────────────────────────────
   &__note {
     display: flex;

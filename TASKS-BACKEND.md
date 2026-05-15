@@ -3501,3 +3501,381 @@ public List<ContactEventResponse> getContactEvents(
 - [ ] AGENT dla cudzego kontaktu → 409 (zgodnie z wzorcem `getContact()`)
 - [ ] Dokumentacja OpenAPI: endpoint opisany w Swagger UI
 - [ ] `mvn verify -pl app` przechodzi
+
+---
+
+## EPIC-24 Transfer połączenia: agent i kolejka
+
+Rozszerzenie istniejącego panelu transferu połączeń o możliwość przekazania lub konsultacji z konkretnym agentem oraz przekazania do innej kolejki. Obecna implementacja obsługuje tylko transfer na numer telefonu (BLIND + ATTENDED). Po tej epoce agent będzie miał do wyboru trzy cele transferu: **Telefon**, **Agent**, **Kolejka**.
+
+---
+
+### BE-074 – Rozszerzenie modelu transferu: `TransferTargetType`, `TransferRequest`, rozszerzenie `TelephonyAdapter` i `MockTelephonyAdapter`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** —
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-077, BE-078
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Warstwa fundamentalna całego epiku — model i adapter przed implementacją endpointów.
+
+**1. Nowe typy w pakiecie `domain/telephony`:**
+
+```java
+// TransferTargetType.java
+public enum TransferTargetType {
+    PHONE,   // numer telefonu (istniejące)
+    AGENT,   // konkretny agent
+    QUEUE    // kolejka
+}
+```
+
+**2. `TransferRequest.java` — DTO żądania transferu:**
+
+```java
+public record TransferRequest(
+    TransferType    transferType,   // BLIND | ATTENDED
+    TransferTargetType targetType,  // PHONE | AGENT | QUEUE
+
+    String phoneNumber,   // wymagane gdy targetType=PHONE
+    UUID   agentId,       // wymagane gdy targetType=AGENT
+    UUID   queueId        // wymagane gdy targetType=QUEUE
+) {
+    /** Walidacja wywołana przed przekazaniem do adaptera */
+    public void validate() {
+        switch (targetType) {
+            case PHONE -> Objects.requireNonNull(phoneNumber, "phoneNumber required for PHONE transfer");
+            case AGENT -> Objects.requireNonNull(agentId,    "agentId required for AGENT transfer");
+            case QUEUE -> {
+                Objects.requireNonNull(queueId, "queueId required for QUEUE transfer");
+                if (transferType == TransferType.ATTENDED)
+                    throw new IllegalArgumentException("ATTENDED transfer to QUEUE is not supported");
+            }
+        }
+    }
+}
+```
+
+**3. Rozszerzenie `TelephonyAdapter` — nowa metoda zamiast dwóch oddzielnych:**
+
+```java
+// Nowa, ujednolicona metoda (stara transferCall zostaje dla kompatybilności z istniejącym kodem)
+CallSession initiateTransfer(String callId, TransferRequest request);
+```
+
+**4. Rozszerzenie `MockTelephonyAdapter`:**
+
+- `targetType=PHONE` → istniejąca logika (blind/attended na numer telefonu)
+- `targetType=AGENT`:
+  - BLIND: przypisuje kontakt do agenta-celu (`contact.agentId = targetAgentId`), kończy sesję aktualnego agenta, publikuje `CALL_TRANSFERRED` z `target_agent_id` w metadanych
+  - ATTENDED: tworzy drugą nogę (`secondLegCallId`) jako symulowane połączenie do agenta-celu, publikuje `CALL_OUTBOUND`; bridge łączy obie nogi
+- `targetType=QUEUE`:
+  - Tylko BLIND: ustawia `contact.status = QUEUED`, `contact.agentId = null`, `contact.queueId = targetQueueId`; publikuje `CALL_TRANSFERRED` z `target_queue_id`
+
+**5. Rozszerzenie metadanych `contact_event` (stage=TRANSFER):**
+
+```jsonc
+{
+  "transfer_type": "BLIND|ATTENDED",
+  "target_type":   "PHONE|AGENT|QUEUE",
+
+  // PHONE:
+  "target": "+48123456789",
+
+  // AGENT:
+  "target_agent_id":   "uuid",
+  "target_agent_name": "Jan Kowalski",
+
+  // QUEUE:
+  "target_queue_id":   "uuid",
+  "target_queue_name": "Obsługa VIP"
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] `TransferTargetType`, `TransferRequest` skompilowane i dostępne w pakiecie `domain/telephony`
+- [ ] `TransferRequest.validate()` rzuca `IllegalArgumentException` przy błędnych kombinacjach (QUEUE + ATTENDED)
+- [ ] `TelephonyAdapter.initiateTransfer()` dodane do interfejsu
+- [ ] `MockTelephonyAdapter.initiateTransfer()` obsługuje wszystkie trzy `targetType`
+- [ ] `contact_event` z `stage=TRANSFER` zawiera `target_type` we wszystkich ścieżkach
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-075 – Endpoint `GET /api/telephony/transfer/agents` — lista agentów dostępnych do transferu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** —
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-078
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Endpoint zwracający listę agentów tego samego tenanta, którzy mogą odebrać transfer. Wywoływany przez panel transferu na frontendzie przy przełączeniu na zakładkę „Agent".
+
+**DTO — `TransferAgentResponse.java`:**
+
+```java
+public record TransferAgentResponse(
+    UUID   agentId,
+    String firstName,
+    String lastName,
+    String status,        // AVAILABLE | BUSY | BREAK | ON_CALL
+    List<String> queueNames   // kolejki, do których należy agent
+) {}
+```
+
+**Endpoint w `AgentCallController` (lub nowym `TransferController`):**
+
+```
+GET /api/telephony/transfer/agents
+Authorization: AGENT, SUPERVISOR, ADMIN (JWT)
+Response: List<TransferAgentResponse>
+HTTP 200 – lista (może być pusta)
+```
+
+**Filtrowanie:**
+- Tylko agenci tego samego tenanta (`TenantContext`)
+- Wyklucz zalogowanego agenta (`principal.userId`)
+- Wyklucz statusy `OFFLINE`, `LOGGED_OUT`
+- Sortuj: AVAILABLE najpierw, potem BUSY, potem pozostałe; alfabetycznie po nazwisku
+
+**Implementacja:**
+
+```java
+// TransferService.java
+public List<TransferAgentResponse> getAvailableAgents(UUID tenantId, UUID excludeUserId) {
+    return userRepository.findByTenantIdAndStatusNotIn(
+            tenantId,
+            List.of(UserStatus.OFFLINE, UserStatus.LOGGED_OUT))
+        .stream()
+        .filter(u -> !u.getUserId().equals(excludeUserId))
+        .map(u -> new TransferAgentResponse(
+            u.getUserId(), u.getFirstName(), u.getLastName(),
+            u.getStatus().name(),
+            queueRepository.findQueueNamesByAgentId(u.getUserId())))
+        .sorted(Comparator.comparing(r -> agentStatusOrder(r.status())))
+        .toList();
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/telephony/transfer/agents` zwraca 200 z listą agentów
+- [ ] Zalogowany agent nie pojawia się na liście
+- [ ] Agenci OFFLINE/LOGGED_OUT są wykluczone
+- [ ] Sortowanie: AVAILABLE → BUSY → pozostałe, następnie alfabetycznie po nazwisku
+- [ ] Każdy rekord zawiera: `agentId`, `firstName`, `lastName`, `status`, `queueNames`
+- [ ] Dokumentacja OpenAPI dostępna w Swagger UI
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-076 – Endpoint `GET /api/telephony/transfer/queues` — lista kolejek dostępnych do transferu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** —
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-079
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Endpoint zwracający kolejki tego samego tenanta dostępne jako cel transferu. Wywoływany przez panel transferu przy przełączeniu na zakładkę „Kolejka".
+
+**DTO — `TransferQueueResponse.java`:**
+
+```java
+public record TransferQueueResponse(
+    UUID   queueId,
+    String name,
+    int    waitingContacts,    // aktualnie w kolejce
+    int    availableAgents     // agenci ze statusem AVAILABLE przypisani do kolejki
+) {}
+```
+
+**Endpoint:**
+
+```
+GET /api/telephony/transfer/queues
+Authorization: AGENT, SUPERVISOR, ADMIN (JWT)
+Response: List<TransferQueueResponse>
+HTTP 200 – lista kolejek (sortowana alfabetycznie po name)
+```
+
+**Implementacja — `TransferService.java`:**
+
+```java
+public List<TransferQueueResponse> getAvailableQueues(UUID tenantId) {
+    return queueRepository.findAllByTenantId(tenantId)
+        .stream()
+        .map(q -> new TransferQueueResponse(
+            q.getQueueId(),
+            q.getName(),
+            contactRepository.countByQueueIdAndStatus(q.getQueueId(), ContactStatus.QUEUED),
+            queueAgentRepository.countAvailableAgentsByQueueId(q.getQueueId())))
+        .sorted(Comparator.comparing(TransferQueueResponse::name))
+        .toList();
+}
+```
+
+**Uwagi:**
+- `waitingContacts` i `availableAgents` — snapshot, nie real-time; wartości mogą być lekko nieaktualne
+- Nie filtruj kolejek po aktualnej kolejce kontaktu — agent może transferować do tej samej kolejki (re-queue)
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/telephony/transfer/queues` zwraca 200 z listą kolejek tenanta
+- [ ] Każdy rekord zawiera: `queueId`, `name`, `waitingContacts`, `availableAgents`
+- [ ] Lista posortowana alfabetycznie po `name`
+- [ ] Dokumentacja OpenAPI dostępna w Swagger UI
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-077 – Endpoint `POST /api/telephony/calls/{callId}/transfer` — ujednolicony transfer (phone / agent / queue)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-074
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Docelowy endpoint transferu dla frontendu — zastępuje użycie `/api/dev/telephony/simulate` do transferów. Obsługuje wszystkie trzy typy celów i oba tryby (BLIND/ATTENDED tam gdzie ma zastosowanie).
+
+**Request DTO — `TransferCallRequest.java` (API layer):**
+
+```java
+public record TransferCallRequest(
+    @NotNull TransferType       transferType,
+    @NotNull TransferTargetType targetType,
+
+    String phoneNumber,  // wymagane gdy targetType=PHONE
+    UUID   agentId,      // wymagane gdy targetType=AGENT
+    UUID   queueId       // wymagane gdy targetType=QUEUE
+) {}
+```
+
+**Endpoint w `AgentCallController`:**
+
+```
+POST /api/telephony/calls/{callId}/transfer
+Authorization: AGENT, SUPERVISOR (JWT)
+Body: TransferCallRequest (JSON)
+Response: CallSessionResponse (JSON)
+HTTP 200  – transfer zainicjowany, zwraca stan sesji
+HTTP 400  – błędna kombinacja (QUEUE + ATTENDED)
+HTTP 403  – kontakt nie należy do zalogowanego agenta
+HTTP 404  – kontakt nie istnieje lub inny tenant
+HTTP 409  – kontakt nie jest w stanie ACTIVE (np. już ON_HOLD)
+```
+
+**Implementacja:**
+
+```java
+@PostMapping("/{callId}/transfer")
+public ResponseEntity<CallSessionResponse> transferCall(
+        @PathVariable String callId,
+        @RequestBody @Valid TransferCallRequest req,
+        Authentication auth) {
+
+    UUID tenantId = TenantContext.getTenantId();
+    UUID userId   = ((UserPrincipal) auth.getPrincipal()).getUserId();
+
+    // 1. Zbuduj domenowy TransferRequest i wywołaj validate()
+    TransferRequest domainReq = new TransferRequest(
+        req.transferType(), req.targetType(),
+        req.phoneNumber(), req.agentId(), req.queueId());
+    domainReq.validate();
+
+    // 2. Sprawdź, że callId należy do zalogowanego agenta i jest ACTIVE
+    // 3. Wywołaj telephonyAdapter.initiateTransfer(callId, domainReq)
+    // 4. Zapisz contact_event z stage=TRANSFER
+    // 5. Zwróć CallSessionResponse
+    CallSession session = agentCallService.initiateTransfer(callId, domainReq, tenantId, userId);
+    return ResponseEntity.ok(CallSessionResponse.from(session));
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/telephony/calls/{callId}/transfer` z `targetType=PHONE` działa identycznie jak dotychczasowy `/api/dev/telephony/simulate` (BLIND + ATTENDED)
+- [ ] `targetType=AGENT`, `transferType=BLIND` — kontakt przypisany do agenta-celu
+- [ ] `targetType=AGENT`, `transferType=ATTENDED` — zwraca `CallSession` ze stanem secondLeg (gotowy do bridge)
+- [ ] `targetType=QUEUE`, `transferType=BLIND` — kontakt przechodzi w status QUEUED w docelowej kolejce
+- [ ] `targetType=QUEUE`, `transferType=ATTENDED` → 400
+- [ ] Kontakt nienależący do agenta → 403
+- [ ] Kontakt nieaktywny → 409
+- [ ] `contact_event` z `stage=TRANSFER` zapisywany we wszystkich ścieżkach
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-078 – Endpoint `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` — łączenie nóg dla attended transfer
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-074
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Dedykowany endpoint do finalizacji attended transfer — łączy nogę klienta z nogą agenta-celu. Dotychczas wywoływany przez `/api/dev/telephony/simulate` z `action=BRIDGE`. Po tym zadaniu frontend wywołuje właściwy endpoint.
+
+**Endpoint w `AgentCallController`:**
+
+```
+POST /api/telephony/calls/{callId}/bridge/{secondCallId}
+Authorization: AGENT, SUPERVISOR (JWT)
+Response: 204 No Content
+HTTP 204  – bridge wykonany
+HTTP 403  – callId nie należy do zalogowanego agenta
+HTTP 404  – jedna z sesji nie istnieje lub inny tenant
+HTTP 409  – nogi nie są w stanie kompatybilnym z bridge (np. callId nie ON_HOLD)
+```
+
+**Implementacja:**
+
+```java
+@PostMapping("/{callId}/bridge/{secondCallId}")
+@ResponseStatus(HttpStatus.NO_CONTENT)
+public void bridgeCalls(
+        @PathVariable String callId,
+        @PathVariable String secondCallId,
+        Authentication auth) {
+
+    UUID tenantId = TenantContext.getTenantId();
+    UUID userId   = ((UserPrincipal) auth.getPrincipal()).getUserId();
+
+    // 1. Sprawdź, że callId należy do zalogowanego agenta
+    // 2. Wywołaj telephonyAdapter.bridgeCalls(callId, secondCallId)
+    // 3. Aktualizuj contact_event (stage=TRANSFER, zapisz czas zakończenia)
+    agentCallService.bridgeCalls(callId, secondCallId, tenantId, userId);
+}
+```
+
+**Uwagi:**
+- Metoda `MockTelephonyAdapter.bridgeCalls()` już istnieje — potrzebny jest tylko endpoint HTTP i wołanie z `AgentCallService`
+- `TwilioTelephonyAdapter.bridgeCalls()` też istnieje — wystarczy podpiąć
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` zwraca 204
+- [ ] Po bridge: callId → `TRANSFERRED`, secondCallId → `ACTIVE`
+- [ ] Publikowany event `CALL_TRANSFERRED` z `transferType=ATTENDED`
+- [ ] callId nienależący do agenta → 403
+- [ ] Niezgodny stan sesji → 409
+- [ ] `mvn verify -pl app` przechodzi

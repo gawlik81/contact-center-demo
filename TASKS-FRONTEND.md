@@ -3398,3 +3398,396 @@ protected getStageContext(event: ContactEventResponse): string {
 - [ ] Badge etapów mają różne kolory: IVR=niebieski, VOICEBOT=fioletowy, QUEUE=żółty, AGENT=zielony, ON_HOLD=pomarańczowy, CONSULTING=cyjanowy, TRANSFER=szary
 - [ ] Tłumaczenia `sectionEvents` i `eventInProgress` w pl, en, de, uk
 - [ ] Brak regresji: pozostałe sekcje modalu działają bez zmian
+
+---
+
+## EPIC-24 Transfer połączenia: agent i kolejka
+
+Rozszerzenie panelu transferu w softphonie agenta o dwa nowe cele: **Agent** (transfer BLIND + konsultacja ATTENDED) i **Kolejka** (transfer BLIND). Obecny UI obsługuje tylko transfer na numer telefonu.
+
+---
+
+### FE-076 – Rozszerzenie modelu i serwisu softphone o typ celu transferu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-077, BE-078
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-077, FE-078, FE-079, FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Warstwa modelu i serwisu przed pracą na UI. Definiuje nowe typy, modele i sygnatury metod w `SoftphoneService`.
+
+**1. Rozszerzenie `call-session.model.ts`:**
+
+```typescript
+export type TransferMode       = 'BLIND' | 'ATTENDED';
+export type TransferTargetType = 'PHONE' | 'AGENT' | 'QUEUE';
+
+export interface TransferAgentItem {
+  agentId:    string;
+  firstName:  string;
+  lastName:   string;
+  status:     'AVAILABLE' | 'BUSY' | 'BREAK' | 'ON_CALL';
+  queueNames: string[];
+}
+
+export interface TransferQueueItem {
+  queueId:         string;
+  name:            string;
+  waitingContacts: number;
+  availableAgents: number;
+}
+```
+
+**2. Nowe sygnatury w `SoftphoneService`:**
+
+```typescript
+// Pobieranie list do panelu transferu
+fetchTransferAgents(): Observable<TransferAgentItem[]>
+fetchTransferQueues(): Observable<TransferQueueItem[]>
+
+// Transfer do agenta
+initiateBlindTransferToAgent(callId: string, agentId: string): void
+initiateAttendedTransferToAgent(callId: string, agentId: string): void
+
+// Transfer do kolejki (tylko BLIND)
+initiateBlindTransferToQueue(callId: string, queueId: string): void
+```
+
+**3. Implementacja HTTP — zastąpienie `/api/dev/telephony/simulate`:**
+
+Wszystkie metody transfer wywołują:
+```
+POST /api/telephony/calls/{callId}/transfer
+Body: { transferType, targetType, phoneNumber?, agentId?, queueId? }
+```
+
+Attended bridge wywołuje:
+```
+POST /api/telephony/calls/{callId}/bridge/{secondCallId}
+```
+
+**Kryteria akceptacji:**
+- [ ] `TransferTargetType`, `TransferAgentItem`, `TransferQueueItem` wyeksportowane z modelu
+- [ ] `fetchTransferAgents()` → `GET /api/telephony/transfer/agents`
+- [ ] `fetchTransferQueues()` → `GET /api/telephony/transfer/queues`
+- [ ] `initiateBlindTransferToAgent()`, `initiateAttendedTransferToAgent()` → `POST .../transfer` z `targetType=AGENT`
+- [ ] `initiateBlindTransferToQueue()` → `POST .../transfer` z `targetType=QUEUE`
+- [ ] Bridge (attended complete) → `POST .../bridge/{secondCallId}`
+- [ ] `npm run lint` i `npm test` przechodzą
+
+---
+
+### FE-077 – Panel transferu: zakładki „Telefon / Agent / Kolejka"
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-076
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-078, FE-079
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Przebudowa layoutu panelu transferu w `softphone.component.html` — dodanie selektora typu celu jako zakładek. Zawartość pod zakładkami zostanie zaimplementowana w FE-078 i FE-079.
+
+**Selektor trybu celu (`TransferTargetType`):**
+
+```html
+<div class="transfer-panel__target-tabs">
+  <button
+    *ngFor="let tab of transferTargetTabs"
+    [class.active]="transferTargetType() === tab.value"
+    (click)="setTransferTargetType(tab.value)"
+    type="button">
+    {{ tab.label }}
+  </button>
+</div>
+```
+
+Zakładki (label / value):
+- `"Telefon"` / `PHONE` — istniejący formularz z inputem numer + tryby BLIND/ATTENDED
+- `"Agent"` / `AGENT` — lista agentów (FE-078)
+- `"Kolejka"` / `QUEUE` — lista kolejek, tylko BLIND (FE-079)
+
+**Nowy sygnał w komponencie:**
+
+```typescript
+protected readonly transferTargetType = signal<TransferTargetType>('PHONE');
+
+protected setTransferTargetType(type: TransferTargetType): void {
+  this.transferTargetType.set(type);
+  this.transferTarget.set('');
+  this.attendedConnected.set(false);
+}
+```
+
+**Warunkowe renderowanie:**
+
+```html
+@if (transferTargetType() === 'PHONE') {
+  <!-- istniejący formularz tel -->
+}
+@if (transferTargetType() === 'AGENT') {
+  <app-transfer-agent-list ... />
+}
+@if (transferTargetType() === 'QUEUE') {
+  <app-transfer-queue-list ... />
+}
+```
+
+**Styl zakładek** — spójny z istniejącymi przyciskami trybu (BLIND/ATTENDED); aktywna zakładka podkreślona kolorem `--color-primary`.
+
+**Selektor trybu BLIND/ATTENDED** — wyświetlany tylko gdy `transferTargetType() !== 'QUEUE'`.
+
+**Kryteria akceptacji:**
+- [ ] Panel transferu zawiera trzy zakładki: Telefon / Agent / Kolejka
+- [ ] Kliknięcie zakładki resetuje stan wyboru (target, attendedConnected)
+- [ ] Zakładka QUEUE ukrywa selektor BLIND/ATTENDED (queue = zawsze BLIND)
+- [ ] Zakładka Telefon renderuje istniejący formularz bez zmian funkcjonalnych
+- [ ] Styl zakładek spójny z resztą panelu
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-078 – Lista agentów w panelu transferu z wyszukiwaniem i statusem
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-076, FE-077, BE-075
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Nowy standalone komponent `TransferAgentListComponent` wyświetlający listę agentów dostępnych do transferu z wyszukiwaniem i wskaźnikiem statusu.
+
+**Selekto komponentu:** `app-transfer-agent-list`
+
+**Inputs / Outputs:**
+
+```typescript
+// Input
+transferMode = input.required<TransferMode>(); // BLIND | ATTENDED
+
+// Output
+agentSelected = output<{ agentId: string; mode: TransferMode }>();
+```
+
+**Template (szkielet):**
+
+```html
+<div class="transfer-agent-list">
+  <input
+    type="search"
+    placeholder="Szukaj agenta..."
+    (input)="searchQuery.set($event.target.value)" />
+
+  @if (loadState() === 'loading') {
+    <div class="transfer-agent-list__skeleton">
+      <!-- 4 skeleton rows -->
+    </div>
+  }
+
+  @for (agent of filteredAgents(); track agent.agentId) {
+    <button
+      class="transfer-agent-list__item"
+      [class]="'status--' + agent.status.toLowerCase()"
+      (click)="selectAgent(agent)">
+      <span class="transfer-agent-list__status-dot"></span>
+      <span class="transfer-agent-list__name">
+        {{ agent.firstName }} {{ agent.lastName }}
+      </span>
+      <span class="transfer-agent-list__queues">
+        {{ agent.queueNames.join(', ') }}
+      </span>
+    </button>
+  }
+
+  @empty {
+    <p class="transfer-agent-list__empty">Brak dostępnych agentów</p>
+  }
+</div>
+```
+
+**Logika:**
+
+```typescript
+private readonly agents = signal<TransferAgentItem[]>([]);
+protected readonly searchQuery  = signal('');
+protected readonly loadState    = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+protected readonly filteredAgents = computed(() =>
+  this.agents().filter(a =>
+    `${a.firstName} ${a.lastName}`.toLowerCase()
+      .includes(this.searchQuery().toLowerCase())
+  )
+);
+
+ngOnInit(): void {
+  this.loadState.set('loading');
+  this.softphoneService.fetchTransferAgents()
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({ next: data => { this.agents.set(data); this.loadState.set('loaded'); },
+                 error: ()   => this.loadState.set('error') });
+}
+
+protected selectAgent(agent: TransferAgentItem): void {
+  this.agentSelected.emit({ agentId: agent.agentId, mode: this.transferMode() });
+}
+```
+
+**Kolory statusu (dot):**
+- `AVAILABLE` → zielony (`--color-success`)
+- `BUSY` / `ON_CALL` → pomarańczowy (`--color-warning`)
+- `BREAK` → żółty
+
+**Kryteria akceptacji:**
+- [ ] Lista agentów ładuje się po przełączeniu zakładki „Agent"
+- [ ] Pole wyszukiwania filtruje po imieniu i nazwisku (case-insensitive)
+- [ ] Wskaźnik statusu (dot) z odpowiednim kolorem
+- [ ] Skeleton podczas ładowania (4 wiersze)
+- [ ] Pusta lista → komunikat „Brak dostępnych agentów"
+- [ ] Kliknięcie agenta emituje `agentSelected` z `agentId` i aktualnym `transferMode`
+- [ ] Komponent nie przechowuje stanu po odmontowaniu (destroyRef)
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-079 – Lista kolejek w panelu transferu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-076, FE-077, BE-076
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Nowy standalone komponent `TransferQueueListComponent` — lista kolejek dostępnych jako cel transferu. Transfer do kolejki jest zawsze BLIND (bez konsultacji).
+
+**Selektor komponentu:** `app-transfer-queue-list`
+
+**Output:**
+
+```typescript
+queueSelected = output<{ queueId: string }>();
+```
+
+**Template (szkielet):**
+
+```html
+<div class="transfer-queue-list">
+  @for (queue of queues(); track queue.queueId) {
+    <button
+      class="transfer-queue-list__item"
+      (click)="selectQueue(queue)">
+      <span class="transfer-queue-list__name">{{ queue.name }}</span>
+      <span class="transfer-queue-list__stats">
+        <span class="badge badge--waiting">
+          {{ queue.waitingContacts }} czeka
+        </span>
+        <span class="badge badge--agents">
+          {{ queue.availableAgents }} agentów
+        </span>
+      </span>
+    </button>
+  }
+
+  @empty {
+    <p class="transfer-queue-list__empty">Brak dostępnych kolejek</p>
+  }
+</div>
+```
+
+**Logika:**
+
+```typescript
+protected readonly queues    = signal<TransferQueueItem[]>([]);
+protected readonly loadState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+ngOnInit(): void {
+  this.loadState.set('loading');
+  this.softphoneService.fetchTransferQueues()
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({ next: data => { this.queues.set(data); this.loadState.set('loaded'); },
+                 error: ()   => this.loadState.set('error') });
+}
+
+protected selectQueue(queue: TransferQueueItem): void {
+  this.queueSelected.emit({ queueId: queue.queueId });
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Lista kolejek ładuje się po przełączeniu zakładki „Kolejka"
+- [ ] Każda pozycja: nazwa kolejki, liczba oczekujących, liczba dostępnych agentów
+- [ ] Skeleton podczas ładowania
+- [ ] Pusta lista → komunikat „Brak dostępnych kolejek"
+- [ ] Kliknięcie emituje `queueSelected` z `queueId`
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-080 – Integracja panelu transferu z nowym API
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-076, FE-077, FE-078, FE-079, BE-077, BE-078
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Spinanie wszystkich elementów: obsługa outputów z list agentów/kolejek w `SoftphoneComponent`, wywołanie właściwych metod serwisu, aktualizacja stanu sesji po transferze. Zastąpienie wywołań `/api/dev/telephony/simulate` właściwymi endpointami.
+
+**Zmiany w `softphone.component.ts`:**
+
+```typescript
+// Obsługa outputu z listy agentów
+protected onAgentSelected(event: { agentId: string; mode: TransferMode }): void {
+  if (event.mode === 'BLIND') {
+    this.softphoneService.initiateBlindTransferToAgent(
+      this.session()!.contactId, event.agentId);
+  } else {
+    this.softphoneService.initiateAttendedTransferToAgent(
+      this.session()!.contactId, event.agentId);
+    this.attendedConnected.set(true);
+  }
+}
+
+// Obsługa outputu z listy kolejek (zawsze BLIND)
+protected onQueueSelected(event: { queueId: string }): void {
+  this.softphoneService.initiateBlindTransferToQueue(
+    this.session()!.contactId, event.queueId);
+}
+```
+
+**Attended transfer do agenta — faza 2 (Complete / Cancel):**
+
+Istniejące przyciski „Ukończ" i „Anuluj" działają tak samo niezależnie od targetType — warunek wyświetlania: `attendedConnected() === true` (bez zmian).
+
+**Usunięcie zależności od `/api/dev/telephony/simulate`:**
+
+- `SoftphoneService` — usuń wywołania `POST /api/dev/telephony/simulate` z metod transfer
+- Zastąp wywołaniami `POST /api/telephony/calls/{callId}/transfer`
+- Bridge zastąp `POST /api/telephony/calls/{callId}/bridge/{secondCallId}`
+
+**Kryteria akceptacji:**
+- [ ] Wybór agenta BLIND → kontakt przechodzi w `TRANSFERRING` → `ENDED`
+- [ ] Wybór agenta ATTENDED → stan `TRANSFERRING`, pojawia się przycisk „Ukończ" / „Anuluj"
+- [ ] „Ukończ" → bridge API → `ENDED`
+- [ ] „Anuluj" → cancel → `ACTIVE`
+- [ ] Wybór kolejki → kontakt `TRANSFERRING` → `ENDED`
+- [ ] Żadne wywołanie do `/api/dev/telephony/simulate` w ścieżce transferu
+- [ ] `npm run lint`, `npm test` przechodzą

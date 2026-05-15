@@ -256,10 +256,42 @@
     border: 1px solid var(--border-1, #e2e8f0);
     border-radius: var(--radius-md, 10px);
     transition: background 150ms;
-    cursor: pointer;
 
     &:hover {
       background: var(--bg-app, #f1f5f9);
+    }
+  }
+
+  &__history-detail-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid var(--border-1, #e2e8f0);
+    background: var(--bg-elevated, #fff);
+    color: var(--text-muted, #94a3b8);
+    cursor: pointer;
+    transition: all 140ms;
+    margin-left: auto;
+    align-self: center;
+
+    &:hover {
+      background: var(--accent-soft, #dbeafe);
+      border-color: var(--accent, #0284c7);
+      color: var(--accent-text, #1d4ed8);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent, #0284c7);
+      outline-offset: 2px;
+    }
+
+    svg {
+      width: 12px;
+      height: 12px;
     }
   }
 

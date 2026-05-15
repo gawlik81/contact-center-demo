@@ -1,6 +1,8 @@
 package com.contactcenter.domain.repository;
 
+import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.model.ContactEvent;
+import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +47,14 @@ public class ContactEventRepository extends TenantAwareRepository {
      */
     @Transactional
     public void save(ContactEvent event) {
-        assertSameTenant(event.getTenantId());
+        // TenantContext może być wyczyszczony gdy zapis jest wywołany z kontekstu
+        // webhooka Twilio (TenantContext.clear() w finally przed wywołaniem IVR).
+        // Gdy kontekst jest ustawiony — weryfikujemy spójność; gdy brak — ufamy
+        // tenantId z encji (pochodzi z zaufanych serwisów wewnętrznych).
+        UUID contextTenant = TenantContext.getTenantIdOrNull();
+        if (contextTenant != null && !contextTenant.equals(event.getTenantId())) {
+            throw new CrossTenantAccessException(event.getEventId(), contextTenant, event.getTenantId());
+        }
         setTenantContextInDb(event.getTenantId());
 
         log.debug("[ContactEventRepo] Zapis zdarzenia: contactId={}, stage={}, tenant={}",

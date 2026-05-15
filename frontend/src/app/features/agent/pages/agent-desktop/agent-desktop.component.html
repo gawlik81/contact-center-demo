@@ -355,9 +355,15 @@
       <!-- RIGHT PANEL: customer profile (hidden when calendar is active) -->
       @if (!calendarTabActive()) {
         <aside class="desktop__customer-panel" [attr.aria-label]="'agent.desktop.profileLabel' | transloco">
-          <cc-customer-panel [cli]="activeCli()" [email]="activeEmail()" />
+          <cc-customer-panel
+            [cli]="activeCli()"
+            [email]="activeEmail()"
+            (contactSelected)="openContactDetail($event)"
+          />
         </aside>
       }
     </div>
   </div>
 </div>
+
+<app-contact-detail-modal [contactId]="selectedContactDetailId()" (closed)="selectedContactDetailId.set(null)" />

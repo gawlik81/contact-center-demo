@@ -67,6 +67,25 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   readonly events = signal<ContactEventResponse[]>([]);
   readonly eventsState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
 
+  readonly headerSubtitle = computed(() => {
+    const c = this.contact();
+    if (!c) return '';
+    const channel = c.channel === 'EMAIL' ? 'Email' : 'Telefon';
+    const dir = c.direction === 'OUTBOUND' ? 'wychodzący' : 'przychodzący';
+    const date = c.startedAt
+      ? new Date(c.startedAt).toLocaleDateString('pl-PL', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+    return [c.remoteAddress, `${channel} ${dir}`, date].filter(Boolean).join(' · ');
+  });
+
+  readonly isEmailChannel = computed(() => this.contact()?.channel === 'EMAIL');
+
   readonly hasRecording = computed(() => {
     const c = this.contact();
     if (!c) return false;
@@ -233,16 +252,7 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   }
 
   protected getStageLabel(stage: ContactEventResponse['stage']): string {
-    const labels: Record<string, string> = {
-      IVR: 'IVR',
-      VOICEBOT: 'Bot',
-      QUEUE: 'Kolejka',
-      AGENT: 'Agent',
-      ON_HOLD: 'Wstrzym.',
-      CONSULTING: 'Konsult.',
-      TRANSFER: 'Transfer',
-    };
-    return labels[stage] ?? stage;
+    return this.transloco.translate(`contactDetailModal.stage${stage}`);
   }
 
   protected formatDuration(seconds: number | null): string {

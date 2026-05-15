@@ -630,6 +630,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       String contactDbStatus = resolveContactEndStatus(updated);
       contactRepository.updateContactStatusOnTelephonyEvent(
           updated.getContactId(), updated.getTenantId(), contactDbStatus, endedAt);
+      contactEventService.closeAgent(updated.getContactId(), updated.getTenantId());
+      contactEventService.closeHold(updated.getContactId(), updated.getTenantId());
     }
 
     eventPublisher.publishHangup(callId, updated.getContactId(),
@@ -1025,6 +1027,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
                    "zapisuję ABANDONED: callSid={}, contactId={}", callSid, contactId);
           contactRepository.updateContactStatusOnTelephonyEvent(
               contactId, tenantId, "ABANDONED", Instant.now());
+          contactEventService.closeQueue(contactId, tenantId);
+          contactEventService.closeAgent(contactId, tenantId);
         }
       }
     }
@@ -1114,6 +1118,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             contactDbStatus, updated.getContactId(), updated.getAnsweredAt());
         contactRepository.updateContactStatusOnTelephonyEvent(
             updated.getContactId(), updated.getTenantId(), contactDbStatus, webhookEndedAt);
+        contactEventService.closeAgent(updated.getContactId(), updated.getTenantId());
+        contactEventService.closeHold(updated.getContactId(), updated.getTenantId());
+        if ("ABANDONED".equals(contactDbStatus)) {
+          contactEventService.closeQueue(updated.getContactId(), updated.getTenantId());
+        }
       }
     }
 

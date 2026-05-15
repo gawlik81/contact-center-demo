@@ -66,8 +66,7 @@ describe('CustomerListComponent', () => {
                 customers: { errorLoad: 'Nie udało się pobrać listy klientów.' },
                 gdprAnonymize: {
                   successAnonymize: 'Dane klienta zostały zanonimizowane.',
-                  errorAnonymize:
-                    'Nie udało się zanonimizować danych klienta. Spróbuj ponownie.',
+                  errorAnonymize: 'Nie udało się zanonimizować danych klienta. Spróbuj ponownie.',
                 },
               },
               common: { sortAsc: 'Najwcześniejsze', sortDesc: 'Najpóźniejsze' },

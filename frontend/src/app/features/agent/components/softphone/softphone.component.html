@@ -349,12 +349,9 @@
           />
         }
 
-        <!-- Zawartość zakładki QUEUE — placeholder do FE-079 -->
+        <!-- Zawartość zakładki QUEUE -->
         @if (transferTargetType() === 'QUEUE') {
-          <div class="softphone__transfer-placeholder">
-            <!-- app-transfer-queue-list będzie tutaj (FE-079) -->
-            <p class="softphone__transfer-placeholder-text">Lista kolejek (wkrótce)</p>
-          </div>
+          <app-transfer-queue-list (queueSelected)="onQueueSelected($event)" />
         }
       </div>
     }

@@ -17,12 +17,19 @@ import { ScheduleInboundCallbackModalComponent } from '../schedule-inbound-callb
 import { ScheduledCallbackDto } from '../../models/callback.model';
 import { ContactTabStore } from '../../services/contact-tab.store';
 import { TransferAgentListComponent } from '../transfer-agent-list/transfer-agent-list.component';
+import { TransferQueueListComponent } from '../transfer-queue-list/transfer-queue-list.component';
 
 @Component({
   selector: 'app-softphone',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, TranslocoModule, ScheduleInboundCallbackModalComponent, TransferAgentListComponent],
+  imports: [
+    FormsModule,
+    TranslocoModule,
+    ScheduleInboundCallbackModalComponent,
+    TransferAgentListComponent,
+    TransferQueueListComponent,
+  ],
   templateUrl: './softphone.component.html',
   styleUrl: './softphone.component.scss',
 })
@@ -233,6 +240,12 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
       this.softphone.initiateAttendedTransferToAgent(session.contactId, event.agentId);
       this.attendedConnected.set(true);
     }
+  }
+
+  protected onQueueSelected(event: { queueId: string }): void {
+    const session = this.session();
+    if (!session) return;
+    this.softphone.initiateBlindTransferToQueue(session.contactId, event.queueId);
   }
 
   protected formatSeconds(total: number): string {

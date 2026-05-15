@@ -11,7 +11,11 @@ import {
 } from 'rxjs';
 import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.interceptor';
 import { Device, Call as TwilioCall } from '@twilio/voice-sdk';
-import { CallSession } from '../models/call-session.model';
+import {
+  CallSession,
+  TransferAgentItem,
+  TransferQueueItem,
+} from '../models/call-session.model';
 import { CallIncomingPayload, ContactAssignedPayload } from '../models/ws-event.model';
 import { environment } from '../../../../environments/environment';
 
@@ -47,6 +51,12 @@ export class SoftphoneService implements OnDestroy {
   private durationInterval: ReturnType<typeof setInterval> | null = null;
   private cleanupTimeout: ReturnType<typeof setTimeout> | null = null;
   private transferTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Stores the second-leg call ID returned by the backend after an attended transfer
+   * is initiated. Required to call the bridge endpoint when the agent completes the transfer.
+   */
+  private secondLegCallId: string | null = null;
 
   // ── Twilio Device lifecycle ────────────────────────────────────────────────
 
@@ -337,17 +347,25 @@ export class SoftphoneService implements OnDestroy {
     if (!s || s.state !== 'ACTIVE') return;
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: target });
-    // Blind transfer ends the call on this leg after a short delay
-    this.transferTimeout = setTimeout(() => {
-      const current = this.session();
-      if (current) {
-        this.session.set({ ...current, state: 'ENDED' });
-      }
-      this.cleanupTimeout = setTimeout(() => {
-        this.session.set(null);
-        this.activeCall = null;
-      }, 2000);
-    }, 1500);
+    this.http
+      .post(`${environment.apiUrl}/telephony/calls/${encodeURIComponent(s.contactId)}/transfer`, {
+        transferType: 'BLIND',
+        targetType: 'PHONE',
+        phoneNumber: target,
+      })
+      .pipe(catchError(() => of(null)))
+      .subscribe(() => {
+        this.transferTimeout = setTimeout(() => {
+          const current = this.session();
+          if (current) {
+            this.session.set({ ...current, state: 'ENDED' });
+          }
+          this.cleanupTimeout = setTimeout(() => {
+            this.session.set(null);
+            this.activeCall = null;
+          }, 2000);
+        }, 1500);
+      });
   }
 
   initiateAttendedTransfer(target: string): void {
@@ -355,23 +373,149 @@ export class SoftphoneService implements OnDestroy {
     if (!s || s.state !== 'ACTIVE') return;
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: target });
+    this.http
+      .post<{ secondLegCallId?: string }>(
+        `${environment.apiUrl}/telephony/calls/${encodeURIComponent(s.contactId)}/transfer`,
+        {
+          transferType: 'ATTENDED',
+          targetType: 'PHONE',
+          phoneNumber: target,
+        },
+      )
+      .pipe(catchError(() => of(null)))
+      .subscribe((resp) => {
+        if (resp?.secondLegCallId) {
+          this.secondLegCallId = resp.secondLegCallId;
+        }
+      });
   }
 
   completeAttendedTransfer(): void {
     const s = this.session();
     if (!s || s.state !== 'TRANSFERRING') return;
-    this.session.set({ ...s, state: 'ENDED' });
-    this.cleanupTimeout = setTimeout(() => {
-      this.session.set(null);
-      this.activeCall = null;
-    }, 2000);
+    const bridgeOp = this.secondLegCallId
+      ? this.http
+          .post(
+            `${environment.apiUrl}/telephony/calls/${encodeURIComponent(s.contactId)}/bridge/${encodeURIComponent(this.secondLegCallId)}`,
+            {},
+          )
+          .pipe(catchError(() => of(null)))
+      : of(null);
+
+    bridgeOp.subscribe(() => {
+      this.secondLegCallId = null;
+      this.session.set({ ...s, state: 'ENDED' });
+      this.cleanupTimeout = setTimeout(() => {
+        this.session.set(null);
+        this.activeCall = null;
+      }, 2000);
+    });
   }
 
   cancelTransfer(): void {
     const s = this.session();
     if (!s || s.state !== 'TRANSFERRING') return;
+    this.secondLegCallId = null;
     this.session.set({ ...s, state: 'ACTIVE', transferTarget: null });
     this.startDurationTimer();
+  }
+
+  // ── Transfer to AGENT ──────────────────────────────────────────────────────
+
+  initiateBlindTransferToAgent(callId: string, agentId: string): void {
+    const s = this.session();
+    if (!s || s.state !== 'ACTIVE') return;
+    this.stopDurationTimer();
+    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: agentId });
+    this.http
+      .post(`${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/transfer`, {
+        transferType: 'BLIND',
+        targetType: 'AGENT',
+        agentId,
+      })
+      .pipe(catchError(() => of(null)))
+      .subscribe(() => {
+        this.transferTimeout = setTimeout(() => {
+          const current = this.session();
+          if (current) {
+            this.session.set({ ...current, state: 'ENDED' });
+          }
+          this.cleanupTimeout = setTimeout(() => {
+            this.session.set(null);
+            this.activeCall = null;
+          }, 2000);
+        }, 1500);
+      });
+  }
+
+  initiateAttendedTransferToAgent(callId: string, agentId: string): void {
+    const s = this.session();
+    if (!s || s.state !== 'ACTIVE') return;
+    this.stopDurationTimer();
+    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: agentId });
+    this.http
+      .post<{ secondLegCallId?: string }>(
+        `${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/transfer`,
+        {
+          transferType: 'ATTENDED',
+          targetType: 'AGENT',
+          agentId,
+        },
+      )
+      .pipe(catchError(() => of(null)))
+      .subscribe((resp) => {
+        if (resp?.secondLegCallId) {
+          this.secondLegCallId = resp.secondLegCallId;
+        }
+      });
+  }
+
+  // ── Transfer to QUEUE ──────────────────────────────────────────────────────
+
+  initiateBlindTransferToQueue(callId: string, queueId: string): void {
+    const s = this.session();
+    if (!s || s.state !== 'ACTIVE') return;
+    this.stopDurationTimer();
+    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: queueId });
+    this.http
+      .post(`${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/transfer`, {
+        transferType: 'BLIND',
+        targetType: 'QUEUE',
+        queueId,
+      })
+      .pipe(catchError(() => of(null)))
+      .subscribe(() => {
+        this.transferTimeout = setTimeout(() => {
+          const current = this.session();
+          if (current) {
+            this.session.set({ ...current, state: 'ENDED' });
+          }
+          this.cleanupTimeout = setTimeout(() => {
+            this.session.set(null);
+            this.activeCall = null;
+          }, 2000);
+        }, 1500);
+      });
+  }
+
+  // ── Transfer list endpoints ────────────────────────────────────────────────
+
+  /**
+   * Fetches the list of available agents for transfer panel selection.
+   */
+  fetchTransferAgents(): Observable<TransferAgentItem[]> {
+    return this.http.get<TransferAgentItem[]>(
+      `${environment.apiUrl}/telephony/transfer/agents`,
+    );
+  }
+
+  /**
+   * Fetches the list of available queues for transfer panel selection.
+   */
+  fetchTransferQueues(): Observable<TransferQueueItem[]> {
+    return this.http.get<TransferQueueItem[]>(
+      `${environment.apiUrl}/telephony/transfer/queues`,
+    );
   }
 
   // ── Telephony HTTP API ─────────────────────────────────────────────────────

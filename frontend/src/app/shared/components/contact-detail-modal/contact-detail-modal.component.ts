@@ -70,8 +70,8 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   readonly headerSubtitle = computed(() => {
     const c = this.contact();
     if (!c) return '';
-    const channel = c.channel === 'EMAIL' ? 'Email' : 'Telefon';
-    const dir = c.direction === 'OUTBOUND' ? 'wychodzący' : 'przychodzący';
+    const channel = this.transloco.translate(`contactDetailModal.channelLabels.${c.channel}`);
+    const dir = this.transloco.translate(`contactDetailModal.directionLabels.${c.direction}`);
     const date = c.startedAt
       ? new Date(c.startedAt).toLocaleDateString('pl-PL', {
           day: '2-digit',

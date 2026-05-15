@@ -291,7 +291,8 @@
       "statusChanged": "Status auf Verfügbar geändert."
     },
     "customerPanel": {
-      "empty": "Kein aktiver Kontakt",
+      "emptyTitle": "Kein aktiver Kontakt",
+      "empty": "Die Kundenkarte erscheint hier, wenn ein Gespräch angenommen wird.",
       "loadingLabel": "Kundendaten werden geladen",
       "unknownTitle": "Unbekannter Kunde",
       "unknownDesc": "Kein Kundenprofil für diese Telefonnummer.",
@@ -664,7 +665,10 @@
       "initiateCall": "Anrufen",
       "selectPhone": "Telefonnummer auswählen",
       "callInitiated": "Anruf wurde erfolgreich initiiert",
-      "callError": "Anruf konnte nicht initiiert werden"
+      "callError": "Anruf konnte nicht initiiert werden",
+      "sendEmail": "E-Mail senden",
+      "noContactDetails": "Keine Details",
+      "viewContactDetails": "Kontaktdetails"
     },
     "adhocEmail": {
       "title": "E-Mail an Kunden senden",
@@ -2191,6 +2195,7 @@
     "emailDate": "Datum:",
     "emailEmpty": "Kein Nachrichteninhalt.",
     "sectionEvents": "Kontaktverlauf",
+    "noEvents": "Keine aufgezeichneten Phasen.",
     "eventInProgress": "laufend",
     "stageIVR": "IVR",
     "stageVOICEBOT": "Bot",

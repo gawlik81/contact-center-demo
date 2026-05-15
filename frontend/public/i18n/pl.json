@@ -658,6 +658,7 @@
       "emails": "Emaile",
       "lastContact": "Ostatni kontakt",
       "noContacts": "Brak kontaktów",
+      "noContactDetails": "Brak szczegółów",
       "scheduleCallback": "Zamów oddzwonienie",
       "closeDetails": "Zamknij szczegóły",
       "details": "Szczegóły",
@@ -666,7 +667,8 @@
       "selectPhone": "Wybierz numer",
       "callInitiated": "Połączenie zostało zainicjowane",
       "callError": "Nie udało się zainicjować połączenia",
-      "sendEmail": "Wyślij email"
+      "sendEmail": "Wyślij email",
+      "viewContactDetails": "Szczegóły kontaktu"
     },
     "adhocEmail": {
       "title": "Wyślij email do klienta",
@@ -2193,6 +2195,7 @@
     "emailDate": "Data:",
     "emailEmpty": "Brak treści wiadomości.",
     "sectionEvents": "Historia kontaktu",
+    "noEvents": "Brak zarejestrowanych etapów.",
     "eventInProgress": "w toku",
     "stageIVR": "IVR",
     "stageVOICEBOT": "Bot",

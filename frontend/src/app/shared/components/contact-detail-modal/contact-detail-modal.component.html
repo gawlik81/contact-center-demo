@@ -28,7 +28,7 @@
           }
         </div>
         <div>
-          <h2 id="contact-dialog-title" class="contact-dialog__title">Szczegóły kontaktu</h2>
+          <h2 id="contact-dialog-title" class="contact-dialog__title">{{ 'contactDetailModal.title' | transloco }}</h2>
           @if (contact()) {
             <p class="contact-dialog__subtitle">{{ headerSubtitle() }}</p>
           }
@@ -100,12 +100,12 @@
             <!-- Informacje ogólne -->
             <section class="cd-section">
               <div class="cd-section__head">
-                <span class="cd-section__label">Informacje ogólne</span>
+                <span class="cd-section__label">{{ 'contactDetailModal.sectionInfo' | transloco }}</span>
               </div>
               <div class="cd-stat-grid">
                 <!-- Kanał -->
                 <div class="cd-stat-cell">
-                  <span class="cd-stat-label">Kanał</span>
+                  <span class="cd-stat-label">{{ 'contactDetailModal.fieldChannel' | transloco }}</span>
                   <div class="cd-stat-val">
                     <span [class]="'cd-chip channel-badge channel-badge--' + c.channel.toLowerCase()">
                       {{ getChannelLabel(c.channel) }}
@@ -115,7 +115,7 @@
 
                 <!-- Kierunek -->
                 <div class="cd-stat-cell">
-                  <span class="cd-stat-label">Kierunek</span>
+                  <span class="cd-stat-label">{{ 'contactDetailModal.fieldDirection' | transloco }}</span>
                   <div class="cd-stat-val">
                     <span [class]="'cd-chip direction-badge direction-badge--' + c.direction.toLowerCase()">
                       {{ getDirectionLabel(c.direction) }}
@@ -125,7 +125,7 @@
 
                 <!-- Status -->
                 <div class="cd-stat-cell">
-                  <span class="cd-stat-label">Status</span>
+                  <span class="cd-stat-label">{{ 'contactDetailModal.fieldStatus' | transloco }}</span>
                   <div class="cd-stat-val">
                     <span [class]="'cd-chip status-badge status-badge--' + c.status.toLowerCase().replace('_', '-')">
                       {{ getStatusLabel(c.status) }}
@@ -135,7 +135,7 @@
 
                 <!-- Czas trwania -->
                 <div class="cd-stat-cell">
-                  <span class="cd-stat-label">Czas trwania</span>
+                  <span class="cd-stat-label">{{ 'contactDetailModal.fieldDuration' | transloco }}</span>
                   <div class="cd-stat-val">
                     <span class="cd-value-big mono">{{ durationFormatted() }}</span>
                   </div>
@@ -144,9 +144,7 @@
                 @if (c.remoteAddress) {
                   <!-- Numer / adres — full width -->
                   <div class="cd-stat-cell cd-stat-cell--wide">
-                    <span class="cd-stat-label">
-                      {{ c.channel === 'EMAIL' ? 'Adres e-mail' : 'Numer telefonu' }}
-                    </span>
+                    <span class="cd-stat-label">{{ 'contactDetailModal.fieldAddress' | transloco }}</span>
                     <div class="cd-stat-val">
                       <span class="cd-value mono">{{ c.remoteAddress }}</span>
                     </div>
@@ -155,7 +153,7 @@
 
                 <!-- Rozpoczęto -->
                 <div class="cd-stat-cell">
-                  <span class="cd-stat-label">Rozpoczęto</span>
+                  <span class="cd-stat-label">{{ 'contactDetailModal.fieldDateTime' | transloco }}</span>
                   <div class="cd-stat-val">
                     <span class="cd-value mono">
                       {{ c.startedAt | date: 'dd.MM.yyyy HH:mm:ss' }}
@@ -166,7 +164,7 @@
                 @if (c.endedAt) {
                   <!-- Zakończono -->
                   <div class="cd-stat-cell">
-                    <span class="cd-stat-label">Zakończono</span>
+                    <span class="cd-stat-label">{{ 'contactDetailModal.fieldEnded' | transloco }}</span>
                     <div class="cd-stat-val">
                       <span class="cd-value mono">{{ c.endedAt | date: 'HH:mm:ss' }}</span>
                     </div>
@@ -176,7 +174,7 @@
                 @if (c.dispositionCode) {
                   <!-- Kod dyspozycji -->
                   <div class="cd-stat-cell cd-stat-cell--wide">
-                    <span class="cd-stat-label">Kod dyspozycji</span>
+                    <span class="cd-stat-label">{{ 'contactDetailModal.fieldDisposition' | transloco }}</span>
                     <div class="cd-stat-val">
                       <span class="cd-chip mono">{{ c.dispositionCode }}</span>
                     </div>
@@ -188,7 +186,7 @@
             <!-- Notatka -->
             <section class="cd-section">
               <div class="cd-section__head">
-                <span class="cd-section__label">Notatka</span>
+                <span class="cd-section__label">{{ 'contactDetailModal.fieldNotes' | transloco }}</span>
               </div>
               <div class="cd-note">{{ c.notes || '—' }}</div>
             </section>
@@ -197,7 +195,7 @@
             @if (relatedLoading()) {
               <section class="cd-section">
                 <div class="cd-section__head">
-                  <span class="cd-section__label">Powiązane kontakty</span>
+                  <span class="cd-section__label">{{ 'contactDetailModal.sectionRelated' | transloco }}</span>
                 </div>
                 <div
                   class="related-contacts-loading"
@@ -285,7 +283,7 @@
             <!-- Historia kontaktu (timeline) -->
             <section class="cd-section">
               <div class="cd-section__head">
-                <span class="cd-section__label">Historia kontaktu</span>
+                <span class="cd-section__label">{{ 'contactDetailModal.sectionEvents' | transloco }}</span>
                 <span class="cd-total-dur mono">{{ durationFormatted() }}</span>
               </div>
 
@@ -298,9 +296,9 @@
               }
 
               @if (eventsState() === 'loaded') {
-                <div class="cd-timeline" aria-label="Historia etapów kontaktu" role="list">
+                <div class="cd-timeline" [attr.aria-label]="'contactDetailModal.sectionEvents' | transloco" role="list">
                   @if (events().length === 0) {
-                    <p class="cd-timeline__empty">Brak zarejestrowanych etapów.</p>
+                    <p class="cd-timeline__empty">{{ 'contactDetailModal.noEvents' | transloco }}</p>
                   }
                   @for (event of events(); track event.eventId; let last = $last) {
                     <div class="cd-tl-row" role="listitem">

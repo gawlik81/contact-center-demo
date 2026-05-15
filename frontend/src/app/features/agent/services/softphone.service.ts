@@ -26,6 +26,13 @@ export class SoftphoneService implements OnDestroy {
 
   readonly session = signal<CallSession | null>(null);
 
+  /**
+   * True while the schedule-callback modal is open inside SoftphoneComponent.
+   * When a call ends (ENDED) and this flag is true, the disposition panel (ACW)
+   * is deferred until the modal is closed (confirmed or cancelled).
+   */
+  readonly callbackModalOpen = signal(false);
+
   // ── Twilio Voice SDK state ─────────────────────────────────────────────────
   private twilioDevice: Device | null = null;
   private activeCall: TwilioCall | null = null;

@@ -28,13 +28,6 @@ import { DialerService } from '../../../supervisor/services/dialer.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { CreateInboundCallbackRequest, ScheduledCallbackDto } from '../../models/callback.model';
 
-/** Custom validator: date must be in the future */
-function futureDateValidator(control: AbstractControl): ValidationErrors | null {
-  if (!control.value) return null;
-  const selected = new Date(control.value);
-  return selected > new Date() ? null : { pastDate: true };
-}
-
 /** Custom validator: phone number – E.164 or local format */
 function phoneValidator(control: AbstractControl): ValidationErrors | null {
   if (!control.value) return null;
@@ -53,8 +46,6 @@ function phoneValidator(control: AbstractControl): ValidationErrors | null {
 export class ScheduleInboundCallbackModalComponent implements OnInit {
   @Input() contactId!: string;
   @Input() prefillPhone?: string;
-  @Input() prefillFirstName?: string;
-  @Input() prefillLastName?: string;
 
   @Output() scheduled = new EventEmitter<ScheduledCallbackDto>();
   @Output() cancelled = new EventEmitter<void>();
@@ -71,20 +62,47 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
   readonly errorMessage = signal<string | null>(null);
   readonly shakeError = signal(false);
 
+  private readonly pad = (n: number) => n.toString().padStart(2, '0');
+
+  /** Today's date in YYYY-MM-DD — used as [min] on the date input */
+  readonly minDate = computed(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${this.pad(d.getMonth() + 1)}-${this.pad(d.getDate())}`;
+  });
+
+  readonly hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+  readonly minutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+
   readonly form = this.fb.group({
     phone: ['', [Validators.required, phoneValidator]],
-    firstName: [''],
-    lastName: [''],
-    scheduledAt: ['', [Validators.required, futureDateValidator]],
+    scheduledDate: ['', [Validators.required]],
+    scheduledHour: ['', [Validators.required]],
+    scheduledMinute: ['', [Validators.required]],
     notes: ['', [Validators.maxLength(500)]],
   });
 
-  // form.valid is not a signal — use toSignal() so computed() can track it reactively
-  private readonly _formValid = toSignal(this.form.statusChanges.pipe(map((s) => s === 'VALID')), {
-    initialValue: this.form.valid,
+  private readonly _formStatus = toSignal(this.form.statusChanges, {
+    initialValue: this.form.status,
   });
 
-  readonly canSubmit = computed(() => this._formValid() && !this.loading());
+  readonly canSubmit = computed(() => this._formStatus() === 'VALID' && !this.loading());
+
+  private readonly _scheduledDateValue = toSignal(
+    this.form.controls.scheduledDate.valueChanges,
+    { initialValue: this.form.controls.scheduledDate.value },
+  );
+
+  /** True when the selected date is today — used to filter available hours */
+  readonly isToday = computed(() => {
+    const val = this._scheduledDateValue();
+    return !!val && val === this.minDate();
+  });
+
+  /** Minimum hour (inclusive) when date is today */
+  readonly minHourToday = computed(() => {
+    const future = new Date(Date.now() + 5 * 60 * 1000);
+    return future.getHours();
+  });
 
   /** Reactive character count for the notes textarea */
   private readonly _notesValue = toSignal(
@@ -92,24 +110,45 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
     { initialValue: '' },
   );
   readonly notesLength = computed(() => this._notesValue().length);
-  readonly notesNearLimit = computed(() => this.notesLength() >= 400);
 
-  /** Minimum datetime-local value = now (format: "YYYY-MM-DDTHH:mm") */
-  readonly minDateTimeLocal = computed(() => {
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return (
-      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
-      `T${pad(now.getHours())}:${pad(now.getMinutes())}`
-    );
-  });
+  // ── Field error getters ───────────────────────────────────────────────────────
+
+  get scheduledDateError(): string | null {
+    const ctrl = this.form.controls.scheduledDate;
+    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('agent.scheduleCallback.dateRequired');
+    return null;
+  }
+
+  get scheduledTimeError(): string | null {
+    const h = this.form.controls.scheduledHour;
+    const m = this.form.controls.scheduledMinute;
+    const touched = h.touched || m.touched;
+    if (!touched) return null;
+    if (h.hasError('required') || m.hasError('required'))
+      return this.transloco.translate('agent.scheduleCallback.timeRequired');
+    return null;
+  }
 
   ngOnInit(): void {
-    // Pre-fill form fields from @Input values
+    // Pre-fill phone from @Input
+    this.form.patchValue({ phone: this.prefillPhone ?? '' });
+
+    // Pre-fill date/time: now + 10 min, rounded to next 5-minute slot
+    const defaultDt = new Date(Date.now() + 10 * 60 * 1000);
+    defaultDt.setMinutes(Math.ceil(defaultDt.getMinutes() / 5) * 5, 0, 0);
+    if (defaultDt.getMinutes() === 60) {
+      defaultDt.setHours(defaultDt.getHours() + 1, 0, 0, 0);
+    }
+    const defaultDate = `${defaultDt.getFullYear()}-${this.pad(defaultDt.getMonth() + 1)}-${this.pad(defaultDt.getDate())}`;
+    const defaultHour = this.pad(defaultDt.getHours());
+    const defaultMinute = this.pad(Math.floor(defaultDt.getMinutes() / 5) * 5);
+
     this.form.patchValue({
-      phone: this.prefillPhone ?? '',
-      firstName: this.prefillFirstName ?? '',
-      lastName: this.prefillLastName ?? '',
+      scheduledDate: defaultDate,
+      scheduledHour: defaultHour,
+      scheduledMinute: defaultMinute,
     });
 
     this.dialogRef().nativeElement.showModal();
@@ -121,16 +160,20 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
   }
 
   protected submit(): void {
+    this.form.markAllAsTouched();
     if (!this.canSubmit()) return;
+
     this.errorMessage.set(null);
     this.loading.set(true);
 
     const raw = this.form.getRawValue();
+    const scheduledAt = new Date(
+      `${raw.scheduledDate}T${raw.scheduledHour}:${raw.scheduledMinute}`,
+    ).toISOString();
+
     const req: CreateInboundCallbackRequest = {
       phone: raw.phone!.trim(),
-      firstName: raw.firstName?.trim() || undefined,
-      lastName: raw.lastName?.trim() || undefined,
-      scheduledAt: new Date(raw.scheduledAt!).toISOString(),
+      scheduledAt,
       notes: raw.notes?.trim() || undefined,
     };
 
@@ -150,7 +193,6 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
           } else {
             this.errorMessage.set(this.transloco.translate('agent.scheduleCallback.errorGeneric'));
           }
-          // Trigger shake animation on error banner
           this.shakeError.set(true);
           setTimeout(() => this.shakeError.set(false), 600);
           return EMPTY;

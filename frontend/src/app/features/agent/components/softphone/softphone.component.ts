@@ -184,15 +184,31 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
 
   protected openCallbackModal(): void {
     this._showCallbackModal.set(true);
+    this.softphone.callbackModalOpen.set(true);
   }
 
   protected onCallbackScheduled(_dto: ScheduledCallbackDto): void {
     this._showCallbackModal.set(false);
     this._callbackScheduled.set(true);
+    this.softphone.callbackModalOpen.set(false);
+    this.wrapIfCallEnded();
   }
 
   protected onCallbackCancelled(): void {
     this._showCallbackModal.set(false);
+    this.softphone.callbackModalOpen.set(false);
+    this.wrapIfCallEnded();
+  }
+
+  /**
+   * If the call has already ended while the callback modal was open,
+   * trigger the ACW (wrapping) phase now that the modal is closed.
+   */
+  private wrapIfCallEnded(): void {
+    const s = this.softphone.session();
+    if (!s || s.state === 'ENDED') {
+      this.tabStore.markAsWrapping(this.tab.id);
+    }
   }
 
   protected formatSeconds(total: number): string {

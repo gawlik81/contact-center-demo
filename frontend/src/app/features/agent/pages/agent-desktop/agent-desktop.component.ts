@@ -142,16 +142,22 @@ export class AgentDesktopComponent implements OnInit {
     const state = this.sessionState();
     if (state === 'ENDED') {
       untracked(() => {
-        const phoneTab = this.tabStore
-          .tabs()
-          .find((t) => t.type === 'PHONE' && t.status !== 'WRAPPING');
-        if (phoneTab) {
-          this.tabStore.markAsWrapping(phoneTab.id);
-        }
+        // Status change always happens immediately
         this.statusService
           .changeStatus('AFTER_CONTACT')
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe();
+
+        // Wrapping is deferred if callback modal is open — SoftphoneComponent
+        // will call markAsWrapping() itself when the modal is closed.
+        if (!this.softphoneService.callbackModalOpen()) {
+          const phoneTab = this.tabStore
+            .tabs()
+            .find((t) => t.type === 'PHONE' && t.status !== 'WRAPPING');
+          if (phoneTab) {
+            this.tabStore.markAsWrapping(phoneTab.id);
+          }
+        }
       });
     }
   });

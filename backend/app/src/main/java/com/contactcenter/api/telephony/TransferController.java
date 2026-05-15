@@ -1,6 +1,7 @@
 package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.telephony.dto.TransferAgentResponse;
+import com.contactcenter.api.telephony.dto.TransferQueueResponse;
 import com.contactcenter.domain.service.TransferService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -96,5 +97,50 @@ public class TransferController {
                 agents.size(), tenantId, currentUserId);
 
         return ResponseEntity.ok(agents);
+    }
+
+    /**
+     * Zwraca listę kolejek dostępnych jako cel transferu połączenia.
+     *
+     * <p>Dla każdej kolejki zwracany jest snapshot statystyk:
+     * liczba kontaktów w statusie QUEUED oraz liczba agentów w statusie AVAILABLE.
+     *
+     * <p>Lista posortowana alfabetycznie po nazwie kolejki.
+     *
+     * @return lista kolejek z metrykami, HTTP 200
+     */
+    @GetMapping("/queues")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Lista kolejek dostępnych jako cel transferu połączenia",
+            description = """
+                    Zwraca aktywne kolejki tenanta posortowane alfabetycznie.
+
+                    Dla każdej kolejki zwracane są metryki snapshot:
+                    - waitingContacts: liczba kontaktów oczekujących (status QUEUED)
+                    - availableAgents: liczba agentów dostępnych (status AVAILABLE)
+
+                    Wartości mogą być nieaktualne o kilka sekund.
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200",
+                            description = "Lista kolejek (może być pusta)"),
+                    @ApiResponse(responseCode = "401",
+                            description = "Brak lub nieprawidłowy token JWT"),
+                    @ApiResponse(responseCode = "403",
+                            description = "Niewystarczające uprawnienia")
+            }
+    )
+    public ResponseEntity<List<TransferQueueResponse>> getTransferQueues() {
+        UUID tenantId = TenantContext.getTenantId();
+
+        log.debug("[TransferController] GET /api/telephony/transfer/queues: tenant={}", tenantId);
+
+        List<TransferQueueResponse> queues = transferService.getAvailableQueues(tenantId);
+
+        log.info("[TransferController] Zwracam {} kolejek do transferu: tenant={}",
+                queues.size(), tenantId);
+
+        return ResponseEntity.ok(queues);
     }
 }

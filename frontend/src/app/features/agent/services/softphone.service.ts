@@ -8,6 +8,7 @@ import {
   switchMap,
   Subscription,
   firstValueFrom,
+  EMPTY,
 } from 'rxjs';
 import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.interceptor';
 import { Device, Call as TwilioCall } from '@twilio/voice-sdk';
@@ -389,7 +390,18 @@ export class SoftphoneService implements OnDestroy {
           phoneNumber: target,
         },
       )
-      .pipe(catchError(() => of(null)))
+      .pipe(
+        catchError(() => {
+          const current = this.session();
+          if (current) {
+            this.session.set({ ...current, state: 'ACTIVE', transferTarget: null });
+          }
+          this.secondLegCallId = null;
+          this.startDurationTimer();
+          onSettled?.();
+          return EMPTY;
+        }),
+      )
       .subscribe((resp) => {
         if (resp?.secondLegCallId) {
           this.secondLegCallId = resp.secondLegCallId;
@@ -404,24 +416,26 @@ export class SoftphoneService implements OnDestroy {
       onSettled?.();
       return;
     }
-    const bridgeOp = this.secondLegCallId
-      ? this.http
-          .post(
-            `${environment.apiUrl}/telephony/calls/${encodeURIComponent(s.contactId)}/bridge/${encodeURIComponent(this.secondLegCallId)}`,
-            {},
-          )
-          .pipe(catchError(() => of(null)))
-      : of(null);
-
-    bridgeOp.subscribe(() => {
+    if (!this.secondLegCallId) {
+      console.warn('[SoftphoneService] completeAttendedTransfer: brak secondLegCallId, anulowanie');
       onSettled?.();
-      this.secondLegCallId = null;
-      this.session.set({ ...s, state: 'ENDED' });
-      this.cleanupTimeout = setTimeout(() => {
-        this.session.set(null);
-        this.activeCall = null;
-      }, 2000);
-    });
+      return;
+    }
+    this.http
+      .post(
+        `${environment.apiUrl}/telephony/calls/${encodeURIComponent(s.contactId)}/bridge/${encodeURIComponent(this.secondLegCallId)}`,
+        {},
+      )
+      .pipe(catchError(() => of(null)))
+      .subscribe(() => {
+        onSettled?.();
+        this.secondLegCallId = null;
+        this.session.set({ ...s, state: 'ENDED' });
+        this.cleanupTimeout = setTimeout(() => {
+          this.session.set(null);
+          this.activeCall = null;
+        }, 2000);
+      });
   }
 
   cancelTransfer(): void {
@@ -481,7 +495,18 @@ export class SoftphoneService implements OnDestroy {
           agentId,
         },
       )
-      .pipe(catchError(() => of(null)))
+      .pipe(
+        catchError(() => {
+          const current = this.session();
+          if (current) {
+            this.session.set({ ...current, state: 'ACTIVE', transferTarget: null });
+          }
+          this.secondLegCallId = null;
+          this.startDurationTimer();
+          onSettled?.();
+          return EMPTY;
+        }),
+      )
       .subscribe((resp) => {
         if (resp?.secondLegCallId) {
           this.secondLegCallId = resp.secondLegCallId;

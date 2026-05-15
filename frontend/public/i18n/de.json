@@ -271,7 +271,19 @@
       "noteTitle": "Anrufnotiz",
       "notePlaceholder": "Anrufnotiz eingeben...",
       "noteHint": "Notiz erscheint im Dispositionsformular",
-      "idle": "Warten auf Anruf..."
+      "idle": "Warten auf Anruf...",
+      "tabPhone": "Telefon",
+      "tabAgent": "Agent",
+      "tabQueue": "Warteschlange",
+      "searchAgentPlaceholder": "Agent suchen...",
+      "transferAction": "Übergeben",
+      "consultAction": "Beratung",
+      "noAgentsAvailable": "Keine Agenten verfügbar.",
+      "loadAgentsError": "Agentenliste konnte nicht geladen werden.",
+      "noQueuesAvailable": "Keine Warteschlangen verfügbar.",
+      "loadQueuesError": "Warteschlangenliste konnte nicht geladen werden.",
+      "waitingContacts": "wartend",
+      "availableAgents": "Agenten"
     },
     "disposition": {
       "title": "Kontakt beenden",

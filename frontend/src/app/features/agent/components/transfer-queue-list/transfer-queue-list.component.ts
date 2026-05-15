@@ -4,17 +4,19 @@ import {
   DestroyRef,
   OnInit,
   inject,
+  input,
   output,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslocoModule } from '@jsverse/transloco';
 import { SoftphoneService } from '../../services/softphone.service';
 import { TransferQueueItem } from '../../models/call-session.model';
 
 @Component({
   selector: 'app-transfer-queue-list',
   standalone: true,
-  imports: [],
+  imports: [TranslocoModule],
   templateUrl: './transfer-queue-list.component.html',
   styleUrl: './transfer-queue-list.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,6 +25,7 @@ export class TransferQueueListComponent implements OnInit {
   private readonly softphoneService = inject(SoftphoneService);
   private readonly destroyRef = inject(DestroyRef);
 
+  isTransferring = input<boolean>(false);
   queueSelected = output<{ queueId: string }>();
 
   protected readonly queues = signal<TransferQueueItem[]>([]);

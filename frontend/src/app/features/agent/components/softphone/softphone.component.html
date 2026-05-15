@@ -241,15 +241,19 @@
 
         <!-- Zakładki celu transferu -->
         <div class="softphone__target-tabs" role="group" aria-label="Cel transferu">
-          @for (tab of transferTargetTabs; track tab.value) {
+          @for (tab of transferTargetTabs; track tab) {
             <button
               type="button"
               class="softphone__target-tab"
-              [class.softphone__target-tab--active]="transferTargetType() === tab.value"
-              [attr.aria-pressed]="transferTargetType() === tab.value"
-              (click)="setTransferTargetType(tab.value)"
+              [class.softphone__target-tab--active]="transferTargetType() === tab"
+              [attr.aria-pressed]="transferTargetType() === tab"
+              (click)="setTransferTargetType(tab)"
             >
-              {{ tab.label }}
+              @switch (tab) {
+                @case ('PHONE') { {{ 'agent.softphone.tabPhone' | transloco }} }
+                @case ('AGENT') { {{ 'agent.softphone.tabAgent' | transloco }} }
+                @case ('QUEUE') { {{ 'agent.softphone.tabQueue' | transloco }} }
+              }
             </button>
           }
         </div>
@@ -317,43 +321,18 @@
               {{ 'agent.softphone.transferSubmit' | transloco }}
             </button>
           } @else {
-            @if (!attendedConnected()) {
-              <button
-                type="button"
-                class="softphone__transfer-submit"
-                [disabled]="!transferTargetValid() || isTransferring()"
-                [attr.aria-label]="'agent.softphone.attendedConnectLabel' | transloco"
-                (click)="submitTransfer()"
-              >
-                @if (isTransferring()) {
-                  <span class="softphone__btn-spinner" aria-hidden="true"></span>
-                }
-                {{ 'agent.softphone.attendedConnect' | transloco }}
-              </button>
-            } @else {
-              <div class="softphone__attended-actions">
-                <button
-                  type="button"
-                  class="softphone__transfer-submit softphone__transfer-submit--complete"
-                  [disabled]="isTransferring()"
-                  [attr.aria-label]="'agent.softphone.attendedCompleteLabel' | transloco"
-                  (click)="completeAttended()"
-                >
-                  @if (isTransferring()) {
-                    <span class="softphone__btn-spinner" aria-hidden="true"></span>
-                  }
-                  {{ 'agent.softphone.attendedComplete' | transloco }}
-                </button>
-                <button
-                  type="button"
-                  class="softphone__transfer-submit softphone__transfer-submit--cancel"
-                  [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
-                  (click)="cancelTransfer()"
-                >
-                  {{ 'agent.softphone.attendedCancel' | transloco }}
-                </button>
-              </div>
-            }
+            <button
+              type="button"
+              class="softphone__transfer-submit"
+              [disabled]="!transferTargetValid() || isTransferring()"
+              [attr.aria-label]="'agent.softphone.attendedConnectLabel' | transloco"
+              (click)="submitTransfer()"
+            >
+              @if (isTransferring()) {
+                <span class="softphone__btn-spinner" aria-hidden="true"></span>
+              }
+              {{ 'agent.softphone.attendedConnect' | transloco }}
+            </button>
           }
         }
 
@@ -361,13 +340,17 @@
         @if (transferTargetType() === 'AGENT') {
           <app-transfer-agent-list
             [transferMode]="transferMode()"
+            [isTransferring]="isTransferring()"
             (agentSelected)="onAgentSelected($event)"
           />
         }
 
         <!-- Zawartość zakładki QUEUE -->
         @if (transferTargetType() === 'QUEUE') {
-          <app-transfer-queue-list (queueSelected)="onQueueSelected($event)" />
+          <app-transfer-queue-list
+            [isTransferring]="isTransferring()"
+            (queueSelected)="onQueueSelected($event)"
+          />
         }
       </div>
     }

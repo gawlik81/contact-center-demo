@@ -8,7 +8,7 @@ export interface TransferAgentItem {
   agentId: string;
   firstName: string;
   lastName: string;
-  status: 'AVAILABLE' | 'BUSY' | 'BREAK' | 'ON_CALL';
+  status: 'AVAILABLE' | 'BUSY' | 'AFTER_CONTACT' | 'ACTIVE' | 'BREAK' | 'INACTIVE' | 'OFFLINE';
   queueNames: string[];
 }
 

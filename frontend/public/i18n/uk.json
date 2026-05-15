@@ -270,7 +270,20 @@
       "noteTitle": "Нотатка дзвінка",
       "notePlaceholder": "Введіть нотатку...",
       "noteHint": "Нотатка з'явиться у формі диспозиції",
-      "idle": "Очікування дзвінка..."
+      "idle": "Очікування дзвінка...",
+      "consultingAgent": "Консультація з агентом",
+      "tabPhone": "Телефон",
+      "tabAgent": "Агент",
+      "tabQueue": "Черга",
+      "searchAgentPlaceholder": "Пошук агента...",
+      "transferAction": "Перевести",
+      "consultAction": "Консультувати",
+      "noAgentsAvailable": "Немає доступних агентів.",
+      "loadAgentsError": "Не вдалося завантажити список агентів.",
+      "noQueuesAvailable": "Немає доступних черг.",
+      "loadQueuesError": "Не вдалося завантажити список черг.",
+      "waitingContacts": "очікує",
+      "availableAgents": "агентів"
     },
     "disposition": {
       "title": "Завершити контакт",

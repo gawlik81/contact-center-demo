@@ -271,7 +271,19 @@
       "noteTitle": "Call note",
       "notePlaceholder": "Enter call note...",
       "noteHint": "Note will appear in the disposition form",
-      "idle": "Waiting for a call..."
+      "idle": "Waiting for a call...",
+      "tabPhone": "Phone",
+      "tabAgent": "Agent",
+      "tabQueue": "Queue",
+      "searchAgentPlaceholder": "Search agent...",
+      "transferAction": "Transfer",
+      "consultAction": "Consult",
+      "noAgentsAvailable": "No agents available.",
+      "loadAgentsError": "Failed to load agent list.",
+      "noQueuesAvailable": "No queues available.",
+      "loadQueuesError": "Failed to load queue list.",
+      "waitingContacts": "waiting",
+      "availableAgents": "agents"
     },
     "disposition": {
       "title": "End contact",

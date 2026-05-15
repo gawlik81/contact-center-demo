@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { TranslocoModule } from '@jsverse/transloco';
 import { SoftphoneService } from '../../services/softphone.service';
 import { TransferAgentItem, TransferMode } from '../../models/call-session.model';
 
@@ -18,7 +19,7 @@ import { TransferAgentItem, TransferMode } from '../../models/call-session.model
   selector: 'app-transfer-agent-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslocoModule],
   templateUrl: './transfer-agent-list.component.html',
   styleUrl: './transfer-agent-list.component.scss',
 })
@@ -27,6 +28,7 @@ export class TransferAgentListComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   transferMode = input.required<TransferMode>();
+  isTransferring = input<boolean>(false);
   agentSelected = output<{ agentId: string; mode: TransferMode }>();
 
   private readonly agents = signal<TransferAgentItem[]>([]);

@@ -134,14 +134,24 @@
     }
 
     &--busy,
-    &--on_call {
+    &--after_contact {
       background: var(--warning, #ff9800);
       box-shadow: 0 0 0 2px color-mix(in oklch, var(--warning, #ff9800) 25%, transparent);
+    }
+
+    &--active {
+      background: var(--success, #4caf50);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--success, #4caf50) 25%, transparent);
     }
 
     &--break {
       background: #ffc107;
       box-shadow: 0 0 0 2px color-mix(in oklch, #ffc107 25%, transparent);
+    }
+
+    &--inactive,
+    &--offline {
+      background: var(--text-muted);
     }
   }
 

@@ -271,7 +271,19 @@
       "noteTitle": "Notatka z rozmowy",
       "notePlaceholder": "Wpisz notatkę do rozmowy...",
       "noteHint": "Notatka będzie widoczna w formularzu dyspozycji",
-      "idle": "Oczekiwanie na połączenie..."
+      "idle": "Oczekiwanie na połączenie...",
+      "tabPhone": "Telefon",
+      "tabAgent": "Agent",
+      "tabQueue": "Kolejka",
+      "searchAgentPlaceholder": "Szukaj agenta...",
+      "transferAction": "Przekaż",
+      "consultAction": "Konsultuj",
+      "noAgentsAvailable": "Brak dostępnych agentów.",
+      "loadAgentsError": "Nie udało się załadować listy agentów.",
+      "noQueuesAvailable": "Brak dostępnych kolejek.",
+      "loadQueuesError": "Nie udało się załadować listy kolejek.",
+      "waitingContacts": "czeka",
+      "availableAgents": "agentów"
     },
     "disposition": {
       "title": "Zakończ kontakt",

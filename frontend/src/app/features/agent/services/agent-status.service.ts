@@ -42,6 +42,7 @@ export class AgentStatusService {
    * (e.g. automatic break activation by the scheduler) are reflected immediately in the UI.
    */
   initStatus(): void {
+    this.currentStatus.set('OFFLINE');
     this.http
       .get<UserResponse>(`${environment.apiUrl}/users/me`)
       .pipe(

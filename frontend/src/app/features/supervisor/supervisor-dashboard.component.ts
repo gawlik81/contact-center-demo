@@ -73,6 +73,7 @@ export class SupervisorDashboardComponent implements OnInit, OnDestroy {
     if (tenantId) {
       this.metricsService.unsubscribe(tenantId);
     }
+    this.wsService.disconnect();
   }
 
   // ─── Helpers ───────────────────────────────────────────────────

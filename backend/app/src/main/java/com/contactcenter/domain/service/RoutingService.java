@@ -10,7 +10,9 @@ import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactAssignedEvent;
+import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
+import com.contactcenter.domain.routing.DirectAgentAssignmentMessage;
 import com.contactcenter.domain.routing.RoutingEngine;
 import com.contactcenter.domain.routing.RoutingRequest;
 import com.contactcenter.domain.routing.RoutingResult;
@@ -68,6 +70,8 @@ public class RoutingService {
     private final QueueAssignmentRepository queueAssignmentRepository;
     private final AppUserRepository appUserRepository;
     private final WebSocketEventBroadcaster broadcaster;
+    private final ContactService contactService;
+    private final ContactEventService contactEventService;
 
     // =========================================================================
     // Główna metoda routingu
@@ -328,6 +332,76 @@ public class RoutingService {
                     event.getCallId(), tenantId, e.getMessage());
             // Celowo nie rzucamy – nieudany broadcast UI nie powinien trafiać do DLQ
         } finally {
+            TenantContext.clear();
+        }
+    }
+
+    // =========================================================================
+    // RabbitMQ Listener – bezpośrednie przypisanie agenta po transferze BLIND
+    // =========================================================================
+
+    /**
+     * Nasłuchuje {@code DirectAgentAssignmentMessage} i przypisuje wskazanego agenta do kontaktu.
+     *
+     * <p>Wywoływany przez {@code TwilioTelephonyAdapter.transferToAgentViaConference()} po tym,
+     * jak klient zostanie przeniesiony do nowej konferencji Twilio. Omija silnik routingu –
+     * agent jest znany z góry (wybrany przez oryginalnego agenta podczas transferu).
+     *
+     * <p>Wiadomość ma TTL 30s – po wygaśnięciu trafia do DLQ. Błędy są pochłaniane
+     * (nie rzucamy wyjątku), bo klient jest już w konferencji i ponowna próba bez kontekstu
+     * nie ma sensu.
+     *
+     * @param message wiadomość z danymi przypisania
+     */
+    @RabbitListener(queues = RabbitMQConfig.QUEUE_AGENT_DIRECT)
+    public void onDirectAgentAssignment(DirectAgentAssignmentMessage message) {
+        log.info("[RoutingService] Bezpośrednie przypisanie agenta po transferze: contactId={}, agentId={}",
+                message.contactId(), message.agentId());
+
+        TenantContext.Snapshot snapshot = new TenantContext.Snapshot(
+                message.tenantId(), null, null, "SYSTEM");
+        TenantContext.restore(snapshot);
+        try {
+            // Używamy assignContactToAgent (tylko zapis DB, status=ASSIGNED) zamiast
+            // contactService.assignAgent(), które wywołuje openAgent() — etap AGENT
+            // zostanie otwarty przez AgentCallController gdy agent fizycznie odbierze.
+            // Unikamy w ten sposób podwójnego wpisu AGENT w historii kontaktu.
+            Contact contact = contactRepository.findById(message.contactId(), message.tenantId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Kontakt nie istnieje: " + message.contactId()));
+
+            assignContactToAgent(contact, message.agentId(), message.tenantId());
+            contactEventService.closeQueue(message.contactId(), message.tenantId());
+
+            log.info("[RoutingService] Bezpośrednie przypisanie agenta zakończone sukcesem: " +
+                    "contactId={}, agentId={}", message.contactId(), message.agentId());
+
+            // Publikuj contact.assigned → RabbitToWebSocketRelay wyśle WS CONTACT_ASSIGNED
+            // do softphone'u docelowego agenta, żeby wyświetlił powiadomienie o przychodzącym połączeniu.
+            String channel = contact.getChannel() != null ? contact.getChannel() : "PHONE";
+            String address = contact.getRemoteAddress() != null ? contact.getRemoteAddress() : "";
+            String customerId = contact.getCustomerId() != null ? contact.getCustomerId().toString() : null;
+            ContactAssignedEvent wsEvent = ContactAssignedEvent.of(
+                    message.contactId(), message.agentId(),
+                    message.queueId(), message.tenantId(),
+                    "DIRECT_TRANSFER",
+                    channel, address, address,
+                    message.queueName(), customerId);
+            try {
+                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, RK_CONTACT_ASSIGNED, wsEvent);
+                log.info("[RoutingService] Event contact.assigned opublikowany dla transferu do agenta: " +
+                        "contactId={}, agentId={}", message.contactId(), message.agentId());
+            } catch (Exception ex) {
+                log.error("[RoutingService] Błąd publikacji contact.assigned po transferze: " +
+                        "contactId={}, error={}", message.contactId(), ex.getMessage());
+            }
+        } catch (Exception e) {
+            log.error("[RoutingService] Błąd bezpośredniego przypisania agenta: " +
+                    "contactId={}, agentId={}, error={}",
+                    message.contactId(), message.agentId(), e.getMessage(), e);
+            // Celowo nie rzucamy – klient jest już w konferencji, ponowna próba z DLQ byłaby błędna
+        } finally {
+            broadcastQueueStateToAgents(message.tenantId());
             TenantContext.clear();
         }
     }

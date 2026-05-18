@@ -13,6 +13,8 @@ import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.routing.RoutingEngine;
 import com.contactcenter.domain.routing.RoutingRequest;
 import com.contactcenter.domain.routing.RoutingResult;
+import com.contactcenter.domain.service.ContactEventService;
+import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.RoutingService;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -82,12 +84,19 @@ class RoutingServiceTest {
     @Mock
     private WebSocketEventBroadcaster broadcaster;
 
+    @Mock
+    private ContactService contactService;
+
+    @Mock
+    private ContactEventService contactEventService;
+
     private RoutingService routingService;
 
     @BeforeEach
     void setUp() {
         routingService = new RoutingService(routingEngine, queueRepository, contactRepository,
-                rabbitTemplate, queueAssignmentRepository, appUserRepository, broadcaster);
+                rabbitTemplate, queueAssignmentRepository, appUserRepository, broadcaster, contactService,
+                contactEventService);
         // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047
         lenient().when(queueAssignmentRepository.isAllAgents(any(UUID.class), any(UUID.class)))
                 .thenReturn(true);

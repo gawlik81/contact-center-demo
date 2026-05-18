@@ -12,6 +12,7 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
+import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.security.TenantContext;
@@ -59,6 +60,7 @@ class ContactServiceTest {
     @Mock private ContactRepository contactRepository;
     @Mock private RecordingService recordingService;
     @Mock private EmailMessageRepository emailMessageRepository;
+    @Mock private ContactEventService contactEventService;
 
     @InjectMocks
     private ContactService contactService;

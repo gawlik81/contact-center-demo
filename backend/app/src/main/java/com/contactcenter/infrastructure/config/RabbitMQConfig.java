@@ -89,6 +89,12 @@ public class RabbitMQConfig {
      * RoutingService musi niezależnie odświeżyć stan kolejki w panelu agenta po każdym hangup.
      */
     public static final String QUEUE_ROUTING_HANGUP          = "cc.queue.routing-hangup";
+    /**
+     * Kolejka dla bezpośredniego przypisania agenta po transferze BLIND do agenta.
+     * Publikuje {@code TwilioTelephonyAdapter}, konsumuje {@code RoutingService}.
+     * Pomija silnik routingu – agent znany z góry.
+     */
+    public static final String QUEUE_AGENT_DIRECT            = "cc.queue.agent-direct";
 
     // =========================================================================
     // Routing keys
@@ -99,6 +105,8 @@ public class RabbitMQConfig {
     public static final String RK_AUDIT_ALL           = "audit.#";
     public static final String RK_CAMPAIGN_DIALER     = "campaign.contact.#";
     public static final String RK_NOTIFICATIONS_ALL   = "#";
+    /** Routing key dla bezpośredniego przypisania agenta po transferze BLIND. */
+    public static final String RK_AGENT_DIRECT_ASSIGNMENT = "contact.agent.direct";
 
     // =========================================================================
     // Exchanges
@@ -415,6 +423,32 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(routingHangupQueue)
                 .to(eventsExchange)
                 .with("call.hangup");
+    }
+
+    /**
+     * Kolejka dla bezpośredniego przypisania agenta po transferze BLIND do agenta.
+     *
+     * <p>TwilioTelephonyAdapter publikuje wiadomość {@code DirectAgentAssignmentMessage}
+     * po przeniesieniu klienta do nowej konferencji. RoutingService konsumuje i wywołuje
+     * {@code ContactService.assignAgent()} z pominięciem silnika routingu.
+     */
+    @Bean
+    public Queue agentDirectQueue() {
+        return QueueBuilder.durable(QUEUE_AGENT_DIRECT)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", "dlq")
+                .withArgument("x-message-ttl", 30_000)
+                .build();
+    }
+
+    /**
+     * Binding kolejki agent-direct do exchange cc.events z routing key contact.agent.direct.
+     */
+    @Bean
+    public Binding bindingAgentDirect(Queue agentDirectQueue, TopicExchange eventsExchange) {
+        return BindingBuilder.bind(agentDirectQueue)
+                .to(eventsExchange)
+                .with(RK_AGENT_DIRECT_ASSIGNMENT);
     }
 
     // =========================================================================

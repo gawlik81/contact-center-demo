@@ -12,6 +12,7 @@ import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
+import com.contactcenter.domain.routing.DirectAgentAssignmentMessage;
 import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.service.TenantTwilioConfigService;
@@ -932,10 +933,14 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   }
 
   /**
-   * Transfer do agenta przez Twilio Client SDK.
+   * Transfer do agenta.
    *
-   * <p>Agent identyfikowany jest przez {@code client:agent-{agentId}} – ten sam format
-   * co {@link #dialAgentIntoConference}. Obsługuje BLIND i ATTENDED.
+   * <p>Dla {@link TransferType#BLIND} używa konferencji (analogicznie do transferu do kolejki):
+   * klient trafia do nowej konferencji Twilio {@code contact-{newContactId}}, a backend
+   * publikuje {@link DirectAgentAssignmentMessage} do RabbitMQ, by RoutingService
+   * przypisał agenta – co wywoła {@code dialAgentIntoConference()} i powiadomi softphone.
+   *
+   * <p>Dla {@link TransferType#ATTENDED} używa dotychczasowej ścieżki przez Twilio Client SDK.
    */
   private CallSession transferToAgent(String callId, TransferRequest request) {
     UUID tenantId = TenantContext.getTenantId();
@@ -947,13 +952,186 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         .orElseThrow(() -> new TelephonyException(callId,
             "Agent nie istnieje lub należy do innego tenanta: agentId=" + agentId));
 
-    // Twilio Client SDK target: identyczny format jak w dialAgentIntoConference()
+    log.info("[TwilioAdapter] Transfer do agenta: callId={}, agentId={}, agent={} {}, type={}",
+        callId, agentId, agent.getFirstName(), agent.getLastName(), request.transferType());
+
+    if (request.transferType() == TransferType.BLIND) {
+      return transferToAgentViaConference(callId, agentId, agent, tenantId);
+    }
+
+    // ATTENDED – istniejące zachowanie przez Twilio Client SDK
     String target = "client:agent-" + agentId.toString();
-
-    log.info("[TwilioAdapter] Transfer do agenta: callId={}, agentId={}, agent={} {}, target={}, type={}",
-        callId, agentId, agent.getFirstName(), agent.getLastName(), target, request.transferType());
-
     return transferCall(callId, target, request.transferType());
+  }
+
+  /**
+   * Blind transfer do konkretnego agenta przez Twilio Conference.
+   *
+   * <p>Klient trafia do nowej konferencji {@code contact-{newContactId}} (analogicznie do
+   * transferu do kolejki). Backend publikuje {@link DirectAgentAssignmentMessage}, którą
+   * RoutingService konsumuje i wywołuje {@code ContactService.assignAgent()} – to uruchamia
+   * {@code dialAgentIntoConference()} i wysyła {@code CONTACT_ASSIGNED} WebSocket event
+   * do softphone'u docelowego agenta.
+   */
+  private CallSession transferToAgentViaConference(String callId, UUID targetAgentId,
+                                                    AppUser agent, UUID tenantId) {
+    CallSession session = requireSession(callId);
+
+    if (session.getStatus() != CallSession.CallStatus.ACTIVE
+        && session.getStatus() != CallSession.CallStatus.ON_HOLD) {
+      throw new TelephonyException(callId,
+          "Transfer do agenta możliwy tylko dla połączenia ACTIVE lub ON_HOLD. Status: "
+              + session.getStatus());
+    }
+
+    UUID newContactId = UUID.randomUUID();
+    String newConferenceName = "contact-" + newContactId;
+
+    log.info("[TwilioAdapter] Transfer do agenta via conference: callId={}, targetAgentId={}, newContactId={}",
+        callId, targetAgentId, newContactId);
+
+    // Buduj TwiML analogicznie do transferToQueue() – bez queueId w waitUrl
+    String rawBase = buildRawWebhookBaseUrl(tenantId);
+    String conferenceStatusCallbackUrl = rawBase != null
+        ? rawBase + "/conference?tenantId=" + tenantId
+        : null;
+    String recordingCallbackUrl = rawBase != null
+        ? rawBase + "/recording?tenantId=" + tenantId
+        : null;
+    String waitUrl = appBaseUrl + "/api/telephony/hold-music";
+
+    StringBuilder conferenceAttrs = new StringBuilder();
+    conferenceAttrs.append("startConferenceOnEnter=\"false\"");
+    conferenceAttrs.append(" endConferenceOnExit=\"true\"");
+    if (twilioProperties.isRecordingEnabled() && recordingCallbackUrl != null) {
+      conferenceAttrs.append(" record=\"record-from-start\"");
+      conferenceAttrs.append(" recordingStatusCallback=\"").append(recordingCallbackUrl).append("\"");
+      conferenceAttrs.append(" recordingStatusCallbackMethod=\"POST\"");
+    }
+    if (conferenceStatusCallbackUrl != null) {
+      conferenceAttrs.append(" statusCallback=\"").append(conferenceStatusCallbackUrl).append("\"");
+      conferenceAttrs.append(" statusCallbackEvent=\"end\"");
+      conferenceAttrs.append(" statusCallbackMethod=\"POST\"");
+    }
+    conferenceAttrs.append(" waitUrl=\"").append(waitUrl).append("\"");
+    conferenceAttrs.append(" waitMethod=\"GET\"");
+
+    String conferenceTwiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        + "<Response>"
+        + "<Say language=\"pl-PL\">Przekazuję do agenta, proszę czekać.</Say>"
+        + "<Dial>"
+        + "<Conference " + conferenceAttrs + ">"
+        + newConferenceName
+        + "</Conference>"
+        + "</Dial>"
+        + "</Response>";
+
+    // Przekieruj klienta do nowej konferencji
+    String twilioCallSid = session.getCallId();
+    try {
+      Call.updater(twilioCallSid)
+          .setTwiml(new Twiml(conferenceTwiml))
+          .update(resolveRestClient(tenantId));
+    } catch (ApiException e) {
+      log.error("[TwilioAdapter] Błąd Twilio API przy transfer do agenta via conference: " +
+          "callId={}, twilioCallSid={}, targetAgentId={}, code={}, msg={}",
+          callId, twilioCallSid, targetAgentId, e.getCode(), e.getMessage(), e);
+      throw new TelephonyException(callId,
+          "Nie można wykonać transferu do agenta: " + e.getMessage(), e);
+    }
+
+    Instant now = Instant.now();
+
+    // Oznacz oryginalny kontakt jako TRANSFERRED
+    UUID originalContactId = session.getContactId();
+    if (originalContactId != null) {
+      try {
+        contactRepository.updateContactStatusOnTelephonyEvent(originalContactId, tenantId, "TRANSFERRED", now);
+        log.info("[TwilioAdapter] Oryginalny kontakt oznaczony jako TRANSFERRED (agent via conf): " +
+            "contactId={}", originalContactId);
+      } catch (Exception e) {
+        log.error("[TwilioAdapter] Błąd aktualizacji statusu TRANSFERRED: contactId={}, error={}",
+            originalContactId, e.getMessage(), e);
+      }
+    }
+
+    // Pobierz queueId/queueName z oryginalnego kontaktu — nowy kontakt powinien dziedziczyć kolejkę
+    UUID originalQueueId = null;
+    String originalQueueName = null;
+    if (originalContactId != null) {
+      try {
+        var origOpt = contactRepository.findById(originalContactId, tenantId);
+        if (origOpt.isPresent()) {
+          UUID qId = origOpt.get().getQueueId();
+          if (qId != null) {
+            originalQueueId = qId;
+            originalQueueName = queueRepository.findByIdAndTenantId(qId, tenantId)
+                .map(q -> q.getName()).orElse(null);
+          }
+        }
+      } catch (Exception e) {
+        log.warn("[TwilioAdapter] Nie udało się pobrać kolejki oryginalnego kontaktu: {}", e.getMessage());
+      }
+    }
+
+    // Zaktualizuj sesję – nowy contactId dla nowej konferencji
+    CallSession transferred = session
+        .withStatus(CallSession.CallStatus.TRANSFERRED)
+        .withContactId(newContactId)
+        .withAgentId(null)
+        .withAgentCallSid(null)
+        .withAnsweredAt(null)
+        .withEndedAt(null);
+    saveSession(transferred);
+
+    // Utwórz nowy rekord Contact w DB
+    final UUID finalQueueId = originalQueueId;
+    final String finalQueueName = originalQueueName;
+    try {
+      Contact newContact = Contact.builder()
+          .contactId(newContactId)
+          .tenantId(tenantId)
+          .channel("PHONE")
+          .direction("INBOUND")
+          .status("QUEUED")
+          .queueId(finalQueueId)
+          .remoteAddress(session.getFrom())
+          .transferredFromContactId(originalContactId)
+          .queuedAt(now)
+          .startedAt(now)
+          .createdAt(now)
+          .updatedAt(now)
+          .channelMetadata(new HashMap<>(java.util.Map.<String, Object>of("sip_call_id", twilioCallSid)))
+          .build();
+      contactRepository.insert(newContact);
+      contactEventService.openQueue(newContactId, tenantId, finalQueueId, finalQueueName, now);
+      log.info("[TwilioAdapter] Nowy kontakt po transferze do agenta utworzony: " +
+          "newContactId={}, targetAgentId={}, queueId={}", newContactId, targetAgentId, finalQueueId);
+    } catch (Exception e) {
+      log.error("[TwilioAdapter] Błąd tworzenia nowego kontaktu po transferze do agenta: " +
+          "newContactId={}, error={}", newContactId, e.getMessage(), e);
+    }
+
+    // Opublikuj wiadomość dla RoutingService aby przypisał konkretnego agenta
+    try {
+      String agentFullName = agent.getFirstName() + " " + agent.getLastName();
+      DirectAgentAssignmentMessage msg = new DirectAgentAssignmentMessage(
+          newContactId, targetAgentId, tenantId, agentFullName, finalQueueId, finalQueueName);
+      rabbitTemplate.convertAndSend(
+          RabbitMQConfig.EXCHANGE_EVENTS, RabbitMQConfig.RK_AGENT_DIRECT_ASSIGNMENT, msg);
+      log.info("[TwilioAdapter] Opublikowano DirectAgentAssignment: newContactId={}, targetAgentId={}",
+          newContactId, targetAgentId);
+    } catch (Exception e) {
+      log.error("[TwilioAdapter] Błąd publikacji DirectAgentAssignment: error={}", e.getMessage(), e);
+    }
+
+    eventPublisher.publishTransferred(
+        callId, tenantId, session.getAgentId(),
+        session.getFrom(), session.getTo(),
+        "agent:" + targetAgentId, TransferType.BLIND.name()
+    );
+
+    return transferred;
   }
 
   /**
@@ -1670,8 +1848,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private CallSession executeBlindTransfer(String callId, String target, CallSession session) {
     String twilioCallSid = session.getCallId();
     try {
-      String twiml = String.format(
-          "<Response><Dial><Number>%s</Number></Dial></Response>", target);
+      // Twilio Client wymaga <Client>identity</Client>, a nie <Number>client:identity</Number>
+      String dialNoun = target.startsWith("client:")
+          ? "<Client>" + target.substring("client:".length()) + "</Client>"
+          : "<Number>" + target + "</Number>";
+      String twiml = "<Response><Dial>" + dialNoun + "</Dial></Response>";
 
       Call.updater(twilioCallSid)
           .setTwiml(new Twiml(twiml))
@@ -1686,6 +1867,19 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     }
 
     Instant now = Instant.now();
+
+    UUID originalContactId = session.getContactId();
+    if (originalContactId != null) {
+      try {
+        contactRepository.updateContactStatusOnTelephonyEvent(
+            originalContactId, session.getTenantId(), "TRANSFERRED", now);
+        log.info("[TwilioAdapter] Kontakt oznaczony jako TRANSFERRED (blind agent): contactId={}", originalContactId);
+      } catch (Exception e) {
+        log.error("[TwilioAdapter] Błąd aktualizacji statusu na TRANSFERRED: contactId={}, error={}",
+            originalContactId, e.getMessage(), e);
+      }
+    }
+
     CallSession transferred = session
         .withStatus(CallSession.CallStatus.TRANSFERRED)
         .withEndedAt(now);

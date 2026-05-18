@@ -12,11 +12,7 @@ import {
 } from 'rxjs';
 import { SKIP_ERROR_TOAST } from '../../../core/interceptors/error-handler.interceptor';
 import { Device, Call as TwilioCall } from '@twilio/voice-sdk';
-import {
-  CallSession,
-  TransferAgentItem,
-  TransferQueueItem,
-} from '../models/call-session.model';
+import { CallSession, TransferAgentItem, TransferQueueItem } from '../models/call-session.model';
 import { CallIncomingPayload, ContactAssignedPayload } from '../models/ws-event.model';
 import { environment } from '../../../../environments/environment';
 
@@ -553,18 +549,14 @@ export class SoftphoneService implements OnDestroy {
    * Fetches the list of available agents for transfer panel selection.
    */
   fetchTransferAgents(): Observable<TransferAgentItem[]> {
-    return this.http.get<TransferAgentItem[]>(
-      `${environment.apiUrl}/telephony/transfer/agents`,
-    );
+    return this.http.get<TransferAgentItem[]>(`${environment.apiUrl}/telephony/transfer/agents`);
   }
 
   /**
    * Fetches the list of available queues for transfer panel selection.
    */
   fetchTransferQueues(): Observable<TransferQueueItem[]> {
-    return this.http.get<TransferQueueItem[]>(
-      `${environment.apiUrl}/telephony/transfer/queues`,
-    );
+    return this.http.get<TransferQueueItem[]>(`${environment.apiUrl}/telephony/transfer/queues`);
   }
 
   // ── Telephony HTTP API ─────────────────────────────────────────────────────

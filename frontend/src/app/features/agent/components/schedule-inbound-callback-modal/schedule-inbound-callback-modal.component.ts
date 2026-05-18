@@ -87,10 +87,9 @@ export class ScheduleInboundCallbackModalComponent implements OnInit {
 
   readonly canSubmit = computed(() => this._formStatus() === 'VALID' && !this.loading());
 
-  private readonly _scheduledDateValue = toSignal(
-    this.form.controls.scheduledDate.valueChanges,
-    { initialValue: this.form.controls.scheduledDate.value },
-  );
+  private readonly _scheduledDateValue = toSignal(this.form.controls.scheduledDate.valueChanges, {
+    initialValue: this.form.controls.scheduledDate.value,
+  });
 
   /** True when the selected date is today — used to filter available hours */
   readonly isToday = computed(() => {

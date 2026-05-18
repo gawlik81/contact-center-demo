@@ -250,9 +250,15 @@
               (click)="setTransferTargetType(tab)"
             >
               @switch (tab) {
-                @case ('PHONE') { {{ 'agent.softphone.tabPhone' | transloco }} }
-                @case ('AGENT') { {{ 'agent.softphone.tabAgent' | transloco }} }
-                @case ('QUEUE') { {{ 'agent.softphone.tabQueue' | transloco }} }
+                @case ('PHONE') {
+                  {{ 'agent.softphone.tabPhone' | transloco }}
+                }
+                @case ('AGENT') {
+                  {{ 'agent.softphone.tabAgent' | transloco }}
+                }
+                @case ('QUEUE') {
+                  {{ 'agent.softphone.tabQueue' | transloco }}
+                }
               }
             </button>
           }
@@ -347,10 +353,7 @@
 
         <!-- Zawartość zakładki QUEUE -->
         @if (transferTargetType() === 'QUEUE') {
-          <app-transfer-queue-list
-            [isTransferring]="isTransferring()"
-            (queueSelected)="onQueueSelected($event)"
-          />
+          <app-transfer-queue-list [isTransferring]="isTransferring()" (queueSelected)="onQueueSelected($event)" />
         }
       </div>
     }

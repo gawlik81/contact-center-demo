@@ -38,9 +38,7 @@ export class TransferAgentListComponent implements OnInit {
   protected readonly filteredAgents = computed(() => {
     const q = this.searchQuery().toLowerCase().trim();
     if (!q) return this.agents();
-    return this.agents().filter((a) =>
-      `${a.firstName} ${a.lastName}`.toLowerCase().includes(q),
-    );
+    return this.agents().filter((a) => `${a.firstName} ${a.lastName}`.toLowerCase().includes(q));
   });
 
   ngOnInit(): void {

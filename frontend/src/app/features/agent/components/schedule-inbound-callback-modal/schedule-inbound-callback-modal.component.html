@@ -36,18 +36,9 @@
     </div>
 
     <!-- Body -->
-    <form
-      class="callback-dialog__body"
-      [formGroup]="form"
-      (ngSubmit)="submit()"
-      novalidate
-      id="callback-form"
-    >
+    <form class="callback-dialog__body" [formGroup]="form" (ngSubmit)="submit()" novalidate id="callback-form">
       <!-- Phone number -->
-      <div
-        class="form-field"
-        [class.form-field--error]="form.controls.phone.touched && form.controls.phone.invalid"
-      >
+      <div class="form-field" [class.form-field--error]="form.controls.phone.touched && form.controls.phone.invalid">
         <label class="form-label" for="cb-phone">
           {{ 'agent.scheduleCallback.phoneLabel' | transloco }}
           <span class="required" aria-hidden="true">*</span>
@@ -102,9 +93,7 @@
               [min]="minDate()"
               aria-required="true"
               [attr.aria-label]="'agent.scheduleCallback.scheduledDateLabel' | transloco"
-              [attr.aria-invalid]="
-                form.controls.scheduledDate.invalid && form.controls.scheduledDate.touched
-              "
+              [attr.aria-invalid]="form.controls.scheduledDate.invalid && form.controls.scheduledDate.touched"
             />
             @if (scheduledDateError) {
               <span class="form-error" role="alert">

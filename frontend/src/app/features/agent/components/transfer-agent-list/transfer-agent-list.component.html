@@ -28,7 +28,15 @@
         type="button"
         class="transfer-agent-list__item"
         [disabled]="isTransferring()"
-        [attr.aria-label]="agent.firstName + ' ' + agent.lastName + ', ' + (transferMode() === 'BLIND' ? ('agent.softphone.transferAction' | transloco) : ('agent.softphone.consultAction' | transloco))"
+        [attr.aria-label]="
+          agent.firstName +
+          ' ' +
+          agent.lastName +
+          ', ' +
+          (transferMode() === 'BLIND'
+            ? ('agent.softphone.transferAction' | transloco)
+            : ('agent.softphone.consultAction' | transloco))
+        "
         (click)="selectAgent(agent)"
       >
         <span
@@ -43,7 +51,11 @@
           }
         </span>
         <span class="transfer-agent-list__mode-badge">
-          {{ transferMode() === 'BLIND' ? ('agent.softphone.transferAction' | transloco) : ('agent.softphone.consultAction' | transloco) }}
+          {{
+            transferMode() === 'BLIND'
+              ? ('agent.softphone.transferAction' | transloco)
+              : ('agent.softphone.consultAction' | transloco)
+          }}
         </span>
       </button>
     } @empty {

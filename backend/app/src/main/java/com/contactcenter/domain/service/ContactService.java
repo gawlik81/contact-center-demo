@@ -16,9 +16,11 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
+import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TransferRequest;
@@ -78,6 +80,7 @@ public class ContactService {
     private final RecordingService recordingService;
     private final EmailMessageRepository emailMessageRepository;
     private final AppUserRepository appUserRepository;
+    private final QueueRepository queueRepository;
     private final ContactEventService contactEventService;
     private final TelephonyAdapter telephonyAdapter;
 
@@ -840,7 +843,10 @@ public class ContactService {
 
         CallSession resultSession = telephonyAdapter.initiateTransfer(callId, domainReq);
 
-        // 7. Zapisz zdarzenie TRANSFER w osobnej transakcji (błąd nie przerywa przepływu)
+        // 7. Zamknij etap AGENT – transfer kończy obsługę przez agenta
+        contactEventService.closeAgent(contactId, tenantId);
+
+        // 8. Zapisz zdarzenie TRANSFER w osobnej transakcji (błąd nie przerywa przepływu)
         persistTransferEvent(contactId, tenantId, req);
 
         log.info("[ContactService] Transfer zainicjowany: callId={}, contactId={}, " +
@@ -888,12 +894,23 @@ public class ContactService {
             switch (req.targetType()) {
                 case PHONE ->
                         meta.put("target", req.phoneNumber());
-                case AGENT ->
-                        meta.put(TelephonyAdapter.META_TARGET_AGENT_ID,
-                                req.agentId() != null ? req.agentId().toString() : null);
-                case QUEUE ->
-                        meta.put(TelephonyAdapter.META_TARGET_QUEUE_ID,
-                                req.queueId() != null ? req.queueId().toString() : null);
+                case AGENT -> {
+                    meta.put(TelephonyAdapter.META_TARGET_AGENT_ID,
+                            req.agentId() != null ? req.agentId().toString() : null);
+                    if (req.agentId() != null) {
+                        appUserRepository.findByIdAndTenantIdAndDeletedFalse(req.agentId(), tenantId)
+                                .ifPresent(u -> meta.put("target_agent_name",
+                                        u.getFirstName() + " " + u.getLastName()));
+                    }
+                }
+                case QUEUE -> {
+                    meta.put(TelephonyAdapter.META_TARGET_QUEUE_ID,
+                            req.queueId() != null ? req.queueId().toString() : null);
+                    if (req.queueId() != null) {
+                        queueRepository.findByIdAndTenantId(req.queueId(), tenantId)
+                                .ifPresent(q -> meta.put("target_queue_name", q.getName()));
+                    }
+                }
             }
 
             contactEventService.recordTransfer(

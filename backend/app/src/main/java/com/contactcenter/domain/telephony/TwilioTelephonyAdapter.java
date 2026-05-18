@@ -1098,6 +1098,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       contactRepository.insert(newContact);
       log.info("[TwilioAdapter] Nowy kontakt po transferze kolejkowym utworzony: newContactId={}, queueId={}",
           newContactId, queueId);
+      contactEventService.openQueue(newContactId, tenantId, queueId, queue.getName(), now);
     } catch (Exception e) {
       log.error("[TwilioAdapter] Błąd przy tworzeniu nowego kontaktu po transferze: " +
                 "newContactId={}, queueId={}, error={}", newContactId, queueId, e.getMessage(), e);

@@ -311,7 +311,7 @@
                         </span>
                         <span class="cd-tl-sep">·</span>
                         <span class="cd-tl-dur mono">
-                          {{ formatDuration(event.durationSeconds) }}
+                          {{ formatDuration(getEventDuration(event)) }}
                         </span>
                         @if (getStageContext(event)) {
                           <span class="cd-tl-sep">·</span>

@@ -262,12 +262,33 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   }
 
+  protected getEventDuration(event: ContactEventResponse): number | null {
+    if (event.durationSeconds != null) return event.durationSeconds;
+    if (event.endedAt && event.startedAt) {
+      return Math.floor(
+        (new Date(event.endedAt).getTime() - new Date(event.startedAt).getTime()) / 1000,
+      );
+    }
+    return null;
+  }
+
   protected getStageContext(event: ContactEventResponse): string {
     const m = event.metadata;
     if (event.stage === 'TRANSFER' || event.stage === 'CONSULTING') {
-      const who = m['target_agent_name'] ?? m['target'] ?? '';
-      const type = m['transfer_type'] ? ` (${m['transfer_type']})` : '';
-      return who + type;
+      const targetType = m['target_type'] as string | undefined;
+      const transferType = m['transfer_type'] ? ` (${m['transfer_type']})` : '';
+
+      if (targetType === 'QUEUE') {
+        const name = (m['target_queue_name'] ?? m['target_queue_id'] ?? '') as string;
+        return name + transferType;
+      }
+      if (targetType === 'AGENT') {
+        const name = (m['target_agent_name'] ?? m['target'] ?? '') as string;
+        return name + transferType;
+      }
+      // PHONE lub brak target_type
+      const phone = (m['target'] ?? '') as string;
+      return phone + transferType;
     }
     return m['ivr_tree_name'] ?? m['queue_name'] ?? m['agent_name'] ?? '';
   }

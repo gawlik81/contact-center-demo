@@ -501,9 +501,13 @@ public class TwilioWebhookController {
       contactRepository.findById(contactId, tenantId).ifPresentOrElse(
           contact -> {
             String currentStatus = contact.getStatus();
+            // Fix #2: TRANSFERRED dodany do listy statusów terminalnych.
+            // Gdy klient był transferowany do nowej kolejki, oryginalna konferencja kończy się
+            // po przekierowaniu klienta. Bez tego sprawdzenia webhook nadpisałby TRANSFERRED → ABANDONED.
             if ("COMPLETED".equals(currentStatus) || "ABANDONED".equals(currentStatus)
-                || "NOT_REACHED".equals(currentStatus) || "ERROR".equals(currentStatus)) {
-              log.debug("[TwilioConference] Kontakt już zakończony (status={}), pomijam: contactId={}",
+                || "NOT_REACHED".equals(currentStatus) || "ERROR".equals(currentStatus)
+                || "TRANSFERRED".equals(currentStatus)) {
+              log.debug("[TwilioConference] Kontakt już zakończony lub transferowany (status={}), pomijam: contactId={}",
                   currentStatus, contactId);
               return;
             }

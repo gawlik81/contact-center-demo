@@ -11,13 +11,16 @@ import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
+import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.twilio.exception.ApiException;
@@ -116,6 +119,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final AppUserRepository appUserRepository;
   /** Repozytorium kolejek – wymagane do lookup kolejki przy transferze QUEUE. */
   private final QueueRepository queueRepository;
+  /** Używany do publikacji eventu contact.queued po transferze do kolejki. */
+  private final RabbitTemplate rabbitTemplate;
 
   /**
    * Bazowy URL aplikacji (np. https://example.com) – wymagany do budowania TwiML
@@ -1043,10 +1048,72 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     }
 
     Instant now = Instant.now();
+
+    // Fix #3: Oznacz oryginalny kontakt jako TRANSFERRED w DB zanim nadejdzie
+    // conference-end callback (który w przeciwnym razie ustawiłby go na ABANDONED).
+    UUID originalContactId = session.getContactId();
+    if (originalContactId != null) {
+      try {
+        contactRepository.updateContactStatusOnTelephonyEvent(
+            originalContactId, tenantId, "TRANSFERRED", now);
+        log.info("[TwilioAdapter] Oryginalny kontakt oznaczony jako TRANSFERRED: contactId={}", originalContactId);
+      } catch (Exception e) {
+        log.error("[TwilioAdapter] Błąd przy aktualizacji statusu oryginalnego kontaktu na TRANSFERRED: " +
+                  "contactId={}, error={}", originalContactId, e.getMessage(), e);
+        // Nie przerywamy – transfer do Twilio już się powiódł
+      }
+    }
+
+    // Zaktualizuj sesję: contactId → newContactId, aby answerCall() użył właściwej konferencji
+    // (conferenceName = "contact-{contactId}"). Bez tej zmiany agent dołączałby do starej
+    // konferencji, która już nie istnieje. endedAt = null, bo fizyczne połączenie Twilio
+    // (callSid) nadal trwa — klient jest w nowej konferencji oczekując na agenta.
     CallSession transferred = session
         .withStatus(CallSession.CallStatus.TRANSFERRED)
-        .withEndedAt(now);
+        .withContactId(newContactId)
+        .withAgentId(null)
+        .withAgentCallSid(null)
+        .withAnsweredAt(null)
+        .withEndedAt(null);
     saveSession(transferred);
+
+    // Fix #1a: Utwórz nowy rekord Contact w DB dla nowego contactId.
+    // Bez niego RoutingService nie znajdzie kontaktu i żaden agent nie odbierze połączenia.
+    try {
+      Contact newContact = Contact.builder()
+          .contactId(newContactId)
+          .tenantId(tenantId)
+          .channel("PHONE")
+          .direction("INBOUND")
+          .status("QUEUED")
+          .queueId(queueId)
+          .remoteAddress(session.getFrom())
+          .queuedAt(now)
+          .startedAt(now)
+          .createdAt(now)
+          .updatedAt(now)
+          .channelMetadata(new HashMap<>(java.util.Map.<String, Object>of("sip_call_id", session.getCallId())))
+          .build();
+      contactRepository.insert(newContact);
+      log.info("[TwilioAdapter] Nowy kontakt po transferze kolejkowym utworzony: newContactId={}, queueId={}",
+          newContactId, queueId);
+    } catch (Exception e) {
+      log.error("[TwilioAdapter] Błąd przy tworzeniu nowego kontaktu po transferze: " +
+                "newContactId={}, queueId={}, error={}", newContactId, queueId, e.getMessage(), e);
+      // Nie przerywamy – klient jest już w nowej konferencji; routing ponowi próbę po zmianie statusu agenta
+    }
+
+    // Fix #1b: Opublikuj event contact.queued żeby RoutingService natychmiast przydzielił agenta.
+    try {
+      ContactQueuedMessage routingMessage = new ContactQueuedMessage(newContactId, queueId, tenantId);
+      rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, RabbitMQConfig.RK_CONTACT_QUEUED, routingMessage);
+      log.info("[TwilioAdapter] Event contact.queued opublikowany po transferze kolejkowym: " +
+               "newContactId={}, queueId={}", newContactId, queueId);
+    } catch (Exception e) {
+      log.error("[TwilioAdapter] Błąd publikacji eventu contact.queued po transferze: " +
+                "newContactId={}, queueId={}, error={}", newContactId, queueId, e.getMessage(), e);
+      // Nie przerywamy – RoutingService ponowi próbę po zmianie statusu agenta (fallback)
+    }
 
     log.info("[TwilioAdapter] Transfer do kolejki wykonany: callId={}, queueId={}, queueName={}, newContactId={}",
         callId, queueId, queue.getName(), newContactId);

@@ -37,6 +37,7 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -105,6 +106,9 @@ class TwilioTelephonyAdapterTest {
     @Mock
     private QueueRepository queueRepository;
 
+    @Mock
+    private RabbitTemplate rabbitTemplate;
+
     private TwilioProperties twilioProperties;
     private TwilioTelephonyAdapter adapter;
 
@@ -165,7 +169,7 @@ class TwilioTelephonyAdapterTest {
                 contactRepository, customerRepository, tenantRepository,
                 redisTemplate, stringRedisTemplate, recordingDownloadService,
                 tenantTwilioConfigService, contactEventService,
-                appUserRepository, queueRepository);
+                appUserRepository, queueRepository, rabbitTemplate);
         // init() inicjalizuje Caffeine cache bez wywoływania Twilio.init() (usunięte w BE-058)
         // oraz bez konfigurowania statusCallbacków (tenantRepository zwraca pustą listę)
         adapter.init();

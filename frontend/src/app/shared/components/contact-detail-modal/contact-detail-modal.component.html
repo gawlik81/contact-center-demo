@@ -224,13 +224,7 @@
                           'related-contact-item__badge related-contact-item__badge--' + item.relationType.toLowerCase()
                         "
                       >
-                        @if (item.relationType === 'PARENT') {
-                          {{ 'contactDetailModal.parentContact' | transloco }}
-                        } @else if (item.itemType === 'CALLBACK') {
-                          {{ 'agent.rescheduleCallback.title' | transloco }}
-                        } @else {
-                          {{ 'contactDetailModal.childContact' | transloco }}
-                        }
+                        {{ getRelatedContactBadgeKey(item) | transloco }}
                       </span>
                       <span class="related-contact-item__info">
                         @if (item.itemType === 'CONTACT') {

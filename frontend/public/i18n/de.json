@@ -2222,6 +2222,8 @@
     "related": "Verknüpfte",
     "parentContact": "Quellkontakt",
     "childContact": "Ergebniskontakt",
+    "transferSource": "Kontakt vor Transfer",
+    "transferTarget": "Kontakt nach Transfer",
     "goToParent": "Zum Quellkontakt",
     "goToChild": "Zum Ergebniskontakt",
     "close": "Schließen",
@@ -2236,7 +2238,8 @@
       "COMPLETED": "Abgeschlossen",
       "ABANDONED": "Abgebrochen",
       "FAILED": "Fehlgeschlagen",
-      "NOT_REACHED": "Nicht erreicht"
+      "NOT_REACHED": "Nicht erreicht",
+      "TRANSFERRED": "Weitergeleitet"
     },
     "callbackStatusLabels": {
       "PENDING": "Ausstehend",

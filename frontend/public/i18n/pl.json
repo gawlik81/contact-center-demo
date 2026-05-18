@@ -1237,10 +1237,14 @@
       "successScheduleCallback": "Oddzwonienie zostało zaplanowane.",
       "contactStatusLabels": {
         "QUEUED": "W kolejce",
+        "ASSIGNED": "Przydzielony",
         "ACTIVE": "Aktywny",
         "ON_HOLD": "Wstrzymany",
         "COMPLETED": "Zakończony",
         "ABANDONED": "Porzucony",
+        "TRANSFERRED": "Przetransferowany",
+        "NOT_REACHED": "Niedodzwoniony",
+        "ERROR": "Błąd",
         "FAILED": "Nieudany"
       },
       "phones": "Numery telefonów",
@@ -2222,6 +2226,8 @@
     "related": "Powiązania",
     "parentContact": "Kontakt źródłowy",
     "childContact": "Kontakt wynikowy",
+    "transferSource": "Kontakt przed transferem",
+    "transferTarget": "Kontakt po transferze",
     "goToParent": "Przejdź do kontaktu źródłowego",
     "goToChild": "Przejdź do kontaktu wynikowego",
     "close": "Zamknij",
@@ -2236,7 +2242,8 @@
       "COMPLETED": "Zakończony",
       "ABANDONED": "Porzucony",
       "FAILED": "Nieudany",
-      "NOT_REACHED": "Nie osiągnięto"
+      "NOT_REACHED": "Nie osiągnięto",
+      "TRANSFERRED": "Przetransferowany"
     },
     "callbackStatusLabels": {
       "PENDING": "Oczekujące",

@@ -6,7 +6,15 @@ export interface ContactResponse {
   queueId?: string;
   campaignId?: string;
   channel: 'PHONE' | 'EMAIL' | 'CHAT' | 'SOCIAL';
-  status: 'QUEUED' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'ABANDONED' | 'FAILED' | string;
+  status:
+    | 'QUEUED'
+    | 'ACTIVE'
+    | 'ON_HOLD'
+    | 'COMPLETED'
+    | 'ABANDONED'
+    | 'FAILED'
+    | 'TRANSFERRED'
+    | string;
   direction: 'INBOUND' | 'OUTBOUND' | string;
   remoteAddress?: string;
   startedAt: string;

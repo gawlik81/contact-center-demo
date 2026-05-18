@@ -519,6 +519,11 @@
     color: var(--danger-text);
   }
 
+  &--transferred {
+    background: rgba(94, 53, 177, 0.12);
+    color: #4527a0;
+  }
+
   &--failed {
     background: var(--danger-soft);
     color: var(--danger-text);

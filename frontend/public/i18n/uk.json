@@ -2222,6 +2222,8 @@
     "related": "Пов'язані",
     "parentContact": "Вихідний контакт",
     "childContact": "Результуючий контакт",
+    "transferSource": "Контакт до трансферу",
+    "transferTarget": "Контакт після трансферу",
     "goToParent": "Перейти до вихідного контакту",
     "goToChild": "Перейти до результуючого контакту",
     "close": "Закрити",
@@ -2236,7 +2238,8 @@
       "COMPLETED": "Завершений",
       "ABANDONED": "Покинутий",
       "FAILED": "Невдалий",
-      "NOT_REACHED": "Не досягнуто"
+      "NOT_REACHED": "Не досягнуто",
+      "TRANSFERRED": "Перенаправлений"
     },
     "callbackStatusLabels": {
       "PENDING": "Очікує",

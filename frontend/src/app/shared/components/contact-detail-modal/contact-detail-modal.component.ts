@@ -325,6 +325,27 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     return this.transloco.translate(`contactDetailModal.callbackStatusLabels.${status}`);
   }
 
+  /**
+   * Returns the i18n key for a related-contact badge.
+   * Transfer detection relies on the status of the related item (PARENT with TRANSFERRED status)
+   * or the currently displayed contact (CHILD when current contact is TRANSFERRED).
+   */
+  getRelatedContactBadgeKey(item: RelatedItem): string {
+    if (item.itemType === 'CONTACT') {
+      if (item.relationType === 'PARENT' && item.status === 'TRANSFERRED') {
+        return 'contactDetailModal.transferSource';
+      }
+      if (item.relationType === 'CHILD' && this.contact()?.status === 'TRANSFERRED') {
+        return 'contactDetailModal.transferTarget';
+      }
+      return item.relationType === 'PARENT'
+        ? 'contactDetailModal.parentContact'
+        : 'contactDetailModal.childContact';
+    }
+    // CALLBACK items — label handled in template via separate translation key
+    return 'agent.rescheduleCallback.title';
+  }
+
   private formatDurationSeconds(totalSeconds: number): string {
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);

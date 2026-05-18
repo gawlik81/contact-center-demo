@@ -1237,10 +1237,14 @@
       "successScheduleCallback": "Callback scheduled.",
       "contactStatusLabels": {
         "QUEUED": "Queued",
+        "ASSIGNED": "Assigned",
         "ACTIVE": "Active",
         "ON_HOLD": "On Hold",
         "COMPLETED": "Completed",
         "ABANDONED": "Abandoned",
+        "TRANSFERRED": "Transferred",
+        "NOT_REACHED": "Not Reached",
+        "ERROR": "Error",
         "FAILED": "Failed"
       },
       "phones": "Phone numbers",
@@ -2222,6 +2226,8 @@
     "related": "Related",
     "parentContact": "Source contact",
     "childContact": "Result contact",
+    "transferSource": "Contact before transfer",
+    "transferTarget": "Contact after transfer",
     "goToParent": "Go to source contact",
     "goToChild": "Go to result contact",
     "close": "Close",
@@ -2236,7 +2242,8 @@
       "COMPLETED": "Completed",
       "ABANDONED": "Abandoned",
       "FAILED": "Failed",
-      "NOT_REACHED": "Not Reached"
+      "NOT_REACHED": "Not Reached",
+      "TRANSFERRED": "Transferred"
     },
     "callbackStatusLabels": {
       "PENDING": "Pending",

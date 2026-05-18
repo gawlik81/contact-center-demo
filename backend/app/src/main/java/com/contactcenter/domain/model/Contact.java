@@ -160,4 +160,13 @@ public class Contact {
      */
     @Column(name = "callback_id")
     private UUID callbackId;
+
+    /**
+     * UUID kontaktu źródłowego (contact.contact_id), z którego powstał ten kontakt
+     * w wyniku transferu kolejkowego.
+     * Nullable – brak FK ze względu na composite PK tabeli contact.
+     * Wypełniany przez TwilioTelephonyAdapter przy tworzeniu nowego kontaktu po transferze.
+     */
+    @Column(name = "transferred_from_contact_id")
+    private UUID transferredFromContactId;
 }

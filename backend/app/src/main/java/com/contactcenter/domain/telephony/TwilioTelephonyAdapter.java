@@ -1093,6 +1093,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .createdAt(now)
           .updatedAt(now)
           .channelMetadata(new HashMap<>(java.util.Map.<String, Object>of("sip_call_id", session.getCallId())))
+          .transferredFromContactId(originalContactId)
           .build();
       contactRepository.insert(newContact);
       log.info("[TwilioAdapter] Nowy kontakt po transferze kolejkowym utworzony: newContactId={}, queueId={}",

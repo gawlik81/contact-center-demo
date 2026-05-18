@@ -428,7 +428,8 @@ public class ContactRepository extends TenantAwareRepository {
                 channel, direction, status, remote_address,
                 queued_at, assigned_at, started_at, ended_at,
                 duration_seconds, disposition_code, notes, recording_url,
-                channel_metadata, created_at, updated_at, callback_id
+                channel_metadata, created_at, updated_at, callback_id,
+                transferred_from_contact_id
             ) VALUES (
                 CAST(:contactId AS uuid),
                 CAST(:tenantId AS uuid),
@@ -451,7 +452,8 @@ public class ContactRepository extends TenantAwareRepository {
                 CAST(:channelMetadata AS jsonb),
                 :createdAt,
                 :updatedAt,
-                CAST(:callbackId AS uuid)
+                CAST(:callbackId AS uuid),
+                CAST(:transferredFromContactId AS uuid)
             )
             """)
         .setParameter("contactId", contact.getContactId().toString())
@@ -476,6 +478,7 @@ public class ContactRepository extends TenantAwareRepository {
         .setParameter("createdAt", contact.getCreatedAt())
         .setParameter("updatedAt", contact.getUpdatedAt())
         .setParameter("callbackId", uuidToString(contact.getCallbackId()))
+        .setParameter("transferredFromContactId", uuidToString(contact.getTransferredFromContactId()))
         .executeUpdate();
 
     log.info("[ContactRepo] Kontakt utworzony: contactId={}, tenant={}",
@@ -678,6 +681,42 @@ public class ContactRepository extends TenantAwareRepository {
             Contact.class)
         .setParameter("tenantId", tenantId.toString())
         .setParameter("callbackId", callbackId.toString())
+        .getResultList();
+  }
+
+  // =========================================================================
+  // Powiązania po transferze kolejkowym
+  // =========================================================================
+
+  /**
+   * Zwraca listę kontaktów powstałych z transferu kolejkowego danego kontaktu.
+   *
+   * <p>Kontakt jest powiązany z kontaktem źródłowym gdy pole
+   * {@code transferred_from_contact_id} wskazuje na UUID kontaktu źródłowego.
+   * Są to kontakty "dzieci" – tworzone przez TwilioTelephonyAdapter w metodzie
+   * {@code transferToQueue()} przy przekierowaniu połączenia do nowej kolejki.
+   *
+   * @param transferredFromContactId UUID kontaktu źródłowego (contact.contact_id)
+   * @param tenantId                 UUID tenanta
+   * @return lista kontaktów z ustawionym transferred_from_contact_id równym podanemu UUID
+   */
+  @Transactional(readOnly = true)
+  @SuppressWarnings("unchecked")
+  public List<Contact> findByTransferredFromContactId(UUID transferredFromContactId, UUID tenantId) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepo] findByTransferredFromContactId: transferredFromContactId={}, tenant={}",
+        transferredFromContactId, tenantId);
+
+    return em.createNativeQuery("""
+            SELECT * FROM contact
+            WHERE tenant_id                    = CAST(:tenantId AS uuid)
+              AND transferred_from_contact_id  = CAST(:transferredFromContactId AS uuid)
+            ORDER BY started_at DESC
+            """,
+            Contact.class)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("transferredFromContactId", transferredFromContactId.toString())
         .getResultList();
   }
 

@@ -706,6 +706,37 @@ public class ContactController {
             }
         }
 
+        // --- Kierunek E: ten kontakt ma transferred_from_contact_id (powstał z transferu) ---
+        // Kontakt źródłowy (PARENT) to kontakt wskazywany przez transferred_from_contact_id.
+        if (contact.getTransferredFromContactId() != null) {
+            contactRepository.findById(contact.getTransferredFromContactId(), tenantId)
+                    .ifPresent(parent -> related.add(RelatedItem.ofContact(
+                            parent.getContactId(),
+                            parent.getStartedAt(),
+                            parent.getChannel(),
+                            parent.getDirection(),
+                            parent.getStatus(),
+                            parent.getRemoteAddress(),
+                            "PARENT"
+                    )));
+        }
+
+        // --- Kierunek F: inne kontakty mają transferred_from_contact_id = ten contactId ---
+        // Ten kontakt był źródłem transferu; kontakty powstałe z transferu to CHILD.
+        List<Contact> transferredChildren =
+                contactRepository.findByTransferredFromContactId(contactId, tenantId);
+        for (Contact child : transferredChildren) {
+            related.add(RelatedItem.ofContact(
+                    child.getContactId(),
+                    child.getStartedAt(),
+                    child.getChannel(),
+                    child.getDirection(),
+                    child.getStatus(),
+                    child.getRemoteAddress(),
+                    "CHILD"
+            ));
+        }
+
         log.debug("[ContactController] getRelatedContacts: contactId={}, powiązanych={}, tenant={}",
                 contactId, related.size(), tenantId);
 

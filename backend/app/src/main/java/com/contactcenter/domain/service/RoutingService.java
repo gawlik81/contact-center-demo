@@ -371,7 +371,9 @@ public class RoutingService {
                             "Kontakt nie istnieje: " + message.contactId()));
 
             assignContactToAgent(contact, message.agentId(), message.tenantId());
-            contactEventService.closeQueue(message.contactId(), message.tenantId());
+            // Nie wywołujemy closeQueue() — dla direct transfer do agenta etap QUEUE
+            // nie jest tworzony (transferToAgentViaConference nie wywołuje openQueue()),
+            // więc closeQueue() zawsze trafiałby w pustkę i generował WARN w logach.
 
             log.info("[RoutingService] Bezpośrednie przypisanie agenta zakończone sukcesem: " +
                     "contactId={}, agentId={}", message.contactId(), message.agentId());

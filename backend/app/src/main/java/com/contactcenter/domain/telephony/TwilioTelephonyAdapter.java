@@ -459,7 +459,15 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     // agentId musi być zapisany w sesji JUŻ TERAZ – sessions.put() powyżej to gwarantuje.
     boolean isOutbound = "OUTBOUND".equals(updated.getDirection());
 
-    if (isOutbound) {
+    // Blind transfer do agenta: sesja ma direction=OUTBOUND (z oryginalnego połączenia wychodzącego),
+    // ale poprzedni status to TRANSFERRED – oznacza to, że klient jest już w nowej konferencji
+    // (transferToAgentViaConference przekierował go przez TwiML <Conference startConferenceOnEnter="false">).
+    // W tym przypadku agent powinien dołączyć natychmiast, analogicznie do INBOUND.
+    // Czekanie na webhook in-progress nie ma tu sensu – ten webhook dotyczy odebrania przez klienta,
+    // a klient już jest w konferencji (połączenie Twilio jest w stanie in-progress od dawna).
+    boolean isTransferredSession = session.getStatus() == CallSession.CallStatus.TRANSFERRED;
+
+    if (isOutbound && !isTransferredSession) {
       // Sprawdź czy klient już odebrał (status ACTIVE w poprzedniej sesji oznacza że
       // webhook in-progress dotarł PRZED answerCall — rzadki przypadek gdy klient szybko odbiera).
       // Sprawdzamy session (stan PRZED aktualizacją) bo klient-webhook aktualizuje status na ACTIVE.
@@ -476,11 +484,18 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             updated.getAgentId(), callId);
       }
     } else {
-      // INBOUND: klient już czeka w kolejce konferencji — wejdź natychmiast
+      // INBOUND lub OUTBOUND po transferze: klient już czeka w konferencji — wejdź natychmiast.
+      // Przypadek transferu: session.status=TRANSFERRED oznacza że transferToAgentViaConference()
+      // przekierował klienta do nowej konferencji contact-{newContactId} i czeka na agenta.
       if (updated.getContactId() != null && updated.getAgentId() != null) {
+        if (isTransferredSession) {
+          log.info("[TwilioAdapter] OUTBOUND-TRANSFER answerCall: sesja po blind transferze, " +
+                   "klient czeka w konferencji – wchodzę natychmiast. callId={}, contactId={}, agentId={}",
+              callId, updated.getContactId(), updated.getAgentId());
+        }
         dialAgentIntoConference(updated);
       } else {
-        log.warn("[TwilioAdapter] INBOUND: brak contactId lub agentId w sesji – pomijam dial agenta do konferencji: " +
+        log.warn("[TwilioAdapter] INBOUND/TRANSFER: brak contactId lub agentId w sesji – pomijam dial agenta do konferencji: " +
                  "callId={}, contactId={}, agentId={}",
             callId, updated.getContactId(), updated.getAgentId());
       }
@@ -1088,14 +1103,21 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     final UUID finalQueueId = originalQueueId;
     final String finalQueueName = originalQueueName;
     try {
+      // Numer klienta: dla OUTBOUND klient jest w session.getTo() (firma dzwoniła do klienta),
+      // dla INBOUND klient jest w session.getFrom() (klient dzwonił do firmy).
+      String customerAddress = "OUTBOUND".equals(session.getDirection())
+          ? session.getTo()
+          : session.getFrom();
+      // Zachowaj direction z oryginalnej sesji (OUTBOUND pozostaje OUTBOUND po transferze).
+      String contactDirection = session.getDirection() != null ? session.getDirection() : "INBOUND";
       Contact newContact = Contact.builder()
           .contactId(newContactId)
           .tenantId(tenantId)
           .channel("PHONE")
-          .direction("INBOUND")
+          .direction(contactDirection)
           .status("QUEUED")
           .queueId(finalQueueId)
-          .remoteAddress(session.getFrom())
+          .remoteAddress(customerAddress)
           .transferredFromContactId(originalContactId)
           .queuedAt(now)
           .startedAt(now)
@@ -1104,9 +1126,12 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .channelMetadata(new HashMap<>(java.util.Map.<String, Object>of("sip_call_id", twilioCallSid)))
           .build();
       contactRepository.insert(newContact);
-      contactEventService.openQueue(newContactId, tenantId, finalQueueId, finalQueueName, now);
+      // Nie otwieramy etapu QUEUE dla direct transfer do agenta — klient trafia bezpośrednio
+      // do agenta, nie przechodzi przez kolejkę. RoutingService.onDirectAgentAssignment()
+      // wywołuje closeQueue() tylko gdy etap QUEUE jest otwarty; bez openQueue() nie powstaje
+      // wpis QUEUE 0s w timeline.
       log.info("[TwilioAdapter] Nowy kontakt po transferze do agenta utworzony: " +
-          "newContactId={}, targetAgentId={}, queueId={}", newContactId, targetAgentId, finalQueueId);
+          "newContactId={}, targetAgentId={}, queueId={}, direction={}", newContactId, targetAgentId, finalQueueId, contactDirection);
     } catch (Exception e) {
       log.error("[TwilioAdapter] Błąd tworzenia nowego kontaktu po transferze do agenta: " +
           "newContactId={}, error={}", newContactId, e.getMessage(), e);
@@ -1258,14 +1283,21 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     // Fix #1a: Utwórz nowy rekord Contact w DB dla nowego contactId.
     // Bez niego RoutingService nie znajdzie kontaktu i żaden agent nie odbierze połączenia.
     try {
+      // Numer klienta: dla OUTBOUND klient jest w session.getTo() (firma dzwoniła do klienta),
+      // dla INBOUND klient jest w session.getFrom() (klient dzwonił do firmy).
+      String customerAddress = "OUTBOUND".equals(session.getDirection())
+          ? session.getTo()
+          : session.getFrom();
+      // Zachowaj direction z oryginalnej sesji (OUTBOUND pozostaje OUTBOUND po transferze kolejkowym).
+      String contactDirection = session.getDirection() != null ? session.getDirection() : "INBOUND";
       Contact newContact = Contact.builder()
           .contactId(newContactId)
           .tenantId(tenantId)
           .channel("PHONE")
-          .direction("INBOUND")
+          .direction(contactDirection)
           .status("QUEUED")
           .queueId(queueId)
-          .remoteAddress(session.getFrom())
+          .remoteAddress(customerAddress)
           .queuedAt(now)
           .startedAt(now)
           .createdAt(now)
@@ -1274,8 +1306,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .transferredFromContactId(originalContactId)
           .build();
       contactRepository.insert(newContact);
-      log.info("[TwilioAdapter] Nowy kontakt po transferze kolejkowym utworzony: newContactId={}, queueId={}",
-          newContactId, queueId);
+      log.info("[TwilioAdapter] Nowy kontakt po transferze kolejkowym utworzony: newContactId={}, queueId={}, direction={}",
+          newContactId, queueId, contactDirection);
       contactEventService.openQueue(newContactId, tenantId, queueId, queue.getName(), now);
     } catch (Exception e) {
       log.error("[TwilioAdapter] Błąd przy tworzeniu nowego kontaktu po transferze: " +

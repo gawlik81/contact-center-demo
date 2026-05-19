@@ -1092,6 +1092,7 @@ public class ContactService {
         Instant now = Instant.now();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("sip_call_id", secondCallSid);
+        metadata.put("transfer_type", "ATTENDED");
 
         Contact newContact = Contact.builder()
                 .contactId(newContactId)

@@ -190,6 +190,13 @@ public class TwilioRecordingDownloadService {
             List<com.contactcenter.domain.model.Contact> children =
                     contactRepository.findByTransferredFromContactId(parentId, tenantId);
             for (com.contactcenter.domain.model.Contact child : children) {
+                // Propagate only to attended-transfer contacts – blind/queue transfer contacts
+                // have their own Twilio conference and receive their own separate recording.
+                Object transferType = child.getChannelMetadata() != null
+                        ? child.getChannelMetadata().get("transfer_type") : null;
+                if (!"ATTENDED".equals(transferType)) {
+                    continue;
+                }
                 UUID childId = child.getContactId();
                 recordingService.saveRecordingUrlToContact(childId, tenantId, s3Key);
                 log.info("[TwilioRecDownload] Nagranie skopiowane do kontaktu w lancuchu transferu: " +

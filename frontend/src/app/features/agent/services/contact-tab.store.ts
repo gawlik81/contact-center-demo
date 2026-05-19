@@ -125,14 +125,19 @@ export class ContactTabStore {
   /**
    * Updates the contactId of a tab (used when attended transfer bridge completes).
    * Clears originalContactId since the new contactId is already the proper UUID.
+   * Optionally updates customerName when the consultation prefix must be removed.
    */
-  updateTabContactId(id: string, newContactId: string): void {
+  updateTabContactId(id: string, newContactId: string, customerName?: string): void {
     this.tabs.update((current) =>
-      current.map((t) =>
-        t.id === id
-          ? { ...t, contactId: newContactId, originalContactId: undefined }
-          : t,
-      ),
+      current.map((t) => {
+        if (t.id !== id) return t;
+        return {
+          ...t,
+          contactId: newContactId,
+          originalContactId: undefined,
+          ...(customerName !== undefined ? { customerName } : {}),
+        };
+      }),
     );
   }
 

@@ -199,6 +199,15 @@ export class SoftphoneService implements OnDestroy {
   // ── Call state machine ─────────────────────────────────────────────────────
 
   /**
+   * Returns the second-leg call ID stored during attended transfer initiation.
+   * Used by AgentDesktop to filter out CALL_HANGUP events for the consultation leg
+   * so they do not prematurely end the main session.
+   */
+  getSecondLegCallId(): string | null {
+    return this.secondLegCallId;
+  }
+
+  /**
    * Updates the contactId in the current session.
    * Called when attended transfer bridge completes – Agent2 gets a proper contact UUID
    * to replace the Twilio CA... SID that was used during consultation.
@@ -207,6 +216,17 @@ export class SoftphoneService implements OnDestroy {
     const s = this.session();
     if (!s) return;
     this.session.set({ ...s, contactId: newContactId });
+  }
+
+  /**
+   * Updates the session after an attended transfer bridge completes on Agent2's side.
+   * Clears the consultation prefix from customerName and resets queueName.
+   * Called by AgentDesktop on CALL_BRIDGE_COMPLETE.
+   */
+  updateSessionAfterBridge(newContactId: string, customerName: string, queueName: string): void {
+    const s = this.session();
+    if (!s) return;
+    this.session.set({ ...s, contactId: newContactId, customerName, queueName });
   }
 
   incomingCall(payload: CallIncomingPayload | ContactAssignedPayload): void {

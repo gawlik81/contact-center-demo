@@ -1,5 +1,6 @@
 package com.contactcenter.domain.telephony;
 
+import com.contactcenter.domain.service.CustomerCliResult;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -206,12 +207,13 @@ public class TelephonyEventPublisher {
      * @param targetAgentId       UUID agenta docelowego (może być null dla transferu na numer)
      * @param originatingAgentId  UUID agenta inicjującego konsultację
      * @param originalContactId   UUID oryginalnego kontaktu (klienta)
-     * @param from                numer dzwoniącego (numer Twilio)
+     * @param from                numer dzwoniącego (numer klienta)
      * @param to                  cel drugiej nogi (numer E.164 lub "client:agent-{uuid}")
+     * @param customerInfo        wynik CLI lookup – imię/nazwisko klienta (może być null)
      */
     public void publishTransferConsult(String callId, UUID tenantId, UUID targetAgentId,
                                        UUID originatingAgentId, UUID originalContactId,
-                                       String from, String to) {
+                                       String from, String to, CustomerCliResult customerInfo) {
         publish(CallEvent.builder()
                 .eventType(CallEvent.EventType.CALL_TRANSFER_CONSULT)
                 .callId(callId)
@@ -220,6 +222,7 @@ public class TelephonyEventPublisher {
                 .agentId(targetAgentId)
                 .from(from)
                 .to(to)
+                .customerInfo(customerInfo)
                 .timestamp(Instant.now())
                 .metadata(Map.of(
                         "originalContactId", originalContactId != null ? originalContactId.toString() : "",

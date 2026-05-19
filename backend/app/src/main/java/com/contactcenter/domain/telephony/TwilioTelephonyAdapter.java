@@ -13,7 +13,9 @@ import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.routing.DirectAgentAssignmentMessage;
+import com.contactcenter.domain.service.CliLookupService;
 import com.contactcenter.domain.service.ContactEventService;
+import com.contactcenter.domain.service.CustomerCliResult;
 import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
@@ -122,6 +124,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final QueueRepository queueRepository;
   /** Używany do publikacji eventu contact.queued po transferze do kolejki. */
   private final RabbitTemplate rabbitTemplate;
+  /** CLI lookup – rozpoznawanie klienta po numerze telefonu (użyty przy CALL_TRANSFER_CONSULT). */
+  private final CliLookupService cliLookupService;
 
   /**
    * Bazowy URL aplikacji (np. https://example.com) – wymagany do budowania TwiML
@@ -572,8 +576,10 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       log.info("[TwilioAdapter] Połączenie do agenta zainicjowane: agentClientId={}, conference={}, agentCallSid={}",
           agentClientId, conferenceName, agentCallSid);
 
-      // Zapisz SID nogi agenta w sesji Redis – wymagany do rozłączenia CA_agent przez REST API w hangupCall()
-      saveSession(session.withAgentCallSid(agentCallSid));
+      // Zapisz SID nogi agenta i nazwę konferencji w sesji Redis.
+      // conferenceName musi być utrwalone, żeby executeAttendedTransfer() i bridgeCalls()
+      // znalazły właściwą konferencję nawet po updateSessionContact() (która zmienia contactId).
+      saveSession(session.withAgentCallSid(agentCallSid).withConferenceName(conferenceName));
 
       // Przejście ASSIGNED → ACTIVE: faktyczne zestawienie audio potwierdzono przez Twilio API.
       // ContactAssignmentMonitor przestaje monitorować ten kontakt (sprawdza tylko status=ASSIGNED).
@@ -731,7 +737,9 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     log.info("[TwilioAdapter] Hold: callId={}, hold={}", callId, hold);
 
-    String conferenceName = "contact-" + session.getContactId().toString();
+    String conferenceName = session.getConferenceName() != null
+        ? session.getConferenceName()
+        : "contact-" + session.getContactId().toString();
     TwilioRestClient client = resolveRestClient(session.getTenantId());
 
     try {
@@ -839,7 +847,9 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           "Nie można wyciszyć połączenia – brak contactId w sesji (nie można odtworzyć nazwy konferencji). callId=" + callId);
     }
 
-    String conferenceName = "contact-" + session.getContactId().toString();
+    String conferenceName = session.getConferenceName() != null
+        ? session.getConferenceName()
+        : "contact-" + session.getContactId().toString();
     TwilioRestClient client = resolveRestClient(session.getTenantId());
 
     try {
@@ -1367,8 +1377,12 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     String agentCallSid1 = session1.getAgentCallSid();
     try {
       if (agentCallSid1 != null) {
-        // Update Agent1's conference participation so the conference continues after Agent1 leaves
-        String conferenceName = "contact-" + session1.getContactId();
+        // Update Agent1's conference participation so the conference continues after Agent1 leaves.
+        // Prefer conferenceName stored in session (set by dialAgentIntoConference) – it stays stable
+        // even after updateSessionContact() changes session1.getContactId() to the new contact UUID.
+        String conferenceName = session1.getConferenceName() != null
+            ? session1.getConferenceName()
+            : "contact-" + session1.getContactId();
         try {
           ResourceSet<Conference> conferences = Conference.reader()
               .setFriendlyName(conferenceName)
@@ -1464,8 +1478,19 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       log.warn("[TwilioAdapter] updateSessionContact: sesja nie znaleziona: callId={}", callId);
       return;
     }
-    // Clear CONSULTATION direction so handleWebhookStatusUpdate processes this contact normally
-    CallSession updated = session.withContactId(newContactId).withDirection(null);
+    // Clear CONSULTATION direction so handleWebhookStatusUpdate processes this contact normally.
+    // Preserve conferenceName – the actual Twilio conference doesn't change after bridge.
+    // Preserve or recover agentCallSid: for a consultation leg that became the active leg,
+    // its own callId is its conference participant SID (bridgeCalls needs it to set endConferenceOnExit).
+    String effectiveAgentCallSid = session.getAgentCallSid() != null
+        ? session.getAgentCallSid()
+        : session.getCallId();
+    CallSession updated = session
+        .withContactId(newContactId)
+        .withDirection(null)
+        .withAgentCallSid(effectiveAgentCallSid);
+    // conferenceName is preserved automatically via @With – we intentionally do NOT call
+    // .withConferenceName() so the value carried from dialAgentIntoConference() stays intact.
     saveSession(updated);
     // Create reverse Redis index so requireSession(newContactId) resolves to callId
     String indexKey = CONTACT_SESSION_INDEX_PREFIX + newContactId.toString();
@@ -2012,7 +2037,11 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // wywołany bridgeCalls(), który zakończy nogę agenta1 i pozwoli klientowi usłyszeć
       // agent2. Nazwa konferencji jest taka sama jak konferencja klienta, więc po bridge
       // obaj będą w jednym pokoju audio.
-      String conferenceName = "contact-" + session.getContactId().toString();
+      // Używamy conferenceName z sesji (ustalonego w dialAgentIntoConference), żeby nie zgubić
+      // właściwej konferencji po updateSessionContact(), która zmienia session.getContactId().
+      String conferenceName = session.getConferenceName() != null
+          ? session.getConferenceName()
+          : "contact-" + session.getContactId().toString();
       String consultTwiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
           + "<Response><Dial>"
           + "<Conference startConferenceOnEnter=\"false\" endConferenceOnExit=\"true\">"
@@ -2057,11 +2086,12 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .tenantId(session.getTenantId())
           .agentId(targetAgentId)
           .contactId(session.getContactId())   // needed for conference lookup in bridgeCalls
-          .from(session.getTo())
+          .from(session.getFrom())             // preserve customer's number through transfer chain
           .to(target)
           .status(mapTwilioStatus(secondLegCall.getStatus()))
           .startedAt(now)
           .direction("CONSULTATION")           // prevents contact status overwrite for this leg
+          .conferenceName(conferenceName)      // preserve actual conference for bridge chain
           .build();
 
       saveSession(secondLeg);
@@ -2069,6 +2099,13 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       log.info("[TwilioAdapter] Attended transfer – 2nd leg: callId={}, secondLegSid={}, target={}, " +
                "originalContactId={}, targetAgentId={}",
           callId, secondLegSid, target, session.getContactId(), targetAgentId);
+
+      // CLI lookup – rozpoznaj klienta po numerze telefonu, żeby CALL_TRANSFER_CONSULT
+      // zawierał customerName zamiast fallbacku "Nieznany (numer)".
+      String customerPhone = session.getFrom();
+      CustomerCliResult customerInfo = cliLookupService
+          .lookupCustomer(customerPhone, session.getTenantId())
+          .orElse(null);
 
       // Publikuj CALL_TRANSFER_CONSULT (nie CALL_INCOMING) – IvrCallListener jest zbindowany
       // tylko do call.incoming, więc IVR nie zostanie uruchomiony dla tej nogi.
@@ -2079,8 +2116,9 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           targetAgentId,
           session.getAgentId(),      // agent inicjujący konsultację
           session.getContactId(),    // oryginalny kontakt (klient)
-          session.getFrom(),         // customer's phone number (original call's from)
-          target);
+          customerPhone,             // customer's phone number (original call's from)
+          target,
+          customerInfo);             // CLI lookup result – nazwa klienta dla Agent2
 
       return secondLeg;
 

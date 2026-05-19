@@ -4,6 +4,7 @@ import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.telephony.dto.OutboundCallRequest;
 import com.contactcenter.api.telephony.dto.OutboundCallResponse;
 import com.contactcenter.api.telephony.dto.TransferCallRequest;
+import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.TenantTwilioConfigService;
@@ -204,6 +205,30 @@ public class AgentCallController {
             log.warn("[AgentCallController] Brak contactId w sesji dla callId={} – pomijam aktualizację agenta w DB",
                     callId);
             return ResponseEntity.notFound().build();
+        }
+
+        // BUG #1 fix: consultation leg (direction=CONSULTATION) shares contactId with Agent1's
+        // original contact. Calling assignAgent() on it would overwrite Agent1's ownership
+        // with Agent2's agentId. For CONSULTATION legs Agent2 joins the Twilio conference
+        // automatically via TwiML – no DB assignment needed here.
+        boolean isConsultationLeg = false;
+        try {
+            CallSession consultSession = telephonyAdapter.getCallSession(resolvedCallSid);
+            isConsultationLeg = "CONSULTATION".equals(consultSession.getDirection());
+        } catch (TelephonyAdapter.TelephonyException ignored) {
+            // session may not exist yet – treat as non-consultation (safe default)
+        }
+
+        if (isConsultationLeg) {
+            log.info("[AgentCallController] Consultation leg answered – skipping assignAgent to avoid overwriting Agent1 ownership: " +
+                     "callId={}, contactId={}, agentId={}", callId, contactId, agentId);
+            // Return the existing contact without modifying agent ownership
+            Contact existingContact = contactRepository.findById(contactId, tenantId)
+                    .orElse(null);
+            if (existingContact == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(ContactResponse.from(existingContact));
         }
 
         ContactResponse response = contactService.assignAgent(contactId, tenantId, agentId);

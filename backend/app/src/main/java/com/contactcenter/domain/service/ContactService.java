@@ -343,10 +343,14 @@ public class ContactService {
         // AGENT may only set disposition on their own contacts.
         // Allow when agentId is null – inbound Twilio calls have no agent assigned at creation time.
         // The agent_id is populated later when the agent answers (POST /api/telephony/calls/{callId}/answer).
-        // Exception: COMPLETED contacts allow any involved agent to set disposition (attended transfer
-        // scenario: Agent2 received the transfer but contact.agentId still points to Agent1).
+        // Exception: TRANSFERRED contacts relax the ownership check (BUG #4 fix).
+        // Attended transfer scenario: after bridge(), the original contact has agentId=Agent1 and
+        // status=TRANSFERRED. Agent2 receives a new contact via CALL_BRIDGE_COMPLETE WebSocket event,
+        // but until that event is processed by the frontend, Agent2 may attempt disposition on the
+        // TRANSFERRED contact. Only TRANSFERRED relaxes ownership; other statuses still enforce it.
+        boolean ownershipRelaxed = "TRANSFERRED".equals(contact.getStatus());
         if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())
-                && !"COMPLETED".equals(contact.getStatus())) {
+                && !ownershipRelaxed) {
             throw new InvalidOperationException(
                     "Agent może ustawiać disposition tylko na własnych kontaktach: " + contactId);
         }
@@ -1080,10 +1084,11 @@ public class ContactService {
                 .status("ACTIVE")
                 .agentId(agentId)
                 .customerId(original.getCustomerId())
-                .queueId(null)
+                .queueId(original.getQueueId())
                 .createdAt(now)
                 .startedAt(now)
                 .assignedAt(now)
+                .queuedAt(now)
                 .channelMetadata(metadata)
                 .build();
 

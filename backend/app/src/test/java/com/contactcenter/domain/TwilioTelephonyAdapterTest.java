@@ -109,6 +109,9 @@ class TwilioTelephonyAdapterTest {
     @Mock
     private RabbitTemplate rabbitTemplate;
 
+    @Mock
+    private com.contactcenter.domain.service.CliLookupService cliLookupService;
+
     private TwilioProperties twilioProperties;
     private TwilioTelephonyAdapter adapter;
 
@@ -169,7 +172,7 @@ class TwilioTelephonyAdapterTest {
                 contactRepository, customerRepository, tenantRepository,
                 redisTemplate, stringRedisTemplate, recordingDownloadService,
                 tenantTwilioConfigService, contactEventService,
-                appUserRepository, queueRepository, rabbitTemplate);
+                appUserRepository, queueRepository, rabbitTemplate, cliLookupService);
         // init() inicjalizuje Caffeine cache bez wywoływania Twilio.init() (usunięte w BE-058)
         // oraz bez konfigurowania statusCallbacków (tenantRepository zwraca pustą listę)
         adapter.init();

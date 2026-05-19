@@ -235,14 +235,24 @@ export class AgentDesktopComponent implements OnInit {
         const hangup = e.payload as CallHangupPayload;
         const session = this.softphoneService.session();
 
+        // BUG #2 fix: jeśli CALL_HANGUP dotyczy nogi konsultacji (np. busy/unavailable),
+        // NIE kończymy głównej sesji agenta – tylko odrzucamy ten event.
+        const secondLegId = this.softphoneService.getSecondLegCallId();
+        if (secondLegId && hangup.callId === secondLegId) {
+          console.warn(
+            '[AgentDesktop] CALL_HANGUP dla nogi konsultacji (transfer nieudany) – zachowuję główną sesję:',
+            hangup.callId,
+          );
+          return;
+        }
+
         // Jeśli mamy aktywną sesję, sprawdź czy CALL_HANGUP dotyczy jej.
         // session.contactId może być UUID kontaktu (normalne połączenie) lub CA... SID
         // (druga noga konsultacji — ustawiony przez handleCallTransferConsult).
         // hangup.contactId to UUID z DB (może być null), hangup.callId to Twilio SID.
         // Pasuje jeśli którykolwiek identyfikator się zgadza.
         if (session !== null) {
-          const matchesContact =
-            hangup.contactId != null && hangup.contactId === session.contactId;
+          const matchesContact = hangup.contactId != null && hangup.contactId === session.contactId;
           const matchesCallId = hangup.callId != null && hangup.callId === session.contactId;
           if (!matchesContact && !matchesCallId) {
             // Ten hangup dotyczy innego połączenia (np. drugiej nogi konsultacji
@@ -270,7 +280,7 @@ export class AgentDesktopComponent implements OnInit {
       });
 
     // When attended transfer bridge completes, Agent2's session gets a proper contact UUID.
-    // Update session.contactId and the PHONE tab's contactId from CA... SID to the proper UUID.
+    // Update session.contactId, customerName (strip "[Konsultacja] " prefix) and the PHONE tab.
     this.ws.events$
       .pipe(
         takeUntilDestroyed(this.destroyRef),
@@ -278,19 +288,32 @@ export class AgentDesktopComponent implements OnInit {
       )
       .subscribe((e: WsEvent) => {
         const payload = e.payload as CallBridgeCompletePayload;
-        // Update softphone session's contactId to proper UUID
-        this.softphoneService.updateContactId(payload.newContactId);
-        // Find and update the PHONE tab that has the consultation SID as contactId
+
+        // Find the PHONE tab with the consultation SID so we can read the customerName.
         const phoneTab = this.tabStore
           .tabs()
           .find(
             (t) =>
               t.type === 'PHONE' &&
-              (t.contactId === payload.secondLegCallId ||
-                t.originalContactId !== undefined),
+              (t.contactId === payload.secondLegCallId || t.originalContactId !== undefined),
           );
+
+        // BUG #1/#3 fix: strip "[Konsultacja] " prefix from customerName and
+        // use the tab's queueName (if any) when updating the softphone session.
+        const CONSULT_PREFIX = '[Konsultacja] ';
+        const rawName =
+          phoneTab?.customerName ?? this.softphoneService.session()?.customerName ?? '';
+        const cleanName = rawName.startsWith(CONSULT_PREFIX)
+          ? rawName.slice(CONSULT_PREFIX.length)
+          : rawName;
+        const queueName = this.softphoneService.session()?.queueName ?? '';
+
+        // Update softphone session: new contactId + clean customerName + queueName.
+        this.softphoneService.updateSessionAfterBridge(payload.newContactId, cleanName, queueName);
+
+        // Update the PHONE tab: new contactId + clean customerName.
         if (phoneTab) {
-          this.tabStore.updateTabContactId(phoneTab.id, payload.newContactId);
+          this.tabStore.updateTabContactId(phoneTab.id, payload.newContactId, cleanName);
         }
       });
   }

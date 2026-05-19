@@ -863,7 +863,16 @@ public class ContactService {
             // Etap AGENT pozostaje otwarty; zdarzenie TRANSFER zostanie zapisane po bridge.
             String consultTarget = req.agentId() != null ? req.agentId().toString()
                                  : (req.phoneNumber() != null ? req.phoneNumber() : "");
-            contactEventService.openConsulting(contactId, tenantId, consultTarget);
+            Map<String, Object> consultMeta = new HashMap<>();
+            if (req.agentId() != null) {
+                consultMeta.put("target_type", "AGENT");
+                appUserRepository.findByIdAndTenantIdAndDeletedFalse(req.agentId(), tenantId)
+                        .ifPresent(u -> consultMeta.put("target_agent_name",
+                                u.getFirstName() + " " + u.getLastName()));
+            } else if (req.phoneNumber() != null) {
+                consultMeta.put("target_type", "PHONE");
+            }
+            contactEventService.openConsulting(contactId, tenantId, consultTarget, consultMeta);
         }
 
         log.info("[ContactService] Transfer zainicjowany: callId={}, contactId={}, " +
@@ -1029,15 +1038,24 @@ public class ContactService {
         contactEventService.closeHold(contactId, tenantId);
 
         // 6. Zapisz zdarzenie TRANSFER na oryginalnym kontakcie
+        UUID agent2Id = secondSession.getAgentId();
+        Map<String, Object> transferMeta = new HashMap<>();
+        transferMeta.put("target_type", "AGENT");
+        if (agent2Id != null) {
+            transferMeta.put("target_agent_id", agent2Id.toString());
+            appUserRepository.findByIdAndTenantIdAndDeletedFalse(agent2Id, tenantId)
+                    .ifPresent(u -> transferMeta.put("target_agent_name",
+                            u.getFirstName() + " " + u.getLastName()));
+        }
         contactEventService.recordTransfer(
                 contactId, tenantId,
-                secondCallId,
+                agent2Id != null ? agent2Id.toString() : secondCallId,
                 TelephonyAdapter.TransferType.ATTENDED.name(),
-                null
+                null,
+                transferMeta
         );
 
         // 7. Utwórz nowy kontakt dla Agent2 (analogicznie do blind transfer)
-        UUID agent2Id = secondSession.getAgentId();
         if (agent2Id != null) {
             Contact newContact = createTransferContact(contact, agent2Id, secondCallId, tenantId);
             UUID newContactId = newContact.getContactId();
@@ -1090,6 +1108,7 @@ public class ContactService {
                 .assignedAt(now)
                 .queuedAt(now)
                 .channelMetadata(metadata)
+                .transferredFromContactId(original.getContactId())
                 .build();
 
         contactRepository.insert(newContact);

@@ -220,10 +220,27 @@ public class ContactEventService {
      * @param target    cel konsultacji (numer telefonu lub identyfikator agenta)
      */
     public void openConsulting(UUID contactId, UUID tenantId, String target) {
+        openConsulting(contactId, tenantId, target, null);
+    }
+
+    /**
+     * Otwiera etap CONSULTING z dodatkowymi metadanymi (np. target_type, target_agent_name).
+     *
+     * <p>Metadane z parametru {@code extraMeta} są scalane z domyślnymi (target, transfer_type).
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     * @param target    cel konsultacji (numer telefonu lub identyfikator agenta)
+     * @param extraMeta dodatkowe metadane do scalenia (może być null)
+     */
+    public void openConsulting(UUID contactId, UUID tenantId, String target, Map<String, Object> extraMeta) {
         try {
             Map<String, Object> meta = new HashMap<>();
             meta.put("target",        target);
             meta.put("transfer_type", "ATTENDED");
+            if (extraMeta != null) {
+                meta.putAll(extraMeta);
+            }
             repository.save(buildEvent(contactId, tenantId, "CONSULTING", meta));
         } catch (Exception e) {
             log.warn("[ContactEventService] Błąd zapisu etapu CONSULTING: contactId={}, error={}",

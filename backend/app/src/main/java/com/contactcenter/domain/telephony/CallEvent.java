@@ -96,7 +96,25 @@ public class CallEvent {
         /** Połączenie zakończone (rozłączenie przez którąkolwiek ze stron). */
         CALL_HANGUP,
         /** Połączenie przekazane (blind lub attended transfer ukończony). */
-        CALL_TRANSFERRED;
+        CALL_TRANSFERRED,
+
+        /**
+         * Druga noga attended transfer – konsultacja agenta z docelowym agentem/numerem.
+         *
+         * <p>Routing key: {@code call.transfer_consult} – pozwala IvrCallListener (zbindowanemu
+         * do {@code call.incoming}) pominąć tę nogę, a RabbitToWebSocketRelay przekazać ją
+         * jako osobny event do docelowego agenta z kontekstem transferu.
+         *
+         * <p>Metadane w {@link CallEvent#metadata}:
+         * <ul>
+         *   <li>{@code originalContactId} – UUID oryginalnego kontaktu (klienta)</li>
+         *   <li>{@code originatingAgentId} – UUID agenta inicjującego konsultację</li>
+         * </ul>
+         */
+        CALL_TRANSFER_CONSULT,
+
+        /** Attended transfer zakończony przez bridge – druga noga stała się pełnym kontaktem Agent2. */
+        CALL_BRIDGE_COMPLETE;
 
         /**
          * Zwraca segment routing key dla tego eventu.

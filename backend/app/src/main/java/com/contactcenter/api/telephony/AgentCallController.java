@@ -372,7 +372,7 @@ public class AgentCallController {
                     @ApiResponse(responseCode = "409", description = "Contact is not in ACTIVE state")
             }
     )
-    public ResponseEntity<CallSession> transferCall(
+    public ResponseEntity<Map<String, String>> transferCall(
             @Parameter(description = "Contact UUID or Twilio Call SID", required = true)
             @PathVariable @Size(max = 64) String callId,
             @Valid @RequestBody TransferCallRequest req
@@ -385,7 +385,15 @@ public class AgentCallController {
 
         CallSession session = contactService.initiateTransfer(callId, req, tenantId, agentId);
 
-        return ResponseEntity.ok(session);
+        // Dla ATTENDED zwracamy secondLegCallId żeby frontend mógł wywołać bridge.
+        // CallSession.callId to SID nowo utworzonej drugiej nogi.
+        Map<String, String> body = (TelephonyAdapter.TransferType.ATTENDED.equals(req.transferType())
+                && session != null
+                && session.getCallId() != null)
+                ? Map.of("secondLegCallId", session.getCallId())
+                : Map.of();
+
+        return ResponseEntity.ok(body);
     }
 
     // =========================================================================

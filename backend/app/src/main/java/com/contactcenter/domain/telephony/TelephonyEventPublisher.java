@@ -196,6 +196,63 @@ public class TelephonyEventPublisher {
     }
 
     /**
+     * Publikuje zdarzenie CALL_TRANSFER_CONSULT (druga noga attended transfer).
+     *
+     * <p>Routing key: {@code call.transfer_consult} – pominięty przez IvrCallListener
+     * (zbindowany wyłącznie do {@code call.incoming}). Relay wysyła event do docelowego agenta.
+     *
+     * @param callId              identyfikator drugiej nogi (Twilio SID nowej nogi)
+     * @param tenantId            UUID tenanta
+     * @param targetAgentId       UUID agenta docelowego (może być null dla transferu na numer)
+     * @param originatingAgentId  UUID agenta inicjującego konsultację
+     * @param originalContactId   UUID oryginalnego kontaktu (klienta)
+     * @param from                numer dzwoniącego (numer Twilio)
+     * @param to                  cel drugiej nogi (numer E.164 lub "client:agent-{uuid}")
+     */
+    public void publishTransferConsult(String callId, UUID tenantId, UUID targetAgentId,
+                                       UUID originatingAgentId, UUID originalContactId,
+                                       String from, String to) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_TRANSFER_CONSULT)
+                .callId(callId)
+                .contactId(originalContactId)
+                .tenantId(tenantId)
+                .agentId(targetAgentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .metadata(Map.of(
+                        "originalContactId", originalContactId != null ? originalContactId.toString() : "",
+                        "originatingAgentId", originatingAgentId != null ? originatingAgentId.toString() : ""
+                ))
+                .build());
+    }
+
+    /**
+     * Publikuje zdarzenie CALL_BRIDGE_COMPLETE (bridge attended transfer zakończony).
+     *
+     * @param secondLegCallId SID drugiej nogi konsultacji (CA_...)
+     * @param newContactId    UUID nowego kontaktu Agent2
+     * @param tenantId        UUID tenanta
+     * @param targetAgentId   UUID Agent2 (może być null)
+     * @param from            numer klienta
+     * @param to              identyfikator Agent2
+     */
+    public void publishBridgeComplete(String secondLegCallId, UUID newContactId, UUID tenantId,
+                                      UUID targetAgentId, String from, String to) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_BRIDGE_COMPLETE)
+                .callId(secondLegCallId)
+                .contactId(newContactId)
+                .tenantId(tenantId)
+                .agentId(targetAgentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    /**
      * Publikuje zdarzenie CALL_OUTBOUND z dodatkowymi metadanymi.
      *
      * <p>Używane przy attended transfer do agenta – metadane zawierają {@code target_type}

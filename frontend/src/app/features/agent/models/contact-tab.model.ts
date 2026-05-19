@@ -22,4 +22,10 @@ export interface ContactTab {
   customerId?: string;
   /** Free-text note entered by agent during the call; pre-fills disposition form */
   note?: string;
+  /**
+   * For attended-transfer consultation tabs: the original contact UUID (for disposition and history APIs).
+   * contactId holds the Twilio second-leg SID (needed for answerCall/hangupCall).
+   * undefined for regular tabs where contactId IS the contact UUID.
+   */
+  originalContactId?: string;
 }

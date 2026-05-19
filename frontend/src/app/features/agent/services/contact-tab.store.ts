@@ -122,6 +122,20 @@ export class ContactTabStore {
     this.tabs.update((current) => current.map((t) => (t.id === id ? { ...t, note } : t)));
   }
 
+  /**
+   * Updates the contactId of a tab (used when attended transfer bridge completes).
+   * Clears originalContactId since the new contactId is already the proper UUID.
+   */
+  updateTabContactId(id: string, newContactId: string): void {
+    this.tabs.update((current) =>
+      current.map((t) =>
+        t.id === id
+          ? { ...t, contactId: newContactId, originalContactId: undefined }
+          : t,
+      ),
+    );
+  }
+
   private checkLimits(type: ContactType): TabLimitReason {
     if (this.totalTabCount() >= MAX_TOTAL_TABS) return 'MAX_TOTAL';
     if (type === 'PHONE' && this.phoneTabCount() >= MAX_PHONE_TABS) return 'MAX_PHONE';

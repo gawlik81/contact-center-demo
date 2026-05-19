@@ -44,14 +44,16 @@ public record WebSocketEvent(
     // Stałe typów eventów
     // =========================================================================
 
-    public static final String TYPE_CALL_INCOMING         = "CALL_INCOMING";
-    public static final String TYPE_CALL_OUTBOUND         = "CALL_OUTBOUND";
-    public static final String TYPE_CALL_ANSWERED         = "CALL_ANSWERED";
-    public static final String TYPE_CALL_HANGUP           = "CALL_HANGUP";
-    public static final String TYPE_AGENT_STATUS_CHANGED  = "AGENT_STATUS_CHANGED";
-    public static final String TYPE_CONTACT_ASSIGNED      = "CONTACT_ASSIGNED";
-    public static final String TYPE_QUEUE_UPDATE          = "QUEUE_UPDATE";
-    public static final String TYPE_PONG                  = "PONG";
+    public static final String TYPE_CALL_INCOMING           = "CALL_INCOMING";
+    public static final String TYPE_CALL_OUTBOUND           = "CALL_OUTBOUND";
+    public static final String TYPE_CALL_ANSWERED           = "CALL_ANSWERED";
+    public static final String TYPE_CALL_HANGUP             = "CALL_HANGUP";
+    public static final String TYPE_CALL_TRANSFER_CONSULT   = "CALL_TRANSFER_CONSULT";
+    public static final String TYPE_CALL_BRIDGE_COMPLETE    = "CALL_BRIDGE_COMPLETE";
+    public static final String TYPE_AGENT_STATUS_CHANGED    = "AGENT_STATUS_CHANGED";
+    public static final String TYPE_CONTACT_ASSIGNED        = "CONTACT_ASSIGNED";
+    public static final String TYPE_QUEUE_UPDATE            = "QUEUE_UPDATE";
+    public static final String TYPE_PONG                    = "PONG";
 
     // =========================================================================
     // Fabryczne metody statyczne
@@ -86,6 +88,36 @@ public record WebSocketEvent(
                 TYPE_CALL_OUTBOUND,
                 callEvent.getTenantId(),
                 CallIncomingPayload.from(callEvent),
+                callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event CALL_TRANSFER_CONSULT – powiadamia agenta docelowego o nadchodzącej konsultacji.
+     *
+     * <p>Wysyłany do agenta docelowego (unicast) gdy Agent1 inicjuje attended transfer.
+     * Payload zawiera dane oryginalnego kontaktu (klienta) i agenta inicjującego, dzięki czemu
+     * Agent2 widzi kontekst przed odebraniem konsultacji.
+     */
+    public static WebSocketEvent callTransferConsult(CallEvent callEvent) {
+        return new WebSocketEvent(
+                TYPE_CALL_TRANSFER_CONSULT,
+                callEvent.getTenantId(),
+                CallTransferConsultPayload.from(callEvent),
+                callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event CALL_BRIDGE_COMPLETE – bridge attended transfer zakończony.
+     *
+     * <p>Wysyłany unicast do Agent2 aby zaktualizował swoje session.contactId na nowy kontakt.
+     */
+    public static WebSocketEvent callBridgeComplete(CallEvent callEvent) {
+        return new WebSocketEvent(
+                TYPE_CALL_BRIDGE_COMPLETE,
+                callEvent.getTenantId(),
+                CallBridgeCompletePayload.from(callEvent),
                 callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
         );
     }
@@ -283,6 +315,7 @@ public record WebSocketEvent(
      */
     public record CallPayload(
             String callId,
+            String contactId,
             String agentId,
             String from,
             String to,
@@ -291,6 +324,7 @@ public record WebSocketEvent(
         public static CallPayload from(CallEvent callEvent) {
             return new CallPayload(
                     callEvent.getCallId(),
+                    callEvent.getContactId() != null ? callEvent.getContactId().toString() : null,
                     callEvent.getAgentId() != null ? callEvent.getAgentId().toString() : null,
                     callEvent.getFrom(),
                     callEvent.getTo(),
@@ -342,6 +376,79 @@ public record WebSocketEvent(
     public record QueueAgentUpdatePayload(
             List<QueueItemDto> items
     ) {}
+
+    /**
+     * Payload dla eventu CALL_TRANSFER_CONSULT – dane konsultacji attended transfer.
+     *
+     * <p>Wysyłany do agenta docelowego (Agent2) gdy Agent1 inicjuje konsultację.
+     * Pozwala Agent2 zobaczyć kto dzwoni i w kontekście jakiego kontaktu.
+     *
+     * <p>Pola zgodne z interfejsem Angular {@code CallTransferConsultPayload}:
+     * <ul>
+     *   <li>{@code secondLegCallId} – SID drugiej nogi (CA_...) – wymagany do bridge/hangup</li>
+     *   <li>{@code originalContactId} – UUID oryginalnego kontaktu (klienta)</li>
+     *   <li>{@code originatingAgentId} – UUID agenta inicjującego konsultację</li>
+     *   <li>{@code customerPhone} – numer klienta (pole {@code from} oryginalnej sesji)</li>
+     *   <li>{@code customerName} – nazwa klienta z CLI lookup (lub "Nieznany (numer)")</li>
+     * </ul>
+     */
+    public record CallTransferConsultPayload(
+            String secondLegCallId,
+            String originalContactId,
+            String originatingAgentId,
+            String customerPhone,
+            String customerName
+    ) {
+        public static CallTransferConsultPayload from(CallEvent callEvent) {
+            String originalContactId = callEvent.getMetadata() != null
+                    ? callEvent.getMetadata().getOrDefault("originalContactId", "")
+                    : "";
+            String originatingAgentId = callEvent.getMetadata() != null
+                    ? callEvent.getMetadata().getOrDefault("originatingAgentId", "")
+                    : "";
+
+            // customerPhone to numer klienta – dla transfer consult jest w polu from()
+            String customerPhone = callEvent.getFrom() != null ? callEvent.getFrom() : "";
+
+            CustomerCliResult cli = callEvent.getCustomerInfo();
+            String customerName;
+            if (cli != null) {
+                String first = cli.firstName() != null ? cli.firstName() : "";
+                String last  = cli.lastName()  != null ? cli.lastName()  : "";
+                customerName = (first + " " + last).trim();
+                if (customerName.isBlank()) {
+                    customerName = "Nieznany (" + customerPhone + ")";
+                }
+            } else {
+                customerName = "Nieznany (" + customerPhone + ")";
+            }
+
+            return new CallTransferConsultPayload(
+                    callEvent.getCallId(),
+                    originalContactId,
+                    originatingAgentId,
+                    customerPhone,
+                    customerName
+            );
+        }
+    }
+
+    /**
+     * Payload dla eventu CALL_BRIDGE_COMPLETE – bridge attended transfer zakończony.
+     *
+     * <p>Agent2 powinien zaktualizować swoje session.contactId na {@code newContactId}.
+     */
+    public record CallBridgeCompletePayload(
+            String secondLegCallId,
+            String newContactId
+    ) {
+        public static CallBridgeCompletePayload from(CallEvent callEvent) {
+            return new CallBridgeCompletePayload(
+                    callEvent.getCallId(),
+                    callEvent.getContactId() != null ? callEvent.getContactId().toString() : null
+            );
+        }
+    }
 
     /**
      * DTO pojedynczego elementu kolejki widocznego przez agenta.

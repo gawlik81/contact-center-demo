@@ -488,12 +488,18 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Przypadek transferu: session.status=TRANSFERRED oznacza że transferToAgentViaConference()
       // przekierował klienta do nowej konferencji contact-{newContactId} i czeka na agenta.
       if (updated.getContactId() != null && updated.getAgentId() != null) {
-        if (isTransferredSession) {
-          log.info("[TwilioAdapter] OUTBOUND-TRANSFER answerCall: sesja po blind transferze, " +
-                   "klient czeka w konferencji – wchodzę natychmiast. callId={}, contactId={}, agentId={}",
-              callId, updated.getContactId(), updated.getAgentId());
+        if ("CONSULTATION".equals(updated.getDirection())) {
+          // Agent2 joins conference automatically via second-leg TwiML — no additional dial needed
+          log.info("[TwilioAdapter] Consultation leg answered by Agent2 – joins conference via TwiML: callId={}",
+                   callId);
+        } else {
+          if (isTransferredSession) {
+            log.info("[TwilioAdapter] OUTBOUND-TRANSFER answerCall: sesja po blind transferze, " +
+                     "klient czeka w konferencji – wchodzę natychmiast. callId={}, contactId={}, agentId={}",
+                callId, updated.getContactId(), updated.getAgentId());
+          }
+          dialAgentIntoConference(updated);
         }
-        dialAgentIntoConference(updated);
       } else {
         log.warn("[TwilioAdapter] INBOUND/TRANSFER: brak contactId lub agentId w sesji – pomijam dial agenta do konferencji: " +
                  "callId={}, contactId={}, agentId={}",
@@ -664,7 +670,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         .withEndedAt(endedAt);
     saveSession(updated);
 
-    if (updated.getContactId() != null) {
+    if (updated.getContactId() != null && !"CONSULTATION".equals(updated.getDirection())) {
       String contactDbStatus = resolveContactEndStatus(updated);
       contactRepository.updateContactStatusOnTelephonyEvent(
           updated.getContactId(), updated.getTenantId(), contactDbStatus, endedAt);
@@ -1358,14 +1364,40 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     String twilioCallSid1 = session1.getCallId();
     log.info("[TwilioAdapter] Bridge: callId1={}, twilioCallSid1={}, callId2={}", callId1, twilioCallSid1, callId2);
 
+    String agentCallSid1 = session1.getAgentCallSid();
     try {
-      // Zakańczamy pierwszą nogę – klient jest teraz połączony z drugą nogą
-      Call.updater(twilioCallSid1)
-          .setStatus(Call.UpdateStatus.COMPLETED)
-          .update(resolveRestClient(session1.getTenantId()));
-
-    }
-    catch (ApiException e) {
+      if (agentCallSid1 != null) {
+        // Update Agent1's conference participation so the conference continues after Agent1 leaves
+        String conferenceName = "contact-" + session1.getContactId();
+        try {
+          ResourceSet<Conference> conferences = Conference.reader()
+              .setFriendlyName(conferenceName)
+              .setStatus(Conference.Status.IN_PROGRESS)
+              .read(resolveRestClient(session1.getTenantId()));
+          if (conferences.iterator().hasNext()) {
+            String conferenceSid = conferences.iterator().next().getSid();
+            Participant.updater(conferenceSid, agentCallSid1)
+                .setEndConferenceOnExit(false)
+                .update(resolveRestClient(session1.getTenantId()));
+            log.info("[TwilioAdapter] Bridge: Agent1 endConferenceOnExit=false, conferenceSid={}, agentCallSid={}",
+                     conferenceSid, agentCallSid1);
+          }
+        } catch (Exception e) {
+          log.warn("[TwilioAdapter] Bridge: nie udało się zaktualizować endConferenceOnExit, kontynuuję: {}",
+                   e.getMessage());
+        }
+        // Terminate Agent1's conference leg (not the client's original call)
+        Call.updater(agentCallSid1)
+            .setStatus(Call.UpdateStatus.COMPLETED)
+            .update(resolveRestClient(session1.getTenantId()));
+      } else {
+        // Fallback: no agent leg stored — terminate the original call (old behavior)
+        log.warn("[TwilioAdapter] Bridge: brak agentCallSid w sesji, zakańczam oryginalną nogę: callId1={}", callId1);
+        Call.updater(twilioCallSid1)
+            .setStatus(Call.UpdateStatus.COMPLETED)
+            .update(resolveRestClient(session1.getTenantId()));
+      }
+    } catch (ApiException e) {
       if (e.getCode() != 20404 && e.getStatusCode() != 404) {
         log.error("[TwilioAdapter] Błąd Twilio API przy bridgeCalls callId1={}, twilioCallSid1={}: {}",
             callId1, twilioCallSid1, e.getMessage(), e);
@@ -1388,6 +1420,20 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         session1.getFrom(), session1.getTo(),
         session2.getTo(), TransferType.ATTENDED.name()
     );
+
+    // Mark contact as TRANSFERRED so Agent1 can set disposition immediately
+    // (contact stays in conference with Agent2; TRANSFERRED is in conference-end skip list)
+    if (session1.getContactId() != null) {
+      try {
+        contactRepository.updateContactStatusOnTelephonyEvent(
+            session1.getContactId(), session1.getTenantId(), "TRANSFERRED", Instant.now());
+        log.info("[TwilioAdapter] Bridge: kontakt oznaczony jako TRANSFERRED: contactId={}",
+            session1.getContactId());
+      } catch (Exception e) {
+        log.warn("[TwilioAdapter] Bridge: nie udało się zaktualizować statusu kontaktu na TRANSFERRED: {}",
+            e.getMessage());
+      }
+    }
   }
 
   /**
@@ -1398,6 +1444,34 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   @Override
   public CallSession getCallSession(String callId) {
     return requireSession(callId);
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Aktualizuje sesję Redis drugiej nogi po bridge attended transfer:
+   * <ul>
+   *   <li>Ustawia nową {@code contactId} dla Agent2.</li>
+   *   <li>Czyści flagę {@code direction} (CONSULTATION), aby webhook Twilio
+   *       przetwarzał ten kontakt normalnie.</li>
+   *   <li>Tworzy odwrotny indeks Redis {@code contact-session-index:{newContactId}} → callId.</li>
+   * </ul>
+   */
+  @Override
+  public void updateSessionContact(String callId, UUID newContactId) {
+    CallSession session = loadSessionFromRedis(callId);
+    if (session == null) {
+      log.warn("[TwilioAdapter] updateSessionContact: sesja nie znaleziona: callId={}", callId);
+      return;
+    }
+    // Clear CONSULTATION direction so handleWebhookStatusUpdate processes this contact normally
+    CallSession updated = session.withContactId(newContactId).withDirection(null);
+    saveSession(updated);
+    // Create reverse Redis index so requireSession(newContactId) resolves to callId
+    String indexKey = CONTACT_SESSION_INDEX_PREFIX + newContactId.toString();
+    stringRedisTemplate.opsForValue().set(indexKey, callId,
+        java.time.Duration.ofHours(24));
+    log.info("[TwilioAdapter] updateSessionContact: callId={}, newContactId={}", callId, newContactId);
   }
 
   // =========================================================================
@@ -1576,7 +1650,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         }
       }
 
-      if (webhookEndedAt != null && updated.getContactId() != null) {
+      if (webhookEndedAt != null && updated.getContactId() != null
+              && !"CONSULTATION".equals(updated.getDirection())) {
         // Jeśli klient rozłączył się zanim agent odebrał (answeredAt == null),
         // status kontaktu to ABANDONED (inbound) lub NOT_REACHED (outbound), a nie COMPLETED.
         String contactDbStatus = resolveContactEndStatus(updated);
@@ -1932,34 +2007,80 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     saveSession(session.withStatus(CallSession.CallStatus.ON_HOLD));
 
     try {
+      // TwiML drugiej nogi: agent2 dołącza do konferencji klienta w trybie oczekiwania
+      // (startConferenceOnEnter="false") — konferencja nie startuje dopóki nie zostanie
+      // wywołany bridgeCalls(), który zakończy nogę agenta1 i pozwoli klientowi usłyszeć
+      // agent2. Nazwa konferencji jest taka sama jak konferencja klienta, więc po bridge
+      // obaj będą w jednym pokoju audio.
+      String conferenceName = "contact-" + session.getContactId().toString();
+      String consultTwiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          + "<Response><Dial>"
+          + "<Conference startConferenceOnEnter=\"false\" endConferenceOnExit=\"true\">"
+          + conferenceName
+          + "</Conference>"
+          + "</Dial></Response>";
+
       // Inicjuj nowe połączenie do target (druga noga)
-      Call secondLegCall = Call.creator(
+      var secondLegCreator = Call.creator(
           new PhoneNumber(target),
           new PhoneNumber(resolvePhoneNumber(session.getTenantId())),
-          new Twiml("<Response><Say>Attending transfer</Say></Response>")
-      ).create(resolveRestClient(session.getTenantId()));
+          new Twiml(consultTwiml)
+      );
+      String rawBase = buildRawWebhookBaseUrl(session.getTenantId());
+      if (rawBase != null) {
+        secondLegCreator.setStatusCallback(URI.create(rawBase + "?tenantId=" + session.getTenantId()));
+        secondLegCreator.setStatusCallbackMethod(com.twilio.http.HttpMethod.POST);
+        secondLegCreator.setStatusCallbackEvent(java.util.List.of("completed", "canceled"));
+      }
+      Call secondLegCall = secondLegCreator.create(resolveRestClient(session.getTenantId()));
 
       String secondLegSid = secondLegCall.getSid();
       Instant now = Instant.now();
 
+      // Wyciągnij targetAgentId gdy cel to Twilio Client (format: "client:agent-{uuid}")
+      UUID targetAgentId = null;
+      if (target != null && target.startsWith("client:agent-")) {
+        try {
+          targetAgentId = UUID.fromString(target.substring("client:agent-".length()));
+        } catch (IllegalArgumentException ignored) {
+          log.warn("[TwilioAdapter] Nie można sparsować targetAgentId z target={}", target);
+        }
+      }
+
+      // Druga noga (consultation leg): contactId powiązany z oryginalnym kontaktem – potrzebny
+      // do wyszukania konferencji po nazwie ("contact-{contactId}") w bridgeCalls() i pomijania
+      // dialAgentIntoConference dla tej nogi. direction="CONSULTATION" zapobiega nadpisywaniu
+      // statusu kontaktu w hangupCall() i handleWebhookStatusUpdate().
+      // (targetAgentId null dla transferu na numer zewnętrzny – relay użyje broadcastu do tenanta)
       CallSession secondLeg = CallSession.builder()
           .callId(secondLegSid)
           .tenantId(session.getTenantId())
-          .agentId(session.getAgentId())
+          .agentId(targetAgentId)
+          .contactId(session.getContactId())   // needed for conference lookup in bridgeCalls
           .from(session.getTo())
           .to(target)
           .status(mapTwilioStatus(secondLegCall.getStatus()))
           .startedAt(now)
+          .direction("CONSULTATION")           // prevents contact status overwrite for this leg
           .build();
 
       saveSession(secondLeg);
 
-      log.info("[TwilioAdapter] Attended transfer – 2nd leg: callId={}, secondLegSid={}, target={}",
-          callId, secondLegSid, target);
+      log.info("[TwilioAdapter] Attended transfer – 2nd leg: callId={}, secondLegSid={}, target={}, " +
+               "originalContactId={}, targetAgentId={}",
+          callId, secondLegSid, target, session.getContactId(), targetAgentId);
 
-      eventPublisher.publishIncoming(secondLegSid, null,
-          session.getTenantId(), session.getAgentId(),
-          secondLeg.getFrom(), target);
+      // Publikuj CALL_TRANSFER_CONSULT (nie CALL_INCOMING) – IvrCallListener jest zbindowany
+      // tylko do call.incoming, więc IVR nie zostanie uruchomiony dla tej nogi.
+      // RabbitToWebSocketRelay przekaże event do docelowego agenta z kontekstem konsultacji.
+      eventPublisher.publishTransferConsult(
+          secondLegSid,
+          session.getTenantId(),
+          targetAgentId,
+          session.getAgentId(),      // agent inicjujący konsultację
+          session.getContactId(),    // oryginalny kontakt (klient)
+          session.getFrom(),         // customer's phone number (original call's from)
+          target);
 
       return secondLeg;
 

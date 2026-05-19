@@ -132,6 +132,17 @@ public interface TelephonyAdapter {
     CallSession getCallSession(String callId);
 
     /**
+     * Aktualizuje contactId w sesji Redis dla danego callId.
+     *
+     * <p>Wywoływane po bridge attended transfer gdy tworzy się nowy kontakt dla Agent2.
+     * Domyślnie no-op (MockTelephonyAdapter nie zarządza Redis).
+     *
+     * @param callId       identyfikator sesji połączenia (drugiej nogi)
+     * @param newContactId UUID nowego kontaktu Agent2
+     */
+    default void updateSessionContact(String callId, UUID newContactId) {}
+
+    /**
      * Pobiera sesję połączenia jako Optional – nie rzuca wyjątku gdy sesja nie istnieje.
      *
      * <p>Używane do weryfikacji cross-tenant przy bridge/transfer:

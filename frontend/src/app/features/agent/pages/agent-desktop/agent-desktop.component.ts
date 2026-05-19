@@ -36,7 +36,12 @@ import {
 } from '../../models/agent-status.model';
 import { ContactTab } from '../../models/contact-tab.model';
 import { QueueItem } from '../../models/queue-item.model';
-import { WsEvent, ContactAssignedPayload } from '../../models/ws-event.model';
+import {
+  WsEvent,
+  ContactAssignedPayload,
+  CallHangupPayload,
+  CallBridgeCompletePayload,
+} from '../../models/ws-event.model';
 
 @Component({
   selector: 'app-agent-desktop',
@@ -215,13 +220,44 @@ export class AgentDesktopComponent implements OnInit {
     // Gdy klient rozłączy połączenie wychodzące (lub przychodzące) po stronie Twilio,
     // backend wysyła CALL_HANGUP przez WebSocket. Przekazujemy to do softphoneService
     // aby softphone przeszedł w stan ENDED i uruchomił panel dyspozycji (ACW).
+    //
+    // WAŻNE: Filtrujemy po contactId/callId aby nie czyścić sesji konsultacji (RINGING)
+    // gdy nadchodzi CALL_HANGUP dla innego połączenia (np. drugiej nogi attended transfer
+    // która była odrzucona przez agenta docelowego). Bez tego filtra race condition powoduje,
+    // że CALL_HANGUP wysłany do Agent1 (docelowego) czyści jego sesję RINGING zanim
+    // zdąży odebrać połączenie konsultacyjne.
     this.ws.events$
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         filter((e: WsEvent) => e.eventType === 'CALL_HANGUP'),
       )
-      .subscribe(() => {
-        const wasRinging = this.softphoneService.session()?.state === 'RINGING';
+      .subscribe((e: WsEvent) => {
+        const hangup = e.payload as CallHangupPayload;
+        const session = this.softphoneService.session();
+
+        // Jeśli mamy aktywną sesję, sprawdź czy CALL_HANGUP dotyczy jej.
+        // session.contactId może być UUID kontaktu (normalne połączenie) lub CA... SID
+        // (druga noga konsultacji — ustawiony przez handleCallTransferConsult).
+        // hangup.contactId to UUID z DB (może być null), hangup.callId to Twilio SID.
+        // Pasuje jeśli którykolwiek identyfikator się zgadza.
+        if (session !== null) {
+          const matchesContact =
+            hangup.contactId != null && hangup.contactId === session.contactId;
+          const matchesCallId = hangup.callId != null && hangup.callId === session.contactId;
+          if (!matchesContact && !matchesCallId) {
+            // Ten hangup dotyczy innego połączenia (np. drugiej nogi konsultacji
+            // zwróconej przez Twilio przed odebraniem) — ignoruj.
+            console.log(
+              '[AgentDesktop] CALL_HANGUP ignorowany — nie dotyczy aktywnej sesji:',
+              hangup.callId,
+              '/ sesja:',
+              session.contactId,
+            );
+            return;
+          }
+        }
+
+        const wasRinging = session?.state === 'RINGING';
         this.softphoneService.remoteHangup();
         if (wasRinging) {
           // remoteHangup() sets session to null immediately for RINGING state (no ACW needed),
@@ -230,6 +266,31 @@ export class AgentDesktopComponent implements OnInit {
           if (phoneTab) {
             this.tabStore.closeTab(phoneTab.id);
           }
+        }
+      });
+
+    // When attended transfer bridge completes, Agent2's session gets a proper contact UUID.
+    // Update session.contactId and the PHONE tab's contactId from CA... SID to the proper UUID.
+    this.ws.events$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        filter((e: WsEvent) => e.eventType === 'CALL_BRIDGE_COMPLETE'),
+      )
+      .subscribe((e: WsEvent) => {
+        const payload = e.payload as CallBridgeCompletePayload;
+        // Update softphone session's contactId to proper UUID
+        this.softphoneService.updateContactId(payload.newContactId);
+        // Find and update the PHONE tab that has the consultation SID as contactId
+        const phoneTab = this.tabStore
+          .tabs()
+          .find(
+            (t) =>
+              t.type === 'PHONE' &&
+              (t.contactId === payload.secondLegCallId ||
+                t.originalContactId !== undefined),
+          );
+        if (phoneTab) {
+          this.tabStore.updateTabContactId(phoneTab.id, payload.newContactId);
         }
       });
   }

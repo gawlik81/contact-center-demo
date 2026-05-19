@@ -602,6 +602,38 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
+  // Aktualizacja agent_id (attended transfer – przepisanie kontaktu na Agent2)
+  // =========================================================================
+
+  /**
+   * Aktualizuje agent_id kontaktu bez zmiany statusu.
+   *
+   * <p>Używane przy attended transfer gdy Agent2 przejmuje kontakt po bridge.
+   * W przeciwieństwie do {@link #assignAgent}, nie zmienia statusu kontaktu.
+   *
+   * @param contactId  UUID kontaktu
+   * @param tenantId   UUID tenanta
+   * @param newAgentId UUID nowego agenta
+   */
+  public void updateAgentId(UUID contactId, UUID tenantId, UUID newAgentId) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    jdbcTemplate.update("""
+            UPDATE contact
+            SET agent_id = ?::uuid
+            WHERE contact_id = ?::uuid
+              AND tenant_id  = ?::uuid
+            """,
+        newAgentId.toString(), contactId.toString(), tenantId.toString());
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] updateAgentId: contactId={}, newAgentId={}", contactId, newAgentId);
+  }
+
+  // =========================================================================
   // Aktualizacja queue_id (BUGFIX: IVR nie zapisywał kolejki do DB)
   // =========================================================================
 

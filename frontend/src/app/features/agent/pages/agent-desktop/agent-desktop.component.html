@@ -6,7 +6,7 @@
 <!-- After Contact Work – Disposition Panel -->
 @if (wrappingTab()) {
   <app-disposition-panel
-    [contactId]="wrappingTab()!.contactId"
+    [contactId]="wrappingTab()!.originalContactId ?? wrappingTab()!.contactId"
     [customerName]="wrappingTab()!.customerName"
     [prefillNotes]="wrappingTab()!.note ?? ''"
     (saved)="onDispositionSaved()"

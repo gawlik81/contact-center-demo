@@ -23,6 +23,7 @@ import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.domain.telephony.TelephonyEventPublisher;
 import com.contactcenter.domain.telephony.TransferRequest;
 import com.contactcenter.domain.telephony.TransferTargetType;
 import com.contactcenter.infrastructure.aspect.Audited;
@@ -83,6 +84,7 @@ public class ContactService {
     private final QueueRepository queueRepository;
     private final ContactEventService contactEventService;
     private final TelephonyAdapter telephonyAdapter;
+    private final TelephonyEventPublisher eventPublisher;
 
     // =========================================================================
     // Tworzenie kontaktu
@@ -341,7 +343,10 @@ public class ContactService {
         // AGENT may only set disposition on their own contacts.
         // Allow when agentId is null – inbound Twilio calls have no agent assigned at creation time.
         // The agent_id is populated later when the agent answers (POST /api/telephony/calls/{callId}/answer).
-        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())) {
+        // Exception: COMPLETED contacts allow any involved agent to set disposition (attended transfer
+        // scenario: Agent2 received the transfer but contact.agentId still points to Agent1).
+        if (isAgent && contact.getAgentId() != null && !userId.equals(contact.getAgentId())
+                && !"COMPLETED".equals(contact.getStatus())) {
             throw new InvalidOperationException(
                     "Agent może ustawiać disposition tylko na własnych kontaktach: " + contactId);
         }
@@ -843,11 +848,19 @@ public class ContactService {
 
         CallSession resultSession = telephonyAdapter.initiateTransfer(callId, domainReq);
 
-        // 7. Zamknij etap AGENT – transfer kończy obsługę przez agenta
-        contactEventService.closeAgent(contactId, tenantId);
-
-        // 8. Zapisz zdarzenie TRANSFER w osobnej transakcji (błąd nie przerywa przepływu)
-        persistTransferEvent(contactId, tenantId, req);
+        // 7. Aktualizuj historię w zależności od typu transferu
+        if (req.transferType() != TelephonyAdapter.TransferType.ATTENDED) {
+            // Blind transfer: agent kończy obsługę tutaj
+            contactEventService.closeAgent(contactId, tenantId);
+            // 8. Zapisz zdarzenie TRANSFER w osobnej transakcji
+            persistTransferEvent(contactId, tenantId, req);
+        } else {
+            // Attended transfer: agent pozostaje w rozmowie podczas konsultacji.
+            // Etap AGENT pozostaje otwarty; zdarzenie TRANSFER zostanie zapisane po bridge.
+            String consultTarget = req.agentId() != null ? req.agentId().toString()
+                                 : (req.phoneNumber() != null ? req.phoneNumber() : "");
+            contactEventService.openConsulting(contactId, tenantId, consultTarget);
+        }
 
         log.info("[ContactService] Transfer zainicjowany: callId={}, contactId={}, " +
                  "targetType={}, newSessionCallId={}",
@@ -990,19 +1003,13 @@ public class ContactService {
                     "Agent nie jest właścicielem kontaktu (bridge niedozwolony): " + contactId);
         }
 
-        // 3b. Weryfikacja cross-tenant dla drugiej nogi połączenia
-        telephonyAdapter.getSession(secondCallId).ifPresentOrElse(
-                secondSession -> {
-                    if (!tenantId.equals(secondSession.getTenantId())) {
-                        throw new CrossTenantAccessException(
-                                contactId, tenantId, secondSession.getTenantId());
-                    }
-                },
-                () -> {
-                    throw new EntityNotFoundException(
-                            "Sesja drugiej nogi nie istnieje: " + secondCallId);
-                }
-        );
+        // 3b. Weryfikacja cross-tenant dla drugiej nogi – pobierz sesję do późniejszego użycia
+        CallSession secondSession = telephonyAdapter.getSession(secondCallId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Sesja drugiej nogi nie istnieje: " + secondCallId));
+        if (!tenantId.equals(secondSession.getTenantId())) {
+            throw new CrossTenantAccessException(contactId, tenantId, secondSession.getTenantId());
+        }
 
         log.info("[ContactService] Inicjowanie bridge: callId={}, secondCallId={}, " +
                  "contactId={}, agentId={}, tenant={}",
@@ -1012,11 +1019,12 @@ public class ContactService {
         //    (MockAdapter sprawdza ACTIVE/ON_HOLD, TwilioAdapter analogicznie)
         telephonyAdapter.bridgeCalls(callId, secondCallId);
 
-        // 5. Zamknij etapy CONSULTING i ON_HOLD (attended transfer był poprzedzony hold + consult)
+        // 5. Zamknij etapy CONSULTING, AGENT i ON_HOLD na oryginalnym kontakcie
         contactEventService.closeConsulting(contactId, tenantId);
+        contactEventService.closeAgent(contactId, tenantId);
         contactEventService.closeHold(contactId, tenantId);
 
-        // 6. Zapisz zdarzenie TRANSFER (bridge finalizuje attended transfer)
+        // 6. Zapisz zdarzenie TRANSFER na oryginalnym kontakcie
         contactEventService.recordTransfer(
                 contactId, tenantId,
                 secondCallId,
@@ -1024,8 +1032,66 @@ public class ContactService {
                 null
         );
 
+        // 7. Utwórz nowy kontakt dla Agent2 (analogicznie do blind transfer)
+        UUID agent2Id = secondSession.getAgentId();
+        if (agent2Id != null) {
+            Contact newContact = createTransferContact(contact, agent2Id, secondCallId, tenantId);
+            UUID newContactId = newContact.getContactId();
+
+            // Otwórz etap AGENT na nowym kontakcie
+            contactEventService.openAgent(newContactId, tenantId, agent2Id, null);
+
+            // Zaktualizuj sesję Redis – nowa contactId, bez flagi CONSULTATION
+            telephonyAdapter.updateSessionContact(secondCallId, newContactId);
+
+            // Powiadom Agent2 przez WS aby zaktualizował swoje session.contactId
+            eventPublisher.publishBridgeComplete(
+                    secondCallId, newContactId, tenantId, agent2Id,
+                    secondSession.getFrom(), secondSession.getTo());
+        }
+
         log.info("[ContactService] Bridge wykonany: callId={}, secondCallId={}, contactId={}",
                 callId, secondCallId, contactId);
+    }
+
+    /**
+     * Tworzy nowy kontakt dla agenta docelowego po attended transfer (bridge zakończony).
+     *
+     * <p>Kopiuje podstawowe dane z oryginalnego kontaktu i powiązuje z SID drugiej nogi.
+     *
+     * @param original      oryginalny kontakt (klienta)
+     * @param agentId       UUID Agent2
+     * @param secondCallSid SID drugiej nogi (Twilio CA_... lub mock)
+     * @param tenantId      UUID tenanta
+     * @return nowo utworzony kontakt Agent2
+     */
+    private Contact createTransferContact(Contact original, UUID agentId, String secondCallSid, UUID tenantId) {
+        UUID newContactId = UUID.randomUUID();
+        Instant now = Instant.now();
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("sip_call_id", secondCallSid);
+
+        Contact newContact = Contact.builder()
+                .contactId(newContactId)
+                .tenantId(tenantId)
+                .channel(original.getChannel())
+                .direction(original.getDirection())
+                .remoteAddress(original.getRemoteAddress())
+                .status("ACTIVE")
+                .agentId(agentId)
+                .customerId(original.getCustomerId())
+                .queueId(null)
+                .createdAt(now)
+                .startedAt(now)
+                .assignedAt(now)
+                .channelMetadata(metadata)
+                .build();
+
+        contactRepository.insert(newContact);
+
+        log.info("[ContactService] Nowy kontakt dla Agent2 po attended transfer: " +
+                 "newContactId={}, agentId={}, secondCallSid={}", newContactId, agentId, secondCallSid);
+        return newContact;
     }
 
     // =========================================================================

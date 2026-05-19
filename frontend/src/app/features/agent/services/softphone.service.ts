@@ -141,10 +141,24 @@ export class SoftphoneService implements OnDestroy {
     const session = this.session();
 
     if (session === null) {
-      console.warn(
-        '[SoftphoneService] Incoming Twilio call received but no active softphone session — rejecting.',
-      );
-      call.reject();
+      // Give WS event time to arrive (race: SDK may fire before CALL_TRANSFER_CONSULT WS event)
+      setTimeout(() => {
+        const currentSession = this.session();
+        if (currentSession === null) {
+          console.warn(
+            '[SoftphoneService] Incoming Twilio call received but no active softphone session — rejecting.',
+          );
+          if (this.activeCall === call) {
+            call.reject();
+            this.activeCall = null;
+          }
+        } else if (currentSession.state === 'ACTIVE') {
+          if (this.activeCall === call) {
+            call.accept();
+          }
+        }
+        // state RINGING: wait for answerCall() to call acceptIncomingCall()
+      }, 500);
       return;
     }
 
@@ -183,6 +197,17 @@ export class SoftphoneService implements OnDestroy {
   }
 
   // ── Call state machine ─────────────────────────────────────────────────────
+
+  /**
+   * Updates the contactId in the current session.
+   * Called when attended transfer bridge completes – Agent2 gets a proper contact UUID
+   * to replace the Twilio CA... SID that was used during consultation.
+   */
+  updateContactId(newContactId: string): void {
+    const s = this.session();
+    if (!s) return;
+    this.session.set({ ...s, contactId: newContactId });
+  }
 
   incomingCall(payload: CallIncomingPayload | ContactAssignedPayload): void {
     const customerPhone =
@@ -437,9 +462,15 @@ export class SoftphoneService implements OnDestroy {
   cancelTransfer(): void {
     const s = this.session();
     if (!s || s.state !== 'TRANSFERRING') return;
+    const secondLegId = this.secondLegCallId;
     this.secondLegCallId = null;
     this.session.set({ ...s, state: 'ACTIVE', transferTarget: null });
     this.startDurationTimer();
+    if (secondLegId) {
+      this.hangupCallHttp(secondLegId)
+        .pipe(catchError(() => of(null)))
+        .subscribe();
+    }
   }
 
   // ── Transfer to AGENT ──────────────────────────────────────────────────────

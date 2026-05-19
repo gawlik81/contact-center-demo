@@ -11,6 +11,7 @@ import { CustomerLookupService } from './customer-lookup.service';
 import {
   CallIncomingPayload,
   CallOutboundPayload,
+  CallTransferConsultPayload,
   ContactAssignedPayload,
 } from '../models/ws-event.model';
 
@@ -94,6 +95,7 @@ export class IncomingCallAlertService implements OnDestroy {
           (e) =>
             e.eventType === 'CALL_INCOMING' ||
             e.eventType === 'CALL_OUTBOUND' ||
+            e.eventType === 'CALL_TRANSFER_CONSULT' ||
             e.eventType === 'CONTACT_ASSIGNED',
         ),
         takeUntil(this.destroy$),
@@ -103,6 +105,8 @@ export class IncomingCallAlertService implements OnDestroy {
           this.handleCallIncoming(event.payload as CallIncomingPayload);
         } else if (event.eventType === 'CALL_OUTBOUND') {
           this.handleCallOutbound(event.payload as CallOutboundPayload);
+        } else if (event.eventType === 'CALL_TRANSFER_CONSULT') {
+          this.handleCallTransferConsult(event.payload as CallTransferConsultPayload);
         } else if (event.eventType === 'CONTACT_ASSIGNED') {
           const payload = event.payload as ContactAssignedPayload;
           if (payload.type === 'PHONE') {
@@ -155,6 +159,63 @@ export class IncomingCallAlertService implements OnDestroy {
       queueName: payload.queueName,
       receivedAt: new Date(),
     };
+    this.pendingAlert.set(alert);
+    this.playAudio();
+    this.showSystemNotification(alert);
+  }
+
+  /**
+   * Obsługuje przychodzącą konsultację attended transfer (CALL_TRANSFER_CONSULT).
+   *
+   * Agent2 dostaje ten event gdy Agent1 inicjuje konsultację. Otwieramy zakładkę
+   * PHONE (bez niej SoftphoneComponent nie renderuje się — agent-desktop pokazuje
+   * softphone tylko dla aktywnej zakładki type='PHONE'), a następnie inicjalizujemy
+   * sesję softphonu (state=RINGING) aby Twilio Device nie odrzucił przychodzącego
+   * połączenia SDK z powodu braku aktywnej sesji (handleIncomingCall guard).
+   *
+   * contactId sesji ustawiamy na secondLegCallId (CA_...) — to właśnie ten callSid
+   * jest używany przez backend do identyfikacji nogi konsultacji.
+   */
+  private handleCallTransferConsult(payload: CallTransferConsultPayload): void {
+    const customerName = `[Konsultacja] ${payload.customerName}`;
+
+    // Otwórz zakładkę PHONE – bez niej SoftphoneComponent nie renderuje się
+    // (agent-desktop pokazuje softphone tylko dla aktywnej zakładki type='PHONE').
+    const reason = this.tabStore.openTab({
+      id: crypto.randomUUID(),
+      type: 'PHONE',
+      contactId: payload.secondLegCallId,
+      customerName,
+      customerIdentifier: payload.customerPhone,
+      status: 'ACTIVE',
+      startedAt: new Date(),
+      direction: 'INBOUND',
+      originalContactId: payload.originalContactId,
+    });
+
+    if (reason !== null) {
+      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
+      return;
+    }
+
+    // Inicjalizuj sesję softphonu tak aby handleIncomingCall() nie odrzucił połączenia.
+    // Używamy secondLegCallId jako contactId — backend identyfikuje nogę konsultacji
+    // po tym callSid, nie po originalContactId.
+    this.softphoneService.incomingCall({
+      contactId: payload.secondLegCallId,
+      customerName,
+      customerPhone: payload.customerPhone,
+      queueName: '',
+    });
+
+    const alert: IncomingCallAlert = {
+      contactId: payload.secondLegCallId,
+      customerName,
+      customerPhone: payload.customerPhone,
+      queueName: '',
+      receivedAt: new Date(),
+    };
+
     this.pendingAlert.set(alert);
     this.playAudio();
     this.showSystemNotification(alert);

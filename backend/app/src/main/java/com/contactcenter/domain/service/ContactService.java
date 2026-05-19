@@ -859,8 +859,9 @@ public class ContactService {
             // 8. Zapisz zdarzenie TRANSFER w osobnej transakcji
             persistTransferEvent(contactId, tenantId, req);
         } else {
-            // Attended transfer: agent pozostaje w rozmowie podczas konsultacji.
-            // Etap AGENT pozostaje otwarty; zdarzenie TRANSFER zostanie zapisane po bridge.
+            // Attended transfer: zamknij bieżący etap AGENT (Agent1) i otwórz CONSULTING.
+            // Po bridge lub anulowaniu konsultacji etap AGENT zostanie ponownie otwarty / zamknięty.
+            contactEventService.closeAgent(contactId, tenantId);
             String consultTarget = req.agentId() != null ? req.agentId().toString()
                                  : (req.phoneNumber() != null ? req.phoneNumber() : "");
             Map<String, Object> consultMeta = new HashMap<>();

@@ -705,6 +705,18 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       contactEventService.closeHold(updated.getContactId(), updated.getTenantId());
     }
 
+    if ("CONSULTATION".equals(updated.getDirection()) && updated.getContactId() != null) {
+      // Zamknij etap CONSULTING i ponownie otwórz AGENT dla Agent1 (wraca do rozmowy z klientem).
+      contactEventService.closeConsulting(updated.getContactId(), updated.getTenantId());
+      contactRepository.findById(updated.getContactId(), updated.getTenantId())
+          .ifPresent(contact -> {
+            if (contact.getAgentId() != null) {
+              contactEventService.openAgent(
+                  updated.getContactId(), updated.getTenantId(), contact.getAgentId(), null);
+            }
+          });
+    }
+
     if ("CONSULTATION".equals(updated.getDirection()) && updated.getAgentId() != null) {
       // Konsultacja anulowana przed bridge – Agent2 wraca do AVAILABLE bez ekranu ACW.
       // Nie publikujemy CALL_HANGUP żeby frontend Agent2 nie przechodził do ACW.

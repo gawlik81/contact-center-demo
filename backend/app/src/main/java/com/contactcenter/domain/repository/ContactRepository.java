@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -1000,6 +1001,42 @@ public class ContactRepository extends TenantAwareRepository {
     }
     else {
       log.info("[ContactRepo] Status kontaktu zaktualizowany: contactId={}, status={}, endedAt={}",
+          contactId, newStatus, endedAt);
+    }
+  }
+
+  /**
+   * Identyczna logika co {@link #updateContactStatusOnTelephonyEvent}, ale z propagacją
+   * {@code REQUIRES_NEW} – zawiesza zewnętrzną transakcję i commituje natychmiast.
+   *
+   * <p>Używana przez {@code bridgeCalls()} w adapterze Twilio: TRANSFERRED musi być widoczny
+   * dla innych wątków (np. callbacku conference-end) jeszcze podczas trwania zewnętrznej
+   * transakcji {@code ContactService.bridgeCalls()}.
+   */
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void updateContactStatusRequiresNew(UUID contactId, UUID tenantId,
+      String newStatus, Instant endedAt) {
+    if (contactId == null || tenantId == null) {
+      return;
+    }
+    int updated = jdbcTemplate.update(
+        """
+            UPDATE contact
+               SET status   = CAST(? AS VARCHAR),
+                   ended_at = ?
+             WHERE contact_id = ?
+               AND tenant_id  = ?
+            """,
+        newStatus,
+        endedAt != null ? java.sql.Timestamp.from(endedAt) : null,
+        contactId,
+        tenantId
+    );
+    if (updated == 0) {
+      log.warn("[ContactRepo] updateContactStatusRequiresNew: kontakt nie znaleziony: " +
+          "contactId={}, tenantId={}", contactId, tenantId);
+    } else {
+      log.info("[ContactRepo] Status kontaktu zaktualizowany (REQUIRES_NEW): contactId={}, status={}, endedAt={}",
           contactId, newStatus, endedAt);
     }
   }

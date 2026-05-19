@@ -283,7 +283,12 @@
       "Bash(gunzip -f /tmp/design.gz)",
       "Bash(tar -xf /tmp/design -C /tmp/design_extracted)",
       "Bash(echo \"EXIT:$?\")",
-      "Skill(fullstack-dev-skills:code-reviewer)"
+      "Skill(fullstack-dev-skills:code-reviewer)",
+      "Skill(verify)",
+      "Bash(sed -n '735,745p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)",
+      "Bash(sed -n '843,853p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)",
+      "Bash(sed -n '1125,1145p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)",
+      "Bash(sed -n '1315,1330p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)"
     ]
   }
 }

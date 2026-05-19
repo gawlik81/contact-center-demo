@@ -106,6 +106,14 @@ public class CallSession {
      */
     private final String conferenceName;
 
+    /**
+     * Twilio Call SID oryginalnego połączenia klienta (CA...).
+     * Propagowany przez łańcuch attended transfer, żeby bridgeCalls()
+     * mógł przekierować klienta do nowej konferencji.
+     * Null dla starszych sesji Redis – @JsonIgnoreProperties obsłuży brak pola.
+     */
+    private final String customerCallSid;
+
     // =========================================================================
     // Enum statusów
     // =========================================================================

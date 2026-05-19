@@ -83,7 +83,7 @@ public interface TelephonyAdapter {
      * <p>Dla {@link TransferType#BLIND}: połączenie przekazywane natychmiast, sesja kończy się
      * po stronie inicjatora.
      * <p>Dla {@link TransferType#ATTENDED}: tworzona jest druga noga połączenia do {@code target};
-     * po potwierdzeniu przez target wywołaj {@link #bridgeCalls(String, String)} aby połączyć obie nogi.
+     * po potwierdzeniu przez target wywołaj {@link #bridgeCalls(String, String, UUID)} aby połączyć obie nogi.
      *
      * @param callId       identyfikator pierwotnej sesji
      * @param target       numer docelowy w formacie E.164
@@ -111,16 +111,22 @@ public interface TelephonyAdapter {
     CallSession initiateTransfer(String callId, TransferRequest request);
 
     /**
-     * Łączy dwie nogi połączenia po attended transfer.
+     * Łączy dwie nogi połączenia po attended transfer, przekierowując klienta i Agent2
+     * do nowej, dedykowanej konferencji Twilio {@code contact-{newContactId}}.
      *
      * <p>Wywołaj po tym jak agent potwierdził połączenie z {@code callId2}.
      * Obie sesje muszą być aktywne lub w stanie ON_HOLD.
      *
-     * @param callId1 identyfikator pierwszej nogi (oryginalne połączenie z klientem)
-     * @param callId2 identyfikator drugiej nogi (połączenie do docelowego agenta)
+     * <p>Adapter jest odpowiedzialny za aktualizację sesji Redis drugiej nogi
+     * (contactId, conferenceName, customerCallSid) – wywołujący nie musi wywoływać
+     * {@link #updateSessionContact} po bridge.
+     *
+     * @param callId1      identyfikator pierwszej nogi (oryginalne połączenie z klientem)
+     * @param callId2      identyfikator drugiej nogi (połączenie do docelowego agenta)
+     * @param newContactId UUID nowego kontaktu wygenerowany przez ContactService przed wywołaniem
      * @throws TelephonyException gdy któraś z sesji nie istnieje lub jest w złym stanie
      */
-    void bridgeCalls(String callId1, String callId2);
+    void bridgeCalls(String callId1, String callId2, UUID newContactId);
 
     /**
      * Pobiera aktualny stan sesji połączenia.

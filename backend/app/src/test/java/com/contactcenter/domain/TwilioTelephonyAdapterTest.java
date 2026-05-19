@@ -704,26 +704,33 @@ class TwilioTelephonyAdapterTest {
     class BridgeCalls {
 
         private static final String CALL_SID_2 = "CB9876543210fedcba9876543210fedcba";
+        private static final UUID NEW_CONTACT_ID = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
 
         @Test
-        @DisplayName("powinien oznaczyć callId1 jako TRANSFERRED i callId2 jako ACTIVE")
+        @DisplayName("powinien oznaczyć callId1 jako TRANSFERRED i callId2 jako ACTIVE z nowym contactId")
         void shouldTransferFirstAndActivateSecond() {
+            // Rejestrujemy sesję1 przez registerIncomingCall – ustawia customerCallSid
+            adapter.registerIncomingCall(CALL_SID, FROM, TO, TENANT_ID, UUID.randomUUID());
             adapter.handleWebhookStatusUpdate(CALL_SID,   FROM, TO, "in-progress", TENANT_ID, "inbound");
             adapter.handleWebhookStatusUpdate(CALL_SID_2, TO, "+48111222333", "in-progress", TENANT_ID, "inbound");
 
             try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
                 CallUpdater mockUpdater = mock(CallUpdater.class);
+                when(mockUpdater.setTwiml(any(Twiml.class))).thenReturn(mockUpdater);
                 when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
                 when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
-                mockedCall.when(() -> Call.updater(CALL_SID)).thenReturn(mockUpdater);
+                mockedCall.when(() -> Call.updater(anyString())).thenReturn(mockUpdater);
 
-                adapter.bridgeCalls(CALL_SID, CALL_SID_2);
+                adapter.bridgeCalls(CALL_SID, CALL_SID_2, NEW_CONTACT_ID);
             }
 
             assertThat(adapter.getCallSession(CALL_SID).getStatus())
                     .isEqualTo(CallSession.CallStatus.TRANSFERRED);
             assertThat(adapter.getCallSession(CALL_SID_2).getStatus())
                     .isEqualTo(CallSession.CallStatus.ACTIVE);
+            // Sesja2 powinna mieć nowy contactId
+            assertThat(adapter.getCallSession(CALL_SID_2).getContactId())
+                    .isEqualTo(NEW_CONTACT_ID);
         }
 
         @Test
@@ -731,7 +738,7 @@ class TwilioTelephonyAdapterTest {
         void shouldThrowForUnknownCallId() {
             adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID, "inbound");
 
-            assertThatThrownBy(() -> adapter.bridgeCalls(CALL_SID, "NIEISTNIEJACY"))
+            assertThatThrownBy(() -> adapter.bridgeCalls(CALL_SID, "NIEISTNIEJACY", NEW_CONTACT_ID))
                     .isInstanceOf(TelephonyAdapter.TelephonyException.class);
         }
 
@@ -741,8 +748,21 @@ class TwilioTelephonyAdapterTest {
             adapter.handleWebhookStatusUpdate(CALL_SID,   FROM, TO, "in-progress", TENANT_ID, "inbound");
             adapter.handleWebhookStatusUpdate(CALL_SID_2, TO, "+48111", "completed",   TENANT_ID, "inbound");
 
-            assertThatThrownBy(() -> adapter.bridgeCalls(CALL_SID, CALL_SID_2))
+            assertThatThrownBy(() -> adapter.bridgeCalls(CALL_SID, CALL_SID_2, NEW_CONTACT_ID))
                     .isInstanceOf(TelephonyAdapter.TelephonyException.class);
+        }
+
+        @Test
+        @DisplayName("bridge z null customerCallSid i kierunkiem OUTBOUND powinien rzucić TelephonyException")
+        void shouldThrowWhenCustomerCallSidIsNullAndDirectionIsOutbound() {
+            // Sesja OUTBOUND bez customerCallSid – symulacja sesji sprzed deploymentu
+            adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID, "outbound-api");
+            adapter.handleWebhookStatusUpdate(CALL_SID_2, TO, "+48111222333", "in-progress", TENANT_ID, "inbound");
+
+            // OUTBOUND + null customerCallSid → wyjątek (brak fallbacku dla OUTBOUND)
+            assertThatThrownBy(() -> adapter.bridgeCalls(CALL_SID, CALL_SID_2, NEW_CONTACT_ID))
+                    .isInstanceOf(TelephonyAdapter.TelephonyException.class)
+                    .hasMessageContaining("customerCallSid");
         }
     }
 

@@ -393,7 +393,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     }
 
     @Override
-    public void bridgeCalls(String callId1, String callId2) {
+    public void bridgeCalls(String callId1, String callId2, UUID newContactId) {
         CallSession session1 = requireSession(callId1);
         CallSession session2 = requireSession(callId2);
 
@@ -401,18 +401,27 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
         validateBridgeable(session1);
         validateBridgeable(session2);
 
-        // Po bridge: pierwsza sesja zakończona (przekazana), druga aktywna
+        // Po bridge: pierwsza sesja zakończona (przekazana), druga aktywna z nowym contactId
         CallSession transferred = session1
                 .withStatus(CallSession.CallStatus.TRANSFERRED)
                 .withEndedAt(Instant.now());
 
-        CallSession active = session2.withStatus(CallSession.CallStatus.ACTIVE);
+        String newConferenceName = "contact-" + newContactId;
+        String customerCallSid = session1.getCustomerCallSid() != null
+                ? session1.getCustomerCallSid()
+                : session1.getCallId();  // fallback dla sesji bez customerCallSid
+        CallSession active = session2
+                .withStatus(CallSession.CallStatus.ACTIVE)
+                .withContactId(newContactId)
+                .withConferenceName(newConferenceName)
+                .withDirection(null)
+                .withCustomerCallSid(customerCallSid);
 
         sessions.put(callId1, transferred);
         sessions.put(callId2, active);
 
-        log.info("[MockTelephony] Bridge: callId1={} (TRANSFERRED), callId2={} (ACTIVE)",
-                callId1, callId2);
+        log.info("[MockTelephony] Bridge: callId1={} (TRANSFERRED), callId2={} (ACTIVE), newContactId={}",
+                callId1, callId2, newContactId);
 
         eventPublisher.publishTransferred(
                 callId1, session1.getTenantId(), session1.getAgentId(),

@@ -372,12 +372,15 @@ class MockTelephonyAdapterTest {
                     TelephonyAdapter.TransferType.ATTENDED);
             adapter.answerCall(s2.getCallId(), AGENT_ID);
 
-            adapter.bridgeCalls(s1.getCallId(), s2.getCallId());
+            UUID newContactId = UUID.randomUUID();
+            adapter.bridgeCalls(s1.getCallId(), s2.getCallId(), newContactId);
 
             assertThat(adapter.getCallSession(s1.getCallId()).getStatus())
                     .isEqualTo(CallSession.CallStatus.TRANSFERRED);
             assertThat(adapter.getCallSession(s2.getCallId()).getStatus())
                     .isEqualTo(CallSession.CallStatus.ACTIVE);
+            assertThat(adapter.getCallSession(s2.getCallId()).getContactId())
+                    .isEqualTo(newContactId);
         }
 
         @Test
@@ -386,7 +389,7 @@ class MockTelephonyAdapterTest {
             CallSession s1 = adapter.initiateCall(TENANT_ID, FROM, TO, AGENT_ID, null, null);
             adapter.answerCall(s1.getCallId(), AGENT_ID);
 
-            assertThatThrownBy(() -> adapter.bridgeCalls(s1.getCallId(), "nieistniejacy"))
+            assertThatThrownBy(() -> adapter.bridgeCalls(s1.getCallId(), "nieistniejacy", UUID.randomUUID()))
                     .isInstanceOf(TelephonyAdapter.TelephonyException.class);
         }
     }

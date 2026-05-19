@@ -26,10 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.Base64;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.UUID;
 
 /**
@@ -165,44 +162,11 @@ public class TwilioRecordingDownloadService {
 
         try {
             downloadAndStoreSync(twilioRecordingUrl, recordingSid, resolvedContactId, tenantId);
-            propagateRecordingToTransferChain(resolvedContactId, tenantId);
         } catch (Exception e) {
             log.error("[TwilioRecDownload] Błąd pobierania/uploadowania nagrania: " +
                       "contactId={}, recordingSid={}, tenantId={}, error={}",
                     resolvedContactId, recordingSid, tenantId, e.getMessage(), e);
             // Nie rzucamy dalej – AsyncUncaughtExceptionHandler loguje, ale wątek nie propaguje
-        }
-    }
-
-    /**
-     * Kopiuje URL nagrania do wszystkich kontaktów w łańcuchu transferu (BFS po transferred_from_contact_id).
-     *
-     * <p>Przy attended transfer wszystkie kontakty w łańcuchu dzielą tę samą konferencję Twilio,
-     * a więc i to samo nagranie. Callback nagrania zawiera nazwę konferencji pierwszego kontaktu,
-     * więc bez tej metody nagranie trafia tylko do niego.
-     */
-    private void propagateRecordingToTransferChain(UUID rootContactId, UUID tenantId) {
-        String s3Key = buildS3Key(tenantId, rootContactId);
-        Queue<UUID> queue = new LinkedList<>();
-        queue.add(rootContactId);
-        while (!queue.isEmpty()) {
-            UUID parentId = queue.poll();
-            List<com.contactcenter.domain.model.Contact> children =
-                    contactRepository.findByTransferredFromContactId(parentId, tenantId);
-            for (com.contactcenter.domain.model.Contact child : children) {
-                // Propagate only to attended-transfer contacts – blind/queue transfer contacts
-                // have their own Twilio conference and receive their own separate recording.
-                Object transferType = child.getChannelMetadata() != null
-                        ? child.getChannelMetadata().get("transfer_type") : null;
-                if (!"ATTENDED".equals(transferType)) {
-                    continue;
-                }
-                UUID childId = child.getContactId();
-                recordingService.saveRecordingUrlToContact(childId, tenantId, s3Key);
-                log.info("[TwilioRecDownload] Nagranie skopiowane do kontaktu w lancuchu transferu: " +
-                         "contactId={}, s3Key={}", childId, s3Key);
-                queue.add(childId);
-            }
         }
     }
 

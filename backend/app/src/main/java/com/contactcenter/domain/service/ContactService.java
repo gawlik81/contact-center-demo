@@ -1028,17 +1028,28 @@ public class ContactService {
                  "contactId={}, agentId={}, tenant={}",
                 callId, secondCallId, contactId, userId, tenantId);
 
-        // 4. Wywołaj adapter – walidację stanów sesji delegujemy do adaptera
-        //    (MockAdapter sprawdza ACTIVE/ON_HOLD, TwilioAdapter analogicznie)
-        telephonyAdapter.bridgeCalls(callId, secondCallId);
+        // 4. Wygeneruj newContactId PRZED wywołaniem adaptera – adapter zapisze go w sesji Redis
+        UUID agent2Id = secondSession.getAgentId();
 
-        // 5. Zamknij etapy CONSULTING, AGENT i ON_HOLD na oryginalnym kontakcie
+        // Utwórz nowy kontakt dla Agent2 PRZED bridgeCalls, żeby adapter mógł użyć newContactId
+        // przy tworzeniu indeksu Redis (contact-session-index:{newContactId}).
+        UUID newContactId = null;
+        if (agent2Id != null) {
+            Contact newContact = createTransferContact(contact, agent2Id, secondCallId, tenantId, UUID.randomUUID());
+            newContactId = newContact.getContactId();
+        }
+
+        // 5. Wywołaj adapter – redirect klienta + Agent2 do nowej konferencji, aktualizacja sesji Redis
+        //    Adapter sam aktualizuje sesję Redis drugiej nogi (contactId, conferenceName, customerCallSid)
+        UUID finalNewContactId = newContactId != null ? newContactId : UUID.randomUUID();
+        telephonyAdapter.bridgeCalls(callId, secondCallId, finalNewContactId);
+
+        // 6. Zamknij etapy CONSULTING, AGENT i ON_HOLD na oryginalnym kontakcie
         contactEventService.closeConsulting(contactId, tenantId);
         contactEventService.closeAgent(contactId, tenantId);
         contactEventService.closeHold(contactId, tenantId);
 
-        // 6. Zapisz zdarzenie TRANSFER na oryginalnym kontakcie
-        UUID agent2Id = secondSession.getAgentId();
+        // 7. Zapisz zdarzenie TRANSFER na oryginalnym kontakcie
         Map<String, Object> transferMeta = new HashMap<>();
         transferMeta.put("target_type", "AGENT");
         if (agent2Id != null) {
@@ -1055,20 +1066,14 @@ public class ContactService {
                 transferMeta
         );
 
-        // 7. Utwórz nowy kontakt dla Agent2 (analogicznie do blind transfer)
+        // 8. Otwórz etap AGENT na nowym kontakcie i powiadom Agent2
         if (agent2Id != null) {
-            Contact newContact = createTransferContact(contact, agent2Id, secondCallId, tenantId);
-            UUID newContactId = newContact.getContactId();
-
-            // Otwórz etap AGENT na nowym kontakcie
-            contactEventService.openAgent(newContactId, tenantId, agent2Id, null);
-
-            // Zaktualizuj sesję Redis – nowa contactId, bez flagi CONSULTATION
-            telephonyAdapter.updateSessionContact(secondCallId, newContactId);
+            // Otwórz etap AGENT na nowym kontakcie (sesja Redis już zaktualizowana przez bridgeCalls)
+            contactEventService.openAgent(finalNewContactId, tenantId, agent2Id, null);
 
             // Powiadom Agent2 przez WS aby zaktualizował swoje session.contactId
             eventPublisher.publishBridgeComplete(
-                    secondCallId, newContactId, tenantId, agent2Id,
+                    secondCallId, finalNewContactId, tenantId, agent2Id,
                     secondSession.getFrom(), secondSession.getTo());
         }
 
@@ -1087,12 +1092,11 @@ public class ContactService {
      * @param tenantId      UUID tenanta
      * @return nowo utworzony kontakt Agent2
      */
-    private Contact createTransferContact(Contact original, UUID agentId, String secondCallSid, UUID tenantId) {
-        UUID newContactId = UUID.randomUUID();
+    private Contact createTransferContact(Contact original, UUID agentId,
+                                           String secondCallSid, UUID tenantId, UUID newContactId) {
         Instant now = Instant.now();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("sip_call_id", secondCallSid);
-        metadata.put("transfer_type", "ATTENDED");
 
         Contact newContact = Contact.builder()
                 .contactId(newContactId)

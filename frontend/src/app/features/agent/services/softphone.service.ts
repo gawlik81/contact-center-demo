@@ -338,6 +338,43 @@ export class SoftphoneService implements OnDestroy {
     }, 2000);
   }
 
+  /**
+   * Anuluje sesję konsultacji bez przechodzenia do ACW (After Contact Work).
+   *
+   * Wywoływane gdy Agent1 anuluje attended transfer przed wykonaniem bridge.
+   * W odróżnieniu od remoteHangup() NIE ustawia stanu ENDED (który wyzwala ACW
+   * w softphoneEndedEffect) — zamiast tego natychmiast czyści sesję do null,
+   * co sprawia że effect nie przejdzie do AFTER_CONTACT.
+   *
+   * Backend już ustawił status Agent2 na AVAILABLE — frontend nie powinien
+   * wywoływać API zmiany statusu.
+   */
+  cancelConsultSession(): void {
+    const s = this.session();
+    if (!s) return;
+
+    this.clearTimers();
+
+    // Rozłącz Twilio jeśli aktywne
+    if (this.twilioDevice) {
+      try {
+        this.twilioDevice.disconnectAll();
+      } catch {
+        // ignore — device może być już rozłączony
+      }
+    } else if (this.activeCall) {
+      try {
+        this.activeCall.disconnect();
+      } catch {
+        // ignore
+      }
+    }
+
+    // Wyczyść sesję bezpośrednio do null – omijamy stan ENDED żeby nie wyzwolić ACW
+    this.session.set(null);
+    this.activeCall = null;
+  }
+
   rejectCall(): void {
     const s = this.session();
     if (!s || s.state !== 'RINGING') return;

@@ -94,6 +94,7 @@ public class RabbitToWebSocketRelay {
                 case "call.answered"          -> handleCallAnswered(callEvent);
                 case "call.hangup"            -> handleCallHangup(callEvent);
                 case "call.transfer_consult"  -> handleCallTransferConsult(callEvent);
+                case "call.consult_cancelled" -> handleConsultCancelled(callEvent);
                 case "call.bridge_complete"   -> handleCallBridgeComplete(callEvent);
                 default -> log.debug("[WS-Relay] Nieobsługiwany routing key call: {}", routingKey);
             }
@@ -349,6 +350,25 @@ public class RabbitToWebSocketRelay {
 
         WebSocketEvent event = WebSocketEvent.callTransferConsult(callEvent);
         broadcaster.sendToUser(targetAgentId, event);
+    }
+
+    /**
+     * Obsługuje CALL_CONSULT_CANCELLED – konsultacja anulowana przez Agent1 przed bridge.
+     *
+     * <p>Wysyła unicast do Agent2 (agentId). Frontend Agent2 powinien wyjść z ekranu
+     * konsultacji i wrócić do stanu AVAILABLE bez otwierania ekranu ACW.
+     * Backend już zmienił status agenta na AVAILABLE w {@code UserService}.
+     */
+    private void handleConsultCancelled(CallEvent callEvent) {
+        UUID targetAgentId = callEvent.getAgentId();
+        if (targetAgentId == null) {
+            log.warn("[WS-Relay] CALL_CONSULT_CANCELLED bez targetAgentId – pomijam WS: callId={}",
+                    callEvent.getCallId());
+            return;
+        }
+        log.info("[WS-Relay] CALL_CONSULT_CANCELLED → unicast do Agent2: agentId={}, callId={}, originalContactId={}",
+                targetAgentId, callEvent.getCallId(), callEvent.getContactId());
+        broadcaster.sendToUser(targetAgentId, WebSocketEvent.callConsultCancelled(callEvent));
     }
 
     /**

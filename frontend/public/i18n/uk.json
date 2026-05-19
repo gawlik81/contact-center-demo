@@ -216,7 +216,8 @@
       "tabChat": "Чат",
       "tabEmail": "Email",
       "tabSocial": "Соц. мережі",
-      "replySent": "Відповідь надіслана"
+      "replySent": "Відповідь надіслана",
+      "consultCancelled": "Консультацію скасовано агентом-ініціатором"
     },
     "softphone": {
       "incomingCall": "Вхідний дзвінок",

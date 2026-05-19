@@ -113,6 +113,16 @@ public class CallEvent {
          */
         CALL_TRANSFER_CONSULT,
 
+        /**
+         * Konsultacja anulowana przez Agent1 przed bridge – Agent2 wraca do statusu AVAILABLE.
+         *
+         * <p>Routing key: {@code call.consult_cancelled}.
+         * Publikowany przez {@link TwilioTelephonyAdapter#hangupCall} gdy rozłączana noga
+         * ma {@code direction="CONSULTATION"}. Relay wysyła unicast do Agent2 (agentId),
+         * który powinien wrócić do AVAILABLE bez ekranu ACW.
+         */
+        CALL_CONSULT_CANCELLED,
+
         /** Attended transfer zakończony przez bridge – druga noga stała się pełnym kontaktem Agent2. */
         CALL_BRIDGE_COMPLETE;
 

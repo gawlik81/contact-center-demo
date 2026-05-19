@@ -49,6 +49,7 @@ public record WebSocketEvent(
     public static final String TYPE_CALL_ANSWERED           = "CALL_ANSWERED";
     public static final String TYPE_CALL_HANGUP             = "CALL_HANGUP";
     public static final String TYPE_CALL_TRANSFER_CONSULT   = "CALL_TRANSFER_CONSULT";
+    public static final String TYPE_CALL_CONSULT_CANCELLED  = "CALL_CONSULT_CANCELLED";
     public static final String TYPE_CALL_BRIDGE_COMPLETE    = "CALL_BRIDGE_COMPLETE";
     public static final String TYPE_AGENT_STATUS_CHANGED    = "AGENT_STATUS_CHANGED";
     public static final String TYPE_CONTACT_ASSIGNED        = "CONTACT_ASSIGNED";
@@ -104,6 +105,22 @@ public record WebSocketEvent(
                 TYPE_CALL_TRANSFER_CONSULT,
                 callEvent.getTenantId(),
                 CallTransferConsultPayload.from(callEvent),
+                callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event CALL_CONSULT_CANCELLED – konsultacja anulowana przez Agent1.
+     *
+     * <p>Wysyłany unicast do Agent2 (agentId) gdy Agent1 rozłączy nogę konsultacyjną
+     * bez wykonania bridge. Agent2 powinien wrócić do AVAILABLE bez ekranu ACW.
+     * Backend już zmienił status agenta – event służy do synchronizacji UI.
+     */
+    public static WebSocketEvent callConsultCancelled(CallEvent callEvent) {
+        return new WebSocketEvent(
+                TYPE_CALL_CONSULT_CANCELLED,
+                callEvent.getTenantId(),
+                CallPayload.from(callEvent),
                 callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
         );
     }

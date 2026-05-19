@@ -216,7 +216,8 @@
       "tabChat": "Chat",
       "tabEmail": "Email",
       "tabSocial": "Social",
-      "replySent": "Reply sent"
+      "replySent": "Reply sent",
+      "consultCancelled": "Consultation cancelled by the initiating agent"
     },
     "softphone": {
       "incomingCall": "Incoming call",

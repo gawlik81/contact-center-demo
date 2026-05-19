@@ -389,6 +389,52 @@ public class UserService {
     }
 
     // =========================================================================
+    // Operacje wewnętrzne telefonii
+    // =========================================================================
+
+    /**
+     * Ustawia status agenta na AVAILABLE po anulowaniu konsultacji (attended transfer bez bridge).
+     *
+     * <p>Wywoływana przez TwilioTelephonyAdapter gdy Agent1 rozłączy nogę konsultacyjną
+     * zanim wywoła bridge. Agent2 (targetAgentId) wraca do AVAILABLE bez przechodzenia
+     * przez AFTER_CONTACT.
+     *
+     * <p>Operacja jest best-effort: błędy są logowane, ale nie blokują publikacji eventu
+     * CALL_CONSULT_CANCELLED przez adapter.
+     *
+     * @param agentId  UUID Agent2
+     * @param tenantId UUID tenanta
+     */
+    @Transactional
+    public void setAgentAvailableAfterConsultCancelled(UUID agentId, UUID tenantId) {
+        log.info("[UserService] Konsultacja anulowana – ustawiam AVAILABLE: agentId={}, tenant={}",
+                agentId, tenantId);
+
+        AppUser agent = findUserOrThrow(agentId, tenantId);
+        UserStatus oldStatus = agent.getStatus();
+
+        agent.setStatus(UserStatus.AVAILABLE);
+        appUserRepository.save(agent);
+
+        // Aktualizuj Redis żeby AdminMetricsService widział poprawny stan agenta
+        String redisKey = String.format(REDIS_AGENT_STATUS_KEY, agentId);
+        try {
+            Map<String, String> sessionData = new HashMap<>();
+            sessionData.put("tenantId", tenantId.toString());
+            sessionData.put("userId", agentId.toString());
+            sessionData.put("status", UserStatus.AVAILABLE.name());
+            sessionData.put("breakStartedAt", "");
+            redisTemplate.opsForValue().set(redisKey, sessionData, REDIS_AGENT_STATUS_TTL);
+        } catch (Exception e) {
+            log.warn("[UserService] Błąd zapisu statusu AVAILABLE w Redis po anulowaniu konsultacji: " +
+                     "agentId={}, error={}", agentId, e.getMessage());
+        }
+
+        // Propaguj zmianę statusu przez RabbitMQ → WebSocket (agentStatusChanged do agenta i supervisorów)
+        publishStatusChangedEvent(agentId, tenantId, oldStatus, UserStatus.AVAILABLE);
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 

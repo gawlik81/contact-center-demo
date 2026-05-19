@@ -41,6 +41,7 @@ import {
   ContactAssignedPayload,
   CallHangupPayload,
   CallBridgeCompletePayload,
+  CallConsultCancelledPayload,
 } from '../../models/ws-event.model';
 
 @Component({
@@ -315,6 +316,51 @@ export class AgentDesktopComponent implements OnInit {
         if (phoneTab) {
           this.tabStore.updateTabContactId(phoneTab.id, payload.newContactId, cleanName);
         }
+      });
+
+    // Agent1 anulował konsultację (attended transfer) przed wykonaniem bridge.
+    // Agent2 powinien wrócić do stanu AVAILABLE bez ekranu dyspozycji (ACW).
+    // Backend już ustawia status Agent2 na AVAILABLE – frontend NIE wywołuje API zmiany statusu.
+    this.ws.events$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        filter((e: WsEvent) => e.eventType === 'CALL_CONSULT_CANCELLED'),
+      )
+      .subscribe((e: WsEvent) => {
+        const payload = e.payload as CallConsultCancelledPayload;
+        console.warn('[AgentDesktop] CALL_CONSULT_CANCELLED – anulowanie konsultacji:', payload);
+
+        // Wyczyść sesję softphone bez przechodzenia przez stan ENDED (pomijamy ACW).
+        // cancelConsultSession() bezpośrednio ustawia session=null, co NIE wyzwala
+        // softphoneEndedEffect i NIE zmienia statusu na AFTER_CONTACT.
+        this.softphoneService.cancelConsultSession();
+
+        // Zamknij zakładkę PHONE reprezentującą konsultację.
+        // Identyfikujemy ją po contactId = secondLegCallId (CA_...) lub originalContactId.
+        const consultTab = this.tabStore
+          .tabs()
+          .find(
+            (t) =>
+              t.type === 'PHONE' &&
+              (t.contactId === payload.callId ||
+                t.contactId === payload.contactId ||
+                t.originalContactId !== undefined),
+          );
+
+        if (consultTab) {
+          this.tabStore.closeTab(consultTab.id);
+        } else {
+          // Fallback: zamknij dowolną zakładkę PHONE jeśli match nie znaleziony
+          const phoneTab = this.tabStore.tabs().find((t) => t.type === 'PHONE');
+          if (phoneTab) {
+            this.tabStore.closeTab(phoneTab.id);
+          }
+        }
+
+        // Krótkie powiadomienie dla agenta.
+        this.notifications.info(
+          this.transloco.translate('agent.desktop.consultCancelled'),
+        );
       });
   }
 

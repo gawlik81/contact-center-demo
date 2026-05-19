@@ -96,6 +96,7 @@ export class IncomingCallAlertService implements OnDestroy {
             e.eventType === 'CALL_INCOMING' ||
             e.eventType === 'CALL_OUTBOUND' ||
             e.eventType === 'CALL_TRANSFER_CONSULT' ||
+            e.eventType === 'CALL_CONSULT_CANCELLED' ||
             e.eventType === 'CONTACT_ASSIGNED',
         ),
         takeUntil(this.destroy$),
@@ -107,6 +108,9 @@ export class IncomingCallAlertService implements OnDestroy {
           this.handleCallOutbound(event.payload as CallOutboundPayload);
         } else if (event.eventType === 'CALL_TRANSFER_CONSULT') {
           this.handleCallTransferConsult(event.payload as CallTransferConsultPayload);
+        } else if (event.eventType === 'CALL_CONSULT_CANCELLED') {
+          // Agent1 anulował konsultację – wyczyść banner i audio (jeśli alert nadal aktywny)
+          this.dismissAlert();
         } else if (event.eventType === 'CONTACT_ASSIGNED') {
           const payload = event.payload as ContactAssignedPayload;
           if (payload.type === 'PHONE') {

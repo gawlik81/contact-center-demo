@@ -19,6 +19,7 @@ import com.contactcenter.domain.service.CustomerCliResult;
 import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
+import com.contactcenter.domain.service.UserService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import com.contactcenter.infrastructure.config.TwilioProperties;
@@ -39,6 +40,8 @@ import com.twilio.type.Twiml;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
@@ -126,6 +129,13 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final RabbitTemplate rabbitTemplate;
   /** CLI lookup – rozpoznawanie klienta po numerze telefonu (użyty przy CALL_TRANSFER_CONSULT). */
   private final CliLookupService cliLookupService;
+  /**
+   * Wymagany do ustawiania statusu Agent2 na AVAILABLE po anulowaniu konsultacji.
+   *
+   * <p>Wstrzyknięty przez setter z {@code @Lazy} aby uniknąć circular dependency:
+   * TwilioTelephonyAdapter → UserService → ContactService → TelephonyAdapter (→ TwilioTelephonyAdapter).
+   */
+  private UserService userService;
 
   /**
    * Bazowy URL aplikacji (np. https://example.com) – wymagany do budowania TwiML
@@ -172,6 +182,16 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         twilioProperties.getPhoneNumber());
 
     configureStatusCallbacksForAllTenants();
+  }
+
+  /**
+   * Setter injection z {@code @Lazy} rozwiązuje circular dependency:
+   * TwilioTelephonyAdapter → UserService → ContactService → TelephonyAdapter → TwilioTelephonyAdapter.
+   */
+  @Lazy
+  @Autowired
+  public void setUserService(UserService userService) {
+    this.userService = userService;
   }
 
   /**
@@ -685,9 +705,22 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       contactEventService.closeHold(updated.getContactId(), updated.getTenantId());
     }
 
-    eventPublisher.publishHangup(callId, updated.getContactId(),
-        updated.getTenantId(), updated.getAgentId(),
-        updated.getFrom(), updated.getTo(), "completed");
+    if ("CONSULTATION".equals(updated.getDirection()) && updated.getAgentId() != null) {
+      // Konsultacja anulowana przed bridge – Agent2 wraca do AVAILABLE bez ekranu ACW.
+      // Nie publikujemy CALL_HANGUP żeby frontend Agent2 nie przechodził do ACW.
+      try {
+        userService.setAgentAvailableAfterConsultCancelled(updated.getAgentId(), updated.getTenantId());
+      } catch (Exception e) {
+        log.warn("[TwilioAdapter] Nie udało się ustawić AVAILABLE dla Agent2 po anulowaniu konsultacji: " +
+                 "agentId={}, error={}", updated.getAgentId(), e.getMessage());
+      }
+      eventPublisher.publishConsultCancelled(callId, updated.getTenantId(), updated.getAgentId(),
+          updated.getContactId(), updated.getFrom(), updated.getTo());
+    } else {
+      eventPublisher.publishHangup(callId, updated.getContactId(),
+          updated.getTenantId(), updated.getAgentId(),
+          updated.getFrom(), updated.getTo(), "completed");
+    }
 
     // Naprawa 3: Fallback pobierania nagrania po 90 sekundach.
     // Twilio wysyła recordingStatusCallback asynchronicznie (~2 min po zakończeniu).
@@ -1811,6 +1844,17 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           log.warn("[TwilioAdapter] Nieoczekiwany błąd przy anulowaniu nogi agenta: " +
                    "agentCallSid={}, error={}", existing.getAgentCallSid(), e.getMessage());
         }
+      }
+
+      // Guard: dla nogi CONSULTATION zakończonej przez hangupCall() – pomijamy CALL_HANGUP.
+      // hangupCall() ustawia endedAt i publikuje CALL_CONSULT_CANCELLED (lub CALL_HANGUP gdy brak agentId).
+      // Twilio wyśle późniejszy status callback "completed" – bez tego guardu wysłalibyśmy
+      // CALL_HANGUP do Agent2 i otworzyli ekran ACW mimo że konsultacja była już obsłużona.
+      if ("CONSULTATION".equals(existing.getDirection())
+              && eventType == CallEvent.EventType.CALL_HANGUP
+              && existing.getEndedAt() != null) {
+        log.debug("[TwilioAdapter] Skip CALL_HANGUP dla już obsłużonej nogi CONSULTATION: callSid={}", callSid);
+        return;
       }
 
       publishWebhookEvent(eventType, callSid, effectiveTenantId,

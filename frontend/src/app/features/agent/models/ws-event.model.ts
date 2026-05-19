@@ -8,6 +8,7 @@ export type WsEventType =
   | 'CALL_HANGUP'
   | 'CALL_TRANSFER_CONSULT'
   | 'CALL_BRIDGE_COMPLETE'
+  | 'CALL_CONSULT_CANCELLED'
   | 'AGENT_STATUS_CHANGED'
   | 'CONTACT_ASSIGNED'
   | 'QUEUE_UPDATE'
@@ -78,6 +79,25 @@ export interface CallBridgeCompletePayload {
  * contactId – UUID rekordu kontaktu w DB (może być null gdy brak persistowanego rekordu)
  */
 export interface CallHangupPayload {
+  callId: string;
+  contactId: string | null;
+  agentId: string | null;
+  from: string | null;
+  to: string | null;
+  eventType: string | null;
+}
+
+/**
+ * Payload dla eventu CALL_CONSULT_CANCELLED – Agent1 anulował konsultację przed bridge.
+ *
+ * Wysyłany przez backend do Agent2 gdy Agent1 rozłączy konsultację (drugą nogę)
+ * bez wykonania bridge. Agent2 powinien zamknąć sesję konsultacji i wrócić do
+ * stanu AVAILABLE – bez ekranu ACW (dyspozycji), ponieważ żaden kontakt nie
+ * został przypisany do Agent2.
+ *
+ * Struktura identyczna z CallHangupPayload – backend używa tego samego CallPayload.
+ */
+export interface CallConsultCancelledPayload {
   callId: string;
   contactId: string | null;
   agentId: string | null;

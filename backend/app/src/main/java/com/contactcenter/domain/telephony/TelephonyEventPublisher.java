@@ -232,6 +232,33 @@ public class TelephonyEventPublisher {
     }
 
     /**
+     * Publikuje zdarzenie CALL_CONSULT_CANCELLED (konsultacja anulowana przed bridge).
+     *
+     * <p>Publikowane gdy Agent1 rozłączy nogę konsultacyjną bez wywołania bridge.
+     * Agent2 (targetAgentId) powinien wrócić do statusu AVAILABLE bez ekranu ACW.
+     *
+     * @param callId            SID nogi konsultacyjnej (CA_...)
+     * @param tenantId          UUID tenanta
+     * @param targetAgentId     UUID Agent2 (odbiorca eventu)
+     * @param originalContactId UUID oryginalnego kontaktu klienta
+     * @param from              numer klienta
+     * @param to                identyfikator Agent2
+     */
+    public void publishConsultCancelled(String callId, UUID tenantId, UUID targetAgentId,
+                                        UUID originalContactId, String from, String to) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_CONSULT_CANCELLED)
+                .callId(callId)
+                .contactId(originalContactId)
+                .tenantId(tenantId)
+                .agentId(targetAgentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    /**
      * Publikuje zdarzenie CALL_BRIDGE_COMPLETE (bridge attended transfer zakończony).
      *
      * @param secondLegCallId SID drugiej nogi konsultacji (CA_...)

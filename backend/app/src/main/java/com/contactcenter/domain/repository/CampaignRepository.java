@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -333,6 +334,45 @@ public class CampaignRepository extends TenantAwareRepository {
                 .getResultList();
 
         log.debug("[CampaignRepo] Kampanie SCHEDULED: tenant={}, znaleziono={}", tenantId, results.size());
+        return results;
+    }
+
+    /**
+     * Pobiera wiele kampanii naraz po zbiorze ID – batch lookup bez problemu N+1.
+     *
+     * <p>Filtruje po {@code tenantId} zgodnie z wymogiem multi-tenancy.
+     * Kampanie nieistniejące lub należące do innego tenanta są po prostu pomijane.
+     * Gdy {@code ids} jest puste, zwraca pustą listę bez wykonywania zapytania do DB.
+     *
+     * @param ids      zbiór UUID kampanii do pobrania (może być pusty)
+     * @param tenantId UUID tenanta – wymagany do izolacji danych
+     * @return lista kampanii spełniających warunki (kolejność niegwarantowana)
+     */
+    @Transactional(readOnly = true)
+    public List<Campaign> findAllByIds(Collection<UUID> ids, UUID tenantId) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        setTenantContextInDb(tenantId);
+
+        // Konwertuj UUID → String dla natywnego SQL (spójność z resztą repozytorium)
+        List<String> idStrings = ids.stream().map(UUID::toString).toList();
+
+        @SuppressWarnings("unchecked")
+        List<Campaign> results = em.createNativeQuery(
+                        """
+                        SELECT * FROM campaign
+                        WHERE tenant_id = CAST(:tenantId AS uuid)
+                          AND campaign_id = ANY(CAST(:ids AS uuid[]))
+                        """,
+                        Campaign.class)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("ids", idStrings.toArray(new String[0]))
+                .getResultList();
+
+        log.debug("[CampaignRepo] Batch lookup: znaleziono {}/{} kampanii dla tenant={}",
+                results.size(), ids.size(), tenantId);
         return results;
     }
 

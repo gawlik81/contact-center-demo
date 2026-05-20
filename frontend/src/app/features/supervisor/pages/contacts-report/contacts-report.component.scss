@@ -1,3 +1,5 @@
+@use '../../../../shared/styles/contact-badges' as *;
+
 // ─── Layout ───────────────────────────────────────────────────────────────────
 .contacts-report {
   padding: 1.5rem;
@@ -303,93 +305,6 @@
   &--actions {
     text-align: center;
     padding: 0.375rem 0.5rem;
-  }
-}
-
-// ─── Channel badges ───────────────────────────────────────────────────────────
-.channel-badge {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-
-  &--phone {
-    background: var(--accent-soft);
-    color: var(--accent-text);
-  }
-
-  &--email {
-    background: var(--success-soft);
-    color: var(--success-text);
-  }
-
-  &--chat {
-    background: var(--violet-soft);
-    color: var(--violet-text);
-  }
-
-  &--social {
-    background: var(--warning-soft);
-    color: var(--warning-text);
-  }
-}
-
-// ─── Status badges ────────────────────────────────────────────────────────────
-.status-badge {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-
-  &--completed {
-    background: var(--success-soft);
-    color: var(--success-text);
-  }
-
-  &--abandoned {
-    background: var(--neutral-soft);
-    color: var(--neutral-text);
-  }
-
-  &--transferred {
-    background: var(--violet-soft);
-    color: var(--violet-text);
-  }
-
-  &--failed {
-    background: var(--danger-soft);
-    color: var(--danger-text);
-  }
-
-  &--active {
-    background: var(--accent-soft);
-    color: var(--accent-text);
-  }
-
-  &--queued {
-    background: var(--warning-soft);
-    color: var(--warning-text);
-  }
-}
-
-// ─── Direction label ──────────────────────────────────────────────────────────
-.direction-label {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  white-space: nowrap;
-
-  &--inbound {
-    color: var(--success-text);
-  }
-
-  &--outbound {
-    color: var(--accent-text);
   }
 }
 

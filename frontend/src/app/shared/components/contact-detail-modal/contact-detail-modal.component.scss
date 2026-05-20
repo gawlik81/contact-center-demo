@@ -1,3 +1,5 @@
+@use '../../styles/contact-badges' as *;
+
 .contact-dialog {
   border: none;
   border-radius: var(--radius-md);
@@ -435,99 +437,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-// ── Badges (reused from legacy, kept for compatibility) ────────────────────
-.channel-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2em 0.7em;
-  border-radius: 99px;
-  font-size: 0.71875rem;
-  font-weight: 600;
-
-  &--phone {
-    background: var(--accent-soft);
-    color: var(--accent-text);
-  }
-
-  &--email {
-    background: color-mix(in oklch, var(--violet) 15%, transparent);
-    color: var(--violet-text, var(--violet));
-  }
-
-  &--chat {
-    background: var(--success-soft);
-    color: var(--success-text);
-  }
-
-  &--social {
-    background: var(--warning-soft);
-    color: var(--warning-text);
-  }
-}
-
-.direction-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2em 0.7em;
-  border-radius: 99px;
-  font-size: 0.71875rem;
-  font-weight: 600;
-
-  &--inbound {
-    background: var(--success-soft);
-    color: var(--success-text);
-  }
-
-  &--outbound {
-    background: var(--accent-soft);
-    color: var(--accent-text);
-  }
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2em 0.7em;
-  border-radius: 99px;
-  font-size: 0.71875rem;
-  font-weight: 600;
-
-  &--queued {
-    background: var(--warning-soft);
-    color: var(--warning-text);
-  }
-
-  &--active {
-    background: var(--success-soft);
-    color: var(--success-text);
-  }
-
-  &--on-hold {
-    background: var(--accent-soft);
-    color: var(--accent-text);
-  }
-
-  &--completed {
-    background: var(--bg-elevated);
-    color: var(--text-2);
-  }
-
-  &--abandoned {
-    background: var(--danger-soft);
-    color: var(--danger-text);
-  }
-
-  &--transferred {
-    background: rgba(94, 53, 177, 0.12);
-    color: #4527a0;
-  }
-
-  &--failed {
-    background: var(--danger-soft);
-    color: var(--danger-text);
-  }
 }
 
 // ── Recording section ──────────────────────────────────────────────────────

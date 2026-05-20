@@ -63,7 +63,23 @@
     "errorForbidden": "Zugriff verweigert",
     "errorNotFound": "Ressource nicht gefunden",
     "errorServer": "Serverfehler, bitte erneut versuchen",
-    "errorBadRequest": "Ein Fehler ist aufgetreten. Überprüfen Sie Ihre Daten und versuchen Sie es erneut."
+    "errorBadRequest": "Ein Fehler ist aufgetreten. Überprüfen Sie Ihre Daten und versuchen Sie es erneut.",
+    "dispositionLabels": {
+      "OTHER": "Sonstiges",
+      "RESOLVED": "Gelöst",
+      "ESCALATED": "Eskaliert",
+      "CALLBACK": "Rückruf",
+      "SALE": "Verkauf",
+      "DECLINED": "Abgelehnt",
+      "NO_ANSWER": "Keine Antwort",
+      "TECH_ISSUE": "Technisches Problem",
+      "NO_INTEREST": "Kein Interesse",
+      "CANCELLED": "Storniert",
+      "WRONG_NUMBER": "Falsche Nummer",
+      "VOICEMAIL": "Voicemail",
+      "TRANSFER": "Transfer",
+      "ESCALATE": "Eskalieren"
+    }
   },
   "auth": {
     "login": {
@@ -1178,7 +1194,20 @@
       "changeFilter": "Statusfilter ändern, um andere Kontakte anzuzeigen.",
       "noContacts": "Noch keine Kontakte in diese Kampagne importiert.",
       "calling": "Wird angerufen...",
-      "call": "Anrufen"
+      "call": "Anrufen",
+      "contactStatusLabels": {
+        "PENDING": "Ausstehend",
+        "DIALING": "Wählt",
+        "CONNECTED": "Verbunden",
+        "COMPLETED": "Abgeschlossen",
+        "NO_ANSWER": "Keine Antwort",
+        "NOT_REACHED": "Nicht erreicht",
+        "CALLBACK": "Rückruf",
+        "FAILED": "Verbindungsfehler",
+        "SKIPPED": "Übersprungen",
+        "ERROR": "Technischer Fehler",
+        "CALLED": "Angerufen"
+      }
     },
     "customers": {
       "title": "Kunden",
@@ -1297,6 +1326,11 @@
         "EMAIL": "E-Mail",
         "CHAT": "Chat",
         "SOCIAL": "Soziale Medien"
+      },
+      "direction": "Richtung",
+      "directionLabels": {
+        "INBOUND": "Eingehend",
+        "OUTBOUND": "Ausgehend"
       }
     },
     "customerEdit": {
@@ -2187,7 +2221,7 @@
     "sectionStatus": "Status und Dauer",
     "fieldStatus": "Status",
     "fieldDuration": "Dauer",
-    "fieldDisposition": "Dispositionscode",
+    "fieldDisposition": "Disposition",
     "fieldAgent": "Agent",
     "fieldNotes": "Notizen",
     "sectionEmail": "E-Mail-Nachricht (EML)",
@@ -2235,16 +2269,6 @@
     "errorRecording": "Aufnahme-URL konnte nicht geladen werden.",
     "errorEmailPreview": "E-Mail-Vorschau konnte nicht geladen werden.",
     "loadingRelated": "Verknüpfte Kontakte werden geladen...",
-    "statusLabels": {
-      "QUEUED": "In Warteschlange",
-      "ACTIVE": "Aktiv",
-      "ON_HOLD": "Gehalten",
-      "COMPLETED": "Abgeschlossen",
-      "ABANDONED": "Abgebrochen",
-      "FAILED": "Fehlgeschlagen",
-      "NOT_REACHED": "Nicht erreicht",
-      "TRANSFERRED": "Weitergeleitet"
-    },
     "callbackStatusLabels": {
       "PENDING": "Ausstehend",
       "PROCESSING": "In Bearbeitung",

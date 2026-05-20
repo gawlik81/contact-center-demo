@@ -63,7 +63,23 @@
     "errorForbidden": "Access denied",
     "errorNotFound": "Resource not found",
     "errorServer": "Server error, please try again",
-    "errorBadRequest": "An error occurred. Check your data and try again."
+    "errorBadRequest": "An error occurred. Check your data and try again.",
+    "dispositionLabels": {
+      "OTHER": "Other",
+      "RESOLVED": "Resolved",
+      "ESCALATED": "Escalated",
+      "CALLBACK": "Callback",
+      "SALE": "Sale",
+      "DECLINED": "Declined",
+      "NO_ANSWER": "No answer",
+      "TECH_ISSUE": "Technical issue",
+      "NO_INTEREST": "No interest",
+      "CANCELLED": "Cancelled",
+      "WRONG_NUMBER": "Wrong number",
+      "VOICEMAIL": "Voicemail",
+      "TRANSFER": "Transfer",
+      "ESCALATE": "Escalate"
+    }
   },
   "auth": {
     "login": {
@@ -1178,7 +1194,20 @@
       "changeFilter": "Change status filter to see other contacts.",
       "noContacts": "No contacts have been imported to this campaign yet.",
       "calling": "Calling...",
-      "call": "Call"
+      "call": "Call",
+      "contactStatusLabels": {
+        "PENDING": "Pending",
+        "DIALING": "Dialing",
+        "CONNECTED": "Connected",
+        "COMPLETED": "Completed",
+        "NO_ANSWER": "No Answer",
+        "NOT_REACHED": "Not Reached",
+        "CALLBACK": "Callback",
+        "FAILED": "Connection Error",
+        "SKIPPED": "Skipped",
+        "ERROR": "Technical Error",
+        "CALLED": "Called"
+      }
     },
     "customers": {
       "title": "Customers",
@@ -1301,6 +1330,11 @@
         "EMAIL": "Email",
         "CHAT": "Chat",
         "SOCIAL": "Social"
+      },
+      "direction": "Direction",
+      "directionLabels": {
+        "INBOUND": "Inbound",
+        "OUTBOUND": "Outbound"
       }
     },
     "customerEdit": {
@@ -2191,7 +2225,7 @@
     "sectionStatus": "Status and duration",
     "fieldStatus": "Status",
     "fieldDuration": "Duration",
-    "fieldDisposition": "Disposition code",
+    "fieldDisposition": "Disposition",
     "fieldAgent": "Agent",
     "fieldNotes": "Notes",
     "sectionEmail": "Email message (EML)",
@@ -2239,16 +2273,6 @@
     "errorRecording": "Failed to load recording URL.",
     "errorEmailPreview": "Failed to load email preview.",
     "loadingRelated": "Loading related contacts...",
-    "statusLabels": {
-      "QUEUED": "Queued",
-      "ACTIVE": "Active",
-      "ON_HOLD": "On Hold",
-      "COMPLETED": "Completed",
-      "ABANDONED": "Abandoned",
-      "FAILED": "Failed",
-      "NOT_REACHED": "Not Reached",
-      "TRANSFERRED": "Transferred"
-    },
     "callbackStatusLabels": {
       "PENDING": "Pending",
       "PROCESSING": "Processing",

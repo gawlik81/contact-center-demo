@@ -171,12 +171,12 @@
                   </div>
                 }
 
-                @if (c.dispositionCode) {
+                @if (c.dispositionCode || c.dispositionLabel) {
                   <!-- Kod dyspozycji -->
                   <div class="cd-stat-cell cd-stat-cell--wide">
                     <span class="cd-stat-label">{{ 'contactDetailModal.fieldDisposition' | transloco }}</span>
                     <div class="cd-stat-val">
-                      <span class="cd-chip mono">{{ c.dispositionCode }}</span>
+                      <span class="cd-chip mono">{{ getDispositionLabel(c.dispositionLabel, c.dispositionCode) }}</span>
                     </div>
                   </div>
                 }

@@ -63,7 +63,23 @@
     "errorForbidden": "Доступ заборонено",
     "errorNotFound": "Ресурс не знайдено",
     "errorServer": "Помилка сервера, спробуйте ще раз",
-    "errorBadRequest": "Сталася помилка. Перевірте дані та спробуйте ще раз."
+    "errorBadRequest": "Сталася помилка. Перевірте дані та спробуйте ще раз.",
+    "dispositionLabels": {
+      "OTHER": "Інше",
+      "RESOLVED": "Вирішено",
+      "ESCALATED": "Ескальовано",
+      "CALLBACK": "Передзвонити",
+      "SALE": "Продаж",
+      "DECLINED": "Відмова",
+      "NO_ANSWER": "Немає відповіді",
+      "TECH_ISSUE": "Технічна проблема",
+      "NO_INTEREST": "Немає інтересу",
+      "CANCELLED": "Скасовано",
+      "WRONG_NUMBER": "Невірний номер",
+      "VOICEMAIL": "Голосова пошта",
+      "TRANSFER": "Трансфер",
+      "ESCALATE": "Ескалація"
+    }
   },
   "auth": {
     "login": {
@@ -1178,7 +1194,20 @@
       "changeFilter": "Змініть фільтр статусу, щоб побачити інші контакти.",
       "noContacts": "До цієї кампанії ще не імпортовано жодного контакту.",
       "calling": "Дзвінок...",
-      "call": "Зателефонувати"
+      "call": "Зателефонувати",
+      "contactStatusLabels": {
+        "PENDING": "Очікує",
+        "DIALING": "Набір",
+        "CONNECTED": "З'єднано",
+        "COMPLETED": "Завершено",
+        "NO_ANSWER": "Немає відповіді",
+        "NOT_REACHED": "Не досягнуто",
+        "CALLBACK": "Передзвінок",
+        "FAILED": "Помилка з'єднання",
+        "SKIPPED": "Пропущено",
+        "ERROR": "Технічна помилка",
+        "CALLED": "Зателефоновано"
+      }
     },
     "customers": {
       "title": "Клієнти",
@@ -1297,6 +1326,11 @@
         "EMAIL": "Email",
         "CHAT": "Чат",
         "SOCIAL": "Соціальні медіа"
+      },
+      "direction": "Напрям",
+      "directionLabels": {
+        "INBOUND": "Вхідний",
+        "OUTBOUND": "Вихідний"
       }
     },
     "customerEdit": {
@@ -2187,7 +2221,7 @@
     "sectionStatus": "Статус і тривалість",
     "fieldStatus": "Статус",
     "fieldDuration": "Тривалість",
-    "fieldDisposition": "Код диспозиції",
+    "fieldDisposition": "Диспозиція",
     "fieldAgent": "Агент",
     "fieldNotes": "Нотатка",
     "sectionEmail": "Електронний лист (EML)",
@@ -2235,16 +2269,6 @@
     "errorRecording": "Не вдалося завантажити URL запису.",
     "errorEmailPreview": "Не вдалося завантажити попередній перегляд.",
     "loadingRelated": "Завантаження пов'язаних контактів...",
-    "statusLabels": {
-      "QUEUED": "У черзі",
-      "ACTIVE": "Активний",
-      "ON_HOLD": "Утримання",
-      "COMPLETED": "Завершений",
-      "ABANDONED": "Покинутий",
-      "FAILED": "Невдалий",
-      "NOT_REACHED": "Не досягнуто",
-      "TRANSFERRED": "Перенаправлений"
-    },
     "callbackStatusLabels": {
       "PENDING": "Очікує",
       "PROCESSING": "В обробці",

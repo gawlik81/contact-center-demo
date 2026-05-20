@@ -1,3 +1,5 @@
+@use '../../../../../shared/styles/contact-badges' as *;
+
 // ── Header ─────────────────────────────────────────────────────────────────
 .detail-header {
   display: flex;
@@ -233,84 +235,6 @@
 .text-mono {
   font-family: 'Courier New', Courier, monospace;
   font-size: 0.8125rem;
-}
-
-// ── Channel badges ─────────────────────────────────────────────────────────
-.channel-badge {
-  display: inline-block;
-  padding: 0.2em 0.6em;
-  border-radius: 4px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-
-  &--voice {
-    background: var(--accent-soft);
-    color: var(--accent-text);
-  }
-
-  &--email {
-    background: var(--violet-soft);
-    color: var(--violet-text);
-  }
-
-  &--chat {
-    background: var(--success-soft);
-    color: var(--success-text);
-  }
-
-  &--social {
-    background: var(--warning-soft);
-    color: var(--warning-text);
-  }
-}
-
-// ── Status badges ──────────────────────────────────────────────────────────
-.status-badge {
-  display: inline-block;
-  padding: 0.2em 0.6em;
-  border-radius: 4px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-
-  &--active {
-    background: var(--success-soft);
-    color: var(--success-text);
-  }
-
-  &--ended {
-    background: var(--neutral-soft);
-    color: var(--neutral-text);
-  }
-
-  &--queued {
-    background: var(--warning-soft);
-    color: var(--warning-text);
-  }
-
-  &--wrap_up {
-    background: var(--accent-soft);
-    color: var(--accent-text);
-  }
-
-  &--completed {
-    background: var(--success-soft);
-    color: var(--success-text);
-  }
-
-  &--abandoned {
-    background: var(--neutral-soft);
-    color: var(--neutral-text);
-  }
-
-  &--transferred {
-    background: var(--violet-soft);
-    color: var(--violet-text);
-  }
-
-  &--not_reached {
-    background: var(--danger-soft);
-    color: var(--danger-text);
-  }
 }
 
 // ── Pagination ─────────────────────────────────────────────────────────────

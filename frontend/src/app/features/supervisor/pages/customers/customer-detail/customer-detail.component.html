@@ -278,6 +278,7 @@
                   <th scope="col">{{ 'supervisor.customerDetail.thDate' | transloco }}</th>
                   <th scope="col">{{ 'supervisor.customerDetail.thDuration' | transloco }}</th>
                   <th scope="col">{{ 'supervisor.customerDetail.channel' | transloco }}</th>
+                  <th scope="col">{{ 'supervisor.customerDetail.direction' | transloco }}</th>
                   <th scope="col">{{ 'common.status' | transloco }}</th>
                   <th scope="col">{{ 'supervisor.customerDetail.thDisposition' | transloco }}</th>
                   <th scope="col">{{ 'supervisor.customerDetail.thNote' | transloco }}</th>
@@ -300,18 +301,26 @@
                     (keydown.space)="selectedContactId.set(contact.contactId)"
                   >
                     <td>{{ contact.startedAt | date: 'dd.MM.yyyy HH:mm' }}</td>
-                    <td class="text-secondary">{{ formatDuration(contact.startedAt, contact.endedAt) }}</td>
+                    <td class="text-secondary">{{ formatDuration(contact.durationSeconds) }}</td>
                     <td>
                       <span [class]="'channel-badge channel-badge--' + contact.channel.toLowerCase()">
                         {{ getChannelLabel(contact.channel) }}
                       </span>
                     </td>
                     <td>
-                      <span [class]="'status-badge status-badge--' + contact.status.toLowerCase()">
+                      <span
+                        class="direction-badge direction-badge--{{ contact.direction.toLowerCase() }}"
+                        [attr.aria-label]="getDirectionLabel(contact.direction)"
+                      >
+                        {{ getDirectionLabel(contact.direction) }}
+                      </span>
+                    </td>
+                    <td>
+                      <span [class]="'status-badge status-badge--' + contact.status.toLowerCase().replace('_', '-')">
                         {{ getStatusLabel(contact.status) }}
                       </span>
                     </td>
-                    <td class="text-secondary">{{ contact.dispositionCode ?? '—' }}</td>
+                    <td class="text-secondary">{{ getDispositionLabel(contact.dispositionLabel, contact.dispositionCode) }}</td>
                     <td class="contacts-table__notes" [title]="contact.notes ?? ''">
                       {{ contact.notes ?? '—' }}
                     </td>

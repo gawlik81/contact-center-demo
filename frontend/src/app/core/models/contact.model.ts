@@ -23,6 +23,7 @@ export interface ContactResponse {
   endedAt: string | null;
   durationSeconds?: number;
   dispositionCode: string | null;
+  dispositionLabel: string | null;
   notes?: string | null;
   recordingUrl?: string | null;
   callbackId?: string | null;

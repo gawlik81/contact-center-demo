@@ -18,6 +18,7 @@ import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -45,6 +46,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -82,6 +84,7 @@ public class ContactService {
     private final EmailMessageRepository emailMessageRepository;
     private final AppUserRepository appUserRepository;
     private final QueueRepository queueRepository;
+    private final CampaignRepository campaignRepository;
     private final ContactEventService contactEventService;
     private final TelephonyAdapter telephonyAdapter;
     private final TelephonyEventPublisher eventPublisher;
@@ -163,7 +166,10 @@ public class ContactService {
                     "Agent może przeglądać tylko kontakty przypisane do siebie: " + contactId);
         }
 
-        return ContactResponse.from(contact, resolveAgentName(contact.getAgentId(), tenantId));
+        String agentName = resolveAgentName(contact.getAgentId(), tenantId);
+        String dispositionLabel = resolveDispositionLabel(
+                contact.getCampaignId(), contact.getDispositionCode(), tenantId);
+        return ContactResponse.from(contact, agentName, dispositionLabel);
     }
 
     /**
@@ -173,7 +179,10 @@ public class ContactService {
      */
     private ContactResponse getContactInternal(UUID contactId, UUID tenantId) {
         Contact contact = findContactOrThrow(contactId, tenantId);
-        return ContactResponse.from(contact, resolveAgentName(contact.getAgentId(), tenantId));
+        String agentName = resolveAgentName(contact.getAgentId(), tenantId);
+        String dispositionLabel = resolveDispositionLabel(
+                contact.getCampaignId(), contact.getDispositionCode(), tenantId);
+        return ContactResponse.from(contact, agentName, dispositionLabel);
     }
 
     /**
@@ -222,6 +231,90 @@ public class ContactService {
         appUserRepository.findAllByIdInAndTenantId(agentIds, tenantId)
                 .forEach(user -> result.put(user.getId(), formatAgentName(user)));
         return result;
+    }
+
+    /**
+     * Rozwiązuje czytelną etykietę dyspozycji dla pojedynczego kontaktu.
+     *
+     * <p>Pobiera kampanię z bazy i przeszukuje jej listę {@code dispositionCodes}
+     * (JSONB: {@code [{"code": "SALE", "label": "Sprzedaż"}, ...]}) w celu znalezienia
+     * etykiety pasującej do podanego kodu.
+     *
+     * @param campaignId      UUID kampanii (może być null – kontakt bez kampanii)
+     * @param dispositionCode surowy kod dyspozycji (może być null – brak dyspozycji)
+     * @param tenantId        UUID tenanta – wymagany do izolacji danych
+     * @return czytelna etykieta dyspozycji lub null gdy nie można jej wyznaczyć
+     */
+    private String resolveDispositionLabel(UUID campaignId, String dispositionCode, UUID tenantId) {
+        if (campaignId == null || dispositionCode == null) {
+            return null;
+        }
+        return campaignRepository.findById(campaignId, tenantId)
+                .map(campaign -> findLabelInDispositionCodes(campaign.getDispositionCodes(), dispositionCode))
+                .orElse(null);
+    }
+
+    /**
+     * Batch lookup etykiet dyspozycji dla listy kontaktów – unika problemu N+1 zapytań.
+     *
+     * <p>Zbiera unikalne {@code campaignId} ze wszystkich kontaktów, pobiera kampanie
+     * jednym zapytaniem, a następnie buduje mapę {@code campaignId → Map<code, label>}
+     * umożliwiającą O(1) lookup dla każdego kontaktu.
+     *
+     * @param contacts lista kontaktów
+     * @param tenantId UUID tenanta
+     * @return mapa {@code campaignId → (code → label)} dla wszystkich kampanii z listy
+     */
+    private Map<UUID, Map<String, String>> resolveDispositionLabelsForContacts(
+            List<Contact> contacts, UUID tenantId) {
+
+        List<UUID> campaignIds = contacts.stream()
+                .map(Contact::getCampaignId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (campaignIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, Map<String, String>> result = new HashMap<>();
+        campaignRepository.findAllByIds(campaignIds, tenantId).forEach(campaign -> {
+            Map<String, String> codeToLabel = new HashMap<>();
+            if (campaign.getDispositionCodes() != null) {
+                for (Map<String, Object> entry : campaign.getDispositionCodes()) {
+                    Object code = entry.get("code");
+                    Object label = entry.get("label");
+                    if (code instanceof String codeStr && label instanceof String labelStr) {
+                        codeToLabel.put(codeStr, labelStr);
+                    }
+                }
+            }
+            result.put(campaign.getCampaignId(), codeToLabel);
+        });
+
+        return result;
+    }
+
+    /**
+     * Przeszukuje listę definicji dyspozycji kampanii i zwraca etykietę dla podanego kodu.
+     *
+     * @param dispositionCodes lista map {@code {"code": ..., "label": ...}}
+     * @param dispositionCode  kod do wyszukania
+     * @return etykieta lub null gdy kod nie istnieje w liście
+     */
+    private String findLabelInDispositionCodes(
+            List<Map<String, Object>> dispositionCodes, String dispositionCode) {
+        if (dispositionCodes == null) {
+            return null;
+        }
+        for (Map<String, Object> entry : dispositionCodes) {
+            if (dispositionCode.equals(entry.get("code"))) {
+                Object label = entry.get("label");
+                return label instanceof String s ? s : null;
+            }
+        }
+        return null;
     }
 
     /**
@@ -297,8 +390,15 @@ public class ContactService {
         int totalPages = (int) Math.ceil((double) totalElements / effectiveSize);
 
         Map<UUID, String> agentNames = resolveAgentNamesForContacts(contacts, tenantId);
+        Map<UUID, Map<String, String>> dispositionLabels = resolveDispositionLabelsForContacts(contacts, tenantId);
         List<ContactResponse> content = contacts.stream()
-                .map(c -> ContactResponse.from(c, agentNames.get(c.getAgentId())))
+                .map(c -> {
+                    String label = c.getCampaignId() != null && c.getDispositionCode() != null
+                            ? dispositionLabels.getOrDefault(c.getCampaignId(), Map.of())
+                                              .get(c.getDispositionCode())
+                            : null;
+                    return ContactResponse.from(c, agentNames.get(c.getAgentId()), label);
+                })
                 .toList();
 
         return new PagedResponse<>(
@@ -631,8 +731,15 @@ public class ContactService {
         int totalPages = (int) Math.ceil((double) totalElements / effectiveSize);
 
         Map<UUID, String> agentNames = resolveAgentNamesForContacts(contacts, tenantId);
+        Map<UUID, Map<String, String>> dispositionLabels = resolveDispositionLabelsForContacts(contacts, tenantId);
         List<ContactResponse> content = contacts.stream()
-                .map(c -> ContactResponse.from(c, agentNames.get(c.getAgentId())))
+                .map(c -> {
+                    String label = c.getCampaignId() != null && c.getDispositionCode() != null
+                            ? dispositionLabels.getOrDefault(c.getCampaignId(), Map.of())
+                                              .get(c.getDispositionCode())
+                            : null;
+                    return ContactResponse.from(c, agentNames.get(c.getAgentId()), label);
+                })
                 .toList();
 
         return new PagedResponse<>(

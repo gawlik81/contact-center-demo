@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -50,6 +50,7 @@ export class CampaignContactsComponent implements AfterViewInit {
   private readonly authService = inject(AuthService);
   private readonly notificationService = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly translocoService = inject(TranslocoService);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
 
@@ -166,32 +167,9 @@ export class CampaignContactsComponent implements AfterViewInit {
   }
 
   statusLabel(status: CampaignContactStatus): string {
-    switch (status) {
-      case 'PENDING':
-        return 'Oczekuje';
-      case 'DIALING':
-        return 'Wybieranie';
-      case 'CONNECTED':
-        return 'Połączony';
-      case 'COMPLETED':
-        return 'Zakończono';
-      case 'NO_ANSWER':
-        return 'Brak odpowiedzi';
-      case 'NOT_REACHED':
-        return 'Niedodzwoniony';
-      case 'CALLBACK':
-        return 'Oddzwonienie';
-      case 'FAILED':
-        return 'Błąd połączenia';
-      case 'SKIPPED':
-        return 'Pominięto';
-      case 'ERROR':
-        return 'Błąd techniczny';
-      case 'CALLED':
-        return 'Zadzwoniony';
-      default:
-        return status;
-    }
+    return this.translocoService.translate(
+      `supervisor.campaignContacts.contactStatusLabels.${status}`,
+    );
   }
 
   formatRelativeTime(dateStr: string | null): string {

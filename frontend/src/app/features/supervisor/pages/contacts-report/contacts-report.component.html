@@ -62,7 +62,7 @@
         >
           <option value="">{{ 'common.all' | transloco }}</option>
           @for (st of statuses; track st) {
-            <option [value]="st">{{ st }}</option>
+            <option [value]="st">{{ getStatusLabel(st) }}</option>
           }
         </select>
       </div>
@@ -223,7 +223,7 @@
           <tbody>
             @for (row of rows(); track trackByContact($index, row)) {
               <tr class="report-row">
-                <td class="report-cell report-cell--datetime">{{ formatDateTime(row.startedAt) }}</td>
+                <td class="report-cell report-cell--datetime">{{ row.startedAt | date: 'dd.MM.yyyy HH:mm' }}</td>
 
                 <td class="report-cell">
                   <span
@@ -242,20 +242,10 @@
 
                 <td class="report-cell">
                   <span
-                    class="direction-label"
-                    [class.direction-label--inbound]="row.direction === 'INBOUND'"
-                    [class.direction-label--outbound]="row.direction === 'OUTBOUND'"
-                    [attr.aria-label]="
-                      row.direction === 'INBOUND'
-                        ? ('supervisor.contactsReport.inbound' | transloco)
-                        : ('supervisor.contactsReport.outbound' | transloco)
-                    "
+                    [class]="'direction-badge direction-badge--' + row.direction.toLowerCase()"
+                    [attr.aria-label]="getDirectionLabel(row.direction)"
                   >
-                    @if (row.direction === 'INBOUND') {
-                      &#8600; {{ 'supervisor.contactsReport.inboundShort' | transloco }}
-                    } @else {
-                      &#8599; {{ 'supervisor.contactsReport.outboundShort' | transloco }}
-                    }
+                    {{ getDirectionLabel(row.direction) }}
                   </span>
                 </td>
 
@@ -267,20 +257,14 @@
 
                 <td class="report-cell">
                   <span
-                    class="status-badge"
-                    [class.status-badge--completed]="row.status === 'COMPLETED'"
-                    [class.status-badge--abandoned]="row.status === 'ABANDONED'"
-                    [class.status-badge--transferred]="row.status === 'TRANSFERRED'"
-                    [class.status-badge--failed]="row.status === 'FAILED'"
-                    [class.status-badge--active]="row.status === 'ACTIVE'"
-                    [class.status-badge--queued]="row.status === 'QUEUED'"
-                    [attr.aria-label]="('supervisor.contactsReport.statusPrefix' | transloco) + row.status"
+                    [class]="'status-badge status-badge--' + row.status.toLowerCase().replace('_', '-')"
+                    [attr.aria-label]="('supervisor.contactsReport.statusPrefix' | transloco) + getStatusLabel(row.status)"
                   >
-                    {{ row.status }}
+                    {{ getStatusLabel(row.status) }}
                   </span>
                 </td>
 
-                <td class="report-cell">{{ row.dispositionCode ?? '—' }}</td>
+                <td class="report-cell">{{ getDispositionLabel(row.dispositionLabel, row.dispositionCode) }}</td>
 
                 <td class="report-cell">{{ row.agentName || '—' }}</td>
 

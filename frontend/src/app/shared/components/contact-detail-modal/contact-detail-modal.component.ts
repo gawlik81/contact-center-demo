@@ -335,7 +335,17 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   }
 
   getStatusLabel(status: string): string {
-    return this.transloco.translate(`contactDetailModal.statusLabels.${status}`);
+    const key = `supervisor.customerDetail.contactStatusLabels.${status}`;
+    const translated = this.transloco.translate(key);
+    return translated === key ? status : translated;
+  }
+
+  getDispositionLabel(label: string | null, code: string | null): string {
+    if (label) return label;
+    if (!code) return '—';
+    const key = `common.dispositionLabels.${code}`;
+    const translated = this.transloco.translate(key);
+    return translated === key ? code : translated;
   }
 
   getDirectionLabel(direction: string): string {

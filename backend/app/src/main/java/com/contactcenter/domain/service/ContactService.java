@@ -163,7 +163,7 @@ public class ContactService {
                     "Agent może przeglądać tylko kontakty przypisane do siebie: " + contactId);
         }
 
-        return ContactResponse.from(contact);
+        return ContactResponse.from(contact, resolveAgentName(contact.getAgentId(), tenantId));
     }
 
     /**
@@ -173,7 +173,74 @@ public class ContactService {
      */
     private ContactResponse getContactInternal(UUID contactId, UUID tenantId) {
         Contact contact = findContactOrThrow(contactId, tenantId);
-        return ContactResponse.from(contact);
+        return ContactResponse.from(contact, resolveAgentName(contact.getAgentId(), tenantId));
+    }
+
+    /**
+     * Zwraca wyświetlaną nazwę agenta na podstawie jego UUID.
+     *
+     * <p>Format: {@code firstName + ' ' + lastName} gdy oba pola są niepuste;
+     * w przeciwnym razie zwraca email agenta.
+     * Zwraca {@code null} gdy agentId jest null lub użytkownik nie istnieje.
+     *
+     * @param agentId  UUID agenta (może być null)
+     * @param tenantId UUID tenanta – wymagany do cross-tenant guard
+     * @return nazwa agenta lub null
+     */
+    private String resolveAgentName(UUID agentId, UUID tenantId) {
+        if (agentId == null) {
+            return null;
+        }
+        return appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+                .map(this::formatAgentName)
+                .orElse(null);
+    }
+
+    /**
+     * Batch lookup nazw agentów dla listy kontaktów – unika problemu N+1 zapytań.
+     *
+     * <p>Pobiera jednym zapytaniem wszystkich unikalnych agentów z listy kontaktów.
+     * Kontakty bez agenta (agentId = null) są pomijane – w mapie wynikowej ich klucz
+     * nie istnieje, więc {@code map.get(null)} zwróci null.
+     *
+     * @param contacts lista kontaktów do zmapowania
+     * @param tenantId UUID tenanta – wymagany do cross-tenant guard
+     * @return mapa agentId → wyświetlana nazwa agenta
+     */
+    private Map<UUID, String> resolveAgentNamesForContacts(List<Contact> contacts, UUID tenantId) {
+        List<UUID> agentIds = contacts.stream()
+                .map(Contact::getAgentId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+
+        if (agentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, String> result = new HashMap<>();
+        appUserRepository.findAllByIdInAndTenantId(agentIds, tenantId)
+                .forEach(user -> result.put(user.getId(), formatAgentName(user)));
+        return result;
+    }
+
+    /**
+     * Formatuje wyświetlaną nazwę agenta.
+     *
+     * <p>Zwraca {@code firstName + ' ' + lastName} gdy oba pola są niepuste,
+     * w przeciwnym razie email użytkownika.
+     *
+     * @param user encja użytkownika
+     * @return wyświetlana nazwa
+     */
+    private String formatAgentName(AppUser user) {
+        String firstName = user.getFirstName();
+        String lastName = user.getLastName();
+        if (firstName != null && !firstName.isBlank()
+                && lastName != null && !lastName.isBlank()) {
+            return firstName + " " + lastName;
+        }
+        return user.getEmail();
     }
 
     // =========================================================================
@@ -229,8 +296,9 @@ public class ContactService {
 
         int totalPages = (int) Math.ceil((double) totalElements / effectiveSize);
 
+        Map<UUID, String> agentNames = resolveAgentNamesForContacts(contacts, tenantId);
         List<ContactResponse> content = contacts.stream()
-                .map(ContactResponse::from)
+                .map(c -> ContactResponse.from(c, agentNames.get(c.getAgentId())))
                 .toList();
 
         return new PagedResponse<>(
@@ -562,8 +630,9 @@ public class ContactService {
         long totalElements = contactRepository.countByCustomerId(customerId, tenantId);
         int totalPages = (int) Math.ceil((double) totalElements / effectiveSize);
 
+        Map<UUID, String> agentNames = resolveAgentNamesForContacts(contacts, tenantId);
         List<ContactResponse> content = contacts.stream()
-                .map(ContactResponse::from)
+                .map(c -> ContactResponse.from(c, agentNames.get(c.getAgentId())))
                 .toList();
 
         return new PagedResponse<>(

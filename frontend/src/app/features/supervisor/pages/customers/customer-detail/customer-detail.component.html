@@ -281,7 +281,7 @@
                   <th scope="col">{{ 'common.status' | transloco }}</th>
                   <th scope="col">{{ 'supervisor.customerDetail.thDisposition' | transloco }}</th>
                   <th scope="col">{{ 'supervisor.customerDetail.thNote' | transloco }}</th>
-                  <th scope="col">{{ 'supervisor.customerDetail.thAgentId' | transloco }}</th>
+                  <th scope="col">{{ 'supervisor.customerDetail.thAgent' | transloco }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -315,7 +315,7 @@
                     <td class="contacts-table__notes" [title]="contact.notes ?? ''">
                       {{ contact.notes ?? '—' }}
                     </td>
-                    <td class="text-secondary text-mono">{{ contact.agentId }}</td>
+                    <td class="text-secondary">{{ contact.agentName || '—' }}</td>
                   </tr>
                 }
               </tbody>

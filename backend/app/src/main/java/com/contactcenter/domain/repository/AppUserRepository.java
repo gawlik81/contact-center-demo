@@ -197,6 +197,20 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     Optional<AppUser> findByIdAndTenantIdAndDeletedFalse(UUID userId, UUID tenantId);
 
     /**
+     * Pobiera wielu użytkowników po liście UUID w obrębie tenanta.
+     *
+     * <p>Używane do batch-lookupowania nazw agentów przy mapowaniu listy kontaktów
+     * na ContactResponse – unika problemu N+1 zapytań.
+     *
+     * @param userIds  zbiór UUID użytkowników do pobrania
+     * @param tenantId UUID tenanta (izolacja cross-tenant)
+     * @return lista użytkowników należących do tenanta; soft-deleted są pomijane
+     */
+    @Query("SELECT u FROM AppUser u WHERE u.id IN :userIds AND u.tenantId = :tenantId AND u.deleted = false")
+    List<AppUser> findAllByIdInAndTenantId(@Param("userIds") java.util.Collection<UUID> userIds,
+                                            @Param("tenantId") UUID tenantId);
+
+    /**
      * Zwraca unikalne skills wszystkich użytkowników tenanta jako spłaszczoną tablicę.
      *
      * <p>Zapytanie rozpakowuje JSONB array skills każdego użytkownika i zwraca

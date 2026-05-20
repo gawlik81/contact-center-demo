@@ -1280,7 +1280,7 @@
       "thDuration": "Czas trwania",
       "thDisposition": "Dyspozycja",
       "thNote": "Notatka",
-      "thAgentId": "Agent ID",
+      "thAgent": "Agent",
       "openContactLabel": "Otwórz szczegóły kontaktu z",
       "paginationLabel": "Nawigacja po historii kontaktów",
       "prevPageLabel": "Poprzednia strona historii",
@@ -1659,6 +1659,7 @@
       "thQueue": "Kolejka",
       "thDuration": "Czas trwania",
       "thDisposition": "Dyspozycja",
+      "thAgent": "Agent",
       "inbound": "Przychodzący",
       "outbound": "Wychodzący",
       "inboundShort": "Przych.",
@@ -1703,7 +1704,8 @@
       "csvColQueue": "Kolejka",
       "csvColDuration": "Czas trwania (s)",
       "csvColStatus": "Status",
-      "csvColDisposition": "Dyspozycja"
+      "csvColDisposition": "Dyspozycja",
+      "csvColAgent": "Agent"
     },
     "agentGroups": {
       "title": "Grupy agentów",
@@ -2190,6 +2192,7 @@
     "fieldStatus": "Status",
     "fieldDuration": "Czas trwania",
     "fieldDisposition": "Kod dyspozycji",
+    "fieldAgent": "Agent",
     "fieldNotes": "Notatka",
     "sectionEmail": "Wiadomość email (EML)",
     "sectionRecording": "Nagranie rozmowy",

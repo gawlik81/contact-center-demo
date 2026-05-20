@@ -1360,7 +1360,7 @@ public class ContactRepository extends TenantAwareRepository {
         WHERE c.tenant_id  = CAST(:tenantId AS uuid)
           AND c.started_at >= :dateFrom
           AND c.started_at <  :dateTo
-          AND c.status     = 'COMPLETED'
+          AND c.status     IN ('COMPLETED', 'TRANSFERRED')
           AND c.duration_seconds IS NOT NULL
         """);
   }
@@ -1731,7 +1731,7 @@ public class ContactRepository extends TenantAwareRepository {
                   AND c.agent_id   = CAST(:agentId AS uuid)
                   AND c.started_at >= :dayStart
                   AND c.started_at <  :dayEnd
-                  AND c.status     = 'COMPLETED'
+                  AND c.status     IN ('COMPLETED', 'TRANSFERRED')
                   AND c.duration_seconds IS NOT NULL
                 """)
         .setParameter("tenantId", tenantId.toString())

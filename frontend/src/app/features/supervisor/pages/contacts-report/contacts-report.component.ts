@@ -291,6 +291,7 @@ export class ContactsReportComponent implements OnInit {
         t('supervisor.contactsReport.csvColDuration'),
         t('supervisor.contactsReport.csvColStatus'),
         t('supervisor.contactsReport.csvColDisposition'),
+        t('supervisor.contactsReport.csvColAgent'),
       ];
       const csvRows = data.map((c) => [
         this.formatDateTime(c.startedAt),
@@ -301,6 +302,7 @@ export class ContactsReportComponent implements OnInit {
         c.durationSeconds !== undefined ? String(c.durationSeconds) : '',
         c.status,
         c.dispositionCode ?? '',
+        c.agentName ?? '',
       ]);
       const csvContent = [headers, ...csvRows]
         .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))

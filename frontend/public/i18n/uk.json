@@ -1276,7 +1276,7 @@
       "thDuration": "Тривалість",
       "thDisposition": "Диспозиція",
       "thNote": "Нотатка",
-      "thAgentId": "ID агента",
+      "thAgent": "Агент",
       "openContactLabel": "Відкрити деталі контакту від",
       "paginationLabel": "Навігація по сторінках історії контактів",
       "prevPageLabel": "Попередня сторінка історії",
@@ -1655,6 +1655,7 @@
       "thQueue": "Черга",
       "thDuration": "Тривалість",
       "thDisposition": "Диспозиція",
+      "thAgent": "Агент",
       "inbound": "Вхідний",
       "outbound": "Вихідний",
       "inboundShort": "Вхід.",
@@ -1699,7 +1700,8 @@
       "csvColQueue": "Черга",
       "csvColDuration": "Тривалість (с)",
       "csvColStatus": "Статус",
-      "csvColDisposition": "Диспозиція"
+      "csvColDisposition": "Диспозиція",
+      "csvColAgent": "Агент"
     },
     "agentGroups": {
       "title": "Групи агентів",
@@ -2186,6 +2188,7 @@
     "fieldStatus": "Статус",
     "fieldDuration": "Тривалість",
     "fieldDisposition": "Код диспозиції",
+    "fieldAgent": "Агент",
     "fieldNotes": "Нотатка",
     "sectionEmail": "Електронний лист (EML)",
     "sectionRecording": "Запис розмови",

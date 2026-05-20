@@ -3,6 +3,7 @@ export interface ContactResponse {
   tenantId: string;
   customerId: string | null;
   agentId: string;
+  agentName: string | null;
   queueId?: string;
   campaignId?: string;
   channel: 'PHONE' | 'EMAIL' | 'CHAT' | 'SOCIAL';

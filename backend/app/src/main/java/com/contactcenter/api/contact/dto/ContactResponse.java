@@ -19,6 +19,7 @@ public record ContactResponse(
         UUID tenantId,
         UUID customerId,
         UUID agentId,
+        String agentName,
         UUID queueId,
         UUID campaignId,
         String channel,
@@ -40,17 +41,32 @@ public record ContactResponse(
 ) {
 
     /**
-     * Mapuje encję {@link Contact} na DTO odpowiedzi.
+     * Mapuje encję {@link Contact} na DTO odpowiedzi bez nazwy agenta.
+     *
+     * <p>Używana w miejscach, gdzie lookup agenta nie jest konieczny
+     * (np. operacje zapisu, gdzie agentId pochodzi właśnie z encji).
      *
      * @param contact encja kontaktu z bazy danych
-     * @return DTO gotowe do zwrócenia przez API
+     * @return DTO gotowe do zwrócenia przez API (agentName = null)
      */
     public static ContactResponse from(Contact contact) {
+        return from(contact, null);
+    }
+
+    /**
+     * Mapuje encję {@link Contact} na DTO odpowiedzi z opcjonalną nazwą agenta.
+     *
+     * @param contact   encja kontaktu z bazy danych
+     * @param agentName wyświetlana nazwa agenta (firstName + ' ' + lastName lub email); null gdy brak agenta
+     * @return DTO gotowe do zwrócenia przez API
+     */
+    public static ContactResponse from(Contact contact, String agentName) {
         return new ContactResponse(
                 contact.getContactId(),
                 contact.getTenantId(),
                 contact.getCustomerId(),
                 contact.getAgentId(),
+                agentName,
                 contact.getQueueId(),
                 contact.getCampaignId(),
                 contact.getChannel(),

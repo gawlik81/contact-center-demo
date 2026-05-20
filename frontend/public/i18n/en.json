@@ -1280,7 +1280,7 @@
       "thDuration": "Duration",
       "thDisposition": "Disposition",
       "thNote": "Note",
-      "thAgentId": "Agent ID",
+      "thAgent": "Agent",
       "openContactLabel": "Open contact details from",
       "paginationLabel": "Contact history page navigation",
       "prevPageLabel": "Previous history page",
@@ -1659,6 +1659,7 @@
       "thQueue": "Queue",
       "thDuration": "Duration",
       "thDisposition": "Disposition",
+      "thAgent": "Agent",
       "inbound": "Inbound",
       "outbound": "Outbound",
       "inboundShort": "Inb.",
@@ -1703,7 +1704,8 @@
       "csvColQueue": "Queue",
       "csvColDuration": "Duration (s)",
       "csvColStatus": "Status",
-      "csvColDisposition": "Disposition"
+      "csvColDisposition": "Disposition",
+      "csvColAgent": "Agent"
     },
     "agentGroups": {
       "title": "Agent groups",
@@ -2190,6 +2192,7 @@
     "fieldStatus": "Status",
     "fieldDuration": "Duration",
     "fieldDisposition": "Disposition code",
+    "fieldAgent": "Agent",
     "fieldNotes": "Notes",
     "sectionEmail": "Email message (EML)",
     "sectionRecording": "Call recording",

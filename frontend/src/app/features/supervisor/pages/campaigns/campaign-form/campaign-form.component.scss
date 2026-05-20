@@ -1,26 +1,13 @@
-@use 'sass:color';
-
-$brand-blue: #1565c0;
-$brand-blue-dark: #0d47a1;
-$text-primary: #212121;
-$text-secondary: #616161;
-$border-color: #e2e8f0;
-$error: #c62828;
-$blue-bg: #e3f2fd;
-$radius: 8px;
-
 // ── Dialog ─────────────────────────────────────────────────────────────────────
 .campaign-form-dialog {
   border: none;
-  border-radius: $radius;
+  border-radius: var(--radius-md);
   padding: 0;
-  box-shadow:
-    0 8px 16px rgba(0, 0, 0, 0.12),
-    0 24px 48px rgba(0, 0, 0, 0.16);
+  box-shadow: var(--shadow-pop);
   width: 100%;
   max-width: 580px;
-  background: #fff;
-  color: $text-primary;
+  background: var(--bg-surface);
+  color: var(--text-1);
 
   &::backdrop {
     background: rgba(0, 0, 0, 0.5);
@@ -29,7 +16,7 @@ $radius: 8px;
 
   @media (max-width: 620px) {
     max-width: 100%;
-    border-radius: $radius $radius 0 0;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
     position: fixed;
     bottom: 0;
     left: 0;
@@ -49,14 +36,14 @@ $radius: 8px;
     align-items: center;
     justify-content: space-between;
     padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-1);
   }
 
   &__title {
     font-size: 1.125rem;
     font-weight: 600;
     margin: 0;
-    color: $text-primary;
+    color: var(--text-1);
   }
 
   &__body {
@@ -73,9 +60,9 @@ $radius: 8px;
     justify-content: flex-end;
     gap: 0.75rem;
     padding: 1rem 1.5rem;
-    border-top: 1px solid $border-color;
-    background: #fafafa;
-    border-radius: 0 0 $radius $radius;
+    border-top: 1px solid var(--border-1);
+    background: var(--bg-subtle);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
   }
 }
 
@@ -87,21 +74,21 @@ $radius: 8px;
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: $text-secondary;
+  color: var(--text-2);
   cursor: pointer;
   transition:
     background 0.15s ease,
     color 0.15s ease;
 
   &:hover {
-    background: #f0f0f0;
-    color: $text-primary;
+    background: var(--bg-elevated);
+    color: var(--text-1);
   }
 
   &:focus-visible {
-    outline: 2px solid $brand-blue;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 }
@@ -128,10 +115,10 @@ $radius: 8px;
   &--error {
     .form-input,
     .form-select {
-      border-color: $error;
+      border-color: var(--danger);
 
       &:focus {
-        box-shadow: 0 0 0 3px rgba($error, 0.12);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--danger) 20%, transparent);
       }
     }
   }
@@ -140,34 +127,34 @@ $radius: 8px;
 .form-label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: $text-primary;
+  color: var(--text-1);
 }
 
 .required {
-  color: $error;
+  color: var(--danger-text);
 }
 
 .form-input,
 .form-select {
   padding: 0.5rem 0.75rem;
-  border: 1.5px solid $border-color;
-  border-radius: 6px;
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius-sm);
   font-size: 0.9375rem;
-  color: $text-primary;
-  background: #fff;
+  color: var(--text-1);
+  background: var(--bg-surface);
   outline: none;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
 
   &:focus {
-    border-color: $brand-blue;
-    box-shadow: 0 0 0 3px rgba($brand-blue, 0.12);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
   &:disabled {
-    background: #f5f5f5;
-    color: $text-secondary;
+    background: var(--neutral-soft);
+    color: var(--text-2);
     cursor: not-allowed;
   }
 }
@@ -183,18 +170,18 @@ $radius: 8px;
 
 .form-error {
   font-size: 0.8125rem;
-  color: $error;
+  color: var(--danger-text);
 }
 
 .form-hint {
   font-size: 0.8125rem;
-  color: $text-secondary;
+  color: var(--text-2);
 }
 
 // ── Schedule section ──────────────────────────────────────────────────────────
 .schedule-section {
-  border: 1.5px solid $border-color;
-  border-radius: 6px;
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius-sm);
   padding: 1rem 1.25rem;
   margin: 0;
   display: flex;
@@ -204,7 +191,7 @@ $radius: 8px;
   &__legend {
     font-size: 0.875rem;
     font-weight: 600;
-    color: $text-secondary;
+    color: var(--text-2);
     padding: 0 0.25rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -224,10 +211,10 @@ $radius: 8px;
   justify-content: center;
   width: 40px;
   height: 36px;
-  border: 1.5px solid $border-color;
-  border-radius: 6px;
-  background: #fff;
-  color: $text-secondary;
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-2);
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
@@ -237,24 +224,23 @@ $radius: 8px;
     color 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: $blue-bg;
-    border-color: $brand-blue;
-    color: $brand-blue;
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent-text);
   }
 
   &--selected {
-    background: $brand-blue;
-    border-color: $brand-blue;
-    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
 
     &:hover {
-      background: $brand-blue-dark;
-      border-color: $brand-blue-dark;
+      opacity: 0.88;
     }
   }
 
   &:focus-visible {
-    outline: 2px solid $brand-blue;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 }
@@ -266,7 +252,7 @@ $radius: 8px;
   justify-content: center;
   gap: 0.5rem;
   padding: 0.5625rem 1.125rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
@@ -277,7 +263,7 @@ $radius: 8px;
   line-height: 1;
 
   &:focus-visible {
-    outline: 2px solid $brand-blue;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 
@@ -289,30 +275,35 @@ $radius: 8px;
 
 .btn-cancel {
   background: transparent;
-  color: $text-secondary;
-  border: 1.5px solid $border-color;
+  color: var(--text-2);
+  border: 1.5px solid var(--border-1);
 
   &:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #bdbdbd;
+    background: var(--neutral-soft);
+    border-color: var(--border-strong);
   }
 }
 
 .btn-save {
-  background: $brand-blue;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-fg);
   min-width: 100px;
 
   &:hover:not(:disabled) {
-    background: $brand-blue-dark;
+    opacity: 0.88;
   }
 }
 
 // ── Skeleton ───────────────────────────────────────────────────────────────────
 .form-skeleton {
   height: 38px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle) 0%,
+    var(--bg-elevated) 40%,
+    var(--bg-subtle) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.2s ease-in-out infinite;
 }

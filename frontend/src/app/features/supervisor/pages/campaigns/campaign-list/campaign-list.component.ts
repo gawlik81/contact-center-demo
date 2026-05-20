@@ -105,7 +105,9 @@ export class CampaignListComponent implements OnInit {
       .getCampaigns(this.currentPage(), this.pageSize)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac listy kampanii. Sprobuj ponownie.');
+          this.notifications.error(
+            this.transloco.translate('supervisor.campaigns.errors.loadFailed'),
+          );
           const empty: PagedResponse<Campaign> = {
             content: [],
             page: 0,
@@ -166,7 +168,7 @@ export class CampaignListComponent implements OnInit {
     this.showImportModal.set(false);
     this.importCampaign.set(null);
     if (success) {
-      this.notifications.success('Import kontaktow zostal zakonczony pomyslnie.');
+      this.notifications.success(this.transloco.translate('supervisor.campaigns.importSuccess'));
       this.loadCampaigns();
     }
   }
@@ -405,11 +407,11 @@ export class CampaignListComponent implements OnInit {
   formatDialerType(dialerType: string): string {
     switch (dialerType) {
       case 'PROGRESSIVE':
-        return 'Progresywny';
+        return this.transloco.translate('supervisor.campaigns.dialerProgressive');
       case 'PREDICTIVE':
-        return 'Predyktywny';
+        return this.transloco.translate('supervisor.campaigns.dialerPredictive');
       case 'MANUAL':
-        return 'Manualny';
+        return this.transloco.translate('supervisor.campaigns.dialerManual');
       default:
         return dialerType;
     }
@@ -418,9 +420,9 @@ export class CampaignListComponent implements OnInit {
   formatType(type: string): string {
     switch (type) {
       case 'OUTBOUND_VOICE':
-        return 'Wychodzace glosy';
+        return this.transloco.translate('supervisor.campaigns.typeOutboundVoice');
       case 'OUTBOUND_EMAIL':
-        return 'Wychodzace email';
+        return this.transloco.translate('supervisor.campaigns.typeOutboundEmail');
       default:
         return type;
     }

@@ -49,7 +49,7 @@
           {{ 'supervisor.campaignForm.typeLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
         <select id="campaignType" class="form-select" formControlName="type" aria-required="true">
-          @for (opt of typeOptions; track opt.value) {
+          @for (opt of typeOptions(); track opt.value) {
             <option [value]="opt.value">{{ opt.label }}</option>
           }
         </select>
@@ -61,7 +61,7 @@
           {{ 'supervisor.campaignForm.dialerTypeLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
         <select id="dialerType" class="form-select" formControlName="dialerType" aria-required="true">
-          @for (opt of dialerOptions; track opt.value) {
+          @for (opt of dialerOptions(); track opt.value) {
             <option [value]="opt.value">{{ opt.label }}</option>
           }
         </select>
@@ -118,7 +118,7 @@
         <div class="form-row">
           <div class="form-field" [class.form-field--error]="maxAttemptsError">
             <label class="form-label" for="maxAttempts">
-              Maksymalna liczba prób
+              {{ 'supervisor.campaignForm.maxAttemptsLabel' | transloco }}
               <span class="required" aria-hidden="true">*</span>
             </label>
             <input
@@ -132,7 +132,7 @@
               [attr.aria-invalid]="maxAttemptsError ? 'true' : null"
             />
             <span id="maxAttempts-hint" class="form-hint">
-              Po ilu nieudanych próbach oznaczyć rekord jako Niedodzwoniony
+              {{ 'supervisor.campaignForm.maxAttemptsHint' | transloco }}
             </span>
             @if (maxAttemptsError) {
               <span id="maxAttempts-error" class="form-error" role="alert">{{ maxAttemptsError }}</span>
@@ -141,7 +141,7 @@
 
           <div class="form-field" [class.form-field--error]="retryDelayError">
             <label class="form-label" for="retryDelayMinutes">
-              Czas między próbami (minuty)
+              {{ 'supervisor.campaignForm.retryDelayLabel' | transloco }}
               <span class="required" aria-hidden="true">*</span>
             </label>
             <input
@@ -155,7 +155,7 @@
               [attr.aria-invalid]="retryDelayError ? 'true' : null"
             />
             <span id="retryDelay-hint" class="form-hint">
-              Ile minut odczekać przed kolejną próbą połączenia gdy klient nie odbierze
+              {{ 'supervisor.campaignForm.retryDelayHint' | transloco }}
             </span>
             @if (retryDelayError) {
               <span id="retryDelay-error" class="form-error" role="alert">{{ retryDelayError }}</span>
@@ -168,7 +168,7 @@
       @if (isOutboundVoice()) {
         <div class="form-field" [class.form-field--error]="ringTimeoutError">
           <label class="form-label" for="ringTimeoutSeconds">
-            Czas oczekiwania na odebranie (sekundy)
+            {{ 'supervisor.campaignForm.ringTimeoutLabel' | transloco }}
             <span class="required" aria-hidden="true">*</span>
           </label>
           <input
@@ -182,7 +182,7 @@
             [attr.aria-invalid]="ringTimeoutError ? 'true' : null"
           />
           <span id="ringTimeout-hint" class="form-hint">
-            Ile sekund dzwonić do klienta — jeśli nie odbierze w tym czasie, połączenie zostanie uznane za nieodebrane
+            {{ 'supervisor.campaignForm.ringTimeoutHint' | transloco }}
           </span>
           @if (ringTimeoutError) {
             <span id="ringTimeout-error" class="form-error" role="alert">{{ ringTimeoutError }}</span>

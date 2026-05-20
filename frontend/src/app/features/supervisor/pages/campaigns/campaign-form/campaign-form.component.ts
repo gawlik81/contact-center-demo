@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -96,6 +96,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   private readonly campaignService = inject(CampaignService);
   private readonly queueService = inject(QueueService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -106,16 +107,16 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   readonly queues = signal<Queue[]>([]);
   readonly allDays = ALL_DAYS;
 
-  readonly typeOptions: { value: CampaignType; label: string }[] = [
-    { value: 'OUTBOUND_VOICE', label: 'Wychodzace glosy' },
-    { value: 'OUTBOUND_EMAIL', label: 'Wychodzace email' },
-  ];
+  readonly typeOptions = signal<{ value: CampaignType; label: string }[]>([
+    { value: 'OUTBOUND_VOICE', label: '' },
+    { value: 'OUTBOUND_EMAIL', label: '' },
+  ]);
 
-  readonly dialerOptions: { value: DialerType; label: string }[] = [
-    { value: 'PROGRESSIVE', label: 'Progresywny' },
-    { value: 'PREDICTIVE', label: 'Predyktywny' },
-    { value: 'MANUAL', label: 'Manualny' },
-  ];
+  readonly dialerOptions = signal<{ value: DialerType; label: string }[]>([
+    { value: 'PROGRESSIVE', label: '' },
+    { value: 'PREDICTIVE', label: '' },
+    { value: 'MANUAL', label: '' },
+  ]);
 
   readonly timezoneOptions: string[] = [
     'Europe/Warsaw',
@@ -156,6 +157,11 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     this.loadQueues();
+    this.initOptions();
+
+    this.transloco.langChanges$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.initOptions();
+    });
 
     this.form
       .get('type')!
@@ -194,13 +200,42 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     }
   }
 
+  private initOptions(): void {
+    this.typeOptions.set([
+      {
+        value: 'OUTBOUND_VOICE',
+        label: this.transloco.translate('supervisor.campaigns.typeOutboundVoice'),
+      },
+      {
+        value: 'OUTBOUND_EMAIL',
+        label: this.transloco.translate('supervisor.campaigns.typeOutboundEmail'),
+      },
+    ]);
+    this.dialerOptions.set([
+      {
+        value: 'PROGRESSIVE',
+        label: this.transloco.translate('supervisor.campaigns.dialerProgressive'),
+      },
+      {
+        value: 'PREDICTIVE',
+        label: this.transloco.translate('supervisor.campaigns.dialerPredictive'),
+      },
+      {
+        value: 'MANUAL',
+        label: this.transloco.translate('supervisor.campaigns.dialerManual'),
+      },
+    ]);
+  }
+
   private loadQueues(): void {
     this.queuesLoading.set(true);
     this.queueService
       .getQueues(0, 100)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac listy kolejek.');
+          this.notifications.error(
+            this.transloco.translate('supervisor.campaignForm.errors.loadQueuesFailed'),
+          );
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -267,55 +302,68 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   get nameError(): string | null {
     const ctrl = this.form.get('name')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Nazwa jest wymagana.';
-    if (ctrl.hasError('maxlength')) return 'Nazwa nie moze przekraczac 255 znakow.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.campaignForm.errors.nameRequired');
+    if (ctrl.hasError('maxlength'))
+      return this.transloco.translate('supervisor.campaignForm.errors.nameMaxLength');
     return null;
   }
 
   get maxAttemptsError(): string | null {
     const ctrl = this.form.get('maxAttempts')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Pole jest wymagane.';
-    if (ctrl.hasError('min')) return 'Minimalna liczba prób to 1.';
-    if (ctrl.hasError('max')) return 'Maksymalna liczba prób to 10.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.campaignForm.errors.fieldRequired');
+    if (ctrl.hasError('min'))
+      return this.transloco.translate('supervisor.campaignForm.errors.maxAttemptsMin');
+    if (ctrl.hasError('max'))
+      return this.transloco.translate('supervisor.campaignForm.errors.maxAttemptsMax');
     return null;
   }
 
   get retryDelayError(): string | null {
     const ctrl = this.form.get('retryDelayMinutes')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Pole jest wymagane.';
-    if (ctrl.hasError('min')) return 'Minimalny czas między próbami to 1 minuta.';
-    if (ctrl.hasError('max')) return 'Maksymalny czas między próbami to 1440 minut (24h).';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.campaignForm.errors.fieldRequired');
+    if (ctrl.hasError('min'))
+      return this.transloco.translate('supervisor.campaignForm.errors.retryDelayMin');
+    if (ctrl.hasError('max'))
+      return this.transloco.translate('supervisor.campaignForm.errors.retryDelayMax');
     return null;
   }
 
   get ringTimeoutError(): string | null {
     const ctrl = this.form.get('ringTimeoutSeconds')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Pole jest wymagane.';
-    if (ctrl.hasError('min')) return 'Minimalny czas to 15 sekund.';
-    if (ctrl.hasError('max')) return 'Maksymalny czas to 120 sekund.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.campaignForm.errors.fieldRequired');
+    if (ctrl.hasError('min'))
+      return this.transloco.translate('supervisor.campaignForm.errors.ringTimeoutMin');
+    if (ctrl.hasError('max'))
+      return this.transloco.translate('supervisor.campaignForm.errors.ringTimeoutMax');
     return null;
   }
 
   get timeFromError(): string | null {
     const ctrl = this.scheduleGroup.get('timeFrom')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('timePattern')) return 'Format: GG:MM (np. 09:00)';
+    if (ctrl.hasError('timePattern'))
+      return this.transloco.translate('supervisor.campaignForm.errors.timeFromPattern');
     return null;
   }
 
   get timeToError(): string | null {
     const ctrl = this.scheduleGroup.get('timeTo')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('timePattern')) return 'Format: GG:MM (np. 18:00)';
+    if (ctrl.hasError('timePattern'))
+      return this.transloco.translate('supervisor.campaignForm.errors.timeToPattern');
     return null;
   }
 
   get scheduleTimeRangeError(): string | null {
     if (this.scheduleGroup.hasError('timeToNotAfterFrom') && this.scheduleGroup.touched) {
-      return 'Godzina "do" musi byc pozniej niz godzina "od".';
+      return this.transloco.translate('supervisor.campaignForm.errors.timeRangeInvalid');
     }
     return null;
   }
@@ -323,13 +371,14 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   get queueIdError(): string | null {
     const ctrl = this.form.get('queueId')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Kolejka jest wymagana.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.campaignForm.errors.queueRequired');
     return null;
   }
 
   get scheduleDateRangeError(): string | null {
     if (this.scheduleGroup.hasError('endDateBeforeStart') && this.scheduleGroup.touched) {
-      return 'Data konca nie moze byc wczesniej niz data startu.';
+      return this.transloco.translate('supervisor.campaignForm.errors.dateRangeInvalid');
     }
     return null;
   }
@@ -361,7 +410,9 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         })
         .pipe(
           catchError(() => {
-            this.notifications.error('Nie udalo sie zaktualizowac kampanii. Sprobuj ponownie.');
+            this.notifications.error(
+              this.transloco.translate('supervisor.campaignForm.errors.updateFailed'),
+            );
             return of(null);
           }),
           takeUntilDestroyed(this.destroyRef),
@@ -389,9 +440,13 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err?.status === 422) {
-              this.notifications.error('Przekroczono limit kampanii dla tego tenanta.');
+              this.notifications.error(
+                this.transloco.translate('supervisor.campaignForm.errors.limitExceeded'),
+              );
             } else {
-              this.notifications.error('Nie udalo sie utworzyc kampanii. Sprobuj ponownie.');
+              this.notifications.error(
+                this.transloco.translate('supervisor.campaignForm.errors.createFailed'),
+              );
             }
             return of(null);
           }),

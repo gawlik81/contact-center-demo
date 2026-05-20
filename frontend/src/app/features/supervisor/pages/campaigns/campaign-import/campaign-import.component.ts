@@ -1,10 +1,11 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
   ElementRef,
+  OnInit,
   computed,
   effect,
   inject,
@@ -49,7 +50,7 @@ const PREVIEW_ROWS = 5;
     '(document:keydown.escape)': 'onEscapeKey($event)',
   },
 })
-export class CampaignImportComponent implements AfterViewInit {
+export class CampaignImportComponent implements OnInit, AfterViewInit {
   readonly campaign = input.required<Campaign>();
 
   /** Emits true when import completed successfully (at least partially), false on cancel */
@@ -57,6 +58,7 @@ export class CampaignImportComponent implements AfterViewInit {
 
   private readonly campaignService = inject(CampaignService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
@@ -93,14 +95,7 @@ export class CampaignImportComponent implements AfterViewInit {
 
   readonly allSteps: ImportStep[] = ['upload', 'mapping', 'progress', 'report'];
 
-  readonly systemFieldOptions: { value: SystemField; label: string }[] = [
-    { value: 'phone', label: 'Telefon (wymagany)' },
-    { value: 'first_name', label: 'Imie' },
-    { value: 'last_name', label: 'Nazwisko' },
-    { value: 'custom_field_1', label: 'Pole niestandardowe 1' },
-    { value: 'custom_field_2', label: 'Pole niestandardowe 2' },
-    { value: 'skip', label: '(Pomin)' },
-  ];
+  readonly systemFieldOptions = signal<{ value: SystemField; label: string }[]>([]);
 
   readonly isPhoneMapped = computed(() =>
     this.columnMappings().some((m) => m.systemField === 'phone'),
@@ -114,6 +109,26 @@ export class CampaignImportComponent implements AfterViewInit {
     return Math.round((job.processedRows / job.totalRows) * 100);
   });
   readonly submitting = signal(false);
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────
+  ngOnInit(): void {
+    this.initSystemFieldOptions();
+    this.transloco.langChanges$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.initSystemFieldOptions();
+    });
+  }
+
+  private initSystemFieldOptions(): void {
+    const t = (key: string) => this.transloco.translate(key);
+    this.systemFieldOptions.set([
+      { value: 'phone', label: t('supervisor.campaignImport.fieldPhone') },
+      { value: 'first_name', label: t('supervisor.campaignImport.fieldFirstName') },
+      { value: 'last_name', label: t('supervisor.campaignImport.fieldLastName') },
+      { value: 'custom_field_1', label: t('supervisor.campaignImport.fieldCustom1') },
+      { value: 'custom_field_2', label: t('supervisor.campaignImport.fieldCustom2') },
+      { value: 'skip', label: t('supervisor.campaignImport.fieldIgnore') },
+    ]);
+  }
 
   // ── Constructor ──────────────────────────────────────────────────────────
   constructor() {
@@ -129,7 +144,6 @@ export class CampaignImportComponent implements AfterViewInit {
     });
   }
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────
   ngAfterViewInit(): void {
     const dialog = this.dialogRef()?.nativeElement;
     if (dialog && !dialog.open) {
@@ -171,7 +185,7 @@ export class CampaignImportComponent implements AfterViewInit {
     if (!file) return;
 
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      this.fileError.set('Dozwolone sa tylko pliki CSV (.csv).');
+      this.fileError.set(this.transloco.translate('supervisor.campaignImport.errors.csvOnly'));
       this.selectedFile.set(null);
       return;
     }
@@ -300,7 +314,9 @@ export class CampaignImportComponent implements AfterViewInit {
 
   onImport(): void {
     if (!this.isPhoneMapped()) {
-      this.mappingError.set('Pole "Telefon" musi byc zmapowane na jedna z kolumn CSV.');
+      this.mappingError.set(
+        this.transloco.translate('supervisor.campaignImport.errors.phoneMissing'),
+      );
       return;
     }
 
@@ -330,7 +346,9 @@ export class CampaignImportComponent implements AfterViewInit {
       )
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie rozpoczac importu. Sprobuj ponownie.');
+          this.notifications.error(
+            this.transloco.translate('supervisor.campaignImport.errors.startFailed'),
+          );
           this.submitting.set(false);
           this.currentStep.set('mapping');
           return of(null);

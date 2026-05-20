@@ -27,7 +27,7 @@
       <div class="contacts-modal__filters">
         <label class="filter-label" for="status-filter">{{ 'common.status' | transloco }}:</label>
         <select id="status-filter" class="filter-select" [value]="selectedStatus()" (change)="onStatusChange($event)">
-          @for (opt of statusOptions; track opt.value) {
+          @for (opt of statusOptions(); track opt.value) {
             <option [value]="opt.value">{{ opt.label }}</option>
           }
         </select>
@@ -82,10 +82,10 @@
                 <th scope="col">{{ 'common.status' | transloco }}</th>
                 <th scope="col">{{ 'supervisor.campaignContacts.errorCol' | transloco }}</th>
                 <th scope="col">{{ 'supervisor.campaignContacts.importDate' | transloco }}</th>
-                <th scope="col">Próby</th>
-                <th scope="col">Następna próba</th>
+                <th scope="col">{{ 'supervisor.campaignContacts.tableAttempts' | transloco }}</th>
+                <th scope="col">{{ 'supervisor.campaignContacts.tableNextAttempt' | transloco }}</th>
                 @if (isAgent() && isManualCampaign()) {
-                  <th scope="col" class="col-action">Akcja</th>
+                  <th scope="col" class="col-action">{{ 'supervisor.campaignContacts.tableAction' | transloco }}</th>
                 }
               </tr>
             </thead>
@@ -108,7 +108,7 @@
                       [class.contact-status-badge--failed]="contact.status === 'FAILED' || contact.status === 'CALLED'"
                       [class.contact-status-badge--skipped]="contact.status === 'SKIPPED'"
                       [class.contact-status-badge--error]="contact.status === 'ERROR'"
-                      [attr.aria-label]="'Status: ' + statusLabel(contact.status)"
+                      [attr.aria-label]="'supervisor.campaignContacts.statusAriaLabel' | transloco: { status: statusLabel(contact.status) }"
                     >
                       {{ statusLabel(contact.status) }}
                     </span>
@@ -158,7 +158,7 @@
                                 d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
                               />
                             </svg>
-                            Zadzwon
+                            {{ 'supervisor.campaignContacts.call' | transloco }}
                           }
                         </button>
                       }
@@ -171,7 +171,7 @@
         </div>
 
         <!-- Pagination -->
-        <nav class="contacts-pagination" aria-label="Nawigacja stron kontaktow">
+        <nav class="contacts-pagination" [attr.aria-label]="'supervisor.campaignContacts.paginationAriaLabel' | transloco">
           <span class="contacts-pagination__info" aria-live="polite">
             @if (totalElements() > 0) {
               {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ totalElements() }}
@@ -199,9 +199,9 @@
               type="button"
               (click)="onNextPage()"
               [disabled]="currentPage() + 1 >= totalPages()"
-              aria-label="Nastepna strona kontaktow"
+              [attr.aria-label]="'common.next' | transloco"
             >
-              Nastepna
+              {{ 'common.next' | transloco }}
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
                 <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
               </svg>

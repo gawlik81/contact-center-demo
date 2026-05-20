@@ -1109,7 +1109,16 @@
       "successRevert": "auf Entwurf zurückgesetzt.",
       "successStop": "wurde gestoppt.",
       "showClosed": "Abgeschlossene anzeigen",
-      "hideClosed": "Abgeschlossene ausblenden"
+      "hideClosed": "Abgeschlossene ausblenden",
+      "typeOutboundVoice": "Ausgehende Anrufe",
+      "typeOutboundEmail": "Ausgehende E-Mails",
+      "dialerProgressive": "Progressiv",
+      "dialerPredictive": "Prädiktiv",
+      "dialerManual": "Manuell",
+      "importSuccess": "Kontaktimport erfolgreich abgeschlossen.",
+      "errors": {
+        "loadFailed": "Kampagnenliste konnte nicht geladen werden. Bitte erneut versuchen."
+      }
     },
     "campaignForm": {
       "titleCreate": "Neue Kampagne",
@@ -1129,8 +1138,8 @@
       "dialerTypeLabel": "Dialer-Typ",
       "queueLabel": "Warteschlange",
       "queuePlaceholder": "-- Warteschlange auswählen --",
-      "maxAttemptsLabel": "Max. Versuche",
-      "retryDelayLabel": "Wiederholungsverzögerung (Min.)",
+      "maxAttemptsLabel": "Maximale Anzahl der Versuche",
+      "retryDelayLabel": "Zeit zwischen Versuchen (Minuten)",
       "scheduleLabel": "Zeitplan (optional)",
       "timeFromLabel": "Von Uhrzeit",
       "timeToLabel": "Bis Uhrzeit",
@@ -1142,6 +1151,30 @@
         "placeholder": "— Nummer auswählen —",
         "defaultTenant": "— Standard-Mandantennummer —",
         "hint": "Wählen Sie eine Nummer aus Ihrem Twilio-Konto oder lassen Sie das Feld leer für die Standard-Mandantennummer."
+      },
+      "maxAttemptsHint": "Nach wie vielen fehlgeschlagenen Versuchen den Datensatz als nicht erreichbar markieren",
+      "retryDelayHint": "Wie viele Minuten bis zum nächsten Anrufversuch gewartet werden soll, wenn der Kunde nicht antwortet",
+      "ringTimeoutLabel": "Klingelzeit (Sekunden)",
+      "ringTimeoutHint": "Wie viele Sekunden den Kunden angerufen werden soll — wenn er in dieser Zeit nicht antwortet, wird der Anruf als nicht beantwortet markiert",
+      "errors": {
+        "nameRequired": "Name ist erforderlich.",
+        "nameMaxLength": "Name darf 255 Zeichen nicht überschreiten.",
+        "fieldRequired": "Feld ist erforderlich.",
+        "maxAttemptsMin": "Mindestanzahl der Versuche ist 1.",
+        "maxAttemptsMax": "Maximale Anzahl der Versuche ist 10.",
+        "retryDelayMin": "Mindestwartezeit zwischen Versuchen beträgt 1 Minute.",
+        "retryDelayMax": "Maximale Wartezeit zwischen Versuchen beträgt 1440 Minuten (24h).",
+        "ringTimeoutMin": "Minimale Klingelzeit beträgt 15 Sekunden.",
+        "ringTimeoutMax": "Maximale Klingelzeit beträgt 120 Sekunden.",
+        "timeFromPattern": "Format: HH:MM (z.B. 09:00)",
+        "timeToPattern": "Format: HH:MM (z.B. 18:00)",
+        "timeRangeInvalid": "Die \"bis\"-Zeit muss nach der \"von\"-Zeit liegen.",
+        "queueRequired": "Warteschlange ist erforderlich.",
+        "dateRangeInvalid": "Das Enddatum darf nicht vor dem Startdatum liegen.",
+        "loadQueuesFailed": "Warteschlangenliste konnte nicht geladen werden.",
+        "updateFailed": "Kampagne konnte nicht aktualisiert werden. Bitte erneut versuchen.",
+        "limitExceeded": "Kampagnenlimit für diesen Mandanten überschritten.",
+        "createFailed": "Kampagne konnte nicht erstellt werden. Bitte erneut versuchen."
       }
     },
     "campaignImport": {
@@ -1156,7 +1189,28 @@
       "skipDuplicates": "Duplikate überspringen (nach Telefonnummer)",
       "importButton": "Kontakte importieren",
       "rejected": "Abgelehnt",
-      "sampleErrors": "Beispielfehler ({{ count }})"
+      "sampleErrors": "Beispielfehler ({{ count }})",
+      "initializing": "Import wird initialisiert...",
+      "fieldPhone": "Telefon (erforderlich)",
+      "fieldFirstName": "Vorname",
+      "fieldLastName": "Nachname",
+      "fieldCustom1": "Benutzerdefiniertes Feld 1",
+      "fieldCustom2": "Benutzerdefiniertes Feld 2",
+      "fieldIgnore": "Spalte ignorieren",
+      "mappingColumnLabel": "Spalte zuordnen {{ column }}",
+      "progressLabel": "Importfortschritt: {{ percent }}%",
+      "stepperAriaLabel": "Importschritte",
+      "dropZoneAriaLabel": "CSV-Datei-Ablagezone",
+      "fileInputAriaLabel": "CSV-Datei auswählen",
+      "previewTableAriaLabel": "CSV-Inhalt-Vorschau",
+      "mappingTableAriaLabel": "Spaltenzuordnungstabelle",
+      "reportSummaryAriaLabel": "Importzusammenfassung",
+      "rejectedListAriaLabel": "Importfehlerliste",
+      "errors": {
+        "csvOnly": "Nur CSV-Dateien (.csv) sind erlaubt.",
+        "phoneMissing": "Das Feld \"Telefon\" muss einer der CSV-Spalten zugeordnet werden.",
+        "startFailed": "Import konnte nicht gestartet werden. Bitte erneut versuchen."
+      }
     },
     "campaignInfo": {
       "title": "Kampagnendetails",
@@ -1185,6 +1239,10 @@
       "tableName": "Vollständiger Name",
       "tableStatus": "Status",
       "tableAttempts": "Versuche",
+      "tableNextAttempt": "Nächster Versuch",
+      "tableAction": "Aktion",
+      "statusAriaLabel": "Status: {{ status }}",
+      "paginationAriaLabel": "Seitennavigation für Kontakte",
       "emptyText": "Keine Kontakte in der Kampagne.",
       "loadingLabel": "Kontakte werden geladen...",
       "tableLabel": "Liste der Kampagnenkontakte",
@@ -1207,6 +1265,12 @@
         "SKIPPED": "Übersprungen",
         "ERROR": "Technischer Fehler",
         "CALLED": "Angerufen"
+      },
+      "now": "Jetzt",
+      "errors": {
+        "loadFailed": "Kontaktliste konnte nicht geladen werden. Bitte erneut versuchen.",
+        "callNotFound": "Datensatz nicht gefunden.",
+        "callFailed": "Anruf konnte nicht initiiert werden. Bitte erneut versuchen."
       }
     },
     "customers": {

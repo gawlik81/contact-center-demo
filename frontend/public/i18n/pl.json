@@ -1109,7 +1109,16 @@
       "successRevert": "cofnięta do statusu Szkic.",
       "errorRevertSuffix": "do szkicu.",
       "showClosed": "Pokaż zakończone",
-      "hideClosed": "Ukryj zakończone"
+      "hideClosed": "Ukryj zakończone",
+      "typeOutboundVoice": "Wychodzące głosy",
+      "typeOutboundEmail": "Wychodzące email",
+      "dialerProgressive": "Progresywny",
+      "dialerPredictive": "Predyktywny",
+      "dialerManual": "Manualny",
+      "importSuccess": "Import kontaktów został zakończony pomyślnie.",
+      "errors": {
+        "loadFailed": "Nie udało się pobrać listy kampanii. Spróbuj ponownie."
+      }
     },
     "campaignForm": {
       "titleCreate": "Nowa kampania",
@@ -1129,8 +1138,8 @@
       "dialerTypeLabel": "Typ dialera",
       "queueLabel": "Kolejka",
       "queuePlaceholder": "-- Wybierz kolejkę --",
-      "maxAttemptsLabel": "Maks. prób",
-      "retryDelayLabel": "Opóźnienie retry (min)",
+      "maxAttemptsLabel": "Maksymalna liczba prób",
+      "retryDelayLabel": "Czas między próbami (minuty)",
       "scheduleLabel": "Harmonogram (opcjonalny)",
       "timeFromLabel": "Godzina od",
       "timeToLabel": "Godzina do",
@@ -1142,6 +1151,30 @@
         "placeholder": "— Wybierz numer —",
         "defaultTenant": "— Domyślny numer tenanta —",
         "hint": "Wybierz numer z konta Twilio lub pozostaw pusty aby użyć domyślnego numeru tenanta."
+      },
+      "maxAttemptsHint": "Po ilu nieudanych próbach oznaczyć rekord jako Niedodzwoniony",
+      "retryDelayHint": "Ile minut odczekać przed kolejną próbą połączenia gdy klient nie odbierze",
+      "ringTimeoutLabel": "Czas oczekiwania na odebranie (sekundy)",
+      "ringTimeoutHint": "Ile sekund dzwonić do klienta — jeśli nie odbierze w tym czasie, połączenie zostanie uznane za nieodebrane",
+      "errors": {
+        "nameRequired": "Nazwa jest wymagana.",
+        "nameMaxLength": "Nazwa nie może przekraczać 255 znaków.",
+        "fieldRequired": "Pole jest wymagane.",
+        "maxAttemptsMin": "Minimalna liczba prób to 1.",
+        "maxAttemptsMax": "Maksymalna liczba prób to 10.",
+        "retryDelayMin": "Minimalny czas między próbami to 1 minuta.",
+        "retryDelayMax": "Maksymalny czas między próbami to 1440 minut (24h).",
+        "ringTimeoutMin": "Minimalny czas to 15 sekund.",
+        "ringTimeoutMax": "Maksymalny czas to 120 sekund.",
+        "timeFromPattern": "Format: GG:MM (np. 09:00)",
+        "timeToPattern": "Format: GG:MM (np. 18:00)",
+        "timeRangeInvalid": "Godzina \"do\" musi być później niż godzina \"od\".",
+        "queueRequired": "Kolejka jest wymagana.",
+        "dateRangeInvalid": "Data końca nie może być wcześniej niż data startu.",
+        "loadQueuesFailed": "Nie udało się pobrać listy kolejek.",
+        "updateFailed": "Nie udało się zaktualizować kampanii. Spróbuj ponownie.",
+        "limitExceeded": "Przekroczono limit kampanii dla tego tenanta.",
+        "createFailed": "Nie udało się utworzyć kampanii. Spróbuj ponownie."
       }
     },
     "campaignImport": {
@@ -1156,7 +1189,28 @@
       "skipDuplicates": "Pomiń duplikaty (na podstawie numeru telefonu)",
       "importButton": "Importuj kontakty",
       "rejected": "Odrzuconych",
-      "sampleErrors": "Przykładowe błędy ({{ count }})"
+      "sampleErrors": "Przykładowe błędy ({{ count }})",
+      "initializing": "Inicjalizacja importu...",
+      "fieldPhone": "Telefon (wymagany)",
+      "fieldFirstName": "Imię",
+      "fieldLastName": "Nazwisko",
+      "fieldCustom1": "Pole niestandardowe 1",
+      "fieldCustom2": "Pole niestandardowe 2",
+      "fieldIgnore": "Ignoruj kolumnę",
+      "mappingColumnLabel": "Mapowanie kolumny {{ column }}",
+      "progressLabel": "Postęp importu: {{ percent }}%",
+      "stepperAriaLabel": "Kroki importu",
+      "dropZoneAriaLabel": "Strefa przeciągania pliku CSV",
+      "fileInputAriaLabel": "Wybierz plik CSV",
+      "previewTableAriaLabel": "Podgląd zawartości CSV",
+      "mappingTableAriaLabel": "Tabela mapowania kolumn",
+      "reportSummaryAriaLabel": "Podsumowanie importu",
+      "rejectedListAriaLabel": "Lista błędów importu",
+      "errors": {
+        "csvOnly": "Dozwolone są tylko pliki CSV (.csv).",
+        "phoneMissing": "Pole \"Telefon\" musi być zmapowane na jedną z kolumn CSV.",
+        "startFailed": "Nie udało się rozpocząć importu. Spróbuj ponownie."
+      }
     },
     "campaignInfo": {
       "title": "Szczegóły kampanii",
@@ -1185,6 +1239,10 @@
       "tableName": "Imię i nazwisko",
       "tableStatus": "Status",
       "tableAttempts": "Próby",
+      "tableNextAttempt": "Następna próba",
+      "tableAction": "Akcja",
+      "statusAriaLabel": "Status: {{ status }}",
+      "paginationAriaLabel": "Nawigacja stron kontaktów",
       "emptyText": "Brak kontaktów w kampanii.",
       "loadingLabel": "Wczytywanie kontaktów...",
       "tableLabel": "Lista kontaktów kampanii",
@@ -1207,6 +1265,12 @@
         "SKIPPED": "Pominięto",
         "ERROR": "Błąd techniczny",
         "CALLED": "Zadzwoniony"
+      },
+      "now": "Teraz",
+      "errors": {
+        "loadFailed": "Nie udało się pobrać listy kontaktów. Spróbuj ponownie.",
+        "callNotFound": "Rekord nie został znaleziony.",
+        "callFailed": "Nie udało się zainicjować połączenia. Spróbuj ponownie."
       }
     },
     "customers": {

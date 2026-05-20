@@ -1109,7 +1109,16 @@
       "successRevert": "повернуто до статусу Чернетка.",
       "errorRevertSuffix": "до чернетки.",
       "showClosed": "Показати закриті",
-      "hideClosed": "Сховати закриті"
+      "hideClosed": "Сховати закриті",
+      "typeOutboundVoice": "Вихідні дзвінки",
+      "typeOutboundEmail": "Вихідні електронні листи",
+      "dialerProgressive": "Прогресивний",
+      "dialerPredictive": "Предиктивний",
+      "dialerManual": "Ручний",
+      "importSuccess": "Імпорт контактів успішно завершено.",
+      "errors": {
+        "loadFailed": "Не вдалося завантажити список кампаній. Спробуйте ще раз."
+      }
     },
     "campaignForm": {
       "titleCreate": "Нова кампанія",
@@ -1129,8 +1138,8 @@
       "dialerTypeLabel": "Тип Dialer",
       "queueLabel": "Черга",
       "queuePlaceholder": "-- Оберіть чергу --",
-      "maxAttemptsLabel": "Макс. спроб",
-      "retryDelayLabel": "Затримка повтору (хв)",
+      "maxAttemptsLabel": "Максимальна кількість спроб",
+      "retryDelayLabel": "Час між спробами (хвилини)",
       "scheduleLabel": "Розклад (необов'язково)",
       "timeFromLabel": "Час від",
       "timeToLabel": "Час до",
@@ -1142,6 +1151,30 @@
         "placeholder": "— Вибрати номер —",
         "defaultTenant": "— Номер за замовчуванням тенанта —",
         "hint": "Виберіть номер з облікового запису Twilio або залиште порожнім для використання номера за замовчуванням."
+      },
+      "maxAttemptsHint": "Після скількох невдалих спроб позначити запис як Недодзвонений",
+      "retryDelayHint": "Скільки хвилин чекати до наступної спроби дзвінка, якщо клієнт не відповідає",
+      "ringTimeoutLabel": "Час очікування відповіді (секунди)",
+      "ringTimeoutHint": "Скільки секунд дзвонити клієнту — якщо він не відповідає за цей час, дзвінок буде вважатися не відповіченим",
+      "errors": {
+        "nameRequired": "Назва є обов'язковою.",
+        "nameMaxLength": "Назва не може перевищувати 255 символів.",
+        "fieldRequired": "Поле є обов'язковим.",
+        "maxAttemptsMin": "Мінімальна кількість спроб — 1.",
+        "maxAttemptsMax": "Максимальна кількість спроб — 10.",
+        "retryDelayMin": "Мінімальний час між спробами — 1 хвилина.",
+        "retryDelayMax": "Максимальний час між спробами — 1440 хвилин (24 год).",
+        "ringTimeoutMin": "Мінімальний час очікування — 15 секунд.",
+        "ringTimeoutMax": "Максимальний час очікування — 120 секунд.",
+        "timeFromPattern": "Формат: ГГ:ХХ (наприклад, 09:00)",
+        "timeToPattern": "Формат: ГГ:ХХ (наприклад, 18:00)",
+        "timeRangeInvalid": "Час \"до\" має бути пізніше, ніж час \"від\".",
+        "queueRequired": "Черга є обов'язковою.",
+        "dateRangeInvalid": "Дата завершення не може бути раніше дати початку.",
+        "loadQueuesFailed": "Не вдалося завантажити список черг.",
+        "updateFailed": "Не вдалося оновити кампанію. Спробуйте ще раз.",
+        "limitExceeded": "Перевищено ліміт кампаній для цього орендаря.",
+        "createFailed": "Не вдалося створити кампанію. Спробуйте ще раз."
       }
     },
     "campaignImport": {
@@ -1156,7 +1189,28 @@
       "skipDuplicates": "Пропустити дублікати (за номером телефону)",
       "importButton": "Імпортувати контакти",
       "rejected": "Відхилені",
-      "sampleErrors": "Приклади помилок ({{ count }})"
+      "sampleErrors": "Приклади помилок ({{ count }})",
+      "initializing": "Ініціалізація імпорту...",
+      "fieldPhone": "Телефон (обов'язково)",
+      "fieldFirstName": "Ім'я",
+      "fieldLastName": "Прізвище",
+      "fieldCustom1": "Користувацьке поле 1",
+      "fieldCustom2": "Користувацьке поле 2",
+      "fieldIgnore": "Ігнорувати стовпець",
+      "mappingColumnLabel": "Зіставлення стовпця {{ column }}",
+      "progressLabel": "Прогрес імпорту: {{ percent }}%",
+      "stepperAriaLabel": "Кроки імпорту",
+      "dropZoneAriaLabel": "Зона перетягування CSV-файлу",
+      "fileInputAriaLabel": "Вибрати CSV-файл",
+      "previewTableAriaLabel": "Попередній перегляд вмісту CSV",
+      "mappingTableAriaLabel": "Таблиця зіставлення стовпців",
+      "reportSummaryAriaLabel": "Підсумок імпорту",
+      "rejectedListAriaLabel": "Список помилок імпорту",
+      "errors": {
+        "csvOnly": "Дозволені лише файли CSV (.csv).",
+        "phoneMissing": "Поле \"Телефон\" має бути зіставлено з одним із стовпців CSV.",
+        "startFailed": "Не вдалося розпочати імпорт. Спробуйте ще раз."
+      }
     },
     "campaignInfo": {
       "title": "Деталі кампанії",
@@ -1185,6 +1239,10 @@
       "tableName": "Повне ім'я",
       "tableStatus": "Статус",
       "tableAttempts": "Спроби",
+      "tableNextAttempt": "Наступна спроба",
+      "tableAction": "Дія",
+      "statusAriaLabel": "Статус: {{ status }}",
+      "paginationAriaLabel": "Навігація сторінок контактів",
       "emptyText": "Немає контактів у кампанії.",
       "loadingLabel": "Завантаження контактів...",
       "tableLabel": "Список контактів кампанії",
@@ -1207,6 +1265,12 @@
         "SKIPPED": "Пропущено",
         "ERROR": "Технічна помилка",
         "CALLED": "Зателефоновано"
+      },
+      "now": "Зараз",
+      "errors": {
+        "loadFailed": "Не вдалося завантажити список контактів. Спробуйте ще раз.",
+        "callNotFound": "Запис не знайдено.",
+        "callFailed": "Не вдалося ініціювати дзвінок. Спробуйте ще раз."
       }
     },
     "customers": {

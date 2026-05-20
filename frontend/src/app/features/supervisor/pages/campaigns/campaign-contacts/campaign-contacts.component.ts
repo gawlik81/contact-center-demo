@@ -5,6 +5,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  OnInit,
   inject,
   input,
   output,
@@ -41,7 +42,7 @@ interface StatusOption {
     '(document:keydown.escape)': 'onEscapeKey($event)',
   },
 })
-export class CampaignContactsComponent implements AfterViewInit {
+export class CampaignContactsComponent implements OnInit, AfterViewInit {
   readonly campaign = input.required<Campaign>();
   readonly closed = output<void>();
 
@@ -66,19 +67,14 @@ export class CampaignContactsComponent implements AfterViewInit {
   readonly isAgent = (): boolean => this.authService.currentRole() === 'AGENT';
   readonly isManualCampaign = (): boolean => this.campaign().dialerType === 'MANUAL';
 
-  readonly statusOptions: StatusOption[] = [
-    { value: '', label: 'Wszystkie' },
-    { value: 'PENDING', label: 'Oczekuje' },
-    { value: 'DIALING', label: 'Wybieranie' },
-    { value: 'CONNECTED', label: 'Połączony' },
-    { value: 'COMPLETED', label: 'Zakończono' },
-    { value: 'NO_ANSWER', label: 'Brak odpowiedzi' },
-    { value: 'NOT_REACHED', label: 'Niedodzwoniony' },
-    { value: 'CALLBACK', label: 'Oddzwonienie' },
-    { value: 'FAILED', label: 'Błąd połączenia' },
-    { value: 'SKIPPED', label: 'Pominięto' },
-    { value: 'ERROR', label: 'Błąd techniczny' },
-  ];
+  readonly statusOptions = signal<StatusOption[]>([]);
+
+  ngOnInit(): void {
+    this.initStatusOptions();
+    this.translocoService.langChanges$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.initStatusOptions();
+    });
+  }
 
   ngAfterViewInit(): void {
     const dialog = this.dialogRef()?.nativeElement;
@@ -86,6 +82,38 @@ export class CampaignContactsComponent implements AfterViewInit {
       dialog.showModal();
     }
     this.loadContacts();
+  }
+
+  private initStatusOptions(): void {
+    const t = (key: string) => this.translocoService.translate(key);
+    this.statusOptions.set([
+      { value: '', label: t('common.all') },
+      { value: 'PENDING', label: t('supervisor.campaignContacts.contactStatusLabels.PENDING') },
+      { value: 'DIALING', label: t('supervisor.campaignContacts.contactStatusLabels.DIALING') },
+      {
+        value: 'CONNECTED',
+        label: t('supervisor.campaignContacts.contactStatusLabels.CONNECTED'),
+      },
+      {
+        value: 'COMPLETED',
+        label: t('supervisor.campaignContacts.contactStatusLabels.COMPLETED'),
+      },
+      {
+        value: 'NO_ANSWER',
+        label: t('supervisor.campaignContacts.contactStatusLabels.NO_ANSWER'),
+      },
+      {
+        value: 'NOT_REACHED',
+        label: t('supervisor.campaignContacts.contactStatusLabels.NOT_REACHED'),
+      },
+      {
+        value: 'CALLBACK',
+        label: t('supervisor.campaignContacts.contactStatusLabels.CALLBACK'),
+      },
+      { value: 'FAILED', label: t('supervisor.campaignContacts.contactStatusLabels.FAILED') },
+      { value: 'SKIPPED', label: t('supervisor.campaignContacts.contactStatusLabels.SKIPPED') },
+      { value: 'ERROR', label: t('supervisor.campaignContacts.contactStatusLabels.ERROR') },
+    ]);
   }
 
   onEscapeKey(event: Event): void {
@@ -108,7 +136,9 @@ export class CampaignContactsComponent implements AfterViewInit {
       .getCampaignContacts(this.campaign().campaignId, this.currentPage(), PAGE_SIZE, status)
       .pipe(
         catchError(() => {
-          this.error.set('Nie udalo sie pobrac listy kontaktow. Sprobuj ponownie.');
+          this.error.set(
+            this.translocoService.translate('supervisor.campaignContacts.errors.loadFailed'),
+          );
           const empty: PagedResponse<CampaignContact> = {
             content: [],
             page: 0,
@@ -180,7 +210,7 @@ export class CampaignContactsComponent implements AfterViewInit {
       const diffMs = date.getTime() - now.getTime();
       const diffMin = Math.round(diffMs / 60000);
 
-      if (diffMin < 0) return 'Teraz';
+      if (diffMin < 0) return this.translocoService.translate('supervisor.campaignContacts.now');
       if (diffMin < 60) return `za ${diffMin} min`;
 
       const diffHours = Math.floor(diffMin / 60);
@@ -224,13 +254,16 @@ export class CampaignContactsComponent implements AfterViewInit {
         error: (err) => {
           if (err.status === 409) {
             const msg: string =
-              err.error?.message ?? 'Rekord nie moze byc wydzwoniony (konflikt stanu).';
+              err.error?.message ??
+              this.translocoService.translate('supervisor.campaignContacts.errors.callFailed');
             this.notificationService.error(msg);
           } else if (err.status === 404) {
-            this.notificationService.error('Rekord nie zostal znaleziony.');
+            this.notificationService.error(
+              this.translocoService.translate('supervisor.campaignContacts.errors.callNotFound'),
+            );
           } else {
             this.notificationService.error(
-              'Nie udalo sie zainicjowac polaczenia. Sprobuj ponownie.',
+              this.translocoService.translate('supervisor.campaignContacts.errors.callFailed'),
             );
           }
         },

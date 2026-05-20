@@ -1109,7 +1109,16 @@
       "successRevert": "reverted to Draft.",
       "errorRevertSuffix": "to draft.",
       "showClosed": "Show closed",
-      "hideClosed": "Hide closed"
+      "hideClosed": "Hide closed",
+      "typeOutboundVoice": "Outbound Voice",
+      "typeOutboundEmail": "Outbound Email",
+      "dialerProgressive": "Progressive",
+      "dialerPredictive": "Predictive",
+      "dialerManual": "Manual",
+      "importSuccess": "Contact import completed successfully.",
+      "errors": {
+        "loadFailed": "Failed to load campaigns. Please try again."
+      }
     },
     "campaignForm": {
       "titleCreate": "New campaign",
@@ -1129,8 +1138,8 @@
       "dialerTypeLabel": "Dialer type",
       "queueLabel": "Queue",
       "queuePlaceholder": "-- Select queue --",
-      "maxAttemptsLabel": "Max attempts",
-      "retryDelayLabel": "Retry delay (min)",
+      "maxAttemptsLabel": "Maximum number of attempts",
+      "retryDelayLabel": "Time between attempts (minutes)",
       "scheduleLabel": "Schedule (optional)",
       "timeFromLabel": "From time",
       "timeToLabel": "To time",
@@ -1142,6 +1151,30 @@
         "placeholder": "— Select a number —",
         "defaultTenant": "— Tenant default number —",
         "hint": "Select a number from your Twilio account or leave empty to use the tenant default."
+      },
+      "maxAttemptsHint": "After how many failed attempts to mark the record as Not Reached",
+      "retryDelayHint": "How many minutes to wait before the next call attempt when the customer does not answer",
+      "ringTimeoutLabel": "Ring timeout (seconds)",
+      "ringTimeoutHint": "How many seconds to ring the customer — if they do not answer within this time, the call will be marked as unanswered",
+      "errors": {
+        "nameRequired": "Name is required.",
+        "nameMaxLength": "Name cannot exceed 255 characters.",
+        "fieldRequired": "Field is required.",
+        "maxAttemptsMin": "Minimum number of attempts is 1.",
+        "maxAttemptsMax": "Maximum number of attempts is 10.",
+        "retryDelayMin": "Minimum time between attempts is 1 minute.",
+        "retryDelayMax": "Maximum time between attempts is 1440 minutes (24h).",
+        "ringTimeoutMin": "Minimum ring timeout is 15 seconds.",
+        "ringTimeoutMax": "Maximum ring timeout is 120 seconds.",
+        "timeFromPattern": "Format: HH:MM (e.g. 09:00)",
+        "timeToPattern": "Format: HH:MM (e.g. 18:00)",
+        "timeRangeInvalid": "The \"to\" time must be later than the \"from\" time.",
+        "queueRequired": "Queue is required.",
+        "dateRangeInvalid": "End date cannot be earlier than start date.",
+        "loadQueuesFailed": "Failed to load queue list.",
+        "updateFailed": "Failed to update campaign. Please try again.",
+        "limitExceeded": "Campaign limit exceeded for this tenant.",
+        "createFailed": "Failed to create campaign. Please try again."
       }
     },
     "campaignImport": {
@@ -1156,7 +1189,28 @@
       "skipDuplicates": "Skip duplicates (by phone number)",
       "importButton": "Import contacts",
       "rejected": "Rejected",
-      "sampleErrors": "Sample errors ({{ count }})"
+      "sampleErrors": "Sample errors ({{ count }})",
+      "initializing": "Initializing import...",
+      "fieldPhone": "Phone (required)",
+      "fieldFirstName": "First name",
+      "fieldLastName": "Last name",
+      "fieldCustom1": "Custom field 1",
+      "fieldCustom2": "Custom field 2",
+      "fieldIgnore": "Ignore column",
+      "mappingColumnLabel": "Mapping column {{ column }}",
+      "progressLabel": "Import progress: {{ percent }}%",
+      "stepperAriaLabel": "Import steps",
+      "dropZoneAriaLabel": "CSV file drop zone",
+      "fileInputAriaLabel": "Select CSV file",
+      "previewTableAriaLabel": "CSV content preview",
+      "mappingTableAriaLabel": "Column mapping table",
+      "reportSummaryAriaLabel": "Import summary",
+      "rejectedListAriaLabel": "Import error list",
+      "errors": {
+        "csvOnly": "Only CSV files (.csv) are allowed.",
+        "phoneMissing": "The \"Phone\" field must be mapped to one of the CSV columns.",
+        "startFailed": "Failed to start import. Please try again."
+      }
     },
     "campaignInfo": {
       "title": "Campaign details",
@@ -1185,6 +1239,10 @@
       "tableName": "Full name",
       "tableStatus": "Status",
       "tableAttempts": "Attempts",
+      "tableNextAttempt": "Next attempt",
+      "tableAction": "Action",
+      "statusAriaLabel": "Status: {{ status }}",
+      "paginationAriaLabel": "Contact page navigation",
       "emptyText": "No contacts in campaign.",
       "loadingLabel": "Loading contacts...",
       "tableLabel": "Campaign contacts list",
@@ -1207,6 +1265,12 @@
         "SKIPPED": "Skipped",
         "ERROR": "Technical Error",
         "CALLED": "Called"
+      },
+      "now": "Now",
+      "errors": {
+        "loadFailed": "Failed to load contacts. Please try again.",
+        "callNotFound": "Record not found.",
+        "callFailed": "Failed to initiate call. Please try again."
       }
     },
     "customers": {

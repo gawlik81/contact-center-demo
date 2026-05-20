@@ -753,16 +753,27 @@ class TwilioTelephonyAdapterTest {
         }
 
         @Test
-        @DisplayName("bridge z null customerCallSid i kierunkiem OUTBOUND powinien rzucić TelephonyException")
-        void shouldThrowWhenCustomerCallSidIsNullAndDirectionIsOutbound() {
-            // Sesja OUTBOUND bez customerCallSid – symulacja sesji sprzed deploymentu
+        @DisplayName("bridge OUTBOUND powinien ustawić customerCallSid w sesji i wykonać redirect klienta")
+        void shouldSetCustomerCallSidForOutboundBridge() {
+            // Webhook OUTBOUND – minimalna sesja musi mieć customerCallSid=callSid (fix race condition)
             adapter.handleWebhookStatusUpdate(CALL_SID, FROM, TO, "in-progress", TENANT_ID, "outbound-api");
             adapter.handleWebhookStatusUpdate(CALL_SID_2, TO, "+48111222333", "in-progress", TENANT_ID, "inbound");
 
-            // OUTBOUND + null customerCallSid → wyjątek (brak fallbacku dla OUTBOUND)
-            assertThatThrownBy(() -> adapter.bridgeCalls(CALL_SID, CALL_SID_2, NEW_CONTACT_ID))
-                    .isInstanceOf(TelephonyAdapter.TelephonyException.class)
-                    .hasMessageContaining("customerCallSid");
+            assertThat(adapter.getCallSession(CALL_SID).getCustomerCallSid())
+                    .as("minimalna sesja OUTBOUND powinna mieć customerCallSid=callSid")
+                    .isEqualTo(CALL_SID);
+
+            try (MockedStatic<Call> mockedCall = mockStatic(Call.class)) {
+                CallUpdater mockUpdater = mock(CallUpdater.class);
+                when(mockUpdater.setTwiml(any(Twiml.class))).thenReturn(mockUpdater);
+                when(mockUpdater.setStatus(any())).thenReturn(mockUpdater);
+                when(mockUpdater.update(any(com.twilio.http.TwilioRestClient.class))).thenReturn(mock(Call.class));
+                mockedCall.when(() -> Call.updater(anyString())).thenReturn(mockUpdater);
+
+                // bridge nie powinien rzucać wyjątku – customerCallSid jest teraz poprawnie ustawiony
+                assertThatNoException().isThrownBy(
+                        () -> adapter.bridgeCalls(CALL_SID, CALL_SID_2, NEW_CONTACT_ID));
+            }
         }
     }
 

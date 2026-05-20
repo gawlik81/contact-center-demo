@@ -1439,11 +1439,15 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     // ---- Krok 1: wyznacz customerCallSid ----
     String customerCallSid = session1.getCustomerCallSid();
     if (customerCallSid == null) {
-      // Fallback dla sesji zarejestrowanych przed wdrożeniem pola customerCallSid (np. INBOUND)
-      if ("INBOUND".equals(session1.getDirection()) || session1.getDirection() == null) {
+      // Fallback dla sesji zarejestrowanych przed wdrożeniem pola customerCallSid.
+      // INBOUND: callId to SID połączenia klienta (bezpośredni fallback).
+      // OUTBOUND: session1.getCallId() to SID wychodzącego połączenia klienta — identyczne znaczenie.
+      if ("INBOUND".equals(session1.getDirection()) || session1.getDirection() == null
+          || "OUTBOUND".equals(session1.getDirection())) {
         customerCallSid = session1.getCallId();
         log.warn("[TwilioAdapter] Bridge: brak customerCallSid w sesji1 – używam callId jako fallback " +
-                 "(sesja sprzed deploymentu): callId1={}, fallbackSid={}", callId1, customerCallSid);
+                 "(sesja sprzed deploymentu lub race condition): callId1={}, fallbackSid={}, direction={}",
+                 callId1, customerCallSid, session1.getDirection());
       } else {
         throw new TelephonyException(callId1,
             "Brak customerCallSid w sesji – nie można przekierować klienta do nowej konferencji. " +
@@ -1672,6 +1676,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .startedAt(Instant.now())
             .contactId(recoveredContactId)
             .direction("OUTBOUND")
+            .customerCallSid(callSid)  // for OUTBOUND the customer leg SID == the outbound call SID
             .build();
         saveSession(existing);
         log.info("[TwilioAdapter] Minimalna sesja outbound odtworzona z webhooka: callSid={}, contactId={}, status={}",

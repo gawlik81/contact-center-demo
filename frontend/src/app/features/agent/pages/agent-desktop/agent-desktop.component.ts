@@ -358,9 +358,7 @@ export class AgentDesktopComponent implements OnInit {
         }
 
         // Krótkie powiadomienie dla agenta.
-        this.notifications.info(
-          this.transloco.translate('agent.desktop.consultCancelled'),
-        );
+        this.notifications.info(this.transloco.translate('agent.desktop.consultCancelled'));
       });
   }
 

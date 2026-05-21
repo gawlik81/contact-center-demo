@@ -184,6 +184,11 @@
   color: var(--success-text);
 }
 
+.badge--all-agents {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
 .badge--warning {
   background: var(--warning-soft);
   color: var(--warning-text);

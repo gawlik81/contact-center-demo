@@ -117,7 +117,10 @@ public class QueueService {
     public PagedResponse<QueueResponse> listQueues(UUID tenantId, String name, int page, int size) {
         PagedResponse<Queue> page_ = queueRepository.findAllByTenantId(tenantId, name, page, size);
         List<QueueResponse> content = page_.content().stream()
-                .map(q -> QueueResponse.from(q, queueAssignmentRepository.countAssignments(q.getQueueId())))
+                .map(q -> QueueResponse.from(
+                        q,
+                        q.isAllAgents() ? -1 : queueAssignmentRepository.countAssignments(q.getQueueId())
+                ))
                 .toList();
         return new PagedResponse<>(content, page_.page(), page_.size(),
                 page_.totalElements(), page_.totalPages(), page_.first(), page_.last());

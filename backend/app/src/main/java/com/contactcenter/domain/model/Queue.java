@@ -100,6 +100,10 @@ public class Queue {
     @Column(nullable = false)
     private Long version = 0L;
 
+    @Column(name = "all_agents", nullable = false)
+    @Builder.Default
+    private boolean allAgents = false;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean active = true;

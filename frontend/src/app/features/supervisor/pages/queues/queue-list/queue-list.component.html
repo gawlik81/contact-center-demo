@@ -75,7 +75,11 @@
               <tr class="queue-row">
                 <td class="queue-name">
                   {{ queue.name }}
-                  @if ((queue.assignedAgentsCount ?? 0) === 0) {
+                  @if (queue.allAgents) {
+                    <span class="badge badge--all-agents">
+                      {{ 'supervisor.queueAgents.badgeAllAgents' | transloco }}
+                    </span>
+                  } @else if ((queue.assignedAgentsCount ?? 0) === 0) {
                     <span
                       class="badge badge--warning"
                       [title]="'supervisor.queueAgents.badgeNoAgentsHint' | transloco"

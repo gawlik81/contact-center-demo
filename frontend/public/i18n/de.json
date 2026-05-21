@@ -1056,6 +1056,7 @@
       "successToast": "Agentenzuweisung aktualisiert",
       "errorSave": "Zuweisung konnte nicht gespeichert werden",
       "manageButton": "Agenten verwalten",
+      "badgeAllAgents": "Alle Agenten",
       "badgeNoAgents": "Keine Agenten",
       "badgeNoAgentsHint": "Keine zugewiesenen Agenten — Warteschlange bearbeitet keine Kontakte",
       "badgeAgents": "Agenten"

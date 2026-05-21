@@ -1056,6 +1056,7 @@
       "successToast": "Przypisanie agentów zaktualizowane",
       "errorSave": "Nie udało się zapisać przypisania",
       "manageButton": "Zarządzaj agentami",
+      "badgeAllAgents": "Wszyscy agenci",
       "badgeNoAgents": "Brak agentów",
       "badgeNoAgentsHint": "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu",
       "badgeAgents": "agentów"

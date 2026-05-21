@@ -21,10 +21,11 @@ import java.util.UUID;
  * @param maxConcurrentContactsPerAgent max jednoczesnych kontaktów per agent
  * @param waitConfig                    konfiguracja komunikatów oczekiwania (JSON)
  * @param active                        czy kolejka jest aktywna
+ * @param allAgents                     true = kolejka dostępna dla wszystkich agentów tenanta
  * @param createdAt                     data/czas utworzenia
  * @param updatedAt                     data/czas ostatniej aktualizacji
  * @param assignedAgentsCount           liczba unikalnych agentów przypisanych do kolejki
- *                                      (bezpośrednio i przez grupy)
+ *                                      (bezpośrednio i przez grupy); -1 gdy allAgents=true
  */
 public record QueueResponse(
         UUID queueId,
@@ -37,6 +38,7 @@ public record QueueResponse(
         Integer maxConcurrentContactsPerAgent,
         String waitConfig,
         boolean active,
+        boolean allAgents,
         Instant createdAt,
         Instant updatedAt,
         int assignedAgentsCount
@@ -61,6 +63,7 @@ public record QueueResponse(
                 queue.getMaxConcurrentContactsPerAgent(),
                 queue.getWaitConfig(),
                 queue.isActive(),
+                queue.isAllAgents(),
                 queue.getCreatedAt(),
                 queue.getUpdatedAt(),
                 assignedAgentsCount

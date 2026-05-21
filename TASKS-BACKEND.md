@@ -3822,6 +3822,362 @@ public ResponseEntity<CallSessionResponse> transferCall(
 
 ---
 
+---
+
+## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+
+### BE-079 – Usunięcie obowiązkowego powiązania kampanii z kolejką
+
+**Typ:** Refactor
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-036
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-080, BE-081, FE-081
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+`CampaignService.createCampaign()` wywołuje `validateQueue(request.queueId(), tenantId)`, która wymaga podania `queueId` należącego do tenanta. `CreateCampaignRequest` ma `@NotNull UUID queueId`. Kampanie wychodzące nie powinny wymagać kolejki — kolejki służą tylko do routingu przychodzącego.
+
+**Zakres zmian:**
+
+1. **`CreateCampaignRequest`** (`api/campaign/dto/`):
+   - Usuń `@NotNull` z pola `queueId` → `UUID queueId` (nullable, opcjonalne)
+
+2. **`UpdateCampaignRequest`** (`api/campaign/dto/`):
+   - Bez zmian — `queueId` już jest nullable
+
+3. **`CampaignService`**:
+   - Usuń wywołanie `validateQueue(request.queueId(), tenantId)` z `createCampaign()`
+   - Usuń wywołanie aktualizacji `queueId` z `updateCampaign()` (lub zostaw jako opcjonalne dla backward compat)
+   - Usuń import `QueueRepository` i pole `queueRepository` z serwisu (używane wyłącznie przez `validateQueue`)
+   - Metoda prywatna `validateQueue()` — usuń całkowicie
+
+4. **`CampaignResponse`** (`api/campaign/dto/`):
+   - `queueId` pozostaje jako nullable UUID (dane historyczne mogą mieć przypisaną kolejkę)
+
+5. **Testy** — zaktualizuj testy które dostarczają `queueId` jako required:
+   - `CampaignCallerIdTest`, `CampaignImportServiceTest` — usuń `queueId` z builderów lub zmień na opcjonalny
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/campaigns` bez pola `queueId` zwraca 201 (kampania tworzona bez kolejki)
+- [ ] `POST /api/campaigns` z `queueId` nadal działa (backward compat — pole zapisywane, ale nie walidowane)
+- [ ] `mvn verify -pl app` przechodzi — brak kompilacji do `QueueRepository` w `CampaignService`
+- [ ] Istniejące kampanie z `queue_id != NULL` działają bez zmian
+
+---
+
+### BE-080 – Campaign Assignment API: trójpoziomowe przypisanie agentów (`CampaignAssignmentController`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-036, BE-079
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-081, BE-084, FE-082
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Opis:**
+Nowy kontroler i serwis zarządzający przypisaniem agentów do kampanii — wzorowany 1:1 na `QueueAssignmentController` + `QueueAssignmentService`. Obsługuje trzy poziomy: flagę `all_agents`, bezpośrednich agentów (`campaign_agent`) i grupy agentów (`campaign_agent_group`).
+
+**Nowe pliki:**
+- `domain/repository/CampaignAssignmentRepository.java` — analogiczny do `QueueAssignmentRepository`
+- `domain/service/CampaignAssignmentService.java` — analogiczny do `QueueAssignmentService`
+- `api/campaign/CampaignAssignmentController.java`
+- `api/campaign/dto/CampaignAssignmentResponse.java`
+- `api/campaign/dto/UpdateCampaignAssignmentRequest.java`
+
+**Endpointy w `CampaignAssignmentController` (`/api/campaigns/{campaignId}/assignment`):**
+
+```
+GET /api/campaigns/{campaignId}/assignment
+    Role: ADMIN, SUPERVISOR
+    Response: CampaignAssignmentResponse
+
+PUT /api/campaigns/{campaignId}/assignment
+    Role: ADMIN, SUPERVISOR
+    Body: UpdateCampaignAssignmentRequest
+    Response: CampaignAssignmentResponse
+```
+
+**DTO:**
+```java
+public record CampaignAssignmentResponse(
+    UUID    campaignId,
+    boolean allAgents,
+    List<AgentSummary>      directAgents,  // puste gdy allAgents=true
+    List<AgentGroupSummary> groups         // puste gdy allAgents=true
+) {}
+
+public record UpdateCampaignAssignmentRequest(
+    @NotNull Boolean      allAgents,
+    List<UUID>            directAgentIds,  // ignorowane gdy allAgents=true
+    List<UUID>            groupIds         // ignorowane gdy allAgents=true
+) {}
+```
+
+**`CampaignAssignmentService`** — kopia logiki `QueueAssignmentService` z podmianą `queue` → `campaign`:
+
+- **`getAssignment(campaignId, tenantId)`**: czyta `all_agents` + bezpośrednich agentów + grupy z enrichowanymi danymi (imię, nazwisko, memberCount)
+- **`updateAssignment(campaignId, request, tenantId)`**:
+  - `allAgents=true` → ustawia flagę, istniejące przypisania pozostają (silnik je ignoruje)
+  - `allAgents=false` → wyłącza flagę, atomowo podmienia listy agentów i grup (DELETE + batch INSERT)
+  - Walidacja: każdy `directAgentId` musi należeć do tenanta i mieć rolę AGENT; każdy `groupId` musi należeć do tenanta
+
+**`CampaignAssignmentRepository`** — kopia `QueueAssignmentRepository` z podmianą tabel:
+
+```java
+boolean isAllAgents(UUID campaignId, UUID tenantId);
+List<UUID> findDirectAgentIds(UUID campaignId, UUID tenantId);
+List<UUID> findGroupIds(UUID campaignId, UUID tenantId);
+Set<UUID> resolveEligibleAgentIds(UUID campaignId, UUID tenantId); // UNION campaign_agent + campaign_agent_group→agent_group_member
+boolean isGroupAssignedToAnyCampaign(UUID groupId, UUID tenantId);
+void setAllAgents(UUID campaignId, UUID tenantId, boolean value);
+void replaceDirectAgents(UUID campaignId, UUID tenantId, List<UUID> agentIds);
+void replaceGroups(UUID campaignId, UUID tenantId, List<UUID> groupIds);
+```
+
+Metoda `resolveEligibleAgentIds()` — SQL UNION identyczny jak w `QueueAssignmentRepository`:
+```sql
+SELECT agent_id FROM campaign_agent WHERE campaign_id = :campaignId
+UNION
+SELECT agm.agent_id FROM campaign_agent_group cag
+    JOIN agent_group_member agm ON agm.group_id = cag.group_id
+WHERE cag.campaign_id = :campaignId
+```
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/campaigns/{id}/assignment` — zwraca `allAgents=true` dla migrowanych kampanii
+- [ ] `PUT /api/campaigns/{id}/assignment` z `allAgents=true` → ustawia flagę, listy puste w response
+- [ ] `PUT` z `allAgents=false, directAgentIds=[A,B], groupIds=[G1]` → atomowo podmienia przypisanie
+- [ ] Przypisanie agenta z innego tenanta → HTTP 400 (jak `QueueAssignmentService`)
+- [ ] Przypisanie grupy z innego tenanta → HTTP 400
+- [ ] `resolveEligibleAgentIds()` zwraca UNION bezpośrednich agentów + członków grup (bez duplikatów)
+- [ ] Wszystkie endpointy wymagają ADMIN lub SUPERVISOR
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-081 – Aktualizacja `ProgressiveDialerService`: trójpoziomowa kwalifikacja agentów do kampanii
+
+**Typ:** Refactor + Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-036, BE-079, BE-080
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+`ProgressiveDialerService.agentHasRequiredSkills()` używa `campaign.getQueueId()` do weryfikacji agenta. Po EPIC-25 kolejka jest usunięta z kampanii. Kwalifikacja agenta opiera się wyłącznie na modelu trójpoziomowym (`all_agents` / grupy / bezpośrednie przypisania).
+
+**Logika kwalifikacji agenta dla kampanii (`isAgentEligibleForCampaign`):**
+
+```
+campaign.all_agents == TRUE
+    → agent kwalifikuje się (wszyscy agenci tenanta)
+
+campaign.all_agents == FALSE
+    AND resolveEligibleAgentIds(campaignId).isEmpty()
+    → kampania nie ma agentów → POMIŃ kampanię (WARN log), nie dzwoń
+
+campaign.all_agents == FALSE
+    AND agentId ∈ resolveEligibleAgentIds(campaignId)
+    → agent kwalifikuje się
+
+campaign.all_agents == FALSE
+    AND agentId ∉ resolveEligibleAgentIds(campaignId)
+    → agent nie kwalifikuje się do tej kampanii
+```
+
+**Zakres zmian w `ProgressiveDialerService`:**
+
+1. **Wstrzyknij `CampaignAssignmentRepository`** (BE-080), usuń `QueueRepository`
+
+2. **Zastąp `agentHasRequiredSkills()`** nową metodą `isAgentEligibleForCampaign(agentId, campaign, tenantId)`:
+   ```java
+   private boolean isAgentEligibleForCampaign(UUID agentId, Campaign campaign, UUID tenantId) {
+       if (campaign.isAllAgents()) {
+           return true;
+       }
+       Set<UUID> eligible = campaignAssignmentRepository
+               .resolveEligibleAgentIds(campaign.getCampaignId(), tenantId);
+       if (eligible.isEmpty()) {
+           log.warn("[Dialer] Kampania {} (all_agents=false) nie ma przypisanych agentów — pomijam",
+                   campaign.getCampaignId());
+           return false;
+       }
+       return eligible.contains(agentId);
+   }
+   ```
+
+3. **Encja `Campaign`** — dodaj pole `allAgents`:
+   ```java
+   @Column(name = "all_agents", nullable = false)
+   @Builder.Default
+   private boolean allAgents = false;
+   ```
+
+4. **Usuń `QueueRepository`** z serwisu (nie jest już potrzebny)
+
+**Zachowanie przy braku przypisania:**
+- `all_agents = false` + puste przypisanie → kampania jest **pominięta** przez dialer — WARN log
+- `all_agents = true` → wszyscy agenci tenanta kwalifikują się (backward compat dla migrowanych kampanii)
+
+**Kryteria akceptacji:**
+- [ ] `all_agents=true`: dialer inicjuje połączenia dla każdego AVAILABLE agenta tenanta
+- [ ] `all_agents=false` + przypisany bezpośrednio: dialer dzwoni przez tego agenta
+- [ ] `all_agents=false` + agent należy do przypisanej grupy: dialer dzwoni przez tego agenta
+- [ ] `all_agents=false` + brak przypisania: kampania pominięta (WARN log), brak połączeń
+- [ ] `all_agents=false` + agent nie przypisany: kampania pominięta dla tego agenta
+- [ ] Dialer nie wywołuje `QueueRepository` — kompilacja bez tej zależności
+- [ ] Testy jednostkowe `ProgressiveDialerServiceTest` pokrywają wszystkie 5 przypadków powyżej
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-084 – Filtrowanie `GET /api/dialer/manual/records` według przypisania agenta do kampanii
+
+**Typ:** Feature / Bug fix
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-036, BE-080
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-082
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+`DialerController.getManualCampaignRecords()` (linia 656) pobiera **wszystkie** kampanie `MANUAL+RUNNING` dla tenanta bez żadnej weryfikacji przypisania agenta:
+```java
+List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
+```
+Po EPIC-25: agenci przypisani do kampanii przez `all_agents/campaign_agent/campaign_agent_group`. Gdy `all_agents=false` i agent nie jest przypisany do kampanii — rekordy tej kampanii **nie powinny być widoczne** w panelu manualnym agenta.
+
+**Zakres zmian w `DialerController.getManualCampaignRecords()`:**
+
+```java
+UUID agentId = TenantContext.getUserId();
+
+// 1. Kampanie MANUAL+RUNNING dla tenanta (bez zmian)
+List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
+
+// 2. Filtruj po przypisaniu agenta
+List<Campaign> eligibleCampaigns = manualCampaigns.stream()
+    .filter(campaign -> {
+        if (campaign.isAllAgents()) return true;
+        Set<UUID> eligible = campaignAssignmentRepository
+                .resolveEligibleAgentIds(campaign.getCampaignId(), tenantId);
+        return eligible.contains(agentId);
+    })
+    .toList();
+
+if (eligibleCampaigns.isEmpty()) {
+    return ResponseEntity.ok(List.of());
+}
+// ... reszta bez zmian, używa eligibleCampaigns zamiast manualCampaigns
+```
+
+**Wstrzyknij `CampaignAssignmentRepository`** do `DialerController` (już dostępny po BE-080).
+
+**Kryteria akceptacji:**
+- [ ] Agent z `all_agents=true` dla kampanii: widzi rekordy tej kampanii
+- [ ] Agent bezpośrednio przypisany (`campaign_agent`): widzi rekordy
+- [ ] Agent w grupie przypisanej do kampanii (`campaign_agent_group`): widzi rekordy
+- [ ] Agent nieprzypisany (`all_agents=false`, brak bezpośredniego/grupowego przypisania): **nie widzi** kampanii w panelu manualnym
+- [ ] Kampania bez żadnych przypisań (`all_agents=false`, puste tabele): żaden agent jej nie widzi
+- [ ] Testy jednostkowe: 5 przypadków powyżej
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-082 – Ustawienie `campaign_id` na kontakcie wychodzącym — przepięcie `queueId` na `campaignId` w `TelephonyAdapter.initiateCall()`
+
+**Typ:** Bug fix
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-079
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+Tabela `contact` ma kolumnę `campaign_id` (nullable). Encja `Contact` ma pole `campaignId`. Jednak `TwilioTelephonyAdapter.persistOutboundContact()` **nigdy nie ustawia `campaign_id`** — zamiast tego ustawia `queue_id = campaign.queue_id`. Oznacza to, że `GET /api/contacts?campaignId=X` nie zwraca żadnych kontaktów wychodzących z dialera, bo pole jest zawsze `NULL`.
+
+Analogia z inbound jest prawidłowa:
+- Kontakt **przychodzący** → `queue_id` ustawiany przez IVR/routing (`ContactRepository.updateQueueId()`)
+- Kontakt **wychodzący** → `campaign_id` powinien być ustawiany przez dialer, ale dotychczas nie był
+
+**Zakres zmian:**
+
+### 1. `TelephonyAdapter` — zmiana sygnatury `initiateCall()`
+
+```java
+// Przed:
+CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId);
+
+// Po:
+CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID campaignId, UUID callbackId);
+```
+
+Zmiana nazwy parametru `queueId` → `campaignId`. Semantycznie: dla połączeń wychodzących z kampanii to `campaign_id`, nie `queue_id`, ma być ustawiony na kontakcie. Dla połączeń ad-hoc i callbacków bez kampanii — `null`.
+
+### 2. `TwilioTelephonyAdapter.persistOutboundContact()` — ustawienie `campaign_id`
+
+```java
+// Przed:
+Contact contact = Contact.builder()
+    // ...
+    .queueId(queueId)       // Kolejka kampanii – wymagana przez RoutingService do ACW
+    // ...
+    .build();
+
+// Po:
+Contact contact = Contact.builder()
+    // ...
+    .campaignId(campaignId) // Kampania outbound — powiązanie kontaktu z kampanią
+    // ...
+    .build();
+```
+
+Usunąć `queueId` z buildera. `RoutingService` pomija outbound kontakty z `agentId != null` (linia 251-254 `RoutingService.onAgentStatusChanged()`) — zmiana nie wpływa na routing.
+
+### 3. Aktualizacja wszystkich wywołań `initiateCall()`
+
+| Miejsce | Przed | Po |
+|---------|-------|----|
+| `ProgressiveDialerService.initiateDialForAgent()` | `campaign.getQueueId()` | `campaign.getCampaignId()` |
+| `DialerController` (MANUAL) | `campaign.getQueueId()` | `campaign.getCampaignId()` |
+| `ScheduledCallbackExecutor` | `null` | `callback.getCampaignId()` (null dla inbound callbacków) |
+| `AgentCallController` (ad-hoc) | `null` | `null` (bez zmian — połączenia nieoparte o kampanię) |
+
+### 4. `MockTelephonyAdapter.initiateCall()` — aktualizacja sygnatury i logiki
+
+Analogiczne zmiany jak w `TwilioTelephonyAdapter` — parametr `queueId` → `campaignId`, ustawienie `.campaignId()` w builderze `Contact`.
+
+### 5. Log w `TwilioTelephonyAdapter`
+
+```java
+// Przed:
+log.debug("[TwilioAdapter] Rekord contact OUTBOUND utworzony: contactId={}, to={}, queueId={}, tenant={}",
+    contactId, to, queueId, tenantId);
+
+// Po:
+log.debug("[TwilioAdapter] Rekord contact OUTBOUND utworzony: contactId={}, to={}, campaignId={}, tenant={}",
+    contactId, to, campaignId, tenantId);
+```
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/contacts?campaignId={id}` zwraca kontakty wychodzące zainicjowane przez dialer dla tej kampanii
+- [ ] Rekord `contact` ma `campaign_id = campaign.campaignId` po wywołaniu dialera
+- [ ] Rekord `contact` ma `campaign_id = callback.campaignId` po wykonaniu campaign-callback przez `ScheduledCallbackExecutor`
+- [ ] Rekord `contact` ma `campaign_id = NULL` dla połączeń ad-hoc (`AgentCallController`)
+- [ ] `contact.queue_id` pozostaje `NULL` dla kontaktów wychodzących (nie wchodzą do routingu kolejkowego)
+- [ ] `RoutingService` nadal poprawnie pomija outbound kontakty z `agentId != null`
+- [ ] `MockTelephonyAdapter` zaktualizowany — testy jednostkowe przechodzą
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
 ### BE-078 – Endpoint `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` — łączenie nóg dla attended transfer
 
 **Typ:** Feature
@@ -3878,4 +4234,188 @@ public void bridgeCalls(
 - [ ] Publikowany event `CALL_TRANSFERRED` z `transferType=ATTENDED`
 - [ ] callId nienależący do agenta → 403
 - [ ] Niezgodny stan sesji → 409
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+## MODUŁ: Blokada transferu do kolejki dla połączeń wychodzących (EPIC-25)
+
+### BE-083 – Guard: odrzucenie transferu OUTBOUND → QUEUE w endpoincie transferu
+
+**Typ:** Bug fix / Validation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-077 (endpoint transferu), BE-082 (contact.direction ustawiony poprawnie)
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+Endpoint `POST /api/telephony/calls/{callId}/transfer` (BE-077) nie weryfikuje kierunku połączenia. Dla połączeń wychodzących (`contact.direction = 'OUTBOUND'`) transfer do kolejki jest semantycznie niemożliwy — kolejka obsługuje wyłącznie ruch przychodzący. FE-084 blokuje ten scenariusz na poziomie UI, ale API musi być odporne na bezpośrednie wywołania (curl, testy, inne klienty).
+
+**Implementacja — rozszerzenie `AgentCallService.initiateTransfer()` lub kontrolera:**
+
+```java
+// W AgentCallService.initiateTransfer() po pobraniu sesji / kontaktu:
+
+Contact contact = contactRepository.findById(contactId, tenantId)
+    .orElseThrow(...);
+
+if ("OUTBOUND".equals(contact.getDirection())
+        && TransferTargetType.QUEUE == domainReq.targetType()) {
+    throw new InvalidOperationException(
+        "Transfer do kolejki jest niedozwolony dla połączeń wychodzących (outbound). " +
+        "Dla kampanii wychodzących dostępny jest wyłącznie transfer do agenta lub na numer telefonu.");
+}
+```
+
+**Mapowanie wyjątku:** `InvalidOperationException` → HTTP 400 (obsługiwane przez `GlobalExceptionHandler`).
+
+**Nie wymaga zmian w DB ani modelu** — weryfikacja na poziomie logiki serwisowej.
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/telephony/calls/{callId}/transfer` z `targetType=QUEUE` dla kontaktu `direction=OUTBOUND` → HTTP 400 z opisowym komunikatem
+- [ ] Ten sam endpoint z `targetType=QUEUE` dla kontaktu `direction=INBOUND` → działa poprawnie (bez zmian)
+- [ ] Transfer `OUTBOUND` z `targetType=PHONE` lub `targetType=AGENT` → działa poprawnie (bez zmian)
+- [ ] Test jednostkowy: `outbound + QUEUE → InvalidOperationException`
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+## MODUŁ: Historia prób wydzwonienia rekordu kampanii (EPIC-25)
+
+### BE-085 – Powiązanie kontaktu z rekordem kampanii: zapis `campaign_contact_record_id` + endpoint historii
+
+**Typ:** Feature + Bug fix
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-037, BE-082 (campaign_id na kontakcie)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-085
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+- `ProgressiveDialerService.initiateDialForAgent()` zna `recordId` (campaign_contact) w momencie wywołania dialera, ale NIE przekazuje go do `telephonyAdapter.initiateCall()` ani nie zapisuje na kontakcie
+- `telephonyAdapter.initiateCall()` zwraca `CallSession` z `contactId` — w tym momencie znane są obie wartości (`recordId` + `contactId`), ale powiązanie nie jest zapisywane
+- `campaign_contact.last_contact_id` nigdy nie jest ustawiane (pole istnieje od V009, kod go nie używa)
+- Redis state: `{campaignContactId},{campaignId},{agentId},{tenantId}` — brak `contactId`, więc `DialerCallbackHandler` nie może zaktualizować `last_contact_id`
+
+**Zakres zmian:**
+
+### 1. `Contact` entity — nowe pole
+
+```java
+@Column(name = "campaign_contact_record_id")
+private UUID campaignContactRecordId;
+```
+
+### 2. `ContactRepository` — nowa metoda zapisu
+
+```java
+public int updateCampaignContactRecordId(UUID contactId, UUID recordId, UUID tenantId) {
+    // UPDATE contact SET campaign_contact_record_id = :recordId WHERE contact_id = :contactId AND tenant_id = :tenantId
+}
+```
+
+### 3. `ProgressiveDialerService.initiateDialForAgent()` — zapis po `initiateCall()`
+
+```java
+// Po:
+CallSession session = telephonyAdapter.initiateCall(...);
+saveCallState(session.getCallId(), recordId, campaign.getCampaignId(), agentId, tenantId);
+
+// Dodać:
+if (session.getContactId() != null) {
+    contactRepository.updateCampaignContactRecordId(session.getContactId(), recordId, tenantId);
+}
+```
+
+### 4. Redis state — rozszerzenie o `contactId`
+
+Zmiana formatu klucza `dialer:call:{callSid}` z:
+```
+{campaignContactId},{campaignId},{agentId},{tenantId}
+```
+na:
+```
+{campaignContactId},{campaignId},{agentId},{tenantId},{contactId}
+```
+
+`contactId` może być pusty string gdy `session.getContactId() == null` (błąd DB — defensywnie).
+
+Zaktualizować `DialerCallbackHandler.onCallHangup()` i `onCallAnswered()` by parsowały 5. element (backward compat: jeśli `parts.length == 4` → `contactId = null`).
+
+### 5. `campaign_contact.last_contact_id` — wypełnianie przy CONNECTED
+
+W `DialerCallbackHandler.handleAnswered()` (lub `updateCampaignContact()` przy statusie CONNECTED):
+
+```java
+// Gdy kontakt odbiera (CONNECTED) — zapisz last_contact_id na rekordzie kampanii
+if (contactId != null) {
+    jdbcTemplate.update("""
+        UPDATE campaign_contact
+        SET last_contact_id = ?::uuid, updated_at = NOW()
+        WHERE record_id = ?::uuid AND campaign_id = ?::uuid
+    """, contactId.toString(), recordId.toString(), campaignId.toString());
+}
+```
+
+### 6. `CampaignContactResponse` — dodaj `lastContactId`
+
+```java
+public record CampaignContactResponse(
+    UUID recordId,
+    String phone,
+    String firstName,
+    String lastName,
+    Map<String, String> customFields,
+    String status,
+    String dispositionCode,
+    Instant createdAt,
+    int attemptCount,
+    Instant nextAttemptAt,
+    UUID lastContactId   // null gdy brak prób — nowe pole
+) {}
+```
+
+### 7. Nowy endpoint: historia prób dla rekordu
+
+```
+GET /api/campaigns/{campaignId}/contacts/{recordId}/attempts
+Role: ADMIN, SUPERVISOR
+Response: List<ContactResponse>  — lista kontaktów powiązanych z rekordem,
+          posortowana started_at DESC (najnowsza próba pierwsza)
+```
+
+Implementacja w `CampaignImportController` (lub nowym `CampaignContactsController`):
+```java
+@GetMapping("/{campaignId}/contacts/{recordId}/attempts")
+public ResponseEntity<List<ContactResponse>> getAttempts(
+        @PathVariable UUID campaignId,
+        @PathVariable UUID recordId) {
+    UUID tenantId = TenantContext.getTenantId();
+    // SELECT * FROM contact WHERE campaign_contact_record_id = :recordId
+    //   AND campaign_id = :campaignId AND tenant_id = :tenantId
+    //   ORDER BY started_at DESC
+    List<ContactResponse> attempts = contactRepository
+            .findByCampaignContactRecordId(recordId, campaignId, tenantId);
+    return ResponseEntity.ok(attempts);
+}
+```
+
+**`ContactRepository.findByCampaignContactRecordId()`:**
+```java
+public List<ContactResponse> findByCampaignContactRecordId(UUID recordId, UUID campaignId, UUID tenantId) {
+    // Natywne SQL z ORDER BY started_at DESC, max 100 wyników
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Po zainicjowaniu połączenia przez dialer: `contact.campaign_contact_record_id = recordId`
+- [ ] Po odebraniu przez klienta (CONNECTED): `campaign_contact.last_contact_id = contactId`
+- [ ] `GET /api/campaigns/{campaignId}/contacts/{recordId}/attempts` zwraca listę kontaktów dla rekordu
+- [ ] Lista posortowana `started_at DESC` — najnowsza próba na górze
+- [ ] `CampaignContactResponse.lastContactId` wypełnione gdy kampania ma przynajmniej jedną próbę
+- [ ] Backward compat: istniejące rekordy bez `campaign_contact_record_id` (NULL) — endpoint zwraca pustą listę
+- [ ] Redis backward compat: stary format (4 części) obsługiwany przez `DialerCallbackHandler`
+- [ ] Test jednostkowy: `DialerCallbackHandlerTest` — hangup z 5-elementowym Redis state
 - [ ] `mvn verify -pl app` przechodzi

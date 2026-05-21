@@ -136,7 +136,7 @@
     border: none;
     background: var(--accent);
     color: var(--accent-fg);
-    &:hover:not(:disabled) { background: var(--accent-hover); }
+    &:hover:not(:disabled) { opacity: 0.88; }
   }
 }
 

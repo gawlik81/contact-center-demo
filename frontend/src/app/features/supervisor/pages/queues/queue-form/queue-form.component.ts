@@ -21,12 +21,10 @@ import { QueueService } from '../../../services/queue.service';
 import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { Queue } from '../../../models/queue.model';
-import { QueueAgentsModalComponent } from '../queue-agents-modal/queue-agents-modal.component';
-
 @Component({
   selector: 'app-queue-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, QueueAgentsModalComponent],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './queue-form.component.html',
   styleUrl: './queue-form.component.scss',
   host: {
@@ -52,7 +50,6 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly submitting = signal(false);
   readonly loadingOptions = signal(false);
-  readonly showAgentsModal = signal(false);
   readonly routingStrategies = signal<string[]>([]);
   readonly availableSkills = signal<string[]>([]);
   readonly selectedSkills = signal<string[]>([]);

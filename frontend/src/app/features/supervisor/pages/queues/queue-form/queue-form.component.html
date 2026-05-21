@@ -200,24 +200,6 @@
         </div>
       </form>
 
-      @if (isEditMode() && queue()?.queueId) {
-        <div class="form-section form-section--assignment">
-          <div class="form-section__header">
-            <span class="form-section__label">
-              {{ 'supervisor.queueAgents.agentsSection' | transloco }}
-            </span>
-            <button type="button" class="btn btn-secondary btn-sm" (click)="showAgentsModal.set(true)">
-              {{ 'supervisor.queueAgents.manageButton' | transloco }}
-            </button>
-          </div>
-        </div>
-
-        @if (showAgentsModal()) {
-          <app-queue-agents-modal [queue]="queue()!" (closed)="showAgentsModal.set(false)" />
-        }
-      } @else if (!isEditMode()) {
-        <p class="assignment-new-queue-hint">{{ 'supervisor.queueForm.assignmentHint' | transloco }}</p>
-      }
     </div>
 
     <div class="queue-form-dialog__footer">

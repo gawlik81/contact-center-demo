@@ -26,7 +26,6 @@ import { catchError, of } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { TwilioPhoneNumberSelectComponent } from '../../../components/twilio-phone-number-select/twilio-phone-number-select.component';
-import { CampaignAssignmentModalComponent } from '../campaign-assignment-modal/campaign-assignment-modal.component';
 import {
   ActiveDay,
   Campaign,
@@ -78,7 +77,7 @@ const ALL_DAYS: { value: ActiveDay; labelKey: string }[] = [
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, TwilioPhoneNumberSelectComponent, CampaignAssignmentModalComponent],
+  imports: [TranslocoModule, ReactiveFormsModule, TwilioPhoneNumberSelectComponent],
   templateUrl: './campaign-form.component.html',
   styleUrl: './campaign-form.component.scss',
   host: {
@@ -101,7 +100,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
 
   readonly submitting = signal(false);
-  readonly showAssignmentModal = signal(false);
   readonly allDays = ALL_DAYS;
 
   readonly typeOptions = signal<{ value: CampaignType; label: string }[]>([

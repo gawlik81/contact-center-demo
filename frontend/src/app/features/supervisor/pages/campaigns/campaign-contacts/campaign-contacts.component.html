@@ -223,7 +223,7 @@
                                   class="attempt-status attempt-status--{{
                                     attempt.status | lowercase
                                   }}"
-                                >{{ attempt.status }}</span>
+                                >{{ statusLabel($any(attempt.status)) }}</span>
                                 <span class="attempt-duration">
                                   {{
                                     attempt.durationSeconds !== null

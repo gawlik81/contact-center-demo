@@ -327,7 +327,11 @@
 
 <!-- Contacts preview modal -->
 @if (showContactsModal() && contactsCampaign()) {
-  <app-campaign-contacts [campaign]="contactsCampaign()!" (closed)="onContactsClosed()" />
+  <app-campaign-contacts
+    [campaign]="contactsCampaign()!"
+    (closed)="onContactsClosed()"
+    (contactSelected)="onContactSelected($event)"
+  />
 }
 
 <!-- Campaign info modal -->
@@ -350,5 +354,12 @@
     [danger]="confirmDialogDanger()"
     (confirmed)="onConfirmDialogConfirmed()"
     (cancelled)="onConfirmDialogCancelled()"
+  />
+}
+
+@if (selectedContactId()) {
+  <app-contact-detail-modal
+    [contactId]="selectedContactId()!"
+    (closed)="selectedContactId.set(null)"
   />
 }

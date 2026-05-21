@@ -19,6 +19,7 @@ import { CampaignContactsComponent } from '../campaign-contacts/campaign-contact
 import { CampaignInfoComponent } from '../campaign-info/campaign-info.component';
 import { CampaignAssignmentModalComponent } from '../campaign-assignment-modal/campaign-assignment-modal.component';
 import { ConfirmDialogComponent } from '../../../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { ContactDetailModalComponent } from '../../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
 
 const POLLING_INTERVAL_MS = 10_000;
 const CLOSED_STATUSES = new Set<CampaignStatus>(['STOPPED', 'COMPLETED']);
@@ -34,6 +35,7 @@ const CLOSED_STATUSES = new Set<CampaignStatus>(['STOPPED', 'COMPLETED']);
     CampaignInfoComponent,
     CampaignAssignmentModalComponent,
     ConfirmDialogComponent,
+    ContactDetailModalComponent,
   ],
   templateUrl: './campaign-list.component.html',
   styleUrl: './campaign-list.component.scss',
@@ -73,6 +75,8 @@ export class CampaignListComponent implements OnInit {
   readonly infoCampaign = signal<Campaign | null>(null);
 
   readonly assignmentCampaign = signal<Campaign | null>(null);
+
+  readonly selectedContactId = signal<string | null>(null);
 
   readonly showConfirmDialog = signal(false);
   readonly confirmDialogMessage = signal('');
@@ -185,6 +189,10 @@ export class CampaignListComponent implements OnInit {
   onContactsClosed(): void {
     this.showContactsModal.set(false);
     this.contactsCampaign.set(null);
+  }
+
+  onContactSelected(contactId: string): void {
+    this.selectedContactId.set(contactId);
   }
 
   openInfoModal(campaign: Campaign): void {

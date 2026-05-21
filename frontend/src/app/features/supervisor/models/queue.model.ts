@@ -9,6 +9,7 @@ export interface Queue {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  assignedAgentsCount?: number;
 }
 
 export interface CreateQueueRequest {

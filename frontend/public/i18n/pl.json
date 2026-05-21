@@ -1055,7 +1055,10 @@
       "cancelButton": "Anuluj",
       "successToast": "Przypisanie agentów zaktualizowane",
       "errorSave": "Nie udało się zapisać przypisania",
-      "manageButton": "Zarządzaj agentami"
+      "manageButton": "Zarządzaj agentami",
+      "badgeNoAgents": "Brak agentów",
+      "badgeNoAgentsHint": "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu",
+      "badgeAgents": "agentów"
     },
     "queueAssignment": {
       "title": "Przypisanie do kolejki",

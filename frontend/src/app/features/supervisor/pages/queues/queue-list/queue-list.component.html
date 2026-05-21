@@ -73,7 +73,22 @@
           <tbody>
             @for (queue of queues(); track queue.queueId) {
               <tr class="queue-row">
-                <td class="queue-name">{{ queue.name }}</td>
+                <td class="queue-name">
+                  {{ queue.name }}
+                  @if ((queue.assignedAgentsCount ?? 0) === 0) {
+                    <span
+                      class="badge badge--warning"
+                      [title]="'supervisor.queueAgents.badgeNoAgentsHint' | transloco"
+                    >
+                      {{ 'supervisor.queueAgents.badgeNoAgents' | transloco }}
+                    </span>
+                  } @else {
+                    <span class="badge badge--agents">
+                      {{ queue.assignedAgentsCount }}
+                      {{ 'supervisor.queueAgents.badgeAgents' | transloco }}
+                    </span>
+                  }
+                </td>
                 <td class="queue-secondary hide-sm">{{ queue.routingStrategy }}</td>
                 <td class="queue-skills hide-sm">
                   @if (queue.requiredSkills.length > 0) {

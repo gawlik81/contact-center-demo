@@ -1055,7 +1055,10 @@
       "cancelButton": "Скасувати",
       "successToast": "Призначення агентів оновлено",
       "errorSave": "Не вдалося зберегти призначення",
-      "manageButton": "Керувати агентами"
+      "manageButton": "Керувати агентами",
+      "badgeNoAgents": "Немає агентів",
+      "badgeNoAgentsHint": "Немає призначених агентів — черга не оброблятиме жодних контактів",
+      "badgeAgents": "агентів"
     },
     "queueAssignment": {
       "title": "Призначення до черги",

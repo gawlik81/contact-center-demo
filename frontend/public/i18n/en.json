@@ -1055,7 +1055,10 @@
       "cancelButton": "Cancel",
       "successToast": "Agent assignment updated",
       "errorSave": "Failed to save assignment",
-      "manageButton": "Manage agents"
+      "manageButton": "Manage agents",
+      "badgeNoAgents": "No agents",
+      "badgeNoAgentsHint": "No assigned agents — queue will not handle any contacts",
+      "badgeAgents": "agents"
     },
     "queueAssignment": {
       "title": "Queue assignment",

@@ -23,6 +23,8 @@ import java.util.UUID;
  * @param active                        czy kolejka jest aktywna
  * @param createdAt                     data/czas utworzenia
  * @param updatedAt                     data/czas ostatniej aktualizacji
+ * @param assignedAgentsCount           liczba unikalnych agentów przypisanych do kolejki
+ *                                      (bezpośrednio i przez grupy)
  */
 public record QueueResponse(
         UUID queueId,
@@ -36,16 +38,18 @@ public record QueueResponse(
         String waitConfig,
         boolean active,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        int assignedAgentsCount
 ) {
 
     /**
-     * Fabryka tworząca DTO z encji {@link Queue}.
+     * Fabryka tworząca DTO z encji {@link Queue} z liczbą przypisanych agentów.
      *
-     * @param queue encja kolejki
+     * @param queue               encja kolejki
+     * @param assignedAgentsCount liczba unikalnych agentów przypisanych do kolejki
      * @return DTO odpowiedzi
      */
-    public static QueueResponse from(Queue queue) {
+    public static QueueResponse from(Queue queue, int assignedAgentsCount) {
         return new QueueResponse(
                 queue.getQueueId(),
                 queue.getTenantId(),
@@ -58,7 +62,19 @@ public record QueueResponse(
                 queue.getWaitConfig(),
                 queue.isActive(),
                 queue.getCreatedAt(),
-                queue.getUpdatedAt()
+                queue.getUpdatedAt(),
+                assignedAgentsCount
         );
+    }
+
+    /**
+     * Fabryka tworząca DTO z encji {@link Queue} bez liczby przypisanych agentów
+     * (domyślnie 0). Używana przez endpointy tworzenia, pobierania i aktualizacji.
+     *
+     * @param queue encja kolejki
+     * @return DTO odpowiedzi z {@code assignedAgentsCount = 0}
+     */
+    public static QueueResponse from(Queue queue) {
+        return from(queue, 0);
     }
 }

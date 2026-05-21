@@ -119,7 +119,7 @@
                   <td class="contact-error">
                     @if (contact.dispositionCode) {
                       <span class="contact-error__text" [title]="contact.dispositionCode">
-                        {{ contact.dispositionCode }}
+                        {{ dispositionLabel(contact.dispositionCode) }}
                       </span>
                     } @else {
                       <span class="contact-empty">—</span>
@@ -232,7 +232,7 @@
                                   }}
                                 </span>
                                 <span class="attempt-disposition">{{
-                                  attempt.dispositionCode ?? '—'
+                                  dispositionLabel(attempt.dispositionCode)
                                 }}</span>
                               </div>
                             }

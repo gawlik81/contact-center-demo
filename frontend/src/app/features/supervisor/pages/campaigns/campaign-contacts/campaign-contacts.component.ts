@@ -208,6 +208,12 @@ export class CampaignContactsComponent implements OnInit, AfterViewInit {
     );
   }
 
+  dispositionLabel(code: string | null): string {
+    if (!code) return '—';
+    const found = this.campaign().dispositionCodes.find((d) => d.code === code);
+    return found?.label ?? code;
+  }
+
   formatRelativeTime(dateStr: string | null): string {
     if (!dateStr) return '—';
     try {

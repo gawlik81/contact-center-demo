@@ -202,6 +202,11 @@ export class CampaignListComponent implements OnInit {
     this.assignmentCampaign.set(campaign);
   }
 
+  onAssignmentClosed(): void {
+    this.assignmentCampaign.set(null);
+    this.loadCampaigns();
+  }
+
   canStart(status: CampaignStatus): boolean {
     return status === 'DRAFT' || status === 'PAUSED';
   }

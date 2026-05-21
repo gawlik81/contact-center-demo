@@ -339,7 +339,7 @@
 @if (assignmentCampaign()) {
   <app-campaign-assignment-modal
     [campaign]="assignmentCampaign()!"
-    (closed)="assignmentCampaign.set(null)"
+    (closed)="onAssignmentClosed()"
   />
 }
 

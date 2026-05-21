@@ -326,4 +326,27 @@ public class CampaignAssignmentRepository extends TenantAwareRepository {
 
         log.debug("[CampaignAssignmentRepo] Podmiana grup zakończona: campaignId={}", campaignId);
     }
+
+    // =========================================================================
+    // Odczyt – liczba przypisań (dla badge w liście kampanii)
+    // =========================================================================
+
+    /**
+     * Zwraca sumę bezpośrednio przypisanych agentów i przypisanych grup dla kampanii.
+     * Gdy {@code all_agents=true} metoda nie jest wywoływana — frontend wyświetla badge "Wszyscy agenci".
+     *
+     * @param campaignId UUID kampanii
+     * @return suma rekordów w campaign_agent + campaign_agent_group
+     */
+    @Transactional(readOnly = true)
+    public int countAssignments(UUID campaignId) {
+        Number result = (Number) em.createNativeQuery("""
+                SELECT
+                    (SELECT COUNT(*) FROM campaign_agent      WHERE campaign_id = CAST(:campaignId AS uuid)) +
+                    (SELECT COUNT(*) FROM campaign_agent_group WHERE campaign_id = CAST(:campaignId AS uuid))
+                """)
+                .setParameter("campaignId", campaignId.toString())
+                .getSingleResult();
+        return result != null ? result.intValue() : 0;
+    }
 }

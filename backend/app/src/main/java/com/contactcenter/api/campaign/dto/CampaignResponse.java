@@ -28,16 +28,29 @@ public record CampaignResponse(
         String callerId,
         UUID createdBy,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        boolean allAgents,
+        int assignedAgentsCount
 ) {
 
     /**
-     * Fabryka tworząca DTO z encji JPA.
+     * Fabryka tworząca DTO z encji JPA (bez danych przypisania — domyślnie all_agents=true, count=0).
      *
      * @param campaign encja kampanii
      * @return zmapowane DTO odpowiedzi
      */
     public static CampaignResponse from(Campaign campaign) {
+        return from(campaign, 0);
+    }
+
+    /**
+     * Fabryka tworząca DTO z encji JPA z liczbą przypisań.
+     *
+     * @param campaign           encja kampanii
+     * @param assignedAgentsCount suma bezpośrednich agentów + grup (0 gdy all_agents=true)
+     * @return zmapowane DTO odpowiedzi
+     */
+    public static CampaignResponse from(Campaign campaign, int assignedAgentsCount) {
         return new CampaignResponse(
                 campaign.getCampaignId(),
                 campaign.getTenantId(),
@@ -54,7 +67,9 @@ public record CampaignResponse(
                 campaign.getCallerId(),
                 campaign.getCreatedBy(),
                 campaign.getCreatedAt(),
-                campaign.getUpdatedAt()
+                campaign.getUpdatedAt(),
+                campaign.isAllAgents(),
+                campaign.isAllAgents() ? 0 : assignedAgentsCount
         );
     }
 }

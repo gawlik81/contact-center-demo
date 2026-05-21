@@ -6,6 +6,7 @@ import com.contactcenter.api.campaign.dto.CreateCampaignRequest;
 import com.contactcenter.api.campaign.dto.UpdateCampaignRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Campaign;
+import com.contactcenter.domain.repository.CampaignAssignmentRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +58,7 @@ public class CampaignService {
     private static final String STATUS_COMPLETED = "COMPLETED";
 
     private final CampaignRepository campaignRepository;
+    private final CampaignAssignmentRepository campaignAssignmentRepository;
 
     // =========================================================================
     // CRUD
@@ -111,7 +113,10 @@ public class CampaignService {
         long total = campaignRepository.countByTenantId(tenantId);
 
         List<CampaignResponse> content = campaigns.stream()
-                .map(CampaignResponse::from)
+                .map(c -> CampaignResponse.from(
+                        c,
+                        c.isAllAgents() ? 0 : campaignAssignmentRepository.countAssignments(c.getCampaignId())
+                ))
                 .toList();
 
         int totalPages = size > 0 ? (int) Math.ceil((double) total / size) : 0;

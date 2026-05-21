@@ -121,7 +121,17 @@
 
     <!-- Footer -->
     <div class="info-modal__footer">
+      <button class="btn btn-primary" type="button" (click)="showAssignmentModal.set(true)">
+        {{ 'supervisor.campaigns.campaignAssignment.manageButton' | transloco }}
+      </button>
       <button class="btn btn-secondary" type="button" (click)="close()">{{ 'common.close' | transloco }}</button>
     </div>
   </div>
 </dialog>
+
+@if (showAssignmentModal()) {
+  <app-campaign-assignment-modal
+    [campaign]="campaign"
+    (closed)="showAssignmentModal.set(false)"
+  />
+}

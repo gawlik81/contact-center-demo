@@ -67,33 +67,6 @@
         </select>
       </div>
 
-      <!-- Queue -->
-      <div class="form-field" [class.form-field--error]="queueIdError">
-        <label class="form-label" for="queueId">
-          {{ 'supervisor.campaignForm.queueLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
-        </label>
-        @if (queuesLoading()) {
-          <div class="form-skeleton" aria-hidden="true"></div>
-        } @else {
-          <select
-            id="queueId"
-            class="form-select"
-            formControlName="queueId"
-            aria-required="true"
-            [attr.aria-describedby]="queueIdError ? 'queueId-error' : null"
-            [attr.aria-invalid]="queueIdError ? 'true' : null"
-          >
-            <option value="">{{ 'supervisor.campaignForm.queuePlaceholder' | transloco }}</option>
-            @for (queue of queues(); track queue.queueId) {
-              <option [value]="queue.queueId">{{ queue.name }}</option>
-            }
-          </select>
-        }
-        @if (queueIdError) {
-          <span id="queueId-error" class="form-error" role="alert">{{ queueIdError }}</span>
-        }
-      </div>
-
       <!-- Caller ID – only for OUTBOUND_VOICE -->
       @if (campaignType() === 'OUTBOUND_VOICE') {
         <div class="form-field">

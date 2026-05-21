@@ -24,7 +24,6 @@ import {
 } from '@angular/forms';
 import { catchError, of } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
-import { QueueService } from '../../../services/queue.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { TwilioPhoneNumberSelectComponent } from '../../../components/twilio-phone-number-select/twilio-phone-number-select.component';
 import {
@@ -34,7 +33,6 @@ import {
   CampaignType,
   DialerType,
 } from '../../../models/campaign.model';
-import { Queue } from '../../../models/queue.model';
 
 /** Validates HH:MM time format */
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -94,7 +92,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   readonly cancelled = output<void>();
 
   private readonly campaignService = inject(CampaignService);
-  private readonly queueService = inject(QueueService);
   private readonly notifications = inject(NotificationService);
   private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
@@ -103,8 +100,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
 
   readonly submitting = signal(false);
-  readonly queuesLoading = signal(false);
-  readonly queues = signal<Queue[]>([]);
   readonly allDays = ALL_DAYS;
 
   readonly typeOptions = signal<{ value: CampaignType; label: string }[]>([
@@ -141,7 +136,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     name: ['', [Validators.required, Validators.maxLength(255)]],
     type: ['OUTBOUND_VOICE' as CampaignType, Validators.required],
     dialerType: ['PROGRESSIVE' as DialerType, Validators.required],
-    queueId: ['', Validators.required],
     callerId: this.fb.control<string | null>(null),
     maxAttempts: [3, [Validators.required, Validators.min(1), Validators.max(10)]],
     retryDelayMinutes: [60, [Validators.required, Validators.min(1), Validators.max(1440)]],
@@ -156,7 +150,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   readonly selectedDays = signal<Set<ActiveDay>>(new Set());
 
   ngOnInit(): void {
-    this.loadQueues();
     this.initOptions();
 
     this.transloco.langChanges$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -174,7 +167,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         name: editCampaign.name,
         type: editCampaign.type,
         dialerType: editCampaign.dialerType,
-        queueId: editCampaign.queueId ?? '',
         callerId: editCampaign.callerId ?? null,
         maxAttempts: editCampaign.maxAttempts,
         retryDelayMinutes: editCampaign.retryDelayMinutes,
@@ -225,27 +217,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         label: this.transloco.translate('supervisor.campaigns.dialerManual'),
       },
     ]);
-  }
-
-  private loadQueues(): void {
-    this.queuesLoading.set(true);
-    this.queueService
-      .getQueues(0, 100)
-      .pipe(
-        catchError(() => {
-          this.notifications.error(
-            this.transloco.translate('supervisor.campaignForm.errors.loadQueuesFailed'),
-          );
-          return of(null);
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((result) => {
-        this.queuesLoading.set(false);
-        if (result) {
-          this.queues.set(result.content.filter((q) => q.active));
-        }
-      });
   }
 
   ngAfterViewInit(): void {
@@ -368,14 +339,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     return null;
   }
 
-  get queueIdError(): string | null {
-    const ctrl = this.form.get('queueId')!;
-    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required'))
-      return this.transloco.translate('supervisor.campaignForm.errors.queueRequired');
-    return null;
-  }
-
   get scheduleDateRangeError(): string | null {
     if (this.scheduleGroup.hasError('endDateBeforeStart') && this.scheduleGroup.touched) {
       return this.transloco.translate('supervisor.campaignForm.errors.dateRangeInvalid');
@@ -430,7 +393,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
           name: raw.name!.trim(),
           type: raw.type as CampaignType,
           dialerType: raw.dialerType as DialerType,
-          queueId: raw.queueId!,
           maxAttempts: raw.maxAttempts!,
           retryDelayMinutes: raw.retryDelayMinutes!,
           ringTimeoutSeconds: raw.ringTimeoutSeconds!,

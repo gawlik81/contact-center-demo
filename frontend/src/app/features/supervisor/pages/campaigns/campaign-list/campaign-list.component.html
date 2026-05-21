@@ -67,7 +67,26 @@
           <tbody>
             @for (campaign of filteredCampaigns(); track campaign.campaignId) {
               <tr class="campaign-row">
-                <td class="campaign-name">{{ campaign.name }}</td>
+                <td class="campaign-name">
+                  {{ campaign.name }}
+                  @if (campaign.allAgents) {
+                    <span class="badge badge--info">
+                      {{ 'supervisor.campaigns.badgeAllAgents' | transloco }}
+                    </span>
+                  } @else if ((campaign.assignedAgentsCount ?? 0) === 0) {
+                    <span
+                      class="badge badge--warning"
+                      [title]="'supervisor.campaigns.badgeNoAgentsHint' | transloco"
+                    >
+                      {{ 'supervisor.campaigns.badgeNoAgents' | transloco }}
+                    </span>
+                  } @else {
+                    <span class="badge badge--agents">
+                      {{ campaign.assignedAgentsCount }}
+                      {{ 'supervisor.campaigns.badgeAgents' | transloco }}
+                    </span>
+                  }
+                </td>
                 <td>
                   <span
                     class="status-badge"

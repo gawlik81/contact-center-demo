@@ -18,11 +18,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, of } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
 import { Campaign, ActiveDay } from '../../../models/campaign.model';
+import { CampaignAssignmentModalComponent } from '../campaign-assignment-modal/campaign-assignment-modal.component';
 
 @Component({
   selector: 'app-campaign-info',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule],
+  imports: [TranslocoModule, CampaignAssignmentModalComponent],
   templateUrl: './campaign-info.component.html',
   styleUrl: './campaign-info.component.scss',
   host: {
@@ -42,6 +43,7 @@ export class CampaignInfoComponent implements OnInit, AfterViewInit {
 
   readonly contactCount = signal<number | null>(null);
   readonly contactCountLoading = signal(true);
+  readonly showAssignmentModal = signal(false);
 
   ngOnInit(): void {
     this.transloco.langChanges$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {

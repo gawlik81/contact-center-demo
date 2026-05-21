@@ -1118,7 +1118,29 @@
       "importSuccess": "Import kontaktów został zakończony pomyślnie.",
       "errors": {
         "loadFailed": "Nie udało się pobrać listy kampanii. Spróbuj ponownie."
-      }
+      },
+      "campaignAssignment": {
+        "title": "Zarządzaj agentami kampanii",
+        "allAgentsLabel": "Wszyscy agenci tenanta",
+        "allAgentsHint": "Kampania dostępna dla wszystkich agentów",
+        "groupsSection": "Grupy agentów",
+        "agentsSection": "Agenci bezpośredni",
+        "addGroup": "Dodaj grupę",
+        "addAgent": "Dodaj agenta",
+        "emptyWarning": "Brak przypisania — dialer nie będzie dzwonił, panel manualny nie wyświetli rekordów tej kampanii.",
+        "saveButton": "Zapisz",
+        "cancelButton": "Anuluj",
+        "successToast": "Przypisanie agentów zaktualizowane",
+        "errorSave": "Nie udało się zapisać przypisania",
+        "manageButton": "Zarządzaj agentami"
+      },
+      "badgeAllAgents": "Wszyscy agenci",
+      "badgeNoAgents": "Brak agentów",
+      "badgeNoAgentsHint": "Dialer nieaktywny — brak przypisanych agentów",
+      "badgeAgents": "agentów",
+      "attempts": "prób",
+      "showAttempts": "Pokaż próby wydzwonienia",
+      "noAttempts": "Brak prób wydzwonienia"
     },
     "campaignForm": {
       "titleCreate": "Nowa kampania",
@@ -1136,8 +1158,6 @@
       "cancel": "Anuluj",
       "closeLabel": "Zamknij formularz",
       "dialerTypeLabel": "Typ dialera",
-      "queueLabel": "Kolejka",
-      "queuePlaceholder": "-- Wybierz kolejkę --",
       "maxAttemptsLabel": "Maksymalna liczba prób",
       "retryDelayLabel": "Czas między próbami (minuty)",
       "scheduleLabel": "Harmonogram (opcjonalny)",
@@ -1169,9 +1189,7 @@
         "timeFromPattern": "Format: GG:MM (np. 09:00)",
         "timeToPattern": "Format: GG:MM (np. 18:00)",
         "timeRangeInvalid": "Godzina \"do\" musi być później niż godzina \"od\".",
-        "queueRequired": "Kolejka jest wymagana.",
         "dateRangeInvalid": "Data końca nie może być wcześniej niż data startu.",
-        "loadQueuesFailed": "Nie udało się pobrać listy kolejek.",
         "updateFailed": "Nie udało się zaktualizować kampanii. Spróbuj ponownie.",
         "limitExceeded": "Przekroczono limit kampanii dla tego tenanta.",
         "createFailed": "Nie udało się utworzyć kampanii. Spróbuj ponownie."

@@ -1,4 +1,5 @@
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
+import { DatePipe, DecimalPipe, LowerCasePipe } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -22,6 +23,7 @@ import {
   Campaign,
   CampaignContact,
   CampaignContactStatus,
+  ContactAttempt,
   PagedResponse,
 } from '../../../models/campaign.model';
 
@@ -35,7 +37,7 @@ interface StatusOption {
 @Component({
   selector: 'app-campaign-contacts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule],
+  imports: [TranslocoModule, DatePipe, DecimalPipe, LowerCasePipe],
   templateUrl: './campaign-contacts.component.html',
   styleUrl: './campaign-contacts.component.scss',
   host: {
@@ -45,6 +47,7 @@ interface StatusOption {
 export class CampaignContactsComponent implements OnInit, AfterViewInit {
   readonly campaign = input.required<Campaign>();
   readonly closed = output<void>();
+  readonly contactSelected = output<string>();
 
   private readonly campaignService = inject(CampaignService);
   private readonly dialerService = inject(DialerService);
@@ -63,6 +66,9 @@ export class CampaignContactsComponent implements OnInit, AfterViewInit {
   readonly currentPage = signal(0);
   readonly selectedStatus = signal<string>('');
   readonly callingRecordId = signal<string | null>(null);
+  readonly expandedRecordId = signal<string | null>(null);
+  readonly attempts = signal<ContactAttempt[]>([]);
+  readonly attemptsLoading = signal(false);
 
   readonly isAgent = (): boolean => this.authService.currentRole() === 'AGENT';
   readonly isManualCampaign = (): boolean => this.campaign().dialerType === 'MANUAL';
@@ -229,6 +235,27 @@ export class CampaignContactsComponent implements OnInit, AfterViewInit {
 
   get maxAttempts(): number {
     return this.campaign().maxAttempts;
+  }
+
+  showAttempts(contact: CampaignContact): void {
+    if (this.expandedRecordId() === contact.recordId) {
+      this.expandedRecordId.set(null);
+      return;
+    }
+    this.expandedRecordId.set(contact.recordId);
+    this.attemptsLoading.set(true);
+    this.campaignService
+      .getContactAttempts(this.campaign().campaignId, contact.recordId)
+      .pipe(
+        catchError(() => of([])),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.attemptsLoading.set(false)),
+      )
+      .subscribe((a) => this.attempts.set(a));
+  }
+
+  openContactDetail(contactId: string): void {
+    this.contactSelected.emit(contactId);
   }
 
   callRecord(contact: CampaignContact): void {

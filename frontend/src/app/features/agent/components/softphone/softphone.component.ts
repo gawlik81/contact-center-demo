@@ -48,7 +48,9 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   /** True while an HTTP transfer request is in flight — disables transfer buttons */
   protected readonly isTransferring = signal<boolean>(false);
 
-  protected readonly transferTargetTabs: TransferTargetType[] = ['PHONE', 'AGENT', 'QUEUE'];
+  protected readonly transferTargetTabs = computed<TransferTargetType[]>(() =>
+    this.tab.direction === 'OUTBOUND' ? ['PHONE', 'AGENT'] : ['PHONE', 'AGENT', 'QUEUE'],
+  );
 
   protected readonly transferTargetValid = computed(
     () => this.transferTarget().replace(/[\s+]/g, '').length >= 3,

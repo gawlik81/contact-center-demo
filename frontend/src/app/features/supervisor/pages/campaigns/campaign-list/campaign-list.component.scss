@@ -84,6 +84,38 @@
 .campaign-name {
   font-weight: 500;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+// ── Agent assignment badges ────────────────────────────────────────────────────
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.4;
+
+  &--info {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  &--warning {
+    background: var(--warning-soft);
+    color: var(--warning-text);
+    cursor: help;
+  }
+
+  &--agents {
+    background: var(--neutral-soft);
+    color: var(--neutral-text);
+  }
 }
 
 .campaign-type,

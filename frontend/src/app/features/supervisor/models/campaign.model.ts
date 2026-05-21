@@ -33,13 +33,14 @@ export interface Campaign {
   createdBy?: string;
   createdAt: string;
   updatedAt?: string;
+  allAgents?: boolean;
+  assignedAgentsCount?: number; // -1 = all agents mode
 }
 
 export interface CreateCampaignRequest {
   name: string;
   type: CampaignType;
   dialerType: DialerType;
-  queueId: string;
   maxAttempts: number;
   retryDelayMinutes: number;
   ringTimeoutSeconds: number;
@@ -118,6 +119,17 @@ export interface CampaignContact {
   createdAt: string;
   attemptCount: number;
   nextAttemptAt: string | null;
+  lastContactId?: string | null;
+}
+
+export interface ContactAttempt {
+  contactId: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  status: string;
+  dispositionCode: string | null;
+  agentId: string | null;
 }
 
 export interface ManualCampaignRecord {
@@ -132,4 +144,30 @@ export interface ManualCampaignGroup {
   campaignId: string;
   campaignName: string;
   records: ManualCampaignRecord[];
+}
+
+export interface AgentSummary {
+  agentId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export interface CampaignAgentGroupSummary {
+  groupId: string;
+  name: string;
+  memberCount: number;
+}
+
+export interface CampaignAssignment {
+  campaignId: string;
+  allAgents: boolean;
+  directAgents: AgentSummary[];
+  groups: CampaignAgentGroupSummary[];
+}
+
+export interface UpdateCampaignAssignmentRequest {
+  allAgents: boolean;
+  directAgentIds: string[];
+  groupIds: string[];
 }

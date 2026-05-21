@@ -40,6 +40,15 @@ Stan migracji po V035 (2026-04-08):
   - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
   - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
 
+Stan migracji po V062 (2026-05-21):
+- V062__campaign_agent_assignment.sql (DB-036): trójpoziomowe przypisanie agentów do kampanii wychodzącej.
+  - campaign.all_agents BOOLEAN DEFAULT FALSE: TRUE = wszyscy agenci tenanta, FALSE = jawne przypisanie
+  - Istniejące kampanie: UPDATE SET all_agents = TRUE (backward compat)
+  - campaign_agent: many-to-many kampania ↔ agent (bezpośrednie), PK (campaign_id, agent_id), CASCADE DELETE
+  - campaign_agent_group: many-to-many kampania ↔ agent_group, PK (campaign_id, group_id), CASCADE DELETE
+  - Indeksy pokrywające: idx_campaign_agent_group_lookup INCLUDE(group_id), idx_campaign_agent_member_lookup na agent_group_member(agent_id) INCLUDE(group_id)
+  - BUILD SUCCESS: mvn verify -pl app -DskipTests (01:15 min)
+
 Stan migracji po V053 (2026-05-08):
 - V053__add_not_reached_callback_status.sql (DB-032): rozszerzenie CHECK constraint na campaign_contact i campaign_contact_archive o statusy NOT_REACHED i CALLBACK; przebudowa idx_campaign_contact_dialer (teraz WHERE status IN ('PENDING', 'NO_ANSWER') – retry); przebudowa mv_campaign_stats z nowymi kolumnami not_reached_records i callback_records; COMMENT ON COLUMN campaign_contact.status z opisem wszystkich 10 statusów.
 

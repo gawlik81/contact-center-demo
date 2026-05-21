@@ -169,22 +169,22 @@
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.2rem 0.5rem;
-  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
   font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1;
+  font-weight: 500;
+  line-height: 1.4;
   white-space: nowrap;
   margin-left: 0.5rem;
   vertical-align: middle;
 }
 
 .badge--agents {
-  background: var(--success-soft);
-  color: var(--success-text);
+  background: var(--neutral-soft);
+  color: var(--neutral-text);
 }
 
-.badge--all-agents {
+.badge--info {
   background: var(--accent-soft);
   color: var(--accent-text);
 }
@@ -192,6 +192,7 @@
 .badge--warning {
   background: var(--warning-soft);
   color: var(--warning-text);
+  cursor: help;
 }
 
 // ── Status badge ───────────────────────────────────────────────────────────────

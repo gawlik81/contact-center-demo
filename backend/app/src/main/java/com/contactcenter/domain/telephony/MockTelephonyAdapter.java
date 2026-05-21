@@ -62,7 +62,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     // =========================================================================
 
     @Override
-    public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId) {
+    public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID campaignId, UUID callbackId) {
         String callId = generateCallId();
         Instant now = Instant.now();
 

@@ -196,7 +196,7 @@ public class ScheduledCallbackExecutor {
                     fromNumber,
                     callback.getPhone(),
                     callback.getAgentId(),
-                    null,                       // queueId null – callback nie pochodzi z kolejki kampanii
+                    callback.getCampaignId(),   // campaignId – null dla callbacków inbound (nie kampanijnych)
                     callback.getCallbackId()    // powiąż kontakt z oddzwonieniem
             );
 

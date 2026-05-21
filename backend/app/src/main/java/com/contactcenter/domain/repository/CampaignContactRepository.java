@@ -2,6 +2,7 @@ package com.contactcenter.domain.repository;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.campaign.dto.CampaignContactResponse;
+import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -555,7 +556,7 @@ public class CampaignContactRepository extends TenantAwareRepository {
             selectSql = """
                     SELECT record_id, phone, first_name, last_name,
                            custom_fields::text, status, disposition_code, created_at,
-                           attempt_count, next_attempt_at
+                           attempt_count, next_attempt_at, last_contact_id
                     FROM campaign_contact
                     WHERE campaign_id = ?::uuid
                       AND tenant_id = ?::uuid
@@ -570,7 +571,7 @@ public class CampaignContactRepository extends TenantAwareRepository {
             selectSql = """
                     SELECT record_id, phone, first_name, last_name,
                            custom_fields::text, status, disposition_code, created_at,
-                           attempt_count, next_attempt_at
+                           attempt_count, next_attempt_at, last_contact_id
                     FROM campaign_contact
                     WHERE campaign_id = ?::uuid
                       AND tenant_id = ?::uuid
@@ -603,6 +604,9 @@ public class CampaignContactRepository extends TenantAwareRepository {
                     Timestamp nextAttemptAtTs = rs.getTimestamp("next_attempt_at");
                     Instant nextAttemptAt = nextAttemptAtTs != null ? nextAttemptAtTs.toInstant() : null;
 
+                    String lastContactIdStr = rs.getString("last_contact_id");
+                    UUID lastContactId = lastContactIdStr != null ? UUID.fromString(lastContactIdStr) : null;
+
                     return new CampaignContactResponse(
                             recordId,
                             phone,
@@ -613,7 +617,8 @@ public class CampaignContactRepository extends TenantAwareRepository {
                             errorMessage,
                             createdAt,
                             attemptCount,
-                            nextAttemptAt
+                            nextAttemptAt,
+                            lastContactId
                     );
                 }
         );
@@ -637,6 +642,40 @@ public class CampaignContactRepository extends TenantAwareRepository {
      * @param json JSON string z bazy (może być {@code null}, {@code "{}"} lub {@code "{\"k\":\"v\",...}"})
      * @return mapa pól lub {@code null}
      */
+    // =========================================================================
+    // BE-085: Aktualizacja last_contact_id po wydzwonieniu przez dialer
+    // =========================================================================
+
+    /**
+     * Ustawia {@code last_contact_id} na rekordzie campaign_contact po wydzwonieniu przez dialer.
+     *
+     * <p>Wywoływane przez {@code ProgressiveDialerService} po pomyślnym inicjowaniu połączenia,
+     * umożliwiając szybki dostęp do ostatniego kontaktu związanego z rekordem.
+     *
+     * @param recordId   UUID rekordu campaign_contact
+     * @param campaignId UUID kampanii
+     * @param contactId  UUID nowo utworzonego kontaktu
+     */
+    @Transactional
+    public void updateLastContactId(UUID recordId, UUID campaignId, UUID contactId) {
+        setTenantContextInDb(TenantContext.getTenantId());
+
+        jdbcTemplate.update(
+                """
+                UPDATE campaign_contact
+                   SET last_contact_id = ?::uuid,
+                       updated_at = NOW()
+                 WHERE record_id   = ?::uuid
+                   AND campaign_id = ?::uuid
+                """,
+                contactId.toString(),
+                recordId.toString(),
+                campaignId.toString()
+        );
+
+        log.debug("[CampaignContactRepo] updateLastContactId: recordId={}, contactId={}", recordId, contactId);
+    }
+
     private Map<String, String> parseCustomFields(String json) {
         if (json == null || json.isBlank() || "{}".equals(json.trim())) {
             return null;

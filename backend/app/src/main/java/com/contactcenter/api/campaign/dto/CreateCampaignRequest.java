@@ -1,7 +1,6 @@
 package com.contactcenter.api.campaign.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -42,10 +41,9 @@ public record CreateCampaignRequest(
         Map<String, Object> schedule,
 
         /**
-         * UUID kolejki agentów. Wymagane – kampania musi być przypisana do kolejki
-         * należącej do tego samego tenanta.
+         * UUID kolejki agentów. Opcjonalne – kampania może działać bez przypisanej kolejki
+         * (przypisanie agentów odbywa się przez campaign_agent / campaign_agent_group).
          */
-        @NotNull(message = "queueId jest wymagany")
         UUID queueId,
 
         /** Lista kodów dyspozycji (nullable = pusta lista). */

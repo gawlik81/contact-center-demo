@@ -87,6 +87,15 @@ public class Campaign {
     private UUID queueId;
 
     /**
+     * Flaga: TRUE = dialer obsługuje wszystkich agentów tenanta,
+     * FALSE = tylko agenci z campaign_agent / campaign_agent_group.
+     * Dodana w migracji V062.
+     */
+    @Column(name = "all_agents", nullable = false)
+    @Builder.Default
+    private boolean allAgents = false;
+
+    /**
      * Lista kodów dyspozycji dostępnych dla agentów (JSONB array).
      * Format: [{"code":"SALE","label":"Sprzedaż"}, {"code":"DECLINED","label":"Odmowa"}]
      */

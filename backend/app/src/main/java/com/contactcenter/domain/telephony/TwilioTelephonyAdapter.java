@@ -309,9 +309,9 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * @throws TelephonyException gdy Twilio API zwróci błąd lub brak numeru telefonu w konfiguracji
    */
   @Override
-  public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId) {
-    log.info("[TwilioAdapter] Inicjuję połączenie wychodzące: tenantId={}, from={}, to={}, agentId={}, queueId={}, callbackId={}",
-        tenantId, from, to, agentId, queueId, callbackId);
+  public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID campaignId, UUID callbackId) {
+    log.info("[TwilioAdapter] Inicjuję połączenie wychodzące: tenantId={}, from={}, to={}, agentId={}, campaignId={}, callbackId={}",
+        tenantId, from, to, agentId, campaignId, callbackId);
 
     // contactId wyciągnięte poza try – potrzebne w catch do oznaczenia Contact jako ERROR
     // gdy Twilio API rzuci ApiException po tym jak rekord kontaktu już istnieje w DB.
@@ -380,7 +380,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // StatusCallback mógłby dotrzeć zanim backfill uzupełni callSid w DB.
       // contactId zostało wygenerowane wcześniej i użyte jako nazwa konferencji w TwiML —
       // persistOutboundContact() używa tego samego UUID, zapewniając spójność z dialAgentIntoConference().
-      UUID persistResult = persistOutboundContact(tenantId, from, to, agentId, queueId, callbackId, callSid, contactId);
+      UUID persistResult = persistOutboundContact(tenantId, from, to, agentId, campaignId, callbackId, callSid, contactId);
       if (persistResult == null) {
         // Nadpisz tylko gdy persist się nie powiódł (null oznacza błąd DB), żeby zmienna
         // contactId w catch była null — analogicznie jak dotychczas.
@@ -2625,7 +2625,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * @param callSid  Twilio Call SID obtained from Twilio API before calling this method
    * @return UUID of the newly created contact record, or null on DB error
    */
-  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId, String callSid, UUID preGeneratedContactId) {
+  private UUID persistOutboundContact(UUID tenantId, String from, String to, UUID agentId, UUID campaignId, UUID callbackId, String callSid, UUID preGeneratedContactId) {
     try {
       // Use the pre-generated contactId so the conference name in TwiML ("contact-{contactId}")
       // matches the name used in dialAgentIntoConference() — both sides join the same conference.
@@ -2649,7 +2649,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .tenantId(tenantId)
             .customerId(customerId)
             .agentId(agentId)
-            .queueId(queueId)       // Kolejka kampanii – wymagana przez RoutingService do ACW
+            .campaignId(campaignId) // UUID kampanii wychodzących – null dla połączeń ad-hoc
             .callbackId(callbackId) // UUID oddzwonienia – null gdy połączenie nie jest callbackiem
             .channel("PHONE")
             .direction("OUTBOUND")
@@ -2667,8 +2667,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         TenantContext.restore(snapshot);
       }
 
-      log.debug("[TwilioAdapter] Rekord contact OUTBOUND utworzony: contactId={}, to={}, queueId={}, tenant={}",
-          contactId, to, queueId, tenantId);
+      log.debug("[TwilioAdapter] Rekord contact OUTBOUND utworzony: contactId={}, to={}, campaignId={}, tenant={}",
+          contactId, to, campaignId, tenantId);
 
       return contactId;
 

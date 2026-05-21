@@ -1021,6 +1021,16 @@ public class ContactService {
         Contact contact = validateTransferPreconditions(callId, req, tenantId, userId);
         UUID contactId = contact.getContactId();
 
+        // BE-083: Guard – transfer OUTBOUND → QUEUE jest niedozwolony
+        // Dla kampanii wychodzących nie ma kolejki do przekierowania; dostępny jest tylko
+        // transfer do agenta lub na numer telefonu.
+        if ("OUTBOUND".equals(contact.getDirection())
+                && TransferTargetType.QUEUE == domainReq.targetType()) {
+            throw new InvalidOperationException(
+                    "Transfer do kolejki jest niedozwolony dla połączeń wychodzących (outbound). " +
+                    "Dla kampanii wychodzących dostępny jest wyłącznie transfer do agenta lub na numer telefonu.");
+        }
+
         // 6. Wywołaj adapter (poza transakcją – zewnętrzne I/O)
         log.info("[ContactService] Inicjowanie transferu: callId={}, targetType={}, transferType={}, " +
                  "contactId={}, agentId={}, tenant={}",

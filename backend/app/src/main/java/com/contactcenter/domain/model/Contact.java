@@ -169,4 +169,13 @@ public class Contact {
      */
     @Column(name = "transferred_from_contact_id")
     private UUID transferredFromContactId;
+
+    /**
+     * UUID rekordu listy kampanii (campaign_contact.record_id), z którego powstał ten kontakt.
+     * Nullable – wypełniany tylko dla kontaktów wychodzących inicjowanych przez dialer kampanijny.
+     * Brak FK ze względu na composite PK w campaign_contact (analogicznie do callback_id).
+     * Dodany w migracji V063.
+     */
+    @Column(name = "campaign_contact_record_id")
+    private UUID campaignContactRecordId;
 }

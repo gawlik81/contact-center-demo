@@ -119,7 +119,7 @@ public class AgentCallController {
                 resolvedFromNumber,
                 request.phoneNumber(),
                 agentId,
-                null,  // queueId – not applicable for ad hoc calls
+                null,  // campaignId – not applicable for ad hoc calls
                 null   // callbackId – not a scheduled callback
         );
 

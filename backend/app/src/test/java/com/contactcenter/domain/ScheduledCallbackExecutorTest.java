@@ -338,7 +338,8 @@ class ScheduledCallbackExecutorTest {
 
         CallSession mockSession = mock(CallSession.class);
         when(mockSession.getCallId()).thenReturn(expectedCallSid);
-        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), eq(AGENT_ID), isNull(), eq(CALLBACK_ID)))
+        // BE-082: 5. parametr to campaignId (nie queueId), dla callbacku kampanijnego = CAMPAIGN_ID
+        when(telephonyAdapter.initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), eq(AGENT_ID), eq(CAMPAIGN_ID), eq(CALLBACK_ID)))
                 .thenReturn(mockSession);
 
         // when

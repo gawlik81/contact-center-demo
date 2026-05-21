@@ -4,10 +4,11 @@ import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.CampaignAssignmentRepository;
+import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -33,6 +34,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
 
@@ -77,7 +79,9 @@ public class ProgressiveDialerService {
     private String defaultOutboundNumber;
 
     private final CampaignRepository campaignRepository;
-    private final QueueRepository queueRepository;
+    private final CampaignAssignmentRepository campaignAssignmentRepository;
+    private final CampaignContactRepository campaignContactRepository;
+    private final ContactRepository contactRepository;
     private final AppUserRepository appUserRepository;
     private final TelephonyAdapter telephonyAdapter;
     private final StringRedisTemplate redisTemplate;
@@ -271,10 +275,10 @@ public class ProgressiveDialerService {
                 continue;
             }
 
-            // Sprawdź czy agent spełnia wymagania skills kolejki kampanii
-            if (campaign.getQueueId() != null && !agentHasRequiredSkills(agentId, tenantId, campaign)) {
-                log.debug("[Dialer] Agent {} nie spełnia wymagań skills kampanii {} (kolejka={}) – pomijam",
-                        agentId, campaign.getCampaignId(), campaign.getQueueId());
+            // Sprawdź czy agent jest kwalifikowany do kampanii (trójpoziomowe: allAgents, direct, przez grupy)
+            if (!isAgentEligibleForCampaign(agentId, campaign, tenantId)) {
+                log.debug("[Dialer] Agent {} nie jest kwalifikowany do kampanii {} – pomijam",
+                        agentId, campaign.getCampaignId());
                 continue;
             }
 
@@ -304,7 +308,15 @@ public class ProgressiveDialerService {
 
                 String fromNumber = resolveFromNumber(campaign, tenantId);
                 CallSession session = telephonyAdapter.initiateCall(tenantId, fromNumber, phone, agentId,
-                        campaign.getQueueId(), null); // callbackId null – połączenie z kampanii, nie oddzwonienie
+                        campaign.getCampaignId(), null); // callbackId null – połączenie z kampanii, nie oddzwonienie
+
+                // BE-085: Zapisz powiązanie contact ↔ campaign_contact_record i zaktualizuj last_contact_id
+                if (session != null && session.getContactId() != null) {
+                    contactRepository.updateCampaignContactRecordId(
+                            session.getContactId(), recordId, tenantId);
+                    campaignContactRepository.updateLastContactId(
+                            recordId, campaign.getCampaignId(), session.getContactId());
+                }
 
                 // Zapisz stan w Redis
                 saveCallState(session.getCallId(), recordId, campaign.getCampaignId(), agentId, tenantId);
@@ -549,53 +561,30 @@ public class ProgressiveDialerService {
     /**
      * Sprawdza czy agent posiada wszystkie wymagane umiejętności (skills) kolejki kampanii.
      *
-     * <p>Logika:
+     * <p>Logika trójpoziomowa (BE-081):
      * <ul>
-     *   <li>Jeśli kolejka kampanii nie ma wymaganych skills ({@code requiredSkills} puste) → agent kwalifikuje się</li>
-     *   <li>Jeśli kolejka nie istnieje (np. usunięta po przypisaniu) → agent kwalifikuje się (fail-open)</li>
-     *   <li>Jeśli agent nie istnieje → agent nie kwalifikuje się</li>
-     *   <li>Agent musi posiadać WSZYSTKIE skills wymagane przez kolejkę (superset)</li>
+     *   <li>allAgents=true → każdy AVAILABLE agent tenanta kwalifikuje się</li>
+     *   <li>allAgents=false + brak przypisań → kampania pominięta (WARN log)</li>
+     *   <li>allAgents=false + przypisania → agent kwalifikuje się tylko jeśli jest w zbiorze eligible</li>
      * </ul>
      *
      * @param agentId  UUID agenta
+     * @param campaign kampania
      * @param tenantId UUID tenanta
-     * @param campaign kampania z ustawionym queueId
-     * @return true gdy agent spełnia wymagania skills kolejki
+     * @return true gdy agent kwalifikuje się do kampanii
      */
-    private boolean agentHasRequiredSkills(UUID agentId, UUID tenantId, Campaign campaign) {
-        Queue queue = queueRepository.findByIdAndTenantId(campaign.getQueueId(), tenantId)
-                .orElse(null);
-
-        if (queue == null) {
-            log.warn("[Dialer] Kolejka {} kampanii {} nie istnieje – pomijam filtr skills (fail-open)",
-                    campaign.getQueueId(), campaign.getCampaignId());
+    private boolean isAgentEligibleForCampaign(UUID agentId, Campaign campaign, UUID tenantId) {
+        if (campaign.isAllAgents()) {
             return true;
         }
-
-        List<String> requiredSkills = queue.getRequiredSkills();
-        if (requiredSkills == null || requiredSkills.isEmpty()) {
-            return true;
-        }
-
-        AppUser agent = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
-                .orElse(null);
-
-        if (agent == null) {
-            log.warn("[Dialer] Agent {} nie istnieje lub jest usunięty (tenant={})", agentId, tenantId);
+        Set<UUID> eligible = campaignAssignmentRepository
+                .resolveEligibleAgentIds(campaign.getCampaignId(), tenantId);
+        if (eligible.isEmpty()) {
+            log.warn("[Dialer] Kampania {} (all_agents=false) nie ma przypisanych agentów — pomijam",
+                    campaign.getCampaignId());
             return false;
         }
-
-        List<String> agentSkills = agent.getSkills();
-        if (agentSkills == null) {
-            return false;
-        }
-
-        boolean hasAll = agentSkills.containsAll(requiredSkills);
-        if (!hasAll) {
-            log.debug("[Dialer] Agent {} ma skills={}, wymagane={} – nie kwalifikuje się do kampanii {}",
-                    agentId, agentSkills, requiredSkills, campaign.getCampaignId());
-        }
-        return hasAll;
+        return eligible.contains(agentId);
     }
 
     /**

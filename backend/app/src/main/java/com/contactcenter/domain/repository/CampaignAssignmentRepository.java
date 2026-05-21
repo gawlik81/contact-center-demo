@@ -332,18 +332,26 @@ public class CampaignAssignmentRepository extends TenantAwareRepository {
     // =========================================================================
 
     /**
-     * Zwraca sumę bezpośrednio przypisanych agentów i przypisanych grup dla kampanii.
+     * Zwraca liczbę unikalnych agentów przypisanych do kampanii (bezpośrednio lub przez grupy).
      * Gdy {@code all_agents=true} metoda nie jest wywoływana — frontend wyświetla badge "Wszyscy agenci".
      *
      * @param campaignId UUID kampanii
-     * @return suma rekordów w campaign_agent + campaign_agent_group
+     * @return liczba unikalnych agentów (deduplikacja: agent bezpośredni + w grupie liczony raz)
      */
     @Transactional(readOnly = true)
     public int countAssignments(UUID campaignId) {
         Number result = (Number) em.createNativeQuery("""
-                SELECT
-                    (SELECT COUNT(*) FROM campaign_agent      WHERE campaign_id = CAST(:campaignId AS uuid)) +
-                    (SELECT COUNT(*) FROM campaign_agent_group WHERE campaign_id = CAST(:campaignId AS uuid))
+                SELECT COUNT(DISTINCT agent_id)
+                FROM (
+                    SELECT agent_id
+                    FROM campaign_agent
+                    WHERE campaign_id = CAST(:campaignId AS uuid)
+                    UNION
+                    SELECT agm.agent_id
+                    FROM agent_group_member agm
+                    JOIN campaign_agent_group cag ON agm.group_id = cag.group_id
+                    WHERE cag.campaign_id = CAST(:campaignId AS uuid)
+                ) unique_agents
                 """)
                 .setParameter("campaignId", campaignId.toString())
                 .getSingleResult();

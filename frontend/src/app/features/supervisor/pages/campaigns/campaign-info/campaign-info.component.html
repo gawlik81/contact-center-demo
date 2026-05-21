@@ -65,27 +65,27 @@
 
         <div class="info-grid__row info-grid__row--sub">
           <dt class="info-grid__label">{{ 'common.from' | transloco }}</dt>
-          <dd class="info-grid__value">{{ formatDate(campaign.schedule?.start_date) }}</dd>
+          <dd class="info-grid__value">{{ formatDate(campaign.schedule.start_date) }}</dd>
         </div>
 
         <div class="info-grid__row info-grid__row--sub">
           <dt class="info-grid__label">{{ 'common.to' | transloco }}</dt>
-          <dd class="info-grid__value">{{ formatDate(campaign.schedule?.end_date) }}</dd>
+          <dd class="info-grid__value">{{ formatDate(campaign.schedule.end_date) }}</dd>
         </div>
 
         <div class="info-grid__row info-grid__row--sub">
           <dt class="info-grid__label">{{ 'supervisor.campaignInfo.activeHoursLabel' | transloco }}</dt>
-          <dd class="info-grid__value">{{ formatActiveHours(campaign.schedule?.active_hours) }}</dd>
+          <dd class="info-grid__value">{{ formatActiveHours(campaign.schedule.active_hours) }}</dd>
         </div>
 
         <div class="info-grid__row info-grid__row--sub">
           <dt class="info-grid__label">{{ 'supervisor.campaignInfo.activeDaysLabel' | transloco }}</dt>
-          <dd class="info-grid__value">{{ formatActiveDays(campaign.schedule?.active_days) }}</dd>
+          <dd class="info-grid__value">{{ formatActiveDays(campaign.schedule.active_days) }}</dd>
         </div>
 
         <div class="info-grid__row info-grid__row--sub">
           <dt class="info-grid__label">{{ 'supervisor.campaignInfo.timezoneLabel' | transloco }}</dt>
-          <dd class="info-grid__value">{{ campaign.schedule?.timezone || 'Europe/Warsaw' }}</dd>
+          <dd class="info-grid__value">{{ campaign.schedule.timezone || 'Europe/Warsaw' }}</dd>
         </div>
 
         <div class="info-grid__section-label" role="presentation">

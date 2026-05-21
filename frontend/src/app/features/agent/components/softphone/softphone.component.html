@@ -241,7 +241,7 @@
 
         <!-- Zakładki celu transferu -->
         <div class="softphone__target-tabs" role="group" aria-label="Cel transferu">
-          @for (tab of transferTargetTabs; track tab) {
+          @for (tab of transferTargetTabs(); track tab) {
             <button
               type="button"
               class="softphone__target-tab"

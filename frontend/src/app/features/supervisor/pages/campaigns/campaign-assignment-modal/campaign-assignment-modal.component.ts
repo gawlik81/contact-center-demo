@@ -18,7 +18,7 @@ import { UserService } from '../../../services/user.service';
 import { AgentGroupService } from '../../../../../core/services/agent-group.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { Campaign, CampaignAssignment, UpdateCampaignAssignmentRequest } from '../../../models/campaign.model';
-import { AgentGroupSummary } from '../../../../../core/models/agent-group.model';
+import { AgentGroup, AgentGroupSummary } from '../../../../../core/models/agent-group.model';
 import { UserResponse } from '../../../models/user.model';
 import { PagedResponse } from '../../../../../core/models/paged-response.model';
 
@@ -94,7 +94,7 @@ export class CampaignAssignmentModalComponent implements OnInit {
         .pipe(catchError(() => of(emptyPage<UserResponse>()))),
       groups: this.agentGroupService
         .listGroups({ page: 0, size: 100 })
-        .pipe(catchError(() => of(emptyPage()))),
+        .pipe(catchError(() => of(emptyPage<AgentGroup>()))),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(({ assignment, agents, groups }) => {

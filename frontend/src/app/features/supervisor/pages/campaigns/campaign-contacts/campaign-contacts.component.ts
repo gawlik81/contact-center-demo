@@ -211,7 +211,10 @@ export class CampaignContactsComponent implements OnInit, AfterViewInit {
   dispositionLabel(code: string | null): string {
     if (!code) return '—';
     const found = this.campaign().dispositionCodes.find((d) => d.code === code);
-    return found?.label ?? code;
+    if (found) return found.label;
+    const systemKey = `common.dispositionLabels.${code}`;
+    const translated = this.translocoService.translate(systemKey);
+    return translated !== systemKey ? translated : code;
   }
 
   formatRelativeTime(dateStr: string | null): string {

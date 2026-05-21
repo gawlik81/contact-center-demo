@@ -17,6 +17,7 @@ import { CampaignFormComponent } from '../campaign-form/campaign-form.component'
 import { CampaignImportComponent } from '../campaign-import/campaign-import.component';
 import { CampaignContactsComponent } from '../campaign-contacts/campaign-contacts.component';
 import { CampaignInfoComponent } from '../campaign-info/campaign-info.component';
+import { CampaignAssignmentModalComponent } from '../campaign-assignment-modal/campaign-assignment-modal.component';
 import { ConfirmDialogComponent } from '../../../../../shared/components/confirm-dialog/confirm-dialog.component';
 
 const POLLING_INTERVAL_MS = 10_000;
@@ -31,6 +32,7 @@ const CLOSED_STATUSES = new Set<CampaignStatus>(['STOPPED', 'COMPLETED']);
     CampaignImportComponent,
     CampaignContactsComponent,
     CampaignInfoComponent,
+    CampaignAssignmentModalComponent,
     ConfirmDialogComponent,
   ],
   templateUrl: './campaign-list.component.html',
@@ -69,6 +71,8 @@ export class CampaignListComponent implements OnInit {
 
   readonly showInfoModal = signal(false);
   readonly infoCampaign = signal<Campaign | null>(null);
+
+  readonly assignmentCampaign = signal<Campaign | null>(null);
 
   readonly showConfirmDialog = signal(false);
   readonly confirmDialogMessage = signal('');
@@ -191,6 +195,11 @@ export class CampaignListComponent implements OnInit {
   onInfoClosed(): void {
     this.showInfoModal.set(false);
     this.infoCampaign.set(null);
+  }
+
+  openAssignment(campaign: Campaign, event: Event): void {
+    event.stopPropagation();
+    this.assignmentCampaign.set(campaign);
   }
 
   canStart(status: CampaignStatus): boolean {

@@ -252,6 +252,30 @@
           </select>
         </div>
       </fieldset>
+
+      @if (isEditMode() && campaign()?.campaignId) {
+        <div class="form-section form-section--assignment">
+          <div class="form-section__header">
+            <span class="form-section__label">
+              {{ 'supervisor.campaigns.campaignAssignment.agentsSection' | transloco }}
+            </span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              (click)="showAssignmentModal.set(true)"
+            >
+              {{ 'supervisor.campaigns.campaignAssignment.manageButton' | transloco }}
+            </button>
+          </div>
+        </div>
+
+        @if (showAssignmentModal()) {
+          <app-campaign-assignment-modal
+            [campaign]="campaign()!"
+            (closed)="showAssignmentModal.set(false)"
+          />
+        }
+      }
     </form>
 
     <div class="campaign-form-dialog__footer">

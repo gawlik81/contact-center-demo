@@ -58,6 +58,7 @@
               <th scope="col">{{ 'common.status' | transloco }}</th>
               <th scope="col">{{ 'supervisor.campaigns.tableType' | transloco }}</th>
               <th scope="col">{{ 'supervisor.campaigns.tableDialer' | transloco }}</th>
+              <th scope="col">{{ 'supervisor.campaigns.statsHeader' | transloco }}</th>
               <th scope="col">{{ 'supervisor.campaigns.tableDates' | transloco }}</th>
               <th scope="col">
                 <span class="sr-only">{{ 'common.actions' | transloco }}</span>
@@ -122,6 +123,26 @@
                 </td>
                 <td class="campaign-type">{{ formatType(campaign.type) }}</td>
                 <td class="campaign-dialer">{{ formatDialerType(campaign.dialerType) }}</td>
+                <td class="campaign-stats">
+                  @if ((campaign.totalRecords ?? 0) > 0) {
+                    <span
+                      class="stats-total"
+                      [title]="'supervisor.campaigns.statsTotal' | transloco"
+                    >{{ campaign.totalRecords }}</span>
+                    <span class="stats-sep">·</span>
+                    <span
+                      class="stats-completed"
+                      [title]="'supervisor.campaigns.statsCompleted' | transloco"
+                    >{{ campaign.completedRecords }}</span>
+                    <span class="stats-sep">·</span>
+                    <span
+                      class="stats-remaining"
+                      [title]="'supervisor.campaigns.statsRemaining' | transloco"
+                    >{{ campaign.remainingRecords }}</span>
+                  } @else {
+                    <span class="stats-empty">—</span>
+                  }
+                </td>
                 <td class="campaign-dates">{{ formatScheduleDates(campaign) }}</td>
                 <td class="campaign-actions">
                   <button

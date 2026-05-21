@@ -1156,7 +1156,11 @@
       "badgeAgents": "Agenten",
       "attempts": "Versuche",
       "showAttempts": "Anrufversuche anzeigen",
-      "noAttempts": "Keine Anrufversuche"
+      "noAttempts": "Keine Anrufversuche",
+      "statsTotal": "Gesamt",
+      "statsCompleted": "Abgeschlossen",
+      "statsRemaining": "Verbleibend",
+      "statsHeader": "Datensätze"
     },
     "campaignForm": {
       "titleCreate": "Neue Kampagne",

@@ -1156,7 +1156,11 @@
       "badgeAgents": "agents",
       "attempts": "attempts",
       "showAttempts": "Show call attempts",
-      "noAttempts": "No call attempts"
+      "noAttempts": "No call attempts",
+      "statsTotal": "Total",
+      "statsCompleted": "Completed",
+      "statsRemaining": "Remaining",
+      "statsHeader": "Records"
     },
     "campaignForm": {
       "titleCreate": "New campaign",

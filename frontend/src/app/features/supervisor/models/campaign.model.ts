@@ -35,6 +35,9 @@ export interface Campaign {
   updatedAt?: string;
   allAgents?: boolean;
   assignedAgentsCount?: number; // -1 = all agents mode
+  totalRecords?: number;
+  completedRecords?: number;
+  remainingRecords?: number;
 }
 
 export interface CreateCampaignRequest {

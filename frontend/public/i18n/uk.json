@@ -1156,7 +1156,11 @@
       "badgeAgents": "агентів",
       "attempts": "спроб",
       "showAttempts": "Показати спроби дзвінків",
-      "noAttempts": "Немає спроб дзвінків"
+      "noAttempts": "Немає спроб дзвінків",
+      "statsTotal": "Всього",
+      "statsCompleted": "Завершено",
+      "statsRemaining": "Залишилось",
+      "statsHeader": "Записи"
     },
     "campaignForm": {
       "titleCreate": "Нова кампанія",

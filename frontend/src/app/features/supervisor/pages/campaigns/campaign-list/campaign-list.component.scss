@@ -131,6 +131,36 @@
   white-space: nowrap;
 }
 
+.campaign-stats {
+  white-space: nowrap;
+  font-size: 0.875rem;
+  color: var(--text-2);
+}
+
+.stats-total {
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.stats-completed {
+  color: var(--success-text);
+  font-weight: 500;
+}
+
+.stats-remaining {
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.stats-sep {
+  color: var(--text-muted);
+  margin: 0 0.2rem;
+}
+
+.stats-empty {
+  color: var(--text-muted);
+}
+
 .campaign-actions {
   text-align: right;
   white-space: nowrap;

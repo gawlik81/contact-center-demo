@@ -7,6 +7,7 @@ import com.contactcenter.api.campaign.dto.UpdateCampaignRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.repository.CampaignAssignmentRepository;
+import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +60,7 @@ public class CampaignService {
 
     private final CampaignRepository campaignRepository;
     private final CampaignAssignmentRepository campaignAssignmentRepository;
+    private final CampaignContactRepository campaignContactRepository;
 
     // =========================================================================
     // CRUD
@@ -112,11 +114,34 @@ public class CampaignService {
         List<Campaign> campaigns = campaignRepository.findByTenantId(tenantId, page, size);
         long total = campaignRepository.countByTenantId(tenantId);
 
+        // Batch query statystyk rekordów – jeden call do DB dla wszystkich kampanii na stronie
+        List<UUID> campaignIds = campaigns.stream()
+                .map(Campaign::getCampaignId)
+                .toList();
+
+        List<String> statuses = List.of(
+                "PENDING", "CALLBACK", "NO_ANSWER",
+                "COMPLETED", "DIALING", "CONNECTED",
+                "NOT_REACHED", "FAILED", "SKIPPED", "ERROR", "CALLED"
+        );
+        Map<UUID, Map<String, Long>> stats = campaignContactRepository
+                .countByStatusGroupedByCampaign(tenantId, campaignIds, statuses);
+
         List<CampaignResponse> content = campaigns.stream()
-                .map(c -> CampaignResponse.from(
-                        c,
-                        c.isAllAgents() ? 0 : campaignAssignmentRepository.countAssignments(c.getCampaignId())
-                ))
+                .map(c -> {
+                    int agentsCount = c.isAllAgents()
+                            ? 0
+                            : campaignAssignmentRepository.countAssignments(c.getCampaignId());
+
+                    Map<String, Long> cm = stats.getOrDefault(c.getCampaignId(), Map.of());
+                    int totalRecords = cm.values().stream().mapToInt(Long::intValue).sum();
+                    int completedRecords = cm.getOrDefault("COMPLETED", 0L).intValue();
+                    int remainingRecords = (int) (cm.getOrDefault("PENDING", 0L)
+                            + cm.getOrDefault("CALLBACK", 0L)
+                            + cm.getOrDefault("NO_ANSWER", 0L));
+
+                    return CampaignResponse.from(c, agentsCount, totalRecords, completedRecords, remainingRecords);
+                })
                 .toList();
 
         int totalPages = size > 0 ? (int) Math.ceil((double) total / size) : 0;

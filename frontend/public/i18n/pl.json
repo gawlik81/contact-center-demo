@@ -1156,7 +1156,11 @@
       "badgeAgents": "agentów",
       "attempts": "prób",
       "showAttempts": "Pokaż próby wydzwonienia",
-      "noAttempts": "Brak prób wydzwonienia"
+      "noAttempts": "Brak prób wydzwonienia",
+      "statsTotal": "Łącznie",
+      "statsCompleted": "Zakończone",
+      "statsRemaining": "Do wydzwonienia",
+      "statsHeader": "Rekordy"
     },
     "campaignForm": {
       "titleCreate": "Nowa kampania",

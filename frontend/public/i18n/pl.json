@@ -1043,7 +1043,19 @@
       "groupsTitle": "Grupy agentów",
       "directAgentsTitle": "Indywidualni agenci",
       "agentsAbbr": "ag.",
-      "noAssignment": "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu."
+      "noAssignment": "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu.",
+      "allAgentsLabel": "Wszyscy agenci tenanta",
+      "allAgentsHint": "Kolejka dostępna dla wszystkich agentów",
+      "groupsSection": "Grupy agentów",
+      "agentsSection": "Agenci bezpośredni",
+      "addGroup": "Dodaj grupę",
+      "addAgent": "Dodaj agenta",
+      "emptyWarning": "Brak przypisania — kolejka nie obsłuży żadnego kontaktu.",
+      "saveButton": "Zapisz",
+      "cancelButton": "Anuluj",
+      "successToast": "Przypisanie agentów zaktualizowane",
+      "errorSave": "Nie udało się zapisać przypisania",
+      "manageButton": "Zarządzaj agentami"
     },
     "queueAssignment": {
       "title": "Przypisanie do kolejki",

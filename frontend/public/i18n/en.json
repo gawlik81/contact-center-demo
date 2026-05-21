@@ -1043,7 +1043,19 @@
       "groupsTitle": "Agent groups",
       "directAgentsTitle": "Individual agents",
       "agentsAbbr": "ag.",
-      "noAssignment": "No assigned agents — queue will not handle any contacts."
+      "noAssignment": "No assigned agents — queue will not handle any contacts.",
+      "allAgentsLabel": "All tenant agents",
+      "allAgentsHint": "Queue available to all agents",
+      "groupsSection": "Agent groups",
+      "agentsSection": "Direct agents",
+      "addGroup": "Add group",
+      "addAgent": "Add agent",
+      "emptyWarning": "No assignment — queue will not handle any contacts.",
+      "saveButton": "Save",
+      "cancelButton": "Cancel",
+      "successToast": "Agent assignment updated",
+      "errorSave": "Failed to save assignment",
+      "manageButton": "Manage agents"
     },
     "queueAssignment": {
       "title": "Queue assignment",

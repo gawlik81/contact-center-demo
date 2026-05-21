@@ -1043,7 +1043,19 @@
       "groupsTitle": "Agentengruppen",
       "directAgentsTitle": "Einzelne Agenten",
       "agentsAbbr": "Ag.",
-      "noAssignment": "Keine zugewiesenen Agenten — Warteschlange bearbeitet keine Kontakte."
+      "noAssignment": "Keine zugewiesenen Agenten — Warteschlange bearbeitet keine Kontakte.",
+      "allAgentsLabel": "Alle Mandanten-Agenten",
+      "allAgentsHint": "Warteschlange verfügbar für alle Agenten",
+      "groupsSection": "Agentengruppen",
+      "agentsSection": "Direkte Agenten",
+      "addGroup": "Gruppe hinzufügen",
+      "addAgent": "Agent hinzufügen",
+      "emptyWarning": "Keine Zuweisung — Warteschlange bearbeitet keine Kontakte.",
+      "saveButton": "Speichern",
+      "cancelButton": "Abbrechen",
+      "successToast": "Agentenzuweisung aktualisiert",
+      "errorSave": "Zuweisung konnte nicht gespeichert werden",
+      "manageButton": "Agenten verwalten"
     },
     "queueAssignment": {
       "title": "Warteschlangenzuweisung",

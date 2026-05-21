@@ -259,7 +259,7 @@
 
 <!-- Queue agents modal -->
 @if (showAgentsModal() && selectedQueueForAgents()) {
-  <app-queue-agents-modal [queue]="selectedQueueForAgents()!" (closed)="closeAgentsModal()" />
+  <app-queue-agents-modal [queue]="selectedQueueForAgents()!" (closed)="onAgentsModalClosed()" />
 }
 
 <!-- Delete confirmation modal -->

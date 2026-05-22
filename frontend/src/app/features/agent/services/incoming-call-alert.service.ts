@@ -123,6 +123,11 @@ export class IncomingCallAlertService implements OnDestroy {
   private handleCallIncoming(payload: CallIncomingPayload): void {
     this.lookupService.evict(payload.customerPhone);
 
+    // If a PHONE tab for this contactId already exists, this is the enriched event from
+    // CallEventEnricher (arrives after CLI lookup, ~100-500ms after the unenriched relay event).
+    // Update the existing tab and session instead of attempting to open a duplicate.
+    if (this.applyEnrichedDataIfTabExists(payload.contactId, payload.customerName)) return;
+
     const reason = this.tabStore.openFromCallIncoming(payload);
 
     if (reason !== null) {
@@ -147,6 +152,9 @@ export class IncomingCallAlertService implements OnDestroy {
   private handleCallOutbound(payload: CallOutboundPayload): void {
     this.lookupService.evict(payload.customerPhone);
 
+    // Same enriched-event deduplication as in handleCallIncoming.
+    if (this.applyEnrichedDataIfTabExists(payload.contactId, payload.customerName)) return;
+
     const reason = this.tabStore.openFromCallOutbound(payload);
 
     if (reason !== null) {
@@ -166,6 +174,25 @@ export class IncomingCallAlertService implements OnDestroy {
     this.pendingAlert.set(alert);
     this.playAudio();
     this.showSystemNotification(alert);
+  }
+
+  /**
+   * Returns true and updates tab/session/alert if a PHONE tab with the given contactId exists.
+   * Used to handle enriched CLI events that arrive after the initial unenriched relay event.
+   */
+  private applyEnrichedDataIfTabExists(contactId: string, customerName: string): boolean {
+    const existing = this.tabStore.tabs().find(
+      (t) => t.contactId === contactId && t.type === 'PHONE',
+    );
+    if (!existing) return false;
+
+    this.tabStore.updateTabCustomerInfo(contactId, customerName);
+    this.softphoneService.updateCustomerName(customerName);
+    const alert = this.pendingAlert();
+    if (alert?.contactId === contactId) {
+      this.pendingAlert.set({ ...alert, customerName });
+    }
+    return true;
   }
 
   /**

@@ -229,6 +229,12 @@ export class SoftphoneService implements OnDestroy {
     this.session.set({ ...s, contactId: newContactId, customerName, queueName });
   }
 
+  updateCustomerName(customerName: string): void {
+    const s = this.session();
+    if (!s) return;
+    this.session.set({ ...s, customerName });
+  }
+
   incomingCall(payload: CallIncomingPayload | ContactAssignedPayload): void {
     const customerPhone =
       'customerPhone' in payload ? payload.customerPhone : payload.customerIdentifier;

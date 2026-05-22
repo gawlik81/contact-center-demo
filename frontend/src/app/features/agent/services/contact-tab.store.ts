@@ -122,6 +122,12 @@ export class ContactTabStore {
     this.tabs.update((current) => current.map((t) => (t.id === id ? { ...t, note } : t)));
   }
 
+  updateTabCustomerInfo(contactId: string, customerName: string): void {
+    this.tabs.update((current) =>
+      current.map((t) => (t.contactId === contactId ? { ...t, customerName } : t)),
+    );
+  }
+
   /**
    * Updates the contactId of a tab (used when attended transfer bridge completes).
    * Clears originalContactId since the new contactId is already the proper UUID.

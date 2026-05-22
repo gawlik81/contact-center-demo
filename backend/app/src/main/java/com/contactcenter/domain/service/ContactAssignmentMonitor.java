@@ -1,7 +1,9 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.websocket.WebSocketEvent;
@@ -62,6 +64,7 @@ public class ContactAssignmentMonitor {
     private static final long RETRY_TTL_SECONDS = 120;
 
     private final ContactRepository contactRepository;
+    private final CustomerRepository customerRepository;
     private final QueueRepository queueRepository;
     private final WebSocketEventBroadcaster broadcaster;
     private final RabbitTemplate rabbitTemplate;
@@ -175,12 +178,13 @@ public class ContactAssignmentMonitor {
         String remoteAddress = contact.getRemoteAddress() != null ? contact.getRemoteAddress() : "";
         String customerId = contact.getCustomerId() != null ? contact.getCustomerId().toString() : null;
 
+        String customerName = resolveCustomerName(contact, remoteAddress, tenantId);
         WebSocketEvent wsEvent = WebSocketEvent.contactAssigned(
                 tenantId,
                 agentId,
                 contactId,
                 channel,
-                remoteAddress,    // customerName – fallback na remoteAddress
+                customerName,
                 remoteAddress,    // customerIdentifier
                 queueName,
                 customerId
@@ -298,6 +302,27 @@ public class ContactAssignmentMonitor {
      * @param retryKey   klucz Redis
      * @param currentCount aktualna wartość przed inkrementacją
      */
+    private String resolveCustomerName(Contact contact, String fallbackIdentifier, UUID tenantId) {
+        UUID customerId = contact.getCustomerId();
+        if (customerId == null) {
+            return fallbackIdentifier;
+        }
+        try {
+            return customerRepository.findById(customerId, tenantId)
+                    .map(c -> {
+                        String first = c.getFirstName() != null ? c.getFirstName() : "";
+                        String last  = c.getLastName()  != null ? c.getLastName()  : "";
+                        String name  = (first + " " + last).trim();
+                        return name.isBlank() ? fallbackIdentifier : name;
+                    })
+                    .orElse(fallbackIdentifier);
+        } catch (Exception e) {
+            log.warn("[AssignmentMonitor] Nie udało się pobrać nazwy klienta: customerId={}, error={}",
+                    customerId, e.getMessage());
+            return fallbackIdentifier;
+        }
+    }
+
     private void incrementRetryCount(String retryKey, int currentCount) {
         try {
             redisTemplate.opsForValue().set(retryKey, String.valueOf(currentCount + 1),

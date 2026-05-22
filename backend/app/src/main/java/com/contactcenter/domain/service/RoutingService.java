@@ -5,8 +5,10 @@ import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactAssignedEvent;
@@ -66,6 +68,7 @@ public class RoutingService {
     private final RoutingEngine routingEngine;
     private final QueueRepository queueRepository;
     private final ContactRepository contactRepository;
+    private final CustomerRepository customerRepository;
     private final RabbitTemplate rabbitTemplate;
     private final QueueAssignmentRepository queueAssignmentRepository;
     private final AppUserRepository appUserRepository;
@@ -526,7 +529,7 @@ public class RoutingService {
         // Dla kanału EMAIL remoteAddress może być w formacie RFC 2822 "Display Name <email@domain>".
         // Wyodrębniamy czysty adres email, żeby frontend mógł go użyć do lookup klienta.
         String customerIdentifier = "EMAIL".equals(channel) ? extractEmailAddress(rawAddress) : rawAddress;
-        String customerName       = customerIdentifier;
+        String customerName       = resolveCustomerName(contact, customerIdentifier, tenantId);
         String customerId         = contact.getCustomerId() != null ? contact.getCustomerId().toString() : null;
 
         ContactAssignedEvent event = ContactAssignedEvent.of(contactId, agentId, queueId, tenantId, strategy,
@@ -584,6 +587,32 @@ public class RoutingService {
         if (channel == null) return "PHONE";
         if (channel.startsWith("SOCIAL")) return "SOCIAL";
         return channel;
+    }
+
+    /**
+     * Resolves the display name for a contact's customer.
+     * Looks up firstName + lastName from the Customer record when customerId is available.
+     * Falls back to {@code fallbackIdentifier} (phone/email) when customer is unknown or lookup fails.
+     */
+    private String resolveCustomerName(Contact contact, String fallbackIdentifier, UUID tenantId) {
+        UUID customerId = contact.getCustomerId();
+        if (customerId == null) {
+            return fallbackIdentifier;
+        }
+        try {
+            return customerRepository.findById(customerId, tenantId)
+                    .map(c -> {
+                        String first = c.getFirstName() != null ? c.getFirstName() : "";
+                        String last  = c.getLastName()  != null ? c.getLastName()  : "";
+                        String name  = (first + " " + last).trim();
+                        return name.isBlank() ? fallbackIdentifier : name;
+                    })
+                    .orElse(fallbackIdentifier);
+        } catch (Exception e) {
+            log.warn("[RoutingService] Nie udało się pobrać nazwy klienta: customerId={}, error={}",
+                    customerId, e.getMessage());
+            return fallbackIdentifier;
+        }
     }
 
     /**

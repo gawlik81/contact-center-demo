@@ -1,7 +1,7 @@
 import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
-import { filter, takeUntil } from 'rxjs/operators';
+import { filter, take, takeUntil } from 'rxjs/operators';
 import { TranslocoService } from '@jsverse/transloco';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -137,6 +137,7 @@ export class IncomingCallAlertService implements OnDestroy {
     }
 
     this.softphoneService.incomingCall(payload);
+    this.lookupAndUpdateTabName(payload.customerPhone, payload.contactId);
 
     const alert: IncomingCallAlert = {
       contactId: payload.contactId,
@@ -153,10 +154,18 @@ export class IncomingCallAlertService implements OnDestroy {
   private handleCallOutbound(payload: CallOutboundPayload): void {
     this.lookupService.evict(payload.customerPhone);
 
-    // CALL_OUTBOUND is authoritative for direction. If a CONTACT_ASSIGNED event arrived
-    // first and created a tab with direction='INBOUND', correct it here.
-    if (this.applyEnrichedDataIfTabExists(payload.contactId, payload.customerName, 'OUTBOUND'))
+    // If a tab already exists (CONTACT_ASSIGNED arrived first), only correct the direction.
+    // Do NOT overwrite customerName: the HTTP lookup fired at tab-creation time already
+    // set the definitive name (or will update it shortly via lookupAndUpdateTabName).
+    const existing = this.tabStore.tabs().find(
+      (t) => t.contactId === payload.contactId && t.type === 'PHONE',
+    );
+    if (existing) {
+      if (existing.direction !== 'OUTBOUND') {
+        this.tabStore.updateTabCustomerInfo(existing.contactId, existing.customerName, 'OUTBOUND');
+      }
       return;
+    }
 
     const reason = this.tabStore.openFromCallOutbound(payload);
 
@@ -166,6 +175,7 @@ export class IncomingCallAlertService implements OnDestroy {
     }
 
     this.softphoneService.incomingCall(payload);
+    this.lookupAndUpdateTabName(payload.customerPhone, payload.contactId);
 
     const alert: IncomingCallAlert = {
       contactId: payload.contactId,
@@ -269,6 +279,7 @@ export class IncomingCallAlertService implements OnDestroy {
     }
 
     this.softphoneService.incomingCall(payload);
+    this.lookupAndUpdateTabName(payload.customerIdentifier, payload.contactId);
 
     const alert: IncomingCallAlert = {
       contactId: payload.contactId,
@@ -280,6 +291,29 @@ export class IncomingCallAlertService implements OnDestroy {
     this.pendingAlert.set(alert);
     this.playAudio();
     this.showSystemNotification(alert);
+  }
+
+  /**
+   * Fires an HTTP customer lookup by phone number and updates the tab, session and alert
+   * with the resolved full name. This is the authoritative name source — independent of
+   * WS event ordering or CLI enricher availability.
+   */
+  private lookupAndUpdateTabName(phoneNumber: string, contactId: string): void {
+    if (!phoneNumber) return;
+    this.lookupService
+      .lookupByPhone(phoneNumber)
+      .pipe(take(1))
+      .subscribe((profile) => {
+        if (!profile) return;
+        const name = `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim();
+        if (!name) return;
+        this.tabStore.updateTabCustomerInfo(contactId, name);
+        this.softphoneService.updateCustomerName(name);
+        const alert = this.pendingAlert();
+        if (alert?.contactId === contactId) {
+          this.pendingAlert.set({ ...alert, customerName: name });
+        }
+      });
   }
 
   // ── Auto-dismiss effect ────────────────────────────────────────────────────

@@ -48,9 +48,14 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   /** True while an HTTP transfer request is in flight — disables transfer buttons */
   protected readonly isTransferring = signal<boolean>(false);
 
-  protected readonly transferTargetTabs = computed<TransferTargetType[]>(() =>
-    this.tab.direction === 'OUTBOUND' ? ['PHONE', 'AGENT'] : ['PHONE', 'AGENT', 'QUEUE'],
-  );
+  protected readonly transferTargetTabs = computed<TransferTargetType[]>(() => {
+    // Queue transfer only makes sense for calls that arrived through a queue.
+    // Outbound calls have no queueName; also guard against direction being temporarily wrong
+    // when CONTACT_ASSIGNED creates the tab before CALL_OUTBOUND corrects it.
+    const s = this.session();
+    const hasQueue = s != null && s.queueName != null && s.queueName.length > 0;
+    return hasQueue ? ['PHONE', 'AGENT', 'QUEUE'] : ['PHONE', 'AGENT'];
+  });
 
   protected readonly transferTargetValid = computed(
     () => this.transferTarget().replace(/[\s+]/g, '').length >= 3,

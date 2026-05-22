@@ -122,9 +122,16 @@ export class ContactTabStore {
     this.tabs.update((current) => current.map((t) => (t.id === id ? { ...t, note } : t)));
   }
 
-  updateTabCustomerInfo(contactId: string, customerName: string): void {
+  updateTabCustomerInfo(
+    contactId: string,
+    customerName: string,
+    direction?: CallDirection,
+  ): void {
     this.tabs.update((current) =>
-      current.map((t) => (t.contactId === contactId ? { ...t, customerName } : t)),
+      current.map((t) => {
+        if (t.contactId !== contactId) return t;
+        return { ...t, customerName, ...(direction !== undefined ? { direction } : {}) };
+      }),
     );
   }
 

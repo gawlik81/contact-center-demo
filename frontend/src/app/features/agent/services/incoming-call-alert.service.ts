@@ -8,6 +8,7 @@ import { NotificationService } from '../../../core/services/notification.service
 import { ContactTabStore, TabLimitReason } from './contact-tab.store';
 import { SoftphoneService } from './softphone.service';
 import { CustomerLookupService } from './customer-lookup.service';
+import { CallDirection } from '../models/contact-tab.model';
 import {
   CallIncomingPayload,
   CallOutboundPayload,
@@ -152,8 +153,10 @@ export class IncomingCallAlertService implements OnDestroy {
   private handleCallOutbound(payload: CallOutboundPayload): void {
     this.lookupService.evict(payload.customerPhone);
 
-    // Same enriched-event deduplication as in handleCallIncoming.
-    if (this.applyEnrichedDataIfTabExists(payload.contactId, payload.customerName)) return;
+    // CALL_OUTBOUND is authoritative for direction. If a CONTACT_ASSIGNED event arrived
+    // first and created a tab with direction='INBOUND', correct it here.
+    if (this.applyEnrichedDataIfTabExists(payload.contactId, payload.customerName, 'OUTBOUND'))
+      return;
 
     const reason = this.tabStore.openFromCallOutbound(payload);
 
@@ -178,15 +181,20 @@ export class IncomingCallAlertService implements OnDestroy {
 
   /**
    * Returns true and updates tab/session/alert if a PHONE tab with the given contactId exists.
-   * Used to handle enriched CLI events that arrive after the initial unenriched relay event.
+   * Used to handle enriched CLI events and CALL_OUTBOUND arriving after CONTACT_ASSIGNED.
+   * Pass `direction` to also correct the tab's direction (used by CALL_OUTBOUND handler).
    */
-  private applyEnrichedDataIfTabExists(contactId: string, customerName: string): boolean {
+  private applyEnrichedDataIfTabExists(
+    contactId: string,
+    customerName: string,
+    direction?: CallDirection,
+  ): boolean {
     const existing = this.tabStore.tabs().find(
       (t) => t.contactId === contactId && t.type === 'PHONE',
     );
     if (!existing) return false;
 
-    this.tabStore.updateTabCustomerInfo(contactId, customerName);
+    this.tabStore.updateTabCustomerInfo(contactId, customerName, direction);
     this.softphoneService.updateCustomerName(customerName);
     const alert = this.pendingAlert();
     if (alert?.contactId === contactId) {

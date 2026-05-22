@@ -1874,6 +1874,37 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         return;
       }
 
+      // Gdy noga konsultacyjna kończy się przez webhook (no-answer, busy, failed) –
+      // tzn. NIE przez jawne hangupCall() agenta – Agent2 (inicjujący konsultację)
+      // musi dostać CALL_CONSULT_CANCELLED żeby zamknął panel attended transfer.
+      // agentId w sesji to Agent1 (cel konsultacji); Agent2 to aktualny właściciel kontaktu.
+      if ("CONSULTATION".equals(existing.getDirection())
+              && eventType == CallEvent.EventType.CALL_HANGUP
+              && existing.getEndedAt() == null  // nie obsłużone przez hangupCall()
+              && existing.getContactId() != null) {
+        final UUID consultTenantId  = existing.getTenantId();
+        final UUID consultContactId = existing.getContactId();
+        final String consultCallSid = callSid;
+        final String consultStatus  = callStatus;
+        final String consultFrom    = existing.getFrom();
+        final String consultTo      = existing.getTo();
+        try {
+          contactRepository.findById(consultContactId, consultTenantId)
+              .map(Contact::getAgentId)
+              .ifPresent(originatingAgentId -> {
+                log.info("[TwilioAdapter] Konsultacja zakończona przez Twilio ({}) – " +
+                         "wysyłam CALL_CONSULT_CANCELLED do inicjatora: agentId={}, callSid={}",
+                         consultStatus, originatingAgentId, consultCallSid);
+                eventPublisher.publishConsultCancelled(
+                    consultCallSid, consultTenantId, originatingAgentId,
+                    consultContactId, consultFrom, consultTo);
+              });
+        } catch (Exception e) {
+          log.warn("[TwilioAdapter] Błąd wysyłania CALL_CONSULT_CANCELLED po nieudanej konsultacji: " +
+                   "callSid={}, error={}", callSid, e.getMessage());
+        }
+      }
+
       publishWebhookEvent(eventType, callSid, effectiveTenantId,
           effectiveAgentId, from, to, existing.getContactId(), callStatus);
     }
@@ -2230,9 +2261,24 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
                "originalContactId={}, targetAgentId={}",
           callId, secondLegSid, target, session.getContactId(), targetAgentId);
 
-      // CLI lookup – rozpoznaj klienta po numerze telefonu, żeby CALL_TRANSFER_CONSULT
-      // zawierał customerName zamiast fallbacku "Nieznany (numer)".
-      String customerPhone = session.getFrom();
+      // Resolve the customer's actual phone number from the Contact record.
+      // session.getFrom() is unreliable for outbound/transferred calls — it holds the
+      // company's outbound Twilio number (+48732096332) instead of the customer's number.
+      // Contact.remoteAddress is always set to the remote party (customer) at contact creation.
+      String customerPhone = session.getFrom(); // fallback
+      UUID sessionContactId = session.getContactId();
+      if (sessionContactId != null) {
+          try {
+              customerPhone = contactRepository
+                  .findById(sessionContactId, session.getTenantId())
+                  .map(Contact::getRemoteAddress)
+                  .filter(addr -> addr != null && !addr.isBlank())
+                  .orElse(customerPhone);
+          } catch (Exception e) {
+              log.warn("[TwilioAdapter] Nie udało się odczytać remoteAddress kontaktu {}: {}",
+                  sessionContactId, e.getMessage());
+          }
+      }
       CustomerCliResult customerInfo = cliLookupService
           .lookupCustomer(customerPhone, session.getTenantId())
           .orElse(null);

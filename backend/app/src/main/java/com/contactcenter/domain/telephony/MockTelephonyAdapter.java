@@ -5,6 +5,7 @@ import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.service.CliLookupService;
+import com.contactcenter.domain.service.CustomerCliResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -248,7 +249,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     .callId(secondLegCallId)
                     .tenantId(session.getTenantId())
                     .agentId(session.getAgentId())
-                    .from(session.getTo())   // agent dzwoni do target
+                    .from(session.getFrom())  // preserve customer's number through transfer chain
                     .to(target)
                     .status(CallSession.CallStatus.RINGING)
                     .startedAt(now)
@@ -325,14 +326,19 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     String secondLegCallId = generateCallId();
                     Instant now = Instant.now();
 
+                    // Numer klienta: dla połączeń przychodzących to from (dzwoniący),
+                    // zachowujemy go przez łańcuch transferu żeby Agent2 widział klienta.
+                    String customerPhone = session.getFrom();
+
                     CallSession secondLeg = CallSession.builder()
                             .callId(secondLegCallId)
                             .tenantId(session.getTenantId())
                             .agentId(request.agentId())
-                            .from(session.getTo())
-                            .to(request.agentId().toString())   // symboliczny "numer" agenta
+                            .from(customerPhone)                    // preserve customer number
+                            .to(request.agentId().toString())       // symboliczny "numer" agenta
                             .status(CallSession.CallStatus.RINGING)
                             .startedAt(now)
+                            .contactId(session.getContactId())      // preserve original contact
                             .build();
 
                     sessions.put(secondLegCallId, secondLeg);
@@ -340,13 +346,22 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     log.info("[MockTelephony] Attended transfer do agenta – 2nd leg: callId={}, secondLegCallId={}, targetAgentId={}",
                             callId, secondLegCallId, request.agentId());
 
-                    eventPublisher.publishOutbound(
-                            secondLegCallId, null, session.getTenantId(), request.agentId(),
-                            session.getTo(), request.agentId().toString(),
-                            Map.of(
-                                    META_TARGET_TYPE,     "AGENT",
-                                    META_TARGET_AGENT_ID, request.agentId().toString()
-                            )
+                    // CLI lookup – Agent2 powinien widzieć imię klienta, nie numer
+                    CustomerCliResult customerInfo = cliLookupService
+                            .lookupCustomer(customerPhone, session.getTenantId())
+                            .orElse(null);
+
+                    // Publikuj CALL_TRANSFER_CONSULT (zgodnie z zachowaniem Twilio) –
+                    // Agent2 dostaje kontekst konsultacji (numer klienta, imię, originalContactId)
+                    eventPublisher.publishTransferConsult(
+                            secondLegCallId,
+                            session.getTenantId(),
+                            request.agentId(),                 // target Agent2
+                            session.getAgentId(),              // originating Agent1
+                            session.getContactId(),            // original contact
+                            customerPhone,                     // customer's phone number
+                            request.agentId().toString(),      // to
+                            customerInfo
                     );
 
                     yield secondLeg;

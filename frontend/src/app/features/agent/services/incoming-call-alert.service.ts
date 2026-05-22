@@ -257,6 +257,20 @@ export class IncomingCallAlertService implements OnDestroy {
       queueName: '',
     });
 
+    // HTTP lookup by customer phone — updates tab name from "[Konsultacja] Nieznany"
+    // to "[Konsultacja] Paweł Miernik" once the API responds.
+    if (payload.customerPhone) {
+      this.lookupService
+        .lookupByPhone(payload.customerPhone)
+        .pipe(take(1))
+        .subscribe((profile) => {
+          if (!profile) return;
+          const resolved = `[Konsultacja] ${(`${profile.firstName ?? ''} ${profile.lastName ?? ''}`).trim()}`;
+          this.tabStore.updateTabCustomerInfo(payload.secondLegCallId, resolved);
+          this.softphoneService.updateCustomerName(resolved);
+        });
+    }
+
     const alert: IncomingCallAlert = {
       contactId: payload.secondLegCallId,
       customerName,

@@ -381,6 +381,26 @@ export class SoftphoneService implements OnDestroy {
     this.activeCall = null;
   }
 
+  /**
+   * Przywraca sesję do stanu ACTIVE po tym, jak cel konsultacji (Agent1) był niedostępny
+   * (busy / no-answer) i backend wysłał CALL_CONSULT_CANCELLED.
+   *
+   * Różni się od cancelConsultSession() tym, że:
+   * - NIE rozłącza urządzenia Twilio — agent-inicjator nadal uczestniczy w konferencji z klientem.
+   * - NIE czyści sesji do null — zamiast tego wraca do stanu ACTIVE.
+   * - Kasuje secondLegCallId — noga konsultacyjna jest już zakończona server-side.
+   *
+   * Wywoływana wyłącznie gdy sesja jest w stanie TRANSFERRING (agent jest inicjatorem
+   * konsultacji). Dla agenta będącego celem konsultacji używaj cancelConsultSession().
+   */
+  restoreToActiveAfterConsultCancel(): void {
+    const s = this.session();
+    if (!s || s.state !== 'TRANSFERRING') return;
+    this.secondLegCallId = null;
+    this.session.set({ ...s, state: 'ACTIVE', transferTarget: null });
+    this.startDurationTimer();
+  }
+
   rejectCall(): void {
     const s = this.session();
     if (!s || s.state !== 'RINGING') return;

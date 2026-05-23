@@ -70,6 +70,8 @@ export interface CallBridgeCompletePayload {
   secondLegCallId: string;
   /** UUID nowego kontaktu Agent2 – do dyspozycji, historii, hangup */
   newContactId: string;
+  /** Nazwa kolejki z której pochodzi połączenie (przepisana z oryginalnego kontaktu) */
+  queueName: string;
 }
 
 /**

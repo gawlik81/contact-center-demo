@@ -267,9 +267,13 @@ public class TelephonyEventPublisher {
      * @param targetAgentId   UUID Agent2 (może być null)
      * @param from            numer klienta
      * @param to              identyfikator Agent2
+     * @param queueName       nazwa kolejki z oryginalnego kontaktu (może być null)
      */
     public void publishBridgeComplete(String secondLegCallId, UUID newContactId, UUID tenantId,
-                                      UUID targetAgentId, String from, String to) {
+                                      UUID targetAgentId, String from, String to, String queueName) {
+        Map<String, String> metadata = queueName != null && !queueName.isEmpty()
+                ? Map.of("queueName", queueName)
+                : Map.of();
         publish(CallEvent.builder()
                 .eventType(CallEvent.EventType.CALL_BRIDGE_COMPLETE)
                 .callId(secondLegCallId)
@@ -278,6 +282,7 @@ public class TelephonyEventPublisher {
                 .agentId(targetAgentId)
                 .from(from)
                 .to(to)
+                .metadata(metadata)
                 .timestamp(Instant.now())
                 .build());
     }

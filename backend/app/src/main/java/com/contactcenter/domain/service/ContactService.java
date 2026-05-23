@@ -1258,10 +1258,17 @@ public class ContactService {
             // Otwórz etap AGENT na nowym kontakcie (sesja Redis już zaktualizowana przez bridgeCalls)
             contactEventService.openAgent(finalNewContactId, tenantId, agent2Id, null);
 
-            // Powiadom Agent2 przez WS aby zaktualizował swoje session.contactId
+            // Pobierz nazwę kolejki z oryginalnego kontaktu, żeby frontend Agent2 mógł ją wyświetlić
+            String queueName = contact.getQueueId() != null
+                    ? queueRepository.findByIdAndTenantId(contact.getQueueId(), tenantId)
+                            .map(q -> q.getName())
+                            .orElse("")
+                    : "";
+
+            // Powiadom Agent2 przez WS aby zaktualizował swoje session.contactId i queueName
             eventPublisher.publishBridgeComplete(
                     secondCallId, finalNewContactId, tenantId, agent2Id,
-                    secondSession.getFrom(), secondSession.getTo());
+                    secondSession.getFrom(), secondSession.getTo(), queueName);
         }
 
         log.info("[ContactService] Bridge wykonany: callId={}, secondCallId={}, contactId={}",

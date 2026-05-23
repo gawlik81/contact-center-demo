@@ -457,12 +457,17 @@ public record WebSocketEvent(
      */
     public record CallBridgeCompletePayload(
             String secondLegCallId,
-            String newContactId
+            String newContactId,
+            String queueName
     ) {
         public static CallBridgeCompletePayload from(CallEvent callEvent) {
+            String queueName = callEvent.getMetadata() != null
+                    ? callEvent.getMetadata().getOrDefault("queueName", "")
+                    : "";
             return new CallBridgeCompletePayload(
                     callEvent.getCallId(),
-                    callEvent.getContactId() != null ? callEvent.getContactId().toString() : null
+                    callEvent.getContactId() != null ? callEvent.getContactId().toString() : null,
+                    queueName
             );
         }
     }

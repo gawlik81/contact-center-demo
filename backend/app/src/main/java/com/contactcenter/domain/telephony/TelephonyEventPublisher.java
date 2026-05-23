@@ -259,6 +259,34 @@ public class TelephonyEventPublisher {
     }
 
     /**
+     * Publikuje zdarzenie CALL_CONSULT_ANSWERED (konsultacja odebrana przez cel).
+     *
+     * <p>Routing key: {@code call.consult_answered}.
+     * Publikowane gdy noga konsultacyjna wchodzi w stan in-progress. Adresowane do Agent1
+     * (inicjatora konsultacji), który powinien aktywować przycisk "Przekaż".
+     *
+     * @param callId               SID nogi konsultacyjnej (CA_...)
+     * @param tenantId             UUID tenanta
+     * @param originatingAgentId   UUID Agent1 (inicjator konsultacji, odbiorca eventu)
+     * @param originalContactId    UUID oryginalnego kontaktu klienta
+     * @param from                 numer klienta
+     * @param to                   identyfikator celu konsultacji
+     */
+    public void publishConsultAnswered(String callId, UUID tenantId, UUID originatingAgentId,
+                                       UUID originalContactId, String from, String to) {
+        publish(CallEvent.builder()
+                .eventType(CallEvent.EventType.CALL_CONSULT_ANSWERED)
+                .callId(callId)
+                .contactId(originalContactId)
+                .tenantId(tenantId)
+                .agentId(originatingAgentId)
+                .from(from)
+                .to(to)
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    /**
      * Publikuje zdarzenie CALL_BRIDGE_COMPLETE (bridge attended transfer zakończony).
      *
      * @param secondLegCallId SID drugiej nogi konsultacji (CA_...)

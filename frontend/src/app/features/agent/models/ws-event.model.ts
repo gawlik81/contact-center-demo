@@ -9,6 +9,7 @@ export type WsEventType =
   | 'CALL_TRANSFER_CONSULT'
   | 'CALL_BRIDGE_COMPLETE'
   | 'CALL_CONSULT_CANCELLED'
+  | 'CALL_CONSULT_ANSWERED'
   | 'AGENT_STATUS_CHANGED'
   | 'CONTACT_ASSIGNED'
   | 'QUEUE_UPDATE'
@@ -81,6 +82,25 @@ export interface CallBridgeCompletePayload {
  * contactId – UUID rekordu kontaktu w DB (może być null gdy brak persistowanego rekordu)
  */
 export interface CallHangupPayload {
+  callId: string;
+  contactId: string | null;
+  agentId: string | null;
+  from: string | null;
+  to: string | null;
+  eventType: string | null;
+}
+
+/**
+ * Payload dla eventu CALL_CONSULT_ANSWERED – cel konsultacji (Agent2 lub numer zewnętrzny)
+ * odebrał połączenie konsultacyjne.
+ *
+ * Wysyłany przez backend do Agent1 (inicjatora attended transfer) gdy druga noga
+ * jest faktycznie odebrana. Dopiero po tym evencie Agent1 powinien widzieć aktywny
+ * przycisk "Przekaż" (attendedConnected=true).
+ *
+ * Struktura identyczna z CallHangupPayload – backend używa tego samego CallPayload.
+ */
+export interface CallConsultAnsweredPayload {
   callId: string;
   contactId: string | null;
   agentId: string | null;

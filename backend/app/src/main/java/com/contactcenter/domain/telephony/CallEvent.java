@@ -123,6 +123,15 @@ public class CallEvent {
          */
         CALL_CONSULT_CANCELLED,
 
+        /**
+         * Konsultacja odebrana przez Agent2/numer zewnętrzny – Agent1 może teraz wykonać bridge.
+         *
+         * <p>Routing key: {@code call.consult_answered}.
+         * Publikowany gdy noga konsultacyjna wchodzi w stan in-progress. Relay wysyła unicast
+         * do Agent1 (inicjatora), który powinien aktywować przycisk "Przekaż".
+         */
+        CALL_CONSULT_ANSWERED,
+
         /** Attended transfer zakończony przez bridge – druga noga stała się pełnym kontaktem Agent2. */
         CALL_BRIDGE_COMPLETE;
 

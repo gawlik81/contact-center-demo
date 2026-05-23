@@ -42,6 +42,7 @@ import {
   CallHangupPayload,
   CallBridgeCompletePayload,
   CallConsultCancelledPayload,
+  CallConsultAnsweredPayload,
 } from '../../models/ws-event.model';
 
 @Component({
@@ -369,6 +370,20 @@ export class AgentDesktopComponent implements OnInit {
 
         // Krótkie powiadomienie dla agenta.
         this.notifications.info(this.transloco.translate('agent.desktop.consultCancelled'));
+      });
+
+    // Cel konsultacji odebrał połączenie — odblokuj przycisk "Przekaż" u inicjatora.
+    // Emitujemy do SoftphoneService zamiast bezpośrednio do komponentu, żeby nie
+    // tworzyć zależności between desktop a softphone.component.
+    this.ws.events$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        filter((e: WsEvent) => e.eventType === 'CALL_CONSULT_ANSWERED'),
+      )
+      .subscribe((e: WsEvent) => {
+        const payload = e.payload as CallConsultAnsweredPayload;
+        console.warn('[AgentDesktop] CALL_CONSULT_ANSWERED – konsultacja odebrana:', payload);
+        this.softphoneService.markConsultAnswered();
       });
   }
 

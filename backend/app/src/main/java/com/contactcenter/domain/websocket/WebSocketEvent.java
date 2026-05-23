@@ -50,6 +50,7 @@ public record WebSocketEvent(
     public static final String TYPE_CALL_HANGUP             = "CALL_HANGUP";
     public static final String TYPE_CALL_TRANSFER_CONSULT   = "CALL_TRANSFER_CONSULT";
     public static final String TYPE_CALL_CONSULT_CANCELLED  = "CALL_CONSULT_CANCELLED";
+    public static final String TYPE_CALL_CONSULT_ANSWERED   = "CALL_CONSULT_ANSWERED";
     public static final String TYPE_CALL_BRIDGE_COMPLETE    = "CALL_BRIDGE_COMPLETE";
     public static final String TYPE_AGENT_STATUS_CHANGED    = "AGENT_STATUS_CHANGED";
     public static final String TYPE_CONTACT_ASSIGNED        = "CONTACT_ASSIGNED";
@@ -119,6 +120,21 @@ public record WebSocketEvent(
     public static WebSocketEvent callConsultCancelled(CallEvent callEvent) {
         return new WebSocketEvent(
                 TYPE_CALL_CONSULT_CANCELLED,
+                callEvent.getTenantId(),
+                CallPayload.from(callEvent),
+                callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()
+        );
+    }
+
+    /**
+     * Tworzy event CALL_CONSULT_ANSWERED – konsultacja odebrana przez cel.
+     *
+     * <p>Wysyłany unicast do Agent1 (agentId) gdy noga konsultacyjna wchodzi w stan in-progress.
+     * Agent1 powinien aktywować przycisk "Przekaż" – konsultacja jest aktywna.
+     */
+    public static WebSocketEvent callConsultAnswered(CallEvent callEvent) {
+        return new WebSocketEvent(
+                TYPE_CALL_CONSULT_ANSWERED,
                 callEvent.getTenantId(),
                 CallPayload.from(callEvent),
                 callEvent.getTimestamp() != null ? callEvent.getTimestamp() : Instant.now()

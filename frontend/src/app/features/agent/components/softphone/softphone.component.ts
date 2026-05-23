@@ -8,6 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { TranslocoModule } from '@jsverse/transloco';
 import { SoftphoneService } from '../../services/softphone.service';
@@ -80,6 +81,7 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   });
 
   private holdTickInterval: ReturnType<typeof setInterval> | null = null;
+  private consultAnsweredSub: Subscription | null = null;
 
   ngOnInit(): void {
     // Force re-render of hold timer tick
@@ -88,12 +90,19 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
       // we need a small auxiliary signal to trigger CD.
       this._holdTick.update((v) => v + 1);
     }, 1000);
+
+    // Set attendedConnected only when consultation target actually answers (WS event),
+    // NOT when the HTTP initiation request returns.
+    this.consultAnsweredSub = this.softphone.consultAnswered$.subscribe(() => {
+      this.attendedConnected.set(true);
+    });
   }
 
   ngOnDestroy(): void {
     if (this.holdTickInterval !== null) {
       clearInterval(this.holdTickInterval);
     }
+    this.consultAnsweredSub?.unsubscribe();
   }
 
   // auxiliary tick to force hold-timer re-evaluation in OnPush
@@ -144,7 +153,6 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     } else {
       this.softphone.initiateAttendedTransfer(target, () => {
         this.isTransferring.set(false);
-        this.attendedConnected.set(true);
       });
     }
   }
@@ -255,7 +263,6 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     } else {
       this.softphone.initiateAttendedTransferToAgent(session.contactId, event.agentId, () => {
         this.isTransferring.set(false);
-        this.attendedConnected.set(true);
       });
     }
   }

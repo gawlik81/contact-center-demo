@@ -2,6 +2,7 @@ import { Injectable, inject, signal, OnDestroy } from '@angular/core';
 import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import {
   Observable,
+  Subject,
   catchError,
   of,
   interval,
@@ -33,6 +34,21 @@ export class SoftphoneService implements OnDestroy {
    * is deferred until the modal is closed (confirmed or cancelled).
    */
   readonly callbackModalOpen = signal(false);
+
+  /**
+   * Emits once when the consultation target answers the call (CALL_CONSULT_ANSWERED WS event).
+   * SoftphoneComponent subscribes to this to set attendedConnected=true only at the right moment.
+   */
+  readonly consultAnswered$ = new Subject<void>();
+
+  /**
+   * Called by AgentDesktopComponent when it receives a CALL_CONSULT_ANSWERED WS event.
+   * Notifies SoftphoneComponent that the consultation target has answered — the "Przekaż"
+   * (complete transfer) button should now become active.
+   */
+  markConsultAnswered(): void {
+    this.consultAnswered$.next();
+  }
 
   // ── Twilio Voice SDK state ─────────────────────────────────────────────────
   private twilioDevice: Device | null = null;

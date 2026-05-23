@@ -95,6 +95,7 @@ public class RabbitToWebSocketRelay {
                 case "call.hangup"            -> handleCallHangup(callEvent);
                 case "call.transfer_consult"  -> handleCallTransferConsult(callEvent);
                 case "call.consult_cancelled" -> handleConsultCancelled(callEvent);
+                case "call.consult_answered"  -> handleConsultAnswered(callEvent);
                 case "call.bridge_complete"   -> handleCallBridgeComplete(callEvent);
                 default -> log.debug("[WS-Relay] Nieobsługiwany routing key call: {}", routingKey);
             }
@@ -369,6 +370,22 @@ public class RabbitToWebSocketRelay {
         log.info("[WS-Relay] CALL_CONSULT_CANCELLED → unicast do Agent2: agentId={}, callId={}, originalContactId={}",
                 targetAgentId, callEvent.getCallId(), callEvent.getContactId());
         broadcaster.sendToUser(targetAgentId, WebSocketEvent.callConsultCancelled(callEvent));
+    }
+
+    /**
+     * Obsługuje CALL_CONSULT_ANSWERED – konsultacja odebrana przez cel.
+     *
+     * <p>Wysyła unicast do Agent1 (agentId) aby aktywował przycisk "Przekaż".
+     * Wywoływane gdy noga konsultacyjna wchodzi w stan in-progress.
+     */
+    private void handleConsultAnswered(CallEvent callEvent) {
+        UUID agent1Id = callEvent.getAgentId();
+        if (agent1Id == null) {
+            log.warn("[WS-Relay] CALL_CONSULT_ANSWERED bez agentId – pomijam WS: callId={}", callEvent.getCallId());
+            return;
+        }
+        log.info("[WS-Relay] CALL_CONSULT_ANSWERED → unicast do Agent1: agentId={}, callId={}", agent1Id, callEvent.getCallId());
+        broadcaster.sendToUser(agent1Id, WebSocketEvent.callConsultAnswered(callEvent));
     }
 
     /**

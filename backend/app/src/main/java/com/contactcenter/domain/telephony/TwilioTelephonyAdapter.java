@@ -517,6 +517,28 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           // Agent2 joins conference automatically via second-leg TwiML — no additional dial needed
           log.info("[TwilioAdapter] Consultation leg answered by Agent2 – joins conference via TwiML: callId={}",
                    callId);
+          // Notify Agent1 immediately so their "Przekaż" button activates.
+          // answerCall() fires before the in-progress webhook, so publishing here avoids
+          // the answeredAt != null race that would block the webhook-based path.
+          if (updated.getContactId() != null) {
+            final UUID cTenantId  = updated.getTenantId();
+            final UUID cContactId = updated.getContactId();
+            final String cCallId  = callId;
+            final String cFrom    = updated.getFrom();
+            final String cTo      = updated.getTo();
+            try {
+              contactRepository.findById(cContactId, cTenantId)
+                  .map(Contact::getAgentId)
+                  .ifPresent(originatingAgentId -> {
+                    log.info("[TwilioAdapter] Konsultacja odebrana – CALL_CONSULT_ANSWERED do inicjatora: agentId={}, callId={}",
+                             originatingAgentId, cCallId);
+                    eventPublisher.publishConsultAnswered(
+                        cCallId, cTenantId, originatingAgentId, cContactId, cFrom, cTo);
+                  });
+            } catch (Exception e) {
+              log.warn("[TwilioAdapter] Błąd wysyłania CALL_CONSULT_ANSWERED (answerCall): callId={}, error={}", callId, e.getMessage());
+            }
+          }
         } else {
           if (isTransferredSession) {
             log.info("[TwilioAdapter] OUTBOUND-TRANSFER answerCall: sesja po blind transferze, " +
@@ -1952,6 +1974,33 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         }
       }
 
+      // Noga konsultacyjna odebrana przez cel – powiadom Agent1 aby aktywował przycisk "Przekaż".
+      // Warunek: noga CONSULTATION, status wchodzi w ACTIVE, answeredAt jeszcze nie ustawione
+      // (żeby nie wysyłać duplikatu przy kolejnych callbackach) i kontakt powiązany.
+      if ("CONSULTATION".equals(existing.getDirection())
+              && mappedStatus == CallSession.CallStatus.ACTIVE
+              && existing.getAnsweredAt() == null
+              && existing.getContactId() != null) {
+        final UUID cTenantId  = existing.getTenantId();
+        final UUID cContactId = existing.getContactId();
+        final String cCallSid = callSid;
+        final String cFrom    = existing.getFrom();
+        final String cTo      = existing.getTo();
+        try {
+          contactRepository.findById(cContactId, cTenantId)
+              .map(Contact::getAgentId)
+              .ifPresent(originatingAgentId -> {
+                log.info("[TwilioAdapter] Konsultacja odebrana – CALL_CONSULT_ANSWERED do inicjatora: agentId={}, callSid={}",
+                         originatingAgentId, cCallSid);
+                eventPublisher.publishConsultAnswered(
+                    cCallSid, cTenantId, originatingAgentId, cContactId, cFrom, cTo);
+              });
+        } catch (Exception e) {
+          log.warn("[TwilioAdapter] Błąd wysyłania CALL_CONSULT_ANSWERED: callSid={}, error={}", callSid, e.getMessage());
+        }
+        // Nie przerywamy – normalny przepływ eventów kontynuuje (aktualizacja sesji itp.)
+      }
+
       // Guard: dla nogi CONSULTATION zakończonej przez hangupCall() – pomijamy CALL_HANGUP.
       // hangupCall() ustawia endedAt i publikuje CALL_CONSULT_CANCELLED (lub CALL_HANGUP gdy brak agentId).
       // Twilio wyśle późniejszy status callback "completed" – bez tego guardu wysłalibyśmy
@@ -2311,7 +2360,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       if (rawBase != null) {
         secondLegCreator.setStatusCallback(URI.create(rawBase + "?tenantId=" + session.getTenantId()));
         secondLegCreator.setStatusCallbackMethod(com.twilio.http.HttpMethod.POST);
-        secondLegCreator.setStatusCallbackEvent(java.util.List.of("completed", "canceled"));
+        secondLegCreator.setStatusCallbackEvent(java.util.List.of("answered", "completed", "canceled"));
       }
       Call secondLegCall = secondLegCreator.create(resolveRestClient(session.getTenantId()));
 

@@ -157,9 +157,9 @@ export class IncomingCallAlertService implements OnDestroy {
     // If a tab already exists (CONTACT_ASSIGNED arrived first), only correct the direction.
     // Do NOT overwrite customerName: the HTTP lookup fired at tab-creation time already
     // set the definitive name (or will update it shortly via lookupAndUpdateTabName).
-    const existing = this.tabStore.tabs().find(
-      (t) => t.contactId === payload.contactId && t.type === 'PHONE',
-    );
+    const existing = this.tabStore
+      .tabs()
+      .find((t) => t.contactId === payload.contactId && t.type === 'PHONE');
     if (existing) {
       if (existing.direction !== 'OUTBOUND') {
         this.tabStore.updateTabCustomerInfo(existing.contactId, existing.customerName, 'OUTBOUND');
@@ -199,9 +199,9 @@ export class IncomingCallAlertService implements OnDestroy {
     customerName: string,
     direction?: CallDirection,
   ): boolean {
-    const existing = this.tabStore.tabs().find(
-      (t) => t.contactId === contactId && t.type === 'PHONE',
-    );
+    const existing = this.tabStore
+      .tabs()
+      .find((t) => t.contactId === contactId && t.type === 'PHONE');
     if (!existing) return false;
 
     this.tabStore.updateTabCustomerInfo(contactId, customerName, direction);
@@ -265,7 +265,7 @@ export class IncomingCallAlertService implements OnDestroy {
         .pipe(take(1))
         .subscribe((profile) => {
           if (!profile) return;
-          const resolved = `[Konsultacja] ${(`${profile.firstName ?? ''} ${profile.lastName ?? ''}`).trim()}`;
+          const resolved = `[Konsultacja] ${`${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim()}`;
           this.tabStore.updateTabCustomerInfo(payload.secondLegCallId, resolved);
           this.softphoneService.updateCustomerName(resolved);
         });

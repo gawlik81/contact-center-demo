@@ -184,7 +184,11 @@
           <h4 class="preview-section__title">
             {{ 'supervisor.customerImport.previewTitle' | transloco: { count: csvPreviewRows().length } }}
           </h4>
-          <div class="preview-table-wrapper" role="region" [attr.aria-label]="'supervisor.campaignImport.previewTableAriaLabel' | transloco">
+          <div
+            class="preview-table-wrapper"
+            role="region"
+            [attr.aria-label]="'supervisor.campaignImport.previewTableAriaLabel' | transloco"
+          >
             <table class="preview-table">
               <thead>
                 <tr>
@@ -232,7 +236,11 @@
         {{ 'supervisor.customerImport.mappingDesc' | transloco }}
       </p>
 
-      <div class="mapping-table-wrapper" role="region" [attr.aria-label]="'supervisor.campaignImport.mappingTableAriaLabel' | transloco">
+      <div
+        class="mapping-table-wrapper"
+        role="region"
+        [attr.aria-label]="'supervisor.campaignImport.mappingTableAriaLabel' | transloco"
+      >
         <table class="mapping-table">
           <thead>
             <tr>
@@ -251,7 +259,9 @@
                     class="field-select"
                     [ngModel]="mapping.systemField"
                     (ngModelChange)="updateMapping($index, $event)"
-                    [attr.aria-label]="'supervisor.campaignImport.mappingColumnLabel' | transloco: { column: mapping.csvHeader }"
+                    [attr.aria-label]="
+                      'supervisor.campaignImport.mappingColumnLabel' | transloco: { column: mapping.csvHeader }
+                    "
                   >
                     @for (opt of systemFieldOptions(); track opt.value) {
                       <option [value]="opt.value">{{ opt.label }}</option>
@@ -312,7 +322,11 @@
         {{ 'supervisor.customerImport.progressTitle' | transloco }}
       </h3>
 
-      <div class="progress-wrapper" aria-live="polite" [attr.aria-label]="'supervisor.campaignImport.progressLabel' | transloco: { percent: progressPercent() }">
+      <div
+        class="progress-wrapper"
+        aria-live="polite"
+        [attr.aria-label]="'supervisor.campaignImport.progressLabel' | transloco: { percent: progressPercent() }"
+      >
         <div
           class="progress-bar-track"
           role="progressbar"
@@ -363,7 +377,11 @@
         </h3>
 
         <!-- Summary cards -->
-        <div class="report-summary" role="list" [attr.aria-label]="'supervisor.campaignImport.reportSummaryAriaLabel' | transloco">
+        <div
+          class="report-summary"
+          role="list"
+          [attr.aria-label]="'supervisor.campaignImport.reportSummaryAriaLabel' | transloco"
+        >
           <div class="report-card report-card--total" role="listitem">
             <span class="report-card__value">{{ job.totalRows }}</span>
             <span class="report-card__label">{{ 'supervisor.customerImport.totalRows' | transloco }}</span>

@@ -43,7 +43,6 @@ export class CampaignInfoComponent implements OnInit, AfterViewInit {
   readonly contactCount = signal<number | null>(null);
   readonly contactCountLoading = signal(true);
 
-
   ngOnInit(): void {
     this.transloco.langChanges$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.cdr.markForCheck();

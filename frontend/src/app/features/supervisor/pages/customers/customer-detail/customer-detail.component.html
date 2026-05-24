@@ -320,7 +320,9 @@
                         {{ getStatusLabel(contact.status) }}
                       </span>
                     </td>
-                    <td class="text-secondary">{{ getDispositionLabel(contact.dispositionLabel, contact.dispositionCode) }}</td>
+                    <td class="text-secondary">
+                      {{ getDispositionLabel(contact.dispositionLabel, contact.dispositionCode) }}
+                    </td>
                     <td class="contacts-table__notes" [title]="contact.notes ?? ''">
                       {{ contact.notes ?? '—' }}
                     </td>

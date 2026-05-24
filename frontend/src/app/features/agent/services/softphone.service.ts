@@ -574,7 +574,12 @@ export class SoftphoneService implements OnDestroy {
 
   // ── Transfer to AGENT ──────────────────────────────────────────────────────
 
-  initiateBlindTransferToAgent(callId: string, agentId: string, displayName: string, onSettled?: () => void): void {
+  initiateBlindTransferToAgent(
+    callId: string,
+    agentId: string,
+    displayName: string,
+    onSettled?: () => void,
+  ): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') {
       onSettled?.();
@@ -604,7 +609,12 @@ export class SoftphoneService implements OnDestroy {
       });
   }
 
-  initiateAttendedTransferToAgent(callId: string, agentId: string, displayName: string, onSettled?: () => void): void {
+  initiateAttendedTransferToAgent(
+    callId: string,
+    agentId: string,
+    displayName: string,
+    onSettled?: () => void,
+  ): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') {
       onSettled?.();
@@ -643,7 +653,12 @@ export class SoftphoneService implements OnDestroy {
 
   // ── Transfer to QUEUE ──────────────────────────────────────────────────────
 
-  initiateBlindTransferToQueue(callId: string, queueId: string, displayName: string, onSettled?: () => void): void {
+  initiateBlindTransferToQueue(
+    callId: string,
+    queueId: string,
+    displayName: string,
+    onSettled?: () => void,
+  ): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') {
       onSettled?.();

@@ -17,7 +17,11 @@ import { AgentGroupService } from '../../../../../core/services/agent-group.serv
 import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { Queue } from '../../../models/queue.model';
-import { AgentGroup, AgentGroupSummary, QueueAssignment } from '../../../../../core/models/agent-group.model';
+import {
+  AgentGroup,
+  AgentGroupSummary,
+  QueueAssignment,
+} from '../../../../../core/models/agent-group.model';
 import { UserResponse } from '../../../models/user.model';
 import { PagedResponse } from '../../../../../core/models/paged-response.model';
 
@@ -180,9 +184,7 @@ export class QueueAgentsModalComponent implements OnInit {
           if (err.status === 400 && err.error?.message) {
             this.notifications.error(err.error.message);
           } else {
-            this.notifications.error(
-              this.transloco.translate('supervisor.queueAgents.errorSave'),
-            );
+            this.notifications.error(this.transloco.translate('supervisor.queueAgents.errorSave'));
           }
         },
       });

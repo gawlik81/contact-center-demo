@@ -17,7 +17,11 @@ import { CampaignService } from '../../../services/campaign.service';
 import { UserService } from '../../../services/user.service';
 import { AgentGroupService } from '../../../../../core/services/agent-group.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
-import { Campaign, CampaignAssignment, UpdateCampaignAssignmentRequest } from '../../../models/campaign.model';
+import {
+  Campaign,
+  CampaignAssignment,
+  UpdateCampaignAssignmentRequest,
+} from '../../../models/campaign.model';
 import { AgentGroup, AgentGroupSummary } from '../../../../../core/models/agent-group.model';
 import { UserResponse } from '../../../models/user.model';
 import { PagedResponse } from '../../../../../core/models/paged-response.model';

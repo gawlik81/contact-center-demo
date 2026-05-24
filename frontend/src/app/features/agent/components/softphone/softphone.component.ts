@@ -252,18 +252,30 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     }
   }
 
-  protected onAgentSelected(event: { agentId: string; displayName: string; mode: TransferMode }): void {
+  protected onAgentSelected(event: {
+    agentId: string;
+    displayName: string;
+    mode: TransferMode;
+  }): void {
     const session = this.session();
     if (!session || this.isTransferring()) return;
     this.isTransferring.set(true);
     if (event.mode === 'BLIND') {
-      this.softphone.initiateBlindTransferToAgent(session.contactId, event.agentId, event.displayName, () =>
-        this.isTransferring.set(false),
+      this.softphone.initiateBlindTransferToAgent(
+        session.contactId,
+        event.agentId,
+        event.displayName,
+        () => this.isTransferring.set(false),
       );
     } else {
-      this.softphone.initiateAttendedTransferToAgent(session.contactId, event.agentId, event.displayName, () => {
-        this.isTransferring.set(false);
-      });
+      this.softphone.initiateAttendedTransferToAgent(
+        session.contactId,
+        event.agentId,
+        event.displayName,
+        () => {
+          this.isTransferring.set(false);
+        },
+      );
     }
   }
 
@@ -271,8 +283,11 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     const session = this.session();
     if (!session || this.isTransferring()) return;
     this.isTransferring.set(true);
-    this.softphone.initiateBlindTransferToQueue(session.contactId, event.queueId, event.displayName, () =>
-      this.isTransferring.set(false),
+    this.softphone.initiateBlindTransferToQueue(
+      session.contactId,
+      event.queueId,
+      event.displayName,
+      () => this.isTransferring.set(false),
     );
   }
 

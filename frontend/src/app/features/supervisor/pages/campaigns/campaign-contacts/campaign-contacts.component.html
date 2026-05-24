@@ -91,10 +91,7 @@
             </thead>
             <tbody>
               @for (contact of contacts(); track contact.recordId) {
-                <tr
-                  class="contact-row"
-                  [class.contact-row--expanded]="expandedRecordId() === contact.recordId"
-                >
+                <tr class="contact-row" [class.contact-row--expanded]="expandedRecordId() === contact.recordId">
                   <td class="contact-phone">{{ contact.phone }}</td>
                   <td class="contact-name">{{ contact.firstName ?? '—' }}</td>
                   <td class="contact-name">{{ contact.lastName ?? '—' }}</td>
@@ -111,7 +108,10 @@
                       [class.contact-status-badge--failed]="contact.status === 'FAILED' || contact.status === 'CALLED'"
                       [class.contact-status-badge--skipped]="contact.status === 'SKIPPED'"
                       [class.contact-status-badge--error]="contact.status === 'ERROR'"
-                      [attr.aria-label]="'supervisor.campaignContacts.statusAriaLabel' | transloco: { status: statusLabel(contact.status) }"
+                      [attr.aria-label]="
+                        'supervisor.campaignContacts.statusAriaLabel'
+                          | transloco: { status: statusLabel(contact.status) }
+                      "
                     >
                       {{ statusLabel(contact.status) }}
                     </span>
@@ -194,10 +194,7 @@
                 </tr>
                 @if (expandedRecordId() === contact.recordId) {
                   <tr class="attempts-row">
-                    <td
-                      [attr.colspan]="(isAgent() && isManualCampaign()) ? 9 : 8"
-                      class="attempts-cell"
-                    >
+                    <td [attr.colspan]="isAgent() && isManualCampaign() ? 9 : 8" class="attempts-cell">
                       <div class="attempts-panel">
                         @if (attemptsLoading()) {
                           <div class="skeleton skeleton--short" aria-busy="true"></div>
@@ -216,24 +213,16 @@
                                 role="button"
                                 tabindex="0"
                               >
-                                <span class="attempt-date">{{
-                                  attempt.startedAt | date: 'dd.MM.yyyy HH:mm'
+                                <span class="attempt-date">{{ attempt.startedAt | date: 'dd.MM.yyyy HH:mm' }}</span>
+                                <span class="attempt-status attempt-status--{{ attempt.status | lowercase }}">{{
+                                  statusLabel($any(attempt.status))
                                 }}</span>
-                                <span
-                                  class="attempt-status attempt-status--{{
-                                    attempt.status | lowercase
-                                  }}"
-                                >{{ statusLabel($any(attempt.status)) }}</span>
                                 <span class="attempt-duration">
                                   {{
-                                    attempt.durationSeconds !== null
-                                      ? (attempt.durationSeconds | number) + 's'
-                                      : '—'
+                                    attempt.durationSeconds !== null ? (attempt.durationSeconds | number) + 's' : '—'
                                   }}
                                 </span>
-                                <span class="attempt-disposition">{{
-                                  dispositionLabel(attempt.dispositionCode)
-                                }}</span>
+                                <span class="attempt-disposition">{{ dispositionLabel(attempt.dispositionCode) }}</span>
                               </div>
                             }
                           </div>
@@ -248,7 +237,10 @@
         </div>
 
         <!-- Pagination -->
-        <nav class="contacts-pagination" [attr.aria-label]="'supervisor.campaignContacts.paginationAriaLabel' | transloco">
+        <nav
+          class="contacts-pagination"
+          [attr.aria-label]="'supervisor.campaignContacts.paginationAriaLabel' | transloco"
+        >
           <span class="contacts-pagination__info" aria-live="polite">
             @if (totalElements() > 0) {
               {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ totalElements() }}

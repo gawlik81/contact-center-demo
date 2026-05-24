@@ -10,12 +10,7 @@
           <span class="modal-title__queue">{{ queue().name }}</span>
         </h2>
       </div>
-      <button
-        class="btn-close"
-        type="button"
-        (click)="onClose()"
-        [attr.aria-label]="'common.close' | transloco"
-      >
+      <button class="btn-close" type="button" (click)="onClose()" [attr.aria-label]="'common.close' | transloco">
         <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
           <path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -62,10 +57,7 @@
             </h3>
 
             @if (selectedGroups().length > 0) {
-              <ul
-                class="assigned-list"
-                [attr.aria-label]="'supervisor.queueAgents.groupsSection' | transloco"
-              >
+              <ul class="assigned-list" [attr.aria-label]="'supervisor.queueAgents.groupsSection' | transloco">
                 @for (group of selectedGroups(); track group.groupId) {
                   <li class="assigned-list__item">
                     <svg
@@ -101,10 +93,7 @@
 
             @if (unselectedGroups().length > 0) {
               <div class="add-row">
-                <label
-                  class="sr-only"
-                  [attr.for]="'add-group-select-' + queue().queueId"
-                >
+                <label class="sr-only" [attr.for]="'add-group-select-' + queue().queueId">
                   {{ 'supervisor.queueAgents.addGroup' | transloco }}
                 </label>
                 <select
@@ -130,10 +119,7 @@
             </h3>
 
             @if (selectedAgents().length > 0) {
-              <ul
-                class="assigned-list"
-                [attr.aria-label]="'supervisor.queueAgents.agentsSection' | transloco"
-              >
+              <ul class="assigned-list" [attr.aria-label]="'supervisor.queueAgents.agentsSection' | transloco">
                 @for (agent of selectedAgents(); track agent.id) {
                   <li class="assigned-list__item">
                     <svg
@@ -169,10 +155,7 @@
 
             @if (unselectedAgents().length > 0) {
               <div class="add-row">
-                <label
-                  class="sr-only"
-                  [attr.for]="'add-agent-select-' + queue().queueId"
-                >
+                <label class="sr-only" [attr.for]="'add-agent-select-' + queue().queueId">
                   {{ 'supervisor.queueAgents.addAgent' | transloco }}
                 </label>
                 <select

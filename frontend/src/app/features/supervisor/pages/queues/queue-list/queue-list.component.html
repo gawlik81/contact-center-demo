@@ -80,10 +80,7 @@
                       {{ 'supervisor.queueAgents.badgeAllAgents' | transloco }}
                     </span>
                   } @else if ((queue.assignedAgentsCount ?? 0) === 0) {
-                    <span
-                      class="badge badge--warning"
-                      [title]="'supervisor.queueAgents.badgeNoAgentsHint' | transloco"
-                    >
+                    <span class="badge badge--warning" [title]="'supervisor.queueAgents.badgeNoAgentsHint' | transloco">
                       {{ 'supervisor.queueAgents.badgeNoAgents' | transloco }}
                     </span>
                   } @else {

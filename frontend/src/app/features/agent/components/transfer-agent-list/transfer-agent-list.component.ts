@@ -55,6 +55,10 @@ export class TransferAgentListComponent implements OnInit {
   }
 
   protected selectAgent(agent: TransferAgentItem): void {
-    this.agentSelected.emit({ agentId: agent.agentId, displayName: `${agent.firstName} ${agent.lastName}`, mode: this.transferMode() });
+    this.agentSelected.emit({
+      agentId: agent.agentId,
+      displayName: `${agent.firstName} ${agent.lastName}`,
+      mode: this.transferMode(),
+    });
   }
 }

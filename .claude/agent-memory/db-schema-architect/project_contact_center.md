@@ -40,6 +40,20 @@ Stan migracji po V035 (2026-04-08):
   - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
   - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
 
+Stan migracji po V065 (2026-05-24):
+- V064__create_tenant_ai_config.sql (DB-038): konfiguracja dostawcy AI per tenant.
+  - Enum ai_provider: ANTHROPIC | OPENAI | AZURE_OPENAI
+  - UNIQUE (tenant_id) — jeden rekord per tenant, FK ON DELETE CASCADE
+  - api_key_encrypted TEXT: klucz API szyfrowany AES-256-GCM przez JPA EncryptedStringConverter
+  - Pola Azure-only: azure_endpoint, azure_deployment_name (nullable)
+  - summary_prompt_template TEXT NULL: nadpisuje domyślny prompt aplikacji; NULL = użyj domyślnego
+  - Partial index WHERE is_active; RLS USING current_setting('app.tenant_id', TRUE)::UUID
+- V065__add_ai_summary_to_contact.sql (DB-039): pola podsumowania AI w tabeli contact.
+  - ai_summary TEXT NULL: treść podsumowania (generowane na żądanie agenta)
+  - ai_summary_model VARCHAR(100) NULL: nazwa modelu który wygenerował (np. claude-opus-4-7)
+  - ai_summary_generated_at TIMESTAMPTZ NULL: timestamp generowania
+  - ADD COLUMN IF NOT EXISTS — propaguje do partycji automatycznie (tabela jest partycjonowana RANGE)
+
 Stan migracji po V062 (2026-05-21):
 - V062__campaign_agent_assignment.sql (DB-036): trójpoziomowe przypisanie agentów do kampanii wychodzącej.
   - campaign.all_agents BOOLEAN DEFAULT FALSE: TRUE = wszyscy agenci tenanta, FALSE = jawne przypisanie

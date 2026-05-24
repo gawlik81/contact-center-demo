@@ -1043,7 +1043,23 @@
       "groupsTitle": "Agentengruppen",
       "directAgentsTitle": "Einzelne Agenten",
       "agentsAbbr": "Ag.",
-      "noAssignment": "Keine zugewiesenen Agenten — Warteschlange bearbeitet keine Kontakte."
+      "noAssignment": "Keine zugewiesenen Agenten — Warteschlange bearbeitet keine Kontakte.",
+      "allAgentsLabel": "Alle Mandanten-Agenten",
+      "allAgentsHint": "Warteschlange verfügbar für alle Agenten",
+      "groupsSection": "Agentengruppen",
+      "agentsSection": "Direkte Agenten",
+      "addGroup": "Gruppe hinzufügen",
+      "addAgent": "Agent hinzufügen",
+      "emptyWarning": "Keine Zuweisung — Warteschlange bearbeitet keine Kontakte.",
+      "saveButton": "Speichern",
+      "cancelButton": "Abbrechen",
+      "successToast": "Agentenzuweisung aktualisiert",
+      "errorSave": "Zuweisung konnte nicht gespeichert werden",
+      "manageButton": "Agenten verwalten",
+      "badgeAllAgents": "Alle Agenten",
+      "badgeNoAgents": "Keine Agenten",
+      "badgeNoAgentsHint": "Keine zugewiesenen Agenten — Warteschlange bearbeitet keine Kontakte",
+      "badgeAgents": "Agenten"
     },
     "queueAssignment": {
       "title": "Warteschlangenzuweisung",
@@ -1118,7 +1134,33 @@
       "importSuccess": "Kontaktimport erfolgreich abgeschlossen.",
       "errors": {
         "loadFailed": "Kampagnenliste konnte nicht geladen werden. Bitte erneut versuchen."
-      }
+      },
+      "campaignAssignment": {
+        "title": "Agenten der Kampagne verwalten",
+        "allAgentsLabel": "Alle Agenten des Mandanten",
+        "allAgentsHint": "Kampagne für alle Agenten verfügbar",
+        "groupsSection": "Agentengruppen",
+        "agentsSection": "Direkte Agenten",
+        "addGroup": "Gruppe hinzufügen",
+        "addAgent": "Agenten hinzufügen",
+        "emptyWarning": "Keine Zuweisung — Dialer ruft nicht an, manuelles Panel zeigt keine Datensätze.",
+        "saveButton": "Speichern",
+        "cancelButton": "Abbrechen",
+        "successToast": "Agentenzuweisung aktualisiert",
+        "errorSave": "Zuweisung konnte nicht gespeichert werden",
+        "manageButton": "Agenten verwalten"
+      },
+      "badgeAllAgents": "Alle Agenten",
+      "badgeNoAgents": "Keine Agenten",
+      "badgeNoAgentsHint": "Dialer inaktiv — keine Agenten zugewiesen",
+      "badgeAgents": "Agenten",
+      "attempts": "Versuche",
+      "showAttempts": "Anrufversuche anzeigen",
+      "noAttempts": "Keine Anrufversuche",
+      "statsTotal": "Gesamt",
+      "statsCompleted": "Abgeschlossen",
+      "statsRemaining": "Verbleibend",
+      "statsHeader": "Datensätze"
     },
     "campaignForm": {
       "titleCreate": "Neue Kampagne",
@@ -1136,8 +1178,6 @@
       "cancel": "Abbrechen",
       "closeLabel": "Formular schließen",
       "dialerTypeLabel": "Dialer-Typ",
-      "queueLabel": "Warteschlange",
-      "queuePlaceholder": "-- Warteschlange auswählen --",
       "maxAttemptsLabel": "Maximale Anzahl der Versuche",
       "retryDelayLabel": "Zeit zwischen Versuchen (Minuten)",
       "scheduleLabel": "Zeitplan (optional)",
@@ -1169,9 +1209,7 @@
         "timeFromPattern": "Format: HH:MM (z.B. 09:00)",
         "timeToPattern": "Format: HH:MM (z.B. 18:00)",
         "timeRangeInvalid": "Die \"bis\"-Zeit muss nach der \"von\"-Zeit liegen.",
-        "queueRequired": "Warteschlange ist erforderlich.",
         "dateRangeInvalid": "Das Enddatum darf nicht vor dem Startdatum liegen.",
-        "loadQueuesFailed": "Warteschlangenliste konnte nicht geladen werden.",
         "updateFailed": "Kampagne konnte nicht aktualisiert werden. Bitte erneut versuchen.",
         "limitExceeded": "Kampagnenlimit für diesen Mandanten überschritten.",
         "createFailed": "Kampagne konnte nicht erstellt werden. Bitte erneut versuchen."

@@ -3791,3 +3791,396 @@ Istniejące przyciski „Ukończ" i „Anuluj" działają tak samo niezależnie 
 - [ ] Wybór kolejki → kontakt `TRANSFERRING` → `ENDED`
 - [ ] Żadne wywołanie do `/api/dev/telephony/simulate` w ścieżce transferu
 - [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+
+### FE-081 – Usunięcie pola `queueId` z formularza kampanii
+
+**Typ:** Refactor
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-079
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-082
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+Formularz tworzenia kampanii (`campaign-form.component`) zawiera obowiązkowy dropdown wyboru kolejki (`queueId: ['', Validators.required]`). Po EPIC-25 kampanie nie są powiązane z kolejką — to pole należy usunąć.
+
+**Zakres zmian:**
+
+1. **`campaign.model.ts`**:
+   - `CreateCampaignRequest`: usuń `queueId: string` (pole obowiązkowe) — całkowite usunięcie
+   - `UpdateCampaignRequest`: usuń `queueId?: string`
+   - `Campaign`: `queueId?: string` — zostaje jako opcjonalne (dane historyczne)
+
+2. **`campaign-form.component.ts`**:
+   - Usuń `queueId: ['', Validators.required]` z `form`
+   - Usuń import i wstrzyknięcie `QueueService`
+   - Usuń sygnały `queuesLoading`, `queues`
+   - Usuń metodę `loadQueues()`
+   - Usuń wywołanie `loadQueues()` z `ngOnInit()`
+   - Usuń `get queueIdError()` getter
+   - W `onSubmit()` przy create: usuń `queueId: raw.queueId!`
+
+3. **`campaign-form.component.html`**:
+   - Usuń sekcję HTML z dropdownem kolejki (`<select formControlName="queueId">`) i jej etykietę
+   - Usuń blok błędu `queueIdError`
+
+4. **i18n** (pliki transloco `pl.json`, `en.json`):
+   - Usuń klucze `supervisor.campaignForm.errors.queueRequired` i `supervisor.campaigns.queue` (jeśli istnieją)
+
+**Kryteria akceptacji:**
+- [ ] Formularz tworzenia kampanii nie zawiera pola kolejki
+- [ ] `POST /api/campaigns` wysyłany bez `queueId`
+- [ ] Formularz edycji kampanii (DRAFT) nie zawiera pola kolejki
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-082 – Modal zarządzania przypisaniem agentów do kampanii (trójpoziomowy)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-080, BE-084, FE-081
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-083
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Opis:**
+Modal zarządzania przypisaniem agentów do kampanii — identyczny w strukturze UI z `queue-agents-modal.component`. Obsługuje trzy poziomy przypisania: `allAgents`, grupy agentów i agenci bezpośredni. Używa jednego endpointu `PUT /api/campaigns/{id}/assignment` do atomowej podmiany całego przypisania.
+
+**Nowe pliki:**
+```
+features/supervisor/pages/campaigns/campaign-assignment-modal/
+  campaign-assignment-modal.component.ts
+  campaign-assignment-modal.component.html
+  campaign-assignment-modal.component.scss
+```
+
+**Model danych — rozszerzenie `campaign.model.ts`:**
+```typescript
+export interface CampaignAssignment {
+  campaignId: string;
+  allAgents: boolean;
+  directAgents: AgentSummary[];
+  groups: AgentGroupSummary[];
+}
+
+export interface AgentSummary {
+  agentId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export interface AgentGroupSummary {
+  groupId: string;
+  name: string;
+  memberCount: number;
+}
+
+export interface UpdateCampaignAssignmentRequest {
+  allAgents: boolean;
+  directAgentIds: string[];
+  groupIds: string[];
+}
+```
+
+**Rozszerzenie `CampaignService` (frontend):**
+```typescript
+getCampaignAssignment(campaignId: string): Observable<CampaignAssignment>
+updateCampaignAssignment(campaignId: string, req: UpdateCampaignAssignmentRequest): Observable<CampaignAssignment>
+```
+
+**Komponent `CampaignAssignmentModalComponent`:**
+```typescript
+@Component({ selector: 'app-campaign-assignment-modal', ... })
+export class CampaignAssignmentModalComponent implements OnInit {
+  readonly campaign = input.required<Campaign>();
+  readonly closed = output<void>();
+
+  readonly assignment = signal<CampaignAssignment | null>(null);
+  readonly loading = signal(true);
+  readonly saving = signal(false);
+
+  // Lokalne kopie do edycji (nie mutują assignment sygnału bezpośrednio)
+  readonly allAgents = signal(false);
+  readonly selectedAgentIds = signal<string[]>([]);
+  readonly selectedGroupIds = signal<string[]>([]);
+
+  // Listy dostępne do wyboru (GET /api/users + GET /api/agent-groups)
+  readonly availableAgents = signal<AgentSummary[]>([]);
+  readonly availableGroups = signal<AgentGroupSummary[]>([]);
+}
+```
+
+**Layout modalu — analogiczny do `queue-agents-modal`:**
+
+1. **Przełącznik "Wszyscy agenci"** (toggle) — gdy ON: sekcje grup i agentów ukryte (wystarczy flaga)
+2. **Sekcja "Grupy agentów"** — lista przypisanych grup z `memberCount`, przycisk usuwania; poniżej dropdown/search do dodawania grup
+3. **Sekcja "Agenci bezpośredni"** — lista przypisanych agentów, przycisk usuwania; poniżej dropdown/search do dodawania agentów
+4. **Ostrzeżenie** gdy `allAgents=false` i obie listy puste: "Brak przypisania — dialer nie będzie dzwonił, panel manualny nie wyświetli rekordów tej kampanii."
+5. **Przycisk "Zapisz"** — wywołuje `PUT /api/campaigns/{id}/assignment` z aktualnym stanem (atomowa podmiana)
+
+**Integracja w `campaign-info.component`:**
+- Przycisk "Zarządzaj agentami" otwiera `CampaignAssignmentModalComponent`
+- Po zamknięciu modalu z sukcesem: odświeżenie `assignedAgentsCount` w widoku kampanii
+
+**Kryteria akceptacji:**
+- [ ] Modal ładuje aktualny stan przypisania z `GET /api/campaigns/{id}/assignment`
+- [ ] Toggle "Wszyscy agenci" — włączenie ukrywa sekcje grup/agentów, nie usuwa istniejących przypisań (tylko flaga)
+- [ ] Dodanie grupy: pojawia się w sekcji grup z `memberCount`
+- [ ] Usunięcie grupy: usuwana z lokalnej listy (bez natychmiastowego zapisu — zapis przez "Zapisz")
+- [ ] Dodanie agenta: pojawia się w sekcji agentów bezpośrednich
+- [ ] Usunięcie agenta: usuwany z lokalnej listy
+- [ ] "Zapisz" → `PUT /api/campaigns/{id}/assignment` → success toast + zamknięcie modalu
+- [ ] Ostrzeżenie widoczne gdy `allAgents=false` i obie listy puste
+- [ ] Komponent standalone, bez NgModules
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-083 – Wyświetlenie stanu przypisania agentów na liście kampanii i w szczegółach
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-082, BE-080
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Opis:**
+Stan przypisania agentów powinien być widoczny bez otwierania modalu. `CampaignResponse` rozszerzony o pole sumaryczne; frontend pokazuje badge z informacją o trybie przypisania.
+
+**Zmiany:**
+
+1. **`CampaignResponse` (backend)** — rozszerzyć o:
+   ```java
+   boolean allAgents,
+   int assignedAgentsCount   // 0 gdy allAgents=true (nie liczymy) lub suma direct+groups
+   ```
+   Backend zlicza w `CampaignService.getCampaign()` przez `CampaignAssignmentRepository`.
+   Gdy `allAgents=true` → `assignedAgentsCount` = -1 (sygnał "wszyscy") lub specjalna wartość.
+
+2. **`Campaign` model (frontend)**:
+   ```typescript
+   allAgents?: boolean;
+   assignedAgentsCount?: number; // -1 = all agents mode
+   ```
+
+3. **`campaign-list.component.html`** — badge przy nazwie kampanii:
+   ```html
+   @if (campaign.allAgents) {
+     <span class="badge badge--info">Wszyscy agenci</span>
+   } @else if ((campaign.assignedAgentsCount ?? 0) === 0) {
+     <span class="badge badge--warning" title="Brak agentów — dialer nieaktywny">
+       Brak agentów
+     </span>
+   } @else {
+     <span class="badge badge--agents">{{ campaign.assignedAgentsCount }} agentów</span>
+   }
+   ```
+
+4. **`campaign-info.component.html`** — wiersz w sekcji konfiguracji:
+   ```
+   Agenci: [Wszyscy] / [X agentów] / [⚠ Brak przypisania]  [Zarządzaj]
+   ```
+
+**Kryteria akceptacji:**
+- [ ] Badge z liczbą agentów widoczny na liście kampanii
+- [ ] Badge w kolorze ostrzegawczym gdy `assignedAgentsCount === 0`
+- [ ] Liczba agentów aktualizuje się po zamknięciu modalu przypisania (FE-082)
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-084 – Ukrycie zakładki „Kolejka" w panelu transferu dla połączeń wychodzących
+
+**Typ:** Bug fix / UX
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-076 (TransferTargetType), FE-077 (panel transferu)
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+`SoftphoneComponent.transferTargetTabs` jest stałą tablicą `['PHONE', 'AGENT', 'QUEUE']` — niezależnie od kierunku połączenia. Pole `tab.direction` (`'INBOUND' | 'OUTBOUND'`) jest już dostępne w komponencie i ustawiane przez `contact-tab.store.ts` w momencie tworzenia zakładki. Dla połączeń wychodzących (`OUTBOUND`) transfer do kolejki jest niemożliwy — kolejka przyjmuje tylko ruch przychodzący.
+
+**Zmiana w `softphone.component.ts`:**
+
+```typescript
+// Przed (stała tablica):
+protected readonly transferTargetTabs: TransferTargetType[] = ['PHONE', 'AGENT', 'QUEUE'];
+
+// Po (computed signal filtrujący QUEUE dla OUTBOUND):
+protected readonly transferTargetTabs = computed<TransferTargetType[]>(() =>
+  this.tab.direction === 'OUTBOUND'
+    ? ['PHONE', 'AGENT']
+    : ['PHONE', 'AGENT', 'QUEUE']
+);
+```
+
+Przy okazji: jeśli `transferTargetType()` jest aktualnie `'QUEUE'` i zmieni się kierunek na `OUTBOUND` (edge case), zresetować do `'PHONE'`. W praktyce zakładka powstaje raz z ustalonym kierunkiem i nie zmienia się — reset nie jest konieczny, wystarczy computed.
+
+**Brak zmian w szablonie** — `@for (tab of transferTargetTabs; track tab)` już iteruje po aktualnej wartości; computed signal obsługuje zmianę automatycznie.
+
+**Kryteria akceptacji:**
+- [ ] Dla połączeń `OUTBOUND`: panel transferu zawiera tylko zakładki „Telefon" i „Agent" (brak „Kolejka")
+- [ ] Dla połączeń `INBOUND`: panel transferu zawiera wszystkie trzy zakładki bez zmian
+- [ ] Zmiana nie wpływa na działanie transferu BLIND/ATTENDED na zakładkach PHONE i AGENT
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+## MODUŁ: Historia prób wydzwonienia rekordu kampanii (EPIC-25)
+
+### FE-085 – Nawigacja z rekordu kampanii do historii kontaktów (prób wydzwonienia)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-085, FE-082
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+Widok `campaign-contacts.component` (modal listy rekordów kampanii) wyświetla rekordy z pola `CampaignContact`, w tym `attemptCount` i `status`. Po BE-085 `CampaignContactResponse` zawiera `lastContactId`. Potrzebny jest sposób przejścia do widoku szczegółów konkretnej próby oraz do listy wszystkich prób dla rekordu.
+
+**Model danych — rozszerzenie `campaign.model.ts`:**
+```typescript
+export interface CampaignContact {
+  // ... istniejące pola bez zmian ...
+  lastContactId: string | null;   // null gdy brak prób — nowe pole
+}
+
+export interface ContactAttempt {
+  contactId: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  status: string;
+  dispositionCode: string | null;
+  agentId: string | null;
+  // standardowe pola ContactResponse
+}
+```
+
+**Rozszerzenie `CampaignService` (frontend):**
+```typescript
+getContactAttempts(
+  campaignId: string,
+  recordId: string
+): Observable<ContactAttempt[]>
+// GET /api/campaigns/{campaignId}/contacts/{recordId}/attempts
+```
+
+**Zmiany w `campaign-contacts.component`:**
+
+### UI per rekord — przycisk historii prób
+
+W szablonie `campaign-contacts.component.html` dodaj przy każdym rekordzie:
+
+```html
+@if (contact.attemptCount > 0) {
+  <button
+    class="btn-attempts"
+    type="button"
+    (click)="showAttempts(contact)"
+    [attr.aria-label]="'supervisor.campaigns.showAttempts' | transloco"
+  >
+    {{ contact.attemptCount }}
+    {{ 'supervisor.campaigns.attempts' | transloco }}
+  </button>
+}
+```
+
+### Stan rozwinięcia historii
+
+```typescript
+// Sygnał: który rekord ma rozwiniętą historię
+readonly expandedRecordId = signal<string | null>(null);
+readonly attempts = signal<ContactAttempt[]>([]);
+readonly attemptsLoading = signal(false);
+
+showAttempts(contact: CampaignContact): void {
+  if (this.expandedRecordId() === contact.recordId) {
+    this.expandedRecordId.set(null); // zwiń
+    return;
+  }
+  this.expandedRecordId.set(contact.recordId);
+  this.attemptsLoading.set(true);
+  this.campaignService.getContactAttempts(this.campaign().campaignId, contact.recordId)
+    .pipe(
+      catchError(() => of([])),
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => this.attemptsLoading.set(false))
+    )
+    .subscribe(a => this.attempts.set(a));
+}
+```
+
+### Lista prób (rozwijana pod rekordem)
+
+Inline pod wierszem rekordu, gdy `expandedRecordId() === contact.recordId`:
+
+```html
+@if (expandedRecordId() === contact.recordId) {
+  <div class="attempts-panel">
+    @if (attemptsLoading()) {
+      <div class="skeleton skeleton--short"></div>
+    } @else if (attempts().length === 0) {
+      <p class="attempts-empty">{{ 'supervisor.campaigns.noAttempts' | transloco }}</p>
+    } @else {
+      @for (attempt of attempts(); track attempt.contactId) {
+        <div class="attempt-row" (click)="openContactDetail(attempt.contactId)">
+          <span class="attempt-date">{{ attempt.startedAt | date:'dd.MM.yyyy HH:mm' }}</span>
+          <span class="attempt-status attempt-status--{{ attempt.status | lowercase }}">
+            {{ attempt.status }}
+          </span>
+          <span class="attempt-duration">
+            @if (attempt.durationSeconds) {
+              {{ attempt.durationSeconds | duration }}
+            } @else {
+              —
+            }
+          </span>
+          <span class="attempt-disposition">{{ attempt.dispositionCode ?? '—' }}</span>
+          <svg class="attempt-chevron" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+          </svg>
+        </div>
+      }
+    }
+  </div>
+}
+```
+
+### Nawigacja do szczegółów kontaktu
+
+Po kliknięciu próby — otwieramy istniejący `contact-detail-modal` (jeśli istnieje w kontekście supervisora) lub przekierowujemy do widoku kontaktów z filtrem `contactId`:
+
+```typescript
+openContactDetail(contactId: string): void {
+  // Emit event do rodzica (campaign-info lub campaign-list)
+  // rodzic otwiera contact-detail-modal z danym contactId
+  this.contactSelected.emit(contactId);
+}
+
+// Output:
+readonly contactSelected = output<string>();
+```
+
+**Kryteria akceptacji:**
+- [ ] Rekord z `attemptCount > 0`: widoczny przycisk „X prób" (liczba prób z `attemptCount`)
+- [ ] Kliknięcie przycisku: rozwinięcie listy prób ładowanej z `GET /.../attempts`
+- [ ] Ponowne kliknięcie: zwinięcie listy
+- [ ] Lista prób: data, czas trwania, status, kod dyspozycji w każdym wierszu, posortowane od najnowszych
+- [ ] Kliknięcie próby: emituje `contactSelected` → rodzic otwiera contact-detail-modal
+- [ ] Rekord z `attemptCount === 0`: brak przycisku historii
+- [ ] Loading skeleton podczas ładowania prób
+- [ ] Pusta lista prób (edge case API): komunikat „Brak prób"
+- [ ] `npm run lint`, `npm test` przechodzą

@@ -1043,7 +1043,23 @@
       "groupsTitle": "Групи агентів",
       "directAgentsTitle": "Окремі агенти",
       "agentsAbbr": "аг.",
-      "noAssignment": "Немає призначених агентів — черга не оброблятиме жодних контактів."
+      "noAssignment": "Немає призначених агентів — черга не оброблятиме жодних контактів.",
+      "allAgentsLabel": "Всі агенти тенанта",
+      "allAgentsHint": "Черга доступна для всіх агентів",
+      "groupsSection": "Групи агентів",
+      "agentsSection": "Прямі агенти",
+      "addGroup": "Додати групу",
+      "addAgent": "Додати агента",
+      "emptyWarning": "Немає призначення — черга не оброблятиме жодних контактів.",
+      "saveButton": "Зберегти",
+      "cancelButton": "Скасувати",
+      "successToast": "Призначення агентів оновлено",
+      "errorSave": "Не вдалося зберегти призначення",
+      "manageButton": "Керувати агентами",
+      "badgeAllAgents": "Всі агенти",
+      "badgeNoAgents": "Немає агентів",
+      "badgeNoAgentsHint": "Немає призначених агентів — черга не оброблятиме жодних контактів",
+      "badgeAgents": "агентів"
     },
     "queueAssignment": {
       "title": "Призначення до черги",
@@ -1118,7 +1134,33 @@
       "importSuccess": "Імпорт контактів успішно завершено.",
       "errors": {
         "loadFailed": "Не вдалося завантажити список кампаній. Спробуйте ще раз."
-      }
+      },
+      "campaignAssignment": {
+        "title": "Управління агентами кампанії",
+        "allAgentsLabel": "Всі агенти тенанта",
+        "allAgentsHint": "Кампанія доступна для всіх агентів",
+        "groupsSection": "Групи агентів",
+        "agentsSection": "Прямі агенти",
+        "addGroup": "Додати групу",
+        "addAgent": "Додати агента",
+        "emptyWarning": "Немає призначення — диалер не дзвонить, ручна панель не показує записи цієї кампанії.",
+        "saveButton": "Зберегти",
+        "cancelButton": "Скасувати",
+        "successToast": "Призначення агентів оновлено",
+        "errorSave": "Не вдалося зберегти призначення",
+        "manageButton": "Управляти агентами"
+      },
+      "badgeAllAgents": "Всі агенти",
+      "badgeNoAgents": "Немає агентів",
+      "badgeNoAgentsHint": "Диалер неактивний — немає призначених агентів",
+      "badgeAgents": "агентів",
+      "attempts": "спроб",
+      "showAttempts": "Показати спроби дзвінків",
+      "noAttempts": "Немає спроб дзвінків",
+      "statsTotal": "Всього",
+      "statsCompleted": "Завершено",
+      "statsRemaining": "Залишилось",
+      "statsHeader": "Записи"
     },
     "campaignForm": {
       "titleCreate": "Нова кампанія",
@@ -1136,8 +1178,6 @@
       "cancel": "Скасувати",
       "closeLabel": "Закрити форму",
       "dialerTypeLabel": "Тип Dialer",
-      "queueLabel": "Черга",
-      "queuePlaceholder": "-- Оберіть чергу --",
       "maxAttemptsLabel": "Максимальна кількість спроб",
       "retryDelayLabel": "Час між спробами (хвилини)",
       "scheduleLabel": "Розклад (необов'язково)",
@@ -1169,9 +1209,7 @@
         "timeFromPattern": "Формат: ГГ:ХХ (наприклад, 09:00)",
         "timeToPattern": "Формат: ГГ:ХХ (наприклад, 18:00)",
         "timeRangeInvalid": "Час \"до\" має бути пізніше, ніж час \"від\".",
-        "queueRequired": "Черга є обов'язковою.",
         "dateRangeInvalid": "Дата завершення не може бути раніше дати початку.",
-        "loadQueuesFailed": "Не вдалося завантажити список черг.",
         "updateFailed": "Не вдалося оновити кампанію. Спробуйте ще раз.",
         "limitExceeded": "Перевищено ліміт кампаній для цього орендаря.",
         "createFailed": "Не вдалося створити кампанію. Спробуйте ще раз."

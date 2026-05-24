@@ -63,7 +63,16 @@ export class ContactsReportComponent implements OnInit {
     { value: 'CHAT', labelKey: 'supervisor.contactsReport.channelChat' },
     { value: 'SOCIAL', labelKey: 'supervisor.contactsReport.channelSocial' },
   ];
-  readonly statuses = ['COMPLETED', 'ABANDONED', 'TRANSFERRED', 'FAILED', 'ACTIVE', 'QUEUED', 'ON_HOLD', 'NOT_REACHED'];
+  readonly statuses = [
+    'COMPLETED',
+    'ABANDONED',
+    'TRANSFERRED',
+    'FAILED',
+    'ACTIVE',
+    'QUEUED',
+    'ON_HOLD',
+    'NOT_REACHED',
+  ];
 
   private formatDate(d: Date): string {
     const yyyy = d.getFullYear();
@@ -366,7 +375,9 @@ export class ContactsReportComponent implements OnInit {
   }
 
   getDirectionLabel(direction: string): string {
-    return this.translocoService.translate(`supervisor.customerDetail.directionLabels.${direction}`);
+    return this.translocoService.translate(
+      `supervisor.customerDetail.directionLabels.${direction}`,
+    );
   }
 
   trackByContact(_index: number, row: ContactResponse): string {

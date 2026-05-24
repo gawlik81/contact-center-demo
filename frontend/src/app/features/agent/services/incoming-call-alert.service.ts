@@ -1,13 +1,14 @@
 import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
-import { filter, takeUntil } from 'rxjs/operators';
+import { filter, take, takeUntil } from 'rxjs/operators';
 import { TranslocoService } from '@jsverse/transloco';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ContactTabStore, TabLimitReason } from './contact-tab.store';
 import { SoftphoneService } from './softphone.service';
 import { CustomerLookupService } from './customer-lookup.service';
+import { CallDirection } from '../models/contact-tab.model';
 import {
   CallIncomingPayload,
   CallOutboundPayload,
@@ -123,6 +124,11 @@ export class IncomingCallAlertService implements OnDestroy {
   private handleCallIncoming(payload: CallIncomingPayload): void {
     this.lookupService.evict(payload.customerPhone);
 
+    // If a PHONE tab for this contactId already exists, this is the enriched event from
+    // CallEventEnricher (arrives after CLI lookup, ~100-500ms after the unenriched relay event).
+    // Update the existing tab and session instead of attempting to open a duplicate.
+    if (this.applyEnrichedDataIfTabExists(payload.contactId, payload.customerName)) return;
+
     const reason = this.tabStore.openFromCallIncoming(payload);
 
     if (reason !== null) {
@@ -131,6 +137,7 @@ export class IncomingCallAlertService implements OnDestroy {
     }
 
     this.softphoneService.incomingCall(payload);
+    this.lookupAndUpdateTabName(payload.customerPhone, payload.contactId);
 
     const alert: IncomingCallAlert = {
       contactId: payload.contactId,
@@ -147,6 +154,19 @@ export class IncomingCallAlertService implements OnDestroy {
   private handleCallOutbound(payload: CallOutboundPayload): void {
     this.lookupService.evict(payload.customerPhone);
 
+    // If a tab already exists (CONTACT_ASSIGNED arrived first), only correct the direction.
+    // Do NOT overwrite customerName: the HTTP lookup fired at tab-creation time already
+    // set the definitive name (or will update it shortly via lookupAndUpdateTabName).
+    const existing = this.tabStore
+      .tabs()
+      .find((t) => t.contactId === payload.contactId && t.type === 'PHONE');
+    if (existing) {
+      if (existing.direction !== 'OUTBOUND') {
+        this.tabStore.updateTabCustomerInfo(existing.contactId, existing.customerName, 'OUTBOUND');
+      }
+      return;
+    }
+
     const reason = this.tabStore.openFromCallOutbound(payload);
 
     if (reason !== null) {
@@ -155,6 +175,7 @@ export class IncomingCallAlertService implements OnDestroy {
     }
 
     this.softphoneService.incomingCall(payload);
+    this.lookupAndUpdateTabName(payload.customerPhone, payload.contactId);
 
     const alert: IncomingCallAlert = {
       contactId: payload.contactId,
@@ -166,6 +187,30 @@ export class IncomingCallAlertService implements OnDestroy {
     this.pendingAlert.set(alert);
     this.playAudio();
     this.showSystemNotification(alert);
+  }
+
+  /**
+   * Returns true and updates tab/session/alert if a PHONE tab with the given contactId exists.
+   * Used to handle enriched CLI events and CALL_OUTBOUND arriving after CONTACT_ASSIGNED.
+   * Pass `direction` to also correct the tab's direction (used by CALL_OUTBOUND handler).
+   */
+  private applyEnrichedDataIfTabExists(
+    contactId: string,
+    customerName: string,
+    direction?: CallDirection,
+  ): boolean {
+    const existing = this.tabStore
+      .tabs()
+      .find((t) => t.contactId === contactId && t.type === 'PHONE');
+    if (!existing) return false;
+
+    this.tabStore.updateTabCustomerInfo(contactId, customerName, direction);
+    this.softphoneService.updateCustomerName(customerName);
+    const alert = this.pendingAlert();
+    if (alert?.contactId === contactId) {
+      this.pendingAlert.set({ ...alert, customerName });
+    }
+    return true;
   }
 
   /**
@@ -212,6 +257,20 @@ export class IncomingCallAlertService implements OnDestroy {
       queueName: '',
     });
 
+    // HTTP lookup by customer phone — updates tab name from "[Konsultacja] Nieznany"
+    // to "[Konsultacja] Paweł Miernik" once the API responds.
+    if (payload.customerPhone) {
+      this.lookupService
+        .lookupByPhone(payload.customerPhone)
+        .pipe(take(1))
+        .subscribe((profile) => {
+          if (!profile) return;
+          const resolved = `[Konsultacja] ${`${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim()}`;
+          this.tabStore.updateTabCustomerInfo(payload.secondLegCallId, resolved);
+          this.softphoneService.updateCustomerName(resolved);
+        });
+    }
+
     const alert: IncomingCallAlert = {
       contactId: payload.secondLegCallId,
       customerName,
@@ -234,6 +293,7 @@ export class IncomingCallAlertService implements OnDestroy {
     }
 
     this.softphoneService.incomingCall(payload);
+    this.lookupAndUpdateTabName(payload.customerIdentifier, payload.contactId);
 
     const alert: IncomingCallAlert = {
       contactId: payload.contactId,
@@ -245,6 +305,29 @@ export class IncomingCallAlertService implements OnDestroy {
     this.pendingAlert.set(alert);
     this.playAudio();
     this.showSystemNotification(alert);
+  }
+
+  /**
+   * Fires an HTTP customer lookup by phone number and updates the tab, session and alert
+   * with the resolved full name. This is the authoritative name source — independent of
+   * WS event ordering or CLI enricher availability.
+   */
+  private lookupAndUpdateTabName(phoneNumber: string, contactId: string): void {
+    if (!phoneNumber) return;
+    this.lookupService
+      .lookupByPhone(phoneNumber)
+      .pipe(take(1))
+      .subscribe((profile) => {
+        if (!profile) return;
+        const name = `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim();
+        if (!name) return;
+        this.tabStore.updateTabCustomerInfo(contactId, name);
+        this.softphoneService.updateCustomerName(name);
+        const alert = this.pendingAlert();
+        if (alert?.contactId === contactId) {
+          this.pendingAlert.set({ ...alert, customerName: name });
+        }
+      });
   }
 
   // ── Auto-dismiss effect ────────────────────────────────────────────────────

@@ -288,7 +288,8 @@
       "Bash(sed -n '735,745p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)",
       "Bash(sed -n '843,853p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)",
       "Bash(sed -n '1125,1145p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)",
-      "Bash(sed -n '1315,1330p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)"
+      "Bash(sed -n '1315,1330p' /home/pawelm/contact-center/backend/app/src/main/java/com/contactcenter/domain/telephony/TwilioTelephonyAdapter.java)",
+      "Bash(sed *)"
     ]
   }
 }

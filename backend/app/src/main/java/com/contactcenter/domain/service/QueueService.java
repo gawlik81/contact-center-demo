@@ -6,6 +6,7 @@ import com.contactcenter.api.queue.dto.QueueResponse;
 import com.contactcenter.api.queue.dto.UpdateQueueRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.infrastructure.aspect.Audited;
 import jakarta.persistence.EntityNotFoundException;
@@ -43,6 +44,7 @@ public class QueueService {
     );
 
     private final QueueRepository queueRepository;
+    private final QueueAssignmentRepository queueAssignmentRepository;
     private final TenantResourceLimitService tenantResourceLimitService;
 
     // =========================================================================
@@ -115,7 +117,10 @@ public class QueueService {
     public PagedResponse<QueueResponse> listQueues(UUID tenantId, String name, int page, int size) {
         PagedResponse<Queue> page_ = queueRepository.findAllByTenantId(tenantId, name, page, size);
         List<QueueResponse> content = page_.content().stream()
-                .map(QueueResponse::from)
+                .map(q -> QueueResponse.from(
+                        q,
+                        q.isAllAgents() ? -1 : queueAssignmentRepository.countAssignments(q.getQueueId())
+                ))
                 .toList();
         return new PagedResponse<>(content, page_.page(), page_.size(),
                 page_.totalElements(), page_.totalPages(), page_.first(), page_.last());

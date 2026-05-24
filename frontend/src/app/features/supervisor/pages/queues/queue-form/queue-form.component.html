@@ -199,15 +199,6 @@
           }
         </div>
       </form>
-
-      @if (isEditMode() && queue()) {
-        <div class="assignment-section">
-          <p class="assignment-section__heading">{{ 'supervisor.queueForm.assignmentTitle' | transloco }}</p>
-          <app-queue-assignment-panel [queueId]="queue()!.queueId" />
-        </div>
-      } @else if (!isEditMode()) {
-        <p class="assignment-new-queue-hint">{{ 'supervisor.queueForm.assignmentHint' | transloco }}</p>
-      }
     </div>
 
     <div class="queue-form-dialog__footer">

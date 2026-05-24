@@ -84,6 +84,38 @@
 .campaign-name {
   font-weight: 500;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+// ── Agent assignment badges ────────────────────────────────────────────────────
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.4;
+
+  &--info {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  &--warning {
+    background: var(--warning-soft);
+    color: var(--warning-text);
+    cursor: help;
+  }
+
+  &--agents {
+    background: var(--neutral-soft);
+    color: var(--neutral-text);
+  }
 }
 
 .campaign-type,
@@ -97,6 +129,36 @@
   font-size: 0.875rem;
   color: var(--text-2);
   white-space: nowrap;
+}
+
+.campaign-stats {
+  white-space: nowrap;
+  font-size: 0.875rem;
+  color: var(--text-2);
+}
+
+.stats-total {
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.stats-completed {
+  color: var(--success-text);
+  font-weight: 500;
+}
+
+.stats-remaining {
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.stats-sep {
+  color: var(--text-muted);
+  margin: 0 0.2rem;
+}
+
+.stats-empty {
+  color: var(--text-muted);
 }
 
 .campaign-actions {
@@ -197,6 +259,19 @@
 
   &:hover:not(:disabled) {
     opacity: 0.88;
+  }
+}
+
+.btn-icon-agents {
+  padding: 0.375rem;
+  background: transparent;
+  color: var(--accent-text);
+  border: 1.5px solid color-mix(in oklch, var(--accent) 40%, transparent);
+  border-radius: var(--radius-sm);
+
+  &:hover:not(:disabled) {
+    background: var(--accent-soft, rgba(99, 102, 241, 0.08));
+    border-color: var(--accent);
   }
 }
 

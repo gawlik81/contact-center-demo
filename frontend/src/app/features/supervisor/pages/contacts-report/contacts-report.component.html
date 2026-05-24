@@ -258,7 +258,9 @@
                 <td class="report-cell">
                   <span
                     [class]="'status-badge status-badge--' + row.status.toLowerCase().replace('_', '-')"
-                    [attr.aria-label]="('supervisor.contactsReport.statusPrefix' | transloco) + getStatusLabel(row.status)"
+                    [attr.aria-label]="
+                      ('supervisor.contactsReport.statusPrefix' | transloco) + getStatusLabel(row.status)
+                    "
                   >
                     {{ getStatusLabel(row.status) }}
                   </span>

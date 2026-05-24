@@ -21,12 +21,10 @@ import { QueueService } from '../../../services/queue.service';
 import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { Queue } from '../../../models/queue.model';
-import { QueueAssignmentPanelComponent } from '../queue-assignment-panel/queue-assignment-panel.component';
-
 @Component({
   selector: 'app-queue-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, QueueAssignmentPanelComponent],
+  imports: [TranslocoModule, ReactiveFormsModule],
   templateUrl: './queue-form.component.html',
   styleUrl: './queue-form.component.scss',
   host: {

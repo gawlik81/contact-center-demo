@@ -91,7 +91,7 @@
             </thead>
             <tbody>
               @for (contact of contacts(); track contact.recordId) {
-                <tr class="contact-row">
+                <tr class="contact-row" [class.contact-row--expanded]="expandedRecordId() === contact.recordId">
                   <td class="contact-phone">{{ contact.phone }}</td>
                   <td class="contact-name">{{ contact.firstName ?? '—' }}</td>
                   <td class="contact-name">{{ contact.lastName ?? '—' }}</td>
@@ -108,7 +108,10 @@
                       [class.contact-status-badge--failed]="contact.status === 'FAILED' || contact.status === 'CALLED'"
                       [class.contact-status-badge--skipped]="contact.status === 'SKIPPED'"
                       [class.contact-status-badge--error]="contact.status === 'ERROR'"
-                      [attr.aria-label]="'supervisor.campaignContacts.statusAriaLabel' | transloco: { status: statusLabel(contact.status) }"
+                      [attr.aria-label]="
+                        'supervisor.campaignContacts.statusAriaLabel'
+                          | transloco: { status: statusLabel(contact.status) }
+                      "
                     >
                       {{ statusLabel(contact.status) }}
                     </span>
@@ -116,7 +119,7 @@
                   <td class="contact-error">
                     @if (contact.dispositionCode) {
                       <span class="contact-error__text" [title]="contact.dispositionCode">
-                        {{ contact.dispositionCode }}
+                        {{ dispositionLabel(contact.dispositionCode) }}
                       </span>
                     } @else {
                       <span class="contact-empty">—</span>
@@ -125,7 +128,31 @@
                   <td class="contact-date">{{ formatDate(contact.createdAt) }}</td>
                   <td class="contact-attempts">
                     @if (contact.status !== 'PENDING') {
-                      {{ contact.attemptCount }}/{{ maxAttempts }}
+                      @if (contact.attemptCount > 0) {
+                        <button
+                          class="btn-attempts"
+                          type="button"
+                          (click)="showAttempts(contact)"
+                          [class.btn-attempts--expanded]="expandedRecordId() === contact.recordId"
+                          [attr.aria-expanded]="expandedRecordId() === contact.recordId"
+                          [attr.aria-label]="'supervisor.campaigns.showAttempts' | transloco"
+                        >
+                          {{ contact.attemptCount }}/{{ maxAttempts }}
+                          {{ 'supervisor.campaigns.attempts' | transloco }}
+                          <svg
+                            class="btn-attempts__chevron"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
+                            width="12"
+                            height="12"
+                          >
+                            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+                          </svg>
+                        </button>
+                      } @else {
+                        {{ contact.attemptCount }}/{{ maxAttempts }}
+                      }
                     } @else {
                       <span class="contact-empty">—</span>
                     }
@@ -165,13 +192,55 @@
                     </td>
                   }
                 </tr>
+                @if (expandedRecordId() === contact.recordId) {
+                  <tr class="attempts-row">
+                    <td [attr.colspan]="isAgent() && isManualCampaign() ? 9 : 8" class="attempts-cell">
+                      <div class="attempts-panel">
+                        @if (attemptsLoading()) {
+                          <div class="skeleton skeleton--short" aria-busy="true"></div>
+                        } @else if (attempts().length === 0) {
+                          <p class="attempts-empty">
+                            {{ 'supervisor.campaigns.noAttempts' | transloco }}
+                          </p>
+                        } @else {
+                          <div class="attempts-list">
+                            @for (attempt of attempts(); track attempt.contactId) {
+                              <div
+                                class="attempt-row"
+                                (click)="openContactDetail(attempt.contactId)"
+                                (keydown.enter)="openContactDetail(attempt.contactId)"
+                                (keydown.space)="openContactDetail(attempt.contactId)"
+                                role="button"
+                                tabindex="0"
+                              >
+                                <span class="attempt-date">{{ attempt.startedAt | date: 'dd.MM.yyyy HH:mm' }}</span>
+                                <span class="attempt-status attempt-status--{{ attempt.status | lowercase }}">{{
+                                  statusLabel($any(attempt.status))
+                                }}</span>
+                                <span class="attempt-duration">
+                                  {{
+                                    attempt.durationSeconds !== null ? (attempt.durationSeconds | number) + 's' : '—'
+                                  }}
+                                </span>
+                                <span class="attempt-disposition">{{ dispositionLabel(attempt.dispositionCode) }}</span>
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                }
               }
             </tbody>
           </table>
         </div>
 
         <!-- Pagination -->
-        <nav class="contacts-pagination" [attr.aria-label]="'supervisor.campaignContacts.paginationAriaLabel' | transloco">
+        <nav
+          class="contacts-pagination"
+          [attr.aria-label]="'supervisor.campaignContacts.paginationAriaLabel' | transloco"
+        >
           <span class="contacts-pagination__info" aria-live="polite">
             @if (totalElements() > 0) {
               {{ firstItemIndex() }}&ndash;{{ lastItemIndex() }} {{ 'common.of' | transloco }} {{ totalElements() }}

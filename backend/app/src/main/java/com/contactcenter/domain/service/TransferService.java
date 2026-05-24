@@ -44,12 +44,11 @@ public class TransferService {
      * Niższy numer = wyższy priorytet (AVAILABLE jako pierwszy).
      */
     private static final Map<AppUser.UserStatus, Integer> STATUS_ORDER = Map.of(
-            AppUser.UserStatus.AVAILABLE,      0,
-            AppUser.UserStatus.BUSY,           1,
-            AppUser.UserStatus.AFTER_CONTACT,  2,
-            AppUser.UserStatus.ACTIVE,         3,
-            AppUser.UserStatus.BREAK,          4,
-            AppUser.UserStatus.INACTIVE,       5
+            AppUser.UserStatus.AVAILABLE,  0,
+            AppUser.UserStatus.BUSY,       1,
+            AppUser.UserStatus.ACTIVE,     2,
+            AppUser.UserStatus.BREAK,      3,
+            AppUser.UserStatus.INACTIVE,   4
     );
 
     /**

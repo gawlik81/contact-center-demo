@@ -26,7 +26,7 @@ export class TransferQueueListComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   isTransferring = input<boolean>(false);
-  queueSelected = output<{ queueId: string }>();
+  queueSelected = output<{ queueId: string; displayName: string }>();
 
   protected readonly queues = signal<TransferQueueItem[]>([]);
   protected readonly loadState = signal<'loading' | 'loaded' | 'error'>('loading');
@@ -45,6 +45,6 @@ export class TransferQueueListComponent implements OnInit {
   }
 
   protected selectQueue(queue: TransferQueueItem): void {
-    this.queueSelected.emit({ queueId: queue.queueId });
+    this.queueSelected.emit({ queueId: queue.queueId, displayName: queue.name });
   }
 }

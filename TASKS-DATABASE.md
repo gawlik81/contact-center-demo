@@ -1506,4 +1506,177 @@ CREATE POLICY contact_event_tenant_isolation ON contact_event
 - [ ] Trigger `trg_contact_event_on_update` oblicza `duration_seconds` przy ustawieniu `ended_at`
 - [ ] Indeks `idx_contact_event_contact` widoczny w `pg_indexes`
 - [ ] RLS policy izoluje zdarzenia między tenantami
-- [ ] Istniejące kontakty nie są naruszone (tabela pusta na starcie)
+
+---
+
+## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+
+### DB-036 – Schemat przypisania agentów do kampanii: `all_agents`, `campaign_agent`, `campaign_agent_group` — migracja V062
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-011 (`campaign`), DB-003 (`app_user`), DB-024 (`agent_group`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-079, BE-080
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+Model przypisania agentów do kampanii jest trójipoziomowy — identyczny z modelem kolejek (V043):
+1. **`campaign.all_agents = TRUE`** — dialer/widok manualny dostępny dla wszystkich agentów tenanta
+2. **`campaign_agent_group`** — kampania powiązana z grupami agentów (`agent_group`)
+3. **`campaign_agent`** — bezpośrednie przypisanie konkretnych agentów
+
+Gdy `all_agents = FALSE` i brak przypisań (puste obie tabele dla kampanii) → dialer **nie inicjuje połączeń**, a panel manualny **nie wyświetla rekordów** tej kampanii dla danego agenta.
+
+Istniejące kampanie dostają `all_agents = TRUE` (zachowanie dotychczasowe). Nowe kampanie domyślnie `all_agents = FALSE` — wymagają jawnego przypisania.
+
+**DDL migracji (`V062__campaign_agent_assignment.sql`):**
+
+```sql
+-- =============================================================================
+-- V062__campaign_agent_assignment.sql
+-- DB-036: Trójpoziomowe przypisanie agentów do kampanii wychodzącej.
+--
+-- Model identyczny z V043 (queue_agent_group):
+--   campaign.all_agents    → wszyscy agenci tenanta
+--   campaign_agent_group   → kampania ↔ agent_group (many-to-many)
+--   campaign_agent         → kampania ↔ agent bezpośrednio (many-to-many)
+--
+-- Istniejące kampanie: all_agents = TRUE (backward compat).
+-- Nowe kampanie: all_agents = FALSE (domyślnie — wymagają jawnego przypisania).
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. Flaga all_agents na tabeli campaign
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE campaign
+    ADD COLUMN IF NOT EXISTS all_agents BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Istniejące kampanie zachowują dotychczasowe zachowanie (wszyscy agenci tenanta)
+UPDATE campaign SET all_agents = TRUE WHERE all_agents = FALSE;
+
+COMMENT ON COLUMN campaign.all_agents IS
+    'TRUE = dialer i widok manualny dostępne dla wszystkich agentów tenanta. '
+    'FALSE = tylko agenci z campaign_agent i/lub campaign_agent_group. '
+    'Gdy FALSE i obie tabele puste — dialer nie dzwoni, panel manualny nie pokazuje rekordów.';
+
+-- ---------------------------------------------------------------------------
+-- 2. Tabela campaign_agent (bezpośrednie przypisanie agent → kampania)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE campaign_agent (
+    campaign_id  UUID        NOT NULL REFERENCES campaign(campaign_id)  ON DELETE CASCADE,
+    agent_id     UUID        NOT NULL REFERENCES app_user(user_id)      ON DELETE CASCADE,
+    assigned_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_campaign_agent PRIMARY KEY (campaign_id, agent_id)
+);
+
+CREATE INDEX idx_campaign_agent_campaign ON campaign_agent (campaign_id);
+CREATE INDEX idx_campaign_agent_agent    ON campaign_agent (agent_id);
+
+COMMENT ON TABLE campaign_agent IS
+    'Bezpośrednie przypisanie agenta do kampanii wychodzącej. '
+    'Aktywne tylko gdy campaign.all_agents = FALSE. CASCADE DELETE przy usunięciu kampanii lub agenta.';
+
+-- ---------------------------------------------------------------------------
+-- 3. Tabela campaign_agent_group (przypisanie grupy agentów → kampania)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE campaign_agent_group (
+    campaign_id UUID        NOT NULL REFERENCES campaign(campaign_id)    ON DELETE CASCADE,
+    group_id    UUID        NOT NULL REFERENCES agent_group(group_id)    ON DELETE CASCADE,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_campaign_agent_group PRIMARY KEY (campaign_id, group_id)
+);
+
+CREATE INDEX idx_campaign_agent_group_campaign ON campaign_agent_group (campaign_id);
+CREATE INDEX idx_campaign_agent_group_group    ON campaign_agent_group (group_id);
+
+COMMENT ON TABLE campaign_agent_group IS
+    'Powiązanie many-to-many kampania ↔ grupa agentów. '
+    'Aktywne tylko gdy campaign.all_agents = FALSE. CASCADE DELETE przy usunięciu kampanii lub grupy.';
+
+-- ---------------------------------------------------------------------------
+-- 4. Indeksy pokrywające (wydajność resolveEligibleAgentIds — UNION)
+-- ---------------------------------------------------------------------------
+
+-- Covering: campaign_id → group_id (join campaign_agent_group → agent_group_member)
+CREATE INDEX idx_campaign_agent_group_lookup
+    ON campaign_agent_group (campaign_id)
+    INCLUDE (group_id);
+
+-- Covering: agent_id → group_id (odwrotny lookup: agent → grupy kampanii)
+CREATE INDEX idx_campaign_agent_member_lookup
+    ON agent_group_member (agent_id)
+    INCLUDE (group_id);
+```
+
+**Uwagi implementacyjne:**
+- Brak `tenant_id` w `campaign_agent` i `campaign_agent_group` — izolacja przez FK do `campaign` (RLS na `campaign` pokrywa pośrednio)
+- `agent_group_member` istnieje już z V042 — nowy indeks `idx_campaign_agent_member_lookup` dodany IF NOT EXISTS
+- CASCADE DELETE na obu tabelach: usunięcie kampanii lub agenta/grupy usuwa przypisanie
+
+**Kryteria akceptacji:**
+- [ ] Migracja V062 aplikuje się bez błędów
+- [ ] Kolumna `campaign.all_agents BOOLEAN NOT NULL DEFAULT FALSE` istnieje
+- [ ] Istniejące kampanie mają `all_agents = TRUE` po migracji
+- [ ] Tabela `campaign_agent` z PK `(campaign_id, agent_id)` i indeksami
+- [ ] Tabela `campaign_agent_group` z PK `(campaign_id, group_id)` i indeksami
+- [ ] CASCADE DELETE: usunięcie kampanii usuwa wiersze z obu tabel przypisania
+- [ ] CASCADE DELETE: usunięcie agenta usuwa jego wiersze z `campaign_agent`
+- [ ] CASCADE DELETE: usunięcie grupy usuwa jej wiersze z `campaign_agent_group`
+
+---
+
+### DB-037 – Kolumna `campaign_contact_record_id` w tabeli `contact` — migracja V063
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-011 (`campaign_contact`), DB-006 (`contact`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-085
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+Każde połączenie wychodzące z dialera tworzy rekord w tabeli `contact`. Jeden rekord `campaign_contact` (lista kampanii) może generować wiele kontaktów (wiele prób wydzwonienia). Aktualnie:
+- `campaign_contact.last_contact_id` istnieje w schemacie (V009), ale **nigdy nie jest wypełniany** przez dialer — grep po całym kodzie zwrócił zero wyników
+- `contact` nie ma pola `campaign_contact_record_id` — brak możliwości zapytania „wszystkie kontakty dla rekordu X"
+- `DialerCallbackHandler` zna `recordId` (campaign_contact) i `contactId` (z Redis state), ale nie zapisuje powiązania
+
+Rozwiązanie: dodać `campaign_contact_record_id` do `contact`. Brak FK (jak `callback_id` — tabela `campaign_contact` ma composite PK `(record_id, campaign_id)` niekompatybilny z prostą FK).
+
+**DDL migracji (`V063__add_campaign_contact_record_id_to_contact.sql`):**
+
+```sql
+-- =============================================================================
+-- V063__add_campaign_contact_record_id_to_contact.sql
+-- DB-037: Powiązanie kontaktu wychodzącego z rekordem listy kampanii.
+--
+-- Brak FK: campaign_contact ma composite PK (record_id, campaign_id) —
+-- analogicznie do callback_id (V040) używamy UUID bez FK constraint.
+-- =============================================================================
+
+ALTER TABLE contact
+    ADD COLUMN IF NOT EXISTS campaign_contact_record_id UUID;
+
+CREATE INDEX idx_contact_campaign_contact_record
+    ON contact (campaign_contact_record_id)
+    WHERE campaign_contact_record_id IS NOT NULL;
+
+COMMENT ON COLUMN contact.campaign_contact_record_id IS
+    'UUID rekordu campaign_contact (campaign_contact.record_id), z którego powstał ten kontakt. '
+    'Nullable — wypełniany tylko dla kontaktów wychodzących z dialera kampanijnego. '
+    'Brak FK ze względu na composite PK w campaign_contact (analogicznie do callback_id).';
+```
+
+Dodatkowo: upewnić się że `campaign_contact.last_contact_id` będzie wypełniany przez dialer (logika w BE-085).
+
+**Kryteria akceptacji:**
+- [ ] Migracja V063 aplikuje się bez błędów na dev i test
+- [ ] Kolumna `contact.campaign_contact_record_id UUID` istnieje i jest nullable
+- [ ] Indeks `idx_contact_campaign_contact_record` widoczny w `pg_indexes` z filtrem `WHERE ... IS NOT NULL`
+- [ ] Istniejące wiersze kontaktów nie są naruszone (NULL backfill)
+- [ ] Tabela `contact` jest partycjonowana — `ADD COLUMN` propaguje na wszystkie partycje automatycznie

@@ -20,6 +20,7 @@ import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.CampaignAssignmentRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
@@ -84,6 +85,7 @@ public class DialerController {
     private final DialerCallbackHandler dialerCallbackHandler;
     private final CampaignRepository campaignRepository;
     private final CampaignContactRepository campaignContactRepository;
+    private final CampaignAssignmentRepository campaignAssignmentRepository;
     private final ScheduledCallbackRepository scheduledCallbackRepository;
     private final TelephonyAdapter telephonyAdapter;
     private final ContactRepository contactRepository;
@@ -651,6 +653,7 @@ public class DialerController {
     )
     public ResponseEntity<List<ManualCampaignRecordsResponse>> getManualCampaignRecords() {
         UUID tenantId = TenantContext.getTenantId();
+        UUID agentId = TenantContext.getUserId();
 
         // 1. Kampanie MANUAL+RUNNING dla tenanta
         List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
@@ -660,7 +663,23 @@ public class DialerController {
             return ResponseEntity.ok(List.of());
         }
 
-        List<UUID> campaignIds = manualCampaigns.stream()
+        // BE-084: filtruj kampanie do których agent jest przypisany
+        List<Campaign> eligibleCampaigns = manualCampaigns.stream()
+                .filter(campaign -> {
+                    if (campaign.isAllAgents()) return true;
+                    Set<UUID> eligible = campaignAssignmentRepository
+                            .resolveEligibleAgentIds(campaign.getCampaignId(), tenantId);
+                    return eligible.contains(agentId);
+                })
+                .toList();
+
+        if (eligibleCampaigns.isEmpty()) {
+            log.debug("[DialerController] Agent {} nie jest przypisany do żadnej kampanii MANUAL (tenant={})",
+                    agentId, tenantId);
+            return ResponseEntity.ok(List.of());
+        }
+
+        List<UUID> campaignIds = eligibleCampaigns.stream()
                 .map(Campaign::getCampaignId)
                 .toList();
 
@@ -687,7 +706,7 @@ public class DialerController {
         }
 
         // 4. Budowanie odpowiedzi – zachowuje kolejność kampanii z DB (created_at ASC)
-        List<ManualCampaignRecordsResponse> response = manualCampaigns.stream()
+        List<ManualCampaignRecordsResponse> response = eligibleCampaigns.stream()
                 .map(campaign -> new ManualCampaignRecordsResponse(
                         campaign.getCampaignId(),
                         campaign.getName(),
@@ -695,8 +714,8 @@ public class DialerController {
                 ))
                 .toList();
 
-        log.debug("[DialerController] Kampanie MANUAL dla agent/tenant={}: kampanie={}, rekordy PENDING={}",
-                tenantId, manualCampaigns.size(), pendingRows.size());
+        log.debug("[DialerController] Kampanie MANUAL dla agent={}, tenant={}: kampanie={}, rekordy PENDING={}",
+                agentId, tenantId, eligibleCampaigns.size(), pendingRows.size());
 
         return ResponseEntity.ok(response);
     }
@@ -785,7 +804,7 @@ public class DialerController {
         CallSession session;
         try {
             session = telephonyAdapter.initiateCall(
-                    tenantId, defaultOutboundNumber, phone, agentId, campaign.getQueueId(), null);
+                    tenantId, defaultOutboundNumber, phone, agentId, campaign.getCampaignId(), null);
         } catch (TelephonyAdapter.TelephonyException e) {
             // Oznacz rekord jako ERROR – błąd Twilio API jest trwały (np. niezweryfikowany numer)
             // i nie ma sensu wracać do PENDING, bo kolejna próba da ten sam błąd.

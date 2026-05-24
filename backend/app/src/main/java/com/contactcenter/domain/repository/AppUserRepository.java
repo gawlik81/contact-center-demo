@@ -293,7 +293,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
               AND is_deleted = FALSE
               AND is_active  = TRUE
               AND role       = 'AGENT'
-              AND status    <> 'OFFLINE'
+              AND status    NOT IN ('OFFLINE', 'AFTER_CONTACT')
               AND user_id   <> CAST(:excludeUserId AS uuid)
             ORDER BY
                 CASE status WHEN 'AVAILABLE' THEN 0 ELSE 1 END,

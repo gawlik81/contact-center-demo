@@ -29,7 +29,7 @@ export class TransferAgentListComponent implements OnInit {
 
   transferMode = input.required<TransferMode>();
   isTransferring = input<boolean>(false);
-  agentSelected = output<{ agentId: string; mode: TransferMode }>();
+  agentSelected = output<{ agentId: string; displayName: string; mode: TransferMode }>();
 
   private readonly agents = signal<TransferAgentItem[]>([]);
   protected readonly searchQuery = signal('');
@@ -55,6 +55,10 @@ export class TransferAgentListComponent implements OnInit {
   }
 
   protected selectAgent(agent: TransferAgentItem): void {
-    this.agentSelected.emit({ agentId: agent.agentId, mode: this.transferMode() });
+    this.agentSelected.emit({
+      agentId: agent.agentId,
+      displayName: `${agent.firstName} ${agent.lastName}`,
+      mode: this.transferMode(),
+    });
   }
 }

@@ -28,16 +28,47 @@ public record CampaignResponse(
         String callerId,
         UUID createdBy,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        boolean allAgents,
+        int assignedAgentsCount,
+        int totalRecords,
+        int completedRecords,
+        int remainingRecords
 ) {
 
     /**
-     * Fabryka tworząca DTO z encji JPA.
+     * Fabryka tworząca DTO z encji JPA (bez danych przypisania i bez statystyk rekordów — wszystko 0).
      *
      * @param campaign encja kampanii
      * @return zmapowane DTO odpowiedzi
      */
     public static CampaignResponse from(Campaign campaign) {
+        return from(campaign, 0, 0, 0, 0);
+    }
+
+    /**
+     * Fabryka tworząca DTO z encji JPA z liczbą przypisań (bez statystyk rekordów).
+     *
+     * @param campaign            encja kampanii
+     * @param assignedAgentsCount suma bezpośrednich agentów + grup (0 gdy all_agents=true)
+     * @return zmapowane DTO odpowiedzi
+     */
+    public static CampaignResponse from(Campaign campaign, int assignedAgentsCount) {
+        return from(campaign, assignedAgentsCount, 0, 0, 0);
+    }
+
+    /**
+     * Fabryka tworząca DTO z encji JPA z pełnym zestawem danych przypisania i statystyk rekordów.
+     *
+     * @param campaign            encja kampanii
+     * @param assignedAgentsCount suma bezpośrednich agentów + grup (0 gdy all_agents=true)
+     * @param totalRecords        łączna liczba rekordów kontaktów kampanii
+     * @param completedRecords    liczba rekordów ze statusem COMPLETED
+     * @param remainingRecords    liczba rekordów ze statusami PENDING + CALLBACK + NO_ANSWER
+     * @return zmapowane DTO odpowiedzi
+     */
+    public static CampaignResponse from(Campaign campaign, int assignedAgentsCount,
+                                        int totalRecords, int completedRecords, int remainingRecords) {
         return new CampaignResponse(
                 campaign.getCampaignId(),
                 campaign.getTenantId(),
@@ -54,7 +85,12 @@ public record CampaignResponse(
                 campaign.getCallerId(),
                 campaign.getCreatedBy(),
                 campaign.getCreatedAt(),
-                campaign.getUpdatedAt()
+                campaign.getUpdatedAt(),
+                campaign.isAllAgents(),
+                campaign.isAllAgents() ? 0 : assignedAgentsCount,
+                totalRecords,
+                completedRecords,
+                remainingRecords
         );
     }
 }

@@ -1021,6 +1021,16 @@ public class ContactService {
         Contact contact = validateTransferPreconditions(callId, req, tenantId, userId);
         UUID contactId = contact.getContactId();
 
+        // BE-083: Guard – transfer OUTBOUND → QUEUE jest niedozwolony
+        // Dla kampanii wychodzących nie ma kolejki do przekierowania; dostępny jest tylko
+        // transfer do agenta lub na numer telefonu.
+        if ("OUTBOUND".equals(contact.getDirection())
+                && TransferTargetType.QUEUE == domainReq.targetType()) {
+            throw new InvalidOperationException(
+                    "Transfer do kolejki jest niedozwolony dla połączeń wychodzących (outbound). " +
+                    "Dla kampanii wychodzących dostępny jest wyłącznie transfer do agenta lub na numer telefonu.");
+        }
+
         // 6. Wywołaj adapter (poza transakcją – zewnętrzne I/O)
         log.info("[ContactService] Inicjowanie transferu: callId={}, targetType={}, transferType={}, " +
                  "contactId={}, agentId={}, tenant={}",
@@ -1248,10 +1258,17 @@ public class ContactService {
             // Otwórz etap AGENT na nowym kontakcie (sesja Redis już zaktualizowana przez bridgeCalls)
             contactEventService.openAgent(finalNewContactId, tenantId, agent2Id, null);
 
-            // Powiadom Agent2 przez WS aby zaktualizował swoje session.contactId
+            // Pobierz nazwę kolejki z oryginalnego kontaktu, żeby frontend Agent2 mógł ją wyświetlić
+            String queueName = contact.getQueueId() != null
+                    ? queueRepository.findByIdAndTenantId(contact.getQueueId(), tenantId)
+                            .map(q -> q.getName())
+                            .orElse("")
+                    : "";
+
+            // Powiadom Agent2 przez WS aby zaktualizował swoje session.contactId i queueName
             eventPublisher.publishBridgeComplete(
                     secondCallId, finalNewContactId, tenantId, agent2Id,
-                    secondSession.getFrom(), secondSession.getTo());
+                    secondSession.getFrom(), secondSession.getTo(), queueName);
         }
 
         log.info("[ContactService] Bridge wykonany: callId={}, secondCallId={}, contactId={}",

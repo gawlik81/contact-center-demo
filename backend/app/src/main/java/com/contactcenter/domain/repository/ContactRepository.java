@@ -430,7 +430,7 @@ public class ContactRepository extends TenantAwareRepository {
                 queued_at, assigned_at, started_at, ended_at,
                 duration_seconds, disposition_code, notes, recording_url,
                 channel_metadata, created_at, updated_at, callback_id,
-                transferred_from_contact_id
+                transferred_from_contact_id, campaign_contact_record_id
             ) VALUES (
                 CAST(:contactId AS uuid),
                 CAST(:tenantId AS uuid),
@@ -454,7 +454,8 @@ public class ContactRepository extends TenantAwareRepository {
                 :createdAt,
                 :updatedAt,
                 CAST(:callbackId AS uuid),
-                CAST(:transferredFromContactId AS uuid)
+                CAST(:transferredFromContactId AS uuid),
+                CAST(:campaignContactRecordId AS uuid)
             )
             """)
         .setParameter("contactId", contact.getContactId().toString())
@@ -480,6 +481,7 @@ public class ContactRepository extends TenantAwareRepository {
         .setParameter("updatedAt", contact.getUpdatedAt())
         .setParameter("callbackId", uuidToString(contact.getCallbackId()))
         .setParameter("transferredFromContactId", uuidToString(contact.getTransferredFromContactId()))
+        .setParameter("campaignContactRecordId", uuidToString(contact.getCampaignContactRecordId()))
         .executeUpdate();
 
     log.info("[ContactRepo] Kontakt utworzony: contactId={}, tenant={}",
@@ -681,6 +683,77 @@ public class ContactRepository extends TenantAwareRepository {
     log.info("[ContactRepo] updateQueueId: contactId={}, queueId={}, rows={}",
         contactId, queueId, updated);
     return updated;
+  }
+
+  // =========================================================================
+  // BE-085: Powiązanie z rekordem listy kampanii
+  // =========================================================================
+
+  /**
+   * Ustawia {@code campaign_contact_record_id} na kontakcie wychodzącym dialera.
+   *
+   * <p>Wywoływane przez {@code ProgressiveDialerService} po pomyślnym inicjowaniu
+   * połączenia – łączy kontakt z rekordem listy kampanii umożliwiając późniejszy
+   * odczyt historii prób wydzwonienia.
+   *
+   * @param contactId UUID kontaktu
+   * @param recordId  UUID rekordu campaign_contact
+   * @param tenantId  UUID tenanta (cross-tenant safety)
+   * @return liczba zaktualizowanych wierszy
+   */
+  @Transactional
+  public int updateCampaignContactRecordId(UUID contactId, UUID recordId, UUID tenantId) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET campaign_contact_record_id = ?::uuid,
+                   updated_at = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+            """,
+        recordId.toString(),
+        contactId.toString(),
+        tenantId.toString()
+    );
+
+    em.flush();
+    em.clear();
+
+    log.debug("[ContactRepo] updateCampaignContactRecordId: contactId={}, recordId={}, rows={}",
+        contactId, recordId, updated);
+    return updated;
+  }
+
+  /**
+   * Zwraca listę kontaktów powiązanych z danym rekordem listy kampanii.
+   *
+   * <p>Używane przez endpoint historii prób wydzwonienia
+   * {@code GET /api/campaigns/{campaignId}/contacts/{recordId}/attempts}.
+   *
+   * @param campaignContactRecordId UUID rekordu campaign_contact
+   * @param tenantId                UUID tenanta
+   * @return lista kontaktów posortowana od najnowszych
+   */
+  @Transactional(readOnly = true)
+  @SuppressWarnings("unchecked")
+  public List<Contact> findByCampaignContactRecordId(UUID campaignContactRecordId, UUID tenantId) {
+    setTenantContextInDb(tenantId);
+
+    log.debug("[ContactRepo] findByCampaignContactRecordId: recordId={}, tenant={}",
+        campaignContactRecordId, tenantId);
+
+    return em.createNativeQuery("""
+            SELECT * FROM contact
+            WHERE tenant_id                    = CAST(:tenantId AS uuid)
+              AND campaign_contact_record_id   = CAST(:recordId AS uuid)
+            ORDER BY started_at DESC
+            """,
+            Contact.class)
+        .setParameter("tenantId", tenantId.toString())
+        .setParameter("recordId", campaignContactRecordId.toString())
+        .getResultList();
   }
 
   // =========================================================================

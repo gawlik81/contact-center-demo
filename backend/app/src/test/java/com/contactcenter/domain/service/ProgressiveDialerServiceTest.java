@@ -2,8 +2,10 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.CampaignAssignmentRepository;
+import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;
@@ -30,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,7 +69,13 @@ class ProgressiveDialerServiceTest {
     private CampaignRepository campaignRepository;
 
     @Mock
-    private QueueRepository queueRepository;
+    private CampaignAssignmentRepository campaignAssignmentRepository;
+
+    @Mock
+    private CampaignContactRepository campaignContactRepository;
+
+    @Mock
+    private ContactRepository contactRepository;
 
     @Mock
     private AppUserRepository appUserRepository;
@@ -105,6 +114,10 @@ class ProgressiveDialerServiceTest {
 
         // Stub JdbcTemplate.execute (setTenantContextInJdbc)
         when(jdbcTemplate.execute(anyString(), any(PreparedStatementCallback.class))).thenReturn(null);
+
+        // BE-081: domyślnie agent jest kwalifikowany (allAgents=false, ale w zbiorze eligible)
+        when(campaignAssignmentRepository.resolveEligibleAgentIds(eq(CAMPAIGN_ID), eq(TENANT_ID)))
+                .thenReturn(Set.of(AGENT_ID));
     }
 
     @AfterEach
@@ -187,7 +200,7 @@ class ProgressiveDialerServiceTest {
                     anyString(),
                     eq("+48123456789"),
                     eq(AGENT_ID),
-                    eq(null),
+                    eq(CAMPAIGN_ID),   // BE-082: campaignId zamiast queueId
                     eq(null)
             );
 

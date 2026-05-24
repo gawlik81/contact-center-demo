@@ -10,11 +10,16 @@ import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.EmailMessage;
+import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
+import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.RecordingService;
+import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.domain.telephony.TelephonyEventPublisher;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.*;
@@ -60,7 +65,12 @@ class ContactServiceTest {
     @Mock private ContactRepository contactRepository;
     @Mock private RecordingService recordingService;
     @Mock private EmailMessageRepository emailMessageRepository;
+    @Mock private AppUserRepository appUserRepository;
+    @Mock private QueueRepository queueRepository;
+    @Mock private CampaignRepository campaignRepository;
     @Mock private ContactEventService contactEventService;
+    @Mock private TelephonyAdapter telephonyAdapter;
+    @Mock private TelephonyEventPublisher eventPublisher;
 
     @InjectMocks
     private ContactService contactService;

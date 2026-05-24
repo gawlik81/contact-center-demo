@@ -5,8 +5,16 @@
   justify-content: center;
   min-height: 100vh;
   background:
-    radial-gradient(ellipse at 30% 20%, color-mix(in oklch, var(--accent) 8%, transparent) 0%, transparent 60%),
-    radial-gradient(ellipse at 70% 80%, color-mix(in oklch, var(--accent) 6%, transparent) 0%, transparent 60%),
+    radial-gradient(
+      ellipse at 30% 20%,
+      color-mix(in oklch, var(--accent) 8%, transparent) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse at 70% 80%,
+      color-mix(in oklch, var(--accent) 6%, transparent) 0%,
+      transparent 60%
+    ),
     var(--bg-app);
   padding: 1rem;
 }

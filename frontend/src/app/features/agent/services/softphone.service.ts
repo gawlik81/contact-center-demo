@@ -2,6 +2,7 @@ import { Injectable, inject, signal, OnDestroy } from '@angular/core';
 import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import {
   Observable,
+  Subject,
   catchError,
   of,
   interval,
@@ -33,6 +34,21 @@ export class SoftphoneService implements OnDestroy {
    * is deferred until the modal is closed (confirmed or cancelled).
    */
   readonly callbackModalOpen = signal(false);
+
+  /**
+   * Emits once when the consultation target answers the call (CALL_CONSULT_ANSWERED WS event).
+   * SoftphoneComponent subscribes to this to set attendedConnected=true only at the right moment.
+   */
+  readonly consultAnswered$ = new Subject<void>();
+
+  /**
+   * Called by AgentDesktopComponent when it receives a CALL_CONSULT_ANSWERED WS event.
+   * Notifies SoftphoneComponent that the consultation target has answered — the "Przekaż"
+   * (complete transfer) button should now become active.
+   */
+  markConsultAnswered(): void {
+    this.consultAnswered$.next();
+  }
 
   // ── Twilio Voice SDK state ─────────────────────────────────────────────────
   private twilioDevice: Device | null = null;
@@ -229,6 +245,12 @@ export class SoftphoneService implements OnDestroy {
     this.session.set({ ...s, contactId: newContactId, customerName, queueName });
   }
 
+  updateCustomerName(customerName: string): void {
+    const s = this.session();
+    if (!s) return;
+    this.session.set({ ...s, customerName });
+  }
+
   incomingCall(payload: CallIncomingPayload | ContactAssignedPayload): void {
     const customerPhone =
       'customerPhone' in payload ? payload.customerPhone : payload.customerIdentifier;
@@ -373,6 +395,26 @@ export class SoftphoneService implements OnDestroy {
     // Wyczyść sesję bezpośrednio do null – omijamy stan ENDED żeby nie wyzwolić ACW
     this.session.set(null);
     this.activeCall = null;
+  }
+
+  /**
+   * Przywraca sesję do stanu ACTIVE po tym, jak cel konsultacji (Agent1) był niedostępny
+   * (busy / no-answer) i backend wysłał CALL_CONSULT_CANCELLED.
+   *
+   * Różni się od cancelConsultSession() tym, że:
+   * - NIE rozłącza urządzenia Twilio — agent-inicjator nadal uczestniczy w konferencji z klientem.
+   * - NIE czyści sesji do null — zamiast tego wraca do stanu ACTIVE.
+   * - Kasuje secondLegCallId — noga konsultacyjna jest już zakończona server-side.
+   *
+   * Wywoływana wyłącznie gdy sesja jest w stanie TRANSFERRING (agent jest inicjatorem
+   * konsultacji). Dla agenta będącego celem konsultacji używaj cancelConsultSession().
+   */
+  restoreToActiveAfterConsultCancel(): void {
+    const s = this.session();
+    if (!s || s.state !== 'TRANSFERRING') return;
+    this.secondLegCallId = null;
+    this.session.set({ ...s, state: 'ACTIVE', transferTarget: null });
+    this.startDurationTimer();
   }
 
   rejectCall(): void {
@@ -532,14 +574,19 @@ export class SoftphoneService implements OnDestroy {
 
   // ── Transfer to AGENT ──────────────────────────────────────────────────────
 
-  initiateBlindTransferToAgent(callId: string, agentId: string, onSettled?: () => void): void {
+  initiateBlindTransferToAgent(
+    callId: string,
+    agentId: string,
+    displayName: string,
+    onSettled?: () => void,
+  ): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') {
       onSettled?.();
       return;
     }
     this.stopDurationTimer();
-    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: agentId });
+    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: displayName });
     this.http
       .post(`${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/transfer`, {
         transferType: 'BLIND',
@@ -562,14 +609,19 @@ export class SoftphoneService implements OnDestroy {
       });
   }
 
-  initiateAttendedTransferToAgent(callId: string, agentId: string, onSettled?: () => void): void {
+  initiateAttendedTransferToAgent(
+    callId: string,
+    agentId: string,
+    displayName: string,
+    onSettled?: () => void,
+  ): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') {
       onSettled?.();
       return;
     }
     this.stopDurationTimer();
-    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: agentId });
+    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: displayName });
     this.http
       .post<{ secondLegCallId?: string }>(
         `${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/transfer`,
@@ -601,14 +653,19 @@ export class SoftphoneService implements OnDestroy {
 
   // ── Transfer to QUEUE ──────────────────────────────────────────────────────
 
-  initiateBlindTransferToQueue(callId: string, queueId: string, onSettled?: () => void): void {
+  initiateBlindTransferToQueue(
+    callId: string,
+    queueId: string,
+    displayName: string,
+    onSettled?: () => void,
+  ): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') {
       onSettled?.();
       return;
     }
     this.stopDurationTimer();
-    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: queueId });
+    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: displayName });
     this.http
       .post(`${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/transfer`, {
         transferType: 'BLIND',

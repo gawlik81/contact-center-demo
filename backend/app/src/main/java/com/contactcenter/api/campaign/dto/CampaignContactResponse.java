@@ -23,5 +23,7 @@ public record CampaignContactResponse(
         String dispositionCode,
         Instant createdAt,
         int attemptCount,
-        Instant nextAttemptAt
+        Instant nextAttemptAt,
+        /** UUID ostatniego kontaktu wychodzącego (contact.contact_id) powiązanego z tym rekordem. Nullable. */
+        UUID lastContactId
 ) {}

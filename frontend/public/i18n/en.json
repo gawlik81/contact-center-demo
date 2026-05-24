@@ -1043,7 +1043,23 @@
       "groupsTitle": "Agent groups",
       "directAgentsTitle": "Individual agents",
       "agentsAbbr": "ag.",
-      "noAssignment": "No assigned agents — queue will not handle any contacts."
+      "noAssignment": "No assigned agents — queue will not handle any contacts.",
+      "allAgentsLabel": "All tenant agents",
+      "allAgentsHint": "Queue available to all agents",
+      "groupsSection": "Agent groups",
+      "agentsSection": "Direct agents",
+      "addGroup": "Add group",
+      "addAgent": "Add agent",
+      "emptyWarning": "No assignment — queue will not handle any contacts.",
+      "saveButton": "Save",
+      "cancelButton": "Cancel",
+      "successToast": "Agent assignment updated",
+      "errorSave": "Failed to save assignment",
+      "manageButton": "Manage agents",
+      "badgeAllAgents": "All agents",
+      "badgeNoAgents": "No agents",
+      "badgeNoAgentsHint": "No assigned agents — queue will not handle any contacts",
+      "badgeAgents": "agents"
     },
     "queueAssignment": {
       "title": "Queue assignment",
@@ -1118,7 +1134,33 @@
       "importSuccess": "Contact import completed successfully.",
       "errors": {
         "loadFailed": "Failed to load campaigns. Please try again."
-      }
+      },
+      "campaignAssignment": {
+        "title": "Manage campaign agents",
+        "allAgentsLabel": "All tenant agents",
+        "allAgentsHint": "Campaign available to all agents",
+        "groupsSection": "Agent groups",
+        "agentsSection": "Direct agents",
+        "addGroup": "Add group",
+        "addAgent": "Add agent",
+        "emptyWarning": "No assignment — dialer will not call, manual panel will not show records for this campaign.",
+        "saveButton": "Save",
+        "cancelButton": "Cancel",
+        "successToast": "Agent assignment updated",
+        "errorSave": "Failed to save assignment",
+        "manageButton": "Manage agents"
+      },
+      "badgeAllAgents": "All agents",
+      "badgeNoAgents": "No agents",
+      "badgeNoAgentsHint": "Dialer inactive — no agents assigned",
+      "badgeAgents": "agents",
+      "attempts": "attempts",
+      "showAttempts": "Show call attempts",
+      "noAttempts": "No call attempts",
+      "statsTotal": "Total",
+      "statsCompleted": "Completed",
+      "statsRemaining": "Remaining",
+      "statsHeader": "Records"
     },
     "campaignForm": {
       "titleCreate": "New campaign",
@@ -1136,8 +1178,6 @@
       "cancel": "Cancel",
       "closeLabel": "Close form",
       "dialerTypeLabel": "Dialer type",
-      "queueLabel": "Queue",
-      "queuePlaceholder": "-- Select queue --",
       "maxAttemptsLabel": "Maximum number of attempts",
       "retryDelayLabel": "Time between attempts (minutes)",
       "scheduleLabel": "Schedule (optional)",
@@ -1169,9 +1209,7 @@
         "timeFromPattern": "Format: HH:MM (e.g. 09:00)",
         "timeToPattern": "Format: HH:MM (e.g. 18:00)",
         "timeRangeInvalid": "The \"to\" time must be later than the \"from\" time.",
-        "queueRequired": "Queue is required.",
         "dateRangeInvalid": "End date cannot be earlier than start date.",
-        "loadQueuesFailed": "Failed to load queue list.",
         "updateFailed": "Failed to update campaign. Please try again.",
         "limitExceeded": "Campaign limit exceeded for this tenant.",
         "createFailed": "Failed to create campaign. Please try again."

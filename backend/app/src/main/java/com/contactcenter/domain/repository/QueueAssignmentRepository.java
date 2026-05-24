@@ -309,6 +309,39 @@ public class QueueAssignmentRepository extends TenantAwareRepository {
     }
 
     // =========================================================================
+    // Odczyt – liczba unikalnych agentów przypisanych do kolejki
+    // =========================================================================
+
+    /**
+     * Zwraca liczbę unikalnych agentów przypisanych do kolejki
+     * (bezpośrednio przez {@code queue_agent} lub przez grupy {@code queue_agent_group}).
+     *
+     * <p>Używane przez API listowania kolejek do prezentacji pola {@code assignedAgentsCount}.
+     *
+     * @param queueId UUID kolejki
+     * @return liczba unikalnych agentów; 0 gdy brak przypisań
+     */
+    @Transactional(readOnly = true)
+    public int countAssignments(UUID queueId) {
+        Number result = (Number) em.createNativeQuery("""
+                SELECT COUNT(DISTINCT agent_id)
+                FROM (
+                    SELECT agent_id
+                    FROM queue_agent
+                    WHERE queue_id = CAST(:queueId AS uuid)
+                    UNION
+                    SELECT agm.agent_id
+                    FROM agent_group_member agm
+                    JOIN queue_agent_group qag ON agm.group_id = qag.group_id
+                    WHERE qag.queue_id = CAST(:queueId AS uuid)
+                ) unique_agents
+                """)
+                .setParameter("queueId", queueId.toString())
+                .getSingleResult();
+        return result != null ? result.intValue() : 0;
+    }
+
+    // =========================================================================
     // Zapis – atomowa podmiana grup
     // =========================================================================
 

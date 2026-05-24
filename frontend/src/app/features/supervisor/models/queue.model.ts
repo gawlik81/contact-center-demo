@@ -7,8 +7,10 @@ export interface Queue {
   requiredSkills: string[];
   emailAddress?: string | null;
   active: boolean;
+  allAgents: boolean;
   createdAt: string;
   updatedAt: string;
+  assignedAgentsCount?: number;
 }
 
 export interface CreateQueueRequest {

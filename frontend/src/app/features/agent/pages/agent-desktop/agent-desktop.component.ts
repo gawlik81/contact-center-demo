@@ -42,6 +42,7 @@ import {
   CallHangupPayload,
   CallBridgeCompletePayload,
   CallConsultCancelledPayload,
+  CallConsultAnsweredPayload,
 } from '../../models/ws-event.model';
 
 @Component({
@@ -307,7 +308,9 @@ export class AgentDesktopComponent implements OnInit {
         const cleanName = rawName.startsWith(CONSULT_PREFIX)
           ? rawName.slice(CONSULT_PREFIX.length)
           : rawName;
-        const queueName = this.softphoneService.session()?.queueName ?? '';
+        // Prefer queueName from the bridge event (copied from original contact by backend).
+        // Fall back to current session only when backend doesn't send it (old version).
+        const queueName = payload.queueName ?? this.softphoneService.session()?.queueName ?? '';
 
         // Update softphone session: new contactId + clean customerName + queueName.
         this.softphoneService.updateSessionAfterBridge(payload.newContactId, cleanName, queueName);
@@ -330,10 +333,18 @@ export class AgentDesktopComponent implements OnInit {
         const payload = e.payload as CallConsultCancelledPayload;
         console.warn('[AgentDesktop] CALL_CONSULT_CANCELLED – anulowanie konsultacji:', payload);
 
-        // Wyczyść sesję softphone bez przechodzenia przez stan ENDED (pomijamy ACW).
-        // cancelConsultSession() bezpośrednio ustawia session=null, co NIE wyzwala
-        // softphoneEndedEffect i NIE zmienia statusu na AFTER_CONTACT.
-        this.softphoneService.cancelConsultSession();
+        // Wybierz strategię w zależności od roli agenta w konsultacji:
+        //   TRANSFERRING → jesteśmy inicjatorem; cel był niedostępny (busy/no-answer).
+        //     Noga konsultacyjna zakończona server-side — NIE rozłączamy urządzenia,
+        //     bo agent nadal uczestniczy w konferencji z klientem.
+        //   Inne stany → jesteśmy celem konsultacji; inicjator anulował przed bridge.
+        //     Brak aktywnego połączenia z klientem — czyścimy sesję bez ACW.
+        const currentSession = this.softphoneService.session();
+        if (currentSession?.state === 'TRANSFERRING') {
+          this.softphoneService.restoreToActiveAfterConsultCancel();
+        } else {
+          this.softphoneService.cancelConsultSession();
+        }
 
         // Zamknij zakładkę PHONE reprezentującą konsultację.
         // Identyfikujemy ją po contactId = secondLegCallId (CA_...) lub originalContactId.
@@ -359,6 +370,20 @@ export class AgentDesktopComponent implements OnInit {
 
         // Krótkie powiadomienie dla agenta.
         this.notifications.info(this.transloco.translate('agent.desktop.consultCancelled'));
+      });
+
+    // Cel konsultacji odebrał połączenie — odblokuj przycisk "Przekaż" u inicjatora.
+    // Emitujemy do SoftphoneService zamiast bezpośrednio do komponentu, żeby nie
+    // tworzyć zależności between desktop a softphone.component.
+    this.ws.events$
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        filter((e: WsEvent) => e.eventType === 'CALL_CONSULT_ANSWERED'),
+      )
+      .subscribe((e: WsEvent) => {
+        const payload = e.payload as CallConsultAnsweredPayload;
+        console.warn('[AgentDesktop] CALL_CONSULT_ANSWERED – konsultacja odebrana:', payload);
+        this.softphoneService.markConsultAnswered();
       });
   }
 

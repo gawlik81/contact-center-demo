@@ -6,9 +6,9 @@ import com.contactcenter.api.campaign.dto.CreateCampaignRequest;
 import com.contactcenter.api.campaign.dto.UpdateCampaignRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.repository.CampaignAssignmentRepository;
+import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.QueueRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,7 +59,8 @@ public class CampaignService {
     private static final String STATUS_COMPLETED = "COMPLETED";
 
     private final CampaignRepository campaignRepository;
-    private final QueueRepository queueRepository;
+    private final CampaignAssignmentRepository campaignAssignmentRepository;
+    private final CampaignContactRepository campaignContactRepository;
 
     // =========================================================================
     // CRUD
@@ -76,7 +77,6 @@ public class CampaignService {
     @Transactional
     public CampaignResponse createCampaign(CreateCampaignRequest request, UUID tenantId, UUID userId) {
         validateSchedule(request.schedule());
-        validateQueue(request.queueId(), tenantId);
 
         Campaign campaign = Campaign.builder()
                 .tenantId(tenantId)
@@ -114,8 +114,34 @@ public class CampaignService {
         List<Campaign> campaigns = campaignRepository.findByTenantId(tenantId, page, size);
         long total = campaignRepository.countByTenantId(tenantId);
 
+        // Batch query statystyk rekordów – jeden call do DB dla wszystkich kampanii na stronie
+        List<UUID> campaignIds = campaigns.stream()
+                .map(Campaign::getCampaignId)
+                .toList();
+
+        List<String> statuses = List.of(
+                "PENDING", "CALLBACK", "NO_ANSWER",
+                "COMPLETED", "DIALING", "CONNECTED",
+                "NOT_REACHED", "FAILED", "SKIPPED", "ERROR", "CALLED"
+        );
+        Map<UUID, Map<String, Long>> stats = campaignContactRepository
+                .countByStatusGroupedByCampaign(tenantId, campaignIds, statuses);
+
         List<CampaignResponse> content = campaigns.stream()
-                .map(CampaignResponse::from)
+                .map(c -> {
+                    int agentsCount = c.isAllAgents()
+                            ? 0
+                            : campaignAssignmentRepository.countAssignments(c.getCampaignId());
+
+                    Map<String, Long> cm = stats.getOrDefault(c.getCampaignId(), Map.of());
+                    int totalRecords = cm.values().stream().mapToInt(Long::intValue).sum();
+                    int completedRecords = cm.getOrDefault("COMPLETED", 0L).intValue();
+                    int remainingRecords = (int) (cm.getOrDefault("PENDING", 0L)
+                            + cm.getOrDefault("CALLBACK", 0L)
+                            + cm.getOrDefault("NO_ANSWER", 0L));
+
+                    return CampaignResponse.from(c, agentsCount, totalRecords, completedRecords, remainingRecords);
+                })
                 .toList();
 
         int totalPages = size > 0 ? (int) Math.ceil((double) total / size) : 0;
@@ -495,28 +521,6 @@ public class CampaignService {
         } catch (Exception e) {
             log.warn("[CampaignService] Nieznana strefa czasowa '{}', używam Europe/Warsaw", timezone);
             return ZoneId.of("Europe/Warsaw");
-        }
-    }
-
-    /**
-     * Waliduje istnienie kolejki i jej przynależność do tenanta.
-     *
-     * <p>Zapobiega sytuacji, w której kampania jednego tenanta odwoływałaby się
-     * do kolejki innego tenanta (atak cross-tenant).
-     *
-     * @param queueId  UUID kolejki (nie może być null)
-     * @param tenantId UUID tenanta tworzącego kampanię
-     * @throws EntityNotFoundException   gdy kolejka nie istnieje lub należy do innego tenanta
-     * @throws InvalidOperationException gdy kolejka jest nieaktywna
-     */
-    private void validateQueue(UUID queueId, UUID tenantId) {
-        Queue queue = queueRepository.findByIdAndTenantId(queueId, tenantId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        String.format("Kolejka o ID %s nie istnieje lub brak dostępu.", queueId)));
-        if (!queue.isActive()) {
-            throw new InvalidOperationException(
-                    String.format("Kolejka '%s' (ID: %s) jest nieaktywna. " +
-                            "Przypisz kampanię do aktywnej kolejki.", queue.getName(), queueId));
         }
     }
 

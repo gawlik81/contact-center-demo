@@ -241,7 +241,7 @@
 
         <!-- Zakładki celu transferu -->
         <div class="softphone__target-tabs" role="group" aria-label="Cel transferu">
-          @for (tab of transferTargetTabs; track tab) {
+          @for (tab of transferTargetTabs(); track tab) {
             <button
               type="button"
               class="softphone__target-tab"
@@ -490,8 +490,8 @@
         <p class="softphone__transferring-label">{{ 'agent.softphone.transferring' | transloco }}</p>
         <p class="softphone__transferring-target">{{ s.transferTarget }}</p>
 
-        @if (attendedConnected()) {
-          <div class="softphone__attended-actions">
+        <div class="softphone__attended-actions">
+          @if (attendedConnected()) {
             <button
               type="button"
               class="softphone__transfer-submit softphone__transfer-submit--complete"
@@ -504,21 +504,21 @@
               }
               {{ 'agent.softphone.attendedComplete' | transloco }}
             </button>
-            <button
-              type="button"
-              class="softphone__transfer-submit softphone__transfer-submit--cancel"
-              [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
-              (click)="cancelTransfer()"
-            >
-              {{ 'agent.softphone.attendedCancel' | transloco }}
-            </button>
-          </div>
-        } @else {
-          <span
-            class="softphone__transferring-spinner"
-            [attr.aria-label]="'agent.softphone.connecting' | transloco"
-          ></span>
-        }
+          } @else {
+            <span
+              class="softphone__transferring-spinner"
+              [attr.aria-label]="'agent.softphone.connecting' | transloco"
+            ></span>
+          }
+          <button
+            type="button"
+            class="softphone__transfer-submit softphone__transfer-submit--cancel"
+            [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
+            (click)="cancelTransfer()"
+          >
+            {{ 'agent.softphone.attendedCancel' | transloco }}
+          </button>
+        </div>
       </div>
     }
 

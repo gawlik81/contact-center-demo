@@ -252,26 +252,26 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     }
   }
 
-  protected onAgentSelected(event: { agentId: string; mode: TransferMode }): void {
+  protected onAgentSelected(event: { agentId: string; displayName: string; mode: TransferMode }): void {
     const session = this.session();
     if (!session || this.isTransferring()) return;
     this.isTransferring.set(true);
     if (event.mode === 'BLIND') {
-      this.softphone.initiateBlindTransferToAgent(session.contactId, event.agentId, () =>
+      this.softphone.initiateBlindTransferToAgent(session.contactId, event.agentId, event.displayName, () =>
         this.isTransferring.set(false),
       );
     } else {
-      this.softphone.initiateAttendedTransferToAgent(session.contactId, event.agentId, () => {
+      this.softphone.initiateAttendedTransferToAgent(session.contactId, event.agentId, event.displayName, () => {
         this.isTransferring.set(false);
       });
     }
   }
 
-  protected onQueueSelected(event: { queueId: string }): void {
+  protected onQueueSelected(event: { queueId: string; displayName: string }): void {
     const session = this.session();
     if (!session || this.isTransferring()) return;
     this.isTransferring.set(true);
-    this.softphone.initiateBlindTransferToQueue(session.contactId, event.queueId, () =>
+    this.softphone.initiateBlindTransferToQueue(session.contactId, event.queueId, event.displayName, () =>
       this.isTransferring.set(false),
     );
   }

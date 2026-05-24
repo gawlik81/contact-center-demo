@@ -574,14 +574,14 @@ export class SoftphoneService implements OnDestroy {
 
   // ── Transfer to AGENT ──────────────────────────────────────────────────────
 
-  initiateBlindTransferToAgent(callId: string, agentId: string, onSettled?: () => void): void {
+  initiateBlindTransferToAgent(callId: string, agentId: string, displayName: string, onSettled?: () => void): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') {
       onSettled?.();
       return;
     }
     this.stopDurationTimer();
-    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: agentId });
+    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: displayName });
     this.http
       .post(`${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/transfer`, {
         transferType: 'BLIND',
@@ -604,14 +604,14 @@ export class SoftphoneService implements OnDestroy {
       });
   }
 
-  initiateAttendedTransferToAgent(callId: string, agentId: string, onSettled?: () => void): void {
+  initiateAttendedTransferToAgent(callId: string, agentId: string, displayName: string, onSettled?: () => void): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') {
       onSettled?.();
       return;
     }
     this.stopDurationTimer();
-    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: agentId });
+    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: displayName });
     this.http
       .post<{ secondLegCallId?: string }>(
         `${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/transfer`,
@@ -643,14 +643,14 @@ export class SoftphoneService implements OnDestroy {
 
   // ── Transfer to QUEUE ──────────────────────────────────────────────────────
 
-  initiateBlindTransferToQueue(callId: string, queueId: string, onSettled?: () => void): void {
+  initiateBlindTransferToQueue(callId: string, queueId: string, displayName: string, onSettled?: () => void): void {
     const s = this.session();
     if (!s || s.state !== 'ACTIVE') {
       onSettled?.();
       return;
     }
     this.stopDurationTimer();
-    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: queueId });
+    this.session.set({ ...s, state: 'TRANSFERRING', transferTarget: displayName });
     this.http
       .post(`${environment.apiUrl}/telephony/calls/${encodeURIComponent(callId)}/transfer`, {
         transferType: 'BLIND',

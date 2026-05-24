@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-05-07 (BE-061 ✅ + FE-067 ✅ + FE-068 ✅ EPIC-20 zakończony; łączny stan: DB 30/30, BE 62/62, FE 54/54)
+**Ostatnia aktualizacja:** 2026-05-24 (EPIC-25 zakończony ✅; EPIC-26 zaplanowany ⬜; łączny stan: DB 37/39, BE 86/92, FE 71/75)
 
 ---
 
@@ -50,6 +50,14 @@
 | DB-029 | Kolumna `preferred_language` w tabeli `app_user` | ✅ | V050__add_preferred_language_to_app_user.sql: kolumna VARCHAR(10) NOT NULL DEFAULT 'pl'. Zrealizowane 2026-04-28. |
 | DB-030 | Tabela `tenant_twilio_config`: per-tenant kredencjały Twilio z szyfrowaniem | ✅ | V051__create_tenant_twilio_config.sql: tabela z polami zaszyfrowanymi AES-256-GCM, UNIQUE(tenant_id), RLS policy. Zrealizowane 2026-05-05. |
 | DB-031 | Kolumna `caller_id` w tabeli `campaign`: numer prezentacji dla kampanii wychodzących | ✅ | V052__add_caller_id_to_campaign.sql: kolumna VARCHAR(30) NULL, partial index. Zrealizowane 2026-05-05. |
+| DB-032 | Nowe statusy `campaign_contact`: `NOT_REACHED` i `CALLBACK` — migracja V053 | ✅ | V053__add_not_reached_callback_status.sql. EPIC-25. |
+| DB-033 | Dedykowane pole `campaign_contact_record_id` w `scheduled_callback` — migracja V054 | ✅ | V054__add_campaign_contact_record_id_to_scheduled_callback.sql. EPIC-25. |
+| DB-034 | Kolumna `notes` w tabeli `contact` — migracja V058 | ✅ | V058__add_notes_to_contact.sql. EPIC-25. |
+| DB-035 | Tabela `contact_event`: rejestracja etapów kontaktu (IVR, kolejka, agent, hold) | ✅ | V059__create_contact_event.sql. EPIC-25. |
+| DB-036 | Schemat przypisania agentów do kampanii: `all_agents`, `campaign_agent`, `campaign_agent_group` — migracja V062 | ✅ | V062__campaign_agent_assignment.sql. EPIC-25. |
+| DB-037 | Kolumna `campaign_contact_record_id` w tabeli `contact` — migracja V063 | ✅ | V063__add_campaign_contact_record_id_to_contact.sql. EPIC-25. |
+| DB-038 | Tabela `tenant_ai_config`: konfiguracja dostawcy AI per tenant — migracja V064 | ⬜ | EPIC-26 |
+| DB-039 | Kolumny AI summary w tabeli `contact` — migracja V065 | ⬜ | EPIC-26 |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -126,6 +134,36 @@
 | BE-059 | Per-tenant Access Token dla Twilio Voice JS SDK | ✅ | TwilioVoiceController generuje token per-tenant z fallbackiem do globalnych TwilioProperties. Zrealizowane 2026-05-06. |
 | BE-060 | Caller ID dla kampanii: propagacja do `ProgressiveDialerService` | ✅ | Pole callerId w Campaign entity i DTO, ProgressiveDialerService resolwuje from numer (per-tenant → fallback). Zrealizowane 2026-05-06. |
 | BE-061 | Endpoint listowania aktywnych numerów Twilio per-tenant | ✅ | GET /api/supervisor/twilio-config/phone-numbers → lista {sid, phoneNumber, friendlyName}. Zrealizowane 2026-05-07. |
+| BE-062 | Propagacja wyniku połączenia Twilio przez `CallEvent` — rozróżnienie no-answer od completed | ✅ | DialerCallbackHandler — NO_ANSWER/NOT_REACHED rozróżnienie. EPIC-25. |
+| BE-063 | Naprawa logiki `handleNoAnswer()` — używaj `retryDelayMinutes` z kampanii, status `NOT_REACHED` | ✅ | handleNoAnswer() z retryDelayMinutes z kampanii, status NOT_REACHED po wyczerpaniu prób. EPIC-25. |
+| BE-064 | Naprawa `handleCallbackDisposition()` — status `CALLBACK`, powiązanie z rekordem kampanii | ✅ | DialerCallbackHandler. EPIC-25. |
+| BE-065 | Naprawa `ProgressiveDialerService` — retry rekordów NO_ANSWER, usunięcie stałego 4h guard | ✅ | ProgressiveDialerService. EPIC-25. |
+| BE-066 | `ScheduledCallbackExecutor` — aktualizacja statusu `campaign_contact` przy wykonaniu callbacku kampanijnego | ✅ | ScheduledCallbackExecutor. EPIC-25. |
+| BE-067 | Endpoint `POST /api/telephony/calls/outbound` — inicjowanie wychodzącego połączenia ad hoc | ✅ | AgentCallController POST /api/telephony/calls/outbound. EPIC-25. |
+| BE-068 | Endpoint `POST /api/email/messages/outbound` — wysyłka nowego emaila ad hoc | ✅ | EmailController POST /api/email/messages/outbound. EPIC-25. |
+| BE-069 | Zapis notatki agenta do kontaktu — `Contact`, `DispositionRequest`, `ContactResponse`, `ContactRepository`, `ContactService` | ✅ | Contact.notes, DispositionRequest.notes, ContactService. EPIC-25. |
+| BE-070 | Notatka w historii klienta — `CustomerLookupResponse`, `CustomerRepository`, `CustomerService` | ✅ | CustomerLookupResponse zawiera notes z ostatnich kontaktów. EPIC-25. |
+| BE-071 | Model `ContactEvent`, repozytorium i serwis zarządzania etapami | ✅ | ContactEvent.java, ContactEventRepository.java, ContactEventService.java. EPIC-25. |
+| BE-072 | Rejestracja etapów w punktach przejścia kontaktu | ✅ | ContactEventService rejestruje etapy w kluczowych punktach. EPIC-25. |
+| BE-073 | Endpoint `GET /api/contacts/{id}/events` — historia etapów kontaktu | ✅ | ContactController GET /api/contacts/{id}/events. EPIC-25. |
+| BE-074 | Rozszerzenie modelu transferu: `TransferTargetType`, `TransferRequest`, rozszerzenie `TelephonyAdapter` i `MockTelephonyAdapter` | ✅ | TransferCallRequest.java, AgentCallController z pełną obsługą typów. EPIC-25. |
+| BE-075 | Endpoint `GET /api/telephony/transfer/agents` — lista agentów dostępnych do transferu | ✅ | AgentCallController. EPIC-25. |
+| BE-076 | Endpoint `GET /api/telephony/transfer/queues` — lista kolejek dostępnych do transferu | ✅ | AgentCallController. EPIC-25. |
+| BE-077 | Endpoint `POST /api/telephony/calls/{callId}/transfer` — ujednolicony transfer (phone / agent / queue) | ✅ | AgentCallController POST /{callId}/transfer (BLIND/ATTENDED, PHONE/AGENT/QUEUE). EPIC-25. |
+| BE-078 | Endpoint `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` — łączenie nóg dla attended transfer | ✅ | AgentCallController POST /{callId}/bridge/{secondCallId}. EPIC-25. |
+| BE-079 | Usunięcie obowiązkowego powiązania kampanii z kolejką | ✅ | queueId nullable w CreateCampaignRequest i Campaign. EPIC-25. |
+| BE-080 | Campaign Assignment API: trójpoziomowe przypisanie agentów (`CampaignAssignmentController`) | ✅ | CampaignAssignmentController + CampaignAssignmentService + CampaignAssignmentRepository. EPIC-25. |
+| BE-081 | Aktualizacja `ProgressiveDialerService`: trójpoziomowa kwalifikacja agentów do kampanii | ✅ | ProgressiveDialerService z kwalifikacją all_agents/grupy/bezpośredni. EPIC-25. |
+| BE-082 | Ustawienie `campaign_id` na kontakcie wychodzącym — przepięcie `queueId` na `campaignId` w `TelephonyAdapter.initiateCall()` | ✅ | TelephonyAdapter propaguje campaignId na kontakt. EPIC-25. |
+| BE-083 | Guard: odrzucenie transferu OUTBOUND → QUEUE w endpoincie transferu | ✅ | Guard w AgentCallController. EPIC-25. |
+| BE-084 | Filtrowanie `GET /api/dialer/manual/records` według przypisania agenta do kampanii | ✅ | DialerController z filtrowaniem po przypisaniu agenta. EPIC-25. |
+| BE-085 | Powiązanie kontaktu z rekordem kampanii: zapis `campaign_contact_record_id` + endpoint historii | ✅ | DialerCallbackHandler zapisuje campaign_contact_record_id; CampaignContactHistoryController. EPIC-25. |
+| BE-086 | Encja `TenantAiConfig` + Repository + konwerter szyfrowania | ⬜ | EPIC-26 |
+| BE-087 | `TenantAiConfigService`: logika biznesowa konfiguracji AI | ⬜ | EPIC-26 |
+| BE-088 | `TenantAiConfigController`: REST API konfiguracji AI dla supervisora | ⬜ | EPIC-26 |
+| BE-089 | `AiSummaryService`: logika generowania podsumowania przez Python AI service | ⬜ | EPIC-26 |
+| BE-090 | Endpoint `POST /api/contacts/{contactId}/ai-summary` | ⬜ | EPIC-26 |
+| BE-091 | Python AI service: endpoint `/ai/summarize` | ⬜ | EPIC-26 |
 
 ---
 
@@ -201,6 +239,27 @@
 | FE-066 | `TwilioConfigComponent`: formularz konfiguracji Twilio w panelu supervisora | ✅ | TwilioConfigComponent (standalone, OnPush, ReactiveFormsModule), TwilioConfigService (getConfig/saveConfig/deleteConfig/testConnection → /api/supervisor/twilio-config), trasa /supervisor/settings/twilio, pozycja "Integracja Twilio" w sidenavie, klucze i18n pl/en/de. Zrealizowane 2026-05-06. |
 | FE-067 | Pole "Numer prezentacji" w formularzu kampanii | ✅ | Pole callerId w CampaignFormComponent, widoczne tylko dla OUTBOUND_VOICE. Zrealizowane 2026-05-07. |
 | FE-068 | Dropdown aktywnych numerów Twilio: reużywalny komponent i integracja | ✅ | TwilioPhoneNumberSelectComponent (ControlValueAccessor), integracja w TwilioConfigComponent i CampaignFormComponent. Zrealizowane 2026-05-07. |
+| FE-069 | Aktualizacja widoku listy kontaktów kampanii — nowe statusy `NOT_REACHED` i `CALLBACK` | ✅ | campaign-contacts z filtrami NOT_REACHED/CALLBACK i tłumaczeniem statusów. EPIC-25. |
+| FE-070 | Konfiguracja parametru retry w formularzu kampanii — `retryDelayMinutes` | ✅ | Pole retryDelayMinutes w campaign-form z walidacją min/max. EPIC-25. |
+| FE-071 | Przycisk „Zadzwoń" na karcie klienta i w szufladzie szczegółów | ✅ | agent-customer-card z initiateCall + OutboundCallService. EPIC-25. |
+| FE-072 | Modal „Wyślij email" do klienta ad hoc | ✅ | agent-customer-card sendEmail + EmailService.sendOutbound(). EPIC-25. |
+| FE-073 | Wyświetlanie notatki w widoku szczegółów kontaktu (`contact-detail-modal`) | ✅ | contact-detail-modal wyświetla contact.notes. EPIC-25. |
+| FE-074 | Notatki z ostatnich kontaktów w panelu klienta (`customer-panel`) — truncation + expand | ✅ | customer-panel z truncation i expand notatek. EPIC-25. |
+| FE-075 | Sekcja „Historia kontaktu" w modalu szczegółów kontaktu (`contact-detail-modal`) | ✅ | contact-detail-modal ładuje ContactEventResponse[] z /events. EPIC-25. |
+| FE-076 | Rozszerzenie modelu i serwisu softphone o typ celu transferu | ✅ | TransferTargetType w call-session.model.ts, softphone.service z PHONE/AGENT/QUEUE. EPIC-25. |
+| FE-077 | Panel transferu: zakładki „Telefon / Agent / Kolejka" | ✅ | softphone z _showTransferPanel i zakładkami transferu. EPIC-25. |
+| FE-078 | Lista agentów w panelu transferu z wyszukiwaniem i statusem | ✅ | transfer-agent-list komponent. EPIC-25. |
+| FE-079 | Lista kolejek w panelu transferu | ✅ | transfer-queue-list komponent. EPIC-25. |
+| FE-080 | Integracja panelu transferu z nowym API | ✅ | softphone integruje transfer-agent-list i transfer-queue-list z API. EPIC-25. |
+| FE-081 | Usunięcie pola `queueId` z formularza kampanii | ✅ | queueId usunięte z campaign-form. EPIC-25. |
+| FE-082 | Modal zarządzania przypisaniem agentów do kampanii (trójpoziomowy) | ✅ | Modal przypisania agentów w campaign-form i campaign-list. EPIC-25. |
+| FE-083 | Wyświetlenie stanu przypisania agentów na liście kampanii i w szczegółach | ✅ | Badge z liczbą przypisanych agentów w tabeli kampanii i kolejek. EPIC-25. |
+| FE-084 | Ukrycie zakładki „Kolejka" w panelu transferu dla połączeń wychodzących | ✅ | Zakładka Kolejka ukryta dla OUTBOUND. EPIC-25. |
+| FE-085 | Nawigacja z rekordu kampanii do historii kontaktów (prób wydzwonienia) | ✅ | campaign-contacts: expandedRecordId + getContactAttempts + contact-detail-modal. EPIC-25. |
+| FE-086 | `AiSummaryService`: serwis Angular do generowania podsumowania AI | ⬜ | EPIC-26 |
+| FE-087 | Przycisk „Generuj podsumowanie AI" na formularzu dyspozycji | ⬜ | EPIC-26 |
+| FE-088 | Panel konfiguracji dostawcy AI w ustawieniach supervisora | ⬜ | EPIC-26 |
+| FE-089 | Podsumowanie AI dla kanału email (widok obsługi emaila) | ⬜ | EPIC-26 |
 
 ---
 
@@ -208,10 +267,18 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 30/30 | 0 | 0 | 30 |
-| Backend (BE) | 62/62 | 0 | 0 | 62 |
-| Frontend (FE) | 54/54 | 0 | 0 | 54 |
-| **RAZEM** | **146/146** | **0** | **0** | **146** |
+| Database (DB) | 37 | 0 | 2 | 39 |
+| Backend (BE) | 86 | 0 | 6 | 92 |
+| Frontend (FE) | 71 | 0 | 4 | 75 |
+| **RAZEM** | **194** | **0** | **12** | **206** |
+
+### Nie rozpoczęte wg EPIC
+
+| EPIC | DB | BE | FE | Razem |
+|------|----|----|-----|-------|
+| EPIC-25 Kampanie — refaktor i transfer | 0 | 0 | 0 | 0 ✅ |
+| EPIC-26 AI-Powered Conversation Summary | 2 | 6 | 4 | 12 |
+| **Łącznie** | **2** | **6** | **4** | **12** |
 
 ---
 

@@ -1680,3 +1680,122 @@ Dodatkowo: upewnić się że `campaign_contact.last_contact_id` będzie wypełni
 - [ ] Indeks `idx_contact_campaign_contact_record` widoczny w `pg_indexes` z filtrem `WHERE ... IS NOT NULL`
 - [ ] Istniejące wiersze kontaktów nie są naruszone (NULL backfill)
 - [ ] Tabela `contact` jest partycjonowana — `ADD COLUMN` propaguje na wszystkie partycje automatycznie
+
+---
+
+## EPIC-26: AI-Powered Conversation Summary
+
+### DB-038 – Tabela `tenant_ai_config`: konfiguracja dostawcy AI per tenant — migracja V064
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-002 (tabela `tenant`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-086, BE-087, BE-088
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Kontekst:**
+System musi umożliwiać konfigurację dostawcy AI (Claude/OpenAI/Azure OpenAI) niezależnie per tenant. Klucze API muszą być szyfrowane — analogicznie do `tenant_twilio_config` (DB-030) z konwerterem AES-256-GCM. Wzorzec: jeden wiersz per tenant (`UNIQUE tenant_id`).
+
+**DDL migracji (`V064__create_tenant_ai_config.sql`):**
+
+```sql
+-- =============================================================================
+-- V064__create_tenant_ai_config.sql
+-- DB-038: Konfiguracja dostawcy AI per tenant.
+-- Klucz api_key szyfrowany AES-256-GCM przez EncryptedStringConverter (JPA).
+-- Wzorzec: analogiczny do tenant_twilio_config (V051).
+-- =============================================================================
+
+CREATE TYPE ai_provider AS ENUM ('ANTHROPIC', 'OPENAI', 'AZURE_OPENAI');
+
+CREATE TABLE tenant_ai_config (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+
+    provider                ai_provider NOT NULL,
+    api_key_encrypted       TEXT NOT NULL,
+    model_name              VARCHAR(100) NOT NULL,
+
+    -- Opcjonalne — używane tylko dla Azure OpenAI
+    azure_endpoint          VARCHAR(500),
+    azure_deployment_name   VARCHAR(100),
+
+    -- Prompt systemowy do podsumowania; NULL = użyj domyślnego z aplikacji
+    summary_prompt_template TEXT,
+
+    is_active               BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_tenant_ai_config UNIQUE (tenant_id)
+);
+
+CREATE INDEX idx_tenant_ai_config_tenant ON tenant_ai_config (tenant_id) WHERE is_active;
+
+ALTER TABLE tenant_ai_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_ai_config_isolation ON tenant_ai_config
+    USING (tenant_id = current_setting('app.tenant_id', TRUE)::UUID);
+
+COMMENT ON TABLE tenant_ai_config IS
+    'Konfiguracja dostawcy AI per tenant. api_key_encrypted przechowywany jako szyfrowany blob AES-256-GCM.';
+COMMENT ON COLUMN tenant_ai_config.api_key_encrypted IS
+    'Klucz API dostawcy AI (Claude / OpenAI / Azure). Szyfrowany przez EncryptedStringConverter, nigdy nie eksponować plaintext przez REST.';
+COMMENT ON COLUMN tenant_ai_config.summary_prompt_template IS
+    'Opcjonalny prompt systemowy nadpisujący domyślny z aplikacji. NULL = użyj domyślnego.';
+COMMENT ON COLUMN tenant_ai_config.azure_endpoint IS
+    'Wymagane tylko dla AZURE_OPENAI: URL endpointu (https://<resource>.openai.azure.com/).';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V064 aplikuje się bez błędów na dev i test
+- [ ] ENUM `ai_provider` z wartościami `ANTHROPIC`, `OPENAI`, `AZURE_OPENAI`
+- [ ] UNIQUE constraint na `tenant_id` — max jedna konfiguracja per tenant
+- [ ] RLS policy izoluje dane między tenantami
+- [ ] Partial index `WHERE is_active` na `tenant_id`
+- [ ] Komentarze kolumn dokumentują szyfrowanie `api_key_encrypted`
+
+---
+
+### DB-039 – Kolumny AI summary w tabeli `contact` — migracja V065
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-006 (tabela `contact`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-089, BE-090
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Kontekst:**
+Wygenerowane podsumowanie AI musi być trwale powiązane z kontaktem. Przechowujemy: treść podsumowania, nazwę modelu który je wygenerował, czas generowania — do celów audytowych i raportowania. Tabela `contact` jest partycjonowana, `ADD COLUMN` propaguje automatycznie na wszystkie partycje.
+
+**DDL migracji (`V065__add_ai_summary_to_contact.sql`):**
+
+```sql
+-- =============================================================================
+-- V065__add_ai_summary_to_contact.sql
+-- DB-039: Pola podsumowania AI w tabeli contact.
+-- Tabela jest partycjonowana — ADD COLUMN propaguje automatycznie.
+-- =============================================================================
+
+ALTER TABLE contact
+    ADD COLUMN IF NOT EXISTS ai_summary                TEXT,
+    ADD COLUMN IF NOT EXISTS ai_summary_model          VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS ai_summary_generated_at   TIMESTAMPTZ;
+
+COMMENT ON COLUMN contact.ai_summary IS
+    'Podsumowanie kontaktu wygenerowane przez AI. NULL jeśli agent nie zlecił generowania.';
+COMMENT ON COLUMN contact.ai_summary_model IS
+    'Nazwa modelu AI który wygenerował podsumowanie, np. claude-opus-4-7, gpt-4o. Null gdy brak podsumowania.';
+COMMENT ON COLUMN contact.ai_summary_generated_at IS
+    'Timestamp wygenerowania podsumowania przez AI. NULL gdy brak podsumowania.';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V065 aplikuje się bez błędów na dev i test
+- [ ] Trzy kolumny nullable: `ai_summary TEXT`, `ai_summary_model VARCHAR(100)`, `ai_summary_generated_at TIMESTAMPTZ`
+- [ ] Istniejące wiersze nie są naruszone (NULL backfill)
+- [ ] Partycjonowanie: `ADD COLUMN` aplikuje się na wszystkich partycjach (weryfikacja przez `SELECT count(*) FROM pg_attribute...`)
+- [ ] Komentarze kolumn dokumentują semantykę

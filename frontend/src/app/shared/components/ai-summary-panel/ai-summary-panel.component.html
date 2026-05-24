@@ -1,0 +1,33 @@
+<div class="ai-summary-section">
+  <div class="ai-summary-header">
+    <span class="ai-summary-label">Podsumowanie AI</span>
+    <button
+      type="button"
+      class="btn-ai-generate"
+      [disabled]="aiLoading()"
+      (click)="generateAiSummary()"
+    >
+      @if (aiLoading()) {
+        <span class="spinner spinner--xs"></span>
+        Generowanie…
+      } @else {
+        Generuj podsumowanie AI
+      }
+    </button>
+  </div>
+
+  @if (aiError()) {
+    <p class="ai-error" role="alert">{{ aiError() }}</p>
+  }
+
+  @if (aiSummary()) {
+    <textarea
+      class="ai-summary-textarea"
+      rows="4"
+      [value]="aiSummary()!"
+      (input)="aiSummary.set($any($event.target).value)"
+      placeholder="Podsumowanie zostanie wygenerowane…"
+    ></textarea>
+    <p class="ai-summary-meta">Model: {{ aiModelUsed() }} · {{ aiTokensUsed() }} tokenów</p>
+  }
+</div>

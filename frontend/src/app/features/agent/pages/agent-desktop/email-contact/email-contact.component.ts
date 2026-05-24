@@ -24,11 +24,12 @@ import {
 } from '../../../services/email.service';
 import { ContactService } from '../../../services/contact.service';
 import { EmailThreadMessageComponent } from './email-thread-message/email-thread-message.component';
+import { AiSummaryPanelComponent } from '../../../../../shared/components/ai-summary-panel/ai-summary-panel.component';
 
 @Component({
   selector: 'cc-email-contact',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, EmailThreadMessageComponent],
+  imports: [TranslocoModule, ReactiveFormsModule, EmailThreadMessageComponent, AiSummaryPanelComponent],
   templateUrl: './email-contact.component.html',
   styleUrl: './email-contact.component.scss',
 })

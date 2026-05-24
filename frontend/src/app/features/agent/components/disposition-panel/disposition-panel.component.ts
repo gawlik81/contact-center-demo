@@ -20,12 +20,13 @@ import { ContactService } from '../../services/contact.service';
 import { AgentStatusService } from '../../services/agent-status.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { DISPOSITION_CODES, DispositionCode } from '../../models/disposition.model';
+import { AiSummaryPanelComponent } from '../../../../shared/components/ai-summary-panel/ai-summary-panel.component';
 
 @Component({
   selector: 'app-disposition-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, TranslocoModule],
+  imports: [FormsModule, TranslocoModule, AiSummaryPanelComponent],
   templateUrl: './disposition-panel.component.html',
   styleUrl: './disposition-panel.component.scss',
 })

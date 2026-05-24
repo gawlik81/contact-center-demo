@@ -1,6 +1,8 @@
 package com.contactcenter.api;
 
 import com.contactcenter.domain.email.TemplateRenderException;
+import com.contactcenter.domain.exception.AiConfigNotFoundException;
+import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
 import com.contactcenter.domain.exception.TwilioApiException;
@@ -577,6 +579,47 @@ public class GlobalExceptionHandler {
         problem.setProperty("timestamp", Instant.now());
 
         log.warn("[API][Twilio] Błąd Twilio API: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
+    }
+
+    /**
+     * Brak konfiguracji AI dla tenanta – HTTP 422 Unprocessable Entity.
+     *
+     * <p>Rzucany przez {@code AiSummaryService} gdy tenant nie skonfigurował jeszcze
+     * dostawcy AI (klucz API, wybór modelu). Zwracamy 422 – żądanie jest poprawne
+     * składniowo, ale nie może być przetworzone z powodu braku konfiguracji po stronie tenanta.
+     */
+    @ExceptionHandler(AiConfigNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleAiConfigNotFoundException(
+            AiConfigNotFoundException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
+        problem.setType(URI.create(ERROR_BASE_URI + "ai-config-not-found"));
+        problem.setTitle("Brak konfiguracji AI");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API][AI] Brak konfiguracji AI: {}", ex.getMessage());
+        return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * Błąd generowania podsumowania AI – HTTP 502 Bad Gateway.
+     *
+     * <p>Rzucany przez {@code AiSummaryClient} gdy zewnętrzny serwis AI jest niedostępny,
+     * zwrócił błąd HTTP lub przekroczył timeout. Analogicznie do {@link TwilioApiException}.
+     */
+    @ExceptionHandler(AiSummaryGenerationException.class)
+    public ResponseEntity<ProblemDetail> handleAiSummaryGenerationException(
+            AiSummaryGenerationException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_GATEWAY);
+        problem.setType(URI.create(ERROR_BASE_URI + "ai-summary-generation-error"));
+        problem.setTitle("Błąd generowania podsumowania AI");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API][AI] Błąd serwisu AI: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
     }
 

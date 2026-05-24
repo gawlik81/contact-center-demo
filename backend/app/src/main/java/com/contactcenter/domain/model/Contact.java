@@ -178,4 +178,16 @@ public class Contact {
      */
     @Column(name = "campaign_contact_record_id")
     private UUID campaignContactRecordId;
+
+    /** Podsumowanie AI wygenerowane przez AiSummaryService (BE-089). Nullable – generowane na żądanie. */
+    @Column(name = "ai_summary", columnDefinition = "TEXT")
+    private String aiSummary;
+
+    /** Nazwa modelu AI użytego do wygenerowania podsumowania (np. "gpt-4o", "claude-3-5-sonnet"). */
+    @Column(name = "ai_summary_model", length = 100)
+    private String aiSummaryModel;
+
+    /** Czas wygenerowania podsumowania AI. NULL gdy brak podsumowania. */
+    @Column(name = "ai_summary_generated_at")
+    private Instant aiSummaryGeneratedAt;
 }

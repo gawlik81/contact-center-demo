@@ -129,6 +129,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/tenants/**").hasRole("ADMIN")
                 // Twilio config – zarządzanie per-tenant konfiguracją Twilio (BE-057)
                 .requestMatchers("/api/supervisor/twilio-config/**").hasRole("SUPERVISOR")
+                // AI Config – zarządzanie konfiguracją AI per-tenant (BE-088)
+                .requestMatchers("/api/supervisor/ai-config/**").hasRole("SUPERVISOR")
                 // Wszystkie pozostałe endpointy – wymagają autentykacji
                 .anyRequest().authenticated()
             )

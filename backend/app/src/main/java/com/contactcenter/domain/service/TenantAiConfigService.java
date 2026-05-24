@@ -72,7 +72,7 @@ public class TenantAiConfigService {
     // =========================================================================
 
     @Transactional(readOnly = true)
-    Optional<TenantAiConfigDecrypted> getDecryptedConfig(UUID tenantId) {
+    public Optional<TenantAiConfigDecrypted> getDecryptedConfig(UUID tenantId) {
         return configRepository.findByTenantId(tenantId)
                 .map(TenantAiConfigDecrypted::from);
     }

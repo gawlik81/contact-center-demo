@@ -1815,6 +1815,47 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   // =========================================================================
+  // BE-089: Aktualizacja podsumowania AI
+  // =========================================================================
+
+  /**
+   * Zapisuje wygenerowane podsumowanie AI do rekordu kontaktu.
+   *
+   * <p>Dedykowany natywny UPDATE – nie ładuje całej encji do pamięci.
+   * Analogicznie do {@link #updateConferenceSidInMetadata} i {@link #updateRecordingUrl}.
+   *
+   * @param contactId   UUID kontaktu
+   * @param tenantId    UUID tenanta (cross-tenant safety)
+   * @param summary     treść podsumowania AI
+   * @param model       nazwa modelu użytego do generowania
+   * @param generatedAt timestamp wygenerowania
+   * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy kontakt nie istnieje
+   */
+  @Transactional
+  public void updateAiSummary(UUID contactId, UUID tenantId, String summary, String model, Instant generatedAt) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET ai_summary               = ?,
+                   ai_summary_model         = ?,
+                   ai_summary_generated_at  = ?,
+                   updated_at               = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+            """,
+        summary, model, generatedAt,
+        contactId.toString(), tenantId.toString());
+
+    if (updated == 0) {
+      throw new com.contactcenter.domain.exception.ResourceNotFoundException(
+          "Kontakt nie istnieje: " + contactId);
+    }
+    log.debug("[ContactRepo] Zaktualizowano ai_summary: contactId={}, model={}", contactId, model);
+  }
+
+  // =========================================================================
   // Inner records
   // =========================================================================
 

@@ -70,10 +70,15 @@ export class AiConfigComponent implements OnInit {
   );
 
   private readonly _formValid = toSignal(
-    this.form.statusChanges.pipe(startWith(this.form.status), map((s) => s === 'VALID')),
+    this.form.statusChanges.pipe(
+      startWith(this.form.status),
+      map((s) => s === 'VALID'),
+    ),
   );
 
-  readonly isSaveDisabled = computed(() => this.submitting() || !this._formDirty() || !this._formValid());
+  readonly isSaveDisabled = computed(
+    () => this.submitting() || !this._formDirty() || !this._formValid(),
+  );
 
   ngOnInit(): void {
     this.loadConfig();

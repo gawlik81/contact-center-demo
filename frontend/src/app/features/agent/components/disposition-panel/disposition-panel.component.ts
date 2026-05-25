@@ -101,6 +101,11 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
     this.notes.set(value);
   }
 
+  protected onAiSummaryCopy(summary: string): void {
+    const current = this.notes().trim();
+    this.notes.set(current ? current + '\n\n' + summary : summary);
+  }
+
   protected save(): void {
     if (!this.canSave()) return;
 

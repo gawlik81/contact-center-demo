@@ -29,7 +29,12 @@ import { AiSummaryPanelComponent } from '../../../../../shared/components/ai-sum
 @Component({
   selector: 'cc-email-contact',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, EmailThreadMessageComponent, AiSummaryPanelComponent],
+  imports: [
+    TranslocoModule,
+    ReactiveFormsModule,
+    EmailThreadMessageComponent,
+    AiSummaryPanelComponent,
+  ],
   templateUrl: './email-contact.component.html',
   styleUrl: './email-contact.component.scss',
 })

@@ -4,6 +4,7 @@ import {
   DestroyRef,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -22,6 +23,8 @@ import {
 })
 export class AiSummaryPanelComponent {
   readonly contactId = input.required<string>();
+  readonly showCopyButton = input<boolean>(false);
+  readonly copyToNotes = output<string>();
 
   private readonly aiSummaryService = inject(AiSummaryService);
   private readonly destroyRef = inject(DestroyRef);
@@ -31,6 +34,11 @@ export class AiSummaryPanelComponent {
   readonly aiModelUsed = signal<string | null>(null);
   readonly aiTokensUsed = signal<number | null>(null);
   readonly aiError = signal<string | null>(null);
+
+  onCopyToNotes(): void {
+    const summary = this.aiSummary();
+    if (summary) this.copyToNotes.emit(summary);
+  }
 
   generateAiSummary(): void {
     if (this.aiLoading()) return;

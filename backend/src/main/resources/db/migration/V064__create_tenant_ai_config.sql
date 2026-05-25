@@ -9,7 +9,7 @@ CREATE TYPE ai_provider AS ENUM ('ANTHROPIC', 'OPENAI', 'AZURE_OPENAI');
 
 CREATE TABLE tenant_ai_config (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id               UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    tenant_id               UUID NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE,
 
     provider                ai_provider NOT NULL,
     api_key_encrypted       TEXT NOT NULL,

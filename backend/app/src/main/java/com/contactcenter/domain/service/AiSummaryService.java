@@ -3,8 +3,13 @@ package com.contactcenter.domain.service;
 import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.ContactTranscriptionRepository;
+import com.contactcenter.domain.repository.EmailMessageRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +37,8 @@ import java.util.UUID;
 public class AiSummaryService {
 
     private final ContactRepository contactRepository;
+    private final ContactTranscriptionRepository transcriptionRepository;
+    private final EmailMessageRepository emailMessageRepository;
     private final TenantAiConfigService aiConfigService;
     private final AiSummaryClient aiSummaryClient;
 
@@ -82,7 +89,7 @@ public class AiSummaryService {
                         "Brak konfiguracji AI dla tenanta. Skonfiguruj dostawcę AI w ustawieniach."));
 
         // 3. Wyodrębnij treść zależnie od kanału
-        String content = extractContent(contact);
+        String content = extractContent(contact, tenantId);
 
         // 4. Wywołaj Python AI service
         log.info("[AiSummaryService] Generowanie podsumowania: contactId={}, tenant={}, provider={}, channel={}",
@@ -119,23 +126,41 @@ public class AiSummaryService {
     /**
      * Wyodrębnia treść kontaktu do podsumowania zależnie od kanału.
      *
-     * <p>Dla kanału PHONE próbuje odczytać pole {@code notes} (transkrypcja lub notatki agenta).
-     * Dla kanałów EMAIL i SOCIAL* – szuka treści w {@code channelMetadata} pod kluczami
+     * <p>Dla kanału PHONE czyta transkrypcję z tabeli {@code contact_transcription}
+     * (zapisywanej przez Whisper po uploadzie nagrania do S3).
+     * Pole {@code contact.notes} jest zarezerwowane dla ręcznych notatek agenta
+     * i nie jest tu odczytywane.
+     *
+     * <p>Dla kanałów EMAIL i SOCIAL* – szuka treści w {@code channelMetadata} pod kluczami
      * {@code "body"} i {@code "content"} (standard adaptera email i social media).
      *
-     * @param contact encja kontaktu
+     * @param contact  encja kontaktu
+     * @param tenantId UUID tenanta (potrzebny do zapytania o transkrypcję)
      * @return treść do podsumowania lub komunikat zastępczy gdy brak treści
      */
-    public String extractContent(Contact contact) {
+    public String extractContent(Contact contact, UUID tenantId) {
         String channel = contact.getChannel();
 
         if ("PHONE".equals(channel)) {
-            String notes = contact.getNotes();
-            return (notes != null && !notes.isBlank()) ? notes : "[Brak transkrypcji/notatek]";
+            return transcriptionRepository
+                    .findContentByContactId(contact.getContactId(), tenantId)
+                    .filter(t -> !t.isBlank())
+                    .orElse("[Brak transkrypcji rozmowy]");
         }
 
-        // EMAIL, SOCIAL_FACEBOOK, SOCIAL_INSTAGRAM, SOCIAL_WHATSAPP
-        // Treść powinna być w channelMetadata pod kluczem "body" lub "content"
+        if ("EMAIL".equals(channel)) {
+            String emailBody = emailMessageRepository
+                    .findByContactId(contact.getContactId(), tenantId,
+                            PageRequest.of(0, 20, Sort.by("receivedAt").ascending()))
+                    .getContent().stream()
+                    .filter(m -> "INBOUND".equals(m.getDirection()))
+                    .map(EmailMessage::getBodyText)
+                    .filter(t -> t != null && !t.isBlank())
+                    .reduce("", (a, b) -> a.isBlank() ? b : a + "\n---\n" + b);
+            return emailBody.isBlank() ? "[Brak treści emaila]" : emailBody;
+        }
+
+        // SOCIAL_FACEBOOK, SOCIAL_INSTAGRAM, SOCIAL_WHATSAPP
         if (contact.getChannelMetadata() != null) {
             Object body = contact.getChannelMetadata().get("body");
             if (body instanceof String s && !s.isBlank()) {
@@ -148,5 +173,20 @@ public class AiSummaryService {
         }
 
         return "[Brak treści kontaktu]";
+    }
+
+    /**
+     * Zachowana dla kompatybilności wstecznej z testami wywołującymi bezparametrową wersję.
+     * Dla kanału PHONE zwraca zawsze komunikat zastępczy (brak tenantId → nie odpytuje DB).
+     *
+     * @deprecated Używaj {@link #extractContent(Contact, UUID)}.
+     */
+    @Deprecated
+    public String extractContent(Contact contact) {
+        String channel = contact.getChannel();
+        if ("PHONE".equals(channel)) {
+            return "[Brak transkrypcji rozmowy]";
+        }
+        return extractContent(contact, null);
     }
 }

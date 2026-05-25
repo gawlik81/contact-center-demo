@@ -179,7 +179,8 @@
     "ivrEditor": "IVR Editor",
     "oauthCallback": "OAuth Callback",
     "breadcrumbNav": "Navigation path",
-    "settingsTwilioConfig": "Twilio Integration"
+    "settingsTwilioConfig": "Twilio Integration",
+    "settingsAiConfig": "AI Configuration"
   },
   "role": {
     "admin": "Admin",
@@ -2022,6 +2023,31 @@
         "saveSuccess": "Twilio configuration saved successfully",
         "deleteSuccess": "Twilio configuration deleted",
         "loadError": "Failed to load Twilio configuration."
+      },
+      "aiConfig": {
+        "title": "AI Configuration",
+        "subtitle": "Manage the AI provider for generating contact summaries.",
+        "noConfigTitle": "No AI configuration",
+        "noConfigHint": "Set up an AI provider so agents can generate contact summaries.",
+        "setupButton": "Set up",
+        "providerLabel": "AI Provider",
+        "apiKeyLabel": "API Key",
+        "apiKeyPlaceholder": "Enter new API key",
+        "editSecretButton": "Change",
+        "modelNameLabel": "Model name",
+        "modelNamePlaceholder": "e.g. claude-opus-4-7, gpt-4o",
+        "azureSectionTitle": "Azure OpenAI settings",
+        "azureEndpointLabel": "Azure Endpoint URL",
+        "azureDeploymentNameLabel": "Deployment name",
+        "promptTemplateSectionTitle": "System prompt",
+        "summaryPromptLabel": "System prompt (optional)",
+        "summaryPromptPlaceholder": "Leave empty to use the application default prompt.",
+        "dangerZoneTitle": "Danger zone",
+        "saveButton": "Save configuration",
+        "cancelButton": "Cancel",
+        "deleteButton": "Delete AI configuration",
+        "deleteConfirm": "Are you sure you want to delete the AI configuration? This action is irreversible.",
+        "loadError": "Failed to load AI configuration."
       },
       "twilioPhoneSelect": {
         "loading": "Loading phone numbers...",

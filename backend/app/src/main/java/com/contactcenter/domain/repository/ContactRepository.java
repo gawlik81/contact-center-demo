@@ -1845,7 +1845,7 @@ public class ContactRepository extends TenantAwareRepository {
              WHERE contact_id = ?::uuid
                AND tenant_id  = ?::uuid
             """,
-        summary, model, generatedAt,
+        summary, model, java.sql.Timestamp.from(generatedAt),
         contactId.toString(), tenantId.toString());
 
     if (updated == 0) {
@@ -1853,6 +1853,42 @@ public class ContactRepository extends TenantAwareRepository {
           "Kontakt nie istnieje: " + contactId);
     }
     log.debug("[ContactRepo] Zaktualizowano ai_summary: contactId={}, model={}", contactId, model);
+  }
+
+  /**
+   * Zapisuje transkrypt nagrania (Whisper) do pola {@code notes} kontaktu.
+   *
+   * <p>Dedykowany natywny UPDATE – nie ładuje całej encji do pamięci.
+   * Analogicznie do {@link #updateAiSummary}.
+   *
+   * <p>Wywoływany przez {@link TwilioRecordingDownloadService} po pomyślnej transkrypcji
+   * nagrania przez voicebot Whisper. Błąd jest logowany przez calling service –
+   * ta metoda rzuca wyjątek gdy kontakt nie istnieje.
+   *
+   * @param contactId UUID kontaktu
+   * @param tenantId  UUID tenanta (cross-tenant safety)
+   * @param notes     treść transkryptu do zapisania
+   * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy kontakt nie istnieje
+   */
+  @Transactional
+  public void updateNotes(UUID contactId, UUID tenantId, String notes) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET notes      = ?,
+                   updated_at = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+            """,
+        notes, contactId.toString(), tenantId.toString());
+
+    if (updated == 0) {
+      throw new com.contactcenter.domain.exception.ResourceNotFoundException(
+          "Kontakt nie istnieje: " + contactId);
+    }
+    log.debug("[ContactRepo] Zaktualizowano notes (transkrypt): contactId={}, length={}", contactId, notes.length());
   }
 
   // =========================================================================

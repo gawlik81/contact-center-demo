@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,6 +53,17 @@ public class VoicebotClient {
             @JsonProperty("full_transcript")      List<String> fullTranscript,
             @JsonProperty("response_text")        String responseText,
             @JsonProperty("continue_conversation") boolean continueConversation
+    ) {}
+
+    public record TranscribeRequest(
+            @JsonProperty("audio_base64") String audioBase64,
+            @JsonProperty("audio_format") String audioFormat
+    ) {}
+
+    public record TranscribeResponse(
+            @JsonProperty("transcript")  String transcript,
+            @JsonProperty("language")    String language,
+            @JsonProperty("confidence")  double confidence
     ) {}
 
     private final HttpClient httpClient;
@@ -123,6 +135,77 @@ public class VoicebotClient {
                     request.sessionId(), ex.getMessage());
             return Optional.empty();
         }
+    }
+
+    /**
+     * Transkrybuje nagranie audio przez Whisper (endpoint {@code POST /ai/transcribe}).
+     *
+     * <p>Używane przez {@link TwilioRecordingDownloadService} po zapisaniu MP3 do S3,
+     * żeby zapisać transkrypcję w tabeli {@code contact_transcription}.
+     * Timeout ustawiony na 60s – Whisper na dużym pliku może potrzebować więcej czasu
+     * niż przy strumieniowaniu w czasie rzeczywistym.
+     *
+     * <p>Przy błędzie HTTP lub wyjątku sieciowym zwraca {@link Optional#empty()} –
+     * caller traktuje brak transkryptu jako graceful degradation (nagranie jest już w S3).
+     *
+     * @param audioBytes  surowe bajty pliku MP3/WAV
+     * @param audioFormat format pliku: "mp3" lub "wav"
+     * @return Optional z pełną odpowiedzią Whisper (transcript + language) lub empty() przy błędzie
+     */
+    public Optional<TranscribeResponse> transcribeFull(byte[] audioBytes, String audioFormat) {
+        try {
+            String audioBase64 = Base64.getEncoder().encodeToString(audioBytes);
+
+            com.fasterxml.jackson.databind.node.ObjectNode node = objectMapper.createObjectNode();
+            node.put("audio_base64", audioBase64);
+            node.put("audio_format", audioFormat);
+            String requestBody = objectMapper.writeValueAsString(node);
+
+            log.debug("[VoicebotClient] Wysyłam POST /ai/transcribe: format={}, audioSize={}B",
+                    audioFormat, audioBytes.length);
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(voicebotUrl + "/ai/transcribe"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                    .timeout(Duration.ofSeconds(60))
+                    .build();
+
+            HttpResponse<String> httpResponse = httpClient.send(
+                    httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+            if (httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300) {
+                log.warn("[VoicebotClient] Błąd HTTP {} przy transkrypcji: body={}",
+                        httpResponse.statusCode(),
+                        httpResponse.body().substring(0, Math.min(200, httpResponse.body().length())));
+                return Optional.empty();
+            }
+
+            TranscribeResponse response = objectMapper.readValue(
+                    httpResponse.body(), TranscribeResponse.class);
+
+            log.debug("[VoicebotClient] Transkrypcja zakończona: language={}, confidence={}, textLen={}",
+                    response.language(), response.confidence(), response.transcript().length());
+
+            return Optional.of(response);
+
+        } catch (Exception ex) {
+            log.warn("[VoicebotClient] Błąd transkrypcji (graceful degradation): error={}",
+                    ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Transkrybuje nagranie audio – wersja uproszczona zwracająca tylko tekst.
+     *
+     * @deprecated Używaj {@link #transcribeFull} żeby uzyskać też wykryty język.
+     *             Pozostawiona dla kompatybilności z istniejącymi callsitami.
+     */
+    @Deprecated
+    public Optional<String> transcribe(byte[] audioBytes, String audioFormat) {
+        return transcribeFull(audioBytes, audioFormat)
+                .map(TranscribeResponse::transcript);
     }
 
     /**

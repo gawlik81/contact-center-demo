@@ -3,7 +3,9 @@ package com.contactcenter.domain.model;
 import com.contactcenter.infrastructure.persistence.converter.EncryptedStringConverter;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcType;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.dialect.PostgreSQLEnumJdbcType;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -27,6 +29,7 @@ public class TenantAiConfig {
     private UUID tenantId;
 
     @Enumerated(EnumType.STRING)
+    @JdbcType(PostgreSQLEnumJdbcType.class)
     @Column(name = "provider", nullable = false, columnDefinition = "ai_provider")
     private AiProvider provider;
 
@@ -58,8 +61,12 @@ public class TenantAiConfig {
 
     @PrePersist
     protected void onCreate() {
+        Instant now = Instant.now();
         if (createdAt == null) {
-            createdAt = Instant.now();
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
         }
     }
 

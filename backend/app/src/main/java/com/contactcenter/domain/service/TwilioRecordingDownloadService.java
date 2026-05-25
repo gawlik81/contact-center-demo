@@ -1,8 +1,10 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.ContactTranscriptionRepository;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.infrastructure.config.TwilioProperties;
+import com.contactcenter.security.TenantContext;
 import com.twilio.exception.ApiException;
 import com.twilio.rest.api.v2010.account.Conference;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
+
 
 /**
  * Serwis odpowiedzialny za pobieranie nagrań z Twilio i ich przechowywanie w S3/MinIO.
@@ -66,6 +69,14 @@ public class TwilioRecordingDownloadService {
     private final S3Client s3Client;
     private final RecordingService recordingService;
     private final ContactRepository contactRepository;
+    private final ContactTranscriptionRepository transcriptionRepository;
+
+    /**
+     * Klient voicebota do transkrypcji Whisper.
+     * Wstrzykiwany jako Optional – dostępny tylko gdy {@code voicebot.enabled=true}.
+     * Gdy voicebot jest wyłączony, transkrypcja jest pomijana bez błędu.
+     */
+    private final Optional<VoicebotClient> voicebotClient;
 
     /**
      * Klient HTTP współdzielony w obrębie serwisu – tworzony raz w konstruktorze.
@@ -80,12 +91,16 @@ public class TwilioRecordingDownloadService {
             S3Properties s3Properties,
             S3Client s3Client,
             RecordingService recordingService,
-            ContactRepository contactRepository) {
+            ContactRepository contactRepository,
+            ContactTranscriptionRepository transcriptionRepository,
+            Optional<VoicebotClient> voicebotClient) {
         this.twilioProperties = twilioProperties;
         this.s3Properties = s3Properties;
         this.s3Client = s3Client;
         this.recordingService = recordingService;
         this.contactRepository = contactRepository;
+        this.transcriptionRepository = transcriptionRepository;
+        this.voicebotClient = voicebotClient;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(HTTP_CONNECT_TIMEOUT)
                 .build();
@@ -160,13 +175,15 @@ public class TwilioRecordingDownloadService {
             }
         }
 
+        TenantContext.setTenantId(tenantId);
         try {
             downloadAndStoreSync(twilioRecordingUrl, recordingSid, resolvedContactId, tenantId);
         } catch (Exception e) {
             log.error("[TwilioRecDownload] Błąd pobierania/uploadowania nagrania: " +
                       "contactId={}, recordingSid={}, tenantId={}, error={}",
                     resolvedContactId, recordingSid, tenantId, e.getMessage(), e);
-            // Nie rzucamy dalej – AsyncUncaughtExceptionHandler loguje, ale wątek nie propaguje
+        } finally {
+            TenantContext.clear();
         }
     }
 
@@ -250,6 +267,35 @@ public class TwilioRecordingDownloadService {
 
             log.info("[TwilioRecDownload] Nagranie zapisane w S3: contactId={}, s3Key={}, size={}B",
                     contactId, s3Key, Files.size(tempFile));
+
+            // 5. Transkrypcja nagrania przez Whisper (voicebot) – opcjonalna, nie przerywa flow
+            try {
+                if (voicebotClient.isPresent()) {
+                    byte[] audioBytes = Files.readAllBytes(tempFile);
+                    Optional<VoicebotClient.TranscribeResponse> transcriptOpt =
+                            voicebotClient.get().transcribeFull(audioBytes, "mp3");
+                    transcriptOpt.ifPresent(response -> {
+                        String transcript = response.transcript();
+                        if (transcript != null && !transcript.isBlank()) {
+                            transcriptionRepository.save(
+                                    contactId, tenantId, transcript, response.language());
+                            log.info("[TwilioRecDownload] Transkrypt zapisany w contact_transcription: " +
+                                     "contactId={}, language={}, length={}",
+                                    contactId, response.language(), transcript.length());
+                        } else {
+                            log.debug("[TwilioRecDownload] Pusty transkrypt – contact_transcription nie zaktualizowane: contactId={}",
+                                    contactId);
+                        }
+                    });
+                } else {
+                    log.debug("[TwilioRecDownload] Voicebot wyłączony (voicebot.enabled=false) – transkrypcja pominięta: contactId={}",
+                            contactId);
+                }
+            } catch (Exception e) {
+                log.warn("[TwilioRecDownload] Transkrypcja nie powiodła się (nagranie w S3, contact_transcription puste): " +
+                         "contactId={}, error={}", contactId, e.getMessage());
+                // Nie przerywaj – nagranie jest już w S3
+            }
 
         } finally {
             // Zawsze czyść plik tymczasowy

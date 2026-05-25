@@ -179,7 +179,8 @@
     "ivrEditor": "Edytor IVR",
     "oauthCallback": "OAuth Callback",
     "breadcrumbNav": "Ścieżka nawigacji",
-    "settingsTwilioConfig": "Integracja Twilio"
+    "settingsTwilioConfig": "Integracja Twilio",
+    "settingsAiConfig": "Konfiguracja AI"
   },
   "role": {
     "admin": "Admin",
@@ -2022,6 +2023,31 @@
         "saveSuccess": "Konfiguracja Twilio zapisana pomyślnie",
         "deleteSuccess": "Konfiguracja Twilio usunięta",
         "loadError": "Nie udało się załadować konfiguracji Twilio."
+      },
+      "aiConfig": {
+        "title": "Konfiguracja AI",
+        "subtitle": "Zarządzaj dostawcą AI do generowania podsumowań kontaktów.",
+        "noConfigTitle": "Brak konfiguracji AI",
+        "noConfigHint": "Skonfiguruj dostawcę AI, aby agenci mogli generować podsumowania kontaktów.",
+        "setupButton": "Skonfiguruj",
+        "providerLabel": "Dostawca AI",
+        "apiKeyLabel": "Klucz API",
+        "apiKeyPlaceholder": "Wpisz nowy klucz API",
+        "editSecretButton": "Zmień",
+        "modelNameLabel": "Nazwa modelu",
+        "modelNamePlaceholder": "np. claude-opus-4-7, gpt-4o",
+        "azureSectionTitle": "Ustawienia Azure OpenAI",
+        "azureEndpointLabel": "Azure Endpoint URL",
+        "azureDeploymentNameLabel": "Nazwa deployment",
+        "promptTemplateSectionTitle": "Prompt systemowy",
+        "summaryPromptLabel": "Prompt systemowy (opcjonalny)",
+        "summaryPromptPlaceholder": "Zostaw puste, aby użyć domyślnego promptu aplikacji.",
+        "dangerZoneTitle": "Strefa niebezpieczna",
+        "saveButton": "Zapisz konfigurację",
+        "cancelButton": "Anuluj",
+        "deleteButton": "Usuń konfigurację AI",
+        "deleteConfirm": "Czy na pewno chcesz usunąć konfigurację AI? Ta operacja jest nieodwracalna.",
+        "loadError": "Nie udało się załadować konfiguracji AI."
       },
       "twilioPhoneSelect": {
         "loading": "Pobieranie numerów...",

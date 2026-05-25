@@ -4430,8 +4430,10 @@ public List<ContactResponse> findByCampaignContactRecordId(UUID recordId, UUID c
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-038 (tabela `tenant_ai_config`), BE-055 (wzorzec `EncryptedStringConverter`)
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** BE-087, BE-088
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Zależy od:** DB-038
+**Blokuje:** BE-087
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
 **Opis:**
@@ -4450,11 +4452,11 @@ Encja JPA + repozytorium dla konfiguracji AI per tenant. Wzorzec identyczny jak 
    - `assertSameTenant()` przed każdym `save()`
 
 **Kryteria akceptacji:**
-- [ ] `TenantAiConfig` mapuje na tabelę `tenant_ai_config` z poprawnymi typami kolumn
-- [ ] `api_key_encrypted` w bazie jest szyfrowany (nie plaintext) — weryfikacja przez `SELECT api_key_encrypted FROM tenant_ai_config`
-- [ ] `findByTenantId()` zwraca `Optional.empty()` gdy brak konfiguracji dla tenanta
-- [ ] Multi-tenancy: `assertSameTenant()` rzuca wyjątek przy próbie zapisu dla innego tenanta
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `TenantAiConfig` mapuje na tabelę `tenant_ai_config` z poprawnymi typami kolumn
+- [x] `api_key_encrypted` w bazie jest szyfrowany (nie plaintext) — weryfikacja przez `SELECT api_key_encrypted FROM tenant_ai_config`
+- [x] `findByTenantId()` zwraca `Optional.empty()` gdy brak konfiguracji dla tenanta
+- [x] Multi-tenancy: `assertSameTenant()` rzuca wyjątek przy próbie zapisu dla innego tenanta
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4464,7 +4466,8 @@ Encja JPA + repozytorium dla konfiguracji AI per tenant. Wzorzec identyczny jak 
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-086
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
 **Blokuje:** BE-088, BE-089
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
@@ -4483,11 +4486,11 @@ Serwis zarządzania konfiguracją AI (`domain/service/TenantAiConfigService.java
 - `TenantAiConfigDecrypted` (nie eksponować przez REST): wszystkie pola z odszyfrowanym `apiKey`
 
 **Kryteria akceptacji:**
-- [ ] Upsert działa poprawnie: przy istniejącej konfiguracji UPDATE, przy braku INSERT
-- [ ] `apiKey` nigdy nie pojawia się w plaintext w `TenantAiConfigResponse` — zawsze maskowany
-- [ ] `getDecryptedConfig()` zwraca odszyfrowany klucz — weryfikacja w teście jednostkowym (nie przez REST)
-- [ ] Walidacja: `AZURE_OPENAI` bez `azureEndpoint` → `400 Bad Request`
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Upsert działa poprawnie: przy istniejącej konfiguracji UPDATE, przy braku INSERT
+- [x] `apiKey` nigdy nie pojawia się w plaintext w `TenantAiConfigResponse` — zawsze maskowany
+- [x] `getDecryptedConfig()` zwraca odszyfrowany klucz — weryfikacja w teście jednostkowym (nie przez REST)
+- [x] Walidacja: `AZURE_OPENAI` bez `azureEndpoint` → `400 Bad Request`
+- [x] `mvn verify -pl app` przechodzi (15 testów)
 
 ---
 
@@ -4497,7 +4500,8 @@ Serwis zarządzania konfiguracją AI (`domain/service/TenantAiConfigService.java
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-087
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
 **Blokuje:** FE-088
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
@@ -4517,13 +4521,13 @@ DELETE /api/supervisor/ai-config    → 204
 - Endpoint dodać do `SecurityConfig` i `TenantFilter.PUBLIC_PATH_PREFIXES` NIE — endpoint wymaga JWT
 
 **Kryteria akceptacji:**
-- [ ] `GET` zwraca 204 gdy brak konfiguracji, 200 z DTO gdy istnieje
-- [ ] `PUT` działa jako upsert — zwraca 200 z aktualnym stanem
-- [ ] `DELETE` usuwa konfigurację — kolejny `GET` zwraca 204
-- [ ] Agent (`ROLE_AGENT`) dostaje 403 na wszystkich endpointach
-- [ ] Inny tenant nie widzi konfiguracji (izolacja RLS + `TenantContext`)
-- [ ] Swagger: `@Operation` z opisem bezpieczeństwa kluczy API
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `GET` zwraca 204 gdy brak konfiguracji, 200 z DTO gdy istnieje
+- [x] `PUT` działa jako upsert — zwraca 200 z aktualnym stanem
+- [x] `DELETE` usuwa konfigurację — kolejny `GET` zwraca 204
+- [x] Agent (`ROLE_AGENT`) dostaje 403 na wszystkich endpointach
+- [x] Inny tenant nie widzi konfiguracji (izolacja RLS + `TenantContext`)
+- [x] Swagger: `@Operation` z opisem bezpieczeństwa kluczy API
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4532,8 +4536,9 @@ DELETE /api/supervisor/ai-config    → 204
 **Typ:** Backend implementation
 **Priorytet:** Must Have
 **Złożoność:** M
-**Zależy od:** BE-087 (TenantAiConfigService), DB-039 (kolumny `ai_summary` w `contact`)
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** BE-087 (TenantAiConfigService), DB-039 (kolumny `ai_summary` w `contact`), BE-091 (Python AI service)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
 **Blokuje:** BE-090
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
@@ -4579,14 +4584,14 @@ record AiSummarizeResponse(
 - `AiSummaryGenerationException` — błąd wywołania Python AI service (4xx/5xx/timeout) — nie retryować
 
 **Kryteria akceptacji:**
-- [ ] Kontakt nieistniejący → `404 Not Found`
-- [ ] Brak konfiguracji AI dla tenanta → `422 Unprocessable Entity` z opisowym komunikatem
-- [ ] Błąd Python AI service → `502 Bad Gateway` z komunikatem nie eksponującym klucza API
-- [ ] `contact.ai_summary` zapisany w bazie po pomyślnym wywołaniu
-- [ ] Klucz API (`apiKey`) nie pojawia się w logach aplikacji (maskowanie w MDC lub przez `@Sensitive`)
-- [ ] Timeout 30s — po przekroczeniu `AiSummaryGenerationException`
-- [ ] Test jednostkowy z zaślepionym HTTP client: happy path + błąd HTTP 500 z serwisu AI
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Kontakt nieistniejący → `404 Not Found`
+- [x] Brak konfiguracji AI dla tenanta → `422 Unprocessable Entity` z opisowym komunikatem
+- [x] Błąd Python AI service → `502 Bad Gateway` z komunikatem nie eksponującym klucza API
+- [x] `contact.ai_summary` zapisany w bazie po pomyślnym wywołaniu
+- [x] Klucz API (`apiKey`) nie pojawia się w logach aplikacji (maskowanie w MDC lub przez `@Sensitive`)
+- [x] Timeout 30s — po przekroczeniu `AiSummaryGenerationException`
+- [x] Test jednostkowy z zaślepionym HTTP client: happy path + błąd HTTP 500 z serwisu AI (8 testów)
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4596,8 +4601,9 @@ record AiSummarizeResponse(
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-089 (AiSummaryService)
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** FE-087
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-086
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
 **Opis:**
@@ -4621,12 +4627,12 @@ Response 502: błąd wywołania serwisu AI
 **Dodać do `SecurityConfig`:** `requestMatchers("/api/contacts/*/ai-summary").hasAnyRole("AGENT", "SUPERVISOR")`
 
 **Kryteria akceptacji:**
-- [ ] `POST /api/contacts/{contactId}/ai-summary` — poprawna odpowiedź 200 z polem `summary`
-- [ ] Kontakt z innego tenanta → 404 (nie 403 — nie ujawniamy istnienia)
-- [ ] Brak konfiguracji AI → 422 z czytelnym komunikatem dla agenta
-- [ ] Błąd serwisu AI → 502 — klucz API nie w odpowiedzi błędu
-- [ ] Po wywołaniu: `contact.ai_summary` zaktualizowany w bazie (weryfikacja przez `GET /api/contacts/{id}`)
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `POST /api/contacts/{contactId}/ai-summary` — poprawna odpowiedź 200 z polem `summary`
+- [x] Kontakt z innego tenanta → 404 (nie 403 — nie ujawniamy istnienia)
+- [x] Brak konfiguracji AI → 422 z czytelnym komunikatem dla agenta
+- [x] Błąd serwisu AI → 502 — klucz API nie w odpowiedzi błędu
+- [x] Po wywołaniu: `contact.ai_summary` zaktualizowany w bazie (weryfikacja przez `GET /api/contacts/{id}`)
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 
@@ -4636,7 +4642,8 @@ Response 502: błąd wywołania serwisu AI
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** Architektura Python AI service (ADR-06)
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
 **Blokuje:** BE-089
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
@@ -4685,11 +4692,12 @@ class SummarizeResponse(BaseModel):
 - Błąd SDK → HTTP 502 z `{"detail": "AI provider error: <sanitized message>"}` (nie eksponuj klucza)
 
 **Kryteria akceptacji:**
-- [ ] Endpoint `/ai/summarize` odpowiada 200 z poprawnym `SummarizeResponse`
-- [ ] Provider `ANTHROPIC`: używa `anthropic` SDK (`claude-*` modele)
-- [ ] Provider `OPENAI`: używa `openai` SDK (`gpt-*` modele)
-- [ ] Provider `AZURE_OPENAI`: używa `openai` SDK z `azure_endpoint` i `api_version`
-- [ ] `prompt_template = None` → użyty domyślny prompt
-- [ ] Błąd autoryzacji SDK (nieprawidłowy klucz) → HTTP 502, klucz nie w odpowiedzi
-- [ ] Timeout 25s — asyncio z `asyncio.wait_for`
-- [ ] `pytest` dla happy path każdego providera (mockowane SDK calls)
+- [x] Endpoint `/ai/summarize` odpowiada 200 z poprawnym `SummarizeResponse`
+- [x] Provider `ANTHROPIC`: używa `anthropic` SDK (`claude-*` modele)
+- [x] Provider `OPENAI`: używa `openai` SDK (`gpt-*` modele)
+- [x] Provider `AZURE_OPENAI`: używa `openai` SDK z `azure_endpoint` i `api_version`
+- [x] Provider `OPENROUTER`: obsługiwany przez dispatcher (dodany ponad zakres pierwotny)
+- [x] `prompt_template = None` → użyty domyślny prompt
+- [x] Błąd autoryzacji SDK (nieprawidłowy klucz) → HTTP 502, klucz nie w odpowiedzi
+- [x] Timeout 25s — asyncio z `asyncio.wait_for`
+- [x] `pytest` dla happy path każdego providera (mockowane SDK calls) — 9 testów

@@ -192,8 +192,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Voicebot – mikrousługa Python ASR+NLU (BE-014)
-  # Uruchamiana tylko z profilem ai: docker compose --profile ai up -d
-  # Whisper model "base" (~140MB RAM) – nie blokuj normalnego docker compose up -d
+  # Port: 8001
   # ---------------------------------------------------------------------------
   voicebot:
     build:
@@ -203,9 +202,11 @@ services:
     ports:
       - "8001:8001"
     environment:
-      REDIS_URL: redis://redis:6379
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
       WHISPER_MODEL: small
+    volumes:
+      - whisper_cache:/root/.cache/whisper
     depends_on:
       redis:
         condition: service_healthy
@@ -214,8 +215,6 @@ services:
     restart: unless-stopped
     networks:
       - cc-network
-    profiles:
-      - ai
 
 # =============================================================================
 # Volumes – persystencja danych między restartami
@@ -228,6 +227,7 @@ volumes:
   rabbitmq_data:
     driver: local
   minio_data:
+  whisper_cache:
     driver: local
   clickhouse_data:
     driver: local

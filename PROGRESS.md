@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-05-24 (EPIC-25 zakończony ✅; EPIC-26 zaplanowany ⬜; łączny stan: DB 37/39, BE 86/92, FE 71/75)
+**Ostatnia aktualizacja:** 2026-05-24 (EPIC-25 zakończony ✅; EPIC-26 zakończony ✅; łączny stan: DB 39/39, BE 92/92, FE 75/75)
 
 ---
 
@@ -56,8 +56,8 @@
 | DB-035 | Tabela `contact_event`: rejestracja etapów kontaktu (IVR, kolejka, agent, hold) | ✅ | V059__create_contact_event.sql. EPIC-25. |
 | DB-036 | Schemat przypisania agentów do kampanii: `all_agents`, `campaign_agent`, `campaign_agent_group` — migracja V062 | ✅ | V062__campaign_agent_assignment.sql. EPIC-25. |
 | DB-037 | Kolumna `campaign_contact_record_id` w tabeli `contact` — migracja V063 | ✅ | V063__add_campaign_contact_record_id_to_contact.sql. EPIC-25. |
-| DB-038 | Tabela `tenant_ai_config`: konfiguracja dostawcy AI per tenant — migracja V064 | ⬜ | EPIC-26 |
-| DB-039 | Kolumny AI summary w tabeli `contact` — migracja V065 | ⬜ | EPIC-26 |
+| DB-038 | Tabela `tenant_ai_config`: konfiguracja dostawcy AI per tenant — migracja V064 | ✅ | EPIC-26. V064: tabela tenant_ai_config (ENUM ai_provider: ANTHROPIC/OPENAI/AZURE_OPENAI/OPENROUTER, RLS, szyfrowanie AES-256-GCM). V066: ADD VALUE 'OPENROUTER' do ENUM ai_provider |
+| DB-039 | Kolumny AI summary w tabeli `contact` — migracja V065 | ✅ | EPIC-26. V065: kolumny ai_summary TEXT, ai_summary_model VARCHAR(100), ai_summary_generated_at TIMESTAMPTZ w tabeli contact |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -158,12 +158,12 @@
 | BE-083 | Guard: odrzucenie transferu OUTBOUND → QUEUE w endpoincie transferu | ✅ | Guard w AgentCallController. EPIC-25. |
 | BE-084 | Filtrowanie `GET /api/dialer/manual/records` według przypisania agenta do kampanii | ✅ | DialerController z filtrowaniem po przypisaniu agenta. EPIC-25. |
 | BE-085 | Powiązanie kontaktu z rekordem kampanii: zapis `campaign_contact_record_id` + endpoint historii | ✅ | DialerCallbackHandler zapisuje campaign_contact_record_id; CampaignContactHistoryController. EPIC-25. |
-| BE-086 | Encja `TenantAiConfig` + Repository + konwerter szyfrowania | ⬜ | EPIC-26 |
-| BE-087 | `TenantAiConfigService`: logika biznesowa konfiguracji AI | ⬜ | EPIC-26 |
-| BE-088 | `TenantAiConfigController`: REST API konfiguracji AI dla supervisora | ⬜ | EPIC-26 |
-| BE-089 | `AiSummaryService`: logika generowania podsumowania przez Python AI service | ⬜ | EPIC-26 |
-| BE-090 | Endpoint `POST /api/contacts/{contactId}/ai-summary` | ⬜ | EPIC-26 |
-| BE-091 | Python AI service: endpoint `/ai/summarize` | ⬜ | EPIC-26 |
+| BE-086 | Encja `TenantAiConfig` + Repository + konwerter szyfrowania | ✅ | EPIC-26. AiProvider enum, TenantAiConfig JPA, TenantAiConfigRepository |
+| BE-087 | `TenantAiConfigService`: logika biznesowa konfiguracji AI | ✅ | EPIC-26. upsert, masking apiKey, getDecryptedConfig, DTOs, 15 testów |
+| BE-088 | `TenantAiConfigController`: REST API konfiguracji AI dla supervisora | ✅ | EPIC-26. GET/PUT/DELETE /api/supervisor/ai-config (SUPERVISOR) |
+| BE-089 | `AiSummaryService`: logika generowania podsumowania przez Python AI service | ✅ | EPIC-26. AiSummaryClient (HTTP java.net.http, 30s timeout), orchestracja, GlobalExceptionHandler (422/502), 8 testów |
+| BE-090 | Endpoint `POST /api/contacts/{contactId}/ai-summary` | ✅ | EPIC-26. AGENT/SUPERVISOR/ADMIN, AiSummaryResponse DTO |
+| BE-091 | Python AI service: endpoint `/ai/summarize` | ✅ | EPIC-26. moduł summarize.py (Anthropic/OpenAI/Azure/OpenRouter dispatcher), 9 testów pytest |
 
 ---
 
@@ -256,10 +256,10 @@
 | FE-083 | Wyświetlenie stanu przypisania agentów na liście kampanii i w szczegółach | ✅ | Badge z liczbą przypisanych agentów w tabeli kampanii i kolejek. EPIC-25. |
 | FE-084 | Ukrycie zakładki „Kolejka" w panelu transferu dla połączeń wychodzących | ✅ | Zakładka Kolejka ukryta dla OUTBOUND. EPIC-25. |
 | FE-085 | Nawigacja z rekordu kampanii do historii kontaktów (prób wydzwonienia) | ✅ | campaign-contacts: expandedRecordId + getContactAttempts + contact-detail-modal. EPIC-25. |
-| FE-086 | `AiSummaryService`: serwis Angular do generowania podsumowania AI | ⬜ | EPIC-26 |
-| FE-087 | Przycisk „Generuj podsumowanie AI" na formularzu dyspozycji | ⬜ | EPIC-26 |
-| FE-088 | Panel konfiguracji dostawcy AI w ustawieniach supervisora | ⬜ | EPIC-26 |
-| FE-089 | Podsumowanie AI dla kanału email (widok obsługi emaila) | ⬜ | EPIC-26 |
+| FE-086 | `AiSummaryService`: serwis Angular do generowania podsumowania AI | ✅ | EPIC-26. generateSummary, AiConfigNotSetError 422, AiServiceUnavailableError 502 |
+| FE-087 | Przycisk „Generuj podsumowanie AI" na formularzu dyspozycji | ✅ | EPIC-26. sekcja AI na DispositionPanelComponent (sygnały, przycisk, spinner, textarea, error handling) |
+| FE-088 | Panel konfiguracji dostawcy AI w ustawieniach supervisora | ✅ | EPIC-26. AiConfigService, AiConfigComponent (4 providerzy, masking klucza, pola Azure warunkowe), routing /supervisor/settings/ai-config |
+| FE-089 | Podsumowanie AI dla kanału email (widok obsługi emaila) | ✅ | EPIC-26. AiSummaryPanelComponent (shared standalone), refaktor DispositionPanelComponent, integracja z EmailContactComponent |
 
 ---
 
@@ -267,18 +267,18 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 37 | 0 | 2 | 39 |
-| Backend (BE) | 86 | 0 | 6 | 92 |
-| Frontend (FE) | 71 | 0 | 4 | 75 |
-| **RAZEM** | **194** | **0** | **12** | **206** |
+| Database (DB) | 39 | 0 | 0 | 39 |
+| Backend (BE) | 92 | 0 | 0 | 92 |
+| Frontend (FE) | 75 | 0 | 0 | 75 |
+| **RAZEM** | **206** | **0** | **0** | **206** |
 
 ### Nie rozpoczęte wg EPIC
 
 | EPIC | DB | BE | FE | Razem |
 |------|----|----|-----|-------|
 | EPIC-25 Kampanie — refaktor i transfer | 0 | 0 | 0 | 0 ✅ |
-| EPIC-26 AI-Powered Conversation Summary | 2 | 6 | 4 | 12 |
-| **Łącznie** | **2** | **6** | **4** | **12** |
+| EPIC-26 AI-Powered Conversation Summary | 0 | 0 | 0 | 0 ✅ |
+| **Łącznie** | **0** | **0** | **0** | **0** |
 
 ---
 

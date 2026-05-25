@@ -50,3 +50,14 @@ class TurnResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class TranscribeRequest(BaseModel):
+    audio_base64: str = Field(..., description="MP3/WAV audio encoded as base64")
+    audio_format: str = Field(default="mp3", description="Audio format: mp3 or wav")
+
+
+class TranscribeResponse(BaseModel):
+    transcript: str = Field(..., description="Transcribed text (empty string when no speech detected)")
+    language: str = Field(..., description="Detected language code (e.g. pl, en)")
+    confidence: float = Field(..., description="Confidence score in range [0.0, 1.0]")

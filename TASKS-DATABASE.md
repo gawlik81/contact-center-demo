@@ -1691,8 +1691,9 @@ Dodatkowo: upewnić się że `campaign_contact.last_contact_id` będzie wypełni
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-002 (tabela `tenant`)
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** BE-086, BE-087, BE-088
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-086
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
 **Kontekst:**
@@ -1749,12 +1750,12 @@ COMMENT ON COLUMN tenant_ai_config.azure_endpoint IS
 ```
 
 **Kryteria akceptacji:**
-- [ ] Migracja V064 aplikuje się bez błędów na dev i test
-- [ ] ENUM `ai_provider` z wartościami `ANTHROPIC`, `OPENAI`, `AZURE_OPENAI`
-- [ ] UNIQUE constraint na `tenant_id` — max jedna konfiguracja per tenant
-- [ ] RLS policy izoluje dane między tenantami
-- [ ] Partial index `WHERE is_active` na `tenant_id`
-- [ ] Komentarze kolumn dokumentują szyfrowanie `api_key_encrypted`
+- [x] Migracja V064 aplikuje się bez błędów na dev i test
+- [x] ENUM `ai_provider` z wartościami `ANTHROPIC`, `OPENAI`, `AZURE_OPENAI` (+ `OPENROUTER` dodany w V066)
+- [x] UNIQUE constraint na `tenant_id` — max jedna konfiguracja per tenant
+- [x] RLS policy izoluje dane między tenantami
+- [x] Partial index `WHERE is_active` na `tenant_id`
+- [x] Komentarze kolumn dokumentują szyfrowanie `api_key_encrypted`
 
 ---
 
@@ -1764,8 +1765,9 @@ COMMENT ON COLUMN tenant_ai_config.azure_endpoint IS
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-006 (tabela `contact`)
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** BE-089, BE-090
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-089
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
 **Kontekst:**
@@ -1794,8 +1796,8 @@ COMMENT ON COLUMN contact.ai_summary_generated_at IS
 ```
 
 **Kryteria akceptacji:**
-- [ ] Migracja V065 aplikuje się bez błędów na dev i test
-- [ ] Trzy kolumny nullable: `ai_summary TEXT`, `ai_summary_model VARCHAR(100)`, `ai_summary_generated_at TIMESTAMPTZ`
-- [ ] Istniejące wiersze nie są naruszone (NULL backfill)
-- [ ] Partycjonowanie: `ADD COLUMN` aplikuje się na wszystkich partycjach (weryfikacja przez `SELECT count(*) FROM pg_attribute...`)
-- [ ] Komentarze kolumn dokumentują semantykę
+- [x] Migracja V065 aplikuje się bez błędów na dev i test
+- [x] Trzy kolumny nullable: `ai_summary TEXT`, `ai_summary_model VARCHAR(100)`, `ai_summary_generated_at TIMESTAMPTZ`
+- [x] Istniejące wiersze nie są naruszone (NULL backfill)
+- [x] Partycjonowanie: `ADD COLUMN` aplikuje się na wszystkich partycjach (weryfikacja przez `SELECT count(*) FROM pg_attribute...`)
+- [x] Komentarze kolumn dokumentują semantykę

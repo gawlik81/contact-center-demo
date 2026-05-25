@@ -4195,8 +4195,9 @@ readonly contactSelected = output<string>();
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-090 (endpoint `POST /api/contacts/{contactId}/ai-summary`)
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** FE-087, FE-089
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-087, FE-088, FE-089
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
 **Opis:**
@@ -4228,12 +4229,12 @@ export class AiSummaryService {
 - Inne: propaguj do komponentu
 
 **Kryteria akceptacji:**
-- [ ] Serwis wstrzykiwalny jako standalone (`providedIn: 'root'`)
-- [ ] `generateSummary()` zwraca `Observable<AiSummaryResponse>`
-- [ ] 422 → rzuca `AiConfigNotSetError` z komunikatem dla użytkownika
-- [ ] 502 → rzuca `AiServiceUnavailableError`
-- [ ] Testy jednostkowe Vitest: happy path + 422 + 502
-- [ ] `npm run lint`, `npm test` przechodzą
+- [x] Serwis wstrzykiwalny jako standalone (`providedIn: 'root'`)
+- [x] `generateSummary()` zwraca `Observable<AiSummaryResponse>`
+- [x] 422 → rzuca `AiConfigNotSetError` z komunikatem dla użytkownika
+- [x] 502 → rzuca `AiServiceUnavailableError`
+- [x] Testy jednostkowe Vitest: happy path + 422 + 502
+- [x] `npm run lint`, `npm test` przechodzą
 
 ---
 
@@ -4242,9 +4243,10 @@ export class AiSummaryService {
 **Typ:** Frontend implementation
 **Priorytet:** Must Have
 **Złożoność:** M
-**Zależy od:** FE-086 (AiSummaryService), istniejący komponent formularza dyspozycji
-**Status:** ⬜ Nie rozpoczęte
-**Blokuje:** —
+**Zależy od:** FE-086 (AiSummaryService)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-089
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
 **Opis:**
@@ -4328,14 +4330,14 @@ generateAiSummary(): void {
 **Zapis dyspozycji:** `aiSummary()` jest tylko informacyjne dla agenta — agent może edytować. Wartość tekstowa z textarea powinna być uwzględniona w payload zapisu dyspozycji (lub zapisana osobno przez serwis). Backend już przechowuje `contact.ai_summary` zapisany przez `BE-090` — w tym tasku frontend jedynie wyświetla wynik.
 
 **Kryteria akceptacji:**
-- [ ] Przycisk „Generuj podsumowanie AI" widoczny na formularzu dyspozycji gdy `contactId` jest dostępny
-- [ ] Kliknięcie przycisku → spinner + tekst „Generowanie…" + przycisk disabled
-- [ ] Po sukcesie: textarea z podsumowaniem + metadane (model, tokeny)
-- [ ] Agent może edytować treść w textarea przed zapisaniem dyspozycji
-- [ ] Błąd 422 → komunikat „Skonfiguruj dostawcę AI w ustawieniach"
-- [ ] Błąd 502 → komunikat „Serwis AI tymczasowo niedostępny"
-- [ ] Ponowne kliknięcie „Generuj" nadpisuje poprzednie podsumowanie
-- [ ] `npm run lint`, `npm test` przechodzą
+- [x] Przycisk „Generuj podsumowanie AI" widoczny na formularzu dyspozycji gdy `contactId` jest dostępny
+- [x] Kliknięcie przycisku → spinner + tekst „Generowanie…" + przycisk disabled
+- [x] Po sukcesie: textarea z podsumowaniem + metadane (model, tokeny)
+- [x] Agent może edytować treść w textarea przed zapisaniem dyspozycji
+- [x] Błąd 422 → komunikat „Skonfiguruj dostawcę AI w ustawieniach"
+- [x] Błąd 502 → komunikat „Serwis AI tymczasowo niedostępny"
+- [x] Ponowne kliknięcie „Generuj" nadpisuje poprzednie podsumowanie
+- [x] `npm run lint`, `npm test` przechodzą
 
 ---
 
@@ -4345,7 +4347,8 @@ generateAiSummary(): void {
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-088 (TenantAiConfigController), FE-086
-**Status:** ⬜ Nie rozpoczęte
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
 **Blokuje:** —
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
@@ -4420,13 +4423,13 @@ Nowa zakładka/sekcja „Konfiguracja AI" w panelu ustawień supervisora. Umożl
 - `deleteConfig(): Observable<void>`
 
 **Kryteria akceptacji:**
-- [ ] Formularz ładuje istniejącą konfigurację przy wejściu na stronę (404 → pusty formularz)
-- [ ] Pole „Klucz API" typu `password`; przy istniejącej konfiguracji wyświetla zamaskowany klucz `****xxxx`
-- [ ] Pola Azure widoczne tylko gdy wybrany dostawca `AZURE_OPENAI`
-- [ ] Zapis → toast sukcesu „Konfiguracja AI zapisana"
-- [ ] Usunięcie → potwierdzenie dialog → toast „Konfiguracja AI usunięta"
-- [ ] Walidacja: `provider` + `apiKey` + `modelName` wymagane; `azureEndpoint` wymagane dla Azure
-- [ ] `npm run lint`, `npm test` przechodzą
+- [x] Formularz ładuje istniejącą konfigurację przy wejściu na stronę (404 → pusty formularz)
+- [x] Pole „Klucz API" typu `password`; przy istniejącej konfiguracji wyświetla zamaskowany klucz `****xxxx`
+- [x] Pola Azure widoczne tylko gdy wybrany dostawca `AZURE_OPENAI`
+- [x] Zapis → toast sukcesu „Konfiguracja AI zapisana"
+- [x] Usunięcie → potwierdzenie dialog → toast „Konfiguracja AI usunięta"
+- [x] Walidacja: `provider` + `apiKey` + `modelName` wymagane; `azureEndpoint` wymagane dla Azure
+- [x] `npm run lint`, `npm test` przechodzą
 
 ---
 
@@ -4435,8 +4438,9 @@ Nowa zakładka/sekcja „Konfiguracja AI" w panelu ustawień supervisora. Umożl
 **Typ:** Frontend implementation
 **Priorytet:** Should Have
 **Złożoność:** S
-**Zależy od:** FE-086 (AiSummaryService), widok obsługi emaila przez agenta
-**Status:** ⬜ Nie rozpoczęte
+**Zależy od:** FE-086 (AiSummaryService), FE-087 (AiSummaryPanelComponent)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
 **Blokuje:** —
 **Epic:** EPIC-26 AI-Powered Conversation Summary
 
@@ -4450,8 +4454,8 @@ Rozszerzenie widoku obsługi kontaktu email przez agenta — analogiczny przycis
 **Współdzielenie kodu:** Wyodrębnij sekcję AI summary do **osobnego standalone komponentu** `AiSummaryPanelComponent` (`shared/components/ai-summary-panel/`), który przyjmuje `@Input() contactId: string` i enkapsuluje całą logikę sygnałów oraz UI. Użyj go zarówno w FE-087 (dyspozycja telefon) jak i w FE-089 (email).
 
 **Kryteria akceptacji:**
-- [ ] `AiSummaryPanelComponent` wyodrębniony jako standalone z `@Input() contactId`
-- [ ] FE-087 refaktoryzowany do użycia `AiSummaryPanelComponent`
-- [ ] Przycisk „Generuj podsumowanie AI" widoczny w widoku emaila gdy `contactId` jest dostępny
-- [ ] Zachowanie identyczne jak FE-087: spinner, textarea z wynikiem, obsługa błędów
-- [ ] `npm run lint`, `npm test` przechodzą
+- [x] `AiSummaryPanelComponent` wyodrębniony jako standalone z `@Input() contactId`
+- [x] FE-087 refaktoryzowany do użycia `AiSummaryPanelComponent`
+- [x] Przycisk „Generuj podsumowanie AI" widoczny w widoku emaila gdy `contactId` jest dostępny
+- [x] Zachowanie identyczne jak FE-087: spinner, textarea z wynikiem, obsługa błędów
+- [x] `npm run lint`, `npm test` przechodzą

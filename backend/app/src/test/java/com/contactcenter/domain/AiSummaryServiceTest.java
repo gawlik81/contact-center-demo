@@ -6,6 +6,7 @@ import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.AiProvider;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.ContactTranscriptionRepository;
 import com.contactcenter.domain.service.AiSummaryClient;
 import com.contactcenter.domain.service.AiSummaryService;
 import com.contactcenter.domain.service.TenantAiConfigDecrypted;
@@ -47,6 +48,9 @@ class AiSummaryServiceTest {
     private ContactRepository contactRepository;
 
     @Mock
+    private ContactTranscriptionRepository transcriptionRepository;
+
+    @Mock
     private TenantAiConfigService aiConfigService;
 
     @Mock
@@ -82,12 +86,14 @@ class AiSummaryServiceTest {
         void generateSummary_phoneChannel_savesAndReturnsResult() {
             // given
             Contact contact = buildContact("PHONE");
-            contact.setNotes("Klient pytał o status zamówienia nr 12345.");
 
             when(contactRepository.findById(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.of(validAiConfig));
+            // transkrypcja pochodzi teraz z contact_transcription, nie z notes
+            when(transcriptionRepository.findContentByContactId(CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of("Klient pytał o status zamówienia nr 12345."));
             AiSummaryClient.AiSummarizeResponse clientResponse =
                     new AiSummaryClient.AiSummarizeResponse("Klient pytał o status zamówienia.", "gpt-4o", 120);
             when(aiSummaryClient.summarize(any(AiSummaryClient.AiSummarizeRequest.class)))
@@ -143,16 +149,18 @@ class AiSummaryServiceTest {
         }
 
         @Test
-        @DisplayName("PHONE bez notatek: content = '[Brak transkrypcji/notatek]'")
+        @DisplayName("PHONE bez transkrypcji: content = '[Brak transkrypcji rozmowy]'")
         void generateSummary_phoneNoNotes_usesFallbackContent() {
             // given
             Contact contact = buildContact("PHONE");
-            contact.setNotes(null);
 
             when(contactRepository.findById(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.of(validAiConfig));
+            // brak transkrypcji w contact_transcription → fallback
+            when(transcriptionRepository.findContentByContactId(CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.empty());
             when(aiSummaryClient.summarize(any()))
                     .thenReturn(new AiSummaryClient.AiSummarizeResponse("Brak treści.", "gpt-4o", 20));
             doNothing().when(contactRepository)
@@ -165,7 +173,7 @@ class AiSummaryServiceTest {
             ArgumentCaptor<AiSummaryClient.AiSummarizeRequest> reqCaptor =
                     ArgumentCaptor.forClass(AiSummaryClient.AiSummarizeRequest.class);
             verify(aiSummaryClient).summarize(reqCaptor.capture());
-            assertThat(reqCaptor.getValue().content()).isEqualTo("[Brak transkrypcji/notatek]");
+            assertThat(reqCaptor.getValue().content()).isEqualTo("[Brak transkrypcji rozmowy]");
         }
     }
 
@@ -214,11 +222,12 @@ class AiSummaryServiceTest {
         void generateSummary_clientThrows_exceptionPropagated() {
             // given
             Contact contact = buildContact("PHONE");
-            contact.setNotes("Notatka agenta.");
             when(contactRepository.findById(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.of(validAiConfig));
+            when(transcriptionRepository.findContentByContactId(CONTACT_ID, TENANT_ID))
+                    .thenReturn(Optional.of("Notatka agenta."));
             when(aiSummaryClient.summarize(any()))
                     .thenThrow(new AiSummaryGenerationException("Serwis AI zwrócił błąd HTTP 503"));
 

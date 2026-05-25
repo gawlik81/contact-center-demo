@@ -822,7 +822,7 @@ public class ContactController {
     @Operation(
         summary = "Generuj podsumowanie AI dla kontaktu",
         description = "Wywołuje serwis AI w celu wygenerowania podsumowania kontaktu. " +
-                      "Wynik jest zapisywany w contact.ai_summary. " +
+                      "Wynik jest zapisywany w tabeli contact_ai_summary. " +
                       "Wielokrotne wywołanie nadpisuje poprzednie podsumowanie.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Podsumowanie wygenerowane"),

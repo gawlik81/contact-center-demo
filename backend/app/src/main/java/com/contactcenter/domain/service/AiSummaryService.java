@@ -3,7 +3,9 @@ package com.contactcenter.domain.service;
 import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.ContactAiSummary;
 import com.contactcenter.domain.model.EmailMessage;
+import com.contactcenter.domain.repository.ContactAiSummaryRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ContactTranscriptionRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
@@ -26,7 +28,7 @@ import java.util.UUID;
  *   <li>Pobranie odszyfrowanej konfiguracji AI dla tenanta.</li>
  *   <li>Wyodrębnienie treści zależnie od kanału kontaktu.</li>
  *   <li>Wywołanie {@link AiSummaryClient} (serwis Python).</li>
- *   <li>Zapis wyniku (summary, modelUsed, timestamp) do bazy przez {@link ContactRepository#updateAiSummary}.</li>
+ *   <li>Zapis wyniku (summary, modelUsed, timestamp) do tabeli {@code contact_ai_summary} przez {@link com.contactcenter.domain.repository.ContactAiSummaryRepository#save}.</li>
  * </ol>
  *
  * <p>Nie implementuje kontrolera – ten zostanie dodany w BE-090.
@@ -41,6 +43,7 @@ public class AiSummaryService {
     private final EmailMessageRepository emailMessageRepository;
     private final TenantAiConfigService aiConfigService;
     private final AiSummaryClient aiSummaryClient;
+    private final ContactAiSummaryRepository aiSummaryRepository;
 
     // =========================================================================
     // Record wynikowy
@@ -108,10 +111,18 @@ public class AiSummaryService {
 
         AiSummaryClient.AiSummarizeResponse response = aiSummaryClient.summarize(request);
 
-        // 5. Zapisz wynik w bazie
+        // 5. Zapisz wynik w tabeli contact_ai_summary
         Instant now = Instant.now();
-        contactRepository.updateAiSummary(
-                contactId, tenantId, response.summary(), response.modelUsed(), now);
+        ContactAiSummary aiSummary = ContactAiSummary.builder()
+                .aiSummaryId(UUID.randomUUID())
+                .contactId(contactId)
+                .tenantId(tenantId)
+                .summary(response.summary())
+                .model(response.modelUsed())
+                .generatedAt(now)
+                .createdAt(now)
+                .build();
+        aiSummaryRepository.save(aiSummary);
 
         log.info("[AiSummaryService] Podsumowanie zapisane: contactId={}, model={}, tokens={}",
                 contactId, response.modelUsed(), response.tokensUsed());

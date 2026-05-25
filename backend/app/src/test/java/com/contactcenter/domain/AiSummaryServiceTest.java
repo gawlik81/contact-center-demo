@@ -5,8 +5,11 @@ import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.AiProvider;
 import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.ContactAiSummary;
+import com.contactcenter.domain.repository.ContactAiSummaryRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ContactTranscriptionRepository;
+import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.service.AiSummaryClient;
 import com.contactcenter.domain.service.AiSummaryService;
 import com.contactcenter.domain.service.TenantAiConfigDecrypted;
@@ -23,7 +26,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -51,10 +58,16 @@ class AiSummaryServiceTest {
     private ContactTranscriptionRepository transcriptionRepository;
 
     @Mock
+    private EmailMessageRepository emailMessageRepository;
+
+    @Mock
     private TenantAiConfigService aiConfigService;
 
     @Mock
     private AiSummaryClient aiSummaryClient;
+
+    @Mock
+    private ContactAiSummaryRepository aiSummaryRepository;
 
     @InjectMocks
     private AiSummaryService aiSummaryService;
@@ -98,8 +111,7 @@ class AiSummaryServiceTest {
                     new AiSummaryClient.AiSummarizeResponse("Klient pytał o status zamówienia.", "gpt-4o", 120);
             when(aiSummaryClient.summarize(any(AiSummaryClient.AiSummarizeRequest.class)))
                     .thenReturn(clientResponse);
-            doNothing().when(contactRepository)
-                    .updateAiSummary(eq(CONTACT_ID), eq(TENANT_ID), anyString(), anyString(), any(Instant.class));
+            doNothing().when(aiSummaryRepository).save(any(ContactAiSummary.class));
 
             // when
             AiSummaryService.AiSummaryResult result = aiSummaryService.generateSummary(CONTACT_ID, TENANT_ID);
@@ -109,43 +121,41 @@ class AiSummaryServiceTest {
             assertThat(result.modelUsed()).isEqualTo("gpt-4o");
             assertThat(result.tokensUsed()).isEqualTo(120);
 
-            // updateAiSummary musi zostać wywołane raz z poprawnymi argumentami
-            ArgumentCaptor<String> summaryCaptor = ArgumentCaptor.forClass(String.class);
-            ArgumentCaptor<String> modelCaptor   = ArgumentCaptor.forClass(String.class);
-            verify(contactRepository, times(1))
-                    .updateAiSummary(eq(CONTACT_ID), eq(TENANT_ID),
-                            summaryCaptor.capture(), modelCaptor.capture(), any(Instant.class));
-            assertThat(summaryCaptor.getValue()).isEqualTo("Klient pytał o status zamówienia.");
-            assertThat(modelCaptor.getValue()).isEqualTo("gpt-4o");
+            // aiSummaryRepository.save() musi zostać wywołane raz z poprawnymi argumentami
+            ArgumentCaptor<ContactAiSummary> captor = ArgumentCaptor.forClass(ContactAiSummary.class);
+            verify(aiSummaryRepository, times(1)).save(captor.capture());
+            assertThat(captor.getValue().getSummary()).isEqualTo("Klient pytał o status zamówienia.");
+            assertThat(captor.getValue().getModel()).isEqualTo("gpt-4o");
+            assertThat(captor.getValue().getContactId()).isEqualTo(CONTACT_ID);
+            assertThat(captor.getValue().getTenantId()).isEqualTo(TENANT_ID);
         }
 
         @Test
-        @DisplayName("EMAIL: treść pobierana z channelMetadata['body']")
+        @DisplayName("EMAIL: treść pobierana z emailMessageRepository (brak wiadomości → fallback)")
         void generateSummary_emailChannel_usesChannelMetadataBody() {
             // given
             Contact contact = buildContact("EMAIL");
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("body", "Dzień dobry, chciałem zgłosić reklamację.");
-            contact.setChannelMetadata(metadata);
+            contact.setChannelMetadata(new HashMap<>());
 
             when(contactRepository.findById(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.of(validAiConfig));
+            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any()))
+                    .thenReturn(new PageImpl<>(Collections.emptyList()));
             when(aiSummaryClient.summarize(any()))
-                    .thenReturn(new AiSummaryClient.AiSummarizeResponse("Reklamacja klienta.", "gpt-4o", 80));
-            doNothing().when(contactRepository)
-                    .updateAiSummary(any(), any(), any(), any(), any());
+                    .thenReturn(new AiSummaryClient.AiSummarizeResponse("Brak emaili.", "gpt-4o", 20));
+            doNothing().when(aiSummaryRepository).save(any(ContactAiSummary.class));
 
             // when
             aiSummaryService.generateSummary(CONTACT_ID, TENANT_ID);
 
-            // then: weryfikacja że client dostał treść z body
+            // then: content fallback gdy brak wiadomości email
             ArgumentCaptor<AiSummaryClient.AiSummarizeRequest> reqCaptor =
                     ArgumentCaptor.forClass(AiSummaryClient.AiSummarizeRequest.class);
             verify(aiSummaryClient).summarize(reqCaptor.capture());
             assertThat(reqCaptor.getValue().content())
-                    .isEqualTo("Dzień dobry, chciałem zgłosić reklamację.");
+                    .isEqualTo("[Brak treści emaila]");
         }
 
         @Test
@@ -163,8 +173,7 @@ class AiSummaryServiceTest {
                     .thenReturn(Optional.empty());
             when(aiSummaryClient.summarize(any()))
                     .thenReturn(new AiSummaryClient.AiSummarizeResponse("Brak treści.", "gpt-4o", 20));
-            doNothing().when(contactRepository)
-                    .updateAiSummary(any(), any(), any(), any(), any());
+            doNothing().when(aiSummaryRepository).save(any(ContactAiSummary.class));
 
             // when
             aiSummaryService.generateSummary(CONTACT_ID, TENANT_ID);
@@ -237,8 +246,7 @@ class AiSummaryServiceTest {
                     .hasMessageContaining("HTTP 503");
 
             // baza nie powinna być aktualizowana
-            verify(contactRepository, never())
-                    .updateAiSummary(any(), any(), any(), any(), any());
+            verify(aiSummaryRepository, never()).save(any(ContactAiSummary.class));
         }
     }
 
@@ -264,14 +272,17 @@ class AiSummaryServiceTest {
         }
 
         @Test
-        @DisplayName("EMAIL bez body i content: fallback '[Brak treści kontaktu]'")
+        @DisplayName("EMAIL bez wiadomości: fallback '[Brak treści emaila]'")
         void extractContent_emailNoBodyContent_returnsFallback() {
             Contact contact = buildContact("EMAIL");
             contact.setChannelMetadata(new HashMap<>());
+            // extractContent(Contact, UUID) z tenantId=null → emailMessageRepository zwraca pustą stronę
+            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), any(), any()))
+                    .thenReturn(new PageImpl<>(Collections.emptyList()));
 
             String result = aiSummaryService.extractContent(contact);
 
-            assertThat(result).isEqualTo("[Brak treści kontaktu]");
+            assertThat(result).isEqualTo("[Brak treści emaila]");
         }
     }
 

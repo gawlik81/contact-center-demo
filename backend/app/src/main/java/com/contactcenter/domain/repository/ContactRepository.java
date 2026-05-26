@@ -1814,6 +1814,42 @@ public class ContactRepository extends TenantAwareRepository {
         .getSingleResult();
   }
 
+  /**
+   * Zapisuje transkrypt nagrania (Whisper) do pola {@code notes} kontaktu.
+   *
+   * <p>Dedykowany natywny UPDATE – nie ładuje całej encji do pamięci.
+   * Analogicznie do {@link #updateConferenceSidInMetadata} i {@link #updateRecordingUrl}.
+   *
+   * <p>Wywoływany przez {@link TwilioRecordingDownloadService} po pomyślnej transkrypcji
+   * nagrania przez voicebot Whisper. Błąd jest logowany przez calling service –
+   * ta metoda rzuca wyjątek gdy kontakt nie istnieje.
+   *
+   * @param contactId UUID kontaktu
+   * @param tenantId  UUID tenanta (cross-tenant safety)
+   * @param notes     treść transkryptu do zapisania
+   * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy kontakt nie istnieje
+   */
+  @Transactional
+  public void updateNotes(UUID contactId, UUID tenantId, String notes) {
+    assertSameTenant(tenantId);
+    setTenantContextInDb(tenantId);
+
+    int updated = jdbcTemplate.update("""
+            UPDATE contact
+               SET notes      = ?,
+                   updated_at = NOW()
+             WHERE contact_id = ?::uuid
+               AND tenant_id  = ?::uuid
+            """,
+        notes, contactId.toString(), tenantId.toString());
+
+    if (updated == 0) {
+      throw new com.contactcenter.domain.exception.ResourceNotFoundException(
+          "Kontakt nie istnieje: " + contactId);
+    }
+    log.debug("[ContactRepo] Zaktualizowano notes (transkrypt): contactId={}, length={}", contactId, notes.length());
+  }
+
   // =========================================================================
   // Inner records
   // =========================================================================

@@ -4419,3 +4419,285 @@ public List<ContactResponse> findByCampaignContactRecordId(UUID recordId, UUID c
 - [ ] Redis backward compat: stary format (4 części) obsługiwany przez `DialerCallbackHandler`
 - [ ] Test jednostkowy: `DialerCallbackHandlerTest` — hangup z 5-elementowym Redis state
 - [ ] `mvn verify -pl app` przechodzi
+
+---
+
+## EPIC-26: AI-Powered Conversation Summary
+
+### BE-086 – Encja `TenantAiConfig` + Repository + konwerter szyfrowania
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-038 (tabela `tenant_ai_config`), BE-055 (wzorzec `EncryptedStringConverter`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Zależy od:** DB-038
+**Blokuje:** BE-087
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Encja JPA + repozytorium dla konfiguracji AI per tenant. Wzorzec identyczny jak `TenantTwilioConfig` (BE-055) — `api_key_encrypted` annotowane `@Convert(converter = EncryptedStringConverter.class)`.
+
+**Komponenty:**
+
+1. **`AiProvider`** (`domain/model/AiProvider.java`) — ENUM: `ANTHROPIC`, `OPENAI`, `AZURE_OPENAI`
+
+2. **`TenantAiConfig`** (`domain/model/TenantAiConfig.java`) — encja JPA:
+   - Pola: `id`, `tenantId`, `provider` (AiProvider), `apiKeyEncrypted` (zaszyfrowany `@Convert`), `modelName`, `azureEndpoint`, `azureDeploymentName`, `summaryPromptTemplate`, `isActive`, `createdAt`, `updatedAt`
+   - `@PreUpdate` ustawia `updatedAt = Instant.now()`
+
+3. **`TenantAiConfigRepository`** (`domain/repository/TenantAiConfigRepository.java`) — rozszerza `TenantAwareRepository`:
+   - `findByTenantId(UUID tenantId): Optional<TenantAiConfig>`
+   - `assertSameTenant()` przed każdym `save()`
+
+**Kryteria akceptacji:**
+- [x] `TenantAiConfig` mapuje na tabelę `tenant_ai_config` z poprawnymi typami kolumn
+- [x] `api_key_encrypted` w bazie jest szyfrowany (nie plaintext) — weryfikacja przez `SELECT api_key_encrypted FROM tenant_ai_config`
+- [x] `findByTenantId()` zwraca `Optional.empty()` gdy brak konfiguracji dla tenanta
+- [x] Multi-tenancy: `assertSameTenant()` rzuca wyjątek przy próbie zapisu dla innego tenanta
+- [x] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-087 – `TenantAiConfigService`: logika biznesowa konfiguracji AI
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-086
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-088, BE-089
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Serwis zarządzania konfiguracją AI (`domain/service/TenantAiConfigService.java`).
+
+**Metody:**
+- `saveConfig(UUID tenantId, TenantAiConfigRequest request): TenantAiConfigResponse` — upsert; waliduje `modelName` (nie pusty), dla `AZURE_OPENAI` wymaga `azureEndpoint` i `azureDeploymentName`
+- `getConfig(UUID tenantId): Optional<TenantAiConfigResponse>` — z maskowaniem `apiKey` w response DTO (pokazuj tylko ostatnie 4 znaki: `****xxxx`)
+- `getDecryptedConfig(UUID tenantId): Optional<TenantAiConfigDecrypted>` — package-private, pełne odszyfrowane dane dla `AiSummaryService`; nie eksponować przez REST
+- `deleteConfig(UUID tenantId): void`
+
+**DTO (records):**
+- `TenantAiConfigRequest`: `provider` (AiProvider), `apiKey` (plaintext — nigdy nie zapisywać bez szyfrowania), `modelName`, `azureEndpoint`?, `azureDeploymentName`?, `summaryPromptTemplate`?
+- `TenantAiConfigResponse`: wszystkie pola + `isActive`, `createdAt`, `updatedAt` — `apiKey` zamaskowane
+- `TenantAiConfigDecrypted` (nie eksponować przez REST): wszystkie pola z odszyfrowanym `apiKey`
+
+**Kryteria akceptacji:**
+- [x] Upsert działa poprawnie: przy istniejącej konfiguracji UPDATE, przy braku INSERT
+- [x] `apiKey` nigdy nie pojawia się w plaintext w `TenantAiConfigResponse` — zawsze maskowany
+- [x] `getDecryptedConfig()` zwraca odszyfrowany klucz — weryfikacja w teście jednostkowym (nie przez REST)
+- [x] Walidacja: `AZURE_OPENAI` bez `azureEndpoint` → `400 Bad Request`
+- [x] `mvn verify -pl app` przechodzi (15 testów)
+
+---
+
+### BE-088 – `TenantAiConfigController`: REST API konfiguracji AI dla supervisora
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-087
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-088
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Kontroler REST eksponujący zarządzanie konfiguracją AI dla roli SUPERVISOR w kontekście własnego tenanta.
+
+**Endpointy (`/api/supervisor/ai-config`):**
+```
+GET    /api/supervisor/ai-config    → 200 TenantAiConfigResponse | 204 (brak konfiguracji)
+PUT    /api/supervisor/ai-config    → 200 TenantAiConfigResponse (upsert)
+DELETE /api/supervisor/ai-config    → 204
+```
+
+**Wymagania bezpieczeństwa:**
+- Wymagana rola `ROLE_SUPERVISOR`
+- `tenantId` pochodzi z `TenantContext` — nie z parametru URL (izolacja multi-tenant)
+- Endpoint dodać do `SecurityConfig` i `TenantFilter.PUBLIC_PATH_PREFIXES` NIE — endpoint wymaga JWT
+
+**Kryteria akceptacji:**
+- [x] `GET` zwraca 204 gdy brak konfiguracji, 200 z DTO gdy istnieje
+- [x] `PUT` działa jako upsert — zwraca 200 z aktualnym stanem
+- [x] `DELETE` usuwa konfigurację — kolejny `GET` zwraca 204
+- [x] Agent (`ROLE_AGENT`) dostaje 403 na wszystkich endpointach
+- [x] Inny tenant nie widzi konfiguracji (izolacja RLS + `TenantContext`)
+- [x] Swagger: `@Operation` z opisem bezpieczeństwa kluczy API
+- [x] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-089 – `AiSummaryService`: logika generowania podsumowania przez Python AI service
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-087 (TenantAiConfigService), DB-039 (kolumny `ai_summary` w `contact`), BE-091 (Python AI service)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-090
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Serwis orchestrujący generowanie podsumowania AI dla kontaktu. Wywołuje Python AI service (FastAPI) przez REST, zapisuje wynik w `contact.ai_summary`.
+
+**Przepływ:**
+1. Pobierz kontakt z bazy — rzuć `ContactNotFoundException` jeśli nie istnieje
+2. Pobierz `TenantAiConfigDecrypted` — rzuć `AiConfigNotFoundException` jeśli brak konfiguracji
+3. Wyodrębnij zawartość do podsumowania zależnie od kanału:
+   - `PHONE`: `contact.notes` (transkrypcja/notatki agenta) + metadane (czas trwania, queue)
+   - `EMAIL`: treść emaila z `email.body` (relacja przez `contact.email_id`)
+   - `SOCIAL_MEDIA`: wątki wiadomości z `social_message` (relacja przez `contact.social_integration_id`)
+4. Zbuduj payload `AiSummarizeRequest` i wywołaj `POST {ai_service_url}/ai/summarize`
+5. Zapisz wynik: `contact.ai_summary`, `contact.ai_summary_model`, `contact.ai_summary_generated_at = NOW()`
+6. Zwróć `AiSummaryResponse`
+
+**HTTP client do Python AI service:**
+Użyj istniejącego `RestTemplate` lub `WebClient` — zgodnie ze wzorcem stosowanym w projekcie dla innych wywołań serwisów zewnętrznych. Timeout: 30s (generowanie może być wolne).
+
+**DTO komunikacji ze Spring → Python AI service:**
+```java
+record AiSummarizeRequest(
+    String channel,         // PHONE | EMAIL | SOCIAL_MEDIA
+    String content,         // treść do podsumowania
+    String provider,        // ANTHROPIC | OPENAI | AZURE_OPENAI
+    String apiKey,          // odszyfrowany klucz — tylko przez sieć wewnętrzną
+    String modelName,
+    String azureEndpoint,   // null dla non-Azure
+    String deploymentName,  // null dla non-Azure
+    String promptTemplate   // null = użyj domyślnego w Python service
+) {}
+
+record AiSummarizeResponse(
+    String summary,
+    String modelUsed,
+    int tokensUsed
+) {}
+```
+
+**Wyjątki:**
+- `AiConfigNotFoundException` — brak konfiguracji AI dla tenanta
+- `AiSummaryGenerationException` — błąd wywołania Python AI service (4xx/5xx/timeout) — nie retryować
+
+**Kryteria akceptacji:**
+- [x] Kontakt nieistniejący → `404 Not Found`
+- [x] Brak konfiguracji AI dla tenanta → `422 Unprocessable Entity` z opisowym komunikatem
+- [x] Błąd Python AI service → `502 Bad Gateway` z komunikatem nie eksponującym klucza API
+- [x] `contact.ai_summary` zapisany w bazie po pomyślnym wywołaniu
+- [x] Klucz API (`apiKey`) nie pojawia się w logach aplikacji (maskowanie w MDC lub przez `@Sensitive`)
+- [x] Timeout 30s — po przekroczeniu `AiSummaryGenerationException`
+- [x] Test jednostkowy z zaślepionym HTTP client: happy path + błąd HTTP 500 z serwisu AI (8 testów)
+- [x] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-090 – Endpoint `POST /api/contacts/{contactId}/ai-summary`
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-089 (AiSummaryService)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-086
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Endpoint REST wywoływany przez agenta z formularza dyspozycji. Deleguje do `AiSummaryService`, zwraca wygenerowane podsumowanie.
+
+```
+POST /api/contacts/{contactId}/ai-summary
+Role: AGENT, SUPERVISOR
+Body: brak (contactId w path wystarczy)
+Response 200: AiSummaryResponse { summary, modelUsed, tokensUsed }
+Response 404: kontakt nie istnieje
+Response 422: brak konfiguracji AI dla tenanta
+Response 502: błąd wywołania serwisu AI
+```
+
+**Wymagania:**
+- Kontakt musi należeć do tenanta z `TenantContext` — izolacja multi-tenant
+- Agent może wygenerować podsumowanie dowolnego kontaktu swojego tenanta (nie tylko własnego) — SUPERVISOR i AGENT mają dostęp
+- Wywołanie idempotentne — wielokrotne wywołanie nadpisuje poprzednie `ai_summary` (brak blokady)
+
+**Dodać do `SecurityConfig`:** `requestMatchers("/api/contacts/*/ai-summary").hasAnyRole("AGENT", "SUPERVISOR")`
+
+**Kryteria akceptacji:**
+- [x] `POST /api/contacts/{contactId}/ai-summary` — poprawna odpowiedź 200 z polem `summary`
+- [x] Kontakt z innego tenanta → 404 (nie 403 — nie ujawniamy istnienia)
+- [x] Brak konfiguracji AI → 422 z czytelnym komunikatem dla agenta
+- [x] Błąd serwisu AI → 502 — klucz API nie w odpowiedzi błędu
+- [x] Po wywołaniu: `contact.ai_summary` zaktualizowany w bazie (weryfikacja przez `GET /api/contacts/{id}`)
+- [x] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-091 – Python AI service: endpoint `/ai/summarize`
+
+**Typ:** Backend implementation (Python FastAPI)
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** Architektura Python AI service (ADR-06)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-089
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Nowy endpoint w istniejącym Python FastAPI AI service. Przyjmuje request z danymi kontaktu i konfiguracją dostawcy, wywołuje wybrany model AI, zwraca podsumowanie.
+
+**Endpoint:**
+```
+POST /ai/summarize
+Internal network only — nie eksponować publicznie
+```
+
+**Pydantic modele:**
+```python
+class AiProvider(str, Enum):
+    ANTHROPIC = "ANTHROPIC"
+    OPENAI = "OPENAI"
+    AZURE_OPENAI = "AZURE_OPENAI"
+
+class SummarizeRequest(BaseModel):
+    channel: str                    # PHONE | EMAIL | SOCIAL_MEDIA
+    content: str                    # treść do podsumowania
+    provider: AiProvider
+    api_key: str
+    model_name: str
+    azure_endpoint: str | None = None
+    deployment_name: str | None = None
+    prompt_template: str | None = None  # None = użyj domyślnego
+
+class SummarizeResponse(BaseModel):
+    summary: str
+    model_used: str
+    tokens_used: int
+```
+
+**Logika:**
+- Domyślny prompt systemowy (gdy `prompt_template` is None):
+  ```
+  You are an expert contact center assistant. Summarize the following {channel} contact
+  in 3-5 sentences. Focus on: customer issue, resolution outcome, and any follow-up actions.
+  Reply in the same language as the content.
+  ```
+- Dispatcher na podstawie `provider`: `AnthropicSummarizer`, `OpenAiSummarizer`, `AzureOpenAiSummarizer`
+- Każdy summarizer używa oficjalnego SDK: `anthropic` / `openai`
+- Timeout: 25s (Spring timeout 30s — Python musi zdążyć odpowiedzieć wcześniej)
+- Błąd SDK → HTTP 502 z `{"detail": "AI provider error: <sanitized message>"}` (nie eksponuj klucza)
+
+**Kryteria akceptacji:**
+- [x] Endpoint `/ai/summarize` odpowiada 200 z poprawnym `SummarizeResponse`
+- [x] Provider `ANTHROPIC`: używa `anthropic` SDK (`claude-*` modele)
+- [x] Provider `OPENAI`: używa `openai` SDK (`gpt-*` modele)
+- [x] Provider `AZURE_OPENAI`: używa `openai` SDK z `azure_endpoint` i `api_version`
+- [x] Provider `OPENROUTER`: obsługiwany przez dispatcher (dodany ponad zakres pierwotny)
+- [x] `prompt_template = None` → użyty domyślny prompt
+- [x] Błąd autoryzacji SDK (nieprawidłowy klucz) → HTTP 502, klucz nie w odpowiedzi
+- [x] Timeout 25s — asyncio z `asyncio.wait_for`
+- [x] `pytest` dla happy path każdego providera (mockowane SDK calls) — 9 testów

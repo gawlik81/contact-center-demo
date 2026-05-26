@@ -136,6 +136,12 @@ export const SUPERVISOR_ROUTES: Routes = [
                 (m) => m.TwilioConfigComponent,
               ),
           },
+          {
+            path: 'ai-config',
+            data: { breadcrumb: 'nav.settingsAiConfig' },
+            loadComponent: () =>
+              import('./pages/ai-config/ai-config.component').then((m) => m.AiConfigComponent),
+          },
         ],
       },
       {

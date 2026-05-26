@@ -14,6 +14,7 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
+import com.contactcenter.domain.service.AiSummaryService;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.security.TenantContext;
 import org.springframework.security.access.AccessDeniedException;
@@ -35,6 +36,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.contactcenter.api.contact.dto.AiSummaryResponse;
 import com.contactcenter.api.contact.dto.ContactEventResponse;
 import com.contactcenter.api.contact.dto.EmailPreviewResponse;
 import com.contactcenter.api.contact.dto.RelatedItem;
@@ -81,6 +83,7 @@ public class ContactController {
     private final ContactService contactService;
     private final ContactRepository contactRepository;
     private final ScheduledCallbackRepository scheduledCallbackRepository;
+    private final AiSummaryService aiSummaryService;
 
     /**
      * Sprawdza czy zalogowany użytkownik ma rolę AGENT.
@@ -808,5 +811,34 @@ public class ContactController {
 
         ContactResponse response = contactService.abandonContact(contactId, tenantId, agentId);
         return ResponseEntity.ok(response);
+    }
+
+    // =========================================================================
+    // Generowanie podsumowania AI dla kontaktu (BE-090)
+    // =========================================================================
+
+    @PostMapping("/{contactId}/ai-summary")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(
+        summary = "Generuj podsumowanie AI dla kontaktu",
+        description = "Wywołuje serwis AI w celu wygenerowania podsumowania kontaktu. " +
+                      "Wynik jest zapisywany w tabeli contact_ai_summary. " +
+                      "Wielokrotne wywołanie nadpisuje poprzednie podsumowanie.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Podsumowanie wygenerowane"),
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje"),
+            @ApiResponse(responseCode = "422", description = "Brak konfiguracji AI dla tenanta"),
+            @ApiResponse(responseCode = "502", description = "Błąd serwisu AI")
+        }
+    )
+    public ResponseEntity<AiSummaryResponse> generateAiSummary(
+            @Parameter(description = "UUID kontaktu", required = true)
+            @PathVariable UUID contactId
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        log.debug("[ContactController] POST /{}/ai-summary, tenant={}", contactId, tenantId);
+        AiSummaryService.AiSummaryResult result = aiSummaryService.generateSummary(contactId, tenantId);
+        return ResponseEntity.ok(new AiSummaryResponse(
+                result.summary(), result.modelUsed(), result.tokensUsed()));
     }
 }

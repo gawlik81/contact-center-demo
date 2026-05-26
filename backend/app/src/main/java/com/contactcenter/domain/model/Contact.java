@@ -178,4 +178,5 @@ public class Contact {
      */
     @Column(name = "campaign_contact_record_id")
     private UUID campaignContactRecordId;
+
 }

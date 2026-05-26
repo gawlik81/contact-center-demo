@@ -1,0 +1,249 @@
+<div class="ai-config">
+  <div class="ai-config__header">
+    <h1 class="ai-config__title">{{ 'supervisor.settings.aiConfig.title' | transloco }}</h1>
+    <p class="ai-config__subtitle">{{ 'supervisor.settings.aiConfig.subtitle' | transloco }}</p>
+  </div>
+
+  @if (loading()) {
+    <div class="skeleton-wrapper" [attr.aria-label]="'common.loading_data' | transloco">
+      <div class="skeleton skeleton--title"></div>
+      <div class="skeleton skeleton--field"></div>
+      <div class="skeleton skeleton--field"></div>
+      <div class="skeleton skeleton--field"></div>
+    </div>
+  } @else if (loadError()) {
+    <div class="error-state" role="alert">
+      <p class="error-state__message">{{ 'supervisor.settings.aiConfig.loadError' | transloco }}</p>
+    </div>
+  } @else if (!hasConfig() && !showForm()) {
+    <!-- No config state -->
+    <div class="no-config-card">
+      <svg
+        class="no-config-card__icon"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        width="48"
+        height="48"
+        aria-hidden="true"
+      >
+        <path
+          d="M21 10.5h-1V7c0-1.1-.9-2-2-2H4C2.9 5 2 5.9 2 7v10c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-3.5h1c.55 0 1-.45 1-1v-2c0-.55-.45-1-1-1zM18 17H4V7h14v10zm-5.5-3.5c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5.67-1.5 1.5-1.5 1.5.67 1.5 1.5z"
+        />
+      </svg>
+      <h2 class="no-config-card__title">{{ 'supervisor.settings.aiConfig.noConfigTitle' | transloco }}</h2>
+      <p class="no-config-card__hint">{{ 'supervisor.settings.aiConfig.noConfigHint' | transloco }}</p>
+      <button type="button" class="btn btn-primary" (click)="onSetupClick()">
+        {{ 'supervisor.settings.aiConfig.setupButton' | transloco }}
+      </button>
+    </div>
+  } @else if (showForm()) {
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="ai-config__form">
+      <!-- Section: Provider -->
+      <section class="form-section">
+        <h2 class="form-section__title">{{ 'supervisor.settings.aiConfig.providerLabel' | transloco }}</h2>
+
+        <div class="form-field">
+          <label class="form-label" for="ai-provider">
+            {{ 'supervisor.settings.aiConfig.providerLabel' | transloco }}
+            <span class="required" aria-hidden="true">*</span>
+          </label>
+          <select id="ai-provider" class="form-input form-select" formControlName="provider">
+            @for (p of providers; track p.value) {
+              <option [value]="p.value">{{ p.label }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Model Name -->
+        <div class="form-field" [class.form-field--error]="modelNameError">
+          <label class="form-label" for="model-name">
+            {{ 'supervisor.settings.aiConfig.modelNameLabel' | transloco }}
+            <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="model-name"
+            type="text"
+            class="form-input"
+            formControlName="modelName"
+            [placeholder]="'supervisor.settings.aiConfig.modelNamePlaceholder' | transloco"
+            autocomplete="off"
+            [attr.aria-describedby]="modelNameError ? 'model-name-error' : null"
+            [attr.aria-invalid]="modelNameError ? 'true' : null"
+          />
+          @if (modelNameError) {
+            <span id="model-name-error" class="form-error" role="alert">{{ modelNameError }}</span>
+          }
+        </div>
+      </section>
+
+      <!-- Section: API Key -->
+      <section class="form-section">
+        <h2 class="form-section__title">{{ 'supervisor.settings.aiConfig.apiKeyLabel' | transloco }}</h2>
+
+        <div class="form-field" [class.form-field--error]="apiKeyError">
+          <label class="form-label" for="api-key">
+            {{ 'supervisor.settings.aiConfig.apiKeyLabel' | transloco }}
+            @if (!hasConfig()) {
+              <span class="required" aria-hidden="true">*</span>
+            }
+          </label>
+
+          @if (hasConfig() && !showApiKey()) {
+            <div class="masked-field">
+              <input
+                id="api-key"
+                type="password"
+                class="form-input masked-field__input"
+                [value]="apiKeyMasked() ?? ''"
+                readonly
+                aria-readonly="true"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                class="btn btn-ghost masked-field__btn"
+                (click)="onUnlockApiKey()"
+                [attr.aria-label]="'supervisor.settings.aiConfig.editSecretButton' | transloco"
+              >
+                {{ 'supervisor.settings.aiConfig.editSecretButton' | transloco }}
+              </button>
+            </div>
+          } @else {
+            <div class="secret-input-wrap">
+              <input
+                id="api-key"
+                [type]="revealApiKey() ? 'text' : 'password'"
+                class="form-input secret-input-wrap__input"
+                formControlName="apiKey"
+                [placeholder]="'supervisor.settings.aiConfig.apiKeyPlaceholder' | transloco"
+                autocomplete="new-password"
+                [attr.aria-describedby]="apiKeyError ? 'api-key-error' : null"
+                [attr.aria-invalid]="apiKeyError ? 'true' : null"
+              />
+              <button
+                type="button"
+                class="btn btn-ghost secret-input-wrap__eye"
+                (click)="revealApiKey.set(!revealApiKey())"
+                [attr.aria-label]="(revealApiKey() ? 'common.hide' : 'common.show') | transloco"
+              >
+                @if (revealApiKey()) {
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                    <path
+                      d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
+                    />
+                  </svg>
+                } @else {
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                    <path
+                      d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"
+                    />
+                  </svg>
+                }
+              </button>
+            </div>
+          }
+
+          @if (apiKeyError) {
+            <span id="api-key-error" class="form-error" role="alert">{{ apiKeyError }}</span>
+          }
+        </div>
+      </section>
+
+      <!-- Section: Azure OpenAI (conditional) -->
+      @if (isAzure()) {
+        <section class="form-section">
+          <h2 class="form-section__title">{{ 'supervisor.settings.aiConfig.azureSectionTitle' | transloco }}</h2>
+
+          <div class="form-field">
+            <label class="form-label" for="azure-endpoint">
+              {{ 'supervisor.settings.aiConfig.azureEndpointLabel' | transloco }}
+              <span class="form-hint-inline">{{ 'common.optional' | transloco }}</span>
+            </label>
+            <input
+              id="azure-endpoint"
+              type="url"
+              class="form-input"
+              formControlName="azureEndpoint"
+              placeholder="https://your-resource.openai.azure.com/"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="azure-deployment-name">
+              {{ 'supervisor.settings.aiConfig.azureDeploymentNameLabel' | transloco }}
+              <span class="form-hint-inline">{{ 'common.optional' | transloco }}</span>
+            </label>
+            <input
+              id="azure-deployment-name"
+              type="text"
+              class="form-input"
+              formControlName="azureDeploymentName"
+              placeholder="gpt-4o"
+              autocomplete="off"
+            />
+          </div>
+        </section>
+      }
+
+      <!-- Section: Summary Prompt Template -->
+      <section class="form-section">
+        <h2 class="form-section__title">{{ 'supervisor.settings.aiConfig.promptTemplateSectionTitle' | transloco }}</h2>
+
+        <div class="form-field">
+          <label class="form-label" for="summary-prompt">
+            {{ 'supervisor.settings.aiConfig.summaryPromptLabel' | transloco }}
+            <span class="form-hint-inline">{{ 'common.optional' | transloco }}</span>
+          </label>
+          <textarea
+            id="summary-prompt"
+            class="form-input form-textarea"
+            formControlName="summaryPromptTemplate"
+            [placeholder]="'supervisor.settings.aiConfig.summaryPromptPlaceholder' | transloco"
+            rows="5"
+          ></textarea>
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" (click)="onCancelSetup()" [disabled]="submitting()">
+          {{ 'supervisor.settings.aiConfig.cancelButton' | transloco }}
+        </button>
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="isSaveDisabled()"
+          [attr.aria-disabled]="isSaveDisabled()"
+        >
+          @if (submitting()) {
+            <span class="spinner" aria-hidden="true"></span>
+          }
+          {{ 'supervisor.settings.aiConfig.saveButton' | transloco }}
+        </button>
+      </div>
+
+      <!-- Danger zone -->
+      @if (hasConfig()) {
+        <div class="danger-zone">
+          <h3 class="danger-zone__title">{{ 'supervisor.settings.aiConfig.dangerZoneTitle' | transloco }}</h3>
+          <button type="button" class="btn btn-danger" (click)="onDelete()" [disabled]="submitting()">
+            {{ 'supervisor.settings.aiConfig.deleteButton' | transloco }}
+          </button>
+        </div>
+      }
+    </form>
+  }
+</div>
+
+@if (showDeleteConfirm()) {
+  <app-confirm-dialog
+    [message]="'supervisor.settings.aiConfig.deleteConfirm' | transloco"
+    [confirmLabel]="'supervisor.settings.aiConfig.deleteButton' | transloco"
+    [cancelLabel]="'common.cancel' | transloco"
+    [danger]="true"
+    (confirmed)="onDeleteConfirmed()"
+    (cancelled)="onDeleteCancelled()"
+  />
+}

@@ -5,12 +5,17 @@ import aio_pika
 import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException
 
-from app.asr import transcribe
+from app.asr import transcribe, _get_model
 from app.config import settings
-from app.models import TurnRequest, TurnResponse, HealthResponse
+from app.models import (
+    TurnRequest, TurnResponse, HealthResponse,
+    SummarizeRequest, SummarizeResponse,
+    TranscribeRequest, TranscribeResponse,
+)
 from app.nlu import detect_intent
 from app.rabbit import publish_escalation
 from app.session import delete_session as redis_delete_session, get_session, update_session
+from app.summarize import summarize
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,11 @@ async def lifespan(app: FastAPI):
     global _redis_client, _rabbit_connection
 
     logger.info("[Voicebot] Inicjalizacja połączeń – Redis i RabbitMQ")
+
+    # Whisper – wczytaj model przy starcie (unika opóźnienia przy pierwszym żądaniu)
+    import asyncio
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _get_model, settings.whisper_model)
 
     # Redis
     _redis_client = aioredis.from_url(
@@ -216,6 +226,49 @@ async def delete_session_endpoint(session_id: str) -> None:
     """
     redis = _get_redis()
     await redis_delete_session(redis, session_id)
+
+
+@app.post("/ai/summarize", response_model=SummarizeResponse)
+async def ai_summarize(request: SummarizeRequest) -> SummarizeResponse:
+    """
+    Generuje podsumowanie kontaktu przez wybranego dostawcę AI.
+    Endpoint wewnętrzny — nie eksponować publicznie.
+    """
+    logger.info(
+        "[AI Summarize] channel=%s, provider=%s",
+        request.channel, request.provider,
+    )
+    try:
+        return await summarize(request)
+    except TimeoutError:
+        raise HTTPException(status_code=502, detail="AI provider timeout")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/ai/transcribe", response_model=TranscribeResponse)
+async def ai_transcribe(request: TranscribeRequest) -> TranscribeResponse:
+    """
+    Transkrybuje nagranie audio (MP3/WAV) przez Whisper.
+    Endpoint wewnętrzny — używany przez backend po zapisaniu nagrania do S3.
+    Przy pustym transkrypcie zwraca transcript="" z HTTP 200 (nie błąd).
+    """
+    logger.info(
+        "[AI Transcribe] Żądanie transkrypcji: format=%s, audio_len=%d",
+        request.audio_format, len(request.audio_base64),
+    )
+    asr_result = await transcribe(
+        request.audio_base64,
+        request.audio_format,
+        settings.whisper_model,
+    )
+    return TranscribeResponse(
+        transcript=asr_result["text"],
+        language=asr_result["language"],
+        confidence=asr_result["confidence"],
+    )
 
 
 @app.get("/health", response_model=HealthResponse)

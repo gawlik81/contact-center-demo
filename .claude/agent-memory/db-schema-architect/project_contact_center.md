@@ -40,6 +40,24 @@ Stan migracji po V035 (2026-04-08):
   - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
   - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
 
+Stan migracji po V068 (2026-05-25):
+- V064__create_tenant_ai_config.sql (DB-038): konfiguracja dostawcy AI per tenant.
+  - Enum ai_provider: ANTHROPIC | OPENAI | AZURE_OPENAI
+  - UNIQUE (tenant_id) — jeden rekord per tenant, FK ON DELETE CASCADE
+  - api_key_encrypted TEXT: klucz API szyfrowany AES-256-GCM przez JPA EncryptedStringConverter
+  - Pola Azure-only: azure_endpoint, azure_deployment_name (nullable)
+  - summary_prompt_template TEXT NULL: nadpisuje domyślny prompt aplikacji; NULL = użyj domyślnego
+  - Partial index WHERE is_active; RLS USING current_setting('app.tenant_id', TRUE)::UUID
+- V065__add_ai_summary_to_contact.sql (DB-039): pola podsumowania AI w tabeli contact (tymczasowe, wycofane przez V068).
+- V067__create_contact_transcription.sql: transkrypcje rozmów od Whisper; contact_id+tenant_id bez FK (contact partycjonowana); RLS; wzorzec dla V068.
+- V068__extract_ai_summary_to_own_table.sql (2026-05-25): wyodrębnienie AI summary z contact do contact_ai_summary.
+  - Kolejność: CREATE TABLE → indeks → RLS → INSERT (migracja danych) → DROP COLUMN
+  - Brak FK do contact — tabela partycjonowana RANGE (PostgreSQL nie obsługuje FK do partycji ze strony child)
+  - Kolumny: ai_summary_id UUID PK, contact_id UUID, tenant_id UUID, summary TEXT, model VARCHAR(100), generated_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW()
+  - Indeks: idx_contact_ai_summary_contact ON (contact_id, tenant_id)
+  - RLS policy: contact_ai_summary_isolation USING (tenant_id = current_setting('app.tenant_id', TRUE)::UUID)
+  - DROP COLUMN z IF EXISTS na: ai_summary, ai_summary_model, ai_summary_generated_at (propaguje do partycji automatycznie)
+
 Stan migracji po V062 (2026-05-21):
 - V062__campaign_agent_assignment.sql (DB-036): trójpoziomowe przypisanie agentów do kampanii wychodzącej.
   - campaign.all_agents BOOLEAN DEFAULT FALSE: TRUE = wszyscy agenci tenanta, FALSE = jawne przypisanie

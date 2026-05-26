@@ -202,17 +202,17 @@ public class RecordingService {
      * @param s3Key        klucz obiektu w S3 (np. recordings/{tenantId}/{contactId}/{sid}.mp3)
      */
     public void saveRecordingUrlToContact(UUID contactId, UUID tenantId, String s3Key) {
-        // Wzorzec snapshot/restore dla wątku @Async: budujemy minimalny snapshot
-        // bezpośrednio z tenantId (wątek nie ma pełnego kontekstu HTTP – brak userId/role).
-        // restore() ustawia TenantContext, finally clear() gwarantuje oczyszczenie
-        // wątku po zakończeniu – zapobiega wyciekowi kontekstu w puli @Async.
-        TenantContext.Snapshot snapshot = new TenantContext.Snapshot(tenantId, null, null, null);
-        TenantContext.restore(snapshot);
+        UUID previousTenantId = TenantContext.getTenantIdOrNull();
+        TenantContext.setTenantId(tenantId);
         try {
             contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
             log.info("[Recording] Zapisano recording_url w DB: contactId={}, s3Key={}", contactId, s3Key);
         } finally {
-            TenantContext.clear();
+            if (previousTenantId != null) {
+                TenantContext.setTenantId(previousTenantId);
+            } else {
+                TenantContext.clear();
+            }
         }
     }
 

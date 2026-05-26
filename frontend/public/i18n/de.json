@@ -179,7 +179,8 @@
     "ivrEditor": "IVR-Editor",
     "oauthCallback": "OAuth Callback",
     "breadcrumbNav": "Navigationspfad",
-    "settingsTwilioConfig": "Twilio-Integration"
+    "settingsTwilioConfig": "Twilio-Integration",
+    "settingsAiConfig": "KI-Konfiguration"
   },
   "role": {
     "admin": "Administrator",
@@ -2018,6 +2019,31 @@
         "saveSuccess": "Twilio-Konfiguration erfolgreich gespeichert",
         "deleteSuccess": "Twilio-Konfiguration gelöscht",
         "loadError": "Twilio-Konfiguration konnte nicht geladen werden."
+      },
+      "aiConfig": {
+        "title": "KI-Konfiguration",
+        "subtitle": "Verwalten Sie den KI-Anbieter für die Generierung von Kontaktzusammenfassungen.",
+        "noConfigTitle": "Keine KI-Konfiguration",
+        "noConfigHint": "Richten Sie einen KI-Anbieter ein, damit Agenten Kontaktzusammenfassungen erstellen können.",
+        "setupButton": "Einrichten",
+        "providerLabel": "KI-Anbieter",
+        "apiKeyLabel": "API-Schlüssel",
+        "apiKeyPlaceholder": "Neuen API-Schlüssel eingeben",
+        "editSecretButton": "Ändern",
+        "modelNameLabel": "Modellname",
+        "modelNamePlaceholder": "z.B. claude-opus-4-7, gpt-4o",
+        "azureSectionTitle": "Azure OpenAI-Einstellungen",
+        "azureEndpointLabel": "Azure Endpoint URL",
+        "azureDeploymentNameLabel": "Deployment-Name",
+        "promptTemplateSectionTitle": "System-Prompt",
+        "summaryPromptLabel": "System-Prompt (optional)",
+        "summaryPromptPlaceholder": "Leer lassen, um den Standard-Prompt der Anwendung zu verwenden.",
+        "dangerZoneTitle": "Gefahrenzone",
+        "saveButton": "Konfiguration speichern",
+        "cancelButton": "Abbrechen",
+        "deleteButton": "KI-Konfiguration löschen",
+        "deleteConfirm": "Möchten Sie die KI-Konfiguration wirklich löschen? Diese Aktion ist unwiderruflich.",
+        "loadError": "KI-Konfiguration konnte nicht geladen werden."
       },
       "twilioPhoneSelect": {
         "loading": "Telefonnummern werden geladen...",

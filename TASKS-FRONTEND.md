@@ -4184,3 +4184,278 @@ readonly contactSelected = output<string>();
 - [ ] Loading skeleton podczas ładowania prób
 - [ ] Pusta lista prób (edge case API): komunikat „Brak prób"
 - [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+## EPIC-26: AI-Powered Conversation Summary
+
+### FE-086 – `AiSummaryService`: serwis Angular do generowania podsumowania AI
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-090 (endpoint `POST /api/contacts/{contactId}/ai-summary`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-087, FE-088, FE-089
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Standalone Angular service `AiSummaryService` (`shared/services/ai-summary.service.ts`) obsługujący komunikację z backendem.
+
+```typescript
+export interface AiSummaryResponse {
+  summary: string;
+  modelUsed: string;
+  tokensUsed: number;
+}
+
+@Injectable({ providedIn: 'root' })
+export class AiSummaryService {
+  private readonly http = inject(HttpClient);
+
+  generateSummary(contactId: string): Observable<AiSummaryResponse> {
+    return this.http.post<AiSummaryResponse>(
+      `/api/contacts/${contactId}/ai-summary`,
+      null
+    );
+  }
+}
+```
+
+**Obsługa błędów HTTP:**
+- 422: rzuć `AiConfigNotSetError` — frontend wyświetli komunikat „Skonfiguruj dostawcę AI w ustawieniach"
+- 502: rzuć `AiServiceUnavailableError` — „Serwis AI tymczasowo niedostępny. Spróbuj ponownie."
+- Inne: propaguj do komponentu
+
+**Kryteria akceptacji:**
+- [x] Serwis wstrzykiwalny jako standalone (`providedIn: 'root'`)
+- [x] `generateSummary()` zwraca `Observable<AiSummaryResponse>`
+- [x] 422 → rzuca `AiConfigNotSetError` z komunikatem dla użytkownika
+- [x] 502 → rzuca `AiServiceUnavailableError`
+- [x] Testy jednostkowe Vitest: happy path + 422 + 502
+- [x] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-087 – Przycisk „Generuj podsumowanie AI" na formularzu dyspozycji
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-086 (AiSummaryService)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-089
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Rozszerzenie istniejącego formularza dyspozycji (disposition form) po zakończeniu kontaktu telefonicznego. Agent ma możliwość wygenerowania podsumowania AI przed zapisaniem dyspozycji.
+
+**Lokalizacja:** komponent formularza dyspozycji widoczny po zakończeniu rozmowy (agent desktop — zakładka/modal po rozłączeniu).
+
+**UI — nowa sekcja „Podsumowanie AI":**
+
+```html
+<!-- Sekcja AI Summary — widoczna gdy contactId jest dostępny -->
+<section class="ai-summary-section">
+  <div class="ai-summary-header">
+    <span class="ai-summary-label">Podsumowanie AI</span>
+    <button
+      type="button"
+      class="btn-ai-generate"
+      [disabled]="aiLoading()"
+      (click)="generateAiSummary()"
+      aria-label="Generuj podsumowanie AI"
+    >
+      @if (aiLoading()) {
+        <span class="spinner spinner--xs" aria-hidden="true"></span>
+        Generowanie…
+      } @else {
+        <svg class="icon-sparkle" aria-hidden="true">…</svg>
+        Generuj podsumowanie AI
+      }
+    </button>
+  </div>
+
+  @if (aiError()) {
+    <p class="ai-error" role="alert">{{ aiError() }}</p>
+  }
+
+  @if (aiSummary()) {
+    <textarea
+      class="ai-summary-textarea"
+      [(ngModel)]="aiSummary"
+      rows="4"
+      placeholder="Podsumowanie zostanie wygenerowane…"
+      aria-label="Podsumowanie AI — możesz edytować przed zapisaniem"
+    ></textarea>
+    <p class="ai-summary-meta">
+      Model: {{ aiModelUsed() }} · {{ aiTokensUsed() }} tokenów
+    </p>
+  }
+</section>
+```
+
+**Logika komponentu (sygnały):**
+
+```typescript
+readonly aiLoading = signal(false);
+readonly aiSummary = signal<string | null>(null);
+readonly aiModelUsed = signal<string | null>(null);
+readonly aiTokensUsed = signal<number | null>(null);
+readonly aiError = signal<string | null>(null);
+
+generateAiSummary(): void {
+  if (!this.contactId()) return;
+  this.aiLoading.set(true);
+  this.aiError.set(null);
+  this.aiSummaryService.generateSummary(this.contactId()!)
+    .pipe(
+      catchError((err: AiConfigNotSetError | AiServiceUnavailableError | unknown) => {
+        this.aiError.set(err instanceof Error ? err.message : 'Nieznany błąd.');
+        return EMPTY;
+      }),
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => this.aiLoading.set(false))
+    )
+    .subscribe(res => {
+      this.aiSummary.set(res.summary);
+      this.aiModelUsed.set(res.modelUsed);
+      this.aiTokensUsed.set(res.tokensUsed);
+    });
+}
+```
+
+**Zapis dyspozycji:** `aiSummary()` jest tylko informacyjne dla agenta — agent może edytować. Wartość tekstowa z textarea powinna być uwzględniona w payload zapisu dyspozycji (lub zapisana osobno przez serwis). Backend już przechowuje `contact.ai_summary` zapisany przez `BE-090` — w tym tasku frontend jedynie wyświetla wynik.
+
+**Kryteria akceptacji:**
+- [x] Przycisk „Generuj podsumowanie AI" widoczny na formularzu dyspozycji gdy `contactId` jest dostępny
+- [x] Kliknięcie przycisku → spinner + tekst „Generowanie…" + przycisk disabled
+- [x] Po sukcesie: textarea z podsumowaniem + metadane (model, tokeny)
+- [x] Agent może edytować treść w textarea przed zapisaniem dyspozycji
+- [x] Błąd 422 → komunikat „Skonfiguruj dostawcę AI w ustawieniach"
+- [x] Błąd 502 → komunikat „Serwis AI tymczasowo niedostępny"
+- [x] Ponowne kliknięcie „Generuj" nadpisuje poprzednie podsumowanie
+- [x] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-088 – Panel konfiguracji dostawcy AI w ustawieniach supervisora
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-088 (TenantAiConfigController), FE-086
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** —
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Nowa zakładka/sekcja „Konfiguracja AI" w panelu ustawień supervisora. Umożliwia ustawienie dostawcy AI, klucza API, modelu i opcjonalnego promptu systemowego.
+
+**Routing:** `/supervisor/settings/ai-config` (standalone komponent z lazy loading)
+
+**UI — formularz konfiguracji AI:**
+
+```html
+<form [formGroup]="form" (ngSubmit)="save()">
+  <div class="form-group">
+    <label for="provider">Dostawca AI</label>
+    <select id="provider" formControlName="provider">
+      <option value="ANTHROPIC">Anthropic (Claude)</option>
+      <option value="OPENAI">OpenAI (GPT)</option>
+      <option value="AZURE_OPENAI">Azure OpenAI</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="apiKey">Klucz API</label>
+    <input type="password" id="apiKey" formControlName="apiKey"
+           autocomplete="new-password"
+           placeholder="Wprowadź klucz API (zostanie zaszyfrowany)"/>
+    @if (maskedKey()) {
+      <p class="api-key-hint">Aktualny klucz: {{ maskedKey() }}</p>
+    }
+  </div>
+
+  <div class="form-group">
+    <label for="modelName">Nazwa modelu</label>
+    <input type="text" id="modelName" formControlName="modelName"
+           placeholder="np. claude-opus-4-7 / gpt-4o"/>
+  </div>
+
+  <!-- Widoczne tylko dla AZURE_OPENAI -->
+  @if (form.get('provider')?.value === 'AZURE_OPENAI') {
+    <div class="form-group">
+      <label for="azureEndpoint">Azure Endpoint URL</label>
+      <input type="url" id="azureEndpoint" formControlName="azureEndpoint"/>
+    </div>
+    <div class="form-group">
+      <label for="deploymentName">Nazwa deployment</label>
+      <input type="text" id="deploymentName" formControlName="deploymentName"/>
+    </div>
+  }
+
+  <div class="form-group">
+    <label for="promptTemplate">Prompt systemowy (opcjonalny)</label>
+    <textarea id="promptTemplate" formControlName="summaryPromptTemplate" rows="4"
+              placeholder="Zostaw puste, aby użyć domyślnego promptu aplikacji."></textarea>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" [disabled]="form.invalid || saving()">
+      @if (saving()) { Zapisywanie… } @else { Zapisz konfigurację }
+    </button>
+    @if (hasConfig()) {
+      <button type="button" class="btn-danger" (click)="deleteConfig()">
+        Usuń konfigurację AI
+      </button>
+    }
+  </div>
+</form>
+```
+
+**Serwis `AiConfigService`** (`supervisor/services/ai-config.service.ts`):
+- `getConfig(): Observable<AiConfigResponse | null>`
+- `saveConfig(request: AiConfigRequest): Observable<AiConfigResponse>`
+- `deleteConfig(): Observable<void>`
+
+**Kryteria akceptacji:**
+- [x] Formularz ładuje istniejącą konfigurację przy wejściu na stronę (404 → pusty formularz)
+- [x] Pole „Klucz API" typu `password`; przy istniejącej konfiguracji wyświetla zamaskowany klucz `****xxxx`
+- [x] Pola Azure widoczne tylko gdy wybrany dostawca `AZURE_OPENAI`
+- [x] Zapis → toast sukcesu „Konfiguracja AI zapisana"
+- [x] Usunięcie → potwierdzenie dialog → toast „Konfiguracja AI usunięta"
+- [x] Walidacja: `provider` + `apiKey` + `modelName` wymagane; `azureEndpoint` wymagane dla Azure
+- [x] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-089 – Podsumowanie AI dla kanału email (widok obsługi emaila)
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-086 (AiSummaryService), FE-087 (AiSummaryPanelComponent)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** —
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Rozszerzenie widoku obsługi kontaktu email przez agenta — analogiczny przycisk „Generuj podsumowanie AI" jak w FE-087. Umożliwia agentowi szybkie podsumowanie wątku emailowego przed wysłaniem odpowiedzi lub zapisaniem dyspozycji.
+
+**Lokalizacja:** komponent widoku emaila (panel agenta — zakładka email, widok wątku z klientem).
+
+**Różnica względem FE-087:** treść do podsumowania to wątek emailowy zamiast transkrypcji rozmowy — logika backendowa (BE-089) już obsługuje tę różnicę na podstawie `channel` kontaktu. Komponent frontendowy jest identyczny — wywołuje ten sam endpoint z `contactId`.
+
+**Współdzielenie kodu:** Wyodrębnij sekcję AI summary do **osobnego standalone komponentu** `AiSummaryPanelComponent` (`shared/components/ai-summary-panel/`), który przyjmuje `@Input() contactId: string` i enkapsuluje całą logikę sygnałów oraz UI. Użyj go zarówno w FE-087 (dyspozycja telefon) jak i w FE-089 (email).
+
+**Kryteria akceptacji:**
+- [x] `AiSummaryPanelComponent` wyodrębniony jako standalone z `@Input() contactId`
+- [x] FE-087 refaktoryzowany do użycia `AiSummaryPanelComponent`
+- [x] Przycisk „Generuj podsumowanie AI" widoczny w widoku emaila gdy `contactId` jest dostępny
+- [x] Zachowanie identyczne jak FE-087: spinner, textarea z wynikiem, obsługa błędów
+- [x] `npm run lint`, `npm test` przechodzą

@@ -129,6 +129,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/tenants/**").hasRole("ADMIN")
                 // Twilio config – zarządzanie per-tenant konfiguracją Twilio (BE-057)
                 .requestMatchers("/api/supervisor/twilio-config/**").hasRole("SUPERVISOR")
+                // AI Config – zarządzanie konfiguracją AI per-tenant (BE-088)
+                .requestMatchers("/api/supervisor/ai-config/**").hasRole("SUPERVISOR")
+                // AI Summary – generowanie podsumowania AI dla kontaktu (BE-090)
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/contacts/*/ai-summary").hasAnyRole("AGENT", "SUPERVISOR", "ADMIN")
                 // Wszystkie pozostałe endpointy – wymagają autentykacji
                 .anyRequest().authenticated()
             )

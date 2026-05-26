@@ -227,6 +227,8 @@
       "chatPlaceholder": "Chat-Bereich",
       "chatPlaceholderSub": "Chat-Ansicht wird hier geladen",
       "profileLabel": "Kundenprofil",
+      "expandCustomerPanel": "Kundenpanel erweitern",
+      "collapseCustomerPanel": "Kundenpanel reduzieren",
       "viewSwitcher": "Ansicht wechseln",
       "calendar": "Kalender",
       "tabPhone": "Telefon",
@@ -496,7 +498,9 @@
       "outboundTo": "Ausgehende Nachricht an",
       "inbound": "Eingehend",
       "outbound": "Ausgehend",
-      "messageContent": "E-Mail-Nachrichteninhalt"
+      "messageContent": "E-Mail-Nachrichteninhalt",
+      "expandThread": "Thread erweitern",
+      "collapseThread": "Thread reduzieren"
     },
     "emailThread": {
       "inbound": "Eingehend",
@@ -1974,7 +1978,16 @@
         "errorLoad": "Vorlagen konnten nicht geladen werden.",
         "errorSave": "Vorlage konnte nicht gespeichert werden.",
         "successDelete": "Vorlage wurde gelöscht.",
-        "successSave": "Vorlage wurde gespeichert."
+        "successSave": "Vorlage wurde gespeichert.",
+        "predefinedVarsTitle": "Vordefinierte Variablen",
+        "predefinedVarsHint": "Klicken zum Einfügen an Cursorposition",
+        "categoryCustomer": "Kunde",
+        "categoryAgent": "Agent",
+        "customVarsTitle": "Eigene Variablen",
+        "addVariableBtn": "+ Hinzufügen",
+        "previewVarsEditableLabel": "Variablenwerte — Sie können diese vor der Vorschau bearbeiten:",
+        "predefinedVarAuto": "auto",
+        "removeVariable": "Variable entfernen"
       },
       "twilio": {
         "title": "VoIP Telefonie / Twilio",

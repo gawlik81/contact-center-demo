@@ -52,6 +52,7 @@ export class EmailContactComponent implements OnInit {
   protected readonly loadingMore = signal(false);
   protected readonly sending = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly threadCollapsed = signal(false);
 
   protected readonly rootMessage = signal<EmailMessage | null>(null);
   protected readonly thread = signal<EmailMessage[]>([]);
@@ -181,6 +182,7 @@ export class EmailContactComponent implements OnInit {
   protected onTemplateSelected(template: EmailTemplate): void {
     this.selectedTemplate.set(template);
     this.templateSearchControl.setValue(template.name, { emitEvent: false });
+    this.filteredTemplates.set([]);
 
     if (template.variables.length > 0) {
       const vars: Record<string, string> = {};
@@ -188,7 +190,7 @@ export class EmailContactComponent implements OnInit {
       this.templateVariables.set(vars);
       this.showVariableForm.set(true);
     } else {
-      this.applyTemplate(template, {});
+      this.applyTemplateViaApi(template, {});
     }
   }
 
@@ -199,9 +201,12 @@ export class EmailContactComponent implements OnInit {
   protected previewTemplate(): void {
     const tpl = this.selectedTemplate();
     if (!tpl) return;
+    this.applyTemplateViaApi(tpl, this.templateVariables());
+  }
 
+  private applyTemplateViaApi(template: EmailTemplate, variables: Record<string, string>): void {
     this.emailService
-      .previewTemplate(tpl.id, this.templateVariables())
+      .previewTemplate(template.id, variables, this.contactId())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (preview) => {
@@ -210,18 +215,9 @@ export class EmailContactComponent implements OnInit {
           this.showVariableForm.set(false);
         },
         error: () => {
-          this.error.set('Nie udalo sie podgladnac szablonu.');
+          this.error.set('Nie udało się wczytać szablonu.');
         },
       });
-  }
-
-  private applyTemplate(template: EmailTemplate, variables: Record<string, string>): void {
-    let html = template.bodyHtml;
-    Object.entries(variables).forEach(([key, val]) => {
-      html = html.replaceAll(`{{${key}}}`, val);
-    });
-    this.setEditorHtml(html);
-    this.showVariableForm.set(false);
   }
 
   private setEditorHtml(html: string): void {

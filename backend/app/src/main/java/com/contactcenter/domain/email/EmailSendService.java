@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -41,6 +42,7 @@ public class EmailSendService {
     private final TenantRepository tenantRepository;
     private final EmailEncryptionService encryptionService;
     private final EmailTemplateService emailTemplateService;
+    private final TemplateVariableResolver templateVariableResolver;
 
     // =========================================================================
     // Wysyłka odpowiedzi
@@ -163,8 +165,16 @@ public class EmailSendService {
         log.info("[EmailSend] Wysyłam odpowiedź z szablonem: templateId={}, originalId={}, tenant={}, agent={}",
                 templateId, originalMessageId, tenantId, agentId);
 
-        // Renderuj szablon – rzuca TemplateRenderException gdy brakuje zmiennych
-        RenderedEmailTemplate rendered = emailTemplateService.render(templateId, variables);
+        // Pobierz contactId z oryginalnej wiadomości, aby auto-uzupełnić predefiniowane zmienne
+        EmailMessage original = emailMessageRepository.findById(originalMessageId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Wiadomość email nie istnieje: " + originalMessageId));
+
+        Map<String, Object> predefined = templateVariableResolver.resolveForContext(original.getContactId(), agentId);
+        Map<String, Object> allVars = templateVariableResolver.mergeWithCustom(predefined, variables);
+
+        // Renderuj szablon – predefiniowane zmienne są już uzupełnione
+        RenderedEmailTemplate rendered = emailTemplateService.render(templateId, allVars);
 
         // Wyślij przez istniejącą metodę z wyrenderowanymi wartościami
         return sendReply(tenantId, originalMessageId, rendered.bodyHtml(), rendered.subject(), agentId);

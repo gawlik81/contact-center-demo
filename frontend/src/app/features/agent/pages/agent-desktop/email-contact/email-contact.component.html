@@ -50,34 +50,62 @@
     <!-- ===== BODY: thread + reply ===== -->
     <div class="email-body">
       <!-- LEFT: message thread -->
-      <section class="email-thread" role="region" [attr.aria-label]="'agent.emailContact.threadLabel' | transloco">
-        @if (hasMore()) {
-          <div class="email-thread__load-more">
-            <button
-              type="button"
-              class="email-thread__load-btn"
-              [disabled]="loadingMore()"
-              [attr.aria-label]="'agent.emailContact.loadOlder' | transloco"
-              (click)="loadMoreMessages()"
-            >
-              @if (loadingMore()) {
-                <span class="btn-spinner" aria-hidden="true"></span>
-                <span>{{ 'common.loading' | transloco }}</span>
-              } @else {
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M7 14l5-5 5 5z" />
-                </svg>
-                <span>{{ 'agent.emailContact.loadMore' | transloco }}</span>
-              }
-            </button>
+      <section
+        class="email-thread"
+        [class.email-thread--collapsed]="threadCollapsed()"
+        role="region"
+        [attr.aria-label]="'agent.emailContact.threadLabel' | transloco"
+      >
+        <!-- Thread toggle button — always visible at top -->
+        <button
+          type="button"
+          class="email-thread__toggle"
+          [attr.aria-label]="
+            threadCollapsed()
+              ? ('agent.emailContact.expandThread' | transloco)
+              : ('agent.emailContact.collapseThread' | transloco)
+          "
+          [attr.aria-expanded]="!threadCollapsed()"
+          (click)="threadCollapsed.set(!threadCollapsed())"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="email-thread__toggle-icon">
+            @if (threadCollapsed()) {
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            } @else {
+              <path d="M14 6l1.41 1.41L10.83 12l4.58 4.59L14 18l-6-6z" />
+            }
+          </svg>
+        </button>
+
+        @if (!threadCollapsed()) {
+          @if (hasMore()) {
+            <div class="email-thread__load-more">
+              <button
+                type="button"
+                class="email-thread__load-btn"
+                [disabled]="loadingMore()"
+                [attr.aria-label]="'agent.emailContact.loadOlder' | transloco"
+                (click)="loadMoreMessages()"
+              >
+                @if (loadingMore()) {
+                  <span class="btn-spinner" aria-hidden="true"></span>
+                  <span>{{ 'common.loading' | transloco }}</span>
+                } @else {
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7 14l5-5 5 5z" />
+                  </svg>
+                  <span>{{ 'agent.emailContact.loadMore' | transloco }}</span>
+                }
+              </button>
+            </div>
+          }
+
+          <div class="email-thread__messages">
+            @for (msg of thread(); track trackByMessageId($index, msg)) {
+              <cc-email-thread-message [message]="msg" />
+            }
           </div>
         }
-
-        <div class="email-thread__messages">
-          @for (msg of thread(); track trackByMessageId($index, msg)) {
-            <cc-email-thread-message [message]="msg" />
-          }
-        </div>
       </section>
 
       <!-- RIGHT: reply panel -->

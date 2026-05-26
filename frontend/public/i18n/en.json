@@ -227,6 +227,8 @@
       "chatPlaceholder": "Chat panel",
       "chatPlaceholderSub": "Chat view will be loaded here",
       "profileLabel": "Customer profile",
+      "expandCustomerPanel": "Expand customer panel",
+      "collapseCustomerPanel": "Collapse customer panel",
       "viewSwitcher": "View switcher",
       "calendar": "Calendar",
       "tabPhone": "Phone",
@@ -496,7 +498,9 @@
       "outboundTo": "Outgoing message to",
       "inbound": "Incoming",
       "outbound": "Outgoing",
-      "messageContent": "Email message content"
+      "messageContent": "Email message content",
+      "expandThread": "Expand thread",
+      "collapseThread": "Collapse thread"
     },
     "emailThread": {
       "inbound": "Inbound",
@@ -1978,7 +1982,16 @@
         "variableHint": "Use {{name}} syntax to insert dynamic values.",
         "templateCount_one": "template",
         "templateCount_few": "templates",
-        "templateCount_many": "templates"
+        "templateCount_many": "templates",
+        "predefinedVarsTitle": "Predefined variables",
+        "predefinedVarsHint": "Click to insert at cursor",
+        "categoryCustomer": "Customer",
+        "categoryAgent": "Agent",
+        "customVarsTitle": "Custom variables",
+        "addVariableBtn": "+ Add",
+        "previewVarsEditableLabel": "Variable values — you can edit them before generating the preview:",
+        "predefinedVarAuto": "auto",
+        "removeVariable": "Remove variable"
       },
       "twilio": {
         "title": "VoIP Telephony / Twilio",

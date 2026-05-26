@@ -2,6 +2,7 @@ package com.contactcenter.api.email;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.email.dto.*;
+import com.contactcenter.domain.email.PredefinedTemplateVariable;
 import com.contactcenter.domain.model.EmailTemplate;
 import com.contactcenter.domain.email.EmailTemplateService;
 import com.contactcenter.domain.email.EmailTemplateService.RenderedEmailTemplate;
@@ -18,6 +19,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -44,6 +49,22 @@ import java.util.UUID;
 public class EmailTemplateController {
 
     private final EmailTemplateService emailTemplateService;
+    private final com.contactcenter.domain.email.TemplateVariableResolver templateVariableResolver;
+
+    // =========================================================================
+    // Predefiniowane zmienne szablonów
+    // =========================================================================
+
+    @GetMapping("/available-variables")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
+    @Operation(summary = "Lista predefiniowanych zmiennych szablonów email",
+               description = "Zwraca wszystkie predefiniowane zmienne dostępne w szablonach Mustache")
+    public ResponseEntity<List<AvailableVariableResponse>> availableVariables() {
+        List<AvailableVariableResponse> variables = Arrays.stream(PredefinedTemplateVariable.values())
+                .map(AvailableVariableResponse::from)
+                .toList();
+        return ResponseEntity.ok(variables);
+    }
 
     // =========================================================================
     // Lista
@@ -164,12 +185,29 @@ public class EmailTemplateController {
     @PostMapping("/{id}/preview")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")
     @Operation(summary = "Podgląd wyrenderowanego szablonu",
-               description = "Renderuje szablon z podanymi zmiennymi; zwraca 422 gdy brakuje wymaganych zmiennych")
+               description = "Renderuje szablon z podanymi zmiennymi; zwraca 422 gdy brakuje wymaganych zmiennych. "
+                           + "Predefiniowane zmienne (dane klienta/agenta) są automatycznie uzupełniane przykładowymi wartościami.")
     public ResponseEntity<PreviewResponse> preview(
             @PathVariable UUID id,
             @RequestBody PreviewRequest request) {
 
-        RenderedEmailTemplate rendered = emailTemplateService.render(id, request.variables());
+        Map<String, Object> variables = new HashMap<>(
+                request.variables() != null ? request.variables() : Map.of());
+
+        if (request.contactId() != null) {
+            // Rozwiąż predefiniowane zmienne z prawdziwych danych kontaktu/agenta
+            UUID agentId = com.contactcenter.security.TenantContext.getUserIdOrNull();
+            Map<String, Object> resolved = templateVariableResolver.resolveForContext(
+                    request.contactId(), agentId);
+            resolved.forEach(variables::putIfAbsent);
+        } else {
+            // Brak kontekstu — użyj przykładowych wartości
+            for (PredefinedTemplateVariable predefined : PredefinedTemplateVariable.values()) {
+                variables.putIfAbsent(predefined.getKey(), predefined.getExampleValue());
+            }
+        }
+
+        RenderedEmailTemplate rendered = emailTemplateService.render(id, variables);
 
         return ResponseEntity.ok(new PreviewResponse(rendered.subject(), rendered.bodyHtml()));
     }

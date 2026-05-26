@@ -354,12 +354,39 @@
 
       <!-- RIGHT PANEL: customer profile (hidden when calendar is active) -->
       @if (!calendarTabActive()) {
-        <aside class="desktop__customer-panel" [attr.aria-label]="'agent.desktop.profileLabel' | transloco">
-          <cc-customer-panel
-            [cli]="activeCli()"
-            [email]="activeEmail()"
-            (contactSelected)="openContactDetail($event)"
-          />
+        <aside
+          class="desktop__customer-panel"
+          [class.desktop__customer-panel--collapsed]="customerPanelCollapsed()"
+          [attr.aria-label]="'agent.desktop.profileLabel' | transloco"
+        >
+          <!-- Toggle button — always visible as vertical strip on left edge -->
+          <button
+            type="button"
+            class="desktop__customer-panel-toggle"
+            [attr.aria-label]="
+              customerPanelCollapsed()
+                ? ('agent.desktop.expandCustomerPanel' | transloco)
+                : ('agent.desktop.collapseCustomerPanel' | transloco)
+            "
+            [attr.aria-expanded]="!customerPanelCollapsed()"
+            (click)="customerPanelCollapsed.set(!customerPanelCollapsed())"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="desktop__customer-panel-toggle-icon">
+              @if (customerPanelCollapsed()) {
+                <path d="M14 6l1.41 1.41L10.83 12l4.58 4.59L14 18l-6-6z" />
+              } @else {
+                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+              }
+            </svg>
+          </button>
+
+          @if (!customerPanelCollapsed()) {
+            <cc-customer-panel
+              [cli]="activeCli()"
+              [email]="activeEmail()"
+              (contactSelected)="openContactDetail($event)"
+            />
+          }
         </aside>
       }
     </div>

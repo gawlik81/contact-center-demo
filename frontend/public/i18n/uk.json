@@ -227,6 +227,8 @@
       "chatPlaceholder": "Панель чату",
       "chatPlaceholderSub": "Тут буде завантажено вигляд чату",
       "profileLabel": "Профіль клієнта",
+      "expandCustomerPanel": "Розгорнути панель клієнта",
+      "collapseCustomerPanel": "Згорнути панель клієнта",
       "viewSwitcher": "Перемикач виду",
       "calendar": "Календар",
       "tabPhone": "Телефон",
@@ -496,7 +498,9 @@
       "outboundTo": "Вихідне повідомлення до",
       "inbound": "Вхідне",
       "outbound": "Вихідне",
-      "messageContent": "Вміст email-повідомлення"
+      "messageContent": "Вміст email-повідомлення",
+      "expandThread": "Розгорнути вкладку",
+      "collapseThread": "Згорнути вкладку"
     },
     "emailThread": {
       "inbound": "Вхідне",
@@ -1974,7 +1978,16 @@
         "variableHint": "Використовуйте синтаксис {{назва}} для вставки динамічних значень.",
         "templateCount_one": "шаблон",
         "templateCount_few": "шаблони",
-        "templateCount_many": "шаблонів"
+        "templateCount_many": "шаблонів",
+        "predefinedVarsTitle": "Попередньо визначені змінні",
+        "predefinedVarsHint": "Натисніть щоб вставити в поточну позицію",
+        "categoryCustomer": "Клієнт",
+        "categoryAgent": "Агент",
+        "customVarsTitle": "Власні змінні",
+        "addVariableBtn": "+ Додати",
+        "previewVarsEditableLabel": "Значення змінних — ви можете редагувати їх перед генерацією:",
+        "predefinedVarAuto": "авто",
+        "removeVariable": "Видалити змінну"
       },
       "twilio": {
         "title": "VoIP Телефонія / Twilio",

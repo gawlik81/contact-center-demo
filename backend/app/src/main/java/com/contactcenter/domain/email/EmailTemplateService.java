@@ -208,10 +208,12 @@ public class EmailTemplateService {
         EmailTemplate template = getById(templateId);
 
         // Walidacja: czy wszystkie zadeklarowane zmienne szablonu są dostarczone
+        // Predefiniowane zmienne (PredefinedTemplateVariable) są auto-uzupełniane – nie liczymy ich jako brakujące
         List<String> declaredVariables = template.getVariables();
         if (declaredVariables != null && !declaredVariables.isEmpty()) {
             List<String> missing = declaredVariables.stream()
-                    .filter(varName -> !variables.containsKey(varName))
+                    .filter(varName -> !variables.containsKey(varName)
+                            && !PredefinedTemplateVariable.BY_KEY.containsKey(varName))
                     .toList();
 
             if (!missing.isEmpty()) {

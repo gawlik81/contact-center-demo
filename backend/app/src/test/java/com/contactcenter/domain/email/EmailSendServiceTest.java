@@ -57,6 +57,8 @@ class EmailSendServiceTest {
     private EmailEncryptionService encryptionService;
     @Mock
     private EmailTemplateService emailTemplateService;
+    @Mock
+    private TemplateVariableResolver templateVariableResolver;
 
     private EmailSendService emailSendService;
 
@@ -67,7 +69,8 @@ class EmailSendServiceTest {
                 emailEventPublisher,
                 tenantRepository,
                 encryptionService,
-                emailTemplateService
+                emailTemplateService,
+                templateVariableResolver
         );
     }
 

@@ -227,6 +227,8 @@
       "chatPlaceholder": "Panel chatu",
       "chatPlaceholderSub": "Tutaj zostanie załadowany widok chatu",
       "profileLabel": "Profil klienta",
+      "expandCustomerPanel": "Rozwiń panel klienta",
+      "collapseCustomerPanel": "Zwiń panel klienta",
       "viewSwitcher": "Przełącznik widoku",
       "calendar": "Kalendarz",
       "tabPhone": "Telefon",
@@ -496,7 +498,9 @@
       "outboundTo": "Wiadomość wychodząca do",
       "inbound": "Przychodząca",
       "outbound": "Wychodząca",
-      "messageContent": "Treść wiadomości email"
+      "messageContent": "Treść wiadomości email",
+      "expandThread": "Rozwiń wątek",
+      "collapseThread": "Zwiń wątek"
     },
     "emailThread": {
       "inbound": "Przychodząca",
@@ -1978,7 +1982,16 @@
         "variableHint": "Używaj składni {{nazwa}} aby wstawiać dynamiczne wartości.",
         "templateCount_one": "szablon",
         "templateCount_few": "szablony",
-        "templateCount_many": "szablonów"
+        "templateCount_many": "szablonów",
+        "predefinedVarsTitle": "Predefiniowane zmienne",
+        "predefinedVarsHint": "Kliknij aby wstawić w zaznaczone pole",
+        "categoryCustomer": "Klient",
+        "categoryAgent": "Agent",
+        "customVarsTitle": "Własne zmienne",
+        "addVariableBtn": "+ Dodaj",
+        "previewVarsEditableLabel": "Wartości zmiennych — możesz je edytować przed wygenerowaniem podglądu:",
+        "predefinedVarAuto": "auto",
+        "removeVariable": "Usuń zmienną"
       },
       "twilio": {
         "title": "Telefonia VoIP / Twilio",

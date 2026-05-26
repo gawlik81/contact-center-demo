@@ -13,7 +13,12 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { EmailService, EmailTemplate } from '../../../../agent/services/email.service';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import {
+  AvailableVariable,
+  EmailService,
+  EmailTemplate,
+} from '../../../../agent/services/email.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { PagedResponse } from '../../../../../core/models/paged-response.model';
 
@@ -31,12 +36,16 @@ export class EmailTemplatesComponent implements OnInit {
   @ViewChild('formDialog') private formDialogRef!: ElementRef<HTMLDialogElement>;
   @ViewChild('deleteDialog') private deleteDialogRef!: ElementRef<HTMLDialogElement>;
   @ViewChild('previewDialog') private previewDialogRef!: ElementRef<HTMLDialogElement>;
+  @ViewChild('subjectInput') private subjectInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('bodyTextarea') private bodyTextareaRef!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('previewFrame') previewFrameRef?: ElementRef<HTMLIFrameElement>;
 
   private readonly emailService = inject(EmailService);
   private readonly notifications = inject(NotificationService);
   private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder);
+  private readonly sanitizer = inject(DomSanitizer);
 
   readonly curlyOpen = '{{';
   readonly curlyClose = '}}';
@@ -54,6 +63,21 @@ export class EmailTemplatesComponent implements OnInit {
   readonly selectedTemplate = signal<EmailTemplate | null>(null);
   readonly modalMode = signal<ModalMode>('create');
   readonly previewResult = signal<{ subject: string; bodyHtml: string } | null>(null);
+
+  readonly previewSafeHtml = computed((): SafeHtml | null => {
+    const html = this.previewResult()?.bodyHtml;
+    return html != null ? this.sanitizer.bypassSecurityTrustHtml(html) : null;
+  });
+
+  readonly availableVars = signal<AvailableVariable[]>([]);
+  readonly focusedField = signal<'subject' | 'body' | null>(null);
+  readonly customerVarsCollapsed = signal(false);
+  readonly agentVarsCollapsed = signal(false);
+
+  readonly customerVars = computed(() =>
+    this.availableVars().filter((v) => v.category === 'customer'),
+  );
+  readonly agentVars = computed(() => this.availableVars().filter((v) => v.category === 'agent'));
 
   readonly totalPages = computed(() => Math.ceil(this.totalElements() / this.pageSize));
   readonly hasNextPage = computed(() => this.currentPage() < this.totalPages() - 1);
@@ -74,6 +98,10 @@ export class EmailTemplatesComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadTemplates();
+    this.emailService
+      .getAvailableVariables()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((vars) => this.availableVars.set(vars));
   }
 
   loadTemplates(): void {
@@ -126,7 +154,7 @@ export class EmailTemplatesComponent implements OnInit {
     this.modalMode.set('preview');
     this.selectedTemplate.set(template);
     this.previewResult.set(null);
-    this.buildPreviewForm(template.variables);
+    this.buildPreviewForm(template.variables, template.subjectTemplate + ' ' + template.bodyHtml);
     this.previewDialogRef.nativeElement.showModal();
   }
 
@@ -141,6 +169,13 @@ export class EmailTemplatesComponent implements OnInit {
   closePreviewModal(): void {
     this.previewDialogRef.nativeElement.close();
     this.previewResult.set(null);
+  }
+
+  onPreviewFrameLoad(): void {
+    const frame = this.previewFrameRef?.nativeElement;
+    if (!frame?.contentDocument) return;
+    const height = frame.contentDocument.documentElement.scrollHeight;
+    frame.style.height = Math.max(height, 400) + 'px';
   }
 
   addVariable(value = ''): void {
@@ -257,6 +292,40 @@ export class EmailTemplatesComponent implements OnInit {
     this.loadTemplates();
   }
 
+  onSubjectFocus(): void {
+    this.focusedField.set('subject');
+  }
+
+  onBodyFocus(): void {
+    this.focusedField.set('body');
+  }
+
+  insertVariable(varKey: string): void {
+    const placeholder = `{{${varKey}}}`;
+    const focused = this.focusedField();
+
+    if (focused === 'subject') {
+      this.insertAtCursor(this.subjectInputRef.nativeElement, this.form.get('subjectTemplate')!, placeholder);
+    } else {
+      this.insertAtCursor(this.bodyTextareaRef.nativeElement, this.form.get('bodyHtml')!, placeholder);
+    }
+  }
+
+  private insertAtCursor(
+    el: HTMLInputElement | HTMLTextAreaElement,
+    ctrl: { value: unknown; setValue: (v: string) => void },
+    text: string,
+  ): void {
+    const current = (ctrl.value as string) ?? '';
+    const start = el.selectionStart ?? current.length;
+    const end = el.selectionEnd ?? start;
+    ctrl.setValue(current.slice(0, start) + text + current.slice(end));
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(start + text.length, start + text.length);
+    });
+  }
+
   isFieldInvalid(fieldName: string): boolean {
     const ctrl = this.form.get(fieldName);
     return !!(ctrl && ctrl.invalid && ctrl.touched);
@@ -276,20 +345,42 @@ export class EmailTemplatesComponent implements OnInit {
     }
   }
 
-  private buildPreviewForm(variables: string[]): void {
-    const group: Record<string, unknown> = {};
-    variables.forEach((v) => {
-      group[v] = [''];
+  isPredefinedVar(key: string): boolean {
+    return this.availableVars().some((v) => v.key === key);
+  }
+
+  private buildPreviewForm(customVars: string[], templateContent: string): void {
+    // Wykryj predefiniowane zmienne użyte w treści szablonu
+    const varPattern = /\{\{([^#^>/!{][^}]*)\}\}/g;
+    const usedPredefined = new Set<string>();
+    let match: RegExpExecArray | null;
+    while ((match = varPattern.exec(templateContent)) !== null) {
+      const key = match[1].trim();
+      const predefined = this.availableVars().find((v) => v.key === key);
+      if (predefined) usedPredefined.add(key);
+    }
+
+    // Zbuduj listę wszystkich kluczy: custom + predefiniowane użyte w szablonie
+    const allKeys = [
+      ...customVars,
+      ...[...usedPredefined].filter((k) => !customVars.includes(k)),
+    ];
+
+    // Usuń kontrolki których nie ma w allKeys
+    Object.keys(this.previewForm.controls).forEach((key) => {
+      if (!allKeys.includes(key)) this.previewForm.removeControl(key);
     });
-    const newForm = this.fb.group(group);
-    Object.keys(newForm.controls).forEach((key) => {
+
+    // Dodaj brakujące kontrolki
+    customVars.forEach((key) => {
       if (!this.previewForm.contains(key)) {
-        this.previewForm.addControl(key, newForm.get(key)!);
+        this.previewForm.addControl(key, this.fb.control(''));
       }
     });
-    Object.keys(this.previewForm.controls).forEach((key) => {
-      if (!variables.includes(key)) {
-        this.previewForm.removeControl(key);
+    usedPredefined.forEach((key) => {
+      if (!this.previewForm.contains(key)) {
+        const example = this.availableVars().find((v) => v.key === key)?.exampleValue ?? '';
+        this.previewForm.addControl(key, this.fb.control(example));
       }
     });
   }

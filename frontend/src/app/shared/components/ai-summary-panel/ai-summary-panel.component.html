@@ -1,39 +1,58 @@
-<section class="ai-summary-panel">
+<section class="ai-summary-panel" [class.ai-summary-panel--collapsed]="collapsed()">
   <div class="ai-summary-panel__header">
     <span class="field-label">Podsumowanie AI</span>
-    <button type="button" class="btn btn--secondary btn--sm" [disabled]="aiLoading()" (click)="generateAiSummary()">
-      @if (aiLoading()) {
-        <span class="btn-spinner" aria-hidden="true"></span>
-        Generowanie…
-      } @else {
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
-          <path
-            d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12zm7.5 4.5l-1.25 2.75L15 18l2.75 1.25L19 22l1.25-2.75L23 18l-2.75-1.25z"
-          />
-        </svg>
-        Generuj podsumowanie AI
-      }
-    </button>
-  </div>
-
-  @if (aiError()) {
-    <p class="ai-summary-panel__error" role="alert">{{ aiError() }}</p>
-  }
-
-  @if (aiSummary()) {
-    <div class="ai-summary-panel__content">{{ aiSummary() }}</div>
-    @if (showCopyButton()) {
-      <div class="ai-summary-panel__copy-row">
-        <button type="button" class="btn btn--ghost btn--sm" (click)="onCopyToNotes()">
+    <div class="ai-summary-panel__header-actions">
+      <button type="button" class="btn btn--secondary btn--sm" [disabled]="aiLoading()" (click)="generateAiSummary()">
+        @if (aiLoading()) {
+          <span class="btn-spinner" aria-hidden="true"></span>
+          Generowanie…
+        } @else {
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
             <path
-              d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+              d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12zm7.5 4.5l-1.25 2.75L15 18l2.75 1.25L19 22l1.25-2.75L23 18l-2.75-1.25z"
             />
           </svg>
-          Kopiuj do notatki
-        </button>
-      </div>
+          Generuj podsumowanie AI
+        }
+      </button>
+      <button
+        type="button"
+        class="ai-summary-panel__toggle"
+        [attr.aria-label]="collapsed() ? 'Rozwiń podsumowanie AI' : 'Zwiń podsumowanie AI'"
+        [attr.aria-expanded]="!collapsed()"
+        (click)="collapsed.set(!collapsed())"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="ai-summary-panel__toggle-icon">
+          @if (collapsed()) {
+            <path d="M7 14l5-5 5 5z" />
+          } @else {
+            <path d="M7 10l5 5 5-5z" />
+          }
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  @if (!collapsed()) {
+    @if (aiError()) {
+      <p class="ai-summary-panel__error" role="alert">{{ aiError() }}</p>
     }
-    <p class="ai-summary-panel__meta">Model: {{ aiModelUsed() }} · {{ aiTokensUsed() }} tokenów</p>
+
+    @if (aiSummary()) {
+      <div class="ai-summary-panel__content">{{ aiSummary() }}</div>
+      @if (showCopyButton()) {
+        <div class="ai-summary-panel__copy-row">
+          <button type="button" class="btn btn--ghost btn--sm" (click)="onCopyToNotes()">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
+              <path
+                d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+              />
+            </svg>
+            Kopiuj do notatki
+          </button>
+        </div>
+      }
+      <p class="ai-summary-panel__meta">Model: {{ aiModelUsed() }} · {{ aiTokensUsed() }} tokenów</p>
+    }
   }
 </section>

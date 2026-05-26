@@ -240,7 +240,8 @@
     border-left: 1px solid var(--border-1, #e2e8f0);
     overflow-y: auto;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    transition: width var(--duration-normal, 200ms) ease;
     scrollbar-width: thin;
     scrollbar-color: var(--border-1, #e2e8f0) transparent;
 
@@ -259,6 +260,50 @@
     @media (max-width: 900px) {
       display: none;
     }
+
+    &--collapsed {
+      width: 16px;
+      overflow: hidden;
+    }
+
+    cc-customer-panel {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+  }
+
+  &__customer-panel-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    flex-shrink: 0;
+    border: none;
+    border-right: 1px solid var(--border-1, #e2e8f0);
+    background: transparent;
+    cursor: pointer;
+    color: var(--text-2, #64748b);
+    align-self: stretch;
+    transition:
+      background var(--duration-fast, 120ms),
+      color var(--duration-fast, 120ms);
+
+    &:hover {
+      background: var(--bg-subtle, #f1f5f9);
+      color: var(--text-1, #1e293b);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent, #1a56db);
+      outline-offset: -2px;
+    }
+  }
+
+  &__customer-panel-toggle-icon {
+    width: 0.625rem;
+    height: 0.625rem;
   }
 }
 

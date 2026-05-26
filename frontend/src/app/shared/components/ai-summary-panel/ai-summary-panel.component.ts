@@ -29,6 +29,8 @@ export class AiSummaryPanelComponent {
   private readonly aiSummaryService = inject(AiSummaryService);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly collapsed = signal(false);
+
   readonly aiLoading = signal(false);
   readonly aiSummary = signal<string | null>(null);
   readonly aiModelUsed = signal<string | null>(null);

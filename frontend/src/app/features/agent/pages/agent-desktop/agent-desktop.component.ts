@@ -130,6 +130,9 @@ export class AgentDesktopComponent implements OnInit {
   /** Contact ID to display in contact-detail-modal (opened from CustomerPanel history). */
   protected readonly selectedContactDetailId = signal<string | null>(null);
 
+  /** Right panel (customer profile) collapse state */
+  protected readonly customerPanelCollapsed = signal(false);
+
   /**
    * Derived signal that emits only the session state string (or null).
    * Changes value only when the actual call state transitions (RINGING → ACTIVE → ENDED etc.),

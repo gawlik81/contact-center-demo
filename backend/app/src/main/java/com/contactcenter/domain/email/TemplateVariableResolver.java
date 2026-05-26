@@ -1,0 +1,134 @@
+package com.contactcenter.domain.email;
+
+import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.security.TenantContext;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class TemplateVariableResolver {
+
+    private final ContactRepository contactRepository;
+    private final CustomerRepository customerRepository;
+    private final AppUserRepository appUserRepository;
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> resolveForContext(UUID contactId, UUID agentId) {
+        UUID tenantId = TenantContext.getTenantId();
+        Map<String, Object> vars = new HashMap<>();
+
+        resolveCustomerVars(contactId, tenantId, vars);
+        resolveAgentVars(agentId, tenantId, vars);
+
+        log.debug("[TemplateVariableResolver] Resolved {} variables for contactId={}, agentId={}",
+                vars.size(), contactId, agentId);
+        return vars;
+    }
+
+    public Map<String, Object> mergeWithCustom(Map<String, Object> predefined, Map<String, Object> custom) {
+        Map<String, Object> merged = new HashMap<>(predefined);
+        if (custom != null) {
+            merged.putAll(custom);
+        }
+        return merged;
+    }
+
+    private void resolveCustomerVars(UUID contactId, UUID tenantId, Map<String, Object> vars) {
+        if (contactId == null) {
+            putEmptyCustomerVars(vars);
+            return;
+        }
+
+        Optional<Contact> contactOpt = contactRepository.findById(contactId, tenantId);
+        if (contactOpt.isEmpty() || contactOpt.get().getCustomerId() == null) {
+            putEmptyCustomerVars(vars);
+            return;
+        }
+
+        UUID customerId = contactOpt.get().getCustomerId();
+        Optional<Customer> customerOpt = customerRepository.findById(customerId, tenantId);
+        if (customerOpt.isEmpty()) {
+            putEmptyCustomerVars(vars);
+            return;
+        }
+
+        Customer customer = customerOpt.get();
+        String firstName = nullToEmpty(customer.getFirstName());
+        String lastName = nullToEmpty(customer.getLastName());
+
+        vars.put(PredefinedTemplateVariable.CUSTOMER_FIRST_NAME.getKey(), firstName);
+        vars.put(PredefinedTemplateVariable.CUSTOMER_LAST_NAME.getKey(), lastName);
+        vars.put(PredefinedTemplateVariable.CUSTOMER_FULL_NAME.getKey(), buildFullName(firstName, lastName));
+        vars.put(PredefinedTemplateVariable.CUSTOMER_EMAIL.getKey(), firstOrEmpty(customer.getEmail()));
+        vars.put(PredefinedTemplateVariable.CUSTOMER_PHONE.getKey(), firstOrEmpty(customer.getPhone()));
+    }
+
+    private void resolveAgentVars(UUID agentId, UUID tenantId, Map<String, Object> vars) {
+        if (agentId == null) {
+            putEmptyAgentVars(vars);
+            return;
+        }
+
+        Optional<AppUser> agentOpt = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId);
+        if (agentOpt.isEmpty()) {
+            putEmptyAgentVars(vars);
+            return;
+        }
+
+        AppUser agent = agentOpt.get();
+        String firstName = nullToEmpty(agent.getFirstName());
+        String lastName = nullToEmpty(agent.getLastName());
+
+        vars.put(PredefinedTemplateVariable.AGENT_FIRST_NAME.getKey(), firstName);
+        vars.put(PredefinedTemplateVariable.AGENT_LAST_NAME.getKey(), lastName);
+        vars.put(PredefinedTemplateVariable.AGENT_FULL_NAME.getKey(), buildFullName(firstName, lastName));
+        vars.put(PredefinedTemplateVariable.AGENT_EMAIL.getKey(), nullToEmpty(agent.getEmail()));
+    }
+
+    private void putEmptyCustomerVars(Map<String, Object> vars) {
+        vars.put(PredefinedTemplateVariable.CUSTOMER_FIRST_NAME.getKey(), "");
+        vars.put(PredefinedTemplateVariable.CUSTOMER_LAST_NAME.getKey(), "");
+        vars.put(PredefinedTemplateVariable.CUSTOMER_FULL_NAME.getKey(), "");
+        vars.put(PredefinedTemplateVariable.CUSTOMER_EMAIL.getKey(), "");
+        vars.put(PredefinedTemplateVariable.CUSTOMER_PHONE.getKey(), "");
+    }
+
+    private void putEmptyAgentVars(Map<String, Object> vars) {
+        vars.put(PredefinedTemplateVariable.AGENT_FIRST_NAME.getKey(), "");
+        vars.put(PredefinedTemplateVariable.AGENT_LAST_NAME.getKey(), "");
+        vars.put(PredefinedTemplateVariable.AGENT_FULL_NAME.getKey(), "");
+        vars.put(PredefinedTemplateVariable.AGENT_EMAIL.getKey(), "");
+    }
+
+    private String firstOrEmpty(List<String> list) {
+        if (list == null || list.isEmpty()) {
+            return "";
+        }
+        String value = list.get(0);
+        return value != null ? value : "";
+    }
+
+    private String nullToEmpty(String value) {
+        return value != null ? value : "";
+    }
+
+    private String buildFullName(String firstName, String lastName) {
+        String full = (firstName + " " + lastName).trim();
+        return full;
+    }
+}

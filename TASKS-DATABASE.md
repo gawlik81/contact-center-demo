@@ -1812,7 +1812,7 @@ COMMENT ON COLUMN contact.ai_summary_generated_at IS
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-004 (tabela `campaign`), DB-005 (tabela `queue`), DB-002 (tabela `tenant`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** BE-092
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 

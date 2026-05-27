@@ -292,7 +292,8 @@
       "Bash(sed *)",
       "mcp__angular-cli__list_projects",
       "mcp__angular-cli__get_best_practices",
-      "Bash(docker volume *)"
+      "Bash(docker volume *)",
+      "Bash(docker cp *)"
     ]
   }
 }

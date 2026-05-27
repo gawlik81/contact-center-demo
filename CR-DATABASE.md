@@ -197,3 +197,111 @@ Minimalne wzmocnienie (bez regex-ów): `email_address LIKE '%@%.%'` — wymaga p
 Migracja jest poprawna i bezpieczna. Jeden wzorzec architektoniczny — jednoczesne utrzymywanie UNIQUE constraint (pełny index) i ręcznie tworzonego partial indexu na tych samych kolumnach — może być zbędny. Komentarze są wzorcowe.
 
 **Ocena: 4.5/5** — solidna migracja z dobrą dokumentacją, drobna optymalizacja indeksów możliwa, ale nie krytyczna.
+
+---
+
+## Review: V069__create_custom_disposition.sql — 2026-05-27
+
+**Branch:** custom-dispozition
+**Reviewer:** senior-code-reviewer agent
+**Epic:** EPIC-27 — Własne dyspozycje per kampania i kolejka
+
+---
+
+### [CRITICAL] Błędna nazwa zmiennej w polityce RLS
+
+**Plik:** `backend/src/main/resources/db/migration/V069__create_custom_disposition.sql:55`
+
+**Problem:** Polityka RLS używa `current_setting('app.tenant_id', TRUE)`, podczas gdy cały projekt (V012, V023, TenantAwareRepository) ustawia zmienną `app.current_tenant_id` przez funkcję `set_tenant_context()`. Nazwy się nie zgadzają — polityka nigdy nie zadziała poprawnie.
+
+```sql
+-- V069 (BŁĄD):
+USING (tenant_id = current_setting('app.tenant_id', TRUE)::UUID);
+
+-- Powinno być (zgodnie z V012 i wszystkimi innymi politykami):
+USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+```
+
+**Sugestia:** Poprawić w nowej migracji `V070__fix_custom_disposition_rls_setting_name.sql`:
+```sql
+DROP POLICY custom_disposition_isolation ON custom_disposition;
+CREATE POLICY custom_disposition_isolation ON custom_disposition
+    USING (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+```
+
+---
+
+### [MAJOR] Brak `WITH CHECK` w polityce RLS
+
+**Plik:** `backend/src/main/resources/db/migration/V069__create_custom_disposition.sql:54-55`
+
+**Problem:** Polityka RLS ma tylko `USING` (dla odczytu i DELETE), ale brak `WITH CHECK` (dla INSERT i UPDATE). Oznacza to, że polityka nie chroni przed zapisem wiersza z innym `tenant_id`, jeśli sesja ma ustawiony inny `app.current_tenant_id`. Wszystkie inne tabele w projekcie (V012) używają zarówno `USING` jak i `WITH CHECK`.
+
+**Sugestia:** W nowej migracji dodać:
+```sql
+WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+```
+
+---
+
+### [MAJOR] Brak `FORCE ROW LEVEL SECURITY`
+
+**Plik:** `backend/src/main/resources/db/migration/V069__create_custom_disposition.sql:53`
+
+**Problem:** Kluczowe tabele projektu (customer, contact, campaign, queue w V012:83-86) mają `FORCE ROW LEVEL SECURITY`, które gwarantuje stosowanie RLS nawet dla właściciela tabeli. `custom_disposition` tego nie ma — właściciel tabeli (rola PostgreSQL) omija RLS przy INSERT/UPDATE/DELETE.
+
+**Sugestia:**
+```sql
+ALTER TABLE custom_disposition FORCE ROW LEVEL SECURITY;
+```
+
+---
+
+### [MAJOR] Brak `is_deleted` — projekt używa soft-delete jako standardu
+
+**Plik:** `backend/src/main/resources/db/migration/V069__create_custom_disposition.sql`
+
+**Problem:** Wszystkie kluczowe encje projektu (app_user, customer, scheduled_callback) mają kolumnę `is_deleted BOOLEAN NOT NULL DEFAULT FALSE`. Tabela `custom_disposition` używa fizycznego DELETE. Oznacza to brak historii usuniętych dyspozycji i potencjalne problemy z audytem oraz zgodnością z GDPR (np. brak możliwości powiązania historycznych kontaktów z dyspozycją, która była aktywna w chwili połączenia).
+
+**Sugestia:** Rozważyć dodanie `is_deleted BOOLEAN NOT NULL DEFAULT FALSE` i zmianę DELETE na soft-delete. Jeśli jest to celowe odstępstwo, udokumentować decyzję w komentarzu SQL.
+
+---
+
+### [MINOR] Brak kompozytowego indeksu `(tenant_id, id)`
+
+**Plik:** `backend/src/main/resources/db/migration/V069__create_custom_disposition.sql`
+
+**Problem:** Wzorzec `findByIdAndTenantId` wykonuje `WHERE id = ? AND tenant_id = ?`. Istniejące indeksy (kampania, kolejka) nie pokrywają tego przypadku. Zapytania findByIdAndTenantId (używane w update i delete) będą skanowały cały PK index bez filtrowania po tenantId.
+
+**Sugestia:**
+```sql
+CREATE INDEX idx_custom_disposition_tenant_id
+    ON custom_disposition (tenant_id, id);
+```
+
+---
+
+### [MINOR] Brak `is_active = FALSE` w indeksach dla widoku supervisora
+
+**Plik:** `backend/src/main/resources/db/migration/V069__create_custom_disposition.sql:45-51`
+
+**Problem:** Indeksy `idx_custom_disposition_campaign` i `idx_custom_disposition_queue` mają predykat `is_active = TRUE`, więc nie są używane przez `findAllByCampaignId` / `findAllByQueueId` (które zwracają ALL wiersze, aktywne i nieaktywne). Supervisor widok wykona sequential scan.
+
+**Sugestia:** Albo usunąć predykat `is_active = TRUE` z indeksów (indeks bez filtra obsługuje oba przypadki), albo dodać osobne indeksy bez predykatu dla widoku supervisora. Obecna konfiguracja jest niespójna z faktycznymi wzorcami zapytań.
+
+---
+
+### Pozytywne obserwacje
+
+- `CHECK CONSTRAINT chk_custom_disposition_scope` (kampania XOR kolejka) jest elegancki i poprawny — gwarantuje integralność danych na poziomie DB bez możliwości obejścia z aplikacji.
+- `chk_custom_disposition_tone` jako CHECK constraint jest wzorową obroną przed błędnymi wartościami tonu.
+- Partial UNIQUE indexes dla obsługi NULL w PostgreSQL (`WHERE campaign_id IS NOT NULL`) — poprawne i idiomatyczne podejście.
+- Używa `gen_random_uuid()` i `DEFAULT NOW()` — zgodne z resztą projektu.
+- Komentarze kolumn są kompletne i pomocne.
+
+### Summary
+
+Migracja ma solidny szkielet (CHECK constraints, partial unique indexes, TIMESTAMPTZ), ale ma trzy poważne błędy bezpieczeństwa: błędna nazwa zmiennej w RLS (polityka jest martwa), brak WITH CHECK i brak FORCE ROW LEVEL SECURITY. Bez poprawki RLS, multi-tenancy tej tabeli jest iluzoryczna.
+
+**Ocena: 2/5** — blokuje merge z powodu niedziałającej polityki RLS.

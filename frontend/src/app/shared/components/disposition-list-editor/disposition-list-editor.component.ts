@@ -2,10 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  OnInit,
+  effect,
   inject,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -29,7 +30,7 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
   templateUrl: './disposition-list-editor.component.html',
   styleUrl: './disposition-list-editor.component.scss',
 })
-export class DispositionListEditorComponent implements OnInit {
+export class DispositionListEditorComponent {
   readonly campaignId = input<string | undefined>(undefined);
   readonly queueId = input<string | undefined>(undefined);
 
@@ -53,6 +54,13 @@ export class DispositionListEditorComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
 
+  private readonly loadEffect = effect(() => {
+    // Track input signals to react to changes
+    this.campaignId();
+    this.queueId();
+    untracked(() => this.loadDispositions());
+  });
+
   readonly form = this.fb.group({
     dispositionCode: [
       '',
@@ -63,10 +71,6 @@ export class DispositionListEditorComponent implements OnInit {
     ordinal: [0],
     isActive: [true],
   });
-
-  ngOnInit(): void {
-    this.loadDispositions();
-  }
 
   loadDispositions(): void {
     const campaignId = this.campaignId();
@@ -127,12 +131,17 @@ export class DispositionListEditorComponent implements OnInit {
     this.form.markAllAsTouched();
     if (this.form.invalid || this.submitting()) return;
 
+    const campaignId = this.campaignId();
+    const queueId = this.queueId();
+    if (!campaignId && !queueId) {
+      console.warn('[DispositionListEditor] Neither campaignId nor queueId provided');
+      return;
+    }
+
     this.submitting.set(true);
 
     const raw = this.form.getRawValue();
     const editId = this.editingId();
-    const campaignId = this.campaignId();
-    const queueId = this.queueId();
 
     let op$;
 
@@ -145,7 +154,7 @@ export class DispositionListEditorComponent implements OnInit {
       };
       op$ = campaignId
         ? this.service.updateForCampaign(campaignId, editId, req)
-        : this.service.updateForQueue(queueId!, editId, req);
+        : this.service.updateForQueue(queueId as string, editId, req);
     } else {
       const req: CreateCustomDispositionRequest = {
         dispositionCode: raw.dispositionCode!,
@@ -155,7 +164,7 @@ export class DispositionListEditorComponent implements OnInit {
       };
       op$ = campaignId
         ? this.service.createForCampaign(campaignId, req)
-        : this.service.createForQueue(queueId!, req);
+        : this.service.createForQueue(queueId as string, req);
     }
 
     op$
@@ -185,14 +194,18 @@ export class DispositionListEditorComponent implements OnInit {
 
   onDeleteExecute(): void {
     const id = this.deletingId();
+    if (!id) return;
+
     const campaignId = this.campaignId();
     const queueId = this.queueId();
-
-    if (!id) return;
+    if (!campaignId && !queueId) {
+      console.warn('[DispositionListEditor] Neither campaignId nor queueId provided');
+      return;
+    }
 
     const delete$ = campaignId
       ? this.service.deleteFromCampaign(campaignId, id)
-      : this.service.deleteFromQueue(queueId!, id);
+      : this.service.deleteFromQueue(queueId as string, id);
 
     delete$
       .pipe(

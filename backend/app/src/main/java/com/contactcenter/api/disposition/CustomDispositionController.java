@@ -128,12 +128,12 @@ public class CustomDispositionController {
         summary = "Aktualizuj dyspozycję kampanii",
         description = "Aktualizuje etykietę, ton, kolejność i status aktywności dyspozycji. " +
                       "Kod dyspozycji jest niezmienny. " +
-                      "Zasób identyfikowany jest przez {id} — {campaignId} w ścieżce służy czytelności URL.",
+                      "Zwraca 403 gdy dyspozycja istnieje, ale nie należy do podanej kampanii.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Dyspozycja zaktualizowana"),
             @ApiResponse(responseCode = "400", description = "Błąd walidacji"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień lub dyspozycja nie należy do tej kampanii"),
             @ApiResponse(responseCode = "404", description = "Dyspozycja nie istnieje")
         }
     )
@@ -148,18 +148,18 @@ public class CustomDispositionController {
         log.debug("[CustomDispositionController] Aktualizacja dyspozycji kampanii: id={}, campaignId={}, tenant={}",
                 id, campaignId, tenantId);
 
-        return ResponseEntity.ok(customDispositionService.update(id, request, tenantId));
+        return ResponseEntity.ok(customDispositionService.updateForCampaign(campaignId, id, request, tenantId));
     }
 
     @DeleteMapping("/campaigns/{campaignId}/{id}")
     @Operation(
         summary = "Usuń dyspozycję kampanii",
         description = "Usuwa dyspozycję przypisaną do kampanii. " +
-                      "Zasób identyfikowany jest przez {id} — {campaignId} w ścieżce służy czytelności URL.",
+                      "Zwraca 403 gdy dyspozycja istnieje, ale nie należy do podanej kampanii.",
         responses = {
             @ApiResponse(responseCode = "204", description = "Dyspozycja usunięta"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień lub dyspozycja nie należy do tej kampanii"),
             @ApiResponse(responseCode = "404", description = "Dyspozycja nie istnieje")
         }
     )
@@ -173,7 +173,7 @@ public class CustomDispositionController {
         log.debug("[CustomDispositionController] Usunięcie dyspozycji kampanii: id={}, campaignId={}, tenant={}",
                 id, campaignId, tenantId);
 
-        customDispositionService.delete(id, tenantId);
+        customDispositionService.deleteFromCampaign(campaignId, id, tenantId);
         return ResponseEntity.noContent().build();
     }
 
@@ -241,12 +241,12 @@ public class CustomDispositionController {
         summary = "Aktualizuj dyspozycję kolejki",
         description = "Aktualizuje etykietę, ton, kolejność i status aktywności dyspozycji. " +
                       "Kod dyspozycji jest niezmienny. " +
-                      "Zasób identyfikowany jest przez {id} — {queueId} w ścieżce służy czytelności URL.",
+                      "Zwraca 403 gdy dyspozycja istnieje, ale nie należy do podanej kolejki.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Dyspozycja zaktualizowana"),
             @ApiResponse(responseCode = "400", description = "Błąd walidacji"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień lub dyspozycja nie należy do tej kolejki"),
             @ApiResponse(responseCode = "404", description = "Dyspozycja nie istnieje")
         }
     )
@@ -261,18 +261,18 @@ public class CustomDispositionController {
         log.debug("[CustomDispositionController] Aktualizacja dyspozycji kolejki: id={}, queueId={}, tenant={}",
                 id, queueId, tenantId);
 
-        return ResponseEntity.ok(customDispositionService.update(id, request, tenantId));
+        return ResponseEntity.ok(customDispositionService.updateForQueue(queueId, id, request, tenantId));
     }
 
     @DeleteMapping("/queues/{queueId}/{id}")
     @Operation(
         summary = "Usuń dyspozycję kolejki",
         description = "Usuwa dyspozycję przypisaną do kolejki. " +
-                      "Zasób identyfikowany jest przez {id} — {queueId} w ścieżce służy czytelności URL.",
+                      "Zwraca 403 gdy dyspozycja istnieje, ale nie należy do podanej kolejki.",
         responses = {
             @ApiResponse(responseCode = "204", description = "Dyspozycja usunięta"),
             @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
-            @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień lub dyspozycja nie należy do tej kolejki"),
             @ApiResponse(responseCode = "404", description = "Dyspozycja nie istnieje")
         }
     )
@@ -286,7 +286,7 @@ public class CustomDispositionController {
         log.debug("[CustomDispositionController] Usunięcie dyspozycji kolejki: id={}, queueId={}, tenant={}",
                 id, queueId, tenantId);
 
-        customDispositionService.delete(id, tenantId);
+        customDispositionService.deleteFromQueue(queueId, id, tenantId);
         return ResponseEntity.noContent().build();
     }
 }

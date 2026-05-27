@@ -3,7 +3,9 @@ package com.contactcenter.domain.disposition;
 import com.contactcenter.domain.disposition.dto.AvailableDispositionDto;
 import com.contactcenter.domain.disposition.dto.CreateCustomDispositionRequest;
 import com.contactcenter.domain.disposition.dto.CustomDispositionDto;
+import com.contactcenter.domain.disposition.dto.UpdateCustomDispositionRequest;
 import com.contactcenter.domain.exception.ConflictException;
+import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -32,6 +34,7 @@ import static org.mockito.Mockito.when;
  * <ul>
  *   <li>Logikę resolucji dyspozycji (priorytet kampania → kolejka → system)</li>
  *   <li>CRUD dyspozycji per kampania i per kolejka z walidacją duplikatów</li>
+ *   <li>Scope guard: update/delete weryfikują że dyspozycja należy do podanego zakresu</li>
  *   <li>Gwarancję niepustej listy w każdym scenariuszu resolucji</li>
  * </ul>
  */
@@ -39,10 +42,11 @@ import static org.mockito.Mockito.when;
 @DisplayName("CustomDispositionService – logika resolucji i CRUD dyspozycji")
 class CustomDispositionServiceTest {
 
-    private static final UUID TENANT_ID    = UUID.fromString("11111111-1111-1111-1111-111111111111");
-    private static final UUID CAMPAIGN_ID  = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-    private static final UUID QUEUE_ID     = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-    private static final UUID DISP_ID      = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static final UUID TENANT_ID   = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID CAMPAIGN_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private static final UUID QUEUE_ID    = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static final UUID DISP_ID     = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static final UUID OTHER_ID    = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
 
     @Mock
     private CustomDispositionRepository customDispositionRepository;
@@ -51,7 +55,7 @@ class CustomDispositionServiceTest {
     private CustomDispositionService customDispositionService;
 
     // =========================================================================
-    // resolveForContact – logika priorytetu
+    // resolveForContact – logika priorytetu (bez N+1)
     // =========================================================================
 
     @Nested
@@ -65,7 +69,6 @@ class CustomDispositionServiceTest {
             CustomDisposition d = buildDisposition(DISP_ID, TENANT_ID, CAMPAIGN_ID, null,
                     "SALE", "Sprzedaż", "positive", 1);
 
-            when(customDispositionRepository.existsByCampaignId(CAMPAIGN_ID, TENANT_ID)).thenReturn(true);
             when(customDispositionRepository.findByCampaignId(CAMPAIGN_ID, TENANT_ID)).thenReturn(List.of(d));
 
             // when
@@ -77,8 +80,7 @@ class CustomDispositionServiceTest {
             assertThat(result.get(0).dispositionCode()).isEqualTo("SALE");
             assertThat(result.get(0).tone()).isEqualTo("positive");
 
-            // kolejka nie powinna być sprawdzana gdy kampania ma dyspozycje
-            verify(customDispositionRepository, never()).existsByQueueId(any(), any());
+            // kolejka nie powinna być sprawdzana gdy kampania ma dyspozycje (jeden round-trip)
             verify(customDispositionRepository, never()).findByQueueId(any(), any());
         }
 
@@ -89,8 +91,7 @@ class CustomDispositionServiceTest {
             CustomDisposition d = buildDisposition(DISP_ID, TENANT_ID, null, QUEUE_ID,
                     "NO_INTEREST", "Brak zainteresowania", "negative", 1);
 
-            when(customDispositionRepository.existsByCampaignId(CAMPAIGN_ID, TENANT_ID)).thenReturn(false);
-            when(customDispositionRepository.existsByQueueId(QUEUE_ID, TENANT_ID)).thenReturn(true);
+            when(customDispositionRepository.findByCampaignId(CAMPAIGN_ID, TENANT_ID)).thenReturn(List.of());
             when(customDispositionRepository.findByQueueId(QUEUE_ID, TENANT_ID)).thenReturn(List.of(d));
 
             // when
@@ -101,16 +102,14 @@ class CustomDispositionServiceTest {
             assertThat(result).hasSize(1);
             assertThat(result.get(0).dispositionCode()).isEqualTo("NO_INTEREST");
             assertThat(result.get(0).tone()).isEqualTo("negative");
-
-            verify(customDispositionRepository, never()).findByCampaignId(any(), any());
         }
 
         @Test
         @DisplayName("brak kampanii i kolejki z dyspozycjami → zwróć systemowe domyślne")
         void resolveForContact_noCampaignNoQueue_returnsSystemDefaults() {
             // given
-            when(customDispositionRepository.existsByCampaignId(CAMPAIGN_ID, TENANT_ID)).thenReturn(false);
-            when(customDispositionRepository.existsByQueueId(QUEUE_ID, TENANT_ID)).thenReturn(false);
+            when(customDispositionRepository.findByCampaignId(CAMPAIGN_ID, TENANT_ID)).thenReturn(List.of());
+            when(customDispositionRepository.findByQueueId(QUEUE_ID, TENANT_ID)).thenReturn(List.of());
 
             // when
             List<AvailableDispositionDto> result =
@@ -129,7 +128,6 @@ class CustomDispositionServiceTest {
             CustomDisposition d = buildDisposition(DISP_ID, TENANT_ID, null, QUEUE_ID,
                     "CALLBACK", "Oddzwonienie", "warning", 1);
 
-            when(customDispositionRepository.existsByQueueId(QUEUE_ID, TENANT_ID)).thenReturn(true);
             when(customDispositionRepository.findByQueueId(QUEUE_ID, TENANT_ID)).thenReturn(List.of(d));
 
             // when
@@ -140,8 +138,8 @@ class CustomDispositionServiceTest {
             assertThat(result).hasSize(1);
             assertThat(result.get(0).dispositionCode()).isEqualTo("CALLBACK");
 
-            // campaign existsByCampaignId nie powinien być wywołany gdy campaignId=null
-            verify(customDispositionRepository, never()).existsByCampaignId(any(), any());
+            // findByCampaignId nie powinien być wywołany gdy campaignId=null
+            verify(customDispositionRepository, never()).findByCampaignId(any(), any());
         }
 
         @Test
@@ -239,27 +237,26 @@ class CustomDispositionServiceTest {
     }
 
     // =========================================================================
-    // update – aktualizacja dyspozycji
+    // updateForCampaign – scope guard + race condition
     // =========================================================================
 
     @Nested
-    @DisplayName("update()")
-    class Update {
+    @DisplayName("updateForCampaign()")
+    class UpdateForCampaign {
+
+        private final UpdateCustomDispositionRequest req =
+                new UpdateCustomDispositionRequest("Nowa etykieta", "neutral", 2, false);
 
         @Test
         @DisplayName("dyspozycja nie istnieje → rzuca ResourceNotFoundException (HTTP 404)")
-        void update_dispositionNotFound_throwsResourceNotFoundException() {
+        void updateForCampaign_dispositionNotFound_throwsResourceNotFoundException() {
             // given
             when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
                     .thenReturn(Optional.empty());
 
-            com.contactcenter.domain.disposition.dto.UpdateCustomDispositionRequest req =
-                    new com.contactcenter.domain.disposition.dto.UpdateCustomDispositionRequest(
-                            "Nowa etykieta", "neutral", 2, true);
-
             // when / then
             assertThatThrownBy(() ->
-                    customDispositionService.update(DISP_ID, req, TENANT_ID))
+                    customDispositionService.updateForCampaign(CAMPAIGN_ID, DISP_ID, req, TENANT_ID))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining(DISP_ID.toString());
 
@@ -267,8 +264,26 @@ class CustomDispositionServiceTest {
         }
 
         @Test
+        @DisplayName("dyspozycja należy do innej kampanii → rzuca CrossTenantAccessException (HTTP 403)")
+        void updateForCampaign_wrongCampaign_throwsCrossTenantAccessException() {
+            // given — dyspozycja przypisana do OTHER_ID (nie CAMPAIGN_ID)
+            CustomDisposition existing = buildDisposition(DISP_ID, TENANT_ID, OTHER_ID, null,
+                    "SALE", "Sprzedaż", "positive", 1);
+
+            when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
+                    .thenReturn(Optional.of(existing));
+
+            // when / then
+            assertThatThrownBy(() ->
+                    customDispositionService.updateForCampaign(CAMPAIGN_ID, DISP_ID, req, TENANT_ID))
+                    .isInstanceOf(CrossTenantAccessException.class);
+
+            verify(customDispositionRepository, never()).update(any());
+        }
+
+        @Test
         @DisplayName("sukces → aktualizuje pola i zwraca DTO")
-        void update_success_returnsUpdatedDto() {
+        void updateForCampaign_success_returnsUpdatedDto() {
             // given
             CustomDisposition existing = buildDisposition(DISP_ID, TENANT_ID, CAMPAIGN_ID, null,
                     "SALE", "Sprzedaż", "positive", 1);
@@ -276,16 +291,14 @@ class CustomDispositionServiceTest {
                     "SALE", "Nowa etykieta", "neutral", 2);
             updated.setActive(false);
 
-            com.contactcenter.domain.disposition.dto.UpdateCustomDispositionRequest req =
-                    new com.contactcenter.domain.disposition.dto.UpdateCustomDispositionRequest(
-                            "Nowa etykieta", "neutral", 2, false);
-
             when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
                     .thenReturn(Optional.of(existing));
-            when(customDispositionRepository.update(any(CustomDisposition.class))).thenReturn(updated);
+            when(customDispositionRepository.update(any(CustomDisposition.class)))
+                    .thenReturn(Optional.of(updated));
 
             // when
-            CustomDispositionDto result = customDispositionService.update(DISP_ID, req, TENANT_ID);
+            CustomDispositionDto result =
+                    customDispositionService.updateForCampaign(CAMPAIGN_ID, DISP_ID, req, TENANT_ID);
 
             // then
             assertThat(result.label()).isEqualTo("Nowa etykieta");
@@ -293,37 +306,180 @@ class CustomDispositionServiceTest {
             assertThat(result.ordinal()).isEqualTo(2);
             assertThat(result.isActive()).isFalse();
         }
-    }
-
-    // =========================================================================
-    // delete – usuwanie dyspozycji
-    // =========================================================================
-
-    @Nested
-    @DisplayName("delete()")
-    class Delete {
 
         @Test
-        @DisplayName("dyspozycja nie istnieje → rzuca ResourceNotFoundException (HTTP 404)")
-        void delete_dispositionNotFound_throwsResourceNotFoundException() {
+        @DisplayName("concurrent DELETE między findById a update → rzuca ResourceNotFoundException")
+        void updateForCampaign_concurrentDelete_throwsResourceNotFoundException() {
             // given
-            when(customDispositionRepository.delete(DISP_ID, TENANT_ID)).thenReturn(0);
+            CustomDisposition existing = buildDisposition(DISP_ID, TENANT_ID, CAMPAIGN_ID, null,
+                    "SALE", "Sprzedaż", "positive", 1);
+
+            when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
+                    .thenReturn(Optional.of(existing));
+            // repo zwraca empty — symulacja concurrent DELETE
+            when(customDispositionRepository.update(any(CustomDisposition.class)))
+                    .thenReturn(Optional.empty());
 
             // when / then
             assertThatThrownBy(() ->
-                    customDispositionService.delete(DISP_ID, TENANT_ID))
+                    customDispositionService.updateForCampaign(CAMPAIGN_ID, DISP_ID, req, TENANT_ID))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining(DISP_ID.toString());
+        }
+    }
+
+    // =========================================================================
+    // updateForQueue – scope guard
+    // =========================================================================
+
+    @Nested
+    @DisplayName("updateForQueue()")
+    class UpdateForQueue {
+
+        private final UpdateCustomDispositionRequest req =
+                new UpdateCustomDispositionRequest("Nowa etykieta", "neutral", 2, true);
+
+        @Test
+        @DisplayName("dyspozycja należy do innej kolejki → rzuca CrossTenantAccessException (HTTP 403)")
+        void updateForQueue_wrongQueue_throwsCrossTenantAccessException() {
+            // given — dyspozycja przypisana do OTHER_ID (nie QUEUE_ID)
+            CustomDisposition existing = buildDisposition(DISP_ID, TENANT_ID, null, OTHER_ID,
+                    "SALE", "Sprzedaż", "positive", 1);
+
+            when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
+                    .thenReturn(Optional.of(existing));
+
+            // when / then
+            assertThatThrownBy(() ->
+                    customDispositionService.updateForQueue(QUEUE_ID, DISP_ID, req, TENANT_ID))
+                    .isInstanceOf(CrossTenantAccessException.class);
+
+            verify(customDispositionRepository, never()).update(any());
+        }
+
+        @Test
+        @DisplayName("sukces → aktualizuje pola i zwraca DTO")
+        void updateForQueue_success_returnsUpdatedDto() {
+            // given
+            CustomDisposition existing = buildDisposition(DISP_ID, TENANT_ID, null, QUEUE_ID,
+                    "NO_INTEREST", "Brak zainteresowania", "negative", 1);
+            CustomDisposition updated = buildDisposition(DISP_ID, TENANT_ID, null, QUEUE_ID,
+                    "NO_INTEREST", "Nowa etykieta", "neutral", 2);
+
+            when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
+                    .thenReturn(Optional.of(existing));
+            when(customDispositionRepository.update(any(CustomDisposition.class)))
+                    .thenReturn(Optional.of(updated));
+
+            // when
+            CustomDispositionDto result =
+                    customDispositionService.updateForQueue(QUEUE_ID, DISP_ID, req, TENANT_ID);
+
+            // then
+            assertThat(result.label()).isEqualTo("Nowa etykieta");
+            assertThat(result.tone()).isEqualTo("neutral");
+        }
+    }
+
+    // =========================================================================
+    // deleteFromCampaign – scope guard
+    // =========================================================================
+
+    @Nested
+    @DisplayName("deleteFromCampaign()")
+    class DeleteFromCampaign {
+
+        @Test
+        @DisplayName("dyspozycja nie istnieje → rzuca ResourceNotFoundException (HTTP 404)")
+        void deleteFromCampaign_dispositionNotFound_throwsResourceNotFoundException() {
+            // given
+            when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            // when / then
+            assertThatThrownBy(() ->
+                    customDispositionService.deleteFromCampaign(CAMPAIGN_ID, DISP_ID, TENANT_ID))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining(DISP_ID.toString());
+
+            verify(customDispositionRepository, never()).delete(any(), any());
+        }
+
+        @Test
+        @DisplayName("dyspozycja należy do innej kampanii → rzuca CrossTenantAccessException (HTTP 403)")
+        void deleteFromCampaign_wrongCampaign_throwsCrossTenantAccessException() {
+            // given
+            CustomDisposition existing = buildDisposition(DISP_ID, TENANT_ID, OTHER_ID, null,
+                    "SALE", "Sprzedaż", "positive", 1);
+
+            when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
+                    .thenReturn(Optional.of(existing));
+
+            // when / then
+            assertThatThrownBy(() ->
+                    customDispositionService.deleteFromCampaign(CAMPAIGN_ID, DISP_ID, TENANT_ID))
+                    .isInstanceOf(CrossTenantAccessException.class);
+
+            verify(customDispositionRepository, never()).delete(any(), any());
         }
 
         @Test
         @DisplayName("sukces → usuwa dyspozycję bez wyjątku")
-        void delete_success_doesNotThrow() {
+        void deleteFromCampaign_success_doesNotThrow() {
             // given
+            CustomDisposition existing = buildDisposition(DISP_ID, TENANT_ID, CAMPAIGN_ID, null,
+                    "SALE", "Sprzedaż", "positive", 1);
+
+            when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
+                    .thenReturn(Optional.of(existing));
             when(customDispositionRepository.delete(DISP_ID, TENANT_ID)).thenReturn(1);
 
             // when / then — nie rzuca
-            customDispositionService.delete(DISP_ID, TENANT_ID);
+            customDispositionService.deleteFromCampaign(CAMPAIGN_ID, DISP_ID, TENANT_ID);
+
+            verify(customDispositionRepository).delete(DISP_ID, TENANT_ID);
+        }
+    }
+
+    // =========================================================================
+    // deleteFromQueue – scope guard
+    // =========================================================================
+
+    @Nested
+    @DisplayName("deleteFromQueue()")
+    class DeleteFromQueue {
+
+        @Test
+        @DisplayName("dyspozycja należy do innej kolejki → rzuca CrossTenantAccessException (HTTP 403)")
+        void deleteFromQueue_wrongQueue_throwsCrossTenantAccessException() {
+            // given
+            CustomDisposition existing = buildDisposition(DISP_ID, TENANT_ID, null, OTHER_ID,
+                    "SALE", "Sprzedaż", "positive", 1);
+
+            when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
+                    .thenReturn(Optional.of(existing));
+
+            // when / then
+            assertThatThrownBy(() ->
+                    customDispositionService.deleteFromQueue(QUEUE_ID, DISP_ID, TENANT_ID))
+                    .isInstanceOf(CrossTenantAccessException.class);
+
+            verify(customDispositionRepository, never()).delete(any(), any());
+        }
+
+        @Test
+        @DisplayName("sukces → usuwa dyspozycję bez wyjątku")
+        void deleteFromQueue_success_doesNotThrow() {
+            // given
+            CustomDisposition existing = buildDisposition(DISP_ID, TENANT_ID, null, QUEUE_ID,
+                    "NO_INTEREST", "Brak zainteresowania", "negative", 1);
+
+            when(customDispositionRepository.findByIdAndTenantId(DISP_ID, TENANT_ID))
+                    .thenReturn(Optional.of(existing));
+            when(customDispositionRepository.delete(DISP_ID, TENANT_ID)).thenReturn(1);
+
+            // when / then — nie rzuca
+            customDispositionService.deleteFromQueue(QUEUE_ID, DISP_ID, TENANT_ID);
 
             verify(customDispositionRepository).delete(DISP_ID, TENANT_ID);
         }

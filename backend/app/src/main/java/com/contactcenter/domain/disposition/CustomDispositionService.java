@@ -5,10 +5,12 @@ import com.contactcenter.domain.disposition.dto.CreateCustomDispositionRequest;
 import com.contactcenter.domain.disposition.dto.CustomDispositionDto;
 import com.contactcenter.domain.disposition.dto.UpdateCustomDispositionRequest;
 import com.contactcenter.domain.exception.ConflictException;
+import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -72,24 +74,25 @@ public class CustomDispositionService {
      * @param tenantId   UUID tenanta
      * @return niepusta lista dostępnych dyspozycji dla agenta
      */
+    @Transactional(readOnly = true)
     public List<AvailableDispositionDto> resolveForContact(UUID campaignId, UUID queueId, UUID tenantId) {
         log.debug("[CustomDispositionService] resolveForContact: campaign={}, queue={}, tenant={}",
                 campaignId, queueId, tenantId);
 
-        if (campaignId != null && customDispositionRepository.existsByCampaignId(campaignId, tenantId)) {
-            log.debug("[CustomDispositionService] Resolucja: dyspozycje kampanii campaign={}", campaignId);
-            return customDispositionRepository.findByCampaignId(campaignId, tenantId)
-                    .stream()
-                    .map(this::mapToAvailable)
-                    .toList();
+        if (campaignId != null) {
+            List<CustomDisposition> campaignDisps = customDispositionRepository.findByCampaignId(campaignId, tenantId);
+            if (!campaignDisps.isEmpty()) {
+                log.debug("[CustomDispositionService] Resolucja: dyspozycje kampanii campaign={}", campaignId);
+                return campaignDisps.stream().map(this::mapToAvailable).toList();
+            }
         }
 
-        if (queueId != null && customDispositionRepository.existsByQueueId(queueId, tenantId)) {
-            log.debug("[CustomDispositionService] Resolucja: dyspozycje kolejki queue={}", queueId);
-            return customDispositionRepository.findByQueueId(queueId, tenantId)
-                    .stream()
-                    .map(this::mapToAvailable)
-                    .toList();
+        if (queueId != null) {
+            List<CustomDisposition> queueDisps = customDispositionRepository.findByQueueId(queueId, tenantId);
+            if (!queueDisps.isEmpty()) {
+                log.debug("[CustomDispositionService] Resolucja: dyspozycje kolejki queue={}", queueId);
+                return queueDisps.stream().map(this::mapToAvailable).toList();
+            }
         }
 
         log.debug("[CustomDispositionService] Resolucja: systemowe domyślne dyspozycje");
@@ -205,56 +208,129 @@ public class CustomDispositionService {
     }
 
     // =========================================================================
-    // CRUD wspólne (supervisor)
+    // CRUD per kampania — update i delete ze sprawdzaniem zakresu (supervisor)
     // =========================================================================
 
     /**
-     * Aktualizuje istniejącą dyspozycję.
+     * Aktualizuje dyspozycję w zakresie kampanii — weryfikuje, że dyspozycja należy do podanej kampanii.
      *
-     * <p>Aktualizowalne pola: {@code label}, {@code tone}, {@code ordinal}, {@code isActive}.
-     * Kod dyspozycji ({@code dispositionCode}) jest niezmienny.
-     *
+     * @param campaignId    UUID kampanii (scope guard)
      * @param dispositionId UUID dyspozycji
      * @param req           dane do aktualizacji
      * @param tenantId      UUID tenanta
      * @return DTO zaktualizowanej dyspozycji
-     * @throws ResourceNotFoundException gdy dyspozycja nie istnieje (HTTP 404)
+     * @throws ResourceNotFoundException   gdy dyspozycja nie istnieje (HTTP 404)
+     * @throws CrossTenantAccessException gdy dyspozycja nie należy do tej kampanii (HTTP 403)
      */
-    public CustomDispositionDto update(UUID dispositionId, UpdateCustomDispositionRequest req, UUID tenantId) {
-        log.debug("[CustomDispositionService] update: id={}, tenant={}", dispositionId, tenantId);
+    @Transactional
+    public CustomDispositionDto updateForCampaign(UUID campaignId, UUID dispositionId,
+                                                  UpdateCustomDispositionRequest req, UUID tenantId) {
+        log.debug("[CustomDispositionService] updateForCampaign: id={}, campaign={}, tenant={}",
+                dispositionId, campaignId, tenantId);
 
         CustomDisposition existing = customDispositionRepository.findByIdAndTenantId(dispositionId, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Dyspozycja nie istnieje: " + dispositionId));
+                .orElseThrow(() -> new ResourceNotFoundException("Dyspozycja nie istnieje: " + dispositionId));
+
+        if (!campaignId.equals(existing.getCampaignId())) {
+            throw new CrossTenantAccessException(dispositionId, tenantId);
+        }
 
         existing.setLabel(req.label());
         existing.setTone(req.tone());
         existing.setOrdinal(req.ordinal());
         existing.setActive(req.isActive());
 
-        CustomDisposition updated = customDispositionRepository.update(existing);
-
-        log.info("[CustomDispositionService] Dyspozycja zaktualizowana: id={}", dispositionId);
-        return mapToDto(updated);
+        return customDispositionRepository.update(existing)
+                .map(this::mapToDto)
+                .orElseThrow(() -> new ResourceNotFoundException("Dyspozycja nie istnieje: " + dispositionId));
     }
 
     /**
-     * Usuwa dyspozycję.
+     * Usuwa dyspozycję z zakresu kampanii — weryfikuje, że dyspozycja należy do podanej kampanii.
      *
+     * @param campaignId    UUID kampanii (scope guard)
      * @param dispositionId UUID dyspozycji
      * @param tenantId      UUID tenanta
-     * @throws ResourceNotFoundException gdy dyspozycja nie istnieje (HTTP 404)
+     * @throws ResourceNotFoundException   gdy dyspozycja nie istnieje (HTTP 404)
+     * @throws CrossTenantAccessException gdy dyspozycja nie należy do tej kampanii (HTTP 403)
      */
-    public void delete(UUID dispositionId, UUID tenantId) {
-        log.debug("[CustomDispositionService] delete: id={}, tenant={}", dispositionId, tenantId);
+    @Transactional
+    public void deleteFromCampaign(UUID campaignId, UUID dispositionId, UUID tenantId) {
+        log.debug("[CustomDispositionService] deleteFromCampaign: id={}, campaign={}, tenant={}",
+                dispositionId, campaignId, tenantId);
 
-        int deleted = customDispositionRepository.delete(dispositionId, tenantId);
+        CustomDisposition existing = customDispositionRepository.findByIdAndTenantId(dispositionId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dyspozycja nie istnieje: " + dispositionId));
 
-        if (deleted == 0) {
-            throw new ResourceNotFoundException("Dyspozycja nie istnieje: " + dispositionId);
+        if (!campaignId.equals(existing.getCampaignId())) {
+            throw new CrossTenantAccessException(dispositionId, tenantId);
         }
 
-        log.info("[CustomDispositionService] Dyspozycja usunięta: id={}", dispositionId);
+        customDispositionRepository.delete(dispositionId, tenantId);
+        log.info("[CustomDispositionService] Dyspozycja kampanii usunięta: id={}, campaign={}", dispositionId, campaignId);
+    }
+
+    // =========================================================================
+    // CRUD per kolejka — update i delete ze sprawdzaniem zakresu (supervisor)
+    // =========================================================================
+
+    /**
+     * Aktualizuje dyspozycję w zakresie kolejki — weryfikuje, że dyspozycja należy do podanej kolejki.
+     *
+     * @param queueId       UUID kolejki (scope guard)
+     * @param dispositionId UUID dyspozycji
+     * @param req           dane do aktualizacji
+     * @param tenantId      UUID tenanta
+     * @return DTO zaktualizowanej dyspozycji
+     * @throws ResourceNotFoundException   gdy dyspozycja nie istnieje (HTTP 404)
+     * @throws CrossTenantAccessException gdy dyspozycja nie należy do tej kolejki (HTTP 403)
+     */
+    @Transactional
+    public CustomDispositionDto updateForQueue(UUID queueId, UUID dispositionId,
+                                               UpdateCustomDispositionRequest req, UUID tenantId) {
+        log.debug("[CustomDispositionService] updateForQueue: id={}, queue={}, tenant={}",
+                dispositionId, queueId, tenantId);
+
+        CustomDisposition existing = customDispositionRepository.findByIdAndTenantId(dispositionId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dyspozycja nie istnieje: " + dispositionId));
+
+        if (!queueId.equals(existing.getQueueId())) {
+            throw new CrossTenantAccessException(dispositionId, tenantId);
+        }
+
+        existing.setLabel(req.label());
+        existing.setTone(req.tone());
+        existing.setOrdinal(req.ordinal());
+        existing.setActive(req.isActive());
+
+        return customDispositionRepository.update(existing)
+                .map(this::mapToDto)
+                .orElseThrow(() -> new ResourceNotFoundException("Dyspozycja nie istnieje: " + dispositionId));
+    }
+
+    /**
+     * Usuwa dyspozycję z zakresu kolejki — weryfikuje, że dyspozycja należy do podanej kolejki.
+     *
+     * @param queueId       UUID kolejki (scope guard)
+     * @param dispositionId UUID dyspozycji
+     * @param tenantId      UUID tenanta
+     * @throws ResourceNotFoundException   gdy dyspozycja nie istnieje (HTTP 404)
+     * @throws CrossTenantAccessException gdy dyspozycja nie należy do tej kolejki (HTTP 403)
+     */
+    @Transactional
+    public void deleteFromQueue(UUID queueId, UUID dispositionId, UUID tenantId) {
+        log.debug("[CustomDispositionService] deleteFromQueue: id={}, queue={}, tenant={}",
+                dispositionId, queueId, tenantId);
+
+        CustomDisposition existing = customDispositionRepository.findByIdAndTenantId(dispositionId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Dyspozycja nie istnieje: " + dispositionId));
+
+        if (!queueId.equals(existing.getQueueId())) {
+            throw new CrossTenantAccessException(dispositionId, tenantId);
+        }
+
+        customDispositionRepository.delete(dispositionId, tenantId);
+        log.info("[CustomDispositionService] Dyspozycja kolejki usunięta: id={}, queue={}", dispositionId, queueId);
     }
 
     // =========================================================================

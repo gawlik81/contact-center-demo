@@ -1806,3 +1806,168 @@ public static final String META_TARGET_QUEUE_ID  = "target_queue_id";
 4. Dodanie `AND c.is_deleted = FALSE` do `countWaitingContactsByQueueIds`
 5. Walidacja formatu E.164 dla `phoneNumber`
 6. Przynajmniej minimalne testy jednostkowe dla krytycznych ścieżek
+
+---
+
+## Review: EPIC-27 — CustomDisposition (domain + API + testy) — 2026-05-27
+
+**Branch:** custom-dispozition
+**Reviewer:** senior-code-reviewer agent
+**Pliki:** `CustomDisposition.java`, `CustomDispositionRepository.java`, `CustomDispositionService.java`, `CustomDispositionController.java`, `ContactController.java` (available-dispositions endpoint), DTOs (4 pliki), `CustomDispositionServiceTest.java`
+
+---
+
+### [CRITICAL] `rows.get(0)` w `update()` — potencjalny `IndexOutOfBoundsException`
+
+**Plik:** `CustomDispositionRepository.java:385`
+
+**Problem:** Metoda `update()` wywołuje `rows.get(0)` bez sprawdzenia, czy lista jest niepusta. Serwis wywołuje `findByIdAndTenantId()` (sprawdza istnienie), a następnie `update()` — ale obie operacje są w osobnych transakcjach (serwis nie ma `@Transactional`). Przy współbieżnym usunięciu dyspozycji między `find` a `update`, zapytanie UPDATE...RETURNING zwróci 0 wierszy, a `rows.get(0)` rzuci `IndexOutOfBoundsException` → HTTP 500 zamiast 404.
+
+**Sugestia:**
+```java
+if (rows.isEmpty()) {
+    throw new ResourceNotFoundException("Dyspozycja nie istnieje lub została usunięta: " + d.getId());
+}
+CustomDisposition updated = mapRow(rows.get(0));
+```
+Alternatywnie: oznaczyć `CustomDispositionService.update()` jako `@Transactional`, żeby find i update były w jednej transakcji.
+
+---
+
+### [MAJOR] `@Pattern` na `tone` bez `@NotNull` — null przechodzi walidację i trafia do DB jako NULL
+
+**Plik:** `CreateCustomDispositionRequest.java:17`, `UpdateCustomDispositionRequest.java:13`
+
+**Problem:** `@Pattern(regexp = "positive|negative|neutral|warning")` w Jakarta Bean Validation domyślnie pozwala na `null` (adnotacja jest ignorowana gdy pole jest null). Brak `@NotNull` na polu `tone` oznacza, że JSON `{"tone": null}` przejdzie walidację bez błędu 400 i dotrze do DB, gdzie natrafi na `NOT NULL` constraint — skutkując HTTP 500 zamiast HTTP 400.
+
+**Sugestia:**
+```java
+@NotNull @Pattern(regexp = "positive|negative|neutral|warning") String tone,
+```
+Analogicznie w `UpdateCustomDispositionRequest`.
+
+---
+
+### [MAJOR] `campaignId` / `queueId` z path parametru jest ignorowany w `updateForCampaign` i `deleteForCampaign`
+
+**Plik:** `CustomDispositionController.java:140-152`, `CustomDispositionController.java:166-178`
+
+**Problem:** Endpointy `PUT /campaigns/{campaignId}/{id}` i `DELETE /campaigns/{campaignId}/{id}` przyjmują `campaignId` jako path variable, ale go nie używają — serwis weryfikuje jedynie `id + tenantId`. Supervisor może więc wywołać `PUT /api/dispositions/campaigns/CAMPAIGN_X/{dispId}`, gdzie `{dispId}` należy do `CAMPAIGN_Y` (innej kampanii, ale tego samego tenanta), i operacja się powiedzie. To narusza semantyczny kontrakt URL i może prowadzić do nieintencjonalnych modyfikacji.
+
+**Sugestia:** Dodać weryfikację zakresu w serwisie:
+```java
+public CustomDispositionDto updateForCampaign(UUID campaignId, UUID dispositionId, UpdateCustomDispositionRequest req, UUID tenantId) {
+    CustomDisposition existing = customDispositionRepository.findByIdAndTenantId(dispositionId, tenantId)
+            .orElseThrow(() -> new ResourceNotFoundException(...));
+    if (!campaignId.equals(existing.getCampaignId())) {
+        throw new ResourceNotFoundException("Dyspozycja nie należy do kampanii: " + campaignId);
+    }
+    // ... reszta update
+}
+```
+
+---
+
+### [MAJOR] N+1 round-trips w `resolveForContact` — podwójne zapytanie do DB
+
+**Plik:** `CustomDispositionService.java:79-93`
+
+**Problem:** Dla każdego wywołania `resolveForContact` z kampanią z dyspozycjami wykonywane są:
+1. `setTenantContextInDb()` + `existsByCampaignId()` (2 round-trips)
+2. `setTenantContextInDb()` + `findByCampaignId()` (2 round-trips)
+
+Łącznie 4 round-trips, które można zredukować do 2. Dla każdego agenta kończącego kontakt to dodatkowe latency.
+
+**Sugestia:** Dodać metodę `findByCampaignIdIfExists()` w repozytorium, która zwraca listę lub empty, i zastąpić pattern `exists + find` pojedynczym zapytaniem:
+```java
+List<CustomDisposition> campaignDisps = customDispositionRepository.findByCampaignId(campaignId, tenantId);
+if (!campaignDisps.isEmpty()) {
+    return campaignDisps.stream().map(this::mapToAvailable).toList();
+}
+```
+Wtedy `existsByCampaignId` i `existsByQueueId` stają się zbędne dla flow resolucji.
+
+---
+
+### [MAJOR] Brak `@Transactional` w `update()` na poziomie serwisu — TOCTOU między find a update
+
+**Plik:** `CustomDispositionService.java:223-238`
+
+**Problem:** Metoda `update()` serwisu wykonuje dwie osobne operacje bazodanowe (`findByIdAndTenantId` + `update`) bez otaczającej transakcji. Brak `@Transactional` oznacza brak izolacji między odczytem a zapisem. W połączeniu z błędem opisanym wyżej (`rows.get(0)`) jest to potencjalne źródło HTTP 500 przy współbieżnych requestach.
+
+**Sugestia:**
+```java
+@Transactional
+public CustomDispositionDto update(UUID dispositionId, UpdateCustomDispositionRequest req, UUID tenantId) {
+```
+
+---
+
+### [MINOR] Błędna numer migracji w JavaDoc encji i repozytorium
+
+**Plik:** `CustomDisposition.java:17`, `CustomDispositionRepository.java:15`
+
+**Problem:** JavaDoc obu klas odwołuje się do `(V092)`, podczas gdy faktyczna migracja to `V069__create_custom_disposition.sql`.
+
+**Sugestia:** Poprawić referencje w JavaDoc na `V069`.
+
+---
+
+### [MINOR] Brak walidacji `@Min` dla `ordinal` — negatywne wartości przepuszczone
+
+**Plik:** `CreateCustomDispositionRequest.java:18`, `UpdateCustomDispositionRequest.java:14`
+
+**Problem:** Pole `ordinal` jest typem `int` bez żadnego ograniczenia zakresu. API akceptuje `ordinal: -999`, co może powodować nieoczekiwane sortowanie w interfejsie.
+
+**Sugestia:**
+```java
+@Min(0) int ordinal
+```
+
+---
+
+### [MINOR] Brak testu sukcesu dla `createForQueue` w `CustomDispositionServiceTest`
+
+**Plik:** `CustomDispositionServiceTest.java:218-239`
+
+**Problem:** Klasa `CreateForQueue` zawiera tylko test dla duplikatu kodu (rzuca ConflictException), ale brak symetrycznego testu ścieżki sukcesu (analogiczny do `createForCampaign_success_returnsDto`). Ryzyko: przyszła regresja w `createForQueue` nie zostanie wykryta.
+
+**Sugestia:** Dodać test:
+```java
+@Test
+@DisplayName("sukces → tworzy dyspozycję przypisaną do kolejki")
+void createForQueue_success_returnsDto() { ... }
+```
+
+---
+
+### [MINOR] `CustomDispositionService.resolveForContact` bez `@Transactional(readOnly = true)`
+
+**Plik:** `CustomDispositionService.java:75`
+
+**Problem:** Metoda wykonuje 2-4 zapytania bazodanowe bez otaczającej transakcji read-only. Choć nie powoduje błędów, brak `@Transactional(readOnly = true)` oznacza potencjalne niespójności odczytu między wywołaniami `exists` i `find` (niepowtarzalny odczyt) oraz brak optymalizacji Hibernate dla trybu read-only.
+
+**Sugestia:**
+```java
+@Transactional(readOnly = true)
+public List<AvailableDispositionDto> resolveForContact(UUID campaignId, UUID queueId, UUID tenantId) {
+```
+
+---
+
+### Pozytywne obserwacje
+
+- Multi-tenancy: wszystkie metody repozytorium poprawnie wywołują `setTenantContextInDb()` przed każdym zapytaniem i `assertSameTenant()` przed każdym zapisem — pełna zgodność z wzorcem projektu.
+- `CustomDispositionRepository` poprawnie rozszerza `TenantAwareRepository`.
+- Logika resolucji w `resolveForContact` jest czytelna, priorytet (kampania → kolejka → system) jest prawidłowy, a gwarancja niepustej listy jest efektywnie egzekwowana przez fallback `SYSTEM_DEFAULTS`.
+- Walidacja Bean Validation na DTO jest w większości kompletna (`@NotBlank`, `@Size`, `@Pattern` na dispositionCode).
+- `@PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")` na poziomie klasy kontrolera — poprawne; endpoint agenta (`/available-dispositions`) ma `hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')`.
+- Wzorzec INSERT/UPDATE z `RETURNING` i natywnym SQL przez EntityManager jest spójny z resztą projektu.
+- `SYSTEM_DEFAULTS` jako `static final List` — immutable, dobrze zdefiniowane.
+- Testy jednostkowe mają dobrą strukturę `@Nested`, opisowe `@DisplayName` i używają AssertJ.
+
+### Summary
+
+Implementacja backendowa jest solidna architektonicznie (TenantAware, assertSameTenant, proper DTOs, clear resolution logic), ale ma dwie rzeczywiste usterki blokujące: potencjalny NPE/IndexOutOfBounds w update przy współbieżności (brakuje @Transactional i null-guard) oraz przepuszczenie null tone przez walidację (~500 zamiast 400). Pominięcie campaignId w update/delete to naruszenie semantyki URL.
+
+**Ocena: 3/5** — wymaga naprawienia błędu walidacji tone i guard w `update()` przed mergem.

@@ -102,7 +102,11 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
             err,
           );
           this.availableDispositions.set(
-            DISPOSITION_CODES.map((d) => ({ code: d.code, label: d.code, tone: 'neutral' })),
+            DISPOSITION_CODES.map((d) => ({
+              code: d.code,
+              label: this.transloco.translate(d.labelKey),
+              tone: 'neutral',
+            })),
           );
           this.dispositionsLoading.set(false);
           this.dispositionsError.set('Używam dyspozycji systemowych (błąd pobierania)');

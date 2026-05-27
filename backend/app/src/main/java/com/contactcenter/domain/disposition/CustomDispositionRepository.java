@@ -351,12 +351,16 @@ public class CustomDispositionRepository extends TenantAwareRepository {
      * <p>Aktualizuje pola: {@code label}, {@code tone}, {@code ordinal}, {@code is_active}.
      * {@code disposition_code} jest niezmienny po utworzeniu.
      *
+     * <p>Zwraca {@code Optional.empty()} gdy rekord zniknął między odczytem a UPDATE
+     * (np. concurrent DELETE) — zabezpiecza przed race condition i {@code IndexOutOfBoundsException}.
+     *
      * @param d encja dyspozycji z wypełnionym id, tenantId i zaktualizowanymi polami
-     * @return zaktualizowana encja
+     * @return Optional z zaktualizowaną encją lub empty gdy rekord nie istnieje
      */
     @Transactional
-    public CustomDisposition update(CustomDisposition d) {
+    public Optional<CustomDisposition> update(CustomDisposition d) {
         assertSameTenant(d.getTenantId());
+        em.detach(d);
         setTenantContextInDb(d.getTenantId());
 
         log.debug("[CustomDispositionRepo] UPDATE dyspozycja: id={}, tenant={}", d.getId(), d.getTenantId());
@@ -382,11 +386,16 @@ public class CustomDispositionRepository extends TenantAwareRepository {
                 .setParameter("tenantId", d.getTenantId().toString())
                 .getResultList();
 
+        if (rows.isEmpty()) {
+            log.warn("[CustomDispositionRepo] UPDATE nie znalazł rekordu (concurrent DELETE?): id={}", d.getId());
+            return Optional.empty();
+        }
+
         CustomDisposition updated = mapRow(rows.get(0));
 
         log.debug("[CustomDispositionRepo] Dyspozycja zaktualizowana: id={}", updated.getId());
 
-        return updated;
+        return Optional.of(updated);
     }
 
     /**

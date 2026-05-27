@@ -966,3 +966,147 @@ gdzie `transferTargetTabValues = ['PHONE', 'AGENT', 'QUEUE'] as const`.
 3. Przeniesienie hardcoded polskich stringów do plików i18n (zakładki, placeholdery, komunikaty błędów)
 4. Dodanie `[disabled]="isTransferring"` na przyciskach w `transfer-agent-list` i `transfer-queue-list`
 5. Usunięcie dead code — blok "Complete" w PHONE attended section panelu transferu
+
+---
+
+## Review: EPIC-27 — Dyspozycje frontend (DispositionListEditor, panel agenta, widoki supervisora) — 2026-05-27
+
+**Branch:** custom-dispozition
+**Reviewer:** senior-code-reviewer agent
+**Pliki:** `custom-disposition.model.ts`, `custom-disposition.service.ts`, `disposition-list-editor.component.ts/html/scss`, `campaign-dispositions.component.ts/html`, `queue-dispositions.component.ts/html`, `campaign-form.component.ts/html` (zmiany EPIC-27), `queue-form.component.ts/html` (zmiany EPIC-27), `disposition-panel.component.ts/html`, `disposition.model.ts`
+
+---
+
+### [MAJOR] `DispositionListEditorComponent` nie reaguje na zmiany input signals — brak reload przy zmianie campaignId/queueId
+
+**Plik:** `disposition-list-editor.component.ts:67-68`
+
+**Problem:** Komponent implementuje `OnInit` i ładuje dane jednorazowo w `ngOnInit()`. Jeśli parent zmieni wartość `campaignId` lub `queueId` (np. user przełączy kampanię bez niszczenia komponentu), `loadDispositions()` nie zostanie wywołana ponownie. Przy obecnej architekturze (osadzony w campaign-form/queue-form) ryzyko jest niskie, ale komponent jest reużywalny (`shared/`) — kolejne użycie może ujawnić ten problem.
+
+**Sugestia:** Użyć `effect()` do obserwowania sygnałów wejściowych:
+```typescript
+constructor() {
+  effect(() => {
+    const cId = this.campaignId();
+    const qId = this.queueId();
+    if (cId || qId) {
+      this.loadDispositions();
+    }
+  });
+}
+```
+Lub zachować `ngOnInit` ale dodać `ngOnChanges` z detekcją zmiany. Przy `effect()` można usunąć `implements OnInit`.
+
+---
+
+### [MAJOR] Fallback w `DispositionPanelComponent` używa `d.code` jako etykiety zamiast przetłumaczonej nazwy
+
+**Plik:** `disposition-panel.component.ts:105`
+
+**Problem:** Przy błędzie API, fallback mapuje `DISPOSITION_CODES` jako:
+```typescript
+DISPOSITION_CODES.map((d) => ({ code: d.code, label: d.code, tone: 'neutral' }))
+```
+`label` jest ustawiany na `d.code` (np. `"NO_INTEREST"`) zamiast na przetłumaczoną nazwę. Agent widzi techniczne kody zamiast czytelnych etykiet. `DISPOSITION_CODES` ma pole `labelKey` do użycia z Transloco, ale jest ono ignorowane.
+
+**Sugestia:**
+```typescript
+DISPOSITION_CODES.map((d) => ({
+  code: d.code,
+  label: this.transloco.translate(d.labelKey),
+  tone: 'neutral',
+}))
+```
+
+---
+
+### [MINOR] Niespójność typów tonu między `disposition.model.ts` a API
+
+**Plik:** `disposition.model.ts:1`, `disposition-panel.component.ts:105`
+
+**Problem:** `DispositionTone` w starym modelu agenta definiuje typy `'accent' | 'success' | 'warning' | 'danger' | 'violet' | 'neutral'`, które nie odpowiadają wartościom API (`'positive' | 'negative' | 'neutral' | 'warning'`). W fallback hardkodowane jest `tone: 'neutral'` dla wszystkich — `toneClass()` działa poprawnie (domyślna wartość), ale `DISPOSITION_CODES` zawiera `'violet'`, `'accent'`, `'danger'`, które nie mają odpowiednika w `toneClass()`.
+
+**Sugestia:** Usunąć `DispositionTone` z `disposition.model.ts` lub ujednolicić typy tonu z `DispositionToneApi` z `custom-disposition.model.ts`. Pole `tone: DispositionTone` w `DispositionCode` jest de facto martwe w nowym flow.
+
+---
+
+### [MINOR] Brak zabezpieczenia przed podwójnym zapisem w `loadDispositions` gdy `takeUntilDestroyed` jest w kombinacji z kolejnymi wywołaniami
+
+**Plik:** `disposition-list-editor.component.ts:86-97`
+
+**Problem:** `loadDispositions()` jest wywoływana po każdym sukcesie zapisu i usunięcia. Każde wywołanie tworzy nową subskrypcję z `takeUntilDestroyed`. Jeśli poprzedni request jest in-flight i nastąpi kolejne wywołanie `loadDispositions()`, oba requesty będą aktywne równolegle. Ostatni który wróci "wygra" i ustawi stan — może to powodować migotanie listy lub stary stan.
+
+**Sugestia:** Użyć `switchMap` lub `Subject` + `switchMap` do anulowania poprzednich requestów:
+```typescript
+private readonly reload$ = new Subject<void>();
+
+constructor() {
+  this.reload$.pipe(
+    switchMap(() => this.buildList$()),
+    takeUntilDestroyed(this.destroyRef)
+  ).subscribe({ next: items => this.dispositions.set(items), error: () => ... });
+}
+
+loadDispositions(): void { this.reload$.next(); }
+```
+
+---
+
+### [MINOR] Brak obsługi przypadku, gdy oba `campaignId` i `queueId` są `undefined` — brak komunikatu dla użytkownika
+
+**Plik:** `disposition-list-editor.component.ts:75-77`
+
+**Problem:** Gdy oba inputy są `undefined`, komponent cicho nic nie robi (`return`). Loading pozostaje `false`, lista jest pusta, ale nie wyświetla się żaden błąd. Ponieważ komponent jest w `shared/`, nieprawidłowe użycie (brak obu inputów) nie daje żadnej diagnostyki.
+
+**Sugestia:** Dodać co najmniej `console.warn`:
+```typescript
+if (!campaignId && !queueId) {
+  console.warn('[DispositionListEditor] Neither campaignId nor queueId provided — component is idle.');
+  return;
+}
+```
+
+---
+
+### [MINOR] `onDeleteExecute()` używa `queueId!` gdy `campaignId` jest undefined — brak guard dla null `queueId`
+
+**Plik:** `disposition-list-editor.component.ts:195`
+
+**Problem:** `delete$` jest budowany jako:
+```typescript
+const delete$ = campaignId
+  ? this.service.deleteFromCampaign(campaignId, id)
+  : this.service.deleteFromQueue(queueId!, id);
+```
+Jeśli oba `campaignId` i `queueId` są `undefined` (co jest możliwe przez API komponentu), `queueId!` jest wymuszone i wywołanie API wyśle request z `undefined` w URL → `/api/dispositions/queues/undefined/{id}`. To samo dotyczy `onSubmit()`.
+
+**Sugestia:** Dodać guard przed budowaniem requestu:
+```typescript
+if (!campaignId && !queueId) {
+  this.notifications.error('Brak kontekstu — nie można zapisać dyspozycji.');
+  this.submitting.set(false);
+  return;
+}
+```
+
+---
+
+### Pozytywne obserwacje
+
+- Wszystkie nowe komponenty mają `standalone: true` i `ChangeDetectionStrategy.OnPush` — pełna zgodność z architekturą.
+- Stan zarządzany przez `signal()` / `computed()` — zgodny z konwencją projektu.
+- `takeUntilDestroyed(this.destroyRef)` poprawnie stosowany we wszystkich subskrypcjach — brak wycieków pamięci.
+- Obsługa błędu 409 w `onSubmit()` jest user-friendly — oddzielny komunikat zamiast generycznego błędu.
+- `catchError` + `return EMPTY` we wszystkich operacjach — komponent nie crashuje przy błędach API.
+- Formularz reaktywny z pełną walidacją po stronie klienta: `@Pattern(/^[A-Z0-9_]+$/)`, `maxLength`, `required` — spójne z backendem.
+- Dostępność: atrybuty `aria-invalid`, `aria-describedby`, `role="alert"` na polach formularza — wzorowe.
+- `TONE_CSS_CLASS` w modelu jako `Record<DispositionToneApi, string>` — type-safe mapowanie, brak magic strings.
+- Fallback agenta używa `console.warn` zamiast `console.error` — poprawne traktowanie degradacji graceful jako niekreytycznej.
+- `CampaignDispositionsComponent` i `QueueDispositionsComponent` jako cienkie wrappery — czyste rozdzielenie odpowiedzialności.
+- Osadzanie sekcji dyspozycji tylko w trybie edycji (`@if (campaignId())` / `@if (queueId(); as id)`) — prawidłowe.
+
+### Summary
+
+Frontend jest dobrze zorganizowany: OnPush, signal-based state, standalone components, prawidłowe zarządzanie lifecycle subskrypcji. Główne problemy to brak reaktywności na zmiany inputów (komponent nie przeładuje danych jeśli parent zmieni kontekst), błędne etykiety w fallback agenta (techniczne kody zamiast tłumaczeń) oraz ryzyko wywołania API z `undefined` w URL gdy oba inputy są niezainicjowane.
+
+**Ocena: 3.5/5** — solidna podstawa, ale wymaga naprawienia etykiet w fallback i dodania `effect()` dla reaktywności inputów przed mergem.

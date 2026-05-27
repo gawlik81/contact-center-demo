@@ -298,6 +298,36 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - Is `exchangeForLongLivedToken()` fully implemented (not stub)?
 - Are RLS write policies present for any new table with `ENABLE ROW LEVEL SECURITY`?
 
+## EPIC-27 (Custom Dispositions per Campaign/Queue) — issues found 2026-05-27
+
+**Critical — must fix before merge:**
+- `CustomDispositionRepository.update()` line 385: `rows.get(0)` called without checking if list is empty. Service calls `findByIdAndTenantId` + `update` in separate (non-transactional) calls — concurrent delete between them causes `IndexOutOfBoundsException` → HTTP 500. Fix: null-guard + `@Transactional` on `CustomDispositionService.update()`.
+- `CreateCustomDispositionRequest.tone` has `@Pattern` but no `@NotNull` — Jakarta Bean Validation allows null through `@Pattern`. `tone: null` in JSON passes 400 validation, hits DB NOT NULL constraint → HTTP 500. Same issue in `UpdateCustomDispositionRequest.tone`. Fix: add `@NotNull`.
+
+**Architecture violations:**
+- `campaignId` / `queueId` path params in `PUT /campaigns/{campaignId}/{id}` and `DELETE` are ignored — only `id + tenantId` used. A supervisor can update a disposition from campaign B using campaign A's URL. Fix: verify `disposition.getCampaignId().equals(campaignId)` in service.
+- `resolveForContact` makes 2 DB round-trips (existsBy + findBy) per scope instead of 1. Fix: use `findByCampaignId` return directly (empty = no dispositions), remove `existsByCampaignId/Queue` from resolution path.
+- `CustomDispositionService` has no `@Transactional` at all — multi-step operations (findByIdAndTenantId + update) run in separate transactions.
+
+**Minor:**
+- JavaDoc in `CustomDisposition.java:17` and `CustomDispositionRepository.java:15` references `V092` — actual migration is `V069`.
+- `ordinal` field has no `@Min(0)` — negative values accepted.
+- Test class `CreateForQueue` has only duplicate-code test, missing success path test.
+- `resolveForContact` missing `@Transactional(readOnly = true)` — reads across separate transactions.
+
+**Positive patterns in EPIC-27:**
+- All repository methods call `setTenantContextInDb()` before queries and `assertSameTenant()` before writes — full multi-tenancy compliance.
+- `CustomDispositionRepository extends TenantAwareRepository` — correct.
+- INSERT/UPDATE with `RETURNING` pattern — consistent with rest of project.
+- `SYSTEM_DEFAULTS` as immutable static field — correct fallback guarantee.
+- `@PreAuthorize` at class level on controller (SUPERVISOR+ADMIN), agent endpoint correctly allows AGENT role.
+- 409 conflict returned for duplicate disposition_code — correct HTTP semantics.
+
+**Check in future disposition-related reviews:**
+- Does `update()` guard against empty RETURNING result before `rows.get(0)`?
+- Is `@NotNull` present on `tone` in request DTOs?
+- Are campaignId/queueId path params actually validated against the disposition's scope?
+
 ## Architectural patterns observed in BE-027
 
 **Partitioned table pattern (new in BE-027):**

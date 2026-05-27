@@ -47,7 +47,7 @@ Stan migracji po V035 (2026-04-08):
   - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
   - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
 
-Stan migracji po V069 (2026-05-27):
+Stan migracji po V070 (2026-05-27):
 - V069__create_custom_disposition.sql (DB-040, EPIC-27): własne dyspozycje po kontakcie per kampania lub kolejka.
   - Zakres (scope): dokładnie jeden z campaign_id/queue_id musi być NOT NULL — egzekwowany przez chk_custom_disposition_scope CHECK.
   - Tone: positive/negative/neutral/warning — egzekwowany przez chk_custom_disposition_tone CHECK.
@@ -56,6 +56,15 @@ Stan migracji po V069 (2026-05-27):
   - RLS: custom_disposition_isolation USING current_setting('app.tenant_id', TRUE)::UUID.
   - UWAGA: DDL w TASKS-DATABASE.md miał błąd — tenant(id) i queue(id) nie istnieją. Poprawiono na tenant(tenant_id) i queue(queue_id).
   - Flyway checksum: -878697635 (CRC32 per-line UTF-8, signed int32).
+- V070__fix_custom_disposition_rls_and_indexes.sql (code-review fix, EPIC-27): poprawki RLS i indeksów dla custom_disposition.
+  - [CRITICAL fix] RLS: zmieniono app.tenant_id → app.current_tenant_id (izolacja multi-tenant była wyłączona).
+  - [MAJOR fix] Dodano WITH CHECK do polityki RLS (ochrona INSERT/UPDATE).
+  - [MAJOR fix] ALTER TABLE custom_disposition FORCE ROW LEVEL SECURITY (blokuje właściciela tabeli).
+  - [MINOR fix] Nowy indeks idx_custom_disposition_tenant_id ON (tenant_id, id) dla wzorca findByIdAndTenantId.
+  - [MINOR fix] Nowe indeksy _all bez filtra is_active dla widoku supervisora (zwraca wszystkie wiersze):
+      idx_custom_disposition_campaign_all ON (tenant_id, campaign_id, ordinal) WHERE campaign_id IS NOT NULL
+      idx_custom_disposition_queue_all    ON (tenant_id, queue_id, ordinal)    WHERE queue_id IS NOT NULL
+  - Flyway checksum: -1578165228. Rejestracja ręczna przez INSERT do flyway_schema_history (migracja przez psql).
 
 Stan migracji po V068 (2026-05-25):
 - V064__create_tenant_ai_config.sql (DB-038): konfiguracja dostawcy AI per tenant.

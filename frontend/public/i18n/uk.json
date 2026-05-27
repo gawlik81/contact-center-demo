@@ -635,8 +635,8 @@
       "prevPeriod": "Попередній період",
       "nextPeriod": "Наступний період",
       "viewMode": "Режим перегляду",
-      "showClosedCampaigns": "Показати закриті кампанії",
-      "hideClosedCampaigns": "Сховати закриті кампанії"
+      "showClosedCampaigns": "Показати закриті",
+      "hideClosedCampaigns": "Сховати закриті"
     },
     "callbacks": {
       "title": "Мої передзвони",

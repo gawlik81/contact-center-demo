@@ -635,8 +635,8 @@
       "prevPeriod": "Poprzedni okres",
       "nextPeriod": "Następny okres",
       "viewMode": "Tryb widoku",
-      "showClosedCampaigns": "Pokaż zakończone kampanie",
-      "hideClosedCampaigns": "Ukryj zakończone kampanie"
+      "showClosedCampaigns": "Pokaż zakończone",
+      "hideClosedCampaigns": "Ukryj zakończone"
     },
     "callbacks": {
       "title": "Moje oddzwonienia",

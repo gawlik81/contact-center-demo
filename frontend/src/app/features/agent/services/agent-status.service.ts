@@ -40,9 +40,26 @@ export class AgentStatusService {
    * Fetches the current user profile via GET /api/users/me and initialises the agent status.
    * Also subscribes to AGENT_STATUS_CHANGED WebSocket events so server-side status changes
    * (e.g. automatic break activation by the scheduler) are reflected immediately in the UI.
+   * On every WS reconnect the status is re-synced from the server to recover any events
+   * missed during a temporary disconnect.
    */
   initStatus(): void {
     this.currentStatus.set('OFFLINE');
+    this.fetchAndSyncStatus();
+
+    this.ws.onConnect(() => this.fetchAndSyncStatus());
+
+    this.ws.events$
+      .pipe(filter((e: WsEvent) => e.eventType === 'AGENT_STATUS_CHANGED'))
+      .subscribe((e) => {
+        const payload = e.payload as AgentStatusChangedPayload;
+        if (payload.agentId === this.currentUserId) {
+          this.currentStatus.set(payload.status);
+        }
+      });
+  }
+
+  private fetchAndSyncStatus(): void {
     this.http
       .get<UserResponse>(`${environment.apiUrl}/users/me`)
       .pipe(
@@ -61,15 +78,6 @@ export class AgentStatusService {
         }),
       )
       .subscribe();
-
-    this.ws.events$
-      .pipe(filter((e: WsEvent) => e.eventType === 'AGENT_STATUS_CHANGED'))
-      .subscribe((e) => {
-        const payload = e.payload as AgentStatusChangedPayload;
-        if (payload.agentId === this.currentUserId) {
-          this.currentStatus.set(payload.status);
-        }
-      });
   }
 
   /**

@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  ViewChild,
   computed,
   effect,
   inject,
@@ -66,6 +67,8 @@ import {
   styleUrl: './agent-desktop.component.scss',
 })
 export class AgentDesktopComponent implements OnInit {
+  @ViewChild(AgentCalendarComponent) private calendarRef?: AgentCalendarComponent;
+
   private readonly ws = inject(WebSocketService);
   protected readonly statusService = inject(AgentStatusService);
   protected readonly tabStore = inject(ContactTabStore);
@@ -400,6 +403,11 @@ export class AgentDesktopComponent implements OnInit {
 
   protected openAddBreak(): void {
     this.addBreakOpen.set(true);
+  }
+
+  protected onBreakSavedFromHeader(): void {
+    this.addBreakOpen.set(false);
+    this.calendarRef?.reload();
   }
 
   protected changeStatus(status: AgentStatus): void {

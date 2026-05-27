@@ -635,8 +635,8 @@
       "prevPeriod": "Vorheriger Zeitraum",
       "nextPeriod": "Nächster Zeitraum",
       "viewMode": "Anzeigemodus",
-      "showClosedCampaigns": "Abgeschlossene Kampagnen anzeigen",
-      "hideClosedCampaigns": "Abgeschlossene Kampagnen ausblenden"
+      "showClosedCampaigns": "Abgeschlossene anzeigen",
+      "hideClosedCampaigns": "Abgeschlossene ausblenden"
     },
     "callbacks": {
       "title": "Meine Rückrufe",

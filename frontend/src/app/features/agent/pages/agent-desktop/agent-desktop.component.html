@@ -1,6 +1,6 @@
 <!-- Add Break Modal -->
 @if (addBreakOpen()) {
-  <app-add-break-modal (saved)="addBreakOpen.set(false)" (cancelled)="addBreakOpen.set(false)" />
+  <app-add-break-modal (saved)="onBreakSavedFromHeader()" (cancelled)="addBreakOpen.set(false)" />
 }
 
 <!-- After Contact Work – Disposition Panel -->

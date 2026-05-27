@@ -10,9 +10,10 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { catchError, EMPTY } from 'rxjs';
+import { catchError, EMPTY, filter } from 'rxjs';
 import { AgentCalendarService } from '../../../services/agent-calendar.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
+import { WebSocketService } from '../../../../../core/services/websocket.service';
 import { RescheduleCallbackModalComponent } from '../../../components/reschedule-callback-modal/reschedule-callback-modal.component';
 import { AddBreakModalComponent } from '../../../components/add-break-modal/add-break-modal.component';
 import {
@@ -21,6 +22,7 @@ import {
   CalendarCallback,
   CalendarCampaign,
 } from '../../../models/agent-calendar.model';
+import { WsEvent } from '../../../models/ws-event.model';
 
 type CalendarViewMode = 'week' | 'day';
 
@@ -52,6 +54,7 @@ export class AgentCalendarComponent implements OnInit {
   private readonly calendarService = inject(AgentCalendarService);
   private readonly notifications = inject(NotificationService);
   private readonly transloco = inject(TranslocoService);
+  private readonly ws = inject(WebSocketService);
   private readonly destroyRef = inject(DestroyRef);
 
   // ── View state ──────────────────────────────────────────────────────────────
@@ -209,6 +212,17 @@ export class AgentCalendarComponent implements OnInit {
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
   ngOnInit(): void {
+    this.loadData();
+
+    this.ws.events$
+      .pipe(
+        filter((e: WsEvent) => e.eventType === 'AGENT_STATUS_CHANGED'),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.loadData());
+  }
+
+  reload(): void {
     this.loadData();
   }
 

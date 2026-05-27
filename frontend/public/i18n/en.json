@@ -635,8 +635,8 @@
       "prevPeriod": "Previous period",
       "nextPeriod": "Next period",
       "viewMode": "View mode",
-      "showClosedCampaigns": "Show closed campaigns",
-      "hideClosedCampaigns": "Hide closed campaigns"
+      "showClosedCampaigns": "Show closed",
+      "hideClosedCampaigns": "Hide closed"
     },
     "callbacks": {
       "title": "My callbacks",

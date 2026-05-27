@@ -44,6 +44,17 @@ function endAfterStartValidator(group: AbstractControl): ValidationErrors | null
   return end <= start ? { endNotAfterStart: true } : null;
 }
 
+function startInFutureValidator(group: AbstractControl): ValidationErrors | null {
+  const startDate = group.get('startDate')?.value as string;
+  const startHour = group.get('startHour')?.value as string;
+  const startMinute = group.get('startMinute')?.value as string;
+
+  if (!startDate || !startHour || !startMinute) return null;
+
+  const start = new Date(`${startDate}T${startHour}:${startMinute}:00`);
+  return start <= new Date() ? { startNotInFuture: true } : null;
+}
+
 export interface BreakTypeOption {
   value: BreakType;
   label: string;
@@ -108,7 +119,7 @@ export class AddBreakModalComponent implements OnInit {
       endMinute: ['', [Validators.required]],
       notes: ['', [Validators.maxLength(500)]],
     },
-    { validators: endAfterStartValidator },
+    { validators: [endAfterStartValidator, startInFutureValidator] },
   );
 
   private readonly _formStatus = toSignal(this.form.statusChanges, {
@@ -181,6 +192,16 @@ export class AddBreakModalComponent implements OnInit {
     if (!endHourTouched && !endMinuteTouched && !endDateTouched) return null;
     return this.form.hasError('endNotAfterStart')
       ? 'Czas zakończenia musi być późniejszy niż czas rozpoczęcia.'
+      : null;
+  }
+
+  get startTimeInPastError(): string | null {
+    const startDateTouched = this.form.controls.startDate.touched;
+    const startHourTouched = this.form.controls.startHour.touched;
+    const startMinuteTouched = this.form.controls.startMinute.touched;
+    if (!startDateTouched && !startHourTouched && !startMinuteTouched) return null;
+    return this.form.hasError('startNotInFuture')
+      ? this.transloco.translate('agent.addBreak.errorStartInPast')
       : null;
   }
 
@@ -264,11 +285,12 @@ export class AddBreakModalComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
           if (err.status === 409) {
-            this.errorMessage.set(this.transloco.translate('agent.addBreak.saving'));
+            this.errorMessage.set(this.transloco.translate('agent.addBreak.errorConflict'));
           } else if (err.status === 403) {
-            this.errorMessage.set(this.transloco.translate('common.error'));
+            this.errorMessage.set(this.transloco.translate('common.errorForbidden'));
           } else {
-            this.errorMessage.set(this.transloco.translate('common.error'));
+            const detail = err.error?.detail as string | undefined;
+            this.errorMessage.set(detail ?? this.transloco.translate('common.error'));
           }
           return EMPTY;
         }),
@@ -303,11 +325,8 @@ export class AddBreakModalComponent implements OnInit {
       .pipe(
         catchError((err: HttpErrorResponse) => {
           this.loading.set(false);
-          if (err.status === 409) {
-            this.errorMessage.set(this.transloco.translate('common.error'));
-          } else {
-            this.errorMessage.set(this.transloco.translate('common.error'));
-          }
+          const detail = err.error?.detail as string | undefined;
+          this.errorMessage.set(detail ?? this.transloco.translate('common.error'));
           this.confirmCancel.set(false);
           return EMPTY;
         }),

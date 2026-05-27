@@ -386,7 +386,9 @@
         "TRAINING": "Szkolenie",
         "MEETING": "Spotkanie",
         "OTHER": "Inna"
-      }
+      },
+      "errorStartInPast": "Czas rozpoczęcia musi być w przyszłości.",
+      "errorConflict": "Przerwa koliduje z istniejącym wpisem w harmonogramie."
     },
     "rescheduleCallback": {
       "title": "Przesuń oddzwonienie",

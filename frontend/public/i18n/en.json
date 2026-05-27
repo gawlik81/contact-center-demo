@@ -386,7 +386,9 @@
         "TRAINING": "Training",
         "MEETING": "Meeting",
         "OTHER": "Other"
-      }
+      },
+      "errorStartInPast": "Start time must be in the future.",
+      "errorConflict": "The break conflicts with an existing schedule entry."
     },
     "rescheduleCallback": {
       "title": "Reschedule callback",

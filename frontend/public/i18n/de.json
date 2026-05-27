@@ -386,7 +386,9 @@
         "TRAINING": "Training",
         "MEETING": "Besprechung",
         "OTHER": "Andere"
-      }
+      },
+      "errorStartInPast": "Die Startzeit muss in der Zukunft liegen.",
+      "errorConflict": "Die Pause steht in Konflikt mit einem bestehenden Termineintrag."
     },
     "rescheduleCallback": {
       "title": "Rückruf verschieben",

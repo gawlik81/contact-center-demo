@@ -201,6 +201,12 @@
       </form>
     </div>
 
+    @if (queueId(); as id) {
+      <div class="queue-form-dialog__dispositions">
+        <app-queue-dispositions [queueId]="id" />
+      </div>
+    }
+
     <div class="queue-form-dialog__footer">
       <button class="btn btn-cancel" type="button" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
       <button

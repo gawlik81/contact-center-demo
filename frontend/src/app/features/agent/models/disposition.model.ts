@@ -6,6 +6,7 @@ export interface DispositionCode {
   tone: DispositionTone;
 }
 
+/** @deprecated Używaj CustomDispositionService.getAvailableDispositions() — fallback tylko przy błędzie API */
 export const DISPOSITION_CODES: DispositionCode[] = [
   { code: 'SALE', labelKey: 'agent.dispositionCodes.SALE', tone: 'violet' },
   { code: 'NO_INTEREST', labelKey: 'agent.dispositionCodes.NO_INTEREST', tone: 'warning' },

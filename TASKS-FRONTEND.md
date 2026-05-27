@@ -4538,7 +4538,7 @@ getAvailableDispositions(contactId: string): Observable<AvailableDisposition[]>
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** FE-090
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-093
 **Blokuje:** —
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
@@ -4579,7 +4579,7 @@ Nowa sekcja „Dyspozycje" w widoku szczegółów / edycji kampanii w panelu sup
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** FE-090
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-093
 **Blokuje:** —
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
@@ -4590,10 +4590,10 @@ Analogiczna sekcja jak FE-091, ale w widoku szczegółów/edycji kolejki. Użyj 
 **Komponent:** `DispositionListEditorComponent` (`shared/components/disposition-list-editor/`) — przyjmuje `@Input() campaignId?: string` i `@Input() queueId?: string`. Na podstawie tego który input jest ustawiony, wywołuje odpowiednie metody serwisu.
 
 **Kryteria akceptacji:**
-- [ ] `DispositionListEditorComponent` jest standalone, przyjmuje `campaignId` lub `queueId`
-- [ ] `CampaignDispositionsComponent` i `QueueDispositionsComponent` używają `DispositionListEditorComponent`
-- [ ] Funkcjonalność identyczna jak FE-091
-- [ ] `npm run lint`, `npm test` przechodzą
+- [x] `DispositionListEditorComponent` jest standalone, przyjmuje `campaignId` lub `queueId`
+- [x] `CampaignDispositionsComponent` i `QueueDispositionsComponent` używają `DispositionListEditorComponent`
+- [x] Funkcjonalność identyczna jak FE-091
+- [x] `npm run lint` przechodzi
 
 ---
 
@@ -4603,7 +4603,7 @@ Analogiczna sekcja jak FE-091, ale w widoku szczegółów/edycji kolejki. Użyj 
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** FE-090, BE-094
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-094
 **Blokuje:** —
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka

@@ -1,0 +1,233 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { NgClass } from '@angular/common';
+import { EMPTY, catchError } from 'rxjs';
+import {
+  CreateCustomDispositionRequest,
+  CustomDisposition,
+  DispositionToneApi,
+  UpdateCustomDispositionRequest,
+} from '../../../features/dispositions/models/custom-disposition.model';
+import { CustomDispositionService } from '../../../features/dispositions/services/custom-disposition.service';
+import { NotificationService } from '../../../core/services/notification.service';
+import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+
+@Component({
+  selector: 'app-disposition-list-editor',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: true,
+  imports: [ReactiveFormsModule, NgClass, ConfirmDialogComponent],
+  templateUrl: './disposition-list-editor.component.html',
+  styleUrl: './disposition-list-editor.component.scss',
+})
+export class DispositionListEditorComponent implements OnInit {
+  readonly campaignId = input<string | undefined>(undefined);
+  readonly queueId = input<string | undefined>(undefined);
+
+  readonly dispositions = signal<CustomDisposition[]>([]);
+  readonly loading = signal(false);
+  readonly error = signal<string | null>(null);
+  readonly showForm = signal(false);
+  readonly editingId = signal<string | null>(null);
+  readonly deletingId = signal<string | null>(null);
+  readonly submitting = signal(false);
+
+  readonly toneOptions: { value: DispositionToneApi; label: string }[] = [
+    { value: 'positive', label: 'Pozytywny' },
+    { value: 'negative', label: 'Negatywny' },
+    { value: 'neutral', label: 'Neutralny' },
+    { value: 'warning', label: 'Ostrzeżenie' },
+  ];
+
+  private readonly fb = inject(FormBuilder);
+  private readonly service = inject(CustomDispositionService);
+  private readonly notifications = inject(NotificationService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly form = this.fb.group({
+    dispositionCode: [
+      '',
+      [Validators.required, Validators.pattern(/^[A-Z0-9_]+$/), Validators.maxLength(50)],
+    ],
+    label: ['', [Validators.required, Validators.maxLength(100)]],
+    tone: ['neutral' as DispositionToneApi, Validators.required],
+    ordinal: [0],
+    isActive: [true],
+  });
+
+  ngOnInit(): void {
+    this.loadDispositions();
+  }
+
+  loadDispositions(): void {
+    const campaignId = this.campaignId();
+    const queueId = this.queueId();
+
+    if (!campaignId && !queueId) {
+      return;
+    }
+
+    this.loading.set(true);
+    this.error.set(null);
+
+    const list$ = campaignId
+      ? this.service.listForCampaign(campaignId)
+      : this.service.listForQueue(queueId!);
+
+    list$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          this.dispositions.set(items);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.error.set('Nie udało się załadować dyspozycji.');
+          this.loading.set(false);
+        },
+      });
+  }
+
+  onAdd(): void {
+    this.form.reset({
+      dispositionCode: '',
+      label: '',
+      tone: 'neutral',
+      ordinal: 0,
+      isActive: true,
+    });
+    this.form.get('dispositionCode')!.enable();
+    this.editingId.set(null);
+    this.showForm.set(true);
+  }
+
+  onEdit(d: CustomDisposition): void {
+    this.form.patchValue({
+      dispositionCode: d.dispositionCode,
+      label: d.label,
+      tone: d.tone,
+      ordinal: d.ordinal,
+      isActive: d.isActive,
+    });
+    this.form.get('dispositionCode')!.disable();
+    this.editingId.set(d.id);
+    this.showForm.set(true);
+  }
+
+  onSubmit(): void {
+    this.form.markAllAsTouched();
+    if (this.form.invalid || this.submitting()) return;
+
+    this.submitting.set(true);
+
+    const raw = this.form.getRawValue();
+    const editId = this.editingId();
+    const campaignId = this.campaignId();
+    const queueId = this.queueId();
+
+    let op$;
+
+    if (editId) {
+      const req: UpdateCustomDispositionRequest = {
+        label: raw.label!,
+        tone: raw.tone as DispositionToneApi,
+        ordinal: raw.ordinal ?? 0,
+        isActive: raw.isActive ?? true,
+      };
+      op$ = campaignId
+        ? this.service.updateForCampaign(campaignId, editId, req)
+        : this.service.updateForQueue(queueId!, editId, req);
+    } else {
+      const req: CreateCustomDispositionRequest = {
+        dispositionCode: raw.dispositionCode!,
+        label: raw.label!,
+        tone: raw.tone as DispositionToneApi,
+        ordinal: raw.ordinal ?? 0,
+      };
+      op$ = campaignId
+        ? this.service.createForCampaign(campaignId, req)
+        : this.service.createForQueue(queueId!, req);
+    }
+
+    op$
+      .pipe(
+        catchError((err: { status?: number }) => {
+          if (err.status === 409) {
+            this.notifications.error('Kod dyspozycji już istnieje w tym zakresie');
+          } else {
+            this.notifications.error('Nie udało się zapisać dyspozycji.');
+          }
+          this.submitting.set(false);
+          return EMPTY;
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.submitting.set(false);
+        this.showForm.set(false);
+        this.editingId.set(null);
+        this.loadDispositions();
+      });
+  }
+
+  onDeleteConfirm(id: string): void {
+    this.deletingId.set(id);
+  }
+
+  onDeleteExecute(): void {
+    const id = this.deletingId();
+    const campaignId = this.campaignId();
+    const queueId = this.queueId();
+
+    if (!id) return;
+
+    const delete$ = campaignId
+      ? this.service.deleteFromCampaign(campaignId, id)
+      : this.service.deleteFromQueue(queueId!, id);
+
+    delete$
+      .pipe(
+        catchError(() => {
+          this.notifications.error('Nie udało się usunąć dyspozycji.');
+          this.deletingId.set(null);
+          return EMPTY;
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.deletingId.set(null);
+        this.loadDispositions();
+      });
+  }
+
+  onCancel(): void {
+    this.showForm.set(false);
+    this.editingId.set(null);
+  }
+
+  get codeError(): string | null {
+    const ctrl = this.form.get('dispositionCode')!;
+    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
+    if (ctrl.hasError('required')) return 'Kod jest wymagany.';
+    if (ctrl.hasError('pattern')) return 'Tylko wielkie litery, cyfry i podkreślnik (A-Z, 0-9, _).';
+    if (ctrl.hasError('maxlength')) return 'Maksymalnie 50 znaków.';
+    return null;
+  }
+
+  get labelError(): string | null {
+    const ctrl = this.form.get('label')!;
+    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
+    if (ctrl.hasError('required')) return 'Etykieta jest wymagana.';
+    if (ctrl.hasError('maxlength')) return 'Maksymalnie 100 znaków.';
+    return null;
+  }
+}

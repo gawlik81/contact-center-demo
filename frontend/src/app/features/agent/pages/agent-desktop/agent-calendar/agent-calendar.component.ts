@@ -118,8 +118,13 @@ export class AgentCalendarComponent implements OnInit {
       };
       const dayName = JS_DAY_TO_NAME[date.getDay()];
 
+      const TERMINAL_STATUSES = new Set(['COMPLETED', 'STOPPED', 'CANCELLED']);
+
       const campaigns = data.campaigns.filter((c) => {
         if (DONE_STATUSES.has(c.status)) return false;
+
+        // Always hide terminal-status campaigns with no defined date range — they have no calendar position
+        if (TERMINAL_STATUSES.has(c.status) && !c.startDate && !c.endDate) return false;
 
         // Check date range
         const start = c.startDate ? new Date(c.startDate) : null;

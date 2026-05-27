@@ -4470,7 +4470,7 @@ Rozszerzenie widoku obsługi kontaktu email przez agenta — analogiczny przycis
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-092, BE-093, BE-094
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-093, BE-094
 **Blokuje:** FE-091, FE-092, FE-093
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka

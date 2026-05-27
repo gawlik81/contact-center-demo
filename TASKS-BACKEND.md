@@ -4712,7 +4712,7 @@ class SummarizeResponse(BaseModel):
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** DB-040 (tabela `custom_disposition`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrealizowane
 **Blokuje:** BE-093, BE-094
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 

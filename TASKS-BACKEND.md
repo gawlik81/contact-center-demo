@@ -4805,7 +4805,7 @@ private static final List<AvailableDispositionDto> SYSTEM_DEFAULT_DISPOSITIONS =
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-092
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** FE-090
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 
@@ -4850,7 +4850,7 @@ DELETE /api/dispositions/queues/{queueId}/{id}         → 204
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-092
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** FE-093
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 

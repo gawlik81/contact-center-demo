@@ -14,6 +14,8 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
+import com.contactcenter.domain.disposition.CustomDispositionService;
+import com.contactcenter.domain.disposition.dto.AvailableDispositionDto;
 import com.contactcenter.domain.service.AiSummaryService;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.security.TenantContext;
@@ -84,6 +86,7 @@ public class ContactController {
     private final ContactRepository contactRepository;
     private final ScheduledCallbackRepository scheduledCallbackRepository;
     private final AiSummaryService aiSummaryService;
+    private final CustomDispositionService customDispositionService;
 
     /**
      * Sprawdza czy zalogowany użytkownik ma rolę AGENT.
@@ -816,6 +819,42 @@ public class ContactController {
     // =========================================================================
     // Generowanie podsumowania AI dla kontaktu (BE-090)
     // =========================================================================
+
+    // =========================================================================
+    // Dostępne dyspozycje dla kontaktu (BE-094)
+    // =========================================================================
+
+    @GetMapping("/{contactId}/available-dispositions")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+        summary = "Dostępne dyspozycje dla kontaktu",
+        description = "Zwraca listę dyspozycji do wyboru przez agenta po zakończeniu kontaktu. " +
+                      "Priorytet: własne per kampania → własne per kolejka → systemowe domyślne. " +
+                      "Nigdy nie zwraca pustej listy.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Lista dyspozycji"),
+            @ApiResponse(responseCode = "404", description = "Kontakt nie istnieje"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień")
+        }
+    )
+    public ResponseEntity<List<AvailableDispositionDto>> getAvailableDispositions(
+            @Parameter(description = "UUID kontaktu", required = true)
+            @PathVariable UUID contactId
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        log.debug("[ContactController] getAvailableDispositions: contactId={}, tenant={}", contactId, tenantId);
+
+        Contact contact = contactRepository.findById(contactId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Kontakt nie istnieje: " + contactId));
+
+        List<AvailableDispositionDto> dispositions = customDispositionService.resolveForContact(
+                contact.getCampaignId(), contact.getQueueId(), tenantId);
+
+        log.debug("[ContactController] getAvailableDispositions: contactId={}, zwracam {} dyspozycji",
+                contactId, dispositions.size());
+
+        return ResponseEntity.ok(dispositions);
+    }
 
     @PostMapping("/{contactId}/ai-summary")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR', 'AGENT')")

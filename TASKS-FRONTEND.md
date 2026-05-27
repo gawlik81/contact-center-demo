@@ -4459,3 +4459,187 @@ Rozszerzenie widoku obsługi kontaktu email przez agenta — analogiczny przycis
 - [x] Przycisk „Generuj podsumowanie AI" widoczny w widoku emaila gdy `contactId` jest dostępny
 - [x] Zachowanie identyczne jak FE-087: spinner, textarea z wynikiem, obsługa błędów
 - [x] `npm run lint`, `npm test` przechodzą
+
+---
+
+## EPIC-27: Własne dyspozycje per kampania i kolejka
+
+### FE-090 – `CustomDispositionService` i modele — warstwa danych Angular
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-092, BE-093, BE-094
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-093, BE-094
+**Blokuje:** FE-091, FE-092, FE-093
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Serwis Angular i modele TypeScript obsługujące API własnych dyspozycji. Serwis jest współdzielony między panelem supervisora (CRUD) a panelem agenta (odczyt dostępnych dyspozycji).
+
+**Modele (`features/dispositions/models/custom-disposition.model.ts`):**
+```typescript
+export interface AvailableDisposition {
+  dispositionCode: string;
+  label: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  ordinal: number;
+}
+
+export interface CustomDisposition extends AvailableDisposition {
+  id: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CreateCustomDispositionRequest {
+  dispositionCode: string;
+  label: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  ordinal: number;
+}
+
+export interface UpdateCustomDispositionRequest {
+  label: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  ordinal: number;
+  isActive: boolean;
+}
+```
+
+**`CustomDispositionService` (`features/dispositions/services/custom-disposition.service.ts`):**
+```typescript
+// Supervisor — zarządzanie per kampania
+listForCampaign(campaignId: string): Observable<CustomDisposition[]>
+createForCampaign(campaignId: string, req: CreateCustomDispositionRequest): Observable<CustomDisposition>
+updateDisposition(campaignId: string, id: string, req: UpdateCustomDispositionRequest): Observable<CustomDisposition>
+deleteDisposition(campaignId: string, id: string): Observable<void>
+
+// Supervisor — zarządzanie per kolejka
+listForQueue(queueId: string): Observable<CustomDisposition[]>
+createForQueue(queueId: string, req: CreateCustomDispositionRequest): Observable<CustomDisposition>
+
+// Agent — pobieranie dostępnych dyspozycji dla aktywnego kontaktu
+getAvailableDispositions(contactId: string): Observable<AvailableDisposition[]>
+```
+
+**Kryteria akceptacji:**
+- [ ] Modele zgodne z odpowiedziami backendu (camelCase przez Angular `HttpClient`)
+- [ ] `getAvailableDispositions` wywołuje `GET /api/contacts/{contactId}/available-dispositions`
+- [ ] Serwis standalone, dostarczany przez `providedIn: 'root'`
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-091 – Panel zarządzania dyspozycjami w ustawieniach kampanii (supervisor)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-090
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-093
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Nowa sekcja „Dyspozycje" w widoku szczegółów / edycji kampanii w panelu supervisora. Pozwala dodawać, edytować i usuwać własne dyspozycje dla danej kampanii. Informacja o tym, że gdy lista jest pusta, stosowane są dyspozycje systemowe.
+
+**Komponent:** `CampaignDispositionsComponent` (`features/campaigns/components/campaign-dispositions/`)
+
+**Funkcjonalność:**
+- Lista istniejących dyspozycji posortowanych po `ordinal` — wyświetla chip z kolorem wg `tone`, etykietę i kod
+- Przycisk „Dodaj dyspozycję" → inline formularz lub dialog z polami: `dispositionCode`, `label`, `tone` (dropdown), `ordinal`
+- Edycja istniejącej dyspozycji (kod niezmienialny)
+- Usunięcie z potwierdzeniem dialog
+- Informacja systemowa gdy lista pusta: „Brak własnych dyspozycji — stosowane są dyspozycje systemowe"
+- Zmiany zapisywane natychmiast przez API (nie wymagają zapisu całego formularza kampanii)
+
+**UI — tone chip colors:**
+- `positive` → zielony (`mat-chip` z `color="primary"` lub custom)
+- `negative` → czerwony
+- `warning` → pomarańczowy
+- `neutral` → szary
+
+**Kryteria akceptacji:**
+- [ ] Sekcja „Dyspozycje" widoczna w edycji kampanii (tab lub sekcja)
+- [ ] Dodanie dyspozycji → pojawia się na liście bez przeładowania strony
+- [ ] Walidacja formularza: `dispositionCode` wymagany, tylko wielkie litery i `_`, max 50 znaków
+- [ ] Duplikat kodu → `409` z API obsłużony, toast z komunikatem błędu
+- [ ] Usunięcie: potwierdzenie dialog → usunięcie z listy
+- [ ] Pusta lista → komunikat o stosowaniu dyspozycji systemowych
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-092 – Panel zarządzania dyspozycjami w ustawieniach kolejki (supervisor)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-090
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-093
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Analogiczna sekcja jak FE-091, ale w widoku szczegółów/edycji kolejki. Użyj komponentu `QueueDispositionsComponent` budując go zgodnie z tym samym wzorcem co `CampaignDispositionsComponent`. Całą logikę UI (lista z chipami, formularz, dialogi) należy wyodrębnić do współdzielonego komponentu `DispositionListEditorComponent` używanego przez oba widoki.
+
+**Komponent:** `DispositionListEditorComponent` (`shared/components/disposition-list-editor/`) — przyjmuje `@Input() campaignId?: string` i `@Input() queueId?: string`. Na podstawie tego który input jest ustawiony, wywołuje odpowiednie metody serwisu.
+
+**Kryteria akceptacji:**
+- [ ] `DispositionListEditorComponent` jest standalone, przyjmuje `campaignId` lub `queueId`
+- [ ] `CampaignDispositionsComponent` i `QueueDispositionsComponent` używają `DispositionListEditorComponent`
+- [ ] Funkcjonalność identyczna jak FE-091
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-093 – Aktualizacja panelu dyspozycji agenta — dynamiczne ładowanie z API
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-090, BE-094
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-094
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Obecny panel dyspozycji agenta używa statycznej listy `DISPOSITION_CODES` zakodowanej w `disposition.model.ts`. Należy zastąpić ją dynamicznym pobieraniem z endpointu `GET /api/contacts/{contactId}/available-dispositions`. Backend zawsze zwraca kompletną listę (custom lub systemowe defaulty), więc frontend nie musi znać dyspozycji systemowych.
+
+**Lokalizacja:** komponent dyspozycji w agent desktop — plik `disposition.model.ts` + komponent dyspozycji (prawdopodobnie `DispositionPanelComponent` lub `WrapUpComponent`).
+
+**Zmiany:**
+1. W momencie otwarcia panelu dyspozycji (kontakt przechodzi w stan wrap-up): wywołaj `CustomDispositionService.getAvailableDispositions(contactId)` jako `signal`-based resource lub `Observable`
+2. Zastąp hardcoded `DISPOSITION_CODES` odpowiedzią z API
+3. Skeleton loader podczas ładowania
+4. Obsługa błędu API: fallback do hardcoded `DISPOSITION_CODES` z warninga w konsoli (graceful degradation)
+5. Stare pole `DISPOSITION_CODES` w `disposition.model.ts` można zachować tylko jako fallback, oznaczone `@deprecated`
+
+**Stan komponentu (signals):**
+```typescript
+availableDispositions = signal<AvailableDisposition[]>([]);
+dispositionsLoading = signal(false);
+dispositionsError = signal<string | null>(null);
+```
+
+**Tone → CSS mapping** (zachować istniejący styl, rozszerzyć o nowe tony):
+```typescript
+toneClass(tone: string): string {
+  return { positive: 'tone-positive', negative: 'tone-negative',
+           warning: 'tone-warning', neutral: 'tone-neutral' }[tone] ?? 'tone-neutral';
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Panel dyspozycji ładuje listę z API zamiast hardcoded — widoczne w network tab
+- [ ] Kontakt z kampanią własną → wyświetla custom dyspozycje (nie systemowe)
+- [ ] Kontakt bez custom → wyświetla 6 systemowych (zwróconych przez backend)
+- [ ] Skeleton loader podczas ładowania listy
+- [ ] Błąd API (5xx) → fallback do hardcoded z informacją w konsoli
+- [ ] Wybrany `dispositionCode` z custom listy wysyłany do `PATCH /api/contacts/{id}/disposition` — niezmieniona logika zapisu
+- [ ] `npm run lint`, `npm test` przechodzą

@@ -4701,3 +4701,186 @@ class SummarizeResponse(BaseModel):
 - [x] Błąd autoryzacji SDK (nieprawidłowy klucz) → HTTP 502, klucz nie w odpowiedzi
 - [x] Timeout 25s — asyncio z `asyncio.wait_for`
 - [x] `pytest` dla happy path każdego providera (mockowane SDK calls) — 9 testów
+
+---
+
+## EPIC-27: Własne dyspozycje per kampania i kolejka
+
+### BE-092 – Encja `CustomDisposition`, repozytorium i `CustomDispositionService`
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-040 (tabela `custom_disposition`)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-093, BE-094
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Warstwa domenowa obsługi własnych dyspozycji. Encja JPA z multi-tenancy. Repozytorium rozszerzające `TenantAwareRepository`. Serwis z logiką CRUD i kluczową metodą rozwiązywania dyspozycji (resolution) dla danego kontaktu.
+
+**Encja `CustomDisposition` (`domain/model/CustomDisposition.java`):**
+```java
+@Entity
+@Table(name = "custom_disposition")
+public class CustomDisposition {
+    @Id UUID id;
+    UUID tenantId;
+    UUID campaignId;   // nullable — zakres kampania
+    UUID queueId;      // nullable — zakres kolejka
+    String dispositionCode;
+    String label;
+    String tone;       // positive | negative | neutral | warning
+    int ordinal;
+    boolean isActive;
+    Instant createdAt;
+    Instant updatedAt;
+}
+```
+
+**Repozytorium (`CustomDispositionRepository`):**
+```java
+List<CustomDisposition> findByCampaignIdAndTenantIdAndIsActiveTrueOrderByOrdinalAsc(UUID campaignId, UUID tenantId);
+List<CustomDisposition> findByQueueIdAndTenantIdAndIsActiveTrueOrderByOrdinalAsc(UUID queueId, UUID tenantId);
+boolean existsByCampaignIdAndTenantId(UUID campaignId, UUID tenantId);
+boolean existsByQueueIdAndTenantId(UUID queueId, UUID tenantId);
+```
+
+**`CustomDispositionService` — kluczowe metody:**
+
+```java
+// Zwraca listę dyspozycji dla agenta — custom lub systemowe defaulty.
+// Priorytet: kampania → kolejka → system.
+// Nigdy nie zwraca pustej listy.
+List<AvailableDispositionDto> resolveForContact(UUID contactId, UUID tenantId);
+
+// CRUD per kampania (supervisor)
+List<CustomDispositionDto> listForCampaign(UUID campaignId, UUID tenantId);
+CustomDispositionDto createForCampaign(UUID campaignId, CreateCustomDispositionRequest req, UUID tenantId);
+CustomDispositionDto update(UUID dispositionId, UpdateCustomDispositionRequest req, UUID tenantId);
+void delete(UUID dispositionId, UUID tenantId);
+
+// CRUD per kolejka (supervisor)
+List<CustomDispositionDto> listForQueue(UUID queueId, UUID tenantId);
+CustomDispositionDto createForQueue(UUID queueId, CreateCustomDispositionRequest req, UUID tenantId);
+```
+
+**Logika `resolveForContact`:**
+1. Pobierz kontakt przez `ContactRepository` → odczytaj `campaignId` i `queueId`
+2. Jeśli `campaignId != null` i `existsByCampaignId(campaignId)` → zwróć `findByCampaignId(...)`
+3. Else jeśli `queueId != null` i `existsByQueueId(queueId)` → zwróć `findByQueueId(...)`
+4. Else → zwróć `SYSTEM_DEFAULT_DISPOSITIONS` (statyczna lista 6 kodów)
+
+**Systemowe defaulty (stałe w serwisie):**
+```java
+private static final List<AvailableDispositionDto> SYSTEM_DEFAULT_DISPOSITIONS = List.of(
+    new AvailableDispositionDto("SALE",         "Sprzedaż",            "positive", 1),
+    new AvailableDispositionDto("NO_INTEREST",  "Brak zainteresowania", "negative", 2),
+    new AvailableDispositionDto("CALLBACK",     "Oddzwonienie",         "warning",  3),
+    new AvailableDispositionDto("WRONG_NUMBER", "Zły numer",            "neutral",  4),
+    new AvailableDispositionDto("TECH_ISSUE",   "Problem techniczny",   "neutral",  5),
+    new AvailableDispositionDto("OTHER",        "Inne",                 "neutral",  6)
+);
+```
+
+**DTO:**
+- `AvailableDispositionDto(dispositionCode, label, tone, ordinal)` — dla agenta
+- `CustomDispositionDto` — pełny widok dla supervisora (zawiera `id`, `isActive`, `createdAt`)
+- `CreateCustomDispositionRequest(dispositionCode, label, tone, ordinal)` — walidacja: `@NotBlank`, `@Size(max=50/100)`, `@Pattern` dla tone
+- `UpdateCustomDispositionRequest(label, tone, ordinal, isActive)` — kod jest niezmienny po stworzeniu
+
+**Kryteria akceptacji:**
+- [ ] `CustomDisposition` encja mapuje na tabelę `custom_disposition`; `assertSameTenant()` w każdej operacji zapisu
+- [ ] `resolveForContact` — priorytet kampania > kolejka > system, nigdy nie zwraca pustej listy
+- [ ] Systemowe defaulty zwracane gdy żadna custom dyspozycja nie skonfigurowana
+- [ ] Walidacja: zduplikowany `dispositionCode` per zakres → `409 Conflict`
+- [ ] `mvn test` — testy jednostkowe logiki resolucji (mock repo), minimum 5 scenariuszy
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-093 – `CustomDispositionController`: REST API zarządzania dyspozycjami dla supervisora
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-092
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-090
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Endpointy REST dla supervisora do zarządzania własnymi dyspozycjami per kampania i per kolejka. Dostęp ograniczony do roli `SUPERVISOR` / `ADMIN`. Pełne CRUD.
+
+**Endpointy (`/api/dispositions`):**
+```
+GET    /api/dispositions/campaigns/{campaignId}        → 200 List<CustomDispositionDto>
+POST   /api/dispositions/campaigns/{campaignId}        → 201 CustomDispositionDto
+PUT    /api/dispositions/campaigns/{campaignId}/{id}   → 200 CustomDispositionDto
+DELETE /api/dispositions/campaigns/{campaignId}/{id}   → 204
+
+GET    /api/dispositions/queues/{queueId}              → 200 List<CustomDispositionDto>
+POST   /api/dispositions/queues/{queueId}              → 201 CustomDispositionDto
+PUT    /api/dispositions/queues/{queueId}/{id}         → 200 CustomDispositionDto
+DELETE /api/dispositions/queues/{queueId}/{id}         → 204
+```
+
+**Bezpieczeństwo:**
+- `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")` na wszystkich metodach
+- `campaignId` i `queueId` weryfikowane przez `assertSameTenant()` w serwisie przed każdą operacją
+
+**Walidacja:**
+- `dispositionCode` niezmienialny po stworzeniu (PUT nie przyjmuje `dispositionCode`)
+- Duplikat kodu per zakres → `409 Conflict` z czytelnym komunikatem
+- Usunięcie ostatniej dyspozycji → dozwolone (zakres wraca do systemowych defaultów)
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie 8 endpointów udokumentowane przez OpenAPI (`@Operation`, `@ApiResponse`)
+- [ ] `GET /campaigns/{campaignId}` zwraca pustą listę `[]` gdy brak własnych dyspozycji (nie 404)
+- [ ] Rola AGENT wywołująca supervisor endpoint → `403 Forbidden`
+- [ ] `campaign_id` / `queue_id` innego tenanta → `403 Forbidden`
+- [ ] Integracja: `DELETE` → ponowny `GET` zwraca pustą listę
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-094 – Endpoint `GET /api/contacts/{contactId}/available-dispositions` — dyspozycje dla agenta
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-092
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-093
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Endpoint wywoływany przez panel dyspozycji agenta tuż po zakończeniu kontaktu. Zwraca listę dyspozycji do wyboru — własne per kampania, własne per kolejka lub systemowe defaulty. Agent nie wie skąd pochodzi lista; zawsze dostaje gotowy zestaw.
+
+**Endpoint:**
+```
+GET /api/contacts/{contactId}/available-dispositions
+Authorization: Bearer <agent-token>
+→ 200 List<AvailableDispositionDto>
+```
+
+**Response body:**
+```json
+[
+  { "dispositionCode": "SALE_FULL", "label": "Pełna sprzedaż", "tone": "positive", "ordinal": 1 },
+  { "dispositionCode": "SALE_PARTIAL", "label": "Częściowa sprzedaż", "tone": "positive", "ordinal": 2 }
+]
+```
+
+**Lokalizacja:** dodać jako nową metodę w `ContactController` (`@GetMapping("/{contactId}/available-dispositions")`), delegującą do `CustomDispositionService.resolveForContact()`.
+
+**Dostęp:** `hasAnyRole('AGENT','SUPERVISOR','ADMIN')` — agent musi mieć możliwość wywołania.
+
+**Kryteria akceptacji:**
+- [ ] Kontakt bez konfiguracji custom → zwraca 6 systemowych defaultów (nigdy pusta lista)
+- [ ] Kontakt z kampanią z 3 custom dyspozycjami → zwraca te 3, posortowane po `ordinal`
+- [ ] Kontakt bez kampanii, ale kolejka ma custom → zwraca dyspozycje kolejki
+- [ ] Kontakt innego tenanta → `403 Forbidden`
+- [ ] Nieistniejący `contactId` → `404 Not Found`
+- [ ] Endpoint w Swagger UI z przykładem response
+- [ ] `mvn verify -pl app` przechodzi

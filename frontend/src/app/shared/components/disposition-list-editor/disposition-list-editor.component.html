@@ -1,39 +1,43 @@
 <div class="disposition-editor">
   @if (loading()) {
-    <div class="disposition-editor__loading">Ładowanie...</div>
+    <div class="disposition-editor__loading" aria-live="polite">
+      <div class="disposition-skeleton"></div>
+      <div class="disposition-skeleton disposition-skeleton--short"></div>
+    </div>
   } @else if (error()) {
     <p class="disposition-editor__error" role="alert">{{ error() }}</p>
   } @else {
     @if (dispositions().length === 0 && !showForm()) {
-      <p class="disposition-editor__empty">
-        Brak własnych dyspozycji — stosowane są dyspozycje systemowe (Sprzedaż, Brak zainteresowania,
-        Oddzwonienie, Zły numer, Problem techniczny, Inne).
-      </p>
+      <div class="disposition-empty">
+        <p>Brak własnych dyspozycji — agenci widzą dyspozycje systemowe.</p>
+      </div>
     }
 
-    <ul class="disposition-editor__list">
-      @for (d of dispositions(); track d.id) {
-        <li class="disposition-editor__item">
-          <span class="disposition-chip" [ngClass]="'disposition-chip--' + d.tone">
-            {{ d.label }}
-          </span>
-          <span class="disposition-code">{{ d.dispositionCode }}</span>
-          @if (!d.isActive) {
-            <span class="disposition-inactive-badge">Nieaktywna</span>
-          }
-          <div class="disposition-actions">
-            <button type="button" class="btn btn-sm" (click)="onEdit(d)">Edytuj</button>
-            <button
-              type="button"
-              class="btn btn-sm btn-danger"
-              (click)="onDeleteConfirm(d.id)"
-            >
-              Usuń
-            </button>
-          </div>
-        </li>
-      }
-    </ul>
+    @if (dispositions().length > 0) {
+      <ul class="disposition-list" aria-label="Lista dyspozycji">
+        @for (d of dispositions(); track d.id) {
+          <li class="disposition-list__item">
+            <div class="disposition-list__info">
+              <span class="disposition-chip disposition-chip--{{ d.tone }}">{{ d.label }}</span>
+              <code class="disposition-list__code">{{ d.dispositionCode }}</code>
+              @if (!d.isActive) {
+                <span class="disposition-list__inactive">nieaktywna</span>
+              }
+            </div>
+            <div class="disposition-list__actions">
+              <button type="button" class="btn btn-ghost btn-sm" (click)="onEdit(d)">Edytuj</button>
+              <button
+                type="button"
+                class="btn btn-danger btn-sm"
+                (click)="onDeleteConfirm(d.id)"
+              >
+                Usuń
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
 
     @if (showForm()) {
       <form [formGroup]="form" (ngSubmit)="onSubmit()" class="disposition-form" novalidate>
@@ -77,24 +81,26 @@
           }
         </div>
 
-        <div class="form-field">
-          <label class="form-label" for="dispTone">Ton</label>
-          <select id="dispTone" class="form-select" formControlName="tone">
-            @for (opt of toneOptions; track opt.value) {
-              <option [value]="opt.value">{{ opt.label }}</option>
-            }
-          </select>
-        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label" for="dispTone">Ton</label>
+            <select id="dispTone" class="form-select" formControlName="tone">
+              @for (opt of toneOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </div>
 
-        <div class="form-field">
-          <label class="form-label" for="dispOrdinal">Kolejność</label>
-          <input
-            id="dispOrdinal"
-            type="number"
-            class="form-input form-input--number"
-            formControlName="ordinal"
-            min="0"
-          />
+          <div class="form-field">
+            <label class="form-label" for="dispOrdinal">Kolejność</label>
+            <input
+              id="dispOrdinal"
+              type="number"
+              class="form-input form-input--number"
+              formControlName="ordinal"
+              min="0"
+            />
+          </div>
         </div>
 
         @if (editingId()) {
@@ -122,7 +128,9 @@
         </div>
       </form>
     } @else {
-      <button type="button" class="btn btn-add" (click)="onAdd()">+ Dodaj dyspozycję</button>
+      <button type="button" class="btn btn-secondary" (click)="onAdd()">
+        + Dodaj dyspozycję
+      </button>
     }
 
     @if (deletingId()) {

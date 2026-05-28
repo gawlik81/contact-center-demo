@@ -1911,7 +1911,8 @@ COMMENT ON COLUMN custom_disposition.queue_id IS
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** DB-040 (tabela `custom_disposition`), DB-002 (tabela `tenant`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-28
 **Blokuje:** BE-095
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 

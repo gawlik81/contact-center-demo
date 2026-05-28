@@ -426,8 +426,10 @@ public class TwilioWebhookController {
    * generowanego przez {@link com.contactcenter.domain.service.IvrEngineService#buildWaitInConferenceTwiml}.
    *
    * <p>Używany do wykrycia porzucenia kolejki przez klienta (ABANDONED): jeśli konferencja
-   * zakończyła się ({@code ConferenceStatus=completed}) a kontakt nadal ma status {@code QUEUED},
-   * oznacza to że klient rozłączył się przed odebraniem przez agenta.
+   * zakończyła się ({@code ConferenceStatus=completed}) a kontakt ma status {@code QUEUED} lub
+   * {@code ASSIGNED}, oznacza to że klient rozłączył się przed odebraniem przez agenta.
+   * Statusy {@code ACTIVE} i {@code ON_HOLD} są celowo wykluczone – konferencja dla aktywnego
+   * połączenia jest zamykana przez handler hangup, który ustawia {@code COMPLETED}.
    *
    * <p>Zabezpieczenie przed duplikatami: jeśli kontakt ma już status {@code COMPLETED} lub
    * {@code ABANDONED}, nie nadpisujemy go.
@@ -511,13 +513,14 @@ public class TwilioWebhookController {
                   currentStatus, contactId);
               return;
             }
-            // ASSIGNED oznacza że routing przydzielił agenta, ale agent jeszcze nie odebrał
-            // (WS event mógł nie dotrzeć). Traktujemy tak samo jak QUEUED/ACTIVE – ABANDONED.
-            if ("QUEUED".equals(currentStatus) || "ASSIGNED".equals(currentStatus)
-                || "ACTIVE".equals(currentStatus) || "ON_HOLD".equals(currentStatus)) {
+            // ASSIGNED oznacza że routing przydzielił agenta, ale agent jeszcze nie odebrał.
+            // ACTIVE/ON_HOLD = agent już rozmawiał → kończy go handler hangup (→ COMPLETED).
+            // Conference-end nie może ustawić ABANDONED gdy agent był podłączony.
+            if ("QUEUED".equals(currentStatus) || "ASSIGNED".equals(currentStatus)) {
               log.info("[TwilioConference] Konferencja zakończona, kontakt w statusie {} – " +
                        "ustawiam ABANDONED: contactId={}", currentStatus, contactId);
-              contactRepository.updateContactStatusOnTelephonyEvent(
+              // Conditional update zapobiega race z handlerem hangup ustawiającym COMPLETED.
+              contactRepository.updateContactStatusIfNotTerminal(
                   contactId, tenantId, "ABANDONED", Instant.now());
             } else {
               log.debug("[TwilioConference] Kontakt w statusie {} – nie zmieniam: contactId={}",

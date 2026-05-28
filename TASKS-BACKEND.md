@@ -4887,7 +4887,7 @@ Authorization: Bearer <agent-token>
 
 ---
 
-### BE-095 – Encja `DispositionSet`, `DispositionSetItem`, repozytoria i `DispositionSetService`
+### ✅ BE-095 – Encja `DispositionSet`, `DispositionSetItem`, repozytoria i `DispositionSetService`
 
 **Typ:** Backend implementation
 **Priorytet:** Must Have
@@ -4990,7 +4990,7 @@ Analogicznie `applyToQueue`.
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-095
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** FE-094
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
 

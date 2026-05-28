@@ -180,7 +180,8 @@
     "oauthCallback": "OAuth Callback",
     "breadcrumbNav": "Navigationspfad",
     "settingsTwilioConfig": "Twilio-Integration",
-    "settingsAiConfig": "KI-Konfiguration"
+    "settingsAiConfig": "KI-Konfiguration",
+    "settingsDispositionSets": "Dispositions-Sets"
   },
   "role": {
     "admin": "Administrator",

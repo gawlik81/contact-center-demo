@@ -21,6 +21,8 @@ import {
 import { CustomDispositionService } from '../../../features/dispositions/services/custom-disposition.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+import { DispositionSet } from '../../../features/dispositions/models/disposition-set.model';
+import { DispositionSetService } from '../../../features/dispositions/services/disposition-set.service';
 
 @Component({
   selector: 'app-disposition-list-editor',
@@ -42,6 +44,12 @@ export class DispositionListEditorComponent {
   readonly deletingId = signal<string | null>(null);
   readonly submitting = signal(false);
 
+  readonly showSetPicker = signal(false);
+  readonly availableSets = signal<DispositionSet[]>([]);
+  readonly setsLoading = signal(false);
+  readonly applyingSet = signal(false);
+  readonly pendingSet = signal<DispositionSet | null>(null);
+
   readonly toneOptions: { value: DispositionToneApi; label: string }[] = [
     { value: 'positive', label: 'Pozytywny' },
     { value: 'negative', label: 'Negatywny' },
@@ -53,6 +61,7 @@ export class DispositionListEditorComponent {
   private readonly service = inject(CustomDispositionService);
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dispositionSetService = inject(DispositionSetService);
 
   private readonly loadEffect = effect(() => {
     // Track input signals to react to changes
@@ -225,6 +234,67 @@ export class DispositionListEditorComponent {
   onCancel(): void {
     this.showForm.set(false);
     this.editingId.set(null);
+  }
+
+  toggleSetPicker(): void {
+    if (!this.showSetPicker() && this.availableSets().length === 0) {
+      this.setsLoading.set(true);
+      this.dispositionSetService
+        .listSets()
+        .pipe(
+          catchError(() => {
+            this.notifications.error('Nie udało się załadować zestawów dyspozycji.');
+            this.setsLoading.set(false);
+            return EMPTY;
+          }),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe((sets) => {
+          this.availableSets.set(sets);
+          this.setsLoading.set(false);
+        });
+    }
+    this.showSetPicker.update((v) => !v);
+  }
+
+  onSetSelected(set: DispositionSet): void {
+    this.showSetPicker.set(false);
+    this.pendingSet.set(set);
+  }
+
+  onApplySetConfirm(): void {
+    const set = this.pendingSet();
+    if (!set) return;
+
+    const campaignId = this.campaignId();
+    const queueId = this.queueId();
+    if (!campaignId && !queueId) return;
+
+    this.applyingSet.set(true);
+
+    const apply$ = campaignId
+      ? this.dispositionSetService.applyToCampaign(set.id, campaignId)
+      : this.dispositionSetService.applyToQueue(set.id, queueId as string);
+
+    apply$
+      .pipe(
+        catchError(() => {
+          this.notifications.error('Nie udało się zastosować zestawu dyspozycji.');
+          this.applyingSet.set(false);
+          return EMPTY;
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((response) => {
+        this.notifications.success(response.message);
+        this.applyingSet.set(false);
+        this.pendingSet.set(null);
+        this.loadDispositions();
+      });
+  }
+
+  onApplySetCancel(): void {
+    this.pendingSet.set(null);
   }
 
   get codeError(): string | null {

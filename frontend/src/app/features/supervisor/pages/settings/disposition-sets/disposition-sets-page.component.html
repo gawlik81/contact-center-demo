@@ -1,0 +1,326 @@
+<div class="ds-page">
+  <div class="ds-page__header">
+    <h1 class="ds-page__title">Zestawy dyspozycji</h1>
+    <p class="ds-page__subtitle">
+      Zarządzaj zestawami dyspozycji wielokrotnego użytku — przypisz je do kampanii lub kolejki.
+    </p>
+  </div>
+
+  <div class="ds-layout">
+    <!-- ── Lewa kolumna: lista zestawów ──────────────────────────────────── -->
+    <section class="ds-col ds-col--sets" aria-label="Lista zestawów dyspozycji">
+      <div class="ds-col__header">
+        <h2 class="ds-col__title">Zestawy</h2>
+        @if (setFormMode() === null) {
+          <button type="button" class="btn btn-primary btn-sm" (click)="openCreateSet()">
+            + Nowy zestaw
+          </button>
+        }
+      </div>
+
+      <!-- Formularz tworzenia / edycji zestawu -->
+      @if (setFormMode() !== null) {
+        <form
+          [formGroup]="setForm"
+          (ngSubmit)="submitSetForm()"
+          class="ds-set-form"
+          novalidate
+          aria-label="Formularz zestawu dyspozycji"
+        >
+          <div class="form-field" [class.form-field--error]="isSetFieldInvalid('name')">
+            <label class="form-label" for="setName">
+              Nazwa <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="setName"
+              type="text"
+              class="form-input"
+              formControlName="name"
+              maxlength="200"
+              autocomplete="off"
+              [attr.aria-invalid]="isSetFieldInvalid('name') ? 'true' : null"
+            />
+            @if (isSetFieldInvalid('name')) {
+              <span class="form-error" role="alert">Nazwa jest wymagana.</span>
+            }
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="setDesc">Opis</label>
+            <input
+              id="setDesc"
+              type="text"
+              class="form-input"
+              formControlName="description"
+              maxlength="500"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="form-actions form-actions--compact">
+            <button
+              type="submit"
+              class="btn btn-primary btn-sm"
+              [disabled]="setForm.invalid || setSubmitting()"
+            >
+              @if (setSubmitting()) {
+                <span class="spinner spinner--sm" aria-hidden="true"></span>
+              }
+              {{ setFormMode() === 'edit' ? 'Zapisz' : 'Utwórz' }}
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" (click)="cancelSetForm()">
+              Anuluj
+            </button>
+          </div>
+        </form>
+      }
+
+      <!-- Lista zestawów -->
+      @if (setsLoading()) {
+        <div class="ds-loading" aria-live="polite" aria-label="Ładowanie zestawów">
+          <div class="ds-skeleton"></div>
+          <div class="ds-skeleton ds-skeleton--short"></div>
+          <div class="ds-skeleton"></div>
+        </div>
+      } @else if (sets().length === 0 && setFormMode() === null) {
+        <div class="ds-empty">
+          <p>Brak zestawów dyspozycji. Kliknij „+ Nowy zestaw", aby dodać pierwszy.</p>
+        </div>
+      } @else {
+        <ul class="ds-set-list" aria-label="Zestawy dyspozycji">
+          @for (set of sets(); track set.id) {
+            <li
+              class="ds-set-card"
+              [class.ds-set-card--active]="selectedSet()?.id === set.id"
+              (click)="selectSet(set)"
+              (keydown.enter)="selectSet(set)"
+              (keydown.space)="selectSet(set)"
+              tabindex="0"
+              role="button"
+              [attr.aria-pressed]="selectedSet()?.id === set.id"
+              [attr.aria-label]="'Wybierz zestaw ' + set.name"
+            >
+              <div class="ds-set-card__info">
+                <span class="ds-set-card__name">{{ set.name }}</span>
+                @if (set.description) {
+                  <span class="ds-set-card__desc">{{ set.description }}</span>
+                }
+                <span class="ds-set-card__count">
+                  {{ set.itemCount }} {{ set.itemCount === 1 ? 'dyspozycja' : 'dyspozycji' }}
+                </span>
+              </div>
+              <div class="ds-set-card__actions">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  (click)="openEditSet(set, $event)"
+                  [attr.aria-label]="'Edytuj zestaw ' + set.name"
+                >
+                  Edytuj
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-danger btn-xs"
+                  (click)="confirmDeleteSet(set, $event)"
+                  [attr.aria-label]="'Usuń zestaw ' + set.name"
+                >
+                  Usuń
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- ── Prawa kolumna: elementy zestawu ───────────────────────────────── -->
+    <section class="ds-col ds-col--items" aria-label="Elementy wybranego zestawu">
+      @if (!hasSelectedSet()) {
+        <div class="ds-placeholder">
+          <svg
+            class="ds-placeholder__icon"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"
+            />
+          </svg>
+          <p>Wybierz zestaw z lewej kolumny, aby zobaczyć jego elementy.</p>
+        </div>
+      } @else {
+        <div class="ds-col__header">
+          <h2 class="ds-col__title">{{ selectedSet()!.name }}</h2>
+          @if (itemFormMode() === null) {
+            <button type="button" class="btn btn-primary btn-sm" (click)="openAddItem()">
+              + Dodaj dyspozycję
+            </button>
+          }
+        </div>
+
+        <!-- Formularz dodawania / edycji elementu -->
+        @if (itemFormMode() !== null) {
+          <form
+            [formGroup]="itemForm"
+            (ngSubmit)="submitItemForm()"
+            class="ds-item-form"
+            novalidate
+            aria-label="Formularz elementu zestawu"
+          >
+            <div class="form-row">
+              <div
+                class="form-field"
+                [class.form-field--error]="codeError !== null"
+              >
+                <label class="form-label" for="itemCode">
+                  Kod <span class="required" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="itemCode"
+                  type="text"
+                  class="form-input"
+                  formControlName="dispositionCode"
+                  placeholder="np. CALLBACK_AGREED"
+                  maxlength="50"
+                  autocomplete="off"
+                  [attr.aria-invalid]="codeError ? 'true' : null"
+                />
+                <span class="form-hint">Wielkie litery, cyfry i podkreślnik.</span>
+                @if (codeError) {
+                  <span class="form-error" role="alert">{{ codeError }}</span>
+                }
+              </div>
+
+              <div class="form-field" [class.form-field--error]="isItemFieldInvalid('label')">
+                <label class="form-label" for="itemLabel">
+                  Etykieta <span class="required" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="itemLabel"
+                  type="text"
+                  class="form-input"
+                  formControlName="label"
+                  maxlength="100"
+                  autocomplete="off"
+                  [attr.aria-invalid]="isItemFieldInvalid('label') ? 'true' : null"
+                />
+                @if (isItemFieldInvalid('label')) {
+                  <span class="form-error" role="alert">Etykieta jest wymagana.</span>
+                }
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-field">
+                <label class="form-label" for="itemTone">Ton</label>
+                <select id="itemTone" class="form-select" formControlName="tone">
+                  @for (opt of toneOptions; track opt.value) {
+                    <option [value]="opt.value">{{ opt.label }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label class="form-label" for="itemOrdinal">Kolejność</label>
+                <input
+                  id="itemOrdinal"
+                  type="number"
+                  class="form-input form-input--number"
+                  formControlName="ordinal"
+                  min="0"
+                />
+              </div>
+            </div>
+
+            <div class="form-actions form-actions--compact">
+              <button
+                type="submit"
+                class="btn btn-primary btn-sm"
+                [disabled]="itemForm.invalid || itemSubmitting()"
+              >
+                @if (itemSubmitting()) {
+                  <span class="spinner spinner--sm" aria-hidden="true"></span>
+                }
+                {{ itemFormMode() === 'edit' ? 'Zapisz' : 'Dodaj' }}
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" (click)="cancelItemForm()">
+                Anuluj
+              </button>
+            </div>
+          </form>
+        }
+
+        <!-- Lista elementów -->
+        @if (itemsLoading()) {
+          <div class="ds-loading" aria-live="polite" aria-label="Ładowanie elementów">
+            <div class="ds-skeleton"></div>
+            <div class="ds-skeleton ds-skeleton--short"></div>
+          </div>
+        } @else if (items().length === 0 && itemFormMode() === null) {
+          <div class="ds-empty">
+            <p>Ten zestaw nie ma jeszcze żadnych dyspozycji. Kliknij „+ Dodaj dyspozycję".</p>
+          </div>
+        } @else {
+          <ul class="ds-item-list" aria-label="Elementy zestawu dyspozycji">
+            @for (item of items(); track item.id) {
+              <li class="ds-item-row">
+                <div class="ds-item-row__info">
+                  <span class="disposition-chip disposition-chip--{{ item.tone }}">
+                    {{ item.label }}
+                  </span>
+                  <code class="ds-item-row__code">{{ item.dispositionCode }}</code>
+                  <span class="ds-item-row__tone ds-item-row__tone--{{ item.tone }}">
+                    {{ toneLabelMap[item.tone] }}
+                  </span>
+                  <span class="ds-item-row__ordinal">#{{ item.ordinal }}</span>
+                </div>
+                <div class="ds-item-row__actions">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    (click)="openEditItem(item)"
+                    [attr.aria-label]="'Edytuj dyspozycję ' + item.label"
+                  >
+                    Edytuj
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-danger btn-xs"
+                    (click)="confirmDeleteItem(item)"
+                    [attr.aria-label]="'Usuń dyspozycję ' + item.label"
+                  >
+                    Usuń
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </section>
+  </div>
+</div>
+
+<!-- Dialogi potwierdzenia usunięcia -->
+@if (deletingSetId()) {
+  <app-confirm-dialog
+    [message]="deleteSetMessage()"
+    confirmLabel="Usuń"
+    cancelLabel="Anuluj"
+    [danger]="true"
+    (confirmed)="executeDeleteSet()"
+    (cancelled)="deletingSetId.set(null)"
+  />
+}
+
+@if (deletingItemId()) {
+  <app-confirm-dialog
+    [message]="deleteItemMessage()"
+    confirmLabel="Usuń"
+    cancelLabel="Anuluj"
+    [danger]="true"
+    (confirmed)="executeDeleteItem()"
+    (cancelled)="deletingItemId.set(null)"
+  />
+}

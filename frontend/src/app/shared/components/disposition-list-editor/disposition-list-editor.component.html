@@ -128,9 +128,54 @@
         </div>
       </form>
     } @else {
-      <button type="button" class="btn btn-secondary" (click)="onAdd()">
-        + Dodaj dyspozycję
-      </button>
+      <div class="disposition-editor__toolbar">
+        <button type="button" class="btn btn-secondary" (click)="onAdd()">
+          + Dodaj dyspozycję
+        </button>
+
+        @if (campaignId() || queueId()) {
+          <div class="apply-set-wrapper">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="toggleSetPicker()"
+              [disabled]="applyingSet()"
+            >
+              Zastosuj zestaw
+            </button>
+            @if (showSetPicker()) {
+              <div class="set-picker">
+                @if (setsLoading()) {
+                  <div class="set-picker__loading">Ładowanie...</div>
+                }
+                @for (set of availableSets(); track set.id) {
+                  <button type="button" class="set-picker__item" (click)="onSetSelected(set)">
+                    <strong>{{ set.name }}</strong>
+                    <span class="set-picker__count">{{ set.itemCount }} dyspozycji</span>
+                  </button>
+                }
+                @if (!setsLoading() && availableSets().length === 0) {
+                  <div class="set-picker__empty">Brak zdefiniowanych zestawów</div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (pendingSet()) {
+      <app-confirm-dialog
+        [message]="
+          'Czy skopiować ' +
+          pendingSet()!.itemCount +
+          ' dyspozycji z zestawu &quot;' +
+          pendingSet()!.name +
+          '&quot;? Istniejące dyspozycje o tych samych kodach zostaną pominięte.'
+        "
+        (confirmed)="onApplySetConfirm()"
+        (cancelled)="onApplySetCancel()"
+      />
     }
 
     @if (deletingId()) {

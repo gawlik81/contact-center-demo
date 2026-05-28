@@ -4652,7 +4652,7 @@ toneClass(tone: string): string {
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-096
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-096
 **Blokuje:** FE-095, FE-096
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
@@ -4729,7 +4729,7 @@ applyToQueue(setId: string, queueId: string): Observable<ApplySetResponse>
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** FE-094
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-096
 **Blokuje:** —
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
@@ -4780,7 +4780,7 @@ Dodaj pozycję „Zestawy dyspozycji" w menu Ustawienia supervisora (sprawdź `s
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** FE-094
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-096
 **Blokuje:** —
 **Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka

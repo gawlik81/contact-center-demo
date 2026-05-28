@@ -1,19 +1,17 @@
 <div class="ds-page">
   <div class="ds-page__header">
-    <h1 class="ds-page__title">Zestawy dyspozycji</h1>
-    <p class="ds-page__subtitle">
-      Zarządzaj zestawami dyspozycji wielokrotnego użytku — przypisz je do kampanii lub kolejki.
-    </p>
+    <h1 class="ds-page__title">{{ 'supervisor.settings.dispositionSets.pageTitle' | transloco }}</h1>
+    <p class="ds-page__subtitle">{{ 'supervisor.settings.dispositionSets.pageSubtitle' | transloco }}</p>
   </div>
 
   <div class="ds-layout">
     <!-- ── Lewa kolumna: lista zestawów ──────────────────────────────────── -->
-    <section class="ds-col ds-col--sets" aria-label="Lista zestawów dyspozycji">
+    <section class="ds-col ds-col--sets" [attr.aria-label]="'supervisor.settings.dispositionSets.ariaSetsList' | transloco">
       <div class="ds-col__header">
-        <h2 class="ds-col__title">Zestawy</h2>
+        <h2 class="ds-col__title">{{ 'supervisor.settings.dispositionSets.setsTitle' | transloco }}</h2>
         @if (setFormMode() === null) {
           <button type="button" class="btn btn-primary btn-sm" (click)="openCreateSet()">
-            + Nowy zestaw
+            {{ 'supervisor.settings.dispositionSets.createButton' | transloco }}
           </button>
         }
       </div>
@@ -25,11 +23,11 @@
           (ngSubmit)="submitSetForm()"
           class="ds-set-form"
           novalidate
-          aria-label="Formularz zestawu dyspozycji"
+          [attr.aria-label]="'supervisor.settings.dispositionSets.ariaSetFormLabel' | transloco"
         >
           <div class="form-field" [class.form-field--error]="isSetFieldInvalid('name')">
             <label class="form-label" for="setName">
-              Nazwa <span class="required" aria-hidden="true">*</span>
+              {{ 'supervisor.settings.dispositionSets.nameLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
             </label>
             <input
               id="setName"
@@ -41,12 +39,12 @@
               [attr.aria-invalid]="isSetFieldInvalid('name') ? 'true' : null"
             />
             @if (isSetFieldInvalid('name')) {
-              <span class="form-error" role="alert">Nazwa jest wymagana.</span>
+              <span class="form-error" role="alert">{{ 'supervisor.settings.dispositionSets.nameRequired' | transloco }}</span>
             }
           </div>
 
           <div class="form-field">
-            <label class="form-label" for="setDesc">Opis</label>
+            <label class="form-label" for="setDesc">{{ 'supervisor.settings.dispositionSets.descLabel' | transloco }}</label>
             <input
               id="setDesc"
               type="text"
@@ -66,10 +64,10 @@
               @if (setSubmitting()) {
                 <span class="spinner spinner--sm" aria-hidden="true"></span>
               }
-              {{ setFormMode() === 'edit' ? 'Zapisz' : 'Utwórz' }}
+              {{ setFormMode() === 'edit' ? ('common.save' | transloco) : ('common.create' | transloco) }}
             </button>
             <button type="button" class="btn btn-secondary btn-sm" (click)="cancelSetForm()">
-              Anuluj
+              {{ 'common.cancel' | transloco }}
             </button>
           </div>
         </form>
@@ -77,17 +75,17 @@
 
       <!-- Lista zestawów -->
       @if (setsLoading()) {
-        <div class="ds-loading" aria-live="polite" aria-label="Ładowanie zestawów">
+        <div class="ds-loading" aria-live="polite" [attr.aria-label]="'common.loading' | transloco">
           <div class="ds-skeleton"></div>
           <div class="ds-skeleton ds-skeleton--short"></div>
           <div class="ds-skeleton"></div>
         </div>
       } @else if (sets().length === 0 && setFormMode() === null) {
         <div class="ds-empty">
-          <p>Brak zestawów dyspozycji. Kliknij „+ Nowy zestaw", aby dodać pierwszy.</p>
+          <p>{{ 'supervisor.settings.dispositionSets.emptySetList' | transloco }}</p>
         </div>
       } @else {
-        <ul class="ds-set-list" aria-label="Zestawy dyspozycji">
+        <ul class="ds-set-list" [attr.aria-label]="'supervisor.settings.dispositionSets.ariaSetsList' | transloco">
           @for (set of sets(); track set.id) {
             <li
               class="ds-set-card"
@@ -98,7 +96,7 @@
               tabindex="0"
               role="button"
               [attr.aria-pressed]="selectedSet()?.id === set.id"
-              [attr.aria-label]="'Wybierz zestaw ' + set.name"
+              [attr.aria-label]="'supervisor.settings.dispositionSets.ariaSelectSet' | transloco: { name: set.name }"
             >
               <div class="ds-set-card__info">
                 <span class="ds-set-card__name">{{ set.name }}</span>
@@ -106,7 +104,10 @@
                   <span class="ds-set-card__desc">{{ set.description }}</span>
                 }
                 <span class="ds-set-card__count">
-                  {{ set.itemCount }} {{ set.itemCount === 1 ? 'dyspozycja' : 'dyspozycji' }}
+                  {{ set.itemCount }}
+                  {{ set.itemCount === 1
+                    ? ('supervisor.settings.dispositionSets.itemSingular' | transloco)
+                    : ('supervisor.settings.dispositionSets.itemPlural' | transloco) }}
                 </span>
               </div>
               <div class="ds-set-card__actions">
@@ -114,17 +115,17 @@
                   type="button"
                   class="btn btn-ghost btn-xs"
                   (click)="openEditSet(set, $event)"
-                  [attr.aria-label]="'Edytuj zestaw ' + set.name"
+                  [attr.aria-label]="'supervisor.settings.dispositionSets.ariaEditSet' | transloco: { name: set.name }"
                 >
-                  Edytuj
+                  {{ 'common.edit' | transloco }}
                 </button>
                 <button
                   type="button"
                   class="btn btn-danger btn-xs"
                   (click)="confirmDeleteSet(set, $event)"
-                  [attr.aria-label]="'Usuń zestaw ' + set.name"
+                  [attr.aria-label]="'supervisor.settings.dispositionSets.ariaDeleteSet' | transloco: { name: set.name }"
                 >
-                  Usuń
+                  {{ 'common.delete' | transloco }}
                 </button>
               </div>
             </li>
@@ -134,7 +135,7 @@
     </section>
 
     <!-- ── Prawa kolumna: elementy zestawu ───────────────────────────────── -->
-    <section class="ds-col ds-col--items" aria-label="Elementy wybranego zestawu">
+    <section class="ds-col ds-col--items" [attr.aria-label]="'supervisor.settings.dispositionSets.ariaItemsList' | transloco">
       @if (!hasSelectedSet()) {
         <div class="ds-placeholder">
           <svg
@@ -147,14 +148,14 @@
               d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"
             />
           </svg>
-          <p>Wybierz zestaw z lewej kolumny, aby zobaczyć jego elementy.</p>
+          <p>{{ 'supervisor.settings.dispositionSets.selectSetHint' | transloco }}</p>
         </div>
       } @else {
         <div class="ds-col__header">
           <h2 class="ds-col__title">{{ selectedSet()!.name }}</h2>
           @if (itemFormMode() === null) {
             <button type="button" class="btn btn-primary btn-sm" (click)="openAddItem()">
-              + Dodaj dyspozycję
+              {{ 'supervisor.settings.dispositionSets.addItemButton' | transloco }}
             </button>
           }
         </div>
@@ -166,7 +167,7 @@
             (ngSubmit)="submitItemForm()"
             class="ds-item-form"
             novalidate
-            aria-label="Formularz elementu zestawu"
+            [attr.aria-label]="'supervisor.settings.dispositionSets.ariaItemFormLabel' | transloco"
           >
             <div class="form-row">
               <div
@@ -174,19 +175,19 @@
                 [class.form-field--error]="codeError !== null"
               >
                 <label class="form-label" for="itemCode">
-                  Kod <span class="required" aria-hidden="true">*</span>
+                  {{ 'supervisor.dispositionEditor.codeLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
                 </label>
                 <input
                   id="itemCode"
                   type="text"
                   class="form-input"
                   formControlName="dispositionCode"
-                  placeholder="np. CALLBACK_AGREED"
+                  [placeholder]="'supervisor.dispositionEditor.codePlaceholder' | transloco"
                   maxlength="50"
                   autocomplete="off"
                   [attr.aria-invalid]="codeError ? 'true' : null"
                 />
-                <span class="form-hint">Wielkie litery, cyfry i podkreślnik.</span>
+                <span class="form-hint">{{ 'supervisor.dispositionEditor.codeHint' | transloco }}</span>
                 @if (codeError) {
                   <span class="form-error" role="alert">{{ codeError }}</span>
                 }
@@ -194,7 +195,7 @@
 
               <div class="form-field" [class.form-field--error]="isItemFieldInvalid('label')">
                 <label class="form-label" for="itemLabel">
-                  Etykieta <span class="required" aria-hidden="true">*</span>
+                  {{ 'supervisor.dispositionEditor.labelLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
                 </label>
                 <input
                   id="itemLabel"
@@ -206,23 +207,23 @@
                   [attr.aria-invalid]="isItemFieldInvalid('label') ? 'true' : null"
                 />
                 @if (isItemFieldInvalid('label')) {
-                  <span class="form-error" role="alert">Etykieta jest wymagana.</span>
+                  <span class="form-error" role="alert">{{ 'supervisor.dispositionEditor.labelRequired' | transloco }}</span>
                 }
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-field">
-                <label class="form-label" for="itemTone">Ton</label>
+                <label class="form-label" for="itemTone">{{ 'supervisor.dispositionEditor.toneLabel' | transloco }}</label>
                 <select id="itemTone" class="form-select" formControlName="tone">
                   @for (opt of toneOptions; track opt.value) {
-                    <option [value]="opt.value">{{ opt.label }}</option>
+                    <option [value]="opt.value">{{ opt.key | transloco }}</option>
                   }
                 </select>
               </div>
 
               <div class="form-field">
-                <label class="form-label" for="itemOrdinal">Kolejność</label>
+                <label class="form-label" for="itemOrdinal">{{ 'supervisor.dispositionEditor.ordinalLabel' | transloco }}</label>
                 <input
                   id="itemOrdinal"
                   type="number"
@@ -242,10 +243,10 @@
                 @if (itemSubmitting()) {
                   <span class="spinner spinner--sm" aria-hidden="true"></span>
                 }
-                {{ itemFormMode() === 'edit' ? 'Zapisz' : 'Dodaj' }}
+                {{ itemFormMode() === 'edit' ? ('common.save' | transloco) : ('common.add' | transloco) }}
               </button>
               <button type="button" class="btn btn-secondary btn-sm" (click)="cancelItemForm()">
-                Anuluj
+                {{ 'common.cancel' | transloco }}
               </button>
             </div>
           </form>
@@ -253,16 +254,16 @@
 
         <!-- Lista elementów -->
         @if (itemsLoading()) {
-          <div class="ds-loading" aria-live="polite" aria-label="Ładowanie elementów">
+          <div class="ds-loading" aria-live="polite" [attr.aria-label]="'common.loading' | transloco">
             <div class="ds-skeleton"></div>
             <div class="ds-skeleton ds-skeleton--short"></div>
           </div>
         } @else if (items().length === 0 && itemFormMode() === null) {
           <div class="ds-empty">
-            <p>Ten zestaw nie ma jeszcze żadnych dyspozycji. Kliknij „+ Dodaj dyspozycję".</p>
+            <p>{{ 'supervisor.settings.dispositionSets.itemsEmpty' | transloco }}</p>
           </div>
         } @else {
-          <ul class="ds-item-list" aria-label="Elementy zestawu dyspozycji">
+          <ul class="ds-item-list" [attr.aria-label]="'supervisor.settings.dispositionSets.ariaItemsList' | transloco">
             @for (item of items(); track item.id) {
               <li class="ds-item-row">
                 <div class="ds-item-row__info">
@@ -271,7 +272,7 @@
                   </span>
                   <code class="ds-item-row__code">{{ item.dispositionCode }}</code>
                   <span class="ds-item-row__tone ds-item-row__tone--{{ item.tone }}">
-                    {{ toneLabelMap[item.tone] }}
+                    {{ toneLabel(item.tone) }}
                   </span>
                   <span class="ds-item-row__ordinal">#{{ item.ordinal }}</span>
                 </div>
@@ -280,17 +281,17 @@
                     type="button"
                     class="btn btn-ghost btn-xs"
                     (click)="openEditItem(item)"
-                    [attr.aria-label]="'Edytuj dyspozycję ' + item.label"
+                    [attr.aria-label]="'supervisor.settings.dispositionSets.ariaEditItem' | transloco: { label: item.label }"
                   >
-                    Edytuj
+                    {{ 'common.edit' | transloco }}
                   </button>
                   <button
                     type="button"
                     class="btn btn-danger btn-xs"
                     (click)="confirmDeleteItem(item)"
-                    [attr.aria-label]="'Usuń dyspozycję ' + item.label"
+                    [attr.aria-label]="'supervisor.settings.dispositionSets.ariaDeleteItem' | transloco: { label: item.label }"
                   >
-                    Usuń
+                    {{ 'common.delete' | transloco }}
                   </button>
                 </div>
               </li>
@@ -306,8 +307,8 @@
 @if (deletingSetId()) {
   <app-confirm-dialog
     [message]="deleteSetMessage()"
-    confirmLabel="Usuń"
-    cancelLabel="Anuluj"
+    [confirmLabel]="'common.delete' | transloco"
+    [cancelLabel]="'common.cancel' | transloco"
     [danger]="true"
     (confirmed)="executeDeleteSet()"
     (cancelled)="deletingSetId.set(null)"
@@ -317,8 +318,8 @@
 @if (deletingItemId()) {
   <app-confirm-dialog
     [message]="deleteItemMessage()"
-    confirmLabel="Usuń"
-    cancelLabel="Anuluj"
+    [confirmLabel]="'common.delete' | transloco"
+    [cancelLabel]="'common.cancel' | transloco"
     [danger]="true"
     (confirmed)="executeDeleteItem()"
     (cancelled)="deletingItemId.set(null)"

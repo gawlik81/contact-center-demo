@@ -79,6 +79,12 @@
       "VOICEMAIL": "Poczta głosowa",
       "TRANSFER": "Transfer",
       "ESCALATE": "Eskalacja"
+    },
+    "tones": {
+      "positive": "Pozytywny",
+      "negative": "Negatywny",
+      "neutral": "Neutralny",
+      "warning": "Ostrzeżenie"
     }
   },
   "auth": {
@@ -1029,7 +1035,8 @@
       "statusLabel": "Status kolejki",
       "assignmentTitle": "Przypisanie agentów",
       "assignmentHint": "Zapisz kolejkę, aby skonfigurować przypisanie agentów.",
-      "saveLabel": "Zapisz kolejkę"
+      "saveLabel": "Zapisz kolejkę",
+      "dispositionsTitle": "Dyspozycje po kontakcie"
     },
     "queueDelete": {
       "title": "Usuń kolejkę",
@@ -1168,7 +1175,9 @@
       "statsTotal": "Łącznie",
       "statsCompleted": "Zakończone",
       "statsRemaining": "Do wydzwonienia",
-      "statsHeader": "Rekordy"
+      "statsHeader": "Rekordy",
+      "dispositionsTitle": "Dyspozycje po kontakcie",
+      "dispositionsDesc": "Zdefiniuj własne dyspozycje dla tej kampanii. Jeśli lista jest pusta, agenci widzą dyspozycje systemowe."
     },
     "campaignForm": {
       "titleCreate": "Nowa kampania",
@@ -2140,6 +2149,46 @@
         "saveButton": "Zapisz regułę",
         "errorDays": "Wybierz co najmniej jeden dzień tygodnia.",
         "errorTime": "Godzina \"Do\" musi być późniejsza niż \"Od\"."
+      },
+      "dispositionSets": {
+        "pageTitle": "Zestawy dyspozycji",
+        "pageSubtitle": "Zarządzaj zestawami dyspozycji wielokrotnego użytku — przypisz je do kampanii lub kolejki.",
+        "setsTitle": "Zestawy",
+        "createButton": "+ Nowy zestaw",
+        "nameLabel": "Nazwa",
+        "nameRequired": "Nazwa jest wymagana.",
+        "descLabel": "Opis",
+        "emptySetList": "Brak zestawów dyspozycji. Kliknij „+ Nowy zestaw\", aby dodać pierwszy.",
+        "selectSetHint": "Wybierz zestaw z lewej kolumny, aby zobaczyć jego elementy.",
+        "addItemButton": "+ Dodaj dyspozycję",
+        "itemsEmpty": "Ten zestaw nie ma jeszcze żadnych dyspozycji. Kliknij „+ Dodaj dyspozycję\".",
+        "itemSingular": "dyspozycja",
+        "itemPlural": "dyspozycji",
+        "confirmDeleteSet": "Czy na pewno chcesz usunąć zestaw \"{{ name }}\"? Operacja jest nieodwracalna.",
+        "confirmDeleteItem": "Czy na pewno chcesz usunąć dyspozycję \"{{ label }}\" z zestawu?",
+        "ariaSetsList": "Lista zestawów dyspozycji",
+        "ariaItemsList": "Elementy wybranego zestawu",
+        "ariaSetFormLabel": "Formularz zestawu dyspozycji",
+        "ariaItemFormLabel": "Formularz elementu zestawu",
+        "ariaSelectSet": "Wybierz zestaw {{ name }}",
+        "ariaEditSet": "Edytuj zestaw {{ name }}",
+        "ariaDeleteSet": "Usuń zestaw {{ name }}",
+        "ariaEditItem": "Edytuj dyspozycję {{ label }}",
+        "ariaDeleteItem": "Usuń dyspozycję {{ label }}",
+        "errorLoadSets": "Nie udało się załadować zestawów.",
+        "errorSaveSet": "Nie udało się zapisać zestawu.",
+        "errorSaveSetDuplicate": "Zestaw o tej nazwie już istnieje.",
+        "errorDeleteSet": "Nie udało się usunąć zestawu.",
+        "errorLoadItems": "Nie udało się załadować elementów zestawu.",
+        "errorSaveItem": "Nie udało się zapisać elementu.",
+        "errorSaveItemDuplicate": "Dyspozycja o tym kodzie już istnieje w zestawie.",
+        "errorDeleteItem": "Nie udało się usunąć elementu.",
+        "successCreateSet": "Zestaw został utworzony.",
+        "successUpdateSet": "Zestaw został zaktualizowany.",
+        "successDeleteSet": "Zestaw został usunięty.",
+        "successCreateItem": "Element został dodany do zestawu.",
+        "successUpdateItem": "Element zestawu został zaktualizowany.",
+        "successDeleteItem": "Element został usunięty z zestawu."
       }
     },
     "reports": {
@@ -2194,6 +2243,35 @@
       "IF": "Warunek",
       "SWITCH": "Przełącznik",
       "VOICEBOT": "Voicebot ASR/NLU"
+    },
+    "dispositionEditor": {
+      "emptyState": "Brak własnych dyspozycji — agenci widzą dyspozycje systemowe.",
+      "inactiveLabel": "nieaktywna",
+      "codeLabel": "Kod",
+      "codePlaceholder": "np. CALLBACK_AGREED",
+      "codeHint": "Wielkie litery, cyfry i podkreślnik.",
+      "codeRequired": "Kod jest wymagany.",
+      "codePattern": "Tylko wielkie litery, cyfry i podkreślnik (A-Z, 0-9, _).",
+      "codeMaxLength": "Maksymalnie 50 znaków.",
+      "labelLabel": "Etykieta",
+      "labelRequired": "Etykieta jest wymagana.",
+      "labelMaxLength": "Maksymalnie 100 znaków.",
+      "toneLabel": "Ton",
+      "ordinalLabel": "Kolejność",
+      "activeLabel": "Aktywna",
+      "addButton": "+ Dodaj dyspozycję",
+      "applySetButton": "Zastosuj zestaw",
+      "itemsCount": "{{ count }} dyspozycji",
+      "noSets": "Brak zdefiniowanych zestawów",
+      "confirmApplySet": "Czy skopiować {{ count }} dyspozycji z zestawu \"{{ name }}\"? Istniejące dyspozycje o tych samych kodach zostaną pominięte.",
+      "confirmDelete": "Czy na pewno chcesz usunąć tę dyspozycję?",
+      "errorLoad": "Nie udało się załadować dyspozycji.",
+      "errorSave": "Nie udało się zapisać dyspozycji.",
+      "errorSaveDuplicate": "Kod dyspozycji już istnieje w tym zakresie",
+      "errorDelete": "Nie udało się usunąć dyspozycji.",
+      "errorLoadSets": "Nie udało się załadować zestawów dyspozycji.",
+      "errorApplySet": "Nie udało się zastosować zestawu dyspozycji.",
+      "listAriaLabel": "Lista dyspozycji"
     }
   },
   "admin": {

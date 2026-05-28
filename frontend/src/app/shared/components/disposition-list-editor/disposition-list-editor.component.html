@@ -9,29 +9,29 @@
   } @else {
     @if (dispositions().length === 0 && !showForm()) {
       <div class="disposition-empty">
-        <p>Brak własnych dyspozycji — agenci widzą dyspozycje systemowe.</p>
+        <p>{{ 'supervisor.dispositionEditor.emptyState' | transloco }}</p>
       </div>
     }
 
     @if (dispositions().length > 0) {
-      <ul class="disposition-list" aria-label="Lista dyspozycji">
+      <ul class="disposition-list" [attr.aria-label]="'supervisor.dispositionEditor.listAriaLabel' | transloco">
         @for (d of dispositions(); track d.id) {
           <li class="disposition-list__item">
             <div class="disposition-list__info">
               <span class="disposition-chip disposition-chip--{{ d.tone }}">{{ d.label }}</span>
               <code class="disposition-list__code">{{ d.dispositionCode }}</code>
               @if (!d.isActive) {
-                <span class="disposition-list__inactive">nieaktywna</span>
+                <span class="disposition-list__inactive">{{ 'supervisor.dispositionEditor.inactiveLabel' | transloco }}</span>
               }
             </div>
             <div class="disposition-list__actions">
-              <button type="button" class="btn btn-ghost btn-sm" (click)="onEdit(d)">Edytuj</button>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="onEdit(d)">{{ 'common.edit' | transloco }}</button>
               <button
                 type="button"
                 class="btn btn-danger btn-sm"
                 (click)="onDeleteConfirm(d.id)"
               >
-                Usuń
+                {{ 'common.delete' | transloco }}
               </button>
             </div>
           </li>
@@ -43,20 +43,20 @@
       <form [formGroup]="form" (ngSubmit)="onSubmit()" class="disposition-form" novalidate>
         <div class="form-field" [class.form-field--error]="codeError">
           <label class="form-label" for="dispCode">
-            Kod <span class="required" aria-hidden="true">*</span>
+            {{ 'supervisor.dispositionEditor.codeLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="dispCode"
             type="text"
             class="form-input"
             formControlName="dispositionCode"
-            placeholder="np. CALLBACK_AGREED"
+            [placeholder]="'supervisor.dispositionEditor.codePlaceholder' | transloco"
             maxlength="50"
             autocomplete="off"
             [attr.aria-describedby]="codeError ? 'dispCode-error' : 'dispCode-hint'"
             [attr.aria-invalid]="codeError ? 'true' : null"
           />
-          <span id="dispCode-hint" class="form-hint">Wielkie litery, cyfry i podkreślnik.</span>
+          <span id="dispCode-hint" class="form-hint">{{ 'supervisor.dispositionEditor.codeHint' | transloco }}</span>
           @if (codeError) {
             <span id="dispCode-error" class="form-error" role="alert">{{ codeError }}</span>
           }
@@ -64,7 +64,7 @@
 
         <div class="form-field" [class.form-field--error]="labelError">
           <label class="form-label" for="dispLabel">
-            Etykieta <span class="required" aria-hidden="true">*</span>
+            {{ 'supervisor.dispositionEditor.labelLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
           </label>
           <input
             id="dispLabel"
@@ -83,16 +83,16 @@
 
         <div class="form-row">
           <div class="form-field">
-            <label class="form-label" for="dispTone">Ton</label>
+            <label class="form-label" for="dispTone">{{ 'supervisor.dispositionEditor.toneLabel' | transloco }}</label>
             <select id="dispTone" class="form-select" formControlName="tone">
               @for (opt of toneOptions; track opt.value) {
-                <option [value]="opt.value">{{ opt.label }}</option>
+                <option [value]="opt.value">{{ opt.key | transloco }}</option>
               }
             </select>
           </div>
 
           <div class="form-field">
-            <label class="form-label" for="dispOrdinal">Kolejność</label>
+            <label class="form-label" for="dispOrdinal">{{ 'supervisor.dispositionEditor.ordinalLabel' | transloco }}</label>
             <input
               id="dispOrdinal"
               type="number"
@@ -107,7 +107,7 @@
           <div class="form-field form-field--checkbox">
             <label class="form-label form-label--checkbox">
               <input type="checkbox" formControlName="isActive" />
-              Aktywna
+              {{ 'supervisor.dispositionEditor.activeLabel' | transloco }}
             </label>
           </div>
         }
@@ -122,15 +122,15 @@
             @if (submitting()) {
               <span class="spinner" aria-hidden="true"></span>
             }
-            {{ editingId() ? 'Zapisz' : 'Dodaj' }}
+            {{ editingId() ? ('common.save' | transloco) : ('common.add' | transloco) }}
           </button>
-          <button type="button" class="btn btn-cancel" (click)="onCancel()">Anuluj</button>
+          <button type="button" class="btn btn-cancel" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
         </div>
       </form>
     } @else {
       <div class="disposition-editor__toolbar">
         <button type="button" class="btn btn-secondary" (click)="onAdd()">
-          + Dodaj dyspozycję
+          {{ 'supervisor.dispositionEditor.addButton' | transloco }}
         </button>
 
         @if (campaignId() || queueId()) {
@@ -141,21 +141,21 @@
               (click)="toggleSetPicker()"
               [disabled]="applyingSet()"
             >
-              Zastosuj zestaw
+              {{ 'supervisor.dispositionEditor.applySetButton' | transloco }}
             </button>
             @if (showSetPicker()) {
               <div class="set-picker">
                 @if (setsLoading()) {
-                  <div class="set-picker__loading">Ładowanie...</div>
+                  <div class="set-picker__loading">{{ 'common.loading' | transloco }}</div>
                 }
                 @for (set of availableSets(); track set.id) {
                   <button type="button" class="set-picker__item" (click)="onSetSelected(set)">
                     <strong>{{ set.name }}</strong>
-                    <span class="set-picker__count">{{ set.itemCount }} dyspozycji</span>
+                    <span class="set-picker__count">{{ 'supervisor.dispositionEditor.itemsCount' | transloco: { count: set.itemCount } }}</span>
                   </button>
                 }
                 @if (!setsLoading() && availableSets().length === 0) {
-                  <div class="set-picker__empty">Brak zdefiniowanych zestawów</div>
+                  <div class="set-picker__empty">{{ 'supervisor.dispositionEditor.noSets' | transloco }}</div>
                 }
               </div>
             }
@@ -167,11 +167,8 @@
     @if (pendingSet()) {
       <app-confirm-dialog
         [message]="
-          'Czy skopiować ' +
-          pendingSet()!.itemCount +
-          ' dyspozycji z zestawu &quot;' +
-          pendingSet()!.name +
-          '&quot;? Istniejące dyspozycje o tych samych kodach zostaną pominięte.'
+          'supervisor.dispositionEditor.confirmApplySet'
+            | transloco: { count: pendingSet()!.itemCount, name: pendingSet()!.name }
         "
         (confirmed)="onApplySetConfirm()"
         (cancelled)="onApplySetCancel()"
@@ -180,7 +177,7 @@
 
     @if (deletingId()) {
       <app-confirm-dialog
-        message="Czy na pewno chcesz usunąć tę dyspozycję?"
+        [message]="'supervisor.dispositionEditor.confirmDelete' | transloco"
         [danger]="true"
         (confirmed)="onDeleteExecute()"
         (cancelled)="deletingId.set(null)"

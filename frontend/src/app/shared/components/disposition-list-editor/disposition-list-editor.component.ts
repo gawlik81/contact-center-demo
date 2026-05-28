@@ -11,6 +11,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { EMPTY, catchError } from 'rxjs';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   CreateCustomDispositionRequest,
   CustomDisposition,
@@ -27,7 +28,7 @@ import { DispositionSetService } from '../../../features/dispositions/services/d
   selector: 'app-disposition-list-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [ReactiveFormsModule, ConfirmDialogComponent],
+  imports: [ReactiveFormsModule, ConfirmDialogComponent, TranslocoModule],
   templateUrl: './disposition-list-editor.component.html',
   styleUrl: './disposition-list-editor.component.scss',
 })
@@ -49,11 +50,11 @@ export class DispositionListEditorComponent {
   readonly applyingSet = signal(false);
   readonly pendingSet = signal<DispositionSet | null>(null);
 
-  readonly toneOptions: { value: DispositionToneApi; label: string }[] = [
-    { value: 'positive', label: 'Pozytywny' },
-    { value: 'negative', label: 'Negatywny' },
-    { value: 'neutral', label: 'Neutralny' },
-    { value: 'warning', label: 'Ostrzeżenie' },
+  readonly toneOptions: { value: DispositionToneApi; key: string }[] = [
+    { value: 'positive', key: 'common.tones.positive' },
+    { value: 'negative', key: 'common.tones.negative' },
+    { value: 'neutral', key: 'common.tones.neutral' },
+    { value: 'warning', key: 'common.tones.warning' },
   ];
 
   private readonly fb = inject(FormBuilder);
@@ -61,6 +62,7 @@ export class DispositionListEditorComponent {
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly dispositionSetService = inject(DispositionSetService);
+  private readonly transloco = inject(TranslocoService);
 
   private readonly loadEffect = effect(() => {
     // Track input signals to react to changes
@@ -103,7 +105,7 @@ export class DispositionListEditorComponent {
           this.loading.set(false);
         },
         error: () => {
-          this.error.set('Nie udało się załadować dyspozycji.');
+          this.error.set(this.transloco.translate('supervisor.dispositionEditor.errorLoad'));
           this.loading.set(false);
         },
       });
@@ -179,9 +181,9 @@ export class DispositionListEditorComponent {
       .pipe(
         catchError((err: { status?: number }) => {
           if (err.status === 409) {
-            this.notifications.error('Kod dyspozycji już istnieje w tym zakresie');
+            this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorSaveDuplicate'));
           } else {
-            this.notifications.error('Nie udało się zapisać dyspozycji.');
+            this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorSave'));
           }
           this.submitting.set(false);
           return EMPTY;
@@ -218,7 +220,7 @@ export class DispositionListEditorComponent {
     delete$
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało się usunąć dyspozycji.');
+          this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorDelete'));
           this.deletingId.set(null);
           return EMPTY;
         }),
@@ -242,7 +244,7 @@ export class DispositionListEditorComponent {
         .listSets()
         .pipe(
           catchError(() => {
-            this.notifications.error('Nie udało się załadować zestawów dyspozycji.');
+            this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorLoadSets'));
             this.setsLoading.set(false);
             return EMPTY;
           }),
@@ -278,7 +280,7 @@ export class DispositionListEditorComponent {
     apply$
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało się zastosować zestawu dyspozycji.');
+          this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorApplySet'));
           this.applyingSet.set(false);
           return EMPTY;
         }),
@@ -299,17 +301,17 @@ export class DispositionListEditorComponent {
   get codeError(): string | null {
     const ctrl = this.form.get('dispositionCode')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Kod jest wymagany.';
-    if (ctrl.hasError('pattern')) return 'Tylko wielkie litery, cyfry i podkreślnik (A-Z, 0-9, _).';
-    if (ctrl.hasError('maxlength')) return 'Maksymalnie 50 znaków.';
+    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.dispositionEditor.codeRequired');
+    if (ctrl.hasError('pattern')) return this.transloco.translate('supervisor.dispositionEditor.codePattern');
+    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.dispositionEditor.codeMaxLength');
     return null;
   }
 
   get labelError(): string | null {
     const ctrl = this.form.get('label')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Etykieta jest wymagana.';
-    if (ctrl.hasError('maxlength')) return 'Maksymalnie 100 znaków.';
+    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.dispositionEditor.labelRequired');
+    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.dispositionEditor.labelMaxLength');
     return null;
   }
 }

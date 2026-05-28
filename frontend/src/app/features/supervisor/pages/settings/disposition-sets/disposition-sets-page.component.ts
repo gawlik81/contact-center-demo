@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { EMPTY, catchError } from 'rxjs';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { DispositionToneApi } from '../../../../dispositions/models/custom-disposition.model';
 import {
   CreateDispositionSetItemRequest,
@@ -30,7 +31,7 @@ type ItemFormMode = 'add' | 'edit' | null;
   selector: 'app-disposition-sets-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ConfirmDialogComponent],
+  imports: [CommonModule, ReactiveFormsModule, ConfirmDialogComponent, TranslocoModule],
   templateUrl: './disposition-sets-page.component.html',
   styleUrl: './disposition-sets-page.component.scss',
 })
@@ -39,6 +40,7 @@ export class DispositionSetsPageComponent {
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder);
+  private readonly transloco = inject(TranslocoService);
 
   // ─── State ────────────────────────────────────────────────────────────────
 
@@ -69,23 +71,25 @@ export class DispositionSetsPageComponent {
     () => this.items().find((i) => i.id === this.deletingItemId()) ?? null,
   );
 
-  readonly deleteSetMessage = computed(() => {
-    const name = this.deletingSet()?.name ?? '';
-    return `Czy na pewno chcesz usunąć zestaw "${name}"? Operacja jest nieodwracalna.`;
-  });
+  readonly deleteSetMessage = computed(() =>
+    this.transloco.translate('supervisor.settings.dispositionSets.confirmDeleteSet', {
+      name: this.deletingSet()?.name ?? '',
+    }),
+  );
 
-  readonly deleteItemMessage = computed(() => {
-    const label = this.deletingItem()?.label ?? '';
-    return `Czy na pewno chcesz usunąć dyspozycję "${label}" z zestawu?`;
-  });
+  readonly deleteItemMessage = computed(() =>
+    this.transloco.translate('supervisor.settings.dispositionSets.confirmDeleteItem', {
+      label: this.deletingItem()?.label ?? '',
+    }),
+  );
 
   // ─── Tone options ──────────────────────────────────────────────────────────
 
-  readonly toneOptions: { value: DispositionToneApi; label: string }[] = [
-    { value: 'positive', label: 'Pozytywny' },
-    { value: 'negative', label: 'Negatywny' },
-    { value: 'neutral', label: 'Neutralny' },
-    { value: 'warning', label: 'Ostrzeżenie' },
+  readonly toneOptions: { value: DispositionToneApi; key: string }[] = [
+    { value: 'positive', key: 'common.tones.positive' },
+    { value: 'negative', key: 'common.tones.negative' },
+    { value: 'neutral', key: 'common.tones.neutral' },
+    { value: 'warning', key: 'common.tones.warning' },
   ];
 
   // ─── Forms ─────────────────────────────────────────────────────────────────
@@ -124,7 +128,7 @@ export class DispositionSetsPageComponent {
           this.setsLoading.set(false);
         },
         error: () => {
-          this.notifications.error('Nie udało się załadować zestawów dyspozycji.');
+          this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorLoadSets'));
           this.setsLoading.set(false);
         },
       });
@@ -148,7 +152,7 @@ export class DispositionSetsPageComponent {
           this.itemsLoading.set(false);
         },
         error: () => {
-          this.notifications.error('Nie udało się załadować elementów zestawu.');
+          this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorLoadItems'));
           this.itemsLoading.set(false);
         },
       });
@@ -193,9 +197,9 @@ export class DispositionSetsPageComponent {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err.status === 409) {
-              this.notifications.error('Zestaw o tej nazwie już istnieje.');
+              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveSetDuplicate'));
             } else {
-              this.notifications.error('Nie udało się zapisać zestawu.');
+              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveSet'));
             }
             this.setSubmitting.set(false);
             return EMPTY;
@@ -209,7 +213,7 @@ export class DispositionSetsPageComponent {
           }
           this.setSubmitting.set(false);
           this.cancelSetForm();
-          this.notifications.success('Zestaw został zaktualizowany.');
+          this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successUpdateSet'));
         });
     } else {
       const req: CreateDispositionSetRequest = {
@@ -221,7 +225,7 @@ export class DispositionSetsPageComponent {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err.status === 409) {
-              this.notifications.error('Zestaw o tej nazwie już istnieje.');
+              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveSetDuplicate'));
             } else {
               this.notifications.error('Nie udało się utworzyć zestawu.');
             }
@@ -234,7 +238,7 @@ export class DispositionSetsPageComponent {
           this.sets.update((list) => [created, ...list]);
           this.setSubmitting.set(false);
           this.cancelSetForm();
-          this.notifications.success('Zestaw został utworzony.');
+          this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successCreateSet'));
         });
     }
   }
@@ -251,7 +255,7 @@ export class DispositionSetsPageComponent {
       .deleteSet(id)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało się usunąć zestawu.');
+          this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorDeleteSet'));
           this.deletingSetId.set(null);
           return EMPTY;
         }),
@@ -264,7 +268,7 @@ export class DispositionSetsPageComponent {
           this.items.set([]);
         }
         this.deletingSetId.set(null);
-        this.notifications.success('Zestaw został usunięty.');
+        this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successDeleteSet'));
       });
   }
 
@@ -319,9 +323,9 @@ export class DispositionSetsPageComponent {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err.status === 409) {
-              this.notifications.error('Dyspozycja o tym kodzie już istnieje w zestawie.');
+              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItemDuplicate'));
             } else {
-              this.notifications.error('Nie udało się zapisać elementu.');
+              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItem'));
             }
             this.itemSubmitting.set(false);
             return EMPTY;
@@ -332,7 +336,7 @@ export class DispositionSetsPageComponent {
           this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
           this.itemSubmitting.set(false);
           this.cancelItemForm();
-          this.notifications.success('Element zestawu został zaktualizowany.');
+          this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successUpdateItem'));
         });
     } else {
       const req: CreateDispositionSetItemRequest = {
@@ -346,9 +350,9 @@ export class DispositionSetsPageComponent {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err.status === 409) {
-              this.notifications.error('Dyspozycja o tym kodzie już istnieje w zestawie.');
+              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItemDuplicate'));
             } else {
-              this.notifications.error('Nie udało się dodać elementu.');
+              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItem'));
             }
             this.itemSubmitting.set(false);
             return EMPTY;
@@ -363,7 +367,7 @@ export class DispositionSetsPageComponent {
           this.selectedSet.update((s) => (s ? { ...s, itemCount: s.itemCount + 1 } : s));
           this.itemSubmitting.set(false);
           this.cancelItemForm();
-          this.notifications.success('Element został dodany do zestawu.');
+          this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successCreateItem'));
         });
     }
   }
@@ -380,7 +384,7 @@ export class DispositionSetsPageComponent {
       .removeItem(set.id, id)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udało się usunąć elementu.');
+          this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorDeleteItem'));
           this.deletingItemId.set(null);
           return EMPTY;
         }),
@@ -393,7 +397,7 @@ export class DispositionSetsPageComponent {
         );
         this.selectedSet.update((s) => (s ? { ...s, itemCount: Math.max(0, s.itemCount - 1) } : s));
         this.deletingItemId.set(null);
-        this.notifications.success('Element został usunięty z zestawu.');
+        this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successDeleteItem'));
       });
   }
 
@@ -412,16 +416,13 @@ export class DispositionSetsPageComponent {
   get codeError(): string | null {
     const ctrl = this.itemForm.get('dispositionCode')!;
     if (!ctrl.invalid || !ctrl.touched) return null;
-    if (ctrl.hasError('required')) return 'Kod jest wymagany.';
-    if (ctrl.hasError('pattern')) return 'Tylko wielkie litery, cyfry i podkreślnik (A-Z, 0-9, _).';
-    if (ctrl.hasError('maxlength')) return 'Maksymalnie 50 znaków.';
+    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.dispositionEditor.codeRequired');
+    if (ctrl.hasError('pattern')) return this.transloco.translate('supervisor.dispositionEditor.codePattern');
+    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.dispositionEditor.codeMaxLength');
     return null;
   }
 
-  readonly toneLabelMap: Record<DispositionToneApi, string> = {
-    positive: 'Pozytywny',
-    negative: 'Negatywny',
-    neutral: 'Neutralny',
-    warning: 'Ostrzeżenie',
-  };
+  toneLabel(tone: DispositionToneApi): string {
+    return this.transloco.translate(`common.tones.${tone}`);
+  }
 }

@@ -79,6 +79,12 @@
       "VOICEMAIL": "Voicemail",
       "TRANSFER": "Transfer",
       "ESCALATE": "Eskalieren"
+    },
+    "tones": {
+      "positive": "Positiv",
+      "negative": "Negativ",
+      "neutral": "Neutral",
+      "warning": "Warnung"
     }
   },
   "auth": {
@@ -1029,7 +1035,8 @@
       "statusLabel": "Warteschlangenstatus",
       "assignmentTitle": "Agentenzuweisung",
       "assignmentHint": "Warteschlange speichern, um die Agentenzuweisung zu konfigurieren.",
-      "saveLabel": "Warteschlange speichern"
+      "saveLabel": "Warteschlange speichern",
+      "dispositionsTitle": "Dispositionen nach Kontakt"
     },
     "queueDelete": {
       "title": "Warteschlange löschen",
@@ -1168,7 +1175,9 @@
       "statsTotal": "Gesamt",
       "statsCompleted": "Abgeschlossen",
       "statsRemaining": "Verbleibend",
-      "statsHeader": "Datensätze"
+      "statsHeader": "Datensätze",
+      "dispositionsTitle": "Dispositionen nach Kontakt",
+      "dispositionsDesc": "Definieren Sie benutzerdefinierte Dispositionen für diese Kampagne. Wenn die Liste leer ist, sehen die Agenten die Systemdispositionen."
     },
     "campaignForm": {
       "titleCreate": "Neue Kampagne",
@@ -2136,6 +2145,46 @@
         "saveButton": "Regel speichern",
         "errorDays": "Wählen Sie mindestens einen Wochentag.",
         "errorTime": "Die \"Bis\"-Zeit muss später als die \"Von\"-Zeit sein."
+      },
+      "dispositionSets": {
+        "pageTitle": "Dispositions-Sets",
+        "pageSubtitle": "Verwalten Sie wiederverwendbare Dispositions-Sets — weisen Sie sie einer Kampagne oder Warteschlange zu.",
+        "setsTitle": "Sets",
+        "createButton": "+ Neues Set",
+        "nameLabel": "Name",
+        "nameRequired": "Name ist erforderlich.",
+        "descLabel": "Beschreibung",
+        "emptySetList": "Keine Dispositions-Sets. Klicken Sie auf „+ Neues Set\", um das erste hinzuzufügen.",
+        "selectSetHint": "Wählen Sie ein Set aus der linken Spalte aus, um seine Elemente anzuzeigen.",
+        "addItemButton": "+ Disposition hinzufügen",
+        "itemsEmpty": "Dieses Set hat noch keine Dispositionen. Klicken Sie auf „+ Disposition hinzufügen\".",
+        "itemSingular": "Disposition",
+        "itemPlural": "Dispositionen",
+        "confirmDeleteSet": "Möchten Sie das Set \"{{ name }}\" wirklich löschen? Dieser Vorgang ist unumkehrbar.",
+        "confirmDeleteItem": "Möchten Sie die Disposition \"{{ label }}\" wirklich aus dem Set entfernen?",
+        "ariaSetsList": "Liste der Dispositions-Sets",
+        "ariaItemsList": "Elemente des ausgewählten Sets",
+        "ariaSetFormLabel": "Dispositions-Set-Formular",
+        "ariaItemFormLabel": "Set-Element-Formular",
+        "ariaSelectSet": "Set {{ name }} auswählen",
+        "ariaEditSet": "Set {{ name }} bearbeiten",
+        "ariaDeleteSet": "Set {{ name }} löschen",
+        "ariaEditItem": "Disposition {{ label }} bearbeiten",
+        "ariaDeleteItem": "Disposition {{ label }} löschen",
+        "errorLoadSets": "Sets konnten nicht geladen werden.",
+        "errorSaveSet": "Set konnte nicht gespeichert werden.",
+        "errorSaveSetDuplicate": "Ein Set mit diesem Namen existiert bereits.",
+        "errorDeleteSet": "Set konnte nicht gelöscht werden.",
+        "errorLoadItems": "Set-Elemente konnten nicht geladen werden.",
+        "errorSaveItem": "Element konnte nicht gespeichert werden.",
+        "errorSaveItemDuplicate": "Eine Disposition mit diesem Code existiert bereits im Set.",
+        "errorDeleteItem": "Element konnte nicht gelöscht werden.",
+        "successCreateSet": "Set wurde erstellt.",
+        "successUpdateSet": "Set wurde aktualisiert.",
+        "successDeleteSet": "Set wurde gelöscht.",
+        "successCreateItem": "Element wurde zum Set hinzugefügt.",
+        "successUpdateItem": "Set-Element wurde aktualisiert.",
+        "successDeleteItem": "Element wurde aus dem Set entfernt."
       }
     },
     "reports": {
@@ -2190,6 +2239,35 @@
       "IF": "Bedingung",
       "SWITCH": "Schalter",
       "VOICEBOT": "Voicebot ASR/NLU"
+    },
+    "dispositionEditor": {
+      "emptyState": "Keine eigenen Dispositionen — Agenten sehen die Systemdispositionen.",
+      "inactiveLabel": "inaktiv",
+      "codeLabel": "Code",
+      "codePlaceholder": "z.B. CALLBACK_AGREED",
+      "codeHint": "Großbuchstaben, Ziffern und Unterstriche.",
+      "codeRequired": "Code ist erforderlich.",
+      "codePattern": "Nur Großbuchstaben, Ziffern und Unterstriche (A-Z, 0-9, _).",
+      "codeMaxLength": "Maximal 50 Zeichen.",
+      "labelLabel": "Bezeichnung",
+      "labelRequired": "Bezeichnung ist erforderlich.",
+      "labelMaxLength": "Maximal 100 Zeichen.",
+      "toneLabel": "Ton",
+      "ordinalLabel": "Reihenfolge",
+      "activeLabel": "Aktiv",
+      "addButton": "+ Disposition hinzufügen",
+      "applySetButton": "Set anwenden",
+      "itemsCount": "{{ count }} Dispositionen",
+      "noSets": "Keine definierten Sets",
+      "confirmApplySet": "{{ count }} Dispositionen aus dem Set \"{{ name }}\" kopieren? Dispositionen mit gleichen Codes werden übersprungen.",
+      "confirmDelete": "Möchten Sie diese Disposition wirklich löschen?",
+      "errorLoad": "Dispositionen konnten nicht geladen werden.",
+      "errorSave": "Disposition konnte nicht gespeichert werden.",
+      "errorSaveDuplicate": "Dispositionscode existiert bereits in diesem Bereich",
+      "errorDelete": "Disposition konnte nicht gelöscht werden.",
+      "errorLoadSets": "Dispositions-Sets konnten nicht geladen werden.",
+      "errorApplySet": "Dispositions-Set konnte nicht angewendet werden.",
+      "listAriaLabel": "Dispositionsliste"
     }
   },
   "admin": {

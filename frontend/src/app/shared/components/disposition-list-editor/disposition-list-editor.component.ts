@@ -10,7 +10,6 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { NgClass } from '@angular/common';
 import { EMPTY, catchError } from 'rxjs';
 import {
   CreateCustomDispositionRequest,
@@ -28,7 +27,7 @@ import { DispositionSetService } from '../../../features/dispositions/services/d
   selector: 'app-disposition-list-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [ReactiveFormsModule, NgClass, ConfirmDialogComponent],
+  imports: [ReactiveFormsModule, ConfirmDialogComponent],
   templateUrl: './disposition-list-editor.component.html',
   styleUrl: './disposition-list-editor.component.scss',
 })

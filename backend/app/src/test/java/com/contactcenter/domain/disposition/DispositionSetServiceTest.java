@@ -5,6 +5,7 @@ import com.contactcenter.domain.disposition.dto.CreateDispositionSetRequest;
 import com.contactcenter.domain.disposition.dto.DispositionSetDto;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -151,7 +152,7 @@ class DispositionSetServiceTest {
             // Pierwszy insert OK, drugi rzuca wyjątek (duplikat UNIQUE constraint)
             when(customDispositionRepository.insert(any(CustomDisposition.class)))
                     .thenReturn(buildCustomDisposition("SALE", CAMPAIGN_ID))
-                    .thenThrow(new RuntimeException("duplicate key value violates unique constraint"));
+                    .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"));
 
             ApplySetResponse response = service.applyToCampaign(SET_ID, CAMPAIGN_ID, TENANT_ID);
 

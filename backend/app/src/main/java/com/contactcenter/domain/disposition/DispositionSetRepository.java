@@ -102,6 +102,26 @@ public class DispositionSetRepository extends TenantAwareRepository {
         return count.longValue() > 0;
     }
 
+    @Transactional(readOnly = true)
+    public List<Object[]> findAllWithItemCountByTenantId(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+        log.debug("[DispositionSetRepo] findAllWithItemCountByTenantId: tenant={}", tenantId);
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT s.id, s.tenant_id, s.name, s.description, s.created_at, s.updated_at,
+                       COUNT(i.id) AS item_count
+                FROM disposition_set s
+                LEFT JOIN disposition_set_item i
+                       ON i.set_id = s.id AND i.tenant_id = CAST(:tenantId AS uuid)
+                WHERE s.tenant_id = CAST(:tenantId AS uuid)
+                GROUP BY s.id, s.tenant_id, s.name, s.description, s.created_at, s.updated_at
+                ORDER BY s.name ASC
+                """)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+        return rows;
+    }
+
     // =========================================================================
     // Zapis
     // =========================================================================
@@ -162,7 +182,6 @@ public class DispositionSetRepository extends TenantAwareRepository {
     @Transactional
     public Optional<DispositionSet> update(DispositionSet s) {
         assertSameTenant(s.getTenantId());
-        em.detach(s);
         setTenantContextInDb(s.getTenantId());
 
         log.debug("[DispositionSetRepo] UPDATE zestaw: id={}, tenant={}", s.getId(), s.getTenantId());

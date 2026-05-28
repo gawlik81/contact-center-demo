@@ -91,7 +91,7 @@ export class DispositionSetsPageComponent {
   // ─── Forms ─────────────────────────────────────────────────────────────────
 
   readonly setForm = this.fb.group({
-    name: ['', [Validators.required, Validators.maxLength(200)]],
+    name: ['', [Validators.required, Validators.maxLength(100)]],
     description: ['', Validators.maxLength(500)],
   });
 

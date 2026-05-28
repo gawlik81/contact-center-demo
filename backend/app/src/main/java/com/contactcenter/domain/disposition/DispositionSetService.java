@@ -49,16 +49,16 @@ public class DispositionSetService {
      * @param tenantId UUID tenanta
      * @return lista zestawów posortowana po name ASC
      */
+    @Transactional(readOnly = true)
     public List<DispositionSetDto> listSets(UUID tenantId) {
         log.debug("[DispositionSetService] listSets: tenant={}", tenantId);
-
-        return setRepo.findAllByTenantId(tenantId).stream()
-                .map(s -> new DispositionSetDto(
-                        s.getId(),
-                        s.getName(),
-                        s.getDescription(),
-                        itemRepo.countBySetId(s.getId(), tenantId),
-                        s.getCreatedAt()))
+        return setRepo.findAllWithItemCountByTenantId(tenantId).stream()
+                .map(row -> new DispositionSetDto(
+                        UUID.fromString(row[0].toString()),
+                        row[2].toString(),
+                        row[3] != null ? row[3].toString() : null,
+                        ((Number) row[6]).intValue(),
+                        toInstant(row[4])))
                 .toList();
     }
 
@@ -70,6 +70,7 @@ public class DispositionSetService {
      * @return DTO szczegółów zestawu
      * @throws ResourceNotFoundException gdy zestaw nie istnieje (HTTP 404)
      */
+    @Transactional(readOnly = true)
     public DispositionSetDetailDto getSet(UUID setId, UUID tenantId) {
         DispositionSet s = setRepo.findByIdAndTenantId(setId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Zestaw nie istnieje: " + setId));
@@ -88,6 +89,7 @@ public class DispositionSetService {
      * @return DTO nowo utworzonego zestawu
      * @throws ConflictException gdy zestaw o tej nazwie już istnieje (HTTP 409)
      */
+    @Transactional
     public DispositionSetDto createSet(CreateDispositionSetRequest req, UUID tenantId) {
         log.debug("[DispositionSetService] createSet: name={}, tenant={}", req.name(), tenantId);
 
@@ -116,6 +118,7 @@ public class DispositionSetService {
      * @throws ResourceNotFoundException gdy zestaw nie istnieje (HTTP 404)
      * @throws ConflictException         gdy nowa nazwa jest już zajęta (HTTP 409)
      */
+    @Transactional
     public DispositionSetDto updateSet(UUID setId, UpdateDispositionSetRequest req, UUID tenantId) {
         log.debug("[DispositionSetService] updateSet: setId={}, name={}, tenant={}", setId, req.name(), tenantId);
 
@@ -146,6 +149,7 @@ public class DispositionSetService {
      * @param tenantId UUID tenanta
      * @throws ResourceNotFoundException gdy zestaw nie istnieje (HTTP 404)
      */
+    @Transactional
     public void deleteSet(UUID setId, UUID tenantId) {
         log.debug("[DispositionSetService] deleteSet: setId={}, tenant={}", setId, tenantId);
 
@@ -168,6 +172,7 @@ public class DispositionSetService {
      * @return lista elementów
      * @throws ResourceNotFoundException gdy zestaw nie istnieje (HTTP 404)
      */
+    @Transactional(readOnly = true)
     public List<DispositionSetItemDto> listItems(UUID setId, UUID tenantId) {
         setRepo.findByIdAndTenantId(setId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Zestaw nie istnieje: " + setId));
@@ -185,6 +190,7 @@ public class DispositionSetService {
      * @throws ResourceNotFoundException gdy zestaw nie istnieje (HTTP 404)
      * @throws ConflictException         gdy kod dyspozycji już istnieje w zestawie (HTTP 409)
      */
+    @Transactional
     public DispositionSetItemDto addItem(UUID setId, CreateDispositionSetItemRequest req, UUID tenantId) {
         log.debug("[DispositionSetService] addItem: setId={}, code={}, tenant={}", setId, req.dispositionCode(), tenantId);
 
@@ -218,6 +224,7 @@ public class DispositionSetService {
      * @return DTO zaktualizowanego elementu
      * @throws ResourceNotFoundException gdy element nie istnieje (HTTP 404)
      */
+    @Transactional
     public DispositionSetItemDto updateItem(UUID setId, UUID itemId, UpdateDispositionSetItemRequest req, UUID tenantId) {
         log.debug("[DispositionSetService] updateItem: setId={}, itemId={}, tenant={}", setId, itemId, tenantId);
 
@@ -241,6 +248,7 @@ public class DispositionSetService {
      * @param tenantId UUID tenanta
      * @throws ResourceNotFoundException gdy element nie istnieje (HTTP 404)
      */
+    @Transactional
     public void removeItem(UUID setId, UUID itemId, UUID tenantId) {
         log.debug("[DispositionSetService] removeItem: setId={}, itemId={}, tenant={}", setId, itemId, tenantId);
 
@@ -267,7 +275,6 @@ public class DispositionSetService {
      * @return podsumowanie operacji z liczbą skopiowanych i pominiętych elementów
      * @throws ResourceNotFoundException gdy zestaw nie istnieje lub jest pusty (HTTP 404)
      */
-    @Transactional
     public ApplySetResponse applyToCampaign(UUID setId, UUID campaignId, UUID tenantId) {
         log.info("[DispositionSetService] applyToCampaign: setId={}, campaignId={}, tenant={}", setId, campaignId, tenantId);
 
@@ -283,10 +290,18 @@ public class DispositionSetService {
                 cd.setCampaignId(campaignId);
                 customDispositionRepository.insert(cd);
                 copied++;
-            } catch (Exception e) {
+            } catch (org.springframework.dao.DataAccessException e) {
                 log.warn("[DispositionSetService] Pominięto duplikat kodu '{}' dla kampanii {}: {}",
                         item.getDispositionCode(), campaignId, e.getMessage());
                 skipped++;
+            } catch (Exception e) {
+                if (e.getMessage() != null && e.getMessage().contains("duplicate")) {
+                    log.warn("[DispositionSetService] Pominięto duplikat kodu '{}' dla kampanii {}: {}",
+                            item.getDispositionCode(), campaignId, e.getMessage());
+                    skipped++;
+                } else {
+                    throw e;
+                }
             }
         }
 
@@ -307,7 +322,6 @@ public class DispositionSetService {
      * @return podsumowanie operacji z liczbą skopiowanych i pominiętych elementów
      * @throws ResourceNotFoundException gdy zestaw nie istnieje lub jest pusty (HTTP 404)
      */
-    @Transactional
     public ApplySetResponse applyToQueue(UUID setId, UUID queueId, UUID tenantId) {
         log.info("[DispositionSetService] applyToQueue: setId={}, queueId={}, tenant={}", setId, queueId, tenantId);
 
@@ -323,10 +337,18 @@ public class DispositionSetService {
                 cd.setQueueId(queueId);
                 customDispositionRepository.insert(cd);
                 copied++;
-            } catch (Exception e) {
+            } catch (org.springframework.dao.DataAccessException e) {
                 log.warn("[DispositionSetService] Pominięto duplikat kodu '{}' dla kolejki {}: {}",
                         item.getDispositionCode(), queueId, e.getMessage());
                 skipped++;
+            } catch (Exception e) {
+                if (e.getMessage() != null && e.getMessage().contains("duplicate")) {
+                    log.warn("[DispositionSetService] Pominięto duplikat kodu '{}' dla kolejki {}: {}",
+                            item.getDispositionCode(), queueId, e.getMessage());
+                    skipped++;
+                } else {
+                    throw e;
+                }
             }
         }
 
@@ -362,5 +384,12 @@ public class DispositionSetService {
     private String buildResultMessage(int copied, int skipped) {
         return "Skopiowano " + copied + " dyspozycji" +
                 (skipped > 0 ? " (" + skipped + " pominiętych — duplikat kodu)" : "");
+    }
+
+    private static java.time.Instant toInstant(Object value) {
+        if (value instanceof java.time.Instant instant) return instant;
+        if (value instanceof java.sql.Timestamp ts) return ts.toInstant();
+        if (value instanceof java.time.OffsetDateTime odt) return odt.toInstant();
+        throw new IllegalArgumentException("Cannot convert to Instant: " + value.getClass());
     }
 }

@@ -199,7 +199,6 @@ public class DispositionSetItemRepository extends TenantAwareRepository {
     @Transactional
     public Optional<DispositionSetItem> update(DispositionSetItem item) {
         assertSameTenant(item.getTenantId());
-        em.detach(item);
         setTenantContextInDb(item.getTenantId());
 
         log.debug("[DispositionSetItemRepo] UPDATE element: id={}, tenant={}", item.getId(), item.getTenantId());

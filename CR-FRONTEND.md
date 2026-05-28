@@ -1110,3 +1110,79 @@ if (!campaignId && !queueId) {
 Frontend jest dobrze zorganizowany: OnPush, signal-based state, standalone components, prawidłowe zarządzanie lifecycle subskrypcji. Główne problemy to brak reaktywności na zmiany inputów (komponent nie przeładuje danych jeśli parent zmieni kontekst), błędne etykiety w fallback agenta (techniczne kody zamiast tłumaczeń) oraz ryzyko wywołania API z `undefined` w URL gdy oba inputy są niezainicjowane.
 
 **Ocena: 3.5/5** — solidna podstawa, ale wymaga naprawienia etykiet w fallback i dodania `effect()` dla reaktywności inputów przed mergem.
+
+---
+
+## Review: EPIC-27 — Frontend zestawów dyspozycji (model, service, page, shared editor, routes, sidenav) — 2026-05-28
+
+**Branch:** custom-dispozition
+
+### Bugs / Critical Issues
+
+- **disposition-sets-page.component.ts:94 (Validators.maxLength(200) — niezgodność z backendowym limitem 100)** Formularz zestawów ma `Validators.maxLength(200)` dla pola `name`, podczas gdy backend (`CreateDispositionSetRequest`) i baza (`VARCHAR(100)`) akceptują maksymalnie 100 znaków. Oznacza to, że formularz zaakceptuje nazwy 101-200 znaków, które następnie zostaną odrzucone przez backend z HTTP 400 (błąd walidacji Bean Validation). Użytkownik wpisuje 150 znaków, klika "Utwórz", dostaje error z serwera — zamiast walidacji inline.
+  - Fix: Zmień na `Validators.maxLength(100)` i `maxlength="100"` w szablonie (linia 39 w HTML).
+
+- **disposition-sets-page.component.html:39 (maxlength="200" w atrybucie HTML)** Powiązany problem z powyższym — atrybut HTML `maxlength="200"` pozwala na wpisanie 200 znaków w input, co jest niespójne z backendowym limitem 100. Obie zmiany muszą być zsynchronizowane.
+
+### Security Concerns
+
+_None identified._
+
+### Architecture / Pattern Violations
+
+- **disposition-sets-page.component.ts:110-131 (loadSets w constructor — nie w ngOnInit)** `loadSets()` jest wywoływane w konstruktorze zamiast w ciele klasy (Angular 16+ preferuje inicjalizację w polu klasy lub `afterNextRender`). W przypadku `standalone + OnPush`, wywołanie HTTP w konstruktorze odbywa się przed zakończeniem DI i przed pierwszym cyklem detekcji zmian. Praktycznie działa, ale jest anty-wzorcem w nowoczesnym Angular — konstruktor powinien być zarezerwowany tylko dla inicjalizacji DI.
+  - Fix: Przenieś `this.loadSets()` do pola klasy jako `effect()` lub wywołaj w `afterNextRender`.
+
+- **disposition-list-editor.component.ts:66-71 (effect z podwójnym odczytem signalów bez untracked)** Konstrukt:
+  ```ts
+  private readonly loadEffect = effect(() => {
+    this.campaignId();
+    this.queueId();
+    untracked(() => this.loadDispositions());
+  });
+  ```
+  jest poprawny — `untracked` zapobiega głębszym subskrypcjom w `loadDispositions`. To jest wzorzec zgodny z architekturą projektową.
+
+- **disposition-list-editor.component.ts:240-257 (sets ładowane tylko raz — set picker nie odświeża po zmianach)** `availableSets` jest ładowany tylko gdy `availableSets().length === 0`. Jeśli użytkownik doda/usunie zestaw w innej zakładce, set picker pokaże nieaktualną listę. Cache nie jest inwalidowany gdy otwarty zestaw zostaje usunięty.
+  - Fix: Dodaj timestamp ostatniego ładowania lub zawsze ładuj przy otwarciu pickera (usuwając warunek `this.availableSets().length === 0`).
+
+- **disposition-sets-page.component.ts:234 (sets.update prepend — nowy zestaw trafia na górę, mimo sortowania backendowego `name ASC`)** Po utworzeniu zestawu komponent dodaje go na początek listy `[created, ...list]`, ale backend sortuje listę `name ASC`. Po odświeżeniu strony nowy element pojawi się w innej pozycji. Lokalny state jest niespójny z stanem serwera.
+  - Fix: Po `createSet` wykonaj `loadSets()` w celu przeładowania posortowanej listy, lub wstaw element w alfabetycznej pozycji lokalnie.
+
+### Improvements & Suggestions
+
+- **disposition-sets-page.component.ts:412 (isSetFieldInvalid używa `ctrl.touched` — brak walidacji po 'blur' dla `name`)** Walidacja `name` wyświetla się dopiero po `touched`. Przy pierwszym submitcie bez kliknięcia w pole, `markAllAsTouched()` (linia 177) poprawnie oznacza pole jako touched i uruchamia walidację. Zachowanie jest poprawne, ale warto dodać komentarz wyjaśniający dlaczego `markAllAsTouched` jest konieczny.
+
+- **disposition-sets-page.component.html:109 (pluralizacja — tylko 1/nie-1, brak form 2-4)** Kod:
+  ```html
+  {{ set.itemCount === 1 ? 'dyspozycja' : 'dyspozycji' }}
+  ```
+  jest niepoprawny dla języka polskiego. Właściwa pluralizacja: 1 = "dyspozycja", 2-4 = "dyspozycje", 5+ = "dyspozycji". Przy itemCount=3 wyświetli "3 dyspozycji" zamiast "3 dyspozycje".
+  - Fix: Użyj pipe `| i18nPlural` z Transloco lub zdefiniuj helper `pluralizeDispositions(count: number)`.
+
+- **disposition-list-editor.component.html:170-176 (interpolacja HTML w atrybucie message confirm-dialog)** Kod przekazuje do `[message]` string zbudowany przez template expression z `pendingSet()!.itemCount`. Wartość `itemCount` pochodzi z backendu i jest liczbą, więc brak ryzyka XSS. Jednak `&quot;` encje HTML są używane bezpośrednio w stringu TypeScript — lepiej zdefiniować `pendingSetMessage = computed(...)` w komponencie.
+
+- **sidenav.component.ts:188-191 (nowy element menu "Zestawy dyspozycji" jest poprawnie dodany)** Nowa pozycja w `SUPERVISOR_NAV` wskazuje na `/supervisor/settings/disposition-sets` — spójne z routingiem. Dodana jako child `nav.configuration` — poprawna hierarchia.
+
+- **supervisor.routes.ts:131-139 (route disposition-sets — canActivate z roleGuard)** Trasa jest chroniona przez `roleGuard` z `roles: ['SUPERVISOR', 'ADMIN']` i używa lazy loadingu komponentu. Zgodne z wzorcem pozostałych tras settings.
+
+- **disposition-set.service.ts (empty body w POST apply)** Metody `applyToCampaign` i `applyToQueue` wysyłają `{}` jako body POST. Semantycznie POST powinno mieć body lub być bez body (`null`). Wysyłanie pustego obiektu `{}` nie jest błędem, ale może być mylące.
+
+### Positive Observations
+
+- `DispositionSetsPageComponent` używa `ChangeDetectionStrategy.OnPush` — poprawnie.
+- Wszystkie Observable są zarządzane przez `takeUntilDestroyed(this.destroyRef)` — brak wycieków subskrypcji.
+- `inject()` zamiast constructor DI — zgodne z wzorcem projektu.
+- Stan zarządzany przez `signal()` i `computed()` — zgodne z wytycznymi projektu, nie ma `BehaviorSubject`.
+- `catchError` + `EMPTY` wzorzec obsługi błędów HTTP — poprawne zakończenie strumienia bez rzucania błędu w górę.
+- Formularze używają `getRawValue()` po wyłączeniu pola `dispositionCode` — poprawna obsługa wyłączonych pól w reactive forms.
+- `DispositionSetService` (Angular) jest poprawnie `providedIn: 'root'` — singleton bez wycieków.
+- Model TypeScript `disposition-set.model.ts` jest spójny z DTO backendu — kompletna i poprawna typizacja.
+- Accessibility: `aria-label`, `role="button"`, `aria-pressed`, `aria-invalid`, `role="alert"` na komunikatach błędów — solidna implementacja a11y.
+- Dialogi potwierdzenia usunięcia (zestaw i element) są obsługiwane przez `ConfirmDialogComponent` — spójne z resztą aplikacji.
+
+### Summary
+
+Frontend jest dobrze zorganizowany: standalone components, OnPush, signal-based state, prawidłowe zarządzanie lifecycle subskrypcji, kompletna a11y. Krytyczna usterka to niezgodność `maxLength(200)` w formularzu vs limit `100` backendu/bazy — użytkownik może wpisać za dużą nazwę, która zostanie odrzucona przez server. Drobne problemy to pluralizacja w języku polskim i lokalny stan listy niespójny po createSet. Dodanie zestawu dyspozycji do sidenav i routing są poprawne.
+
+**Ocena: 4/5** — wymaga tylko naprawy maxLength(200)→(100) przed mergem; pozostałe to quality of life improvements.

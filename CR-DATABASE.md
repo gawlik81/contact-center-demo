@@ -305,3 +305,48 @@ CREATE INDEX idx_custom_disposition_tenant_id
 Migracja ma solidny szkielet (CHECK constraints, partial unique indexes, TIMESTAMPTZ), ale ma trzy poważne błędy bezpieczeństwa: błędna nazwa zmiennej w RLS (polityka jest martwa), brak WITH CHECK i brak FORCE ROW LEVEL SECURITY. Bez poprawki RLS, multi-tenancy tej tabeli jest iluzoryczna.
 
 **Ocena: 2/5** — blokuje merge z powodu niedziałającej polityki RLS.
+
+---
+
+## Review: V071__create_disposition_set.sql — 2026-05-28
+
+**Branch:** custom-dispozition
+**EPIC:** EPIC-27 (zestawy dyspozycji wielokrotnego użytku)
+
+### Bugs / Critical Issues
+
+_None identified._
+
+### Security Concerns
+
+- **V071:55 (brakuje FORCE ROW LEVEL SECURITY na custom_disposition)** Powiązana tabela `custom_disposition` z V069 ma politykę RLS z `USING` opartą na `'app.tenant_id'` (nie `'app.current_tenant_id'`), a V071 dodaje FORCE RLS tylko na nowych tabelach. To ujawnia, że V069 ma martwą RLS politykę (błędna nazwa zmiennej). Nowa migracja nie naprawia tego błędu mimo że go powiela. Sprawdź czy V070 poprawia tę kwestię — jeśli nie, potrzebna jest osobna migracja poprawkowa.
+
+### Architecture / Pattern Violations
+
+- **V071:18-31 (brak `updated_at` na `disposition_set_item`)** Tabela `disposition_set_item` nie ma kolumn `created_at TIMESTAMPTZ` ani `updated_at TIMESTAMPTZ`. Projekt wymaga tych kolumn na każdej tabeli DB. Co prawda encja `DispositionSetItem.java` też ich nie ma, co świadczy o zamierzonym pomyśle, ale łamie konwencję projektu. W przyszłości będzie trudno implementować auditing/changelog dla tej tabeli bez migracji addytywnej.
+  - Fix: Dodaj `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` do `disposition_set_item` w nowej migracji `V072__add_timestamps_to_disposition_set_item.sql`.
+
+- **V071:33-38 (brak kompozytowego indeksu `(tenant_id, id)`)** Nie ma indeksu `(tenant_id, id)` na tabeli `disposition_set`, który jest standardem projektu do wyszukiwania po PK w kontekście tenanta. Istniejący `idx_disposition_set_tenant (tenant_id, name)` obsługuje sortowanie, ale nie lookup po ID.
+  - Fix: `CREATE INDEX idx_disposition_set_tenant_id ON disposition_set (tenant_id, id);`
+
+- **V071:37-38 (indeks na `disposition_set_item` nie zawiera `tenant_id`)** `idx_disposition_set_item_set (set_id, ordinal)` nie zawiera `tenant_id`. RLS zapewnia izolację na poziomie filtrowania wierszy, ale brak `tenant_id` w indeksie oznacza, że planner nie może pominąć skanowania po RLS. Ponieważ `set_id` jest już powiązany z `tenant_id` przez FK, to ryzyko niskie, ale warto zachować spójność ze wzorcem `(tenant_id, ...)` w całym projekcie.
+
+### Improvements & Suggestions
+
+- **V071:15 (UNIQUE constraint zamiast częściowego indeksu)** `uq_disposition_set_tenant_name UNIQUE (tenant_id, name)` to zwykły UNIQUE constraint — poprawny dla tego przypadku, bo pole `name` jest NOT NULL. Dobra decyzja projektowa.
+
+- **V071:27 (UNIQUE na `(set_id, disposition_code)`)** Poprawne ograniczenie unikalności kodu w zakresie zestawu. Spójne z analogicznym wzorcem w `custom_disposition`.
+
+- **V071:28-31 (CHECK constraint na `tone`)** Poprawnie zdefiniowany CHECK constraint z tymi samymi wartościami co w DTO (`positive|negative|neutral|warning`). Walidacja na poziomie DB jest uzupełnieniem walidacji Javy.
+
+### Positive Observations
+
+- Obie tabele mają `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY` i `WITH CHECK` — to pełna i poprawna konfiguracja RLS, lepsza niż w V069 (które brakowało wszystkich trzech elementów).
+- RLS używa `current_setting('app.current_tenant_id', TRUE)` z flagą `TRUE` (safe fallback do NULL gdy ustawienie nie istnieje) — zgodne ze standardem projektu.
+- FK do `tenant(tenant_id)` i `disposition_set(id)` z `ON DELETE CASCADE` — poprawna semantyka czyszczenia przy usunięciu tenanta lub zestawu.
+
+### Summary
+
+Migracja jest solidna: RLS skonfigurowana poprawnie z FORCE i WITH CHECK, CHECK constraints na tone, UNIQUE constraints na właściwych kolumnach. Główne usterki to brak kolumn `created_at/updated_at` na `disposition_set_item` (naruszenie konwencji projektu) oraz brak indeksu `(tenant_id, id)` na `disposition_set`. Żadna usterka nie blokuje production pod względem bezpieczeństwa.
+
+**Ocena: 4/5** — dobra podstawa, wymaga dodania timestamps na item i composite index (tenant_id, id) przed merge.

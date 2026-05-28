@@ -1902,3 +1902,89 @@ COMMENT ON COLUMN custom_disposition.queue_id IS
 - [ ] RLS policy izoluje dane między tenantami
 - [ ] `chk_custom_disposition_tone` — wartość spoza listy odrzucona
 - [ ] Komentarze na tabeli i kluczowych kolumnach
+
+---
+
+### DB-041 – Tabele `disposition_set` i `disposition_set_item`: zestawy dyspozycji wielokrotnego użytku — migracja V071
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-040 (tabela `custom_disposition`), DB-002 (tabela `tenant`)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-095
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Kontekst:**
+Zestawy dyspozycji (`disposition_set`) to nazwane szablony wielokrotnego użytku. Supervisor definiuje zestaw raz, a następnie przypisuje go do wielu kampanii lub kolejek — elementy zestawu są wtedy **kopiowane** (snapshot) do tabeli `custom_disposition` dla danego zakresu. Po skopiowaniu dyspozycje kampanii/kolejki są niezależne od zestawu i mogą być edytowane ręcznie.
+
+**DDL migracji (`V071__create_disposition_set.sql`):**
+
+```sql
+-- =============================================================================
+-- V071__create_disposition_set.sql
+-- DB-041: Zestawy dyspozycji wielokrotnego użytku (szablony).
+-- Przypisanie zestawu do kampanii/kolejki kopiuje elementy (snapshot).
+-- =============================================================================
+
+CREATE TABLE disposition_set (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   UUID        NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    name        VARCHAR(100) NOT NULL,
+    description VARCHAR(500),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_disposition_set_tenant_name UNIQUE (tenant_id, name)
+);
+
+CREATE TABLE disposition_set_item (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    set_id           UUID        NOT NULL REFERENCES disposition_set(id) ON DELETE CASCADE,
+    tenant_id        UUID        NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    disposition_code VARCHAR(50)  NOT NULL,
+    label            VARCHAR(100) NOT NULL,
+    tone             VARCHAR(20)  NOT NULL DEFAULT 'neutral',
+    ordinal          INT          NOT NULL DEFAULT 0,
+
+    CONSTRAINT uq_disposition_set_item_code UNIQUE (set_id, disposition_code),
+    CONSTRAINT chk_disposition_set_item_tone CHECK (
+        tone IN ('positive', 'negative', 'neutral', 'warning')
+    )
+);
+
+-- Indeksy
+CREATE INDEX idx_disposition_set_tenant
+    ON disposition_set (tenant_id, name);
+
+CREATE INDEX idx_disposition_set_item_set
+    ON disposition_set_item (set_id, ordinal);
+
+-- RLS
+ALTER TABLE disposition_set ENABLE ROW LEVEL SECURITY;
+ALTER TABLE disposition_set FORCE ROW LEVEL SECURITY;
+CREATE POLICY disposition_set_isolation ON disposition_set
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+
+ALTER TABLE disposition_set_item ENABLE ROW LEVEL SECURITY;
+ALTER TABLE disposition_set_item FORCE ROW LEVEL SECURITY;
+CREATE POLICY disposition_set_item_isolation ON disposition_set_item
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+
+COMMENT ON TABLE disposition_set IS
+    'Nazwane zestawy dyspozycji wielokrotnego użytku. Przypisanie do kampanii/kolejki kopiuje elementy (snapshot).';
+COMMENT ON TABLE disposition_set_item IS
+    'Elementy zestawu dyspozycji. Kopiowane do custom_disposition przy przypisaniu zestawu.';
+COMMENT ON COLUMN disposition_set_item.disposition_code IS
+    'Unikalny kod w obrębie zestawu. Maks. 50 znaków, tylko A-Z, 0-9, _.';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V071 aplikuje się bez błędów
+- [ ] `uq_disposition_set_tenant_name` — duplikat nazwy zestawu per tenant odrzucony
+- [ ] `uq_disposition_set_item_code` — duplikat kodu per zestaw odrzucony
+- [ ] `chk_disposition_set_item_tone` — wartość spoza listy odrzucona
+- [ ] RLS + FORCE RLS na obu tabelach — izolacja między tenantami
+- [ ] CASCADE DELETE: usunięcie zestawu usuwa jego elementy

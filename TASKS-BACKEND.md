@@ -4884,3 +4884,147 @@ Authorization: Bearer <agent-token>
 - [ ] Nieistniejący `contactId` → `404 Not Found`
 - [ ] Endpoint w Swagger UI z przykładem response
 - [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-095 – Encja `DispositionSet`, `DispositionSetItem`, repozytoria i `DispositionSetService`
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-041
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-096
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Warstwa domenowa zestawów dyspozycji. Dwie encje JPA, dwa repozytoria (native SQL, wzorzec z `AgentGroupRepository`), serwis z CRUD zestawów i elementów oraz kluczową metodą `applyToCampaign`/`applyToQueue` kopiującą elementy do `custom_disposition`.
+
+**Encje:**
+
+```java
+// domain/disposition/DispositionSet.java
+@Entity @Table(name = "disposition_set")
+public class DispositionSet {
+    @Id UUID id;
+    UUID tenantId;
+    String name;
+    String description;
+    Instant createdAt;
+    Instant updatedAt;
+}
+
+// domain/disposition/DispositionSetItem.java
+@Entity @Table(name = "disposition_set_item")
+public class DispositionSetItem {
+    @Id UUID id;
+    UUID setId;
+    UUID tenantId;
+    String dispositionCode;
+    String label;
+    String tone;
+    int ordinal;
+}
+```
+
+**Repozytoria (`DispositionSetRepository`, `DispositionSetItemRepository`):**
+- Native SQL przez `TenantAwareRepository`
+- `findAllByTenantId(tenantId)` — lista zestawów
+- `findByIdAndTenantId(id, tenantId)` — pojedynczy zestaw
+- `existsByNameAndTenantId(name, tenantId)` — walidacja duplikatu
+- `findItemsBySetId(setId, tenantId)` — elementy zestawu (ORDER BY ordinal)
+- `insertSet(DispositionSet)` / `updateSet(DispositionSet)` / `deleteSet(id, tenantId)`
+- `insertItem(DispositionSetItem)` / `updateItem(...)` / `deleteItem(id, tenantId)`
+
+**`DispositionSetService` — kluczowe metody:**
+
+```java
+// CRUD zestawów
+List<DispositionSetDto> listSets(UUID tenantId);
+DispositionSetDto createSet(CreateDispositionSetRequest req, UUID tenantId);
+DispositionSetDto updateSet(UUID setId, UpdateDispositionSetRequest req, UUID tenantId);
+void deleteSet(UUID setId, UUID tenantId);
+
+// CRUD elementów zestawu
+List<DispositionSetItemDto> listItems(UUID setId, UUID tenantId);
+DispositionSetItemDto addItem(UUID setId, CreateDispositionSetItemRequest req, UUID tenantId);
+DispositionSetItemDto updateItem(UUID setId, UUID itemId, UpdateDispositionSetItemRequest req, UUID tenantId);
+void removeItem(UUID setId, UUID itemId, UUID tenantId);
+
+// Aplikowanie zestawu (snapshot copy)
+void applyToCampaign(UUID setId, UUID campaignId, UUID tenantId);
+void applyToQueue(UUID setId, UUID queueId, UUID tenantId);
+```
+
+**Logika `applyToCampaign(setId, campaignId, tenantId)`:**
+1. Pobierz elementy zestawu przez `findItemsBySetId`
+2. Jeśli pusta lista → `ResourceNotFoundException("Zestaw nie istnieje lub jest pusty")`
+3. Dla każdego elementu zestawu: utwórz nowy `CustomDisposition` z `campaignId` i wstaw przez `CustomDispositionRepository.insert()`
+4. Duplikaty kodów (jeśli kampania już ma ten kod) → pomiń z logiem WARN (nie przerywaj całej operacji)
+
+Analogicznie `applyToQueue`.
+
+**DTO:**
+- `DispositionSetDto(id, name, description, itemCount, createdAt)` — lista zestawów
+- `DispositionSetDetailDto(id, name, description, items: List<DispositionSetItemDto>, createdAt)` — szczegóły
+- `DispositionSetItemDto(id, dispositionCode, label, tone, ordinal)`
+- `CreateDispositionSetRequest(@NotBlank @Size(max=100) name, @Size(max=500) description)`
+- `UpdateDispositionSetRequest` — jak Create
+- `CreateDispositionSetItemRequest(@NotBlank @Size(max=50) @Pattern dispositionCode, @NotBlank @Size(max=100) label, @NotNull @Pattern tone, ordinal)`
+- `UpdateDispositionSetItemRequest(label, tone, ordinal)` — kod niezmienialny
+
+**Kryteria akceptacji:**
+- [ ] Encje mapują na tabele DB-041
+- [ ] `applyToCampaign/Queue` kopiuje elementy jako nowe wiersze `custom_disposition`; duplikaty pomijane z WARN
+- [ ] Duplikat nazwy zestawu → `409 Conflict`
+- [ ] Duplikat kodu elementu w zestawie → `409 Conflict`
+- [ ] Usunięcie zestawu nie wpływa na istniejące `custom_disposition` (są niezależnymi kopiami)
+- [ ] Testy jednostkowe logiki `apply*` (min. 4 scenariusze: sukces kampania, sukces kolejka, pusty zestaw → 404, duplikat kodu → pominięty)
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-096 – `DispositionSetController`: REST API zarządzania zestawami dyspozycji
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-095
+**Status:** ⬜ Do zrobienia
+**Blokuje:** FE-094
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Kontroler REST dla supervisora do zarządzania zestawami dyspozycji i aplikowania ich do kampanii/kolejek.
+
+**Endpointy (`/api/disposition-sets`):**
+
+```
+GET    /api/disposition-sets                                    → 200 List<DispositionSetDto>
+POST   /api/disposition-sets                                    → 201 DispositionSetDto
+PUT    /api/disposition-sets/{setId}                            → 200 DispositionSetDto
+DELETE /api/disposition-sets/{setId}                            → 204
+
+GET    /api/disposition-sets/{setId}/items                      → 200 List<DispositionSetItemDto>
+POST   /api/disposition-sets/{setId}/items                      → 201 DispositionSetItemDto
+PUT    /api/disposition-sets/{setId}/items/{itemId}             → 200 DispositionSetItemDto
+DELETE /api/disposition-sets/{setId}/items/{itemId}             → 204
+
+POST   /api/disposition-sets/{setId}/apply-to-campaign/{campaignId}  → 200 (liczba skopiowanych)
+POST   /api/disposition-sets/{setId}/apply-to-queue/{queueId}        → 200 (liczba skopiowanych)
+```
+
+**Bezpieczeństwo:** `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")` na klasie.
+
+**Response `apply-to-*`:**
+```json
+{ "copied": 4, "skipped": 1, "message": "Skopiowano 4 dyspozycje (1 pominięto — duplikat kodu)" }
+```
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie 10 endpointów z dokumentacją OpenAPI
+- [ ] Rola AGENT → `403 Forbidden`
+- [ ] `apply-to-campaign` z obcym `campaignId` → `403 Forbidden`
+- [ ] `apply-to-*` z pustym zestawem → `404 Not Found`
+- [ ] Response body `apply-to-*` zawiera liczniki `copied` i `skipped`
+- [ ] `mvn verify -pl app` przechodzi

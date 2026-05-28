@@ -4643,3 +4643,199 @@ toneClass(tone: string): string {
 - [ ] Błąd API (5xx) → fallback do hardcoded z informacją w konsoli
 - [ ] Wybrany `dispositionCode` z custom listy wysyłany do `PATCH /api/contacts/{id}/disposition` — niezmieniona logika zapisu
 - [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-094 – `DispositionSetService` i modele — warstwa danych Angular
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-096
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-096
+**Blokuje:** FE-095, FE-096
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Serwis Angular i modele TypeScript dla zestawów dyspozycji. Współdzielony między stroną zarządzania zestawami (FE-095) a przyciskiem „Zastosuj zestaw" w edytorze dyspozycji (FE-096).
+
+**Modele (`features/dispositions/models/disposition-set.model.ts`):**
+
+```typescript
+export interface DispositionSetItem {
+  id: string;
+  dispositionCode: string;
+  label: string;
+  tone: DispositionToneApi;
+  ordinal: number;
+}
+
+export interface DispositionSet {
+  id: string;
+  name: string;
+  description?: string;
+  itemCount: number;
+  createdAt: string;
+}
+
+export interface DispositionSetDetail extends DispositionSet {
+  items: DispositionSetItem[];
+}
+
+export interface CreateDispositionSetRequest { name: string; description?: string; }
+export interface UpdateDispositionSetRequest { name: string; description?: string; }
+export interface CreateDispositionSetItemRequest {
+  dispositionCode: string;
+  label: string;
+  tone: DispositionToneApi;
+  ordinal: number;
+}
+export interface UpdateDispositionSetItemRequest { label: string; tone: DispositionToneApi; ordinal: number; }
+
+export interface ApplySetResponse { copied: number; skipped: number; message: string; }
+```
+
+**`DispositionSetService` (`features/dispositions/services/disposition-set.service.ts`):**
+
+```typescript
+// Zestawy
+listSets(): Observable<DispositionSet[]>
+createSet(req: CreateDispositionSetRequest): Observable<DispositionSet>
+updateSet(setId: string, req: UpdateDispositionSetRequest): Observable<DispositionSet>
+deleteSet(setId: string): Observable<void>
+
+// Elementy zestawu
+listItems(setId: string): Observable<DispositionSetItem[]>
+addItem(setId: string, req: CreateDispositionSetItemRequest): Observable<DispositionSetItem>
+updateItem(setId: string, itemId: string, req: UpdateDispositionSetItemRequest): Observable<DispositionSetItem>
+removeItem(setId: string, itemId: string): Observable<void>
+
+// Aplikowanie
+applyToCampaign(setId: string, campaignId: string): Observable<ApplySetResponse>
+applyToQueue(setId: string, queueId: string): Observable<ApplySetResponse>
+```
+
+**Kryteria akceptacji:**
+- [ ] Modele zgodne z odpowiedziami backendu
+- [ ] Serwis `providedIn: 'root'`
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-095 – Strona „Ustawienia > Zestawy dyspozycji" (supervisor)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-094
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-096
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Nowa strona w panelu supervisora pod ścieżką `/supervisor/settings/disposition-sets`. Umożliwia pełne zarządzanie zestawami dyspozycji — tworzenie, edycję, usuwanie zestawów oraz zarządzanie ich elementami.
+
+**Lokalizacja:**
+```
+frontend/src/app/features/supervisor/pages/settings/disposition-sets/
+  disposition-sets-page.component.ts
+  disposition-sets-page.component.html
+  disposition-sets-page.component.scss
+```
+
+**Funkcjonalność:**
+
+*Lewa kolumna — lista zestawów:*
+- Lista kart zestawów z nazwą, opisem, liczbą elementów (`itemCount`)
+- Przycisk „+ Nowy zestaw" → inline formularz lub modal: `name` (required), `description` (optional)
+- Kliknięcie karty → zaznacza zestaw i ładuje jego elementy po prawej
+- Przycisk Edytuj (nazwa/opis) i Usuń (z potwierdzeniem `ConfirmDialogComponent`)
+
+*Prawa kolumna — elementy wybranego zestawu:*
+- Nagłówek: nazwa zestawu
+- Lista elementów — reużyj lub wzoruj na `DispositionListEditorComponent`, ale operujący na `DispositionSetService.addItem/updateItem/removeItem`
+- Formularz dodawania/edycji elementu: dispositionCode, label, tone (select), ordinal
+
+**Routing:**
+Dodaj trasę do routingu supervisora (sprawdź `supervisor-routing.module.ts` lub analogiczny plik routes).
+
+**Sidenav:**
+Dodaj pozycję „Zestawy dyspozycji" w menu Ustawienia supervisora (sprawdź `supervisor-shell.component` lub sidenav).
+
+**Kryteria akceptacji:**
+- [ ] Strona dostępna pod `/supervisor/settings/disposition-sets`
+- [ ] Pozycja w menu Ustawienia supervisora
+- [ ] CRUD zestawów: tworzenie, edycja nazwy/opisu, usunięcie z potwierdzeniem
+- [ ] CRUD elementów: dodawanie, edycja, usunięcie
+- [ ] Duplikat nazwy zestawu → `409` obsłużony, toast z komunikatem
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-096 – Przycisk „Zastosuj zestaw" w `DispositionListEditorComponent`
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-094
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-096
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Rozszerzenie `DispositionListEditorComponent` o możliwość wybrania istniejącego zestawu dyspozycji i skopiowania jego elementów do bieżącej kampanii lub kolejki.
+
+**Lokalizacja:** `shared/components/disposition-list-editor/disposition-list-editor.component.ts/html`
+
+**Funkcjonalność:**
+
+Nowy przycisk „Zastosuj zestaw" (obok „+ Dodaj dyspozycję"):
+1. Kliknięcie → wyświetla dropdown/listę dostępnych zestawów (pobrana przez `DispositionSetService.listSets()`)
+2. Supervisor wybiera zestaw → pojawia się potwierdzenie: `"Czy skopiować X dyspozycji z zestawu '[nazwa]'? Istniejące dyspozycje o tych samych kodach zostaną pominięte."`
+3. Po potwierdzeniu → wywołaj `applyToCampaign(setId, campaignId)` lub `applyToQueue(setId, queueId)` w zależności od kontekstu
+4. Po sukcesie → przeładuj listę dyspozycji, wyświetl toast: `"Skopiowano X dyspozycji (Y pominiętych)"`
+
+**UI zestawów:**
+```html
+<!-- Przycisk rozwijający listę zestawów -->
+<div class="apply-set-wrapper">
+  <button type="button" class="btn btn-secondary" (click)="toggleSetPicker()">
+    Zastosuj zestaw
+  </button>
+  @if (showSetPicker()) {
+    <div class="set-picker">
+      @if (setsLoading()) { <div class="set-picker__loading">Ładowanie...</div> }
+      @for (set of availableSets(); track set.id) {
+        <button type="button" class="set-picker__item" (click)="onSetSelected(set)">
+          <strong>{{ set.name }}</strong>
+          <span class="set-picker__count">{{ set.itemCount }} dyspozycji</span>
+        </button>
+      }
+      @if (!setsLoading() && availableSets().length === 0) {
+        <div class="set-picker__empty">Brak zdefiniowanych zestawów</div>
+      }
+    </div>
+  }
+</div>
+```
+
+**Sygnały:**
+```typescript
+showSetPicker = signal(false);
+availableSets = signal<DispositionSet[]>([]);
+setsLoading = signal(false);
+applyingSet = signal(false);
+pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwierdzenie
+```
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Zastosuj zestaw" widoczny gdy `campaignId` lub `queueId` ustawiony
+- [ ] Dropdown z listą zestawów (ładowana leniwie przy pierwszym otwarciu)
+- [ ] Dialog potwierdzenia przed kopiowaniem (reużyj `ConfirmDialogComponent`)
+- [ ] Toast po sukcesie z licznikami `copied`/`skipped`
+- [ ] Lista dyspozycji przeładowana po zastosowaniu zestawu
+- [ ] Brak zestawów → komunikat „Brak zdefiniowanych zestawów" + link do strony zarządzania
+- [ ] `npm run lint` przechodzi

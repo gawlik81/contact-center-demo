@@ -824,6 +824,20 @@ public class DialerController {
                 agentId,
                 tenantId
         );
+        // Ustaw klucz ring timeout – checkRingTimeouts() uzna brak tego klucza za NO_ANSWER.
+        // Bez tego wywołania każde połączenie manualne jest natychmiast rozłączane przez scheduler.
+        progressiveDialerService.scheduleNoAnswerTimeout(
+                session.getCallId(),
+                campaign.getRingTimeoutSeconds()
+        );
+
+        // Powiąż contact ↔ campaign_contact_record – bez tego UI pokazuje "Brak prób wydzwonienia".
+        if (session.getContactId() != null) {
+            contactRepository.updateCampaignContactRecordId(
+                    session.getContactId(), request.recordId(), tenantId);
+            campaignContactRepository.updateLastContactId(
+                    request.recordId(), request.campaignId(), session.getContactId());
+        }
 
         log.info("[ManualDialer] Połączenie zainicjowane ręcznie: kampania={}, rekord={}, agent={}, callId={}, tenant={}",
                 request.campaignId(), request.recordId(), agentId, session.getCallId(), tenantId);

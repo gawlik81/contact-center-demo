@@ -26,6 +26,7 @@ import { catchError, of } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { TwilioPhoneNumberSelectComponent } from '../../../components/twilio-phone-number-select/twilio-phone-number-select.component';
+import { CampaignDispositionsComponent } from '../campaign-dispositions/campaign-dispositions.component';
 import {
   ActiveDay,
   Campaign,
@@ -77,7 +78,7 @@ const ALL_DAYS: { value: ActiveDay; labelKey: string }[] = [
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, TwilioPhoneNumberSelectComponent],
+  imports: [TranslocoModule, ReactiveFormsModule, TwilioPhoneNumberSelectComponent, CampaignDispositionsComponent],
   templateUrl: './campaign-form.component.html',
   styleUrl: './campaign-form.component.scss',
   host: {
@@ -145,6 +146,11 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
 
   readonly campaignType = signal<string>(this.form.get('type')!.value ?? 'OUTBOUND_VOICE');
   readonly isOutboundVoice = computed(() => this.campaignType() === 'OUTBOUND_VOICE');
+
+  /** Returns campaignId when in edit mode, undefined otherwise */
+  readonly campaignId = computed(() =>
+    this.isEditMode() ? (this.campaign()?.campaignId ?? undefined) : undefined,
+  );
 
   /** Separate signal for active_days checkboxes (not in reactive form to keep it simple) */
   readonly selectedDays = signal<Set<ActiveDay>>(new Set());

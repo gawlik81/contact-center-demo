@@ -1079,6 +1079,44 @@ public class ContactRepository extends TenantAwareRepository {
   }
 
   /**
+   * Atomicznie ustawia status kontaktu tylko jeśli nie jest już w stanie terminalnym.
+   * Zapobiega race condition między handlerem hangup (→ COMPLETED) a callbackiem
+   * conference-end (→ ABANDONED) — oba mogą działać równocześnie.
+   *
+   * @return true jeśli status został zmieniony
+   */
+  public boolean updateContactStatusIfNotTerminal(UUID contactId, UUID tenantId,
+      String newStatus, Instant endedAt) {
+    if (contactId == null || tenantId == null) {
+      return false;
+    }
+
+    int updated = jdbcTemplate.update(
+        """
+            UPDATE contact
+               SET status   = CAST(? AS VARCHAR),
+                   ended_at = ?
+             WHERE contact_id = ?
+               AND tenant_id  = ?
+               AND status NOT IN ('COMPLETED', 'ABANDONED', 'NOT_REACHED', 'ERROR', 'TRANSFERRED')
+            """,
+        newStatus,
+        endedAt != null ? java.sql.Timestamp.from(endedAt) : null,
+        contactId,
+        tenantId
+    );
+
+    if (updated > 0) {
+      log.info("[ContactRepo] Status kontaktu zaktualizowany (conditional): contactId={}, status={}, endedAt={}",
+          contactId, newStatus, endedAt);
+      return true;
+    } else {
+      log.debug("[ContactRepo] updateContactStatusIfNotTerminal: pominięto (status terminalny lub brak): contactId={}", contactId);
+      return false;
+    }
+  }
+
+  /**
    * Identyczna logika co {@link #updateContactStatusOnTelephonyEvent}, ale z propagacją
    * {@code REQUIRES_NEW} – zawiesza zewnętrzną transakcję i commituje natychmiast.
    *

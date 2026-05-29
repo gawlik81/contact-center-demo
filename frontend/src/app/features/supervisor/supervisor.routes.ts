@@ -128,6 +128,15 @@ export const SUPERVISOR_ROUTES: Routes = [
               ),
           },
           {
+            path: 'disposition-sets',
+            data: { breadcrumb: 'nav.settingsDispositionSets', roles: ['SUPERVISOR', 'ADMIN'] },
+            canActivate: [roleGuard],
+            loadComponent: () =>
+              import('./pages/settings/disposition-sets/disposition-sets-page.component').then(
+                (m) => m.DispositionSetsPageComponent,
+              ),
+          },
+          {
             path: 'twilio',
             data: { breadcrumb: 'nav.settingsTwilioConfig', roles: ['SUPERVISOR', 'ADMIN'] },
             canActivate: [roleGuard],

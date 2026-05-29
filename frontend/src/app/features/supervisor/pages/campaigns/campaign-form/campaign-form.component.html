@@ -254,6 +254,11 @@
       </fieldset>
     </form>
 
+    <!-- Dispositions section — visible only when editing an existing campaign -->
+    @if (campaignId()) {
+      <app-campaign-dispositions [campaignId]="campaignId()!" />
+    }
+
     <div class="campaign-form-dialog__footer">
       <button class="btn btn-cancel" type="button" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
       <button

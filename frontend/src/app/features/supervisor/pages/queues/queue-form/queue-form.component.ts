@@ -21,10 +21,12 @@ import { QueueService } from '../../../services/queue.service';
 import { UserService } from '../../../services/user.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { Queue } from '../../../models/queue.model';
+import { QueueDispositionsComponent } from '../queue-dispositions/queue-dispositions.component';
+
 @Component({
   selector: 'app-queue-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule, QueueDispositionsComponent],
   templateUrl: './queue-form.component.html',
   styleUrl: './queue-form.component.scss',
   host: {
@@ -55,6 +57,8 @@ export class QueueFormComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly selectedSkills = signal<string[]>([]);
   readonly skillInput = signal('');
   readonly showSkillDropdown = signal(false);
+
+  readonly queueId = computed(() => this.queue()?.queueId ?? null);
 
   readonly form = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(100)]],

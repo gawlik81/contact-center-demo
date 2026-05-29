@@ -4459,3 +4459,383 @@ Rozszerzenie widoku obsługi kontaktu email przez agenta — analogiczny przycis
 - [x] Przycisk „Generuj podsumowanie AI" widoczny w widoku emaila gdy `contactId` jest dostępny
 - [x] Zachowanie identyczne jak FE-087: spinner, textarea z wynikiem, obsługa błędów
 - [x] `npm run lint`, `npm test` przechodzą
+
+---
+
+## EPIC-27: Własne dyspozycje per kampania i kolejka
+
+### FE-090 – `CustomDispositionService` i modele — warstwa danych Angular
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-092, BE-093, BE-094
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-093, BE-094
+**Blokuje:** FE-091, FE-092, FE-093
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Serwis Angular i modele TypeScript obsługujące API własnych dyspozycji. Serwis jest współdzielony między panelem supervisora (CRUD) a panelem agenta (odczyt dostępnych dyspozycji).
+
+**Modele (`features/dispositions/models/custom-disposition.model.ts`):**
+```typescript
+export interface AvailableDisposition {
+  dispositionCode: string;
+  label: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  ordinal: number;
+}
+
+export interface CustomDisposition extends AvailableDisposition {
+  id: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CreateCustomDispositionRequest {
+  dispositionCode: string;
+  label: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  ordinal: number;
+}
+
+export interface UpdateCustomDispositionRequest {
+  label: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  ordinal: number;
+  isActive: boolean;
+}
+```
+
+**`CustomDispositionService` (`features/dispositions/services/custom-disposition.service.ts`):**
+```typescript
+// Supervisor — zarządzanie per kampania
+listForCampaign(campaignId: string): Observable<CustomDisposition[]>
+createForCampaign(campaignId: string, req: CreateCustomDispositionRequest): Observable<CustomDisposition>
+updateDisposition(campaignId: string, id: string, req: UpdateCustomDispositionRequest): Observable<CustomDisposition>
+deleteDisposition(campaignId: string, id: string): Observable<void>
+
+// Supervisor — zarządzanie per kolejka
+listForQueue(queueId: string): Observable<CustomDisposition[]>
+createForQueue(queueId: string, req: CreateCustomDispositionRequest): Observable<CustomDisposition>
+
+// Agent — pobieranie dostępnych dyspozycji dla aktywnego kontaktu
+getAvailableDispositions(contactId: string): Observable<AvailableDisposition[]>
+```
+
+**Kryteria akceptacji:**
+- [ ] Modele zgodne z odpowiedziami backendu (camelCase przez Angular `HttpClient`)
+- [ ] `getAvailableDispositions` wywołuje `GET /api/contacts/{contactId}/available-dispositions`
+- [ ] Serwis standalone, dostarczany przez `providedIn: 'root'`
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-091 – Panel zarządzania dyspozycjami w ustawieniach kampanii (supervisor)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-090
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-093
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Nowa sekcja „Dyspozycje" w widoku szczegółów / edycji kampanii w panelu supervisora. Pozwala dodawać, edytować i usuwać własne dyspozycje dla danej kampanii. Informacja o tym, że gdy lista jest pusta, stosowane są dyspozycje systemowe.
+
+**Komponent:** `CampaignDispositionsComponent` (`features/campaigns/components/campaign-dispositions/`)
+
+**Funkcjonalność:**
+- Lista istniejących dyspozycji posortowanych po `ordinal` — wyświetla chip z kolorem wg `tone`, etykietę i kod
+- Przycisk „Dodaj dyspozycję" → inline formularz lub dialog z polami: `dispositionCode`, `label`, `tone` (dropdown), `ordinal`
+- Edycja istniejącej dyspozycji (kod niezmienialny)
+- Usunięcie z potwierdzeniem dialog
+- Informacja systemowa gdy lista pusta: „Brak własnych dyspozycji — stosowane są dyspozycje systemowe"
+- Zmiany zapisywane natychmiast przez API (nie wymagają zapisu całego formularza kampanii)
+
+**UI — tone chip colors:**
+- `positive` → zielony (`mat-chip` z `color="primary"` lub custom)
+- `negative` → czerwony
+- `warning` → pomarańczowy
+- `neutral` → szary
+
+**Kryteria akceptacji:**
+- [ ] Sekcja „Dyspozycje" widoczna w edycji kampanii (tab lub sekcja)
+- [ ] Dodanie dyspozycji → pojawia się na liście bez przeładowania strony
+- [ ] Walidacja formularza: `dispositionCode` wymagany, tylko wielkie litery i `_`, max 50 znaków
+- [ ] Duplikat kodu → `409` z API obsłużony, toast z komunikatem błędu
+- [ ] Usunięcie: potwierdzenie dialog → usunięcie z listy
+- [ ] Pusta lista → komunikat o stosowaniu dyspozycji systemowych
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-092 – Panel zarządzania dyspozycjami w ustawieniach kolejki (supervisor)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-090
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-093
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Analogiczna sekcja jak FE-091, ale w widoku szczegółów/edycji kolejki. Użyj komponentu `QueueDispositionsComponent` budując go zgodnie z tym samym wzorcem co `CampaignDispositionsComponent`. Całą logikę UI (lista z chipami, formularz, dialogi) należy wyodrębnić do współdzielonego komponentu `DispositionListEditorComponent` używanego przez oba widoki.
+
+**Komponent:** `DispositionListEditorComponent` (`shared/components/disposition-list-editor/`) — przyjmuje `@Input() campaignId?: string` i `@Input() queueId?: string`. Na podstawie tego który input jest ustawiony, wywołuje odpowiednie metody serwisu.
+
+**Kryteria akceptacji:**
+- [x] `DispositionListEditorComponent` jest standalone, przyjmuje `campaignId` lub `queueId`
+- [x] `CampaignDispositionsComponent` i `QueueDispositionsComponent` używają `DispositionListEditorComponent`
+- [x] Funkcjonalność identyczna jak FE-091
+- [x] `npm run lint` przechodzi
+
+---
+
+### FE-093 – Aktualizacja panelu dyspozycji agenta — dynamiczne ładowanie z API
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-090, BE-094
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-094
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Obecny panel dyspozycji agenta używa statycznej listy `DISPOSITION_CODES` zakodowanej w `disposition.model.ts`. Należy zastąpić ją dynamicznym pobieraniem z endpointu `GET /api/contacts/{contactId}/available-dispositions`. Backend zawsze zwraca kompletną listę (custom lub systemowe defaulty), więc frontend nie musi znać dyspozycji systemowych.
+
+**Lokalizacja:** komponent dyspozycji w agent desktop — plik `disposition.model.ts` + komponent dyspozycji (prawdopodobnie `DispositionPanelComponent` lub `WrapUpComponent`).
+
+**Zmiany:**
+1. W momencie otwarcia panelu dyspozycji (kontakt przechodzi w stan wrap-up): wywołaj `CustomDispositionService.getAvailableDispositions(contactId)` jako `signal`-based resource lub `Observable`
+2. Zastąp hardcoded `DISPOSITION_CODES` odpowiedzią z API
+3. Skeleton loader podczas ładowania
+4. Obsługa błędu API: fallback do hardcoded `DISPOSITION_CODES` z warninga w konsoli (graceful degradation)
+5. Stare pole `DISPOSITION_CODES` w `disposition.model.ts` można zachować tylko jako fallback, oznaczone `@deprecated`
+
+**Stan komponentu (signals):**
+```typescript
+availableDispositions = signal<AvailableDisposition[]>([]);
+dispositionsLoading = signal(false);
+dispositionsError = signal<string | null>(null);
+```
+
+**Tone → CSS mapping** (zachować istniejący styl, rozszerzyć o nowe tony):
+```typescript
+toneClass(tone: string): string {
+  return { positive: 'tone-positive', negative: 'tone-negative',
+           warning: 'tone-warning', neutral: 'tone-neutral' }[tone] ?? 'tone-neutral';
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Panel dyspozycji ładuje listę z API zamiast hardcoded — widoczne w network tab
+- [ ] Kontakt z kampanią własną → wyświetla custom dyspozycje (nie systemowe)
+- [ ] Kontakt bez custom → wyświetla 6 systemowych (zwróconych przez backend)
+- [ ] Skeleton loader podczas ładowania listy
+- [ ] Błąd API (5xx) → fallback do hardcoded z informacją w konsoli
+- [ ] Wybrany `dispositionCode` z custom listy wysyłany do `PATCH /api/contacts/{id}/disposition` — niezmieniona logika zapisu
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-094 – `DispositionSetService` i modele — warstwa danych Angular
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-096
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-096
+**Blokuje:** FE-095, FE-096
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Serwis Angular i modele TypeScript dla zestawów dyspozycji. Współdzielony między stroną zarządzania zestawami (FE-095) a przyciskiem „Zastosuj zestaw" w edytorze dyspozycji (FE-096).
+
+**Modele (`features/dispositions/models/disposition-set.model.ts`):**
+
+```typescript
+export interface DispositionSetItem {
+  id: string;
+  dispositionCode: string;
+  label: string;
+  tone: DispositionToneApi;
+  ordinal: number;
+}
+
+export interface DispositionSet {
+  id: string;
+  name: string;
+  description?: string;
+  itemCount: number;
+  createdAt: string;
+}
+
+export interface DispositionSetDetail extends DispositionSet {
+  items: DispositionSetItem[];
+}
+
+export interface CreateDispositionSetRequest { name: string; description?: string; }
+export interface UpdateDispositionSetRequest { name: string; description?: string; }
+export interface CreateDispositionSetItemRequest {
+  dispositionCode: string;
+  label: string;
+  tone: DispositionToneApi;
+  ordinal: number;
+}
+export interface UpdateDispositionSetItemRequest { label: string; tone: DispositionToneApi; ordinal: number; }
+
+export interface ApplySetResponse { copied: number; skipped: number; message: string; }
+```
+
+**`DispositionSetService` (`features/dispositions/services/disposition-set.service.ts`):**
+
+```typescript
+// Zestawy
+listSets(): Observable<DispositionSet[]>
+createSet(req: CreateDispositionSetRequest): Observable<DispositionSet>
+updateSet(setId: string, req: UpdateDispositionSetRequest): Observable<DispositionSet>
+deleteSet(setId: string): Observable<void>
+
+// Elementy zestawu
+listItems(setId: string): Observable<DispositionSetItem[]>
+addItem(setId: string, req: CreateDispositionSetItemRequest): Observable<DispositionSetItem>
+updateItem(setId: string, itemId: string, req: UpdateDispositionSetItemRequest): Observable<DispositionSetItem>
+removeItem(setId: string, itemId: string): Observable<void>
+
+// Aplikowanie
+applyToCampaign(setId: string, campaignId: string): Observable<ApplySetResponse>
+applyToQueue(setId: string, queueId: string): Observable<ApplySetResponse>
+```
+
+**Kryteria akceptacji:**
+- [ ] Modele zgodne z odpowiedziami backendu
+- [ ] Serwis `providedIn: 'root'`
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-095 – Strona „Ustawienia > Zestawy dyspozycji" (supervisor)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-094
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-096
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Nowa strona w panelu supervisora pod ścieżką `/supervisor/settings/disposition-sets`. Umożliwia pełne zarządzanie zestawami dyspozycji — tworzenie, edycję, usuwanie zestawów oraz zarządzanie ich elementami.
+
+**Lokalizacja:**
+```
+frontend/src/app/features/supervisor/pages/settings/disposition-sets/
+  disposition-sets-page.component.ts
+  disposition-sets-page.component.html
+  disposition-sets-page.component.scss
+```
+
+**Funkcjonalność:**
+
+*Lewa kolumna — lista zestawów:*
+- Lista kart zestawów z nazwą, opisem, liczbą elementów (`itemCount`)
+- Przycisk „+ Nowy zestaw" → inline formularz lub modal: `name` (required), `description` (optional)
+- Kliknięcie karty → zaznacza zestaw i ładuje jego elementy po prawej
+- Przycisk Edytuj (nazwa/opis) i Usuń (z potwierdzeniem `ConfirmDialogComponent`)
+
+*Prawa kolumna — elementy wybranego zestawu:*
+- Nagłówek: nazwa zestawu
+- Lista elementów — reużyj lub wzoruj na `DispositionListEditorComponent`, ale operujący na `DispositionSetService.addItem/updateItem/removeItem`
+- Formularz dodawania/edycji elementu: dispositionCode, label, tone (select), ordinal
+
+**Routing:**
+Dodaj trasę do routingu supervisora (sprawdź `supervisor-routing.module.ts` lub analogiczny plik routes).
+
+**Sidenav:**
+Dodaj pozycję „Zestawy dyspozycji" w menu Ustawienia supervisora (sprawdź `supervisor-shell.component` lub sidenav).
+
+**Kryteria akceptacji:**
+- [ ] Strona dostępna pod `/supervisor/settings/disposition-sets`
+- [ ] Pozycja w menu Ustawienia supervisora
+- [ ] CRUD zestawów: tworzenie, edycja nazwy/opisu, usunięcie z potwierdzeniem
+- [ ] CRUD elementów: dodawanie, edycja, usunięcie
+- [ ] Duplikat nazwy zestawu → `409` obsłużony, toast z komunikatem
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-096 – Przycisk „Zastosuj zestaw" w `DispositionListEditorComponent`
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-094
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-096
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Rozszerzenie `DispositionListEditorComponent` o możliwość wybrania istniejącego zestawu dyspozycji i skopiowania jego elementów do bieżącej kampanii lub kolejki.
+
+**Lokalizacja:** `shared/components/disposition-list-editor/disposition-list-editor.component.ts/html`
+
+**Funkcjonalność:**
+
+Nowy przycisk „Zastosuj zestaw" (obok „+ Dodaj dyspozycję"):
+1. Kliknięcie → wyświetla dropdown/listę dostępnych zestawów (pobrana przez `DispositionSetService.listSets()`)
+2. Supervisor wybiera zestaw → pojawia się potwierdzenie: `"Czy skopiować X dyspozycji z zestawu '[nazwa]'? Istniejące dyspozycje o tych samych kodach zostaną pominięte."`
+3. Po potwierdzeniu → wywołaj `applyToCampaign(setId, campaignId)` lub `applyToQueue(setId, queueId)` w zależności od kontekstu
+4. Po sukcesie → przeładuj listę dyspozycji, wyświetl toast: `"Skopiowano X dyspozycji (Y pominiętych)"`
+
+**UI zestawów:**
+```html
+<!-- Przycisk rozwijający listę zestawów -->
+<div class="apply-set-wrapper">
+  <button type="button" class="btn btn-secondary" (click)="toggleSetPicker()">
+    Zastosuj zestaw
+  </button>
+  @if (showSetPicker()) {
+    <div class="set-picker">
+      @if (setsLoading()) { <div class="set-picker__loading">Ładowanie...</div> }
+      @for (set of availableSets(); track set.id) {
+        <button type="button" class="set-picker__item" (click)="onSetSelected(set)">
+          <strong>{{ set.name }}</strong>
+          <span class="set-picker__count">{{ set.itemCount }} dyspozycji</span>
+        </button>
+      }
+      @if (!setsLoading() && availableSets().length === 0) {
+        <div class="set-picker__empty">Brak zdefiniowanych zestawów</div>
+      }
+    </div>
+  }
+</div>
+```
+
+**Sygnały:**
+```typescript
+showSetPicker = signal(false);
+availableSets = signal<DispositionSet[]>([]);
+setsLoading = signal(false);
+applyingSet = signal(false);
+pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwierdzenie
+```
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Zastosuj zestaw" widoczny gdy `campaignId` lub `queueId` ustawiony
+- [ ] Dropdown z listą zestawów (ładowana leniwie przy pierwszym otwarciu)
+- [ ] Dialog potwierdzenia przed kopiowaniem (reużyj `ConfirmDialogComponent`)
+- [ ] Toast po sukcesie z licznikami `copied`/`skipped`
+- [ ] Lista dyspozycji przeładowana po zastosowaniu zestawu
+- [ ] Brak zestawów → komunikat „Brak zdefiniowanych zestawów" + link do strony zarządzania
+- [ ] `npm run lint` przechodzi

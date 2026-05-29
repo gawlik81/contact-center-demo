@@ -966,3 +966,223 @@ gdzie `transferTargetTabValues = ['PHONE', 'AGENT', 'QUEUE'] as const`.
 3. Przeniesienie hardcoded polskich stringów do plików i18n (zakładki, placeholdery, komunikaty błędów)
 4. Dodanie `[disabled]="isTransferring"` na przyciskach w `transfer-agent-list` i `transfer-queue-list`
 5. Usunięcie dead code — blok "Complete" w PHONE attended section panelu transferu
+
+---
+
+## Review: EPIC-27 — Dyspozycje frontend (DispositionListEditor, panel agenta, widoki supervisora) — 2026-05-27
+
+**Branch:** custom-dispozition
+**Reviewer:** senior-code-reviewer agent
+**Pliki:** `custom-disposition.model.ts`, `custom-disposition.service.ts`, `disposition-list-editor.component.ts/html/scss`, `campaign-dispositions.component.ts/html`, `queue-dispositions.component.ts/html`, `campaign-form.component.ts/html` (zmiany EPIC-27), `queue-form.component.ts/html` (zmiany EPIC-27), `disposition-panel.component.ts/html`, `disposition.model.ts`
+
+---
+
+### [MAJOR] `DispositionListEditorComponent` nie reaguje na zmiany input signals — brak reload przy zmianie campaignId/queueId
+
+**Plik:** `disposition-list-editor.component.ts:67-68`
+
+**Problem:** Komponent implementuje `OnInit` i ładuje dane jednorazowo w `ngOnInit()`. Jeśli parent zmieni wartość `campaignId` lub `queueId` (np. user przełączy kampanię bez niszczenia komponentu), `loadDispositions()` nie zostanie wywołana ponownie. Przy obecnej architekturze (osadzony w campaign-form/queue-form) ryzyko jest niskie, ale komponent jest reużywalny (`shared/`) — kolejne użycie może ujawnić ten problem.
+
+**Sugestia:** Użyć `effect()` do obserwowania sygnałów wejściowych:
+```typescript
+constructor() {
+  effect(() => {
+    const cId = this.campaignId();
+    const qId = this.queueId();
+    if (cId || qId) {
+      this.loadDispositions();
+    }
+  });
+}
+```
+Lub zachować `ngOnInit` ale dodać `ngOnChanges` z detekcją zmiany. Przy `effect()` można usunąć `implements OnInit`.
+
+---
+
+### [MAJOR] Fallback w `DispositionPanelComponent` używa `d.code` jako etykiety zamiast przetłumaczonej nazwy
+
+**Plik:** `disposition-panel.component.ts:105`
+
+**Problem:** Przy błędzie API, fallback mapuje `DISPOSITION_CODES` jako:
+```typescript
+DISPOSITION_CODES.map((d) => ({ code: d.code, label: d.code, tone: 'neutral' }))
+```
+`label` jest ustawiany na `d.code` (np. `"NO_INTEREST"`) zamiast na przetłumaczoną nazwę. Agent widzi techniczne kody zamiast czytelnych etykiet. `DISPOSITION_CODES` ma pole `labelKey` do użycia z Transloco, ale jest ono ignorowane.
+
+**Sugestia:**
+```typescript
+DISPOSITION_CODES.map((d) => ({
+  code: d.code,
+  label: this.transloco.translate(d.labelKey),
+  tone: 'neutral',
+}))
+```
+
+---
+
+### [MINOR] Niespójność typów tonu między `disposition.model.ts` a API
+
+**Plik:** `disposition.model.ts:1`, `disposition-panel.component.ts:105`
+
+**Problem:** `DispositionTone` w starym modelu agenta definiuje typy `'accent' | 'success' | 'warning' | 'danger' | 'violet' | 'neutral'`, które nie odpowiadają wartościom API (`'positive' | 'negative' | 'neutral' | 'warning'`). W fallback hardkodowane jest `tone: 'neutral'` dla wszystkich — `toneClass()` działa poprawnie (domyślna wartość), ale `DISPOSITION_CODES` zawiera `'violet'`, `'accent'`, `'danger'`, które nie mają odpowiednika w `toneClass()`.
+
+**Sugestia:** Usunąć `DispositionTone` z `disposition.model.ts` lub ujednolicić typy tonu z `DispositionToneApi` z `custom-disposition.model.ts`. Pole `tone: DispositionTone` w `DispositionCode` jest de facto martwe w nowym flow.
+
+---
+
+### [MINOR] Brak zabezpieczenia przed podwójnym zapisem w `loadDispositions` gdy `takeUntilDestroyed` jest w kombinacji z kolejnymi wywołaniami
+
+**Plik:** `disposition-list-editor.component.ts:86-97`
+
+**Problem:** `loadDispositions()` jest wywoływana po każdym sukcesie zapisu i usunięcia. Każde wywołanie tworzy nową subskrypcję z `takeUntilDestroyed`. Jeśli poprzedni request jest in-flight i nastąpi kolejne wywołanie `loadDispositions()`, oba requesty będą aktywne równolegle. Ostatni który wróci "wygra" i ustawi stan — może to powodować migotanie listy lub stary stan.
+
+**Sugestia:** Użyć `switchMap` lub `Subject` + `switchMap` do anulowania poprzednich requestów:
+```typescript
+private readonly reload$ = new Subject<void>();
+
+constructor() {
+  this.reload$.pipe(
+    switchMap(() => this.buildList$()),
+    takeUntilDestroyed(this.destroyRef)
+  ).subscribe({ next: items => this.dispositions.set(items), error: () => ... });
+}
+
+loadDispositions(): void { this.reload$.next(); }
+```
+
+---
+
+### [MINOR] Brak obsługi przypadku, gdy oba `campaignId` i `queueId` są `undefined` — brak komunikatu dla użytkownika
+
+**Plik:** `disposition-list-editor.component.ts:75-77`
+
+**Problem:** Gdy oba inputy są `undefined`, komponent cicho nic nie robi (`return`). Loading pozostaje `false`, lista jest pusta, ale nie wyświetla się żaden błąd. Ponieważ komponent jest w `shared/`, nieprawidłowe użycie (brak obu inputów) nie daje żadnej diagnostyki.
+
+**Sugestia:** Dodać co najmniej `console.warn`:
+```typescript
+if (!campaignId && !queueId) {
+  console.warn('[DispositionListEditor] Neither campaignId nor queueId provided — component is idle.');
+  return;
+}
+```
+
+---
+
+### [MINOR] `onDeleteExecute()` używa `queueId!` gdy `campaignId` jest undefined — brak guard dla null `queueId`
+
+**Plik:** `disposition-list-editor.component.ts:195`
+
+**Problem:** `delete$` jest budowany jako:
+```typescript
+const delete$ = campaignId
+  ? this.service.deleteFromCampaign(campaignId, id)
+  : this.service.deleteFromQueue(queueId!, id);
+```
+Jeśli oba `campaignId` i `queueId` są `undefined` (co jest możliwe przez API komponentu), `queueId!` jest wymuszone i wywołanie API wyśle request z `undefined` w URL → `/api/dispositions/queues/undefined/{id}`. To samo dotyczy `onSubmit()`.
+
+**Sugestia:** Dodać guard przed budowaniem requestu:
+```typescript
+if (!campaignId && !queueId) {
+  this.notifications.error('Brak kontekstu — nie można zapisać dyspozycji.');
+  this.submitting.set(false);
+  return;
+}
+```
+
+---
+
+### Pozytywne obserwacje
+
+- Wszystkie nowe komponenty mają `standalone: true` i `ChangeDetectionStrategy.OnPush` — pełna zgodność z architekturą.
+- Stan zarządzany przez `signal()` / `computed()` — zgodny z konwencją projektu.
+- `takeUntilDestroyed(this.destroyRef)` poprawnie stosowany we wszystkich subskrypcjach — brak wycieków pamięci.
+- Obsługa błędu 409 w `onSubmit()` jest user-friendly — oddzielny komunikat zamiast generycznego błędu.
+- `catchError` + `return EMPTY` we wszystkich operacjach — komponent nie crashuje przy błędach API.
+- Formularz reaktywny z pełną walidacją po stronie klienta: `@Pattern(/^[A-Z0-9_]+$/)`, `maxLength`, `required` — spójne z backendem.
+- Dostępność: atrybuty `aria-invalid`, `aria-describedby`, `role="alert"` na polach formularza — wzorowe.
+- `TONE_CSS_CLASS` w modelu jako `Record<DispositionToneApi, string>` — type-safe mapowanie, brak magic strings.
+- Fallback agenta używa `console.warn` zamiast `console.error` — poprawne traktowanie degradacji graceful jako niekreytycznej.
+- `CampaignDispositionsComponent` i `QueueDispositionsComponent` jako cienkie wrappery — czyste rozdzielenie odpowiedzialności.
+- Osadzanie sekcji dyspozycji tylko w trybie edycji (`@if (campaignId())` / `@if (queueId(); as id)`) — prawidłowe.
+
+### Summary
+
+Frontend jest dobrze zorganizowany: OnPush, signal-based state, standalone components, prawidłowe zarządzanie lifecycle subskrypcji. Główne problemy to brak reaktywności na zmiany inputów (komponent nie przeładuje danych jeśli parent zmieni kontekst), błędne etykiety w fallback agenta (techniczne kody zamiast tłumaczeń) oraz ryzyko wywołania API z `undefined` w URL gdy oba inputy są niezainicjowane.
+
+**Ocena: 3.5/5** — solidna podstawa, ale wymaga naprawienia etykiet w fallback i dodania `effect()` dla reaktywności inputów przed mergem.
+
+---
+
+## Review: EPIC-27 — Frontend zestawów dyspozycji (model, service, page, shared editor, routes, sidenav) — 2026-05-28
+
+**Branch:** custom-dispozition
+
+### Bugs / Critical Issues
+
+- **disposition-sets-page.component.ts:94 (Validators.maxLength(200) — niezgodność z backendowym limitem 100)** Formularz zestawów ma `Validators.maxLength(200)` dla pola `name`, podczas gdy backend (`CreateDispositionSetRequest`) i baza (`VARCHAR(100)`) akceptują maksymalnie 100 znaków. Oznacza to, że formularz zaakceptuje nazwy 101-200 znaków, które następnie zostaną odrzucone przez backend z HTTP 400 (błąd walidacji Bean Validation). Użytkownik wpisuje 150 znaków, klika "Utwórz", dostaje error z serwera — zamiast walidacji inline.
+  - Fix: Zmień na `Validators.maxLength(100)` i `maxlength="100"` w szablonie (linia 39 w HTML).
+
+- **disposition-sets-page.component.html:39 (maxlength="200" w atrybucie HTML)** Powiązany problem z powyższym — atrybut HTML `maxlength="200"` pozwala na wpisanie 200 znaków w input, co jest niespójne z backendowym limitem 100. Obie zmiany muszą być zsynchronizowane.
+
+### Security Concerns
+
+_None identified._
+
+### Architecture / Pattern Violations
+
+- **disposition-sets-page.component.ts:110-131 (loadSets w constructor — nie w ngOnInit)** `loadSets()` jest wywoływane w konstruktorze zamiast w ciele klasy (Angular 16+ preferuje inicjalizację w polu klasy lub `afterNextRender`). W przypadku `standalone + OnPush`, wywołanie HTTP w konstruktorze odbywa się przed zakończeniem DI i przed pierwszym cyklem detekcji zmian. Praktycznie działa, ale jest anty-wzorcem w nowoczesnym Angular — konstruktor powinien być zarezerwowany tylko dla inicjalizacji DI.
+  - Fix: Przenieś `this.loadSets()` do pola klasy jako `effect()` lub wywołaj w `afterNextRender`.
+
+- **disposition-list-editor.component.ts:66-71 (effect z podwójnym odczytem signalów bez untracked)** Konstrukt:
+  ```ts
+  private readonly loadEffect = effect(() => {
+    this.campaignId();
+    this.queueId();
+    untracked(() => this.loadDispositions());
+  });
+  ```
+  jest poprawny — `untracked` zapobiega głębszym subskrypcjom w `loadDispositions`. To jest wzorzec zgodny z architekturą projektową.
+
+- **disposition-list-editor.component.ts:240-257 (sets ładowane tylko raz — set picker nie odświeża po zmianach)** `availableSets` jest ładowany tylko gdy `availableSets().length === 0`. Jeśli użytkownik doda/usunie zestaw w innej zakładce, set picker pokaże nieaktualną listę. Cache nie jest inwalidowany gdy otwarty zestaw zostaje usunięty.
+  - Fix: Dodaj timestamp ostatniego ładowania lub zawsze ładuj przy otwarciu pickera (usuwając warunek `this.availableSets().length === 0`).
+
+- **disposition-sets-page.component.ts:234 (sets.update prepend — nowy zestaw trafia na górę, mimo sortowania backendowego `name ASC`)** Po utworzeniu zestawu komponent dodaje go na początek listy `[created, ...list]`, ale backend sortuje listę `name ASC`. Po odświeżeniu strony nowy element pojawi się w innej pozycji. Lokalny state jest niespójny z stanem serwera.
+  - Fix: Po `createSet` wykonaj `loadSets()` w celu przeładowania posortowanej listy, lub wstaw element w alfabetycznej pozycji lokalnie.
+
+### Improvements & Suggestions
+
+- **disposition-sets-page.component.ts:412 (isSetFieldInvalid używa `ctrl.touched` — brak walidacji po 'blur' dla `name`)** Walidacja `name` wyświetla się dopiero po `touched`. Przy pierwszym submitcie bez kliknięcia w pole, `markAllAsTouched()` (linia 177) poprawnie oznacza pole jako touched i uruchamia walidację. Zachowanie jest poprawne, ale warto dodać komentarz wyjaśniający dlaczego `markAllAsTouched` jest konieczny.
+
+- **disposition-sets-page.component.html:109 (pluralizacja — tylko 1/nie-1, brak form 2-4)** Kod:
+  ```html
+  {{ set.itemCount === 1 ? 'dyspozycja' : 'dyspozycji' }}
+  ```
+  jest niepoprawny dla języka polskiego. Właściwa pluralizacja: 1 = "dyspozycja", 2-4 = "dyspozycje", 5+ = "dyspozycji". Przy itemCount=3 wyświetli "3 dyspozycji" zamiast "3 dyspozycje".
+  - Fix: Użyj pipe `| i18nPlural` z Transloco lub zdefiniuj helper `pluralizeDispositions(count: number)`.
+
+- **disposition-list-editor.component.html:170-176 (interpolacja HTML w atrybucie message confirm-dialog)** Kod przekazuje do `[message]` string zbudowany przez template expression z `pendingSet()!.itemCount`. Wartość `itemCount` pochodzi z backendu i jest liczbą, więc brak ryzyka XSS. Jednak `&quot;` encje HTML są używane bezpośrednio w stringu TypeScript — lepiej zdefiniować `pendingSetMessage = computed(...)` w komponencie.
+
+- **sidenav.component.ts:188-191 (nowy element menu "Zestawy dyspozycji" jest poprawnie dodany)** Nowa pozycja w `SUPERVISOR_NAV` wskazuje na `/supervisor/settings/disposition-sets` — spójne z routingiem. Dodana jako child `nav.configuration` — poprawna hierarchia.
+
+- **supervisor.routes.ts:131-139 (route disposition-sets — canActivate z roleGuard)** Trasa jest chroniona przez `roleGuard` z `roles: ['SUPERVISOR', 'ADMIN']` i używa lazy loadingu komponentu. Zgodne z wzorcem pozostałych tras settings.
+
+- **disposition-set.service.ts (empty body w POST apply)** Metody `applyToCampaign` i `applyToQueue` wysyłają `{}` jako body POST. Semantycznie POST powinno mieć body lub być bez body (`null`). Wysyłanie pustego obiektu `{}` nie jest błędem, ale może być mylące.
+
+### Positive Observations
+
+- `DispositionSetsPageComponent` używa `ChangeDetectionStrategy.OnPush` — poprawnie.
+- Wszystkie Observable są zarządzane przez `takeUntilDestroyed(this.destroyRef)` — brak wycieków subskrypcji.
+- `inject()` zamiast constructor DI — zgodne z wzorcem projektu.
+- Stan zarządzany przez `signal()` i `computed()` — zgodne z wytycznymi projektu, nie ma `BehaviorSubject`.
+- `catchError` + `EMPTY` wzorzec obsługi błędów HTTP — poprawne zakończenie strumienia bez rzucania błędu w górę.
+- Formularze używają `getRawValue()` po wyłączeniu pola `dispositionCode` — poprawna obsługa wyłączonych pól w reactive forms.
+- `DispositionSetService` (Angular) jest poprawnie `providedIn: 'root'` — singleton bez wycieków.
+- Model TypeScript `disposition-set.model.ts` jest spójny z DTO backendu — kompletna i poprawna typizacja.
+- Accessibility: `aria-label`, `role="button"`, `aria-pressed`, `aria-invalid`, `role="alert"` na komunikatach błędów — solidna implementacja a11y.
+- Dialogi potwierdzenia usunięcia (zestaw i element) są obsługiwane przez `ConfirmDialogComponent` — spójne z resztą aplikacji.
+
+### Summary
+
+Frontend jest dobrze zorganizowany: standalone components, OnPush, signal-based state, prawidłowe zarządzanie lifecycle subskrypcji, kompletna a11y. Krytyczna usterka to niezgodność `maxLength(200)` w formularzu vs limit `100` backendu/bazy — użytkownik może wpisać za dużą nazwę, która zostanie odrzucona przez server. Drobne problemy to pluralizacja w języku polskim i lokalny stan listy niespójny po createSet. Dodanie zestawu dyspozycji do sidenav i routing są poprawne.
+
+**Ocena: 4/5** — wymaga tylko naprawy maxLength(200)→(100) przed mergem; pozostałe to quality of life improvements.

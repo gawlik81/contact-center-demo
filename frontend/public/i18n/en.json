@@ -79,6 +79,12 @@
       "VOICEMAIL": "Voicemail",
       "TRANSFER": "Transfer",
       "ESCALATE": "Escalate"
+    },
+    "tones": {
+      "positive": "Positive",
+      "negative": "Negative",
+      "neutral": "Neutral",
+      "warning": "Warning"
     }
   },
   "auth": {
@@ -180,7 +186,8 @@
     "oauthCallback": "OAuth Callback",
     "breadcrumbNav": "Navigation path",
     "settingsTwilioConfig": "Twilio Integration",
-    "settingsAiConfig": "AI Configuration"
+    "settingsAiConfig": "AI Configuration",
+    "settingsDispositionSets": "Disposition Sets"
   },
   "role": {
     "admin": "Admin",
@@ -1028,7 +1035,8 @@
       "statusLabel": "Queue status",
       "assignmentTitle": "Agent assignment",
       "assignmentHint": "Save the queue to configure agent assignment.",
-      "saveLabel": "Save queue"
+      "saveLabel": "Save queue",
+      "dispositionsTitle": "Post-contact dispositions"
     },
     "queueDelete": {
       "title": "Delete queue",
@@ -1167,7 +1175,9 @@
       "statsTotal": "Total",
       "statsCompleted": "Completed",
       "statsRemaining": "Remaining",
-      "statsHeader": "Records"
+      "statsHeader": "Records",
+      "dispositionsTitle": "Post-contact dispositions",
+      "dispositionsDesc": "Define custom dispositions for this campaign. If the list is empty, agents see system dispositions."
     },
     "campaignForm": {
       "titleCreate": "New campaign",
@@ -2139,6 +2149,46 @@
         "saveButton": "Save rule",
         "errorDays": "Select at least one day of the week.",
         "errorTime": "\"To\" time must be later than \"From\" time."
+      },
+      "dispositionSets": {
+        "pageTitle": "Disposition sets",
+        "pageSubtitle": "Manage reusable disposition sets — assign them to a campaign or queue.",
+        "setsTitle": "Sets",
+        "createButton": "+ New set",
+        "nameLabel": "Name",
+        "nameRequired": "Name is required.",
+        "descLabel": "Description",
+        "emptySetList": "No disposition sets. Click \"+ New set\" to add the first one.",
+        "selectSetHint": "Select a set from the left column to view its items.",
+        "addItemButton": "+ Add disposition",
+        "itemsEmpty": "This set has no dispositions yet. Click \"+ Add disposition\".",
+        "itemSingular": "disposition",
+        "itemPlural": "dispositions",
+        "confirmDeleteSet": "Are you sure you want to delete set \"{{ name }}\"? This action is irreversible.",
+        "confirmDeleteItem": "Are you sure you want to remove disposition \"{{ label }}\" from the set?",
+        "ariaSetsList": "Disposition sets list",
+        "ariaItemsList": "Selected set items",
+        "ariaSetFormLabel": "Disposition set form",
+        "ariaItemFormLabel": "Set item form",
+        "ariaSelectSet": "Select set {{ name }}",
+        "ariaEditSet": "Edit set {{ name }}",
+        "ariaDeleteSet": "Delete set {{ name }}",
+        "ariaEditItem": "Edit disposition {{ label }}",
+        "ariaDeleteItem": "Delete disposition {{ label }}",
+        "errorLoadSets": "Failed to load sets.",
+        "errorSaveSet": "Failed to save set.",
+        "errorSaveSetDuplicate": "A set with this name already exists.",
+        "errorDeleteSet": "Failed to delete set.",
+        "errorLoadItems": "Failed to load set items.",
+        "errorSaveItem": "Failed to save item.",
+        "errorSaveItemDuplicate": "A disposition with this code already exists in the set.",
+        "errorDeleteItem": "Failed to delete item.",
+        "successCreateSet": "Set created.",
+        "successUpdateSet": "Set updated.",
+        "successDeleteSet": "Set deleted.",
+        "successCreateItem": "Item added to set.",
+        "successUpdateItem": "Set item updated.",
+        "successDeleteItem": "Item removed from set."
       }
     },
     "reports": {
@@ -2193,6 +2243,35 @@
       "IF": "Condition",
       "SWITCH": "Switch",
       "VOICEBOT": "Voicebot ASR/NLU"
+    },
+    "dispositionEditor": {
+      "emptyState": "No custom dispositions — agents see system dispositions.",
+      "inactiveLabel": "inactive",
+      "codeLabel": "Code",
+      "codePlaceholder": "e.g. CALLBACK_AGREED",
+      "codeHint": "Uppercase letters, digits and underscores.",
+      "codeRequired": "Code is required.",
+      "codePattern": "Only uppercase letters, digits and underscores (A-Z, 0-9, _).",
+      "codeMaxLength": "Maximum 50 characters.",
+      "labelLabel": "Label",
+      "labelRequired": "Label is required.",
+      "labelMaxLength": "Maximum 100 characters.",
+      "toneLabel": "Tone",
+      "ordinalLabel": "Order",
+      "activeLabel": "Active",
+      "addButton": "+ Add disposition",
+      "applySetButton": "Apply set",
+      "itemsCount": "{{ count }} dispositions",
+      "noSets": "No defined sets",
+      "confirmApplySet": "Copy {{ count }} dispositions from set \"{{ name }}\"? Dispositions with the same codes will be skipped.",
+      "confirmDelete": "Are you sure you want to delete this disposition?",
+      "errorLoad": "Failed to load dispositions.",
+      "errorSave": "Failed to save disposition.",
+      "errorSaveDuplicate": "Disposition code already exists in this scope",
+      "errorDelete": "Failed to delete disposition.",
+      "errorLoadSets": "Failed to load disposition sets.",
+      "errorApplySet": "Failed to apply disposition set.",
+      "listAriaLabel": "Dispositions list"
     }
   },
   "admin": {

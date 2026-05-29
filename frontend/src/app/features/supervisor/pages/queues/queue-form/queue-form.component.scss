@@ -88,6 +88,11 @@
     gap: 1.25rem;
   }
 
+  &__dispositions {
+    padding: 0 1.5rem 1rem;
+    border-top: 1px solid var(--border-1);
+  }
+
   &__footer {
     display: flex;
     justify-content: flex-end;

@@ -147,3 +147,28 @@ The frontend is Angular 21 with standalone components, Signals, OnPush everywher
 - Does `catchError` in attended transfer restore session to ACTIVE on error?
 - Are frontend TypeScript union types for agent/user statuses in sync with backend enum values?
 - Are all user-visible strings using Transloco, not hardcoded Polish literals?
+
+## EPIC-27 (Custom Dispositions) — new findings 2026-05-27
+
+**Major bugs:**
+- `DispositionListEditorComponent` loads data only in `ngOnInit()` — no `effect()` on `campaignId`/`queueId` signals. If parent changes context without destroying component, list never refreshes. Fix: use `effect()` in constructor to react to input signal changes.
+- `DispositionPanelComponent.ngOnInit` fallback uses `d.code` as label (`label: d.code`) instead of `this.transloco.translate(d.labelKey)` — agent sees `"NO_INTEREST"` instead of `"Brak zainteresowania"` when API fails.
+
+**Minor issues:**
+- `DispositionTone` in `disposition.model.ts` defines `'accent' | 'success' | 'danger' | 'violet'` — values incompatible with API `DispositionToneApi` and `toneClass()` map. Old model is deprecated but the type discrepancy can cause confusion.
+- `onDeleteExecute()` and `onSubmit()` in `DispositionListEditorComponent` use `queueId!` non-null assertion when both campaignId and queueId could be undefined — API called with `undefined` in URL path.
+- Multiple `loadDispositions()` calls (after save, after delete) each create new subscriptions — no switchMap to cancel in-flight requests; last response wins.
+
+**Positive patterns (EPIC-27):**
+- `DispositionListEditorComponent`: `standalone: true`, `OnPush`, `signal()` for state, `takeUntilDestroyed` on all subscriptions, `catchError` + EMPTY for all HTTP ops — correct across the board.
+- 409 error handled user-friendly (specific message vs generic error).
+- Form disables `dispositionCode` field during edit (code is immutable after create) — correct UX.
+- `TONE_CSS_CLASS: Record<DispositionToneApi, string>` is type-safe, exhaustive mapping.
+- Fallback agent panel uses `console.warn` (not `console.error`) for graceful degradation — correct severity.
+- `CampaignDispositionsComponent` and `QueueDispositionsComponent` are minimal wrappers with `input.required<string>()` — clean interface.
+- Dispositions section in campaign/queue forms shown only in edit mode (`@if campaignId()`) — correct.
+
+**Check in future disposition-related reviews:**
+- Does `DispositionListEditorComponent` use `effect()` to react to `campaignId`/`queueId` changes?
+- Does agent panel fallback use `transloco.translate(d.labelKey)` for labels, not `d.code`?
+- Are both `campaignId` and `queueId` guarded before using `!` assertion in HTTP calls?

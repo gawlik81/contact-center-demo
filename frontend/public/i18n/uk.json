@@ -79,6 +79,12 @@
       "VOICEMAIL": "Голосова пошта",
       "TRANSFER": "Трансфер",
       "ESCALATE": "Ескалація"
+    },
+    "tones": {
+      "positive": "Позитивний",
+      "negative": "Негативний",
+      "neutral": "Нейтральний",
+      "warning": "Попередження"
     }
   },
   "auth": {
@@ -174,6 +180,7 @@
     "settingsEmailTemplates": "Шаблони email",
     "settingsTwilioConfig": "Інтеграція Twilio",
     "settingsAiConfig": "Налаштування ШІ",
+    "settingsDispositionSets": "Набори диспозицій",
     "reportsHistorical": "Історичні",
     "reportsContacts": "Контакти",
     "importCsv": "Імпорт CSV",
@@ -1028,7 +1035,8 @@
       "statusLabel": "Статус черги",
       "assignmentTitle": "Призначення агентів",
       "assignmentHint": "Збережіть чергу, щоб налаштувати призначення агентів.",
-      "saveLabel": "Зберегти чергу"
+      "saveLabel": "Зберегти чергу",
+      "dispositionsTitle": "Диспозиції після контакту"
     },
     "queueDelete": {
       "title": "Видалити чергу",
@@ -1167,7 +1175,9 @@
       "statsTotal": "Всього",
       "statsCompleted": "Завершено",
       "statsRemaining": "Залишилось",
-      "statsHeader": "Записи"
+      "statsHeader": "Записи",
+      "dispositionsTitle": "Диспозиції після контакту",
+      "dispositionsDesc": "Визначте власні диспозиції для цієї кампанії. Якщо список порожній, агенти бачать системні диспозиції."
     },
     "campaignForm": {
       "titleCreate": "Нова кампанія",
@@ -2135,6 +2145,46 @@
         "saveButton": "Зберегти правило",
         "errorDays": "Виберіть принаймні один день тижня.",
         "errorTime": "\"До\" має бути пізніше ніж \"Від\"."
+      },
+      "dispositionSets": {
+        "pageTitle": "Набори диспозицій",
+        "pageSubtitle": "Керуйте багаторазовими наборами диспозицій — призначайте їх кампаніям або чергам.",
+        "setsTitle": "Набори",
+        "createButton": "+ Новий набір",
+        "nameLabel": "Назва",
+        "nameRequired": "Назва є обов'язковою.",
+        "descLabel": "Опис",
+        "emptySetList": "Немає наборів диспозицій. Натисніть \"+ Новий набір\", щоб додати перший.",
+        "selectSetHint": "Виберіть набір у лівій колонці, щоб переглянути його елементи.",
+        "addItemButton": "+ Додати диспозицію",
+        "itemsEmpty": "Цей набір ще не має диспозицій. Натисніть \"+ Додати диспозицію\".",
+        "itemSingular": "диспозиція",
+        "itemPlural": "диспозицій",
+        "confirmDeleteSet": "Ви впевнені, що хочете видалити набір \"{{ name }}\"? Ця операція незворотна.",
+        "confirmDeleteItem": "Ви впевнені, що хочете видалити диспозицію \"{{ label }}\" з набору?",
+        "ariaSetsList": "Список наборів диспозицій",
+        "ariaItemsList": "Елементи вибраного набору",
+        "ariaSetFormLabel": "Форма набору диспозицій",
+        "ariaItemFormLabel": "Форма елемента набору",
+        "ariaSelectSet": "Вибрати набір {{ name }}",
+        "ariaEditSet": "Редагувати набір {{ name }}",
+        "ariaDeleteSet": "Видалити набір {{ name }}",
+        "ariaEditItem": "Редагувати диспозицію {{ label }}",
+        "ariaDeleteItem": "Видалити диспозицію {{ label }}",
+        "errorLoadSets": "Не вдалося завантажити набори.",
+        "errorSaveSet": "Не вдалося зберегти набір.",
+        "errorSaveSetDuplicate": "Набір з такою назвою вже існує.",
+        "errorDeleteSet": "Не вдалося видалити набір.",
+        "errorLoadItems": "Не вдалося завантажити елементи набору.",
+        "errorSaveItem": "Не вдалося зберегти елемент.",
+        "errorSaveItemDuplicate": "Диспозиція з таким кодом вже існує в наборі.",
+        "errorDeleteItem": "Не вдалося видалити елемент.",
+        "successCreateSet": "Набір створено.",
+        "successUpdateSet": "Набір оновлено.",
+        "successDeleteSet": "Набір видалено.",
+        "successCreateItem": "Елемент додано до набору.",
+        "successUpdateItem": "Елемент набору оновлено.",
+        "successDeleteItem": "Елемент видалено з набору."
       }
     },
     "reports": {
@@ -2189,6 +2239,35 @@
       "IF": "Умова",
       "SWITCH": "Перемикач",
       "VOICEBOT": "Voicebot ASR/NLU"
+    },
+    "dispositionEditor": {
+      "emptyState": "Немає власних диспозицій — агенти бачать системні диспозиції.",
+      "inactiveLabel": "неактивна",
+      "codeLabel": "Код",
+      "codePlaceholder": "напр. CALLBACK_AGREED",
+      "codeHint": "Великі літери, цифри та підкреслення.",
+      "codeRequired": "Код є обов'язковим.",
+      "codePattern": "Лише великі літери, цифри та підкреслення (A-Z, 0-9, _).",
+      "codeMaxLength": "Максимум 50 символів.",
+      "labelLabel": "Мітка",
+      "labelRequired": "Мітка є обов'язковою.",
+      "labelMaxLength": "Максимум 100 символів.",
+      "toneLabel": "Тон",
+      "ordinalLabel": "Порядок",
+      "activeLabel": "Активна",
+      "addButton": "+ Додати диспозицію",
+      "applySetButton": "Застосувати набір",
+      "itemsCount": "{{ count }} диспозицій",
+      "noSets": "Немає визначених наборів",
+      "confirmApplySet": "Скопіювати {{ count }} диспозицій з набору \"{{ name }}\"? Диспозиції з однаковими кодами будуть пропущені.",
+      "confirmDelete": "Ви впевнені, що хочете видалити цю диспозицію?",
+      "errorLoad": "Не вдалося завантажити диспозиції.",
+      "errorSave": "Не вдалося зберегти диспозицію.",
+      "errorSaveDuplicate": "Код диспозиції вже існує в цьому діапазоні",
+      "errorDelete": "Не вдалося видалити диспозицію.",
+      "errorLoadSets": "Не вдалося завантажити набори диспозицій.",
+      "errorApplySet": "Не вдалося застосувати набір диспозицій.",
+      "listAriaLabel": "Список диспозицій"
     }
   },
   "admin": {

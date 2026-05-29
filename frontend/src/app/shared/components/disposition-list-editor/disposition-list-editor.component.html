@@ -1,0 +1,187 @@
+<div class="disposition-editor">
+  @if (loading()) {
+    <div class="disposition-editor__loading" aria-live="polite">
+      <div class="disposition-skeleton"></div>
+      <div class="disposition-skeleton disposition-skeleton--short"></div>
+    </div>
+  } @else if (error()) {
+    <p class="disposition-editor__error" role="alert">{{ error() }}</p>
+  } @else {
+    @if (dispositions().length === 0 && !showForm()) {
+      <div class="disposition-empty">
+        <p>{{ 'supervisor.dispositionEditor.emptyState' | transloco }}</p>
+      </div>
+    }
+
+    @if (dispositions().length > 0) {
+      <ul class="disposition-list" [attr.aria-label]="'supervisor.dispositionEditor.listAriaLabel' | transloco">
+        @for (d of dispositions(); track d.id) {
+          <li class="disposition-list__item">
+            <div class="disposition-list__info">
+              <span class="disposition-chip disposition-chip--{{ d.tone }}">{{ d.label }}</span>
+              <code class="disposition-list__code">{{ d.dispositionCode }}</code>
+              @if (!d.isActive) {
+                <span class="disposition-list__inactive">{{ 'supervisor.dispositionEditor.inactiveLabel' | transloco }}</span>
+              }
+            </div>
+            <div class="disposition-list__actions">
+              <button type="button" class="btn btn-ghost btn-sm" (click)="onEdit(d)">{{ 'common.edit' | transloco }}</button>
+              <button
+                type="button"
+                class="btn btn-danger btn-sm"
+                (click)="onDeleteConfirm(d.id)"
+              >
+                {{ 'common.delete' | transloco }}
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (showForm()) {
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="disposition-form" novalidate>
+        <div class="form-field" [class.form-field--error]="codeError">
+          <label class="form-label" for="dispCode">
+            {{ 'supervisor.dispositionEditor.codeLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="dispCode"
+            type="text"
+            class="form-input"
+            formControlName="dispositionCode"
+            [placeholder]="'supervisor.dispositionEditor.codePlaceholder' | transloco"
+            maxlength="50"
+            autocomplete="off"
+            [attr.aria-describedby]="codeError ? 'dispCode-error' : 'dispCode-hint'"
+            [attr.aria-invalid]="codeError ? 'true' : null"
+          />
+          <span id="dispCode-hint" class="form-hint">{{ 'supervisor.dispositionEditor.codeHint' | transloco }}</span>
+          @if (codeError) {
+            <span id="dispCode-error" class="form-error" role="alert">{{ codeError }}</span>
+          }
+        </div>
+
+        <div class="form-field" [class.form-field--error]="labelError">
+          <label class="form-label" for="dispLabel">
+            {{ 'supervisor.dispositionEditor.labelLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="dispLabel"
+            type="text"
+            class="form-input"
+            formControlName="label"
+            maxlength="100"
+            autocomplete="off"
+            [attr.aria-describedby]="labelError ? 'dispLabel-error' : null"
+            [attr.aria-invalid]="labelError ? 'true' : null"
+          />
+          @if (labelError) {
+            <span id="dispLabel-error" class="form-error" role="alert">{{ labelError }}</span>
+          }
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label" for="dispTone">{{ 'supervisor.dispositionEditor.toneLabel' | transloco }}</label>
+            <select id="dispTone" class="form-select" formControlName="tone">
+              @for (opt of toneOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.key | transloco }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="dispOrdinal">{{ 'supervisor.dispositionEditor.ordinalLabel' | transloco }}</label>
+            <input
+              id="dispOrdinal"
+              type="number"
+              class="form-input form-input--number"
+              formControlName="ordinal"
+              min="0"
+            />
+          </div>
+        </div>
+
+        @if (editingId()) {
+          <div class="form-field form-field--checkbox">
+            <label class="form-label form-label--checkbox">
+              <input type="checkbox" formControlName="isActive" />
+              {{ 'supervisor.dispositionEditor.activeLabel' | transloco }}
+            </label>
+          </div>
+        }
+
+        <div class="form-actions">
+          <button
+            type="submit"
+            class="btn btn-save"
+            [disabled]="form.invalid || submitting()"
+            [attr.aria-disabled]="form.invalid || submitting()"
+          >
+            @if (submitting()) {
+              <span class="spinner" aria-hidden="true"></span>
+            }
+            {{ editingId() ? ('common.save' | transloco) : ('common.add' | transloco) }}
+          </button>
+          <button type="button" class="btn btn-cancel" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>
+        </div>
+      </form>
+    } @else {
+      <div class="disposition-editor__toolbar">
+        <button type="button" class="btn btn-secondary" (click)="onAdd()">
+          {{ 'supervisor.dispositionEditor.addButton' | transloco }}
+        </button>
+
+        @if (campaignId() || queueId()) {
+          <div class="apply-set-wrapper">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="toggleSetPicker()"
+              [disabled]="applyingSet()"
+            >
+              {{ 'supervisor.dispositionEditor.applySetButton' | transloco }}
+            </button>
+            @if (showSetPicker()) {
+              <div class="set-picker">
+                @if (setsLoading()) {
+                  <div class="set-picker__loading">{{ 'common.loading' | transloco }}</div>
+                }
+                @for (set of availableSets(); track set.id) {
+                  <button type="button" class="set-picker__item" (click)="onSetSelected(set)">
+                    <strong>{{ set.name }}</strong>
+                    <span class="set-picker__count">{{ 'supervisor.dispositionEditor.itemsCount' | transloco: { count: set.itemCount } }}</span>
+                  </button>
+                }
+                @if (!setsLoading() && availableSets().length === 0) {
+                  <div class="set-picker__empty">{{ 'supervisor.dispositionEditor.noSets' | transloco }}</div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (pendingSet()) {
+      <app-confirm-dialog
+        [message]="
+          'supervisor.dispositionEditor.confirmApplySet'
+            | transloco: { count: pendingSet()!.itemCount, name: pendingSet()!.name }
+        "
+        (confirmed)="onApplySetConfirm()"
+        (cancelled)="onApplySetCancel()"
+      />
+    }
+
+    @if (deletingId()) {
+      <app-confirm-dialog
+        [message]="'supervisor.dispositionEditor.confirmDelete' | transloco"
+        [danger]="true"
+        (confirmed)="onDeleteExecute()"
+        (cancelled)="deletingId.set(null)"
+      />
+    }
+  }
+</div>

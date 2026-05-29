@@ -65,6 +65,7 @@ public class TwilioRecordingDownloadService {
     private static final Duration HTTP_READ_TIMEOUT = Duration.ofSeconds(120);
 
     private final TwilioProperties twilioProperties;
+    private final TenantTwilioConfigService tenantTwilioConfigService;
     private final S3Properties s3Properties;
     private final S3Client s3Client;
     private final RecordingService recordingService;
@@ -88,6 +89,7 @@ public class TwilioRecordingDownloadService {
 
     public TwilioRecordingDownloadService(
             TwilioProperties twilioProperties,
+            TenantTwilioConfigService tenantTwilioConfigService,
             S3Properties s3Properties,
             S3Client s3Client,
             RecordingService recordingService,
@@ -95,6 +97,7 @@ public class TwilioRecordingDownloadService {
             ContactTranscriptionRepository transcriptionRepository,
             Optional<VoicebotClient> voicebotClient) {
         this.twilioProperties = twilioProperties;
+        this.tenantTwilioConfigService = tenantTwilioConfigService;
         this.s3Properties = s3Properties;
         this.s3Client = s3Client;
         this.recordingService = recordingService;
@@ -254,7 +257,7 @@ public class TwilioRecordingDownloadService {
         Path tempFile = null;
         try {
             // 1. Pobierz plik z Twilio do pliku tymczasowego (streaming, nie byte[])
-            tempFile = downloadToTempFile(twilioRecordingUrl, recordingSid);
+            tempFile = downloadToTempFile(twilioRecordingUrl, recordingSid, tenantId);
 
             // 2. Zbuduj klucz S3 zgodny z konwencją: {tenantId}/{year}/{month}/{contactId}.mp3
             String s3Key = buildS3Key(tenantId, contactId);
@@ -324,10 +327,10 @@ public class TwilioRecordingDownloadService {
      * @throws InterruptedException przy przerwaniu wątku
      * @throws IllegalStateException gdy Twilio odpowie statusem != 200
      */
-    private Path downloadToTempFile(String recordingUrl, String recordingSid)
+    private Path downloadToTempFile(String recordingUrl, String recordingSid, UUID tenantId)
             throws IOException, InterruptedException {
 
-        String credentials = buildBasicAuthCredentials();
+        String credentials = buildBasicAuthCredentials(tenantId);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(recordingUrl))
@@ -406,11 +409,43 @@ public class TwilioRecordingDownloadService {
      * <p>Format RFC 7617: {@code Base64(accountSid:authToken)}.
      * Twilio wymaga tej formy autentykacji przy pobieraniu pliku nagrania.
      *
+     * <p>W systemie BYOT (Bring Your Own Twilio) każdy tenant może mieć własne credentials.
+     * Metoda próbuje pobrać per-tenant credentials przez {@link TenantTwilioConfigService};
+     * jeśli nie są skonfigurowane, stosuje fallback na globalne {@code twilioProperties}.
+     *
+     * @param tenantId UUID tenanta – używany do pobrania per-tenant credentials
      * @return zakodowane credentials (sam Base64, bez prefiksu "Basic ")
      */
-    private String buildBasicAuthCredentials() {
-        String accountSid = twilioProperties.getAccountSid();
-        String authToken  = twilioProperties.getAuthToken();
+    private String buildBasicAuthCredentials(UUID tenantId) {
+        String accountSid = null;
+        String authToken  = null;
+
+        // Próba pobrania per-tenant credentials (BYOT)
+        if (tenantId != null) {
+            try {
+                TenantTwilioConfigDecrypted perTenantConfig =
+                        tenantTwilioConfigService.getDecryptedConfig(tenantId).orElse(null);
+                if (perTenantConfig != null
+                        && perTenantConfig.accountSid() != null
+                        && !perTenantConfig.accountSid().isBlank()
+                        && perTenantConfig.authToken() != null
+                        && !perTenantConfig.authToken().isBlank()) {
+                    accountSid = perTenantConfig.accountSid();
+                    authToken  = perTenantConfig.authToken();
+                    log.debug("[TwilioRecDownload] Używam per-tenant credentials Twilio dla tenantId={}", tenantId);
+                }
+            } catch (Exception e) {
+                log.warn("[TwilioRecDownload] Nie udało się pobrać per-tenant credentials dla tenantId={}, " +
+                         "fallback na globalne: {}", tenantId, e.getMessage());
+            }
+        }
+
+        // Fallback na globalne credentials
+        if (accountSid == null || authToken == null) {
+            accountSid = twilioProperties.getAccountSid();
+            authToken  = twilioProperties.getAuthToken();
+            log.debug("[TwilioRecDownload] Używam globalnych credentials Twilio (fallback).");
+        }
 
         if (accountSid == null || accountSid.isBlank() || authToken == null || authToken.isBlank()) {
             throw new IllegalStateException(

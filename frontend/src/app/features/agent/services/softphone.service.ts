@@ -174,7 +174,7 @@ export class SoftphoneService implements OnDestroy {
           }
         }
         // state RINGING: wait for answerCall() to call acceptIncomingCall()
-      }, 500);
+      }, 1500);
       return;
     }
 
@@ -301,7 +301,7 @@ export class SoftphoneService implements OnDestroy {
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'ENDED' });
     this.hangupCallHttp(s.contactId)
-      .pipe(catchError(() => of(null)))
+      .pipe(catchError((err) => { console.error('[SoftphoneService] hangupCall HTTP error:', err); return of(null); }))
       .subscribe();
     this.cleanupTimeout = setTimeout(() => {
       this.session.set(null);
@@ -771,6 +771,7 @@ export class SoftphoneService implements OnDestroy {
   // ── Cleanup ────────────────────────────────────────────────────────────────
 
   private destroyTwilioDevice(): void {
+    this.clearTimers();
     this.tokenRefreshSub?.unsubscribe();
     this.tokenRefreshSub = null;
     if (this.twilioDevice) {

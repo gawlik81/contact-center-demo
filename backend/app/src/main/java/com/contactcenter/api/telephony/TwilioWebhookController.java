@@ -16,6 +16,7 @@ import com.twilio.security.RequestValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -112,6 +113,16 @@ public class TwilioWebhookController {
     this.contactRepository = contactRepository;
     this.recordingDownloadService = recordingDownloadService;
     this.twilioProperties = twilioProperties;
+  }
+
+  @PostConstruct
+  void warnIfSignatureValidationDisabled() {
+    if (!twilioProperties.isSignatureValidationEnabled()) {
+      log.warn("[TwilioWebhook] *** UWAGA BEZPIECZENSTWA *** " +
+               "twilio.signature-validation-enabled=false — weryfikacja X-Twilio-Signature jest WYLACZONA. " +
+               "Kazdy moze wyslac falszywy webhook na endpointy /voice, /status i /recording. " +
+               "Uzyj wylacznie lokalnie (localhost) — NIGDY nie udostepniaj portu przez ngrok bez wlaczenia walidacji.");
+    }
   }
 
   // =========================================================================
@@ -756,9 +767,22 @@ public class TwilioWebhookController {
     String requestUrl = appBaseUrl + request.getRequestURI();
 
     // Zbieramy parametry POST (form-encoded) jako mapę – Twilio używa ich do podpisu.
+    // getParameterMap() łączy parametry POST i GET (query string). Twilio podpisuje TYLKO
+    // parametry POST – parametry query string (np. ?tenantId=UUID) są częścią URL,
+    // który jest osobno uwzględniany w podpisie HMAC i nie mogą być powielane w mapie params.
+    java.util.Set<String> queryKeys = new java.util.HashSet<>();
+    String qs = request.getQueryString();
+    if (qs != null && !qs.isBlank()) {
+      for (String pair : qs.split("&")) {
+        int eqIdx = pair.indexOf('=');
+        String key = eqIdx >= 0 ? pair.substring(0, eqIdx) : pair;
+        queryKeys.add(java.net.URLDecoder.decode(key, java.nio.charset.StandardCharsets.UTF_8));
+      }
+    }
+
     Map<String, String> params = new HashMap<>();
     request.getParameterMap().forEach((key, values) -> {
-      if (values != null && values.length > 0) {
+      if (!queryKeys.contains(key) && values != null && values.length > 0) {
         params.put(key, values[0]);
       }
     });

@@ -778,17 +778,20 @@ public class DialerController {
                     "Dla kampanii PROGRESSIVE połączenia są inicjowane automatycznie przez dialer.");
         }
 
-        // Pobranie rekordu campaign_contact z weryfikacją statusu PENDING
-        // (logika przeniesiona do CampaignContactRepository – brak SQL w kontrolerze)
+        // Pobranie rekordu campaign_contact z weryfikacją dostępności do wydzwonienia
         Map<String, Object> row = campaignContactRepository
                 .findRecordForManualDial(request.recordId(), request.campaignId(), tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Rekord campaign_contact nie istnieje: " + request.recordId()));
 
         String currentStatus = (String) row.get("status");
-        if (!"PENDING".equals(currentStatus)) {
+        java.sql.Timestamp nextAttemptTs = (java.sql.Timestamp) row.get("next_attempt_at");
+        boolean retryReady = ("NO_ANSWER".equals(currentStatus) || "FAILED".equals(currentStatus))
+                && (nextAttemptTs == null || !nextAttemptTs.toInstant().isAfter(Instant.now()));
+
+        if (!"PENDING".equals(currentStatus) && !retryReady) {
             throw new InvalidOperationException(
-                    "Rekord " + request.recordId() + " nie jest w statusie PENDING (status=" + currentStatus + ")");
+                    "Rekord " + request.recordId() + " nie jest dostępny do wydzwonienia (status=" + currentStatus + ")");
         }
 
         String phone = (String) row.get("phone");

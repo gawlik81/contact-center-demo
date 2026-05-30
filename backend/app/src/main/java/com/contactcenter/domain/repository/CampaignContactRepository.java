@@ -251,7 +251,7 @@ public class CampaignContactRepository extends TenantAwareRepository {
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 """
-                SELECT record_id::text, phone, status
+                SELECT record_id::text, phone, status, next_attempt_at
                 FROM campaign_contact
                 WHERE record_id = ?::uuid
                   AND campaign_id = ?::uuid
@@ -282,6 +282,7 @@ public class CampaignContactRepository extends TenantAwareRepository {
                 UPDATE campaign_contact
                 SET status = 'DIALING',
                     last_attempt_at = NOW(),
+                    next_attempt_at = NULL,
                     attempt_count = attempt_count + 1,
                     updated_at = NOW()
                 WHERE record_id = ?::uuid

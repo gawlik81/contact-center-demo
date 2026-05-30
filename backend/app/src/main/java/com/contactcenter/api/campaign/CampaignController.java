@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -86,6 +87,38 @@ public class CampaignController {
 
         log.debug("[CampaignController] POST /api/campaigns → 201, campaignId={}", response.campaignId());
         return ResponseEntity.created(location).body(response);
+    }
+
+    // =========================================================================
+    // Sprawdzanie dostępności nazwy
+    // =========================================================================
+
+    @GetMapping("/check-name")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @Operation(
+        summary = "Sprawdź dostępność nazwy kampanii",
+        description = "Weryfikuje czy podana nazwa jest wolna w ramach tenanta (porównanie case-insensitive). " +
+                      "Parametr excludeId wyklucza konkretną kampanię z porównania – używany przy edycji, " +
+                      "żeby edytowana kampania nie kolidowała sama ze sobą.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Wynik sprawdzenia dostępności"),
+            @ApiResponse(responseCode = "400", description = "Brak parametru name"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień")
+        }
+    )
+    public ResponseEntity<Map<String, Boolean>> checkNameAvailability(
+            @Parameter(description = "Nazwa kampanii do sprawdzenia", required = true)
+            @RequestParam String name,
+
+            @Parameter(description = "UUID kampanii wykluczanej z porównania (opcjonalne, przy edycji)")
+            @RequestParam(required = false) UUID excludeId
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        boolean taken = campaignService.isNameTaken(name.trim(), tenantId, excludeId);
+        log.debug("[CampaignController] GET /api/campaigns/check-name?name='{}', excludeId={} → available={}",
+                name, excludeId, !taken);
+        return ResponseEntity.ok(Map.of("available", !taken));
     }
 
     // =========================================================================

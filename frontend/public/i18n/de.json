@@ -1216,6 +1216,7 @@
       "errors": {
         "nameRequired": "Name ist erforderlich.",
         "nameMaxLength": "Name darf 255 Zeichen nicht überschreiten.",
+        "nameTaken": "Eine Kampagne mit diesem Namen existiert bereits.",
         "fieldRequired": "Feld ist erforderlich.",
         "maxAttemptsMin": "Mindestanzahl der Versuche ist 1.",
         "maxAttemptsMax": "Maximale Anzahl der Versuche ist 10.",
@@ -1230,7 +1231,8 @@
         "updateFailed": "Kampagne konnte nicht aktualisiert werden. Bitte erneut versuchen.",
         "limitExceeded": "Kampagnenlimit für diesen Mandanten überschritten.",
         "createFailed": "Kampagne konnte nicht erstellt werden. Bitte erneut versuchen."
-      }
+      },
+      "checkingName": "Namensverfügbarkeit wird geprüft..."
     },
     "campaignImport": {
       "title": "Kontakte importieren",

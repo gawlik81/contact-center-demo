@@ -1216,6 +1216,7 @@
       "errors": {
         "nameRequired": "Nazwa jest wymagana.",
         "nameMaxLength": "Nazwa nie może przekraczać 255 znaków.",
+        "nameTaken": "Kampania o tej nazwie już istnieje.",
         "fieldRequired": "Pole jest wymagane.",
         "maxAttemptsMin": "Minimalna liczba prób to 1.",
         "maxAttemptsMax": "Maksymalna liczba prób to 10.",
@@ -1230,7 +1231,8 @@
         "updateFailed": "Nie udało się zaktualizować kampanii. Spróbuj ponownie.",
         "limitExceeded": "Przekroczono limit kampanii dla tego tenanta.",
         "createFailed": "Nie udało się utworzyć kampanii. Spróbuj ponownie."
-      }
+      },
+      "checkingName": "Sprawdzam dostępność nazwy..."
     },
     "campaignImport": {
       "title": "Importuj kontakty",

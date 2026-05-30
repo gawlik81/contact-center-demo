@@ -107,4 +107,12 @@ export class CampaignService {
   ): Observable<CampaignAssignment> {
     return this.http.put<CampaignAssignment>(`${this.API}/${campaignId}/assignment`, req);
   }
+
+  checkNameAvailability(name: string, excludeId?: string): Observable<{ available: boolean }> {
+    let params = new HttpParams().set('name', name);
+    if (excludeId) {
+      params = params.set('excludeId', excludeId);
+    }
+    return this.http.get<{ available: boolean }>(`${this.API}/check-name`, { params });
+  }
 }

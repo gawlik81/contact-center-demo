@@ -38,6 +38,9 @@
           [attr.aria-describedby]="nameError ? 'campaignName-error' : null"
           [attr.aria-invalid]="nameError ? 'true' : null"
         />
+        @if (nameChecking) {
+          <span class="field-hint">{{ 'supervisor.campaignForm.checkingName' | transloco }}</span>
+        }
         @if (nameError) {
           <span id="campaignName-error" class="form-error" role="alert">{{ nameError }}</span>
         }

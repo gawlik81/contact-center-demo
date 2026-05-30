@@ -251,11 +251,13 @@ public class CampaignRepository extends TenantAwareRepository {
         List<Campaign> results = em.createNativeQuery(
                         """
                         SELECT c.* FROM campaign c
-                        JOIN queue q ON c.queue_id = q.queue_id
+                        LEFT JOIN queue q ON c.queue_id = q.queue_id
                         WHERE c.tenant_id = CAST(:tenantId AS uuid)
                           AND c.status NOT IN ('COMPLETED', 'CANCELLED')
                           AND (
-                            q.all_agents = TRUE
+                            c.all_agents = TRUE
+                            OR c.queue_id IS NULL
+                            OR q.all_agents = TRUE
                             OR EXISTS (
                               SELECT 1 FROM queue_agent qa
                               WHERE qa.queue_id = c.queue_id

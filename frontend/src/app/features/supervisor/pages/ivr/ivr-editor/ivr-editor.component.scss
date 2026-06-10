@@ -786,6 +786,52 @@
   white-space: nowrap;
 }
 
+// ─── Variable autocomplete dropdown ──────────────────────────────────────────
+
+.var-field-wrap {
+  position: relative;
+}
+
+.var-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.var-dropdown__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-family: monospace;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-1);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: var(--accent-soft);
+  }
+}
+
 // ─── Props actions ────────────────────────────────────────────────────────────
 
 .props-actions {

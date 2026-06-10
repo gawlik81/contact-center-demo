@@ -1639,6 +1639,7 @@
       "nodeSetValue": "Wartość",
       "nodeSetValuePlaceholder": "wartość lub ${inna_zmienna}",
       "nodeSetValueHint": "Możesz użyć ${nazwa_zmiennej} by wstawić wartość z sesji.",
+      "varHint": "Wpisz $ aby wstawić zmienną z przepływu",
       "nodeConditionEquals": "równa się (=)",
       "nodeConditionNotEquals": "różna od (≠)",
       "nodeConditionStartsWith": "zaczyna się od",

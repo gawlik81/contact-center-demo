@@ -1639,6 +1639,7 @@
       "nodeSetValue": "Value",
       "nodeSetValuePlaceholder": "value or ${other_variable}",
       "nodeSetValueHint": "You can use ${variable_name} to insert a session value.",
+      "varHint": "Type $ to insert a variable from the flow",
       "nodeConditionEquals": "equals (=)",
       "nodeConditionNotEquals": "not equal (≠)",
       "nodeConditionStartsWith": "starts with",

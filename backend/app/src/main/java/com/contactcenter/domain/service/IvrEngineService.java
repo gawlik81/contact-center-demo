@@ -381,7 +381,7 @@ public class IvrEngineService {
         if (currentNode == null) {
             return buildFallbackTwiml();
         }
-        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl);
+        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl, session);
     }
 
     /**
@@ -497,7 +497,7 @@ public class IvrEngineService {
         if (currentNode == null) {
             return buildFallbackTwiml();
         }
-        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl);
+        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl, session);
     }
 
     /**
@@ -623,7 +623,7 @@ public class IvrEngineService {
                 updatedIvr != null ? updatedIvr.getName() : null);
         }
 
-        return buildTwimlForNode(nextNode, callId, tenantId, baseUrl);
+        return buildTwimlForNode(nextNode, callId, tenantId, baseUrl, updatedSession);
     }
 
     /**
@@ -684,14 +684,19 @@ public class IvrEngineService {
      * @return TwiML string
      */
     private String buildTwimlForNode(IvrNode node, String callId, UUID tenantId, String baseUrl) {
+        return buildTwimlForNode(node, callId, tenantId, baseUrl, null);
+    }
+
+    private String buildTwimlForNode(IvrNode node, String callId, UUID tenantId, String baseUrl,
+                                     IvrSessionData session) {
         String dtmfActionUrl = baseUrl
             + "/api/telephony/webhook/twilio/dtmf?tenantId=" + tenantId
             + "&callId=" + callId;
 
         String twiml = switch (node.type()) {
-            case MENU -> buildGatherTwiml(node, dtmfActionUrl, false);
-            case COLLECT_DTMF -> buildGatherTwiml(node, dtmfActionUrl, true);
-            case PLAY_AUDIO -> buildPlayAudioTwiml(node);
+            case MENU -> buildGatherTwiml(node, dtmfActionUrl, false, session);
+            case COLLECT_DTMF -> buildGatherTwiml(node, dtmfActionUrl, true, session);
+            case PLAY_AUDIO -> buildPlayAudioTwiml(node, session);
             case HANGUP -> "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Hangup/></Response>";
             case VOICEBOT -> buildVoicebotRecordTwiml(node, callId, tenantId, baseUrl);
             // SET / IF / SWITCH / QUEUE_TRANSFER są węzłami przejściowymi – silnik przetwarza je
@@ -793,7 +798,8 @@ public class IvrEngineService {
      * @param multiDigit    true = zbieranie wielu cyfr (COLLECT_DTMF), false = jeden klawisz (MENU)
      * @return TwiML string
      */
-    private String buildGatherTwiml(IvrNode node, String dtmfActionUrl, boolean multiDigit) {
+    private String buildGatherTwiml(IvrNode node, String dtmfActionUrl, boolean multiDigit,
+                                    IvrSessionData session) {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
         sb.append("<Gather action=\"").append(escapeXml(dtmfActionUrl)).append("\"");
@@ -812,8 +818,9 @@ public class IvrEngineService {
         sb.append(">");
         // Prompt: preferuj tekst prompt, fallback na pusty (TTS z audioId obsługiwany osobno)
         if (node.prompt() != null && !node.prompt().isBlank()) {
+            String resolvedPrompt = session != null ? resolveVariables(node.prompt(), session) : node.prompt();
             sb.append("<Say language=\"pl-PL\">")
-                .append(escapeXml(node.prompt()))
+                .append(escapeXml(resolvedPrompt))
                 .append("</Say>");
         }
         sb.append("</Gather>");
@@ -827,11 +834,12 @@ public class IvrEngineService {
     /**
      * Buduje TwiML z {@code <Say>} lub {@code <Pause>} dla węzła PLAY_AUDIO (terminal – bez opcji next).
      */
-    private String buildPlayAudioTwiml(IvrNode node) {
+    private String buildPlayAudioTwiml(IvrNode node, IvrSessionData session) {
         StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
         if (node.prompt() != null && !node.prompt().isBlank()) {
+            String resolvedPrompt = session != null ? resolveVariables(node.prompt(), session) : node.prompt();
             sb.append("<Say language=\"pl-PL\">")
-                .append(escapeXml(node.prompt()))
+                .append(escapeXml(resolvedPrompt))
                 .append("</Say>");
         } else {
             sb.append("<Pause length=\"1\"/>");
@@ -1098,7 +1106,7 @@ public class IvrEngineService {
                 if (session.isTwimlMode() && nextOpt != null
                         && nextOpt.nextNodeId() != null && !nextOpt.nextNodeId().isBlank()) {
                     if (node.prompt() != null && !node.prompt().isBlank()) {
-                        pendingPlayAudioPrompt.put(callId, node.prompt());
+                        pendingPlayAudioPrompt.put(callId, resolveVariables(node.prompt(), session));
                     }
                     IvrTree ivr2 = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
                     if (ivr2 == null) { fallbackToDefaultQueue(callId, session.getTenantId()); return; }
@@ -1324,7 +1332,7 @@ public class IvrEngineService {
             if (contactId != null) {
                 pendingConferenceContactId.put(callId, contactId);
                 pendingConferenceQueueId.put(callId, queueId);
-                pendingQueueTransferPrompt.put(callId, node.prompt() != null ? node.prompt() : "");
+                pendingQueueTransferPrompt.put(callId, resolveVariables(node.prompt() != null ? node.prompt() : "", session));
             }
 
             // Usuń sesję IVR – IVR przepływ zakończony
@@ -1349,7 +1357,7 @@ public class IvrEngineService {
         }
 
         if (session.isTwimlMode()) {
-            pendingHangupPrompt.put(callId, node.prompt() != null ? node.prompt() : "");
+            pendingHangupPrompt.put(callId, resolveVariables(node.prompt() != null ? node.prompt() : "", session));
         } else {
             try {
                 telephonyAdapter.hangupCall(callId);

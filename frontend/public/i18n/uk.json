@@ -1635,6 +1635,7 @@
       "nodeSetValue": "Значення",
       "nodeSetValuePlaceholder": "значення або ${інша_змінна}",
       "nodeSetValueHint": "Можна використовувати ${назва_змінної} для вставки значення з сеансу.",
+      "varHint": "Введіть $, щоб вставити змінну з потоку",
       "nodeConditionEquals": "дорівнює (=)",
       "nodeConditionNotEquals": "не дорівнює (≠)",
       "nodeConditionStartsWith": "починається з",

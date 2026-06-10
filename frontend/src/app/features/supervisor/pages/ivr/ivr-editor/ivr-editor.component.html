@@ -382,14 +382,31 @@
                 <label class="form-label" [for]="'prompt-' + node.node_id">{{
                   'supervisor.ivrEditor.promptLabel' | transloco
                 }}</label>
-                <textarea
-                  [id]="'prompt-' + node.node_id"
-                  class="form-control form-control--textarea"
-                  [value]="node.prompt ?? ''"
-                  (input)="updateSelectedNodeProp('prompt', $any($event.target).value)"
-                  rows="3"
-                  [placeholder]="'supervisor.ivr.nodeMessagePlaceholder' | transloco"
-                ></textarea>
+                <div class="var-field-wrap">
+                  <textarea
+                    [id]="'prompt-' + node.node_id"
+                    class="form-control form-control--textarea"
+                    [value]="node.prompt ?? ''"
+                    (input)="onVarFieldInput($event, 'prompt')"
+                    (blur)="closeVarDropdown()"
+                    rows="3"
+                    [placeholder]="'supervisor.ivr.nodeMessagePlaceholder' | transloco"
+                  ></textarea>
+                  @if (showVarDropdown() && varDropdownField() === 'prompt' && availableVariables().length) {
+                    <div class="var-dropdown">
+                      @for (v of availableVariables(); track v) {
+                        <button
+                          class="var-dropdown__item"
+                          type="button"
+                          (mousedown)="insertVariable(v, 'prompt')"
+                        >\${{ '{' + v + '}' }}</button>
+                      }
+                    </div>
+                  }
+                </div>
+                @if (availableVariables().length) {
+                  <p class="form-hint">{{ 'supervisor.ivr.varHint' | transloco }}</p>
+                }
               </div>
             }
 
@@ -711,16 +728,33 @@
                 <label class="form-label" [for]="'setval-' + node.node_id">{{
                   'supervisor.ivr.nodeSetValue' | transloco
                 }}</label>
-                <input
-                  [id]="'setval-' + node.node_id"
-                  class="form-control"
-                  type="text"
-                  [value]="node.value ?? ''"
-                  (input)="updateSelectedNodeProp('value', $any($event.target).value)"
-                  [placeholder]="'supervisor.ivr.nodeSetValuePlaceholder' | transloco"
-                  maxlength="200"
-                />
+                <div class="var-field-wrap">
+                  <input
+                    [id]="'setval-' + node.node_id"
+                    class="form-control"
+                    type="text"
+                    [value]="node.value ?? ''"
+                    (input)="onVarFieldInput($event, 'value')"
+                    (blur)="closeVarDropdown()"
+                    [placeholder]="'supervisor.ivr.nodeSetValuePlaceholder' | transloco"
+                    maxlength="200"
+                  />
+                  @if (showVarDropdown() && varDropdownField() === 'value' && availableVariables().length) {
+                    <div class="var-dropdown">
+                      @for (v of availableVariables(); track v) {
+                        <button
+                          class="var-dropdown__item"
+                          type="button"
+                          (mousedown)="insertVariable(v, 'value')"
+                        >\${{ '{' + v + '}' }}</button>
+                      }
+                    </div>
+                  }
+                </div>
                 <p class="form-hint">{{ 'supervisor.ivr.nodeSetValueHint' | transloco }}</p>
+                @if (availableVariables().length) {
+                  <p class="form-hint">{{ 'supervisor.ivr.varHint' | transloco }}</p>
+                }
               </div>
               <div class="form-group">
                 <p class="form-label">{{ 'supervisor.ivrEditor.nextNode' | transloco }}</p>
@@ -779,15 +813,32 @@
                   <label class="form-label" [for]="'ifcmp-' + node.node_id">{{
                     'supervisor.ivr.nodeCompareValue' | transloco
                   }}</label>
-                  <input
-                    [id]="'ifcmp-' + node.node_id"
-                    class="form-control"
-                    type="text"
-                    [value]="node.compare_value ?? ''"
-                    (input)="updateSelectedNodeProp('compare_value', $any($event.target).value)"
-                    [placeholder]="'supervisor.ivr.nodeCompareValuePlaceholder' | transloco"
-                    maxlength="200"
-                  />
+                  <div class="var-field-wrap">
+                    <input
+                      [id]="'ifcmp-' + node.node_id"
+                      class="form-control"
+                      type="text"
+                      [value]="node.compare_value ?? ''"
+                      (input)="onVarFieldInput($event, 'compare_value')"
+                      (blur)="closeVarDropdown()"
+                      [placeholder]="'supervisor.ivr.nodeCompareValuePlaceholder' | transloco"
+                      maxlength="200"
+                    />
+                    @if (showVarDropdown() && varDropdownField() === 'compare_value' && availableVariables().length) {
+                      <div class="var-dropdown">
+                        @for (v of availableVariables(); track v) {
+                          <button
+                            class="var-dropdown__item"
+                            type="button"
+                            (mousedown)="insertVariable(v, 'compare_value')"
+                          >\${{ '{' + v + '}' }}</button>
+                        }
+                      </div>
+                    }
+                  </div>
+                  @if (availableVariables().length) {
+                    <p class="form-hint">{{ 'supervisor.ivr.varHint' | transloco }}</p>
+                  }
                 </div>
               }
               <div class="form-group">

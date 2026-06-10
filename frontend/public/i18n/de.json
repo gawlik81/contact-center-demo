@@ -1628,6 +1628,7 @@
       "nodeSetValue": "Wert",
       "nodeSetValuePlaceholder": "Wert oder ${andere_variable}",
       "nodeSetValueHint": "Sie können ${variablenname} verwenden, um einen Sitzungswert einzufügen.",
+      "varHint": "Tippen Sie $, um eine Variable aus dem Fluss einzufügen",
       "nodeConditionEquals": "gleich (=)",
       "nodeConditionNotEquals": "ungleich (≠)",
       "nodeConditionStartsWith": "beginnt mit",

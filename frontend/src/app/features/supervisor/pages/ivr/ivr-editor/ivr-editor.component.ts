@@ -125,6 +125,18 @@ export class IvrEditorComponent implements OnInit {
     return JSON.stringify(api, null, 2);
   });
 
+  readonly availableVariables = computed<string[]>(() =>
+    this.definition()
+      .nodes.filter(
+        (n) => (n.type === 'COLLECT_DTMF' || n.type === 'SET') && n.variable_name,
+      )
+      .map((n) => n.variable_name!)
+      .filter((v, i, arr) => arr.indexOf(v) === i),
+  );
+
+  readonly showVarDropdown = signal(false);
+  readonly varDropdownField = signal<'prompt' | 'value' | 'compare_value' | null>(null);
+
   readonly nodeLabels = IVR_NODE_LABELS;
 
   getNodeLabel(type: IvrNodeType): string {
@@ -726,6 +738,44 @@ export class IvrEditorComponent implements OnInit {
   isConnectingFromOption(nodeId: string, optionKey: string): boolean {
     const cf = this.connectingFrom();
     return cf?.nodeId === nodeId && cf?.optionKey === optionKey;
+  }
+
+  // ─── Variable autocomplete ──────────────────────────────────────────────────
+
+  onVarFieldInput(event: Event, field: 'prompt' | 'value' | 'compare_value'): void {
+    const value = (event.target as HTMLInputElement | HTMLTextAreaElement).value;
+    const prop = field as keyof IvrNodeUI;
+    this.updateSelectedNodeProp(prop, value);
+    const lastChar = value.slice(-1);
+    const lastTwo = value.slice(-2);
+    if (lastChar === '$' || lastTwo === '${') {
+      this.varDropdownField.set(field);
+      this.showVarDropdown.set(true);
+    } else {
+      this.showVarDropdown.set(false);
+    }
+  }
+
+  insertVariable(varName: string, field: 'prompt' | 'value' | 'compare_value'): void {
+    const node = this.selectedNode();
+    if (!node) return;
+    const current = String((node[field as keyof IvrNodeUI] as string | undefined) ?? '');
+    let base = current;
+    if (base.endsWith('${')) {
+      base = base.slice(0, -2);
+    } else if (base.endsWith('$')) {
+      base = base.slice(0, -1);
+    }
+    const inserted = base + '${' + varName + '}';
+    this.updateSelectedNodeProp(field as keyof IvrNodeUI, inserted);
+    this.showVarDropdown.set(false);
+    this.varDropdownField.set(null);
+  }
+
+  closeVarDropdown(): void {
+    setTimeout(() => {
+      this.showVarDropdown.set(false);
+    }, 150);
   }
 
   // ─── Utils ───────────────────────────────────────────────────────────────────

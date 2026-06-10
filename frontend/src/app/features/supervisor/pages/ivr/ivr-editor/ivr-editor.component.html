@@ -433,6 +433,22 @@
                 }
                 <p class="form-hint">{{ 'supervisor.ivrEditor.uploadHint' | transloco }}</p>
               </div>
+              <div class="form-group">
+                <p class="form-label">{{ 'supervisor.ivrEditor.nextNode' | transloco }}</p>
+                <select
+                  class="form-control"
+                  [ngModel]="node.options?.[0]?.next_node_id ?? ''"
+                  (ngModelChange)="updateOption(0, 'next_node_id', $event)"
+                  [attr.aria-label]="'supervisor.ivrEditor.nextNode' | transloco"
+                >
+                  <option value="">{{ 'supervisor.ivrEditor.noTarget' | transloco }}</option>
+                  @for (n of otherNodes(node.node_id); track n.node_id) {
+                    <option [value]="n.node_id">
+                      {{ getNodeLabel(n.type) }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
+                    </option>
+                  }
+                </select>
+              </div>
             }
 
             <!-- QUEUE_TRANSFER: queue_id -->

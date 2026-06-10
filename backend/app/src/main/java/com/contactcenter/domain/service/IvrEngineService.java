@@ -689,7 +689,7 @@ public class IvrEngineService {
         return switch (node.type()) {
             case MENU -> buildGatherTwiml(node, dtmfActionUrl, false);
             case COLLECT_DTMF -> buildGatherTwiml(node, dtmfActionUrl, true);
-            case PLAY_AUDIO -> buildPlayAudioTwiml(node);
+            case PLAY_AUDIO -> buildPlayAudioTwiml(node, dtmfActionUrl);
             case HANGUP -> "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Hangup/></Response>";
             case VOICEBOT -> buildVoicebotRecordTwiml(node, callId, tenantId, baseUrl);
             // SET / IF / SWITCH / QUEUE_TRANSFER są węzłami przejściowymi – silnik przetwarza je
@@ -819,17 +819,19 @@ public class IvrEngineService {
     /**
      * Buduje TwiML z {@code <Say>} lub {@code <Play>} dla węzła PLAY_AUDIO.
      */
-    private String buildPlayAudioTwiml(IvrNode node) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
+    private String buildPlayAudioTwiml(IvrNode node, String dtmfActionUrl) {
+        StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
         if (node.prompt() != null && !node.prompt().isBlank()) {
             sb.append("<Say language=\"pl-PL\">")
                 .append(escapeXml(node.prompt()))
                 .append("</Say>");
-        }
-        else {
-            // Brak promptu – krótka cisza, żeby Twilio nie rozłączyło od razu
+        } else {
             sb.append("<Pause length=\"1\"/>");
+        }
+        if (node.findOption("next") != null) {
+            sb.append("<Redirect method=\"POST\">")
+                .append(escapeXml(dtmfActionUrl + "&Digits=next"))
+                .append("</Redirect>");
         }
         sb.append("</Response>");
         return sb.toString();

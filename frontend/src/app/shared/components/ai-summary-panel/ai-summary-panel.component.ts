@@ -24,6 +24,7 @@ import {
 export class AiSummaryPanelComponent {
   readonly contactId = input.required<string>();
   readonly showCopyButton = input<boolean>(false);
+  readonly hasRecording = input<boolean>(true);
   readonly copyToNotes = output<string>();
 
   private readonly aiSummaryService = inject(AiSummaryService);

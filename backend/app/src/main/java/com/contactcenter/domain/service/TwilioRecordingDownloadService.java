@@ -300,6 +300,8 @@ public class TwilioRecordingDownloadService {
                 // Nie przerywaj – nagranie jest już w S3
             }
 
+            recordingService.notifyRecordingReady(contactId, tenantId);
+
         } finally {
             // Zawsze czyść plik tymczasowy
             if (tempFile != null) {

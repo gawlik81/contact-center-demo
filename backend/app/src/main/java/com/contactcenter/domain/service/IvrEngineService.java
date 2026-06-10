@@ -87,6 +87,8 @@ public class IvrEngineService {
 
     private final Map<String, String> pendingHangupPrompt = new ConcurrentHashMap<>();
 
+    private final Map<String, String> pendingPlayAudioPrompt = new ConcurrentHashMap<>();
+
     @Value("${app.base-url:http://localhost:8080}")
     private String appBaseUrl;
 
@@ -686,10 +688,10 @@ public class IvrEngineService {
             + "/api/telephony/webhook/twilio/dtmf?tenantId=" + tenantId
             + "&callId=" + callId;
 
-        return switch (node.type()) {
+        String twiml = switch (node.type()) {
             case MENU -> buildGatherTwiml(node, dtmfActionUrl, false);
             case COLLECT_DTMF -> buildGatherTwiml(node, dtmfActionUrl, true);
-            case PLAY_AUDIO -> buildPlayAudioTwiml(node, dtmfActionUrl);
+            case PLAY_AUDIO -> buildPlayAudioTwiml(node);
             case HANGUP -> "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Hangup/></Response>";
             case VOICEBOT -> buildVoicebotRecordTwiml(node, callId, tenantId, baseUrl);
             // SET / IF / SWITCH / QUEUE_TRANSFER są węzłami przejściowymi – silnik przetwarza je
@@ -697,6 +699,12 @@ public class IvrEngineService {
             // wywołaniu, currentNode wskazuje już na następny węzeł. Ten case jest safety net.
             default -> buildFallbackTwiml();
         };
+        String audioPrefix = pendingPlayAudioPrompt.remove(callId);
+        if (audioPrefix != null && !audioPrefix.isBlank()) {
+            twiml = twiml.replace("<Response>",
+                "<Response><Say language=\"pl-PL\">" + escapeXml(audioPrefix) + "</Say>");
+        }
+        return twiml;
     }
 
     /**
@@ -817,9 +825,9 @@ public class IvrEngineService {
     }
 
     /**
-     * Buduje TwiML z {@code <Say>} lub {@code <Play>} dla węzła PLAY_AUDIO.
+     * Buduje TwiML z {@code <Say>} lub {@code <Pause>} dla węzła PLAY_AUDIO (terminal – bez opcji next).
      */
-    private String buildPlayAudioTwiml(IvrNode node, String dtmfActionUrl) {
+    private String buildPlayAudioTwiml(IvrNode node) {
         StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
         if (node.prompt() != null && !node.prompt().isBlank()) {
             sb.append("<Say language=\"pl-PL\">")
@@ -827,11 +835,6 @@ public class IvrEngineService {
                 .append("</Say>");
         } else {
             sb.append("<Pause length=\"1\"/>");
-        }
-        if (node.findOption("next") != null) {
-            sb.append("<Redirect method=\"POST\">")
-                .append(escapeXml(dtmfActionUrl + "&Digits=next"))
-                .append("</Redirect>");
         }
         sb.append("</Response>");
         return sb.toString();
@@ -989,7 +992,13 @@ public class IvrEngineService {
             return;
         }
 
-        // --- Akumulacja cyfry ---
+        // W trybie TwiML Twilio dostarcza kompletny zebrany ciąg w jednym żądaniu
+        if (session.isTwimlMode()) {
+            finishDtmfCollection(callId, dtmfKey, collectNode, session, ivr);
+            return;
+        }
+
+        // --- Akumulacja cyfry (tryb non-TwiML: cyfry napływają jedna po jednej) ---
         session.appendDtmfDigit(dtmfKey);
         String buffer = session.getDtmfBuffer();
         log.debug("[IVR] COLLECT_DTMF: bufor='{}' ({}/{}), callId={}",
@@ -1084,7 +1093,20 @@ public class IvrEngineService {
             callId, node.nodeId(), node.type(), twimlMode);
 
         switch (node.type()) {
-            case PLAY_AUDIO -> executePlayAudio(callId, node, session);
+            case PLAY_AUDIO -> {
+                IvrOption nextOpt = node.findOption("next");
+                if (session.isTwimlMode() && nextOpt != null
+                        && nextOpt.nextNodeId() != null && !nextOpt.nextNodeId().isBlank()) {
+                    if (node.prompt() != null && !node.prompt().isBlank()) {
+                        pendingPlayAudioPrompt.put(callId, node.prompt());
+                    }
+                    IvrTree ivr2 = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
+                    if (ivr2 == null) { fallbackToDefaultQueue(callId, session.getTenantId()); return; }
+                    transitionToNextNode(callId, nextOpt.nextNodeId(), session, ivr2);
+                } else {
+                    executePlayAudio(callId, node, session);
+                }
+            }
             case MENU -> executeMenu(callId, node, session, twimlMode);
             case COLLECT_DTMF -> executeCollectDtmf(callId, node, session, twimlMode);
             case QUEUE_TRANSFER -> executeQueueTransfer(callId, node, session);

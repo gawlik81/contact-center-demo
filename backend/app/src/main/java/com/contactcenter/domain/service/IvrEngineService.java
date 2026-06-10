@@ -83,6 +83,10 @@ public class IvrEngineService {
      */
     private final ConcurrentHashMap<String, UUID> pendingConferenceQueueId = new ConcurrentHashMap<>();
 
+    private final Map<String, String> pendingQueueTransferPrompt = new ConcurrentHashMap<>();
+
+    private final Map<String, String> pendingHangupPrompt = new ConcurrentHashMap<>();
+
     @Value("${app.base-url:http://localhost:8080}")
     private String appBaseUrl;
 
@@ -474,9 +478,13 @@ public class IvrEngineService {
             if (conferencContactId != null) {
                 log.info("[IVR] QUEUE_TRANSFER zakończony – kieruję klienta do konferencji: callId={}, contactId={}, queueId={}",
                     callId, conferencContactId, conferenceQueueId);
-                return buildWaitInConferenceTwiml(conferencContactId, conferenceQueueId, tenantId, baseUrl);
+                String queueTransferPrompt = pendingQueueTransferPrompt.remove(callId);
+                return buildWaitInConferenceTwiml(conferencContactId, conferenceQueueId, tenantId, baseUrl, queueTransferPrompt);
             }
-            // Sesja usunięta przez HANGUP lub brak konferencji
+            String hangupPrompt = pendingHangupPrompt.remove(callId);
+            if (hangupPrompt != null) {
+                return buildHangupTwiml(hangupPrompt);
+            }
             return buildCompletedTwiml();
         }
         IvrTree ivr = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
@@ -851,6 +859,15 @@ public class IvrEngineService {
             + "</Response>";
     }
 
+    private String buildHangupTwiml(String prompt) {
+        StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
+        if (!prompt.isBlank()) {
+            sb.append("<Say language=\"pl-PL\">").append(escapeXml(prompt)).append("</Say>");
+        }
+        sb.append("<Hangup/></Response>");
+        return sb.toString();
+    }
+
     /**
      * Buduje TwiML kierujący klienta do nazwanej konferencji Twilio w trybie oczekiwania.
      *
@@ -871,6 +888,10 @@ public class IvrEngineService {
      * @return TwiML z {@code <Conference>} w trybie oczekiwania
      */
     private String buildWaitInConferenceTwiml(UUID contactId, UUID queueId, UUID tenantId, String baseUrl) {
+        return buildWaitInConferenceTwiml(contactId, queueId, tenantId, baseUrl, null);
+    }
+
+    private String buildWaitInConferenceTwiml(UUID contactId, UUID queueId, UUID tenantId, String baseUrl, String customPrompt) {
         String conferenceName = "contact-" + contactId.toString();
         String recordingCallbackUrl = baseUrl
             + "/api/telephony/webhook/twilio/recording?tenantId=" + tenantId.toString();
@@ -878,9 +899,12 @@ public class IvrEngineService {
             + "/api/telephony/webhook/twilio/conference?tenantId=" + tenantId.toString();
         String waitUrl = baseUrl + "/api/telephony/hold-music"
             + (queueId != null ? "?queueId=" + queueId.toString() : "");
+        String sayText = (customPrompt != null && !customPrompt.isBlank())
+            ? customPrompt
+            : "Łączymy z konsultantem, proszę czekać.";
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             + "<Response>"
-            + "<Say language=\"pl-PL\">Łączymy z konsultantem, proszę czekać.</Say>"
+            + "<Say language=\"pl-PL\">" + escapeXml(sayText) + "</Say>"
             + "<Dial>"
             + "<Conference"
             + " startConferenceOnEnter=\"false\""
@@ -1062,7 +1086,7 @@ public class IvrEngineService {
             case MENU -> executeMenu(callId, node, session, twimlMode);
             case COLLECT_DTMF -> executeCollectDtmf(callId, node, session, twimlMode);
             case QUEUE_TRANSFER -> executeQueueTransfer(callId, node, session);
-            case HANGUP -> executeHangup(callId, session);
+            case HANGUP -> executeHangup(callId, node, session);
             case SET -> executeSet(callId, node, session);
             case IF -> executeIf(callId, node, session);
             case SWITCH -> executeSwitch(callId, node, session);
@@ -1272,10 +1296,11 @@ public class IvrEngineService {
             log.info("[IVR] Przekazano do kolejki: callId={}, queueId={}, contactId={}",
                     callId, queueId, contactId);
 
-            // Zapisz contactId i queueId dla handleDtmfAndBuildTwiml – klient będzie skierowany do konferencji
+            // Zapisz contactId, queueId i prompt dla handleDtmfAndBuildTwiml – klient będzie skierowany do konferencji
             if (contactId != null) {
                 pendingConferenceContactId.put(callId, contactId);
                 pendingConferenceQueueId.put(callId, queueId);
+                pendingQueueTransferPrompt.put(callId, node.prompt() != null ? node.prompt() : "");
             }
 
             // Usuń sesję IVR – IVR przepływ zakończony
@@ -1290,16 +1315,25 @@ public class IvrEngineService {
         }
     }
 
-    private void executeHangup(String callId, IvrSessionData session) {
+    private void executeHangup(String callId, IvrNode node, IvrSessionData session) {
         log.info("[IVR] Rozłączanie połączenia: callId={}", callId);
 
-        try {
-            telephonyAdapter.hangupCall(callId);
-        } catch (Exception e) {
-            log.warn("[IVR] Błąd podczas hangup (ignorowany): callId={}, error={}", callId, e.getMessage());
+        if (session.getContactId() != null) {
+            contactRepository.updateContactStatusIfNotTerminal(
+                session.getContactId(), session.getTenantId(), "COMPLETED", Instant.now());
+            contactEventService.closeIvr(session.getContactId(), session.getTenantId());
         }
 
-        // Usuń sesję IVR
+        if (session.isTwimlMode()) {
+            pendingHangupPrompt.put(callId, node.prompt() != null ? node.prompt() : "");
+        } else {
+            try {
+                telephonyAdapter.hangupCall(callId);
+            } catch (Exception e) {
+                log.warn("[IVR] Błąd podczas hangup (ignorowany): callId={}, error={}", callId, e.getMessage());
+            }
+        }
+
         deleteSession(callId);
         log.info("[IVR] Sesja IVR zakończona (HANGUP): callId={}", callId);
     }

@@ -1922,10 +1922,15 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         // Jeśli klient rozłączył się zanim agent odebrał (answeredAt == null),
         // status kontaktu to ABANDONED (inbound) lub NOT_REACHED (outbound), a nie COMPLETED.
         String contactDbStatus = resolveContactEndStatus(updated);
-        log.info("[TwilioAdapter] Aktualizacja statusu kontaktu na {}: contactId={}, answeredAt={}",
-            contactDbStatus, updated.getContactId(), updated.getAnsweredAt());
-        contactRepository.updateContactStatusOnTelephonyEvent(
+        boolean updated2 = contactRepository.updateContactStatusIfNotTerminal(
             updated.getContactId(), updated.getTenantId(), contactDbStatus, webhookEndedAt);
+        if (updated2) {
+          log.info("[TwilioAdapter] Aktualizacja statusu kontaktu na {}: contactId={}, answeredAt={}",
+              contactDbStatus, updated.getContactId(), updated.getAnsweredAt());
+        } else {
+          log.debug("[TwilioAdapter] Status kontaktu {} pominięty (już terminalny): contactId={}",
+              contactDbStatus, updated.getContactId());
+        }
         contactEventService.closeAgent(updated.getContactId(), updated.getTenantId());
         contactEventService.closeHold(updated.getContactId(), updated.getTenantId());
         if ("ABANDONED".equals(contactDbStatus)) {

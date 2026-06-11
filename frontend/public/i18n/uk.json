@@ -863,6 +863,7 @@
       "fullscreenLabel": "Повноекранний режим",
       "loadingMetrics": "Завантаження метрик",
       "kpiActiveCalls": "Активні дзвінки",
+      "kpiCallsInIvr": "В IVR",
       "kpiAvailable": "Доступні агенти",
       "kpiBreak": "На перерві",
       "kpiAfterContact": "Після контакту",

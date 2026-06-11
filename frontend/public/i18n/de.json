@@ -863,6 +863,7 @@
       "fullscreenLabel": "Vollbildmodus",
       "loadingMetrics": "Metriken werden geladen",
       "kpiActiveCalls": "Aktive Anrufe",
+      "kpiCallsInIvr": "Im IVR",
       "kpiAvailable": "Verfügbare Agenten",
       "kpiBreak": "In der Pause",
       "kpiAfterContact": "Nachbearbeitung",

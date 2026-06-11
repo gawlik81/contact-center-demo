@@ -863,6 +863,7 @@
       "fullscreenLabel": "Tryb pełnoekranowy",
       "loadingMetrics": "Ładowanie metryk",
       "kpiActiveCalls": "Aktywne połączenia",
+      "kpiCallsInIvr": "W IVR",
       "kpiAvailable": "Dostępni agenci",
       "kpiBreak": "Na przerwie",
       "kpiAfterContact": "Po kontakcie",

@@ -100,6 +100,17 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private static final String SESSION_KEY_PREFIX = "call-session:";
 
   /**
+   * Prefix klucza Redis dla sesji IVR: {@code ivr:session:{callSid}} (zob. {@code IvrEngineService}).
+   *
+   * <p>Gdy klient rozłączy się będąc jeszcze w drzewie IVR (przed dotarciem do węzła HANGUP
+   * lub QUEUE_TRANSFER, które same usuwają sesję IVR), webhook StatusCallback z końcowym
+   * statusem (completed/canceled/...) jest jedynym sygnałem zakończenia połączenia –
+   * dlatego sprzątamy też ewentualną osieroconą sesję IVR, aby liczniki RT
+   * (np. "połączenia w IVR" na dashboardzie supervisora) nie pozostawały zawyżone do TTL.
+   */
+  private static final String IVR_SESSION_KEY_PREFIX = "ivr:session:";
+
+  /**
    * Indeks odwrotny: {@code contact-session-index:{contactId}} → Twilio CallSid (String).
    *
    * <p>Pozwala znaleźć sesję Redis po UUID kontaktu (DB) gdy frontend przekazuje {@code contactId}
@@ -1937,6 +1948,12 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           contactEventService.closeQueue(updated.getContactId(), updated.getTenantId());
         }
       }
+    }
+
+    if (mappedStatus == CallSession.CallStatus.ENDED) {
+      // Klient mógł rozłączyć się będąc jeszcze w IVR (przed HANGUP/QUEUE_TRANSFER) –
+      // usuń osieroconą sesję IVR, jeśli istnieje.
+      stringRedisTemplate.delete(IVR_SESSION_KEY_PREFIX + callSid);
     }
 
     if (eventType != null) {

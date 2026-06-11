@@ -14,6 +14,7 @@ import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.service.SupervisorMetricsService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -28,12 +29,16 @@ import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisKeyCommands;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -73,8 +78,11 @@ class SupervisorMetricsServiceTest {
     @Mock private TenantRepository tenantRepository;
     @Mock private AppUserRepository appUserRepository;
     @Mock private RedisTemplate<String, Object> redisTemplate;
+    @Mock private StringRedisTemplate stringRedisTemplate;
     @Mock private WebSocketEventBroadcaster webSocketEventBroadcaster;
     @Mock private ValueOperations<String, Object> valueOps;
+    @Mock private org.springframework.data.redis.core.ValueOperations<String, String> stringValueOps;
+    @org.mockito.Spy private ObjectMapper objectMapper = new ObjectMapper();
 
     @InjectMocks
     private SupervisorMetricsService service;
@@ -130,6 +138,9 @@ class SupervisorMetricsServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         // SCAN domyślnie zwraca puste wyniki (żadnych kluczy)
         when(redisTemplate.execute(any(RedisCallback.class), anyBoolean())).thenReturn(null);
+        // SCAN sesji IVR domyślnie zwraca puste wyniki (żadnych kluczy)
+        when(stringRedisTemplate.execute(any(RedisCallback.class), anyBoolean())).thenReturn(null);
+        when(stringRedisTemplate.opsForValue()).thenReturn(stringValueOps);
     }
 
     // =========================================================================
@@ -491,6 +502,115 @@ class SupervisorMetricsServiceTest {
 
             // then
             assertThat(payload.kpi().activeCalls()).isEqualTo(1);
+        }
+    }
+
+    // =========================================================================
+    // KPI – calls_in_ivr
+    // =========================================================================
+
+    @Nested
+    @DisplayName("KPI – calls_in_ivr")
+    class KpiCallsInIvrTests {
+
+        @Test
+        @DisplayName("powinien zliczyć tylko sesje IVR należące do tenanta")
+        void shouldCountOnlyIvrSessionsBelongingToTenant() {
+            // given – brak agentów (nieistotne dla tego testu)
+            Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
+            when(appUserRepository.findAllByTenantIdWithFilters(
+                    eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
+            )).thenReturn(emptyPage);
+
+            String key1 = "ivr:session:call-1"; // TENANT_ID
+            String key2 = "ivr:session:call-2"; // TENANT_ID
+            String key3 = "ivr:session:call-3"; // inny tenant
+
+            mockIvrSessionScan(
+                    Map.of(
+                            key1, "{\"call_id\":\"call-1\",\"tenant_id\":\"" + TENANT_ID + "\"}",
+                            key2, "{\"call_id\":\"call-2\",\"tenant_id\":\"" + TENANT_ID + "\"}",
+                            key3, "{\"call_id\":\"call-3\",\"tenant_id\":\"" + TENANT_ID_2 + "\"}"
+                    )
+            );
+
+            // when
+            SupervisorMetricsPayload payload = service.buildPayload(TENANT_ID, Collections.emptyMap());
+
+            // then
+            assertThat(payload.kpi().callsInIvr()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("powinien zwrócić 0 gdy brak sesji IVR w Redis")
+        void shouldReturnZeroWhenNoIvrSessions() {
+            // given – brak agentów, brak kluczy ivr:session:* (domyślny stub z setUp)
+            Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
+            when(appUserRepository.findAllByTenantIdWithFilters(
+                    eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
+            )).thenReturn(emptyPage);
+
+            // when
+            SupervisorMetricsPayload payload = service.buildPayload(TENANT_ID, Collections.emptyMap());
+
+            // then
+            assertThat(payload.kpi().callsInIvr()).isZero();
+        }
+
+        @Test
+        @DisplayName("powinien pominąć klucz z nieprawidłowym JSON bez przerywania skanu")
+        void shouldSkipKeyWithInvalidJson() {
+            // given
+            Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
+            when(appUserRepository.findAllByTenantIdWithFilters(
+                    eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
+            )).thenReturn(emptyPage);
+
+            String validKey = "ivr:session:call-valid";
+            String invalidKey = "ivr:session:call-invalid";
+
+            mockIvrSessionScan(
+                    Map.of(
+                            validKey, "{\"call_id\":\"call-valid\",\"tenant_id\":\"" + TENANT_ID + "\"}",
+                            invalidKey, "not-a-json"
+                    )
+            );
+
+            // when
+            SupervisorMetricsPayload payload = service.buildPayload(TENANT_ID, Collections.emptyMap());
+
+            // then – tylko poprawny klucz zliczony, błędny pominięty
+            assertThat(payload.kpi().callsInIvr()).isEqualTo(1);
+        }
+
+        /**
+         * Mockuje SCAN po kluczach {@code ivr:session:*} oraz odczyt wartości każdego klucza.
+         *
+         * @param keyToValue mapa: klucz Redis → JSON sesji IVR (String)
+         */
+        @SuppressWarnings("unchecked")
+        private void mockIvrSessionScan(Map<String, String> keyToValue) {
+            RedisConnection connection = mock(RedisConnection.class);
+            RedisKeyCommands keyCommands = mock(RedisKeyCommands.class);
+            Cursor<byte[]> cursor = mock(Cursor.class);
+
+            when(connection.keyCommands()).thenReturn(keyCommands);
+            when(keyCommands.scan(any(org.springframework.data.redis.core.ScanOptions.class))).thenReturn(cursor);
+
+            List<String> keys = new ArrayList<>(keyToValue.keySet());
+            int[] idx = {0};
+            when(cursor.hasNext()).thenAnswer(inv -> idx[0] < keys.size());
+            when(cursor.next()).thenAnswer(inv -> keys.get(idx[0]++).getBytes());
+
+            when(stringRedisTemplate.execute(any(RedisCallback.class), anyBoolean()))
+                    .thenAnswer(inv -> {
+                        RedisCallback<?> callback = inv.getArgument(0);
+                        return callback.doInRedis(connection);
+                    });
+
+            for (Map.Entry<String, String> entry : keyToValue.entrySet()) {
+                when(stringValueOps.get(entry.getKey())).thenReturn(entry.getValue());
+            }
         }
     }
 }

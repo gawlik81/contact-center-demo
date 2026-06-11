@@ -116,6 +116,9 @@
   &.kpi-calls .kpi-value {
     color: var(--accent-text);
   }
+  &.kpi-ivr .kpi-value {
+    color: oklch(50% 0.15 320);
+  }
   &.kpi-avail .kpi-value {
     color: var(--success-text);
   }

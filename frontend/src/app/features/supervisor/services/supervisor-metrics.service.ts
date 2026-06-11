@@ -48,6 +48,7 @@ export class SupervisorMetricsService {
       })),
       kpi: {
         activeCalls: raw.kpi.active_calls,
+        callsInIvr: raw.kpi.calls_in_ivr,
         avgWaitTime: raw.kpi.avg_wait_time,
         avgHandleTime: raw.kpi.avg_handle_time,
       },

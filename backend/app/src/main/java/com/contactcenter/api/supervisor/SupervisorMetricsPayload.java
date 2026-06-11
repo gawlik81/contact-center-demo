@@ -65,10 +65,12 @@ public record SupervisorMetricsPayload(
      * @param activeCalls    liczba aktywnych połączeń (agenci ze statusem BUSY)
      * @param avgWaitTime    średni czas oczekiwania w sekundach (0 gdy brak danych w Redis)
      * @param avgHandleTime  średni czas obsługi w sekundach (placeholder – dane z BE-028)
+     * @param callsInIvr     liczba aktywnych sesji IVR tenanta (klucze {@code ivr:session:*} w Redis)
      */
     public record KpiMetric(
             @JsonProperty("active_calls") int activeCalls,
             @JsonProperty("avg_wait_time") double avgWaitTime,
-            @JsonProperty("avg_handle_time") double avgHandleTime
+            @JsonProperty("avg_handle_time") double avgHandleTime,
+            @JsonProperty("calls_in_ivr") int callsInIvr
     ) {}
 }

@@ -35,6 +35,7 @@ export class SupervisorDashboardComponent implements OnInit, OnDestroy {
 
   // ─── KPI derived values ────────────────────────────────────────
   protected readonly activeCalls = computed(() => this.metrics()?.kpi.activeCalls ?? 0);
+  protected readonly callsInIvr = computed(() => this.metrics()?.kpi.callsInIvr ?? 0);
   protected readonly avgWaitTime = computed(() => this.metrics()?.kpi.avgWaitTime ?? 0);
   protected readonly avgHandleTime = computed(() => this.metrics()?.kpi.avgHandleTime ?? 0);
 

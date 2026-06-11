@@ -17,6 +17,7 @@ export interface QueueMetric {
 
 export interface KpiMetric {
   activeCalls: number;
+  callsInIvr: number;
   avgWaitTime: number; // seconds
   avgHandleTime: number; // seconds
 }
@@ -44,6 +45,7 @@ export interface SupervisorMetricsRawPayload {
   }[];
   kpi: {
     active_calls: number;
+    calls_in_ivr: number;
     avg_wait_time: number;
     avg_handle_time: number;
   };

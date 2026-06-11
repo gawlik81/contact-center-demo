@@ -293,7 +293,10 @@
       "mcp__angular-cli__list_projects",
       "mcp__angular-cli__get_best_practices",
       "Bash(docker volume *)",
-      "Bash(docker cp *)"
+      "Bash(docker cp *)",
+      "Bash(pkill -f \"ng serve\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(pkill -9 -f \"ng serve\")"
     ]
   }
 }

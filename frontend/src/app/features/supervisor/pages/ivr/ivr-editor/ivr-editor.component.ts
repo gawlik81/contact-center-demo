@@ -11,7 +11,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { SlicePipe } from '@angular/common';
+import { DecimalPipe, SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -48,7 +48,7 @@ const NODE_HEIGHT_BASE = 80;
 @Component({
   selector: 'app-ivr-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, FormsModule, SlicePipe],
+  imports: [TranslocoModule, FormsModule, SlicePipe, DecimalPipe],
   templateUrl: './ivr-editor.component.html',
   styleUrl: './ivr-editor.component.scss',
 })
@@ -62,6 +62,8 @@ export class IvrEditorComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly canvasRef = viewChild<ElementRef<HTMLDivElement>>('canvasRef');
+  readonly wrapperRef = viewChild<ElementRef<HTMLDivElement>>('wrapperRef');
+  readonly scrollRef = viewChild<ElementRef<HTMLDivElement>>('scrollRef');
 
   // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -92,6 +94,14 @@ export class IvrEditorComponent implements OnInit {
   // Audio upload state
   readonly uploadInProgress = signal<string | null>(null); // nodeId being uploaded
   readonly uploadProgress = signal(0);
+
+  // ─── Zoom ───────────────────────────────────────────────────────────────────
+
+  static readonly MIN_ZOOM = 0.25;
+  static readonly MAX_ZOOM = 2;
+  static readonly ZOOM_STEP = 0.1;
+
+  readonly zoom = signal(1);
 
   // ─── Computed ───────────────────────────────────────────────────────────────
 
@@ -127,9 +137,7 @@ export class IvrEditorComponent implements OnInit {
 
   readonly availableVariables = computed<string[]>(() =>
     this.definition()
-      .nodes.filter(
-        (n) => (n.type === 'COLLECT_DTMF' || n.type === 'SET') && n.variable_name,
-      )
+      .nodes.filter((n) => (n.type === 'COLLECT_DTMF' || n.type === 'SET') && n.variable_name)
       .map((n) => n.variable_name!)
       .filter((v, i, arr) => arr.indexOf(v) === i),
   );
@@ -245,7 +253,7 @@ export class IvrEditorComponent implements OnInit {
     this.ivrService
       .updateIvr(this.ivrId(), {
         name: this.ivrName(),
-        definition: apiDef as { nodes: never[]; entry_node_id: string },
+        definition: apiDef,
       })
       .pipe(
         catchError(() => {
@@ -258,7 +266,6 @@ export class IvrEditorComponent implements OnInit {
       .subscribe((ivr) => {
         this.saving.set(false);
         if (ivr) {
-          this.ivrService.savePositions(this.ivrId(), this.definition().nodes);
           this.ivrVersion.set(ivr.version);
           this.notifications.success(this.transloco.translate('supervisor.ivrEditor.successSave'));
         }
@@ -399,8 +406,9 @@ export class IvrEditorComponent implements OnInit {
     const canvas = this.canvasRef()?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left + canvas.scrollLeft - NODE_WIDTH / 2;
-    const y = event.clientY - rect.top + canvas.scrollTop - 40;
+    const zoom = this.zoom();
+    const x = (event.clientX - rect.left + canvas.scrollLeft) / zoom - NODE_WIDTH / 2;
+    const y = (event.clientY - rect.top + canvas.scrollTop) / zoom - 40;
 
     const newNode: IvrNodeUI = {
       node_id: this.ivrService.generateNodeId(),
@@ -504,8 +512,9 @@ export class IvrEditorComponent implements OnInit {
 
   onCanvasMouseMove(event: MouseEvent): void {
     if (!this.dragState) return;
-    const dx = event.clientX - this.dragState.startMouseX;
-    const dy = event.clientY - this.dragState.startMouseY;
+    const zoom = this.zoom();
+    const dx = (event.clientX - this.dragState.startMouseX) / zoom;
+    const dy = (event.clientY - this.dragState.startMouseY) / zoom;
     const newX = Math.max(0, this.dragState.startNodeX + dx);
     const newY = Math.max(0, this.dragState.startNodeY + dy);
 
@@ -519,6 +528,86 @@ export class IvrEditorComponent implements OnInit {
 
   onCanvasMouseUp(): void {
     this.dragState = null;
+  }
+
+  // ─── Zoom ───────────────────────────────────────────────────────────────────
+
+  setZoom(value: number): void {
+    const clamped = Math.min(
+      IvrEditorComponent.MAX_ZOOM,
+      Math.max(IvrEditorComponent.MIN_ZOOM, value),
+    );
+    this.zoom.set(Math.round(clamped * 100) / 100);
+  }
+
+  zoomIn(): void {
+    this.setZoom(this.zoom() + IvrEditorComponent.ZOOM_STEP);
+  }
+
+  zoomOut(): void {
+    this.setZoom(this.zoom() - IvrEditorComponent.ZOOM_STEP);
+  }
+
+  resetZoom(): void {
+    this.zoom.set(1);
+  }
+
+  onCanvasWheel(event: WheelEvent): void {
+    if (!event.ctrlKey) return;
+    event.preventDefault();
+    const delta = event.deltaY > 0 ? -IvrEditorComponent.ZOOM_STEP : IvrEditorComponent.ZOOM_STEP;
+    this.setZoom(this.zoom() + delta);
+  }
+
+  fitToView(): void {
+    const nodes = this.definition().nodes;
+    if (nodes.length === 0) {
+      this.resetZoom();
+      const scroll = this.scrollRef()?.nativeElement;
+      if (scroll) {
+        scroll.scrollLeft = 0;
+        scroll.scrollTop = 0;
+      }
+      return;
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const node of nodes) {
+      minX = Math.min(minX, node.x);
+      minY = Math.min(minY, node.y);
+      maxX = Math.max(maxX, node.x + NODE_WIDTH);
+      maxY = Math.max(maxY, node.y + this.getNodeHeight(node));
+    }
+
+    const padding = 60;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+
+    const bboxWidth = maxX - minX;
+    const bboxHeight = maxY - minY;
+
+    const wrapper = this.wrapperRef()?.nativeElement;
+    if (!wrapper) return;
+    const wrapperWidth = wrapper.clientWidth;
+    const wrapperHeight = wrapper.clientHeight;
+
+    const scaleX = wrapperWidth / bboxWidth;
+    const scaleY = wrapperHeight / bboxHeight;
+    const newZoom = Math.min(1.5, Math.max(IvrEditorComponent.MIN_ZOOM, Math.min(scaleX, scaleY)));
+
+    this.setZoom(newZoom);
+
+    setTimeout(() => {
+      const scroll = this.scrollRef()?.nativeElement;
+      if (!scroll) return;
+      scroll.scrollLeft = minX * newZoom - (wrapperWidth - bboxWidth * newZoom) / 2;
+      scroll.scrollTop = minY * newZoom - (wrapperHeight - bboxHeight * newZoom) / 2;
+    });
   }
 
   onCanvasClick(): void {

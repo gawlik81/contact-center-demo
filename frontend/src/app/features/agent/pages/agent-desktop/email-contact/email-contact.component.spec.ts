@@ -204,7 +204,12 @@ describe('EmailContactComponent', () => {
     access.onTemplateSelected(noVarTemplate);
     fixture.detectChanges();
 
-    expect(access.replyHtml()).toBe('<p>Szablon bez zmiennych</p>');
+    expect(emailServiceMock.previewTemplate).toHaveBeenCalledWith(
+      'tpl-no-var',
+      {},
+      expect.any(String),
+    );
+    expect(access.replyHtml()).toBe('<p>Preview</p>');
     expect(access.showVariableForm()).toBe(false);
   });
 

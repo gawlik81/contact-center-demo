@@ -179,9 +179,11 @@ class IvrEngineServiceTest {
         }
 
         @Test
-        @DisplayName("powinien przejść do gałęzi 'timeout' po timeoucie")
+        @DisplayName("powinien przejść do gałęzi 'timeout' po wyczerpaniu maxRetries")
         void handleDtmfInput_timeout_shouldNavigateToTimeoutBranch() throws Exception {
+            // maxRetries = 3, retryCount = 2 → ta próba wyczerpuje limit i przechodzi do "timeout"
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_MENU, TENANT_ID);
+            session.setRetryCount(2);
             String sessionJson = objectMapper.writeValueAsString(session);
 
             IvrTree ivr = buildIvrTree(buildMenuWithTimeoutDefinition());
@@ -201,13 +203,69 @@ class IvrEngineServiceTest {
         }
 
         @Test
-        @DisplayName("nieznany klawisz po wyczerpaniu maxRetries powinien wywołać fallback")
-        void handleDtmfInput_unknownKey_shouldRetryOrFallback() throws Exception {
+        @DisplayName("powinien ponowić węzeł (replay) przy timeoucie, dopóki nie wyczerpie maxRetries")
+        void handleDtmfInput_timeout_shouldRetryBeforeNavigatingToTimeoutBranch() throws Exception {
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_MENU, TENANT_ID);
-            session.setRetryCount(2); // maxRetries = 3, więc następna próba = fallback
             String sessionJson = objectMapper.writeValueAsString(session);
 
+            IvrTree ivr = buildIvrTree(buildMenuWithTimeoutDefinition());
+            when(valueOps.get(anyString())).thenAnswer(inv -> {
+                String key = inv.getArgument(0);
+                if (key.equals("ivr:session:" + CALL_ID)) return sessionJson;
+                return null;
+            });
+            when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
+
+            ivrEngineService.handleDtmfInput(CALL_ID, "timeout");
+
+            // Pierwszy timeout (retryCount 0 -> 1, < maxRetries 3) – tylko ponowienie węzła,
+            // bez przejścia do HANGUP i bez fallbacku.
+            verify(telephonyAdapter, never()).hangupCall(anyString());
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(eq("ivr:session:" + CALL_ID), jsonCaptor.capture(), any());
+            IvrSessionData updatedSession = objectMapper.readValue(
+                    jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1), IvrSessionData.class);
+            assertThat(updatedSession.getRetryCount()).isEqualTo(1);
+            assertThat(updatedSession.getCurrentNodeId()).isEqualTo(NODE_MENU);
+        }
+
+        @Test
+        @DisplayName("nieznany klawisz po wyczerpaniu maxRetries powinien przejść wyjściem 'timeout'")
+        void handleDtmfInput_unknownKey_afterMaxRetries_shouldNavigateToTimeoutBranch() throws Exception {
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_MENU, TENANT_ID);
+            session.setRetryCount(2); // maxRetries = 3, więc następna próba wyczerpuje limit
+            String sessionJson = objectMapper.writeValueAsString(session);
+
+            // buildMenuDefinition ma skonfigurowane wyjście "timeout" → NODE_HANGUP
             IvrTree ivr = buildIvrTree(buildMenuDefinition()); // maxRetries = 3
+            when(valueOps.get(anyString())).thenAnswer(inv -> {
+                String key = inv.getArgument(0);
+                if (key.equals("ivr:session:" + CALL_ID)) return sessionJson;
+                return null;
+            });
+            when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
+            doNothing().when(telephonyAdapter).hangupCall(anyString());
+
+            ivrEngineService.handleDtmfInput(CALL_ID, "9"); // nieznany klawisz
+
+            // Wyjście "timeout" → węzeł HANGUP, zamiast fallbacku do domyślnej kolejki
+            verify(telephonyAdapter).hangupCall(CALL_ID);
+            verify(rabbitTemplate, never()).convertAndSend(
+                    eq(RabbitMQConfig.EXCHANGE_EVENTS),
+                    eq("contact.queued"),
+                    any(ContactQueuedMessage.class)
+            );
+        }
+
+        @Test
+        @DisplayName("nieznany klawisz po wyczerpaniu maxRetries bez wyjścia 'timeout' powinien wywołać fallback")
+        void handleDtmfInput_unknownKey_afterMaxRetries_withoutTimeoutOption_shouldFallback() throws Exception {
+            IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_MENU, TENANT_ID);
+            session.setRetryCount(2); // maxRetries = 3, więc następna próba wyczerpuje limit
+            String sessionJson = objectMapper.writeValueAsString(session);
+
+            IvrTree ivr = buildIvrTree(buildMenuWithoutTimeoutOptionDefinition()); // maxRetries = 3
             when(valueOps.get(anyString())).thenAnswer(inv -> {
                 String key = inv.getArgument(0);
                 if (key.equals("ivr:session:" + CALL_ID)) return sessionJson;
@@ -219,7 +277,7 @@ class IvrEngineServiceTest {
 
             ivrEngineService.handleDtmfInput(CALL_ID, "9"); // nieznany klawisz
 
-            // Fallback: opublikuj ContactQueuedMessage
+            // Brak wyjścia "timeout" → fallback: opublikuj ContactQueuedMessage
             verify(rabbitTemplate).convertAndSend(
                     eq(RabbitMQConfig.EXCHANGE_EVENTS),
                     eq("contact.queued"),
@@ -527,10 +585,11 @@ class IvrEngineServiceTest {
         }
 
         @Test
-        @DisplayName("timeout w trybie COLLECT_DTMF powinien przejść do gałęzi 'timeout'")
+        @DisplayName("timeout w trybie COLLECT_DTMF po wyczerpaniu prób powinien przejść do gałęzi 'timeout'")
         void handleDtmfInput_timeout_shouldNavigateToTimeoutBranch() throws Exception {
             IvrTree ivr = buildIvrTree(buildCollectDtmfDefinition(4, "#"));
             IvrSessionData session = buildCollectingSession("12");
+            session.setRetryCount(2); // maxRetries=3 -> kolejny timeout wyczerpuje próby
             String sessionJson = objectMapper.writeValueAsString(session);
 
             when(valueOps.get(anyString())).thenAnswer(inv -> {
@@ -550,6 +609,67 @@ class IvrEngineServiceTest {
                     eq("ivr:session:" + CALL_ID), jsonCaptor.capture(), any(Duration.class));
             // Sesja powinna być usunięta po HANGUP
             verify(stringRedisTemplate).delete("ivr:session:" + CALL_ID);
+        }
+
+        @Test
+        @DisplayName("timeout w trybie COLLECT_DTMF powinien ponowić zbieranie przed wyczerpaniem prób")
+        void handleDtmfInput_timeout_shouldRetryBeforeNavigatingToTimeoutBranch() throws Exception {
+            IvrTree ivr = buildIvrTree(buildCollectDtmfDefinition(4, "#"));
+            IvrSessionData session = buildCollectingSession("12"); // retryCount=0 domyślnie
+            String sessionJson = objectMapper.writeValueAsString(session);
+
+            when(valueOps.get(anyString())).thenAnswer(inv -> {
+                String key = inv.getArgument(0);
+                return key.equals("ivr:session:" + CALL_ID) ? sessionJson : null;
+            });
+            when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
+
+            ivrEngineService.handleDtmfInput(CALL_ID, "timeout");
+
+            // Brak przejścia do HANGUP/kolejki – ponawiamy zbieranie
+            verify(telephonyAdapter, never()).hangupCall(anyString());
+            verify(rabbitTemplate, never()).convertAndSend(eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.queued"), any(ContactQueuedMessage.class));
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq("ivr:session:" + CALL_ID), jsonCaptor.capture(), any(Duration.class));
+
+            String lastJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            IvrSessionData savedSession = objectMapper.readValue(lastJson, IvrSessionData.class);
+            assertThat(savedSession.getRetryCount()).isEqualTo(1);
+            assertThat(savedSession.getCurrentNodeId()).isEqualTo(NODE_COLLECT);
+            assertThat(savedSession.getCollectingDtmfForNodeId()).isEqualTo(NODE_COLLECT);
+            assertThat(savedSession.getDtmfBuffer()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("timeout bez skonfigurowanej opcji 'timeout' po wyczerpaniu prób powinien skierować do domyślnej kolejki")
+        void handleDtmfInput_timeout_afterMaxRetries_withoutTimeoutOption_shouldFallback() throws Exception {
+            IvrNode collectNode = new IvrNode(NODE_COLLECT, IvrNodeType.COLLECT_DTMF,
+                    "Podaj numer konta", null,
+                    List.of(new IvrOption("success", NODE_HANGUP)),
+                    null, 10, 3, "account_number", 1, 4, "#", null, null, null);
+            IvrNode hangupNode = new IvrNode(NODE_HANGUP, IvrNodeType.HANGUP,
+                    null, null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
+            IvrTree ivr = buildIvrTree(new IvrDefinition(List.of(collectNode, hangupNode), NODE_COLLECT));
+
+            IvrSessionData session = buildCollectingSession("12");
+            session.setRetryCount(2); // maxRetries=3 -> wyczerpanie prób
+            String sessionJson = objectMapper.writeValueAsString(session);
+
+            when(valueOps.get(anyString())).thenAnswer(inv -> {
+                String key = inv.getArgument(0);
+                return key.equals("ivr:session:" + CALL_ID) ? sessionJson : null;
+            });
+            when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
+            when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
+                    .thenReturn(buildQueuePage(buildQueue()));
+
+            ivrEngineService.handleDtmfInput(CALL_ID, "timeout");
+
+            verify(rabbitTemplate).convertAndSend(
+                    eq(RabbitMQConfig.EXCHANGE_EVENTS), eq("contact.queued"), any(ContactQueuedMessage.class));
+            verify(telephonyAdapter, never()).hangupCall(anyString());
         }
 
         @Test
@@ -652,6 +772,17 @@ class IvrEngineServiceTest {
                 List.of(new IvrOption("1", NODE_AUDIO), new IvrOption("timeout", NODE_HANGUP)),
                 null, 10, 3, null, 1, 1, "#", null, null, null);
         return new IvrDefinition(List.of(menuNode, audioNode, hangupNode), NODE_MENU);
+    }
+
+    /** Definicja MENU z opcją '1' → node-audio, bez wyjścia "timeout". */
+    private IvrDefinition buildMenuWithoutTimeoutOptionDefinition() {
+        IvrNode audioNode = new IvrNode(NODE_AUDIO, IvrNodeType.PLAY_AUDIO,
+                "Wybrano opcję 1", null, List.of(), null, 10, 3, null, 1, 1, "#", null, null, null);
+        IvrNode menuNode = new IvrNode(NODE_MENU, IvrNodeType.MENU,
+                "Naciśnij 1", null,
+                List.of(new IvrOption("1", NODE_AUDIO)),
+                null, 10, 3, null, 1, 1, "#", null, null, null);
+        return new IvrDefinition(List.of(menuNode, audioNode), NODE_MENU);
     }
 
     /** Definicja MENU z opcją timeout → node-hangup. */

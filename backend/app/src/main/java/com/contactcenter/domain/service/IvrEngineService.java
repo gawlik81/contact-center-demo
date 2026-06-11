@@ -265,23 +265,23 @@ public class IvrEngineService {
                 return;
             }
 
+            // ----------------------------------------------------------------
+            // Brak wyboru (timeout / no-input) lub nieznany klawisz – licz próby;
+            // po wyczerpaniu przejdź na wyjście "timeout" węzła (jeśli skonfigurowane),
+            // zamiast od razu kierować na domyślną kolejkę.
+            // ----------------------------------------------------------------
+            if ("timeout".equals(dtmfKey) || "no-input".equals(dtmfKey)) {
+                handleMenuRetryOrTimeoutExit(callId, dtmfKey, currentNode, session, ivr);
+                return;
+            }
+
             // Szukaj opcji dla klawisza DTMF
             IvrOption option = currentNode.findOption(dtmfKey);
 
             if (option == null) {
-                // Nieznany klawisz – sprawdź liczbę prób
-                session.incrementRetryCount();
-                if (session.getRetryCount() >= currentNode.maxRetries()) {
-                    log.warn("[IVR] Przekroczono liczbę prób dla węzła: nodeId={}, callId={}",
-                            currentNode.nodeId(), callId);
-                    fallbackToDefaultQueue(callId, session.getTenantId());
-                } else {
-                    log.debug("[IVR] Nieznany klawisz '{}' dla węzła: nodeId={}, retry={}",
-                            dtmfKey, currentNode.nodeId(), session.getRetryCount());
-                    saveSession(session);
-                    // Ponów ten sam węzeł (odtwórz komunikat ponownie) – propaguj twimlMode z sesji
-                    executeNode(callId, currentNode, session, session.isTwimlMode());
-                }
+                log.info("[IVR] Brak zdefiniowanego wyjścia dla wartości '{}' w węźle: nodeId={}, callId={}",
+                        dtmfKey, currentNode.nodeId(), callId);
+                handleMenuRetryOrTimeoutExit(callId, dtmfKey, currentNode, session, ivr);
                 return;
             }
 
@@ -804,6 +804,10 @@ public class IvrEngineService {
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
         sb.append("<Gather action=\"").append(escapeXml(dtmfActionUrl)).append("\"");
         sb.append(" method=\"POST\"");
+        // actionOnEmptyResult="true" – domyślnie Twilio NIE wywołuje action URL przy ciszy,
+        // więc timeout/maxRetries z konfiguracji węzła nigdy by się nie uruchomiły, a połączenie
+        // kończyłoby się od razu po wygaśnięciu <Gather>.
+        sb.append(" actionOnEmptyResult=\"true\"");
         // Minimalny timeout to 10s – Twilio musi mieć wystarczająco czasu aby odebrać odpowiedź
         sb.append(" timeout=\"").append(Math.max(node.timeoutSeconds(), 10)).append("\"");
         if (multiDigit) {
@@ -824,9 +828,6 @@ public class IvrEngineService {
                 .append("</Say>");
         }
         sb.append("</Gather>");
-        // Twilio wywołuje action URL gdy zbieranie zakończy się timeoutem
-        // Jeśli <Gather> nie zbierze żadnego wejścia, Twilio kontynuuje za <Gather>
-        // – dodajemy fallback Say (cichy timeout zostanie obsłużony przez scheduleTimeoutForDtmf)
         sb.append("</Response>");
         return sb.toString();
     }
@@ -955,7 +956,8 @@ public class IvrEngineService {
      *
      * <p>Możliwe scenariusze:
      * <ul>
-     *   <li>"timeout" / "no-input" – szuka opcji o tym kluczu w węźle; jeśli brak → fallback</li>
+     *   <li>"timeout" (brak wejścia) – licz próby; po wyczerpaniu {@code maxRetries}
+     *       przejście do wyjścia "timeout" węzła (tak samo jak w MENU)</li>
      *   <li>klawisz równy {@code finishOnKey} – kończy zbieranie i przechodzi do opcji "success"</li>
      *   <li>cyfra – dodaje do bufora; po osiągnięciu {@code maxDigits} auto-zakończenie</li>
      * </ul>
@@ -972,21 +974,9 @@ public class IvrEngineService {
             return;
         }
 
-        // --- Obsługa timeout / no-input ---
-        if ("timeout".equals(dtmfKey) || "no-input".equals(dtmfKey)) {
-            IvrOption option = collectNode.findOption(dtmfKey);
-            if (option == null) {
-                log.warn("[IVR] COLLECT_DTMF: brak opcji '{}' w węźle={}, fallback; callId={}",
-                        dtmfKey, collectNodeId, callId);
-                session.clearDtmfCollection();
-                saveSession(session);
-                fallbackToDefaultQueue(callId, session.getTenantId());
-            } else {
-                log.debug("[IVR] COLLECT_DTMF: {} – przejście do następnego węzła: callId={}",
-                        dtmfKey, callId);
-                session.clearDtmfCollection();
-                transitionToNextNode(callId, option.nextNodeId(), session, ivr);
-            }
+        // --- Obsługa braku wejścia (timeout / no-input) ---
+        if ("timeout".equals(dtmfKey) || "no-input".equals(dtmfKey) || dtmfKey.isEmpty()) {
+            handleCollectRetryOrTimeoutExit(callId, dtmfKey, collectNode, session, ivr);
             return;
         }
 
@@ -1002,6 +992,14 @@ public class IvrEngineService {
 
         // W trybie TwiML Twilio dostarcza kompletny zebrany ciąg w jednym żądaniu
         if (session.isTwimlMode()) {
+            // Mniej cyfr niż minDigits – Gather wygasł zanim dzwoniący skończył wpisywać.
+            // Traktuj jak "timeout" zamiast fałszywie kończyć zbieranie jako "success".
+            if (dtmfKey.length() < collectNode.minDigits()) {
+                log.debug("[IVR] COLLECT_DTMF: zebrano '{}' (<{} minDigits) przed timeoutem; callId={}",
+                        dtmfKey, collectNode.minDigits(), callId);
+                handleCollectRetryOrTimeoutExit(callId, "timeout", collectNode, session, ivr);
+                return;
+            }
             finishDtmfCollection(callId, dtmfKey, collectNode, session, ivr);
             return;
         }
@@ -1020,6 +1018,38 @@ public class IvrEngineService {
         } else {
             // Czekaj na kolejne cyfry
             saveSession(session);
+        }
+    }
+
+    /**
+     * Obsługuje brak wejścia (timeout) w węźle COLLECT_DTMF.
+     *
+     * <p>Liczy próby; dopóki nie osiągnięto {@code maxRetries}, ponawia węzeł (odtwarza
+     * komunikat i rozpoczyna zbieranie od nowa). Po wyczerpaniu prób przechodzi na wyjście
+     * "timeout" węzła (jeśli skonfigurowane), w przeciwnym razie kieruje na domyślną kolejkę.
+     * Zasada działania identyczna jak w węźle MENU ({@link #handleMenuRetryOrTimeoutExit}).
+     */
+    private void handleCollectRetryOrTimeoutExit(String callId, String dtmfKey,
+                                                  IvrNode collectNode, IvrSessionData session, IvrTree ivr) {
+        session.incrementRetryCount();
+        if (session.getRetryCount() < collectNode.maxRetries()) {
+            log.debug("[IVR] COLLECT_DTMF: brak wejścia ('{}') dla węzła: nodeId={}, retry={}/{}",
+                    dtmfKey, collectNode.nodeId(), session.getRetryCount(), collectNode.maxRetries());
+            session.clearDtmfCollection();
+            saveSession(session);
+            executeNode(callId, collectNode, session, session.isTwimlMode());
+            return;
+        }
+
+        log.warn("[IVR] COLLECT_DTMF: przekroczono liczbę prób (brak wejścia) dla węzła: nodeId={}, callId={}",
+                collectNode.nodeId(), callId);
+        session.clearDtmfCollection();
+        IvrOption timeoutOption = collectNode.findOption("timeout");
+        if (timeoutOption != null) {
+            transitionToNextNode(callId, timeoutOption.nextNodeId(), session, ivr);
+        } else {
+            saveSession(session);
+            fallbackToDefaultQueue(callId, session.getTenantId());
         }
     }
 
@@ -1070,6 +1100,35 @@ public class IvrEngineService {
 
         // Propaguj twimlMode z sesji – zachowuje tryb przez cały przepływ IVR
         executeNode(callId, nextNode, session, session.isTwimlMode());
+    }
+
+    /**
+     * Obsługuje brak wyboru (timeout / no-input) lub nieznany klawisz w węźle MENU.
+     *
+     * <p>Liczy próby; dopóki nie osiągnięto {@code maxRetries}, ponawia węzeł (odtwarza
+     * komunikat ponownie). Po wyczerpaniu prób przechodzi na wyjście "timeout" węzła
+     * (jeśli skonfigurowane), w przeciwnym razie kieruje na domyślną kolejkę.
+     */
+    private void handleMenuRetryOrTimeoutExit(String callId, String dtmfKey,
+                                               IvrNode currentNode, IvrSessionData session, IvrTree ivr) {
+        session.incrementRetryCount();
+        if (session.getRetryCount() < currentNode.maxRetries()) {
+            log.debug("[IVR] Brak dopasowania ('{}') dla węzła: nodeId={}, retry={}/{}",
+                    dtmfKey, currentNode.nodeId(), session.getRetryCount(), currentNode.maxRetries());
+            saveSession(session);
+            // Ponów ten sam węzeł (odtwórz komunikat ponownie) – propaguj twimlMode z sesji
+            executeNode(callId, currentNode, session, session.isTwimlMode());
+            return;
+        }
+
+        log.warn("[IVR] Przekroczono liczbę prób (brak dopasowania '{}') dla węzła: nodeId={}, callId={}",
+                dtmfKey, currentNode.nodeId(), callId);
+        IvrOption timeoutOption = currentNode.findOption("timeout");
+        if (timeoutOption != null) {
+            transitionToNextNode(callId, timeoutOption.nextNodeId(), session, ivr);
+        } else {
+            fallbackToDefaultQueue(callId, session.getTenantId());
+        }
     }
 
     // =========================================================================

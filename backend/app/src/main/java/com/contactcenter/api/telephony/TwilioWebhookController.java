@@ -307,7 +307,11 @@ public class TwilioWebhookController {
       return ResponseEntity.status(403).contentType(MediaType.APPLICATION_XML).body(forbidden);
     }
     try {
-      String dtmfInput = digits != null ? digits : (digit != null ? digit : "timeout");
+      // Z actionOnEmptyResult="true" Twilio przy braku wejścia wysyła Digits="" (pusty string,
+      // nie null) – w obu przypadkach (brak parametru lub pusty string) traktujemy to jako
+      // "timeout" (brak wejścia), zgodnie z logiką ponawiania prób w silniku IVR.
+      String rawDigits = digits != null ? digits : digit;
+      String dtmfInput = (rawDigits == null || rawDigits.isEmpty()) ? "timeout" : rawDigits;
       log.info("[TwilioDtmf] DTMF input: callSid={}, input='{}', tenantId={}", callSid, dtmfInput, tenantId);
       TenantContext.setTenantId(tenantId);
       try {

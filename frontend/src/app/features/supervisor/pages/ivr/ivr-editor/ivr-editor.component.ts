@@ -414,33 +414,35 @@ export class IvrEditorComponent implements OnInit {
       node_id: this.ivrService.generateNodeId(),
       type,
       prompt: type === 'SET' || type === 'IF' || type === 'SWITCH' ? undefined : '',
-      // PLAY_AUDIO always has a single "next" output; MENU/COLLECT_DTMF start with empty options
+      // PLAY_AUDIO always has a single "next" output; MENU starts with a "timeout" output
+      // (taki sam mechanizm jak w COLLECT_DTMF); COLLECT_DTMF start z "success"/"timeout"
       // SET has a single "next" output; IF has fixed true/false; SWITCH starts with "default"
       options:
         type === 'PLAY_AUDIO'
           ? [{ key: 'next', next_node_id: '' }]
-          : type === 'COLLECT_DTMF'
-            ? [
-                { key: 'success', next_node_id: '' },
-                { key: 'timeout', next_node_id: '' },
-                { key: 'no-input', next_node_id: '' },
-              ]
-            : type === 'SET'
-              ? [{ key: 'next', next_node_id: '' }]
-              : type === 'IF'
-                ? [
-                    { key: 'true', next_node_id: '' },
-                    { key: 'false', next_node_id: '' },
-                  ]
-                : type === 'SWITCH'
-                  ? [{ key: 'default', next_node_id: '' }]
-                  : type === 'VOICEBOT'
-                    ? [
-                        { key: 'next', next_node_id: '' },
-                        { key: 'escalate', next_node_id: '' },
-                        { key: 'fallback', next_node_id: '' },
-                      ]
-                    : [],
+          : type === 'MENU'
+            ? [{ key: 'timeout', next_node_id: '' }]
+            : type === 'COLLECT_DTMF'
+              ? [
+                  { key: 'success', next_node_id: '' },
+                  { key: 'timeout', next_node_id: '' },
+                ]
+              : type === 'SET'
+                ? [{ key: 'next', next_node_id: '' }]
+                : type === 'IF'
+                  ? [
+                      { key: 'true', next_node_id: '' },
+                      { key: 'false', next_node_id: '' },
+                    ]
+                  : type === 'SWITCH'
+                    ? [{ key: 'default', next_node_id: '' }]
+                    : type === 'VOICEBOT'
+                      ? [
+                          { key: 'next', next_node_id: '' },
+                          { key: 'escalate', next_node_id: '' },
+                          { key: 'fallback', next_node_id: '' },
+                        ]
+                      : [],
       x: Math.max(0, x),
       y: Math.max(0, y),
       timeout_seconds: type === 'MENU' || type === 'COLLECT_DTMF' ? 10 : undefined,

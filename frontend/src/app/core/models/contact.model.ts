@@ -8,6 +8,7 @@ export interface ContactResponse {
   campaignId?: string;
   channel: 'PHONE' | 'EMAIL' | 'CHAT' | 'SOCIAL';
   status:
+    | 'IVR'
     | 'QUEUED'
     | 'ACTIVE'
     | 'ON_HOLD'

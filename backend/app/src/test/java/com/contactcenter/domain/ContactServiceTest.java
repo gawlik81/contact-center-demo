@@ -126,6 +126,32 @@ class ContactServiceTest {
         }
 
         @Test
+        @DisplayName("tworzy kontakt voice kierowany do IVR ze statusem IVR i queuedAt=null")
+        void createContact_withIvrEntry_createsWithIvrStatusAndNullQueuedAt() {
+            // given
+            CreateContactRequest request = new CreateContactRequest(
+                    CUSTOMER_ID, null, null, null,
+                    "PHONE", "INBOUND", "+48501234567", null, null, null
+            );
+            Contact saved = buildContact(CONTACT_ID, "IVR");
+            saved.setQueuedAt(null);
+            when(contactRepository.insert(any(Contact.class))).thenReturn(saved);
+
+            // when
+            ContactResponse response = contactService.createContact(request, TENANT_ID, true);
+
+            // then
+            assertThat(response.contactId()).isEqualTo(CONTACT_ID);
+            assertThat(response.status()).isEqualTo("IVR");
+
+            verify(contactRepository).insert(argThat(c ->
+                    "IVR".equals(c.getStatus())
+                    && c.getQueuedAt() == null
+                    && c.getStartedAt() != null
+            ));
+        }
+
+        @Test
         @DisplayName("używa startedAt z żądania gdy podano")
         void createContact_usesProvidedStartedAt() {
             // given

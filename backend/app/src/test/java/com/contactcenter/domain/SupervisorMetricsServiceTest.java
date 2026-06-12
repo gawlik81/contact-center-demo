@@ -10,6 +10,7 @@ import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.model.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.service.SupervisorMetricsService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
@@ -77,6 +78,7 @@ class SupervisorMetricsServiceTest {
 
     @Mock private TenantRepository tenantRepository;
     @Mock private AppUserRepository appUserRepository;
+    @Mock private ContactRepository contactRepository;
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private StringRedisTemplate stringRedisTemplate;
     @Mock private WebSocketEventBroadcaster webSocketEventBroadcaster;
@@ -611,6 +613,70 @@ class SupervisorMetricsServiceTest {
             for (Map.Entry<String, String> entry : keyToValue.entrySet()) {
                 when(stringValueOps.get(entry.getKey())).thenReturn(entry.getValue());
             }
+        }
+    }
+
+    // =========================================================================
+    // KPI – avg_wait_time
+    // =========================================================================
+
+    @Nested
+    @DisplayName("KPI – avg_wait_time")
+    class KpiAvgWaitTimeTests {
+
+        @Test
+        @DisplayName("powinien zwrócić avg_wait_time > 0 gdy są kontakty QUEUED z queued_at w przeszłości")
+        void shouldReturnPositiveAvgWaitTimeWhenContactsAreQueued() {
+            // given – brak agentów (nieistotne dla tego testu)
+            Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
+            when(appUserRepository.findAllByTenantIdWithFilters(
+                    eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
+            )).thenReturn(emptyPage);
+
+            when(contactRepository.getAvgCurrentWaitSeconds(TENANT_ID)).thenReturn(125.5);
+
+            // when
+            SupervisorMetricsPayload payload = service.buildPayload(TENANT_ID, Collections.emptyMap());
+
+            // then
+            assertThat(payload.kpi().avgWaitTime()).isEqualTo(125.5);
+        }
+
+        @Test
+        @DisplayName("powinien zwrócić 0 gdy brak kontaktów QUEUED")
+        void shouldReturnZeroWhenNoQueuedContacts() {
+            // given
+            Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
+            when(appUserRepository.findAllByTenantIdWithFilters(
+                    eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
+            )).thenReturn(emptyPage);
+
+            when(contactRepository.getAvgCurrentWaitSeconds(TENANT_ID)).thenReturn(0.0);
+
+            // when
+            SupervisorMetricsPayload payload = service.buildPayload(TENANT_ID, Collections.emptyMap());
+
+            // then
+            assertThat(payload.kpi().avgWaitTime()).isZero();
+        }
+
+        @Test
+        @DisplayName("powinien zdegradować avg_wait_time do 0 gdy repozytorium rzuca wyjątek (DB error)")
+        void shouldDegradeToZeroWhenRepositoryThrows() {
+            // given
+            Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
+            when(appUserRepository.findAllByTenantIdWithFilters(
+                    eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
+            )).thenReturn(emptyPage);
+
+            when(contactRepository.getAvgCurrentWaitSeconds(TENANT_ID))
+                    .thenThrow(new RuntimeException("DB connection error"));
+
+            // when – nie powinno rzucić wyjątku
+            SupervisorMetricsPayload payload = service.buildPayload(TENANT_ID, Collections.emptyMap());
+
+            // then
+            assertThat(payload.kpi().avgWaitTime()).isZero();
         }
     }
 }

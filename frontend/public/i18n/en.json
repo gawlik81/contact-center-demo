@@ -1388,6 +1388,7 @@
       "errorScheduleCallback": "Failed to schedule callback.",
       "successScheduleCallback": "Callback scheduled.",
       "contactStatusLabels": {
+        "IVR": "In IVR",
         "QUEUED": "Queued",
         "ASSIGNED": "Assigned",
         "ACTIVE": "Active",

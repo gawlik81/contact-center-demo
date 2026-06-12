@@ -1741,6 +1741,30 @@ public class IvrEngineService {
                     : deriveContactId(callId);
 
                 if (contactId != null && defaultQueue.isPresent()) {
+                    // Zapisz queue_id do DB i przełącz status IVR -> QUEUED (z queued_at=NOW())
+                    // analogicznie do executeQueueTransfer() – bez tego kontakt pozostaje
+                    // trwale w statusie IVR z queue_id=NULL.
+                    // Zapewnij TenantContext bez naruszania ewentualnego kontekstu wywołującego
+                    // (np. async timeout DTMF przywraca własny snapshot wokół całego wywołania).
+                    boolean wasTenantContextSet = TenantContext.isSet();
+                    try {
+                        if (!wasTenantContextSet) {
+                            TenantContext.setTenantId(tenantId);
+                        }
+                        int rows = contactRepository.updateQueueId(contactId, tenantId, defaultQueue.get().getQueueId());
+                        if (rows == 0) {
+                            log.warn("[IVR] Fallback: updateQueueId: brak zaktualizowanych wierszy: contactId={}, queueId={}",
+                                contactId, defaultQueue.get().getQueueId());
+                        }
+                    } catch (Exception updateEx) {
+                        log.error("[IVR] Fallback: błąd aktualizacji queue_id: contactId={}, error={}",
+                            contactId, updateEx.getMessage(), updateEx);
+                    } finally {
+                        if (!wasTenantContextSet) {
+                            TenantContext.clear();
+                        }
+                    }
+
                     contactEventService.closeIvr(contactId, tenantId);
                     contactEventService.openQueue(contactId, tenantId,
                         defaultQueue.get().getQueueId(), defaultQueue.get().getName(), Instant.now());

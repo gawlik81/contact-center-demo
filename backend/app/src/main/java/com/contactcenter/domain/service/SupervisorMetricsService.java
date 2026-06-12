@@ -9,6 +9,7 @@ import com.contactcenter.domain.model.AppUser.UserRole;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.model.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -83,6 +84,7 @@ public class SupervisorMetricsService {
 
     private final TenantRepository tenantRepository;
     private final AppUserRepository appUserRepository;
+    private final ContactRepository contactRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
@@ -168,8 +170,8 @@ public class SupervisorMetricsService {
         // 4. Kolejki – odczyt statystyk z Redis
         List<QueueMetric> queueMetrics = buildQueueMetrics(tenantId, agentMetrics);
 
-        // 5. avg_wait_time – agregacja z kolejek
-        double avgWaitTime = computeAvgWaitTime(queueMetrics);
+        // 5. avg_wait_time – rzeczywisty czas oczekiwania kontaktów QUEUED tenanta
+        double avgWaitTime = computeAvgWaitTime(tenantId);
 
         // 6. calls_in_ivr – liczba aktywnych sesji IVR tenanta
         int callsInIvr = countIvrSessions(tenantId);
@@ -327,10 +329,23 @@ public class SupervisorMetricsService {
         return result;
     }
 
-    private double computeAvgWaitTime(List<QueueMetric> queueMetrics) {
-        if (queueMetrics.isEmpty()) return 0.0;
-        // Placeholder MVP – dane historyczne z BE-028 (HistoricalMetrics)
-        return 0.0;
+    /**
+     * Oblicza średni czas oczekiwania (sekundy) klientów AKTUALNIE czekających
+     * w kolejkach tenanta (status QUEUED), na podstawie {@code NOW() - queued_at}.
+     *
+     * <p>Odporność na błędy – awaria DB degraduje KPI do 0 (analogicznie do Redis).
+     *
+     * @param tenantId UUID tenanta
+     * @return średni czas oczekiwania w sekundach (0.0 jeśli brak danych lub błąd)
+     */
+    private double computeAvgWaitTime(UUID tenantId) {
+        try {
+            return contactRepository.getAvgCurrentWaitSeconds(tenantId);
+        } catch (Exception e) {
+            log.warn("[SupervisorMetrics] Błąd pobierania avg_wait_time dla tenanta {}: {}",
+                    tenantId, e.getMessage());
+            return 0.0;
+        }
     }
 
     // =========================================================================

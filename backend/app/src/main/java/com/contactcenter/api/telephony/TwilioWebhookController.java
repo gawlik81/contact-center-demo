@@ -181,6 +181,13 @@ public class TwilioWebhookController {
       log.info("[TwilioVoiceWebhook] Nowe połączenie: callSid={}, from={}, to={}, tenantId={}",
           callSid, from, to, tenantId);
 
+      // Rozwiąż trasę PRZED utworzeniem rekordu contact – resolveRoute() jest operacją
+      // tylko do odczytu (reguły harmonogramu), a wynik decyduje o statusie startowym
+      // kontaktu: IVR (klient wchodzi do drzewa IVR, queuedAt=null) vs QUEUED (kierowanie
+      // bezpośrednio do kolejki agentów, queuedAt=now).
+      RouteResult route = incomingCallRoutingService.resolveRoute(tenantId, to, ZonedDateTime.now());
+      log.info("[TwilioVoiceWebhook] Wynik routingu: callSid={}, route={}/{}", callSid, route.type(), route.targetId());
+
       // Utwórz rekord contact w DB przed uruchomieniem IVR, żeby RoutingService mógł
       // znaleźć kontakt po jego ID. TenantContext musi być ustawiony dla @Audited.
       UUID contactId = null;
@@ -212,7 +219,12 @@ public class TwilioWebhookController {
             metadata,   // channelMetadata
             null    // callbackId – połączenie inbound, nie realizacja callbacku
         );
-        ContactResponse contactResponse = contactService.createContact(contactRequest, tenantId);
+        // ivrEntry=true tylko gdy połączenie jest faktycznie kierowane do drzewa IVR
+        // (route.isIvr()). Dla QUEUE (routing bezpośredni) i REJECT/unknown zachowujemy
+        // dotychczasowe QUEUED+queuedAt=now (REJECT i tak nie trafia do IVR/kolejki,
+        // ale kontakt musi mieć poprawny stan dla historii/raportów).
+        boolean ivrEntry = route.isIvr();
+        ContactResponse contactResponse = contactService.createContact(contactRequest, tenantId, ivrEntry);
         contactId = contactResponse.contactId();
         log.info("[TwilioVoiceWebhook] Rekord contact utworzony: contactId={}, callSid={}",
             contactId, callSid);
@@ -233,10 +245,6 @@ public class TwilioWebhookController {
       finally {
         TenantContext.clear();
       }
-
-      // Rozwiąż trasę na podstawie reguł harmonogramu (phone_number + phone_routing_rule)
-      RouteResult route = incomingCallRoutingService.resolveRoute(tenantId, to, ZonedDateTime.now());
-      log.info("[TwilioVoiceWebhook] Wynik routingu: callSid={}, route={}/{}", callSid, route.type(), route.targetId());
 
       String twiml;
       if (route.isReject() || to == null) {

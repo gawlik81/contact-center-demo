@@ -1388,6 +1388,7 @@
       "errorScheduleCallback": "Не вдалося запланувати зворотний дзвінок.",
       "successScheduleCallback": "Зворотний дзвінок заплановано.",
       "contactStatusLabels": {
+        "IVR": "В IVR",
         "QUEUED": "У черзі",
         "ACTIVE": "Активний",
         "ON_HOLD": "Утримання",

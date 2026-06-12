@@ -1399,6 +1399,7 @@
         "ACTIVE": "Aktiv",
         "COMPLETED": "Abgeschlossen",
         "FAILED": "Fehlgeschlagen",
+        "IVR": "Im IVR",
         "ON_HOLD": "In der Warteschleife",
         "QUEUED": "In der Warteschlange"
       },

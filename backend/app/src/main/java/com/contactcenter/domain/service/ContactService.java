@@ -106,6 +106,33 @@ public class ContactService {
     @Transactional
     @Audited(action = "CONTACT_CREATED", entityType = "CONTACT")
     public ContactResponse createContact(CreateContactRequest request, UUID tenantId) {
+        return createContact(request, tenantId, false);
+    }
+
+    /**
+     * Tworzy nowy kontakt, z opcjonalnym wejściem do IVR.
+     *
+     * <p>Metoda wewnętrzna używana przez {@code TwilioWebhookController} dla połączeń voice
+     * kierowanych do drzewa IVR. Nie jest częścią publicznego API {@code POST /api/contacts}.
+     *
+     * <ul>
+     *   <li>{@code ivrEntry=false} (domyślnie) – kontakt tworzony ze statusem {@code QUEUED}
+     *       i {@code queuedAt=now}, jak dotychczas (chat/email/social, voice z routingiem
+     *       bezpośrednio do kolejki bez IVR, lub kontakty inicjowane przez agenta).</li>
+     *   <li>{@code ivrEntry=true} – kontakt tworzony ze statusem {@code IVR} i {@code queuedAt=null}.
+     *       {@code queuedAt} zostanie ustawione dopiero przy faktycznym transferze do kolejki
+     *       agentów (zob. {@code IvrEngineService.executeQueueTransfer()}), aby KPI
+     *       "Śr. czas oczekiwania" nie liczyło czasu spędzonego w IVR.</li>
+     * </ul>
+     *
+     * @param request  dane nowego kontaktu
+     * @param tenantId UUID tenanta z TenantContext
+     * @param ivrEntry true gdy połączenie voice jest kierowane do drzewa IVR
+     * @return DTO nowo utworzonego kontaktu
+     */
+    @Transactional
+    @Audited(action = "CONTACT_CREATED", entityType = "CONTACT")
+    public ContactResponse createContact(CreateContactRequest request, UUID tenantId, boolean ivrEntry) {
         Instant now = Instant.now();
         Instant startedAt = request.startedAt() != null ? request.startedAt() : now;
 
@@ -118,9 +145,9 @@ public class ContactService {
                 .campaignId(request.campaignId())
                 .channel(request.channel())
                 .direction(request.direction())
-                .status("QUEUED")
+                .status(ivrEntry ? "IVR" : "QUEUED")
                 .remoteAddress(request.remoteAddress())
-                .queuedAt(now)
+                .queuedAt(ivrEntry ? null : now)
                 .startedAt(startedAt)
                 .channelMetadata(request.channelMetadata() != null
                         ? new HashMap<>(request.channelMetadata()) : new HashMap<>())
@@ -130,8 +157,8 @@ public class ContactService {
 
         Contact saved = contactRepository.insert(contact);
 
-        log.info("[ContactService] Kontakt utworzony: contactId={}, tenant={}, channel={}, direction={}",
-                saved.getContactId(), tenantId, saved.getChannel(), saved.getDirection());
+        log.info("[ContactService] Kontakt utworzony: contactId={}, tenant={}, channel={}, direction={}, status={}",
+                saved.getContactId(), tenantId, saved.getChannel(), saved.getDirection(), saved.getStatus());
 
         return ContactResponse.from(saved);
     }

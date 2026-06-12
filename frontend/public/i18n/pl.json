@@ -1388,6 +1388,7 @@
       "errorScheduleCallback": "Nie udało się zaplanować oddzwonienia.",
       "successScheduleCallback": "Oddzwonienie zostało zaplanowane.",
       "contactStatusLabels": {
+        "IVR": "W IVR",
         "QUEUED": "W kolejce",
         "ASSIGNED": "Przydzielony",
         "ACTIVE": "Aktywny",

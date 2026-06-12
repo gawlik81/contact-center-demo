@@ -57,6 +57,11 @@
   background: var(--neutral-soft);
   color: var(--neutral-text);
 
+  &--ivr {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
   &--queued {
     background: var(--warning-soft);
     color: var(--warning-text);

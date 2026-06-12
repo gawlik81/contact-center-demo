@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>7. Kluczowe przepływy (end-to-end) – Contact Center SaaS – Dokumentacja</title>
+<style>
+  :root { --max-width: 980px; --fg: #1a1a1a; --bg: #fff; --accent: #2563eb; --code-bg: #f4f4f5; --border: #e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+  .layout { display: flex; max-width: var(--max-width); margin: 0 auto; }
+  main { padding: 2rem; max-width: 100%; overflow-x: auto; flex: 1; }
+  h1, h2, h3, h4 { line-height: 1.25; }
+  h1 { border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .2em; margin-top: 2em; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code-bg); padding: 1em; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .5em .7em; text-align: left; }
+  th { background: var(--code-bg); }
+  blockquote { border-left: 4px solid var(--accent); margin: 1em 0; padding: .3em 1em; background: var(--code-bg); }
+  .top-nav { font-size: .9em; margin-bottom: 1.5em; }
+  .top-nav a { margin-right: .5em; }
+  .mermaid { background: var(--bg); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="layout">
+<main>
+<div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
+<h1>7. Kluczowe przepływy (end-to-end)</h1>
+<h2>7.1 Logowanie i kontekst tenant-a</h2>
+<pre class="mermaid">sequenceDiagram
+    participant FE as Angular SPA
+    participant API as Spring Boot (auth)
+    participant DB as PostgreSQL
+
+    FE->>API: POST /api/auth/login {username, password}
+    API->>DB: SELECT user WHERE username + tenant lookup
+    API->>API: weryfikacja hasła, (opc.) MFA
+    API-->>FE: 200 {accessToken (JWT), refreshToken}
+    Note over API: JWT zawiera: userId, tenantId, role(s), exp
+
+    FE->>API: kolejne żądania z Authorization: Bearer <JWT>
+    API->>API: JwtAuthFilter -> waliduje token
+    API->>API: TenantFilter -> TenantContext.set(tenantId)
+    API->>DB: zapytania repozytoriów (filtrowane po tenant_id / RLS)
+    API->>API: TenantContext.clear() (finally)
+</pre>
+<ul>
+<li><code>roleRedirectGuard</code> (frontend) po zalogowaniu przekierowuje użytkownika do <code>/admin</code>,
+<code>/supervisor</code> lub <code>/agent</code> w zależności od roli w JWT.</li>
+<li>Odświeżanie tokenu – <code>refreshToken</code> używany przez interceptor HTTP do automatycznego
+ponownego uzyskania <code>accessToken</code> przy 401.</li>
+</ul>
+<h2>7.2 Połączenie przychodzące (inbound call) + IVR + routing</h2>
+<pre class="mermaid">sequenceDiagram
+    participant Caller as Klient (PSTN)
+    participant Twilio
+    participant API as Spring Boot (telephony/ivr/queue)
+    participant Voicebot
+    participant Agent as Agent Desktop (WebSocket)
+
+    Caller->>Twilio: dzwoni na numer DID
+    Twilio->>API: webhook POST /.../telephony/voice (TwiML request)
+    API->>API: TwilioWebhookController – identyfikacja tenant/numeru (phonenumber)
+    API-->>Twilio: TwiML – uruchom IVR (Gather/Play)
+    Twilio->>Caller: odtwarza prompt IVR
+
+    alt DTMF / wejście rozpoznane
+        Caller->>Twilio: wybór cyfry (DTMF)
+        Twilio->>API: POST /.../telephony/dtmf
+        API->>API: IvrController – kolejny węzeł drzewa IVR
+    else Voicebot (NLU/ASR)
+        Twilio->>API: nagranie / audio stream
+        API->>Voicebot: REST – transkrypcja (ASR) + detekcja intencji (NLU)
+        Voicebot-->>API: intent / odpowiedź
+    end
+
+    API->>API: Queue/Routing – wybór kolejki na podstawie wyniku IVR
+    API->>Agent: WebSocket – nowy kontakt w kolejce / przypisanie
+    API-->>Twilio: TwiML – Dial agent (Conference) lub Enqueue
+    Twilio->>Agent: połączenie głosowe (WebRTC/SIP do softphone agenta)
+</pre>
+<p>Kluczowe klasy: <code>TwilioWebhookController</code>, <code>TwilioVoiceController</code>, <code>IvrController</code>,
+moduł <code>queue</code> (routing), <code>WebSocketController</code>.</p>
+<h2>7.3 IVR – edycja i definicja drzewa</h2>
+<ul>
+<li>Supervisor edytuje drzewo IVR w UI (<code>features/supervisor</code> – edytor z pozycjonowaniem węzłów,
+zoom, fit-to-view – patrz commity <code>feat(ivr)</code>).</li>
+<li>Definicja IVR (węzły, przejścia, prompty z interpolacją zmiennych <code>${...}</code>) jest
+persystowana jako JSONB w tabeli IVR (patrz <a href="06-database.html"><code>06-database.md</code></a>).</li>
+<li><code>IvrController</code> udostępnia CRUD (<code>GET/POST /ivr</code>, <code>GET/DELETE /ivr/{id}</code>,
+<code>POST /ivr/{id}/activate|deactivate</code>, <code>POST /ivr/dtmf</code>).</li>
+<li>Logika retry/timeout dla <code>COLLECT_DTMF</code> i <code>MENU</code> jest ujednolicona (patrz commit
+<code>2a76cf7</code>) – brak osobnej ścieżki &quot;no-input&quot; dla <code>COLLECT_DTMF</code>.</li>
+</ul>
+<h2>7.4 Kampania outbound – progresywny dialer</h2>
+<pre class="mermaid">sequenceDiagram
+    participant Sched as DialerScheduler (@Scheduled)
+    participant API as Spring Boot (dialer/campaign)
+    participant DB as PostgreSQL
+    participant Twilio
+    participant Agent as Agent Desktop
+
+    Sched->>DB: pobierz aktywne kampanie + dostępnych agentów (poll co DIALER_AGENT_POLL_INTERVAL_MS)
+    Sched->>DB: pobierz kolejny kontakt kampanii (campaign_contact) wg strategii
+    Sched->>Twilio: REST – zainicjuj połączenie wychodzące (Outbound Call)
+    Twilio->>Agent: po odebraniu przez klienta – połączenie kierowane do agenta
+    Agent->>API: po zakończeniu – zapis dyspozycji (disposition)
+    API->>DB: aktualizacja statusu campaign_contact, ewentualny scheduled_callback
+</pre>
+<ul>
+<li><code>DialerController</code> – status dialera (<code>GET /status</code>), zarządzanie callbackami
+(<code>/callbacks</code> CRUD), tryb manualny (<code>POST /manual/call</code>, <code>GET /manual/records</code>).</li>
+<li><code>ManualCallbackController</code> – obsługa oddzwonień zaplanowanych przez agenta/klienta.</li>
+<li>Tryby: progresywny (automatyczny wybór numerów) i manualny (agent inicjuje połączenie z listy).</li>
+</ul>
+<h2>7.5 Obsługa kontaktu przez agenta (desktop)</h2>
+<ol>
+<li>Agent loguje się → ustawia status (np. <code>AVAILABLE</code>) w module <code>agentbreak</code>/<code>agentgroup</code>.</li>
+<li>Backend (routing engine w <code>queue</code>) przypisuje kontakt z kolejki do agenta wg dostępności i
+grupy.</li>
+<li>Frontend (<code>features/agent</code>) odbiera przez WebSocket informację o nowym kontakcie i otwiera
+widok aktywnej interakcji (softphone, dane klienta z <code>customer</code>).</li>
+<li>Po zakończeniu agent wybiera <strong>kod dyspozycji</strong> (<code>disposition</code>) – zapisywany przy <code>contact</code>.</li>
+<li>Jeśli dyspozycja wymaga oddzwonienia – tworzony <code>scheduled_callback</code> (moduł <code>dialer</code>).</li>
+</ol>
+<h2>7.6 Nagrania rozmów</h2>
+<pre class="mermaid">sequenceDiagram
+    participant Twilio
+    participant API as Spring Boot (recording)
+    participant S3 as MinIO
+
+    Twilio->>API: webhook POST /.../telephony/recording (status callback, recording URL)
+    API->>Twilio: REST – pobierz plik nagrania (TwilioRecordingDownloadService)
+    API->>S3: upload (RecordingService, S3Config/S3Properties)
+    API->>API: zapis metadanych nagrania w DB (powiązanie z contact_id)
+</pre>
+<p>Jeśli włączony voicebot (<code>VOICEBOT_ENABLED</code>), nagranie może być również przekazane do
+<code>voicebot-recording</code> webhooka w celu transkrypcji/podsumowania rozmowy (<code>summarize.py</code>).</p>
+<h2>7.7 ETL → Data Warehouse (raporty)</h2>
+<pre class="mermaid">sequenceDiagram
+    participant Etl as EtlSyncService (@Scheduled, 60s)
+    participant PG as PostgreSQL
+    participant CH as ClickHouse
+
+    loop co fixedDelay (domyślnie 60000 ms)
+        Etl->>PG: SELECT zmienione rekordy (contact, campaign_contact, agent, queue)
+        Etl->>CH: batch insert (ContactDwRow, CampaignDwRow, AgentDimRow, QueueDimRow)
+        Etl->>PG: markDone(table, syncedAt, rowCount) / markError(...)
+        Etl->>Etl: checkLagAndAlert – alarm jeśli sync zalega
+    end
+</pre>
+<p>Status synchronizacji widoczny w panelu admina przez <code>EtlStatusController</code> /
+<code>AdminMetricsController</code> (<code>reports</code>/<code>admin</code>/<code>telemetry</code>).</p>
+<h2>7.8 Realtime UI (WebSocket/STOMP)</h2>
+<ul>
+<li>Backend: <code>WebSocketController</code> – endpoint <code>/ws</code>, obsługa <code>@MessageMapping(&quot;/ping&quot;)</code> i
+wysyłka do <code>@SendToUser(&quot;/events&quot;)</code>; dodatkowo eventy broadcastowane do topiców (statusy
+agentów, KPI kolejek, alerty IVR).</li>
+<li>Frontend: serwis WebSocket w <code>core/services</code> nawiązuje połączenie STOMP po zalogowaniu,
+subskrybuje topiki właściwe dla roli (np. <code>supervisor</code> subskrybuje KPI wszystkich kolejek,
+<code>agent</code> – tylko własny status/przypisania).</li>
+<li>Dane napływające z WS aktualizują <code>signal()</code>/<code>computed()</code> w komponentach – brak ręcznego
+pollingu dla tych widoków.</li>
+</ul>
+<h2>7.9 GDPR / audyt</h2>
+<ul>
+<li>Każda istotna operacja (np. zmiana danych klienta, eksport, usunięcie) jest logowana w
+module <code>auditlog</code> (kto, kiedy, co – encja + diff).</li>
+<li>Moduł <code>customer</code> wspiera right-to-erasure / eksport danych (zgodnie z PRD – sekcja GDPR w
+<a href="../ARCHITECTURE.md"><code>ARCHITECTURE.md</code></a> §6.4, do zweryfikowania przy konkretnej
+implementacji w <code>04-backend.md</code>).</li>
+</ul>
+<h2>7.10 Mapa &quot;który moduł za co odpowiada w przepływie&quot;</h2>
+<table>
+<thead>
+<tr>
+<th>Etap przepływu</th>
+<th>Backend moduł(y)</th>
+<th>Frontend feature</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Auth/JWT</td>
+<td><code>auth</code>, <code>user</code></td>
+<td><code>auth</code></td>
+</tr>
+<tr>
+<td>IVR</td>
+<td><code>ivr</code>, <code>telephony</code></td>
+<td><code>supervisor</code> (edytor IVR)</td>
+</tr>
+<tr>
+<td>Routing/kolejki</td>
+<td><code>queue</code>, <code>agentgroup</code>, <code>agentbreak</code></td>
+<td><code>supervisor</code>, <code>agent</code></td>
+</tr>
+<tr>
+<td>Kampanie/dialer</td>
+<td><code>campaign</code>, <code>dialer</code></td>
+<td><code>campaigns</code>, <code>supervisor</code></td>
+</tr>
+<tr>
+<td>Baza klientów</td>
+<td><code>customer</code>, <code>contact</code></td>
+<td><code>customers</code>, <code>agent</code></td>
+</tr>
+<tr>
+<td>Dyspozycje</td>
+<td><code>disposition</code></td>
+<td><code>dispositions</code>, <code>agent</code></td>
+</tr>
+<tr>
+<td>Nagrania</td>
+<td><code>recording</code>, <code>telephony</code></td>
+<td><code>supervisor</code> (odsłuch)</td>
+</tr>
+<tr>
+<td>Raporty/DWH</td>
+<td><code>reports</code>, <code>telemetry</code>, <code>admin</code></td>
+<td><code>reports</code>, <code>admin</code></td>
+</tr>
+<tr>
+<td>Audyt</td>
+<td><code>auditlog</code></td>
+<td><code>admin</code></td>
+</tr>
+<tr>
+<td>Realtime</td>
+<td><code>websocket</code></td>
+<td>wszystkie (status agenta, KPI)</td>
+</tr>
+<tr>
+<td>AI/Voicebot</td>
+<td>(REST do <code>voicebot/</code>)</td>
+<td><code>supervisor</code> (konfiguracja), <code>agent</code> (podsumowania)</td>
+</tr>
+</tbody></table>
+
+</main>
+</div>
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  }
+</script>
+</body>
+</html>

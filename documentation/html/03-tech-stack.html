@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3. Stos technologiczny – Contact Center SaaS – Dokumentacja</title>
+<style>
+  :root { --max-width: 980px; --fg: #1a1a1a; --bg: #fff; --accent: #2563eb; --code-bg: #f4f4f5; --border: #e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+  .layout { display: flex; max-width: var(--max-width); margin: 0 auto; }
+  main { padding: 2rem; max-width: 100%; overflow-x: auto; flex: 1; }
+  h1, h2, h3, h4 { line-height: 1.25; }
+  h1 { border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .2em; margin-top: 2em; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code-bg); padding: 1em; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .5em .7em; text-align: left; }
+  th { background: var(--code-bg); }
+  blockquote { border-left: 4px solid var(--accent); margin: 1em 0; padding: .3em 1em; background: var(--code-bg); }
+  .top-nav { font-size: .9em; margin-bottom: 1.5em; }
+  .top-nav a { margin-right: .5em; }
+  .mermaid { background: var(--bg); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="layout">
+<main>
+<div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
+<h1>3. Stos technologiczny</h1>
+<h2>3.1 Backend</h2>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Technologia</th>
+<th>Wersja / uwagi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Język</td>
+<td>Java</td>
+<td>21</td>
+</tr>
+<tr>
+<td>Framework</td>
+<td>Spring Boot</td>
+<td>3.3.5 (<code>spring-boot-starter-parent</code>)</td>
+</tr>
+<tr>
+<td>Build</td>
+<td>Maven (multi-moduł: <code>backend/pom.xml</code> + <code>backend/app</code>)</td>
+<td></td>
+</tr>
+<tr>
+<td>Web</td>
+<td><code>spring-boot-starter-web</code></td>
+<td>REST, Spring MVC</td>
+</tr>
+<tr>
+<td>Bezpieczeństwo</td>
+<td><code>spring-boot-starter-security</code> + JJWT (<code>jjwt-api</code>/<code>jjwt-impl</code>/<code>jjwt-jackson</code>)</td>
+<td>tokeny JWT podpisywane RS256</td>
+</tr>
+<tr>
+<td>Baza danych</td>
+<td><code>spring-boot-starter-data-jpa</code> + PostgreSQL 16</td>
+<td>Hibernate/JPA</td>
+</tr>
+<tr>
+<td>Migracje</td>
+<td>Flyway (<code>flyway-core</code>, <code>flyway-database-postgresql</code>)</td>
+<td><code>backend/src/main/resources/db/migration/V001...</code></td>
+</tr>
+<tr>
+<td>Cache / stan realtime</td>
+<td><code>spring-boot-starter-data-redis</code> + Caffeine (lokalny cache per-tenant, np. <code>TwilioRestClient</code>)</td>
+<td></td>
+</tr>
+<tr>
+<td>Broker komunikatów</td>
+<td><code>spring-boot-starter-amqp</code> → RabbitMQ 3.13</td>
+<td></td>
+</tr>
+<tr>
+<td>Realtime</td>
+<td><code>spring-boot-starter-websocket</code> (STOMP)</td>
+<td><code>WebSocketController</code></td>
+</tr>
+<tr>
+<td>Walidacja</td>
+<td><code>spring-boot-starter-validation</code></td>
+<td></td>
+</tr>
+<tr>
+<td>Mapowanie DTO↔Encja</td>
+<td>MapStruct</td>
+<td>generowane w czasie kompilacji</td>
+</tr>
+<tr>
+<td>Boilerplate</td>
+<td>Lombok</td>
+<td>gettery/settery/builder</td>
+</tr>
+<tr>
+<td>Telefonia</td>
+<td>Twilio Java SDK (<code>com.twilio.sdk:twilio</code>)</td>
+<td>Programmable Voice REST API</td>
+</tr>
+<tr>
+<td>Monitoring</td>
+<td><code>spring-boot-starter-actuator</code></td>
+<td>healthcheck <code>/actuator/health</code></td>
+</tr>
+<tr>
+<td>Dokumentacja API</td>
+<td>springdoc-openapi (Swagger UI)</td>
+<td><code>http://localhost:8080/swagger-ui.html</code></td>
+</tr>
+<tr>
+<td>Object storage</td>
+<td>AWS S3 SDK (MinIO-kompatybilny)</td>
+<td>nagrania rozmów (<code>recording</code>)</td>
+</tr>
+<tr>
+<td>Data Warehouse</td>
+<td>ClickHouse JDBC driver</td>
+<td><code>ClickHouseDwWriter</code>, <code>EtlSyncService</code></td>
+</tr>
+</tbody></table>
+<h2>3.2 Frontend</h2>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Technologia</th>
+<th>Wersja / uwagi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Framework</td>
+<td>Angular</td>
+<td>^21.2.0, <strong>standalone components</strong>, brak NgModules</td>
+</tr>
+<tr>
+<td>Język</td>
+<td>TypeScript</td>
+<td>~5.9.2</td>
+</tr>
+<tr>
+<td>Reaktywność</td>
+<td>RxJS (~7.8.0) + Angular Signals (<code>signal()</code>/<code>computed()</code>)</td>
+<td>signals preferowane dla stanu lokalnego, RxJS dla streamów/pollingu</td>
+</tr>
+<tr>
+<td>i18n</td>
+<td><code>@jsverse/transloco</code> (^8.3.0)</td>
+<td>tłumaczenia PL/EN</td>
+</tr>
+<tr>
+<td>Build/dev server</td>
+<td>Angular CLI (<code>@angular/build</code>)</td>
+<td>proxy do <code>localhost:8080</code> w dev</td>
+</tr>
+<tr>
+<td>Testy</td>
+<td>Vitest</td>
+<td><code>npm test</code></td>
+</tr>
+<tr>
+<td>Lint/format</td>
+<td>ESLint + Prettier (<code>printWidth: 100</code>, <code>singleQuote: true</code>, <code>tabWidth: 2</code>)</td>
+<td></td>
+</tr>
+<tr>
+<td>Realtime</td>
+<td>STOMP over WebSocket (klient JS)</td>
+<td>korespondent backendowego <code>WebSocketController</code></td>
+</tr>
+</tbody></table>
+<h2>3.3 Serwis AI / Voicebot (Python)</h2>
+<p>Katalog <code>voicebot/</code> – samodzielny serwis FastAPI wywoływany przez backend i/lub przez RabbitMQ.</p>
+<table>
+<thead>
+<tr>
+<th>Komponent</th>
+<th>Technologia</th>
+<th>Uwagi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Framework</td>
+<td>FastAPI + Uvicorn</td>
+<td><code>voicebot/app/main.py</code></td>
+</tr>
+<tr>
+<td>ASR (speech-to-text)</td>
+<td><code>openai-whisper</code></td>
+<td>model wczytywany przy starcie (<code>_get_model</code>)</td>
+</tr>
+<tr>
+<td>NLU</td>
+<td>własny moduł <code>nlu.py</code> + ewentualnie modele LLM</td>
+<td><code>detect_intent</code></td>
+</tr>
+<tr>
+<td>Podsumowania rozmów</td>
+<td><code>summarize.py</code></td>
+<td>wykorzystuje <code>anthropic</code> i/lub <code>openai</code> SDK</td>
+</tr>
+<tr>
+<td>Sesje rozmów</td>
+<td>Redis (<code>redis.asyncio</code>)</td>
+<td><code>session.py</code> – get/update/delete session</td>
+</tr>
+<tr>
+<td>Komunikacja async</td>
+<td>RabbitMQ (<code>aio_pika</code>, robust connection)</td>
+<td><code>rabbit.py</code> – <code>publish_escalation</code></td>
+</tr>
+<tr>
+<td>Konfiguracja</td>
+<td><code>pydantic-settings</code></td>
+<td><code>config.py</code></td>
+</tr>
+<tr>
+<td>Testy</td>
+<td>pytest + pytest-asyncio</td>
+<td><code>voicebot/tests/</code></td>
+</tr>
+</tbody></table>
+<h2>3.4 Bazy danych i magazyny danych</h2>
+<table>
+<thead>
+<tr>
+<th>Magazyn</th>
+<th>Technologia</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Relacyjna (OLTP)</td>
+<td>PostgreSQL 16 (alpine)</td>
+<td>główna baza operacyjna, multi-tenant (RLS + <code>tenant_id</code>)</td>
+</tr>
+<tr>
+<td>Cache / stan in-memory</td>
+<td>Redis 7 (alpine)</td>
+<td>sesje, JWT blacklist, presence agentów, sesje voicebota</td>
+</tr>
+<tr>
+<td>Message broker</td>
+<td>RabbitMQ 3.13 (management)</td>
+<td>komunikacja asynchroniczna BE ↔ voicebot, eventy domenowe</td>
+</tr>
+<tr>
+<td>Object storage</td>
+<td>MinIO (S3-compatible)</td>
+<td>nagrania rozmów, pliki</td>
+</tr>
+<tr>
+<td>Data Warehouse (OLAP)</td>
+<td>ClickHouse 24.3</td>
+<td>raporty/analityka – zasilana przez <code>EtlSyncService</code></td>
+</tr>
+</tbody></table>
+<h2>3.5 Infrastruktura</h2>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Technologia</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Konteneryzacja</td>
+<td>Docker / Docker Compose (<code>docker-compose.yml</code> + <code>docker-compose.local-demo.yml</code>)</td>
+</tr>
+<tr>
+<td>Reverse proxy</td>
+<td>Nginx (<code>nginx/</code>)</td>
+</tr>
+<tr>
+<td>Local demo / tunneling</td>
+<td>ngrok (SSL terminowany przez ngrok w trybie local-demo)</td>
+</tr>
+</tbody></table>
+<p>Szczegółowy opis usług i ich konfiguracji – patrz <a href="08-infrastructure.html"><code>08-infrastructure.md</code></a>.</p>
+<h2>3.6 Wersjonowanie i konwencje</h2>
+<ul>
+<li>Backend: Maven multi-module (<code>backend/pom.xml</code> – rodzic, <code>backend/app</code> – aplikacja).</li>
+<li>Frontend: jeden projekt Angular (<code>frontend/</code>).</li>
+<li>Migracje DB: Flyway, nazewnictwo <code>Vxxx__opis.sql</code>, <strong>nigdy nie edytować zastosowanej migracji</strong>
+(patrz <a href="06-database.html"><code>06-database.md</code></a> i zasady w <code>CLAUDE.md</code>).</li>
+<li>Gałęzie git: <code>feature/&lt;opis&gt;</code>, <code>fix/&lt;opis&gt;</code>, <code>chore/&lt;opis&gt;</code>.</li>
+</ul>
+
+</main>
+</div>
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  }
+</script>
+</body>
+</html>

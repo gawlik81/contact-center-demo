@@ -838,6 +838,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     try {
       // Krok 1: znajdź aktywną konferencję po friendly name (nazewnictwo: "contact-{contactId}")
+      // Uwaga: nie usuwać .setStatus(IN_PROGRESS) — od 13.07.2026 (Twilio advisory COMM-4957)
+      // jest to i tak domyślne zachowanie listingu, ale jawne ustawienie zachowuje zgodność niezależnie od daty.
       ResourceSet<Conference> conferences = Conference.reader()
           .setFriendlyName(conferenceName)
           .setStatus(Conference.Status.IN_PROGRESS)
@@ -948,6 +950,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     try {
       // Krok 1: znajdź aktywną konferencję po friendly name (nazewnictwo: "contact-{contactId}")
+      // Uwaga: nie usuwać .setStatus(IN_PROGRESS) — od 13.07.2026 (Twilio advisory COMM-4957)
+      // jest to i tak domyślne zachowanie listingu, ale jawne ustawienie zachowuje zgodność niezależnie od daty.
       ResourceSet<Conference> conferences = Conference.reader()
           .setFriendlyName(conferenceName)
           .setStatus(Conference.Status.IN_PROGRESS)

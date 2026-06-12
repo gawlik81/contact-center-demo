@@ -304,7 +304,15 @@
       "Bash(npm view *)",
       "Bash(npm ls *)",
       "Bash(npm init *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(awk NR>=575 && NR<=600 *)",
+      "Bash(awk 'NR>=580 && NR<=600' /home/pawelm/contact-center/ARCHITECTURE.md)",
+      "Bash(awk 'NR>=578 && NR<=600' /home/pawelm/contact-center/ARCHITECTURE.md)",
+      "Bash(awk NR>=560 && NR<=600 *)",
+      "Bash(awk NR>=580 && NR<=595 *)",
+      "Bash(awk 'NR>=578 && NR<=598{print NR\": \"$0}' /home/pawelm/contact-center/ARCHITECTURE.md)",
+      "Bash(awk 'NR>=787 && NR<=812{print NR\": \"$0}' /home/pawelm/contact-center/ARCHITECTURE.md)",
+      "Bash(awk NR>=540 && NR<=565{print NR\": \"$0} *)"
     ]
   }
 }

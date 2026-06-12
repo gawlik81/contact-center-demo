@@ -296,7 +296,15 @@
       "Bash(docker cp *)",
       "Bash(pkill -f \"ng serve\")",
       "Bash(pkill -f \"vite\")",
-      "Bash(pkill -9 -f \"ng serve\")"
+      "Bash(pkill -9 -f \"ng serve\")",
+      "Bash(unzip -o -q /home/pawelm/.m2/repository/org/springframework/data/spring-data-redis/3.3.5/spring-data-redis-3.3.5.jar -d sdr)",
+      "Bash(find app/target/surefire-reports -newer app/pom.xml)",
+      "Bash(cat app/target/surefire-reports/*SupervisorMetricsServiceTest*.txt)",
+      "Bash(pip3 show *)",
+      "Bash(npm view *)",
+      "Bash(npm ls *)",
+      "Bash(npm init *)",
+      "Bash(npm install *)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 # Backend – dokumentacja techniczna
 
 > Dokument onboardingowy dla warstwy backendowej Contact Center SaaS (`backend/`).
-> Stack: **Java 21 + Spring Boot 3.3.x**, **PostgreSQL 15** (Flyway, Row Level Security),
+> Stack: **Java 21 + Spring Boot 3.3.x**, **PostgreSQL 16** (Flyway, Row Level Security),
 > **Redis** (sesje IVR, cache, rate limiting, blacklisty), **RabbitMQ** (eventy domenowe,
 > async processing), **MinIO/S3** (nagrania rozmów), **Twilio Programmable Voice** (CPaaS),
 > opcjonalna mikrousługa **Python/FastAPI** (`voicebot/`) do ASR+NLU.

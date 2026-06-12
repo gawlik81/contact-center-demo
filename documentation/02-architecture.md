@@ -34,7 +34,8 @@ System pozostaje **modularnym monolitem** (ADR-01 z `ARCHITECTURE.md` jest wcią
    +-------------------------------------------------------------+
         |        |          |          |        |       |
      auth/    tenant/     queue/     campaign/  ivr/    recording/
-     user     agentgroup  routing    dialer     telephony  ...
+     user     agentgroup  routing    dialer     telephony  email/
+                                                            social/  ...
         |        |          |          |        |       |
         v        v          v          v        v       v
    +----------------------------------------------------------+
@@ -96,6 +97,8 @@ Pełny opis JWT/MFA/role – sekcja "Security" w [`04-backend.md`](04-backend.md
 | Voicebot (Python) | backend ↔ voicebot | REST (np. transkrypcja, NLU, podsumowanie) + RabbitMQ (eskalacja do agenta) |
 | MinIO/S3 | backend → MinIO | AWS S3 SDK – upload/download nagrań (`RecordingService`, `TwilioRecordingDownloadService`) |
 | ClickHouse | backend → ClickHouse | JDBC, zapisy wsadowe przez `EtlSyncService` (co 60s) na potrzeby `reports`/`admin` |
+| Serwery IMAP/SMTP (per tenant) | backend ↔ skrzynka tenanta | Jakarta Mail – `EmailPollingService` (polling co ~60s) i `EmailSendService` (moduł `email`) |
+| Facebook/Instagram/WhatsApp | dwustronnie: webhooki (inbound) + Graph/WhatsApp Cloud API (outbound) | OAuth2 + webhooki (`SocialOAuthController`/`SocialWebhookController`), adaptery w `infrastructure/social` (moduł `social`) |
 
 ## 2.6 Przepływ danych operacyjnych → analitycznych (DWH)
 

@@ -75,6 +75,10 @@ Pełne opisy w [`07-data-flows.md`](07-data-flows.md):
 5. **Voicebot/AI** – serwis Python (FastAPI) wspomaga IVR (ASR, NLU, podsumowania rozmów).
 6. **ETL do Data Warehouse** – `EtlSyncService` synchronizuje dane operacyjne do ClickHouse na potrzeby raportów.
 7. **Nagrania** – pobieranie nagrań z Twilio i zapis do MinIO/S3.
+8. **Kanał e-mail** – IMAP polling, routing do kolejek, szablony odpowiedzi, wysyłka SMTP.
+9. **Kanał social media (chat)** – integracje OAuth (Facebook/Instagram/WhatsApp), odbiór
+   wiadomości przez webhooki + RabbitMQ, odpowiedzi agenta. Chatbot tekstowy – patrz §7.13
+   (status: planowany, niezaimplementowany).
 
 ## 1.6 Jak korzystać z tej dokumentacji
 

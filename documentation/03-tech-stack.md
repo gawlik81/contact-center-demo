@@ -22,6 +22,9 @@
 | Dokumentacja API | springdoc-openapi (Swagger UI) | `http://localhost:8080/swagger-ui.html` |
 | Object storage | AWS S3 SDK (MinIO-kompatybilny) | nagrania rozmów (`recording`) |
 | Data Warehouse | ClickHouse JDBC driver | `ClickHouseDwWriter`, `EtlSyncService` |
+| E-mail | Jakarta Mail (`angus-mail`) | IMAP polling + SMTP (moduł `email`) |
+| Szablony e-mail | Mustache | renderowanie szablonów odpowiedzi (`email_template`) |
+| Social media | Graph API (Facebook/Instagram), WhatsApp Cloud API (REST, OAuth2) | adaptery w `infrastructure/social` |
 
 ## 3.2 Frontend
 

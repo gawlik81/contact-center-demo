@@ -176,7 +176,198 @@ module <code>auditlog</code> (kto, kiedy, co – encja + diff).</li>
 <a href="../ARCHITECTURE.md"><code>ARCHITECTURE.md</code></a> §6.4, do zweryfikowania przy konkretnej
 implementacji w <code>04-backend.md</code>).</li>
 </ul>
-<h2>7.10 Mapa &quot;który moduł za co odpowiada w przepływie&quot;</h2>
+<h2>7.11 Kanał e-mail</h2>
+<p>Moduł <code>email</code> (<code>EmailController</code>, <code>EmailTemplateController</code>) – pełny cykl: odbiór przez IMAP
+polling, routing do kolejki/kontaktu, odpowiedź agenta przez SMTP, szablony.</p>
+<h3>7.11.1 Konfiguracja konta (supervisor)</h3>
+<ol>
+<li>Supervisor wchodzi w <code>supervisor/settings/email-settings</code> (frontend) i wypełnia dane
+IMAP/SMTP (host, port, login, hasło, szyfrowanie).</li>
+<li><code>PUT /api/email/config</code> – zapis w <code>EmailAccountConfig</code> (hasła szyfrowane
+<code>EMAIL_ENCRYPTION_KEY</code>, AES-256-GCM przez <code>EmailEncryptionService</code>).</li>
+<li><code>POST /api/email/config/test</code> – weryfikacja połączenia IMAP/SMTP przed zapisem (lub po).</li>
+</ol>
+<h3>7.11.2 Odbiór wiadomości (inbound)</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Mailbox as Skrzynka IMAP tenanta
+    participant Poll as EmailPollingService (@Scheduled, email.poll-delay-ms ~60s)
+    participant Route as EmailRoutingService
+    participant CC as EmailContactCreator
+    participant DB as PostgreSQL
+    participant Pub as EmailEventPublisher
+    participant Agent as Agent Desktop (WebSocket)
+
+    loop co email.poll-delay-ms (domyślnie 60s), per tenant z aktywną konfiguracją
+        Poll->>Mailbox: IMAP FETCH nowych wiadomości
+        Poll->>DB: deduplikacja po message_id_header (UNIQUE tenant_id+message_id_header)
+        Poll->>Route: dopasuj reguły email_routing_rule (warunki -> queue_id)
+        Route->>CC: utwórz/dopasuj contact (channel=EMAIL), zapisz email_message
+        CC->>DB: INSERT contact + email_message (attachments JSONB)
+        Poll->>Pub: publikuj event email.received -> cc.events (routing key email.#)
+        Pub->>Agent: (przez RabbitToWebSocketRelay) powiadomienie o nowej wiadomości w kolejce
+    end
+</pre>
+<ul>
+<li>Wątkowanie: <code>message_id_header</code>/<code>in_reply_to</code> (RFC 2822) – kolejne wiadomości w tym samym
+wątku trafiają do tego samego <code>contact</code> (<code>GET /api/email/threads/{messageIdHeader}</code>).</li>
+<li>Jeśli wiadomość nie pasuje do żadnej reguły routingu – trafia do domyślnej kolejki email
+tenanta (kolejka z ustawionym <code>email_address</code>, V029).</li>
+</ul>
+<h3>7.11.3 Obsługa przez agenta (outbound/reply)</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Agent as Agent Desktop (email-contact)
+    participant API as Spring Boot (email)
+    participant SMTP as Serwer SMTP tenanta
+    participant DB as PostgreSQL
+
+    Agent->>API: GET /api/email/contacts/{contactId}/message (treść wątku)
+    Agent->>API: (opc.) GET /api/email-templates + POST /{id}/preview (renderowanie zmiennych ${...})
+    Agent->>API: POST /api/email/messages/{id}/reply {body, templateId?}
+    API->>API: EmailSendService – render szablonu (Mustache) + wysyłka SMTP
+    API->>DB: INSERT email_message (kierunek=OUTBOUND, delivery_status)
+    API->>API: EmailEventPublisher -> email.sent (cc.events)
+</pre>
+<ul>
+<li><code>POST /api/email/messages/outbound</code> – wysłanie nowej wiadomości (ad-hoc, np. z widoku klienta
+<code>adhoc-email-modal</code>), bez istniejącego wątku.</li>
+<li>Szablony (<code>email_template</code>) wsparte przez <code>TemplateVariableResolver</code> +
+<code>PredefinedTemplateVariable</code> – zmienne typu <code>${customer.firstName}</code>, <code>${agent.name}</code> itd.,
+walidowane przy <code>preview</code> (HTTP 422 jeśli brakuje zmiennej).</li>
+</ul>
+<h3>7.11.4 Frontend</h3>
+<table>
+<thead>
+<tr>
+<th>Widok</th>
+<th>Komponent</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Skrzynka agenta</td>
+<td><code>features/agent/pages/agent-desktop/email-contact</code></td>
+<td>wątek email aktywnego kontaktu, odpowiedź</td>
+</tr>
+<tr>
+<td>Wiadomość w wątku</td>
+<td><code>email-contact/email-thread-message</code></td>
+<td>render pojedynczej wiadomości (+ załączniki)</td>
+</tr>
+<tr>
+<td>Email ad-hoc</td>
+<td><code>features/agent/pages/customers/adhoc-email-modal</code></td>
+<td>wysłanie e-maila do klienta poza kontaktem</td>
+</tr>
+<tr>
+<td>Konfiguracja IMAP/SMTP</td>
+<td><code>features/supervisor/pages/settings/email-settings</code></td>
+<td><code>EmailConfigService</code></td>
+</tr>
+<tr>
+<td>Szablony</td>
+<td><code>features/supervisor/pages/settings/email-templates</code></td>
+<td>CRUD + preview</td>
+</tr>
+</tbody></table>
+<h2>7.12 Kanał social media (Messenger / Instagram / WhatsApp – &quot;chat&quot;)</h2>
+<p>Moduł <code>social</code> realizuje funkcję czatu z klientami przez platformy społecznościowe. Nie ma
+odrębnego &quot;widgetu czatu web&quot; – kanały social <em>są</em> kanałem chat w tym systemie (PRD planuje
+dodatkowo chatbota tekstowego – zob. 7.13).</p>
+<h3>7.12.1 Podłączenie integracji (OAuth) – supervisor/admin</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Sup as Supervisor (frontend: integrations/social-integrations)
+    participant API as Spring Boot (social)
+    participant Redis
+    participant Platform as Facebook/Instagram/WhatsApp
+
+    Sup->>API: POST /api/integrations/{platform}/initiate
+    API->>Redis: SET oauth:state:{state} -> tenantId (TTL 10 min)
+    API-->>Sup: URL autoryzacji OAuth platformy
+    Sup->>Platform: przekierowanie, użytkownik akceptuje uprawnienia
+    Platform->>API: GET /api/oauth/{platform}/callback?state=...&code=... (publiczny)
+    API->>Redis: weryfikacja state -> tenantId, ustawienie TenantContext
+    API->>Platform: wymiana code -> access_token (+ page_id)
+    API->>API: SocialTokenEncryptionService (AES-256-GCM) -> social_integration.access_token_encrypted
+    Note over API: SocialIntegrationService odświeża tokeny @Scheduled co 1h
+</pre>
+<h3>7.12.2 Wiadomość przychodząca (inbound webhook)</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Platform as Facebook/Instagram/WhatsApp
+    participant API as Spring Boot (SocialWebhookController)
+    participant MQ as RabbitMQ (cc.queue.social-incoming)
+    participant Consumer as SocialMessageConsumer
+    participant DB as PostgreSQL
+    participant Agent as Agent Desktop (WebSocket)
+
+    Platform->>API: POST /api/webhooks/{facebook|instagram|whatsapp} (publiczny)
+    API-->>Platform: 200 OK natychmiast (wymóg platform – brak timeoutu)
+    API->>MQ: publikacja IncomingSocialMessage (SocialMessagePublisher)
+    MQ->>Consumer: SocialMessageConsumer (async)
+    Consumer->>DB: lookup integracji cross-tenant po (platform, page_id) -> tenant_id
+    Consumer->>DB: INSERT/UPDATE contact (channel=SOCIAL_FACEBOOK/INSTAGRAM/WHATSAPP) + social_message
+    Consumer->>Agent: WebSocket – nowy kontakt/wiadomość w kolejce social
+</pre>
+<ul>
+<li>Idempotentność: <code>social_message.external_message_id</code> ma <code>UNIQUE(tenant_id, external_message_id)</code>
+– ponowne dostawy webhooka (retry platformy) nie tworzą duplikatów.</li>
+<li>Weryfikacja webhooka (GET <code>/api/webhooks/{platform}</code>) – standardowy handshake
+(<code>hub.verify_token</code> dla Meta).</li>
+</ul>
+<h3>7.12.3 Odpowiedź agenta (outbound)</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Agent as Agent Desktop (social-contact)
+    participant API as Spring Boot (SocialContactController)
+    participant Adapter as FacebookAdapter/InstagramAdapter/WhatsAppAdapter
+    participant Platform
+
+    Agent->>API: GET /api/contacts/{contactId}/social/messages (historia wątku)
+    Agent->>API: POST /api/contacts/{contactId}/social/message {text}
+    API->>Adapter: SocialAdapterRegistry.get(platform)
+    Adapter->>Platform: wysyłka wiadomości (Graph API / WhatsApp Cloud API), token z social_integration
+    API->>API: INSERT social_message (OUTBOUND)
+</pre>
+<h3>7.12.4 Frontend</h3>
+<table>
+<thead>
+<tr>
+<th>Widok</th>
+<th>Komponent</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Wątek social w desktopie agenta</td>
+<td><code>features/agent/pages/agent-desktop/social-contact</code></td>
+<td>odbiór/wysyłka wiadomości, <code>SocialContactService</code></td>
+</tr>
+<tr>
+<td>Model wiadomości</td>
+<td><code>features/agent/models/social-message.model.ts</code></td>
+<td>typy DTO</td>
+</tr>
+<tr>
+<td>Zarządzanie integracjami</td>
+<td><code>features/integrations/pages/social-integrations</code></td>
+<td>lista/dodawanie/usuwanie integracji OAuth (<code>SocialIntegrationService</code>)</td>
+</tr>
+</tbody></table>
+<h2>7.13 Chatbot / Voicebot – status</h2>
+<ul>
+<li><strong>Voicebot (zaimplementowany)</strong>: wywoływany <strong>w trakcie połączenia telefonicznego</strong> z węzła
+IVR typu <code>VOICEBOT</code> (<code>IvrNodeType.VOICEBOT</code>, zob. 7.3) – ASR (Whisper), NLU (<code>detect_intent</code>)
+i ewentualna eskalacja do agenta przez RabbitMQ (<code>publish_escalation</code>). Endpoint:
+<code>POST /voicebot/turn</code> w <code>voicebot/app/main.py</code>.</li>
+<li><strong>Podsumowania AI (zaimplementowane)</strong>: <code>POST /ai/summarize</code> – generuje podsumowanie
+rozmowy (transkrypcja → tekst), konfiguracja dostawcy AI per tenant w
+<code>TenantAiConfigController</code> (<code>/api/supervisor/ai-config</code>).</li>
+<li><strong>Chatbot tekstowy dla social/web (PRD, status: planowany)</strong>: PRD (<code>PRD.md</code>, sekcja
+Automatyzacja, OQ-04) zakłada chatbota tekstowego dla kanałów social/web, ale <strong>w kodzie
+backendu/frontendu nie istnieje odrębny moduł/endpoint chatbota</strong> – obecnie kanały social
+(7.12) są obsługiwane wyłącznie przez agentów (bez automatycznych odpowiedzi bota). Przy
+podejmowaniu tego zadania należałoby zaprojektować nowy moduł (np. <code>chatbot</code>) analogicznie
+do wzorca <code>ivr</code>/<code>voicebot</code> (NLU z <code>voicebot/app/nlu.py</code> jest reużywalne).</li>
+</ul>
+<h2>7.14 Mapa &quot;który moduł za co odpowiada w przepływie&quot;</h2>
 <table>
 <thead>
 <tr>
@@ -221,6 +412,16 @@ implementacji w <code>04-backend.md</code>).</li>
 <td><code>supervisor</code> (odsłuch)</td>
 </tr>
 <tr>
+<td>Email</td>
+<td><code>email</code></td>
+<td><code>agent</code> (email-contact), <code>supervisor</code> (ustawienia/szablony)</td>
+</tr>
+<tr>
+<td>Social media / chat</td>
+<td><code>social</code></td>
+<td><code>agent</code> (social-contact), <code>integrations</code> (OAuth)</td>
+</tr>
+<tr>
 <td>Raporty/DWH</td>
 <td><code>reports</code>, <code>telemetry</code>, <code>admin</code></td>
 <td><code>reports</code>, <code>admin</code></td>
@@ -239,6 +440,11 @@ implementacji w <code>04-backend.md</code>).</li>
 <td>AI/Voicebot</td>
 <td>(REST do <code>voicebot/</code>)</td>
 <td><code>supervisor</code> (konfiguracja), <code>agent</code> (podsumowania)</td>
+</tr>
+<tr>
+<td>Chatbot tekstowy</td>
+<td>nie zaimplementowano (PRD – planowane)</td>
+<td>–</td>
 </tr>
 </tbody></table>
 

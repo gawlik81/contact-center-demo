@@ -64,7 +64,8 @@ działający poza JVM, zgodnie z ADR-06.</li>
    +-------------------------------------------------------------+
         |        |          |          |        |       |
      auth/    tenant/     queue/     campaign/  ivr/    recording/
-     user     agentgroup  routing    dialer     telephony  ...
+     user     agentgroup  routing    dialer     telephony  email/
+                                                            social/  ...
         |        |          |          |        |       |
         v        v          v          v        v       v
    +----------------------------------------------------------+
@@ -141,6 +142,16 @@ signale komponentów.</li>
 <td>ClickHouse</td>
 <td>backend → ClickHouse</td>
 <td>JDBC, zapisy wsadowe przez <code>EtlSyncService</code> (co 60s) na potrzeby <code>reports</code>/<code>admin</code></td>
+</tr>
+<tr>
+<td>Serwery IMAP/SMTP (per tenant)</td>
+<td>backend ↔ skrzynka tenanta</td>
+<td>Jakarta Mail – <code>EmailPollingService</code> (polling co ~60s) i <code>EmailSendService</code> (moduł <code>email</code>)</td>
+</tr>
+<tr>
+<td>Facebook/Instagram/WhatsApp</td>
+<td>dwustronnie: webhooki (inbound) + Graph/WhatsApp Cloud API (outbound)</td>
+<td>OAuth2 + webhooki (<code>SocialOAuthController</code>/<code>SocialWebhookController</code>), adaptery w <code>infrastructure/social</code> (moduł <code>social</code>)</td>
 </tr>
 </tbody></table>
 <h2>2.6 Przepływ danych operacyjnych → analitycznych (DWH)</h2>

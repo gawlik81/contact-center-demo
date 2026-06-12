@@ -1,7 +1,7 @@
 # Baza danych – dokumentacja techniczna
 
 > Dokument onboardingowy dla warstwy danych Contact Center SaaS.
-> Silnik: **PostgreSQL 15/16**, migracje **Flyway** (`backend/src/main/resources/db/migration/`,
+> Silnik: **PostgreSQL 16** (Docker), migracje **Flyway** (`backend/src/main/resources/db/migration/`,
 > obecnie **73 pliki**, `V001`…`V073`), izolacja multi-tenant przez kolumnę `tenant_id`
 > + **Row Level Security (RLS)**.
 

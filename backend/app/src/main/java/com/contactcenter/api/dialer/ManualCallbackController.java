@@ -5,7 +5,7 @@ import com.contactcenter.api.dialer.dto.ManualCallbackResponse;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,7 +54,7 @@ public class ManualCallbackController {
     /** Minimalne wyprzedzenie czasowe scheduledAt od momentu wywołania (5 minut). */
     private static final long MIN_SCHEDULED_AT_OFFSET_SECONDS = 5 * 60L;
 
-    private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
     private final ScheduledCallbackRepository scheduledCallbackRepository;
 
     /**
@@ -105,7 +105,7 @@ public class ManualCallbackController {
         }
 
         // 2. Weryfikacja klienta – czy istnieje i należy do tenanta
-        Customer customer = customerRepository.findById(request.customerId(), tenantId)
+        Customer customer = customerService.findById(request.customerId(), tenantId)
                 .orElseThrow(() -> {
                     // Nie ujawniamy czy klient istnieje w innym tenancie – zawsze 403
                     log.warn("[ManualCallbackController] Klient nie istnieje lub inny tenant: " +

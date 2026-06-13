@@ -143,4 +143,59 @@ public interface CustomerService {
      * @return profil klienta (nowy lub istniejący)
      */
     CustomerResponse handleUnknownCaller(String phone, UUID tenantId);
+
+    // =========================================================================
+    // Metody dla konsumentów zewnętrznych (delegacja do CustomerRepository)
+    // =========================================================================
+
+    /**
+     * Wyszukuje encję klienta po numerze telefonu w tablicy JSONB {@code phone}.
+     *
+     * <p>Delegacja do {@code CustomerRepository.findByPhoneNumber}, udostępniona
+     * konsumentom spoza pakietu {@code domain.customer} (np. adaptery telefonii).
+     *
+     * @param phoneNumber numer telefonu do wyszukania (format E.164: "+48501234567")
+     * @param tenantId    UUID tenanta – filtr RLS
+     * @return Optional z pierwszą znalezioną encją {@link Customer} lub empty gdy brak
+     */
+    Optional<Customer> findByPhoneNumber(String phoneNumber, UUID tenantId);
+
+    /**
+     * Wyszukuje encję klienta po adresie email w tablicy JSONB {@code email}.
+     *
+     * <p>Delegacja do {@code CustomerRepository.findByEmail}, udostępniona
+     * konsumentom spoza pakietu {@code domain.customer}.
+     *
+     * @param emailAddress adres email do wyszukania
+     * @param tenantId     UUID tenanta – filtr RLS
+     * @return Optional z pierwszą znalezioną encją {@link Customer} lub empty gdy brak
+     */
+    Optional<Customer> findByEmail(String emailAddress, UUID tenantId);
+
+    /**
+     * Pobiera encję klienta po ID z zabezpieczeniem cross-tenant.
+     *
+     * <p>Delegacja do {@code CustomerRepository.findById}, udostępniona
+     * konsumentom spoza pakietu {@code domain.customer}. W odróżnieniu od
+     * {@link #getCustomer} zwraca encję {@link Customer}, a nie DTO.
+     *
+     * @param customerId UUID klienta
+     * @param tenantId   UUID tenanta
+     * @return Optional z encją klienta lub empty gdy nie istnieje, inny tenant lub anonimizowany
+     */
+    Optional<Customer> findById(UUID customerId, UUID tenantId);
+
+    /**
+     * Anonimizuje dane osobowe klienta zgodnie z RODO (Art. 17).
+     *
+     * <p>Delegacja do {@code CustomerRepository.anonymize}, udostępniona
+     * konsumentom spoza pakietu {@code domain.customer} (np. {@code GdprService}).
+     * W odróżnieniu od {@link #anonymizeCustomer} nie rzuca wyjątku gdy klient
+     * nie istnieje – zwraca liczbę zaktualizowanych wierszy.
+     *
+     * @param customerId UUID klienta do anonimizacji
+     * @param tenantId   UUID tenanta (cross-tenant guard)
+     * @return liczba zaktualizowanych wierszy (0 = klient nie istnieje lub inny tenant)
+     */
+    int anonymize(UUID customerId, UUID tenantId);
 }

@@ -3,7 +3,7 @@ package com.contactcenter.domain.telephony;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.customer.CliLookupService;
 import com.contactcenter.domain.customer.CustomerCliResult;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +55,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
 
     private final TelephonyEventPublisher eventPublisher;
     private final ContactRepository contactRepository;
-    private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
     private final CliLookupService cliLookupService;
 
     // =========================================================================
@@ -679,7 +679,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
             return null;
         }
         try {
-            return customerRepository.findByPhoneNumber(phoneNumber, tenantId)
+            return customerService.findByPhoneNumber(phoneNumber, tenantId)
                     .map(Customer::getCustomerId)
                     .orElseGet(() -> {
                         log.debug("[MockTelephony] Klient nie znaleziony dla phone={}, tenant={} – customerId=null",

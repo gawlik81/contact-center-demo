@@ -23,10 +23,13 @@ import java.util.UUID;
  *
  * <p>Wyszukiwanie po numerze telefonu używa natywnego SQL z operatorem JSONB {@code @>},
  * który korzysta z indeksu GIN {@code idx_customer_phone_gin} (V006).
+ *
+ * <p><strong>Encapsulation:</strong> To repozytorium jest package-private – dostęp
+ * spoza pakietu {@code domain.customer} odbywa się wyłącznie przez {@link CustomerService}.
  */
 @Slf4j
 @Repository
-public class CustomerRepository extends TenantAwareRepository {
+class CustomerRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Odczyt

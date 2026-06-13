@@ -437,6 +437,62 @@ class CustomerServiceImpl implements CustomerService {
     }
 
     // =========================================================================
+    // Metody dla konsumentów zewnętrznych (delegacja do CustomerRepository)
+    // =========================================================================
+
+    /**
+     * Wyszukuje encję klienta po numerze telefonu w tablicy JSONB {@code phone}.
+     *
+     * @param phoneNumber numer telefonu do wyszukania (format E.164: "+48501234567")
+     * @param tenantId    UUID tenanta – filtr RLS
+     * @return Optional z pierwszą znalezioną encją {@link Customer} lub empty gdy brak
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<Customer> findByPhoneNumber(String phoneNumber, UUID tenantId) {
+        return customerRepository.findByPhoneNumber(phoneNumber, tenantId);
+    }
+
+    /**
+     * Wyszukuje encję klienta po adresie email w tablicy JSONB {@code email}.
+     *
+     * @param emailAddress adres email do wyszukania
+     * @param tenantId     UUID tenanta – filtr RLS
+     * @return Optional z pierwszą znalezioną encją {@link Customer} lub empty gdy brak
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<Customer> findByEmail(String emailAddress, UUID tenantId) {
+        return customerRepository.findByEmail(emailAddress, tenantId);
+    }
+
+    /**
+     * Pobiera encję klienta po ID z zabezpieczeniem cross-tenant.
+     *
+     * @param customerId UUID klienta
+     * @param tenantId   UUID tenanta
+     * @return Optional z encją klienta lub empty gdy nie istnieje, inny tenant lub anonimizowany
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<Customer> findById(UUID customerId, UUID tenantId) {
+        return customerRepository.findById(customerId, tenantId);
+    }
+
+    /**
+     * Anonimizuje dane osobowe klienta zgodnie z RODO (Art. 17).
+     *
+     * @param customerId UUID klienta do anonimizacji
+     * @param tenantId   UUID tenanta (cross-tenant guard)
+     * @return liczba zaktualizowanych wierszy (0 = klient nie istnieje lub inny tenant)
+     */
+    @Transactional
+    @Override
+    public int anonymize(UUID customerId, UUID tenantId) {
+        return customerRepository.anonymize(customerId, tenantId);
+    }
+
+    // =========================================================================
     // Metody pomocnicze
     // =========================================================================
 

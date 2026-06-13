@@ -4,7 +4,7 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.service.RoutingService;
@@ -40,7 +40,7 @@ import java.util.UUID;
 public class EmailContactCreator {
 
     private final ContactRepository contactRepository;
-    private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
     private final EmailMessageRepository emailMessageRepository;
     private final RabbitTemplate rabbitTemplate;
     private final EmailEmlService emailEmlService;
@@ -128,7 +128,7 @@ public class EmailContactCreator {
         if (rawFrom != null) {
             String emailAddr = extractEmailAddress(rawFrom);
             if (emailAddr != null) {
-                customerId = customerRepository.findByEmail(emailAddr, tenantId)
+                customerId = customerService.findByEmail(emailAddr, tenantId)
                         .map(Customer::getCustomerId)
                         .orElse(null);
                 if (customerId != null) {

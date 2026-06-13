@@ -5,7 +5,7 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +24,7 @@ import java.util.UUID;
 public class TemplateVariableResolver {
 
     private final ContactRepository contactRepository;
-    private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
     private final UserService userService;
 
     @Transactional(readOnly = true)
@@ -61,7 +61,7 @@ public class TemplateVariableResolver {
         }
 
         UUID customerId = contactOpt.get().getCustomerId();
-        Optional<Customer> customerOpt = customerRepository.findById(customerId, tenantId);
+        Optional<Customer> customerOpt = customerService.findById(customerId, tenantId);
         if (customerOpt.isEmpty()) {
             putEmptyCustomerVars(vars);
             return;

@@ -3,7 +3,7 @@ package com.contactcenter.domain.service;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.websocket.WebSocketEvent;
@@ -64,7 +64,7 @@ public class ContactAssignmentMonitor {
     private static final long RETRY_TTL_SECONDS = 120;
 
     private final ContactRepository contactRepository;
-    private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
     private final QueueRepository queueRepository;
     private final WebSocketEventBroadcaster broadcaster;
     private final RabbitTemplate rabbitTemplate;
@@ -308,7 +308,7 @@ public class ContactAssignmentMonitor {
             return fallbackIdentifier;
         }
         try {
-            return customerRepository.findById(customerId, tenantId)
+            return customerService.findById(customerId, tenantId)
                     .map(c -> {
                         String first = c.getFirstName() != null ? c.getFirstName() : "";
                         String last  = c.getLastName()  != null ? c.getLastName()  : "";

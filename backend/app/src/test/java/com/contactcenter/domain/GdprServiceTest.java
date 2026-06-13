@@ -5,7 +5,7 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.ContactId;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.service.AuditLogService;
 import com.contactcenter.domain.service.GdprService;
 import com.contactcenter.domain.service.RecordingService;
@@ -43,7 +43,7 @@ class GdprServiceTest {
     private static final UUID CUSTOMER_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID USER_ID     = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
-    @Mock private CustomerRepository customerRepository;
+    @Mock private CustomerService customerService;
     @Mock private ContactRepository  contactRepository;
     @Mock private RecordingService   recordingService;
     @Mock private AuditLogService    auditLogService;
@@ -58,7 +58,7 @@ class GdprServiceTest {
 
         // Ręczna konstrukcja – ObjectMapper nie jest mockiem
         gdprService = new GdprService(
-                customerRepository,
+                customerService,
                 contactRepository,
                 recordingService,
                 auditLogService,
@@ -84,7 +84,7 @@ class GdprServiceTest {
         void returnsNonEmptyZip_whenCustomerExists() {
             // given
             Customer customer = buildCustomer();
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
             when(contactRepository.findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
                     .thenReturn(Collections.emptyList());
@@ -101,7 +101,7 @@ class GdprServiceTest {
         void zipContainsRequiredEntries() throws Exception {
             // given
             Customer customer = buildCustomer();
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
             when(contactRepository.findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
                     .thenReturn(Collections.emptyList());
@@ -126,7 +126,7 @@ class GdprServiceTest {
         void publishesAuditEvent() {
             // given
             Customer customer = buildCustomer();
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
             when(contactRepository.findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
                     .thenReturn(Collections.emptyList());
@@ -148,7 +148,7 @@ class GdprServiceTest {
         @DisplayName("rzuca EntityNotFoundException gdy klient nie istnieje")
         void throwsEntityNotFoundException_whenCustomerNotFound() {
             // given
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.empty());
 
             // when / then
@@ -167,7 +167,7 @@ class GdprServiceTest {
             Customer customer = buildCustomer();
             List<Contact> contacts = List.of(buildContact(), buildContact());
 
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
             when(contactRepository.findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
                     .thenReturn(contacts);
@@ -197,17 +197,17 @@ class GdprServiceTest {
         void anonymizesCustomerAndPublishesEvent() {
             // given
             Customer customer = buildCustomer();
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
             when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Collections.emptyList());
-            when(customerRepository.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
+            when(customerService.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
 
             // when
             gdprService.anonymizeCustomer(CUSTOMER_ID);
 
             // then
-            verify(customerRepository).anonymize(CUSTOMER_ID, TENANT_ID);
+            verify(customerService).anonymize(CUSTOMER_ID, TENANT_ID);
             verify(auditLogService).publishAuditEvent(argThat(event ->
                     "GDPR_ANONYMIZE".equals(event.action())
                     && "CUSTOMER".equals(event.entityType())
@@ -225,11 +225,11 @@ class GdprServiceTest {
             String s3Key2 = "tenant-id/2025/02/contact2.mp3";
 
             Customer customer = buildCustomer();
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
             when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(List.of(s3Key1, s3Key2));
-            when(customerRepository.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
+            when(customerService.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
 
             // when
             gdprService.anonymizeCustomer(CUSTOMER_ID);
@@ -244,24 +244,24 @@ class GdprServiceTest {
         void continuesAnonymization_whenS3DeletionFails() {
             // given
             Customer customer = buildCustomer();
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
             when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(List.of("tenant-id/2025/01/contact1.mp3"));
             doThrow(new RuntimeException("S3 connection error"))
                     .when(recordingService).deleteFromS3(anyString());
-            when(customerRepository.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
+            when(customerService.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
 
             // when / then – nie rzuca wyjątku, kontynuuje anonimizację
             assertThatNoException().isThrownBy(() -> gdprService.anonymizeCustomer(CUSTOMER_ID));
-            verify(customerRepository).anonymize(CUSTOMER_ID, TENANT_ID);
+            verify(customerService).anonymize(CUSTOMER_ID, TENANT_ID);
         }
 
         @Test
         @DisplayName("rzuca EntityNotFoundException gdy klient nie istnieje")
         void throwsEntityNotFoundException_whenCustomerNotFound() {
             // given
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.empty());
 
             // when / then
@@ -278,11 +278,11 @@ class GdprServiceTest {
         void throwsEntityNotFoundException_whenAnonymizeReturnsZero() {
             // given
             Customer customer = buildCustomer();
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
             when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Collections.emptyList());
-            when(customerRepository.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(0);
+            when(customerService.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(0);
 
             // when / then
             assertThatThrownBy(() -> gdprService.anonymizeCustomer(CUSTOMER_ID))
@@ -296,11 +296,11 @@ class GdprServiceTest {
         void doesNotCallDeleteFromS3_whenNoRecordings() {
             // given
             Customer customer = buildCustomer();
-            when(customerRepository.findById(CUSTOMER_ID, TENANT_ID))
+            when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
             when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Collections.emptyList());
-            when(customerRepository.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
+            when(customerService.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
 
             // when
             gdprService.anonymizeCustomer(CUSTOMER_ID);

@@ -7,7 +7,7 @@ import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
@@ -123,7 +123,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final TwilioProperties twilioProperties;
   private final TelephonyEventPublisher eventPublisher;
   private final ContactRepository contactRepository;
-  private final CustomerRepository customerRepository;
+  private final CustomerService customerService;
   private final TenantService tenantService;
   private final RedisTemplate<String, Object> redisTemplate;
   /** Używany wyłącznie dla prostych kluczy String (indeks odwrotny contactId → callSid). */
@@ -2991,7 +2991,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       return null;
     }
     try {
-      return customerRepository.findByPhoneNumber(phoneNumber, tenantId)
+      return customerService.findByPhoneNumber(phoneNumber, tenantId)
           .map(Customer::getCustomerId)
           .orElseGet(() -> {
             log.debug("[TwilioAdapter] Klient nie znaleziony dla phone={}, tenant={} – customerId=null",

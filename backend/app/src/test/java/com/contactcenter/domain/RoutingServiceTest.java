@@ -6,7 +6,7 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactAssignedEvent;
@@ -86,7 +86,7 @@ class RoutingServiceTest {
     private WebSocketEventBroadcaster broadcaster;
 
     @Mock
-    private CustomerRepository customerRepository;
+    private CustomerService customerService;
 
     @Mock
     private ContactService contactService;
@@ -99,7 +99,7 @@ class RoutingServiceTest {
     @BeforeEach
     void setUp() {
         routingService = new RoutingService(routingEngine, queueRepository, contactRepository,
-                customerRepository, rabbitTemplate, queueAssignmentRepository, userService,
+                customerService, rabbitTemplate, queueAssignmentRepository, userService,
                 broadcaster, contactService, contactEventService);
         // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047
         lenient().when(queueAssignmentRepository.isAllAgents(any(UUID.class), any(UUID.class)))

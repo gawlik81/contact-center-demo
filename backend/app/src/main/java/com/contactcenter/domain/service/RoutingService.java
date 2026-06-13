@@ -8,7 +8,7 @@ import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactAssignedEvent;
@@ -68,7 +68,7 @@ public class RoutingService {
     private final RoutingEngine routingEngine;
     private final QueueRepository queueRepository;
     private final ContactRepository contactRepository;
-    private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
     private final RabbitTemplate rabbitTemplate;
     private final QueueAssignmentRepository queueAssignmentRepository;
     private final UserService userService;
@@ -599,7 +599,7 @@ public class RoutingService {
             return fallbackIdentifier;
         }
         try {
-            return customerRepository.findById(customerId, tenantId)
+            return customerService.findById(customerId, tenantId)
                     .map(c -> {
                         String first = c.getFirstName() != null ? c.getFirstName() : "";
                         String last  = c.getLastName()  != null ? c.getLastName()  : "";

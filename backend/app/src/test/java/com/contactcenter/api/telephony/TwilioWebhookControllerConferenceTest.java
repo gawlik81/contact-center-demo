@@ -2,7 +2,7 @@ package com.contactcenter.api.telephony;
 
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.IncomingCallRoutingService;
 import com.contactcenter.domain.service.IvrEngineService;
@@ -70,7 +70,7 @@ class TwilioWebhookControllerConferenceTest {
     @Mock private IvrEngineService ivrEngineService;
     @Mock private IncomingCallRoutingService incomingCallRoutingService;
     @Mock private ContactService contactService;
-    @Mock private CustomerRepository customerRepository;
+    @Mock private CustomerService customerService;
     @Mock private ContactRepository contactRepository;
     @Mock private TwilioRecordingDownloadService recordingDownloadService;
 
@@ -89,7 +89,7 @@ class TwilioWebhookControllerConferenceTest {
             ivrEngineService,
             incomingCallRoutingService,
             contactService,
-            customerRepository,
+            customerService,
             contactRepository,
             recordingDownloadService,
             twilioProperties

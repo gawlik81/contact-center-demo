@@ -3,7 +3,7 @@ package com.contactcenter.api.telephony;
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.routing.RouteResult;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.IncomingCallRoutingService;
@@ -77,7 +77,7 @@ public class TwilioWebhookController {
   private final IvrEngineService ivrEngineService;
   private final IncomingCallRoutingService incomingCallRoutingService;
   private final ContactService contactService;
-  private final CustomerRepository customerRepository;
+  private final CustomerService customerService;
   private final ContactRepository contactRepository;
   private final TwilioRecordingDownloadService recordingDownloadService;
   private final TwilioProperties twilioProperties;
@@ -101,7 +101,7 @@ public class TwilioWebhookController {
       IvrEngineService ivrEngineService,
       IncomingCallRoutingService incomingCallRoutingService,
       ContactService contactService,
-      CustomerRepository customerRepository,
+      CustomerService customerService,
       ContactRepository contactRepository,
       TwilioRecordingDownloadService recordingDownloadService,
       TwilioProperties twilioProperties) {
@@ -109,7 +109,7 @@ public class TwilioWebhookController {
     this.ivrEngineService = ivrEngineService;
     this.incomingCallRoutingService = incomingCallRoutingService;
     this.contactService = contactService;
-    this.customerRepository = customerRepository;
+    this.customerService = customerService;
     this.contactRepository = contactRepository;
     this.recordingDownloadService = recordingDownloadService;
     this.twilioProperties = twilioProperties;
@@ -196,7 +196,7 @@ public class TwilioWebhookController {
         UUID customerId = null;
         if (from != null && !from.isBlank()) {
           try {
-            customerId = customerRepository.findByPhoneNumber(from, tenantId)
+            customerId = customerService.findByPhoneNumber(from, tenantId)
                 .map(c -> c.getCustomerId())
                 .orElse(null);
           }

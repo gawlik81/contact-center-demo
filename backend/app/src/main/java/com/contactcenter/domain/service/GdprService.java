@@ -4,7 +4,7 @@ import com.contactcenter.domain.model.AuditLogEvent;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
@@ -38,7 +38,7 @@ import java.util.zip.ZipOutputStream;
 @RequiredArgsConstructor
 public class GdprService {
 
-    private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
     private final ContactRepository contactRepository;
     private final RecordingService recordingService;
     private final AuditLogService auditLogService;
@@ -72,7 +72,7 @@ public class GdprService {
         log.info("[GDPR] Export danych klienta: customerId={}, tenant={}, requestedBy={}",
                 customerId, tenantId, userId);
 
-        Customer customer = customerRepository.findById(customerId, tenantId)
+        Customer customer = customerService.findById(customerId, tenantId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Klient nie istnieje lub nie należy do bieżącego tenanta: " + customerId));
 
@@ -129,7 +129,7 @@ public class GdprService {
                 customerId, tenantId, userId);
 
         // Weryfikuj istnienie klienta przed anonimizacją
-        customerRepository.findById(customerId, tenantId)
+        customerService.findById(customerId, tenantId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Klient nie istnieje lub jest już zanonimizowany: " + customerId));
 
@@ -137,7 +137,7 @@ public class GdprService {
         deleteCustomerRecordingsFromS3(customerId, tenantId);
 
         // Anonimizuj rekord klienta w bazie danych
-        int updated = customerRepository.anonymize(customerId, tenantId);
+        int updated = customerService.anonymize(customerId, tenantId);
         if (updated == 0) {
             // Może wystąpić race condition – inny wątek anonimizował równolegle
             log.warn("[GDPR] Anonimizacja nie zaktualizowała żadnego rekordu: customerId={}, tenant={}",

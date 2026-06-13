@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>9. Getting Started – jak zacząć pracę – Contact Center SaaS – Dokumentacja</title>
+<style>
+  :root { --max-width: 980px; --fg: #1a1a1a; --bg: #fff; --accent: #2563eb; --code-bg: #f4f4f5; --border: #e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+  .layout { display: flex; max-width: var(--max-width); margin: 0 auto; }
+  main { padding: 2rem; max-width: 100%; overflow-x: auto; flex: 1; }
+  h1, h2, h3, h4 { line-height: 1.25; }
+  h1 { border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .2em; margin-top: 2em; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code-bg); padding: 1em; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .5em .7em; text-align: left; }
+  th { background: var(--code-bg); }
+  blockquote { border-left: 4px solid var(--accent); margin: 1em 0; padding: .3em 1em; background: var(--code-bg); }
+  .top-nav { font-size: .9em; margin-bottom: 1.5em; }
+  .top-nav a { margin-right: .5em; }
+  .mermaid { background: var(--bg); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="layout">
+<main>
+<div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
+<h1>9. Getting Started – jak zacząć pracę</h1>
+<h2>9.1 Wymagania</h2>
+<ul>
+<li>Docker + Docker Compose</li>
+<li>Java 21 + Maven (do pracy z backendem poza kontenerem)</li>
+<li>Node.js (LTS) + npm (do pracy z frontendem)</li>
+<li>Dostęp do repozytorium git</li>
+</ul>
+<h2>9.2 Uruchomienie infrastruktury (Postgres, Redis, RabbitMQ, MinIO, ClickHouse, voicebot)</h2>
+<pre><code class="language-bash">docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml up -d --remove-orphans
+</code></pre>
+<blockquote>
+<p>Zawsze z <code>--env-file .env.local-demo</code> i obydwoma plikami <code>-f</code> (patrz <code>CLAUDE.md</code> i
+<a href="08-infrastructure.html"><code>08-infrastructure.md</code></a>) – inaczej kontenery odtworzą się z domyślnymi
+hasłami i mogą uszkodzić dane wolumenów.</p>
+</blockquote>
+<p>Zatrzymanie (zachowuje dane):</p>
+<pre><code class="language-bash">docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml down
+</code></pre>
+<h2>9.3 Backend (uruchamianie lokalnie, poza kontenerem)</h2>
+<pre><code class="language-bash">cd backend
+mvn package -pl app -DskipTests            # build
+mvn test -pl app                           # wszystkie testy
+mvn test -pl app -Dtest=JwtServiceTest     # jeden test
+mvn verify -pl app                         # weryfikacja bez pakowania
+cd app &amp;&amp; mvn spring-boot:run -Dspring-boot.run.profiles=dev   # start lokalny (port 8080)
+</code></pre>
+<p>Po starcie:</p>
+<ul>
+<li>Swagger UI: <code>http://localhost:8080/swagger-ui.html</code></li>
+<li>Healthcheck: <code>http://localhost:8080/actuator/health</code></li>
+<li>Flyway uruchamia migracje automatycznie przy starcie.</li>
+</ul>
+<h2>9.4 Frontend</h2>
+<pre><code class="language-bash">cd frontend
+npm install
+npm start          # dev server na :4200, proxy do :8080
+npm run build      # build produkcyjny
+npm test           # Vitest
+npm run lint       # ESLint
+npm run lint:fix
+npm run format        # Prettier (write)
+npm run format:check  # Prettier (dry-run)
+</code></pre>
+<h2>9.5 Voicebot (Python/FastAPI)</h2>
+<pre><code class="language-bash">cd voicebot
+python -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8001
+</code></pre>
+<p>Wymaga działającego Redis i RabbitMQ (z <code>docker compose up -d</code>).</p>
+<h2>9.6 Pierwsze kroki w kodzie – checklist dla nowej osoby</h2>
+<ol>
+<li>Przeczytaj <a href="01-overview.html"><code>01-overview.md</code></a> i <a href="02-architecture.html"><code>02-architecture.md</code></a> –
+zrozum mapę modułów i ogólny przepływ.</li>
+<li>Uruchom infrastrukturę (9.2) i backend (9.3) – sprawdź Swagger, zaloguj się testowym
+użytkownikiem (dane logowania – patrz <code>.env.local-demo</code> / dane seedowe w migracjach Flyway,
+<code>06-database.md</code>).</li>
+<li>Uruchom frontend (9.4), zaloguj się i przejdź przez UI dla roli, której dotyczy Twoje
+zadanie (<code>admin</code>/<code>supervisor</code>/<code>agent</code>).</li>
+<li>Dla zadań backendowych: zapoznaj się z <a href="04-backend.html"><code>04-backend.md</code></a> – szczególnie z
+sekcją multi-tenancy i kolejnością filtrów bezpieczeństwa (krytyczne, łatwo złamać).</li>
+<li>Dla zadań frontendowych: <a href="05-frontend.html"><code>05-frontend.md</code></a> – konwencje standalone
+components, signals, routing per rola.</li>
+<li>Dla zmian w bazie danych: <a href="06-database.html"><code>06-database.md</code></a> – <strong>nigdy nie edytuj
+zastosowanej migracji Flyway</strong>, zawsze nowy plik <code>Vxxx__opis.sql</code>.</li>
+<li>Przed oznaczeniem zadania jako zakończone – uruchom <code>/verify</code> (lint + format + testy FE i BE).</li>
+</ol>
+<h2>9.7 Konwencje pracy</h2>
+<ul>
+<li>Gałęzie: <code>feature/&lt;opis&gt;</code>, <code>fix/&lt;opis&gt;</code>, <code>chore/&lt;opis&gt;</code>.</li>
+<li>Dokumentacja postępu: <code>PROGRESS.md</code>; zadania: <code>TASKS-BACKEND.md</code>, <code>TASKS-FRONTEND.md</code>,
+<code>TASKS-DATABASE.md</code>.</li>
+<li>Komunikacja w repo (komentarze, dokumentacja PR) – po polsku; kod, identyfikatory, komentarze
+w kodzie – po angielsku.</li>
+<li>Code review – wyniki trafiają do <code>CR-BACKEND.md</code>, <code>CR-FRONTEND.md</code>, <code>CR-DATABASE.md</code>,
+<code>CR-TELECOM.md</code>.</li>
+</ul>
+<h2>9.8 Najczęstsze pułapki</h2>
+<table>
+<thead>
+<tr>
+<th>Pułapka</th>
+<th>Skutek</th>
+<th>Jak unikać</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Brak <code>--env-file</code>/<code>-f</code> przy <code>docker compose</code></td>
+<td>błędne hasła, możliwa utrata danych wolumenów</td>
+<td>zawsze pełna komenda z 9.2</td>
+</tr>
+<tr>
+<td>Edycja zastosowanej migracji Flyway</td>
+<td>błąd walidacji blokujący start aplikacji</td>
+<td>nowy plik migracji</td>
+</tr>
+<tr>
+<td>Zła kolejność filtrów security</td>
+<td>obejście tenant isolation / auth</td>
+<td>nie modyfikować bez zrozumienia <code>JwtAuthFilter</code>→<code>TenantFilter</code>→auth</td>
+</tr>
+<tr>
+<td>Brak <code>TenantContext.restore()</code>/<code>clear()</code> w <code>@Async</code></td>
+<td>wycieki danych między tenantami / NPE</td>
+<td>snapshot/restore/clear wg <code>CLAUDE.md</code></td>
+</tr>
+<tr>
+<td>Nowy publiczny endpoint dodany tylko w <code>SecurityConfig</code></td>
+<td><code>TenantFilter</code> i tak zablokuje request</td>
+<td>dodać też do <code>PUBLIC_PATH_PREFIXES</code></td>
+</tr>
+<tr>
+<td>Przeciążanie istniejącej kolumny pod nową relację</td>
+<td>nieczytelny, kosztowny w utrzymaniu schemat</td>
+<td>nowa kolumna z opisową nazwą (patrz <code>06-database.md</code>)</td>
+</tr>
+</tbody></table>
+
+</main>
+</div>
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  }
+</script>
+</body>
+</html>

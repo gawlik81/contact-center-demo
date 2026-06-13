@@ -15,6 +15,7 @@ export type WsEventType =
   | 'QUEUE_UPDATE'
   | 'SUPERVISOR_METRICS'
   | 'SOCIAL_MESSAGE_RECEIVED'
+  | 'RECORDING_READY'
   | 'PONG';
 
 export interface WsEvent {
@@ -144,4 +145,8 @@ export interface AgentStatusChangedPayload {
 
 export interface QueueUpdatePayload {
   items: QueueItem[];
+}
+
+export interface RecordingReadyPayload {
+  contactId: string;
 }

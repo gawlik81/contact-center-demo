@@ -16,13 +16,14 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
+  AsyncValidatorFn,
   FormBuilder,
   ReactiveFormsModule,
   ValidationErrors,
   ValidatorFn,
   Validators,
 } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, first, map, of, switchMap } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { TwilioPhoneNumberSelectComponent } from '../../../components/twilio-phone-number-select/twilio-phone-number-select.component';
@@ -134,7 +135,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   );
 
   readonly form = this.fb.group({
-    name: ['', [Validators.required, Validators.maxLength(255)]],
+    name: ['', [Validators.required, Validators.maxLength(255)], [this.createNameAsyncValidator()]],
     type: ['OUTBOUND_VOICE' as CampaignType, Validators.required],
     dialerType: ['PROGRESSIVE' as DialerType, Validators.required],
     callerId: this.fb.control<string | null>(null),
@@ -154,6 +155,28 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
 
   /** Separate signal for active_days checkboxes (not in reactive form to keep it simple) */
   readonly selectedDays = signal<Set<ActiveDay>>(new Set());
+
+  private createNameAsyncValidator(): AsyncValidatorFn {
+    return (control: AbstractControl) => {
+      const name: string = (control.value ?? '').trim();
+      if (!name || name.length > 255) return of(null);
+
+      const currentName = this.campaign()?.name;
+      const excludeId = this.isEditMode() ? (this.campaign()?.campaignId ?? undefined) : undefined;
+
+      if (this.isEditMode() && currentName && name.toLowerCase() === currentName.toLowerCase()) {
+        return of(null);
+      }
+
+      return of(name).pipe(
+        debounceTime(400),
+        distinctUntilChanged(),
+        switchMap((n) => this.campaignService.checkNameAvailability(n, excludeId)),
+        map((res) => (res.available ? null : { nameTaken: true })),
+        first(),
+      );
+    };
+  }
 
   ngOnInit(): void {
     this.initOptions();
@@ -276,13 +299,20 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
 
   // ── Error getters ────────────────────────────────────────────────────────────
 
+  get nameChecking(): boolean {
+    return this.form.get('name')!.status === 'PENDING';
+  }
+
   get nameError(): string | null {
     const ctrl = this.form.get('name')!;
+    if (ctrl.status === 'PENDING') return null;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
     if (ctrl.hasError('required'))
       return this.transloco.translate('supervisor.campaignForm.errors.nameRequired');
     if (ctrl.hasError('maxlength'))
       return this.transloco.translate('supervisor.campaignForm.errors.nameMaxLength');
+    if (ctrl.hasError('nameTaken'))
+      return this.transloco.translate('supervisor.campaignForm.errors.nameTaken');
     return null;
   }
 
@@ -353,7 +383,7 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   }
 
   get isSaveDisabled(): boolean {
-    return this.form.invalid || this.submitting();
+    return this.form.invalid || this.submitting() || this.form.get('name')!.status === 'PENDING';
   }
 
   onSubmit(): void {

@@ -34,6 +34,14 @@ Znane pułapki i poprawki:
 - V007 linia 176 (naprawiono 2026-03-13): started_at::DATE na kolumnie TIMESTAMPTZ w wyrażeniu indeksowym — STABLE, nie IMMUTABLE (wynik zależy od TimeZone GUC). Zamieniono na zwykłą kolumnę started_at w indeksie. Reguła ogólna: nigdy nie używaj ::DATE, AT TIME ZONE, DATE_TRUNC w wyrażeniach indeksowych na kolumnach timestamptz.
 - V011 linia 116 i 126 (naprawiono 2026-03-13): te same błędy co V007 — dwa indeksy z (started_at::DATE) DESC. Zamieniono na started_at DESC bez rzutowania.
 
+Znana niekonsekwencja RLS (do uwagi przy nowych tabelach i przy ewentualnym fix):
+- Konwencja ustalona w V012 i utrwalona w V042/V048/V051/V070: current_setting('app.current_tenant_id', TRUE)::UUID
+- Ale V059 (contact_event), V064 (tenant_ai_config), V067 (contact_transcription), V068 (contact_ai_summary) używają app.tenant_id (bez current_)
+- Zawsze pisz nowe polityki RLS z app.current_tenant_id — to jest to, co faktycznie ustawia aplikacja.
+
+Dokumentacja DB napisana 2026-06-12: /home/pawelm/contact-center/documentation/06-database.md
+- Pokrywa wszystkie 73 migracje (V001-V073), konwencje Flyway, RLS, mapę schematu per domena, ERD mermaid, wzorce (soft-delete/audit/wersjonowanie/JSONB/enum->varchar/partycjonowanie), anti-pattern overloaded columns, krok-po-kroku jak dodać tabelę.
+
 Lokalizacja migracji:
 - PostgreSQL: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\migration\
 - Seed DEV: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\seed\V999__dev_seed.sql

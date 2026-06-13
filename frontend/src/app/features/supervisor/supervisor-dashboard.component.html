@@ -23,7 +23,7 @@
 <!-- ── SKELETON (metrics not yet loaded) ─────────────────────── -->
 @if (metrics() === null) {
   <div class="kpi-skeleton-grid" aria-busy="true" [attr.aria-label]="'supervisor.dashboard.loadingMetrics' | transloco">
-    @for (_ of [1, 2, 3, 4, 5]; track $index) {
+    @for (_ of [1, 2, 3, 4, 5, 6]; track $index) {
       <div class="kpi-skeleton-card">
         <div class="skeleton skeleton-label"></div>
         <div class="skeleton skeleton-value"></div>
@@ -56,6 +56,16 @@
     aria-live="polite"
     aria-atomic="true"
   >
+    <div class="kpi-card kpi-ivr" role="status">
+      <span class="kpi-label">{{ 'supervisor.dashboard.kpiCallsInIvr' | transloco }}</span>
+      <span
+        class="kpi-value"
+        [attr.aria-label]="('supervisor.dashboard.kpiCallsInIvr' | transloco) + ': ' + callsInIvr()"
+      >
+        {{ callsInIvr() }}
+      </span>
+    </div>
+
     <div class="kpi-card kpi-calls" role="status">
       <span class="kpi-label">{{ 'supervisor.dashboard.kpiActiveCalls' | transloco }}</span>
       <span

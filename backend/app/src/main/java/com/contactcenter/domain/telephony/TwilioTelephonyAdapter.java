@@ -100,6 +100,17 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private static final String SESSION_KEY_PREFIX = "call-session:";
 
   /**
+   * Prefix klucza Redis dla sesji IVR: {@code ivr:session:{callSid}} (zob. {@code IvrEngineService}).
+   *
+   * <p>Gdy klient rozłączy się będąc jeszcze w drzewie IVR (przed dotarciem do węzła HANGUP
+   * lub QUEUE_TRANSFER, które same usuwają sesję IVR), webhook StatusCallback z końcowym
+   * statusem (completed/canceled/...) jest jedynym sygnałem zakończenia połączenia –
+   * dlatego sprzątamy też ewentualną osieroconą sesję IVR, aby liczniki RT
+   * (np. "połączenia w IVR" na dashboardzie supervisora) nie pozostawały zawyżone do TTL.
+   */
+  private static final String IVR_SESSION_KEY_PREFIX = "ivr:session:";
+
+  /**
    * Indeks odwrotny: {@code contact-session-index:{contactId}} → Twilio CallSid (String).
    *
    * <p>Pozwala znaleźć sesję Redis po UUID kontaktu (DB) gdy frontend przekazuje {@code contactId}
@@ -150,6 +161,13 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    */
   private Cache<UUID, TwilioRestClient> clientCache;
 
+  /**
+   * Współdzielony klient HTTP do wywołań REST Twilio (konfiguracja numerów).
+   * Inicjowany w {@link #init()} – jeden egzemplarz na cały czas życia beana, aby uniknąć
+   * wycieku puli wątków przy wywoływaniu {@code setStatusCallbackEvents} per tenant.
+   */
+  private java.net.http.HttpClient httpClient;
+
   // =========================================================================
   // Inicjalizacja
   // =========================================================================
@@ -175,6 +193,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .maximumSize(100)
             .expireAfterWrite(15, TimeUnit.MINUTES)
             .build();
+
+    httpClient = java.net.http.HttpClient.newHttpClient();
 
     log.info("[TwilioAdapter] Zainicjalizowany z per-tenant TwilioRestClient cache (max=100, ttl=15min). " +
              "accountSid={}..., phoneNumber={}",
@@ -236,6 +256,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           continue;
         }
 
+        TenantContext.setTenantId(tenant.getId());
         try {
           String callbackUrl = buildStatusCallbackUrl(tenant.getId());
           if (!StringUtils.hasText(callbackUrl)) {
@@ -280,6 +301,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         } catch (Exception e) {
           log.warn("[TwilioAdapter] Nieoczekiwany błąd dla numeru {} (tenant {}): {} – kontynuuję.",
               phoneNumber, tenant.getId(), e.getMessage());
+        } finally {
+          TenantContext.clear();
         }
       }
 
@@ -610,11 +633,14 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         agentClientId, conferenceName);
 
     try {
-      String agentCallSid = Call.creator(
-          new PhoneNumber("client:" + agentClientId),
-          new PhoneNumber(resolvePhoneNumber(session.getTenantId())),
-          new Twiml(agentTwiml)
-      ).create(resolveRestClient(session.getTenantId())).getSid();
+      final String finalAgentTwiml = agentTwiml;
+      String agentCallSid = executeWithRetry("dialAgentIntoConference:" + agentClientId, () ->
+          Call.creator(
+              new PhoneNumber("client:" + agentClientId),
+              new PhoneNumber(resolvePhoneNumber(session.getTenantId())),
+              new Twiml(finalAgentTwiml)
+          ).create(resolveRestClient(session.getTenantId())).getSid()
+      );
 
       log.info("[TwilioAdapter] Połączenie do agenta zainicjowane: agentClientId={}, conference={}, agentCallSid={}",
           agentClientId, conferenceName, agentCallSid);
@@ -812,6 +838,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     try {
       // Krok 1: znajdź aktywną konferencję po friendly name (nazewnictwo: "contact-{contactId}")
+      // Uwaga: nie usuwać .setStatus(IN_PROGRESS) — od 13.07.2026 (Twilio advisory COMM-4957)
+      // jest to i tak domyślne zachowanie listingu, ale jawne ustawienie zachowuje zgodność niezależnie od daty.
       ResourceSet<Conference> conferences = Conference.reader()
           .setFriendlyName(conferenceName)
           .setStatus(Conference.Status.IN_PROGRESS)
@@ -922,6 +950,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     try {
       // Krok 1: znajdź aktywną konferencję po friendly name (nazewnictwo: "contact-{contactId}")
+      // Uwaga: nie usuwać .setStatus(IN_PROGRESS) — od 13.07.2026 (Twilio advisory COMM-4957)
+      // jest to i tak domyślne zachowanie listingu, ale jawne ustawienie zachowuje zgodność niezależnie od daty.
       ResourceSet<Conference> conferences = Conference.reader()
           .setFriendlyName(conferenceName)
           .setStatus(Conference.Status.IN_PROGRESS)
@@ -1907,16 +1937,27 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         // Jeśli klient rozłączył się zanim agent odebrał (answeredAt == null),
         // status kontaktu to ABANDONED (inbound) lub NOT_REACHED (outbound), a nie COMPLETED.
         String contactDbStatus = resolveContactEndStatus(updated);
-        log.info("[TwilioAdapter] Aktualizacja statusu kontaktu na {}: contactId={}, answeredAt={}",
-            contactDbStatus, updated.getContactId(), updated.getAnsweredAt());
-        contactRepository.updateContactStatusOnTelephonyEvent(
+        boolean updated2 = contactRepository.updateContactStatusIfNotTerminal(
             updated.getContactId(), updated.getTenantId(), contactDbStatus, webhookEndedAt);
+        if (updated2) {
+          log.info("[TwilioAdapter] Aktualizacja statusu kontaktu na {}: contactId={}, answeredAt={}",
+              contactDbStatus, updated.getContactId(), updated.getAnsweredAt());
+        } else {
+          log.debug("[TwilioAdapter] Status kontaktu {} pominięty (już terminalny): contactId={}",
+              contactDbStatus, updated.getContactId());
+        }
         contactEventService.closeAgent(updated.getContactId(), updated.getTenantId());
         contactEventService.closeHold(updated.getContactId(), updated.getTenantId());
         if ("ABANDONED".equals(contactDbStatus)) {
           contactEventService.closeQueue(updated.getContactId(), updated.getTenantId());
         }
       }
+    }
+
+    if (mappedStatus == CallSession.CallStatus.ENDED) {
+      // Klient mógł rozłączyć się będąc jeszcze w IVR (przed HANGUP/QUEUE_TRANSFER) –
+      // usuń osieroconą sesję IVR, jeśli istnieje.
+      stringRedisTemplate.delete(IVR_SESSION_KEY_PREFIX + callSid);
     }
 
     if (eventType != null) {
@@ -3011,7 +3052,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
           .build();
 
-      java.net.http.HttpResponse<String> response = java.net.http.HttpClient.newHttpClient()
+      java.net.http.HttpResponse<String> response = httpClient
           .send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
 
       if (response.statusCode() == 200) {
@@ -3033,5 +3074,32 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     if (sid == null || sid.length() <= 8)
       return "***";
     return sid.substring(0, 8) + "...";
+  }
+
+  /**
+   * Wykonuje operację z maksymalnie 3 próbami i opóźnieniem wykładniczym między próbami.
+   *
+   * <p>Stosowany wyłącznie dla krytycznych wywołań Twilio REST API (np. {@link #dialAgentIntoConference}),
+   * gdzie przejściowy błąd sieci mógłby spowodować brak audio między klientem a agentem.
+   * Opóźnienie między próbami: 1s po 1. próbie, 2s po 2. próbie (1000ms * attempt).
+   *
+   * @param operationName  nazwa operacji do logów
+   * @param operation      operacja do wykonania
+   * @param <T>            typ wartości zwracanej
+   * @return wynik operacji
+   * @throws Exception ostatni wyjątek gdy wszystkie 3 próby się nie powiodły
+   */
+  private <T> T executeWithRetry(String operationName, java.util.concurrent.Callable<T> operation) throws Exception {
+    Exception lastException = null;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return operation.call();
+      } catch (Exception e) {
+        lastException = e;
+        log.warn("[TwilioAdapter] {} — próba {}/3 nieudana: {}", operationName, attempt, e.getMessage());
+        if (attempt < 3) Thread.sleep(1000L * attempt);
+      }
+    }
+    throw lastException;
   }
 }

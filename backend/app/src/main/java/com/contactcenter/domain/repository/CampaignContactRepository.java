@@ -251,7 +251,7 @@ public class CampaignContactRepository extends TenantAwareRepository {
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 """
-                SELECT record_id::text, phone, status
+                SELECT record_id::text, phone, status, next_attempt_at
                 FROM campaign_contact
                 WHERE record_id = ?::uuid
                   AND campaign_id = ?::uuid
@@ -282,6 +282,7 @@ public class CampaignContactRepository extends TenantAwareRepository {
                 UPDATE campaign_contact
                 SET status = 'DIALING',
                     last_attempt_at = NOW(),
+                    next_attempt_at = NULL,
                     attempt_count = attempt_count + 1,
                     updated_at = NOW()
                 WHERE record_id = ?::uuid
@@ -420,17 +421,13 @@ public class CampaignContactRepository extends TenantAwareRepository {
     // =========================================================================
 
     /**
-     * Pobiera rekordy PENDING dla podanych kampanii (batch – jedno zapytanie SQL).
+     * Pobiera rekordy dostępne do wybierania dla podanych kampanii manualnych (batch).
      *
-     * <p>Używane przez endpoint GET /api/dialer/manual/records: po pobraniu listy kampanii
-     * MANUAL+RUNNING jeden SELECT z IN pobiera wszystkie rekordy PENDING dla tenanta.
-     * Unika N+1 queries (po jednym na kampanię).
+     * <p>Zwraca rekordy w statusach PENDING, NO_ANSWER i FAILED, których {@code next_attempt_at}
+     * jest w przeszłości lub null. Spójne z logiką ProgressiveDialerService.
      *
      * <p>Wyniki posortowane po campaign_id ASC, created_at ASC – ułatwia grupowanie
      * po stronie serwisu.
-     *
-     * <p>Brak limitu wyników: kampanie manualne zakłada się małe (&lt; 100 rekordów PENDING per kampania).
-     * Przy większych zbiorach należy dodać LIMIT przekazywany jako parametr.
      *
      * @param tenantId    UUID tenanta (do RLS)
      * @param campaignIds lista UUID kampanii do sprawdzenia (musi być niepusta)
@@ -458,7 +455,8 @@ public class CampaignContactRepository extends TenantAwareRepository {
                 WHERE tenant_id = ?::uuid
                   AND campaign_id IN (""" + placeholders + """
                 )
-                  AND status = 'PENDING'
+                  AND status IN ('PENDING', 'NO_ANSWER', 'FAILED')
+                  AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
                 ORDER BY campaign_id ASC, created_at ASC
                 """;
 

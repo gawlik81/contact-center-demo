@@ -16,13 +16,15 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { NgClass } from '@angular/common';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
-import { catchError, EMPTY } from 'rxjs';
+import { catchError, EMPTY, filter, tap } from 'rxjs';
 import { ContactService } from '../../services/contact.service';
 import { AgentStatusService } from '../../services/agent-status.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { DISPOSITION_CODES } from '../../models/disposition.model';
 import { AiSummaryPanelComponent } from '../../../../shared/components/ai-summary-panel/ai-summary-panel.component';
 import { CustomDispositionService } from '../../../../features/dispositions/services/custom-disposition.service';
+import { WebSocketService } from '../../../../core/services/websocket.service';
+import { RecordingReadyPayload } from '../../models/ws-event.model';
 
 interface AvailableDispositionForPanel {
   code: string;
@@ -54,6 +56,7 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly transloco = inject(TranslocoService);
   private readonly customDispositionService = inject(CustomDispositionService);
+  private readonly wsService = inject(WebSocketService);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
 
@@ -78,12 +81,31 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
 
   protected readonly canSave = computed(() => this.selectedCode().length > 0 && !this.isSaving());
 
+  readonly hasRecording = signal(false);
+
   ngOnInit(): void {
     this.dialogRef().nativeElement.showModal();
     if (this.prefillNotes()) {
       this.notes.set(this.prefillNotes());
     }
     this.startAcwTimer();
+
+    this.contactService
+      .getContact(this.contactId())
+      .pipe(
+        tap((c) => this.hasRecording.set(!!c.recordingUrl)),
+        catchError(() => EMPTY),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+
+    this.wsService.events$
+      .pipe(
+        filter((e) => e.eventType === 'RECORDING_READY'),
+        filter((e) => (e.payload as RecordingReadyPayload).contactId === this.contactId()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.hasRecording.set(true));
 
     this.dispositionsLoading.set(true);
     this.customDispositionService

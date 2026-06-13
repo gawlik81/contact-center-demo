@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baza danych – dokumentacja techniczna – Contact Center SaaS – Dokumentacja</title>
+<style>
+  :root { --max-width: 980px; --fg: #1a1a1a; --bg: #fff; --accent: #2563eb; --code-bg: #f4f4f5; --border: #e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+  .layout { display: flex; max-width: var(--max-width); margin: 0 auto; }
+  main { padding: 2rem; max-width: 100%; overflow-x: auto; flex: 1; }
+  h1, h2, h3, h4 { line-height: 1.25; }
+  h1 { border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .2em; margin-top: 2em; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code-bg); padding: 1em; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .5em .7em; text-align: left; }
+  th { background: var(--code-bg); }
+  blockquote { border-left: 4px solid var(--accent); margin: 1em 0; padding: .3em 1em; background: var(--code-bg); }
+  .top-nav { font-size: .9em; margin-bottom: 1.5em; }
+  .top-nav a { margin-right: .5em; }
+  .mermaid { background: var(--bg); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="layout">
+<main>
+<div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
+<h1>Baza danych – dokumentacja techniczna</h1>
+<blockquote>
+<p>Dokument onboardingowy dla warstwy danych Contact Center SaaS.
+Silnik: <strong>PostgreSQL 16</strong> (Docker), migracje <strong>Flyway</strong> (<code>backend/src/main/resources/db/migration/</code>,
+obecnie <strong>73 pliki</strong>, <code>V001</code>…<code>V073</code>), izolacja multi-tenant przez kolumnę <code>tenant_id</code></p>
+<ul>
+<li><strong>Row Level Security (RLS)</strong>.</li>
+</ul>
+</blockquote>
+<hr>
+<h2>1. Konwencje migracji (Flyway)</h2>
+<h3>1.1 Lokalizacja i nazewnictwo</h3>
+<ul>
+<li>Katalog: <code>backend/src/main/resources/db/migration/</code></li>
+<li>Format nazwy: <code>V&lt;numer&gt;__&lt;opis_snake_case&gt;.sql</code>, np. <code>V069__create_custom_disposition.sql</code>.</li>
+<li>Numeracja jest <strong>sekwencyjna i ciągła</strong> – każda nowa migracja dostaje kolejny wolny numer
+(<code>V074</code>, <code>V075</code>, ...). Nie ma &quot;podnumerów&quot; (<code>V069_1</code>).</li>
+<li>Plik seedów developerskich (dane testowe, <strong>nie</strong> część łańcucha walidowanego checksumami
+w taki sam sposób co migracje produkcyjne) leży osobno: <code>backend/src/main/resources/db/seed/</code>.</li>
+</ul>
+<h3>1.2 ZŁOTA ZASADA – nigdy nie edytuj zastosowanej migracji</h3>
+<blockquote>
+<p><strong>Nigdy nie edytuj pliku migracji, który już został zastosowany</strong> (czyli ma wpis w tabeli
+<code>flyway_schema_history</code>). Flyway liczy checksum (CRC32) treści każdego pliku przy starcie
+aplikacji (<code>validate-on-migrate: true</code>) – jakakolwiek zmiana w już zastosowanym pliku
+spowoduje błąd walidacji i <strong>zablokuje start aplikacji</strong>.</p>
+</blockquote>
+<p>Zamiast edytować – zawsze tworzysz <strong>nowy plik</strong> <code>V0xx__fix_something.sql</code>, który:</p>
+<ul>
+<li>naprawia/koryguje strukturę wprowadzoną wcześniej (np. <code>ALTER TABLE ... DROP CONSTRAINT</code>,
+<code>DROP POLICY</code> + <code>CREATE POLICY</code> na nowo),</li>
+<li>lub idempotentnie dogania stan (<code>CREATE INDEX IF NOT EXISTS</code>, <code>ADD COLUMN IF NOT EXISTS</code>).</li>
+</ul>
+<p>Przykład z rzeczywistej historii projektu: <code>V070__fix_custom_disposition_rls_and_indexes.sql</code>
+naprawia błędy wprowadzone w <code>V069__create_custom_disposition.sql</code> (błędna nazwa zmiennej RLS,
+brakujący <code>WITH CHECK</code>, brak <code>FORCE ROW LEVEL SECURITY</code>) – <strong>bez modyfikacji V069</strong>.</p>
+<h3>1.3 Ustawienia Flyway per profil</h3>
+<p>Konfiguracja: <code>backend/app/src/main/resources/application.yml</code> (+ <code>application-dev.yml</code>,
+<code>application-prod.yml</code>).</p>
+<pre><code class="language-yaml">spring:
+  flyway:
+    locations:
+      - classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    encoding: UTF-8
+    default-schema: public
+    table: flyway_schema_history
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Profil</th>
+<th><code>clean-on-validation-error</code></th>
+<th><code>clean-disabled</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>dev</code></td>
+<td><code>false</code></td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>prod</code></td>
+<td>(nieustawione → domyślne <code>false</code>)</td>
+<td><code>true</code></td>
+</tr>
+</tbody></table>
+<p><strong>Krytyczne:</strong></p>
+<ul>
+<li><code>clean-disabled: true</code> jest ustawione na <strong>obu</strong> profilach – <code>flyway clean</code> jest zablokowany,
+nie da się przypadkowo wyczyścić bazy.</li>
+<li><code>clean-on-validation-error: false</code> (dev) oznacza, że błąd checksumy <strong>nie</strong> wyzwala
+automatycznego czyszczenia bazy – aplikacja po prostu <strong>nie wstanie</strong>. To jest <em>sygnał</em>
+(nie błąd do &quot;naprawienia przez wyłączenie walidacji&quot;), że ktoś naruszył zasadę z 1.2.</li>
+<li>Następujące ustawienia <strong>nigdy nie mogą trafić na żaden profil</strong>, a zwłaszcza prod:
+<code>clean-on-validation-error: true</code>, <code>clean-disabled: false</code>.</li>
+</ul>
+<h3>1.4 Jak naprawić błąd checksumy &quot;ręcznie&quot; (sytuacja wyjątkowa)</h3>
+<p>Jeśli migracja już trafiła do współdzielonej bazy (np. dev) z błędem, a poprawiony plik
+<code>Vxxx__fix_*.sql</code> nie wystarcza (np. trzeba poprawić zarejestrowany checksum), operację
+wykonuje się <strong>ręcznie przez psql</strong> na tabeli <code>flyway_schema_history</code> – tak jak
+udokumentowano dla <code>V070</code> (ręczny <code>INSERT</code> z poprawnym checksumem CRC32). To wyjątek,
+nie standardowa praktyka – domyślnie zawsze wystarcza nowy plik <code>Vxxx__fix_*.sql</code>.</p>
+<hr>
+<h2>2. Multi-tenancy w bazie danych</h2>
+<p>Izolacja danych jest realizowana <strong>dwuwarstwowo</strong>:</p>
+<ol>
+<li><strong>Warstwa aplikacji</strong> – każde repozytorium rozszerza <code>TenantAwareRepository</code> i przed
+każdym zapisem wywołuje <code>assertSameTenant(entity.getTenantId())</code> (patrz <code>04-backend.md</code>).</li>
+<li><strong>Warstwa bazy danych</strong> – <strong>Row Level Security (RLS)</strong>, wprowadzona w <code>V012</code>, jako
+<strong>druga linia obrony</strong> (defense in depth) – nawet błąd w warstwie repozytorium nie
+spowoduje wycieku danych między tenantami.</li>
+</ol>
+<h3>2.1 Kolumna <code>tenant_id</code></h3>
+<p>Każda tabela domenowa zawiera kolumnę <code>tenant_id UUID NOT NULL</code> (komentarz schematu z <code>V001</code>:
+<em>&quot;Multi-tenant: każda tabela zawiera kolumnę tenant_id UUID NOT NULL&quot;</em>). Wyjątki:</p>
+<ul>
+<li><code>audit_log.tenant_id</code> jest <strong>nullable</strong> – <code>NULL</code> oznacza zdarzenie globalne (np. utworzenie
+tenanta), widoczne dla wszystkich.</li>
+<li>Tabele referencyjne bez kontekstu tenanta (np. <code>cron_log</code>) nie mają <code>tenant_id</code>.</li>
+</ul>
+<h3>2.2 Role bazodanowe (V012)</h3>
+<pre><code class="language-sql">-- Rola aplikacyjna: podlega RLS
+CREATE ROLE app_user NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+
+-- Rola administracyjna/migracyjna: omija RLS
+CREATE ROLE admin_user NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE BYPASSRLS;
+</code></pre>
+<ul>
+<li><code>app_user</code> (rola DB, <strong>nie</strong> mylić z tabelą <code>app_user</code>!) – ma <code>SELECT/INSERT/UPDATE/DELETE</code>,
+<strong>podlega</strong> wszystkim politykom RLS. Tego konta używa aplikacja Spring Boot w runtime.</li>
+<li><code>admin_user</code> – <code>BYPASSRLS = TRUE</code>, pełne <code>ALL PRIVILEGES</code>. Tego konta używa <strong>Flyway</strong>
+i operacje administracyjne/ETL cross-tenant. <strong>Nigdy nie używaj roli <code>app_user</code> w migracjach.</strong></li>
+</ul>
+<h3>2.3 Ustawienie kontekstu tenanta</h3>
+<p>Aplikacja ustawia zmienną sesji/transakcji przed każdym zapytaniem:</p>
+<pre><code class="language-sql">SET LOCAL app.current_tenant_id = &#39;&lt;uuid tenanta&gt;&#39;;
+</code></pre>
+<p>Polityki RLS odczytują tę wartość przez <code>current_setting(&#39;app.current_tenant_id&#39;, TRUE)::UUID</code>.
+Funkcja pomocnicza <code>set_tenant_context()</code> (utworzona w <code>V023__create_set_tenant_context_function.sql</code>)
+opakowuje to ustawienie po stronie bazy.</p>
+<blockquote>
+<p><strong>UWAGA – znana niekonsekwencja w schemacie:</strong> część nowszych migracji (<code>V059</code>, <code>V064</code>,
+<code>V067</code>, <code>V068</code>) używa zmiennej <code>app.tenant_id</code> (bez <code>current_</code>) w politykach RLS, podczas
+gdy konwencja ustalona w <code>V012</code> i utrwalona w <code>V042</code>/<code>V048</code>/<code>V051</code>/<code>V070</code> to
+<code>app.current_tenant_id</code>. Jeśli dodajesz nową tabelę z RLS – <strong>zawsze używaj
+<code>app.current_tenant_id</code></strong> (zgodnie z tym, co faktycznie ustawia aplikacja) i jeśli
+natrafisz na tabelę z <code>app.tenant_id</code>, zgłoś to jako kandydata do migracji <code>Vxxx__fix_*</code>.</p>
+</blockquote>
+<h3>2.4 Przykładowe polityki RLS (z <code>V012</code>)</h3>
+<pre><code class="language-sql">ALTER TABLE customer ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customer FORCE ROW LEVEL SECURITY;  -- nawet właściciel tabeli podlega RLS
+
+CREATE POLICY pol_customer_select ON customer
+    FOR SELECT
+    USING (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::UUID);
+
+CREATE POLICY pol_customer_insert ON customer
+    FOR INSERT
+    WITH CHECK (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::UUID);
+
+CREATE POLICY pol_customer_update ON customer
+    FOR UPDATE
+    USING      (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::UUID);
+</code></pre>
+<p>Wzorzec &quot;jedna polityka <code>ALL</code>&quot; (nowszy, prostszy, używany od <code>V042</code>):</p>
+<pre><code class="language-sql">ALTER TABLE agent_group ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY agent_group_tenant_isolation ON agent_group
+    USING (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::uuid);
+</code></pre>
+<p>Tabele z RLS aktywnym (<code>ENABLE ROW LEVEL SECURITY</code>) – pełna lista wg migracji:
+<code>customer</code>, <code>contact</code>, <code>campaign</code>, <code>queue</code>, <code>app_user</code>, <code>ivr_tree</code>, <code>audit_log</code>,
+<code>email_message</code>, <code>social_message</code>, <code>social_integration</code> (V012), <code>agent_group</code> (V042),
+<code>agent_break</code> (V048), <code>tenant_twilio_config</code> (V051), <code>phone_number</code>,
+<code>phone_routing_rule</code> (V039), <code>tenant_ai_config</code> (V064), <code>contact_transcription</code> (V067),
+<code>contact_ai_summary</code> (V068), <code>custom_disposition</code> (V069/V070), <code>disposition_set</code>,
+<code>disposition_set_item</code> (V071), <code>contact_event</code> (V059).</p>
+<h3>2.5 <code>assertSameTenant</code> – konwencja aplikacyjna</h3>
+<p>Każde repozytorium dziedziczy po <code>TenantAwareRepository</code> i przed <code>save()</code>/<code>update()</code>
+wywołuje <code>assertSameTenant(entity.getTenantId())</code>, które porównuje <code>tenant_id</code> encji
+z <code>TenantContext</code> aktualnego żądania i rzuca wyjątek przy niezgodności – RLS jest
+warstwą zapasową, ten check wyłapuje błędy <em>przed</em> zapytaniem SQL.</p>
+<hr>
+<h2>3. Mapa schematu per domena</h2>
+<blockquote>
+<p>Konwencja PK: w tym projekcie klucze główne <strong>nie</strong> nazywają się <code>id</code> (z wyjątkiem
+nowszych tabel z <code>V042+</code>, gdzie spotyka się zarówno <code>id</code>, jak i <code>&lt;encja&gt;_id</code> – patrz
+tabela poniżej). Przed pisaniem <code>REFERENCES</code> zawsze zweryfikuj realną nazwę PK przez
+<code>\d &lt;tabela&gt;</code> w psql.</p>
+</blockquote>
+<h3>3.1 Tenant / User / Auth (V002, V003, V012, V018, V020, V021, V050)</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>tenant</code></td>
+<td><code>tenant_id</code> (UUID)</td>
+<td>Klienci SaaS. <code>status</code> ENUM→VARCHAR (<code>ACTIVE/INACTIVE/SUSPENDED</code>, V019). <code>config JSONB</code> – limity (<code>max_agents</code>, <code>max_queues</code>, <code>max_campaigns</code>, <code>recording_retention_days</code>, <code>timezone</code>), walidowane CHECK-ami.</td>
+</tr>
+<tr>
+<td><code>app_user</code></td>
+<td><code>user_id</code> (UUID)</td>
+<td>Użytkownicy (ADMIN/SUPERVISOR/AGENT). Nazwa <code>app_user</code>, bo <code>user</code> jest słowem zarezerwowanym PG. <code>role</code>, <code>status</code> ENUM→VARCHAR (V019). <code>skills JSONB</code> (array, GIN index) – do skill-based routingu. <code>mfa_secret</code>, <code>mfa_enabled</code>, <code>is_deleted</code> (soft delete, V018), <code>first_name</code>/<code>last_name</code> (V020), <code>preferred_language</code> (V050), <code>is_active</code> (V018, status konta vs. dostępność – patrz V021 dla statusu OFFLINE).</td>
+</tr>
+<tr>
+<td><code>refresh_token</code></td>
+<td><code>token_id</code> (UUID)</td>
+<td>Tokeny JWT refresh. <code>token_hash</code> (SHA-256 hex, UNIQUE), <code>expires_at</code>, <code>is_revoked</code>, <code>user_agent</code>, <code>ip_address</code>.</td>
+</tr>
+</tbody></table>
+<p><strong>Kluczowe indeksy:</strong></p>
+<ul>
+<li><code>uq_user_tenant_email</code> – UNIQUE <code>(tenant_id, email) WHERE is_deleted=FALSE</code> – login per tenant.</li>
+<li><code>idx_user_tenant_status</code> – <code>(tenant_id, status) WHERE is_deleted=FALSE</code> – routing (agenci AVAILABLE).</li>
+<li><code>idx_user_skills_gin</code> – GIN na <code>skills</code> (operator <code>@&gt;</code>/<code>?|</code>) – skill matching.</li>
+<li><code>uq_refresh_token_hash</code> – lookup po hashu przy odświeżaniu sesji.</li>
+<li><code>idx_refresh_token_cleanup</code> – <code>(expires_at, is_revoked)</code> (bez predykatu <code>WHERE NOW()...</code> – nie IMMUTABLE), czyszczone przez pg_cron.</li>
+</ul>
+<p><strong>Enumy/statusy <code>app_user.status</code></strong> (po V019 jako VARCHAR + CHECK):
+<code>ACTIVE</code>, <code>INACTIVE</code> (konto), <code>AVAILABLE</code>, <code>BUSY</code>, <code>BREAK</code>, <code>AFTER_CONTACT</code>, <code>OFFLINE</code> (V021).</p>
+<p><strong>Role (<code>app_user.role</code>):</strong> <code>ADMIN</code> (platforma, cross-tenant), <code>SUPERVISOR</code>, <code>AGENT</code>.</p>
+<hr>
+<h3>3.2 Customer (V006, V016, V017, V024, V025, V035)</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>customer</code></td>
+<td><code>customer_id</code> (UUID)</td>
+<td>Profil klienta końcowego. <code>phone JSONB</code> (array), <code>email JSONB</code> (array), <code>custom_fields JSONB</code> (object), <code>gdpr_consent JSONB</code> (<code>{&quot;consent_given&quot;: bool, ...}</code>), <code>source</code> (<code>MANUAL/CSV_IMPORT/INBOUND_*/API</code>), <code>is_deleted</code> (soft delete – RODO anonimizacja).</td>
+</tr>
+</tbody></table>
+<p><strong>Kluczowe indeksy (wyszukiwanie &lt; 1s, US-09-01):</strong></p>
+<ul>
+<li><code>idx_customer_name_trgm</code> – GIN trigram na <code>COALESCE(first_name,&#39;&#39;)||&#39; &#39;||COALESCE(last_name,&#39;&#39;)</code>, operator <code>%</code> (fuzzy search, wymaga <code>pg_trgm</code>).</li>
+<li><code>idx_customer_phone_gin</code> / <code>idx_customer_email_gin</code> – GIN <code>jsonb_path_ops</code>, operator <code>@&gt;</code>.</li>
+<li><code>idx_customer_tenant_created</code>, <code>idx_customer_tenant_source</code>.</li>
+</ul>
+<p><strong>Funkcja <code>search_customers(tenant_id, query, limit)</code></strong> – <code>STABLE SQL</code>, łączy trigram
+similarity + exact match na <code>phone</code>/<code>email</code>, <code>ORDER BY similarity(...) DESC</code>. Poprawiona
+w <code>V024__fix_search_customers_prefix_search.sql</code>.</p>
+<p><strong>RODO:</strong> anonimizacja przez <code>anonymize_customer()</code> (V013/V017), eksport danych przez
+<code>export_customer_data()</code> (V017), widok historii klienta <code>v_customer_timeline</code> (UNION ALL
+CONTACT + EMAIL + SOCIAL, V017).</p>
+<hr>
+<h3>3.3 Contact – rdzeń interakcji (V007, V040, V046, V054, V056, V058, V060, V061, V063, V065→V068, V073)</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>contact</code></td>
+<td><code>(contact_id, started_at)</code></td>
+<td><strong>Partycjonowana RANGE po <code>started_at</code> (miesięcznie)</strong>. Jeden kontakt = jedna interakcja (połączenie, email, chat).</td>
+</tr>
+<tr>
+<td><code>contact_event</code></td>
+<td><code>event_id</code> (UUID)</td>
+<td>Historia etapów kontaktu (V059) – <code>IVR/VOICEBOT/QUEUE/AGENT/ON_HOLD/CONSULTING/TRANSFER</code>.</td>
+</tr>
+<tr>
+<td><code>contact_transcription</code></td>
+<td><code>transcription_id</code> (UUID)</td>
+<td>Transkrypcja Whisper (V067), bez FK do <code>contact</code> (partycjonowana).</td>
+</tr>
+<tr>
+<td><code>contact_ai_summary</code></td>
+<td><code>ai_summary_id</code> (UUID)</td>
+<td>Podsumowanie AI (V068, wyodrębnione z <code>contact</code>), bez FK.</td>
+</tr>
+</tbody></table>
+<p><strong>Kolumny <code>contact</code> (najważniejsze):</strong></p>
+<ul>
+<li><code>tenant_id</code>, <code>customer_id</code> (nullable, <code>ON DELETE SET NULL</code> – anonimizacja RODO),
+<code>agent_id</code> (nullable, <code>ON DELETE SET NULL</code>), <code>queue_id</code>, <code>campaign_id</code>.</li>
+<li><code>channel</code> ENUM→VARCHAR: <code>PHONE</code>, <code>EMAIL</code>, <code>SOCIAL_FACEBOOK</code>, <code>SOCIAL_INSTAGRAM</code>, <code>SOCIAL_WHATSAPP</code> (V025).</li>
+<li><code>direction</code>: <code>INBOUND</code> / <code>OUTBOUND</code>.</li>
+<li><code>status</code> (V025 → VARCHAR + CHECK, rozszerzany wielokrotnie – V030, V046, V056, V060, V073):
+<code>IVR</code> (V073 – w drzewie IVR, jeszcze nie w kolejce), <code>QUEUED</code>, <code>ASSIGNED</code>, <code>ACTIVE</code>, <code>ON_HOLD</code>,
+<code>COMPLETED</code>, <code>ABANDONED</code>, <code>ERROR</code>, <code>NOT_REACHED</code>, <code>TRANSFERRED</code>.</li>
+<li><code>remote_address</code> (CLI/numer/email nadawcy – lookup bez JOIN).</li>
+<li><code>queued_at</code> (<strong>nullable od V073</strong> – NULL dla statusu <code>IVR</code>), <code>assigned_at</code>, <code>started_at</code>
+(klucz partycjonowania), <code>ended_at</code>, <code>duration_seconds</code> (denormalizacja, liczona triggerem).</li>
+<li><code>disposition_code</code>, <code>recording_url</code> (S3), <code>channel_metadata JSONB</code>, <code>notes</code> (V058),
+<code>callback_id</code> (V040 – link do <code>scheduled_callback</code>), <code>transferred_from_contact_id</code> (V061),
+<code>campaign_contact_record_id</code> (V063 – link do <code>campaign_contact</code>).</li>
+</ul>
+<p><strong>Partycjonowanie:</strong> <code>contact_2026_03</code>, <code>contact_2026_04</code>, <code>contact_2026_05</code>, <code>contact_default</code>
+(fallback). Nowe partycje twórz funkcją <code>create_contact_partition(year, month)</code>.</p>
+<p><strong>Kluczowe indeksy</strong> (dziedziczone przez partycje):</p>
+<ul>
+<li><code>idx_contact_customer_history</code> – <code>(tenant_id, customer_id, started_at DESC) WHERE customer_id IS NOT NULL</code>.</li>
+<li><code>idx_contact_agent_history</code> – <code>(tenant_id, agent_id, started_at DESC) WHERE agent_id IS NOT NULL</code>.</li>
+<li><code>idx_contact_tenant_status</code> – <code>(tenant_id, status) WHERE status IN (&#39;QUEUED&#39;,&#39;ACTIVE&#39;,&#39;ON_HOLD&#39;)</code> – dashboard RT.</li>
+<li><code>idx_contact_campaign</code>, <code>idx_contact_remote_address</code>, <code>idx_contact_channel_date</code>,
+<code>idx_contact_disposition</code>.</li>
+<li><code>idx_contact_queue_date</code> / <code>idx_contact_duration</code> (V035, raporty kontaktów EPIC-12).</li>
+</ul>
+<p><strong>Triggery:</strong> <code>trg_contact_on_update</code> – auto-<code>updated_at</code> + auto-<code>duration_seconds</code>
+(<code>EXTRACT(EPOCH FROM ended_at - started_at)</code>) gdy <code>ended_at</code> przechodzi z NULL na wartość.</p>
+<p><strong>Pułapka indeksowa (rozwiązana):</strong> nigdy <code>started_at::DATE</code>, <code>AT TIME ZONE</code>, <code>DATE_TRUNC</code>
+w wyrażeniach indeksowych na <code>timestamptz</code> – te funkcje są <code>STABLE</code>, nie <code>IMMUTABLE</code>
+(wynik zależy od <code>TimeZone</code> GUC), PostgreSQL odrzuci <code>CREATE INDEX</code>. Patrz poprawki
+w <code>V007</code> i <code>V011</code>.</p>
+<hr>
+<h3>3.4 Campaign / Dialer / Scheduled callback (V009, V015, V027, V032–V038, V045, V047, V052–V057, V062)</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>campaign</code></td>
+<td><code>campaign_id</code> (UUID)</td>
+<td>Kampanie wychodzące. <code>type</code> (<code>OUTBOUND_VOICE</code>/<code>OUTBOUND_EMAIL</code>), <code>dialer_type</code> (<code>PROGRESSIVE</code>/<code>PREDICTIVE</code>/<code>MANUAL</code>), <code>status</code> (<code>DRAFT/SCHEDULED/RUNNING/PAUSED/STOPPED/COMPLETED</code>) – ENUM→VARCHAR V026. <code>schedule JSONB</code> (daty, godziny, dni tygodnia, timezone), <code>disposition_codes JSONB</code>, <code>max_attempts</code>, <code>retry_delay_minutes</code>, <code>queue_id</code> (FK→queue), <code>caller_id</code> (V052, E.164, fallback do <code>tenant_twilio_config.phone_number</code>), <code>ring_timeout</code> (V055), <code>all_agents BOOLEAN</code> (V062).</td>
+</tr>
+<tr>
+<td><code>campaign_contact</code></td>
+<td><code>(record_id, campaign_id)</code></td>
+<td><strong>Partycjonowana LIST po <code>campaign_id</code></strong> – lista kontaktów kampanii (do 100k/kampania). <code>status</code> (<code>PENDING/DIALING/CONNECTED/NO_ANSWER/FAILED/COMPLETED/SKIPPED</code> + <code>ERROR</code>, <code>NOT_REACHED</code>, <code>CALLBACK</code>, <code>ASSIGNED</code> – rozszerzane w V034/V046/V053). <code>attempt_count</code>, <code>next_attempt_at</code>, <code>custom_fields JSONB</code>, <code>last_contact_id</code>.</td>
+</tr>
+<tr>
+<td><code>campaign_contact_archive</code></td>
+<td>–</td>
+<td>Archiwum nie-partycjonowane (retencja domyślnie 5 lat). Wypełniane przez <code>archive_completed_campaign_contacts()</code> (V015).</td>
+</tr>
+<tr>
+<td><code>scheduled_callback</code></td>
+<td><code>callback_id</code> (UUID)</td>
+<td>Zaplanowane oddzwonienia (US-08-05). <code>status</code> (<code>PENDING/PROCESSING/COMPLETED/CANCELLED</code> + <code>NOT_REACHED</code>, V053). <code>campaign_id</code>/<code>agent_id</code>/<code>customer_id</code> nullable. <code>source</code>/<code>source_context</code> (V037/V038/V047 – pochodzenie: kampania, agent manual, inbound). <code>campaign_contact_record_id</code> (V054).</td>
+</tr>
+<tr>
+<td><code>campaign_agent</code></td>
+<td><code>(campaign_id, agent_id)</code></td>
+<td>M:N kampania ↔ agent bezpośrednio (V062).</td>
+</tr>
+<tr>
+<td><code>campaign_agent_group</code></td>
+<td><code>(campaign_id, group_id)</code></td>
+<td>M:N kampania ↔ grupa agentów (V062).</td>
+</tr>
+</tbody></table>
+<p><strong>Partycjonowanie LIST <code>campaign_contact</code>:</strong> partycje tworzone <strong>dynamicznie przez aplikację</strong>
+przy tworzeniu kampanii: <code>CREATE TABLE campaign_contact_&lt;uuid&gt; PARTITION OF campaign_contact FOR VALUES IN (&#39;&lt;campaign_uuid&gt;&#39;)</code>. <code>campaign_contact_default</code> jako fallback.</p>
+<p><strong>Krytyczny indeks dialera</strong> (naprawiony w V033 po regresji z V031):</p>
+<pre><code class="language-sql">CREATE INDEX idx_campaign_contact_dialer
+    ON campaign_contact (campaign_id, status, next_attempt_at)
+    WHERE status IN (&#39;PENDING&#39;, &#39;NO_ANSWER&#39;);  -- retry NO_ANSWER też w zasięgu dialera
+</code></pre>
+<p>Zapytanie dialera: <code>WHERE campaign_id=? AND status IN (&#39;PENDING&#39;,&#39;NO_ANSWER&#39;) AND next_attempt_at &lt;= NOW() ORDER BY next_attempt_at ASC LIMIT N</code>.</p>
+<p><strong>Trójpoziomowe przypisanie agentów (V062, wzorzec analogiczny do <code>queue_agent_group</code> z V043):</strong></p>
+<ul>
+<li><code>campaign.all_agents = TRUE</code> → dialer/panel manualny dostępny dla wszystkich agentów tenanta.</li>
+<li><code>all_agents = FALSE</code> → tylko agenci z <code>campaign_agent</code> i/lub <code>campaign_agent_group</code>
+(przez <code>agent_group_member</code>). Indeksy <code>INCLUDE</code> dla efektywnego <code>UNION</code>
+(<code>idx_campaign_agent_group_lookup</code>, <code>idx_campaign_agent_member_lookup</code>).</li>
+</ul>
+<p><strong>Disposition (V069–V072):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>custom_disposition</code></td>
+<td><code>id</code> (UUID)</td>
+<td>Własne dyspozycje per kampania <strong>lub</strong> kolejka (CHECK – dokładnie jedno z <code>campaign_id</code>/<code>queue_id</code>). <code>tone</code> (<code>positive/negative/neutral/warning</code>), <code>ordinal</code>, <code>is_active</code>. Unikalność <code>disposition_code</code> per zakres (partial unique indexes).</td>
+</tr>
+<tr>
+<td><code>disposition_set</code></td>
+<td><code>id</code> (UUID)</td>
+<td>Nazwane szablony zestawów dyspozycji (<code>UNIQUE(tenant_id, name)</code>).</td>
+</tr>
+<tr>
+<td><code>disposition_set_item</code></td>
+<td><code>id</code> (UUID)</td>
+<td>Elementy szablonu. Przypisanie zestawu <strong>kopiuje</strong> elementy do <code>custom_disposition</code> (snapshot, nie referencja).</td>
+</tr>
+</tbody></table>
+<hr>
+<h3>3.5 Queue / Routing / IVR (V008, V039, V042–V044)</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>queue</code></td>
+<td><code>queue_id</code> (UUID)</td>
+<td>Kolejki. <code>routing_strategy</code> (<code>ROUND_ROBIN/FIRST_AVAILABLE/SKILL_BASED</code>). <code>required_skills JSONB</code> (array, GIN), <code>sticky_agent_timeout_seconds</code>, <code>max_concurrent_contacts_per_agent</code>, <code>wait_config JSONB</code>, <code>email_address</code> (V029, UNIQUE per tenant, CHECK format email).</td>
+</tr>
+<tr>
+<td><code>queue_agent</code></td>
+<td><code>(queue_id, agent_id)</code></td>
+<td>M:N agent ↔ kolejka.</td>
+</tr>
+<tr>
+<td><code>agent_group</code></td>
+<td><code>group_id</code> (UUID)</td>
+<td>Nazwane grupy agentów (<code>UNIQUE(tenant_id, name)</code>), V042.</td>
+</tr>
+<tr>
+<td><code>agent_group_member</code></td>
+<td><code>(group_id, agent_id)</code></td>
+<td>M:N grupa ↔ agent.</td>
+</tr>
+<tr>
+<td><code>phone_number</code></td>
+<td><code>phone_number_id</code> (UUID)</td>
+<td>Numery telefonów tenanta (E.164, CHECK regex), V039.</td>
+</tr>
+<tr>
+<td><code>phone_routing_rule</code></td>
+<td><code>rule_id</code> (UUID)</td>
+<td>Harmonogram routingu numeru → IVR <strong>albo</strong> kolejka (CHECK – dokładnie jedno), <code>days_of_week INTEGER[]</code>, <code>time_start/time_end</code>. Trigger <code>check_routing_rule_collision()</code> – <code>CONSTRAINT TRIGGER DEFERRABLE</code> wykrywający nakładające się reguły dla tego samego numeru.</td>
+</tr>
+<tr>
+<td><code>ivr_tree</code></td>
+<td><code>ivr_id</code> (UUID)</td>
+<td>Drzewa IVR. <code>definition JSONB</code> (struktura nodes, patrz 5.3), <code>version INT</code> (auto-increment przez trigger przy zmianie <code>definition</code>), <code>is_active</code>.</td>
+</tr>
+<tr>
+<td><code>ivr_audio</code></td>
+<td><code>audio_id</code> (UUID)</td>
+<td>Pliki audio IVR (<code>UPLOADED</code>/<code>TTS</code>), <code>ivr_id</code> nullable (audio globalne tenanta).</td>
+</tr>
+</tbody></table>
+<p><strong>Kluczowe indeksy:</strong></p>
+<ul>
+<li><code>idx_queue_skills_gin</code> – GIN na <code>required_skills</code>.</li>
+<li><code>idx_ivr_definition_gin</code> – GIN na całym <code>definition</code> JSONB.</li>
+<li><code>idx_routing_rule_phone</code> / <code>idx_routing_rule_tenant</code> – partial <code>WHERE is_active</code>.</li>
+<li><code>idx_agent_group_member_agent</code> / <code>_group</code> – obie strony relacji M:N.</li>
+</ul>
+<p><strong>Widok <code>v_queue_available_agents</code></strong> (V008, przebudowany w V019 po enum→varchar) –
+agenci <code>AVAILABLE</code>, <code>is_deleted=FALSE</code>, <code>queue.is_active=TRUE</code>; aplikacja dofiltrowuje
+<code>agent_skills @&gt; queue_required_skills</code> dla <code>SKILL_BASED</code>.</p>
+<hr>
+<h3>3.6 Email / Social (V010, V028, V029, V041)</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>email_message</code></td>
+<td><code>message_id</code> (UUID)</td>
+<td>Wiadomości email w ramach <code>contact</code> (1 contact = 1 wątek = N wiadomości). <code>contact_id</code> <strong>nullable od V028</strong> (np. email bez powiązanego kontaktu). <code>message_id_header</code>/<code>in_reply_to</code> (RFC 2822, deduplikacja IMAP – <code>UNIQUE(tenant_id, message_id_header) DEFERRABLE</code>). <code>attachments JSONB</code>, <code>delivery_status</code>.</td>
+</tr>
+<tr>
+<td><code>email_template</code></td>
+<td><code>template_id</code> (UUID)</td>
+<td>Szablony odpowiedzi (<code>UNIQUE(tenant_id, name)</code>), <code>variables JSONB</code>, <code>category</code>.</td>
+</tr>
+<tr>
+<td><code>email_routing_rule</code></td>
+<td><code>rule_id</code> (UUID)</td>
+<td>Reguły routingu emaili → <code>queue_id</code>, <code>conditions JSONB</code> (lista warunków <code>field/operator/value</code>), <code>priority</code>.</td>
+</tr>
+<tr>
+<td><code>social_integration</code></td>
+<td><code>integration_id</code> (UUID)</td>
+<td>Konfiguracja kont social media per tenant (<code>FACEBOOK/INSTAGRAM/WHATSAPP</code>). <code>access_token_encrypted BYTEA</code> (AES-256). <code>UNIQUE(tenant_id, platform, page_id)</code>. RLS DML policies dodane w V041.</td>
+</tr>
+<tr>
+<td><code>social_message</code></td>
+<td><code>message_id</code> (UUID)</td>
+<td>Wiadomości social media, <code>contact_id</code> (FK do contact), <code>external_message_id</code> – idempotentność webhooków (<code>UNIQUE(tenant_id, external_message_id)</code>).</td>
+</tr>
+</tbody></table>
+<hr>
+<h3>3.7 Konfiguracja integracji per tenant (V051, V064)</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>tenant_twilio_config</code></td>
+<td><code>config_id</code> (UUID)</td>
+<td>Jeden wiersz per tenant (<code>UNIQUE(tenant_id)</code>). Pola wrażliwe (<code>account_sid</code>, <code>auth_token</code>, <code>api_key_sid</code>, <code>api_key_secret</code>) szyfrowane AES-256-GCM przez JPA <code>AttributeConverter</code> – baza przechowuje <code>Base64(IV‖ciphertext)</code>. Plaintext: <code>twiml_app_sid</code>, <code>phone_number</code> (E.164), <code>status_callback_url</code>.</td>
+</tr>
+<tr>
+<td><code>tenant_ai_config</code></td>
+<td><code>id</code> (UUID)</td>
+<td>Konfiguracja dostawcy AI (<code>ANTHROPIC/OPENAI/AZURE_OPENAI</code>), <code>UNIQUE(tenant_id)</code>. <code>api_key_encrypted</code> – AES-256-GCM przez <code>EncryptedStringConverter</code>. Pola tylko-Azure: <code>azure_endpoint</code>, <code>azure_deployment_name</code>. <code>summary_prompt_template</code> (NULL = domyślny prompt aplikacji).</td>
+</tr>
+</tbody></table>
+<p>Obie tabele: partial index <code>WHERE is_active</code>, RLS <code>USING (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::uuid)</code>.</p>
+<hr>
+<h3>3.8 Agent groups / breaks (V042, V048)</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>agent_group</code> / <code>agent_group_member</code></td>
+<td>patrz 3.5</td>
+<td>–</td>
+</tr>
+<tr>
+<td><code>agent_break</code></td>
+<td><code>id</code> (UUID)</td>
+<td>Przerwy agentów. <code>break_type</code> CHECK (<code>LUNCH/SHORT_BREAK/TRAINING/OTHER</code> + <code>MEETING</code> z V057), <code>status</code> CHECK (<code>PLANNED/ACTIVE/COMPLETED/CANCELLED</code>), <code>chk_agent_break_time: end_time &gt; start_time</code>. Indeks <code>(tenant_id, agent_id, start_time)</code>.</td>
+</tr>
+</tbody></table>
+<hr>
+<h3>3.9 Audit / GDPR / ETL / Cron (V004, V013, V014, V015, V017, V036, V045)</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>PK</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>audit_log</code></td>
+<td><code>(log_id, created_at)</code></td>
+<td><strong>Partycjonowana RANGE po <code>created_at</code> (miesięcznie)</strong>. <code>tenant_id</code>/<code>user_id</code> nullable (operacje globalne/systemowe). <code>old_value</code>/<code>new_value JSONB</code> (GIN), retencja 2 lata (<code>drop_old_audit_log_partitions</code>).</td>
+</tr>
+<tr>
+<td><code>cron_log</code></td>
+<td><code>log_id</code> (BIGSERIAL)</td>
+<td>Log wykonań zadań pg_cron/maintenance.</td>
+</tr>
+<tr>
+<td><code>etl_sync_state</code></td>
+<td>–</td>
+<td>Stan synchronizacji ETL → ClickHouse (V036), rozszerzony o <code>campaign_contact</code> w V045.</td>
+</tr>
+</tbody></table>
+<p><strong>Funkcje GDPR (V013, V017):</strong> <code>anonymize_customer()</code>, <code>export_customer_data()</code>
+(rozszerzona o archiwum w V017), widok <code>v_customer_timeline</code> (historia klienta:
+CONTACT + EMAIL + SOCIAL przez <code>UNION ALL</code>).</p>
+<p><strong>pg_cron (V014):</strong> zadania okresowe – tworzenie partycji <code>audit_log</code>/<code>contact</code> na
+następny miesiąc, czyszczenie <code>refresh_token</code>, archiwizacja <code>campaign_contact</code>.</p>
+<hr>
+<h3>3.10 Widoki diagnostyczne i raportowe (V011, V016)</h3>
+<ul>
+<li><code>v_active_contacts</code> – aktywne kontakty (status <code>QUEUED/ACTIVE/ON_HOLD</code>).</li>
+<li><code>v_queue_realtime_stats</code> – statystyki kolejek na żywo (przebudowany po V019).</li>
+<li><code>v_rls_status</code> – status RLS per tabela (diagnostyka administracyjna).</li>
+<li><code>v_index_health</code> – kondycja indeksów (bloat, usage – diagnostyka DBA).</li>
+<li><code>mv_campaign_stats</code> – <strong>materialized view</strong> statystyk kampanii (V011, przebudowany w V053
+o kolumny <code>not_reached_records</code>, <code>callback_records</code>).</li>
+</ul>
+<hr>
+<h2>4. Diagramy ER (Mermaid)</h2>
+<h3>4.1 Campaign + Dialer + Contact</h3>
+<pre class="mermaid">erDiagram
+    TENANT ||--o{ CAMPAIGN : "ma"
+    TENANT ||--o{ CUSTOMER : "ma"
+    CAMPAIGN ||--o{ CAMPAIGN_CONTACT : "lista kontaktow (LIST partition)"
+    CAMPAIGN }o--o| QUEUE : "queue_id"
+    CAMPAIGN ||--o{ CAMPAIGN_AGENT : "M:N"
+    CAMPAIGN ||--o{ CAMPAIGN_AGENT_GROUP : "M:N"
+    AGENT_GROUP ||--o{ CAMPAIGN_AGENT_GROUP : ""
+    AGENT_GROUP ||--o{ AGENT_GROUP_MEMBER : ""
+    APP_USER ||--o{ CAMPAIGN_AGENT : ""
+    APP_USER ||--o{ AGENT_GROUP_MEMBER : ""
+    CAMPAIGN_CONTACT }o--o| CUSTOMER : "customer_id (nullable)"
+    CAMPAIGN_CONTACT ||--o| CONTACT : "last_contact_id"
+    CAMPAIGN_CONTACT ||--o{ CAMPAIGN_CONTACT_ARCHIVE : "po 30 dniach od COMPLETED/STOPPED"
+    CONTACT }o--o| SCHEDULED_CALLBACK : "callback_id"
+    SCHEDULED_CALLBACK }o--o| CAMPAIGN : ""
+    SCHEDULED_CALLBACK }o--o| APP_USER : "agent_id (sticky)"
+    CAMPAIGN ||--o{ CUSTOM_DISPOSITION : "scope=campaign"
+    QUEUE ||--o{ CUSTOM_DISPOSITION : "scope=queue"
+    DISPOSITION_SET ||--o{ DISPOSITION_SET_ITEM : "template"
+
+    TENANT {
+        uuid tenant_id PK
+        varchar name
+        varchar status
+        jsonb config
+    }
+    CAMPAIGN {
+        uuid campaign_id PK
+        uuid tenant_id FK
+        varchar type
+        varchar dialer_type
+        varchar status
+        jsonb schedule
+        uuid queue_id FK
+        boolean all_agents
+        varchar caller_id
+    }
+    CAMPAIGN_CONTACT {
+        uuid record_id PK
+        uuid campaign_id PK_FK
+        uuid tenant_id FK
+        uuid customer_id FK
+        varchar status
+        int attempt_count
+        timestamptz next_attempt_at
+    }
+    SCHEDULED_CALLBACK {
+        uuid callback_id PK
+        uuid tenant_id FK
+        uuid campaign_id FK
+        uuid customer_id FK
+        uuid agent_id FK
+        timestamptz scheduled_at
+        varchar status
+    }
+</pre>
+<h3>4.2 Customer + Contact (historia interakcji, multi-kanał)</h3>
+<pre class="mermaid">erDiagram
+    CUSTOMER ||--o{ CONTACT : "customer_id (SET NULL on delete)"
+    CONTACT ||--o{ CONTACT_EVENT : "etapy: IVR/QUEUE/AGENT/..."
+    CONTACT ||--o| CONTACT_TRANSCRIPTION : "Whisper"
+    CONTACT ||--o| CONTACT_AI_SUMMARY : "AI summary"
+    CONTACT ||--o{ EMAIL_MESSAGE : "channel=EMAIL"
+    CONTACT ||--o{ SOCIAL_MESSAGE : "channel=SOCIAL_*"
+    APP_USER ||--o{ CONTACT : "agent_id (SET NULL on delete)"
+    QUEUE ||--o{ CONTACT : "queue_id"
+    CAMPAIGN ||--o{ CONTACT : "campaign_id (outbound)"
+
+    CUSTOMER {
+        uuid customer_id PK
+        uuid tenant_id FK
+        jsonb phone
+        jsonb email
+        jsonb gdpr_consent
+        boolean is_deleted
+    }
+    CONTACT {
+        uuid contact_id PK_part1
+        timestamptz started_at PK_part2
+        uuid tenant_id FK
+        uuid customer_id FK
+        uuid agent_id FK
+        uuid queue_id FK
+        uuid campaign_id FK
+        varchar channel
+        varchar direction
+        varchar status
+        int duration_seconds
+    }
+    CONTACT_EVENT {
+        uuid event_id PK
+        uuid contact_id
+        varchar stage
+        timestamptz started_at
+        timestamptz ended_at
+        jsonb metadata
+    }
+</pre>
+<blockquote>
+<p>Uwaga: <code>CONTACT</code> jest tabelą partycjonowaną (RANGE po <code>started_at</code>), więc <code>CONTACT_EVENT</code>,
+<code>CONTACT_TRANSCRIPTION</code> i <code>CONTACT_AI_SUMMARY</code> <strong>nie mają fizycznego FK</strong> do <code>contact</code> –
+powiązanie <code>contact_id</code> jest logiczne (PostgreSQL nie wspiera FK do partycjonowanej tabeli
+ze strony child).</p>
+</blockquote>
+<h3>4.3 Queue + Routing + IVR</h3>
+<pre class="mermaid">erDiagram
+    TENANT ||--o{ PHONE_NUMBER : ""
+    PHONE_NUMBER ||--o{ PHONE_ROUTING_RULE : "harmonogram"
+    PHONE_ROUTING_RULE }o--o| IVR_TREE : "target=IVR"
+    PHONE_ROUTING_RULE }o--o| QUEUE : "target=QUEUE"
+    IVR_TREE ||--o{ IVR_AUDIO : "pliki audio"
+    IVR_TREE }o--o| QUEUE : "QUEUE_TRANSFER node (w definition JSONB)"
+    QUEUE ||--o{ QUEUE_AGENT : "M:N"
+    APP_USER ||--o{ QUEUE_AGENT : ""
+    QUEUE ||--o{ CUSTOM_DISPOSITION : "scope=queue"
+
+    PHONE_NUMBER {
+        uuid phone_number_id PK
+        uuid tenant_id FK
+        varchar number
+        boolean is_active
+    }
+    PHONE_ROUTING_RULE {
+        uuid rule_id PK
+        uuid phone_number_id FK
+        uuid ivr_tree_id FK
+        uuid queue_id FK
+        int[] days_of_week
+        time time_start
+        time time_end
+    }
+    IVR_TREE {
+        uuid ivr_id PK
+        uuid tenant_id FK
+        varchar name
+        jsonb definition
+        int version
+        boolean is_active
+    }
+    QUEUE {
+        uuid queue_id PK
+        uuid tenant_id FK
+        varchar routing_strategy
+        jsonb required_skills
+    }
+</pre>
+<hr>
+<h2>5. Wzorce projektowe w schemacie</h2>
+<h3>5.1 Soft delete</h3>
+<ul>
+<li><code>customer.is_deleted</code>, <code>app_user.is_deleted</code>, <code>scheduled_callback.is_deleted</code> (V032),
+<code>phone_number.is_deleted</code> (V039) – <code>BOOLEAN NOT NULL DEFAULT FALSE</code>.</li>
+<li>Indeksy filtrujące zawsze z <code>WHERE is_deleted = FALSE</code> (partial index) – mniejszy indeks,
+szybsze zapytania na &quot;żywych&quot; rekordach.</li>
+<li>Prawdziwe (nieodwracalne) usunięcie danych osobowych klienta realizuje
+<code>anonymize_customer()</code> (RODO) – nie <code>DELETE</code>.</li>
+</ul>
+<h3>5.2 Audyt: <code>created_at</code>/<code>updated_at</code> + trigger</h3>
+<p>Wzorzec powtarzany w prawie każdej tabeli:</p>
+<pre><code class="language-sql">created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+updated_at TIMESTAMPTZ,
+...
+CREATE TRIGGER trg_&lt;table&gt;_updated_at
+    BEFORE UPDATE ON &lt;table&gt;
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_set_updated_at();
+</code></pre>
+<p><code>fn_set_updated_at()</code> (zdefiniowana raz w <code>V002</code>) jest generyczną funkcją triggera
+ustawiającą <code>NEW.updated_at = NOW()</code>.</p>
+<p>Pełny audyt zmian (kto/co/kiedy, stan przed/po) trafia do <code>audit_log</code> (<code>old_value</code>/<code>new_value JSONB</code>)
+– osobny mechanizm niż <code>updated_at</code>, używany do zdarzeń biznesowych (np. <code>CUSTOMER_ANONYMIZED</code>,
+<code>CAMPAIGN_STARTED</code>), nie do każdego UPDATE.</p>
+<h3>5.3 Wersjonowanie</h3>
+<ul>
+<li><code>ivr_tree.version INT</code> – inkrementowane automatycznie przez <code>fn_ivr_version_increment()</code>
+<strong>tylko gdy</strong> <code>OLD.definition IS DISTINCT FROM NEW.definition</code> (czyli zmiana metadanych
+bez zmiany drzewa nie podnosi wersji).</li>
+<li><code>V049__add_version_columns.sql</code> – dodaje kolumny optimistic-locking (<code>@Version</code> w JPA)
+do wybranych encji.</li>
+</ul>
+<h3>5.4 JSONB – kluczowe struktury</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela.kolumna</th>
+<th>Struktura</th>
+<th>Walidacja</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>tenant.config</code></td>
+<td><code>{&quot;max_agents&quot;: int, &quot;max_queues&quot;: int, &quot;max_campaigns&quot;: int, &quot;recording_retention_days&quot;?: int, &quot;timezone&quot;?: string}</code></td>
+<td>CHECK: wymagane klucze + <code>&gt;= 0</code></td>
+</tr>
+<tr>
+<td><code>app_user.skills</code></td>
+<td><code>[&quot;SALES&quot;, &quot;TECH_SUPPORT&quot;, ...]</code> (array)</td>
+<td><code>jsonb_typeof = &#39;array&#39;</code></td>
+</tr>
+<tr>
+<td><code>customer.phone</code> / <code>.email</code></td>
+<td><code>[&quot;+48...&quot;, ...]</code> (array)</td>
+<td><code>jsonb_typeof = &#39;array&#39;</code></td>
+</tr>
+<tr>
+<td><code>customer.gdpr_consent</code></td>
+<td><code>{&quot;consent_given&quot;: bool, &quot;consent_date&quot;: ts, &quot;consent_source&quot;: str, &quot;marketing_consent&quot;: bool, &quot;data_processing_consent&quot;: bool}</code></td>
+<td><code>jsonb_typeof = &#39;object&#39;</code></td>
+</tr>
+<tr>
+<td><code>customer.custom_fields</code></td>
+<td>dowolne pola definiowane przez supervisora</td>
+<td><code>jsonb_typeof = &#39;object&#39;</code></td>
+</tr>
+<tr>
+<td><code>campaign.schedule</code></td>
+<td><code>{&quot;start_date&quot;, &quot;end_date&quot;, &quot;active_hours&quot;: {&quot;from&quot;,&quot;to&quot;}, &quot;active_days&quot;: [...], &quot;timezone&quot;}</code></td>
+<td><code>jsonb_typeof = &#39;object&#39;</code></td>
+</tr>
+<tr>
+<td><code>campaign.disposition_codes</code></td>
+<td><code>[{&quot;code&quot;: &quot;SALE&quot;, &quot;label&quot;: &quot;Sprzedaż&quot;}, ...]</code></td>
+<td>–</td>
+</tr>
+<tr>
+<td><code>queue.required_skills</code></td>
+<td><code>[&quot;SALES&quot;, &quot;POLISH&quot;]</code></td>
+<td><code>jsonb_typeof = &#39;array&#39;</code>, GIN index</td>
+</tr>
+<tr>
+<td><code>queue.wait_config</code></td>
+<td><code>{&quot;announce_wait_time&quot;: bool, &quot;announce_interval_seconds&quot;: int}</code></td>
+<td>–</td>
+</tr>
+<tr>
+<td><strong><code>ivr_tree.definition</code></strong></td>
+<td><code>{&quot;nodes&quot;: [{&quot;node_id&quot;,&quot;type&quot;: &quot;MENU|PLAY_AUDIO|COLLECT_INPUT|QUEUE_TRANSFER|HANGUP|VOICEBOT&quot;, &quot;prompt&quot;, &quot;audio_id&quot;?, &quot;options&quot;: [{&quot;key&quot;,&quot;next_node_id&quot;}], &quot;queue_id&quot;?, &quot;timeout_seconds&quot;, &quot;max_retries&quot;}], &quot;entry_node_id&quot;}</code></td>
+<td>CHECK: <code>nodes</code> array + <code>entry_node_id</code> istnieje</td>
+</tr>
+<tr>
+<td><code>email_message.attachments</code> / <code>social_message.attachments</code></td>
+<td><code>[{&quot;filename&quot;/&quot;type&quot;,&quot;content_type&quot;/&quot;url&quot;,&quot;size_bytes&quot;,...}]</code></td>
+<td><code>jsonb_typeof = &#39;array&#39;</code></td>
+</tr>
+<tr>
+<td><code>contact.channel_metadata</code></td>
+<td>SIP Call-ID, email thread-id, social conversation_id</td>
+<td>–</td>
+</tr>
+<tr>
+<td><code>contact_event.metadata</code></td>
+<td>zależne od <code>stage</code> – patrz komentarz kolumny w <code>V059</code> (np. <code>{&quot;ivr_tree_id&quot;,&quot;outcome&quot;}</code>, <code>{&quot;queue_id&quot;,&quot;queue_name&quot;}</code>, <code>{&quot;agent_id&quot;,&quot;agent_name&quot;}</code>, <code>{&quot;target&quot;,&quot;transfer_type&quot;}</code>)</td>
+<td>–</td>
+</tr>
+<tr>
+<td><code>email_routing_rule.conditions</code></td>
+<td><code>[{&quot;field&quot;,&quot;operator&quot;: &quot;CONTAINS|REGEX|EQUALS&quot;,&quot;value&quot;}]</code></td>
+<td><code>jsonb_typeof = &#39;array&#39;</code></td>
+</tr>
+</tbody></table>
+<h3>5.5 ENUM → VARCHAR + CHECK (V019, V025, V026)</h3>
+<p>Pierwotnie typy domenowe (<code>tenant_status</code>, <code>user_role</code>, <code>contact_channel</code>, <code>campaign_status</code>
+itd.) były natywnymi <code>CREATE TYPE ... AS ENUM</code>. Hibernate 6 binduje wartości enum jako
+<code>VARCHAR</code> (JDBC type 12), co przy natywnym <code>ENUM</code> w Postgresie powoduje błąd
+<code>column X is of type some_enum but expression is of type character varying</code>.</p>
+<p><strong>Rozwiązanie:</strong> konwersja kolumn na <code>VARCHAR(50)</code> + <code>CHECK (col IN (...))</code>. Te same
+gwarancje integralności, zero problemów z JDBC. <strong>Każda nowa kolumna &quot;enumowa&quot; w tym
+projekcie powinna być od razu <code>VARCHAR + CHECK</code>, nie <code>CREATE TYPE ... AS ENUM</code>.</strong></p>
+<p>Skutek praktyczny: dodanie nowej wartości statusu = nowa migracja <code>DROP CONSTRAINT</code> +
+<code>ADD CONSTRAINT</code> z rozszerzoną listą (patrz V030, V046, V053, V056, V060, V073 dla
+<code>contact.status</code> i <code>campaign_contact.status</code>).</p>
+<h3>5.6 Partycjonowanie – trzy strategie w jednym schemacie</h3>
+<table>
+<thead>
+<tr>
+<th>Tabela</th>
+<th>Strategia</th>
+<th>Powód</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>audit_log</code></td>
+<td>RANGE po <code>created_at</code>, miesięcznie</td>
+<td>Retencja 2 lata, duży wolumen, dane &quot;append only&quot;.</td>
+</tr>
+<tr>
+<td><code>contact</code></td>
+<td>RANGE po <code>started_at</code>, miesięcznie</td>
+<td>Historia wieloletnia, raporty zakresowe po datach.</td>
+</tr>
+<tr>
+<td><code>campaign_contact</code></td>
+<td>LIST po <code>campaign_id</code></td>
+<td>Izolacja dużych list (do 100k/kampania), łatwe <code>DROP</code> partycji po archiwizacji kampanii.</td>
+</tr>
+</tbody></table>
+<p>Każda strategia ma funkcję pomocniczą do tworzenia partycji (<code>create_audit_log_partition</code>,
+<code>create_contact_partition</code>) lub tworzenie partycji &quot;na żądanie&quot; przez aplikację
+(<code>campaign_contact_&lt;uuid&gt;</code>). Wszystkie mają partycję <code>*_default</code> jako fallback.</p>
+<hr>
+<h2>6. Anti-pattern: zakaz przeciążonych kolumn (overloaded columns)</h2>
+<blockquote>
+<p><strong>Zakaz:</strong> nie używaj istniejącej kolumny do przechowywania semantycznie innej wartości
+tylko dlatego, że typ się zgadza.</p>
+</blockquote>
+<p><strong>Przykład błędu (do czego to prowadzi):</strong> <code>scheduled_callback.customer_id</code> (FK → <code>customer</code>)
+użyty do przechowywania <code>campaign_contact.record_id</code> – dwie zupełnie różne encje, jeden typ
+UUID, zero czytelności w kodzie i w danych. Każdy kolejny developer czytający
+<code>scheduled_callback.customer_id = &#39;xxx&#39;</code> zakłada (słusznie, wg nazwy!) że to FK do <code>customer</code>
+– błędne dane prowadzą do złych JOIN-ów, błędnych raportów, a w najgorszym wypadku do
+przecieku danych między encjami przy nieuważnym <code>SELECT</code>.</p>
+<p><strong>Reguła:</strong> każde nowe powiązanie = nowa kolumna z opisową nazwą (np.
+<code>campaign_contact_record_id</code> dodana w <code>V054</code> jako osobna kolumna w <code>scheduled_callback</code>,
+zamiast nadpisywać <code>customer_id</code>). Koszt migracji (<code>ADD COLUMN</code> + ewentualny <code>UPDATE</code>
+przepisujący dane) jest jednorazowy; koszt utrzymania przeciążonej kolumny jest wieczny –
+każdy nowy developer musi na nowo odkryć &quot;tajne&quot; znaczenie kolumny, a statyczna analiza
+(IDE, code review, ORM) jest bezsilna wobec takiej niejednoznaczności.</p>
+<p>Inny przykład <strong>poprawnego</strong> podejścia z historii projektu: gdy <code>ai_summary*</code> zaczęło
+&quot;przeciążać&quot; partycjonowaną tabelę <code>contact</code> dodatkowymi kolumnami niezwiązanymi z core
+modelem kontaktu, <code>V068</code> wyodrębnił je do osobnej tabeli <code>contact_ai_summary</code> – zamiast
+dalej rozszerzać <code>contact</code> o coraz więcej opcjonalnych, rzadko wypełnionych kolumn.</p>
+<hr>
+<h2>7. Jak dodać nową tabelę/kolumnę – krok po kroku</h2>
+<ol>
+<li><p><strong>Sprawdź najwyższy istniejący numer migracji:</strong></p>
+<pre><code class="language-bash">ls backend/src/main/resources/db/migration/ | sort -V | tail -1
+</code></pre>
+<p>Twój plik to <code>V&lt;numer+1&gt;__&lt;opis&gt;.sql</code>.</p>
+</li>
+<li><p><strong>Zweryfikuj realne nazwy PK tabel, do których chcesz dodać FK</strong> (przez psql lub grep
+po istniejących migracjach – nazwa PK to zwykle <code>&lt;tabela&gt;_id</code>, ale nie zawsze, patrz
+<code>agent_break.id</code>, <code>custom_disposition.id</code>):</p>
+<pre><code class="language-bash">psql -U ccapp -d contact_center -c &#39;\d &lt;tabela&gt;&#39;
+</code></pre>
+</li>
+<li><p><strong>Napisz DDL zgodnie z konwencjami:</strong></p>
+<ul>
+<li><code>tenant_id UUID NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE|RESTRICT</code>
+(CASCADE dla danych &quot;podrzędnych&quot; tenanta, RESTRICT gdy chcesz zablokować usunięcie
+tenanta z danymi).</li>
+<li>Statusy/typy: <code>VARCHAR(N) + CHECK (col IN (...))</code>, <strong>nie</strong> <code>CREATE TYPE ... AS ENUM</code>
+(patrz 5.5).</li>
+<li><code>created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()</code>, <code>updated_at TIMESTAMPTZ</code> +
+<code>CREATE TRIGGER ... EXECUTE FUNCTION fn_set_updated_at()</code>.</li>
+<li>Pola JSONB: dodaj <code>CHECK (jsonb_typeof(col) = &#39;array&#39;|&#39;object&#39;)</code> i opisz strukturę
+w komentarzu <code>COMMENT ON COLUMN</code>.</li>
+<li>Nowe powiązanie do innej encji = <strong>nowa, opisowo nazwana kolumna</strong> (sekcja 6), nigdy
+nadpisanie istniejącej.</li>
+</ul>
+</li>
+<li><p><strong>RLS dla nowej tabeli z <code>tenant_id</code>:</strong></p>
+<pre><code class="language-sql">ALTER TABLE moja_tabela ENABLE ROW LEVEL SECURITY;
+ALTER TABLE moja_tabela FORCE ROW LEVEL SECURITY;  -- jeśli tabela krytyczna
+
+CREATE POLICY moja_tabela_tenant_isolation ON moja_tabela
+    USING      (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::UUID);
+</code></pre>
+<p>Użyj <code>app.current_tenant_id</code> (nie <code>app.tenant_id</code> – patrz 2.3).</p>
+</li>
+<li><p><strong>Indeksy</strong> – zaprojektuj pod konkretne zapytania (nie &quot;na wszelki wypadek&quot;):</p>
+<ul>
+<li>Filtr po <code>tenant_id</code> zawsze jako pierwsza kolumna złożonego indeksu.</li>
+<li><code>WHERE is_active</code>/<code>WHERE is_deleted = FALSE</code>/<code>WHERE status = &#39;X&#39;</code> jako partial index,
+jeśli zapytanie zawsze filtruje po tym warunku.</li>
+<li>Nigdy <code>::DATE</code>, <code>AT TIME ZONE</code>, <code>DATE_TRUNC</code> na <code>timestamptz</code> w wyrażeniu indeksu (5.6/2.3).</li>
+</ul>
+</li>
+<li><p><strong>Migracja istniejących danych</strong> (jeśli dotyczy) – <code>UPDATE</code>/<code>INSERT ... SELECT</code> w tym
+samym pliku, <strong>po</strong> <code>CREATE TABLE</code>/<code>ALTER TABLE ADD COLUMN</code>, <strong>przed</strong> ewentualnym
+<code>DROP COLUMN</code> (wzorzec z <code>V068</code>: create → index → RLS → migracja danych → drop column).</p>
+</li>
+<li><p><strong>Build i testy:</strong></p>
+<pre><code class="language-bash">cd backend
+mvn package -pl app -DskipTests   # weryfikacja, że migracja się aplikuje przy starcie
+mvn test -pl app                  # testy integracyjne (Testcontainers + Flyway)
+</code></pre>
+<p>Jeśli aplikacja nie wstaje z błędem walidacji checksumy – <strong>ktoś edytował już
+zastosowaną migrację</strong>. Nie wyłączaj walidacji – znajdź i napraw przyczynę (sekcja 1.2).</p>
+</li>
+<li><p><strong>Aktualizacja seedów dev</strong> (<code>backend/src/main/resources/db/seed/V999__dev_seed.sql</code>)
+jeśli nowa tabela/kolumna wymaga danych testowych dla obu tenantów demo.</p>
+</li>
+<li><p><strong>Jeśli coś poszło źle w już zastosowanej migracji</strong> – nowy plik <code>V&lt;n+1&gt;__fix_*.sql</code>,
+nigdy edycja <code>V&lt;n&gt;</code>. Wzorzec: <code>V070__fix_custom_disposition_rls_and_indexes.sql</code> jako
+przykład poprawnego &quot;fix&quot; patcha (DROP POLICY + CREATE POLICY na nowo, dodatkowe
+<code>CREATE INDEX IF NOT EXISTS</code>).</p>
+</li>
+</ol>
+
+</main>
+</div>
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  }
+</script>
+</body>
+</html>

@@ -295,9 +295,15 @@
 // ─── Canvas ───────────────────────────────────────────────────────────────────
 
 .canvas-wrapper {
-  overflow: auto;
+  overflow: hidden;
   position: relative;
   background: var(--bg-subtle);
+}
+
+.canvas-scroll {
+  overflow: auto;
+  width: 100%;
+  height: 100%;
 }
 
 .ivr-canvas {
@@ -307,6 +313,7 @@
   background-color: var(--bg-subtle);
   background-image: radial-gradient(var(--border-1) 1px, transparent 1px);
   background-size: 24px 24px;
+  transform-origin: 0 0;
 }
 
 .canvas-svg {
@@ -315,6 +322,43 @@
   left: 0;
   pointer-events: none;
   z-index: 0;
+}
+
+// ─── Zoom toolbar ─────────────────────────────────────────────────────────────
+
+.zoom-toolbar {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  box-shadow: var(--shadow-sm);
+}
+
+.zoom-toolbar__btn {
+  padding: 6px;
+}
+
+.zoom-toolbar__value {
+  min-width: 44px;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-2);
+  user-select: none;
+}
+
+.zoom-toolbar__separator {
+  width: 1px;
+  height: 20px;
+  background: var(--border-1);
+  margin: 0 2px;
 }
 
 .svg-connection {
@@ -784,6 +828,52 @@
   font-weight: 600;
   color: var(--text-1);
   white-space: nowrap;
+}
+
+// ─── Variable autocomplete dropdown ──────────────────────────────────────────
+
+.var-field-wrap {
+  position: relative;
+}
+
+.var-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.var-dropdown__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-family: monospace;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-1);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: var(--accent-soft);
+  }
 }
 
 // ─── Props actions ────────────────────────────────────────────────────────────

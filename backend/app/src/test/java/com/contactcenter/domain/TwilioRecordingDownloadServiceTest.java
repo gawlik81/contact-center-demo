@@ -3,6 +3,7 @@ package com.contactcenter.domain;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ContactTranscriptionRepository;
 import com.contactcenter.domain.service.RecordingService;
+import com.contactcenter.domain.service.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.infrastructure.config.TwilioProperties;
@@ -51,6 +52,8 @@ class TwilioRecordingDownloadServiceTest {
     @Mock
     private TwilioProperties twilioProperties;
     @Mock
+    private TenantTwilioConfigService tenantTwilioConfigService;
+    @Mock
     private S3Properties s3Properties;
     @Mock
     private S3Client s3Client;
@@ -70,7 +73,7 @@ class TwilioRecordingDownloadServiceTest {
     @BeforeEach
     void setUp() throws IOException {
         service = new TwilioRecordingDownloadService(
-                twilioProperties, s3Properties, s3Client, recordingService,
+                twilioProperties, tenantTwilioConfigService, s3Properties, s3Client, recordingService,
                 contactRepository, transcriptionRepository, java.util.Optional.empty());
 
         // Uruchom serwer HTTP na losowym porcie
@@ -81,6 +84,8 @@ class TwilioRecordingDownloadServiceTest {
         when(twilioProperties.getAccountSid()).thenReturn("ACtest");
         when(twilioProperties.getAuthToken()).thenReturn("authtoken123");
         when(s3Properties.getBucket()).thenReturn("test-bucket");
+        // Brak per-tenant config – fallback na globalne credentials
+        when(tenantTwilioConfigService.getDecryptedConfig(any())).thenReturn(java.util.Optional.empty());
     }
 
     @AfterEach

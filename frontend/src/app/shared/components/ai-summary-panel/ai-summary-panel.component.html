@@ -2,7 +2,13 @@
   <div class="ai-summary-panel__header">
     <span class="field-label">Podsumowanie AI</span>
     <div class="ai-summary-panel__header-actions">
-      <button type="button" class="btn btn--secondary btn--sm" [disabled]="aiLoading()" (click)="generateAiSummary()">
+      <button
+        type="button"
+        class="btn btn--secondary btn--sm"
+        [disabled]="aiLoading() || !hasRecording()"
+        [title]="!hasRecording() ? 'Podsumowanie AI wymaga nagrania rozmowy' : ''"
+        (click)="generateAiSummary()"
+      >
         @if (aiLoading()) {
           <span class="btn-spinner" aria-hidden="true"></span>
           Generowanie…

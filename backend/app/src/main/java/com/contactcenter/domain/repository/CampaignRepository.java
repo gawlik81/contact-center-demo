@@ -251,11 +251,13 @@ public class CampaignRepository extends TenantAwareRepository {
         List<Campaign> results = em.createNativeQuery(
                         """
                         SELECT c.* FROM campaign c
-                        JOIN queue q ON c.queue_id = q.queue_id
+                        LEFT JOIN queue q ON c.queue_id = q.queue_id
                         WHERE c.tenant_id = CAST(:tenantId AS uuid)
                           AND c.status NOT IN ('COMPLETED', 'CANCELLED')
                           AND (
-                            q.all_agents = TRUE
+                            c.all_agents = TRUE
+                            OR c.queue_id IS NULL
+                            OR q.all_agents = TRUE
                             OR EXISTS (
                               SELECT 1 FROM queue_agent qa
                               WHERE qa.queue_id = c.queue_id
@@ -374,6 +376,41 @@ public class CampaignRepository extends TenantAwareRepository {
         log.debug("[CampaignRepo] Batch lookup: znaleziono {}/{} kampanii dla tenant={}",
                 results.size(), ids.size(), tenantId);
         return results;
+    }
+
+    // =========================================================================
+    // Sprawdzanie unikalności
+    // =========================================================================
+
+    /**
+     * Sprawdza czy kampania o podanej nazwie (case-insensitive) już istnieje dla danego tenanta.
+     *
+     * <p>Używane przez endpoint GET /api/campaigns/check-name do walidacji nazwy w czasie
+     * wpisywania przez użytkownika (debounced). Przy edycji przekaż {@code excludeId} z UUID
+     * edytowanej kampanii, żeby kampania nie kolidowała sama ze sobą.
+     *
+     * @param name      nazwa do sprawdzenia (porównanie case-insensitive)
+     * @param tenantId  UUID tenanta
+     * @param excludeId UUID kampanii do wykluczenia z porównania (null = brak wykluczenia, tryb tworzenia)
+     * @return {@code true} jeśli nazwa jest już zajęta, {@code false} jeśli dostępna
+     */
+    @Transactional(readOnly = true)
+    public boolean existsByNameAndTenantId(String name, UUID tenantId, UUID excludeId) {
+        setTenantContextInDb(tenantId);
+
+        String sql = "SELECT COUNT(*) FROM campaign WHERE tenant_id = CAST(:tenantId AS uuid) AND LOWER(name) = LOWER(:name)" +
+                     (excludeId != null ? " AND campaign_id != CAST(:excludeId AS uuid)" : "");
+
+        var query = em.createNativeQuery(sql)
+                .setParameter("tenantId", tenantId.toString())
+                .setParameter("name", name);
+
+        if (excludeId != null) {
+            query.setParameter("excludeId", excludeId.toString());
+        }
+
+        Number count = (Number) query.getSingleResult();
+        return count.longValue() > 0;
     }
 
     // =========================================================================

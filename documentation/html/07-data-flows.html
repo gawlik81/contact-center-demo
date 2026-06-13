@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>7. Kluczowe przepływy (end-to-end) – Contact Center SaaS – Dokumentacja</title>
+<style>
+  :root { --max-width: 980px; --fg: #1a1a1a; --bg: #fff; --accent: #2563eb; --code-bg: #f4f4f5; --border: #e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+  .layout { display: flex; max-width: var(--max-width); margin: 0 auto; }
+  main { padding: 2rem; max-width: 100%; overflow-x: auto; flex: 1; }
+  h1, h2, h3, h4 { line-height: 1.25; }
+  h1 { border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .2em; margin-top: 2em; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code-bg); padding: 1em; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .5em .7em; text-align: left; }
+  th { background: var(--code-bg); }
+  blockquote { border-left: 4px solid var(--accent); margin: 1em 0; padding: .3em 1em; background: var(--code-bg); }
+  .top-nav { font-size: .9em; margin-bottom: 1.5em; }
+  .top-nav a { margin-right: .5em; }
+  .mermaid { background: var(--bg); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="layout">
+<main>
+<div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
+<h1>7. Kluczowe przepływy (end-to-end)</h1>
+<h2>7.1 Logowanie i kontekst tenant-a</h2>
+<pre class="mermaid">sequenceDiagram
+    participant FE as Angular SPA
+    participant API as Spring Boot (auth)
+    participant DB as PostgreSQL
+
+    FE->>API: POST /api/auth/login {username, password}
+    API->>DB: SELECT user WHERE username + tenant lookup
+    API->>API: weryfikacja hasła, (opc.) MFA
+    API-->>FE: 200 {accessToken (JWT), refreshToken}
+    Note over API: JWT zawiera: userId, tenantId, role(s), exp
+
+    FE->>API: kolejne żądania z Authorization: Bearer <JWT>
+    API->>API: JwtAuthFilter -> waliduje token
+    API->>API: TenantFilter -> TenantContext.set(tenantId)
+    API->>DB: zapytania repozytoriów (filtrowane po tenant_id / RLS)
+    API->>API: TenantContext.clear() (finally)
+</pre>
+<ul>
+<li><code>roleRedirectGuard</code> (frontend) po zalogowaniu przekierowuje użytkownika do <code>/admin</code>,
+<code>/supervisor</code> lub <code>/agent</code> w zależności od roli w JWT.</li>
+<li>Odświeżanie tokenu – <code>refreshToken</code> używany przez interceptor HTTP do automatycznego
+ponownego uzyskania <code>accessToken</code> przy 401.</li>
+</ul>
+<h2>7.2 Połączenie przychodzące (inbound call) + IVR + routing</h2>
+<pre class="mermaid">sequenceDiagram
+    participant Caller as Klient (PSTN)
+    participant Twilio
+    participant API as Spring Boot (telephony/ivr/queue)
+    participant Voicebot
+    participant Agent as Agent Desktop (WebSocket)
+
+    Caller->>Twilio: dzwoni na numer DID
+    Twilio->>API: webhook POST /.../telephony/voice (TwiML request)
+    API->>API: TwilioWebhookController – identyfikacja tenant/numeru (phonenumber)
+    API-->>Twilio: TwiML – uruchom IVR (Gather/Play)
+    Twilio->>Caller: odtwarza prompt IVR
+
+    alt DTMF / wejście rozpoznane
+        Caller->>Twilio: wybór cyfry (DTMF)
+        Twilio->>API: POST /.../telephony/dtmf
+        API->>API: IvrController – kolejny węzeł drzewa IVR
+    else Voicebot (NLU/ASR)
+        Twilio->>API: nagranie / audio stream
+        API->>Voicebot: REST – transkrypcja (ASR) + detekcja intencji (NLU)
+        Voicebot-->>API: intent / odpowiedź
+    end
+
+    API->>API: Queue/Routing – wybór kolejki na podstawie wyniku IVR
+    API->>Agent: WebSocket – nowy kontakt w kolejce / przypisanie
+    API-->>Twilio: TwiML – Dial agent (Conference) lub Enqueue
+    Twilio->>Agent: połączenie głosowe (WebRTC/SIP do softphone agenta)
+</pre>
+<p>Kluczowe klasy: <code>TwilioWebhookController</code>, <code>TwilioVoiceController</code>, <code>IvrController</code>,
+moduł <code>queue</code> (routing), <code>WebSocketController</code>.</p>
+<h2>7.3 IVR – edycja i definicja drzewa</h2>
+<ul>
+<li>Supervisor edytuje drzewo IVR w UI (<code>features/supervisor</code> – edytor z pozycjonowaniem węzłów,
+zoom, fit-to-view – patrz commity <code>feat(ivr)</code>).</li>
+<li>Definicja IVR (węzły, przejścia, prompty z interpolacją zmiennych <code>${...}</code>) jest
+persystowana jako JSONB w tabeli IVR (patrz <a href="06-database.html"><code>06-database.md</code></a>).</li>
+<li><code>IvrController</code> udostępnia CRUD (<code>GET/POST /ivr</code>, <code>GET/DELETE /ivr/{id}</code>,
+<code>POST /ivr/{id}/activate|deactivate</code>, <code>POST /ivr/dtmf</code>).</li>
+<li>Logika retry/timeout dla <code>COLLECT_DTMF</code> i <code>MENU</code> jest ujednolicona (patrz commit
+<code>2a76cf7</code>) – brak osobnej ścieżki &quot;no-input&quot; dla <code>COLLECT_DTMF</code>.</li>
+</ul>
+<h2>7.4 Kampania outbound – progresywny dialer</h2>
+<pre class="mermaid">sequenceDiagram
+    participant Sched as DialerScheduler (@Scheduled)
+    participant API as Spring Boot (dialer/campaign)
+    participant DB as PostgreSQL
+    participant Twilio
+    participant Agent as Agent Desktop
+
+    Sched->>DB: pobierz aktywne kampanie + dostępnych agentów (poll co DIALER_AGENT_POLL_INTERVAL_MS)
+    Sched->>DB: pobierz kolejny kontakt kampanii (campaign_contact) wg strategii
+    Sched->>Twilio: REST – zainicjuj połączenie wychodzące (Outbound Call)
+    Twilio->>Agent: po odebraniu przez klienta – połączenie kierowane do agenta
+    Agent->>API: po zakończeniu – zapis dyspozycji (disposition)
+    API->>DB: aktualizacja statusu campaign_contact, ewentualny scheduled_callback
+</pre>
+<ul>
+<li><code>DialerController</code> – status dialera (<code>GET /status</code>), zarządzanie callbackami
+(<code>/callbacks</code> CRUD), tryb manualny (<code>POST /manual/call</code>, <code>GET /manual/records</code>).</li>
+<li><code>ManualCallbackController</code> – obsługa oddzwonień zaplanowanych przez agenta/klienta.</li>
+<li>Tryby: progresywny (automatyczny wybór numerów) i manualny (agent inicjuje połączenie z listy).</li>
+</ul>
+<h2>7.5 Obsługa kontaktu przez agenta (desktop)</h2>
+<ol>
+<li>Agent loguje się → ustawia status (np. <code>AVAILABLE</code>) w module <code>agentbreak</code>/<code>agentgroup</code>.</li>
+<li>Backend (routing engine w <code>queue</code>) przypisuje kontakt z kolejki do agenta wg dostępności i
+grupy.</li>
+<li>Frontend (<code>features/agent</code>) odbiera przez WebSocket informację o nowym kontakcie i otwiera
+widok aktywnej interakcji (softphone, dane klienta z <code>customer</code>).</li>
+<li>Po zakończeniu agent wybiera <strong>kod dyspozycji</strong> (<code>disposition</code>) – zapisywany przy <code>contact</code>.</li>
+<li>Jeśli dyspozycja wymaga oddzwonienia – tworzony <code>scheduled_callback</code> (moduł <code>dialer</code>).</li>
+</ol>
+<h2>7.6 Nagrania rozmów</h2>
+<pre class="mermaid">sequenceDiagram
+    participant Twilio
+    participant API as Spring Boot (recording)
+    participant S3 as MinIO
+
+    Twilio->>API: webhook POST /.../telephony/recording (status callback, recording URL)
+    API->>Twilio: REST – pobierz plik nagrania (TwilioRecordingDownloadService)
+    API->>S3: upload (RecordingService, S3Config/S3Properties)
+    API->>API: zapis metadanych nagrania w DB (powiązanie z contact_id)
+</pre>
+<p>Jeśli włączony voicebot (<code>VOICEBOT_ENABLED</code>), nagranie może być również przekazane do
+<code>voicebot-recording</code> webhooka w celu transkrypcji/podsumowania rozmowy (<code>summarize.py</code>).</p>
+<h2>7.7 ETL → Data Warehouse (raporty)</h2>
+<pre class="mermaid">sequenceDiagram
+    participant Etl as EtlSyncService (@Scheduled, 60s)
+    participant PG as PostgreSQL
+    participant CH as ClickHouse
+
+    loop co fixedDelay (domyślnie 60000 ms)
+        Etl->>PG: SELECT zmienione rekordy (contact, campaign_contact, agent, queue)
+        Etl->>CH: batch insert (ContactDwRow, CampaignDwRow, AgentDimRow, QueueDimRow)
+        Etl->>PG: markDone(table, syncedAt, rowCount) / markError(...)
+        Etl->>Etl: checkLagAndAlert – alarm jeśli sync zalega
+    end
+</pre>
+<p>Status synchronizacji widoczny w panelu admina przez <code>EtlStatusController</code> /
+<code>AdminMetricsController</code> (<code>reports</code>/<code>admin</code>/<code>telemetry</code>).</p>
+<h2>7.8 Realtime UI (WebSocket/STOMP)</h2>
+<ul>
+<li>Backend: <code>WebSocketController</code> – endpoint <code>/ws</code>, obsługa <code>@MessageMapping(&quot;/ping&quot;)</code> i
+wysyłka do <code>@SendToUser(&quot;/events&quot;)</code>; dodatkowo eventy broadcastowane do topiców (statusy
+agentów, KPI kolejek, alerty IVR).</li>
+<li>Frontend: serwis WebSocket w <code>core/services</code> nawiązuje połączenie STOMP po zalogowaniu,
+subskrybuje topiki właściwe dla roli (np. <code>supervisor</code> subskrybuje KPI wszystkich kolejek,
+<code>agent</code> – tylko własny status/przypisania).</li>
+<li>Dane napływające z WS aktualizują <code>signal()</code>/<code>computed()</code> w komponentach – brak ręcznego
+pollingu dla tych widoków.</li>
+</ul>
+<h2>7.9 GDPR / audyt</h2>
+<ul>
+<li>Każda istotna operacja (np. zmiana danych klienta, eksport, usunięcie) jest logowana w
+module <code>auditlog</code> (kto, kiedy, co – encja + diff).</li>
+<li>Moduł <code>customer</code> wspiera right-to-erasure / eksport danych (zgodnie z PRD – sekcja GDPR w
+<a href="../ARCHITECTURE.md"><code>ARCHITECTURE.md</code></a> §6.4, do zweryfikowania przy konkretnej
+implementacji w <code>04-backend.md</code>).</li>
+</ul>
+<h2>7.11 Kanał e-mail</h2>
+<p>Moduł <code>email</code> (<code>EmailController</code>, <code>EmailTemplateController</code>) – pełny cykl: odbiór przez IMAP
+polling, routing do kolejki/kontaktu, odpowiedź agenta przez SMTP, szablony.</p>
+<h3>7.11.1 Konfiguracja konta (supervisor)</h3>
+<ol>
+<li>Supervisor wchodzi w <code>supervisor/settings/email-settings</code> (frontend) i wypełnia dane
+IMAP/SMTP (host, port, login, hasło, szyfrowanie).</li>
+<li><code>PUT /api/email/config</code> – zapis w <code>EmailAccountConfig</code> (hasła szyfrowane
+<code>EMAIL_ENCRYPTION_KEY</code>, AES-256-GCM przez <code>EmailEncryptionService</code>).</li>
+<li><code>POST /api/email/config/test</code> – weryfikacja połączenia IMAP/SMTP przed zapisem (lub po).</li>
+</ol>
+<h3>7.11.2 Odbiór wiadomości (inbound)</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Mailbox as Skrzynka IMAP tenanta
+    participant Poll as EmailPollingService (@Scheduled, email.poll-delay-ms ~60s)
+    participant Route as EmailRoutingService
+    participant CC as EmailContactCreator
+    participant DB as PostgreSQL
+    participant Pub as EmailEventPublisher
+    participant Agent as Agent Desktop (WebSocket)
+
+    loop co email.poll-delay-ms (domyślnie 60s), per tenant z aktywną konfiguracją
+        Poll->>Mailbox: IMAP FETCH nowych wiadomości
+        Poll->>DB: deduplikacja po message_id_header (UNIQUE tenant_id+message_id_header)
+        Poll->>Route: dopasuj reguły email_routing_rule (warunki -> queue_id)
+        Route->>CC: utwórz/dopasuj contact (channel=EMAIL), zapisz email_message
+        CC->>DB: INSERT contact + email_message (attachments JSONB)
+        Poll->>Pub: publikuj event email.received -> cc.events (routing key email.#)
+        Pub->>Agent: (przez RabbitToWebSocketRelay) powiadomienie o nowej wiadomości w kolejce
+    end
+</pre>
+<ul>
+<li>Wątkowanie: <code>message_id_header</code>/<code>in_reply_to</code> (RFC 2822) – kolejne wiadomości w tym samym
+wątku trafiają do tego samego <code>contact</code> (<code>GET /api/email/threads/{messageIdHeader}</code>).</li>
+<li>Jeśli wiadomość nie pasuje do żadnej reguły routingu – trafia do domyślnej kolejki email
+tenanta (kolejka z ustawionym <code>email_address</code>, V029).</li>
+</ul>
+<h3>7.11.3 Obsługa przez agenta (outbound/reply)</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Agent as Agent Desktop (email-contact)
+    participant API as Spring Boot (email)
+    participant SMTP as Serwer SMTP tenanta
+    participant DB as PostgreSQL
+
+    Agent->>API: GET /api/email/contacts/{contactId}/message (treść wątku)
+    Agent->>API: (opc.) GET /api/email-templates + POST /{id}/preview (renderowanie zmiennych ${...})
+    Agent->>API: POST /api/email/messages/{id}/reply {body, templateId?}
+    API->>API: EmailSendService – render szablonu (Mustache) + wysyłka SMTP
+    API->>DB: INSERT email_message (kierunek=OUTBOUND, delivery_status)
+    API->>API: EmailEventPublisher -> email.sent (cc.events)
+</pre>
+<ul>
+<li><code>POST /api/email/messages/outbound</code> – wysłanie nowej wiadomości (ad-hoc, np. z widoku klienta
+<code>adhoc-email-modal</code>), bez istniejącego wątku.</li>
+<li>Szablony (<code>email_template</code>) wsparte przez <code>TemplateVariableResolver</code> +
+<code>PredefinedTemplateVariable</code> – zmienne typu <code>${customer.firstName}</code>, <code>${agent.name}</code> itd.,
+walidowane przy <code>preview</code> (HTTP 422 jeśli brakuje zmiennej).</li>
+</ul>
+<h3>7.11.4 Frontend</h3>
+<table>
+<thead>
+<tr>
+<th>Widok</th>
+<th>Komponent</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Skrzynka agenta</td>
+<td><code>features/agent/pages/agent-desktop/email-contact</code></td>
+<td>wątek email aktywnego kontaktu, odpowiedź</td>
+</tr>
+<tr>
+<td>Wiadomość w wątku</td>
+<td><code>email-contact/email-thread-message</code></td>
+<td>render pojedynczej wiadomości (+ załączniki)</td>
+</tr>
+<tr>
+<td>Email ad-hoc</td>
+<td><code>features/agent/pages/customers/adhoc-email-modal</code></td>
+<td>wysłanie e-maila do klienta poza kontaktem</td>
+</tr>
+<tr>
+<td>Konfiguracja IMAP/SMTP</td>
+<td><code>features/supervisor/pages/settings/email-settings</code></td>
+<td><code>EmailConfigService</code></td>
+</tr>
+<tr>
+<td>Szablony</td>
+<td><code>features/supervisor/pages/settings/email-templates</code></td>
+<td>CRUD + preview</td>
+</tr>
+</tbody></table>
+<h2>7.12 Kanał social media (Messenger / Instagram / WhatsApp – &quot;chat&quot;)</h2>
+<p>Moduł <code>social</code> realizuje funkcję czatu z klientami przez platformy społecznościowe. Nie ma
+odrębnego &quot;widgetu czatu web&quot; – kanały social <em>są</em> kanałem chat w tym systemie (PRD planuje
+dodatkowo chatbota tekstowego – zob. 7.13).</p>
+<h3>7.12.1 Podłączenie integracji (OAuth) – supervisor/admin</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Sup as Supervisor (frontend: integrations/social-integrations)
+    participant API as Spring Boot (social)
+    participant Redis
+    participant Platform as Facebook/Instagram/WhatsApp
+
+    Sup->>API: POST /api/integrations/{platform}/initiate
+    API->>Redis: SET oauth:state:{state} -> tenantId (TTL 10 min)
+    API-->>Sup: URL autoryzacji OAuth platformy
+    Sup->>Platform: przekierowanie, użytkownik akceptuje uprawnienia
+    Platform->>API: GET /api/oauth/{platform}/callback?state=...&code=... (publiczny)
+    API->>Redis: weryfikacja state -> tenantId, ustawienie TenantContext
+    API->>Platform: wymiana code -> access_token (+ page_id)
+    API->>API: SocialTokenEncryptionService (AES-256-GCM) -> social_integration.access_token_encrypted
+    Note over API: SocialIntegrationService odświeża tokeny @Scheduled co 1h
+</pre>
+<h3>7.12.2 Wiadomość przychodząca (inbound webhook)</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Platform as Facebook/Instagram/WhatsApp
+    participant API as Spring Boot (SocialWebhookController)
+    participant MQ as RabbitMQ (cc.queue.social-incoming)
+    participant Consumer as SocialMessageConsumer
+    participant DB as PostgreSQL
+    participant Agent as Agent Desktop (WebSocket)
+
+    Platform->>API: POST /api/webhooks/{facebook|instagram|whatsapp} (publiczny)
+    API-->>Platform: 200 OK natychmiast (wymóg platform – brak timeoutu)
+    API->>MQ: publikacja IncomingSocialMessage (SocialMessagePublisher)
+    MQ->>Consumer: SocialMessageConsumer (async)
+    Consumer->>DB: lookup integracji cross-tenant po (platform, page_id) -> tenant_id
+    Consumer->>DB: INSERT/UPDATE contact (channel=SOCIAL_FACEBOOK/INSTAGRAM/WHATSAPP) + social_message
+    Consumer->>Agent: WebSocket – nowy kontakt/wiadomość w kolejce social
+</pre>
+<ul>
+<li>Idempotentność: <code>social_message.external_message_id</code> ma <code>UNIQUE(tenant_id, external_message_id)</code>
+– ponowne dostawy webhooka (retry platformy) nie tworzą duplikatów.</li>
+<li>Weryfikacja webhooka (GET <code>/api/webhooks/{platform}</code>) – standardowy handshake
+(<code>hub.verify_token</code> dla Meta).</li>
+</ul>
+<h3>7.12.3 Odpowiedź agenta (outbound)</h3>
+<pre class="mermaid">sequenceDiagram
+    participant Agent as Agent Desktop (social-contact)
+    participant API as Spring Boot (SocialContactController)
+    participant Adapter as FacebookAdapter/InstagramAdapter/WhatsAppAdapter
+    participant Platform
+
+    Agent->>API: GET /api/contacts/{contactId}/social/messages (historia wątku)
+    Agent->>API: POST /api/contacts/{contactId}/social/message {text}
+    API->>Adapter: SocialAdapterRegistry.get(platform)
+    Adapter->>Platform: wysyłka wiadomości (Graph API / WhatsApp Cloud API), token z social_integration
+    API->>API: INSERT social_message (OUTBOUND)
+</pre>
+<h3>7.12.4 Frontend</h3>
+<table>
+<thead>
+<tr>
+<th>Widok</th>
+<th>Komponent</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Wątek social w desktopie agenta</td>
+<td><code>features/agent/pages/agent-desktop/social-contact</code></td>
+<td>odbiór/wysyłka wiadomości, <code>SocialContactService</code></td>
+</tr>
+<tr>
+<td>Model wiadomości</td>
+<td><code>features/agent/models/social-message.model.ts</code></td>
+<td>typy DTO</td>
+</tr>
+<tr>
+<td>Zarządzanie integracjami</td>
+<td><code>features/integrations/pages/social-integrations</code></td>
+<td>lista/dodawanie/usuwanie integracji OAuth (<code>SocialIntegrationService</code>)</td>
+</tr>
+</tbody></table>
+<h2>7.13 Chatbot / Voicebot – status</h2>
+<ul>
+<li><strong>Voicebot (zaimplementowany)</strong>: wywoływany <strong>w trakcie połączenia telefonicznego</strong> z węzła
+IVR typu <code>VOICEBOT</code> (<code>IvrNodeType.VOICEBOT</code>, zob. 7.3) – ASR (Whisper), NLU (<code>detect_intent</code>)
+i ewentualna eskalacja do agenta przez RabbitMQ (<code>publish_escalation</code>). Endpoint:
+<code>POST /voicebot/turn</code> w <code>voicebot/app/main.py</code>.</li>
+<li><strong>Podsumowania AI (zaimplementowane)</strong>: <code>POST /ai/summarize</code> – generuje podsumowanie
+rozmowy (transkrypcja → tekst), konfiguracja dostawcy AI per tenant w
+<code>TenantAiConfigController</code> (<code>/api/supervisor/ai-config</code>).</li>
+<li><strong>Chatbot tekstowy dla social/web (PRD, status: planowany)</strong>: PRD (<code>PRD.md</code>, sekcja
+Automatyzacja, OQ-04) zakłada chatbota tekstowego dla kanałów social/web, ale <strong>w kodzie
+backendu/frontendu nie istnieje odrębny moduł/endpoint chatbota</strong> – obecnie kanały social
+(7.12) są obsługiwane wyłącznie przez agentów (bez automatycznych odpowiedzi bota). Przy
+podejmowaniu tego zadania należałoby zaprojektować nowy moduł (np. <code>chatbot</code>) analogicznie
+do wzorca <code>ivr</code>/<code>voicebot</code> (NLU z <code>voicebot/app/nlu.py</code> jest reużywalne).</li>
+</ul>
+<h2>7.14 Mapa &quot;który moduł za co odpowiada w przepływie&quot;</h2>
+<table>
+<thead>
+<tr>
+<th>Etap przepływu</th>
+<th>Backend moduł(y)</th>
+<th>Frontend feature</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Auth/JWT</td>
+<td><code>auth</code>, <code>user</code></td>
+<td><code>auth</code></td>
+</tr>
+<tr>
+<td>IVR</td>
+<td><code>ivr</code>, <code>telephony</code></td>
+<td><code>supervisor</code> (edytor IVR)</td>
+</tr>
+<tr>
+<td>Routing/kolejki</td>
+<td><code>queue</code>, <code>agentgroup</code>, <code>agentbreak</code></td>
+<td><code>supervisor</code>, <code>agent</code></td>
+</tr>
+<tr>
+<td>Kampanie/dialer</td>
+<td><code>campaign</code>, <code>dialer</code></td>
+<td><code>campaigns</code>, <code>supervisor</code></td>
+</tr>
+<tr>
+<td>Baza klientów</td>
+<td><code>customer</code>, <code>contact</code></td>
+<td><code>customers</code>, <code>agent</code></td>
+</tr>
+<tr>
+<td>Dyspozycje</td>
+<td><code>disposition</code></td>
+<td><code>dispositions</code>, <code>agent</code></td>
+</tr>
+<tr>
+<td>Nagrania</td>
+<td><code>recording</code>, <code>telephony</code></td>
+<td><code>supervisor</code> (odsłuch)</td>
+</tr>
+<tr>
+<td>Email</td>
+<td><code>email</code></td>
+<td><code>agent</code> (email-contact), <code>supervisor</code> (ustawienia/szablony)</td>
+</tr>
+<tr>
+<td>Social media / chat</td>
+<td><code>social</code></td>
+<td><code>agent</code> (social-contact), <code>integrations</code> (OAuth)</td>
+</tr>
+<tr>
+<td>Raporty/DWH</td>
+<td><code>reports</code>, <code>telemetry</code>, <code>admin</code></td>
+<td><code>reports</code>, <code>admin</code></td>
+</tr>
+<tr>
+<td>Audyt</td>
+<td><code>auditlog</code></td>
+<td><code>admin</code></td>
+</tr>
+<tr>
+<td>Realtime</td>
+<td><code>websocket</code></td>
+<td>wszystkie (status agenta, KPI)</td>
+</tr>
+<tr>
+<td>AI/Voicebot</td>
+<td>(REST do <code>voicebot/</code>)</td>
+<td><code>supervisor</code> (konfiguracja), <code>agent</code> (podsumowania)</td>
+</tr>
+<tr>
+<td>Chatbot tekstowy</td>
+<td>nie zaimplementowano (PRD – planowane)</td>
+<td>–</td>
+</tr>
+</tbody></table>
+
+</main>
+</div>
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  }
+</script>
+</body>
+</html>

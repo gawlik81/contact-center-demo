@@ -540,7 +540,7 @@ public class ProgressiveDialerService {
      * @param callSid        identyfikator sesji telefonicznej
      * @param timeoutSeconds czas oczekiwania na odebranie (konfigurowany per kampania)
      */
-    private void scheduleNoAnswerTimeout(String callSid, int timeoutSeconds) {
+    public void scheduleNoAnswerTimeout(String callSid, int timeoutSeconds) {
         String timeoutKey = "dialer:timeout:" + callSid;
         redisTemplate.opsForValue().set(timeoutKey, "", Duration.ofSeconds(timeoutSeconds));
     }

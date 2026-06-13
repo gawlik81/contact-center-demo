@@ -293,7 +293,26 @@
       "mcp__angular-cli__list_projects",
       "mcp__angular-cli__get_best_practices",
       "Bash(docker volume *)",
-      "Bash(docker cp *)"
+      "Bash(docker cp *)",
+      "Bash(pkill -f \"ng serve\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(pkill -9 -f \"ng serve\")",
+      "Bash(unzip -o -q /home/pawelm/.m2/repository/org/springframework/data/spring-data-redis/3.3.5/spring-data-redis-3.3.5.jar -d sdr)",
+      "Bash(find app/target/surefire-reports -newer app/pom.xml)",
+      "Bash(cat app/target/surefire-reports/*SupervisorMetricsServiceTest*.txt)",
+      "Bash(pip3 show *)",
+      "Bash(npm view *)",
+      "Bash(npm ls *)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(awk NR>=575 && NR<=600 *)",
+      "Bash(awk 'NR>=580 && NR<=600' /home/pawelm/contact-center/ARCHITECTURE.md)",
+      "Bash(awk 'NR>=578 && NR<=600' /home/pawelm/contact-center/ARCHITECTURE.md)",
+      "Bash(awk NR>=560 && NR<=600 *)",
+      "Bash(awk NR>=580 && NR<=595 *)",
+      "Bash(awk 'NR>=578 && NR<=598{print NR\": \"$0}' /home/pawelm/contact-center/ARCHITECTURE.md)",
+      "Bash(awk 'NR>=787 && NR<=812{print NR\": \"$0}' /home/pawelm/contact-center/ARCHITECTURE.md)",
+      "Bash(awk NR>=540 && NR<=565{print NR\": \"$0} *)"
     ]
   }
 }

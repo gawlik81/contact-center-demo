@@ -69,6 +69,7 @@ export class ContactsReportComponent implements OnInit {
     'TRANSFERRED',
     'FAILED',
     'ACTIVE',
+    'IVR',
     'QUEUED',
     'ON_HOLD',
     'NOT_REACHED',

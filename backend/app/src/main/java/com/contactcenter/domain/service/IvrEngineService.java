@@ -83,6 +83,12 @@ public class IvrEngineService {
      */
     private final ConcurrentHashMap<String, UUID> pendingConferenceQueueId = new ConcurrentHashMap<>();
 
+    private final Map<String, String> pendingQueueTransferPrompt = new ConcurrentHashMap<>();
+
+    private final Map<String, String> pendingHangupPrompt = new ConcurrentHashMap<>();
+
+    private final Map<String, String> pendingPlayAudioPrompt = new ConcurrentHashMap<>();
+
     @Value("${app.base-url:http://localhost:8080}")
     private String appBaseUrl;
 
@@ -259,23 +265,23 @@ public class IvrEngineService {
                 return;
             }
 
+            // ----------------------------------------------------------------
+            // Brak wyboru (timeout / no-input) lub nieznany klawisz – licz próby;
+            // po wyczerpaniu przejdź na wyjście "timeout" węzła (jeśli skonfigurowane),
+            // zamiast od razu kierować na domyślną kolejkę.
+            // ----------------------------------------------------------------
+            if ("timeout".equals(dtmfKey) || "no-input".equals(dtmfKey)) {
+                handleMenuRetryOrTimeoutExit(callId, dtmfKey, currentNode, session, ivr);
+                return;
+            }
+
             // Szukaj opcji dla klawisza DTMF
             IvrOption option = currentNode.findOption(dtmfKey);
 
             if (option == null) {
-                // Nieznany klawisz – sprawdź liczbę prób
-                session.incrementRetryCount();
-                if (session.getRetryCount() >= currentNode.maxRetries()) {
-                    log.warn("[IVR] Przekroczono liczbę prób dla węzła: nodeId={}, callId={}",
-                            currentNode.nodeId(), callId);
-                    fallbackToDefaultQueue(callId, session.getTenantId());
-                } else {
-                    log.debug("[IVR] Nieznany klawisz '{}' dla węzła: nodeId={}, retry={}",
-                            dtmfKey, currentNode.nodeId(), session.getRetryCount());
-                    saveSession(session);
-                    // Ponów ten sam węzeł (odtwórz komunikat ponownie) – propaguj twimlMode z sesji
-                    executeNode(callId, currentNode, session, session.isTwimlMode());
-                }
+                log.info("[IVR] Brak zdefiniowanego wyjścia dla wartości '{}' w węźle: nodeId={}, callId={}",
+                        dtmfKey, currentNode.nodeId(), callId);
+                handleMenuRetryOrTimeoutExit(callId, dtmfKey, currentNode, session, ivr);
                 return;
             }
 
@@ -375,7 +381,7 @@ public class IvrEngineService {
         if (currentNode == null) {
             return buildFallbackTwiml();
         }
-        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl);
+        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl, session);
     }
 
     /**
@@ -474,9 +480,13 @@ public class IvrEngineService {
             if (conferencContactId != null) {
                 log.info("[IVR] QUEUE_TRANSFER zakończony – kieruję klienta do konferencji: callId={}, contactId={}, queueId={}",
                     callId, conferencContactId, conferenceQueueId);
-                return buildWaitInConferenceTwiml(conferencContactId, conferenceQueueId, tenantId, baseUrl);
+                String queueTransferPrompt = pendingQueueTransferPrompt.remove(callId);
+                return buildWaitInConferenceTwiml(conferencContactId, conferenceQueueId, tenantId, baseUrl, queueTransferPrompt);
             }
-            // Sesja usunięta przez HANGUP lub brak konferencji
+            String hangupPrompt = pendingHangupPrompt.remove(callId);
+            if (hangupPrompt != null) {
+                return buildHangupTwiml(hangupPrompt);
+            }
             return buildCompletedTwiml();
         }
         IvrTree ivr = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
@@ -487,7 +497,7 @@ public class IvrEngineService {
         if (currentNode == null) {
             return buildFallbackTwiml();
         }
-        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl);
+        return buildTwimlForNode(currentNode, callId, tenantId, baseUrl, session);
     }
 
     /**
@@ -613,7 +623,7 @@ public class IvrEngineService {
                 updatedIvr != null ? updatedIvr.getName() : null);
         }
 
-        return buildTwimlForNode(nextNode, callId, tenantId, baseUrl);
+        return buildTwimlForNode(nextNode, callId, tenantId, baseUrl, updatedSession);
     }
 
     /**
@@ -674,14 +684,19 @@ public class IvrEngineService {
      * @return TwiML string
      */
     private String buildTwimlForNode(IvrNode node, String callId, UUID tenantId, String baseUrl) {
+        return buildTwimlForNode(node, callId, tenantId, baseUrl, null);
+    }
+
+    private String buildTwimlForNode(IvrNode node, String callId, UUID tenantId, String baseUrl,
+                                     IvrSessionData session) {
         String dtmfActionUrl = baseUrl
             + "/api/telephony/webhook/twilio/dtmf?tenantId=" + tenantId
             + "&callId=" + callId;
 
-        return switch (node.type()) {
-            case MENU -> buildGatherTwiml(node, dtmfActionUrl, false);
-            case COLLECT_DTMF -> buildGatherTwiml(node, dtmfActionUrl, true);
-            case PLAY_AUDIO -> buildPlayAudioTwiml(node);
+        String twiml = switch (node.type()) {
+            case MENU -> buildGatherTwiml(node, dtmfActionUrl, false, session);
+            case COLLECT_DTMF -> buildGatherTwiml(node, dtmfActionUrl, true, session);
+            case PLAY_AUDIO -> buildPlayAudioTwiml(node, session);
             case HANGUP -> "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Hangup/></Response>";
             case VOICEBOT -> buildVoicebotRecordTwiml(node, callId, tenantId, baseUrl);
             // SET / IF / SWITCH / QUEUE_TRANSFER są węzłami przejściowymi – silnik przetwarza je
@@ -689,6 +704,12 @@ public class IvrEngineService {
             // wywołaniu, currentNode wskazuje już na następny węzeł. Ten case jest safety net.
             default -> buildFallbackTwiml();
         };
+        String audioPrefix = pendingPlayAudioPrompt.remove(callId);
+        if (audioPrefix != null && !audioPrefix.isBlank()) {
+            twiml = twiml.replace("<Response>",
+                "<Response><Say language=\"pl-PL\">" + escapeXml(audioPrefix) + "</Say>");
+        }
+        return twiml;
     }
 
     /**
@@ -777,11 +798,16 @@ public class IvrEngineService {
      * @param multiDigit    true = zbieranie wielu cyfr (COLLECT_DTMF), false = jeden klawisz (MENU)
      * @return TwiML string
      */
-    private String buildGatherTwiml(IvrNode node, String dtmfActionUrl, boolean multiDigit) {
+    private String buildGatherTwiml(IvrNode node, String dtmfActionUrl, boolean multiDigit,
+                                    IvrSessionData session) {
         StringBuilder sb = new StringBuilder();
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
         sb.append("<Gather action=\"").append(escapeXml(dtmfActionUrl)).append("\"");
         sb.append(" method=\"POST\"");
+        // actionOnEmptyResult="true" – domyślnie Twilio NIE wywołuje action URL przy ciszy,
+        // więc timeout/maxRetries z konfiguracji węzła nigdy by się nie uruchomiły, a połączenie
+        // kończyłoby się od razu po wygaśnięciu <Gather>.
+        sb.append(" actionOnEmptyResult=\"true\"");
         // Minimalny timeout to 10s – Twilio musi mieć wystarczająco czasu aby odebrać odpowiedź
         sb.append(" timeout=\"").append(Math.max(node.timeoutSeconds(), 10)).append("\"");
         if (multiDigit) {
@@ -796,31 +822,27 @@ public class IvrEngineService {
         sb.append(">");
         // Prompt: preferuj tekst prompt, fallback na pusty (TTS z audioId obsługiwany osobno)
         if (node.prompt() != null && !node.prompt().isBlank()) {
+            String resolvedPrompt = session != null ? resolveVariables(node.prompt(), session) : node.prompt();
             sb.append("<Say language=\"pl-PL\">")
-                .append(escapeXml(node.prompt()))
+                .append(escapeXml(resolvedPrompt))
                 .append("</Say>");
         }
         sb.append("</Gather>");
-        // Twilio wywołuje action URL gdy zbieranie zakończy się timeoutem
-        // Jeśli <Gather> nie zbierze żadnego wejścia, Twilio kontynuuje za <Gather>
-        // – dodajemy fallback Say (cichy timeout zostanie obsłużony przez scheduleTimeoutForDtmf)
         sb.append("</Response>");
         return sb.toString();
     }
 
     /**
-     * Buduje TwiML z {@code <Say>} lub {@code <Play>} dla węzła PLAY_AUDIO.
+     * Buduje TwiML z {@code <Say>} lub {@code <Pause>} dla węzła PLAY_AUDIO (terminal – bez opcji next).
      */
-    private String buildPlayAudioTwiml(IvrNode node) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
+    private String buildPlayAudioTwiml(IvrNode node, IvrSessionData session) {
+        StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
         if (node.prompt() != null && !node.prompt().isBlank()) {
+            String resolvedPrompt = session != null ? resolveVariables(node.prompt(), session) : node.prompt();
             sb.append("<Say language=\"pl-PL\">")
-                .append(escapeXml(node.prompt()))
+                .append(escapeXml(resolvedPrompt))
                 .append("</Say>");
-        }
-        else {
-            // Brak promptu – krótka cisza, żeby Twilio nie rozłączyło od razu
+        } else {
             sb.append("<Pause length=\"1\"/>");
         }
         sb.append("</Response>");
@@ -851,6 +873,15 @@ public class IvrEngineService {
             + "</Response>";
     }
 
+    private String buildHangupTwiml(String prompt) {
+        StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>");
+        if (!prompt.isBlank()) {
+            sb.append("<Say language=\"pl-PL\">").append(escapeXml(prompt)).append("</Say>");
+        }
+        sb.append("<Hangup/></Response>");
+        return sb.toString();
+    }
+
     /**
      * Buduje TwiML kierujący klienta do nazwanej konferencji Twilio w trybie oczekiwania.
      *
@@ -871,6 +902,10 @@ public class IvrEngineService {
      * @return TwiML z {@code <Conference>} w trybie oczekiwania
      */
     private String buildWaitInConferenceTwiml(UUID contactId, UUID queueId, UUID tenantId, String baseUrl) {
+        return buildWaitInConferenceTwiml(contactId, queueId, tenantId, baseUrl, null);
+    }
+
+    private String buildWaitInConferenceTwiml(UUID contactId, UUID queueId, UUID tenantId, String baseUrl, String customPrompt) {
         String conferenceName = "contact-" + contactId.toString();
         String recordingCallbackUrl = baseUrl
             + "/api/telephony/webhook/twilio/recording?tenantId=" + tenantId.toString();
@@ -878,9 +913,12 @@ public class IvrEngineService {
             + "/api/telephony/webhook/twilio/conference?tenantId=" + tenantId.toString();
         String waitUrl = baseUrl + "/api/telephony/hold-music"
             + (queueId != null ? "?queueId=" + queueId.toString() : "");
+        String sayText = (customPrompt != null && !customPrompt.isBlank())
+            ? customPrompt
+            : "Łączymy z konsultantem, proszę czekać.";
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             + "<Response>"
-            + "<Say language=\"pl-PL\">Łączymy z konsultantem, proszę czekać.</Say>"
+            + "<Say language=\"pl-PL\">" + escapeXml(sayText) + "</Say>"
             + "<Dial>"
             + "<Conference"
             + " startConferenceOnEnter=\"false\""
@@ -918,7 +956,8 @@ public class IvrEngineService {
      *
      * <p>Możliwe scenariusze:
      * <ul>
-     *   <li>"timeout" / "no-input" – szuka opcji o tym kluczu w węźle; jeśli brak → fallback</li>
+     *   <li>"timeout" (brak wejścia) – licz próby; po wyczerpaniu {@code maxRetries}
+     *       przejście do wyjścia "timeout" węzła (tak samo jak w MENU)</li>
      *   <li>klawisz równy {@code finishOnKey} – kończy zbieranie i przechodzi do opcji "success"</li>
      *   <li>cyfra – dodaje do bufora; po osiągnięciu {@code maxDigits} auto-zakończenie</li>
      * </ul>
@@ -935,21 +974,9 @@ public class IvrEngineService {
             return;
         }
 
-        // --- Obsługa timeout / no-input ---
-        if ("timeout".equals(dtmfKey) || "no-input".equals(dtmfKey)) {
-            IvrOption option = collectNode.findOption(dtmfKey);
-            if (option == null) {
-                log.warn("[IVR] COLLECT_DTMF: brak opcji '{}' w węźle={}, fallback; callId={}",
-                        dtmfKey, collectNodeId, callId);
-                session.clearDtmfCollection();
-                saveSession(session);
-                fallbackToDefaultQueue(callId, session.getTenantId());
-            } else {
-                log.debug("[IVR] COLLECT_DTMF: {} – przejście do następnego węzła: callId={}",
-                        dtmfKey, callId);
-                session.clearDtmfCollection();
-                transitionToNextNode(callId, option.nextNodeId(), session, ivr);
-            }
+        // --- Obsługa braku wejścia (timeout / no-input) ---
+        if ("timeout".equals(dtmfKey) || "no-input".equals(dtmfKey) || dtmfKey.isEmpty()) {
+            handleCollectRetryOrTimeoutExit(callId, dtmfKey, collectNode, session, ivr);
             return;
         }
 
@@ -963,7 +990,21 @@ public class IvrEngineService {
             return;
         }
 
-        // --- Akumulacja cyfry ---
+        // W trybie TwiML Twilio dostarcza kompletny zebrany ciąg w jednym żądaniu
+        if (session.isTwimlMode()) {
+            // Mniej cyfr niż minDigits – Gather wygasł zanim dzwoniący skończył wpisywać.
+            // Traktuj jak "timeout" zamiast fałszywie kończyć zbieranie jako "success".
+            if (dtmfKey.length() < collectNode.minDigits()) {
+                log.debug("[IVR] COLLECT_DTMF: zebrano '{}' (<{} minDigits) przed timeoutem; callId={}",
+                        dtmfKey, collectNode.minDigits(), callId);
+                handleCollectRetryOrTimeoutExit(callId, "timeout", collectNode, session, ivr);
+                return;
+            }
+            finishDtmfCollection(callId, dtmfKey, collectNode, session, ivr);
+            return;
+        }
+
+        // --- Akumulacja cyfry (tryb non-TwiML: cyfry napływają jedna po jednej) ---
         session.appendDtmfDigit(dtmfKey);
         String buffer = session.getDtmfBuffer();
         log.debug("[IVR] COLLECT_DTMF: bufor='{}' ({}/{}), callId={}",
@@ -977,6 +1018,38 @@ public class IvrEngineService {
         } else {
             // Czekaj na kolejne cyfry
             saveSession(session);
+        }
+    }
+
+    /**
+     * Obsługuje brak wejścia (timeout) w węźle COLLECT_DTMF.
+     *
+     * <p>Liczy próby; dopóki nie osiągnięto {@code maxRetries}, ponawia węzeł (odtwarza
+     * komunikat i rozpoczyna zbieranie od nowa). Po wyczerpaniu prób przechodzi na wyjście
+     * "timeout" węzła (jeśli skonfigurowane), w przeciwnym razie kieruje na domyślną kolejkę.
+     * Zasada działania identyczna jak w węźle MENU ({@link #handleMenuRetryOrTimeoutExit}).
+     */
+    private void handleCollectRetryOrTimeoutExit(String callId, String dtmfKey,
+                                                  IvrNode collectNode, IvrSessionData session, IvrTree ivr) {
+        session.incrementRetryCount();
+        if (session.getRetryCount() < collectNode.maxRetries()) {
+            log.debug("[IVR] COLLECT_DTMF: brak wejścia ('{}') dla węzła: nodeId={}, retry={}/{}",
+                    dtmfKey, collectNode.nodeId(), session.getRetryCount(), collectNode.maxRetries());
+            session.clearDtmfCollection();
+            saveSession(session);
+            executeNode(callId, collectNode, session, session.isTwimlMode());
+            return;
+        }
+
+        log.warn("[IVR] COLLECT_DTMF: przekroczono liczbę prób (brak wejścia) dla węzła: nodeId={}, callId={}",
+                collectNode.nodeId(), callId);
+        session.clearDtmfCollection();
+        IvrOption timeoutOption = collectNode.findOption("timeout");
+        if (timeoutOption != null) {
+            transitionToNextNode(callId, timeoutOption.nextNodeId(), session, ivr);
+        } else {
+            saveSession(session);
+            fallbackToDefaultQueue(callId, session.getTenantId());
         }
     }
 
@@ -1029,6 +1102,35 @@ public class IvrEngineService {
         executeNode(callId, nextNode, session, session.isTwimlMode());
     }
 
+    /**
+     * Obsługuje brak wyboru (timeout / no-input) lub nieznany klawisz w węźle MENU.
+     *
+     * <p>Liczy próby; dopóki nie osiągnięto {@code maxRetries}, ponawia węzeł (odtwarza
+     * komunikat ponownie). Po wyczerpaniu prób przechodzi na wyjście "timeout" węzła
+     * (jeśli skonfigurowane), w przeciwnym razie kieruje na domyślną kolejkę.
+     */
+    private void handleMenuRetryOrTimeoutExit(String callId, String dtmfKey,
+                                               IvrNode currentNode, IvrSessionData session, IvrTree ivr) {
+        session.incrementRetryCount();
+        if (session.getRetryCount() < currentNode.maxRetries()) {
+            log.debug("[IVR] Brak dopasowania ('{}') dla węzła: nodeId={}, retry={}/{}",
+                    dtmfKey, currentNode.nodeId(), session.getRetryCount(), currentNode.maxRetries());
+            saveSession(session);
+            // Ponów ten sam węzeł (odtwórz komunikat ponownie) – propaguj twimlMode z sesji
+            executeNode(callId, currentNode, session, session.isTwimlMode());
+            return;
+        }
+
+        log.warn("[IVR] Przekroczono liczbę prób (brak dopasowania '{}') dla węzła: nodeId={}, callId={}",
+                dtmfKey, currentNode.nodeId(), callId);
+        IvrOption timeoutOption = currentNode.findOption("timeout");
+        if (timeoutOption != null) {
+            transitionToNextNode(callId, timeoutOption.nextNodeId(), session, ivr);
+        } else {
+            fallbackToDefaultQueue(callId, session.getTenantId());
+        }
+    }
+
     // =========================================================================
     // Wykonanie węzła
     // =========================================================================
@@ -1058,11 +1160,24 @@ public class IvrEngineService {
             callId, node.nodeId(), node.type(), twimlMode);
 
         switch (node.type()) {
-            case PLAY_AUDIO -> executePlayAudio(callId, node, session);
+            case PLAY_AUDIO -> {
+                IvrOption nextOpt = node.findOption("next");
+                if (session.isTwimlMode() && nextOpt != null
+                        && nextOpt.nextNodeId() != null && !nextOpt.nextNodeId().isBlank()) {
+                    if (node.prompt() != null && !node.prompt().isBlank()) {
+                        pendingPlayAudioPrompt.put(callId, resolveVariables(node.prompt(), session));
+                    }
+                    IvrTree ivr2 = resolveIvrTree(session.getTenantId(), session.getIvrId()).orElse(null);
+                    if (ivr2 == null) { fallbackToDefaultQueue(callId, session.getTenantId()); return; }
+                    transitionToNextNode(callId, nextOpt.nextNodeId(), session, ivr2);
+                } else {
+                    executePlayAudio(callId, node, session);
+                }
+            }
             case MENU -> executeMenu(callId, node, session, twimlMode);
             case COLLECT_DTMF -> executeCollectDtmf(callId, node, session, twimlMode);
             case QUEUE_TRANSFER -> executeQueueTransfer(callId, node, session);
-            case HANGUP -> executeHangup(callId, session);
+            case HANGUP -> executeHangup(callId, node, session);
             case SET -> executeSet(callId, node, session);
             case IF -> executeIf(callId, node, session);
             case SWITCH -> executeSwitch(callId, node, session);
@@ -1272,10 +1387,11 @@ public class IvrEngineService {
             log.info("[IVR] Przekazano do kolejki: callId={}, queueId={}, contactId={}",
                     callId, queueId, contactId);
 
-            // Zapisz contactId i queueId dla handleDtmfAndBuildTwiml – klient będzie skierowany do konferencji
+            // Zapisz contactId, queueId i prompt dla handleDtmfAndBuildTwiml – klient będzie skierowany do konferencji
             if (contactId != null) {
                 pendingConferenceContactId.put(callId, contactId);
                 pendingConferenceQueueId.put(callId, queueId);
+                pendingQueueTransferPrompt.put(callId, resolveVariables(node.prompt() != null ? node.prompt() : "", session));
             }
 
             // Usuń sesję IVR – IVR przepływ zakończony
@@ -1290,16 +1406,25 @@ public class IvrEngineService {
         }
     }
 
-    private void executeHangup(String callId, IvrSessionData session) {
+    private void executeHangup(String callId, IvrNode node, IvrSessionData session) {
         log.info("[IVR] Rozłączanie połączenia: callId={}", callId);
 
-        try {
-            telephonyAdapter.hangupCall(callId);
-        } catch (Exception e) {
-            log.warn("[IVR] Błąd podczas hangup (ignorowany): callId={}, error={}", callId, e.getMessage());
+        if (session.getContactId() != null) {
+            contactRepository.updateContactStatusIfNotTerminal(
+                session.getContactId(), session.getTenantId(), "COMPLETED", Instant.now());
+            contactEventService.closeIvr(session.getContactId(), session.getTenantId());
         }
 
-        // Usuń sesję IVR
+        if (session.isTwimlMode()) {
+            pendingHangupPrompt.put(callId, resolveVariables(node.prompt() != null ? node.prompt() : "", session));
+        } else {
+            try {
+                telephonyAdapter.hangupCall(callId);
+            } catch (Exception e) {
+                log.warn("[IVR] Błąd podczas hangup (ignorowany): callId={}, error={}", callId, e.getMessage());
+            }
+        }
+
         deleteSession(callId);
         log.info("[IVR] Sesja IVR zakończona (HANGUP): callId={}", callId);
     }
@@ -1616,6 +1741,30 @@ public class IvrEngineService {
                     : deriveContactId(callId);
 
                 if (contactId != null && defaultQueue.isPresent()) {
+                    // Zapisz queue_id do DB i przełącz status IVR -> QUEUED (z queued_at=NOW())
+                    // analogicznie do executeQueueTransfer() – bez tego kontakt pozostaje
+                    // trwale w statusie IVR z queue_id=NULL.
+                    // Zapewnij TenantContext bez naruszania ewentualnego kontekstu wywołującego
+                    // (np. async timeout DTMF przywraca własny snapshot wokół całego wywołania).
+                    boolean wasTenantContextSet = TenantContext.isSet();
+                    try {
+                        if (!wasTenantContextSet) {
+                            TenantContext.setTenantId(tenantId);
+                        }
+                        int rows = contactRepository.updateQueueId(contactId, tenantId, defaultQueue.get().getQueueId());
+                        if (rows == 0) {
+                            log.warn("[IVR] Fallback: updateQueueId: brak zaktualizowanych wierszy: contactId={}, queueId={}",
+                                contactId, defaultQueue.get().getQueueId());
+                        }
+                    } catch (Exception updateEx) {
+                        log.error("[IVR] Fallback: błąd aktualizacji queue_id: contactId={}, error={}",
+                            contactId, updateEx.getMessage(), updateEx);
+                    } finally {
+                        if (!wasTenantContextSet) {
+                            TenantContext.clear();
+                        }
+                    }
+
                     contactEventService.closeIvr(contactId, tenantId);
                     contactEventService.openQueue(contactId, tenantId,
                         defaultQueue.get().getQueueId(), defaultQueue.get().getName(), Instant.now());

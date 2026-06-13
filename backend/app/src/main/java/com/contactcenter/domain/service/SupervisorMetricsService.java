@@ -9,14 +9,19 @@ import com.contactcenter.domain.model.AppUser.UserRole;
 import com.contactcenter.domain.model.Tenant;
 import com.contactcenter.domain.model.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +48,7 @@ import java.util.UUID;
  *   <li>Agenci (lista i imiona) – baza danych przez {@link AppUserRepository}</li>
  *   <li>Statusy agentów – Redis ({@code session:agent:{userId}}) – co 5s, bez DB round-trip</li>
  *   <li>Statystyki kolejek – Redis ({@code cache:queue:stats:{queueId}})</li>
+ *   <li>Liczba połączeń w IVR – Redis ({@code ivr:session:{callId}}), JSON parsowany przez {@link ObjectMapper}</li>
  * </ul>
  *
  * <p>Odporność na błędy – awaria Redis nie przerywa broadcastu:
@@ -67,12 +73,21 @@ public class SupervisorMetricsService {
     /** Prefix kluczy statystyk kolejek w Redis. Pełny klucz: {@code cache:queue:stats:{queueId}}. */
     private static final String QUEUE_STATS_KEY_PREFIX = "cache:queue:stats:";
 
+    /** Prefix kluczy sesji IVR w Redis. Pełny klucz: {@code ivr:session:{callId}}. */
+    private static final String IVR_SESSION_KEY_PREFIX = "ivr:session:";
+
+    /** Pattern do skanowania kluczy sesji IVR (Redis SCAN – nie KEYS). */
+    private static final String IVR_SESSION_SCAN_PATTERN = IVR_SESSION_KEY_PREFIX + "*";
+
     /** Topic WebSocket dla metryk supervisora. */
     private static final String METRICS_DESTINATION = "/topic/tenant/%s/supervisor/metrics";
 
     private final TenantRepository tenantRepository;
     private final AppUserRepository appUserRepository;
+    private final ContactRepository contactRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper;
     private final WebSocketEventBroadcaster webSocketEventBroadcaster;
 
     // =========================================================================
@@ -155,10 +170,13 @@ public class SupervisorMetricsService {
         // 4. Kolejki – odczyt statystyk z Redis
         List<QueueMetric> queueMetrics = buildQueueMetrics(tenantId, agentMetrics);
 
-        // 5. avg_wait_time – agregacja z kolejek
-        double avgWaitTime = computeAvgWaitTime(queueMetrics);
+        // 5. avg_wait_time – rzeczywisty czas oczekiwania kontaktów QUEUED tenanta
+        double avgWaitTime = computeAvgWaitTime(tenantId);
 
-        KpiMetric kpi = new KpiMetric(activeCalls, avgWaitTime, 0.0);
+        // 6. calls_in_ivr – liczba aktywnych sesji IVR tenanta
+        int callsInIvr = countIvrSessions(tenantId);
+
+        KpiMetric kpi = new KpiMetric(activeCalls, avgWaitTime, 0.0, callsInIvr);
 
         return new SupervisorMetricsPayload(agentMetrics, queueMetrics, kpi);
     }
@@ -311,10 +329,23 @@ public class SupervisorMetricsService {
         return result;
     }
 
-    private double computeAvgWaitTime(List<QueueMetric> queueMetrics) {
-        if (queueMetrics.isEmpty()) return 0.0;
-        // Placeholder MVP – dane historyczne z BE-028 (HistoricalMetrics)
-        return 0.0;
+    /**
+     * Oblicza średni czas oczekiwania (sekundy) klientów AKTUALNIE czekających
+     * w kolejkach tenanta (status QUEUED), na podstawie {@code NOW() - queued_at}.
+     *
+     * <p>Odporność na błędy – awaria DB degraduje KPI do 0 (analogicznie do Redis).
+     *
+     * @param tenantId UUID tenanta
+     * @return średni czas oczekiwania w sekundach (0.0 jeśli brak danych lub błąd)
+     */
+    private double computeAvgWaitTime(UUID tenantId) {
+        try {
+            return contactRepository.getAvgCurrentWaitSeconds(tenantId);
+        } catch (Exception e) {
+            log.warn("[SupervisorMetrics] Błąd pobierania avg_wait_time dla tenanta {}: {}",
+                    tenantId, e.getMessage());
+            return 0.0;
+        }
     }
 
     // =========================================================================
@@ -374,6 +405,64 @@ public class SupervisorMetricsService {
         }
 
         return sessions;
+    }
+
+    /**
+     * Skanuje klucze sesji IVR ({@code ivr:session:*}) z Redis i liczy te należące do tenanta.
+     *
+     * <p>Każda sesja IVR jest zapisana jako JSON string ({@link com.contactcenter.domain.ivr.IvrSessionData})
+     * pod kluczem {@code ivr:session:{callId}}, TTL 30 minut. Sesja istnieje przez cały czas
+     * obsługi połączenia w drzewie IVR – jest usuwana po HANGUP lub QUEUE_TRANSFER.
+     *
+     * <p>Używamy SCAN (cursor-based) zamiast KEYS, aby nie blokować Redis event loop.
+     * Błąd parsowania pojedynczego klucza nie przerywa całego skanu.
+     *
+     * @param tenantId UUID tenanta
+     * @return liczba aktywnych sesji IVR należących do tenanta
+     */
+    private int countIvrSessions(UUID tenantId) {
+        int count = 0;
+        String tenantIdStr = tenantId.toString();
+
+        try {
+            Set<String> keys = new HashSet<>();
+            ScanOptions options = ScanOptions.scanOptions()
+                    .match(IVR_SESSION_SCAN_PATTERN)
+                    .count(100)
+                    .build();
+
+            stringRedisTemplate.execute((RedisConnection connection) -> {
+                try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
+                    while (cursor.hasNext()) {
+                        keys.add(new String(cursor.next()));
+                    }
+                } catch (Exception e) {
+                    log.warn("[SupervisorMetrics] Błąd SCAN kluczy sesji IVR: {}", e.getMessage());
+                }
+                return null;
+            }, true);
+
+            for (String key : keys) {
+                try {
+                    String raw = stringRedisTemplate.opsForValue().get(key);
+                    if (raw == null || raw.isBlank()) continue;
+
+                    JsonNode node = objectMapper.readTree(raw);
+                    JsonNode tenantIdNode = node.get("tenant_id");
+                    if (tenantIdNode != null && tenantIdStr.equals(tenantIdNode.asText())) {
+                        count++;
+                    }
+                } catch (Exception e) {
+                    log.trace("[SupervisorMetrics] Błąd odczytu/parsowania sesji IVR {}: {}", key, e.getMessage());
+                }
+            }
+
+        } catch (Exception e) {
+            log.warn("[SupervisorMetrics] Błąd skanowania sesji IVR z Redis: {}. " +
+                    "calls_in_ivr będzie zwrócone jako 0.", e.getMessage());
+        }
+
+        return count;
     }
 
     /**

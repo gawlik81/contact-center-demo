@@ -40,6 +40,7 @@ export interface IvrNodeUI extends IvrNode {
 export interface IvrDefinition {
   nodes: IvrNode[];
   entry_node_id: string;
+  layout?: Record<string, { x: number; y: number }>;
 }
 
 export interface IvrDefinitionUI {

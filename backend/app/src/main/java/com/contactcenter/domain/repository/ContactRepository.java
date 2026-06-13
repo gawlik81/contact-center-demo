@@ -641,7 +641,7 @@ public class ContactRepository extends TenantAwareRepository {
   // =========================================================================
 
   /**
-   * Aktualizuje {@code queue_id} kontaktu będącego w statusie QUEUED.
+   * Aktualizuje {@code queue_id} kontaktu będącego w statusie QUEUED lub IVR.
    *
    * <p>Wywoływana przez {@code IvrEngineService.executeQueueTransfer()} po wyznaczeniu
    * docelowej kolejki z węzła IVR, przed publikacją eventu {@code contact.queued} do RabbitMQ.
@@ -649,6 +649,13 @@ public class ContactRepository extends TenantAwareRepository {
    * <p>Bez tej aktualizacji {@code queue_id} pozostaje NULL w bazie danych.
    * Skutkuje to trwałym blokowaniem retry routingu w
    * {@code RoutingService.onAgentStatusChanged()}, który pomija kontakty z {@code queue_id = NULL}.
+   *
+   * <p><strong>Przejście IVR -&gt; QUEUED:</strong> gdy kontakt jest w statusie {@code IVR}
+   * (klient wciąż w drzewie IVR, {@code queued_at = NULL}), ten transfer do kolejki agentów
+   * jest momentem faktycznego "wejścia do kolejki" dla KPI ASA – status zmienia się na
+   * {@code QUEUED} i {@code queued_at} ustawiane jest na {@code NOW()}. Gdy kontakt jest już
+   * w statusie {@code QUEUED} (routing bezpośredni, bez IVR), {@code queued_at} pozostaje
+   * niezmienione (ustawione przy utworzeniu kontaktu).
    *
    * <p>Używa JdbcTemplate (bez {@code started_at} w WHERE) – IVR nie zna partycji ({@code started_at})
    * kontaktu, zna tylko {@code contactId}. PostgreSQL przeszuka wszystkie partycje.
@@ -666,10 +673,12 @@ public class ContactRepository extends TenantAwareRepository {
     int updated = jdbcTemplate.update("""
             UPDATE contact
                SET queue_id    = ?::uuid,
+                   status       = CASE WHEN status = 'IVR' THEN 'QUEUED' ELSE status END,
+                   queued_at    = CASE WHEN status = 'IVR' THEN NOW() ELSE queued_at END,
                    updated_at  = NOW()
              WHERE contact_id = ?::uuid
                AND tenant_id  = ?::uuid
-               AND status     = 'QUEUED'
+               AND status IN ('QUEUED', 'IVR')
             """,
         queueId.toString(),
         contactId.toString(),
@@ -1609,6 +1618,49 @@ public class ContactRepository extends TenantAwareRepository {
     int waiting = count != null ? count.intValue() : 0;
     log.debug("[ContactRepo] Oczekujących w queue={}: {}", queueId, waiting);
     return waiting;
+  }
+
+  /**
+   * Oblicza średni czas oczekiwania (w sekundach) kontaktów AKTUALNIE czekających
+   * w kolejkach tenanta (status QUEUED), na podstawie {@code NOW() - queued_at}.
+   *
+   * <p>Odzwierciedla rzeczywisty czas oczekiwania "na żywo" – jeśli w kolejce
+   * czeka jeden klient od kilku minut, zwrócona wartość odda ten czas.
+   *
+   * <p>Warunek {@code queue_id IS NOT NULL} jest kluczowy: kontakt jest tworzony ze
+   * statusem QUEUED i {@code queued_at = NOW()} już przy odebraniu połączenia przez
+   * webhook (zanim klient wejdzie do IVR). {@code queue_id} jest ustawiane dopiero
+   * przy transferze IVR → kolejka agentów ({@code QUEUE_TRANSFER}). Bez tego warunku
+   * KPI liczyłoby też czas spędzony w IVR jako "czas oczekiwania na agenta".
+   *
+   * <p>Nie wywołuje {@code setTenantContextInDb()} – analogicznie do
+   * {@link #getAvgHandleTimeSeconds}, izolacja zapewniana przez jawny filtr tenant_id.
+   *
+   * @param tenantId UUID tenanta
+   * @return średni czas oczekiwania w sekundach (0.0 jeśli brak kontaktów QUEUED)
+   */
+  @Transactional(readOnly = true)
+  public double getAvgCurrentWaitSeconds(UUID tenantId) {
+    log.debug("[ContactRepo] AVG current wait time: tenant={}", tenantId);
+
+    Number result = (Number)em.createNativeQuery(
+            """
+                SELECT COALESCE(
+                    AVG(EXTRACT(EPOCH FROM (NOW() - queued_at))),
+                    0
+                )
+                FROM contact
+                WHERE tenant_id = CAST(:tenantId AS uuid)
+                  AND status    = 'QUEUED'
+                  AND queued_at IS NOT NULL
+                  AND queue_id  IS NOT NULL
+                """)
+        .setParameter("tenantId", tenantId.toString())
+        .getSingleResult();
+
+    double avg = result != null ? result.doubleValue() : 0.0;
+    log.debug("[ContactRepo] AVG current wait time dla tenant={}: {}s", tenantId, avg);
+    return avg;
   }
 
   // =========================================================================

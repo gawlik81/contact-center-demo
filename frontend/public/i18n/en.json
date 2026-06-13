@@ -863,6 +863,7 @@
       "fullscreenLabel": "Full screen mode",
       "loadingMetrics": "Loading metrics",
       "kpiActiveCalls": "Active calls",
+      "kpiCallsInIvr": "In IVR",
       "kpiAvailable": "Available agents",
       "kpiBreak": "On break",
       "kpiAfterContact": "After contact",
@@ -1216,6 +1217,7 @@
       "errors": {
         "nameRequired": "Name is required.",
         "nameMaxLength": "Name cannot exceed 255 characters.",
+        "nameTaken": "A campaign with this name already exists.",
         "fieldRequired": "Field is required.",
         "maxAttemptsMin": "Minimum number of attempts is 1.",
         "maxAttemptsMax": "Maximum number of attempts is 10.",
@@ -1230,7 +1232,8 @@
         "updateFailed": "Failed to update campaign. Please try again.",
         "limitExceeded": "Campaign limit exceeded for this tenant.",
         "createFailed": "Failed to create campaign. Please try again."
-      }
+      },
+      "checkingName": "Checking name availability..."
     },
     "campaignImport": {
       "title": "Import contacts",
@@ -1385,6 +1388,7 @@
       "errorScheduleCallback": "Failed to schedule callback.",
       "successScheduleCallback": "Callback scheduled.",
       "contactStatusLabels": {
+        "IVR": "In IVR",
         "QUEUED": "Queued",
         "ASSIGNED": "Assigned",
         "ACTIVE": "Active",
@@ -1637,6 +1641,7 @@
       "nodeSetValue": "Value",
       "nodeSetValuePlaceholder": "value or ${other_variable}",
       "nodeSetValueHint": "You can use ${variable_name} to insert a session value.",
+      "varHint": "Type $ to insert a variable from the flow",
       "nodeConditionEquals": "equals (=)",
       "nodeConditionNotEquals": "not equal (≠)",
       "nodeConditionStartsWith": "starts with",
@@ -1693,6 +1698,10 @@
       "closeJson": "Close JSON panel",
       "nextNode": "Next node",
       "nodePaletteLabel": "Node palette",
+      "zoomInLabel": "Zoom in",
+      "zoomOutLabel": "Zoom out",
+      "zoomResetLabel": "Reset zoom (100%)",
+      "fitToViewLabel": "Fit view to entire graph",
       "entryNodeBadgeLabel": "Entry node",
       "deleteNodeLabel": "Delete node",
       "deleteNodeTitle": "Delete node",

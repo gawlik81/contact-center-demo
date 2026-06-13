@@ -56,6 +56,7 @@ public record WebSocketEvent(
     public static final String TYPE_CONTACT_ASSIGNED        = "CONTACT_ASSIGNED";
     public static final String TYPE_QUEUE_UPDATE            = "QUEUE_UPDATE";
     public static final String TYPE_PONG                    = "PONG";
+    public static final String TYPE_RECORDING_READY         = "RECORDING_READY";
 
     // =========================================================================
     // Fabryczne metody statyczne
@@ -260,6 +261,15 @@ public record WebSocketEvent(
      */
     public static WebSocketEvent pong(UUID tenantId) {
         return new WebSocketEvent(TYPE_PONG, tenantId, null, Instant.now());
+    }
+
+    public static WebSocketEvent recordingReady(UUID tenantId, UUID agentId, UUID contactId) {
+        return new WebSocketEvent(
+                TYPE_RECORDING_READY,
+                tenantId,
+                new RecordingReadyPayload(contactId.toString()),
+                Instant.now()
+        );
     }
 
     // =========================================================================
@@ -487,6 +497,8 @@ public record WebSocketEvent(
             );
         }
     }
+
+    public record RecordingReadyPayload(String contactId) {}
 
     /**
      * DTO pojedynczego elementu kolejki widocznego przez agenta.

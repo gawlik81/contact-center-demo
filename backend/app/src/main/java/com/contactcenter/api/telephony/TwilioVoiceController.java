@@ -10,7 +10,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,6 +54,9 @@ public class TwilioVoiceController {
 
     @Value("${app.hold-music-url:}")
     private String holdMusicUrl;
+
+    @Value("${app.base-url:http://localhost:8080}")
+    private String appBaseUrl;
 
     private final TwilioProperties twilioProperties;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -193,12 +195,11 @@ public class TwilioVoiceController {
             }
     )
     public ResponseEntity<String> holdMusic(
-            @RequestParam(value = "queueId", required = false) UUID queueId,
-            HttpServletRequest request) {
+            @RequestParam(value = "queueId", required = false) UUID queueId) {
         log.debug("[TwilioVoice] Zwracam hold music TwiML, queueId={}", queueId);
 
         String ewtSayBlock = buildEwtSayBlock(queueId);
-        String selfUrl = buildSelfUrl(request, queueId);
+        String selfUrl = buildSelfUrl(queueId);
         String musicBlock = (holdMusicUrl != null && !holdMusicUrl.isBlank())
                 ? "<Play>" + holdMusicUrl + "</Play>"
                 : "<Pause length=\"25\"/>";
@@ -217,18 +218,11 @@ public class TwilioVoiceController {
 
     /**
      * Buduje bezwzględny URL powrotny dla <Redirect> w TwiML hold-music.
-     * Uwzględnia nagłówki X-Forwarded-Proto i Host ustawiane przez ngrok/reverse proxy.
+     * Używa skonfigurowanego app.base-url zamiast nagłówka Host, który może być fałszowany
+     * (Header Injection). app.base-url jest kontrolowaną wartością konfiguracyjną.
      */
-    private String buildSelfUrl(HttpServletRequest request, UUID queueId) {
-        String proto = request.getHeader("X-Forwarded-Proto");
-        if (proto == null || proto.isBlank()) {
-            proto = request.getScheme();
-        }
-        String host = request.getHeader("Host");
-        if (host == null || host.isBlank()) {
-            host = request.getServerName() + ":" + request.getServerPort();
-        }
-        String url = proto + "://" + host + "/api/telephony/hold-music";
+    private String buildSelfUrl(UUID queueId) {
+        String url = appBaseUrl + "/api/telephony/hold-music";
         if (queueId != null) {
             url += "?queueId=" + queueId;
         }
@@ -286,7 +280,12 @@ public class TwilioVoiceController {
             }
 
             log.debug("[TwilioVoice] EWT dla queueId={}: {}s -> \"{}\"", queueId, ewtSeconds, ewtMessage);
-            return "<Say language=\"pl-PL\">" + ewtMessage + "</Say>";
+            // Escape XML aby zapobiec XML injection w TwiML gdy ewtMessage zawiera znaki specjalne
+            String safeEwtMessage = ewtMessage
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;");
+            return "<Say language=\"pl-PL\">" + safeEwtMessage + "</Say>";
 
         } catch (Exception e) {
             log.warn("[TwilioVoice] Błąd odczytu EWT z Redis dla queueId={}: {}", queueId, e.getMessage());

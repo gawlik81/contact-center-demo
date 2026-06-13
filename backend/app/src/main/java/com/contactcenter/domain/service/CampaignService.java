@@ -372,6 +372,26 @@ public class CampaignService {
     }
 
     // =========================================================================
+    // Sprawdzanie unikalności
+    // =========================================================================
+
+    /**
+     * Sprawdza czy nazwa kampanii jest już zajęta w ramach tenanta.
+     *
+     * <p>Deleguje do repozytorium – porównanie case-insensitive. Przy edycji istniejącej
+     * kampanii przekaż jej {@code excludeId}, żeby nazwa nie kolidowała sama ze sobą.
+     *
+     * @param name      nazwa do sprawdzenia
+     * @param tenantId  UUID tenanta
+     * @param excludeId UUID kampanii wykluczanej z porównania (null = tryb tworzenia)
+     * @return {@code true} jeśli nazwa zajęta, {@code false} jeśli dostępna
+     */
+    @Transactional(readOnly = true)
+    public boolean isNameTaken(String name, UUID tenantId, UUID excludeId) {
+        return campaignRepository.existsByNameAndTenantId(name, tenantId, excludeId);
+    }
+
+    // =========================================================================
     // Pomocnicze
     // =========================================================================
 

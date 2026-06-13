@@ -4,13 +4,13 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import {
   CreateIvrRequest,
+  IvrDefinition,
   IvrDefinitionUI,
   IvrNodeUI,
   IvrResponse,
   UpdateIvrRequest,
 } from '../models/ivr.model';
 
-const POSITIONS_KEY_PREFIX = 'ivr:positions:';
 const DEFAULT_NODE_SPACING_X = 260;
 const DEFAULT_NODE_SPACING_Y = 160;
 
@@ -48,90 +48,45 @@ export class IvrService {
   }
 
   /**
-   * Loads node UI positions from localStorage and merges with definition nodes.
+   * Converts IvrResponse definition to UI definition, applying saved layout positions
+   * (from definition.layout) or falling back to a default grid position.
    */
-  loadPositions(ivrId: string, nodes: IvrNodeUI[]): IvrNodeUI[] {
-    const key = `${POSITIONS_KEY_PREFIX}${ivrId}`;
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return this.assignDefaultPositions(nodes);
-      const positions: Record<string, { x: number; y: number }> = JSON.parse(raw);
-      return nodes.map((node) => ({
-        ...node,
-        x: positions[node.node_id]?.x ?? node.x,
-        y: positions[node.node_id]?.y ?? node.y,
-      }));
-    } catch {
-      return this.assignDefaultPositions(nodes);
-    }
-  }
-
-  /**
-   * Saves current node positions to localStorage.
-   */
-  savePositions(ivrId: string, nodes: IvrNodeUI[]): void {
-    const key = `${POSITIONS_KEY_PREFIX}${ivrId}`;
-    const positions: Record<string, { x: number; y: number }> = {};
-    nodes.forEach((n) => {
-      positions[n.node_id] = { x: n.x, y: n.y };
+  toUIDefinition(_ivrId: string, response: IvrResponse): IvrDefinitionUI {
+    const layout = response.definition.layout ?? {};
+    const cols = 3;
+    const nodes: IvrNodeUI[] = response.definition.nodes.map((n, index) => {
+      const pos = layout[n.node_id];
+      return {
+        ...n,
+        // PLAY_AUDIO always needs a "next" output option; add it if missing (e.g. legacy data)
+        options:
+          n.type === 'PLAY_AUDIO' && (!n.options || n.options.length === 0)
+            ? [{ key: 'next', next_node_id: '' }]
+            : (n.options ?? []),
+        x: pos?.x ?? 40 + (index % cols) * DEFAULT_NODE_SPACING_X,
+        y: pos?.y ?? 40 + Math.floor(index / cols) * DEFAULT_NODE_SPACING_Y,
+      };
     });
-    try {
-      localStorage.setItem(key, JSON.stringify(positions));
-    } catch {
-      // Ignore storage errors
-    }
-  }
-
-  /**
-   * Clears saved positions for an IVR.
-   */
-  clearPositions(ivrId: string): void {
-    const key = `${POSITIONS_KEY_PREFIX}${ivrId}`;
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // Ignore
-    }
-  }
-
-  /**
-   * Converts IvrResponse definition to UI definition with positions.
-   */
-  toUIDefinition(ivrId: string, response: IvrResponse): IvrDefinitionUI {
-    const nodesWithDefaults: IvrNodeUI[] = response.definition.nodes.map((n) => ({
-      ...n,
-      // PLAY_AUDIO always needs a "next" output option; add it if missing (e.g. legacy data)
-      options:
-        n.type === 'PLAY_AUDIO' && (!n.options || n.options.length === 0)
-          ? [{ key: 'next', next_node_id: '' }]
-          : (n.options ?? []),
-      x: 0,
-      y: 0,
-    }));
-    const positioned = this.loadPositions(ivrId, nodesWithDefaults);
     return {
-      nodes: positioned,
+      nodes,
       entry_node_id: response.definition.entry_node_id,
     };
   }
 
   /**
-   * Converts UI definition back to API definition (strips x/y).
+   * Converts UI definition back to API definition (strips x/y from nodes,
+   * but includes them as a separate `layout` map keyed by node_id).
    */
-  toApiDefinition(def: IvrDefinitionUI): { nodes: unknown[]; entry_node_id: string } {
+  toApiDefinition(def: IvrDefinitionUI): IvrDefinition {
+    const layout: Record<string, { x: number; y: number }> = {};
+    def.nodes.forEach((n) => {
+      layout[n.node_id] = { x: n.x, y: n.y };
+    });
     return {
       entry_node_id: def.entry_node_id,
       nodes: def.nodes.map(({ x: _x, y: _y, ...rest }) => rest),
+      layout,
     };
-  }
-
-  private assignDefaultPositions(nodes: IvrNodeUI[]): IvrNodeUI[] {
-    const cols = 3;
-    return nodes.map((node, index) => ({
-      ...node,
-      x: 40 + (index % cols) * DEFAULT_NODE_SPACING_X,
-      y: 40 + Math.floor(index / cols) * DEFAULT_NODE_SPACING_Y,
-    }));
   }
 
   generateNodeId(): string {

@@ -1,6 +1,7 @@
 package com.contactcenter.domain;
 
 import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.infrastructure.config.S3Properties;
@@ -52,6 +53,7 @@ class RecordingServiceTest {
     @Mock private S3Client s3Client;
     @Mock private S3Presigner s3Presigner;
     @Mock private ContactRepository contactRepository;
+    @Mock private WebSocketEventBroadcaster wsEventBroadcaster;
 
     private S3Properties s3Properties;
     private RecordingService recordingService;
@@ -63,7 +65,7 @@ class RecordingServiceTest {
         s3Properties.setPresignedUrlExpirationMinutes(60);
         s3Properties.setRetentionDays(90);
 
-        recordingService = new RecordingService(s3Client, s3Presigner, s3Properties, contactRepository);
+        recordingService = new RecordingService(s3Client, s3Presigner, s3Properties, contactRepository, wsEventBroadcaster);
     }
 
     // =========================================================================

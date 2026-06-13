@@ -2,6 +2,8 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.telephony.CallEvent;
+import com.contactcenter.domain.websocket.WebSocketEvent;
+import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.config.S3Properties;
@@ -68,6 +70,7 @@ public class RecordingService {
     private final S3Presigner s3Presigner;
     private final S3Properties s3Properties;
     private final ContactRepository contactRepository;
+    private final WebSocketEventBroadcaster wsEventBroadcaster;
 
     /**
      * Konfiguracja Twilio – wstrzykiwana opcjonalnie (null gdy twilio.enabled=false).
@@ -171,6 +174,7 @@ public class RecordingService {
             } finally {
                 TenantContext.clear();
             }
+            notifyRecordingReady(contactId, tenantId);
 
             log.info("[Recording] Nagranie uploadowane: contactId={}, s3Key={}", contactId, s3Key);
         } finally {
@@ -207,6 +211,25 @@ public class RecordingService {
         try {
             contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
             log.info("[Recording] Zapisano recording_url w DB: contactId={}, s3Key={}", contactId, s3Key);
+        } finally {
+            if (previousTenantId != null) {
+                TenantContext.setTenantId(previousTenantId);
+            } else {
+                TenantContext.clear();
+            }
+        }
+    }
+
+    public void notifyRecordingReady(UUID contactId, UUID tenantId) {
+        UUID previousTenantId = TenantContext.getTenantIdOrNull();
+        TenantContext.setTenantId(tenantId);
+        try {
+            contactRepository.findById(contactId, tenantId).ifPresent(contact -> {
+                if (contact.getAgentId() != null) {
+                    wsEventBroadcaster.sendToUser(contact.getAgentId(),
+                            WebSocketEvent.recordingReady(tenantId, contact.getAgentId(), contactId));
+                }
+            });
         } finally {
             if (previousTenantId != null) {
                 TenantContext.setTenantId(previousTenantId);

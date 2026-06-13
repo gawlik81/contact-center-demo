@@ -16,6 +16,7 @@ import com.twilio.security.RequestValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -114,6 +115,16 @@ public class TwilioWebhookController {
     this.twilioProperties = twilioProperties;
   }
 
+  @PostConstruct
+  void warnIfSignatureValidationDisabled() {
+    if (!twilioProperties.isSignatureValidationEnabled()) {
+      log.warn("[TwilioWebhook] *** UWAGA BEZPIECZENSTWA *** " +
+               "twilio.signature-validation-enabled=false — weryfikacja X-Twilio-Signature jest WYLACZONA. " +
+               "Kazdy moze wyslac falszywy webhook na endpointy /voice, /status i /recording. " +
+               "Uzyj wylacznie lokalnie (localhost) — NIGDY nie udostepniaj portu przez ngrok bez wlaczenia walidacji.");
+    }
+  }
+
   // =========================================================================
   // Voice URL endpoint
   // =========================================================================
@@ -170,6 +181,13 @@ public class TwilioWebhookController {
       log.info("[TwilioVoiceWebhook] Nowe połączenie: callSid={}, from={}, to={}, tenantId={}",
           callSid, from, to, tenantId);
 
+      // Rozwiąż trasę PRZED utworzeniem rekordu contact – resolveRoute() jest operacją
+      // tylko do odczytu (reguły harmonogramu), a wynik decyduje o statusie startowym
+      // kontaktu: IVR (klient wchodzi do drzewa IVR, queuedAt=null) vs QUEUED (kierowanie
+      // bezpośrednio do kolejki agentów, queuedAt=now).
+      RouteResult route = incomingCallRoutingService.resolveRoute(tenantId, to, ZonedDateTime.now());
+      log.info("[TwilioVoiceWebhook] Wynik routingu: callSid={}, route={}/{}", callSid, route.type(), route.targetId());
+
       // Utwórz rekord contact w DB przed uruchomieniem IVR, żeby RoutingService mógł
       // znaleźć kontakt po jego ID. TenantContext musi być ustawiony dla @Audited.
       UUID contactId = null;
@@ -201,7 +219,12 @@ public class TwilioWebhookController {
             metadata,   // channelMetadata
             null    // callbackId – połączenie inbound, nie realizacja callbacku
         );
-        ContactResponse contactResponse = contactService.createContact(contactRequest, tenantId);
+        // ivrEntry=true tylko gdy połączenie jest faktycznie kierowane do drzewa IVR
+        // (route.isIvr()). Dla QUEUE (routing bezpośredni) i REJECT/unknown zachowujemy
+        // dotychczasowe QUEUED+queuedAt=now (REJECT i tak nie trafia do IVR/kolejki,
+        // ale kontakt musi mieć poprawny stan dla historii/raportów).
+        boolean ivrEntry = route.isIvr();
+        ContactResponse contactResponse = contactService.createContact(contactRequest, tenantId, ivrEntry);
         contactId = contactResponse.contactId();
         log.info("[TwilioVoiceWebhook] Rekord contact utworzony: contactId={}, callSid={}",
             contactId, callSid);
@@ -222,10 +245,6 @@ public class TwilioWebhookController {
       finally {
         TenantContext.clear();
       }
-
-      // Rozwiąż trasę na podstawie reguł harmonogramu (phone_number + phone_routing_rule)
-      RouteResult route = incomingCallRoutingService.resolveRoute(tenantId, to, ZonedDateTime.now());
-      log.info("[TwilioVoiceWebhook] Wynik routingu: callSid={}, route={}/{}", callSid, route.type(), route.targetId());
 
       String twiml;
       if (route.isReject() || to == null) {
@@ -296,7 +315,11 @@ public class TwilioWebhookController {
       return ResponseEntity.status(403).contentType(MediaType.APPLICATION_XML).body(forbidden);
     }
     try {
-      String dtmfInput = digits != null ? digits : (digit != null ? digit : "timeout");
+      // Z actionOnEmptyResult="true" Twilio przy braku wejścia wysyła Digits="" (pusty string,
+      // nie null) – w obu przypadkach (brak parametru lub pusty string) traktujemy to jako
+      // "timeout" (brak wejścia), zgodnie z logiką ponawiania prób w silniku IVR.
+      String rawDigits = digits != null ? digits : digit;
+      String dtmfInput = (rawDigits == null || rawDigits.isEmpty()) ? "timeout" : rawDigits;
       log.info("[TwilioDtmf] DTMF input: callSid={}, input='{}', tenantId={}", callSid, dtmfInput, tenantId);
       TenantContext.setTenantId(tenantId);
       try {
@@ -756,9 +779,22 @@ public class TwilioWebhookController {
     String requestUrl = appBaseUrl + request.getRequestURI();
 
     // Zbieramy parametry POST (form-encoded) jako mapę – Twilio używa ich do podpisu.
+    // getParameterMap() łączy parametry POST i GET (query string). Twilio podpisuje TYLKO
+    // parametry POST – parametry query string (np. ?tenantId=UUID) są częścią URL,
+    // który jest osobno uwzględniany w podpisie HMAC i nie mogą być powielane w mapie params.
+    java.util.Set<String> queryKeys = new java.util.HashSet<>();
+    String qs = request.getQueryString();
+    if (qs != null && !qs.isBlank()) {
+      for (String pair : qs.split("&")) {
+        int eqIdx = pair.indexOf('=');
+        String key = eqIdx >= 0 ? pair.substring(0, eqIdx) : pair;
+        queryKeys.add(java.net.URLDecoder.decode(key, java.nio.charset.StandardCharsets.UTF_8));
+      }
+    }
+
     Map<String, String> params = new HashMap<>();
     request.getParameterMap().forEach((key, values) -> {
-      if (values != null && values.length > 0) {
+      if (!queryKeys.contains(key) && values != null && values.length > 0) {
         params.put(key, values[0]);
       }
     });

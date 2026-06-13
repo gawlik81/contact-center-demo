@@ -1,0 +1,3141 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backend – dokumentacja techniczna – Contact Center SaaS – Dokumentacja</title>
+<style>
+  :root { --max-width: 980px; --fg: #1a1a1a; --bg: #fff; --accent: #2563eb; --code-bg: #f4f4f5; --border: #e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+  .layout { display: flex; max-width: var(--max-width); margin: 0 auto; }
+  main { padding: 2rem; max-width: 100%; overflow-x: auto; flex: 1; }
+  h1, h2, h3, h4 { line-height: 1.25; }
+  h1 { border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .2em; margin-top: 2em; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code-bg); padding: 1em; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .5em .7em; text-align: left; }
+  th { background: var(--code-bg); }
+  blockquote { border-left: 4px solid var(--accent); margin: 1em 0; padding: .3em 1em; background: var(--code-bg); }
+  .top-nav { font-size: .9em; margin-bottom: 1.5em; }
+  .top-nav a { margin-right: .5em; }
+  .mermaid { background: var(--bg); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="layout">
+<main>
+<div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
+<h1>Backend – dokumentacja techniczna</h1>
+<blockquote>
+<p>Dokument onboardingowy dla warstwy backendowej Contact Center SaaS (<code>backend/</code>).
+Stack: <strong>Java 21 + Spring Boot 3.3.x</strong>, <strong>PostgreSQL 16</strong> (Flyway, Row Level Security),
+<strong>Redis</strong> (sesje IVR, cache, rate limiting, blacklisty), <strong>RabbitMQ</strong> (eventy domenowe,
+async processing), <strong>MinIO/S3</strong> (nagrania rozmów), <strong>Twilio Programmable Voice</strong> (CPaaS),
+opcjonalna mikrousługa <strong>Python/FastAPI</strong> (<code>voicebot/</code>) do ASR+NLU.</p>
+</blockquote>
+<p>Build: Maven (<code>mvn package -pl app</code>). Główny moduł: <code>backend/app</code>, kod produkcyjny w
+<code>backend/app/src/main/java/com/contactcenter/</code>, migracje SQL w
+<code>backend/src/main/resources/db/migration/</code> (146 plików, V001…V073+).</p>
+<hr>
+<h2>1. Struktura modułów</h2>
+<p>Pakiety główne pod <code>com.contactcenter</code>:</p>
+<pre><code>api/             – kontrolery REST + DTO (warstwa wejścia/wyjścia)
+app/             – ContactCenterApplication (main class)
+domain/          – logika biznesowa: model, repository, service, routing, telephony, ...
+infrastructure/  – konfiguracja Spring, AOP, integracje (S3, ETL, social adapters)
+security/        – JWT, TenantContext, filtry, MFA
+</code></pre>
+<p>Każdy moduł domenowy w <code>api/&lt;moduł&gt;</code> zawiera kontroler(y) + pakiet <code>dto/</code>. Logika
+biznesowa żyje w <code>domain/service/</code>, <code>domain/model/</code>, <code>domain/repository/</code>.</p>
+<h3>1.1 admin</h3>
+<p><strong>Cel:</strong> metryki administracyjne (przegląd wszystkich tenantów) oraz status pipeline&#39;u ETL.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AdminMetricsController</code></td>
+<td><code>/api/admin/metrics</code> – agregaty po tenantach</td>
+</tr>
+<tr>
+<td><code>EtlStatusController</code></td>
+<td><code>/api/admin/etl</code> – status i ręczne wywołanie synchronizacji DW</td>
+</tr>
+<tr>
+<td><code>AdminMetricsService</code></td>
+<td>logika agregacji metryk</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/admin/metrics</code></td>
+<td>ADMIN</td>
+<td>zbiorcze metryki wszystkich tenantów</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/admin/metrics/tenants/{id}</code></td>
+<td>ADMIN</td>
+<td>szczegółowe metryki jednego tenanta</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/admin/etl/status</code></td>
+<td>ADMIN</td>
+<td>status ostatniej synchronizacji ETL → DW</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/admin/etl/trigger</code></td>
+<td>ADMIN</td>
+<td>ręczne wywołanie cyklu ETL</td>
+</tr>
+</tbody></table>
+<p>Relacje: <code>AdminMetricsService</code> odpytuje repozytoria innych modułów (cross-tenant –
+endpoint nie jest scope&#39;owany do jednego tenanta, dlatego rola ADMIN).</p>
+<hr>
+<h3>1.2 agentbreak</h3>
+<p><strong>Cel:</strong> zarządzanie przerwami agentów (lunch, szkolenie itd.) i kalendarzem agenta
+(przerwy + zaplanowane oddzwonienia + kampanie).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AgentBreakController</code></td>
+<td>CRUD przerw agenta</td>
+</tr>
+<tr>
+<td><code>AgentCalendarController</code></td>
+<td>zagregowany widok kalendarza</td>
+</tr>
+<tr>
+<td><code>AgentBreak</code> (entity)</td>
+<td>tabela <code>agent_break</code></td>
+</tr>
+<tr>
+<td><code>AgentBreakRepository</code></td>
+<td><code>TenantAwareRepository</code></td>
+</tr>
+<tr>
+<td><code>AgentBreakService</code></td>
+<td>logika CRUD + walidacja kolizji czasowych</td>
+</tr>
+<tr>
+<td><code>AgentCalendarService</code></td>
+<td>agreguje breaks + <code>ScheduledCallback</code> + kampanie</td>
+</tr>
+<tr>
+<td><code>AgentBreakActivator</code></td>
+<td><code>@Scheduled</code> – automatyczna aktywacja/kończenie przerw</td>
+</tr>
+<tr>
+<td><code>BreakStatus</code>, <code>BreakType</code></td>
+<td>enumy</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/agent/breaks</code></td>
+<td>AGENT</td>
+<td>lista przerw bieżącego agenta</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/agent/breaks</code></td>
+<td>AGENT</td>
+<td>utworzenie przerwy</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/agent/breaks/{id}</code></td>
+<td>AGENT</td>
+<td>edycja przerwy</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/agent/breaks/{id}</code></td>
+<td>AGENT</td>
+<td>usunięcie przerwy</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/agent/calendar</code></td>
+<td>AGENT</td>
+<td>widok kalendarza (breaks + callbacks + kampanie)</td>
+</tr>
+</tbody></table>
+<p><strong>Scheduler:</strong> <code>AgentBreakActivator</code> (<code>agent.breaks.activator.enabled</code>, interwał
+<code>agent.breaks.activator.interval-ms</code>, domyślnie 30s) – ustawia status agenta na
+<code>ON_BREAK</code>/<code>AVAILABLE</code> w zależności od czasu rozpoczęcia/zakończenia przerwy.</p>
+<hr>
+<h3>1.3 agentgroup</h3>
+<p><strong>Cel:</strong> grupowanie agentów (do przypisań kolejek/kampanii i widoczności w raportach).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AgentGroupController</code></td>
+<td><code>/api/agent-groups</code> (SUPERVISOR/ADMIN)</td>
+</tr>
+<tr>
+<td><code>AgentGroup</code> (entity)</td>
+<td>tabela <code>agent_group</code></td>
+</tr>
+<tr>
+<td><code>AgentGroupRepository</code></td>
+<td>CRUD + zarządzanie członkami</td>
+</tr>
+<tr>
+<td><code>AgentGroupService</code></td>
+<td>logika domenowa</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/agent-groups</code></td>
+<td>lista grup</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/agent-groups</code></td>
+<td>utworzenie grupy</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/agent-groups/{groupId}</code></td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/agent-groups/{groupId}</code></td>
+<td>usunięcie</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/agent-groups/{groupId}/members</code></td>
+<td>lista członków</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/agent-groups/{groupId}/members</code></td>
+<td>zamiana całej listy członków (<code>ReplaceMembersRequest</code>)</td>
+</tr>
+</tbody></table>
+<p>Relacje: grupy są referowane przez <code>Queue</code>/<code>Campaign</code> (przypisania – patrz moduły
+<code>queue</code>, <code>campaign</code>) i wykorzystywane przez <code>RoutingEngine</code> (skill-based routing).</p>
+<hr>
+<h3>1.4 auditlog</h3>
+<p><strong>Cel:</strong> dziennik audytu (CRUD na encjach wrażliwych: user, tenant, customer itd.).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AuditLogController</code></td>
+<td><code>/api/audit-logs</code> (ADMIN) – odczyt z paginacją</td>
+</tr>
+<tr>
+<td><code>AuditLog</code>, <code>AuditLogId</code>, <code>AuditLogEvent</code></td>
+<td>model encji + event RabbitMQ</td>
+</tr>
+<tr>
+<td><code>AuditLogRepository</code></td>
+<td>odczyt (tabela partycjonowana po czasie)</td>
+</tr>
+<tr>
+<td><code>AuditLogService</code></td>
+<td>publikacja eventów do <code>cc.audit</code></td>
+</tr>
+<tr>
+<td><code>AuditLogConsumer</code></td>
+<td><code>@RabbitListener</code> na <code>cc.queue.audit-log</code> – zapis do DB</td>
+</tr>
+<tr>
+<td><code>infrastructure/aspect/AuditAspect</code> + <code>@Audited</code></td>
+<td>AOP – przechwytuje metody serwisów oznaczone <code>@Audited</code></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/audit-logs</code></td>
+<td>ADMIN</td>
+<td>paginowana lista wpisów audytu z filtrami</td>
+</tr>
+</tbody></table>
+<p><strong>Przepływ audytu:</strong></p>
+<pre><code>Serwis @Audited metoda
+   → AuditAspect.around()
+       → (opcjonalnie) EntityManager.find() – stary stan (old_value)
+       → proceed() – wykonanie metody biznesowej
+       → serializacja new_value (bez pól: password, mfaSecret, token, refreshToken...)
+       → AuditLogService.publish(AuditLogEvent) → exchange cc.audit (routing key audit.#)
+           → AuditLogConsumer (@RabbitListener QUEUE_AUDIT_LOG) → INSERT audit_log
+</code></pre>
+<p>Błędy audytu (serializacja/publikacja) są logowane, ale <strong>nie przerywają</strong> operacji
+biznesowej.</p>
+<hr>
+<h3>1.5 auth</h3>
+<p><strong>Cel:</strong> logowanie, refresh tokenów, MFA (TOTP), zmiana/reset hasła, rate limiting.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AuthController</code></td>
+<td><code>/api/auth/**</code></td>
+</tr>
+<tr>
+<td><code>AuthService</code></td>
+<td>logika logowania, refresh, MFA, blacklist</td>
+</tr>
+<tr>
+<td><code>JwtService</code> / <code>JwtParser</code></td>
+<td>wystawianie / parsowanie JWT RS256</td>
+</tr>
+<tr>
+<td><code>MfaService</code></td>
+<td>TOTP (RFC 6238)</td>
+</tr>
+<tr>
+<td><code>LoginRateLimiter</code></td>
+<td>limit prób logowania (Redis)</td>
+</tr>
+<tr>
+<td><code>TokenBlacklistService</code></td>
+<td>blacklista access tokenów po logout (Redis)</td>
+</tr>
+<tr>
+<td><code>RefreshToken</code> (entity)</td>
+<td>tabela <code>refresh_token</code></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/auth/login</code></td>
+<td>publiczny</td>
+<td>logowanie (email+hasło → access+refresh token)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/refresh</code></td>
+<td>publiczny</td>
+<td>odnowienie access tokenu z refresh tokenu</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/logout</code></td>
+<td>auth</td>
+<td>unieważnienie pojedynczego refresh tokenu + blacklista access tokenu</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/logout-all</code></td>
+<td>auth</td>
+<td>unieważnienie wszystkich sesji użytkownika</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/auth/mfa/setup</code></td>
+<td>auth</td>
+<td>generuje TOTP secret + QR code</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/mfa/verify</code></td>
+<td>auth</td>
+<td>weryfikacja kodu TOTP, aktywacja MFA</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/change-password</code></td>
+<td>auth</td>
+<td>zmiana własnego hasła</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/force-reset/{userId}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>wymuszenie resetu hasła innego użytkownika</td>
+</tr>
+</tbody></table>
+<p>Szczegóły JWT i MFA – patrz sekcja 2 (Security).</p>
+<hr>
+<h3>1.6 campaign</h3>
+<p><strong>Cel:</strong> kampanie outbound (predictive/progressive dialer), import kontaktów CSV,
+przypisania agentów/grup, historia połączeń per rekord kampanii.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CampaignController</code></td>
+<td>CRUD + lifecycle (start/pause/stop/draft)</td>
+</tr>
+<tr>
+<td><code>CampaignAssignmentController</code></td>
+<td>przypisania agentów/grup do kampanii</td>
+</tr>
+<tr>
+<td><code>CampaignContactHistoryController</code></td>
+<td>historia prób połączeń per rekord</td>
+</tr>
+<tr>
+<td><code>CampaignImportController</code></td>
+<td>async import CSV</td>
+</tr>
+<tr>
+<td><code>Campaign</code> (entity)</td>
+<td>tabela <code>campaign</code></td>
+</tr>
+<tr>
+<td><code>CampaignRepository</code>, <code>CampaignAssignmentRepository</code>, <code>CampaignContactRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>CampaignService</code></td>
+<td>CRUD, walidacja stanów (<code>DRAFT/RUNNING/PAUSED/STOPPED</code>)</td>
+</tr>
+<tr>
+<td><code>CampaignAssignmentService</code></td>
+<td>logika przypisań</td>
+</tr>
+<tr>
+<td><code>CampaignImportService</code></td>
+<td>async import (Redis job status)</td>
+</tr>
+<tr>
+<td><code>CampaignWindowActivator</code></td>
+<td><code>@Scheduled</code> – aktywacja kampanii wg okna czasowego</td>
+</tr>
+<tr>
+<td><code>ProgressiveDialerService</code></td>
+<td>silnik wybierania numerów (patrz sekcja 5)</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/campaigns</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>utworzenie kampanii</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/campaigns/check-name</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>sprawdzenie unikalności nazwy</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/campaigns</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>lista (paginacja, filtry)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/campaigns/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>szczegóły</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/campaigns/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/campaigns/{id}/start</code> | <code>/pause</code> | <code>/stop</code> | <code>/draft</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>zmiana stanu kampanii</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/campaigns/{id}/import</code> (multipart)</td>
+<td>ADMIN/SUPERVISOR</td>
+<td>import CSV kontaktów (async)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/campaigns/{id}/import-status/{jobId}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>status importu (Redis)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/campaigns/{id}/contacts</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>lista rekordów kampanii</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/campaigns/{campaignId}/assignment</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>przypisani agenci/grupy</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/campaigns/{campaignId}/assignment</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>zamiana przypisań</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/campaigns/{campaignId}/contacts/{recordId}/attempts</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>historia prób połączeń rekordu</td>
+</tr>
+</tbody></table>
+<p><strong>Import CSV (BE-023):</strong> <code>CampaignImportService</code> → batch insert przez <code>JdbcTemplate</code>,
+status zapisywany w Redis (<code>QUEUED/PROCESSING/COMPLETED/FAILED_PARTIAL</code>), unikalny
+indeks z V027 zapobiega duplikatom.</p>
+<hr>
+<h3>1.7 contact</h3>
+<p><strong>Cel:</strong> centralna historia kontaktów (calls, email, social, callbacks) – tabela
+partycjonowana <code>contact</code>. To &quot;rdzeń&quot; CRM-owy, do którego odwołuje się większość modułów.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ContactController</code></td>
+<td>główny kontroler – CRUD, dyspozycje, AI summary, recordingi</td>
+</tr>
+<tr>
+<td><code>Contact</code>, <code>ContactId</code>, <code>ContactEvent</code>, <code>ContactAiSummary</code></td>
+<td>encje</td>
+</tr>
+<tr>
+<td><code>ContactRepository</code> (rozszerzony przez wiele BE-xxx)</td>
+<td><code>TenantAwareRepository</code>, INSERT/UPDATE z <code>CAST(:x AS VARCHAR)</code> (po V025 – patrz uwagi)</td>
+</tr>
+<tr>
+<td><code>ContactEventRepository</code>, <code>ContactAiSummaryRepository</code>, <code>ContactTranscriptionRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ContactService</code></td>
+<td>logika domenowa: tworzenie, dyspozycje, akceptacja/abandon, transfery</td>
+</tr>
+<tr>
+<td><code>ContactEventService</code></td>
+<td>log zdarzeń (timeline) kontaktu</td>
+</tr>
+<tr>
+<td><code>AiSummaryService</code> / <code>AiSummaryClient</code></td>
+<td>generowanie podsumowań AI</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/contacts</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>lista z filtrami (<code>ContactFilterParams</code>: queueId, campaignId, remoteAddress, durationMin/Max...)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/contacts/{id}</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>szczegóły</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/contacts</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>utworzenie kontaktu (ręczne / spoza telefonii)</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/contacts/{id}</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/contacts/{id}/disposition</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>ustawienie dyspozycji (kod zakończenia)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/contacts/customer/{customerId}</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>historia kontaktów klienta</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/contacts/{id}/recording</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>URL nagrania (presigned S3)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/contacts/{id}/events</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>timeline zdarzeń</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/contacts/{id}/email-preview</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>podgląd treści email</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/contacts/{contactId}/callback</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>zaplanowanie oddzwonienia (inbound callback, BE-040)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/contacts/{id}/related</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>powiązane zasoby (np. wątek email/social)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/contacts/{id}/accept</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>przyjęcie przydzielonego kontaktu (status ASSIGNED → ACTIVE)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/contacts/{id}/abandon</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>odrzucenie przydziału</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/contacts/{contactId}/available-dispositions</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>dostępne kody dyspozycji (z <code>DispositionSet</code>)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/contacts/{contactId}/ai-summary</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>generowanie podsumowania AI (wymaga <code>TenantAiConfig</code>)</td>
+</tr>
+</tbody></table>
+<p><strong>Uwagi historyczne (ważne dla migracji/zapytań):</strong></p>
+<ul>
+<li>Tabela <code>contact</code> jest <strong>partycjonowana</strong> (JPA: <code>@IdClass</code> + native INSERT przez
+<code>@Modifying @Query(nativeQuery=true)</code>).</li>
+<li><code>contact.channel/direction/status</code> były ENUM (V007), skonwertowane na
+VARCHAR+CHECK w V025 → repozytorium musi rzucać <code>CAST(:x AS VARCHAR)</code>, <strong>nie</strong>
+<code>CAST(:x AS contact_status)</code> (typ już nie istnieje).</li>
+<li>Brak <code>is_deleted</code> – aktywne statusy to <code>QUEUED/ACTIVE/ON_HOLD/ASSIGNED</code>.</li>
+<li><code>customer.phone</code> to JSONB array – zapytania przez <code>phone @&gt; to_jsonb(...)</code>.</li>
+</ul>
+<hr>
+<h3>1.8 customer</h3>
+<p><strong>Cel:</strong> baza klientów (CRM), fuzzy search, import CSV, RODO (eksport/anonimizacja).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CustomerController</code></td>
+<td>CRUD + lookup</td>
+</tr>
+<tr>
+<td><code>CustomerImportController</code></td>
+<td>async import CSV</td>
+</tr>
+<tr>
+<td><code>GdprController</code></td>
+<td>eksport danych / anonimizacja</td>
+</tr>
+<tr>
+<td><code>Customer</code> (entity)</td>
+<td>tabela <code>customer</code>, <code>phone</code>/<code>email</code> jako JSONB array</td>
+</tr>
+<tr>
+<td><code>CustomerRepository</code></td>
+<td>fuzzy search (pg_trgm), wyszukiwanie po telefonie (JSONB)</td>
+</tr>
+<tr>
+<td><code>CustomerService</code></td>
+<td>CRUD + walidacja</td>
+</tr>
+<tr>
+<td><code>CustomerImportService</code></td>
+<td>async import (<code>DeduplicationMode</code>: SKIP/OVERWRITE)</td>
+</tr>
+<tr>
+<td><code>GdprService</code></td>
+<td>eksport/anonimizacja</td>
+</tr>
+<tr>
+<td><code>CliLookupService</code></td>
+<td>rozpoznawanie numeru dzwoniącego (CLI) → klient</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/customers</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>utworzenie</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/customers</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>lista + fuzzy search</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/customers/lookup</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>wyszukanie po numerze telefonu</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/customers/lookup/email</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>wyszukanie po email</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/customers/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>szczegóły</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/customers/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/customers/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>usunięcie</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/customers/import</code> (multipart)</td>
+<td>ADMIN/SUPERVISOR</td>
+<td>import CSV</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/customers/import/{jobId}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>status importu</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/customers/import/{jobId}/errors</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>szczegóły błędów importu</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/customers/{id}/gdpr/export</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>eksport danych osobowych</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/customers/{id}/gdpr/anonymize</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>anonimizacja (RODO)</td>
+</tr>
+</tbody></table>
+<p><strong>Integracja:</strong> przy nieznanym numerze przychodzącym (<code>call.unknown_caller</code>,
+kolejka <code>cc.queue.unknown-caller</code>) automatycznie tworzony jest profil klienta (BE-025).</p>
+<hr>
+<h3>1.9 dialer</h3>
+<p><strong>Cel:</strong> Progressive Dialer (automatyczne wybieranie numerów kampanii) + zaplanowane
+oddzwonienia (scheduled callbacks) + ręczne połączenia agenta.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>DialerController</code></td>
+<td>status dialera, CRUD callbacków, manual dial</td>
+</tr>
+<tr>
+<td><code>ManualCallbackController</code></td>
+<td>ręczne planowanie oddzwonienia przez agenta</td>
+</tr>
+<tr>
+<td><code>ScheduledCallback</code> (entity)</td>
+<td>tabela <code>scheduled_callback</code></td>
+</tr>
+<tr>
+<td><code>ScheduledCallbackRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ProgressiveDialerService</code></td>
+<td><code>@RabbitListener agent.status.changed</code> – wybiera numer gdy agent staje się AVAILABLE</td>
+</tr>
+<tr>
+<td><code>DialerCallbackHandler</code></td>
+<td><code>@RabbitListener call.hangup</code> (dedykowana kolejka <code>cc.queue.dialer-hangup</code>)</td>
+</tr>
+<tr>
+<td><code>ScheduledCallbackExecutor</code></td>
+<td><code>@Scheduled</code> – wykonuje zaplanowane oddzwonienia</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/dialer/status</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>status dialera (liczba aktywnych połączeń, kampanie)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/dialer/callbacks</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>lista zaplanowanych oddzwonień</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/dialer/callbacks</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>utworzenie callbacku</td>
+</tr>
+<tr>
+<td>PUT | PATCH</td>
+<td><code>/api/dialer/callbacks/{callbackId}</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>edycja / reschedule</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/dialer/callbacks/{callbackId}</code></td>
+<td>ADMIN/SUPERVISOR/AGENT</td>
+<td>usunięcie</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/dialer/manual/records</code></td>
+<td>AGENT</td>
+<td>rekordy kampanii do ręcznego wybrania</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/dialer/manual/call</code></td>
+<td>AGENT</td>
+<td>inicjacja ręcznego połączenia z rekordu kampanii</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/callbacks/manual</code></td>
+<td>AGENT/SUPERVISOR</td>
+<td>ręczne planowanie oddzwonienia (BE-048, <code>sourceType=AGENT_MANUAL</code>)</td>
+</tr>
+</tbody></table>
+<p><strong>Mechanizm Progressive Dialer (BE-024):</strong></p>
+<pre><code>agent.status.changed (AVAILABLE) ──▶ ProgressiveDialerService
+                                          │ Redis SET NX (guard – jeden agent = jedno wybieranie)
+                                          ▼
+                              SELECT campaign_contact FOR UPDATE SKIP LOCKED
+                                          │
+                                          ▼
+                          TelephonyAdapter.initiateCall(...)
+</code></pre>
+<p><code>ScheduledCallbackExecutor</code> (<code>@Scheduled fixedDelay</code>, <code>dialer.callback-executor.interval-ms</code>)
+atomowo oznacza callback jako <code>IN_PROGRESS</code> (<code>updateStatusIfPending</code>) przed
+zainicjowaniem połączenia – chroni przed podwójnym przetworzeniem.</p>
+<hr>
+<h3>1.10 disposition</h3>
+<p><strong>Cel:</strong> kody dyspozycji (np. &quot;Sprzedano&quot;, &quot;Nie zainteresowany&quot;) oraz zestawy
+dyspozycji przypisywane do kampanii/kolejek.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CustomDispositionController</code></td>
+<td><code>/api/dispositions/**</code> – dyspozycje per kampania/kolejka</td>
+</tr>
+<tr>
+<td><code>DispositionSetController</code></td>
+<td><code>/api/disposition-sets</code> – zestawy + ich elementy</td>
+</tr>
+<tr>
+<td><code>CustomDisposition</code>, <code>DispositionSet</code>, <code>DispositionSetItem</code></td>
+<td>encje</td>
+</tr>
+<tr>
+<td><code>CustomDispositionRepository</code>, <code>DispositionSetRepository</code>, <code>DispositionSetItemRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>CustomDispositionService</code>, <code>DispositionSetService</code></td>
+<td>logika domenowa</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET/POST</td>
+<td><code>/api/dispositions/campaigns/{campaignId}</code></td>
+<td>dyspozycje kampanii</td>
+</tr>
+<tr>
+<td>PUT/DELETE</td>
+<td><code>/api/dispositions/campaigns/{campaignId}/{id}</code></td>
+<td>edycja/usunięcie</td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/dispositions/queues/{queueId}</code></td>
+<td>dyspozycje kolejki</td>
+</tr>
+<tr>
+<td>PUT/DELETE</td>
+<td><code>/api/dispositions/queues/{queueId}/{id}</code></td>
+<td>edycja/usunięcie</td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/disposition-sets</code></td>
+<td>zestawy dyspozycji</td>
+</tr>
+<tr>
+<td>GET/PUT/DELETE</td>
+<td><code>/api/disposition-sets/{setId}</code></td>
+<td>szczegóły/edycja/usunięcie zestawu</td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/disposition-sets/{setId}/items</code></td>
+<td>elementy zestawu</td>
+</tr>
+<tr>
+<td>PUT/DELETE</td>
+<td><code>/api/disposition-sets/{setId}/items/{itemId}</code></td>
+<td>edycja/usunięcie elementu</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/disposition-sets/{setId}/apply-to-campaign/{campaignId}</code></td>
+<td>przypisanie zestawu do kampanii</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/disposition-sets/{setId}/apply-to-queue/{queueId}</code></td>
+<td>przypisanie zestawu do kolejki</td>
+</tr>
+</tbody></table>
+<p>Relacje: <code>ContactController.GET /{contactId}/available-dispositions</code> odczytuje
+zestaw dyspozycji przypisany do kolejki/kampanii kontaktu.</p>
+<hr>
+<h3>1.11 email</h3>
+<p><strong>Cel:</strong> kanał e-mail – IMAP polling (odbieranie), SMTP (wysyłka), szablony
+(Mustache), routing wiadomości do kolejek/kontaktów.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>EmailController</code></td>
+<td>wiadomości, wątki, konfiguracja IMAP/SMTP</td>
+</tr>
+<tr>
+<td><code>EmailTemplateController</code></td>
+<td>CRUD szablonów + podgląd renderowania</td>
+</tr>
+<tr>
+<td><code>EmailMessage</code>, <code>EmailTemplate</code>, <code>EmailRoutingRule</code></td>
+<td>encje</td>
+</tr>
+<tr>
+<td><code>EmailAccountConfig</code>, <code>EmailEncryptionService</code></td>
+<td>konfiguracja kont (AES-256-GCM dla haseł)</td>
+</tr>
+<tr>
+<td><code>EmailPollingService</code></td>
+<td><code>@Scheduled</code> – polling IMAP (<code>email.poll-delay-ms</code>, domyślnie 60s)</td>
+</tr>
+<tr>
+<td><code>EmailSendService</code></td>
+<td>wysyłka SMTP</td>
+</tr>
+<tr>
+<td><code>EmailRoutingService</code></td>
+<td>przypisanie wiadomości do kolejki/kontaktu wg reguł</td>
+</tr>
+<tr>
+<td><code>EmailContactCreator</code></td>
+<td>tworzenie rekordu <code>contact</code> dla nowej wiadomości</td>
+</tr>
+<tr>
+<td><code>EmailTemplateService</code>, <code>MustacheTemplateEngine</code>, <code>TemplateVariableResolver</code>, <code>PredefinedTemplateVariable</code></td>
+<td>renderowanie szablonów</td>
+</tr>
+<tr>
+<td><code>EmailEventPublisher</code></td>
+<td>publikacja eventów <code>email.#</code> do <code>cc.events</code></td>
+</tr>
+<tr>
+<td><code>EmailEmlService</code></td>
+<td>eksport/import <code>.eml</code></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/email/messages</code></td>
+<td>auth</td>
+<td>lista wiadomości</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/email/messages/{id}</code></td>
+<td>auth</td>
+<td>szczegóły wiadomości</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/email/contacts/{contactId}/message</code></td>
+<td>auth</td>
+<td>wiadomość powiązana z kontaktem</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/email/threads/{messageIdHeader}</code></td>
+<td>auth</td>
+<td>wątek wiadomości</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/email/messages/{id}/reply</code></td>
+<td>auth</td>
+<td>odpowiedź na wiadomość</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/email/messages/outbound</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>nowa wiadomość wychodząca</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/email/config</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>konfiguracja IMAP/SMTP tenanta</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/email/config</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>zapis konfiguracji</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/email/config/test</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>test połączenia</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/email-templates/available-variables</code></td>
+<td>auth</td>
+<td>lista zmiennych <code>${...}</code> dostępnych w szablonach</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/email-templates</code></td>
+<td>auth</td>
+<td>lista szablonów</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/email-templates/{id}</code></td>
+<td>auth</td>
+<td>szczegóły</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/email-templates</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>utworzenie</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/email-templates/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/email-templates/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>usunięcie</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/email-templates/{id}/preview</code></td>
+<td>auth</td>
+<td>podgląd renderowania (rzuca <code>TemplateRenderException</code> przy brakujących zmiennych → HTTP 422)</td>
+</tr>
+</tbody></table>
+<p><strong>Async eventy:</strong> <code>EXCHANGE_EVENTS</code> routing key <code>email.#</code> → <code>QUEUE_EMAIL_EVENTS</code>
+(received, queued, sent, assigned).</p>
+<hr>
+<h3>1.12 ivr</h3>
+<p><strong>Cel:</strong> silnik IVR (drzewa decyzyjne, DTMF, integracja z voicebotem).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>IvrController</code></td>
+<td>CRUD drzew IVR + lifecycle + endpoint DTMF</td>
+</tr>
+<tr>
+<td><code>IvrTree</code>, <code>IvrAudio</code>, <code>IvrDefinition</code>, <code>IvrNode</code>, <code>IvrNodePosition</code>, <code>IvrOption</code>, <code>IvrNodeType</code></td>
+<td>model drzewa (JSONB)</td>
+</tr>
+<tr>
+<td><code>IvrTreeRepository</code>, <code>IvrAudioRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>IvrEngineService</code></td>
+<td>silnik – interpretacja drzewa, sesje Redis, TTS cache</td>
+</tr>
+<tr>
+<td><code>IvrService</code></td>
+<td>CRUD + walidacja drzew</td>
+</tr>
+<tr>
+<td><code>IvrCallListener</code></td>
+<td><code>@RabbitListener</code> na <code>cc.queue.ivr-handler</code> (routing key <code>call.incoming</code>)</td>
+</tr>
+<tr>
+<td><code>IvrSessionData</code></td>
+<td>stan sesji w Redis (<code>ivr:session:{callId}</code>)</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/ivr</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>lista drzew IVR</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ivr</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>utworzenie drzewa</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/ivr/{ivrId}</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>szczegóły (definicja JSONB z pozycjami węzłów)</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/ivr/{ivrId}</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/ivr/{ivrId}</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>usunięcie</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ivr/{ivrId}/activate</code> | <code>/deactivate</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>lifecycle</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ivr/dtmf</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>(legacy/test) symulacja wejścia DTMF</td>
+</tr>
+</tbody></table>
+<p><strong>Przepływ połączenia przychodzącego z IVR:</strong></p>
+<pre><code>Twilio webhook (call.incoming) → cc.events (routing key call.incoming)
+   → QUEUE_IVR_HANDLER → IvrCallListener
+       → IvrEngineService: ładuje aktywne IvrTree tenanta
+           → tworzy sesję Redis ivr:session:{callId}
+           → renderuje pierwszy węzeł (TTS – cache ivr:tts:{hash})
+           → fallback do kolejki (RoutingEngine) gdy brak drzewa / błąd / VOICEBOT niedostępny
+</code></pre>
+<p>Typ węzła <code>VOICEBOT</code> (<code>IvrNodeType.VOICEBOT</code>) wywołuje <code>VoicebotClient</code> (sekcja 5).
+Timeout DTMF realizowany przez <code>TaskScheduler</code> z <code>AsyncConfig</code>.</p>
+<hr>
+<h3>1.13 phonenumber</h3>
+<p><strong>Cel:</strong> zarządzanie numerami telefonów tenanta (E.164) oraz reguły routingu
+numerów (np. godziny pracy → kolejka/IVR).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>PhoneNumberController</code></td>
+<td>CRUD numerów</td>
+</tr>
+<tr>
+<td><code>PhoneRoutingRuleController</code></td>
+<td>CRUD reguł routingu per numer</td>
+</tr>
+<tr>
+<td><code>PhoneNumber</code>, <code>PhoneRoutingRule</code> (entity)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>PhoneNumberRepository</code>, <code>PhoneRoutingRuleRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>PhoneNumberService</code>, <code>PhoneRoutingRuleService</code></td>
+<td>walidacja kolizji harmonogramów</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/phone-numbers</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>rejestracja numeru</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/phone-numbers</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>lista</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/phone-numbers/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>szczegóły</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/phone-numbers/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/phone-numbers/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>usunięcie (blokowane gdy aktywne reguły routingu)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/phone-numbers/{numberId}/routing-rules</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>nowa reguła</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/phone-numbers/{numberId}/routing-rules</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>lista reguł</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/phone-numbers/{numberId}/routing-rules/{ruleId}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/phone-numbers/{numberId}/routing-rules/{ruleId}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>usunięcie</td>
+</tr>
+</tbody></table>
+<p><strong>Kolizje reguł:</strong> wykrywane dwuwarstwowo – aplikacyjnie (<code>RoutingRuleConflictException</code>
+→ HTTP 409 z listą <code>collidingRuleIds</code>) oraz przez trigger PostgreSQL
+<code>trg_routing_rule_collision</code> (last-resort, <code>DataIntegrityViolationException</code> z
+komunikatem <code>routing_rule_collision</code>).</p>
+<hr>
+<h3>1.14 public_</h3>
+<p><strong>Cel:</strong> endpointy bez JWT – ekran logowania (lista tenantów).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>PublicController</code></td>
+<td><code>/api/public/**</code></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/public/tenants</code></td>
+<td>lista aktywnych tenantów (do wyboru na ekranie logowania)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/public/tenants-by-email</code></td>
+<td>tenanty powiązane z danym adresem email</td>
+</tr>
+</tbody></table>
+<hr>
+<h3>1.15 queue</h3>
+<p><strong>Cel:</strong> kolejki obsługi (skill-based routing), przypisania agentów/grup, statystyki
+oczekiwania (EWT).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>QueueController</code></td>
+<td>CRUD kolejek, strategie routingu, statystyki</td>
+</tr>
+<tr>
+<td><code>QueueAssignmentController</code></td>
+<td>przypisania agentów/grup do kolejki</td>
+</tr>
+<tr>
+<td><code>Queue</code> (entity), <code>QueueAssignmentRepository</code>, <code>QueueRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>QueueService</code>, <code>QueueAssignmentService</code></td>
+<td>logika domenowa</td>
+</tr>
+<tr>
+<td><code>WaitTimeEstimationService</code></td>
+<td>EWT (estimated wait time) – <code>@Scheduled</code> co 30s</td>
+</tr>
+<tr>
+<td><code>QueueWaitUpdatePayload</code></td>
+<td>payload WebSocket <code>QUEUE_WAIT_UPDATE</code></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/queues</code></td>
+<td>lista kolejek</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/queues/routing-strategies</code></td>
+<td>dostępne strategie (skill-based, round-robin, sticky agent...)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/queues</code></td>
+<td>utworzenie</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/queues/{id}</code></td>
+<td>szczegóły</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/queues/{id}</code></td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/queues/{id}/stats</code></td>
+<td>statystyki (EWT, liczba w kolejce)</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/queues/{id}</code></td>
+<td>usunięcie</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/queues/{queueId}/assignment</code></td>
+<td>przypisani agenci/grupy</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/queues/{queueId}/assignment</code></td>
+<td>zamiana przypisań</td>
+</tr>
+</tbody></table>
+<p>Wszystkie endpointy: <code>@PreAuthorize hasAnyRole(&#39;SUPERVISOR&#39;,&#39;ADMIN&#39;)</code>.</p>
+<hr>
+<h3>1.16 recording</h3>
+<p><strong>Cel:</strong> dostęp do nagrań rozmów (S3/MinIO, presigned URL) oraz retencja.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>RecordingController</code></td>
+<td><code>/api/recordings/{contactId}</code> (SUPERVISOR/ADMIN)</td>
+</tr>
+<tr>
+<td><code>RecordingService</code></td>
+<td>generowanie presigned URL, upload</td>
+</tr>
+<tr>
+<td><code>RecordingRetentionJob</code></td>
+<td><code>@Scheduled</code> (cron <code>s3.retention-cron</code>, domyślnie 02:00 UTC) – usuwa nagrania starsze niż <code>s3.retention-days</code></td>
+</tr>
+<tr>
+<td><code>TwilioRecordingDownloadService</code></td>
+<td>pobiera nagranie z Twilio i zapisuje do S3</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/recordings/{contactId}</code></td>
+<td>presigned URL nagrania kontaktu</td>
+</tr>
+</tbody></table>
+<p>Konferencje Twilio (<code>TwilioWebhookController</code> → <code>/recording</code>) wywołują
+<code>TwilioRecordingDownloadService</code> po zakończeniu nagrywania.</p>
+<hr>
+<h3>1.17 reports</h3>
+<p><strong>Cel:</strong> raporty agregowane (agenci, kampanie) + eksport CSV/XLSX.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ReportsController</code></td>
+<td><code>/api/reports/**</code></td>
+</tr>
+<tr>
+<td><code>ReportsService</code></td>
+<td>agregacje SQL</td>
+</tr>
+<tr>
+<td><code>AgentReportParams</code>, <code>AgentReportRow</code></td>
+<td>DTO</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/reports/agents</code></td>
+<td>raport per agent (czas pracy, liczba kontaktów, AHT...)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/reports/campaigns</code></td>
+<td>raport per kampania</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/reports/agents/export</code></td>
+<td>eksport CSV</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/reports/agents/export/xlsx</code></td>
+<td>eksport XLSX</td>
+</tr>
+</tbody></table>
+<p>Wszystkie: <code>hasAnyRole(&#39;SUPERVISOR&#39;,&#39;ADMIN&#39;)</code>.</p>
+<hr>
+<h3>1.18 social</h3>
+<p><strong>Cel:</strong> integracje Facebook Messenger / Instagram / WhatsApp Business – OAuth,
+webhooki, wysyłka/odbiór wiadomości.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SocialContactController</code></td>
+<td>wysyłka/odczyt wiadomości w kontekście kontaktu</td>
+</tr>
+<tr>
+<td><code>SocialOAuthController</code></td>
+<td>inicjacja OAuth, callback, lista integracji</td>
+</tr>
+<tr>
+<td><code>SocialWebhookController</code></td>
+<td>webhooki FB/IG/WhatsApp (publiczne)</td>
+</tr>
+<tr>
+<td><code>SocialIntegration</code>, <code>SocialMessage</code>, <code>SocialPlatform</code> (entity/enum)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>SocialIntegrationRepository</code>, <code>SocialMessageRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>SocialIntegrationService</code></td>
+<td>zarządzanie integracjami, <code>@Scheduled</code> refresh tokenów co 1h</td>
+</tr>
+<tr>
+<td><code>SocialMessageService</code></td>
+<td>wysyłka/odbiór</td>
+</tr>
+<tr>
+<td><code>SocialTokenEncryptionService</code></td>
+<td>AES-256-GCM (BYTEA) dla tokenów OAuth</td>
+</tr>
+<tr>
+<td><code>infrastructure/social/{Facebook,Instagram,WhatsApp}Adapter</code> + <code>SocialAdapterRegistry</code></td>
+<td>adaptery per platforma</td>
+</tr>
+<tr>
+<td><code>domain/social/{IncomingSocialMessage, SocialMediaAdapter, SocialMessageConsumer, SocialMessagePublisher}</code></td>
+<td>abstrakcje + consumer RabbitMQ</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/contacts/{contactId}/social/message</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>wysyłka wiadomości w wątku kontaktu</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/contacts/{contactId}/social/messages</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>historia wiadomości</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/integrations</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>lista integracji social tenanta</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/integrations/{platform}/initiate</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>start OAuth (zapis <code>state</code> w Redis: <code>oauth:state:{state}</code> → tenantId, TTL 10 min)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/oauth/{platform}/callback</code></td>
+<td><strong>publiczny</strong></td>
+<td>callback OAuth (weryfikacja <code>state</code>, ustawia TenantContext)</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/integrations/{integrationId}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>usunięcie integracji</td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/webhooks/facebook</code> | <code>/instagram</code> | <code>/whatsapp</code></td>
+<td><strong>publiczne</strong></td>
+<td>webhook verification (GET) i odbiór wiadomości (POST)</td>
+</tr>
+</tbody></table>
+<p><strong>Async webhook pattern:</strong> handler webhooka odpowiada natychmiast (200), wiadomość
+trafia do <code>QUEUE_SOCIAL_INCOMING</code> (routing przez <code>SocialMessagePublisher</code>), a
+<code>SocialMessageConsumer</code> przetwarza ją asynchronicznie (tworzy/aktualizuje <code>contact</code> +
+<code>social_message</code>, cross-tenant <code>findByPlatformAndPageId</code>).</p>
+<hr>
+<h3>1.19 supervisor</h3>
+<p><strong>Cel:</strong> panel supervisora – konfiguracja AI (podsumowania) i Twilio per tenant,
+metryki real-time (WebSocket).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>TenantAiConfigController</code></td>
+<td><code>/api/supervisor/ai-config</code></td>
+</tr>
+<tr>
+<td><code>TenantTwilioConfigController</code></td>
+<td><code>/api/supervisor/twilio-config</code></td>
+</tr>
+<tr>
+<td><code>SupervisorMetricsPayload</code></td>
+<td>payload WebSocket (KPI real-time)</td>
+</tr>
+<tr>
+<td><code>TenantAiConfig</code>, <code>TenantTwilioConfig</code> (entity)</td>
+<td>konfiguracje per-tenant (szyfrowane klucze)</td>
+</tr>
+<tr>
+<td><code>TenantAiConfigService</code>, <code>TenantAiConfigDecrypted</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>TenantTwilioConfigService</code>, <code>TenantTwilioConfigDecrypted</code></td>
+<td>upsert + masking + decrypt + delete + event <code>TwilioConfigChangedEvent</code></td>
+</tr>
+<tr>
+<td><code>SupervisorMetricsService</code></td>
+<td>agregacja KPI (czas oczekiwania, liczba w IVR, w kolejce...)</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET/PUT/DELETE</td>
+<td><code>/api/supervisor/ai-config</code></td>
+<td>konfiguracja dostawcy AI (klucz API, model) – SUPERVISOR</td>
+</tr>
+<tr>
+<td>GET/PUT/DELETE</td>
+<td><code>/api/supervisor/twilio-config</code></td>
+<td>per-tenant Twilio (account SID, auth token – szyfrowane) – SUPERVISOR</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/supervisor/twilio-config/phone-numbers</code></td>
+<td>lista numerów z konta Twilio tenanta</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/supervisor/twilio-config/test</code></td>
+<td>test połączenia z Twilio</td>
+</tr>
+</tbody></table>
+<p>Dodatkowo, w <code>TenantController</code>: <code>GET/PATCH /api/tenants/{id}/config</code> –
+<code>hasAnyRole(&#39;ADMIN&#39;,&#39;SUPERVISOR&#39;)</code> – odczyt/zapis ogólnej konfiguracji tenanta
+(zawiera maskowane dane Twilio).</p>
+<p><code>SupervisorMetricsService</code> publikuje KPI na WebSocket
+(<code>/topic/tenant/{tenantId}/supervisor</code>) – patrz sekcja 5.</p>
+<hr>
+<h3>1.20 telemetry</h3>
+<p><strong>Cel:</strong> odbiór logów z frontendu (debugging w produkcji).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>FrontendLogController</code></td>
+<td><code>/api/logs</code> (publiczny – FE wysyła logi nawet przed zalogowaniem)</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/logs</code></td>
+<td>przyjmuje <code>FrontendLogRequest</code> (poziom, komunikat, stack trace) i loguje po stronie backendu</td>
+</tr>
+</tbody></table>
+<hr>
+<h3>1.21 telephony</h3>
+<p><strong>Cel:</strong> integracja z CPaaS (Twilio), kontrola połączeń przez agenta, webhooki,
+transfer.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AgentCallController</code></td>
+<td><code>/api/telephony/calls/**</code> – sterowanie połączeniem przez agenta</td>
+</tr>
+<tr>
+<td><code>AgentSelfController</code></td>
+<td><code>/api/agent/me/**</code> – self-service (assigned contact, KPI)</td>
+</tr>
+<tr>
+<td><code>MockCallController</code></td>
+<td><code>/api/dev/telephony/**</code> – symulacja połączeń (tylko <code>telephony.provider=mock</code>)</td>
+</tr>
+<tr>
+<td><code>TelephonyWebhookController</code></td>
+<td>generyczny webhook VoIP (<code>X-Webhook-Secret</code>)</td>
+</tr>
+<tr>
+<td><code>TransferController</code></td>
+<td><code>/api/telephony/transfer/**</code> – listy agentów/kolejek do transferu</td>
+</tr>
+<tr>
+<td><code>TwilioVoiceController</code></td>
+<td>feature flags, Voice Access Token (JS SDK), hold music TwiML</td>
+</tr>
+<tr>
+<td><code>TwilioWebhookController</code></td>
+<td><code>/api/telephony/webhook/twilio/**</code> – webhooki Twilio (TwiML, DTMF, status, conference, recording, voicebot)</td>
+</tr>
+<tr>
+<td><code>domain/telephony/{TelephonyAdapter, MockTelephonyAdapter, TwilioTelephonyAdapter}</code></td>
+<td>implementacje adaptera</td>
+</tr>
+<tr>
+<td><code>CallEvent</code>, <code>CallSession</code>, <code>CallEventEnricher</code>, <code>TelephonyEventPublisher</code></td>
+<td>model eventów + publikacja do RabbitMQ</td>
+</tr>
+<tr>
+<td><code>TransferRequest</code>, <code>TransferTargetType</code></td>
+<td>model żądania transferu</td>
+</tr>
+<tr>
+<td><code>TransferService</code>, <code>TransferAgentQueueRepository</code></td>
+<td>logika transferu (BE-075/077)</td>
+</tr>
+<tr>
+<td><code>IncomingCallRoutingService</code></td>
+<td>routing połączeń przychodzących (numer → IVR/kolejka)</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/telephony/calls/outbound</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>inicjacja połączenia wychodzącego</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/telephony/calls/{callId}/answer</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>odebranie</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/telephony/calls/{callId}/hangup</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>zakończenie</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/telephony/calls/{callId}/hold</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>hold/unhold</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/telephony/calls/{callId}/mute</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>mute/unmute</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/telephony/calls/{callId}/transfer</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>transfer (BLIND/ATTENDED → PHONE/AGENT/QUEUE)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/telephony/calls/{callId}/bridge/{secondCallId}</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>połączenie dwóch nóg po attended transfer</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/telephony/calls/{callId}/session</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>aktualny stan sesji</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/agent/me/assigned-contact</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>aktualnie przydzielony kontakt (resilience – BE WS)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/agent/me/kpi</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>KPI agenta (AHT, liczba kontaktów dzisiaj...)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/telephony/transfer/agents</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>dostępni agenci do transferu (UNION 3 źródeł kolejek)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/telephony/transfer/queues</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>dostępne kolejki do transferu</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/telephony/features</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>feature flags (np. czy Twilio aktywny)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/telephony/voice-token</code></td>
+<td>AGENT/SUPERVISOR/ADMIN</td>
+<td>Twilio Access Token dla Voice JS SDK</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/telephony/hold-music</code></td>
+<td><strong>publiczny</strong></td>
+<td>TwiML hold music (waitUrl Conference)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/telephony/webhook</code></td>
+<td><strong>publiczny</strong> (<code>X-Webhook-Secret</code>)</td>
+<td>generyczny webhook VoIP</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/dev/telephony/simulate</code></td>
+<td>dev</td>
+<td>symulacja zdarzenia połączenia</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/dev/telephony/sessions/count</code> | <code>/sessions/{callId}</code></td>
+<td>dev</td>
+<td>introspekcja sesji mock</td>
+</tr>
+</tbody></table>
+<p>Webhooki Twilio – patrz sekcja 5.</p>
+<hr>
+<h3>1.22 tenant</h3>
+<p><strong>Cel:</strong> zarządzanie tenantami (ADMIN), limity zasobów, konfiguracja per-tenant.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>TenantController</code></td>
+<td><code>/api/tenants/**</code></td>
+</tr>
+<tr>
+<td><code>Tenant</code> (entity)</td>
+<td>tabela <code>tenant</code></td>
+</tr>
+<tr>
+<td><code>TenantRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>TenantService</code></td>
+<td>CRUD + walidacja</td>
+</tr>
+<tr>
+<td><code>TenantResourceLimitService</code></td>
+<td>limity (agenci/kolejki/kampanie) – <code>get_tenant_limit()</code> w DB</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/tenants</code></td>
+<td>ADMIN</td>
+<td>utworzenie tenanta</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/tenants</code></td>
+<td>ADMIN</td>
+<td>lista</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/tenants/{id}</code></td>
+<td>ADMIN</td>
+<td>szczegóły</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/tenants/{id}</code></td>
+<td>ADMIN</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/tenants/{id}/deactivate</code></td>
+<td>ADMIN</td>
+<td>deaktywacja</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/tenants/{id}/config</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>konfiguracja (Twilio maskowane itd.)</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/tenants/{id}/config</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>zapis konfiguracji</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/tenants/check-name</code> | <code>/{id}/check-name</code></td>
+<td>ADMIN</td>
+<td>sprawdzenie unikalności nazwy</td>
+</tr>
+</tbody></table>
+<p>Przekroczenie limitu zasobu → <code>ResourceLimitExceededException</code> → HTTP 422
+(<code>resourceType</code>, <code>limit</code>, <code>current</code> w odpowiedzi).</p>
+<hr>
+<h3>1.23 user</h3>
+<p><strong>Cel:</strong> zarządzanie użytkownikami (agenci/supervisorzy/admini), statusy agenta,
+preferencje UI.</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>UserController</code></td>
+<td>CRUD + status agenta</td>
+</tr>
+<tr>
+<td><code>AdminUserController</code></td>
+<td><code>/api/admin/users</code> – zarządzanie użytkownikami przez ADMIN</td>
+</tr>
+<tr>
+<td><code>UserPreferencesController</code></td>
+<td><code>/api/users/me/preferences</code></td>
+</tr>
+<tr>
+<td><code>AppUser</code> (entity)</td>
+<td>tabela <code>app_user</code></td>
+</tr>
+<tr>
+<td><code>AppUserRepository</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>UserService</code>, <code>AdminUserService</code>, <code>UserPreferencesService</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>AgentStatusChangedEvent</code></td>
+<td>event publikowany do <code>cc.events</code> (routing key <code>agent.status.#</code>)</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Rola</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/users</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>utworzenie użytkownika</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/users</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>lista</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/users/me</code></td>
+<td>wszyscy</td>
+<td>profil zalogowanego</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/users/skills</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>lista dostępnych skilli (routing)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/users/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>szczegóły</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/users/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/users/{id}</code></td>
+<td>ADMIN/SUPERVISOR</td>
+<td>usunięcie</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/users/me/status</code></td>
+<td>wszyscy</td>
+<td>zmiana własnego statusu (AVAILABLE/BREAK/...) → publikuje <code>agent.status.changed</code></td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/users/{id}/status</code></td>
+<td>wszyscy*</td>
+<td>zmiana statusu innego użytkownika (np. supervisor wymusza)</td>
+</tr>
+<tr>
+<td>GET/PUT</td>
+<td><code>/api/users/me/preferences</code></td>
+<td>wszyscy</td>
+<td>preferencje UI (np. layout, powiadomienia)</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/admin/users</code></td>
+<td>ADMIN</td>
+<td>lista (widok administracyjny)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/admin/users</code></td>
+<td>ADMIN</td>
+<td>utworzenie</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/admin/users/{id}</code></td>
+<td>ADMIN</td>
+<td>edycja</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/admin/users/{id}</code></td>
+<td>ADMIN</td>
+<td>usunięcie</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/admin/users/{id}/force-password-reset</code></td>
+<td>ADMIN</td>
+<td>wymuszenie resetu hasła</td>
+</tr>
+</tbody></table>
+<p><strong>Eventy:</strong> zmiana statusu agenta (<code>agent.status.changed</code>) konsumowana przez
+<code>RoutingService</code> (<code>QUEUE_AGENT_STATUS</code>), <code>ProgressiveDialerService</code>
+(<code>QUEUE_DIALER_AGENT_STATUS</code>) – patrz RabbitMQ w sekcji 6.</p>
+<hr>
+<h3>1.24 websocket</h3>
+<p><strong>Cel:</strong> kanał real-time do Agent Desktop (STOMP over WebSocket).</p>
+<table>
+<thead>
+<tr>
+<th>Klasa</th>
+<th>Rola</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>WebSocketController</code> (api)</td>
+<td><code>@MessageMapping</code>/<code>@SubscribeMapping</code> – ping/pong, walidacja subskrypcji</td>
+</tr>
+<tr>
+<td><code>WebSocketConfig</code> (infrastructure)</td>
+<td>konfiguracja brokera STOMP, endpointy <code>/ws</code>, <code>/ws-native</code></td>
+</tr>
+<tr>
+<td><code>WebSocketAuthInterceptor</code> (security)</td>
+<td>autentykacja JWT przy STOMP CONNECT</td>
+</tr>
+<tr>
+<td><code>StompPrincipal</code> (security)</td>
+<td>principal z <code>tenantId</code>, <code>userId</code>, <code>role</code></td>
+</tr>
+<tr>
+<td><code>domain/websocket/{WebSocketEvent, WebSocketEventBroadcaster, RabbitToWebSocketRelay}</code></td>
+<td>model eventu, broadcaster, relay RabbitMQ→WebSocket</td>
+</tr>
+</tbody></table>
+<p>Szczegóły – sekcja 5.</p>
+<hr>
+<h2>2. Warstwa security</h2>
+<h3>2.1 Kolejność filtrów (krytyczne)</h3>
+<pre><code>HTTP Request
+   │
+   ▼
+JwtAuthFilter        – parsuje JWT, sprawdza blacklistę Redis, ustawia SecurityContext (Authentication)
+   │
+   ▼
+TenantFilter         – ponownie parsuje JWT, ustawia TenantContext (tenantId, userId, role) + MDC
+   │
+   ▼
+UsernamePasswordAuthenticationFilter  – pomijany (STATELESS, brak sesji)
+   │
+   ▼
+ExceptionTranslationFilter – AccessDeniedException / AuthenticationException
+   │
+   ▼
+Kontroler (@PreAuthorize sprawdzane przez @EnableMethodSecurity)
+</code></pre>
+<p>Plik: <code>security/SecurityConfig.java:142-146</code> – <code>addFilterBefore(jwtAuthFilter, ...)</code>,
+<code>addFilterAfter(tenantFilter, JwtAuthFilter.class)</code>.</p>
+<p><strong>Dlaczego dwa filtry parsują ten sam JWT?</strong> <code>JwtAuthFilter</code> odpowiada za
+autoryzację Spring Security (role, <code>@PreAuthorize</code>), <code>TenantFilter</code> za
+multi-tenancy (<code>TenantContext</code> ThreadLocal + RLS w DB). Rozdzielenie odpowiedzialności
+ułatwia testowanie i pozwala <code>TenantFilter</code> zwracać RFC 7807 bezpośrednio (przed
+<code>ExceptionTranslationFilter</code>).</p>
+<h3>2.2 JWT – claims i lifecycle</h3>
+<p><code>JwtService</code> (wystawianie, RS256, klucz prywatny) / <code>JwtParser</code> (weryfikacja, klucz
+publiczny):</p>
+<table>
+<thead>
+<tr>
+<th>Claim</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>sub</code></td>
+<td>email użytkownika</td>
+</tr>
+<tr>
+<td><code>tenant_id</code></td>
+<td>UUID tenanta</td>
+</tr>
+<tr>
+<td><code>tenant_name</code></td>
+<td>nazwa tenanta (do UI)</td>
+</tr>
+<tr>
+<td><code>user_id</code></td>
+<td>UUID użytkownika</td>
+</tr>
+<tr>
+<td><code>role</code></td>
+<td><code>ADMIN</code> | <code>SUPERVISOR</code> | <code>AGENT</code></td>
+</tr>
+<tr>
+<td><code>email</code></td>
+<td>email (duplikat <code>sub</code>, do czytelności)</td>
+</tr>
+<tr>
+<td><code>mfaVerified</code></td>
+<td><code>true</code> po przejściu TOTP</td>
+</tr>
+<tr>
+<td><code>iss</code></td>
+<td><code>jwt.issuer</code> (domyślnie <code>contact-center</code>)</td>
+</tr>
+<tr>
+<td><code>exp</code> / <code>iat</code></td>
+<td>access token TTL = 900s (15 min)</td>
+</tr>
+</tbody></table>
+<p><strong>Refresh token:</strong> UUID v4 (<code>JwtService.generateRefreshTokenValue()</code>), przechowywany
+w tabeli <code>refresh_token</code> (TTL = 604800s / 7 dni). <code>POST /api/auth/refresh</code> wymienia
+refresh token na nowy access token (+ rotacja refresh tokenu).</p>
+<p><strong>Logout:</strong> <code>POST /api/auth/logout</code> – unieważnia refresh token w DB + wpisuje access
+token na blacklistę Redis (<code>TokenBlacklistService</code>, TTL = pozostały czas życia
+tokenu). <code>JwtAuthFilter</code> sprawdza blacklistę przy każdym żądaniu.</p>
+<h3>2.3 MFA (TOTP)</h3>
+<p><code>MfaService</code> – RFC 6238, SHA1, 6 cyfr, okres 30s, tolerancja ±1 krok (90s razem).
+Ochrona przed replay attack: użyty kod zapisywany w Redis
+(<code>mfa:used:{userId}:{code}</code>, TTL 90s).</p>
+<p>Przepływ:</p>
+<pre><code>GET /api/auth/mfa/setup   → generateSecret() + generateQrCodeDataUri() (otpauth://)
+                              użytkownik skanuje QR w Google Authenticator/Authy
+POST /api/auth/mfa/verify → verifyCode(secret, code, userId)
+                              sukces → JWT z mfaVerified=true
+</code></pre>
+<h3>2.4 Role i autoryzacja</h3>
+<p><code>@EnableMethodSecurity(prePostEnabled = true)</code> + <code>@PreAuthorize</code> na poziomie metod
+kontrolerów. Role: <code>ADMIN</code>, <code>SUPERVISOR</code>, <code>AGENT</code> (z claim <code>role</code>, prefiks <code>ROLE_</code>
+dodawany automatycznie przez <code>AppUserDetails.getAuthorities()</code>).</p>
+<p>Reguły URL-level w <code>SecurityConfig</code> (kolejność ma znaczenie – Spring Security
+dopasowuje pierwszy matching matcher):</p>
+<ul>
+<li><code>/api/admin/**</code> → <code>ADMIN</code></li>
+<li><code>GET/PATCH /api/tenants/*/config</code> → <code>ADMIN</code> lub <code>SUPERVISOR</code> (musi być <strong>przed</strong>
+ogólną regułą <code>/api/tenants/**</code>)</li>
+<li><code>/api/tenants/**</code> → <code>ADMIN</code></li>
+<li><code>/api/supervisor/twilio-config/**</code>, <code>/api/supervisor/ai-config/**</code> → <code>SUPERVISOR</code></li>
+<li><code>POST /api/contacts/*/ai-summary</code> → <code>AGENT</code>/<code>SUPERVISOR</code>/<code>ADMIN</code></li>
+<li>pozostałe → <code>authenticated()</code></li>
+</ul>
+<h3>2.5 Publiczne ścieżki – dwa miejsca synchronizacji</h3>
+<p>Każdy nowy publiczny endpoint wymaga wpisu w <strong>obu</strong> miejscach:</p>
+<ol>
+<li><code>SecurityConfig.securityFilterChain()</code> – <code>requestMatchers(...).permitAll()</code></li>
+<li><code>TenantFilter</code> → <code>PublicPathsConfig.PUBLIC_PREFIXES</code> (lista współdzielona)</li>
+<li>(jeśli endpoint wymaga pominięcia <code>JwtAuthFilter</code>) –
+<code>JwtAuthFilter.PUBLIC_PATH_PREFIXES</code> – osobna, podobna lista</li>
+</ol>
+<p>Aktualne publiczne prefiksy: <code>/actuator/health</code>, <code>/api-docs</code>, <code>/swagger-ui</code>,
+<code>/api/auth/login</code>, <code>/api/auth/refresh</code>, <code>/api/public/</code>, <code>/webhooks/</code>,
+<code>/api/webhooks/</code>, <code>/api/telephony/webhook/**</code>, <code>/api/telephony/hold-music</code>,
+<code>/api/oauth/*/callback</code>, <code>/ws/**</code>, <code>/ws-native/**</code>, <code>/api/logs</code>.</p>
+<h3>2.6 WebSocket – autentykacja STOMP</h3>
+<p>Endpoint <code>/ws</code> i <code>/ws-native</code> są publiczne w <code>SecurityConfig</code> (HTTP upgrade), ale
+<code>WebSocketAuthInterceptor</code> (kanał inbound STOMP) weryfikuje JWT przy ramce
+<code>CONNECT</code> i tworzy <code>StompPrincipal(userId, tenantId, role)</code>. Brak/nieprawidłowy JWT
+→ odmowa CONNECT.</p>
+<hr>
+<h2>3. Multi-tenancy</h2>
+<h3>3.1 TenantContext</h3>
+<p><code>security/TenantContext.java</code> – <code>InheritableThreadLocal&lt;UUID&gt;</code> dla <code>tenantId</code>,
+<code>userId</code>, <code>tenantName</code>, <code>userRole</code>. Ustawiany przez <code>TenantFilter</code> na początku
+żądania HTTP, <strong>czyszczony w <code>finally</code></strong> (zapobiega cross-tenant leakage przy
+reużyciu wątków z puli).</p>
+<p>API:</p>
+<ul>
+<li><code>getTenantId()</code> / <code>getUserId()</code> – rzuca <code>IllegalStateException</code> gdy nie ustawiono</li>
+<li><code>getTenantIdOrNull()</code> / <code>getUserIdOrNull()</code> – bezpieczne dla anonimowych żądań</li>
+<li><code>snapshot()</code> → <code>Snapshot</code> (record, immutable) – do propagacji między wątkami</li>
+<li><code>restore(Snapshot)</code> – przywraca kontekst w wątku roboczym</li>
+<li><code>clear()</code> – <strong>obowiązkowe</strong> w <code>finally</code> po <code>restore()</code></li>
+</ul>
+<h3>3.2 Wzorzec propagacji do @Async / RabbitMQ listenerów</h3>
+<pre><code class="language-java">// Wątek wywołujący (HTTP):
+TenantContext.Snapshot snapshot = TenantContext.snapshot();
+asyncExecutor.execute(() -&gt; {
+    TenantContext.restore(snapshot);
+    try {
+        doAsyncWork();
+    } finally {
+        TenantContext.clear();
+    }
+});
+</code></pre>
+<p><strong>Uwaga:</strong> serwisy konsumujące z RabbitMQ (<code>@RabbitListener</code>) działają w wątkach
+<strong>niepowiązanych</strong> z HTTP – <code>TenantContext</code> nie jest tam ustawiony automatycznie.
+Te serwisy muszą jawnie wywołać <code>TenantContext.setTenantId(...)</code> (np. na podstawie
+<code>tenantId</code> z payloadu eventu) i wyczyścić w <code>finally</code>
+(<code>TenantAwareConsumer</code> – bazowa klasa pomocnicza dla takich konsumentów).
+<code>infrastructure/aspect/CrossTenantAspect</code> celowo <strong>wyklucza</strong> pakiet
+<code>domain.websocket</code> z monitoringu, bo te klasy działają w wątkach RabbitMQ bez
+<code>TenantContext</code>.</p>
+<h3>3.3 TenantAwareRepository i RLS</h3>
+<p><code>domain/repository/TenantAwareRepository.java</code> – klasa bazowa dla repozytoriów:</p>
+<ul>
+<li><code>setTenantContextInDb()</code> – <code>SELECT set_tenant_context(CAST(:tenantId AS uuid))</code>
+(musi być wywołane w ramach <code>@Transactional</code>, bo <code>set_config(..., TRUE)</code> jest
+per-transakcja)</li>
+<li><code>assertSameTenant(entityTenantId, resourceId)</code> – rzuca <code>CrossTenantAccessException</code>
+(HTTP 403) gdy <code>tenant_id</code> encji ≠ <code>TenantContext.getTenantId()</code></li>
+<li><code>denyAccess(resourceId)</code> – jawna odmowa (gdy zasób istnieje, ale innego tenanta)</li>
+</ul>
+<h3>3.4 PostgreSQL RLS</h3>
+<ul>
+<li>Funkcja <code>set_tenant_context(uuid)</code> (V023) – <code>set_config(&#39;app.current_tenant_id&#39;, ..., TRUE)</code>
+(ustawienie <strong>lokalne dla transakcji</strong>, resetowane po COMMIT/ROLLBACK)</li>
+<li>Polityki RLS (V012, rozszerzane w późniejszych migracjach) – wzorzec:<pre><code class="language-sql">CREATE POLICY pol_&lt;table&gt;_select ON &lt;table&gt;
+    FOR SELECT
+    USING (tenant_id = current_setting(&#39;app.current_tenant_id&#39;, TRUE)::UUID);
+</code></pre>
+Tabele z RLS: <code>customer</code>, <code>contact</code>, <code>campaign</code>, <code>queue</code>, <code>app_user</code>, <code>ivr_tree</code>,
+<code>email_message</code>, <code>social_message</code>, <code>social_integration</code>, <code>audit_log</code> (+ dalsze w
+V032, V041, V042, V069-V072 dla nowych modułów).</li>
+</ul>
+<p>RLS jest <strong>drugą linią obrony</strong> – <code>assertSameTenant()</code> w warstwie aplikacji jest
+pierwszą (chroni przed błędami logiki przed wysłaniem zapytania do DB).</p>
+<hr>
+<h2>4. Wzorce i konwencje</h2>
+<h3>4.1 GlobalExceptionHandler (RFC 7807)</h3>
+<p><code>api/GlobalExceptionHandler.java</code> – <code>@RestControllerAdvice</code>, wszystkie błędy w
+formacie <code>ProblemDetail</code>:</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;https://contactcenter.io/errors/{error-code}&quot;,
+  &quot;title&quot;: &quot;...&quot;,
+  &quot;status&quot;: 422,
+  &quot;detail&quot;: &quot;...&quot;,
+  &quot;timestamp&quot;: &quot;2026-06-12T10:00:00Z&quot;,
+  &quot;errors&quot;: { &quot;field&quot;: &quot;message&quot; }
+}
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Wyjątek</th>
+<th>HTTP</th>
+<th>Uwagi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MethodArgumentNotValidException</code> (@Valid)</td>
+<td>422</td>
+<td>mapa field→message</td>
+</tr>
+<tr>
+<td><code>ConstraintViolationException</code> (@RequestParam/@PathVariable)</td>
+<td>400</td>
+<td></td>
+</tr>
+<tr>
+<td><code>CrossTenantAccessException</code></td>
+<td>403</td>
+<td>komunikat generyczny – nie ujawnia istnienia zasobu</td>
+</tr>
+<tr>
+<td><code>AccessDeniedException</code> (Spring Security)</td>
+<td>403</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BadCredentialsException</code></td>
+<td>401</td>
+<td></td>
+</tr>
+<tr>
+<td><code>DisabledException</code></td>
+<td>403</td>
+<td>konto nieaktywne</td>
+</tr>
+<tr>
+<td><code>AuthService.InvalidTokenException</code></td>
+<td>401</td>
+<td>refresh token</td>
+</tr>
+<tr>
+<td><code>RateLimitExceededException</code></td>
+<td>429</td>
+<td><code>Retry-After: 900</code></td>
+</tr>
+<tr>
+<td><code>ResourceLimitExceededException</code></td>
+<td>422</td>
+<td>limity tenanta (agenci/kolejki/kampanie)</td>
+</tr>
+<tr>
+<td><code>ResourceNotFoundException</code> / <code>EntityNotFoundException</code></td>
+<td>404</td>
+<td></td>
+</tr>
+<tr>
+<td><code>ObjectOptimisticLockingFailureException</code></td>
+<td>409</td>
+<td><code>@Version</code> konflikt</td>
+</tr>
+<tr>
+<td><code>MethodArgumentTypeMismatchException</code></td>
+<td>400</td>
+<td>np. UUID zamiast string</td>
+</tr>
+<tr>
+<td><code>RoutingRuleConflictException</code></td>
+<td>409</td>
+<td><code>collidingRuleIds</code></td>
+</tr>
+<tr>
+<td><code>DataIntegrityViolationException</code></td>
+<td>409</td>
+<td>fallback dla trigger <code>routing_rule_collision</code></td>
+</tr>
+<tr>
+<td><code>ConflictException</code> / <code>InvalidOperationException</code></td>
+<td>409</td>
+<td>konflikty stanu domeny</td>
+</tr>
+<tr>
+<td><code>TemplateRenderException</code></td>
+<td>422</td>
+<td><code>missingVariables</code></td>
+</tr>
+<tr>
+<td><code>TelephonyAdapter.TelephonyException</code></td>
+<td>404</td>
+<td>sesja połączenia nie istnieje</td>
+</tr>
+<tr>
+<td><code>UnsupportedOperationException</code></td>
+<td>501</td>
+<td>operacja nieobsługiwana przez adapter</td>
+</tr>
+<tr>
+<td><code>TwilioApiException</code> / <code>AiSummaryGenerationException</code></td>
+<td>502</td>
+<td>błąd usługi zewnętrznej</td>
+</tr>
+<tr>
+<td><code>AiConfigNotFoundException</code></td>
+<td>422</td>
+<td>brak konfiguracji AI tenanta</td>
+</tr>
+<tr>
+<td><code>Exception</code> (catch-all)</td>
+<td>500</td>
+<td>bez szczegółów w odpowiedzi</td>
+</tr>
+</tbody></table>
+<h3>4.2 DTO i mapowanie</h3>
+<ul>
+<li>DTO jako <code>record</code> w pakietach <code>api/&lt;moduł&gt;/dto/</code></li>
+<li>Walidacja przez Jakarta Bean Validation (<code>@NotNull</code>, <code>@Pattern</code>, <code>@Email</code>...)
+na rekordach DTO + <code>@Valid</code> w kontrolerach</li>
+<li>Brak generycznego mappera (MapStruct) – mapowanie ręczne w serwisach/kontrolerach
+(konstruktory DTO / statyczne fabryki <code>XxxResponse.from(entity)</code>)</li>
+</ul>
+<h3>4.3 Paginacja – PagedResponse<T></h3>
+<p><code>api/PagedResponse.java</code> – generyczny wrapper nad Spring Data <code>Page&lt;T&gt;</code>:</p>
+<pre><code class="language-json">{
+  &quot;content&quot;: [...],
+  &quot;page&quot;: 0, &quot;size&quot;: 20,
+  &quot;totalElements&quot;: 150, &quot;totalPages&quot;: 8,
+  &quot;first&quot;: true, &quot;last&quot;: false
+}
+</code></pre>
+<p>Globalny limit: <code>spring.data.web.pageable.max-page-size: 100</code>,
+<code>default-page-size: 20</code> (application.yml).</p>
+<h3>4.4 Audyt (<code>@Audited</code> + <code>AuditAspect</code>)</h3>
+<p>Metody serwisów oznaczone <code>@Audited(entityType=&quot;USER&quot;, captureOldValue=true)</code> są
+przechwytywane przez <code>infrastructure/aspect/AuditAspect</code>:</p>
+<ol>
+<li>(opcjonalnie) <code>EntityManager.find()</code> – stary stan (<code>old_value</code>), z L1 cache gdy
+możliwe (mapowanie <code>entityType</code> → klasa JPA w <code>ENTITY_CLASS_MAP</code>)</li>
+<li>wykonanie metody biznesowej</li>
+<li>serializacja <code>new_value</code> (JSON, bez pól: <code>password</code>, <code>passwordHash</code>, <code>mfaSecret</code>,
+<code>token</code>, <code>refreshToken</code>)</li>
+<li><code>AuditLogService.publish(AuditLogEvent)</code> → exchange <code>cc.audit</code> → <code>AuditLogConsumer</code>
+→ INSERT do <code>audit_log</code></li>
+</ol>
+<p>Błędy audytu nie przerywają operacji biznesowej (logowane jako WARN/ERROR).</p>
+<h3>4.5 Optimistic locking</h3>
+<p>Encje z <code>@Version</code> (np. <code>Campaign</code>, <code>Queue</code>) – konflikt równoczesnej edycji →
+<code>ObjectOptimisticLockingFailureException</code> → HTTP 409 (klient odświeża i ponawia).</p>
+<hr>
+<h2>5. Integracje zewnętrzne</h2>
+<h3>5.1 Telephony – Twilio Programmable Voice</h3>
+<p><code>telephony.provider</code> (<code>mock</code> | <code>twilio</code>) wybiera implementację <code>TelephonyAdapter</code>:</p>
+<ul>
+<li><strong><code>MockTelephonyAdapter</code></strong> (695 linii) – symulacja w pamięci + Redis, do dev/test.
+Aktywny przez <code>@ConditionalOnProperty(telephony.provider=mock)</code>. Tworzy rekord
+<code>contact</code> w DB <strong>przed</strong> publikacją <code>call.incoming</code> – UUID z DB staje się
+<code>contactId</code> w payloadzie WebSocket (obok <code>callId</code> jako String).</li>
+<li><strong><code>TwilioTelephonyAdapter</code></strong> (3101 linii, <code>@Primary</code> gdy <code>twilio.enabled=true</code>) –
+integracja z Twilio REST API (<code>CallCreator</code>, <code>Call.UpdateStatus</code> – Twilio SDK
+10.1.5, <code>create/update(TwilioRestClient)</code>).</li>
+</ul>
+<p><strong>Wzorzec konferencji Twilio</strong> (zestawienie audio klient-agent + nagrywanie):
+każde połączenie agenta tworzy dedykowaną konferencję <code>contact-{contactId}</code>;
+<code>&lt;Conference record=&quot;record-from-start&quot;&gt;</code> + <code>recordingStatusCallback</code> →
+<code>/api/telephony/webhook/twilio/recording</code>.</p>
+<p><strong>Webhook handlery</strong> (<code>TwilioWebhookController</code>, prefix
+<code>/api/telephony/webhook/twilio</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>POST /voice</code></td>
+<td>TwiML dla połączenia przychodzącego (XML response)</td>
+</tr>
+<tr>
+<td><code>POST /dtmf</code></td>
+<td>obsługa wejścia DTMF (<code>&lt;Gather&gt;</code>) – zwraca TwiML</td>
+</tr>
+<tr>
+<td><code>POST /</code> (status callback, form-urlencoded)</td>
+<td>status połączenia (ringing/in-progress/completed)</td>
+</tr>
+<tr>
+<td><code>POST /conference</code></td>
+<td>eventy konferencji (join/leave/end)</td>
+</tr>
+<tr>
+<td><code>POST /recording</code></td>
+<td><code>recordingStatusCallback</code> → <code>TwilioRecordingDownloadService</code> → S3</td>
+</tr>
+<tr>
+<td><code>POST /voicebot-recording</code></td>
+<td>nagranie segmentu audio dla voicebota</td>
+</tr>
+</tbody></table>
+<p><strong>Wzorzec async webhook:</strong> handler zwraca HTTP 204 natychmiast; logika wymagająca
+wywołań Twilio REST API (<code>Conference.fetcher</code> itp.) wykonywana w <code>@Async</code>.
+Bezpieczeństwo: weryfikacja <code>X-Twilio-Signature</code> przez <code>RequestValidator</code>
+(<code>twilio.signature-validation-enabled</code>, domyślnie <code>true</code>, wyłączone w dev).</p>
+<p><strong>Voice Access Token (JS SDK):</strong> <code>GET /api/telephony/voice-token</code> –
+<code>TwilioVoiceController</code> generuje token z <code>twilio.api-key-sid</code> /
+<code>twilio.api-key-secret</code> / <code>twilio.twiml-app-sid</code>, z fallbackiem per-tenant
+(<code>TenantTwilioConfig</code> – BE-059; klucze testowe muszą mieć ≥32 znaków).</p>
+<p><strong>Per-tenant Twilio config (BE-056/057/059):</strong> <code>TenantTwilioConfigService</code> –
+upsert + maskowanie (UI nie widzi pełnego auth tokenu) + odszyfrowane DTO (tylko
+do użytku wewnętrznego, np. <code>TwilioTelephonyAdapter</code>) + <code>TwilioConfigChangedEvent</code>
+(odświeżenie cache adaptera).</p>
+<p><strong>Transfer (BE-075/077):</strong> <code>TransferController.GET /agents</code> –
+<code>TransferAgentQueueRepository</code> (UNION 3 źródeł kolejek, batch query bez N+1).
+<code>AgentCallController.POST /{callId}/transfer</code> deleguje do
+<code>ContactService.initiateTransfer()</code> → <code>TelephonyAdapter.initiateTransfer()</code>.</p>
+<h3>5.2 WebSocket – kanały i eventy</h3>
+<pre><code>Destinations (broker /topic, /user):
+  /topic/tenant/{tenantId}/supervisor   – broadcast KPI/eventy do supervisorów
+  /topic/tenant/{tenantId}/agents       – broadcast do agentów tenanta
+  /user/{userId}/events                 – unicast (np. PONG, przydział kontaktu)
+
+App destinations (klient → serwer, prefix /app):
+  /app/ping                             – heartbeat → odpowiedź PONG na /user/{userId}/events
+</code></pre>
+<p><strong>Relay RabbitMQ → WebSocket</strong> (<code>domain/websocket/RabbitToWebSocketRelay</code>,
+<code>WebSocketEventBroadcaster</code>, <code>WebSocketEvent</code>): eventy z <code>cc.events</code> (np.
+<code>call.incoming</code>, <code>contact.assigned</code>, <code>agent.status.changed</code>,
+<code>QUEUE_WAIT_UPDATE</code> z <code>WaitTimeEstimationService</code>,
+<code>SupervisorMetricsPayload</code> z <code>SupervisorMetricsService</code>) są tłumaczone na
+wiadomości STOMP i wysyłane na odpowiednie topiki/kolejki użytkownika.</p>
+<p><strong>Resilience (status ASSIGNED):</strong> gdy przydział kontaktu przez WebSocket nie
+dotrze do agenta (np. rozłączenie), <code>ContactAssignmentMonitor</code> + status
+<code>ASSIGNED</code> + <code>GET /api/agent/me/assigned-contact</code> pozwalają agentowi odzyskać
+przydzielony kontakt po reconnect (V046).</p>
+<h3>5.3 Voicebot (Python/FastAPI, ASR+NLU)</h3>
+<p>Katalog <code>voicebot/app/</code> (FastAPI): <code>main.py</code>, <code>asr.py</code> (rozpoznawanie mowy –
+Whisper), <code>nlu.py</code> (intencje), <code>summarize.py</code> (podsumowania), <code>session.py</code>,
+<code>rabbit.py</code>.</p>
+<p>Backend komunikuje się przez <code>domain/service/VoicebotClient</code>
+(<code>@ConditionalOnProperty(voicebot.enabled=true)</code>, domyślnie <strong>wyłączone</strong>):</p>
+<pre><code>HTTP POST {voicebot.url}/... (java.net.http.HttpClient, connectTimeout=1s)
+  TurnRequest  { session_id, tenant_id, contact_id, audio_base64, audio_format, turn_number }
+  TurnResponse { transcript, intent, confidence, escalate, response_text, continue_conversation, ... }
+
+  TranscribeRequest  { audio_base64, audio_format }
+  TranscribeResponse { transcript, language, confidence }
+</code></pre>
+<p>Naming: SNAKE_CASE (Pydantic) ↔ camelCase (Java) przez <code>ObjectMapper</code> z
+<code>PropertyNamingStrategies.SNAKE_CASE</code>. Przy błędzie/timeout – <code>Optional.empty()</code></p>
+<ul>
+<li>WARN log → <code>IvrEngineService</code> wykonuje graceful degradation (fallback node,
+np. przekierowanie do kolejki/agenta). Aktywowane przez <code>IvrNodeType.VOICEBOT</code>
+w drzewie IVR. Uruchomienie: <code>docker compose --profile ai up -d</code>.</li>
+</ul>
+<hr>
+<h2>6. Async / messaging (RabbitMQ)</h2>
+<p>Konfiguracja: <code>infrastructure/config/RabbitMQConfig.java</code>.</p>
+<h3>6.1 Exchanges</h3>
+<table>
+<thead>
+<tr>
+<th>Exchange</th>
+<th>Typ</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cc.events</code></td>
+<td>topic</td>
+<td>eventy domenowe (call, contact, agent, campaign, email)</td>
+</tr>
+<tr>
+<td><code>cc.audit</code></td>
+<td>topic</td>
+<td>eventy audytu</td>
+</tr>
+<tr>
+<td><code>cc.notifications</code></td>
+<td>topic</td>
+<td>notyfikacje</td>
+</tr>
+<tr>
+<td><code>cc.dlx</code></td>
+<td>direct</td>
+<td>dead letter exchange (wszystkie kolejki mają DLQ)</td>
+</tr>
+</tbody></table>
+<h3>6.2 Kolejki i konsumenci</h3>
+<table>
+<thead>
+<tr>
+<th>Kolejka</th>
+<th>Routing key</th>
+<th>Konsument</th>
+<th>Cel</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cc.queue.call-events</code></td>
+<td><code>call.#</code></td>
+<td><code>RabbitToWebSocketRelay</code></td>
+<td>broadcast eventów połączeń do WS</td>
+</tr>
+<tr>
+<td><code>cc.queue.contact-routing</code></td>
+<td><code>contact.queued</code></td>
+<td><code>RoutingService</code></td>
+<td>przydział kontaktu do agenta (TTL 30s)</td>
+</tr>
+<tr>
+<td><code>cc.queue.agent-status</code></td>
+<td><code>agent.status.#</code></td>
+<td><code>RoutingService</code></td>
+<td>odświeżenie kolejki po zmianie statusu agenta</td>
+</tr>
+<tr>
+<td><code>cc.queue.audit-log</code></td>
+<td><code>audit.#</code></td>
+<td><code>AuditLogConsumer</code></td>
+<td>zapis do <code>audit_log</code></td>
+</tr>
+<tr>
+<td><code>cc.queue.campaign-dialer</code></td>
+<td><code>campaign.contact.#</code></td>
+<td>(dialer-related)</td>
+<td>eventy wybierania numerów kampanii</td>
+</tr>
+<tr>
+<td><code>cc.queue.notifications</code></td>
+<td><code>#</code></td>
+<td>–</td>
+<td>ogólne notyfikacje</td>
+</tr>
+<tr>
+<td><code>cc.queue.csv-import</code></td>
+<td>–</td>
+<td>–</td>
+<td>(rezerwa importu CSV)</td>
+</tr>
+<tr>
+<td><code>cc.queue.dead-letter</code></td>
+<td><code>dlq</code></td>
+<td>–</td>
+<td>DLQ dla wszystkich kolejek</td>
+</tr>
+<tr>
+<td><code>cc.queue.unknown-caller</code></td>
+<td><code>call.unknown_caller</code></td>
+<td><code>CustomerService</code>/<code>CliLookupService</code></td>
+<td>auto-tworzenie profilu klienta (BE-025)</td>
+</tr>
+<tr>
+<td><code>cc.queue.ivr-handler</code></td>
+<td><code>call.incoming</code></td>
+<td><code>IvrCallListener</code></td>
+<td>przechwycenie połączenia przed routingiem (BE-013)</td>
+</tr>
+<tr>
+<td><code>cc.queue.dialer-hangup</code></td>
+<td><code>call.hangup</code></td>
+<td><code>DialerCallbackHandler</code></td>
+<td>zakończenie połączenia kampanijnego</td>
+</tr>
+<tr>
+<td><code>cc.queue.email-events</code></td>
+<td><code>email.#</code></td>
+<td>–</td>
+<td>eventy email (received/queued/sent/assigned)</td>
+</tr>
+<tr>
+<td><code>cc.queue.dialer-agent-status</code></td>
+<td><code>agent.status.#</code></td>
+<td><code>ProgressiveDialerService</code></td>
+<td>trigger wybierania numeru po AVAILABLE</td>
+</tr>
+<tr>
+<td><code>cc.queue.social-incoming</code></td>
+<td>– (bind w <code>SocialAdapterRegistry</code>)</td>
+<td><code>SocialMessageConsumer</code></td>
+<td>przychodzące wiadomości social</td>
+</tr>
+<tr>
+<td><code>cc.queue.routing-hangup</code></td>
+<td><code>call.hangup</code></td>
+<td><code>RoutingService</code></td>
+<td>odświeżenie kolejki po rozłączeniu</td>
+</tr>
+<tr>
+<td><code>cc.queue.agent-direct</code></td>
+<td><code>contact.agent.direct</code></td>
+<td><code>RoutingService</code></td>
+<td>bezpośredni przydział po BLIND transfer do agenta (TTL 30s)</td>
+</tr>
+</tbody></table>
+<p><strong>Dlaczego tyle osobnych kolejek dla tego samego eventu (np. <code>call.hangup</code>)?</strong>
+RabbitMQ przy standardowej kolejce dostarcza wiadomość <strong>tylko jednemu</strong>
+konsumentowi (round-robin). Gdy kilka niezależnych serwisów musi otrzymać <strong>każdy</strong>
+egzemplarz eventu, każdy serwis dostaje własną kolejkę z bindingiem na ten sam
+routing key (np. <code>call.hangup</code> → <code>dialer-hangup</code> + <code>routing-hangup</code> +
+<code>call-events</code> dla relay WS).</p>
+<p><strong>Konwencja:</strong> każda kolejka ma <code>x-dead-letter-exchange: cc.dlx</code>,
+<code>x-dead-letter-routing-key: dlq</code>. Wiadomości niedostarczone (publisher
+returns/mandatory) są logowane jako WARN.</p>
+<h3>6.3 Wzorzec implementacji kolejki</h3>
+<pre><code class="language-java">// 1. Stała nazwy w RabbitMQConfig
+public static final String QUEUE_XXX = &quot;cc.queue.xxx&quot;;
+
+// 2. @Bean Queue + @Bean Binding w RabbitMQConfig
+@Bean public Queue xxxQueue() { return QueueBuilder.durable(QUEUE_XXX)...build(); }
+@Bean public Binding bindingXxx(Queue xxxQueue, TopicExchange eventsExchange) {...}
+
+// 3. Listener w serwisie domenowym
+@RabbitListener(queues = RabbitMQConfig.QUEUE_XXX)
+public void onEvent(SomeEvent event) {
+    TenantContext.setTenantId(event.tenantId());
+    try { ... } finally { TenantContext.clear(); }
+}
+</code></pre>
+<hr>
+<h2>7. Konfiguracja</h2>
+<p>Hierarchia: <code>application.yml</code> (base) → <code>application-{dev|prod}.yml</code> (override).
+Profil domyślny: <code>dev</code> (<code>spring.profiles.default</code>).</p>
+<h3>7.1 Kluczowe sekcje <code>application.yml</code></h3>
+<table>
+<thead>
+<tr>
+<th>Sekcja</th>
+<th>Klucz</th>
+<th>Domyślna wartość</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>JPA</td>
+<td><code>spring.jpa.hibernate.ddl-auto</code></td>
+<td><code>validate</code></td>
+<td>Flyway = jedyne źródło schematu</td>
+</tr>
+<tr>
+<td>JPA</td>
+<td><code>jakarta.persistence.query.timeout</code></td>
+<td><code>5000</code> ms</td>
+<td>globalny timeout zapytań</td>
+</tr>
+<tr>
+<td>Flyway</td>
+<td><code>spring.flyway.locations</code></td>
+<td><code>classpath:db/migration</code></td>
+<td></td>
+</tr>
+<tr>
+<td>Flyway</td>
+<td><code>spring.flyway.validate-on-migrate</code></td>
+<td><code>true</code></td>
+<td></td>
+</tr>
+<tr>
+<td>Paginacja</td>
+<td><code>spring.data.web.pageable.max-page-size</code></td>
+<td><code>100</code></td>
+<td></td>
+</tr>
+<tr>
+<td>JWT</td>
+<td><code>jwt.issuer</code></td>
+<td><code>contact-center</code></td>
+<td></td>
+</tr>
+<tr>
+<td>JWT</td>
+<td><code>jwt.access-token-ttl-seconds</code></td>
+<td><code>900</code> (15 min)</td>
+<td></td>
+</tr>
+<tr>
+<td>JWT</td>
+<td><code>jwt.refresh-token-ttl-seconds</code></td>
+<td><code>604800</code> (7 dni)</td>
+<td></td>
+</tr>
+<tr>
+<td>Telephony</td>
+<td><code>telephony.provider</code></td>
+<td><code>twilio</code></td>
+<td><code>mock</code> w dev/testach</td>
+</tr>
+<tr>
+<td>Telephony</td>
+<td><code>telephony.webhook.secret</code></td>
+<td><code>dev-secret</code></td>
+<td><code>X-Webhook-Secret</code></td>
+</tr>
+<tr>
+<td>Twilio</td>
+<td><code>twilio.enabled</code></td>
+<td><code>true</code></td>
+<td>wymaga <code>account-sid</code>, <code>auth-token</code>, <code>phone-number</code></td>
+</tr>
+<tr>
+<td>Twilio</td>
+<td><code>twilio.signature-validation-enabled</code></td>
+<td><code>true</code></td>
+<td>wyłączone w dev</td>
+</tr>
+<tr>
+<td>App</td>
+<td><code>app.encryption.secret</code></td>
+<td>(dev: zera, <strong>zmienić w prod</strong>)</td>
+<td>AES-256 dla danych szyfrowanych (Twilio creds per tenant)</td>
+</tr>
+<tr>
+<td>ETL</td>
+<td><code>etl.sync.fixed-delay-ms</code></td>
+<td><code>60000</code></td>
+<td>cykl synchronizacji do DW</td>
+</tr>
+<tr>
+<td>S3</td>
+<td><code>s3.endpoint</code> / <code>bucket</code> / <code>retention-days</code></td>
+<td>MinIO localhost / <code>contact-center-recordings</code> / <code>90</code></td>
+<td>nagrania</td>
+</tr>
+<tr>
+<td>Email</td>
+<td><code>email.poll-delay-ms</code></td>
+<td><code>60000</code></td>
+<td>IMAP polling</td>
+</tr>
+<tr>
+<td>Email</td>
+<td><code>email.encryption-key</code></td>
+<td>(dev: zera)</td>
+<td>AES-256 hasła IMAP/SMTP</td>
+</tr>
+<tr>
+<td>Social</td>
+<td><code>social.token-encryption-key</code></td>
+<td>dev fallback</td>
+<td>AES-256 tokeny OAuth</td>
+</tr>
+<tr>
+<td>Voicebot</td>
+<td><code>voicebot.enabled</code></td>
+<td><code>false</code></td>
+<td>aktywuje <code>VoicebotClient</code></td>
+</tr>
+<tr>
+<td>Dialer</td>
+<td><code>dialer.enabled</code></td>
+<td><code>true</code></td>
+<td>Progressive Dialer + ScheduledCallbackExecutor</td>
+</tr>
+<tr>
+<td>Dialer</td>
+<td><code>dialer.callback-executor.interval-ms</code></td>
+<td><code>60000</code></td>
+<td></td>
+</tr>
+<tr>
+<td>Agent breaks</td>
+<td><code>agent.breaks.activator.enabled</code></td>
+<td><code>true</code></td>
+<td></td>
+</tr>
+</tbody></table>
+<h3>7.2 Sekrety produkcyjne (ENV vars)</h3>
+<p><code>JWT_PRIVATE_KEY_VALUE</code> / <code>JWT_PUBLIC_KEY_VALUE</code>, <code>TWILIO_ACCOUNT_SID</code>,
+<code>TWILIO_AUTH_TOKEN</code>, <code>TWILIO_API_KEY_SID/SECRET</code>, <code>APP_ENCRYPTION_SECRET</code>,
+<code>EMAIL_ENCRYPTION_KEY</code>, <code>SOCIAL_TOKEN_ENCRYPTION_KEY</code>, <code>S3_ACCESS_KEY/SECRET_KEY</code>,
+<code>CORS_ALLOWED_ORIGINS</code>, <code>WEBSOCKET_ALLOWED_ORIGINS</code>. <strong>Nigdy</strong> nie commitować
+realnych wartości – domyślne wartości w <code>application.yml</code> są bezpieczne tylko
+dla <code>dev</code>.</p>
+<hr>
+<h2>8. Testy backendowe</h2>
+<p>Lokalizacja: <code>backend/app/src/test/java/com/contactcenter/</code> (83 klasy <code>*Test.java</code></p>
+<ul>
+<li>1 <code>*IT.java</code>).</li>
+</ul>
+<h3>8.1 Struktura</h3>
+<pre><code>api/                – testy kontrolerów (MockMvc / standalone)
+  supervisor/, telephony/
+domain/
+  agentbreak/, agentgroup/, disposition/, email/, repository/, service/, websocket/
+infrastructure/
+  persistence/
+security/
+ContactCenterApplicationIT.java   – smoke test (Spring context + actuator/health)
+</code></pre>
+<h3>8.2 Konwencje</h3>
+<ul>
+<li><strong>Brak H2</strong> – repozytoria (<code>*Repository extends TenantAwareRepository</code>) testowane
+przez <code>Mockito</code> na <code>EntityManager</code> + <code>ReflectionTestUtils</code> (nie pełny kontekst
+Spring/JPA). Uwaga przy <code>thenReturn(List&lt;Object[]&gt;)</code> – pułapka generics.</li>
+<li><strong>Testy integracyjne</strong> (<code>ContactCenterApplicationIT</code>) – <code>@SpringBootTest</code> z
+<code>webEnvironment = RANDOM_PORT</code>, profil <code>test</code>, Flyway wyłączony
+(<code>spring.flyway.enabled=false</code> w <code>@TestPropertySource</code>) – obecnie <strong>bez</strong>
+Testcontainers (TODO w kodzie: PostgreSQL+Redis+RabbitMQ przez Testcontainers
+planowane, gdy środowisko CI będzie gotowe).</li>
+<li><strong><code>@Transactional</code> self-invocation</strong> – serwisy wywołujące własne metody
+<code>@Transactional</code> przez <code>this</code> nie przechodzą przez proxy Springa; fix:
+<code>@Autowired @Lazy NazwaSerwisu self</code> + <code>self.metoda()</code>.</li>
+<li><strong>Mockito + <code>@InjectMocks</code> + Lombok <code>@RequiredArgsConstructor</code></strong> – pola
+non-final bywają pomijane przez Mockito 5; fix: ręczne wywołanie settera w
+<code>@BeforeEach</code>.</li>
+<li><strong><code>@Nested</code> + <code>@BeforeEach</code></strong> – pola inicjalizowane w <code>@BeforeEach</code> klasy
+zewnętrznej mogą nie być widoczne, gdy Surefire uruchamia klasy <code>@Nested</code>
+osobno; rozwiązanie: <code>@MockitoSettings(Strictness.LENIENT)</code> + przeniesienie
+<code>setUp()</code> do <code>@Nested</code>.</li>
+<li>Znany flaky test: <code>SupervisorMetricsServiceTest$KpiCallsInIvrTests</code>
+(order-dependent, nie traktować jako regresji).</li>
+</ul>
+<h3>8.3 Uruchamianie</h3>
+<pre><code class="language-bash">mvn test -pl app                           # wszystkie testy
+mvn test -pl app -Dtest=JwtServiceTest     # jedna klasa
+mvn verify -pl app                         # pełna weryfikacja (bez pakowania)
+</code></pre>
+<hr>
+<h2>Dodatek: szybka mapa &quot;od żądania do bazy danych&quot;</h2>
+<pre><code>HTTP Request (Authorization: Bearer &lt;JWT&gt;)
+   │
+   ▼
+JwtAuthFilter        → SecurityContext (role z claim &#39;role&#39;)
+   ▼
+TenantFilter         → TenantContext.setTenantId/setUserId/setUserRole + MDC
+   ▼
+DispatcherServlet → @PreAuthorize (rola) → Controller
+   ▼
+Service (@Transactional, opcjonalnie @Audited)
+   ▼
+Repository extends TenantAwareRepository
+   │   setTenantContextInDb()  → SELECT set_tenant_context(tenantId)  [per-transakcja]
+   │   assertSameTenant(entity.tenantId)
+   ▼
+EntityManager / JdbcTemplate → PostgreSQL
+   │   RLS POLICY: tenant_id = current_setting(&#39;app.current_tenant_id&#39;)::uuid
+   ▼
+Response (DTO record) ── lub ── ProblemDetail (GlobalExceptionHandler)
+   ▼
+finally: TenantContext.clear() + MDC.remove(...)
+</code></pre>
+
+</main>
+</div>
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  }
+</script>
+</body>
+</html>

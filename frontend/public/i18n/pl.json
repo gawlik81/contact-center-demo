@@ -863,6 +863,7 @@
       "fullscreenLabel": "Tryb pełnoekranowy",
       "loadingMetrics": "Ładowanie metryk",
       "kpiActiveCalls": "Aktywne połączenia",
+      "kpiCallsInIvr": "W IVR",
       "kpiAvailable": "Dostępni agenci",
       "kpiBreak": "Na przerwie",
       "kpiAfterContact": "Po kontakcie",
@@ -1216,6 +1217,7 @@
       "errors": {
         "nameRequired": "Nazwa jest wymagana.",
         "nameMaxLength": "Nazwa nie może przekraczać 255 znaków.",
+        "nameTaken": "Kampania o tej nazwie już istnieje.",
         "fieldRequired": "Pole jest wymagane.",
         "maxAttemptsMin": "Minimalna liczba prób to 1.",
         "maxAttemptsMax": "Maksymalna liczba prób to 10.",
@@ -1230,7 +1232,8 @@
         "updateFailed": "Nie udało się zaktualizować kampanii. Spróbuj ponownie.",
         "limitExceeded": "Przekroczono limit kampanii dla tego tenanta.",
         "createFailed": "Nie udało się utworzyć kampanii. Spróbuj ponownie."
-      }
+      },
+      "checkingName": "Sprawdzam dostępność nazwy..."
     },
     "campaignImport": {
       "title": "Importuj kontakty",
@@ -1385,6 +1388,7 @@
       "errorScheduleCallback": "Nie udało się zaplanować oddzwonienia.",
       "successScheduleCallback": "Oddzwonienie zostało zaplanowane.",
       "contactStatusLabels": {
+        "IVR": "W IVR",
         "QUEUED": "W kolejce",
         "ASSIGNED": "Przydzielony",
         "ACTIVE": "Aktywny",
@@ -1637,6 +1641,7 @@
       "nodeSetValue": "Wartość",
       "nodeSetValuePlaceholder": "wartość lub ${inna_zmienna}",
       "nodeSetValueHint": "Możesz użyć ${nazwa_zmiennej} by wstawić wartość z sesji.",
+      "varHint": "Wpisz $ aby wstawić zmienną z przepływu",
       "nodeConditionEquals": "równa się (=)",
       "nodeConditionNotEquals": "różna od (≠)",
       "nodeConditionStartsWith": "zaczyna się od",
@@ -1693,6 +1698,10 @@
       "closeJson": "Zamknij panel JSON",
       "nextNode": "Następny węzeł",
       "nodePaletteLabel": "Paleta węzłów",
+      "zoomInLabel": "Powiększ",
+      "zoomOutLabel": "Pomniejsz",
+      "zoomResetLabel": "Resetuj powiększenie (100%)",
+      "fitToViewLabel": "Dopasuj widok do całego grafu",
       "entryNodeBadgeLabel": "Węzeł startowy",
       "deleteNodeLabel": "Usuń węzeł",
       "deleteNodeTitle": "Usuń węzeł",

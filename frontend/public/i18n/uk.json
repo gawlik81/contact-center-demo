@@ -863,6 +863,7 @@
       "fullscreenLabel": "Повноекранний режим",
       "loadingMetrics": "Завантаження метрик",
       "kpiActiveCalls": "Активні дзвінки",
+      "kpiCallsInIvr": "В IVR",
       "kpiAvailable": "Доступні агенти",
       "kpiBreak": "На перерві",
       "kpiAfterContact": "Після контакту",
@@ -1216,6 +1217,7 @@
       "errors": {
         "nameRequired": "Назва є обов'язковою.",
         "nameMaxLength": "Назва не може перевищувати 255 символів.",
+        "nameTaken": "Кампанія з такою назвою вже існує.",
         "fieldRequired": "Поле є обов'язковим.",
         "maxAttemptsMin": "Мінімальна кількість спроб — 1.",
         "maxAttemptsMax": "Максимальна кількість спроб — 10.",
@@ -1230,7 +1232,8 @@
         "updateFailed": "Не вдалося оновити кампанію. Спробуйте ще раз.",
         "limitExceeded": "Перевищено ліміт кампаній для цього орендаря.",
         "createFailed": "Не вдалося створити кампанію. Спробуйте ще раз."
-      }
+      },
+      "checkingName": "Перевірка доступності назви..."
     },
     "campaignImport": {
       "title": "Імпортувати контакти",
@@ -1385,6 +1388,7 @@
       "errorScheduleCallback": "Не вдалося запланувати зворотний дзвінок.",
       "successScheduleCallback": "Зворотний дзвінок заплановано.",
       "contactStatusLabels": {
+        "IVR": "В IVR",
         "QUEUED": "У черзі",
         "ACTIVE": "Активний",
         "ON_HOLD": "Утримання",
@@ -1633,6 +1637,7 @@
       "nodeSetValue": "Значення",
       "nodeSetValuePlaceholder": "значення або ${інша_змінна}",
       "nodeSetValueHint": "Можна використовувати ${назва_змінної} для вставки значення з сеансу.",
+      "varHint": "Введіть $, щоб вставити змінну з потоку",
       "nodeConditionEquals": "дорівнює (=)",
       "nodeConditionNotEquals": "не дорівнює (≠)",
       "nodeConditionStartsWith": "починається з",
@@ -1689,6 +1694,10 @@
       "closeJson": "Закрити панель JSON",
       "nextNode": "Наступний вузол",
       "nodePaletteLabel": "Палітра вузлів",
+      "zoomInLabel": "Збільшити",
+      "zoomOutLabel": "Зменшити",
+      "zoomResetLabel": "Скинути масштаб (100%)",
+      "fitToViewLabel": "Підігнати вигляд під весь граф",
       "entryNodeBadgeLabel": "Початковий вузол",
       "deleteNodeLabel": "Видалити вузол",
       "deleteNodeTitle": "Видалити вузол",

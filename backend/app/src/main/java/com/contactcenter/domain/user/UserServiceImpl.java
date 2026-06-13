@@ -5,7 +5,7 @@ import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.user.AppUser.UserRole;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.TenantResourceLimitService;
-import com.contactcenter.domain.service.ContactService;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;

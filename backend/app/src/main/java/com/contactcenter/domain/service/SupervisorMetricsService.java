@@ -8,7 +8,7 @@ import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserRole;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;

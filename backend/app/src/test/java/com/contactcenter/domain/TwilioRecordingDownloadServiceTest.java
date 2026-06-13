@@ -1,7 +1,7 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.ContactTranscriptionRepository;
+import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactTranscriptionRepository;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;

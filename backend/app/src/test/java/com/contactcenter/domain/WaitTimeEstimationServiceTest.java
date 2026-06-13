@@ -5,7 +5,7 @@ import com.contactcenter.api.queue.QueueWaitUpdatePayload;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.WaitTimeEstimationService;

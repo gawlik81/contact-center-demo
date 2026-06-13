@@ -1,6 +1,6 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.contact;
 
-import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.repository.TenantAwareRepository;
 import com.contactcenter.domain.service.RoutingService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -997,7 +997,7 @@ public class ContactRepository extends TenantAwareRepository {
    *   <li>Flaga błędu: {@code channel_metadata->>'error'} rzutowane na boolean = true.</li>
    * </ul>
    *
-   * <p>Brak limitu wynikowego – caller ({@link com.contactcenter.domain.service.ContactService})
+   * <p>Brak limitu wynikowego – caller ({@link com.contactcenter.domain.contact.ContactService})
    * przetwarza cały batch w jednej transakcji.
    *
    * @param tenantId  UUID tenanta

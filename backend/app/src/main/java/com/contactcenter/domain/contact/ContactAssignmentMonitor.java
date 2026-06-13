@@ -1,8 +1,6 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.contact;
 
-import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.customer.Customer;
-import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
@@ -49,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class ContactAssignmentMonitor {
+class ContactAssignmentMonitor {
 
     /** Maksymalna liczba prób re-wysłania CONTACT_ASSIGNED zanim kontakt wróci do QUEUED. */
     private static final int MAX_RETRIES = 3;

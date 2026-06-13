@@ -3,7 +3,7 @@ package com.contactcenter.domain.service;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.reports.dto.AgentReportParams;
 import com.contactcenter.api.reports.dto.AgentReportRow;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

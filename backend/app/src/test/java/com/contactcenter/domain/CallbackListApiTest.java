@@ -8,7 +8,7 @@ import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.service.DialerCallbackHandler;
 import com.contactcenter.domain.service.ProgressiveDialerService;

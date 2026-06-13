@@ -1,6 +1,6 @@
 package com.contactcenter.domain.routing;
 
-import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.service.RoutingService;
 

@@ -1,7 +1,7 @@
 package com.contactcenter.domain.service;
 
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.ContactRepository.ContactRecordingEntry;
+import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository.ContactRecordingEntry;
 import com.contactcenter.infrastructure.config.S3Properties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

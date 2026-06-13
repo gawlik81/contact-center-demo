@@ -2,10 +2,10 @@ package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.routing.RouteResult;
-import com.contactcenter.domain.service.ContactService;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.service.IncomingCallRoutingService;
 import com.contactcenter.domain.service.IvrEngineService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;

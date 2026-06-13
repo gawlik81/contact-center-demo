@@ -2,9 +2,9 @@ package com.contactcenter.api.campaign;
 
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

@@ -1,9 +1,9 @@
 package com.contactcenter.domain.service;
 
-import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.model.SocialMessage;
 import com.contactcenter.domain.model.SocialPlatform;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.repository.SocialIntegrationRepository;
 import com.contactcenter.domain.repository.SocialMessageRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;

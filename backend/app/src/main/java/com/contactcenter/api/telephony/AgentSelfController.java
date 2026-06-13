@@ -2,8 +2,8 @@ package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.contact.dto.AssignedContactResponse;
 import com.contactcenter.api.telephony.dto.AgentKpiResponse;
-import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;

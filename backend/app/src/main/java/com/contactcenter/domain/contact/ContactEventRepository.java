@@ -1,7 +1,7 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.contact;
 
 import com.contactcenter.domain.exception.CrossTenantAccessException;
-import com.contactcenter.domain.model.ContactEvent;
+import com.contactcenter.domain.repository.TenantAwareRepository;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +28,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class ContactEventRepository extends TenantAwareRepository {
+class ContactEventRepository extends TenantAwareRepository {
 
     private final ObjectMapper objectMapper;
 

@@ -2,14 +2,14 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.model.ContactAiSummary;
+import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.contact.ContactAiSummary;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.tenant.TenantAiConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantAiConfigService;
-import com.contactcenter.domain.repository.ContactAiSummaryRepository;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.ContactTranscriptionRepository;
+import com.contactcenter.domain.contact.ContactAiSummaryRepository;
+import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactTranscriptionRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -30,7 +30,7 @@ import java.util.UUID;
  *   <li>Pobranie odszyfrowanej konfiguracji AI dla tenanta.</li>
  *   <li>Wyodrębnienie treści zależnie od kanału kontaktu.</li>
  *   <li>Wywołanie {@link AiSummaryClient} (serwis Python).</li>
- *   <li>Zapis wyniku (summary, modelUsed, timestamp) do tabeli {@code contact_ai_summary} przez {@link com.contactcenter.domain.repository.ContactAiSummaryRepository#save}.</li>
+ *   <li>Zapis wyniku (summary, modelUsed, timestamp) do tabeli {@code contact_ai_summary} przez {@link com.contactcenter.domain.contact.ContactAiSummaryRepository#save}.</li>
  * </ol>
  *
  * <p>Nie implementuje kontrolera – ten zostanie dodany w BE-090.

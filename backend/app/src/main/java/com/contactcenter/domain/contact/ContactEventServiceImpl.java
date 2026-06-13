@@ -1,7 +1,5 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.contact;
 
-import com.contactcenter.domain.model.ContactEvent;
-import com.contactcenter.domain.repository.ContactEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,19 +11,12 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Serwis zarządzający historią etapów kontaktu (contact_event).
- *
- * <p>Każda metoda {@code open*} i {@code close*} jest otoczona blokiem
- * try/catch – błąd zapisu historii NIE przerywa głównego przepływu biznesowego.
- * Serwis loguje ostrzeżenie i kontynuuje.
- *
- * <p>Zdarzenie TRANSFER jest punktowe: {@code started_at = ended_at = Instant.now()},
- * {@code duration_seconds = 0}.
+ * Implementacja {@link ContactEventService}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ContactEventService {
+class ContactEventServiceImpl implements ContactEventService {
 
     private final ContactEventRepository repository;
 
@@ -41,6 +32,7 @@ public class ContactEventService {
      * @param ivrTreeId   UUID drzewa IVR (może być null)
      * @param ivrTreeName nazwa drzewa IVR (może być null)
      */
+    @Override
     public void openIvr(UUID contactId, UUID tenantId, UUID ivrTreeId, String ivrTreeName) {
         try {
             Map<String, Object> meta = new HashMap<>();
@@ -59,6 +51,7 @@ public class ContactEventService {
      * @param contactId UUID kontaktu
      * @param tenantId  UUID tenanta
      */
+    @Override
     public void closeIvr(UUID contactId, UUID tenantId) {
         closeStage(contactId, tenantId, "IVR");
     }
@@ -75,6 +68,7 @@ public class ContactEventService {
      * @param ivrTreeId   UUID drzewa IVR/voicebota (może być null)
      * @param ivrTreeName nazwa drzewa IVR/voicebota (może być null)
      */
+    @Override
     public void openVoicebot(UUID contactId, UUID tenantId, UUID ivrTreeId, String ivrTreeName) {
         try {
             Map<String, Object> meta = new HashMap<>();
@@ -95,6 +89,7 @@ public class ContactEventService {
      * @param outcome   wynik sesji voicebota (np. "TRANSFERRED", "ABANDONED") – pomijany przy zamykaniu,
      *                  powinien być przekazany do metadata przy openVoicebot
      */
+    @Override
     public void closeVoicebot(UUID contactId, UUID tenantId, String outcome) {
         closeStage(contactId, tenantId, "VOICEBOT");
     }
@@ -115,6 +110,7 @@ public class ContactEventService {
      * @param queueName nazwa kolejki (może być null)
      * @param queuedAt  czas faktycznego wejścia do kolejki (null = Instant.now())
      */
+    @Override
     public void openQueue(UUID contactId, UUID tenantId, UUID queueId, String queueName, Instant queuedAt) {
         try {
             Map<String, Object> meta = new HashMap<>();
@@ -141,6 +137,7 @@ public class ContactEventService {
      * @param contactId UUID kontaktu
      * @param tenantId  UUID tenanta
      */
+    @Override
     public void closeQueue(UUID contactId, UUID tenantId) {
         closeStage(contactId, tenantId, "QUEUE");
     }
@@ -157,6 +154,7 @@ public class ContactEventService {
      * @param agentId   UUID agenta
      * @param agentName imię i nazwisko agenta (może być null)
      */
+    @Override
     public void openAgent(UUID contactId, UUID tenantId, UUID agentId, String agentName) {
         try {
             Map<String, Object> meta = new HashMap<>();
@@ -175,6 +173,7 @@ public class ContactEventService {
      * @param contactId UUID kontaktu
      * @param tenantId  UUID tenanta
      */
+    @Override
     public void closeAgent(UUID contactId, UUID tenantId) {
         closeStage(contactId, tenantId, "AGENT");
     }
@@ -189,6 +188,7 @@ public class ContactEventService {
      * @param contactId UUID kontaktu
      * @param tenantId  UUID tenanta
      */
+    @Override
     public void openHold(UUID contactId, UUID tenantId) {
         try {
             repository.save(buildEvent(contactId, tenantId, "ON_HOLD", new HashMap<>()));
@@ -204,6 +204,7 @@ public class ContactEventService {
      * @param contactId UUID kontaktu
      * @param tenantId  UUID tenanta
      */
+    @Override
     public void closeHold(UUID contactId, UUID tenantId) {
         closeStage(contactId, tenantId, "ON_HOLD");
     }
@@ -219,6 +220,7 @@ public class ContactEventService {
      * @param tenantId  UUID tenanta
      * @param target    cel konsultacji (numer telefonu lub identyfikator agenta)
      */
+    @Override
     public void openConsulting(UUID contactId, UUID tenantId, String target) {
         openConsulting(contactId, tenantId, target, null);
     }
@@ -233,6 +235,7 @@ public class ContactEventService {
      * @param target    cel konsultacji (numer telefonu lub identyfikator agenta)
      * @param extraMeta dodatkowe metadane do scalenia (może być null)
      */
+    @Override
     public void openConsulting(UUID contactId, UUID tenantId, String target, Map<String, Object> extraMeta) {
         try {
             Map<String, Object> meta = new HashMap<>();
@@ -254,6 +257,7 @@ public class ContactEventService {
      * @param contactId UUID kontaktu
      * @param tenantId  UUID tenanta
      */
+    @Override
     public void closeConsulting(UUID contactId, UUID tenantId) {
         closeStage(contactId, tenantId, "CONSULTING");
     }
@@ -274,6 +278,7 @@ public class ContactEventService {
      * @param transferType    typ transferu (np. "BLIND", "ATTENDED")
      * @param targetAgentName imię agenta docelowego (może być null)
      */
+    @Override
     public void recordTransfer(UUID contactId, UUID tenantId,
                                String target, String transferType, String targetAgentName) {
         recordTransfer(contactId, tenantId, target, transferType, targetAgentName, null);
@@ -293,6 +298,7 @@ public class ContactEventService {
      * @param targetAgentName imię agenta docelowego (może być null)
      * @param extraMeta       dodatkowe metadane do scalenia (może być null)
      */
+    @Override
     public void recordTransfer(UUID contactId, UUID tenantId,
                                String target, String transferType, String targetAgentName,
                                Map<String, Object> extraMeta) {
@@ -337,6 +343,7 @@ public class ContactEventService {
      * @param tenantId  UUID tenanta
      * @return lista zdarzeń posortowana po started_at ASC (pusta przy błędzie)
      */
+    @Override
     public List<ContactEvent> getHistory(UUID contactId, UUID tenantId) {
         try {
             return repository.findByContactId(contactId, tenantId);

@@ -1,6 +1,6 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.contact;
 
-import com.contactcenter.domain.model.ContactAiSummary;
+import com.contactcenter.domain.repository.TenantAwareRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;

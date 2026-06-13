@@ -1,4 +1,4 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.contact;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.contact.dto.ContactFilterParams;
@@ -8,15 +8,11 @@ import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.api.contact.dto.DispositionRequest;
 import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
-import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.repository.QueueRepository;
-import com.contactcenter.domain.service.ContactEventService;
-import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
@@ -73,7 +69,7 @@ class ContactServiceTest {
     @Mock private TelephonyEventPublisher eventPublisher;
 
     @InjectMocks
-    private ContactService contactService;
+    private ContactServiceImpl contactService;
 
     @BeforeEach
     void setUp() {

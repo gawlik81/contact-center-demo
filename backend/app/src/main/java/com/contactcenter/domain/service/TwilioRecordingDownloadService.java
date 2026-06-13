@@ -2,8 +2,8 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.ContactTranscriptionRepository;
+import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactTranscriptionRepository;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;

@@ -1,4 +1,4 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.contact;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -15,7 +15,7 @@ import java.util.UUID;
  *
  * <p>Wartości wszystkich pól ustawiane są explicite w {@link com.contactcenter.domain.service.AiSummaryService}
  * – brak {@code @PrePersist}. Zapis odbywa się przez natywny INSERT w
- * {@link com.contactcenter.domain.repository.ContactAiSummaryRepository}.
+ * {@link com.contactcenter.domain.contact.ContactAiSummaryRepository}.
  */
 @Entity
 @Table(name = "contact_ai_summary")

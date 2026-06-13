@@ -10,7 +10,7 @@ import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.SupervisorMetricsService;
 import com.contactcenter.domain.websocket.WebSocketEvent;

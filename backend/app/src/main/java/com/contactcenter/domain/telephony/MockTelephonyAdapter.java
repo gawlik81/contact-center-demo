@@ -1,8 +1,8 @@
 package com.contactcenter.domain.telephony;
 
-import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.customer.Customer;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.customer.CliLookupService;
 import com.contactcenter.domain.customer.CustomerCliResult;

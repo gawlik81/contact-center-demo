@@ -6,7 +6,7 @@ import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignAssignmentRepository;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;

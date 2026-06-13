@@ -1,6 +1,6 @@
 package com.contactcenter.domain.service;
 
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -246,7 +246,7 @@ public class RecordingService {
     /**
      * Generuje presigned URL dla podanego klucza S3 z określonym TTL.
      *
-     * <p>Wywoływana przez {@link com.contactcenter.domain.service.ContactService#getRecordingUrl}
+     * <p>Wywoływana przez {@link com.contactcenter.domain.contact.ContactService#getRecordingUrl}
      * (BE-037), gdzie kontakt jest już załadowany z DB i znamy klucz S3.
      * Unika dodatkowego zapytania do bazy danych.
      *

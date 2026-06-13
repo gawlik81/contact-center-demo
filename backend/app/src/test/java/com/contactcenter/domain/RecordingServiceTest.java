@@ -1,6 +1,6 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.telephony.CallEvent;

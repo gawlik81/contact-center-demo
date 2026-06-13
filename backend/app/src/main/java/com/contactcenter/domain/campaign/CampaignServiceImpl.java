@@ -1,14 +1,10 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.campaign;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.campaign.dto.CampaignResponse;
 import com.contactcenter.api.campaign.dto.CreateCampaignRequest;
 import com.contactcenter.api.campaign.dto.UpdateCampaignRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
-import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.repository.CampaignAssignmentRepository;
-import com.contactcenter.domain.repository.CampaignContactRepository;
-import com.contactcenter.domain.repository.CampaignRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,29 +23,12 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Serwis domenowy zarządzający kampaniami wychodzącymi.
- *
- * <p>Pilnuje dozwolonych przejść statusów kampanii:
- * <pre>
- *   DRAFT      → SCHEDULED (start, jeśli start_date w przyszłości)
- *   DRAFT      → RUNNING   (start, jeśli harmonogram pusty lub aktualny)
- *   SCHEDULED  → RUNNING   (start)
- *   SCHEDULED  → DRAFT     (revertToDraft)
- *   RUNNING    → PAUSED    (pause)
- *   PAUSED     → RUNNING   (start/resume)
- *   RUNNING    → STOPPED   (stop)
- *   PAUSED     → STOPPED   (stop)
- *   SCHEDULED  → STOPPED   (stop)
- * </pre>
- *
- * <p>Waliduje harmonogram JSONB (end_date >= start_date, time_to > time_from).
- * Start kampanii poza oknem czasowym → {@link InvalidOperationException}.
- * Start kampanii bez kontaktów → {@link InvalidOperationException}.
+ * Implementacja {@link CampaignService}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CampaignService {
+class CampaignServiceImpl implements CampaignService {
 
     private static final String STATUS_DRAFT = "DRAFT";
     private static final String STATUS_SCHEDULED = "SCHEDULED";
@@ -75,6 +54,7 @@ public class CampaignService {
      * @return DTO nowo utworzonej kampanii
      */
     @Transactional
+    @Override
     public CampaignResponse createCampaign(CreateCampaignRequest request, UUID tenantId, UUID userId) {
         validateSchedule(request.schedule());
 
@@ -110,6 +90,7 @@ public class CampaignService {
      * @return stronicowana lista kampanii
      */
     @Transactional(readOnly = true)
+    @Override
     public PagedResponse<CampaignResponse> listCampaigns(UUID tenantId, int page, int size) {
         List<Campaign> campaigns = campaignRepository.findByTenantId(tenantId, page, size);
         long total = campaignRepository.countByTenantId(tenantId);
@@ -166,6 +147,7 @@ public class CampaignService {
      * @throws EntityNotFoundException gdy kampania nie istnieje lub należy do innego tenanta
      */
     @Transactional(readOnly = true)
+    @Override
     public CampaignResponse getCampaign(UUID campaignId, UUID tenantId) {
         Campaign campaign = findOrThrow(campaignId, tenantId);
         return CampaignResponse.from(campaign);
@@ -182,6 +164,7 @@ public class CampaignService {
      * @throws InvalidOperationException gdy kampania nie jest w statusie DRAFT
      */
     @Transactional
+    @Override
     public CampaignResponse updateCampaign(UUID campaignId, UpdateCampaignRequest request, UUID tenantId) {
         Campaign campaign = findOrThrow(campaignId, tenantId);
 
@@ -239,6 +222,7 @@ public class CampaignService {
      * @throws InvalidOperationException gdy przejście jest niedozwolone lub kampania nie spełnia warunków
      */
     @Transactional
+    @Override
     public CampaignResponse startCampaign(UUID campaignId, UUID tenantId) {
         Campaign campaign = findOrThrow(campaignId, tenantId);
         String currentStatus = campaign.getStatus();
@@ -286,6 +270,7 @@ public class CampaignService {
      * @throws InvalidOperationException gdy kampania nie jest w statusie RUNNING
      */
     @Transactional
+    @Override
     public CampaignResponse pauseCampaign(UUID campaignId, UUID tenantId) {
         Campaign campaign = findOrThrow(campaignId, tenantId);
         String currentStatus = campaign.getStatus();
@@ -317,6 +302,7 @@ public class CampaignService {
      * @throws InvalidOperationException gdy przejście jest niedozwolone
      */
     @Transactional
+    @Override
     public CampaignResponse stopCampaign(UUID campaignId, UUID tenantId) {
         Campaign campaign = findOrThrow(campaignId, tenantId);
         String currentStatus = campaign.getStatus();
@@ -351,6 +337,7 @@ public class CampaignService {
      * @throws InvalidOperationException gdy kampania nie jest w statusie SCHEDULED
      */
     @Transactional
+    @Override
     public CampaignResponse revertToDraft(UUID campaignId, UUID tenantId) {
         Campaign campaign = findOrThrow(campaignId, tenantId);
         String currentStatus = campaign.getStatus();
@@ -387,6 +374,7 @@ public class CampaignService {
      * @return {@code true} jeśli nazwa zajęta, {@code false} jeśli dostępna
      */
     @Transactional(readOnly = true)
+    @Override
     public boolean isNameTaken(String name, UUID tenantId, UUID excludeId) {
         return campaignRepository.existsByNameAndTenantId(name, tenantId, excludeId);
     }

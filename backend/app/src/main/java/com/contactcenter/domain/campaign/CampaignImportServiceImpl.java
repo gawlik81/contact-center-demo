@@ -1,8 +1,6 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.campaign;
 
 import com.contactcenter.domain.model.ImportJobStatus;
-import com.contactcenter.domain.repository.CampaignContactRepository;
-import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVParser;
@@ -31,9 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 /**
- * Serwis obsługujący asynchroniczny import kontaktów kampanii z pliku CSV.
- *
- * <p>Implementuje BE-023: Import CSV kontaktów kampanii (async job).
+ * Implementacja {@link CampaignImportService}.
  *
  * <p>Przepływ:
  * <ol>
@@ -46,16 +42,11 @@ import java.util.regex.Pattern;
  *
  * <p>Status joba przechowywany w Redis pod kluczem {@value #JOB_KEY_PREFIX}{jobId}
  * z TTL {@value #JOB_TTL_SECONDS} sekund (1h).
- *
- * <p>Format CSV: nagłówek {@code phone,first_name,last_name,custom_field_1,custom_field_2}
- * lub bez nagłówka (kolumna 0=phone, 1=first_name, 2=last_name).
- *
- * <p>Walidacja telefonu: format E.164 {@code +[1-15 cyfr]}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CampaignImportService {
+class CampaignImportServiceImpl implements CampaignImportService {
 
     // =========================================================================
     // Stałe
@@ -107,6 +98,7 @@ public class CampaignImportService {
      * @throws IllegalArgumentException  gdy plik jest za duży lub ma złe rozszerzenie
      * @throws EntityNotFoundException   gdy kampania nie istnieje lub należy do innego tenanta
      */
+    @Override
     public UUID initiateImport(UUID campaignId, MultipartFile file, boolean skipDuplicates,
                                String columnSeparator, String quoteChar, String columnMappingJson) {
         UUID tenantId = TenantContext.getTenantId();
@@ -385,6 +377,7 @@ public class CampaignImportService {
      * @param jobId UUID joba
      * @return status joba lub null gdy nie istnieje
      */
+    @Override
     public ImportJobStatus getJobStatus(UUID jobId) {
         return loadJobStatus(jobId);
     }

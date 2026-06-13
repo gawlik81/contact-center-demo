@@ -1,6 +1,6 @@
 package com.contactcenter.api.campaign.dto;
 
-import com.contactcenter.domain.model.Campaign;
+import com.contactcenter.domain.campaign.Campaign;
 
 import java.time.Instant;
 import java.util.List;

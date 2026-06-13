@@ -1,10 +1,6 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.campaign;
 
-import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.model.ImportJobStatus;
-import com.contactcenter.domain.repository.CampaignContactRepository;
-import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.service.CampaignImportService;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -59,7 +55,7 @@ class CampaignImportServiceTest {
     @Mock private ValueOperations<String, String> valueOps;
 
     // CampaignImportService używa @InjectMocks – ObjectMapper nie jest mockiem
-    private CampaignImportService service;
+    private CampaignImportServiceImpl service;
 
     @BeforeEach
     void setUp() {
@@ -74,7 +70,7 @@ class CampaignImportServiceTest {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
 
-        service = new CampaignImportService(
+        service = new CampaignImportServiceImpl(
                 campaignRepository,
                 campaignContactRepository,
                 stringRedisTemplate,
@@ -249,7 +245,7 @@ class CampaignImportServiceTest {
             verify(valueOps, atLeastOnce()).set(
                     argThat(key -> key.startsWith("import:job:")),
                     argThat(json -> json.contains("QUEUED")),
-                    eq(Duration.ofSeconds(CampaignImportService.JOB_TTL_SECONDS))
+                    eq(Duration.ofSeconds(CampaignImportServiceImpl.JOB_TTL_SECONDS))
             );
         }
     }

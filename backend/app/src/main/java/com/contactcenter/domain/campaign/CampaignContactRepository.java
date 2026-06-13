@@ -1,4 +1,6 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.campaign;
+
+import com.contactcenter.domain.repository.TenantAwareRepository;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.campaign.dto.CampaignContactResponse;

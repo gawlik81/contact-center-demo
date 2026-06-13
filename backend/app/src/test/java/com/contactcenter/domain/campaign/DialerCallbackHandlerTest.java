@@ -1,9 +1,5 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.campaign;
 
-import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ScheduledCallbackRepository;
-import com.contactcenter.domain.service.DialerCallbackHandler;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;
@@ -22,7 +18,6 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;
 
-import com.contactcenter.domain.model.ScheduledCallback;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -69,12 +64,12 @@ class DialerCallbackHandlerTest {
     @Mock private TelephonyAdapter telephonyAdapter;
     @Mock private ValueOperations<String, String> valueOps;
 
-    private DialerCallbackHandler handler;
+    private DialerCallbackHandlerImpl handler;
 
     @BeforeEach
     void setUp() {
         // Ręczna instancja – @RequiredArgsConstructor; kolejność pól musi być zgodna z deklaracją w klasie
-        handler = new DialerCallbackHandler(
+        handler = new DialerCallbackHandlerImpl(
                 scheduledCallbackRepository,
                 campaignRepository,
                 redisTemplate,

@@ -8,7 +8,7 @@ import java.util.UUID;
  *
  * <p>Pola {@code startDate}, {@code endDate}, {@code activeDays}, {@code activeHoursFrom},
  * {@code activeHoursTo} i {@code timezone} wyciągane są z pola JSONB {@code schedule}
- * encji {@link com.contactcenter.domain.model.Campaign}.
+ * encji {@link com.contactcenter.domain.campaign.Campaign}.
  *
  * <p>Format {@code schedule}:
  * <pre>

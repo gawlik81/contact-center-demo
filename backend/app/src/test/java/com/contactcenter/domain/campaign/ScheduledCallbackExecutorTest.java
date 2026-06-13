@@ -1,13 +1,9 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.campaign;
 
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.CampaignContactRepository;
-import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.tenant.TenantService;
-import com.contactcenter.domain.service.ScheduledCallbackExecutor;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;

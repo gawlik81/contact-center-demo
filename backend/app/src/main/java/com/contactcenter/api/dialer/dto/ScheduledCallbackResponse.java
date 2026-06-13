@@ -1,6 +1,6 @@
 package com.contactcenter.api.dialer.dto;
 
-import com.contactcenter.domain.model.ScheduledCallback;
+import com.contactcenter.domain.campaign.ScheduledCallback;
 
 import java.time.Instant;
 import java.util.UUID;

@@ -1,11 +1,7 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.campaign;
 
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
-import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.CampaignAssignmentRepository;
-import com.contactcenter.domain.repository.CampaignContactRepository;
-import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -97,7 +93,7 @@ class ProgressiveDialerServiceTest {
     private TenantTwilioConfigService tenantTwilioConfigService;
 
     @InjectMocks
-    private ProgressiveDialerService dialerService;
+    private ProgressiveDialerServiceImpl dialerService;
 
     @BeforeEach
     void setUp() {
@@ -332,7 +328,7 @@ class ProgressiveDialerServiceTest {
     @DisplayName("Metoda isCalledTooRecently nie istnieje – guard przez next_attempt_at jest autorytatywny")
     void isCalledTooRecently_methodDoesNotExist() {
         // Weryfikacja przez refleksję że zbędna metoda została usunięta
-        boolean methodExists = java.util.Arrays.stream(ProgressiveDialerService.class.getDeclaredMethods())
+        boolean methodExists = java.util.Arrays.stream(ProgressiveDialerServiceImpl.class.getDeclaredMethods())
                 .anyMatch(m -> m.getName().equals("isCalledTooRecently"));
         assertThat(methodExists)
                 .as("Metoda isCalledTooRecently powinna być usunięta – next_attempt_at jest autorytatywne")

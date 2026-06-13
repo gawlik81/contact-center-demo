@@ -1,8 +1,6 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.campaign;
 
-import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +29,7 @@ import java.util.Map;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class CampaignWindowActivator {
+class CampaignWindowActivator {
 
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Europe/Warsaw");
 

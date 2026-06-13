@@ -1,9 +1,5 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.campaign;
 
-import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -28,31 +24,13 @@ import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
- * Handler wyników połączeń inicjowanych przez Progressive Dialer.
- *
- * <p>Obsługuje trzy scenariusze zakończenia połączenia kampanijnego:
- * <ol>
- *   <li><strong>NO_ANSWER</strong> – brak odpowiedzi po 30s timeout: oznacza rekord
- *       campaign_contact jako NO_ANSWER i ustawia next_attempt_at na teraz + 4h.</li>
- *   <li><strong>ANSWERED</strong> – klient odebrał: aktualizuje status rekordu na CONNECTED
- *       i przekazuje połączenie agentowi przez TelephonyAdapter.</li>
- *   <li><strong>CALLBACK disposition</strong> – agent ustawił dyspozycję CALLBACK:
- *       tworzy rekord {@link ScheduledCallback} z datą/godziną wybraną przez agenta.</li>
- * </ol>
- *
- * <p>Wejście do handlera może być:
- * <ul>
- *   <li>Event RabbitMQ z routingiem {@code call.hangup} lub {@code call.answered}
- *       (gdy provider telefonii obsługuje eventy stanu połączenia)</li>
- *   <li>Wywołanie bezpośrednie przez {@link ProgressiveDialerService} lub kontroler
- *       po otrzymaniu dyspozycji od agenta</li>
- * </ul>
+ * Implementacja {@link DialerCallbackHandler}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "dialer.enabled", havingValue = "true", matchIfMissing = true)
-public class DialerCallbackHandler {
+class DialerCallbackHandlerImpl implements DialerCallbackHandler {
 
     // Wartości domyślne gdy kampania nie jest dostępna
     private static final int DEFAULT_MAX_ATTEMPTS = 3;
@@ -390,6 +368,7 @@ public class DialerCallbackHandler {
      * @return utworzony rekord ScheduledCallback
      */
     @Transactional
+    @Override
     public ScheduledCallback handleCallbackDisposition(UUID tenantId, UUID campaignId,
                                                         UUID recordId, UUID agentId,
                                                         String phone, String firstName, String lastName,

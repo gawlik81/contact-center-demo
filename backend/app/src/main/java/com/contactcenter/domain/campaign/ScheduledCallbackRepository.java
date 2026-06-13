@@ -1,6 +1,7 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.campaign;
 
-import com.contactcenter.domain.model.ScheduledCallback;
+import com.contactcenter.domain.repository.TenantAwareRepository;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;

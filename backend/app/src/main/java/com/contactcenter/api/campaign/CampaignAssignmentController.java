@@ -2,7 +2,7 @@ package com.contactcenter.api.campaign;
 
 import com.contactcenter.api.campaign.dto.CampaignAssignmentResponse;
 import com.contactcenter.api.campaign.dto.UpdateCampaignAssignmentRequest;
-import com.contactcenter.domain.service.CampaignAssignmentService;
+import com.contactcenter.domain.campaign.CampaignAssignmentService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

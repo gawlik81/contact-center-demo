@@ -18,7 +18,7 @@ import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.CampaignRepository;
+import com.contactcenter.domain.campaign.CampaignRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.telephony.CallSession;

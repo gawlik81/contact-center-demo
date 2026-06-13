@@ -1,6 +1,7 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.campaign;
 
-import com.contactcenter.domain.model.Campaign;
+import com.contactcenter.domain.repository.TenantAwareRepository;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -162,7 +163,7 @@ public class CampaignRepository extends TenantAwareRepository {
     /**
      * Pobiera kampanie RUNNING z typem dialera PROGRESSIVE dla danego tenanta.
      *
-     * <p>Używane wyłącznie przez {@link com.contactcenter.domain.service.ProgressiveDialerService}
+     * <p>Używane wyłącznie przez {@link com.contactcenter.domain.campaign.ProgressiveDialerServiceImpl}
      * przy automatycznym wybieraniu. Kampanie MANUAL i PREDICTIVE są świadomie wykluczone:
      * MANUAL wymaga ręcznej inicjacji połączenia przez agenta (endpoint POST /api/dialer/manual/call),
      * a PREDICTIVE nie jest jeszcze zaimplementowany.
@@ -284,7 +285,7 @@ public class CampaignRepository extends TenantAwareRepository {
     /**
      * Pobiera wszystkie kampanie w statusach RUNNING lub PAUSED dla danego tenanta.
      *
-     * <p>Używane przez {@link com.contactcenter.domain.service.CampaignWindowActivator}
+     * <p>Używane przez {@link com.contactcenter.domain.campaign.CampaignWindowActivator}
      * do automatycznego kończenia kampanii po upłynięciu end_date.
      *
      * @param tenantId UUID tenanta
@@ -313,7 +314,7 @@ public class CampaignRepository extends TenantAwareRepository {
     /**
      * Pobiera wszystkie kampanie w statusie SCHEDULED dla danego tenanta.
      *
-     * <p>Używane przez {@link com.contactcenter.domain.service.CampaignWindowActivator}
+     * <p>Używane przez {@link com.contactcenter.domain.campaign.CampaignWindowActivator}
      * do automatycznego przejścia SCHEDULED → RUNNING gdy kampania wchodzi w okno czasowe.
      *
      * @param tenantId UUID tenanta

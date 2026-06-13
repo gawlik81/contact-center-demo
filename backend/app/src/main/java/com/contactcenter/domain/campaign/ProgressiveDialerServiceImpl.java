@@ -1,13 +1,9 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.campaign;
 
 import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
-import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.CampaignAssignmentRepository;
-import com.contactcenter.domain.repository.CampaignContactRepository;
-import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -40,33 +36,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Silnik Progressive Dialer – automatyczne dzwonienie dla kampanii wychodzących.
- *
- * <p>Nasłuchuje na eventy {@code agent.status.changed} z kolejki RabbitMQ.
- * Gdy agent zmienia status na AVAILABLE i istnieje aktywna kampania (status=RUNNING)
- * mieszcząca się w oknie harmonogramu, dialer pobiera następny kontakt PENDING
- * z listy kampanii i inicjuje połączenie przez {@link TelephonyAdapter}.
- *
- * <p>Ochrona przed race condition: {@link #initiateDialForAgent} ustawia klucz Redis
- * {@code dialer:agent:{agentId}} z TTL 60s (SET NX). Jeśli klucz istnieje → agent już
- * obsługiwany przez dialer, metoda zwraca bez działania. Dzięki temu zarówno eventy
- * RabbitMQ jak i cykliczny scheduler korzystają z tej samej blokady.
- *
- * <p>Aktywny warunkowo przez właściwość {@code dialer.enabled} (domyślnie: true).
- * Wyłącz przez {@code DIALER_ENABLED=false} w ENV vars.
- *
- * <p>Klucze Redis:
- * <ul>
- *   <li>{@code dialer:agent:{agentId}} → callSid, TTL 60s (guard przed duplikacją)</li>
- *   <li>{@code dialer:call:{callSid}} → JSON z campaignContactId/agentId/tenantId/campaignId, TTL 60s</li>
- *   <li>{@code dialer:timeout:{callSid}} → "", TTL = campaign.ringTimeoutSeconds (po wygaśnięciu = NO_ANSWER)</li>
- * </ul>
+ * Implementacja {@link ProgressiveDialerService}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "dialer.enabled", havingValue = "true", matchIfMissing = true)
-public class ProgressiveDialerService {
+class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
 
     // Redis TTL (sekundy)
     private static final int AGENT_LOCK_TTL_SECONDS   = 60;
@@ -150,6 +126,7 @@ public class ProgressiveDialerService {
      * @param event zdarzenie zmiany statusu agenta
      */
     @RabbitListener(queues = RabbitMQConfig.QUEUE_DIALER_AGENT_STATUS)
+    @Override
     public void onAgentStatusChanged(AgentStatusChangedEvent event) {
         // Filtrujemy tylko zdarzenia AVAILABLE
         if (event.newStatus() != UserStatus.AVAILABLE) {
@@ -193,6 +170,7 @@ public class ProgressiveDialerService {
      * – jeśli agent jest już obsługiwany przez dialer, metoda zwróci bez działania.
      */
     @Scheduled(fixedDelayString = "${dialer.agent-poll-interval-ms:30000}")
+    @Override
     public void pollAvailableAgents() {
         List<AppUser> availableAgents = userService.findAvailableAgents();
 
@@ -243,6 +221,7 @@ public class ProgressiveDialerService {
      * @param tenantId UUID tenanta
      */
     @Transactional
+    @Override
     public void initiateDialForAgent(UUID agentId, UUID tenantId) {
         // Ochrona przed race condition: SET NX z TTL 60s
         // Pojedyncze miejsce zarządzania blokadą – niezależnie od tego, czy wywołanie pochodzi
@@ -357,6 +336,7 @@ public class ProgressiveDialerService {
      * @param campaign kampania do sprawdzenia
      * @return true gdy kampania jest w oknie harmonogramu
      */
+    @Override
     public boolean isInSchedule(Campaign campaign) {
         Map<String, Object> schedule = campaign.getSchedule();
 
@@ -523,6 +503,7 @@ public class ProgressiveDialerService {
      * @param agentId           UUID agenta
      * @param tenantId          UUID tenanta
      */
+    @Override
     public void saveCallState(String callSid, UUID campaignContactId,
                                UUID campaignId, UUID agentId, UUID tenantId) {
         String callKey = "dialer:call:" + callSid;
@@ -540,6 +521,7 @@ public class ProgressiveDialerService {
      * @param callSid        identyfikator sesji telefonicznej
      * @param timeoutSeconds czas oczekiwania na odebranie (konfigurowany per kampania)
      */
+    @Override
     public void scheduleNoAnswerTimeout(String callSid, int timeoutSeconds) {
         String timeoutKey = "dialer:timeout:" + callSid;
         redisTemplate.opsForValue().set(timeoutKey, "", Duration.ofSeconds(timeoutSeconds));

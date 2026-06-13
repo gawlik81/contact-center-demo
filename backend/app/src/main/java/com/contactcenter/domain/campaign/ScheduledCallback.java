@@ -1,4 +1,4 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.campaign;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -11,7 +11,7 @@ import java.util.UUID;
  * Encja reprezentująca zaplanowane oddzwonienie do klienta.
  *
  * <p>Mapuje tabelę {@code scheduled_callback} (schemat z V009__create_campaign.sql).
- * Rekordy tworzone są przez {@link com.contactcenter.domain.service.DialerCallbackHandler}
+ * Rekordy tworzone są przez {@link com.contactcenter.domain.campaign.DialerCallbackHandlerImpl}
  * gdy agent ustawi dyspozycję CALLBACK po rozmowie.
  *
  * <p>Statusy: PENDING → PROCESSING → COMPLETED | CANCELLED.

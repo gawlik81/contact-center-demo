@@ -1,11 +1,8 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.campaign;
 
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.CampaignContactRepository;
-import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.tenant.TenantService;
@@ -49,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "dialer.enabled", havingValue = "true", matchIfMissing = true)
-public class ScheduledCallbackExecutor {
+class ScheduledCallbackExecutor {
 
     private final TenantService tenantService;
     private final ScheduledCallbackRepository callbackRepository;

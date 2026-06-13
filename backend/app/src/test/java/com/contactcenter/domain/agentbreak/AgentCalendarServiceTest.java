@@ -1,10 +1,10 @@
 package com.contactcenter.domain.agentbreak;
 
 import com.contactcenter.api.agentbreak.dto.AgentCalendarResponse;
-import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ScheduledCallbackRepository;
+import com.contactcenter.domain.campaign.Campaign;
+import com.contactcenter.domain.campaign.ScheduledCallback;
+import com.contactcenter.domain.campaign.CampaignRepository;
+import com.contactcenter.domain.campaign.ScheduledCallbackRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

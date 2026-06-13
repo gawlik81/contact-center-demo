@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.campaign;
 
 import com.contactcenter.api.agentgroup.dto.AgentSummary;
 import com.contactcenter.api.campaign.dto.CampaignAssignmentResponse;
@@ -8,10 +8,7 @@ import com.contactcenter.domain.agentgroup.AgentGroup;
 import com.contactcenter.domain.agentgroup.AgentGroupRepository;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.CampaignAssignmentRepository;
-import com.contactcenter.domain.repository.CampaignRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,24 +19,12 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Serwis domenowy zarządzający przypisaniem agentów i grup do kampanii (BE-080).
- *
- * <p>Implementuje logikę GET i PUT /api/campaigns/{campaignId}/assignment:
- * <ul>
- *   <li>Odczyt aktualnego stanu przypisania (flaga all_agents + listy bezpośrednich
- *       agentów i grup z enrichowanymi danymi)</li>
- *   <li>Podmiana przypisania – obsługa trybu allAgents=true (flaga) i
- *       allAgents=false (jawne listy agentów i grup)</li>
- *   <li>Walidacja: każdy directAgentId musi należeć do tenanta i mieć rolę AGENT;
- *       każdy groupId musi należeć do tenanta</li>
- * </ul>
- *
- * <p>Wzorowany 1:1 na {@link QueueAssignmentService}.
+ * Implementacja {@link CampaignAssignmentService}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CampaignAssignmentService {
+class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
 
     private final CampaignRepository campaignRepository;
     private final CampaignAssignmentRepository campaignAssignmentRepository;
@@ -61,6 +46,7 @@ public class CampaignAssignmentService {
      * @throws ResourceNotFoundException gdy kampania nie istnieje lub nie należy do tenanta
      */
     @Transactional(readOnly = true)
+    @Override
     public CampaignAssignmentResponse getAssignment(UUID campaignId, UUID tenantId) {
         log.debug("[CampaignAssignmentService] Odczyt przypisania: campaignId={}, tenant={}", campaignId, tenantId);
 
@@ -109,6 +95,7 @@ public class CampaignAssignmentService {
      *                                   lub agent nie ma roli AGENT (HTTP 400)
      */
     @Transactional
+    @Override
     public CampaignAssignmentResponse updateAssignment(UUID campaignId, UpdateCampaignAssignmentRequest request,
                                                        UUID tenantId) {
         log.debug("[CampaignAssignmentService] Aktualizacja przypisania: campaignId={}, tenant={}, allAgents={}",

@@ -1,12 +1,12 @@
 package com.contactcenter.domain.telephony;
 
 import com.contactcenter.domain.tenant.TwilioConfigChangedEvent;
-import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -19,7 +19,7 @@ import com.contactcenter.domain.service.CustomerCliResult;
 import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
-import com.contactcenter.domain.service.UserService;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import com.contactcenter.infrastructure.config.TwilioProperties;

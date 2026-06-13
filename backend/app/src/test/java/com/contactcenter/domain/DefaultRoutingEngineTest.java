@@ -1,7 +1,7 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.routing.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -435,7 +435,7 @@ class DefaultRoutingEngineTest {
     /**
      * Stub batch query aktywnych kontaktów per agent.
      *
-     * <p>Przygotowuje wynik {@link com.contactcenter.domain.repository.AppUserRepository#countActiveContactsByAgentIds}
+     * <p>Przygotowuje wynik {@link com.contactcenter.domain.user.AppUserRepository#countActiveContactsByAgentIds}
      * jako listę par [agentId, count]. Kolejność agentIds i counts musi się zgadzać.
      *
      * @param tenantId  UUID tenanta

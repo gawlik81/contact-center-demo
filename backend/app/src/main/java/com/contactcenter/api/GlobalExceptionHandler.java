@@ -12,7 +12,7 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.RateLimitExceededException;
 import com.contactcenter.domain.exception.ResourceLimitExceededException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.service.AuthService;
+import com.contactcenter.domain.user.InvalidTokenException;
 import com.contactcenter.security.MfaService;
 import jakarta.persistence.EntityNotFoundException;
 import org.hibernate.exception.GenericJDBCException;
@@ -172,9 +172,9 @@ public class GlobalExceptionHandler {
     /**
      * Nieprawidłowy lub wygasły refresh token – HTTP 401.
      */
-    @ExceptionHandler(AuthService.InvalidTokenException.class)
+    @ExceptionHandler(InvalidTokenException.class)
     public ResponseEntity<ProblemDetail> handleInvalidTokenException(
-            AuthService.InvalidTokenException ex, WebRequest request) {
+            InvalidTokenException ex, WebRequest request) {
 
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNAUTHORIZED);
         problem.setType(URI.create(ERROR_BASE_URI + "invalid-token"));

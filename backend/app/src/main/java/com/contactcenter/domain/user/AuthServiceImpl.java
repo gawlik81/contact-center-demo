@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.user;
 
 import com.contactcenter.api.auth.dto.ChangePasswordRequest;
 import com.contactcenter.api.auth.dto.LoginRequest;
@@ -9,12 +9,8 @@ import com.contactcenter.api.auth.dto.MfaVerifyRequest;
 import com.contactcenter.api.auth.dto.RefreshRequest;
 import com.contactcenter.api.user.dto.UpdateStatusRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserStatus;
-import com.contactcenter.domain.model.RefreshToken;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.RefreshTokenRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.*;
 import com.contactcenter.security.JwtParser.JwtClaims;
@@ -56,7 +52,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AuthService {
+class AuthServiceImpl implements AuthService {
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -96,6 +92,7 @@ public class AuthService {
      * @throws DisabledException       gdy konto nieaktywne
      */
     @Transactional
+    @Override
     public LoginResponse login(LoginRequest request, String ip) {
         // Rate limiting: sprawdź i inkrementuj licznik dla IP
         loginRateLimiter.checkAndIncrement(ip);
@@ -170,6 +167,7 @@ public class AuthService {
      * @throws InvalidTokenException gdy token wygasł, unieważniony lub nieistniejący
      */
     @Transactional
+    @Override
     public LoginResponse refresh(RefreshRequest request) {
         RefreshToken refreshToken = refreshTokenRepository.findByToken(request.refreshToken())
                 .orElseThrow(() -> {
@@ -223,6 +221,7 @@ public class AuthService {
      * @param logoutRequest zawiera refresh token do unieważnienia
      */
     @Transactional
+    @Override
     public void logout(String accessToken, LogoutRequest logoutRequest) {
         // Krok 1: Blacklista access tokenu w Redis
         blacklistAccessToken(accessToken);
@@ -246,6 +245,7 @@ public class AuthService {
      * @param userId      UUID użytkownika
      */
     @Transactional
+    @Override
     public void logoutAll(String accessToken, UUID userId) {
         blacklistAccessToken(accessToken);
         int count = refreshTokenRepository.revokeAllByUserId(userId);
@@ -289,6 +289,7 @@ public class AuthService {
      * @throws IllegalStateException gdy MFA już aktywne
      */
     @Transactional
+    @Override
     public MfaSetupResponse setupMfa(UUID userId, String userEmail) {
         AppUser user = appUserRepository.findById(userId)
                 .orElseThrow(() -> new InvalidOperationException("Użytkownik nie istnieje"));
@@ -326,6 +327,7 @@ public class AuthService {
      * @throws BadCredentialsException gdy kod TOTP nieprawidłowy
      */
     @Transactional
+    @Override
     public String verifyMfa(UUID userId, MfaVerifyRequest request, String oldAccessToken) {
         AppUser user = appUserRepository.findById(userId)
                 .orElseThrow(() -> new BadCredentialsException("Użytkownik nie istnieje"));
@@ -385,6 +387,7 @@ public class AuthService {
      * @throws IllegalArgumentException gdy nowe hasło nie spełnia wymagań siły
      */
     @Transactional
+    @Override
     public LoginResponse changePassword(UUID userId, UUID tenantId,
                                         ChangePasswordRequest request, String oldAccessToken) {
         AppUser user = appUserRepository.findById(userId)
@@ -445,6 +448,7 @@ public class AuthService {
      * @throws AccessDeniedException    gdy SUPERVISOR próbuje resetować użytkownika innego tenanta
      */
     @Transactional
+    @Override
     public void forcePasswordReset(UUID targetUserId, UUID callerTenantId, String callerRole) {
         AppUser target = appUserRepository.findById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Użytkownik nie istnieje"));
@@ -555,16 +559,5 @@ public class AuthService {
     private String maskToken(String token) {
         if (token == null || token.length() < 8) return "***";
         return token.substring(0, 8) + "...";
-    }
-
-    // =========================================================================
-    // Wyjątki domenowe
-    // =========================================================================
-
-    /** Rzucany gdy refresh token jest nieprawidłowy, wygasł lub został unieważniony. */
-    public static class InvalidTokenException extends RuntimeException {
-        public InvalidTokenException(String message) {
-            super(message);
-        }
     }
 }

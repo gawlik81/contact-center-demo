@@ -2,7 +2,7 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.CampaignAssignmentRepository;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;

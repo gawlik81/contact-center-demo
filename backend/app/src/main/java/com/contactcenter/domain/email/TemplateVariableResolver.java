@@ -1,9 +1,9 @@
 package com.contactcenter.domain.email;
 
-import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.security.TenantContext;

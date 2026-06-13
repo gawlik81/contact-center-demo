@@ -1,9 +1,9 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.tenant.TenantService;

@@ -10,7 +10,7 @@ import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;

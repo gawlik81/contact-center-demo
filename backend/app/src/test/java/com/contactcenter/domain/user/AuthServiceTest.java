@@ -1,4 +1,4 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.user;
 
 import com.contactcenter.api.auth.dto.ChangePasswordRequest;
 import com.contactcenter.api.auth.dto.LoginRequest;
@@ -8,17 +8,10 @@ import com.contactcenter.api.auth.dto.MfaVerifyRequest;
 import com.contactcenter.api.auth.dto.RefreshRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.RateLimitExceededException;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserRole;
-import com.contactcenter.domain.model.AppUser.UserStatus;
-import com.contactcenter.domain.model.RefreshToken;
+import com.contactcenter.domain.user.AppUser.UserRole;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.RefreshTokenRepository;
 import com.contactcenter.domain.tenant.TenantService;
-import com.contactcenter.domain.service.AuthService;
-import com.contactcenter.domain.service.AuthService.InvalidTokenException;
-import com.contactcenter.domain.service.UserService;
 import com.contactcenter.security.AppUserDetails;
 import com.contactcenter.security.JwtParser;
 import com.contactcenter.security.JwtService;
@@ -100,7 +93,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(
+        authService = new AuthServiceImpl(
                 authenticationManager, jwtService, jwtParser, tokenBlacklistService,
                 mfaService, appUserRepository, refreshTokenRepository, tenantService,
                 passwordEncoder, loginRateLimiter, userService

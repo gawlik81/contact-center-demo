@@ -1,6 +1,6 @@
 package com.contactcenter.security;
 
-import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.user.AppUser;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;

@@ -9,7 +9,7 @@ import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.service.AdminMetricsService;
 import com.contactcenter.infrastructure.aspect.Audited;

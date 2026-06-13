@@ -1,10 +1,10 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserStatus;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.CampaignAssignmentRepository;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;

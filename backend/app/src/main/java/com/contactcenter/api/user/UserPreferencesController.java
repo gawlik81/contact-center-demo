@@ -1,7 +1,7 @@
 package com.contactcenter.api.user;
 
 import com.contactcenter.api.user.dto.UserPreferencesDto;
-import com.contactcenter.domain.service.UserPreferencesService;
+import com.contactcenter.domain.user.UserPreferencesService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

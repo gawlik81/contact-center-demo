@@ -1,9 +1,7 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.user;
 
 import com.contactcenter.api.user.dto.UserPreferencesDto;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.repository.AppUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -12,21 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Serwis domenowy zarządzający preferencjami użytkownika (BE-054).
- *
- * <p>Operuje na encji {@link AppUser} — odczyt i zapis pola {@code preferredLanguage}
- * dodanego migracją V050.
- *
- * <p>Bezpieczeństwo:
- * <ul>
- *   <li>Każda operacja filtruje po tenantId – uniemożliwia cross-tenant access</li>
- *   <li>userId pochodzi z JWT (TenantContext) – nie z path variable</li>
- * </ul>
+ * Implementacja {@link UserPreferencesService}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class UserPreferencesService {
+class UserPreferencesServiceImpl implements UserPreferencesService {
 
     private final AppUserRepository appUserRepository;
 
@@ -42,6 +31,7 @@ public class UserPreferencesService {
      * @return DTO z preferencjami użytkownika
      * @throws ResourceNotFoundException gdy użytkownik nie istnieje lub należy do innego tenanta
      */
+    @Override
     @Transactional(readOnly = true)
     public UserPreferencesDto getPreferences(UUID userId, UUID tenantId) {
         AppUser user = findUserOrThrow(userId, tenantId);
@@ -63,6 +53,7 @@ public class UserPreferencesService {
      * @return DTO ze zaktualizowanymi preferencjami
      * @throws ResourceNotFoundException gdy użytkownik nie istnieje lub należy do innego tenanta
      */
+    @Override
     @Transactional
     public UserPreferencesDto updatePreferences(UUID userId, UUID tenantId, UserPreferencesDto dto) {
         AppUser user = findUserOrThrow(userId, tenantId);

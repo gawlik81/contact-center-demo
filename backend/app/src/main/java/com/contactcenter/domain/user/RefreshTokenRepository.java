@@ -1,6 +1,5 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.user;
 
-import com.contactcenter.domain.model.RefreshToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -18,7 +17,7 @@ import java.util.UUID;
  * (zarządzane przez warstwę serwisową z @Transactional).
  */
 @Repository
-public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
+interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
 
     /** Znajdź token po jego wartości string (używane przy refresh i logout). */
     Optional<RefreshToken> findByToken(String token);

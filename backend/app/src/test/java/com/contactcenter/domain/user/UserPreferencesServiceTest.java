@@ -1,12 +1,9 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.user;
 
 import com.contactcenter.api.user.dto.UserPreferencesDto;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserRole;
-import com.contactcenter.domain.model.AppUser.UserStatus;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.service.UserPreferencesService;
+import com.contactcenter.domain.user.AppUser.UserRole;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -41,7 +38,7 @@ class UserPreferencesServiceTest {
     private AppUserRepository appUserRepository;
 
     @InjectMocks
-    private UserPreferencesService userPreferencesService;
+    private UserPreferencesServiceImpl userPreferencesService;
 
     private AppUser buildUser(String preferredLanguage) {
         return AppUser.builder()

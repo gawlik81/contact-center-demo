@@ -1,13 +1,10 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.user;
 
 import com.contactcenter.api.user.dto.*;
 import com.contactcenter.domain.exception.ConflictException;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserRole;
-import com.contactcenter.domain.model.AppUser.UserStatus;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUser.UserRole;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.TenantResourceLimitService;
-import com.contactcenter.domain.service.UserService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
@@ -58,7 +55,7 @@ class UserServiceTest {
     @Mock private ValueOperations<String, Object> valueOperations;
 
     @InjectMocks
-    private UserService userService;
+    private UserServiceImpl userService;
 
     @BeforeEach
     void setUp() {

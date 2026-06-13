@@ -1,6 +1,6 @@
 package com.contactcenter.domain.routing;
 
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
@@ -462,7 +462,7 @@ public class DefaultRoutingEngine implements RoutingEngine {
      * Spośród listy kandydatów wybiera agenta z najmniejszą liczbą aktywnych kontaktów.
      *
      * <p>Aktywne kontakty: status IN (QUEUED, ACTIVE, ON_HOLD). Używa jednego zapytania
-     * SQL batch ({@link com.contactcenter.domain.repository.AppUserRepository#countActiveContactsByAgentIds})
+     * SQL batch ({@link com.contactcenter.domain.user.AppUserRepository#countActiveContactsByAgentIds})
      * zamiast N osobnych SELECT COUNT(*) – eliminuje problem N+1 zapytań.
      *
      * <p>Agenci, którzy nie pojawią się w wyniku batch query (0 aktywnych kontaktów),

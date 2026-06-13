@@ -5,7 +5,7 @@ import com.contactcenter.api.admin.dto.TenantDetailMetrics;
 import com.contactcenter.api.admin.dto.TenantMetrics;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import jakarta.persistence.EntityNotFoundException;

@@ -1,8 +1,8 @@
 package com.contactcenter.api.user.dto;
 
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserRole;
-import com.contactcenter.domain.model.AppUser.UserStatus;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.AppUser.UserRole;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 
 import java.time.Instant;
 import java.util.List;

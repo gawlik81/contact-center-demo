@@ -1,14 +1,9 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.user;
 
 import com.contactcenter.api.auth.dto.ChangePasswordRequest;
 import com.contactcenter.api.auth.dto.LoginResponse;
-import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.RefreshTokenRepository;
 import com.contactcenter.domain.tenant.TenantService;
-import com.contactcenter.domain.service.AuthService;
-import com.contactcenter.domain.service.UserService;
 import com.contactcenter.security.*;
 import com.contactcenter.security.JwtParser.JwtClaims;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,7 +65,7 @@ class AuthServiceChangePasswordTest {
         tenant.setName("Test Tenant");
         when(tenantService.findTenantEntity(any())).thenReturn(Optional.of(tenant));
 
-        authService = new AuthService(
+        authService = new AuthServiceImpl(
                 authenticationManager, jwtService, jwtParser,
                 tokenBlacklistService, mfaService,
                 appUserRepository, refreshTokenRepository,

@@ -1,7 +1,7 @@
 package com.contactcenter.security;
 
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.AppUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;

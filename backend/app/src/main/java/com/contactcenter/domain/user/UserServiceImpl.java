@@ -1,12 +1,11 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.user;
 
 import com.contactcenter.api.user.dto.*;
 import com.contactcenter.domain.exception.ConflictException;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserRole;
-import com.contactcenter.domain.model.AppUser.UserStatus;
+import com.contactcenter.domain.user.AppUser.UserRole;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.TenantResourceLimitService;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
@@ -48,7 +47,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class UserService {
+class UserServiceImpl implements UserService {
 
     private static final String REDIS_AGENT_STATUS_KEY = "session:agent:%s";
     private static final Duration REDIS_AGENT_STATUS_TTL = Duration.ofHours(8);
@@ -88,6 +87,7 @@ public class UserService {
      */
     @Transactional
     @Audited(action = "USER_CREATED", entityType = "USER")
+    @Override
     public UserResponse createUser(CreateUserRequest request, UUID tenantId) {
         // Supervisor nie może tworzyć użytkowników z rolą ADMIN
         String callerRole = TenantContext.getUserRole();
@@ -145,6 +145,7 @@ public class UserService {
      * @return strona DTO użytkowników
      */
     @Transactional(readOnly = true)
+    @Override
     public Page<UserResponse> listUsers(UUID tenantId, String status, String skill, String role, String search, Pageable pageable) {
         String statusParam = blank(status) ? null : status.trim();
         String skillParam  = blank(skill)  ? null : skill.trim();
@@ -172,6 +173,7 @@ public class UserService {
      * @throws EntityNotFoundException HTTP 422 gdy użytkownik nie istnieje
      */
     @Transactional(readOnly = true)
+    @Override
     public UserResponse getUser(UUID userId, UUID tenantId) {
         AppUser user = findUserOrThrow(userId, tenantId);
         return UserResponse.from(user);
@@ -196,6 +198,7 @@ public class UserService {
     @Transactional
     @Audited(action = "USER_UPDATED", entityType = "USER", captureOldValue = true,
              fetchOldValueMethod = "getUser", entityIdParamIndex = 0)
+    @Override
     public UserResponse updateUser(UUID userId, UpdateUserRequest request, UUID tenantId) {
         AppUser user = findUserOrThrow(userId, tenantId);
 
@@ -243,6 +246,7 @@ public class UserService {
     @Transactional
     @Audited(action = "USER_DELETED", entityType = "USER", captureOldValue = true,
              fetchOldValueMethod = "getUser", entityIdParamIndex = 0)
+    @Override
     public void deleteUser(UUID userId, UUID tenantId, UUID requestingUserId) {
         // Nie można usunąć siebie
         if (userId.equals(requestingUserId)) {
@@ -282,6 +286,7 @@ public class UserService {
      * @return posortowana lista unikalnych skill tagów
      */
     @Transactional(readOnly = true)
+    @Override
     public List<String> listSkills(UUID tenantId) {
         return appUserRepository.findAllDistinctSkillsByTenantId(tenantId);
     }
@@ -312,6 +317,7 @@ public class UserService {
      * @throws EntityNotFoundException  HTTP 422 gdy użytkownik nie istnieje
      */
     @Transactional
+    @Override
     public UserResponse updateStatus(UUID userId, UpdateStatusRequest request, UUID tenantId) {
         // Walidacja dozwolonych statusów
         if (!ALLOWED_AGENT_STATUSES.contains(request.status())) {
@@ -407,6 +413,7 @@ public class UserService {
      * @param tenantId UUID tenanta
      */
     @Transactional
+    @Override
     public void setAgentAvailableAfterConsultCancelled(UUID agentId, UUID tenantId) {
         log.info("[UserService] Konsultacja anulowana – ustawiam AVAILABLE: agentId={}, tenant={}",
                 agentId, tenantId);

@@ -1,13 +1,11 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.user;
 
 import com.contactcenter.api.user.dto.AdminCreateUserRequest;
 import com.contactcenter.api.user.dto.AdminUpdateUserRequest;
 import com.contactcenter.api.user.dto.UserResponse;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserRole;
-import com.contactcenter.domain.model.AppUser.UserStatus;
+import com.contactcenter.domain.user.AppUser.UserRole;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.TenantResourceLimitService;
-import com.contactcenter.domain.repository.AppUserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +37,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AdminUserService {
+class AdminUserServiceImpl implements AdminUserService {
 
     private final AppUserRepository appUserRepository;
     private final PasswordEncoder passwordEncoder;
@@ -59,6 +57,7 @@ public class AdminUserService {
      * @param pageable parametry stronicowania
      * @return paginowana odpowiedź z DTO użytkowników
      */
+    @Override
     @Transactional(readOnly = true)
     public Page<UserResponse> listUsers(UUID tenantId, Pageable pageable) {
         Page<AppUser> page;
@@ -84,6 +83,7 @@ public class AdminUserService {
      * @return DTO nowo utworzonego użytkownika
      * @throws IllegalArgumentException HTTP 422 gdy email zajęty w tenancie
      */
+    @Override
     @Transactional
     public UserResponse createUser(AdminCreateUserRequest request) {
         UUID tenantId = request.tenantId();
@@ -137,6 +137,7 @@ public class AdminUserService {
      * @throws EntityNotFoundException HTTP 404 gdy użytkownik nie istnieje lub usunięty
      * @throws IllegalArgumentException HTTP 422 gdy email zajęty w tenancie
      */
+    @Override
     @Transactional
     public UserResponse updateUser(UUID userId, AdminUpdateUserRequest request) {
         AppUser user = appUserRepository.findById(userId)
@@ -190,6 +191,7 @@ public class AdminUserService {
      * @param userId UUID użytkownika do usunięcia
      * @throws EntityNotFoundException HTTP 404 gdy użytkownik nie istnieje lub już usunięty
      */
+    @Override
     @Transactional
     public void deleteUser(UUID userId) {
         AppUser user = appUserRepository.findById(userId)
@@ -219,6 +221,7 @@ public class AdminUserService {
      * @param userId UUID użytkownika
      * @throws EntityNotFoundException HTTP 404 gdy użytkownik nie istnieje lub usunięty
      */
+    @Override
     @Transactional
     public void forcePasswordReset(UUID userId) {
         AppUser user = appUserRepository.findById(userId)

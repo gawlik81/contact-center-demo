@@ -2,8 +2,8 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.api.telephony.dto.TransferAgentResponse;
 import com.contactcenter.api.telephony.dto.TransferQueueResponse;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.TransferAgentQueueRepository;
 import com.contactcenter.domain.repository.TransferQueueStatsRepository;
 import lombok.RequiredArgsConstructor;

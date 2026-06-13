@@ -1,12 +1,12 @@
 package com.contactcenter.domain.agentbreak;
 
 import com.contactcenter.api.user.dto.UpdateStatusRequest;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserStatus;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.tenant.TenantService;
-import com.contactcenter.domain.service.UserService;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

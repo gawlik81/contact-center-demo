@@ -1,10 +1,10 @@
 package com.contactcenter.domain.email;
 
 import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.service.RoutingService;

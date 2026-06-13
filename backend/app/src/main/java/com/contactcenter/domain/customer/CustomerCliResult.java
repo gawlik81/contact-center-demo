@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.customer;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 

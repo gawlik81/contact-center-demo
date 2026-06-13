@@ -6,7 +6,7 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerRepository;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.routing.ContactAssignedEvent;

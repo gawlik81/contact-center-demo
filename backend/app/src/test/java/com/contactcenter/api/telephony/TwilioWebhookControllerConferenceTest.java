@@ -2,7 +2,7 @@ package com.contactcenter.api.telephony;
 
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerRepository;
 import com.contactcenter.domain.service.ContactService;
 import com.contactcenter.domain.service.IncomingCallRoutingService;
 import com.contactcenter.domain.service.IvrEngineService;

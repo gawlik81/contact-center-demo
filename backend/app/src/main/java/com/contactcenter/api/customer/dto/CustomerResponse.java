@@ -1,6 +1,6 @@
 package com.contactcenter.api.customer.dto;
 
-import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.customer.Customer;
 
 import java.time.Instant;
 import java.util.List;

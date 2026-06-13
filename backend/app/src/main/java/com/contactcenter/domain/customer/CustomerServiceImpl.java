@@ -1,12 +1,10 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.customer;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.customer.dto.CreateCustomerRequest;
 import com.contactcenter.api.customer.dto.CustomerLookupResponse;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import jakarta.persistence.EntityNotFoundException;
@@ -44,7 +42,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CustomerService {
+class CustomerServiceImpl implements CustomerService {
 
     private static final int DEFAULT_SEARCH_LIMIT = 20;
     private static final int MAX_PAGE_SIZE = 100;
@@ -67,6 +65,7 @@ public class CustomerService {
      */
     @Transactional
     @Audited(action = "CUSTOMER_CREATED", entityType = "CUSTOMER")
+    @Override
     public CustomerResponse createCustomer(CreateCustomerRequest request, UUID tenantId) {
         Customer customer = Customer.builder()
                 .tenantId(tenantId)
@@ -108,6 +107,7 @@ public class CustomerService {
      * @return lista dopasowanych klientów jako DTO
      */
     @Transactional(readOnly = true)
+    @Override
     public List<CustomerResponse> searchCustomers(String query, UUID tenantId, Integer limit) {
         int effectiveLimit = (limit == null || limit <= 0)
                 ? DEFAULT_SEARCH_LIMIT
@@ -140,6 +140,7 @@ public class CustomerService {
      * @return mapa z kluczami: content (lista), page, size, totalElements, totalPages
      */
     @Transactional(readOnly = true)
+    @Override
     public PagedResponse<CustomerResponse> listCustomers(UUID tenantId, int page, int size) {
         int effectiveSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         int effectivePage = Math.max(page, 0);
@@ -181,6 +182,7 @@ public class CustomerService {
      * @throws EntityNotFoundException HTTP 404 gdy klient nie istnieje lub inny tenant
      */
     @Transactional(readOnly = true)
+    @Override
     public CustomerResponse getCustomer(UUID customerId, UUID tenantId) {
         Customer customer = findCustomerOrThrow(customerId, tenantId);
         return CustomerResponse.from(customer);
@@ -205,6 +207,7 @@ public class CustomerService {
     @Transactional
     @Audited(action = "CUSTOMER_UPDATED", entityType = "CUSTOMER", captureOldValue = true,
              fetchOldValueMethod = "getCustomer", entityIdParamIndex = 0)
+    @Override
     public CustomerResponse updateCustomer(UUID customerId, UpdateCustomerRequest request, UUID tenantId) {
         Customer customer = findCustomerOrThrow(customerId, tenantId);
 
@@ -258,6 +261,7 @@ public class CustomerService {
      */
     @Transactional
     @Audited(action = "CUSTOMER_ANONYMIZED", entityType = "CUSTOMER", entityIdParamIndex = 0)
+    @Override
     public void anonymizeCustomer(UUID customerId, UUID tenantId) {
         int updated = customerRepository.anonymize(customerId, tenantId);
 
@@ -286,6 +290,7 @@ public class CustomerService {
      * @return Optional z DTO klienta lub empty gdy nie znaleziono
      */
     @Transactional(readOnly = true)
+    @Override
     public Optional<CustomerLookupResponse> lookupByPhone(String phone, UUID tenantId) {
         log.debug("[CustomerService] Lookup po numerze telefonu: phone={}, tenant={}", phone, tenantId);
         return customerRepository.findByPhoneNumber(phone, tenantId)
@@ -346,6 +351,7 @@ public class CustomerService {
      * @return Optional z DTO klienta lub empty gdy nie znaleziono
      */
     @Transactional(readOnly = true)
+    @Override
     public Optional<CustomerLookupResponse> lookupByEmail(String email, UUID tenantId) {
         // Defensywne parsowanie RFC 2822 "Display Name <email@domain>" — na wypadek gdyby
         // klient API przekazał surowy nagłówek From: zamiast czystego adresu.
@@ -412,6 +418,7 @@ public class CustomerService {
      * @return profil klienta (nowy lub istniejący)
      */
     @Transactional
+    @Override
     public CustomerResponse handleUnknownCaller(String phone, UUID tenantId) {
         // Sprawdź czy klient z tym numerem już istnieje
         return customerRepository.findByPhoneNumber(phone, tenantId)

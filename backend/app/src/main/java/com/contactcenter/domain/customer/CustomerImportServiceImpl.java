@@ -1,9 +1,7 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.customer;
 
 import com.contactcenter.api.customer.dto.CustomerImportStatusResponse;
 import com.contactcenter.api.customer.DeduplicationMode;
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVParser;
@@ -52,7 +50,7 @@ import java.util.regex.Pattern;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CustomerImportService {
+class CustomerImportServiceImpl implements CustomerImportService {
 
     // =========================================================================
     // Stałe
@@ -109,6 +107,7 @@ public class CustomerImportService {
      * @return UUID joba – do pollingu statusu
      * @throws IllegalArgumentException gdy plik nie spełnia wymagań
      */
+    @Override
     public UUID initiateImport(MultipartFile file, DeduplicationMode deduplicationMode,
                                String columnSeparator, String quoteChar, String columnMappingJson) {
         UUID tenantId = TenantContext.getTenantId();
@@ -497,6 +496,7 @@ public class CustomerImportService {
      * @param jobId UUID joba
      * @return DTO statusu lub null gdy nie istnieje
      */
+    @Override
     public CustomerImportStatusResponse getJobStatus(UUID jobId) {
         Map<String, Object> state = loadJobState(jobId);
         if (state == null) {
@@ -511,6 +511,7 @@ public class CustomerImportService {
      * @param jobId UUID joba
      * @return bytes CSV lub null gdy brak błędów / job nieznany
      */
+    @Override
     public byte[] getErrorReport(UUID jobId) {
         String key = JOB_KEY_PREFIX + jobId + ERRORS_KEY_SUFFIX;
         String csv = stringRedisTemplate.opsForValue().get(key);

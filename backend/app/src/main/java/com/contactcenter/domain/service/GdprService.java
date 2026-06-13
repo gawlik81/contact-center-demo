@@ -2,9 +2,9 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.model.AuditLogEvent;
 import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerRepository;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;

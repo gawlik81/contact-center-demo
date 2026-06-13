@@ -1,9 +1,5 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.customer;
 
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.repository.CustomerRepository;
-import com.contactcenter.domain.service.CliLookupService;
-import com.contactcenter.domain.service.CustomerCliResult;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,12 +46,12 @@ class CliLookupServiceTest {
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private ValueOperations<String, Object> valueOperations;
 
-    private CliLookupService service;
+    private CliLookupServiceImpl service;
 
     @BeforeEach
     void setUp() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        service = new CliLookupService(customerRepository, redisTemplate);
+        service = new CliLookupServiceImpl(customerRepository, redisTemplate);
     }
 
     // =========================================================================
@@ -90,7 +86,7 @@ class CliLookupServiceTest {
         @DisplayName("Zwraca empty dla null sentinel w cache (nieznany numer)")
         void shouldReturnEmptyForNullSentinelInCache() {
             // given
-            when(valueOperations.get(CACHE_KEY)).thenReturn(CliLookupService.CACHE_NULL_SENTINEL);
+            when(valueOperations.get(CACHE_KEY)).thenReturn(CliLookupServiceImpl.CACHE_NULL_SENTINEL);
 
             // when
             Optional<CustomerCliResult> result = service.lookupCustomer(PHONE, TENANT_ID);
@@ -166,7 +162,7 @@ class CliLookupServiceTest {
             assertThat(result).isEmpty();
             verify(valueOperations).set(
                     eq(CACHE_KEY),
-                    eq(CliLookupService.CACHE_NULL_SENTINEL),
+                    eq(CliLookupServiceImpl.CACHE_NULL_SENTINEL),
                     eq(RedisConfig.TTL_CLI_LOOKUP)
             );
         }
@@ -340,7 +336,7 @@ class CliLookupServiceTest {
     @Test
     @DisplayName("buildCacheKey generuje klucz zgodny z konwencją Redis")
     void shouldBuildCorrectCacheKey() {
-        assertThat(CliLookupService.buildCacheKey("+48501234567"))
+        assertThat(CliLookupServiceImpl.buildCacheKey("+48501234567"))
                 .isEqualTo("cache:customer:phone:+48501234567");
     }
 

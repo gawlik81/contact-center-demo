@@ -1,7 +1,5 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.customer;
 
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +32,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CliLookupService {
+class CliLookupServiceImpl implements CliLookupService {
 
     /** Prefiks klucza Redis – zgodny z konwencją z CLAUDE.md i RedisConfig. */
     public static final String CACHE_KEY_PREFIX = "cache:customer:phone:";
@@ -66,6 +64,7 @@ public class CliLookupService {
      * @param tenantId    UUID tenanta – wymagany do izolacji multi-tenant
      * @return Optional z danymi klienta lub empty gdy numer nieznany
      */
+    @Override
     public Optional<CustomerCliResult> lookupCustomer(String phoneNumber, UUID tenantId) {
         if (phoneNumber == null || phoneNumber.isBlank()) {
             log.debug("[CliLookup] Pusty numer telefonu – pomijam lookup");
@@ -132,6 +131,7 @@ public class CliLookupService {
      *
      * @param phoneNumber numer telefonu (format E.164); null lub pusty jest ignorowany
      */
+    @Override
     public void invalidateCacheForPhone(String phoneNumber) {
         if (phoneNumber == null || phoneNumber.isBlank()) return;
         try {

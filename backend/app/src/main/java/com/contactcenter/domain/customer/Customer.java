@@ -1,4 +1,4 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.customer;
 
 import jakarta.persistence.*;
 import lombok.*;

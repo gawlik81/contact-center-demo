@@ -1,10 +1,7 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.customer;
 
 import com.contactcenter.api.customer.dto.CustomerImportStatusResponse;
 import com.contactcenter.api.customer.DeduplicationMode;
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.repository.CustomerRepository;
-import com.contactcenter.domain.service.CustomerImportService;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -60,7 +57,7 @@ class CustomerImportServiceTest {
     @Mock private StringRedisTemplate stringRedisTemplate;
     @Mock private ValueOperations<String, String> valueOps;
 
-    private CustomerImportService service;
+    private CustomerImportServiceImpl service;
 
     @BeforeEach
     void setUp() {
@@ -73,7 +70,7 @@ class CustomerImportServiceTest {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
 
-        service = new CustomerImportService(
+        service = new CustomerImportServiceImpl(
                 customerRepository,
                 jdbcTemplate,
                 stringRedisTemplate,
@@ -219,9 +216,9 @@ class CustomerImportServiceTest {
 
             // Weryfikuj że status QUEUED został zapisany do Redis
             verify(valueOps, atLeastOnce()).set(
-                    argThat(key -> key.startsWith(CustomerImportService.JOB_KEY_PREFIX)),
+                    argThat(key -> key.startsWith(CustomerImportServiceImpl.JOB_KEY_PREFIX)),
                     argThat(json -> json.contains("QUEUED")),
-                    eq(Duration.ofSeconds(CustomerImportService.JOB_TTL_SECONDS))
+                    eq(Duration.ofSeconds(CustomerImportServiceImpl.JOB_TTL_SECONDS))
             );
         }
 
@@ -258,7 +255,7 @@ class CustomerImportServiceTest {
         @DisplayName("Job nie istnieje w Redis – zwraca null")
         void jobNotFound_returnsNull() {
             UUID jobId = UUID.randomUUID();
-            when(valueOps.get(CustomerImportService.JOB_KEY_PREFIX + jobId)).thenReturn(null);
+            when(valueOps.get(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId)).thenReturn(null);
 
             CustomerImportStatusResponse result = service.getJobStatus(jobId);
 
@@ -279,7 +276,7 @@ class CustomerImportServiceTest {
                     }
                     """.formatted(jobId);
 
-            when(valueOps.get(CustomerImportService.JOB_KEY_PREFIX + jobId)).thenReturn(json);
+            when(valueOps.get(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId)).thenReturn(json);
 
             CustomerImportStatusResponse result = service.getJobStatus(jobId);
 
@@ -299,7 +296,7 @@ class CustomerImportServiceTest {
         @DisplayName("Uszkodzony JSON w Redis – zwraca null (obsługa błędu)")
         void corruptedJson_returnsNull() {
             UUID jobId = UUID.randomUUID();
-            when(valueOps.get(CustomerImportService.JOB_KEY_PREFIX + jobId)).thenReturn("INVALID{{{");
+            when(valueOps.get(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId)).thenReturn("INVALID{{{");
 
             CustomerImportStatusResponse result = service.getJobStatus(jobId);
 
@@ -314,7 +311,7 @@ class CustomerImportServiceTest {
             String json = "{\"jobId\":\"%s\",\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
                     .formatted(jobId);
 
-            when(valueOps.get(CustomerImportService.JOB_KEY_PREFIX + jobId)).thenReturn(json);
+            when(valueOps.get(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId)).thenReturn(json);
 
             CustomerImportStatusResponse result = service.getJobStatus(jobId);
 
@@ -332,7 +329,7 @@ class CustomerImportServiceTest {
             String json = "{\"jobId\":\"%s\",\"status\":\"COMPLETED\",\"processed\":50,\"total\":50,\"imported\":45,\"updated\":3,\"skipped\":2,\"failed\":0,\"errorFileAvailable\":false}"
                     .formatted(jobId);
 
-            when(valueOps.get(CustomerImportService.JOB_KEY_PREFIX + jobId)).thenReturn(json);
+            when(valueOps.get(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId)).thenReturn(json);
 
             CustomerImportStatusResponse result = service.getJobStatus(jobId);
 
@@ -541,8 +538,8 @@ class CustomerImportServiceTest {
         @DisplayName("Brak raportu błędów w Redis – zwraca null")
         void noErrors_returnsNull() {
             UUID jobId = UUID.randomUUID();
-            when(valueOps.get(CustomerImportService.JOB_KEY_PREFIX + jobId
-                    + CustomerImportService.ERRORS_KEY_SUFFIX)).thenReturn(null);
+            when(valueOps.get(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId
+                    + CustomerImportServiceImpl.ERRORS_KEY_SUFFIX)).thenReturn(null);
 
             byte[] result = service.getErrorReport(jobId);
 
@@ -554,8 +551,8 @@ class CustomerImportServiceTest {
         void errorsExist_returnsCsvBytes() {
             UUID jobId = UUID.randomUUID();
             String csv = "line_number,error_message,raw_data\n1,Błąd,+bad";
-            when(valueOps.get(CustomerImportService.JOB_KEY_PREFIX + jobId
-                    + CustomerImportService.ERRORS_KEY_SUFFIX)).thenReturn(csv);
+            when(valueOps.get(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId
+                    + CustomerImportServiceImpl.ERRORS_KEY_SUFFIX)).thenReturn(csv);
 
             byte[] result = service.getErrorReport(jobId);
 
@@ -621,7 +618,7 @@ class CustomerImportServiceTest {
 
             // Klucz Redis powinien być import:customer:{jobId}
             verify(valueOps, atLeastOnce()).set(
-                    argThat(key -> key.equals(CustomerImportService.JOB_KEY_PREFIX + jobId)),
+                    argThat(key -> key.equals(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId)),
                     anyString(),
                     any(Duration.class)
             );
@@ -649,11 +646,11 @@ class CustomerImportServiceTest {
             assertThat(jobId1).isNotEqualTo(jobId2);
             // Każdy job ma własny klucz Redis
             verify(valueOps, atLeastOnce()).set(
-                    eq(CustomerImportService.JOB_KEY_PREFIX + jobId1),
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId1),
                     anyString(), any(Duration.class)
             );
             verify(valueOps, atLeastOnce()).set(
-                    eq(CustomerImportService.JOB_KEY_PREFIX + jobId2),
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId2),
                     anyString(), any(Duration.class)
             );
         }

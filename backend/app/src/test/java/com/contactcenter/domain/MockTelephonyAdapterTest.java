@@ -2,8 +2,8 @@ package com.contactcenter.domain;
 
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
-import com.contactcenter.domain.service.CliLookupService;
+import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CliLookupService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.MockTelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyAdapter;

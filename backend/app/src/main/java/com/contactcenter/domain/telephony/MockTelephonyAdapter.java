@@ -1,11 +1,11 @@
 package com.contactcenter.domain.telephony;
 
 import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
-import com.contactcenter.domain.service.CliLookupService;
-import com.contactcenter.domain.service.CustomerCliResult;
+import com.contactcenter.domain.customer.CustomerRepository;
+import com.contactcenter.domain.customer.CliLookupService;
+import com.contactcenter.domain.customer.CustomerCliResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

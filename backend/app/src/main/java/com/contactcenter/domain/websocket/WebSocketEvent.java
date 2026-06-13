@@ -1,6 +1,6 @@
 package com.contactcenter.domain.websocket;
 
-import com.contactcenter.domain.service.CustomerCliResult;
+import com.contactcenter.domain.customer.CustomerCliResult;
 import com.contactcenter.domain.telephony.CallEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

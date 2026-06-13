@@ -1,11 +1,11 @@
 package com.contactcenter.domain;
 
 import com.contactcenter.domain.tenant.TwilioConfigChangedEvent;
-import com.contactcenter.domain.model.Customer;
+import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.ContactEventService;
@@ -110,7 +110,7 @@ class TwilioTelephonyAdapterTest {
     private RabbitTemplate rabbitTemplate;
 
     @Mock
-    private com.contactcenter.domain.service.CliLookupService cliLookupService;
+    private com.contactcenter.domain.customer.CliLookupService cliLookupService;
 
     private TwilioProperties twilioProperties;
     private TwilioTelephonyAdapter adapter;

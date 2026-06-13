@@ -67,7 +67,7 @@ public class AuditAspect {
         Map<String, Class<?>> map = new java.util.HashMap<>();
         map.put("USER",     com.contactcenter.domain.user.AppUser.class);
         map.put("TENANT",   com.contactcenter.domain.tenant.Tenant.class);
-        map.put("CUSTOMER", com.contactcenter.domain.model.Customer.class);
+        map.put("CUSTOMER", com.contactcenter.domain.customer.Customer.class);
         ENTITY_CLASS_MAP = java.util.Collections.unmodifiableMap(map);
     }
 

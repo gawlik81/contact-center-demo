@@ -1,12 +1,9 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.customer;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.customer.dto.CreateCustomerRequest;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.repository.CustomerRepository;
-import com.contactcenter.domain.service.CustomerService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
@@ -48,7 +45,7 @@ class CustomerServiceTest {
     @Mock private RabbitTemplate rabbitTemplate;
 
     @InjectMocks
-    private CustomerService customerService;
+    private CustomerServiceImpl customerService;
 
     @BeforeEach
     void setUp() {

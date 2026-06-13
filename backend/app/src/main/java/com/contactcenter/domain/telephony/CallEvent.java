@@ -1,6 +1,6 @@
 package com.contactcenter.domain.telephony;
 
-import com.contactcenter.domain.service.CustomerCliResult;
+import com.contactcenter.domain.customer.CustomerCliResult;
 import lombok.Builder;
 import lombok.Getter;
 

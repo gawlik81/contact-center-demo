@@ -6,7 +6,6 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.customer.CustomerRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -132,8 +131,6 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final TwilioRecordingDownloadService recordingDownloadService;
   private final TenantTwilioConfigService tenantTwilioConfigService;
   private final ContactEventService contactEventService;
-  /** Repozytorium użytkowników – wymagane do lookup agenta przy transferze AGENT. */
-  private final AppUserRepository appUserRepository;
   /** Repozytorium kolejek – wymagane do lookup kolejki przy transferze QUEUE. */
   private final QueueRepository queueRepository;
   /** Używany do publikacji eventu contact.queued po transferze do kolejki. */
@@ -1032,7 +1029,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    *
    * <p>Dla {@link TransferTargetType#AGENT}:
    * <ul>
-   *   <li>Pobiera agenta po {@code request.agentId()} z {@link AppUserRepository}.</li>
+   *   <li>Pobiera agenta po {@code request.agentId()} z {@link UserService}.</li>
    *   <li>Ustala cel Twilio: {@code client:agent-{agentId}} (Twilio Client SDK),
    *       taki sam format jak używany w {@link #dialAgentIntoConference}.</li>
    *   <li>Deleguje do {@link #transferCall} – obsługuje BLIND i ATTENDED.</li>
@@ -1075,8 +1072,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     UUID agentId = request.agentId();
 
     // Weryfikacja agenta – musi należeć do tego samego tenanta
-    AppUser agent = appUserRepository
-        .findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+    AppUser agent = userService
+        .findAgentByIdAndTenantId(agentId, tenantId)
         .orElseThrow(() -> new TelephonyException(callId,
             "Agent nie istnieje lub należy do innego tenanta: agentId=" + agentId));
 

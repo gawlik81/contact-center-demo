@@ -4,7 +4,6 @@ import com.contactcenter.api.user.dto.UpdateStatusRequest;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
@@ -51,7 +50,6 @@ public class AgentBreakActivator {
     private final TenantService tenantService;
     private final AgentBreakRepository agentBreakRepository;
     private final UserService userService;
-    private final AppUserRepository appUserRepository;
 
     // =========================================================================
     // Scheduler
@@ -164,7 +162,7 @@ public class AgentBreakActivator {
      */
     private void changeAgentStatusIfBreak(UUID agentId, UUID tenantId) {
         try {
-            AppUser agent = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId).orElse(null);
+            AppUser agent = userService.findAgentByIdAndTenantId(agentId, tenantId).orElse(null);
             if (agent != null && agent.getStatus() == UserStatus.BREAK) {
                 userService.updateStatus(agentId, new UpdateStatusRequest(UserStatus.AVAILABLE), tenantId);
                 log.debug("[BreakActivator] Status agenta przywrócony na AVAILABLE: agentId={}", agentId);

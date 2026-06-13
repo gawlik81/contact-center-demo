@@ -5,11 +5,8 @@ import com.contactcenter.api.tenant.dto.TenantFilterParams;
 import com.contactcenter.api.tenant.dto.TenantResourceLimitsDto;
 import com.contactcenter.api.tenant.dto.TenantResponse;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
-import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.user.AppUser.UserRole;
-import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.service.AdminMetricsService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +44,7 @@ class TenantServiceTest {
     private TenantRepository tenantRepository;
 
     @Mock
-    private AppUserRepository appUserRepository;
+    private UserService userService;
 
     @Mock
     private AdminMetricsService adminMetricsService;
@@ -320,17 +317,15 @@ class TenantServiceTest {
             // given
             when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(activeTenant));
             when(tenantRepository.save(any(Tenant.class))).thenReturn(activeTenant);
-            // Bulk UPDATE: deactivateAllByTenantId zwraca liczbę zablokowanych użytkowników
-            when(appUserRepository.deactivateAllByTenantId(TENANT_ID)).thenReturn(3);
+            // Bulk UPDATE: deactivateAllUsersByTenantId zwraca liczbę zablokowanych użytkowników
+            when(userService.deactivateAllUsersByTenantId(TENANT_ID)).thenReturn(3);
 
             // when
             tenantService.deactivateTenant(TENANT_ID);
 
             // then – tenant zapisany jako INACTIVE, użytkownicy zablokowania jednym bulk UPDATE
             verify(tenantRepository).save(argThat(t -> t.getStatus() == TenantStatus.INACTIVE));
-            verify(appUserRepository).deactivateAllByTenantId(TENANT_ID);
-            // brak pętli N+1 – save() na AppUser nie powinien być wywołany
-            verify(appUserRepository, never()).save(any(AppUser.class));
+            verify(userService).deactivateAllUsersByTenantId(TENANT_ID);
         }
 
         @Test
@@ -345,7 +340,7 @@ class TenantServiceTest {
 
             // then – nie zapisuje tenanta ani użytkowników
             verify(tenantRepository, never()).save(any());
-            verify(appUserRepository, never()).findAll();
+            verify(userService, never()).deactivateAllUsersByTenantId(any());
         }
 
         @Test

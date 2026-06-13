@@ -5,7 +5,7 @@ import com.contactcenter.api.admin.dto.TenantDetailMetrics;
 import com.contactcenter.api.admin.dto.TenantMetrics;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.AdminMetricsService;
 import jakarta.persistence.EntityNotFoundException;
@@ -58,7 +58,7 @@ class AdminMetricsServiceTest {
     private TenantService tenantService;
 
     @Mock
-    private AppUserRepository appUserRepository;
+    private UserService userService;
 
     @Mock
     private RedisTemplate<String, Object> redisTemplate;
@@ -144,8 +144,8 @@ class AdminMetricsServiceTest {
             // given
             when(tenantService.getAllTenants())
                     .thenReturn(List.of(activeTenant1, activeTenant2));
-            when(appUserRepository.countAgentsByTenantId(TENANT_ID_1)).thenReturn(10L);
-            when(appUserRepository.countAgentsByTenantId(TENANT_ID_2)).thenReturn(5L);
+            when(userService.countAgentsByTenantId(TENANT_ID_1)).thenReturn(10L);
+            when(userService.countAgentsByTenantId(TENANT_ID_2)).thenReturn(5L);
             // SCAN zwraca puste wyniki (domyślne mock z setUp)
 
             // when
@@ -166,7 +166,7 @@ class AdminMetricsServiceTest {
             // given – 2 aktywne + 1 SUSPENDED
             when(tenantService.getAllTenants())
                     .thenReturn(List.of(activeTenant1, activeTenant2, suspendedTenant));
-            when(appUserRepository.countAgentsByTenantId(any())).thenReturn(0L);
+            when(userService.countAgentsByTenantId(any())).thenReturn(0L);
 
             // when
             AdminMetricsResponse response = adminMetricsService.getGlobalMetrics();
@@ -181,7 +181,7 @@ class AdminMetricsServiceTest {
             // given
             when(tenantService.getAllTenants())
                     .thenReturn(List.of(activeTenant1, suspendedTenant));
-            when(appUserRepository.countAgentsByTenantId(any())).thenReturn(5L);
+            when(userService.countAgentsByTenantId(any())).thenReturn(5L);
 
             // when
             AdminMetricsResponse response = adminMetricsService.getGlobalMetrics();
@@ -198,7 +198,7 @@ class AdminMetricsServiceTest {
             // given
             when(tenantService.getAllTenants())
                     .thenReturn(List.of(activeTenant1, activeTenant2));
-            when(appUserRepository.countAgentsByTenantId(any())).thenReturn(5L);
+            when(userService.countAgentsByTenantId(any())).thenReturn(5L);
 
             // when
             AdminMetricsResponse response = adminMetricsService.getGlobalMetrics();
@@ -212,7 +212,7 @@ class AdminMetricsServiceTest {
         void shouldHandleRedisErrorGracefully() {
             // given
             when(tenantService.getAllTenants()).thenReturn(List.of(activeTenant1));
-            when(appUserRepository.countAgentsByTenantId(TENANT_ID_1)).thenReturn(5L);
+            when(userService.countAgentsByTenantId(TENANT_ID_1)).thenReturn(5L);
             when(redisTemplate.execute(any(RedisCallback.class), anyBoolean()))
                     .thenThrow(new RuntimeException("Redis timeout"));
 
@@ -246,7 +246,7 @@ class AdminMetricsServiceTest {
         void tenantMetricsShouldContainAgentsTotalFromDb() {
             // given
             when(tenantService.getAllTenants()).thenReturn(List.of(activeTenant1));
-            when(appUserRepository.countAgentsByTenantId(TENANT_ID_1)).thenReturn(42L);
+            when(userService.countAgentsByTenantId(TENANT_ID_1)).thenReturn(42L);
 
             // when
             AdminMetricsResponse response = adminMetricsService.getGlobalMetrics();
@@ -274,7 +274,7 @@ class AdminMetricsServiceTest {
         void shouldReturnDetailMetricsForExistingTenant() {
             // given
             when(tenantService.findTenantEntity(TENANT_ID_1)).thenReturn(Optional.of(activeTenant1));
-            when(appUserRepository.countAgentsByTenantId(TENANT_ID_1)).thenReturn(15L);
+            when(userService.countAgentsByTenantId(TENANT_ID_1)).thenReturn(15L);
 
             // when
             TenantDetailMetrics metrics = adminMetricsService.getTenantMetrics(TENANT_ID_1);
@@ -309,7 +309,7 @@ class AdminMetricsServiceTest {
         void cpuAndMemoryUsageShouldAlwaysBeZeroOnMvp() {
             // given
             when(tenantService.findTenantEntity(TENANT_ID_1)).thenReturn(Optional.of(activeTenant1));
-            when(appUserRepository.countAgentsByTenantId(TENANT_ID_1)).thenReturn(5L);
+            when(userService.countAgentsByTenantId(TENANT_ID_1)).thenReturn(5L);
 
             // when
             TenantDetailMetrics metrics = adminMetricsService.getTenantMetrics(TENANT_ID_1);
@@ -324,7 +324,7 @@ class AdminMetricsServiceTest {
         void shouldReturnMetricsForSuspendedTenant() {
             // given
             when(tenantService.findTenantEntity(TENANT_ID_3)).thenReturn(Optional.of(suspendedTenant));
-            when(appUserRepository.countAgentsByTenantId(TENANT_ID_3)).thenReturn(3L);
+            when(userService.countAgentsByTenantId(TENANT_ID_3)).thenReturn(3L);
 
             // when
             TenantDetailMetrics metrics = adminMetricsService.getTenantMetrics(TENANT_ID_3);

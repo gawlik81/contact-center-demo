@@ -3,7 +3,7 @@ package com.contactcenter.domain.email;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.customer.Customer;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.customer.CustomerRepository;
 import com.contactcenter.security.TenantContext;
@@ -25,7 +25,7 @@ public class TemplateVariableResolver {
 
     private final ContactRepository contactRepository;
     private final CustomerRepository customerRepository;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
 
     @Transactional(readOnly = true)
     public Map<String, Object> resolveForContext(UUID contactId, UUID agentId) {
@@ -84,7 +84,7 @@ public class TemplateVariableResolver {
             return;
         }
 
-        Optional<AppUser> agentOpt = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId);
+        Optional<AppUser> agentOpt = userService.findAgentByIdAndTenantId(agentId, tenantId);
         if (agentOpt.isEmpty()) {
             putEmptyAgentVars(vars);
             return;

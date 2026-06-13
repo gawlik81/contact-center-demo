@@ -9,7 +9,7 @@ import com.contactcenter.domain.agentgroup.AgentGroupRepository;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignAssignmentRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +44,7 @@ public class CampaignAssignmentService {
     private final CampaignRepository campaignRepository;
     private final CampaignAssignmentRepository campaignAssignmentRepository;
     private final AgentGroupRepository agentGroupRepository;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
 
     // =========================================================================
     // GET – odczyt przypisania
@@ -149,8 +149,8 @@ public class CampaignAssignmentService {
 
     private List<AgentSummary> enrichAgents(List<UUID> agentIds, UUID tenantId) {
         return agentIds.stream()
-                .flatMap(agentId -> appUserRepository
-                        .findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+                .flatMap(agentId -> userService
+                        .findAgentByIdAndTenantId(agentId, tenantId)
                         .map(this::toAgentSummary)
                         .stream())
                 .toList();
@@ -170,7 +170,7 @@ public class CampaignAssignmentService {
     // =========================================================================
 
     private AgentSummary validateAndMapAgent(UUID agentId, UUID tenantId) {
-        AppUser agent = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+        AppUser agent = userService.findAgentByIdAndTenantId(agentId, tenantId)
                 .orElseThrow(() -> {
                     log.warn("[CampaignAssignmentService] Agent nie istnieje w tenancie: agentId={}, tenant={}",
                             agentId, tenantId);

@@ -7,7 +7,7 @@ import com.contactcenter.api.supervisor.SupervisorMetricsPayload.QueueMetric;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserRole;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
@@ -44,7 +44,7 @@ import java.util.UUID;
  *
  * <p>Źródła danych:
  * <ul>
- *   <li>Agenci (lista i imiona) – baza danych przez {@link AppUserRepository}</li>
+ *   <li>Agenci (lista i imiona) – baza danych przez {@link UserService}</li>
  *   <li>Statusy agentów – Redis ({@code session:agent:{userId}}) – co 5s, bez DB round-trip</li>
  *   <li>Statystyki kolejek – Redis ({@code cache:queue:stats:{queueId}})</li>
  *   <li>Liczba połączeń w IVR – Redis ({@code ivr:session:{callId}}), JSON parsowany przez {@link ObjectMapper}</li>
@@ -82,7 +82,7 @@ public class SupervisorMetricsService {
     private static final String METRICS_DESTINATION = "/topic/tenant/%s/supervisor/metrics";
 
     private final TenantService tenantService;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
     private final ContactRepository contactRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
@@ -151,7 +151,7 @@ public class SupervisorMetricsService {
     public SupervisorMetricsPayload buildPayload(UUID tenantId,
                                                   Map<String, Map<String, String>> agentSessions) {
         // 1. Pobierz wszystkich aktywnych agentów z DB
-        List<AppUser> agents = appUserRepository.findAllByTenantIdWithFilters(
+        List<AppUser> agents = userService.findAgentsByTenantIdWithFilters(
                 tenantId, null, null, UserRole.AGENT.name(), null,
                 org.springframework.data.domain.PageRequest.of(0, 1000)
         ).getContent();

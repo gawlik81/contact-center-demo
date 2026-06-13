@@ -30,9 +30,12 @@ import java.util.UUID;
  * JPQL lub native SQL). Nie polegamy na RLS dla tej tabeli.
  *
  * <p>Każda nowa metoda MUSI zawierać filtr tenantId aby zapobiec wyciekom danych.
+ *
+ * <p><strong>Encapsulation:</strong> To repozytorium jest package-private – dostęp
+ * spoza pakietu {@code domain.user} odbywa się wyłącznie przez {@link UserService}.
  */
 @Repository
-public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
+interface AppUserRepository extends JpaRepository<AppUser, UUID> {
 
     /**
      * Znajdź użytkownika po email i tenantId.

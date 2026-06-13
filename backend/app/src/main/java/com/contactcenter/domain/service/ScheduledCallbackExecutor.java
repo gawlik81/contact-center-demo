@@ -3,7 +3,7 @@ package com.contactcenter.domain.service;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.telephony.CallSession;
@@ -54,7 +54,7 @@ public class ScheduledCallbackExecutor {
     private final TenantService tenantService;
     private final ScheduledCallbackRepository callbackRepository;
     private final TelephonyAdapter telephonyAdapter;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
     private final TenantTwilioConfigService tenantTwilioConfigService;
     private final CampaignContactRepository campaignContactRepository;
     private final StringRedisTemplate redisTemplate;
@@ -156,8 +156,8 @@ public class ScheduledCallbackExecutor {
         }
 
         if (callback.getAgentId() != null) {
-            boolean agentAvailable = appUserRepository
-                    .findByIdAndTenantIdAndDeletedFalse(callback.getAgentId(), callback.getTenantId())
+            boolean agentAvailable = userService
+                    .findAgentByIdAndTenantId(callback.getAgentId(), callback.getTenantId())
                     .map(agent -> agent.getStatus() == AppUser.UserStatus.AVAILABLE)
                     .orElse(false);
 

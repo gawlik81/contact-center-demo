@@ -10,7 +10,7 @@ import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
@@ -65,7 +65,7 @@ class ContactServiceTest {
     @Mock private ContactRepository contactRepository;
     @Mock private RecordingService recordingService;
     @Mock private EmailMessageRepository emailMessageRepository;
-    @Mock private AppUserRepository appUserRepository;
+    @Mock private UserService userService;
     @Mock private QueueRepository queueRepository;
     @Mock private CampaignRepository campaignRepository;
     @Mock private ContactEventService contactEventService;
@@ -77,6 +77,11 @@ class ContactServiceTest {
 
     @BeforeEach
     void setUp() {
+        // UserService jest wstrzykiwany przez setter z @Lazy (cykl zależności
+        // UserService -> ContactService -> UserService), @InjectMocks nie
+        // wywołuje setterów gdy użyto konstruktora - ustawiamy ręcznie.
+        contactService.setUserService(userService);
+
         TenantContext.setTenantId(TENANT_ID);
         TenantContext.setUserId(AGENT_ID);
         TenantContext.setUserRole("AGENT");

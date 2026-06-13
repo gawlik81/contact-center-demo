@@ -7,7 +7,7 @@ import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
@@ -59,7 +59,7 @@ class DialerCallbackManagementTest {
     @Mock private ScheduledCallbackRepository scheduledCallbackRepository;
     @Mock private TelephonyAdapter telephonyAdapter;
     @Mock private ContactRepository contactRepository;
-    @Mock private AppUserRepository appUserRepository;
+    @Mock private UserService userService;
 
     @InjectMocks
     private DialerController dialerController;
@@ -120,7 +120,7 @@ class DialerCallbackManagementTest {
                 .thenReturn(Optional.of(callback));
         when(scheduledCallbackRepository.save(any(ScheduledCallback.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
-        when(appUserRepository.findById(AGENT_ID))
+        when(userService.findUserById(AGENT_ID))
                 .thenReturn(Optional.of(buildAppUser(AGENT_ID, "Jan", "Kowalski")));
 
         // when
@@ -151,7 +151,7 @@ class DialerCallbackManagementTest {
                 .thenReturn(Optional.of(callback));
         when(scheduledCallbackRepository.save(any(ScheduledCallback.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
-        when(appUserRepository.findById(newAgent))
+        when(userService.findUserById(newAgent))
                 .thenReturn(Optional.of(buildAppUser(newAgent, "Anna", "Nowak")));
 
         // when
@@ -182,7 +182,7 @@ class DialerCallbackManagementTest {
                 .thenReturn(Optional.of(callback));
         when(scheduledCallbackRepository.save(any(ScheduledCallback.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
-        when(appUserRepository.findById(AGENT_ID))
+        when(userService.findUserById(AGENT_ID))
                 .thenReturn(Optional.of(buildAppUser(AGENT_ID, "Jan", "Kowalski")));
 
         // when

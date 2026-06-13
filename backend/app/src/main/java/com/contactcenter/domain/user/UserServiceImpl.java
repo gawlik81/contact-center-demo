@@ -24,9 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -440,6 +442,83 @@ class UserServiceImpl implements UserService {
 
         // Propaguj zmianę statusu przez RabbitMQ → WebSocket (agentStatusChanged do agenta i supervisorów)
         publishStatusChangedEvent(agentId, tenantId, oldStatus, UserStatus.AVAILABLE);
+    }
+
+    // =========================================================================
+    // Encapsulation pass: dostęp do AppUserRepository wyłącznie przez UserService
+    // =========================================================================
+
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<AppUser> findAuthenticatableUser(UUID tenantId, String email) {
+        return appUserRepository.findByTenantIdAndEmailAndActiveTrue(tenantId, email);
+    }
+
+    @Transactional
+    @Override
+    public int deactivateAllUsersByTenantId(UUID tenantId) {
+        return appUserRepository.deactivateAllByTenantId(tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<AppUser> findAgentByIdAndTenantId(UUID agentId, UUID tenantId) {
+        return appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public long countAgentsByTenantId(UUID tenantId) {
+        return appUserRepository.countAgentsByTenantId(tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<AppUser> findAgentsByIdsAndTenantId(Collection<UUID> agentIds, UUID tenantId) {
+        return appUserRepository.findAllByIdInAndTenantId(agentIds, tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<AppUser> findAgentsByTenantIdWithFilters(UUID tenantId, String status, String skill, String role,
+                                                          String search, Pageable pageable) {
+        return appUserRepository.findAllByTenantIdWithFilters(tenantId, status, skill, role, search, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<AppUser> findTransferCandidates(UUID tenantId, UUID excludeUserId) {
+        return appUserRepository.findTransferCandidates(tenantId, excludeUserId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<AppUser> findAvailableAgents() {
+        return appUserRepository.findAllByStatusAndDeletedFalse(UserStatus.AVAILABLE);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<Object[]> findActiveTenantsByUserEmail(String email) {
+        return appUserRepository.findActiveTenantsByUserEmail(email);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<Object[]> countActiveContactsByAgentIds(UUID tenantId, List<UUID> agentIds) {
+        return appUserRepository.countActiveContactsByAgentIds(tenantId, agentIds);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<AppUser> findUsersByIds(Collection<UUID> userIds) {
+        return appUserRepository.findAllById(userIds);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<AppUser> findUserById(UUID userId) {
+        return appUserRepository.findById(userId);
     }
 
     // =========================================================================

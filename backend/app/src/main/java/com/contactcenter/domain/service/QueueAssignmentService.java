@@ -9,7 +9,7 @@ import com.contactcenter.domain.agentgroup.AgentGroupRepository;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import lombok.RequiredArgsConstructor;
@@ -49,7 +49,7 @@ public class QueueAssignmentService {
     private final QueueRepository queueRepository;
     private final QueueAssignmentRepository queueAssignmentRepository;
     private final AgentGroupRepository agentGroupRepository;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
 
     // =========================================================================
     // GET – odczyt przypisania
@@ -169,8 +169,8 @@ public class QueueAssignmentService {
      */
     private List<AgentSummary> enrichAgents(List<UUID> agentIds, UUID tenantId) {
         return agentIds.stream()
-                .flatMap(agentId -> appUserRepository
-                        .findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+                .flatMap(agentId -> userService
+                        .findAgentByIdAndTenantId(agentId, tenantId)
                         .map(this::toAgentSummary)
                         .stream())
                 .toList();
@@ -200,7 +200,7 @@ public class QueueAssignmentService {
      *                                  lub nie ma roli AGENT
      */
     private AgentSummary validateAndMapAgent(UUID agentId, UUID tenantId) {
-        AppUser agent = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+        AppUser agent = userService.findAgentByIdAndTenantId(agentId, tenantId)
                 .orElseThrow(() -> {
                     log.warn("[QueueAssignmentService] Agent nie istnieje w tenancie: agentId={}, tenant={}",
                             agentId, tenantId);

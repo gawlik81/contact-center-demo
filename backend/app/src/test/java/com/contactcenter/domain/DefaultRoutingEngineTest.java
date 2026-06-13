@@ -1,7 +1,7 @@
 package com.contactcenter.domain;
 
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.routing.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,7 +47,7 @@ class DefaultRoutingEngineTest {
     private ValueOperations<String, Object> valueOps;
 
     @Mock
-    private AppUserRepository appUserRepository;
+    private UserService userService;
 
     /**
      * Spy na silniku – pozwala nadpisać scanAvailableAgents.
@@ -59,7 +59,7 @@ class DefaultRoutingEngineTest {
 
     @BeforeEach
     void setUp() {
-        DefaultRoutingEngine realEngine = new DefaultRoutingEngine(redisTemplate, appUserRepository);
+        DefaultRoutingEngine realEngine = new DefaultRoutingEngine(redisTemplate, userService);
         engine = spy(realEngine);
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
     }
@@ -283,7 +283,7 @@ class DefaultRoutingEngineTest {
         @DisplayName("powinien wybrać preferowanego agenta gdy jest dostępny")
         void shouldSelectPreferredAgentWhenAvailable() {
             stubStickySession(AGENT_A, TENANT_ID, "AVAILABLE");
-            lenient().when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_A, TENANT_ID))
+            lenient().when(userService.findAgentByIdAndTenantId(AGENT_A, TENANT_ID))
                     .thenReturn(Optional.of(buildAgent(AGENT_A, List.of("SALES"))));
 
             RoutingRequest request = buildRequest("FIRST_AVAILABLE", List.of("SALES"), AGENT_A);
@@ -327,7 +327,7 @@ class DefaultRoutingEngineTest {
         @DisplayName("powinien pominąć sticky agenta gdy nie ma wymaganych skills")
         void shouldSkipStickyAgentWhenMissingRequiredSkills() {
             stubStickySession(AGENT_A, TENANT_ID, "AVAILABLE");
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_A, TENANT_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_A, TENANT_ID))
                     .thenReturn(Optional.of(buildAgent(AGENT_A, List.of("TECH_SUPPORT"))));
 
             stubScan(TENANT_ID, List.of(AGENT_B));
@@ -428,14 +428,14 @@ class DefaultRoutingEngineTest {
      * Stub skills agenta w bazie danych.
      */
     private void stubAgentSkills(UUID agentId, List<String> skills) {
-        lenient().when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, TENANT_ID))
+        lenient().when(userService.findAgentByIdAndTenantId(agentId, TENANT_ID))
                 .thenReturn(Optional.of(buildAgent(agentId, skills)));
     }
 
     /**
      * Stub batch query aktywnych kontaktów per agent.
      *
-     * <p>Przygotowuje wynik {@link com.contactcenter.domain.user.AppUserRepository#countActiveContactsByAgentIds}
+     * <p>Przygotowuje wynik {@link com.contactcenter.domain.user.UserService#countActiveContactsByAgentIds}
      * jako listę par [agentId, count]. Kolejność agentIds i counts musi się zgadzać.
      *
      * @param tenantId  UUID tenanta
@@ -447,7 +447,7 @@ class DefaultRoutingEngineTest {
         for (int i = 0; i < agentIds.size(); i++) {
             rows.add(new Object[]{agentIds.get(i).toString(), counts[i]});
         }
-        lenient().when(appUserRepository.countActiveContactsByAgentIds(eq(tenantId), anyList()))
+        lenient().when(userService.countActiveContactsByAgentIds(eq(tenantId), anyList()))
                 .thenReturn(rows);
     }
 
@@ -556,7 +556,7 @@ class DefaultRoutingEngineTest {
             // AGENT_A jest sticky I należy do eligible → sticky flow normalnie
             Set<UUID> eligible = new HashSet<>(Set.of(AGENT_A, AGENT_B));
             stubStickySession(AGENT_A, TENANT_ID, "AVAILABLE");
-            lenient().when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_A, TENANT_ID))
+            lenient().when(userService.findAgentByIdAndTenantId(AGENT_A, TENANT_ID))
                     .thenReturn(Optional.of(buildAgent(AGENT_A, List.of())));
 
             RoutingRequest request = buildRequestWithFilter("FIRST_AVAILABLE", List.of(), AGENT_A, eligible);

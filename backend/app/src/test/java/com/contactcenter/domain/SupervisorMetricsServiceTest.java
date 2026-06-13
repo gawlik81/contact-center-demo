@@ -9,7 +9,7 @@ import com.contactcenter.domain.user.AppUser.UserRole;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.SupervisorMetricsService;
@@ -77,7 +77,7 @@ class SupervisorMetricsServiceTest {
     private static final UUID CONTACT_ID  = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     @Mock private TenantService tenantService;
-    @Mock private AppUserRepository appUserRepository;
+    @Mock private UserService userService;
     @Mock private ContactRepository contactRepository;
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private StringRedisTemplate stringRedisTemplate;
@@ -149,7 +149,7 @@ class SupervisorMetricsServiceTest {
         void shouldReturnAgentsWithDbStatusWhenRedisEmpty() {
             // given
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent1, agent2));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -177,7 +177,7 @@ class SupervisorMetricsServiceTest {
         void shouldOverrideAgentStatusWithRedisValue() {
             // given – agent1 ma status AVAILABLE w DB, ale BREAK w Redis
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent1));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -201,7 +201,7 @@ class SupervisorMetricsServiceTest {
         void shouldSetCurrentContactFromRedisSession() {
             // given
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent2));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -225,7 +225,7 @@ class SupervisorMetricsServiceTest {
         void shouldIgnoreSessionFromDifferentTenant() {
             // given – sesja agenta należy do TENANT_ID_2, nie do TENANT_ID
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent1));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -247,7 +247,7 @@ class SupervisorMetricsServiceTest {
         void kpiActiveCallsShouldEqualBusyAgentCount() {
             // given – 1 BUSY (agent2), 1 AVAILABLE (agent1)
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent1, agent2));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -276,7 +276,7 @@ class SupervisorMetricsServiceTest {
                     .build();
 
             Page<AppUser> agentPage = new PageImpl<>(List.of(noNameAgent));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -292,7 +292,7 @@ class SupervisorMetricsServiceTest {
         void shouldReturnEmptyPayloadWhenNoAgents() {
             // given
             Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 
@@ -320,7 +320,7 @@ class SupervisorMetricsServiceTest {
             // given
             when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent1));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -383,13 +383,13 @@ class SupervisorMetricsServiceTest {
             when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant, tenant2));
 
             // Tenant 1: rzuca wyjątek przy pobieraniu agentów
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenThrow(new RuntimeException("DB error"));
 
             // Tenant 2: działa poprawnie
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent2));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID_2), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -463,7 +463,7 @@ class SupervisorMetricsServiceTest {
                     .build();
 
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent1, availAgent2));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -479,7 +479,7 @@ class SupervisorMetricsServiceTest {
         void activeCallsShouldReflectRedisStatus() {
             // given – agent1 ma AVAILABLE w DB, ale Redis mówi BUSY
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent1));
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(agentPage);
 
@@ -511,7 +511,7 @@ class SupervisorMetricsServiceTest {
         void shouldCountOnlyIvrSessionsBelongingToTenant() {
             // given – brak agentów (nieistotne dla tego testu)
             Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 
@@ -539,7 +539,7 @@ class SupervisorMetricsServiceTest {
         void shouldReturnZeroWhenNoIvrSessions() {
             // given – brak agentów, brak kluczy ivr:session:* (domyślny stub z setUp)
             Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 
@@ -555,7 +555,7 @@ class SupervisorMetricsServiceTest {
         void shouldSkipKeyWithInvalidJson() {
             // given
             Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 
@@ -620,7 +620,7 @@ class SupervisorMetricsServiceTest {
         void shouldReturnPositiveAvgWaitTimeWhenContactsAreQueued() {
             // given – brak agentów (nieistotne dla tego testu)
             Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 
@@ -638,7 +638,7 @@ class SupervisorMetricsServiceTest {
         void shouldReturnZeroWhenNoQueuedContacts() {
             // given
             Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 
@@ -656,7 +656,7 @@ class SupervisorMetricsServiceTest {
         void shouldDegradeToZeroWhenRepositoryThrows() {
             // given
             Page<AppUser> emptyPage = new PageImpl<>(Collections.emptyList());
-            when(appUserRepository.findAllByTenantIdWithFilters(
+            when(userService.findAgentsByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 

@@ -1,6 +1,6 @@
 package com.contactcenter.api.public_;
 
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.tenant.TenantService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,7 +31,7 @@ import java.util.UUID;
 public class PublicController {
 
     private final TenantService tenantService;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
 
     /**
      * Lista aktywnych tenantów do wyświetlenia na stronie logowania.
@@ -77,7 +77,7 @@ public class PublicController {
     public ResponseEntity<List<TenantDto>> findTenantsByEmail(
             @Valid @RequestBody TenantsByEmailRequest request
     ) {
-        List<TenantDto> tenants = appUserRepository
+        List<TenantDto> tenants = userService
                 .findActiveTenantsByUserEmail(request.email())
                 .stream()
                 .map(row -> new TenantDto(

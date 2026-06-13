@@ -9,7 +9,7 @@ import com.contactcenter.api.agentgroup.dto.UpdateAgentGroupRequest;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +40,7 @@ public class AgentGroupService {
 
     private final AgentGroupRepository agentGroupRepository;
     private final QueueAssignmentRepository queueAssignmentRepository;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
 
     // =========================================================================
     // Lista grup
@@ -196,8 +196,8 @@ public class AgentGroupService {
         List<UUID> memberIds = agentGroupRepository.findMemberIds(groupId, tenantId);
 
         List<AgentSummary> members = memberIds.stream()
-                .flatMap(agentId -> appUserRepository
-                        .findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+                .flatMap(agentId -> userService
+                        .findAgentByIdAndTenantId(agentId, tenantId)
                         .map(this::toAgentSummary)
                         .stream())
                 .toList();
@@ -260,7 +260,7 @@ public class AgentGroupService {
      * @throws IllegalArgumentException gdy agent nie istnieje w tenancie lub ma rolę inną niż AGENT
      */
     private AgentSummary validateAndMapAgent(UUID agentId, UUID tenantId) {
-        AppUser agent = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+        AppUser agent = userService.findAgentByIdAndTenantId(agentId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Agent nie istnieje lub nie należy do tenanta: " + agentId));
 

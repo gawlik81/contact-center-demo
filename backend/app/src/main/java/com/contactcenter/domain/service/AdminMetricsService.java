@@ -5,7 +5,7 @@ import com.contactcenter.api.admin.dto.TenantDetailMetrics;
 import com.contactcenter.api.admin.dto.TenantMetrics;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import jakarta.persistence.EntityNotFoundException;
@@ -56,7 +56,7 @@ public class AdminMetricsService {
     private static final String AGENT_SESSION_KEY_PATTERN = AGENT_SESSION_KEY_PREFIX + "*";
 
     private final TenantService tenantService;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
     private final RedisTemplate<String, Object> redisTemplate;
 
     // =========================================================================
@@ -95,7 +95,7 @@ public class AdminMetricsService {
 
         for (Tenant tenant : allTenants) {
             int agentsOnline = countOnlineAgentsForTenant(tenant.getId(), onlineAgentKeys);
-            long agentsTotal = appUserRepository.countAgentsByTenantId(tenant.getId());
+            long agentsTotal = userService.countAgentsByTenantId(tenant.getId());
 
             tenantMetrics.add(new TenantMetrics(
                     tenant.getId(),
@@ -157,7 +157,7 @@ public class AdminMetricsService {
 
         Set<String> onlineAgentKeys = scanOnlineAgentKeys();
         int agentsOnline = countOnlineAgentsForTenant(tenantId, onlineAgentKeys);
-        long agentsTotal = appUserRepository.countAgentsByTenantId(tenantId);
+        long agentsTotal = userService.countAgentsByTenantId(tenantId);
 
         log.debug("[AdminMetrics] Metryki tenanta {}: agentsOnline={}, agentsTotal={}",
                 tenantId, agentsOnline, agentsTotal);

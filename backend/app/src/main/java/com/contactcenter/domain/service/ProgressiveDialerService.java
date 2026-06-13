@@ -4,7 +4,7 @@ import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignAssignmentRepository;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
@@ -83,7 +83,7 @@ public class ProgressiveDialerService {
     private final CampaignAssignmentRepository campaignAssignmentRepository;
     private final CampaignContactRepository campaignContactRepository;
     private final ContactRepository contactRepository;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
     private final TelephonyAdapter telephonyAdapter;
     private final StringRedisTemplate redisTemplate;
     private final JdbcTemplate jdbcTemplate;
@@ -194,8 +194,7 @@ public class ProgressiveDialerService {
      */
     @Scheduled(fixedDelayString = "${dialer.agent-poll-interval-ms:30000}")
     public void pollAvailableAgents() {
-        List<AppUser> availableAgents =
-                appUserRepository.findAllByStatusAndDeletedFalse(UserStatus.AVAILABLE);
+        List<AppUser> availableAgents = userService.findAvailableAgents();
 
         if (availableAgents.isEmpty()) {
             log.debug("[Dialer] pollAvailableAgents: brak AVAILABLE agentów – pomijam");

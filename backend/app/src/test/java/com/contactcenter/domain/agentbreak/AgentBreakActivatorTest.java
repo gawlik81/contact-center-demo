@@ -5,7 +5,6 @@ import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
-import com.contactcenter.domain.user.AppUserRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
@@ -63,9 +62,6 @@ class AgentBreakActivatorTest {
 
     @Mock
     private UserService userService;
-
-    @Mock
-    private AppUserRepository appUserRepository;
 
     @InjectMocks
     private AgentBreakActivator agentBreakActivator;
@@ -290,7 +286,7 @@ class AgentBreakActivatorTest {
                     .thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(agentBreak));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_A_ID))
                     .thenReturn(Optional.of(agent));
 
             agentBreakActivator.activateAndCompleteBreaks();
@@ -311,7 +307,7 @@ class AgentBreakActivatorTest {
                     .thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(agentBreak));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_A_ID))
                     .thenReturn(Optional.of(agent));
 
             agentBreakActivator.activateAndCompleteBreaks();
@@ -332,7 +328,7 @@ class AgentBreakActivatorTest {
                     .thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(agentBreak));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_A_ID))
                     .thenReturn(Optional.of(agent));
 
             agentBreakActivator.activateAndCompleteBreaks();
@@ -355,9 +351,9 @@ class AgentBreakActivatorTest {
                     .thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(break1, break2));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_A_ID))
                     .thenReturn(Optional.of(agent1));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId2, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(agentId2, TENANT_A_ID))
                     .thenReturn(Optional.of(agent2));
 
             // Pierwszy agent rzuca wyjątek przy zmianie statusu

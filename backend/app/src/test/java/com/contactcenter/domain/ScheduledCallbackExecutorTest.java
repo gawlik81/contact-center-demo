@@ -3,7 +3,7 @@ package com.contactcenter.domain;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
 import com.contactcenter.domain.tenant.TenantService;
@@ -58,7 +58,7 @@ class ScheduledCallbackExecutorTest {
     private TelephonyAdapter telephonyAdapter;
 
     @Mock
-    private AppUserRepository appUserRepository;
+    private UserService userService;
 
     @Mock
     private CampaignContactRepository campaignContactRepository;
@@ -134,7 +134,7 @@ class ScheduledCallbackExecutorTest {
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
                 .thenReturn(1);
-        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+        when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                 .thenReturn(java.util.Optional.of(buildAvailableAgent(AGENT_ID, TENANT_ID)));
 
         CallSession mockSession = mock(CallSession.class);
@@ -171,7 +171,7 @@ class ScheduledCallbackExecutorTest {
                 .thenReturn(1);
         when(callbackRepository.updateStatusIfPending(eq(callbackId2), eq(TENANT_ID), eq("PROCESSING")))
                 .thenReturn(1);
-        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+        when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                 .thenReturn(java.util.Optional.of(buildAvailableAgent(AGENT_ID, TENANT_ID)));
 
         // Pierwszy callback rzuca wyjątek telefonii
@@ -243,7 +243,7 @@ class ScheduledCallbackExecutorTest {
                 .tenantId(TENANT_ID)
                 .status(AppUser.UserStatus.BUSY)
                 .build();
-        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+        when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                 .thenReturn(java.util.Optional.of(busyAgent));
 
         // when
@@ -275,7 +275,7 @@ class ScheduledCallbackExecutorTest {
                 .tenantId(TENANT_ID)
                 .status(AppUser.UserStatus.BREAK)
                 .build();
-        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+        when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                 .thenReturn(java.util.Optional.of(agentOnBreak));
 
         // when
@@ -310,8 +310,8 @@ class ScheduledCallbackExecutorTest {
         // when
         executor.executeScheduledCallbacks();
 
-        // then – appUserRepository nie jest odpytywane, initiateCall wywołane
-        verifyNoInteractions(appUserRepository);
+        // then – userService nie jest odpytywane, initiateCall wywołane
+        verifyNoInteractions(userService);
         verify(telephonyAdapter).initiateCall(eq(TENANT_ID), any(), eq("+48123456789"), isNull(), isNull(), eq(CALLBACK_ID));
         verify(callbackRepository).updateStatus(CALLBACK_ID, "COMPLETED", TENANT_ID);
     }
@@ -333,7 +333,7 @@ class ScheduledCallbackExecutorTest {
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
                 .thenReturn(1);
-        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+        when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                 .thenReturn(java.util.Optional.of(buildAvailableAgent(AGENT_ID, TENANT_ID)));
 
         CallSession mockSession = mock(CallSession.class);
@@ -372,7 +372,7 @@ class ScheduledCallbackExecutorTest {
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
                 .thenReturn(1);
-        when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+        when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                 .thenReturn(java.util.Optional.of(buildAvailableAgent(AGENT_ID, TENANT_ID)));
 
         CallSession mockSession = mock(CallSession.class);

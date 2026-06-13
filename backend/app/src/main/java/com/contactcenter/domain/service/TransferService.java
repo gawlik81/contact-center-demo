@@ -3,7 +3,7 @@ package com.contactcenter.domain.service;
 import com.contactcenter.api.telephony.dto.TransferAgentResponse;
 import com.contactcenter.api.telephony.dto.TransferQueueResponse;
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.TransferAgentQueueRepository;
 import com.contactcenter.domain.repository.TransferQueueStatsRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TransferService {
 
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
     private final TransferAgentQueueRepository transferAgentQueueRepository;
     private final TransferQueueStatsRepository transferQueueStatsRepository;
 
@@ -64,7 +64,7 @@ public class TransferService {
                 tenantId, excludeUserId);
 
         // 1. Pobierz kandydatów do transferu – filtrowanie wykonane w SQL (brak N+1 / full-scan)
-        List<AppUser> candidates = appUserRepository
+        List<AppUser> candidates = userService
                 .findTransferCandidates(tenantId, excludeUserId);
 
         if (candidates.isEmpty()) {

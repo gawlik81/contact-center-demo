@@ -9,7 +9,7 @@ import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.service.AdminMetricsService;
 import com.contactcenter.infrastructure.aspect.Audited;
@@ -47,7 +47,7 @@ import java.util.UUID;
 class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
 
     /**
      * Wstrzykiwany przez setter z {@code @Lazy} aby uniknąć cyklicznej zależności.
@@ -312,7 +312,7 @@ class TenantServiceImpl implements TenantService {
         // Zablokuj logowanie wszystkich użytkowników tenanta przez jeden bulk UPDATE.
         // Poprzednia implementacja używała findAll() (full table scan wszystkich tenantów!)
         // + pętla N×save – rażące N+1 problem naprawiony przez dedykowany @Modifying query.
-        int disabledCount = appUserRepository.deactivateAllByTenantId(tenantId);
+        int disabledCount = userService.deactivateAllUsersByTenantId(tenantId);
 
         log.warn("[TenantService] Tenant id={} dezaktywowany. Zablokowano {} użytkowników.",
                 tenantId, disabledCount);

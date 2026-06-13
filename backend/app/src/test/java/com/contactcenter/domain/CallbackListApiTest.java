@@ -5,7 +5,7 @@ import com.contactcenter.api.dialer.DialerController;
 import com.contactcenter.api.dialer.dto.CallbackListItemResponse;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
@@ -59,7 +59,7 @@ import static org.mockito.Mockito.when;
 class CallbackListApiTest {
 
     @Mock private ScheduledCallbackRepository scheduledCallbackRepository;
-    @Mock private AppUserRepository appUserRepository;
+    @Mock private UserService userService;
     @Mock private ProgressiveDialerService progressiveDialerService;
     @Mock private DialerCallbackHandler dialerCallbackHandler;
     @Mock private CampaignRepository campaignRepository;
@@ -104,7 +104,7 @@ class CallbackListApiTest {
                 .thenReturn(List.of(cb));
         when(scheduledCallbackRepository.countByAgentId(eq(TENANT_ID), eq(AGENT_ID), isNull()))
                 .thenReturn(1L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
+        when(userService.findUsersByIds(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
 
         // when
         ResponseEntity<PagedResponse<CallbackListItemResponse>> response =
@@ -144,7 +144,7 @@ class CallbackListApiTest {
                 .thenReturn(List.of(cb1, cb2));
         when(scheduledCallbackRepository.countByTenantIdWithFilters(eq(TENANT_ID), isNull(), isNull()))
                 .thenReturn(2L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(
+        when(userService.findUsersByIds(any())).thenReturn(List.of(
                 buildAgent(AGENT_ID, "Jan", "Kowalski"),
                 buildAgent(OTHER_AGENT_ID, "Anna", "Nowak")
         ));
@@ -191,7 +191,7 @@ class CallbackListApiTest {
                 .thenReturn(List.of(cb));
         when(scheduledCallbackRepository.countByTenantIdWithFilters(eq(TENANT_ID), eq("COMPLETED"), isNull()))
                 .thenReturn(1L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
+        when(userService.findUsersByIds(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
 
         // when
         ResponseEntity<PagedResponse<CallbackListItemResponse>> response =
@@ -225,7 +225,7 @@ class CallbackListApiTest {
                 .thenReturn(List.of(pending, completed));
         when(scheduledCallbackRepository.countByAgentId(eq(TENANT_ID), eq(AGENT_ID), isNull()))
                 .thenReturn(2L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
+        when(userService.findUsersByIds(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
 
         // when
         ResponseEntity<PagedResponse<CallbackListItemResponse>> response =
@@ -258,7 +258,7 @@ class CallbackListApiTest {
                 .thenReturn(List.of(cb));
         when(scheduledCallbackRepository.countByTenantIdWithFilters(eq(TENANT_ID), isNull(), eq(OTHER_AGENT_ID)))
                 .thenReturn(1L);
-        when(appUserRepository.findAllById(any()))
+        when(userService.findUsersByIds(any()))
                 .thenReturn(List.of(buildAgent(OTHER_AGENT_ID, "Anna", "Nowak")));
 
         // when
@@ -292,7 +292,7 @@ class CallbackListApiTest {
                 .thenReturn(List.of(ownCallback));
         when(scheduledCallbackRepository.countByAgentId(eq(TENANT_ID), eq(AGENT_ID), isNull()))
                 .thenReturn(1L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
+        when(userService.findUsersByIds(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
 
         // when – AGENT przekazuje OTHER_AGENT_ID jako parametr, powinien być ignorowany
         ResponseEntity<PagedResponse<CallbackListItemResponse>> response =

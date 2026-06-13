@@ -17,7 +17,7 @@ import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.EmailMessageRepository;
@@ -32,6 +32,8 @@ import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -82,12 +84,25 @@ public class ContactService {
     private final ContactRepository contactRepository;
     private final RecordingService recordingService;
     private final EmailMessageRepository emailMessageRepository;
-    private final AppUserRepository appUserRepository;
     private final QueueRepository queueRepository;
     private final CampaignRepository campaignRepository;
     private final ContactEventService contactEventService;
     private final TelephonyAdapter telephonyAdapter;
     private final TelephonyEventPublisher eventPublisher;
+
+    /**
+     * Wymagany do rozwiązywania nazw agentów (resolveAgentName, transfer metadata).
+     *
+     * <p>Wstrzyknięty przez setter z {@code @Lazy} aby uniknąć circular dependency:
+     * UserService → ContactService → UserService.
+     */
+    private UserService userService;
+
+    @Autowired
+    @Lazy
+    public void setUserService(UserService userService) {
+        this.userService = userService;
+    }
 
     // =========================================================================
     // Tworzenie kontaktu
@@ -227,7 +242,7 @@ public class ContactService {
         if (agentId == null) {
             return null;
         }
-        return appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+        return userService.findAgentByIdAndTenantId(agentId, tenantId)
                 .map(this::formatAgentName)
                 .orElse(null);
     }
@@ -255,7 +270,7 @@ public class ContactService {
         }
 
         Map<UUID, String> result = new HashMap<>();
-        appUserRepository.findAllByIdInAndTenantId(agentIds, tenantId)
+        userService.findAgentsByIdsAndTenantId(agentIds, tenantId)
                 .forEach(user -> result.put(user.getId(), formatAgentName(user)));
         return result;
     }
@@ -608,7 +623,7 @@ public class ContactService {
         }
 
         contactEventService.closeQueue(contactId, tenantId);
-        String agentName = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+        String agentName = userService.findAgentByIdAndTenantId(agentId, tenantId)
             .map(u -> u.getFirstName() + " " + u.getLastName())
             .orElse("");
         contactEventService.openAgent(contactId, tenantId, agentId, agentName);
@@ -1080,7 +1095,7 @@ public class ContactService {
             Map<String, Object> consultMeta = new HashMap<>();
             if (req.agentId() != null) {
                 consultMeta.put("target_type", "AGENT");
-                appUserRepository.findByIdAndTenantIdAndDeletedFalse(req.agentId(), tenantId)
+                userService.findAgentByIdAndTenantId(req.agentId(), tenantId)
                         .ifPresent(u -> consultMeta.put("target_agent_name",
                                 u.getFirstName() + " " + u.getLastName()));
             } else if (req.phoneNumber() != null) {
@@ -1138,7 +1153,7 @@ public class ContactService {
                     meta.put(TelephonyAdapter.META_TARGET_AGENT_ID,
                             req.agentId() != null ? req.agentId().toString() : null);
                     if (req.agentId() != null) {
-                        appUserRepository.findByIdAndTenantIdAndDeletedFalse(req.agentId(), tenantId)
+                        userService.findAgentByIdAndTenantId(req.agentId(), tenantId)
                                 .ifPresent(u -> meta.put("target_agent_name",
                                         u.getFirstName() + " " + u.getLastName()));
                     }
@@ -1268,7 +1283,7 @@ public class ContactService {
         transferMeta.put("target_type", "AGENT");
         if (agent2Id != null) {
             transferMeta.put("target_agent_id", agent2Id.toString());
-            appUserRepository.findByIdAndTenantIdAndDeletedFalse(agent2Id, tenantId)
+            userService.findAgentByIdAndTenantId(agent2Id, tenantId)
                     .ifPresent(u -> transferMeta.put("target_agent_name",
                             u.getFirstName() + " " + u.getLastName()));
         }

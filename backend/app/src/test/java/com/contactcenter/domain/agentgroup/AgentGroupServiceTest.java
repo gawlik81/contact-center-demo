@@ -8,7 +8,7 @@ import com.contactcenter.api.agentgroup.dto.UpdateAgentGroupRequest;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,7 +52,7 @@ class AgentGroupServiceTest {
 
     @Mock private AgentGroupRepository agentGroupRepository;
     @Mock private QueueAssignmentRepository queueAssignmentRepository;
-    @Mock private AppUserRepository appUserRepository;
+    @Mock private UserService userService;
 
     @InjectMocks
     private AgentGroupService agentGroupService;
@@ -251,7 +251,7 @@ class AgentGroupServiceTest {
             AgentGroup group = buildGroup(GROUP_ID, TENANT_ID, "Testowa");
             when(agentGroupRepository.findByIdAndTenantId(GROUP_ID, TENANT_ID))
                     .thenReturn(Optional.of(group));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                     .thenReturn(Optional.empty());
 
             // when / then
@@ -271,7 +271,7 @@ class AgentGroupServiceTest {
 
             when(agentGroupRepository.findByIdAndTenantId(GROUP_ID, TENANT_ID))
                     .thenReturn(Optional.of(group));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                     .thenReturn(Optional.of(supervisor));
 
             // when / then
@@ -291,7 +291,7 @@ class AgentGroupServiceTest {
 
             when(agentGroupRepository.findByIdAndTenantId(GROUP_ID, TENANT_ID))
                     .thenReturn(Optional.of(group));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                     .thenReturn(Optional.of(agent));
 
             // when

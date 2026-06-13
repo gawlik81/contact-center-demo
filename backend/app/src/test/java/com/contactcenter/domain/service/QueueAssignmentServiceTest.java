@@ -9,7 +9,7 @@ import com.contactcenter.domain.agentgroup.AgentGroupRepository;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -58,7 +58,7 @@ class QueueAssignmentServiceTest {
     @Mock private QueueRepository queueRepository;
     @Mock private QueueAssignmentRepository queueAssignmentRepository;
     @Mock private AgentGroupRepository agentGroupRepository;
-    @Mock private AppUserRepository appUserRepository;
+    @Mock private UserService userService;
 
     @InjectMocks
     private QueueAssignmentService service;
@@ -82,7 +82,7 @@ class QueueAssignmentServiceTest {
                     .thenReturn(List.of(AGENT_ID));
             when(queueAssignmentRepository.findGroupIds(QUEUE_ID, TENANT_ID))
                     .thenReturn(List.of(GROUP_ID));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildAgent(AGENT_ID)));
             when(agentGroupRepository.findByIdAndTenantId(GROUP_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildGroup(GROUP_ID, "Grupa Alpha")));
@@ -191,7 +191,7 @@ class QueueAssignmentServiceTest {
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildAgent(AGENT_ID)));
             when(agentGroupRepository.findByIdAndTenantId(GROUP_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildGroup(GROUP_ID, "Zmienna Grupa")));
@@ -259,7 +259,7 @@ class QueueAssignmentServiceTest {
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                     .thenReturn(Optional.empty()); // nie istnieje w tenancie
 
             // when / then
@@ -280,7 +280,7 @@ class QueueAssignmentServiceTest {
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                     .thenReturn(Optional.of(supervisor));
 
             // when / then

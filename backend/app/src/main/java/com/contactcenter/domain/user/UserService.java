@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -148,4 +149,139 @@ public interface UserService {
      * @param tenantId UUID tenanta
      */
     void setAgentAvailableAfterConsultCancelled(UUID agentId, UUID tenantId);
+
+    // =========================================================================
+    // Encapsulation pass: dostęp do AppUserRepository wyłącznie przez UserService
+    // =========================================================================
+
+    /**
+     * Znajdź aktywnego, nieusuniętego użytkownika po email i tenantId – do uwierzytelniania.
+     *
+     * <p>Używane przez {@code UserDetailsServiceImpl} podczas logowania. Pomija
+     * użytkowników z {@code is_active = false}.
+     *
+     * @param tenantId UUID tenanta
+     * @param email    adres e-mail użytkownika
+     * @return Optional z użytkownikiem lub empty jeśli nie istnieje/nieaktywny
+     */
+    Optional<AppUser> findAuthenticatableUser(UUID tenantId, String email);
+
+    /**
+     * Dezaktywuje wszystkich aktywnych użytkowników tenanta jednym bulk UPDATE.
+     *
+     * <p>Używane przy dezaktywacji tenanta ({@code TenantService#deactivateTenant}).
+     *
+     * @param tenantId UUID tenanta
+     * @return liczba dezaktywowanych użytkowników
+     */
+    int deactivateAllUsersByTenantId(UUID tenantId);
+
+    /**
+     * Znajdź agenta po ID i tenantId (nie usuniętego).
+     *
+     * <p>Bezpieczny odczyt per tenant – uniemożliwia cross-tenant lookup.
+     * Używane do walidacji agentów (np. przy przypisywaniu do grup, kolejek,
+     * transferach, rozwiązywaniu nazw agentów).
+     *
+     * @param agentId  UUID agenta
+     * @param tenantId UUID tenanta
+     * @return Optional z agentem lub empty jeśli nie istnieje/inny tenant/usunięty
+     */
+    Optional<AppUser> findAgentByIdAndTenantId(UUID agentId, UUID tenantId);
+
+    /**
+     * Zlicza łączną liczbę agentów dla tenanta (is_deleted=false, role=AGENT).
+     *
+     * @param tenantId UUID tenanta
+     * @return liczba agentów z rolą AGENT i is_deleted=false
+     */
+    long countAgentsByTenantId(UUID tenantId);
+
+    /**
+     * Pobiera wielu agentów po liście UUID w obrębie tenanta.
+     *
+     * <p>Używane do batch-lookupowania nazw agentów – unika problemu N+1 zapytań.
+     * Soft-deleted użytkownicy są pomijani.
+     *
+     * @param agentIds zbiór UUID agentów do pobrania
+     * @param tenantId UUID tenanta (izolacja cross-tenant)
+     * @return lista agentów należących do tenanta
+     */
+    List<AppUser> findAgentsByIdsAndTenantId(java.util.Collection<UUID> agentIds, UUID tenantId);
+
+    /**
+     * Lista agentów tenanta z opcjonalnym filtrowaniem po statusie, skillu, roli i frazie wyszukiwania.
+     *
+     * @param tenantId UUID tenanta
+     * @param status   opcjonalny status lub null
+     * @param skill    opcjonalny skill lub null
+     * @param role     opcjonalna rola lub null
+     * @param search   opcjonalna fraza wyszukiwania lub null
+     * @param pageable parametry stronicowania
+     * @return strona agentów spełniających kryteria
+     */
+    Page<AppUser> findAgentsByTenantIdWithFilters(UUID tenantId, String status, String skill, String role,
+                                                   String search, Pageable pageable);
+
+    /**
+     * Zwraca agentów dostępnych jako kandydaci do przyjęcia transferu połączenia.
+     *
+     * @param tenantId      UUID tenanta
+     * @param excludeUserId UUID agenta wykluczanego z wyników (zalogowany agent)
+     * @return lista kandydatów do transferu
+     */
+    List<AppUser> findTransferCandidates(UUID tenantId, UUID excludeUserId);
+
+    /**
+     * Zwraca wszystkich nieusunietych agentów ze statusem AVAILABLE, cross-tenant.
+     *
+     * <p>Używana przez {@code ProgressiveDialerService} i {@code RoutingService}
+     * do cyklicznego pollingu agentów dostępnych do obsługi.
+     *
+     * @return lista agentów ze statusem AVAILABLE, is_deleted=false
+     */
+    List<AppUser> findAvailableAgents();
+
+    /**
+     * Zwraca aktywne tenanty, w których istnieje aktywny, nieusunięty użytkownik z danym emailem.
+     *
+     * <p>Używane przez publiczny endpoint email-first login flow.
+     *
+     * @param email adres e-mail użytkownika (case-insensitive)
+     * @return lista wierszy [tenant_id, name] aktywnych tenantów z dopasowaniem
+     */
+    List<Object[]> findActiveTenantsByUserEmail(String email);
+
+    /**
+     * Zwraca liczbę aktywnych kontaktów dla listy agentów w jednym zapytaniu SQL (batch).
+     *
+     * <p>Używane przez routing engine do wyboru najmniej obciążonego agenta.
+     *
+     * @param tenantId UUID tenanta (izolacja cross-tenant)
+     * @param agentIds lista UUID agentów do sprawdzenia
+     * @return lista par [agent_id, active_contacts_count] jako Object[]
+     */
+    List<Object[]> countActiveContactsByAgentIds(UUID tenantId, List<UUID> agentIds);
+
+    /**
+     * Pobiera wielu użytkowników po liście UUID, bez filtra tenantId.
+     *
+     * <p>Używane wyłącznie w kontekstach, gdzie tenant został już zweryfikowany
+     * inną ścieżką (np. dane z kolejki/callbacku należące do bieżącego tenanta).
+     *
+     * @param userIds zbiór UUID użytkowników do pobrania
+     * @return lista znalezionych użytkowników
+     */
+    List<AppUser> findUsersByIds(java.util.Collection<UUID> userIds);
+
+    /**
+     * Pobiera użytkownika po ID, bez filtra tenantId.
+     *
+     * <p>Używane wyłącznie w kontekstach, gdzie tenant został już zweryfikowany
+     * inną ścieżką.
+     *
+     * @param userId UUID użytkownika
+     * @return Optional z użytkownikiem lub empty jeśli nie istnieje
+     */
+    Optional<AppUser> findUserById(UUID userId);
 }

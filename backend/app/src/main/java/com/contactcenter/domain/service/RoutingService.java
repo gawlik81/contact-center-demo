@@ -6,7 +6,7 @@ import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.customer.Customer;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.customer.CustomerRepository;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
@@ -71,7 +71,7 @@ public class RoutingService {
     private final CustomerRepository customerRepository;
     private final RabbitTemplate rabbitTemplate;
     private final QueueAssignmentRepository queueAssignmentRepository;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
     private final WebSocketEventBroadcaster broadcaster;
     private final ContactService contactService;
     private final ContactEventService contactEventService;
@@ -426,8 +426,7 @@ public class RoutingService {
      */
     @Scheduled(fixedDelayString = "${dialer.agent-poll-interval-ms:30000}")
     public void pollAvailableAgents() {
-        List<AppUser> availableAgents =
-                appUserRepository.findAllByStatusAndDeletedFalse(UserStatus.AVAILABLE);
+        List<AppUser> availableAgents = userService.findAvailableAgents();
 
         if (availableAgents.isEmpty()) {
             log.debug("[RoutingService] pollAvailableAgents: brak AVAILABLE agentów – pomijam");

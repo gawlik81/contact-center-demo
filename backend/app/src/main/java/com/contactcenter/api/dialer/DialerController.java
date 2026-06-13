@@ -19,7 +19,7 @@ import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Campaign;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.user.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.repository.CampaignAssignmentRepository;
 import com.contactcenter.domain.repository.CampaignRepository;
 import com.contactcenter.domain.repository.ContactRepository;
@@ -89,7 +89,7 @@ public class DialerController {
     private final ScheduledCallbackRepository scheduledCallbackRepository;
     private final TelephonyAdapter telephonyAdapter;
     private final ContactRepository contactRepository;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
 
     // Statusy uwzględniane w podsumowaniu dialera
     private static final List<String> DIALER_STATUSES =
@@ -257,7 +257,7 @@ public class DialerController {
 
         Map<UUID, String> agentNames = agentIds.isEmpty()
                 ? Map.of()
-                : appUserRepository.findAllById(agentIds).stream()
+                : userService.findUsersByIds(agentIds).stream()
                         .collect(Collectors.toMap(
                                 AppUser::getId,
                                 u -> u.getFirstName() + " " + u.getLastName()
@@ -532,7 +532,7 @@ public class DialerController {
         // Batch lookup agentName (może być po reassign)
         String agentName = null;
         if (updated.getAgentId() != null) {
-            agentName = appUserRepository.findById(updated.getAgentId())
+            agentName = userService.findUserById(updated.getAgentId())
                     .map(u -> u.getFirstName() + " " + u.getLastName())
                     .orElse(null);
         }

@@ -1,9 +1,9 @@
 package com.contactcenter.domain.email;
 
 import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.EmailMessageRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import jakarta.mail.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,7 +48,7 @@ class EmailPollingServiceTest {
     private static final String TEST_KEY  =
             "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
 
-    @Mock private TenantRepository tenantRepository;
+    @Mock private TenantService tenantService;
     @Mock private EmailMessageRepository emailMessageRepository;
     @Mock private EmailRoutingService emailRoutingService;
     @Mock private EmailEventPublisher emailEventPublisher;
@@ -60,7 +60,7 @@ class EmailPollingServiceTest {
     void setUp() {
         encryptionService = new EmailEncryptionService(TEST_KEY);
         pollingService = new EmailPollingService(
-                tenantRepository,
+                tenantService,
                 emailMessageRepository,
                 emailRoutingService,
                 emailEventPublisher,

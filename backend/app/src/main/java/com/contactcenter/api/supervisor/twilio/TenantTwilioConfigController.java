@@ -4,7 +4,7 @@ import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigResponse;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioConnectionTestResult;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioPhoneNumberListResponse;
-import com.contactcenter.domain.service.TenantTwilioConfigService;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

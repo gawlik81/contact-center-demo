@@ -3,7 +3,7 @@ package com.contactcenter.api.supervisor.twilio;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigResponse;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioConnectionTestResult;
-import com.contactcenter.domain.service.TenantTwilioConfigService;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;

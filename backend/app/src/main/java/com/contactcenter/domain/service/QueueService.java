@@ -6,6 +6,7 @@ import com.contactcenter.api.queue.dto.QueueResponse;
 import com.contactcenter.api.queue.dto.UpdateQueueRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.tenant.TenantResourceLimitService;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.infrastructure.aspect.Audited;

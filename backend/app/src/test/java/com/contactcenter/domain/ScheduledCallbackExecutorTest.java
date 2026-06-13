@@ -2,11 +2,11 @@ package com.contactcenter.domain;
 
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.ScheduledCallbackExecutor;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -49,7 +49,7 @@ import static org.mockito.Mockito.*;
 class ScheduledCallbackExecutorTest {
 
     @Mock
-    private TenantRepository tenantRepository;
+    private TenantService tenantService;
 
     @Mock
     private ScheduledCallbackRepository callbackRepository;
@@ -106,7 +106,7 @@ class ScheduledCallbackExecutorTest {
     @DisplayName("Brak callbacków PENDING – TelephonyAdapter nie jest wywoływany")
     void executeScheduledCallbacks_noCallbacks_doesNotCallTelephonyAdapter() {
         // given
-        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
         when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
                 .thenReturn(List.of());
 
@@ -129,7 +129,7 @@ class ScheduledCallbackExecutorTest {
         // given
         ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48123456789");
 
-        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
         when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
@@ -163,7 +163,7 @@ class ScheduledCallbackExecutorTest {
         ScheduledCallback callback1 = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48111111111");
         ScheduledCallback callback2 = buildCallback(callbackId2, TENANT_ID, AGENT_ID, "+48222222222");
 
-        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
         when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
                 .thenReturn(List.of(callback1, callback2));
 
@@ -205,7 +205,7 @@ class ScheduledCallbackExecutorTest {
         // given
         ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48999999999");
 
-        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
         when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
                 .thenReturn(List.of(callback));
 
@@ -232,7 +232,7 @@ class ScheduledCallbackExecutorTest {
         // given
         ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48123456789");
 
-        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
         when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
@@ -264,7 +264,7 @@ class ScheduledCallbackExecutorTest {
         // given
         ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48123456789");
 
-        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
         when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
@@ -296,7 +296,7 @@ class ScheduledCallbackExecutorTest {
         // given – callback bez przypisanego agenta
         ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, null, "+48123456789");
 
-        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
         when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
@@ -328,7 +328,7 @@ class ScheduledCallbackExecutorTest {
                 "+48123456789", CAMPAIGN_ID, RECORD_ID);
         String expectedCallSid = "CA_campaign_callback_001";
 
-        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
         when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))
@@ -367,7 +367,7 @@ class ScheduledCallbackExecutorTest {
         ScheduledCallback callback = buildCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, "+48999999999");
         // callback nie ma campaignId ani campaignContactRecordId
 
-        when(tenantRepository.findAll()).thenReturn(List.of(activeTenant));
+        when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
         when(callbackRepository.findDueCallbacks(eq(TENANT_ID), anyInt()))
                 .thenReturn(List.of(callback));
         when(callbackRepository.updateStatusIfPending(eq(CALLBACK_ID), eq(TENANT_ID), eq("PROCESSING")))

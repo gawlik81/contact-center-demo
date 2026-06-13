@@ -12,10 +12,10 @@ import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserRole;
 import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.RefreshToken;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.RefreshTokenRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.AuthService;
 import com.contactcenter.domain.service.AuthService.InvalidTokenException;
 import com.contactcenter.domain.service.UserService;
@@ -91,7 +91,7 @@ class AuthServiceTest {
     @Mock private MfaService            mfaService;
     @Mock private AppUserRepository     appUserRepository;
     @Mock private RefreshTokenRepository refreshTokenRepository;
-    @Mock private TenantRepository      tenantRepository;
+    @Mock private TenantService tenantService;
     @Mock private PasswordEncoder       passwordEncoder;
     @Mock private LoginRateLimiter      loginRateLimiter;
     @Mock private UserService           userService;
@@ -102,7 +102,7 @@ class AuthServiceTest {
     void setUp() {
         authService = new AuthService(
                 authenticationManager, jwtService, jwtParser, tokenBlacklistService,
-                mfaService, appUserRepository, refreshTokenRepository, tenantRepository,
+                mfaService, appUserRepository, refreshTokenRepository, tenantService,
                 passwordEncoder, loginRateLimiter, userService
         );
 
@@ -110,7 +110,7 @@ class AuthServiceTest {
         when(jwtService.issueAccessToken(any(), anyString(), anyBoolean())).thenReturn(ACCESS_TOKEN);
         when(jwtService.generateRefreshTokenValue()).thenReturn(REFRESH_TOKEN);
         when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
-        when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(buildTenant()));
+        when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(buildTenant()));
         when(refreshTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 

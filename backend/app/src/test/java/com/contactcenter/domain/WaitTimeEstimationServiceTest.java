@@ -3,11 +3,11 @@ package com.contactcenter.domain;
 import com.contactcenter.api.queue.dto.QueueStatsResponse;
 import com.contactcenter.api.queue.QueueWaitUpdatePayload;
 import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.QueueRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.WaitTimeEstimationService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -65,7 +65,7 @@ class WaitTimeEstimationServiceTest {
     private static final UUID AGENT_1_ID  = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID AGENT_2_ID  = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
-    @Mock private TenantRepository          tenantRepository;
+    @Mock private TenantService tenantService;
     @Mock private QueueRepository           queueRepository;
     @Mock private ContactRepository         contactRepository;
     @Mock private RedisTemplate<String, Object> redisTemplate;
@@ -315,18 +315,11 @@ class WaitTimeEstimationServiceTest {
     class BroadcastTests {
 
         @Test
-        @DisplayName("Pomija tenantów ze statusem SUSPENDED")
+        @DisplayName("Pomija tenantów ze statusem SUSPENDED (TenantService nie zwraca ich jako aktywnych)")
         void shouldSkipSuspendedTenants() {
-            Tenant suspendedTenant = Tenant.builder()
-                    .id(TENANT_ID_2)
-                    .name("Suspended Co")
-                    .status(TenantStatus.SUSPENDED)
-                    .config(new HashMap<>())
-                    .createdAt(Instant.now())
-                    .build();
-
-            when(tenantRepository.findAllByOrderByNameAsc())
-                    .thenReturn(List.of(suspendedTenant));
+            // TenantService.getActiveTenants() filtruje SUSPENDED, więc zwraca pustą listę
+            when(tenantService.getActiveTenants())
+                    .thenReturn(Collections.emptyList());
 
             service.broadcastWaitTimeUpdates();
 
@@ -337,7 +330,7 @@ class WaitTimeEstimationServiceTest {
         @Test
         @DisplayName("Nie wykonuje żadnych operacji gdy brak aktywnych tenantów")
         void shouldDoNothing_whenNoActiveTenants() {
-            when(tenantRepository.findAllByOrderByNameAsc())
+            when(tenantService.getActiveTenants())
                     .thenReturn(Collections.emptyList());
 
             service.broadcastWaitTimeUpdates();
@@ -357,7 +350,7 @@ class WaitTimeEstimationServiceTest {
                     .active(true)
                     .build();
 
-            when(tenantRepository.findAllByOrderByNameAsc()).thenReturn(List.of(activeTenant));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
 
             com.contactcenter.api.PagedResponse<Queue> pagedQueues = new com.contactcenter.api.PagedResponse<>(
                     List.of(testQueue, queue2), 0, 1000, 2, 1, true, true
@@ -378,7 +371,7 @@ class WaitTimeEstimationServiceTest {
         @Test
         @DisplayName("Pomija tenanta gdy brak kolejek")
         void shouldSkipTenant_whenNoQueues() {
-            when(tenantRepository.findAllByOrderByNameAsc()).thenReturn(List.of(activeTenant));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
 
             com.contactcenter.api.PagedResponse<Queue> emptyQueues = new com.contactcenter.api.PagedResponse<>(
                     Collections.emptyList(), 0, 1000, 0, 0, true, true

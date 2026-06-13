@@ -1,6 +1,5 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.tenant;
 
-import com.contactcenter.domain.model.TenantTwilioConfig;
 
 public record TenantTwilioConfigDecrypted(
         String accountSid,

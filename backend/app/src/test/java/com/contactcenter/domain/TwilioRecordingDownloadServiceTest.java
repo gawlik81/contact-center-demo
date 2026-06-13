@@ -3,7 +3,7 @@ package com.contactcenter.domain;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ContactTranscriptionRepository;
 import com.contactcenter.domain.service.RecordingService;
-import com.contactcenter.domain.service.TenantTwilioConfigService;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.infrastructure.config.TwilioProperties;

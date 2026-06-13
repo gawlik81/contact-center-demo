@@ -5,6 +5,8 @@ import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.ContactAiSummary;
 import com.contactcenter.domain.model.EmailMessage;
+import com.contactcenter.domain.tenant.TenantAiConfigDecrypted;
+import com.contactcenter.domain.tenant.TenantAiConfigService;
 import com.contactcenter.domain.repository.ContactAiSummaryRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.ContactTranscriptionRepository;

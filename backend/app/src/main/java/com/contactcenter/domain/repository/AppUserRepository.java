@@ -97,7 +97,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     /**
      * Dezaktywuje wszystkich aktywnych użytkowników tenanta jednym bulk UPDATE.
      *
-     * <p>Używane przez {@link com.contactcenter.domain.service.TenantService#deactivateTenant(UUID)}
+     * <p>Używane przez {@link com.contactcenter.domain.tenant.TenantService#deactivateTenant(UUID)}
      * zamiast pętli N+1 (findAll + N×save). Jeden UPDATE zamiast full table scan i N osobnych UPDATE.
      *
      * <p>{@code clearAutomatically = true} – usuwa z Hibernate L1 cache zaktualizowane encje,

@@ -2,10 +2,10 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.model.PhoneNumber;
 import com.contactcenter.domain.model.PhoneRoutingRule;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.PhoneNumberRepository;
 import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.routing.RouteResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,7 +44,7 @@ class IncomingCallRoutingServiceTest {
     @Mock
     private PhoneRoutingRuleRepository routingRuleRepository;
     @Mock
-    private TenantRepository tenantRepository;
+    private TenantService tenantService;
 
     private IncomingCallRoutingService service;
 
@@ -59,12 +59,12 @@ class IncomingCallRoutingServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new IncomingCallRoutingService(phoneNumberRepository, routingRuleRepository, tenantRepository);
+        service = new IncomingCallRoutingService(phoneNumberRepository, routingRuleRepository, tenantService);
 
         // Domyślny tenant z Warsaw timezone
         Tenant tenant = Tenant.builder().build();
         tenant.getConfig().put("timezone", "Europe/Warsaw");
-        when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+        when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
 
         // Domyślny aktywny numer telefonu
         PhoneNumber phone = buildPhoneNumber(true);

@@ -3,9 +3,9 @@ package com.contactcenter.domain.email;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.email.EmailTemplateService.RenderedEmailTemplate;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.EmailMessageRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
 import jakarta.mail.*;
 import jakarta.mail.internet.*;
@@ -39,7 +39,7 @@ public class EmailSendService {
 
     private final EmailMessageRepository emailMessageRepository;
     private final EmailEventPublisher emailEventPublisher;
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final EmailEncryptionService encryptionService;
     private final EmailTemplateService emailTemplateService;
     private final TemplateVariableResolver templateVariableResolver;
@@ -73,7 +73,7 @@ public class EmailSendService {
                         "Wiadomość email nie istnieje: " + originalMessageId));
 
         // 2. Pobierz konfigurację SMTP tenanta
-        Tenant tenant = tenantRepository.findById(tenantId)
+        Tenant tenant = tenantService.findTenantEntity(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
 
         EmailAccountConfig config = EmailAccountConfig.fromTenantConfig(tenant.getConfig());
@@ -204,7 +204,7 @@ public class EmailSendService {
                                 String bodyHtml, UUID agentId) {
 
         // 1. Pobierz konfigurację SMTP tenanta
-        Tenant tenant = tenantRepository.findById(tenantId)
+        Tenant tenant = tenantService.findTenantEntity(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
 
         EmailAccountConfig config = EmailAccountConfig.fromTenantConfig(tenant.getConfig());

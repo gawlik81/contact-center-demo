@@ -8,7 +8,7 @@ import com.contactcenter.domain.exception.ResourceLimitExceededException;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.service.QueueService;
-import com.contactcenter.domain.service.TenantResourceLimitService;
+import com.contactcenter.domain.tenant.TenantResourceLimitService;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.*;

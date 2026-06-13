@@ -26,8 +26,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(
     scanBasePackages = "com.contactcenter"
 )
-@EnableJpaRepositories(basePackages = "com.contactcenter.domain.repository")
-@EntityScan(basePackages = "com.contactcenter.domain.model")
+@EnableJpaRepositories(basePackages = {"com.contactcenter.domain.repository", "com.contactcenter.domain.tenant"})
+@EntityScan(basePackages = {"com.contactcenter.domain.model", "com.contactcenter.domain.tenant"})
 @ConfigurationPropertiesScan("com.contactcenter")
 @EnableAsync
 @EnableScheduling

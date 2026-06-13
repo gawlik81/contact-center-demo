@@ -3,10 +3,10 @@ package com.contactcenter.domain;
 import com.contactcenter.api.auth.dto.ChangePasswordRequest;
 import com.contactcenter.api.auth.dto.LoginResponse;
 import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.RefreshTokenRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.AuthService;
 import com.contactcenter.domain.service.UserService;
 import com.contactcenter.security.*;
@@ -57,7 +57,7 @@ class AuthServiceChangePasswordTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private LoginRateLimiter loginRateLimiter;
     @Mock private UserService userService;
-    @Mock private TenantRepository tenantRepository;
+    @Mock private TenantService tenantService;
 
     private AuthService authService;
 
@@ -68,13 +68,13 @@ class AuthServiceChangePasswordTest {
     void setUp() {
         Tenant tenant = new Tenant();
         tenant.setName("Test Tenant");
-        when(tenantRepository.findById(any())).thenReturn(Optional.of(tenant));
+        when(tenantService.findTenantEntity(any())).thenReturn(Optional.of(tenant));
 
         authService = new AuthService(
                 authenticationManager, jwtService, jwtParser,
                 tokenBlacklistService, mfaService,
                 appUserRepository, refreshTokenRepository,
-                tenantRepository, passwordEncoder, loginRateLimiter, userService
+                tenantService, passwordEncoder, loginRateLimiter, userService
         );
     }
 

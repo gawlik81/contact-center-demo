@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.tenant.dto.CreateTenantRequest;
@@ -8,10 +8,10 @@ import com.contactcenter.api.tenant.dto.TenantResponse;
 import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
+import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
+import com.contactcenter.domain.service.AdminMetricsService;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
@@ -28,10 +28,11 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Serwis domenowy zarządzający tenantami.
+ * Implementacja {@link TenantService}.
  *
  * <p>Operacje dostępne wyłącznie dla roli ADMIN (weryfikacja przez {@code @PreAuthorize}
  * w {@code TenantController}).
@@ -43,7 +44,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TenantService {
+class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
     private final AppUserRepository appUserRepository;
@@ -90,6 +91,7 @@ public class TenantService {
      */
     @Audited(action = "TENANT_CREATED", entityType = "TENANT")
     @Transactional
+    @Override
     public TenantResponse createTenant(CreateTenantRequest request) {
         log.info("[TenantService] Tworzenie tenanta: name={}", request.name());
 
@@ -124,6 +126,7 @@ public class TenantService {
      * @return lista DTO tenantów spełniających kryteria, posortowana po nazwie ASC
      */
     @Transactional(readOnly = true)
+    @Override
     public List<TenantResponse> listTenants(TenantFilterParams filters) {
         String nameFilter = (filters != null && filters.name() != null && !filters.name().isBlank())
                 ? filters.name().trim()
@@ -146,6 +149,7 @@ public class TenantService {
      * Paginowana lista tenantów – używana przez REST endpoint GET /api/tenants.
      */
     @Transactional(readOnly = true)
+    @Override
     public PagedResponse<TenantResponse> listTenantsPaged(TenantFilterParams filters, Pageable pageable) {
         String nameFilter = (filters != null && filters.name() != null && !filters.name().isBlank())
                 ? filters.name().trim()
@@ -171,6 +175,7 @@ public class TenantService {
      * @throws EntityNotFoundException gdy tenant nie istnieje
      */
     @Transactional(readOnly = true)
+    @Override
     public TenantResponse getTenant(UUID tenantId) {
         Tenant tenant = findTenantOrThrow(tenantId);
         return TenantResponse.from(tenant);
@@ -192,6 +197,7 @@ public class TenantService {
      * @throws CrossTenantAccessException gdy SUPERVISOR próbuje odczytać cudzego tenanta
      */
     @Transactional(readOnly = true)
+    @Override
     public TenantResponse getTenantConfig(UUID tenantId) {
         String role = TenantContext.getUserRole();
         if ("SUPERVISOR".equals(role)) {
@@ -226,6 +232,7 @@ public class TenantService {
         entityIdParamIndex = 0
     )
     @Transactional
+    @Override
     public TenantResponse updateTenant(UUID tenantId, UpdateTenantRequest request) {
         log.info("[TenantService] Aktualizacja tenanta: id={}", tenantId);
 
@@ -286,6 +293,7 @@ public class TenantService {
         entityIdParamIndex = 0
     )
     @Transactional
+    @Override
     public void deactivateTenant(UUID tenantId) {
         log.warn("[TenantService] Dezaktywacja tenanta: id={}", tenantId);
 
@@ -329,6 +337,7 @@ public class TenantService {
      */
     @Audited(action = "TENANT_TWILIO_CONFIG_UPDATED", entityType = "TENANT")
     @Transactional
+    @Override
     public TenantResponse updateTwilioConfig(UUID tenantId, TenantTwilioConfigRequest request) {
         log.info("[TenantService] Aktualizacja konfiguracji Twilio dla tenanta: id={}", tenantId);
 
@@ -369,6 +378,7 @@ public class TenantService {
      * @return true gdy nazwa jest wolna
      */
     @Transactional(readOnly = true)
+    @Override
     public boolean isNameAvailable(String name) {
         return !tenantRepository.existsByNameIgnoreCase(name);
     }
@@ -382,8 +392,62 @@ public class TenantService {
      * @return true gdy nazwa jest wolna (lub należy do podanego tenanta)
      */
     @Transactional(readOnly = true)
+    @Override
     public boolean isNameAvailable(String name, UUID tenantId) {
         return !tenantRepository.existsByNameIgnoreCaseAndIdNot(name, tenantId);
+    }
+
+    /**
+     * Zwraca listę aktywnych tenantów (status {@code ACTIVE}) posortowaną po nazwie.
+     *
+     * @return lista aktywnych tenantów posortowana po nazwie ASC
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public List<Tenant> getActiveTenants() {
+        return tenantRepository.findAllByOrderByNameAsc().stream()
+                .filter(t -> t.getStatus() == TenantStatus.ACTIVE)
+                .toList();
+    }
+
+    /**
+     * Zwraca listę wszystkich tenantów (niezależnie od statusu) posortowaną po nazwie.
+     *
+     * @return lista wszystkich tenantów posortowana po nazwie ASC
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public List<Tenant> getAllTenants() {
+        return tenantRepository.findAllByOrderByNameAsc();
+    }
+
+    /**
+     * Znajduje encję tenanta po identyfikatorze.
+     *
+     * @param tenantId UUID tenanta
+     * @return Optional z encją tenanta, lub empty gdy nie istnieje
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<Tenant> findTenantEntity(UUID tenantId) {
+        return tenantRepository.findById(tenantId);
+    }
+
+    /**
+     * Aktualizuje konfigurację (JSONB) tenanta i zapisuje encję.
+     *
+     * @param tenantId UUID tenanta do aktualizacji
+     * @param config   nowa konfiguracja JSONB
+     * @throws ResourceNotFoundException gdy tenant nie istnieje
+     */
+    @Transactional
+    @Override
+    public void updateTenantConfig(UUID tenantId, Map<String, Object> config) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
+        tenant.setConfig(config);
+        tenant.setUpdatedAt(Instant.now());
+        tenantRepository.save(tenant);
     }
 
     // =========================================================================

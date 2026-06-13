@@ -4,7 +4,7 @@ import com.contactcenter.domain.model.PhoneNumber;
 import com.contactcenter.domain.model.PhoneRoutingRule;
 import com.contactcenter.domain.repository.PhoneNumberRepository;
 import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.routing.RouteResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +44,7 @@ public class IncomingCallRoutingService {
 
     private final PhoneNumberRepository phoneNumberRepository;
     private final PhoneRoutingRuleRepository routingRuleRepository;
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
 
     /**
      * Rozwiązuje trasę dla przychodzącego połączenia.
@@ -124,7 +124,7 @@ public class IncomingCallRoutingService {
      */
     private ZoneId getTenantZone(UUID tenantId) {
         try {
-            return tenantRepository.findById(tenantId)
+            return tenantService.findTenantEntity(tenantId)
                     .map(t -> ZoneId.of(t.getTimezone()))
                     .orElse(ZoneId.of("Europe/Warsaw"));
         } catch (Exception e) {

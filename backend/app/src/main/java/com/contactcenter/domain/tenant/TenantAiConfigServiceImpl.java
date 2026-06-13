@@ -1,11 +1,9 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigRequest;
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigResponse;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.AiProvider;
-import com.contactcenter.domain.model.TenantAiConfig;
-import com.contactcenter.domain.repository.TenantAiConfigRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,7 +16,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TenantAiConfigService {
+class TenantAiConfigServiceImpl implements TenantAiConfigService {
 
     private final TenantAiConfigRepository configRepository;
 
@@ -27,6 +25,7 @@ public class TenantAiConfigService {
     // =========================================================================
 
     @Transactional
+    @Override
     public TenantAiConfigResponse saveConfig(UUID tenantId, TenantAiConfigRequest request) {
         // Walidacja: AZURE_OPENAI wymaga azureEndpoint
         if (request.provider() == AiProvider.AZURE_OPENAI
@@ -62,6 +61,7 @@ public class TenantAiConfigService {
     // =========================================================================
 
     @Transactional(readOnly = true)
+    @Override
     public Optional<TenantAiConfigResponse> getConfig(UUID tenantId) {
         return configRepository.findByTenantId(tenantId)
                 .map(TenantAiConfigResponse::from);
@@ -72,6 +72,7 @@ public class TenantAiConfigService {
     // =========================================================================
 
     @Transactional(readOnly = true)
+    @Override
     public Optional<TenantAiConfigDecrypted> getDecryptedConfig(UUID tenantId) {
         return configRepository.findByTenantId(tenantId)
                 .map(TenantAiConfigDecrypted::from);
@@ -82,6 +83,7 @@ public class TenantAiConfigService {
     // =========================================================================
 
     @Transactional
+    @Override
     public void deleteConfig(UUID tenantId) {
         TenantAiConfig config = configRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(

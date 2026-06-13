@@ -1,4 +1,4 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.infrastructure.persistence.converter.EncryptedStringConverter;
 import jakarta.persistence.*;

@@ -6,7 +6,7 @@ import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserRole;
 import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.service.TenantResourceLimitService;
+import com.contactcenter.domain.tenant.TenantResourceLimitService;
 import com.contactcenter.domain.service.UserService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;

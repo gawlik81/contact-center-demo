@@ -1,9 +1,9 @@
 package com.contactcenter.domain.email;
 
 import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.EmailMessageRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
@@ -41,7 +41,7 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "email.enabled", havingValue = "true", matchIfMissing = true)
 public class EmailPollingService {
 
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final EmailMessageRepository emailMessageRepository;
     private final EmailRoutingService emailRoutingService;
     private final EmailEventPublisher emailEventPublisher;
@@ -66,8 +66,7 @@ public class EmailPollingService {
      */
     @Scheduled(fixedDelayString = "${email.poll-delay-ms:60000}")
     public void pollAllTenants() {
-        List<Tenant> activeTenants = tenantRepository.findAll().stream()
-                .filter(t -> t.getStatus() == Tenant.TenantStatus.ACTIVE)
+        List<Tenant> activeTenants = tenantService.getActiveTenants().stream()
                 .filter(t -> isEmailEnabled(t))
                 .toList();
 

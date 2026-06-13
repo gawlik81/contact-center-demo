@@ -12,10 +12,10 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserStatus;
 import com.contactcenter.domain.model.RefreshToken;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.RefreshTokenRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.*;
 import com.contactcenter.security.JwtParser.JwtClaims;
 import lombok.RequiredArgsConstructor;
@@ -65,7 +65,7 @@ public class AuthService {
     private final MfaService mfaService;
     private final AppUserRepository appUserRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final PasswordEncoder passwordEncoder;
     private final LoginRateLimiter loginRateLimiter;
     private final UserService userService;
@@ -473,7 +473,7 @@ public class AuthService {
      * Tworzy i zapisuje nowy refresh token w bazie danych.
      */
     private String getTenantName(AppUser user) {
-        return tenantRepository.findById(user.getTenantId())
+        return tenantService.findTenantEntity(user.getTenantId())
                 .map(Tenant::getName)
                 .orElse(user.getTenantId().toString());
     }

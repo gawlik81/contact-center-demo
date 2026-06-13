@@ -1,8 +1,6 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.domain.model.AiProvider;
-import com.contactcenter.domain.model.TenantAiConfig;
-import com.contactcenter.domain.repository.TenantAiConfigRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -31,7 +29,7 @@ class TenantAiConfigDecryptedServiceTest {
     private TenantAiConfigRepository configRepository;
 
     @InjectMocks
-    private TenantAiConfigService service;
+    private TenantAiConfigServiceImpl service;
 
     @Nested
     @DisplayName("getDecryptedConfig() – plaintext dla serwisów wewnętrznych")

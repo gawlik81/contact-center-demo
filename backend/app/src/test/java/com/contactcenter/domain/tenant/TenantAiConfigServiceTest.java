@@ -1,12 +1,9 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigRequest;
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigResponse;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.AiProvider;
-import com.contactcenter.domain.model.TenantAiConfig;
-import com.contactcenter.domain.repository.TenantAiConfigRepository;
-import com.contactcenter.domain.service.TenantAiConfigService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -34,7 +31,7 @@ class TenantAiConfigServiceTest {
     private TenantAiConfigRepository configRepository;
 
     @InjectMocks
-    private TenantAiConfigService service;
+    private TenantAiConfigServiceImpl service;
 
     // =========================================================================
     // saveConfig()

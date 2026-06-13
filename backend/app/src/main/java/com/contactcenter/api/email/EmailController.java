@@ -10,8 +10,8 @@ import com.contactcenter.domain.email.*;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -52,7 +52,7 @@ public class EmailController {
 
     private final EmailMessageRepository emailMessageRepository;
     private final EmailSendService emailSendService;
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final EmailEncryptionService encryptionService;
     private final EmailPollingService emailPollingService;
 
@@ -195,7 +195,7 @@ public class EmailController {
     public ResponseEntity<EmailConfigResponse> getConfig() {
         UUID tenantId = TenantContext.getTenantId();
 
-        Tenant tenant = tenantRepository.findById(tenantId)
+        Tenant tenant = tenantService.findTenantEntity(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
 
         EmailAccountConfig config = EmailAccountConfig.fromTenantConfig(tenant.getConfig());
@@ -223,7 +223,7 @@ public class EmailController {
 
         UUID tenantId = TenantContext.getTenantId();
 
-        Tenant tenant = tenantRepository.findById(tenantId)
+        Tenant tenant = tenantService.findTenantEntity(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
 
         Map<String, Object> config = tenant.getConfig();
@@ -259,8 +259,7 @@ public class EmailController {
             config.remove("email_default_queue_id");
         }
 
-        tenant.setConfig(config);
-        tenantRepository.save(tenant);
+        tenantService.updateTenantConfig(tenantId, config);
 
         log.info("[EmailController] Konfiguracja email zapisana: tenant={}, user={}, enabled={}",
                 tenantId, request.username(), request.emailEnabled());

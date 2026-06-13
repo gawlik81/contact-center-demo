@@ -2,8 +2,8 @@ package com.contactcenter.api.tenant;
 
 import com.contactcenter.api.tenant.dto.*;
 import com.contactcenter.api.tenant.dto.TenantTwilioConfigRequest;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
-import com.contactcenter.domain.service.TenantService;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
+import com.contactcenter.domain.tenant.TenantService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

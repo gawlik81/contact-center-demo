@@ -7,11 +7,11 @@ import com.contactcenter.api.supervisor.SupervisorMetricsPayload.QueueMetric;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserRole;
 import com.contactcenter.domain.model.AppUser.UserStatus;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.SupervisorMetricsService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -76,7 +76,7 @@ class SupervisorMetricsServiceTest {
     private static final UUID AGENT_2_ID  = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID CONTACT_ID  = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
-    @Mock private TenantRepository tenantRepository;
+    @Mock private TenantService tenantService;
     @Mock private AppUserRepository appUserRepository;
     @Mock private ContactRepository contactRepository;
     @Mock private RedisTemplate<String, Object> redisTemplate;
@@ -90,7 +90,6 @@ class SupervisorMetricsServiceTest {
     private SupervisorMetricsService service;
 
     private Tenant activeTenant;
-    private Tenant suspendedTenant;
     private AppUser agent1;
     private AppUser agent2;
 
@@ -100,14 +99,6 @@ class SupervisorMetricsServiceTest {
                 .id(TENANT_ID)
                 .name("Acme Corp")
                 .status(TenantStatus.ACTIVE)
-                .config(new HashMap<>())
-                .createdAt(Instant.now())
-                .build();
-
-        suspendedTenant = Tenant.builder()
-                .id(TENANT_ID_2)
-                .name("Suspended Co")
-                .status(TenantStatus.SUSPENDED)
                 .config(new HashMap<>())
                 .createdAt(Instant.now())
                 .build();
@@ -327,7 +318,7 @@ class SupervisorMetricsServiceTest {
         @DisplayName("powinien wysłać metryki do aktywnego tenanta")
         void shouldBroadcastMetricsToActiveTenant() {
             // given
-            when(tenantRepository.findAllByOrderByNameAsc()).thenReturn(List.of(activeTenant));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
             Page<AppUser> agentPage = new PageImpl<>(List.of(agent1));
             when(appUserRepository.findAllByTenantIdWithFilters(
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
@@ -350,10 +341,10 @@ class SupervisorMetricsServiceTest {
         }
 
         @Test
-        @DisplayName("powinien pominąć tenantów SUSPENDED")
+        @DisplayName("powinien pominąć broadcast gdy TenantService nie zwraca tenantów SUSPENDED jako aktywnych")
         void shouldSkipSuspendedTenants() {
-            // given – tylko SUSPENDED tenant
-            when(tenantRepository.findAllByOrderByNameAsc()).thenReturn(List.of(suspendedTenant));
+            // given – TenantService.getActiveTenants() filtruje SUSPENDED, więc zwraca pustą listę
+            when(tenantService.getActiveTenants()).thenReturn(List.of());
 
             // when
             service.broadcastMetrics();
@@ -367,7 +358,7 @@ class SupervisorMetricsServiceTest {
         @DisplayName("powinien pominąć broadcast gdy brak aktywnych tenantów")
         void shouldSkipBroadcastWhenNoActiveTenants() {
             // given
-            when(tenantRepository.findAllByOrderByNameAsc()).thenReturn(Collections.emptyList());
+            when(tenantService.getActiveTenants()).thenReturn(Collections.emptyList());
 
             // when
             service.broadcastMetrics();
@@ -389,7 +380,7 @@ class SupervisorMetricsServiceTest {
                     .createdAt(Instant.now())
                     .build();
 
-            when(tenantRepository.findAllByOrderByNameAsc()).thenReturn(List.of(activeTenant, tenant2));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant, tenant2));
 
             // Tenant 1: rzuca wyjątek przy pobieraniu agentów
             when(appUserRepository.findAllByTenantIdWithFilters(

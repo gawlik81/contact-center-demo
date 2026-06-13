@@ -3,10 +3,10 @@ package com.contactcenter.domain.service;
 import com.contactcenter.api.admin.dto.AdminMetricsResponse;
 import com.contactcenter.api.admin.dto.TenantDetailMetrics;
 import com.contactcenter.api.admin.dto.TenantMetrics;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +55,7 @@ public class AdminMetricsService {
     /** Pattern do skanowania wszystkich kluczy sesji agentów (Redis SCAN). */
     private static final String AGENT_SESSION_KEY_PATTERN = AGENT_SESSION_KEY_PREFIX + "*";
 
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final AppUserRepository appUserRepository;
     private final RedisTemplate<String, Object> redisTemplate;
 
@@ -83,7 +83,7 @@ public class AdminMetricsService {
     public AdminMetricsResponse getGlobalMetrics() {
         log.debug("[AdminMetrics] Pobieranie globalnych metryk platformy (cache miss)");
 
-        List<Tenant> allTenants = tenantRepository.findAllByOrderByNameAsc();
+        List<Tenant> allTenants = tenantService.getAllTenants();
 
         // Pobierz wszystkich agentów online z Redis jednorazowo (batch)
         Set<String> onlineAgentKeys = scanOnlineAgentKeys();
@@ -152,7 +152,7 @@ public class AdminMetricsService {
     public TenantDetailMetrics getTenantMetrics(UUID tenantId) {
         log.debug("[AdminMetrics] Pobieranie metryk tenanta: id={}", tenantId);
 
-        Tenant tenant = tenantRepository.findById(tenantId)
+        Tenant tenant = tenantService.findTenantEntity(tenantId)
                 .orElseThrow(() -> new EntityNotFoundException("Tenant nie istnieje: " + tenantId));
 
         Set<String> onlineAgentKeys = scanOnlineAgentKeys();

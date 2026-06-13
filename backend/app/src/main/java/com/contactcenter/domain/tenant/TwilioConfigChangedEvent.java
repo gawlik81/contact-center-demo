@@ -1,4 +1,4 @@
-package com.contactcenter.domain.event;
+package com.contactcenter.domain.tenant;
 
 import java.util.UUID;
 

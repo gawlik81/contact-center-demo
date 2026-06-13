@@ -2,7 +2,7 @@ package com.contactcenter.api.supervisor.ai;
 
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigRequest;
 import com.contactcenter.api.supervisor.ai.dto.TenantAiConfigResponse;
-import com.contactcenter.domain.service.TenantAiConfigService;
+import com.contactcenter.domain.tenant.TenantAiConfigService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

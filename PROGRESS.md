@@ -801,5 +801,55 @@ Poniższe grupy zadań są od siebie niezależne i mogą być realizowane przez 
 
 ---
 
+## Refaktor pakietu `com.contactcenter.domain` — reorganizacja na pakiety per-domena
+
+**Cel:** Reorganizacja monolitycznego pakietu `domain.model` / `domain.repository` / `domain.service` / `domain.event` na pakiety per-domena biznesowa
+(`com.contactcenter.domain.<domena>`), zawierające wszystkie powiązane pliki (encje, repozytoria, serwisy, mappery, eventy, wewnętrzne DTO).
+Dostęp międzypakietowy tylko przez publiczne interfejsy, implementacje `package-private`.
+
+### Wzorzec referencyjny (ustalony w sesji `tenant`)
+
+Dla każdego serwisu domenowego `XxxService`:
+
+1. **Publiczny interfejs** `XxxService` w pakiecie `domain.<domena>` — definiuje tylko metody używane poza pakietem (javadoc z oryginalnej klasy przenoszony do interfejsu).
+2. **Implementacja `package-private`** `XxxServiceImpl implements XxxService`, `@Service`, wszystkie metody interfejsu z `@Override`.
+3. Spring autowire'uje przez typ interfejsu — żadnych zmian w miejscach `@Autowired`/konstruktorowych poza dodaniem importu.
+4. Jeśli serwis ma zagnieżdżony publiczny typ (np. `record LimitCheckResult`) używany poza pakietem — wydzielić do osobnego pliku jako publiczny top-level typ w tym samym pakiecie domenowym.
+5. **Repozytoria Spring Data JPA** (`extends JpaRepository`) oraz repozytoria `extends TenantAwareRepository` używane cross-package — zostają `public`. W razie wątpliwości: `public` (bezpieczeństwo > estetyka).
+6. **Testy jednostkowe** dla `XxxServiceImpl` przenoszone do tego samego pakietu (`domain.<domena>` pod `src/test`), `@InjectMocks` na typ konkretny `XxxServiceImpl` (Mockito nie tworzy instancji interfejsu, a impl jest `package-private`).
+7. Po przeniesieniu — globalny update referencji (fully-qualified imports) w całym projekcie (`api/**`, `domain/**`, testy), w tym javadoc i `@Audited`/aspekty referencyjne po `.class`.
+8. Pliki współdzielone między domenami (np. `TenantAwareRepository`, `TenantContext`, `TenantFilter`, wyjątki domenowe) **nie są przenoszone** — zostają w `domain.repository` / `security` / `domain.exception`.
+9. **Dostęp tylko przez serwis (encapsulation pass):** po przeniesieniu sprawdzić, czy serwisy/komponenty z *innych* pakietów wstrzykują repozytorium domeny bezpośrednio (np. `@Scheduled` joby iterujące po tenantach/encjach, kontrolery odczytujące encję po ID). Jeśli tak:
+   - Repozytorium domeny → `package-private` (interfejs/klasa, bez `public`).
+   - Dodać do `XxxService` brakujące metody odpowiadające wzorcom użycia z zewnątrz (np. `getActiveXxx()`, `getAllXxx()`, `findXxxEntity(id)`, `updateXxxConfig(id, ...)`) — zwracają encję domenową lub `Optional<Encja>`, filtrowanie/sortowanie przenoszone z konsumenta do serwisu.
+   - Zaktualizować wszystkich zewnętrznych konsumentów (produkcyjne + testy jednostkowe z mockami) na nowe metody serwisu, usunąć nieużywane importy repozytorium.
+   - Testy konsumentów, które dotąd weryfikowały filtrowanie (np. ACTIVE/SUSPENDED/INACTIVE) w konsumencie — przepisać tak, by mockowały już przefiltrowany wynik z serwisu (logika filtrowania żyje teraz w `XxxServiceImpl`).
+   - Wzorzec ustalony w sesji `tenant` (patrz `TenantService.getActiveTenants/getAllTenants/findTenantEntity/updateTenantConfig`) — każda kolejna domena prawdopodobnie ma analogiczne przypadki (joby `@Scheduled`, kontrolery odczytujące encję po ID).
+10. **`@EnableJpaRepositories` / `@EntityScan` w `ContactCenterApplication`:** te dwie anotacje mają jawne `basePackages` (`com.contactcenter.domain.repository` / `com.contactcenter.domain.model`) — Spring Data JPA w "strict mode" (JPA + Redis razem) nie skanuje poza nimi automatycznie. Jeśli przenoszona encja ma `@Entity` lub przenoszone repozytorium realnie `extends JpaRepository` (NIE `extends TenantAwareRepository` — to jest custom DAO na `EntityManager`, nie wymaga wpisu), trzeba dopisać nowy pakiet domenowy do `basePackages` (array) w obu anotacjach. Inaczej aplikacja nie wystartuje (`APPLICATION FAILED TO START` — `Parameter 0 of constructor ... required a bean of type ... that could not be found`). Dla `tenant` dodano `com.contactcenter.domain.tenant` do obu list — sprawdzić analogicznie dla każdej kolejnej domeny zawierającej `@Entity`/`JpaRepository`.
+
+### Status per domena
+
+| Domena | Status | Uwagi |
+|--------|--------|-------|
+| `tenant` | ✅ | **Sesja referencyjna.** Przeniesiono 13 plików main (Tenant, TenantAiConfig, TenantTwilioConfig — encje; TenantRepository, TenantTwilioConfigRepository, TenantAiConfigRepository; TenantService/Impl, TenantTwilioConfigService/Impl, TenantAiConfigService/Impl, TenantResourceLimitService/Impl; LimitCheckResult wydzielony jako publiczny record; TenantTwilioConfigDecrypted, TenantAiConfigDecrypted; TwilioConfigChangedEvent) + 6 plików testowych (TenantServiceTest, TenantAiConfigServiceTest, TenantTwilioConfigServiceTest, TenantResourceLimitServiceTest, TenantTwilioConfigRepositoryTest, TenantAiConfigDecryptedServiceTest). Zaktualizowano ~50 plików referencji w całym projekcie. Build: ✅ czysty. Testy: 1123, 2 błędy — `SupervisorMetricsServiceTest$KpiCallsInIvrTests` (flaky, pre-existing, niezwiązane z refaktorem — patrz sekcja "Znane problemy"). **Follow-up (encapsulation pass, pkt 9 wzorca):** `TenantRepository`, `TenantTwilioConfigRepository`, `TenantAiConfigRepository` przełączone na `package-private`. `TenantService` rozszerzony o 4 nowe metody: `getActiveTenants()` (ACTIVE, sort by name), `getAllTenants()` (wszyscy, sort by name), `findTenantEntity(UUID)` (`Optional<Tenant>`, odpowiednik `findById`), `updateTenantConfig(UUID, Map<String,Object>)` (rzuca `ResourceNotFoundException`). Zaktualizowano 14 zewnętrznych konsumentów (ScheduledCallbackExecutor, WaitTimeEstimationService, SupervisorMetricsService, CampaignWindowActivator, AgentBreakActivator, EmailPollingService, TwilioTelephonyAdapter, PublicController, AdminMetricsService, AuthService, IncomingCallRoutingService, EmailSendService, EmailController) + 12 plików testowych. Build: ✅. Testy: 1123, 1 błąd — `SupervisorMetricsServiceTest$KpiCallsInIvrTests` (ten sam pre-existing flaky, w izolacji PASS — patrz "Znane problemy"). |
+| `user` | ⬜ | Następna w kolejce. Obejmuje: AppUser, AppUserRepository, UserService, AdminUserService, RefreshToken + repo, UserPreferences. |
+| `customer` | ⬜ | Customer, CustomerRepository, CustomerService, CliLookupService, CustomerCliResult. |
+| `contact` | ⬜ | Contact, ContactRepository, ContactService, ContactEvent + repo/service, ContactId. |
+| `campaign` | ⬜ | Campaign, CampaignRepository, CampaignService, CampaignImportService, CampaignAssignment*, ScheduledCallback + repo/executor. |
+| `queue` | ⬜ | Queue, QueueRepository, QueueService, QueueAssignmentRepository/Service, AgentGroup + repo/service. |
+| `routing` (+) | ⬜ | RoutingEngine, DefaultRoutingEngine, RoutingService, RoutingRequest/Result, IncomingCallRoutingService, RouteResult. |
+| `ivr` (+) | ⬜ | IvrDefinition/Node/NodeType/Option/SessionData, IvrService, IvrEngineService, IvrCallListener. |
+| `email` (+) | ⬜ | EmailMessage, EmailTemplate, EmailRoutingRule + repozytoria, EmailPollingService, EmailSendService, EmailRoutingService, EmailEncryptionService. |
+| `social` (+) | ⬜ | SocialMessage + repo, SocialIntegrationService, SocialMediaAdapter + adaptery, SocialMessagePublisher/Consumer. |
+| `audit` | ⬜ | AuditLog + repo, AuditLogService, AuditLogConsumer, AuditAspect. |
+| `reporting` | ⬜ | ReportsService, AgentReportRow/Params, ETL (EtlSyncService, DataWarehouseWriter, PostgresDwWriter). |
+| `recording` | ⬜ | RecordingService, RecordingRetentionJob, TwilioRecordingDownloadService. |
+| `gdpr` | ⬜ | GdprService. |
+| `voicebot` | ⬜ | VoicebotClient, integracja IVR VOICEBOT node. |
+
+**Przed kolejną sesją:** sprawdzić, czy poprzednia domena ma czysty build i przejść do następnej wg powyższej listy, stosując wzorzec z sekcji "Wzorzec referencyjny".
+
+---
+
 *Dokument generowany na podstawie TASKS-BACKEND.md, TASKS-FRONTEND.md i PROGRESS.md.*
 *Aktualizować przy każdej zmianie statusu zadań w PROGRESS.md.*

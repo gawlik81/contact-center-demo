@@ -1,6 +1,6 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.tenant;
 
-import com.contactcenter.domain.model.TenantAiConfig;
+import com.contactcenter.domain.repository.TenantAwareRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Slf4j
 @Repository
-public class TenantAiConfigRepository extends TenantAwareRepository {
+class TenantAiConfigRepository extends TenantAwareRepository {
 
     @Transactional(readOnly = true)
     public Optional<TenantAiConfig> findByTenantId(UUID tenantId) {

@@ -1,9 +1,9 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +35,7 @@ public class CampaignWindowActivator {
 
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Europe/Warsaw");
 
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final CampaignRepository campaignRepository;
 
     // =========================================================================
@@ -52,9 +52,7 @@ public class CampaignWindowActivator {
     public void activateScheduledCampaigns() {
         log.debug("[CampaignWindowActivator] Rozpoczynam cykl aktywacji kampanii SCHEDULED");
 
-        List<Tenant> activeTenants = tenantRepository.findAll().stream()
-                .filter(t -> t.getStatus() == Tenant.TenantStatus.ACTIVE)
-                .toList();
+        List<Tenant> activeTenants = tenantService.getActiveTenants();
 
         if (activeTenants.isEmpty()) {
             log.debug("[CampaignWindowActivator] Brak aktywnych tenantów – pomijam cykl");

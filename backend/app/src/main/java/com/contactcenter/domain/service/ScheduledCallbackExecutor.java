@@ -2,13 +2,14 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.repository.ScheduledCallbackRepository;
-import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.domain.tenant.TenantService;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 @ConditionalOnProperty(name = "dialer.enabled", havingValue = "true", matchIfMissing = true)
 public class ScheduledCallbackExecutor {
 
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final ScheduledCallbackRepository callbackRepository;
     private final TelephonyAdapter telephonyAdapter;
     private final AppUserRepository appUserRepository;
@@ -78,9 +79,7 @@ public class ScheduledCallbackExecutor {
     public void executeScheduledCallbacks() {
         log.debug("[CallbackExecutor] Rozpoczynam cykl oddzwonień");
 
-        List<Tenant> activeTenants = tenantRepository.findAll().stream()
-                .filter(t -> t.getStatus() == Tenant.TenantStatus.ACTIVE)
-                .toList();
+        List<Tenant> activeTenants = tenantService.getActiveTenants();
 
         if (activeTenants.isEmpty()) {
             log.debug("[CallbackExecutor] Brak aktywnych tenantów – pomijam cykl");

@@ -1,23 +1,23 @@
 package com.contactcenter.domain.telephony;
 
-import com.contactcenter.domain.event.TwilioConfigChangedEvent;
+import com.contactcenter.domain.tenant.TwilioConfigChangedEvent;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.Contact;
 import com.contactcenter.domain.model.Customer;
 import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.model.Tenant;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.CustomerRepository;
 import com.contactcenter.domain.repository.QueueRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.routing.DirectAgentAssignmentMessage;
 import com.contactcenter.domain.service.CliLookupService;
 import com.contactcenter.domain.service.ContactEventService;
 import com.contactcenter.domain.service.CustomerCliResult;
-import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
-import com.contactcenter.domain.service.TenantTwilioConfigService;
+import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.domain.service.UserService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -125,7 +125,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final TelephonyEventPublisher eventPublisher;
   private final ContactRepository contactRepository;
   private final CustomerRepository customerRepository;
-  private final TenantRepository tenantRepository;
+  private final TenantService tenantService;
   private final RedisTemplate<String, Object> redisTemplate;
   /** Używany wyłącznie dla prostych kluczy String (indeks odwrotny contactId → callSid). */
   private final StringRedisTemplate stringRedisTemplate;
@@ -236,8 +236,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     log.info("[TwilioAdapter] Rozpoczynam konfigurację StatusCallback dla wszystkich aktywnych tenantów...");
 
     try {
-      List<Tenant> activeTenants = tenantRepository.findAllByOptionalFilters(null,
-          Tenant.TenantStatus.ACTIVE.name());
+      List<Tenant> activeTenants = tenantService.getActiveTenants();
 
       if (activeTenants.isEmpty()) {
         log.info("[TwilioAdapter] Brak aktywnych tenantów – pomijam konfigurację StatusCallback.");
@@ -2606,7 +2605,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   public String resolvePhoneNumber(UUID tenantId) {
     if (tenantId != null) {
       try {
-        String perTenantNumber = tenantRepository.findById(tenantId)
+        String perTenantNumber = tenantService.findTenantEntity(tenantId)
             .map(Tenant::getTwilioPhoneNumber)
             .orElse(null);
         if (StringUtils.hasText(perTenantNumber)) {
@@ -2740,7 +2739,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private String buildRawWebhookBaseUrl(UUID tenantId) {
     if (tenantId != null && twilioProperties.isPerTenantCallbackUrlEnabled()) {
       try {
-        String perTenantUrl = tenantRepository.findById(tenantId)
+        String perTenantUrl = tenantService.findTenantEntity(tenantId)
             .map(Tenant::getTwilioStatusCallbackUrl)
             .orElse(null);
         if (StringUtils.hasText(perTenantUrl)) {

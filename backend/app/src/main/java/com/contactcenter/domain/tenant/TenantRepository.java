@@ -1,7 +1,5 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.tenant;
 
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,9 +20,16 @@ import java.util.UUID;
  *
  * <p>Wszystkie operacje zapisu/odczytu wymagają roli ADMIN (weryfikowanej przez
  * Spring Security w {@code TenantController} i {@code TenantService}).
+ *
+ * <p><strong>Widoczność package-private:</strong> repozytorium jest dostępne wyłącznie
+ * wewnątrz pakietu {@code domain.tenant} (przez {@link TenantServiceImpl} i
+ * {@link TenantResourceLimitServiceImpl}). Klasy z innych pakietów powinny korzystać
+ * z publicznego interfejsu {@link TenantService} (np. {@link TenantService#getActiveTenants()},
+ * {@link TenantService#getAllTenants()}, {@link TenantService#findTenantEntity(UUID)},
+ * {@link TenantService#updateTenantConfig(UUID, java.util.Map)}).
  */
 @Repository
-public interface TenantRepository extends JpaRepository<Tenant, UUID> {
+interface TenantRepository extends JpaRepository<Tenant, UUID> {
 
     /**
      * Sprawdza unikalność nazwy tenanta (case-insensitive).

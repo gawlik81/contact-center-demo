@@ -1,14 +1,9 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigResponse;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioConnectionTestResult;
-import com.contactcenter.domain.event.TwilioConfigChangedEvent;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.TenantTwilioConfig;
-import com.contactcenter.domain.repository.TenantTwilioConfigRepository;
-import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
-import com.contactcenter.domain.service.TenantTwilioConfigService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -40,7 +35,7 @@ class TenantTwilioConfigServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
-    private TenantTwilioConfigService service;
+    private TenantTwilioConfigServiceImpl service;
 
     // =========================================================================
     // saveConfig()

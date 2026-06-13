@@ -3,11 +3,10 @@ package com.contactcenter.domain.service;
 import com.contactcenter.api.queue.dto.QueueStatsResponse;
 import com.contactcenter.api.queue.QueueWaitUpdatePayload;
 import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.ContactRepository;
 import com.contactcenter.domain.repository.QueueRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import lombok.RequiredArgsConstructor;
@@ -79,7 +78,7 @@ public class WaitTimeEstimationService {
     /** Pattern do SCAN kluczy sesji agentów. */
     private static final String AGENT_SESSION_SCAN_PATTERN = AGENT_SESSION_KEY_PREFIX + "*";
 
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final QueueRepository queueRepository;
     private final ContactRepository contactRepository;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -111,9 +110,7 @@ public class WaitTimeEstimationService {
     public void broadcastWaitTimeUpdates() {
         log.debug("[EWT] Rozpoczęcie obliczania szacowanego czasu oczekiwania");
 
-        List<Tenant> activeTenants = tenantRepository.findAllByOrderByNameAsc().stream()
-                .filter(t -> t.getStatus() == TenantStatus.ACTIVE)
-                .toList();
+        List<Tenant> activeTenants = tenantService.getActiveTenants();
 
         if (activeTenants.isEmpty()) {
             log.trace("[EWT] Brak aktywnych tenantów – pomijam broadcast EWT");

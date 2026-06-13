@@ -1,8 +1,6 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.domain.exception.ResourceLimitExceededException;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -11,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Serwis sprawdzający limity zasobów per-tenant.
+ * Implementacja {@link TenantResourceLimitService}.
  *
  * <p>Limity są zdefiniowane w polu JSONB {@code config} tabeli {@code tenant}:
  * <ul>
@@ -32,7 +30,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TenantResourceLimitService {
+class TenantResourceLimitServiceImpl implements TenantResourceLimitService {
 
     private final TenantRepository tenantRepository;
 
@@ -40,17 +38,8 @@ public class TenantResourceLimitService {
     // Publiczne metody sprawdzające limity – rzucają wyjątek przy przekroczeniu
     // =========================================================================
 
-    /**
-     * Sprawdza czy można dodać nowego agenta do tenanta.
-     *
-     * <p>Pobiera limit z {@code config.max_agents} i porównuje z aktualną
-     * liczbą aktywnych agentów (role=AGENT, is_deleted=false).
-     *
-     * @param tenantId UUID tenanta
-     * @throws ResourceLimitExceededException gdy aktualna liczba >= limit (HTTP 422)
-     * @throws jakarta.persistence.EntityNotFoundException gdy tenant nie istnieje
-     */
     @Transactional(readOnly = true)
+    @Override
     public void checkAgentLimit(UUID tenantId) {
         Tenant tenant = getActiveTenantOrThrow(tenantId);
         int limit = tenant.getMaxAgents();
@@ -66,16 +55,8 @@ public class TenantResourceLimitService {
         }
     }
 
-    /**
-     * Sprawdza czy można dodać nową kolejkę do tenanta.
-     *
-     * <p>Pobiera limit z {@code config.max_queues} i porównuje z aktualną
-     * liczbą aktywnych kolejek (is_active=true, is_deleted=false).
-     *
-     * @param tenantId UUID tenanta
-     * @throws ResourceLimitExceededException gdy aktualna liczba >= limit (HTTP 422)
-     */
     @Transactional(readOnly = true)
+    @Override
     public void checkQueueLimit(UUID tenantId) {
         Tenant tenant = getActiveTenantOrThrow(tenantId);
         int limit = tenant.getMaxQueues();
@@ -91,16 +72,8 @@ public class TenantResourceLimitService {
         }
     }
 
-    /**
-     * Sprawdza czy można uruchomić nową kampanię dla tenanta.
-     *
-     * <p>Pobiera limit z {@code config.max_campaigns} i porównuje z aktualną
-     * liczbą aktywnych kampanii (status NOT IN (STOPPED, COMPLETED), is_deleted=false).
-     *
-     * @param tenantId UUID tenanta
-     * @throws ResourceLimitExceededException gdy aktualna liczba >= limit (HTTP 422)
-     */
     @Transactional(readOnly = true)
+    @Override
     public void checkCampaignLimit(UUID tenantId) {
         Tenant tenant = getActiveTenantOrThrow(tenantId);
         int limit = tenant.getMaxCampaigns();
@@ -120,14 +93,8 @@ public class TenantResourceLimitService {
     // Metody zapytań (bez rzucania wyjątków) – do użycia w dashboardach
     // =========================================================================
 
-    /**
-     * Zwraca wynik sprawdzenia limitu agentów bez rzucania wyjątku.
-     * Przydatne do wyświetlania statusu w dashboardzie.
-     *
-     * @param tenantId UUID tenanta
-     * @return wynik sprawdzenia limitu
-     */
     @Transactional(readOnly = true)
+    @Override
     public LimitCheckResult getAgentLimitStatus(UUID tenantId) {
         Tenant tenant = getActiveTenantOrThrow(tenantId);
         int limit = tenant.getMaxAgents();
@@ -135,13 +102,8 @@ public class TenantResourceLimitService {
         return new LimitCheckResult("agents", limit, current);
     }
 
-    /**
-     * Zwraca wynik sprawdzenia limitu kolejek bez rzucania wyjątku.
-     *
-     * @param tenantId UUID tenanta
-     * @return wynik sprawdzenia limitu
-     */
     @Transactional(readOnly = true)
+    @Override
     public LimitCheckResult getQueueLimitStatus(UUID tenantId) {
         Tenant tenant = getActiveTenantOrThrow(tenantId);
         int limit = tenant.getMaxQueues();
@@ -149,13 +111,8 @@ public class TenantResourceLimitService {
         return new LimitCheckResult("queues", limit, current);
     }
 
-    /**
-     * Zwraca wynik sprawdzenia limitu kampanii bez rzucania wyjątku.
-     *
-     * @param tenantId UUID tenanta
-     * @return wynik sprawdzenia limitu
-     */
     @Transactional(readOnly = true)
+    @Override
     public LimitCheckResult getCampaignLimitStatus(UUID tenantId) {
         Tenant tenant = getActiveTenantOrThrow(tenantId);
         int limit = tenant.getMaxCampaigns();
@@ -171,32 +128,5 @@ public class TenantResourceLimitService {
         return tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException(
                         "Tenant nie istnieje: " + tenantId));
-    }
-
-    // =========================================================================
-    // Rekord wyniku sprawdzenia limitu
-    // =========================================================================
-
-    /**
-     * Wynik sprawdzenia limitu zasobu tenanta.
-     *
-     * @param resourceType typ zasobu ("agents", "queues", "campaigns")
-     * @param limit        maksymalna dozwolona liczba (z config JSONB)
-     * @param current      aktualna liczba aktywnych zasobów
-     */
-    public record LimitCheckResult(
-            String resourceType,
-            int limit,
-            long current
-    ) {
-        /** Czy limit jest przekroczony (aktualne >= limit). */
-        public boolean isExceeded() {
-            return current >= limit;
-        }
-
-        /** Ile zasobów można jeszcze dodać (0 gdy przekroczony). */
-        public long available() {
-            return Math.max(0, limit - current);
-        }
     }
 }

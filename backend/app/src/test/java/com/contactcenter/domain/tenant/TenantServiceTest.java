@@ -1,4 +1,4 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.api.tenant.dto.CreateTenantRequest;
 import com.contactcenter.api.tenant.dto.TenantFilterParams;
@@ -8,12 +8,9 @@ import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserRole;
 import com.contactcenter.domain.model.AppUser.UserStatus;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.TenantRepository;
 import com.contactcenter.domain.service.AdminMetricsService;
-import com.contactcenter.domain.service.TenantService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -56,7 +53,7 @@ class TenantServiceTest {
     private AdminMetricsService adminMetricsService;
 
     @InjectMocks
-    private TenantService tenantService;
+    private TenantServiceImpl tenantService;
 
     private Tenant activeTenant;
 

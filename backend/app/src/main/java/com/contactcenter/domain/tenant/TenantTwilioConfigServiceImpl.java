@@ -1,15 +1,12 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigRequest;
 import com.contactcenter.api.supervisor.twilio.dto.TenantTwilioConfigResponse;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioConnectionTestResult;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioPhoneNumberDto;
 import com.contactcenter.api.supervisor.twilio.dto.TwilioPhoneNumberListResponse;
-import com.contactcenter.domain.event.TwilioConfigChangedEvent;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.exception.TwilioApiException;
-import com.contactcenter.domain.model.TenantTwilioConfig;
-import com.contactcenter.domain.repository.TenantTwilioConfigRepository;
 import com.twilio.exception.ApiException;
 import com.twilio.http.TwilioRestClient;
 import com.twilio.rest.api.v2010.Account;
@@ -31,7 +28,7 @@ import java.util.regex.Pattern;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TenantTwilioConfigService {
+class TenantTwilioConfigServiceImpl implements TenantTwilioConfigService {
 
     private static final Pattern ACCOUNT_SID_PATTERN =
             Pattern.compile("^AC[0-9a-fA-F]{32}$");
@@ -46,6 +43,7 @@ public class TenantTwilioConfigService {
     // =========================================================================
 
     @Transactional
+    @Override
     public TenantTwilioConfigResponse saveConfig(UUID tenantId, TenantTwilioConfigRequest request) {
         validateAccountSid(request.accountSid());
         if (request.phoneNumber() != null && !request.phoneNumber().isBlank()) {
@@ -85,6 +83,7 @@ public class TenantTwilioConfigService {
     // =========================================================================
 
     @Transactional(readOnly = true)
+    @Override
     public Optional<TenantTwilioConfigResponse> getConfig(UUID tenantId) {
         return configRepository.findByTenantId(tenantId)
                 .map(TenantTwilioConfigResponse::from);
@@ -95,6 +94,7 @@ public class TenantTwilioConfigService {
     // =========================================================================
 
     @Transactional(readOnly = true)
+    @Override
     public Optional<TenantTwilioConfigDecrypted> getDecryptedConfig(UUID tenantId) {
         return configRepository.findByTenantId(tenantId)
                 .map(TenantTwilioConfigDecrypted::from);
@@ -105,6 +105,7 @@ public class TenantTwilioConfigService {
     // =========================================================================
 
     @Transactional
+    @Override
     public void deleteConfig(UUID tenantId) {
         TenantTwilioConfig config = configRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -121,6 +122,7 @@ public class TenantTwilioConfigService {
     // =========================================================================
 
     @Transactional(readOnly = true)
+    @Override
     public TwilioConnectionTestResult testConnection(UUID tenantId) {
         Optional<TenantTwilioConfigDecrypted> configOpt = getDecryptedConfig(tenantId);
         if (configOpt.isEmpty()) {
@@ -148,6 +150,7 @@ public class TenantTwilioConfigService {
     // =========================================================================
 
     @Transactional(readOnly = true)
+    @Override
     public TwilioPhoneNumberListResponse listActivePhoneNumbers(UUID tenantId) {
         TenantTwilioConfigDecrypted config = getDecryptedConfig(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(

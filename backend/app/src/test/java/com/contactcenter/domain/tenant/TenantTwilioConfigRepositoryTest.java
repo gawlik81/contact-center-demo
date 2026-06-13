@@ -1,8 +1,6 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.domain.exception.CrossTenantAccessException;
-import com.contactcenter.domain.model.TenantTwilioConfig;
-import com.contactcenter.domain.repository.TenantTwilioConfigRepository;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;

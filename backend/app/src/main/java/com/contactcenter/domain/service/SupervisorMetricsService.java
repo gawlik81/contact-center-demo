@@ -6,11 +6,10 @@ import com.contactcenter.api.supervisor.SupervisorMetricsPayload.KpiMetric;
 import com.contactcenter.api.supervisor.SupervisorMetricsPayload.QueueMetric;
 import com.contactcenter.domain.model.AppUser;
 import com.contactcenter.domain.model.AppUser.UserRole;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
+import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.AppUserRepository;
 import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -82,7 +81,7 @@ public class SupervisorMetricsService {
     /** Topic WebSocket dla metryk supervisora. */
     private static final String METRICS_DESTINATION = "/topic/tenant/%s/supervisor/metrics";
 
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final AppUserRepository appUserRepository;
     private final ContactRepository contactRepository;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -112,9 +111,7 @@ public class SupervisorMetricsService {
     public void broadcastMetrics() {
         log.debug("[SupervisorMetrics] Rozpoczęcie broadcastu metryk RT");
 
-        List<Tenant> activeTenants = tenantRepository.findAllByOrderByNameAsc().stream()
-                .filter(t -> t.getStatus() == TenantStatus.ACTIVE)
-                .toList();
+        List<Tenant> activeTenants = tenantService.getActiveTenants();
 
         if (activeTenants.isEmpty()) {
             log.trace("[SupervisorMetrics] Brak aktywnych tenantów – pomijam broadcast");

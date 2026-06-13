@@ -1,11 +1,7 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.domain.exception.ResourceLimitExceededException;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
-import com.contactcenter.domain.repository.TenantRepository;
-import com.contactcenter.domain.service.TenantResourceLimitService;
-import com.contactcenter.domain.service.TenantResourceLimitService.LimitCheckResult;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,7 +44,7 @@ class TenantResourceLimitServiceTest {
     private TenantRepository tenantRepository;
 
     @InjectMocks
-    private TenantResourceLimitService limitService;
+    private TenantResourceLimitServiceImpl limitService;
 
     private Tenant tenantWithLimits;
 

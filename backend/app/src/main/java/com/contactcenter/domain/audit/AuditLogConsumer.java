@@ -1,7 +1,6 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.audit;
 
-import com.contactcenter.domain.model.AuditLogEvent;
-import com.contactcenter.domain.repository.AuditLogRepository;
+import com.contactcenter.domain.service.TenantAwareConsumer;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +36,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AuditLogConsumer extends TenantAwareConsumer {
+class AuditLogConsumer extends TenantAwareConsumer {
 
     private final AuditLogRepository auditLogRepository;
 

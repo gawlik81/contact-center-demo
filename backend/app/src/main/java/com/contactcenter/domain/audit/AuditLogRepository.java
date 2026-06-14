@@ -1,7 +1,5 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.audit;
 
-import com.contactcenter.domain.model.AuditLog;
-import com.contactcenter.domain.model.AuditLogId;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,7 +29,7 @@ import java.util.UUID;
  * w kontrolerze.
  */
 @Repository
-public interface AuditLogRepository extends JpaRepository<AuditLog, AuditLogId> {
+interface AuditLogRepository extends JpaRepository<AuditLog, AuditLogId> {
 
     /**
      * Wstawia wpis audytowy przez natywny SQL (wymagane dla tabel partycjonowanych PostgreSQL).

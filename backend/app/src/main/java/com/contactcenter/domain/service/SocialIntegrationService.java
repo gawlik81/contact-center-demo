@@ -1,7 +1,8 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.api.social.dto.SocialIntegrationDto;
-import com.contactcenter.domain.model.AuditLogEvent;
+import com.contactcenter.domain.audit.AuditLogEvent;
+import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.domain.model.SocialIntegration;
 import com.contactcenter.domain.model.SocialPlatform;
 import com.contactcenter.domain.repository.SocialIntegrationRepository;

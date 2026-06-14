@@ -1,13 +1,12 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.gdpr;
 
-import com.contactcenter.domain.model.AuditLogEvent;
+import com.contactcenter.domain.audit.AuditLogEvent;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.contact.ContactId;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
-import com.contactcenter.domain.service.AuditLogService;
-import com.contactcenter.domain.service.GdprService;
+import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,7 +47,7 @@ class GdprServiceTest {
     @Mock private RecordingService   recordingService;
     @Mock private AuditLogService    auditLogService;
 
-    private GdprService gdprService;
+    private GdprServiceImpl gdprService;
 
     @BeforeEach
     void setUp() {
@@ -57,7 +56,7 @@ class GdprServiceTest {
         TenantContext.setUserRole("SUPERVISOR");
 
         // Ręczna konstrukcja – ObjectMapper nie jest mockiem
-        gdprService = new GdprService(
+        gdprService = new GdprServiceImpl(
                 customerService,
                 contactService,
                 recordingService,

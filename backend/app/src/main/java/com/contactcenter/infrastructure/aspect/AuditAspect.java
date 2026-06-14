@@ -1,7 +1,7 @@
 package com.contactcenter.infrastructure.aspect;
 
-import com.contactcenter.domain.model.AuditLogEvent;
-import com.contactcenter.domain.service.AuditLogService;
+import com.contactcenter.domain.audit.AuditLogEvent;
+import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;

@@ -1,4 +1,4 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.audit;
 
 import java.time.Instant;
 import java.util.UUID;

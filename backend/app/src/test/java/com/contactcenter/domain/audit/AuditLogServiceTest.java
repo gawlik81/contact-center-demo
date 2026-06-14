@@ -1,7 +1,5 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.audit;
 
-import com.contactcenter.domain.model.AuditLogEvent;
-import com.contactcenter.domain.service.AuditLogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -12,23 +10,27 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static com.contactcenter.infrastructure.config.RabbitMQConfig.EXCHANGE_AUDIT;
-import static com.contactcenter.domain.model.AuditLogEvent.ROUTING_KEY;
+import static com.contactcenter.domain.audit.AuditLogEvent.ROUTING_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Testy jednostkowe dla {@link AuditLogService}.
+ * Testy jednostkowe dla {@link AuditLogServiceImpl}.
  *
  * <p>Weryfikuje logikę publikacji zdarzeń audytowych bez rzeczywistego połączenia
- * z RabbitMQ (mock RabbitTemplate).
+ * z RabbitMQ (mock RabbitTemplate) oraz odczyt dziennika audytu (mock repozytorium).
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AuditLogService – publikacja zdarzeń audytowych")
@@ -41,11 +43,14 @@ class AuditLogServiceTest {
     @Mock
     private RabbitTemplate rabbitTemplate;
 
-    private AuditLogService auditLogService;
+    @Mock
+    private AuditLogRepository auditLogRepository;
+
+    private AuditLogServiceImpl auditLogService;
 
     @BeforeEach
     void setUp() {
-        auditLogService = new AuditLogService(rabbitTemplate);
+        auditLogService = new AuditLogServiceImpl(rabbitTemplate, auditLogRepository);
     }
 
     // =========================================================================
@@ -162,6 +167,62 @@ class AuditLogServiceTest {
 
             // then – wysłane bez błędu
             verify(rabbitTemplate).convertAndSend(eq(EXCHANGE_AUDIT), eq(ROUTING_KEY), any(AuditLogEvent.class));
+        }
+    }
+
+    // =========================================================================
+    // Odczyt dziennika audytu
+    // =========================================================================
+
+    @Nested
+    @DisplayName("findAuditLogs()")
+    class FindAuditLogs {
+
+        @Test
+        @DisplayName("powinien delegować do repozytorium i zwrócić stronę wyników")
+        void shouldDelegateToRepositoryAndReturnPage() {
+            // given
+            AuditLog entry = AuditLog.builder()
+                    .logId(UUID.randomUUID())
+                    .tenantId(TENANT_ID)
+                    .userId(USER_ID)
+                    .action("TENANT_CREATED")
+                    .entityType("TENANT")
+                    .entityId(ENTITY_ID)
+                    .createdAt(Instant.now())
+                    .build();
+            Pageable pageable = PageRequest.of(0, 20);
+            Instant dateFrom = Instant.now().minusSeconds(3600);
+            Instant dateTo = Instant.now();
+            Page<AuditLog> expected = new PageImpl<>(List.of(entry), pageable, 1);
+
+            when(auditLogRepository.findByFilters(TENANT_ID, "TENANT", USER_ID, dateFrom, dateTo, pageable))
+                    .thenReturn(expected);
+
+            // when
+            Page<AuditLog> result = auditLogService.findAuditLogs(TENANT_ID, "TENANT", USER_ID, dateFrom, dateTo, pageable);
+
+            // then
+            assertThat(result.getContent()).containsExactly(entry);
+            verify(auditLogRepository).findByFilters(TENANT_ID, "TENANT", USER_ID, dateFrom, dateTo, pageable);
+        }
+
+        @Test
+        @DisplayName("powinien obsłużyć brak filtrów (wszystkie wpisy)")
+        void shouldHandleNoFilters() {
+            // given
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<AuditLog> expected = new PageImpl<>(List.of(), pageable, 0);
+
+            when(auditLogRepository.findByFilters(null, null, null, null, null, pageable))
+                    .thenReturn(expected);
+
+            // when
+            Page<AuditLog> result = auditLogService.findAuditLogs(null, null, null, null, null, pageable);
+
+            // then
+            assertThat(result.getContent()).isEmpty();
+            verify(auditLogRepository).findByFilters(null, null, null, null, null, pageable);
         }
     }
 

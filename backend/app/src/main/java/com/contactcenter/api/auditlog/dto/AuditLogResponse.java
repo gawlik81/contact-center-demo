@@ -1,6 +1,6 @@
 package com.contactcenter.api.auditlog.dto;
 
-import com.contactcenter.domain.model.AuditLog;
+import com.contactcenter.domain.audit.AuditLog;
 
 import java.time.Instant;
 import java.util.UUID;

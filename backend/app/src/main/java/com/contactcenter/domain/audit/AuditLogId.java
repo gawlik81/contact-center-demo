@@ -1,4 +1,4 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.audit;
 
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;

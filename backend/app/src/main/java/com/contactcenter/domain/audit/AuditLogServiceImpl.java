@@ -1,42 +1,27 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.audit;
 
-import com.contactcenter.domain.model.AuditLogEvent;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-/**
- * Serwis odpowiedzialny za publikowanie zdarzeń audytowych do RabbitMQ.
- *
- * <p>Publikacja jest asynchroniczna ({@code @Async}) – nie blokuje głównego wątku HTTP.
- * Wiadomości trafiają do exchange {@code cc.audit} z routing key {@code audit.entity.changed},
- * skąd konsument ({@code AuditLogConsumer}) pobiera je i zapisuje do bazy danych.
- *
- * <p>Błędy publikacji są logowane (nie rzucane) – audit log nie powinien przerywać
- * operacji biznesowych (fire-and-forget).
- */
+import java.time.Instant;
+import java.util.UUID;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AuditLogService {
+class AuditLogServiceImpl implements AuditLogService {
 
     private final RabbitTemplate rabbitTemplate;
+    private final AuditLogRepository auditLogRepository;
 
-    /**
-     * Publikuje zdarzenie audytowe do RabbitMQ asynchronicznie.
-     *
-     * <p>Metoda jest nieblokująca – wywołanie wraca natychmiast,
-     * a publikacja odbywa się w puli wątków {@code cc-async-*}.
-     *
-     * <p>Błędy (brak połączenia z RabbitMQ, timeout) są logowane na poziomie ERROR
-     * i nie propagowane do wywołującego.
-     *
-     * @param event zdarzenie audytowe do opublikowania – nie może być null
-     */
+    @Override
     @Async("applicationTaskExecutor")
     public void publishAuditEvent(AuditLogEvent event) {
         if (event == null) {
@@ -57,5 +42,11 @@ public class AuditLogService {
             log.error("[AuditLog] Błąd publikacji zdarzenia audytowego: action={}, entityType={}, error={}",
                     event.action(), event.entityType(), e.getMessage(), e);
         }
+    }
+
+    @Override
+    public Page<AuditLog> findAuditLogs(UUID tenantId, String entityType, UUID userId,
+                                         Instant dateFrom, Instant dateTo, Pageable pageable) {
+        return auditLogRepository.findByFilters(tenantId, entityType, userId, dateFrom, dateTo, pageable);
     }
 }

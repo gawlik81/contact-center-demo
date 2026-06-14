@@ -3,6 +3,7 @@ package com.contactcenter.domain.service;
 import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.voicebot.VoicebotClient;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;

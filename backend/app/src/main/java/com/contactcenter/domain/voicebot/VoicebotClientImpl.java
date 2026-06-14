@@ -1,6 +1,5 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.voicebot;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import lombok.extern.slf4j.Slf4j;
@@ -15,62 +14,23 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
-import java.util.List;
 import java.util.Optional;
 
 /**
- * Klient HTTP do serwisu Python voicebot (BE-014).
+ * Implementacja {@link VoicebotClient} – klient HTTP do serwisu Python voicebot (BE-014).
  *
- * <p>Aktywowany tylko gdy {@code voicebot.enabled=true} (domyślnie false).
- * Przy błędzie – loguje WARN i zwraca {@link Optional#empty()}, żeby silnik IVR
- * mógł zastosować graceful degradation (fallback node).
- *
- * <p>Timeout: connectTimeout=1s, readTimeout=3s (wymaganie: p95 < 2s dla 5s audio).
- * Używa java.net.http.HttpClient zamiast RestClient – nie wymaga negocjacji Content-Type.
+ * <p>Aktywowana tylko gdy {@code voicebot.enabled=true} (domyślnie false).
  */
 @Slf4j
 @Service
 @ConditionalOnProperty(name = "voicebot.enabled", havingValue = "true")
-public class VoicebotClient {
-
-    // DTO do komunikacji z serwisem Python
-    public record TurnRequest(
-            @JsonProperty("session_id")   String sessionId,
-            @JsonProperty("tenant_id")    String tenantId,
-            @JsonProperty("contact_id")   String contactId,
-            @JsonProperty("audio_base64") String audioBase64,
-            @JsonProperty("audio_format") String audioFormat,
-            @JsonProperty("turn_number")  int turnNumber
-    ) {}
-
-    public record TurnResponse(
-            @JsonProperty("session_id")           String sessionId,
-            @JsonProperty("transcript")           String transcript,
-            @JsonProperty("intent")               String intent,
-            @JsonProperty("confidence")           double confidence,
-            @JsonProperty("escalate")             boolean escalate,
-            @JsonProperty("escalation_reason")    String escalationReason,
-            @JsonProperty("full_transcript")      List<String> fullTranscript,
-            @JsonProperty("response_text")        String responseText,
-            @JsonProperty("continue_conversation") boolean continueConversation
-    ) {}
-
-    public record TranscribeRequest(
-            @JsonProperty("audio_base64") String audioBase64,
-            @JsonProperty("audio_format") String audioFormat
-    ) {}
-
-    public record TranscribeResponse(
-            @JsonProperty("transcript")  String transcript,
-            @JsonProperty("language")    String language,
-            @JsonProperty("confidence")  double confidence
-    ) {}
+class VoicebotClientImpl implements VoicebotClient {
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String voicebotUrl;
 
-    public VoicebotClient(
+    VoicebotClientImpl(
             @Value("${voicebot.url:http://localhost:8001}") String voicebotUrl,
             ObjectMapper springObjectMapper
     ) {
@@ -87,12 +47,7 @@ public class VoicebotClient {
         log.info("[VoicebotClient] Zainicjalizowano klienta voicebota: url={}", voicebotUrl);
     }
 
-    /**
-     * Przetwarza jedną turę konwersacji.
-     *
-     * @param request dane audio + kontekst sesji
-     * @return odpowiedź voicebota lub empty() gdy serwis niedostępny lub błąd
-     */
+    @Override
     public Optional<TurnResponse> processTurn(TurnRequest request) {
         try {
             // Budujemy JSON ręcznie przez ObjectNode – omijamy problemy z serializacją Java record
@@ -137,21 +92,7 @@ public class VoicebotClient {
         }
     }
 
-    /**
-     * Transkrybuje nagranie audio przez Whisper (endpoint {@code POST /ai/transcribe}).
-     *
-     * <p>Używane przez {@link TwilioRecordingDownloadService} po zapisaniu MP3 do S3,
-     * żeby zapisać transkrypcję w tabeli {@code contact_transcription}.
-     * Timeout ustawiony na 60s – Whisper na dużym pliku może potrzebować więcej czasu
-     * niż przy strumieniowaniu w czasie rzeczywistym.
-     *
-     * <p>Przy błędzie HTTP lub wyjątku sieciowym zwraca {@link Optional#empty()} –
-     * caller traktuje brak transkryptu jako graceful degradation (nagranie jest już w S3).
-     *
-     * @param audioBytes  surowe bajty pliku MP3/WAV
-     * @param audioFormat format pliku: "mp3" lub "wav"
-     * @return Optional z pełną odpowiedzią Whisper (transcript + language) lub empty() przy błędzie
-     */
+    @Override
     public Optional<TranscribeResponse> transcribeFull(byte[] audioBytes, String audioFormat) {
         try {
             String audioBase64 = Base64.getEncoder().encodeToString(audioBytes);
@@ -196,24 +137,14 @@ public class VoicebotClient {
         }
     }
 
-    /**
-     * Transkrybuje nagranie audio – wersja uproszczona zwracająca tylko tekst.
-     *
-     * @deprecated Używaj {@link #transcribeFull} żeby uzyskać też wykryty język.
-     *             Pozostawiona dla kompatybilności z istniejącymi callsitami.
-     */
+    @Override
     @Deprecated
     public Optional<String> transcribe(byte[] audioBytes, String audioFormat) {
         return transcribeFull(audioBytes, audioFormat)
                 .map(TranscribeResponse::transcript);
     }
 
-    /**
-     * Usuwa sesję voicebota po hangup.
-     * Błędy są logowane ale nie propagowane.
-     *
-     * @param sessionId identyfikator sesji do usunięcia
-     */
+    @Override
     public void deleteSession(String sessionId) {
         try {
             HttpRequest httpRequest = HttpRequest.newBuilder()

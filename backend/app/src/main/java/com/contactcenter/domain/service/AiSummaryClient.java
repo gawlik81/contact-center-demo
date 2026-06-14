@@ -1,6 +1,7 @@
 package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
+import com.contactcenter.domain.voicebot.VoicebotClient;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;

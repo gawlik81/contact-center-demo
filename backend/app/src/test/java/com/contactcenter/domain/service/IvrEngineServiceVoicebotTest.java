@@ -2,11 +2,11 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.ivr.*;
 import com.contactcenter.domain.model.IvrTree;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.IvrAudioRepository;
 import com.contactcenter.domain.repository.IvrTreeRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,7 +62,7 @@ class IvrEngineServiceVoicebotTest {
 
     @Mock private IvrTreeRepository ivrTreeRepository;
     @Mock private IvrAudioRepository ivrAudioRepository;
-    @Mock private QueueRepository queueRepository;
+    @Mock private QueueService queueService;
     @Mock private ContactService contactService;
     @Mock private TelephonyAdapter telephonyAdapter;
     @Mock private RabbitTemplate rabbitTemplate;
@@ -80,7 +80,7 @@ class IvrEngineServiceVoicebotTest {
         ivrEngineService = new IvrEngineService(
                 ivrTreeRepository,
                 ivrAudioRepository,
-                queueRepository,
+                queueService,
                 contactService,
                 telephonyAdapter,
                 rabbitTemplate,
@@ -299,7 +299,7 @@ class IvrEngineServiceVoicebotTest {
         @DisplayName("powinien przekazać do kolejki z queueId gdy brak opcji 'escalate'")
         void executeVoicebot_escalateWithQueueId_shouldTransferToQueue() {
             when(voicebotClient.processTurn(any())).thenReturn(Optional.of(buildTurnResponse(true)));
-            when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
 
             // Węzeł VOICEBOT bez opcji "escalate" ale z queueId

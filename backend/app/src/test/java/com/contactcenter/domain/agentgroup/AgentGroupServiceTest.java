@@ -9,7 +9,7 @@ import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.QueueAssignmentRepository;
+import com.contactcenter.domain.queue.QueueAssignmentService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,7 +51,7 @@ class AgentGroupServiceTest {
     private static final UUID AGENT_ID  = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
     @Mock private AgentGroupRepository agentGroupRepository;
-    @Mock private QueueAssignmentRepository queueAssignmentRepository;
+    @Mock private QueueAssignmentService queueAssignmentService;
     @Mock private UserService userService;
 
     @InjectMocks
@@ -155,7 +155,7 @@ class AgentGroupServiceTest {
         @DisplayName("grupa przypisana do kolejki – rzuca ConflictException (HTTP 409)")
         void deleteGroup_assignedToQueue_throwsConflict() {
             // given
-            when(queueAssignmentRepository.isGroupAssignedToAnyQueue(GROUP_ID, TENANT_ID)).thenReturn(true);
+            when(queueAssignmentService.isGroupAssignedToAnyQueue(GROUP_ID, TENANT_ID)).thenReturn(true);
 
             // when / then
             assertThatThrownBy(() -> agentGroupService.deleteGroup(GROUP_ID, TENANT_ID))
@@ -169,7 +169,7 @@ class AgentGroupServiceTest {
         @DisplayName("grupa nie istnieje – rzuca ResourceNotFoundException (HTTP 404)")
         void deleteGroup_groupNotFound_throwsResourceNotFound() {
             // given
-            when(queueAssignmentRepository.isGroupAssignedToAnyQueue(GROUP_ID, TENANT_ID)).thenReturn(false);
+            when(queueAssignmentService.isGroupAssignedToAnyQueue(GROUP_ID, TENANT_ID)).thenReturn(false);
             when(agentGroupRepository.delete(GROUP_ID, TENANT_ID)).thenReturn(0);
 
             // when / then
@@ -182,7 +182,7 @@ class AgentGroupServiceTest {
         @DisplayName("sukces – usuwa grupę nieprzypisaną do żadnej kolejki")
         void deleteGroup_success() {
             // given
-            when(queueAssignmentRepository.isGroupAssignedToAnyQueue(GROUP_ID, TENANT_ID)).thenReturn(false);
+            when(queueAssignmentService.isGroupAssignedToAnyQueue(GROUP_ID, TENANT_ID)).thenReturn(false);
             when(agentGroupRepository.delete(GROUP_ID, TENANT_ID)).thenReturn(1);
 
             // when / then – nie rzuca

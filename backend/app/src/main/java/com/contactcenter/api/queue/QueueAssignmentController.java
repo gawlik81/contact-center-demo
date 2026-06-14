@@ -2,7 +2,7 @@ package com.contactcenter.api.queue;
 
 import com.contactcenter.api.queue.dto.QueueAssignmentResponse;
 import com.contactcenter.api.queue.dto.UpdateQueueAssignmentRequest;
-import com.contactcenter.domain.service.QueueAssignmentService;
+import com.contactcenter.domain.queue.QueueAssignmentService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

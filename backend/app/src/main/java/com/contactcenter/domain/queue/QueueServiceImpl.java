@@ -1,14 +1,11 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.queue;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.queue.dto.CreateQueueRequest;
 import com.contactcenter.api.queue.dto.QueueResponse;
 import com.contactcenter.api.queue.dto.UpdateQueueRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
-import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.tenant.TenantResourceLimitService;
-import com.contactcenter.domain.repository.QueueAssignmentRepository;
-import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.infrastructure.aspect.Audited;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -19,25 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Serwis domenowy zarządzający kolejkami kontaktów.
- *
- * <p>Implementuje BE-020: Queue API – CRUD kolejek i konfiguracja routingu.
- *
- * <p>Bezpieczeństwo:
- * <ul>
- *   <li>Każdy odczyt i zapis filtruje po tenantId z TenantContext</li>
- *   <li>Przed utworzeniem kolejki sprawdzany jest limit zasobów tenanta</li>
- *   <li>Usunięcie (deaktywacja) blokowane gdy kolejka ma aktywne kontakty</li>
- *   <li>Operacje modyfikujące logują zdarzenia audytowe przez {@link Audited}</li>
- * </ul>
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class QueueService {
+class QueueServiceImpl implements QueueService {
 
     /** Dozwolone wartości strategii routingu (zgodne z ENUM {@code routing_strategy} w DB). */
     private static final List<String> ROUTING_STRATEGIES = List.of(
@@ -46,27 +32,11 @@ public class QueueService {
 
     private final QueueRepository queueRepository;
     private final QueueAssignmentRepository queueAssignmentRepository;
+    private final TransferAgentQueueRepository transferAgentQueueRepository;
+    private final TransferQueueStatsRepository transferQueueStatsRepository;
     private final TenantResourceLimitService tenantResourceLimitService;
 
-    // =========================================================================
-    // Tworzenie kolejki
-    // =========================================================================
-
-    /**
-     * Tworzy nową kolejkę w tenancie.
-     *
-     * <p>Przepływ:
-     * <ol>
-     *   <li>Sprawdza limit kolejek przez {@link TenantResourceLimitService}</li>
-     *   <li>Buduje encję z wartościami domyślnymi dla pól opcjonalnych</li>
-     *   <li>Zapisuje przez natywny INSERT</li>
-     * </ol>
-     *
-     * @param request  dane nowej kolejki
-     * @param tenantId UUID tenanta z TenantContext
-     * @return DTO nowo utworzonej kolejki
-     * @throws com.contactcenter.domain.exception.ResourceLimitExceededException HTTP 422 gdy limit przekroczony
-     */
+    @Override
     @Transactional
     @Audited(action = "QUEUE_CREATED", entityType = "QUEUE")
     public QueueResponse createQueue(CreateQueueRequest request, UUID tenantId) {
@@ -101,19 +71,7 @@ public class QueueService {
         return QueueResponse.from(saved);
     }
 
-    // =========================================================================
-    // Lista kolejek
-    // =========================================================================
-
-    /**
-     * Zwraca paginowaną listę kolejek tenanta.
-     *
-     * @param tenantId UUID tenanta
-     * @param name     opcjonalny filtr nazwy (ILIKE)
-     * @param page     numer strony (0-based)
-     * @param size     rozmiar strony
-     * @return strona DTO kolejek
-     */
+    @Override
     @Transactional(readOnly = true)
     public PagedResponse<QueueResponse> listQueues(UUID tenantId, String name, int page, int size) {
         PagedResponse<Queue> page_ = queueRepository.findAllByTenantId(tenantId, name, page, size);
@@ -127,39 +85,14 @@ public class QueueService {
                 page_.totalElements(), page_.totalPages(), page_.first(), page_.last());
     }
 
-    // =========================================================================
-    // Odczyt pojedynczej kolejki
-    // =========================================================================
-
-    /**
-     * Pobiera kolejkę po ID.
-     *
-     * @param queueId  UUID kolejki
-     * @param tenantId UUID tenanta
-     * @return DTO kolejki
-     * @throws EntityNotFoundException HTTP 422 gdy kolejka nie istnieje lub nie należy do tenanta
-     */
+    @Override
     @Transactional(readOnly = true)
     public QueueResponse getQueue(UUID queueId, UUID tenantId) {
         Queue queue = findQueueOrThrow(queueId, tenantId);
         return QueueResponse.from(queue);
     }
 
-    // =========================================================================
-    // Aktualizacja kolejki
-    // =========================================================================
-
-    /**
-     * Aktualizuje kolejkę (PATCH semantics).
-     *
-     * <p>Pola null w żądaniu są ignorowane – wartości pozostają bez zmian.
-     *
-     * @param queueId  UUID kolejki
-     * @param request  dane do aktualizacji
-     * @param tenantId UUID tenanta
-     * @return DTO zaktualizowanej kolejki
-     * @throws EntityNotFoundException HTTP 422 gdy kolejka nie istnieje
-     */
+    @Override
     @Transactional
     @Audited(action = "QUEUE_UPDATED", entityType = "QUEUE", captureOldValue = true,
              fetchOldValueMethod = "getQueue", entityIdParamIndex = 0)
@@ -203,23 +136,7 @@ public class QueueService {
         return QueueResponse.from(refreshed);
     }
 
-    // =========================================================================
-    // Usunięcie (deaktywacja) kolejki
-    // =========================================================================
-
-    /**
-     * Deaktywuje kolejkę (odpowiednik soft-delete dla tabel bez is_deleted).
-     *
-     * <p>Reguły:
-     * <ul>
-     *   <li>Nie można deaktywować kolejki z aktywnymi kontaktami (QUEUED/ACTIVE/ON_HOLD)</li>
-     * </ul>
-     *
-     * @param queueId  UUID kolejki
-     * @param tenantId UUID tenanta
-     * @throws InvalidOperationException HTTP 409 gdy kolejka ma aktywne kontakty
-     * @throws EntityNotFoundException   HTTP 422 gdy kolejka nie istnieje
-     */
+    @Override
     @Transactional
     @Audited(action = "QUEUE_DELETED", entityType = "QUEUE", captureOldValue = true,
              fetchOldValueMethod = "getQueue", entityIdParamIndex = 0)
@@ -243,19 +160,55 @@ public class QueueService {
         log.info("[QueueService] Kolejka deaktywowana: queueId={}, tenantId={}", queueId, tenantId);
     }
 
-    // =========================================================================
-    // Strategie routingu
-    // =========================================================================
-
-    /**
-     * Zwraca listę dostępnych strategii routingu.
-     *
-     * <p>Wartości zgodne z ENUM {@code routing_strategy} w PostgreSQL.
-     *
-     * @return lista nazw strategii routingu
-     */
+    @Override
     public List<String> listRoutingStrategies() {
         return ROUTING_STRATEGIES;
+    }
+
+    // =========================================================================
+    // Metody delegujące (encapsulation pass – pkt 9 wzorca)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Queue> findQueueEntity(UUID queueId, UUID tenantId) {
+        return queueRepository.findByIdAndTenantId(queueId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Queue> getAllQueues(UUID tenantId) {
+        return queueRepository.findAllByTenantId(tenantId, null, 0, 1000).content();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Queue> findQueueByEmailAddress(String emailAddress, UUID tenantId) {
+        return queueRepository.findByEmailAddressAndTenantId(emailAddress, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> findActiveQueuesForTransfer(UUID tenantId) {
+        return transferQueueStatsRepository.findActiveQueues(tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, Integer> countWaitingContactsByQueueIds(UUID tenantId, List<UUID> queueIds) {
+        return transferQueueStatsRepository.countWaitingContactsByQueueIds(tenantId, queueIds);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, Integer> countAvailableAgentsByQueueIds(UUID tenantId, List<UUID> queueIds) {
+        return transferQueueStatsRepository.countAvailableAgentsByQueueIds(tenantId, queueIds);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, List<String>> findQueueNamesByAgentIds(UUID tenantId, List<UUID> agentIds) {
+        return transferAgentQueueRepository.findQueueNamesByAgentIds(tenantId, agentIds);
     }
 
     // =========================================================================

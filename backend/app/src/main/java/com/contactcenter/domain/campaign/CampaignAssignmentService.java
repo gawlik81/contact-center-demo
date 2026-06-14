@@ -20,7 +20,7 @@ import java.util.UUID;
  *       każdy groupId musi należeć do tenanta</li>
  * </ul>
  *
- * <p>Wzorowany 1:1 na {@link com.contactcenter.domain.service.QueueAssignmentService}.
+ * <p>Wzorowany 1:1 na {@link com.contactcenter.domain.queue.QueueAssignmentService}.
  */
 public interface CampaignAssignmentService {
 

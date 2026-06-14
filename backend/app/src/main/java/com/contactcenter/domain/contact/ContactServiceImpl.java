@@ -16,11 +16,11 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
@@ -77,7 +77,7 @@ class ContactServiceImpl implements ContactService {
     private final ContactTranscriptionRepository contactTranscriptionRepository;
     private final RecordingService recordingService;
     private final EmailMessageRepository emailMessageRepository;
-    private final QueueRepository queueRepository;
+    private final QueueService queueService;
     private final CampaignService campaignService;
     private final ContactEventService contactEventService;
     private final TelephonyAdapter telephonyAdapter;
@@ -949,7 +949,7 @@ class ContactServiceImpl implements ContactService {
                     meta.put(TelephonyAdapter.META_TARGET_QUEUE_ID,
                             req.queueId() != null ? req.queueId().toString() : null);
                     if (req.queueId() != null) {
-                        queueRepository.findByIdAndTenantId(req.queueId(), tenantId)
+                        queueService.findQueueEntity(req.queueId(), tenantId)
                                 .ifPresent(q -> meta.put("target_queue_name", q.getName()));
                     }
                 }
@@ -1065,7 +1065,7 @@ class ContactServiceImpl implements ContactService {
 
             // Pobierz nazwę kolejki z oryginalnego kontaktu, żeby frontend Agent2 mógł ją wyświetlić
             String queueName = contact.getQueueId() != null
-                    ? queueRepository.findByIdAndTenantId(contact.getQueueId(), tenantId)
+                    ? queueService.findQueueEntity(contact.getQueueId(), tenantId)
                             .map(q -> q.getName())
                             .orElse("")
                     : "";

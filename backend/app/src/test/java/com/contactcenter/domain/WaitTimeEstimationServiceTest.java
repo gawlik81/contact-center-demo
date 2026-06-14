@@ -2,11 +2,11 @@ package com.contactcenter.domain;
 
 import com.contactcenter.api.queue.dto.QueueStatsResponse;
 import com.contactcenter.api.queue.QueueWaitUpdatePayload;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.WaitTimeEstimationService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
@@ -66,7 +66,7 @@ class WaitTimeEstimationServiceTest {
     private static final UUID AGENT_2_ID  = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @Mock private TenantService tenantService;
-    @Mock private QueueRepository           queueRepository;
+    @Mock private QueueService              queueService;
     @Mock private ContactService         contactService;
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private WebSocketEventBroadcaster webSocketEventBroadcaster;
@@ -324,7 +324,7 @@ class WaitTimeEstimationServiceTest {
             service.broadcastWaitTimeUpdates();
 
             // Brak wywołań do DB i WebSocket – tenant pominięty
-            verifyNoInteractions(queueRepository, contactService, webSocketEventBroadcaster);
+            verifyNoInteractions(queueService, contactService, webSocketEventBroadcaster);
         }
 
         @Test
@@ -335,7 +335,7 @@ class WaitTimeEstimationServiceTest {
 
             service.broadcastWaitTimeUpdates();
 
-            verifyNoInteractions(queueRepository, contactService, webSocketEventBroadcaster);
+            verifyNoInteractions(queueService, contactService, webSocketEventBroadcaster);
         }
 
         @Test
@@ -352,11 +352,8 @@ class WaitTimeEstimationServiceTest {
 
             when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
 
-            com.contactcenter.api.PagedResponse<Queue> pagedQueues = new com.contactcenter.api.PagedResponse<>(
-                    List.of(testQueue, queue2), 0, 1000, 2, 1, true, true
-            );
-            when(queueRepository.findAllByTenantId(TENANT_ID, null, 0, 1000))
-                    .thenReturn(pagedQueues);
+            when(queueService.getAllQueues(TENANT_ID))
+                    .thenReturn(List.of(testQueue, queue2));
 
             when(contactService.countWaitingByQueueId(eq(TENANT_ID), any(UUID.class))).thenReturn(1);
             when(contactService.getAvgHandleTimeSeconds(eq(TENANT_ID), any(UUID.class))).thenReturn(300.0);
@@ -373,11 +370,8 @@ class WaitTimeEstimationServiceTest {
         void shouldSkipTenant_whenNoQueues() {
             when(tenantService.getActiveTenants()).thenReturn(List.of(activeTenant));
 
-            com.contactcenter.api.PagedResponse<Queue> emptyQueues = new com.contactcenter.api.PagedResponse<>(
-                    Collections.emptyList(), 0, 1000, 0, 0, true, true
-            );
-            when(queueRepository.findAllByTenantId(TENANT_ID, null, 0, 1000))
-                    .thenReturn(emptyQueues);
+            when(queueService.getAllQueues(TENANT_ID))
+                    .thenReturn(Collections.emptyList());
 
             service.broadcastWaitTimeUpdates();
 
@@ -396,7 +390,7 @@ class WaitTimeEstimationServiceTest {
         @Test
         @DisplayName("Zwraca poprawne statystyki kolejki")
         void shouldReturnQueueStats() {
-            when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(testQueue));
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(testQueue));
             when(contactService.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(4);
             when(contactService.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID)).thenReturn(180.0);
             // lastKnownAgentCounts pusta → availableAgents = 0 → EWT = MAX_VALUE

@@ -12,7 +12,7 @@ import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
@@ -62,7 +62,7 @@ class ContactServiceTest {
     @Mock private RecordingService recordingService;
     @Mock private EmailMessageRepository emailMessageRepository;
     @Mock private UserService userService;
-    @Mock private QueueRepository queueRepository;
+    @Mock private QueueService queueService;
     @Mock private CampaignService campaignService;
     @Mock private ContactEventService contactEventService;
     @Mock private TelephonyAdapter telephonyAdapter;

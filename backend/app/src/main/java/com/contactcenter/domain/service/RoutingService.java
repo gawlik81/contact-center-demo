@@ -4,14 +4,14 @@ import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.contact.Contact;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.contact.QueuedContactView;
 import com.contactcenter.domain.customer.CustomerService;
-import com.contactcenter.domain.repository.QueueAssignmentRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueAssignmentService;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.routing.ContactAssignedEvent;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
@@ -67,10 +67,10 @@ public class RoutingService {
     private static final String RK_CONTACT_ASSIGNED = "contact.assigned";
 
     private final RoutingEngine routingEngine;
-    private final QueueRepository queueRepository;
+    private final QueueService queueService;
     private final CustomerService customerService;
     private final RabbitTemplate rabbitTemplate;
-    private final QueueAssignmentRepository queueAssignmentRepository;
+    private final QueueAssignmentService queueAssignmentService;
     private final UserService userService;
     private final WebSocketEventBroadcaster broadcaster;
     private final ContactService contactService;
@@ -111,7 +111,7 @@ public class RoutingService {
                 contactId, queueId, tenantId);
 
         // 1. Pobierz kolejkę
-        Queue queue = queueRepository.findByIdAndTenantId(queueId, tenantId)
+        Queue queue = queueService.findQueueEntity(queueId, tenantId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Kolejka nie istnieje: queueId=" + queueId + ", tenantId=" + tenantId));
 
@@ -129,8 +129,8 @@ public class RoutingService {
         // all_agents=TRUE → eligibleAgentIds=null (brak filtru, wszyscy agenci tenanta)
         // all_agents=FALSE → pobierz UNION bezpośrednich agentów + agentów przez grupy
         Set<UUID> eligibleAgentIds = null;
-        if (!queueAssignmentRepository.isAllAgents(queue.getQueueId(), tenantId)) {
-            eligibleAgentIds = queueAssignmentRepository.resolveEligibleAgentIds(
+        if (!queueAssignmentService.isAllAgents(queue.getQueueId(), tenantId)) {
+            eligibleAgentIds = queueAssignmentService.resolveEligibleAgentIds(
                     queue.getQueueId(), tenantId);
             log.debug("[RoutingService] Kolejka {} ma all_agents=FALSE, uprawnionych agentów: {}",
                     queueId, eligibleAgentIds.size());

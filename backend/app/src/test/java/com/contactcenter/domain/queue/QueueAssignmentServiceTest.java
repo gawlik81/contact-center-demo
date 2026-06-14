@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.queue;
 
 import com.contactcenter.api.agentgroup.dto.AgentSummary;
 import com.contactcenter.api.queue.dto.AgentGroupSummary;
@@ -8,10 +8,7 @@ import com.contactcenter.domain.agentgroup.AgentGroup;
 import com.contactcenter.domain.agentgroup.AgentGroupRepository;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.QueueAssignmentRepository;
-import com.contactcenter.domain.repository.QueueRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -61,7 +58,7 @@ class QueueAssignmentServiceTest {
     @Mock private UserService userService;
 
     @InjectMocks
-    private QueueAssignmentService service;
+    private QueueAssignmentServiceImpl service;
 
     // =========================================================================
     // GET – odczyt przypisania

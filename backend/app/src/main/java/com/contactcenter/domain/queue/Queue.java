@@ -1,4 +1,4 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.queue;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

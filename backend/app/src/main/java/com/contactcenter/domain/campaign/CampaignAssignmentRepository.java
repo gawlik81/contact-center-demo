@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 /**
  * Repozytorium zarządzające przypisaniem agentów i grup do kampanii (BE-080).
  *
- * <p>Analogiczne do {@link QueueAssignmentRepository} – obsługuje relacje przypisania
+ * <p>Analogiczne do {@link com.contactcenter.domain.queue.QueueAssignmentRepository} – obsługuje relacje przypisania
  * ({@code campaign_agent}, {@code campaign_agent_group}, {@code agent_group_member})
  * oraz flagę {@code all_agents} w tabeli {@code campaign}.
  *

@@ -5,7 +5,7 @@ import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
@@ -101,7 +101,7 @@ class TwilioTelephonyAdapterTest {
 
 
     @Mock
-    private QueueRepository queueRepository;
+    private QueueService queueService;
 
     @Mock
     private RabbitTemplate rabbitTemplate;
@@ -172,7 +172,7 @@ class TwilioTelephonyAdapterTest {
                 customerService, tenantService,
                 redisTemplate, stringRedisTemplate, recordingDownloadService,
                 tenantTwilioConfigService, contactEventService,
-                queueRepository, rabbitTemplate, cliLookupService);
+                queueService, rabbitTemplate, cliLookupService);
         adapter.setContactService(contactService);
         // init() inicjalizuje Caffeine cache bez wywoływania Twilio.init() (usunięte w BE-058)
         // oraz bez konfigurowania statusCallbacków (tenantService zwraca pustą listę)

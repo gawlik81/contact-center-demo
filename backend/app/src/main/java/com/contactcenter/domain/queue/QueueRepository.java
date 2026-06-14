@@ -1,7 +1,8 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.queue;
+
+import com.contactcenter.domain.repository.TenantAwareRepository;
 
 import com.contactcenter.api.PagedResponse;
-import com.contactcenter.domain.model.Queue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;

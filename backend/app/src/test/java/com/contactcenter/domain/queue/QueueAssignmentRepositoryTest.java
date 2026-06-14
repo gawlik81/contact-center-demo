@@ -1,4 +1,4 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.queue;
 
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityManager;

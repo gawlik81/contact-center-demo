@@ -6,12 +6,12 @@ import com.contactcenter.domain.ivr.IvrOption;
 import com.contactcenter.domain.ivr.IvrSessionData;
 import com.contactcenter.domain.model.IvrAudio;
 import com.contactcenter.domain.model.IvrTree;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.IvrAudioRepository;
 import com.contactcenter.domain.repository.IvrTreeRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -95,7 +95,7 @@ public class IvrEngineService {
 
     private final IvrTreeRepository ivrTreeRepository;
     private final IvrAudioRepository ivrAudioRepository;
-    private final QueueRepository queueRepository;
+    private final QueueService queueService;
     private final ContactService contactService;
     private final TelephonyAdapter telephonyAdapter;
     private final RabbitTemplate rabbitTemplate;
@@ -411,7 +411,7 @@ public class IvrEngineService {
         log.info("[DirectQueue] Kierowanie do kolejki: callSid={}, queueId={}, contactId={}",
             callSid, queueId, contactId);
         try {
-            Optional<Queue> queueOpt = queueRepository.findByIdAndTenantId(queueId, tenantId);
+            Optional<Queue> queueOpt = queueService.findQueueEntity(queueId, tenantId);
             if (queueOpt.isEmpty()) {
                 log.warn("[DirectQueue] Kolejka nie istnieje: queueId={}, tenantId={}", queueId, tenantId);
                 return buildFallbackTwiml();
@@ -1337,7 +1337,7 @@ public class IvrEngineService {
             UUID queueId = UUID.fromString(node.queueId());
 
             // Weryfikacja kolejki
-            Optional<Queue> queueOpt = queueRepository.findByIdAndTenantId(queueId, session.getTenantId());
+            Optional<Queue> queueOpt = queueService.findQueueEntity(queueId, session.getTenantId());
             if (queueOpt.isEmpty()) {
                 log.warn("[IVR] Kolejka nie istnieje: queueId={}, callId={}", queueId, callId);
                 fallbackToDefaultQueue(callId, session.getTenantId());
@@ -1882,8 +1882,7 @@ public class IvrEngineService {
     private Optional<Queue> findDefaultQueue(UUID tenantId) {
         try {
             // Używamy istniejącej metody – pobieramy pierwszą aktywną kolejkę
-            return queueRepository.findAllByTenantId(tenantId, null, 0, 1)
-                    .content()
+            return queueService.getAllQueues(tenantId)
                     .stream()
                     .findFirst();
         } catch (Exception e) {

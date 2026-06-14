@@ -2,7 +2,7 @@ package com.contactcenter.domain.contact;
 
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.customer.CustomerService;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -63,7 +63,7 @@ class ContactAssignmentMonitor {
 
     private final ContactRepository contactRepository;
     private final CustomerService customerService;
-    private final QueueRepository queueRepository;
+    private final QueueService queueService;
     private final WebSocketEventBroadcaster broadcaster;
     private final RabbitTemplate rabbitTemplate;
     private final StringRedisTemplate redisTemplate;
@@ -162,7 +162,7 @@ class ContactAssignmentMonitor {
         String queueName = "";
         if (contact.getQueueId() != null) {
             try {
-                queueName = queueRepository.findByIdAndTenantId(contact.getQueueId(), tenantId)
+                queueName = queueService.findQueueEntity(contact.getQueueId(), tenantId)
                         .map(q -> q.getName())
                         .orElse("");
             } catch (Exception e) {

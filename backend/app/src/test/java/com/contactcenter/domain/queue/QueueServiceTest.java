@@ -1,13 +1,10 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.queue;
 
 import com.contactcenter.api.queue.dto.CreateQueueRequest;
 import com.contactcenter.api.queue.dto.QueueResponse;
 import com.contactcenter.api.queue.dto.UpdateQueueRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.ResourceLimitExceededException;
-import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.repository.QueueRepository;
-import com.contactcenter.domain.service.QueueService;
 import com.contactcenter.domain.tenant.TenantResourceLimitService;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
@@ -39,10 +36,13 @@ class QueueServiceTest {
     private static final UUID QUEUE_ID  = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     @Mock private QueueRepository queueRepository;
+    @Mock private QueueAssignmentRepository queueAssignmentRepository;
+    @Mock private TransferAgentQueueRepository transferAgentQueueRepository;
+    @Mock private TransferQueueStatsRepository transferQueueStatsRepository;
     @Mock private TenantResourceLimitService tenantResourceLimitService;
 
     @InjectMocks
-    private QueueService queueService;
+    private QueueServiceImpl queueService;
 
     @BeforeEach
     void setUp() {

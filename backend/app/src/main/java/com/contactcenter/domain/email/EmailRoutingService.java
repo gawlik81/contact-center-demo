@@ -2,10 +2,10 @@ package com.contactcenter.domain.email;
 
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.model.EmailRoutingRule;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.repository.EmailRoutingRuleRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -44,7 +44,7 @@ public class EmailRoutingService {
     private final EmailMessageRepository emailMessageRepository;
     private final EmailEventPublisher emailEventPublisher;
     private final EmailRoutingRuleRepository routingRuleRepository;
-    private final QueueRepository queueRepository;
+    private final QueueService queueService;
 
     // =========================================================================
     // Główna metoda routingu
@@ -167,7 +167,7 @@ public class EmailRoutingService {
      * @return Optional z UUID kolejki lub empty gdy brak dopasowania
      */
     private Optional<UUID> findQueueByEmailAddress(String emailAddress, UUID tenantId) {
-        return queueRepository.findByEmailAddressAndTenantId(emailAddress, tenantId)
+        return queueService.findQueueByEmailAddress(emailAddress, tenantId)
                 .map(Queue::getQueueId);
     }
 

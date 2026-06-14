@@ -2,10 +2,10 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.api.queue.dto.QueueStatsResponse;
 import com.contactcenter.api.queue.QueueWaitUpdatePayload;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -79,7 +79,7 @@ public class WaitTimeEstimationService {
     private static final String AGENT_SESSION_SCAN_PATTERN = AGENT_SESSION_KEY_PREFIX + "*";
 
     private final TenantService tenantService;
-    private final QueueRepository queueRepository;
+    private final QueueService queueService;
     private final ContactService contactService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final WebSocketEventBroadcaster webSocketEventBroadcaster;
@@ -147,7 +147,7 @@ public class WaitTimeEstimationService {
         UUID tenantId = tenant.getId();
 
         // Pobierz wszystkie aktywne kolejki tenanta (paginacja 1000 – zakładamy < 1000 kolejek)
-        List<Queue> queues = queueRepository.findAllByTenantId(tenantId, null, 0, 1000).content();
+        List<Queue> queues = queueService.getAllQueues(tenantId);
 
         if (queues.isEmpty()) {
             log.trace("[EWT] Brak kolejek dla tenanta {} – pomijam", tenantId);
@@ -326,7 +326,7 @@ public class WaitTimeEstimationService {
      * @return DTO ze statystykami kolejki i EWT
      */
     public QueueStatsResponse getQueueStats(UUID tenantId, UUID queueId) {
-        Queue queue = queueRepository.findByIdAndTenantId(queueId, tenantId)
+        Queue queue = queueService.findQueueEntity(queueId, tenantId)
                 .orElseThrow(() -> new com.contactcenter.domain.exception.ResourceNotFoundException(
                         "Queue not found: " + queueId));
 

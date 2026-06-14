@@ -3,11 +3,11 @@ package com.contactcenter.domain.service;
 import com.contactcenter.domain.ivr.*;
 import com.contactcenter.domain.model.IvrAudio;
 import com.contactcenter.domain.model.IvrTree;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.IvrAudioRepository;
 import com.contactcenter.domain.repository.IvrTreeRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -60,7 +60,7 @@ class IvrEngineServiceTest {
 
     @Mock private IvrTreeRepository ivrTreeRepository;
     @Mock private IvrAudioRepository ivrAudioRepository;
-    @Mock private QueueRepository queueRepository;
+    @Mock private QueueService queueService;
     @Mock private ContactService contactService;
     @Mock private TelephonyAdapter telephonyAdapter;
     @Mock private RabbitTemplate rabbitTemplate;
@@ -77,7 +77,7 @@ class IvrEngineServiceTest {
         ivrEngineService = new IvrEngineService(
                 ivrTreeRepository,
                 ivrAudioRepository,
-                queueRepository,
+                queueService,
                 contactService,
                 telephonyAdapter,
                 rabbitTemplate,
@@ -114,8 +114,8 @@ class IvrEngineServiceTest {
         @DisplayName("powinien wywołać fallback gdy brak aktywnego drzewa IVR")
         void startIvrSession_withNoActiveIvr_shouldFallbackToDefaultQueue() {
             when(ivrTreeRepository.findActiveByTenantId(TENANT_ID)).thenReturn(Optional.empty());
-            when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
-                    .thenReturn(buildQueuePage(buildQueue()));
+            when(queueService.getAllQueues(TENANT_ID))
+                    .thenReturn(List.of(buildQueue()));
 
             ivrEngineService.startIvrSession(CALL_ID, TENANT_ID, null);
 
@@ -272,8 +272,8 @@ class IvrEngineServiceTest {
                 return null;
             });
             when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
-            when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
-                    .thenReturn(buildQueuePage(buildQueue()));
+            when(queueService.getAllQueues(TENANT_ID))
+                    .thenReturn(List.of(buildQueue()));
 
             ivrEngineService.handleDtmfInput(CALL_ID, "9"); // nieznany klawisz
 
@@ -302,7 +302,7 @@ class IvrEngineServiceTest {
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
                     null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
 
-            when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
 
             ivrEngineService.executeNode(CALL_ID, queueNode, session);
@@ -332,9 +332,9 @@ class IvrEngineServiceTest {
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
                     null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
 
-            when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.empty());
-            when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
-                    .thenReturn(buildQueuePage(buildQueue()));
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID)).thenReturn(Optional.empty());
+            when(queueService.getAllQueues(TENANT_ID))
+                    .thenReturn(List.of(buildQueue()));
 
             ivrEngineService.executeNode(CALL_ID, queueNode, session);
 
@@ -454,8 +454,8 @@ class IvrEngineServiceTest {
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
                     null, null, List.of(), "invalid-uuid", 10, 3, null, 1, 1, "#", null, null, null);
 
-            when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
-                    .thenReturn(buildQueuePage(buildQueue()));
+            when(queueService.getAllQueues(TENANT_ID))
+                    .thenReturn(List.of(buildQueue()));
 
             ivrEngineService.executeNode(CALL_ID, queueNode, session);
 
@@ -662,8 +662,8 @@ class IvrEngineServiceTest {
                 return key.equals("ivr:session:" + CALL_ID) ? sessionJson : null;
             });
             when(ivrTreeRepository.findByIvrIdAndTenantId(IVR_ID, TENANT_ID)).thenReturn(Optional.of(ivr));
-            when(queueRepository.findAllByTenantId(eq(TENANT_ID), isNull(), eq(0), eq(1)))
-                    .thenReturn(buildQueuePage(buildQueue()));
+            when(queueService.getAllQueues(TENANT_ID))
+                    .thenReturn(List.of(buildQueue()));
 
             ivrEngineService.handleDtmfInput(CALL_ID, "timeout");
 
@@ -681,7 +681,7 @@ class IvrEngineServiceTest {
             IvrNode queueNode = new IvrNode(NODE_QUEUE, IvrNodeType.QUEUE_TRANSFER,
                     null, null, List.of(), QUEUE_ID.toString(), 10, 3, null, 1, 1, "#", null, null, null);
 
-            when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
+            when(queueService.findQueueEntity(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
 
             ivrEngineService.executeNode(CALL_ID, queueNode, session);
@@ -806,9 +806,4 @@ class IvrEngineServiceTest {
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
-    private com.contactcenter.api.PagedResponse<Queue> buildQueuePage(Queue queue) {
-        return new com.contactcenter.api.PagedResponse<>(
-                List.of(queue), 0, 1, 1L, 1, true, true);
-    }
 }

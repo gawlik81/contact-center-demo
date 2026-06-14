@@ -4,11 +4,11 @@ import com.contactcenter.domain.tenant.TwilioConfigChangedEvent;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.customer.Customer;
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.routing.DirectAgentAssignmentMessage;
@@ -131,7 +131,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private final TenantTwilioConfigService tenantTwilioConfigService;
   private final ContactEventService contactEventService;
   /** Repozytorium kolejek – wymagane do lookup kolejki przy transferze QUEUE. */
-  private final QueueRepository queueRepository;
+  private final QueueService queueService;
   /** Używany do publikacji eventu contact.queued po transferze do kolejki. */
   private final RabbitTemplate rabbitTemplate;
   /** CLI lookup – rozpoznawanie klienta po numerze telefonu (użyty przy CALL_TRANSFER_CONSULT). */
@@ -1048,7 +1048,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    *
    * <p>Dla {@link TransferTargetType#QUEUE} (tylko BLIND – walidacja w {@link TransferRequest#validate()}):
    * <ul>
-   *   <li>Pobiera kolejkę po {@code request.queueId()} z {@link QueueRepository}.</li>
+   *   <li>Pobiera kolejkę po {@code request.queueId()} z {@link QueueService}.</li>
    *   <li>Redirectuje bieżące połączenie klienta przez TwiML {@code <Conference>}
    *       z nową nazwą konferencji ({@code contact-{newContactId}}), analogicznie do
    *       {@code IvrEngineService.buildWaitInConferenceTwiml}.</li>
@@ -1207,7 +1207,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           UUID qId = origOpt.get().getQueueId();
           if (qId != null) {
             originalQueueId = qId;
-            originalQueueName = queueRepository.findByIdAndTenantId(qId, tenantId)
+            originalQueueName = queueService.findQueueEntity(qId, tenantId)
                 .map(q -> q.getName()).orElse(null);
           }
         }
@@ -1352,8 +1352,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     UUID queueId = request.queueId();
 
     // Weryfikacja kolejki – musi należeć do tego samego tenanta
-    Queue queue = queueRepository
-        .findByIdAndTenantId(queueId, tenantId)
+    Queue queue = queueService
+        .findQueueEntity(queueId, tenantId)
         .orElseThrow(() -> new TelephonyException(callId,
             "Kolejka nie istnieje lub należy do innego tenanta: queueId=" + queueId));
 

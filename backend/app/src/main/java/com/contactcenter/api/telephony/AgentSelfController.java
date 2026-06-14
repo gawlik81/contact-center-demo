@@ -4,7 +4,7 @@ import com.contactcenter.api.contact.dto.AssignedContactResponse;
 import com.contactcenter.api.telephony.dto.AgentKpiResponse;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -41,7 +41,7 @@ import java.util.UUID;
 public class AgentSelfController {
 
     private final ContactService contactService;
-    private final QueueRepository queueRepository;
+    private final QueueService queueService;
 
     /**
      * Zwraca kontakt aktualnie przypisany do agenta ze statusem ASSIGNED
@@ -184,7 +184,7 @@ public class AgentSelfController {
             return "";
         }
         try {
-            return queueRepository.findByIdAndTenantId(contact.getQueueId(), tenantId)
+            return queueService.findQueueEntity(contact.getQueueId(), tenantId)
                     .map(q -> q.getName())
                     .orElse("");
         } catch (Exception e) {

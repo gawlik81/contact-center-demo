@@ -4,8 +4,7 @@ import com.contactcenter.api.telephony.dto.TransferAgentResponse;
 import com.contactcenter.api.telephony.dto.TransferQueueResponse;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.TransferAgentQueueRepository;
-import com.contactcenter.domain.repository.TransferQueueStatsRepository;
+import com.contactcenter.domain.queue.QueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,8 +35,7 @@ import java.util.stream.Collectors;
 public class TransferService {
 
     private final UserService userService;
-    private final TransferAgentQueueRepository transferAgentQueueRepository;
-    private final TransferQueueStatsRepository transferQueueStatsRepository;
+    private final QueueService queueService;
 
     /**
      * Kolejność wyświetlania statusów na liście transferu.
@@ -78,7 +76,7 @@ public class TransferService {
                 .toList();
 
         Map<UUID, List<String>> queueNamesByAgent =
-                transferAgentQueueRepository.findQueueNamesByAgentIds(tenantId, agentIds);
+                queueService.findQueueNamesByAgentIds(tenantId, agentIds);
 
         // 3. Zamapuj na DTO i posortuj
         List<TransferAgentResponse> result = candidates.stream()
@@ -124,7 +122,7 @@ public class TransferService {
         log.debug("[TransferService] Pobieranie kolejek do transferu: tenant={}", tenantId);
 
         // 1. Aktywne kolejki tenanta
-        List<Object[]> queues = transferQueueStatsRepository.findActiveQueues(tenantId);
+        List<Object[]> queues = queueService.findActiveQueuesForTransfer(tenantId);
 
         if (queues.isEmpty()) {
             log.debug("[TransferService] Brak aktywnych kolejek dla tenant={}", tenantId);
@@ -137,11 +135,11 @@ public class TransferService {
 
         // 2. Liczba kontaktów QUEUED per kolejka – jedno zapytanie GROUP BY
         Map<UUID, Integer> waitingByQueue =
-                transferQueueStatsRepository.countWaitingContactsByQueueIds(tenantId, queueIds);
+                queueService.countWaitingContactsByQueueIds(tenantId, queueIds);
 
         // 3. Liczba agentów AVAILABLE per kolejka – jedno zapytanie GROUP BY
         Map<UUID, Integer> availableByQueue =
-                transferQueueStatsRepository.countAvailableAgentsByQueueIds(tenantId, queueIds);
+                queueService.countAvailableAgentsByQueueIds(tenantId, queueIds);
 
         // 4. Mapuj i sortuj
         List<TransferQueueResponse> result = queues.stream()

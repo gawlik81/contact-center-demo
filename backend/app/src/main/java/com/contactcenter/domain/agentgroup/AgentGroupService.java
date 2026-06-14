@@ -10,7 +10,7 @@ import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.QueueAssignmentRepository;
+import com.contactcenter.domain.queue.QueueAssignmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,7 +39,7 @@ import java.util.UUID;
 public class AgentGroupService {
 
     private final AgentGroupRepository agentGroupRepository;
-    private final QueueAssignmentRepository queueAssignmentRepository;
+    private final QueueAssignmentService queueAssignmentService;
     private final UserService userService;
 
     // =========================================================================
@@ -160,7 +160,7 @@ public class AgentGroupService {
     public void deleteGroup(UUID groupId, UUID tenantId) {
         log.debug("[AgentGroupService] Usuwanie grupy: groupId={}, tenant={}", groupId, tenantId);
 
-        if (queueAssignmentRepository.isGroupAssignedToAnyQueue(groupId, tenantId)) {
+        if (queueAssignmentService.isGroupAssignedToAnyQueue(groupId, tenantId)) {
             log.warn("[AgentGroupService] Próba usunięcia grupy przypisanej do kolejki: groupId={}", groupId);
             throw new ConflictException(
                     "Nie można usunąć grupy agentów przypisanej do kolejki: " + groupId);

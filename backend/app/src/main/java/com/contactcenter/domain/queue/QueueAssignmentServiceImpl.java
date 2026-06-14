@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.queue;
 
 import com.contactcenter.api.agentgroup.dto.AgentSummary;
 import com.contactcenter.api.queue.dto.AgentGroupSummary;
@@ -8,10 +8,7 @@ import com.contactcenter.domain.agentgroup.AgentGroup;
 import com.contactcenter.domain.agentgroup.AgentGroupRepository;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
-import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.repository.QueueAssignmentRepository;
-import com.contactcenter.domain.repository.QueueRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,53 +16,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
-/**
- * Serwis domenowy zarządzający przypisaniem agentów i grup do kolejki (BE-046).
- *
- * <p>Implementuje logikę GET i PUT /api/queues/{queueId}/assignment:
- * <ul>
- *   <li>Odczyt aktualnego stanu przypisania (flaga all_agents + listy bezpośrednich
- *       agentów i grup z enrichowanymi danymi)</li>
- *   <li>Podmiana przypisania – obsługa trybu allAgents=true (flaga) i
- *       allAgents=false (jawne listy agentów i grup)</li>
- *   <li>Walidacja: każdy directAgentId musi należeć do tenanta i mieć rolę AGENT;
- *       każdy groupId musi należeć do tenanta</li>
- * </ul>
- *
- * <p>Bezpieczeństwo:
- * <ul>
- *   <li>Wszystkie operacje filtrowane po tenantId z TenantContext</li>
- *   <li>{@code assertSameTenant} przed każdym zapisem przez repozytorium</li>
- *   <li>Walidacja cross-tenant dla agentów i grup (HTTP 400 zamiast 422 – per spec)</li>
- * </ul>
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class QueueAssignmentService {
+class QueueAssignmentServiceImpl implements QueueAssignmentService {
 
     private final QueueRepository queueRepository;
     private final QueueAssignmentRepository queueAssignmentRepository;
     private final AgentGroupRepository agentGroupRepository;
     private final UserService userService;
 
-    // =========================================================================
-    // GET – odczyt przypisania
-    // =========================================================================
-
-    /**
-     * Zwraca aktualny stan przypisania agentów i grup do kolejki.
-     *
-     * <p>Gdy flaga {@code all_agents=true}, listy są puste (routing obejmuje
-     * wszystkich agentów tenanta, nie ma sensu ich wylistowywać w odpowiedzi).
-     *
-     * @param queueId  UUID kolejki
-     * @param tenantId UUID tenanta
-     * @return DTO z aktualnym stanem przypisania
-     * @throws ResourceNotFoundException gdy kolejka nie istnieje lub nie należy do tenanta
-     */
+    @Override
     @Transactional(readOnly = true)
     public QueueAssignmentResponse getAssignment(UUID queueId, UUID tenantId) {
         log.debug("[QueueAssignmentService] Odczyt przypisania: queueId={}, tenant={}", queueId, tenantId);
@@ -94,29 +58,7 @@ public class QueueAssignmentService {
         return new QueueAssignmentResponse(queueId, false, directAgents, groups);
     }
 
-    // =========================================================================
-    // PUT – podmiana przypisania
-    // =========================================================================
-
-    /**
-     * Podmienia przypisanie agentów i grup do kolejki.
-     *
-     * <p>Scenariusze:
-     * <ul>
-     *   <li>{@code allAgents=true} – ustawia flagę w tabeli {@code queue}; istniejące
-     *       wiersze w {@code queue_agent} i {@code queue_agent_group} NIE są czyszczone
-     *       (silnik routingu ignoruje je gdy flaga=true, a dane historyczne zostają)</li>
-     *   <li>{@code allAgents=false} – wyłącza flagę i atomowo podmienia listy agentów i grup</li>
-     * </ul>
-     *
-     * @param queueId  UUID kolejki
-     * @param request  dane żądania z flagą allAgents i listami agentów/grup
-     * @param tenantId UUID tenanta
-     * @return DTO z nowym stanem przypisania
-     * @throws ResourceNotFoundException gdy kolejka nie istnieje lub nie należy do tenanta
-     * @throws IllegalArgumentException  gdy directAgentId lub groupId nie należy do tenanta
-     *                                   lub agent nie ma roli AGENT (HTTP 400)
-     */
+    @Override
     @Transactional
     public QueueAssignmentResponse updateAssignment(UUID queueId, UpdateQueueAssignmentRequest request,
                                                     UUID tenantId) {
@@ -157,6 +99,28 @@ public class QueueAssignmentService {
                 queueId, tenantId, directAgentIds.size(), groupIds.size());
 
         return new QueueAssignmentResponse(queueId, false, validatedAgents, validatedGroups);
+    }
+
+    // =========================================================================
+    // Metody delegujące (encapsulation pass – pkt 9 wzorca)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isAllAgents(UUID queueId, UUID tenantId) {
+        return queueAssignmentRepository.isAllAgents(queueId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<UUID> resolveEligibleAgentIds(UUID queueId, UUID tenantId) {
+        return queueAssignmentRepository.resolveEligibleAgentIds(queueId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isGroupAssignedToAnyQueue(UUID groupId, UUID tenantId) {
+        return queueAssignmentRepository.isGroupAssignedToAnyQueue(groupId, tenantId);
     }
 
     // =========================================================================

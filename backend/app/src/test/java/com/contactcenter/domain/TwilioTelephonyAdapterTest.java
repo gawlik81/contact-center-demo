@@ -169,10 +169,11 @@ class TwilioTelephonyAdapterTest {
         // Tworzymy adapter ręcznie i wywołujemy init() – @PostConstruct nie inicjalizuje Caffeine cache przez SDK,
         // więc clientCache musi być ustawiony przed testami korzystającymi z resolveRestClient().
         adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher,
-                contactService, customerService, tenantService,
+                customerService, tenantService,
                 redisTemplate, stringRedisTemplate, recordingDownloadService,
                 tenantTwilioConfigService, contactEventService,
                 queueRepository, rabbitTemplate, cliLookupService);
+        adapter.setContactService(contactService);
         // init() inicjalizuje Caffeine cache bez wywoływania Twilio.init() (usunięte w BE-058)
         // oraz bez konfigurowania statusCallbacków (tenantService zwraca pustą listę)
         adapter.init();

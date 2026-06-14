@@ -122,7 +122,6 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
   private final TwilioProperties twilioProperties;
   private final TelephonyEventPublisher eventPublisher;
-  private final ContactService contactService;
   private final CustomerService customerService;
   private final TenantService tenantService;
   private final RedisTemplate<String, Object> redisTemplate;
@@ -144,6 +143,18 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * TwilioTelephonyAdapter → UserService → ContactService → TelephonyAdapter (→ TwilioTelephonyAdapter).
    */
   private UserService userService;
+
+  /**
+   * Wstrzyknięty przez setter z {@code @Lazy} aby uniknąć circular dependency:
+   * ContactServiceImpl → TelephonyAdapter (TwilioTelephonyAdapter) → ContactService.
+   */
+  private ContactService contactService;
+
+  @Lazy
+  @Autowired
+  public void setContactService(ContactService contactService) {
+    this.contactService = contactService;
+  }
 
   /**
    * Bazowy URL aplikacji (np. https://example.com) – wymagany do budowania TwiML

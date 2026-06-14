@@ -47,7 +47,6 @@ import java.util.UUID;
 class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
-    private final UserService userService;
 
     /**
      * Wstrzykiwany przez setter z {@code @Lazy} aby uniknąć cyklicznej zależności.
@@ -74,6 +73,25 @@ class TenantServiceImpl implements TenantService {
     @Lazy
     public void setAdminMetricsService(AdminMetricsService adminMetricsService) {
         this.adminMetricsService = adminMetricsService;
+    }
+
+    /**
+     * Wstrzykiwany przez setter z {@code @Lazy} aby uniknąć cyklicznej zależności.
+     *
+     * <p>Cykl: {@code UserServiceImpl} → {@code ContactServiceImpl} →
+     * {@code TwilioTelephonyAdapter} → {@code TenantServiceImpl} → {@code UserServiceImpl}.
+     * Setter injection z {@code @Lazy} jest rozwiązaniem rekomendowanym przez Spring
+     * dla tego wzorca (patrz: Spring docs – Circular Dependencies).
+     *
+     * <p>Pole nie-final – nie jest częścią konstruktora Lombok (@RequiredArgsConstructor).
+     * W testach jednostkowych wstrzykuj przez metodę {@link #setUserService}.
+     */
+    private UserService userService;
+
+    @Autowired
+    @Lazy
+    public void setUserService(UserService userService) {
+        this.userService = userService;
     }
 
     // =========================================================================

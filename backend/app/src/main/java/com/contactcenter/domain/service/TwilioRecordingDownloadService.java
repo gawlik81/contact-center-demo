@@ -9,7 +9,9 @@ import com.contactcenter.security.TenantContext;
 import com.twilio.exception.ApiException;
 import com.twilio.rest.api.v2010.account.Conference;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -70,7 +72,18 @@ public class TwilioRecordingDownloadService {
     private final S3Properties s3Properties;
     private final S3Client s3Client;
     private final RecordingService recordingService;
-    private final ContactService contactService;
+
+    /**
+     * Wstrzykiwany przez setter z {@code @Lazy} aby uniknąć cyklicznej zależności:
+     * ContactServiceImpl → TwilioTelephonyAdapter → TwilioRecordingDownloadService → ContactService.
+     */
+    private ContactService contactService;
+
+    @Autowired
+    @Lazy
+    public void setContactService(ContactService contactService) {
+        this.contactService = contactService;
+    }
 
     /**
      * Klient voicebota do transkrypcji Whisper.
@@ -93,14 +106,12 @@ public class TwilioRecordingDownloadService {
             S3Properties s3Properties,
             S3Client s3Client,
             RecordingService recordingService,
-            ContactService contactService,
             Optional<VoicebotClient> voicebotClient) {
         this.twilioProperties = twilioProperties;
         this.tenantTwilioConfigService = tenantTwilioConfigService;
         this.s3Properties = s3Properties;
         this.s3Client = s3Client;
         this.recordingService = recordingService;
-        this.contactService = contactService;
         this.voicebotClient = voicebotClient;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(HTTP_CONNECT_TIMEOUT)

@@ -72,8 +72,9 @@ class TenantServiceTest {
                 .build();
 
         // Mockito @InjectMocks używa konstruktora (Lombok @RequiredArgsConstructor),
-        // pomijając pola non-final (adminMetricsService). Ustawiamy ręcznie przez setter.
+        // pomijając pola non-final (adminMetricsService, userService). Ustawiamy ręcznie przez setter.
         tenantService.setAdminMetricsService(adminMetricsService);
+        tenantService.setUserService(userService);
     }
 
     // =========================================================================

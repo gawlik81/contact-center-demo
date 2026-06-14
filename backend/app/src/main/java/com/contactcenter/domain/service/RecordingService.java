@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -69,7 +70,6 @@ public class RecordingService {
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
     private final S3Properties s3Properties;
-    private final ContactService contactService;
     private final WebSocketEventBroadcaster wsEventBroadcaster;
 
     /**
@@ -79,6 +79,18 @@ public class RecordingService {
      */
     @Autowired(required = false)
     private TwilioProperties twilioProperties;
+
+    /**
+     * ContactService – wstrzykiwany przez setter z {@code @Lazy} aby uniknąć
+     * circular dependency: ContactServiceImpl → RecordingService → ContactService.
+     */
+    private ContactService contactService;
+
+    @Autowired
+    @Lazy
+    public void setContactService(ContactService contactService) {
+        this.contactService = contactService;
+    }
 
     // =========================================================================
     // Obsługa zdarzenia call.hangup

@@ -71,7 +71,8 @@ class TwilioRecordingDownloadServiceTest {
     void setUp() throws IOException {
         service = new TwilioRecordingDownloadService(
                 twilioProperties, tenantTwilioConfigService, s3Properties, s3Client, recordingService,
-                contactService, java.util.Optional.empty());
+                java.util.Optional.empty());
+        service.setContactService(contactService);
 
         // Uruchom serwer HTTP na losowym porcie
         httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);

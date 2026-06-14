@@ -65,7 +65,8 @@ class RecordingServiceTest {
         s3Properties.setPresignedUrlExpirationMinutes(60);
         s3Properties.setRetentionDays(90);
 
-        recordingService = new RecordingService(s3Client, s3Presigner, s3Properties, contactService, wsEventBroadcaster);
+        recordingService = new RecordingService(s3Client, s3Presigner, s3Properties, wsEventBroadcaster);
+        recordingService.setContactService(contactService);
     }
 
     // =========================================================================

@@ -7,7 +7,7 @@ import com.contactcenter.domain.routing.RouteResult;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.routing.IncomingCallRoutingService;
 import com.contactcenter.domain.service.IvrEngineService;
-import com.contactcenter.domain.service.TwilioRecordingDownloadService;
+import com.contactcenter.domain.recording.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.TwilioTelephonyAdapter;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;

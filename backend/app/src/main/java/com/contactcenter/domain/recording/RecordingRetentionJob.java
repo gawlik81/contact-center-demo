@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.recording;
 
 import com.contactcenter.domain.contact.ContactRecordingEntry;
 import com.contactcenter.domain.contact.ContactService;
@@ -37,7 +37,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RecordingRetentionJob {
+class RecordingRetentionJob {
 
     /** Maksymalna liczba rekordów przetwarzanych w jednym batchu per tenant. */
     private static final int BATCH_SIZE = 100;

@@ -14,7 +14,8 @@ import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.service.RecordingService;
+import com.contactcenter.domain.recording.RecordingException;
+import com.contactcenter.domain.recording.RecordingService;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.user.UserService;
@@ -681,7 +682,7 @@ class ContactServiceImpl implements ContactService {
         String presignedUrl;
         try {
             presignedUrl = recordingService.generatePresignedUrlForKey(s3Key, ttl);
-        } catch (RecordingService.RecordingException e) {
+        } catch (RecordingException e) {
             log.error("[ContactService] Błąd generowania presigned URL: contactId={}, s3Key={}, error={}",
                     contactId, s3Key, e.getMessage(), e);
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,

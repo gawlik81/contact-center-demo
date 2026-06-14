@@ -13,7 +13,8 @@ import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.queue.QueueService;
-import com.contactcenter.domain.service.RecordingService;
+import com.contactcenter.domain.recording.RecordingException;
+import com.contactcenter.domain.recording.RecordingService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
 import com.contactcenter.security.TenantContext;
@@ -848,7 +849,7 @@ class ContactServiceTest {
             contact.setRecordingUrl(S3_KEY);
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(recordingService.generatePresignedUrlForKey(eq(S3_KEY), any(Duration.class)))
-                    .thenThrow(new RecordingService.RecordingException("S3 connection failed",
+                    .thenThrow(new RecordingException("S3 connection failed",
                             new RuntimeException("Connection refused")));
 
             // when / then

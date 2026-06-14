@@ -10,7 +10,7 @@ import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
-import com.contactcenter.domain.service.TwilioRecordingDownloadService;
+import com.contactcenter.domain.recording.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;

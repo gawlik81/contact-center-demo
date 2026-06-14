@@ -7,7 +7,7 @@ import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.audit.AuditLogService;
-import com.contactcenter.domain.service.RecordingService;
+import com.contactcenter.domain.recording.RecordingService;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;

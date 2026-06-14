@@ -1,8 +1,7 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.recording;
 
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
-import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.infrastructure.config.S3Properties;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,7 +55,7 @@ class RecordingServiceTest {
     @Mock private WebSocketEventBroadcaster wsEventBroadcaster;
 
     private S3Properties s3Properties;
-    private RecordingService recordingService;
+    private RecordingServiceImpl recordingService;
 
     @BeforeEach
     void setUp() {
@@ -65,7 +64,7 @@ class RecordingServiceTest {
         s3Properties.setPresignedUrlExpirationMinutes(60);
         s3Properties.setRetentionDays(90);
 
-        recordingService = new RecordingService(s3Client, s3Presigner, s3Properties, wsEventBroadcaster);
+        recordingService = new RecordingServiceImpl(s3Client, s3Presigner, s3Properties, wsEventBroadcaster);
         recordingService.setContactService(contactService);
     }
 

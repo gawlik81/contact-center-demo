@@ -1168,7 +1168,7 @@ class ContactRepository extends TenantAwareRepository {
   /**
    * Aktualizuje URL nagrania dla podanego kontaktu.
    *
-   * <p>Używane przez {@link com.contactcenter.domain.service.RecordingService}
+   * <p>Używane przez {@link com.contactcenter.domain.recording.RecordingService}
    * po pomyślnym uploadzie nagrania do S3.
    *
    * @param contactId    UUID kontaktu
@@ -1200,7 +1200,7 @@ class ContactRepository extends TenantAwareRepository {
   /**
    * Pobiera ścieżkę S3 nagrania dla danego kontaktu.
    *
-   * <p>Używane przez {@link com.contactcenter.domain.service.RecordingService}
+   * <p>Używane przez {@link com.contactcenter.domain.recording.RecordingService}
    * do pobrania klucza S3 przed generowaniem presigned URL.
    *
    * @param contactId UUID kontaktu
@@ -1227,7 +1227,7 @@ class ContactRepository extends TenantAwareRepository {
   /**
    * Usuwa URL nagrania (ustawia NULL) dla podanego kontaktu.
    *
-   * <p>Używane przez {@link com.contactcenter.domain.service.RecordingRetentionJob}
+   * <p>Używane przez {@code RecordingRetentionJob} (com.contactcenter.domain.recording)
    * po usunięciu pliku z S3.
    *
    * @param contactId UUID kontaktu
@@ -1910,7 +1910,7 @@ class ContactRepository extends TenantAwareRepository {
    * <p>Dedykowany natywny UPDATE – nie ładuje całej encji do pamięci.
    * Analogicznie do {@link #updateConferenceSidInMetadata} i {@link #updateRecordingUrl}.
    *
-   * <p>Wywoływany przez {@link TwilioRecordingDownloadService} po pomyślnej transkrypcji
+   * <p>Wywoływany przez {@code TwilioRecordingDownloadService} (com.contactcenter.domain.recording) po pomyślnej transkrypcji
    * nagrania przez voicebot Whisper. Błąd jest logowany przez calling service –
    * ta metoda rzuca wyjątek gdy kontakt nie istnieje.
    *

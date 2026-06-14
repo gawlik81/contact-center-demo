@@ -17,7 +17,7 @@ import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.customer.CustomerCliResult;
 import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
-import com.contactcenter.domain.service.TwilioRecordingDownloadService;
+import com.contactcenter.domain.recording.TwilioRecordingDownloadService;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.config.RedisConfig;

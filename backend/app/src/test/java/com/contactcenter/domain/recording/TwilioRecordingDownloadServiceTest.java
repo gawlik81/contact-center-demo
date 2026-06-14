@@ -1,9 +1,7 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.recording;
 
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
-import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.sun.net.httpserver.HttpServer;
@@ -61,7 +59,7 @@ class TwilioRecordingDownloadServiceTest {
     @Mock
     private ContactService contactService;
 
-    private TwilioRecordingDownloadService service;
+    private TwilioRecordingDownloadServiceImpl service;
 
     // Minimalny serwer HTTP symulujący odpowiedzi Twilio
     private HttpServer httpServer;
@@ -69,7 +67,7 @@ class TwilioRecordingDownloadServiceTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        service = new TwilioRecordingDownloadService(
+        service = new TwilioRecordingDownloadServiceImpl(
                 twilioProperties, tenantTwilioConfigService, s3Properties, s3Client, recordingService,
                 java.util.Optional.empty());
         service.setContactService(contactService);

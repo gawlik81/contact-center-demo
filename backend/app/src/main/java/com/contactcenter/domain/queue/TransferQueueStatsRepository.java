@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Repository
-public class TransferQueueStatsRepository extends TenantAwareRepository {
+class TransferQueueStatsRepository extends TenantAwareRepository {
 
     /**
      * Pobiera aktywne kolejki tenanta (tylko is_active = true).

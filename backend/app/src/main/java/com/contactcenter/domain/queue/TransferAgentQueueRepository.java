@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Repository
-public class TransferAgentQueueRepository extends TenantAwareRepository {
+class TransferAgentQueueRepository extends TenantAwareRepository {
 
     /**
      * Pobiera nazwy kolejek dla wielu agentów jednym zapytaniem SQL.

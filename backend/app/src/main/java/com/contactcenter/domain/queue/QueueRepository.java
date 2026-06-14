@@ -26,7 +26,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class QueueRepository extends TenantAwareRepository {
+class QueueRepository extends TenantAwareRepository {
 
     private final ObjectMapper objectMapper;
 

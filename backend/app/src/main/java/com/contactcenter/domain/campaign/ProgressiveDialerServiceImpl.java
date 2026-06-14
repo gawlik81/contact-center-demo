@@ -4,7 +4,7 @@ import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -31,6 +31,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
@@ -58,7 +59,7 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
     private final CampaignRepository campaignRepository;
     private final CampaignAssignmentRepository campaignAssignmentRepository;
     private final CampaignContactRepository campaignContactRepository;
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final UserService userService;
     private final TelephonyAdapter telephonyAdapter;
     private final StringRedisTemplate redisTemplate;
@@ -291,7 +292,7 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
 
                 // BE-085: Zapisz powiązanie contact ↔ campaign_contact_record i zaktualizuj last_contact_id
                 if (session != null && session.getContactId() != null) {
-                    contactRepository.updateCampaignContactRecordId(
+                    contactService.updateCampaignContactRecordId(
                             session.getContactId(), recordId, tenantId);
                     campaignContactRepository.updateLastContactId(
                             recordId, campaign.getCampaignId(), session.getContactId());
@@ -612,5 +613,45 @@ class ProgressiveDialerServiceImpl implements ProgressiveDialerService {
             log.warn("[Dialer] Nieznana strefa czasowa '{}', używam Europe/Warsaw", timezone);
             return DEFAULT_ZONE;
         }
+    }
+
+    // =========================================================================
+    // Dostęp do encji campaign_contact (encapsulation pass – pkt 9 wzorca)
+    // =========================================================================
+
+    @Transactional(readOnly = true)
+    @Override
+    public Map<UUID, Map<String, Long>> getContactCountsByStatus(UUID tenantId, List<UUID> campaignIds, List<String> statuses) {
+        return campaignContactRepository.countByStatusGroupedByCampaign(tenantId, campaignIds, statuses);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<Map<String, Object>> findPendingRecordsByCampaignIds(UUID tenantId, List<UUID> campaignIds) {
+        return campaignContactRepository.findPendingByCampaignIds(tenantId, campaignIds);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<Map<String, Object>> findRecordForManualDial(UUID recordId, UUID campaignId, UUID tenantId) {
+        return campaignContactRepository.findRecordForManualDial(recordId, campaignId, tenantId);
+    }
+
+    @Transactional
+    @Override
+    public void markRecordAsDialing(UUID recordId, UUID campaignId, UUID tenantId) {
+        campaignContactRepository.markAsDialing(recordId, campaignId, tenantId);
+    }
+
+    @Transactional
+    @Override
+    public void markRecordAsError(UUID recordId, UUID campaignId, UUID tenantId) {
+        campaignContactRepository.markAsError(recordId, campaignId, tenantId);
+    }
+
+    @Transactional
+    @Override
+    public void updateLastContactId(UUID recordId, UUID campaignId, UUID contactId) {
+        campaignContactRepository.updateLastContactId(recordId, campaignId, contactId);
     }
 }

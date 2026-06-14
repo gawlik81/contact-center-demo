@@ -34,7 +34,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class ContactRepository extends TenantAwareRepository {
+class ContactRepository extends TenantAwareRepository {
 
   private final JdbcTemplate jdbcTemplate;
   private final ObjectMapper objectMapper;
@@ -1940,26 +1940,4 @@ public class ContactRepository extends TenantAwareRepository {
     log.debug("[ContactRepo] Zaktualizowano notes (transkrypt): contactId={}, length={}", contactId, notes.length());
   }
 
-  // =========================================================================
-  // Inner records
-  // =========================================================================
-
-  /**
-   * Para (contactId, recordingUrl) zwracana przez findExpiredRecordings.
-   */
-  public record ContactRecordingEntry(UUID contactId, String recordingUrl) {
-  }
-
-  /**
-   * Projekcja kontaktu QUEUED z detalami do sidebaru agenta.
-   */
-  public record QueuedContactView(
-      UUID contactId,
-      String channel,
-      String remoteAddress,
-      Instant queuedAt,
-      String customerName,
-      String queueName
-  ) {
-  }
 }

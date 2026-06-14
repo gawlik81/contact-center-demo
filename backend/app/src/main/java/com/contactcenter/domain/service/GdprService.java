@@ -3,7 +3,7 @@ package com.contactcenter.domain.service;
 import com.contactcenter.domain.model.AuditLogEvent;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.customer.Customer;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,7 +39,7 @@ import java.util.zip.ZipOutputStream;
 public class GdprService {
 
     private final CustomerService customerService;
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final RecordingService recordingService;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
@@ -77,7 +77,7 @@ public class GdprService {
                         "Klient nie istnieje lub nie należy do bieżącego tenanta: " + customerId));
 
         // Pobierz historię kontaktów (do 1000 rekordów – limit ochronny)
-        List<Contact> contacts = contactRepository.findByCustomerId(customerId, tenantId, 0, 1000);
+        List<Contact> contacts = contactService.findContactsByCustomerId(customerId, tenantId, 0, 1000);
 
         byte[] zipBytes = buildExportZip(customer, contacts);
 
@@ -232,7 +232,7 @@ public class GdprService {
      * @param tenantId   UUID tenanta
      */
     private void deleteCustomerRecordingsFromS3(UUID customerId, UUID tenantId) {
-        List<String> recordingUrls = contactRepository.findRecordingUrlsByCustomer(customerId, tenantId);
+        List<String> recordingUrls = contactService.findRecordingUrlsByCustomer(customerId, tenantId);
 
         if (recordingUrls.isEmpty()) {
             log.debug("[GDPR] Brak nagrań do usunięcia: customerId={}", customerId);

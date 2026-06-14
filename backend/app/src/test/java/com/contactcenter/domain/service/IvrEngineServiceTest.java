@@ -4,7 +4,7 @@ import com.contactcenter.domain.ivr.*;
 import com.contactcenter.domain.model.IvrAudio;
 import com.contactcenter.domain.model.IvrTree;
 import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.IvrAudioRepository;
 import com.contactcenter.domain.repository.IvrTreeRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -61,7 +61,7 @@ class IvrEngineServiceTest {
     @Mock private IvrTreeRepository ivrTreeRepository;
     @Mock private IvrAudioRepository ivrAudioRepository;
     @Mock private QueueRepository queueRepository;
-    @Mock private ContactRepository contactRepository;
+    @Mock private ContactService contactService;
     @Mock private TelephonyAdapter telephonyAdapter;
     @Mock private RabbitTemplate rabbitTemplate;
     @Mock private StringRedisTemplate stringRedisTemplate;
@@ -78,7 +78,7 @@ class IvrEngineServiceTest {
                 ivrTreeRepository,
                 ivrAudioRepository,
                 queueRepository,
-                contactRepository,
+                contactService,
                 telephonyAdapter,
                 rabbitTemplate,
                 stringRedisTemplate,

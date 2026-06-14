@@ -4,6 +4,7 @@ import com.contactcenter.api.campaign.dto.CampaignAssignmentResponse;
 import com.contactcenter.api.campaign.dto.UpdateCampaignAssignmentRequest;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -56,4 +57,18 @@ public interface CampaignAssignmentService {
      */
     CampaignAssignmentResponse updateAssignment(UUID campaignId, UpdateCampaignAssignmentRequest request,
                                                  UUID tenantId);
+
+    // =========================================================================
+    // Dostęp do encji (encapsulation pass – pkt 9 wzorca)
+    // =========================================================================
+
+    /**
+     * Zwraca pełny zbiór agentów kwalifikujących się do obsługi kampanii (UNION przypisań
+     * bezpośrednich i przez grupy).
+     *
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     * @return deduplikowany zbiór UUID agentów; pusty gdy kampania nie ma przypisań
+     */
+    Set<UUID> resolveEligibleAgentIds(UUID campaignId, UUID tenantId);
 }

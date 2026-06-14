@@ -1,9 +1,8 @@
 package com.contactcenter.api.telephony;
 
 import com.contactcenter.domain.contact.Contact;
-import com.contactcenter.domain.contact.ContactRepository;
-import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.service.IncomingCallRoutingService;
 import com.contactcenter.domain.service.IvrEngineService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
@@ -71,7 +70,6 @@ class TwilioWebhookControllerConferenceTest {
     @Mock private IncomingCallRoutingService incomingCallRoutingService;
     @Mock private ContactService contactService;
     @Mock private CustomerService customerService;
-    @Mock private ContactRepository contactRepository;
     @Mock private TwilioRecordingDownloadService recordingDownloadService;
 
     private TwilioProperties twilioProperties;
@@ -90,7 +88,6 @@ class TwilioWebhookControllerConferenceTest {
             incomingCallRoutingService,
             contactService,
             customerService,
-            contactRepository,
             recordingDownloadService,
             twilioProperties
         );
@@ -116,13 +113,13 @@ class TwilioWebhookControllerConferenceTest {
         @DisplayName("kontakt QUEUED + conference-end → wywołuje updateContactStatusIfNotTerminal z ABANDONED")
         void queued_conferenceEnd_setsAbandoned() {
             Contact contact = contactWithStatus("QUEUED");
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                 .thenReturn(Optional.of(contact));
 
             ResponseEntity<Void> response = callConferenceEndCallback();
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository).updateContactStatusIfNotTerminal(
+            verify(contactService).updateContactStatusIfNotTerminal(
                 eq(CONTACT_ID), eq(TENANT_ID), eq("ABANDONED"), any(Instant.class));
         }
 
@@ -130,13 +127,13 @@ class TwilioWebhookControllerConferenceTest {
         @DisplayName("kontakt ASSIGNED + conference-end → wywołuje updateContactStatusIfNotTerminal z ABANDONED")
         void assigned_conferenceEnd_setsAbandoned() {
             Contact contact = contactWithStatus("ASSIGNED");
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                 .thenReturn(Optional.of(contact));
 
             ResponseEntity<Void> response = callConferenceEndCallback();
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository).updateContactStatusIfNotTerminal(
+            verify(contactService).updateContactStatusIfNotTerminal(
                 eq(CONTACT_ID), eq(TENANT_ID), eq("ABANDONED"), any(Instant.class));
         }
     }
@@ -160,17 +157,17 @@ class TwilioWebhookControllerConferenceTest {
         @DisplayName("kontakt ACTIVE + conference-end → NIE wywołuje żadnego update statusu")
         void active_conferenceEnd_doesNotSetAbandoned() {
             Contact contact = contactWithStatus("ACTIVE");
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                 .thenReturn(Optional.of(contact));
 
             ResponseEntity<Void> response = callConferenceEndCallback();
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
             // updateContactStatusIfNotTerminal NIE może być wywołana dla ACTIVE
-            verify(contactRepository, never()).updateContactStatusIfNotTerminal(
+            verify(contactService, never()).updateContactStatusIfNotTerminal(
                 any(), any(), any(), any());
             // Stara metoda bezwarunkowa też nie może być wywołana
-            verify(contactRepository, never()).updateContactStatusOnTelephonyEvent(
+            verify(contactService, never()).updateContactStatusOnTelephonyEvent(
                 any(), any(), any(), any());
         }
 
@@ -178,15 +175,15 @@ class TwilioWebhookControllerConferenceTest {
         @DisplayName("kontakt ON_HOLD + conference-end → NIE wywołuje żadnego update statusu")
         void onHold_conferenceEnd_doesNotSetAbandoned() {
             Contact contact = contactWithStatus("ON_HOLD");
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                 .thenReturn(Optional.of(contact));
 
             ResponseEntity<Void> response = callConferenceEndCallback();
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository, never()).updateContactStatusIfNotTerminal(
+            verify(contactService, never()).updateContactStatusIfNotTerminal(
                 any(), any(), any(), any());
-            verify(contactRepository, never()).updateContactStatusOnTelephonyEvent(
+            verify(contactService, never()).updateContactStatusOnTelephonyEvent(
                 any(), any(), any(), any());
         }
     }
@@ -204,7 +201,7 @@ class TwilioWebhookControllerConferenceTest {
         @DisplayName("status terminalny + conference-end → brak wywołania update")
         void terminalStatus_conferenceEnd_noUpdate(String terminalStatus) {
             Contact contact = contactWithStatus(terminalStatus);
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                 .thenReturn(Optional.of(contact));
 
             ResponseEntity<Void> response = callConferenceEndCallback();
@@ -212,9 +209,9 @@ class TwilioWebhookControllerConferenceTest {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
             // Statusy terminalne są obsługiwane przez sprawdzenie w findById().ifPresentOrElse –
             // updateContactStatusIfNotTerminal nie może być wywołana dla żadnego z nich
-            verify(contactRepository, never()).updateContactStatusIfNotTerminal(
+            verify(contactService, never()).updateContactStatusIfNotTerminal(
                 any(), any(), any(), any());
-            verify(contactRepository, never()).updateContactStatusOnTelephonyEvent(
+            verify(contactService, never()).updateContactStatusOnTelephonyEvent(
                 any(), any(), any(), any());
         }
     }
@@ -234,7 +231,7 @@ class TwilioWebhookControllerConferenceTest {
                 httpRequest, null, "completed", null, TENANT_ID.toString());
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository, never()).findById(any(), any());
+            verify(contactService, never()).findContactEntity(any(), any());
         }
 
         @Test
@@ -244,7 +241,7 @@ class TwilioWebhookControllerConferenceTest {
                 httpRequest, "conference-abc123", "completed", null, TENANT_ID.toString());
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository, never()).findById(any(), any());
+            verify(contactService, never()).findContactEntity(any(), any());
         }
 
         @Test
@@ -254,7 +251,7 @@ class TwilioWebhookControllerConferenceTest {
                 httpRequest, "contact-not-a-uuid", "completed", null, TENANT_ID.toString());
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository, never()).findById(any(), any());
+            verify(contactService, never()).findContactEntity(any(), any());
         }
 
         @Test
@@ -264,7 +261,7 @@ class TwilioWebhookControllerConferenceTest {
                 httpRequest, FRIENDLY_NAME, "completed", null, null);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository, never()).findById(any(), any());
+            verify(contactService, never()).findContactEntity(any(), any());
         }
 
         @Test
@@ -274,19 +271,19 @@ class TwilioWebhookControllerConferenceTest {
                 httpRequest, FRIENDLY_NAME, "in-progress", "participant-join", TENANT_ID.toString());
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository, never()).findById(any(), any());
+            verify(contactService, never()).findContactEntity(any(), any());
         }
 
         @Test
         @DisplayName("kontakt nie istnieje w bazie → 204 bez update")
         void contactNotFound_returnsNoContent_withoutUpdate() {
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                 .thenReturn(Optional.empty());
 
             ResponseEntity<Void> response = callConferenceEndCallback();
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository, never()).updateContactStatusIfNotTerminal(
+            verify(contactService, never()).updateContactStatusIfNotTerminal(
                 any(), any(), any(), any());
         }
     }
@@ -303,7 +300,7 @@ class TwilioWebhookControllerConferenceTest {
         @DisplayName("StatusCallbackEvent=conference-end z kontaktem QUEUED → ustawia ABANDONED")
         void statusCallbackEventConferenceEnd_queued_setsAbandoned() {
             Contact contact = contactWithStatus("QUEUED");
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                 .thenReturn(Optional.of(contact));
 
             // ConferenceStatus != "completed", ale StatusCallbackEvent = "conference-end"
@@ -311,7 +308,7 @@ class TwilioWebhookControllerConferenceTest {
                 httpRequest, FRIENDLY_NAME, "in-progress", "conference-end", TENANT_ID.toString());
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(contactRepository).updateContactStatusIfNotTerminal(
+            verify(contactService).updateContactStatusIfNotTerminal(
                 eq(CONTACT_ID), eq(TENANT_ID), eq("ABANDONED"), any(Instant.class));
         }
     }

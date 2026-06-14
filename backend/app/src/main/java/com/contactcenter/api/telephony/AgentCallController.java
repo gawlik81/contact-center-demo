@@ -5,7 +5,6 @@ import com.contactcenter.api.telephony.dto.OutboundCallRequest;
 import com.contactcenter.api.telephony.dto.OutboundCallResponse;
 import com.contactcenter.api.telephony.dto.TransferCallRequest;
 import com.contactcenter.domain.contact.Contact;
-import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.telephony.CallSession;
@@ -59,7 +58,6 @@ public class AgentCallController {
 
     private final TelephonyAdapter telephonyAdapter;
     private final ContactService contactService;
-    private final ContactRepository contactRepository;
     private final TenantTwilioConfigService tenantTwilioConfigService;
     private final TwilioProperties twilioProperties;
 
@@ -223,7 +221,7 @@ public class AgentCallController {
             log.info("[AgentCallController] Consultation leg answered – skipping assignAgent to avoid overwriting Agent1 ownership: " +
                      "callId={}, contactId={}, agentId={}", callId, contactId, agentId);
             // Return the existing contact without modifying agent ownership
-            Contact existingContact = contactRepository.findById(contactId, tenantId)
+            Contact existingContact = contactService.findContactEntity(contactId, tenantId)
                     .orElse(null);
             if (existingContact == null) {
                 return ResponseEntity.notFound().build();
@@ -591,7 +589,7 @@ public class AgentCallController {
     private String resolveCallSid(String callId, UUID tenantId) {
         try {
             UUID contactId = UUID.fromString(callId);
-            return contactRepository.findCallSidByContactId(contactId, tenantId)
+            return contactService.findCallSidByContactId(contactId, tenantId)
                     .orElse(callId);
         } catch (IllegalArgumentException e) {
             return callId;

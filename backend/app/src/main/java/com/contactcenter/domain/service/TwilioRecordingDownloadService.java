@@ -2,8 +2,7 @@ package com.contactcenter.domain.service;
 
 import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
-import com.contactcenter.domain.contact.ContactRepository;
-import com.contactcenter.domain.contact.ContactTranscriptionRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
@@ -71,8 +70,7 @@ public class TwilioRecordingDownloadService {
     private final S3Properties s3Properties;
     private final S3Client s3Client;
     private final RecordingService recordingService;
-    private final ContactRepository contactRepository;
-    private final ContactTranscriptionRepository transcriptionRepository;
+    private final ContactService contactService;
 
     /**
      * Klient voicebota do transkrypcji Whisper.
@@ -95,16 +93,14 @@ public class TwilioRecordingDownloadService {
             S3Properties s3Properties,
             S3Client s3Client,
             RecordingService recordingService,
-            ContactRepository contactRepository,
-            ContactTranscriptionRepository transcriptionRepository,
+            ContactService contactService,
             Optional<VoicebotClient> voicebotClient) {
         this.twilioProperties = twilioProperties;
         this.tenantTwilioConfigService = tenantTwilioConfigService;
         this.s3Properties = s3Properties;
         this.s3Client = s3Client;
         this.recordingService = recordingService;
-        this.contactRepository = contactRepository;
-        this.transcriptionRepository = transcriptionRepository;
+        this.contactService = contactService;
         this.voicebotClient = voicebotClient;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(HTTP_CONNECT_TIMEOUT)
@@ -158,7 +154,7 @@ public class TwilioRecordingDownloadService {
         UUID resolvedContactId = contactId;
         if (resolvedContactId == null) {
             if (StringUtils.hasText(callSid)) {
-                resolvedContactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+                resolvedContactId = contactService.findContactIdByCallSid(callSid, tenantId)
                         .orElse(null);
                 if (resolvedContactId == null) {
                     log.warn("[TwilioRecDownload] Nie znaleziono contactId dla callSid={}, tenantId={}. " +
@@ -282,7 +278,7 @@ public class TwilioRecordingDownloadService {
                     transcriptOpt.ifPresent(response -> {
                         String transcript = response.transcript();
                         if (transcript != null && !transcript.isBlank()) {
-                            transcriptionRepository.save(
+                            contactService.saveTranscription(
                                     contactId, tenantId, transcript, response.language());
                             log.info("[TwilioRecDownload] Transkrypt zapisany w contact_transcription: " +
                                      "contactId={}, language={}, length={}",

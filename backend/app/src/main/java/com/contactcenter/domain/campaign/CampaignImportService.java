@@ -1,5 +1,7 @@
 package com.contactcenter.domain.campaign;
 
+import com.contactcenter.api.PagedResponse;
+import com.contactcenter.api.campaign.dto.CampaignContactResponse;
 import com.contactcenter.domain.model.ImportJobStatus;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.web.multipart.MultipartFile;
@@ -53,4 +55,20 @@ public interface CampaignImportService {
      * @return status joba lub null gdy nie istnieje
      */
     ImportJobStatus getJobStatus(UUID jobId);
+
+    /**
+     * Zwraca paginowaną listę kontaktów dla danej kampanii.
+     *
+     * <p>Opcjonalny filtr {@code statusFilter} ogranicza wyniki do rekordów o danym statusie
+     * (PENDING, CALLED, FAILED, SKIPPED).
+     *
+     * @param tenantId     UUID tenanta (do RLS)
+     * @param campaignId   UUID kampanii
+     * @param statusFilter opcjonalny filtr statusu – {@code null} = brak filtru
+     * @param page         numer strony (0-based)
+     * @param size         rozmiar strony (max 200)
+     * @return opakowana odpowiedź z metadanymi paginacji
+     */
+    PagedResponse<CampaignContactResponse> getCampaignContacts(UUID tenantId, UUID campaignId,
+                                                                 String statusFilter, int page, int size);
 }

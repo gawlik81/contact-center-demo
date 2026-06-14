@@ -10,7 +10,7 @@ import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.SupervisorMetricsService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
@@ -78,7 +78,7 @@ class SupervisorMetricsServiceTest {
 
     @Mock private TenantService tenantService;
     @Mock private UserService userService;
-    @Mock private ContactRepository contactRepository;
+    @Mock private ContactService contactService;
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private StringRedisTemplate stringRedisTemplate;
     @Mock private WebSocketEventBroadcaster webSocketEventBroadcaster;
@@ -624,7 +624,7 @@ class SupervisorMetricsServiceTest {
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 
-            when(contactRepository.getAvgCurrentWaitSeconds(TENANT_ID)).thenReturn(125.5);
+            when(contactService.getAvgCurrentWaitSeconds(TENANT_ID)).thenReturn(125.5);
 
             // when
             SupervisorMetricsPayload payload = service.buildPayload(TENANT_ID, Collections.emptyMap());
@@ -642,7 +642,7 @@ class SupervisorMetricsServiceTest {
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 
-            when(contactRepository.getAvgCurrentWaitSeconds(TENANT_ID)).thenReturn(0.0);
+            when(contactService.getAvgCurrentWaitSeconds(TENANT_ID)).thenReturn(0.0);
 
             // when
             SupervisorMetricsPayload payload = service.buildPayload(TENANT_ID, Collections.emptyMap());
@@ -660,7 +660,7 @@ class SupervisorMetricsServiceTest {
                     eq(TENANT_ID), any(), any(), eq("AGENT"), any(), any(Pageable.class)
             )).thenReturn(emptyPage);
 
-            when(contactRepository.getAvgCurrentWaitSeconds(TENANT_ID))
+            when(contactService.getAvgCurrentWaitSeconds(TENANT_ID))
                     .thenThrow(new RuntimeException("DB connection error"));
 
             // when – nie powinno rzucić wyjątku

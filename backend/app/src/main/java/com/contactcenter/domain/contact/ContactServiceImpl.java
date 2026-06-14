@@ -18,7 +18,7 @@ import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.campaign.CampaignRepository;
+import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.telephony.CallSession;
@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -72,10 +73,12 @@ class ContactServiceImpl implements ContactService {
     private static final int RECORDING_URL_TTL_MINUTES = 15;
 
     private final ContactRepository contactRepository;
+    private final ContactAiSummaryRepository contactAiSummaryRepository;
+    private final ContactTranscriptionRepository contactTranscriptionRepository;
     private final RecordingService recordingService;
     private final EmailMessageRepository emailMessageRepository;
     private final QueueRepository queueRepository;
-    private final CampaignRepository campaignRepository;
+    private final CampaignService campaignService;
     private final ContactEventService contactEventService;
     private final TelephonyAdapter telephonyAdapter;
     private final TelephonyEventPublisher eventPublisher;
@@ -239,7 +242,7 @@ class ContactServiceImpl implements ContactService {
         if (campaignId == null || dispositionCode == null) {
             return null;
         }
-        return campaignRepository.findById(campaignId, tenantId)
+        return campaignService.findCampaignEntity(campaignId, tenantId)
                 .map(campaign -> findLabelInDispositionCodes(campaign.getDispositionCodes(), dispositionCode))
                 .orElse(null);
     }
@@ -269,7 +272,7 @@ class ContactServiceImpl implements ContactService {
         }
 
         Map<UUID, Map<String, String>> result = new HashMap<>();
-        campaignRepository.findAllByIds(campaignIds, tenantId).forEach(campaign -> {
+        campaignService.findCampaignsByIds(campaignIds, tenantId).forEach(campaign -> {
             Map<String, String> codeToLabel = new HashMap<>();
             if (campaign.getDispositionCodes() != null) {
                 for (Map<String, Object> entry : campaign.getDispositionCodes()) {
@@ -1152,6 +1155,235 @@ class ContactServiceImpl implements ContactService {
 
         log.info("[ContactService] Zakończono {} przeterminowanych kontaktów ze statusem ABANDONED: tenant={}",
                 terminated, tenantId);
+    }
+
+    // =========================================================================
+    // Encapsulation pass (pkt 9 wzorca refaktoru domenowego) – metody delegujące
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Contact> findContactEntity(UUID contactId, UUID tenantId) {
+        return contactRepository.findById(contactId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Contact> findContactsByCustomerId(UUID customerId, UUID tenantId, int page, int size) {
+        return contactRepository.findByCustomerId(customerId, tenantId, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findCallSidByContactId(UUID contactId, UUID tenantId) {
+        return contactRepository.findCallSidByContactId(contactId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findContactIdByCallSid(String callSid, UUID tenantId) {
+        return contactRepository.findContactIdByCallSid(callSid, tenantId);
+    }
+
+    @Override
+    @Transactional
+    public void updateConferenceSidInMetadata(String callSid, String conferenceSid, UUID tenantId) {
+        contactRepository.updateConferenceSidInMetadata(callSid, conferenceSid, tenantId);
+    }
+
+    @Override
+    @Transactional
+    public void backfillCallSidInMetadata(UUID contactId, String callSid, UUID tenantId) {
+        contactRepository.backfillCallSidInMetadata(contactId, callSid, tenantId);
+    }
+
+    @Override
+    @Transactional
+    public Contact insertContact(Contact contact) {
+        return contactRepository.insert(contact);
+    }
+
+    @Override
+    @Transactional
+    public int updateContactEntity(Contact contact) {
+        return contactRepository.update(contact);
+    }
+
+    @Override
+    @Transactional
+    public int updateCampaignContactRecordId(UUID contactId, UUID recordId, UUID tenantId) {
+        return contactRepository.updateCampaignContactRecordId(contactId, recordId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Contact> findByCampaignContactRecordId(UUID campaignContactRecordId, UUID tenantId) {
+        return contactRepository.findByCampaignContactRecordId(campaignContactRecordId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Contact> findByCallbackId(UUID callbackId, UUID tenantId) {
+        return contactRepository.findByCallbackId(callbackId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Contact> findByTransferredFromContactId(UUID transferredFromContactId, UUID tenantId) {
+        return contactRepository.findByTransferredFromContactId(transferredFromContactId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Contact> findQueuedContacts(UUID tenantId) {
+        return contactRepository.findQueuedContacts(tenantId);
+    }
+
+    @Override
+    @Transactional
+    public void updateContactStatusOnTelephonyEvent(UUID contactId, UUID tenantId, String newStatus, Instant endedAt) {
+        contactRepository.updateContactStatusOnTelephonyEvent(contactId, tenantId, newStatus, endedAt);
+    }
+
+    @Override
+    @Transactional
+    public boolean updateContactStatusIfNotTerminal(UUID contactId, UUID tenantId, String newStatus, Instant endedAt) {
+        return contactRepository.updateContactStatusIfNotTerminal(contactId, tenantId, newStatus, endedAt);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateContactStatusRequiresNew(UUID contactId, UUID tenantId, String newStatus, Instant endedAt) {
+        contactRepository.updateContactStatusRequiresNew(contactId, tenantId, newStatus, endedAt);
+    }
+
+    @Override
+    @Transactional
+    public int updateQueueId(UUID contactId, UUID tenantId, UUID queueId) {
+        return contactRepository.updateQueueId(contactId, tenantId, queueId);
+    }
+
+    @Override
+    @Transactional
+    public void updateRecordingUrl(UUID contactId, UUID tenantId, String recordingUrl) {
+        contactRepository.updateRecordingUrl(contactId, tenantId, recordingUrl);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findRecordingUrl(UUID contactId, UUID tenantId) {
+        return contactRepository.findRecordingUrl(contactId, tenantId);
+    }
+
+    @Override
+    @Transactional
+    public void clearRecordingUrl(UUID contactId, UUID tenantId) {
+        contactRepository.clearRecordingUrl(contactId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContactRecordingEntry> findExpiredRecordings(UUID tenantId, Instant cutoffTimestamp, int limit) {
+        return contactRepository.findExpiredRecordings(tenantId, cutoffTimestamp, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> findRecordingUrlsByCustomer(UUID customerId, UUID tenantId) {
+        return contactRepository.findRecordingUrlsByCustomer(customerId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> findTenantsWithRecordings() {
+        return contactRepository.findTenantsWithRecordings();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Object[]> findAgentReportRows(UUID tenantId, UUID agentId, UUID queueId, String channel,
+                                               java.time.LocalDate dateFrom, java.time.LocalDate dateTo,
+                                               int offset, int size) {
+        return contactRepository.findAgentReportRows(tenantId, agentId, queueId, channel, dateFrom, dateTo, offset, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countAgentReportRows(UUID tenantId, UUID agentId, UUID queueId, String channel,
+                                      java.time.LocalDate dateFrom, java.time.LocalDate dateTo) {
+        return contactRepository.countAgentReportRows(tenantId, agentId, queueId, channel, dateFrom, dateTo);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Contact> findByChannelMetadataValue(String key, String value, UUID tenantId) {
+        return contactRepository.findByChannelMetadataValue(key, value, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public double getAvgHandleTimeSeconds(UUID tenantId, UUID queueId) {
+        return contactRepository.getAvgHandleTimeSeconds(tenantId, queueId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int countWaitingByQueueId(UUID tenantId, UUID queueId) {
+        return contactRepository.countWaitingByQueueId(tenantId, queueId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public double getAvgCurrentWaitSeconds(UUID tenantId) {
+        return contactRepository.getAvgCurrentWaitSeconds(tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Contact> findActiveSocialContact(UUID tenantId, String senderExternalId, String channel) {
+        return contactRepository.findActiveSocialContact(tenantId, senderExternalId, channel);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Contact> findAssignedContactForAgent(UUID agentId, UUID tenantId) {
+        return contactRepository.findAssignedContactForAgent(agentId, tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<QueuedContactView> findQueuedContactsForAgentView(UUID tenantId) {
+        return contactRepository.findQueuedContactsForAgentView(tenantId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Object[] findAgentKpiToday(UUID agentId, UUID tenantId, Instant dayStart, Instant dayEnd) {
+        return contactRepository.findAgentKpiToday(agentId, tenantId, dayStart, dayEnd);
+    }
+
+    @Override
+    @Transactional
+    public void updateNotes(UUID contactId, UUID tenantId, String notes) {
+        contactRepository.updateNotes(contactId, tenantId, notes);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findTranscriptionContent(UUID contactId, UUID tenantId) {
+        return contactTranscriptionRepository.findContentByContactId(contactId, tenantId);
+    }
+
+    @Override
+    @Transactional
+    public void saveTranscription(UUID contactId, UUID tenantId, String content, String language) {
+        contactTranscriptionRepository.save(contactId, tenantId, content, language);
+    }
+
+    @Override
+    @Transactional
+    public void saveAiSummary(ContactAiSummary aiSummary) {
+        contactAiSummaryRepository.save(aiSummary);
     }
 
     // =========================================================================

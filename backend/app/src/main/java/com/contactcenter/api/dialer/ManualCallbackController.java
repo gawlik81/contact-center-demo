@@ -6,7 +6,7 @@ import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.campaign.ScheduledCallback;
 import com.contactcenter.domain.customer.CustomerService;
-import com.contactcenter.domain.campaign.ScheduledCallbackRepository;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -55,7 +55,7 @@ public class ManualCallbackController {
     private static final long MIN_SCHEDULED_AT_OFFSET_SECONDS = 5 * 60L;
 
     private final CustomerService customerService;
-    private final ScheduledCallbackRepository scheduledCallbackRepository;
+    private final ScheduledCallbackService scheduledCallbackService;
 
     /**
      * Planuje manualne oddzwonienie do klienta.
@@ -130,7 +130,7 @@ public class ManualCallbackController {
                 // campaign_id i origin_contact_id są null – callback niezwiązany z kampanią/kontaktem
                 .build();
 
-        ScheduledCallback saved = scheduledCallbackRepository.save(callback);
+        ScheduledCallback saved = scheduledCallbackService.saveCallback(callback);
 
         log.info("[ManualCallbackController] Zaplanowano manualne oddzwonienie: " +
                         "callbackId={}, customerId={}, agent={}, scheduledAt={}, tenant={}",

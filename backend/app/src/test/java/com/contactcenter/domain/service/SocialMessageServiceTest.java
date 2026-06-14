@@ -4,7 +4,7 @@ import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.model.SocialIntegration;
 import com.contactcenter.domain.model.SocialMessage;
 import com.contactcenter.domain.model.SocialPlatform;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.SocialIntegrationRepository;
 import com.contactcenter.domain.repository.SocialMessageRepository;
 import com.contactcenter.domain.social.IncomingSocialMessage;
@@ -59,7 +59,7 @@ class SocialMessageServiceTest {
 
     @Mock private SocialIntegrationRepository socialIntegrationRepository;
     @Mock private SocialMessageRepository socialMessageRepository;
-    @Mock private ContactRepository contactRepository;
+    @Mock private ContactService contactService;
     @Mock private SocialAdapterRegistry adapterRegistry;
     @Mock private RabbitTemplate rabbitTemplate;
 
@@ -70,7 +70,7 @@ class SocialMessageServiceTest {
         service = new SocialMessageService(
                 socialIntegrationRepository,
                 socialMessageRepository,
-                contactRepository,
+                contactService,
                 adapterRegistry,
                 rabbitTemplate
         );
@@ -112,7 +112,7 @@ class SocialMessageServiceTest {
 
         // Then – żadna wiadomość NIE powinna zostać zapisana
         verify(socialMessageRepository, never()).save(any());
-        verify(contactRepository, never()).insert(any());
+        verify(contactService, never()).insertContact(any());
         verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Object.class));
     }
 
@@ -130,9 +130,9 @@ class SocialMessageServiceTest {
                 .thenReturn(Optional.of(integration));
         when(socialMessageRepository.findByExternalMessageId(EXTERNAL_MSG_ID, TENANT_ID))
                 .thenReturn(Optional.empty()); // brak duplikatu
-        when(contactRepository.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
+        when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
                 .thenReturn(Optional.empty()); // brak aktywnego kontaktu
-        when(contactRepository.insert(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(contactService.insertContact(any())).thenAnswer(inv -> inv.getArgument(0));
         when(socialMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         IncomingSocialMessage incoming = buildIncomingMessage();
@@ -142,7 +142,7 @@ class SocialMessageServiceTest {
 
         // Then – nowy kontakt musi być utworzony
         ArgumentCaptor<Contact> contactCaptor = ArgumentCaptor.forClass(Contact.class);
-        verify(contactRepository).insert(contactCaptor.capture());
+        verify(contactService).insertContact(contactCaptor.capture());
         Contact createdContact = contactCaptor.getValue();
 
         assertThat(createdContact.getChannel()).isEqualTo("SOCIAL_FACEBOOK");
@@ -184,7 +184,7 @@ class SocialMessageServiceTest {
                 .thenReturn(Optional.of(integration));
         when(socialMessageRepository.findByExternalMessageId(EXTERNAL_MSG_ID, TENANT_ID))
                 .thenReturn(Optional.empty());
-        when(contactRepository.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
+        when(contactService.findActiveSocialContact(TENANT_ID, SENDER_ID, "SOCIAL_FACEBOOK"))
                 .thenReturn(Optional.of(existingContact));
         when(socialMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -194,7 +194,7 @@ class SocialMessageServiceTest {
         service.processIncomingMessage(incoming);
 
         // Then – kontakt NIE powinien być tworzony od nowa
-        verify(contactRepository, never()).insert(any());
+        verify(contactService, never()).insertContact(any());
 
         // Wiadomość musi być dołączona do istniejącego kontaktu
         ArgumentCaptor<SocialMessage> msgCaptor = ArgumentCaptor.forClass(SocialMessage.class);
@@ -227,7 +227,7 @@ class SocialMessageServiceTest {
         SocialIntegration integration = buildIntegration();
         SocialMediaAdapter adapter = mock(SocialMediaAdapter.class);
 
-        when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+        when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
         when(socialIntegrationRepository.findByTenantIdAndPlatform(TENANT_ID, SocialPlatform.FACEBOOK))
                 .thenReturn(List.of(integration));
         when(adapterRegistry.getAdapter(SocialPlatform.FACEBOOK)).thenReturn(adapter);
@@ -283,7 +283,7 @@ class SocialMessageServiceTest {
 
         // Weryfikuj że nic nie zostało zapisane
         verify(socialMessageRepository, never()).save(any());
-        verify(contactRepository, never()).insert(any());
+        verify(contactService, never()).insertContact(any());
     }
 
     // =========================================================================

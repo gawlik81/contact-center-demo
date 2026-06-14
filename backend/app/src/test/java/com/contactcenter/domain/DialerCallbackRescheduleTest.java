@@ -6,9 +6,9 @@ import com.contactcenter.api.dialer.dto.ScheduledCallbackResponse;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.campaign.ScheduledCallback;
-import com.contactcenter.domain.campaign.CampaignContactRepository;
-import com.contactcenter.domain.campaign.CampaignRepository;
-import com.contactcenter.domain.campaign.ScheduledCallbackRepository;
+import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
+import com.contactcenter.domain.campaign.CampaignAssignmentService;
 import com.contactcenter.domain.campaign.DialerCallbackHandler;
 import com.contactcenter.domain.campaign.ProgressiveDialerService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -29,7 +29,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.Instant;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -54,7 +53,7 @@ import static org.mockito.Mockito.*;
 class DialerCallbackRescheduleTest {
 
     @Mock
-    private ScheduledCallbackRepository scheduledCallbackRepository;
+    private ScheduledCallbackService scheduledCallbackService;
 
     @Mock
     private ProgressiveDialerService progressiveDialerService;
@@ -63,10 +62,10 @@ class DialerCallbackRescheduleTest {
     private DialerCallbackHandler dialerCallbackHandler;
 
     @Mock
-    private CampaignRepository campaignRepository;
+    private CampaignService campaignService;
 
     @Mock
-    private CampaignContactRepository campaignContactRepository;
+    private CampaignAssignmentService campaignAssignmentService;
 
     @Mock
     private TelephonyAdapter telephonyAdapter;
@@ -113,9 +112,9 @@ class DialerCallbackRescheduleTest {
         TenantContext.setUserId(AGENT_ID);
         TenantContext.setUserRole("SUPERVISOR");
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
-        when(scheduledCallbackRepository.save(any(ScheduledCallback.class)))
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
+        when(scheduledCallbackService.saveCallback(any(ScheduledCallback.class)))
                 .thenReturn(saved);
 
         RescheduleCallbackRequest request = new RescheduleCallbackRequest(newScheduledAt, "Nowa notatka");
@@ -132,7 +131,7 @@ class DialerCallbackRescheduleTest {
         assertThat(response.getBody().notes()).isEqualTo("Nowa notatka");
         assertThat(response.getBody().status()).isEqualTo("PENDING");
 
-        verify(scheduledCallbackRepository).save(any(ScheduledCallback.class));
+        verify(scheduledCallbackService).saveCallback(any(ScheduledCallback.class));
     }
 
     // =========================================================================
@@ -149,8 +148,8 @@ class DialerCallbackRescheduleTest {
         TenantContext.setUserId(AGENT_ID);
         TenantContext.setUserRole("SUPERVISOR");
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
 
         RescheduleCallbackRequest request = new RescheduleCallbackRequest(newScheduledAt, null);
 
@@ -159,7 +158,7 @@ class DialerCallbackRescheduleTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("COMPLETED");
 
-        verify(scheduledCallbackRepository, never()).save(any());
+        verify(scheduledCallbackService, never()).saveCallback(any());
     }
 
     // =========================================================================
@@ -177,8 +176,8 @@ class DialerCallbackRescheduleTest {
         TenantContext.setUserId(AGENT_ID);  // zalogowany agent
         TenantContext.setUserRole("AGENT");
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
 
         RescheduleCallbackRequest request = new RescheduleCallbackRequest(newScheduledAt, null);
 
@@ -186,7 +185,7 @@ class DialerCallbackRescheduleTest {
         assertThatThrownBy(() -> dialerController.rescheduleCallback(CALLBACK_ID, request))
                 .isInstanceOf(AccessDeniedException.class);
 
-        verify(scheduledCallbackRepository, never()).save(any());
+        verify(scheduledCallbackService, never()).saveCallback(any());
     }
 
     // =========================================================================
@@ -224,8 +223,8 @@ class DialerCallbackRescheduleTest {
         TenantContext.setUserId(AGENT_ID);
         TenantContext.setUserRole("AGENT");
 
-        when(scheduledCallbackRepository.findById(unknownId, TENANT_ID))
-                .thenReturn(Optional.empty());
+        when(scheduledCallbackService.getCallbackOrThrow(unknownId, TENANT_ID))
+                .thenThrow(new ResourceNotFoundException("Callback nie istnieje: " + unknownId));
 
         RescheduleCallbackRequest request = new RescheduleCallbackRequest(newScheduledAt, null);
 
@@ -234,7 +233,7 @@ class DialerCallbackRescheduleTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(unknownId.toString());
 
-        verify(scheduledCallbackRepository, never()).save(any());
+        verify(scheduledCallbackService, never()).saveCallback(any());
     }
 
     // =========================================================================

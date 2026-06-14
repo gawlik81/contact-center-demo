@@ -8,10 +8,10 @@ import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.campaign.ScheduledCallback;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.campaign.CampaignContactRepository;
-import com.contactcenter.domain.campaign.CampaignRepository;
-import com.contactcenter.domain.contact.ContactRepository;
-import com.contactcenter.domain.campaign.ScheduledCallbackRepository;
+import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
+import com.contactcenter.domain.campaign.CampaignAssignmentService;
 import com.contactcenter.domain.campaign.DialerCallbackHandler;
 import com.contactcenter.domain.campaign.ProgressiveDialerService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -54,11 +54,11 @@ class DialerCallbackManagementTest {
 
     @Mock private ProgressiveDialerService progressiveDialerService;
     @Mock private DialerCallbackHandler dialerCallbackHandler;
-    @Mock private CampaignRepository campaignRepository;
-    @Mock private CampaignContactRepository campaignContactRepository;
-    @Mock private ScheduledCallbackRepository scheduledCallbackRepository;
+    @Mock private CampaignService campaignService;
+    @Mock private CampaignAssignmentService campaignAssignmentService;
+    @Mock private ScheduledCallbackService scheduledCallbackService;
     @Mock private TelephonyAdapter telephonyAdapter;
-    @Mock private ContactRepository contactRepository;
+    @Mock private ContactService contactService;
     @Mock private UserService userService;
 
     @InjectMocks
@@ -116,9 +116,9 @@ class DialerCallbackManagementTest {
         UpdateCallbackRequest request = new UpdateCallbackRequest(
                 "+48999000111", null, null, null, null, null);
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
-        when(scheduledCallbackRepository.save(any(ScheduledCallback.class)))
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
+        when(scheduledCallbackService.saveCallback(any(ScheduledCallback.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(userService.findUserById(AGENT_ID))
                 .thenReturn(Optional.of(buildAppUser(AGENT_ID, "Jan", "Kowalski")));
@@ -132,7 +132,7 @@ class DialerCallbackManagementTest {
         assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().phone()).isEqualTo("+48999000111");
         assertThat(result.getBody().agentId()).isEqualTo(AGENT_ID);
-        verify(scheduledCallbackRepository).save(argThat(cb -> "+48999000111".equals(cb.getPhone())));
+        verify(scheduledCallbackService).saveCallback(argThat(cb -> "+48999000111".equals(cb.getPhone())));
     }
 
     @Test
@@ -147,9 +147,9 @@ class DialerCallbackManagementTest {
         UpdateCallbackRequest request = new UpdateCallbackRequest(
                 null, null, null, null, null, newAgent);
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
-        when(scheduledCallbackRepository.save(any(ScheduledCallback.class)))
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
+        when(scheduledCallbackService.saveCallback(any(ScheduledCallback.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(userService.findUserById(newAgent))
                 .thenReturn(Optional.of(buildAppUser(newAgent, "Anna", "Nowak")));
@@ -163,7 +163,7 @@ class DialerCallbackManagementTest {
         assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().agentId()).isEqualTo(newAgent);
         assertThat(result.getBody().agentName()).isEqualTo("Anna Nowak");
-        verify(scheduledCallbackRepository).save(argThat(cb -> newAgent.equals(cb.getAgentId())));
+        verify(scheduledCallbackService).saveCallback(argThat(cb -> newAgent.equals(cb.getAgentId())));
     }
 
     @Test
@@ -178,9 +178,9 @@ class DialerCallbackManagementTest {
         UpdateCallbackRequest request = new UpdateCallbackRequest(
                 null, "Zmienione", null, null, null, newAgent);
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
-        when(scheduledCallbackRepository.save(any(ScheduledCallback.class)))
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
+        when(scheduledCallbackService.saveCallback(any(ScheduledCallback.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         when(userService.findUserById(AGENT_ID))
                 .thenReturn(Optional.of(buildAppUser(AGENT_ID, "Jan", "Kowalski")));
@@ -195,7 +195,7 @@ class DialerCallbackManagementTest {
         assertThat(result.getBody().agentId()).isEqualTo(AGENT_ID);
         // firstName zaktualizowane
         assertThat(result.getBody().firstName()).isEqualTo("Zmienione");
-        verify(scheduledCallbackRepository).save(argThat(cb ->
+        verify(scheduledCallbackService).saveCallback(argThat(cb ->
                 AGENT_ID.equals(cb.getAgentId()) && "Zmienione".equals(cb.getFirstName())));
     }
 
@@ -209,8 +209,8 @@ class DialerCallbackManagementTest {
         ScheduledCallback callback = buildPendingCallback(AGENT_ID);
         callback.setStatus("COMPLETED");
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
 
         UpdateCallbackRequest request = new UpdateCallbackRequest(
                 null, null, null, null, "nowa notatka", null);
@@ -220,7 +220,7 @@ class DialerCallbackManagementTest {
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("COMPLETED");
 
-        verify(scheduledCallbackRepository, never()).save(any());
+        verify(scheduledCallbackService, never()).saveCallback(any());
     }
 
     @Test
@@ -233,8 +233,8 @@ class DialerCallbackManagementTest {
         // Callback należy do OTHER_AGENT, nie do AGENT_ID
         ScheduledCallback callback = buildPendingCallback(OTHER_AGENT);
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
 
         UpdateCallbackRequest request = new UpdateCallbackRequest(
                 null, null, null, null, "zmiana", null);
@@ -243,7 +243,7 @@ class DialerCallbackManagementTest {
         assertThatThrownBy(() -> dialerController.updateCallback(CALLBACK_ID, request))
                 .isInstanceOf(AccessDeniedException.class);
 
-        verify(scheduledCallbackRepository, never()).save(any());
+        verify(scheduledCallbackService, never()).saveCallback(any());
     }
 
     // =========================================================================
@@ -259,9 +259,9 @@ class DialerCallbackManagementTest {
 
         ScheduledCallback callback = buildPendingCallback(AGENT_ID);
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
-        when(scheduledCallbackRepository.cancelCallback(CALLBACK_ID, TENANT_ID))
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
+        when(scheduledCallbackService.cancelCallback(CALLBACK_ID, TENANT_ID))
                 .thenReturn(1);
 
         // when
@@ -269,7 +269,7 @@ class DialerCallbackManagementTest {
 
         // then
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        verify(scheduledCallbackRepository).cancelCallback(CALLBACK_ID, TENANT_ID);
+        verify(scheduledCallbackService).cancelCallback(CALLBACK_ID, TENANT_ID);
     }
 
     @Test
@@ -282,14 +282,14 @@ class DialerCallbackManagementTest {
         // Callback należy do OTHER_AGENT
         ScheduledCallback callback = buildPendingCallback(OTHER_AGENT);
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
 
         // when / then
         assertThatThrownBy(() -> dialerController.cancelCallback(CALLBACK_ID))
                 .isInstanceOf(AccessDeniedException.class);
 
-        verify(scheduledCallbackRepository, never()).cancelCallback(any(), any());
+        verify(scheduledCallbackService, never()).cancelCallback(any(), any());
     }
 
     @Test
@@ -302,15 +302,15 @@ class DialerCallbackManagementTest {
         ScheduledCallback callback = buildPendingCallback(AGENT_ID);
         callback.setStatus("PROCESSING");
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
 
         // when / then
         assertThatThrownBy(() -> dialerController.cancelCallback(CALLBACK_ID))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("przetwarzany");
 
-        verify(scheduledCallbackRepository, never()).cancelCallback(any(), any());
+        verify(scheduledCallbackService, never()).cancelCallback(any(), any());
     }
 
     @Test
@@ -323,9 +323,9 @@ class DialerCallbackManagementTest {
         // Callback należy do AGENT_ID, a wywołuje SUPERVISOR (OTHER_AGENT)
         ScheduledCallback callback = buildPendingCallback(AGENT_ID);
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.of(callback));
-        when(scheduledCallbackRepository.cancelCallback(CALLBACK_ID, TENANT_ID))
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenReturn(callback);
+        when(scheduledCallbackService.cancelCallback(CALLBACK_ID, TENANT_ID))
                 .thenReturn(1);
 
         // when
@@ -333,7 +333,7 @@ class DialerCallbackManagementTest {
 
         // then
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        verify(scheduledCallbackRepository).cancelCallback(CALLBACK_ID, TENANT_ID);
+        verify(scheduledCallbackService).cancelCallback(CALLBACK_ID, TENANT_ID);
     }
 
     @Test
@@ -343,13 +343,13 @@ class DialerCallbackManagementTest {
         TenantContext.setUserRole("SUPERVISOR");
         TenantContext.setUserId(OTHER_AGENT);
 
-        when(scheduledCallbackRepository.findById(CALLBACK_ID, TENANT_ID))
-                .thenReturn(Optional.empty());
+        when(scheduledCallbackService.getCallbackOrThrow(CALLBACK_ID, TENANT_ID))
+                .thenThrow(new ResourceNotFoundException("Callback nie istnieje: " + CALLBACK_ID));
 
         // when / then
         assertThatThrownBy(() -> dialerController.cancelCallback(CALLBACK_ID))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verify(scheduledCallbackRepository, never()).cancelCallback(any(), any());
+        verify(scheduledCallbackService, never()).cancelCallback(any(), any());
     }
 }

@@ -6,8 +6,8 @@ import com.contactcenter.api.agentbreak.dto.CalendarCallbackItem;
 import com.contactcenter.api.agentbreak.dto.CalendarCampaignItem;
 import com.contactcenter.domain.campaign.Campaign;
 import com.contactcenter.domain.campaign.ScheduledCallback;
-import com.contactcenter.domain.campaign.CampaignRepository;
-import com.contactcenter.domain.campaign.ScheduledCallbackRepository;
+import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,8 +26,8 @@ import java.util.UUID;
  *
  * <p>Agreguje trzy źródła danych w jedną odpowiedź:
  * <ul>
- *   <li>zaplanowane oddzwonienia agenta ({@code ScheduledCallbackRepository})</li>
- *   <li>kampanie powiązane z agentem przez kolejkę ({@code CampaignRepository})</li>
+ *   <li>zaplanowane oddzwonienia agenta ({@code ScheduledCallbackService})</li>
+ *   <li>kampanie powiązane z agentem przez kolejkę ({@code CampaignService})</li>
  *   <li>przerwy agenta w zakresie dat ({@code AgentBreakRepository})</li>
  * </ul>
  *
@@ -47,8 +47,8 @@ public class AgentCalendarService {
 
     private static final int MAX_RANGE_DAYS = 90;
 
-    private final ScheduledCallbackRepository callbackRepository;
-    private final CampaignRepository campaignRepository;
+    private final ScheduledCallbackService callbackService;
+    private final CampaignService campaignService;
     private final AgentBreakRepository agentBreakRepository;
 
     // =========================================================================
@@ -75,10 +75,10 @@ public class AgentCalendarService {
                 tenantId, agentId, resolvedFrom, resolvedTo);
 
         List<ScheduledCallback> callbacks =
-                callbackRepository.findByAgentIdAndScheduledAtBetween(tenantId, agentId, resolvedFrom, resolvedTo);
+                callbackService.getAgentCalendarCallbacks(tenantId, agentId, resolvedFrom, resolvedTo);
 
         List<Campaign> campaigns =
-                campaignRepository.findByAgentIdViaQueue(tenantId, agentId);
+                campaignService.getCampaignsForAgentCalendar(tenantId, agentId);
 
         List<AgentBreak> breaks =
                 agentBreakRepository.findByAgentIdAndStartTimeBetween(agentId, tenantId, resolvedFrom, resolvedTo);

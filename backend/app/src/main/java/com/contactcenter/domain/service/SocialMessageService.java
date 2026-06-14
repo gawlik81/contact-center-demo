@@ -3,7 +3,7 @@ package com.contactcenter.domain.service;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.model.SocialMessage;
 import com.contactcenter.domain.model.SocialPlatform;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.SocialIntegrationRepository;
 import com.contactcenter.domain.repository.SocialMessageRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
@@ -46,7 +46,7 @@ public class SocialMessageService {
 
     private final SocialIntegrationRepository socialIntegrationRepository;
     private final SocialMessageRepository socialMessageRepository;
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final SocialAdapterRegistry adapterRegistry;
     private final RabbitTemplate rabbitTemplate;
 
@@ -118,7 +118,7 @@ public class SocialMessageService {
 
         // 4. Znajdź lub utwórz kontakt
         String channel = platformToChannel(incoming.platform());
-        Optional<Contact> activeContact = contactRepository
+        Optional<Contact> activeContact = contactService
                 .findActiveSocialContact(tenantId, incoming.senderExternalId(), channel);
 
         boolean isNewContact = activeContact.isEmpty();
@@ -186,7 +186,7 @@ public class SocialMessageService {
         log.info("[SocialMessage] Wysyłam wiadomość: contactId={}, tenant={}", contactId, tenantId);
 
         // 1. Pobierz kontakt
-        Contact contact = contactRepository.findById(contactId, tenantId)
+        Contact contact = contactService.findContactEntity(contactId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Kontakt nie istnieje: contactId=" + contactId));
 
@@ -264,7 +264,7 @@ public class SocialMessageService {
                 .updatedAt(now)
                 .build();
 
-        contactRepository.insert(contact);
+        contactService.insertContact(contact);
         return contactId;
     }
 

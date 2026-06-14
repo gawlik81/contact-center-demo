@@ -3,8 +3,8 @@ package com.contactcenter.domain.agentbreak;
 import com.contactcenter.api.agentbreak.dto.AgentCalendarResponse;
 import com.contactcenter.domain.campaign.Campaign;
 import com.contactcenter.domain.campaign.ScheduledCallback;
-import com.contactcenter.domain.campaign.CampaignRepository;
-import com.contactcenter.domain.campaign.ScheduledCallbackRepository;
+import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -43,10 +43,10 @@ class AgentCalendarServiceTest {
     private static final UUID AGENT_ID  = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     @Mock
-    private ScheduledCallbackRepository callbackRepository;
+    private ScheduledCallbackService callbackService;
 
     @Mock
-    private CampaignRepository campaignRepository;
+    private CampaignService campaignService;
 
     @Mock
     private AgentBreakRepository agentBreakRepository;
@@ -73,9 +73,9 @@ class AgentCalendarServiceTest {
             Campaign campaign    = buildCampaign(UUID.randomUUID(), "Kampania testowa", "RUNNING", null);
             AgentBreak ab        = buildBreak(UUID.randomUUID());
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(TENANT_ID, AGENT_ID, from, to))
+            when(callbackService.getAgentCalendarCallbacks(TENANT_ID, AGENT_ID, from, to))
                     .thenReturn(List.of(cb));
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of(campaign));
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(AGENT_ID, TENANT_ID, from, to))
                     .thenReturn(List.of(ab));
@@ -102,10 +102,10 @@ class AgentCalendarServiceTest {
         @DisplayName("from=null i to=null → repozytorium wywołane z niepustymi Instant (bieżący tydzień)")
         void getCalendar_nullFromAndTo_usesCurrentWeek() {
             // given
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(
+            when(callbackService.getAgentCalendarCallbacks(
                     eq(TENANT_ID), eq(AGENT_ID), any(Instant.class), any(Instant.class)))
                     .thenReturn(List.of());
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(
                     eq(AGENT_ID), eq(TENANT_ID), any(Instant.class), any(Instant.class)))
@@ -117,7 +117,7 @@ class AgentCalendarServiceTest {
             // then – ArgumentCaptor weryfikuje, że from < to i oba są niepuste
             ArgumentCaptor<Instant> fromCaptor = ArgumentCaptor.forClass(Instant.class);
             ArgumentCaptor<Instant> toCaptor   = ArgumentCaptor.forClass(Instant.class);
-            verify(callbackRepository).findByAgentIdAndScheduledAtBetween(
+            verify(callbackService).getAgentCalendarCallbacks(
                     eq(TENANT_ID), eq(AGENT_ID), fromCaptor.capture(), toCaptor.capture());
 
             assertThat(fromCaptor.getValue()).isNotNull();
@@ -131,10 +131,10 @@ class AgentCalendarServiceTest {
             // given – to = środa bieżącego tygodnia testowego
             Instant to = Instant.parse("2026-04-22T12:00:00Z"); // środa
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(
+            when(callbackService.getAgentCalendarCallbacks(
                     eq(TENANT_ID), eq(AGENT_ID), any(Instant.class), eq(to)))
                     .thenReturn(List.of());
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(
                     eq(AGENT_ID), eq(TENANT_ID), any(Instant.class), eq(to)))
@@ -145,7 +145,7 @@ class AgentCalendarServiceTest {
 
             // then – from powinno być poniedziałkiem (2026-04-20)
             ArgumentCaptor<Instant> fromCaptor = ArgumentCaptor.forClass(Instant.class);
-            verify(callbackRepository).findByAgentIdAndScheduledAtBetween(
+            verify(callbackService).getAgentCalendarCallbacks(
                     eq(TENANT_ID), eq(AGENT_ID), fromCaptor.capture(), eq(to));
 
             Instant resolvedFrom = fromCaptor.getValue();
@@ -158,10 +158,10 @@ class AgentCalendarServiceTest {
             // given – from = środa
             Instant from = Instant.parse("2026-04-22T08:00:00Z"); // środa
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(
+            when(callbackService.getAgentCalendarCallbacks(
                     eq(TENANT_ID), eq(AGENT_ID), eq(from), any(Instant.class)))
                     .thenReturn(List.of());
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(
                     eq(AGENT_ID), eq(TENANT_ID), eq(from), any(Instant.class)))
@@ -172,7 +172,7 @@ class AgentCalendarServiceTest {
 
             // then – to powinno być niedzielą (2026-04-26 23:59:59)
             ArgumentCaptor<Instant> toCaptor = ArgumentCaptor.forClass(Instant.class);
-            verify(callbackRepository).findByAgentIdAndScheduledAtBetween(
+            verify(callbackService).getAgentCalendarCallbacks(
                     eq(TENANT_ID), eq(AGENT_ID), eq(from), toCaptor.capture());
 
             Instant resolvedTo = toCaptor.getValue();
@@ -228,9 +228,9 @@ class AgentCalendarServiceTest {
             Instant from = Instant.now().minus(1, ChronoUnit.DAYS);
             Instant to   = Instant.now().plus(1, ChronoUnit.DAYS);
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(TENANT_ID, AGENT_ID, from, to))
+            when(callbackService.getAgentCalendarCallbacks(TENANT_ID, AGENT_ID, from, to))
                     .thenReturn(List.of());
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(AGENT_ID, TENANT_ID, from, to))
                     .thenReturn(List.of());
@@ -249,9 +249,9 @@ class AgentCalendarServiceTest {
             Instant from = Instant.now().minus(1, ChronoUnit.DAYS);
             Instant to   = Instant.now().plus(1, ChronoUnit.DAYS);
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(TENANT_ID, AGENT_ID, from, to))
+            when(callbackService.getAgentCalendarCallbacks(TENANT_ID, AGENT_ID, from, to))
                     .thenReturn(List.of());
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(AGENT_ID, TENANT_ID, from, to))
                     .thenReturn(List.of());
@@ -281,9 +281,9 @@ class AgentCalendarServiceTest {
 
             Campaign running = buildCampaign(UUID.randomUUID(), "Kampania RUNNING", "RUNNING", null);
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(TENANT_ID, AGENT_ID, from, to))
+            when(callbackService.getAgentCalendarCallbacks(TENANT_ID, AGENT_ID, from, to))
                     .thenReturn(List.of());
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of(running));
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(AGENT_ID, TENANT_ID, from, to))
                     .thenReturn(List.of());
@@ -305,9 +305,9 @@ class AgentCalendarServiceTest {
 
             Campaign scheduled = buildCampaign(UUID.randomUUID(), "Kampania SCHEDULED", "SCHEDULED", null);
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(TENANT_ID, AGENT_ID, from, to))
+            when(callbackService.getAgentCalendarCallbacks(TENANT_ID, AGENT_ID, from, to))
                     .thenReturn(List.of());
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of(scheduled));
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(AGENT_ID, TENANT_ID, from, to))
                     .thenReturn(List.of());
@@ -338,9 +338,9 @@ class AgentCalendarServiceTest {
 
             ScheduledCallback cb = buildCallback(UUID.randomUUID(), "Jan", "Kowalski", "+48100200300");
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(TENANT_ID, AGENT_ID, from, to))
+            when(callbackService.getAgentCalendarCallbacks(TENANT_ID, AGENT_ID, from, to))
                     .thenReturn(List.of(cb));
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(AGENT_ID, TENANT_ID, from, to))
                     .thenReturn(List.of());
@@ -361,9 +361,9 @@ class AgentCalendarServiceTest {
 
             ScheduledCallback cb = buildCallback(UUID.randomUUID(), null, null, "+48999888777");
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(TENANT_ID, AGENT_ID, from, to))
+            when(callbackService.getAgentCalendarCallbacks(TENANT_ID, AGENT_ID, from, to))
                     .thenReturn(List.of(cb));
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(AGENT_ID, TENANT_ID, from, to))
                     .thenReturn(List.of());
@@ -384,9 +384,9 @@ class AgentCalendarServiceTest {
 
             ScheduledCallback cb = buildCallback(UUID.randomUUID(), "  ", null, "+48777666555");
 
-            when(callbackRepository.findByAgentIdAndScheduledAtBetween(TENANT_ID, AGENT_ID, from, to))
+            when(callbackService.getAgentCalendarCallbacks(TENANT_ID, AGENT_ID, from, to))
                     .thenReturn(List.of(cb));
-            when(campaignRepository.findByAgentIdViaQueue(TENANT_ID, AGENT_ID))
+            when(campaignService.getCampaignsForAgentCalendar(TENANT_ID, AGENT_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.findByAgentIdAndStartTimeBetween(AGENT_ID, TENANT_ID, from, to))
                     .thenReturn(List.of());

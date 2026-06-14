@@ -3,6 +3,9 @@ package com.contactcenter.domain.campaign;
 import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -121,4 +124,66 @@ public interface ProgressiveDialerService {
      * @param timeoutSeconds czas oczekiwania na odebranie (konfigurowany per kampania)
      */
     void scheduleNoAnswerTimeout(String callSid, int timeoutSeconds);
+
+    // =========================================================================
+    // Dostęp do encji campaign_contact (encapsulation pass – pkt 9 wzorca)
+    // =========================================================================
+
+    /**
+     * Zlicza rekordy campaign_contact pogrupowane po (campaign_id, status) jednym zapytaniem SQL.
+     *
+     * <p>Używane przez GET /api/dialer/status do budowy podsumowania dialera bez problemu N+1.
+     *
+     * @param tenantId    UUID tenanta (do RLS)
+     * @param campaignIds lista UUID kampanii (musi być niepusta)
+     * @param statuses    lista statusów do filtrowania
+     * @return mapa campaign_id → mapa status → liczba rekordów
+     */
+    Map<UUID, Map<String, Long>> getContactCountsByStatus(UUID tenantId, List<UUID> campaignIds, List<String> statuses);
+
+    /**
+     * Pobiera rekordy dostępne do wybierania dla podanych kampanii manualnych (batch).
+     *
+     * @param tenantId    UUID tenanta (do RLS)
+     * @param campaignIds lista UUID kampanii do sprawdzenia (musi być niepusta)
+     * @return lista map kolumn: record_id, campaign_id, phone, first_name, last_name, status
+     */
+    List<Map<String, Object>> findPendingRecordsByCampaignIds(UUID tenantId, List<UUID> campaignIds);
+
+    /**
+     * Pobiera rekord campaign_contact z weryfikacją tenanta – do walidacji przed manualnym połączeniem.
+     *
+     * @param recordId   UUID rekordu
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     * @return Optional z mapą kolumn (record_id, phone, status, next_attempt_at) lub empty
+     */
+    Optional<Map<String, Object>> findRecordForManualDial(UUID recordId, UUID campaignId, UUID tenantId);
+
+    /**
+     * Oznacza rekord campaign_contact jako DIALING (przy starcie połączenia manualnego).
+     *
+     * @param recordId   UUID rekordu
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     */
+    void markRecordAsDialing(UUID recordId, UUID campaignId, UUID tenantId);
+
+    /**
+     * Oznacza rekord campaign_contact jako ERROR (trwały błąd techniczny adaptera telefonii).
+     *
+     * @param recordId   UUID rekordu
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     */
+    void markRecordAsError(UUID recordId, UUID campaignId, UUID tenantId);
+
+    /**
+     * Ustawia {@code last_contact_id} na rekordzie campaign_contact po wydzwonieniu (manualnym lub automatycznym).
+     *
+     * @param recordId   UUID rekordu campaign_contact
+     * @param campaignId UUID kampanii
+     * @param contactId  UUID nowo utworzonego kontaktu
+     */
+    void updateLastContactId(UUID recordId, UUID campaignId, UUID contactId);
 }

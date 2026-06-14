@@ -8,7 +8,7 @@ import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserRole;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -83,7 +83,7 @@ public class SupervisorMetricsService {
 
     private final TenantService tenantService;
     private final UserService userService;
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
@@ -337,7 +337,7 @@ public class SupervisorMetricsService {
      */
     private double computeAvgWaitTime(UUID tenantId) {
         try {
-            return contactRepository.getAvgCurrentWaitSeconds(tenantId);
+            return contactService.getAvgCurrentWaitSeconds(tenantId);
         } catch (Exception e) {
             log.warn("[SupervisorMetrics] Błąd pobierania avg_wait_time dla tenanta {}: {}",
                     tenantId, e.getMessage());

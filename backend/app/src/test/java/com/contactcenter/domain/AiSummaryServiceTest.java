@@ -6,9 +6,7 @@ import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.model.AiProvider;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.contact.ContactAiSummary;
-import com.contactcenter.domain.contact.ContactAiSummaryRepository;
-import com.contactcenter.domain.contact.ContactRepository;
-import com.contactcenter.domain.contact.ContactTranscriptionRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.service.AiSummaryClient;
 import com.contactcenter.domain.service.AiSummaryService;
@@ -52,10 +50,7 @@ class AiSummaryServiceTest {
     private static final UUID CONTACT_ID = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002");
 
     @Mock
-    private ContactRepository contactRepository;
-
-    @Mock
-    private ContactTranscriptionRepository transcriptionRepository;
+    private ContactService contactService;
 
     @Mock
     private EmailMessageRepository emailMessageRepository;
@@ -65,9 +60,6 @@ class AiSummaryServiceTest {
 
     @Mock
     private AiSummaryClient aiSummaryClient;
-
-    @Mock
-    private ContactAiSummaryRepository aiSummaryRepository;
 
     @InjectMocks
     private AiSummaryService aiSummaryService;
@@ -100,18 +92,18 @@ class AiSummaryServiceTest {
             // given
             Contact contact = buildContact("PHONE");
 
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.of(validAiConfig));
             // transkrypcja pochodzi teraz z contact_transcription, nie z notes
-            when(transcriptionRepository.findContentByContactId(CONTACT_ID, TENANT_ID))
+            when(contactService.findTranscriptionContent(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of("Klient pytał o status zamówienia nr 12345."));
             AiSummaryClient.AiSummarizeResponse clientResponse =
                     new AiSummaryClient.AiSummarizeResponse("Klient pytał o status zamówienia.", "gpt-4o", 120);
             when(aiSummaryClient.summarize(any(AiSummaryClient.AiSummarizeRequest.class)))
                     .thenReturn(clientResponse);
-            doNothing().when(aiSummaryRepository).save(any(ContactAiSummary.class));
+            doNothing().when(contactService).saveAiSummary(any(ContactAiSummary.class));
 
             // when
             AiSummaryService.AiSummaryResult result = aiSummaryService.generateSummary(CONTACT_ID, TENANT_ID);
@@ -121,9 +113,9 @@ class AiSummaryServiceTest {
             assertThat(result.modelUsed()).isEqualTo("gpt-4o");
             assertThat(result.tokensUsed()).isEqualTo(120);
 
-            // aiSummaryRepository.save() musi zostać wywołane raz z poprawnymi argumentami
+            // contactService.saveAiSummary() musi zostać wywołane raz z poprawnymi argumentami
             ArgumentCaptor<ContactAiSummary> captor = ArgumentCaptor.forClass(ContactAiSummary.class);
-            verify(aiSummaryRepository, times(1)).save(captor.capture());
+            verify(contactService, times(1)).saveAiSummary(captor.capture());
             assertThat(captor.getValue().getSummary()).isEqualTo("Klient pytał o status zamówienia.");
             assertThat(captor.getValue().getModel()).isEqualTo("gpt-4o");
             assertThat(captor.getValue().getContactId()).isEqualTo(CONTACT_ID);
@@ -137,7 +129,7 @@ class AiSummaryServiceTest {
             Contact contact = buildContact("EMAIL");
             contact.setChannelMetadata(new HashMap<>());
 
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.of(validAiConfig));
@@ -145,7 +137,7 @@ class AiSummaryServiceTest {
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
             when(aiSummaryClient.summarize(any()))
                     .thenReturn(new AiSummaryClient.AiSummarizeResponse("Brak emaili.", "gpt-4o", 20));
-            doNothing().when(aiSummaryRepository).save(any(ContactAiSummary.class));
+            doNothing().when(contactService).saveAiSummary(any(ContactAiSummary.class));
 
             // when
             aiSummaryService.generateSummary(CONTACT_ID, TENANT_ID);
@@ -164,16 +156,16 @@ class AiSummaryServiceTest {
             // given
             Contact contact = buildContact("PHONE");
 
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.of(validAiConfig));
             // brak transkrypcji w contact_transcription → fallback
-            when(transcriptionRepository.findContentByContactId(CONTACT_ID, TENANT_ID))
+            when(contactService.findTranscriptionContent(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.empty());
             when(aiSummaryClient.summarize(any()))
                     .thenReturn(new AiSummaryClient.AiSummarizeResponse("Brak treści.", "gpt-4o", 20));
-            doNothing().when(aiSummaryRepository).save(any(ContactAiSummary.class));
+            doNothing().when(contactService).saveAiSummary(any(ContactAiSummary.class));
 
             // when
             aiSummaryService.generateSummary(CONTACT_ID, TENANT_ID);
@@ -198,7 +190,7 @@ class AiSummaryServiceTest {
         @DisplayName("brak kontaktu → ResourceNotFoundException")
         void generateSummary_contactNotFound_throwsResourceNotFoundException() {
             // given
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.empty());
 
             // when / then
@@ -214,7 +206,7 @@ class AiSummaryServiceTest {
         void generateSummary_noAiConfig_throwsAiConfigNotFoundException() {
             // given
             Contact contact = buildContact("PHONE");
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.empty());
@@ -231,11 +223,11 @@ class AiSummaryServiceTest {
         void generateSummary_clientThrows_exceptionPropagated() {
             // given
             Contact contact = buildContact("PHONE");
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID))
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.of(validAiConfig));
-            when(transcriptionRepository.findContentByContactId(CONTACT_ID, TENANT_ID))
+            when(contactService.findTranscriptionContent(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of("Notatka agenta."));
             when(aiSummaryClient.summarize(any()))
                     .thenThrow(new AiSummaryGenerationException("Serwis AI zwrócił błąd HTTP 503"));
@@ -246,7 +238,7 @@ class AiSummaryServiceTest {
                     .hasMessageContaining("HTTP 503");
 
             // baza nie powinna być aktualizowana
-            verify(aiSummaryRepository, never()).save(any(ContactAiSummary.class));
+            verify(contactService, never()).saveAiSummary(any(ContactAiSummary.class));
         }
     }
 

@@ -7,8 +7,8 @@ import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.contact.QueuedContactView;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -68,7 +68,6 @@ public class RoutingService {
 
     private final RoutingEngine routingEngine;
     private final QueueRepository queueRepository;
-    private final ContactRepository contactRepository;
     private final CustomerService customerService;
     private final RabbitTemplate rabbitTemplate;
     private final QueueAssignmentRepository queueAssignmentRepository;
@@ -117,7 +116,7 @@ public class RoutingService {
                         "Kolejka nie istnieje: queueId=" + queueId + ", tenantId=" + tenantId));
 
         // 2. Pobierz kontakt
-        Optional<Contact> contactOpt = contactRepository.findById(contactId, tenantId);
+        Optional<Contact> contactOpt = contactService.findContactEntity(contactId, tenantId);
         if (contactOpt.isEmpty()) {
             log.error("[RoutingService] Kontakt {} nie istnieje w DB – pomijam routing (tenantId={}). " +
                       "Sprawdź czy TwilioTelephonyAdapter tworzy rekord contact przy webhook.",
@@ -236,7 +235,7 @@ public class RoutingService {
                 event.tenantId(), event.userId(), null, "SYSTEM");
         TenantContext.restore(snapshot);
         try {
-            List<Contact> queuedContacts = contactRepository.findQueuedContacts(event.tenantId());
+            List<Contact> queuedContacts = contactService.findQueuedContacts(event.tenantId());
 
             if (queuedContacts.isEmpty()) {
                 log.debug("[RoutingService] Brak oczekujących kontaktów dla tenanta: {}", event.tenantId());
@@ -264,7 +263,7 @@ public class RoutingService {
                     try {
                         contact.setStatus("ERROR");
                         contact.setEndedAt(Instant.now());
-                        contactRepository.update(contact);
+                        contactService.updateContactEntity(contact);
                     } catch (Exception ex) {
                         log.error("[RoutingService] Błąd przy kończeniu kontaktu bez queueId: contactId={}, error={}",
                                 contact.getContactId(), ex.getMessage());
@@ -370,7 +369,7 @@ public class RoutingService {
             // contactService.assignAgent(), które wywołuje openAgent() — etap AGENT
             // zostanie otwarty przez AgentCallController gdy agent fizycznie odbierze.
             // Unikamy w ten sposób podwójnego wpisu AGENT w historii kontaktu.
-            Contact contact = contactRepository.findById(message.contactId(), message.tenantId())
+            Contact contact = contactService.findContactEntity(message.contactId(), message.tenantId())
                     .orElseThrow(() -> new IllegalStateException(
                             "Kontakt nie istnieje: " + message.contactId()));
 
@@ -445,7 +444,7 @@ public class RoutingService {
                     new TenantContext.Snapshot(tenantId, agentId, null, "SYSTEM");
             TenantContext.restore(snapshot);
             try {
-                List<Contact> queuedContacts = contactRepository.findQueuedContacts(tenantId);
+                List<Contact> queuedContacts = contactService.findQueuedContacts(tenantId);
                 if (queuedContacts.isEmpty()) {
                     continue;
                 }
@@ -502,7 +501,7 @@ public class RoutingService {
         contact.setStatus("ASSIGNED");
         contact.setAssignedAt(Instant.now());
 
-        int updated = contactRepository.update(contact);
+        int updated = contactService.updateContactEntity(contact);
         if (updated == 0) {
             log.warn("[RoutingService] Nie zaktualizowano kontaktu (0 wierszy): contactId={}",
                     contact.getContactId());
@@ -555,8 +554,8 @@ public class RoutingService {
      */
     private void broadcastQueueStateToAgents(UUID tenantId) {
         try {
-            List<ContactRepository.QueuedContactView> views =
-                    contactRepository.findQueuedContactsForAgentView(tenantId);
+            List<QueuedContactView> views =
+                    contactService.findQueuedContactsForAgentView(tenantId);
 
             List<WebSocketEvent.QueueItemDto> items = views.stream()
                     .map(v -> new WebSocketEvent.QueueItemDto(

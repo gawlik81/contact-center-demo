@@ -12,12 +12,11 @@ import com.contactcenter.api.dialer.dto.ScheduledCallbackResponse;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.campaign.ScheduledCallback;
-import com.contactcenter.domain.contact.ContactRepository;
-import com.contactcenter.domain.campaign.ScheduledCallbackRepository;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
 import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.disposition.dto.AvailableDispositionDto;
 import com.contactcenter.domain.service.AiSummaryService;
-import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.security.TenantContext;
 import org.springframework.security.access.AccessDeniedException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -83,8 +82,7 @@ import java.util.UUID;
 public class ContactController {
 
     private final ContactService contactService;
-    private final ContactRepository contactRepository;
-    private final ScheduledCallbackRepository scheduledCallbackRepository;
+    private final ScheduledCallbackService scheduledCallbackService;
     private final AiSummaryService aiSummaryService;
     private final CustomDispositionService customDispositionService;
 
@@ -526,7 +524,7 @@ public class ContactController {
         UUID jwtAgentId = TenantContext.getUserId();
         String role = TenantContext.getUserRole();
 
-        Contact contact = contactRepository.findById(contactId, tenantId)
+        Contact contact = contactService.findContactEntity(contactId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kontakt nie istnieje: " + contactId));
 
         if ("AGENT".equals(role) && contact.getAgentId() != null
@@ -554,7 +552,7 @@ public class ContactController {
                 .status("PENDING")
                 .build();
 
-        ScheduledCallback saved = scheduledCallbackRepository.save(callback);
+        ScheduledCallback saved = scheduledCallbackService.saveCallback(callback);
 
         log.info("[ContactController] Callback zaplanowany: callbackId={}, contactId={}, sourceType={}, tenant={}",
                 saved.getCallbackId(), contactId, sourceType, tenantId);
@@ -607,7 +605,7 @@ public class ContactController {
         UUID tenantId = TenantContext.getTenantId();
         UUID contactId = parseContactId(id);
 
-        Contact contact = contactRepository.findById(contactId, tenantId)
+        Contact contact = contactService.findContactEntity(contactId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kontakt nie istnieje: " + contactId));
 
         List<RelatedItem> related = new ArrayList<>();
@@ -615,10 +613,10 @@ public class ContactController {
         // --- Kierunek A: ten kontakt ma callback_id (jest "dzieckiem" realizacji callbacku) ---
         // Szukamy callbacku i przez niego kontaktu źródłowego (origin_contact_id)
         if (contact.getCallbackId() != null) {
-            scheduledCallbackRepository.findById(contact.getCallbackId(), tenantId)
+            scheduledCallbackService.findCallbackEntity(contact.getCallbackId(), tenantId)
                     .ifPresent(callback -> {
                         if (callback.getOriginContactId() != null) {
-                            contactRepository.findById(callback.getOriginContactId(), tenantId)
+                            contactService.findContactEntity(callback.getOriginContactId(), tenantId)
                                     .ifPresent(parent -> related.add(RelatedItem.ofContact(
                                             parent.getContactId(),
                                             parent.getStartedAt(),
@@ -638,7 +636,7 @@ public class ContactController {
         // a następnie szukamy kontaktów realizacji (contact.callback_id = callback.callbackId)
         // i dodajemy je jako CHILD (typ CONTACT).
         List<ScheduledCallback> originCallbacks =
-                scheduledCallbackRepository.findByOriginContactId(contactId, tenantId);
+                scheduledCallbackService.findCallbacksByOriginContactId(contactId, tenantId);
 
         for (ScheduledCallback callback : originCallbacks) {
             // Dodaj sam callback jako element CHILD
@@ -654,7 +652,7 @@ public class ContactController {
 
             // Dodaj kontakty realizacji tego callbacku (jeśli dialer już go obsłużył)
             List<Contact> childContacts =
-                    contactRepository.findByCallbackId(callback.getCallbackId(), tenantId);
+                    contactService.findByCallbackId(callback.getCallbackId(), tenantId);
             for (Contact child : childContacts) {
                 related.add(RelatedItem.ofContact(
                         child.getContactId(),
@@ -676,7 +674,7 @@ public class ContactController {
             if (inboundIdObj instanceof String inboundIdStr && !inboundIdStr.isBlank()) {
                 try {
                     UUID inboundContactId = UUID.fromString(inboundIdStr);
-                    contactRepository.findById(inboundContactId, tenantId)
+                    contactService.findContactEntity(inboundContactId, tenantId)
                             .ifPresent(parent -> related.add(RelatedItem.ofContact(
                                     parent.getContactId(),
                                     parent.getStartedAt(),
@@ -697,7 +695,7 @@ public class ContactController {
         // Kontakty OUTBOUND EMAIL mają w channelMetadata klucz "inboundContactId" = this.contactId.
         // Pobieramy wszystkie takie kontakty jako elementy CHILD.
         if ("EMAIL".equals(contact.getChannel()) && "INBOUND".equals(contact.getDirection())) {
-            List<Contact> outboundReplies = contactRepository.findByChannelMetadataValue(
+            List<Contact> outboundReplies = contactService.findByChannelMetadataValue(
                     "inboundContactId", contactId.toString(), tenantId);
             for (Contact reply : outboundReplies) {
                 related.add(RelatedItem.ofContact(
@@ -715,7 +713,7 @@ public class ContactController {
         // --- Kierunek E: ten kontakt ma transferred_from_contact_id (powstał z transferu) ---
         // Kontakt źródłowy (PARENT) to kontakt wskazywany przez transferred_from_contact_id.
         if (contact.getTransferredFromContactId() != null) {
-            contactRepository.findById(contact.getTransferredFromContactId(), tenantId)
+            contactService.findContactEntity(contact.getTransferredFromContactId(), tenantId)
                     .ifPresent(parent -> related.add(RelatedItem.ofContact(
                             parent.getContactId(),
                             parent.getStartedAt(),
@@ -730,7 +728,7 @@ public class ContactController {
         // --- Kierunek F: inne kontakty mają transferred_from_contact_id = ten contactId ---
         // Ten kontakt był źródłem transferu; kontakty powstałe z transferu to CHILD.
         List<Contact> transferredChildren =
-                contactRepository.findByTransferredFromContactId(contactId, tenantId);
+                contactService.findByTransferredFromContactId(contactId, tenantId);
         for (Contact child : transferredChildren) {
             related.add(RelatedItem.ofContact(
                     child.getContactId(),
@@ -844,7 +842,7 @@ public class ContactController {
         UUID tenantId = TenantContext.getTenantId();
         log.debug("[ContactController] getAvailableDispositions: contactId={}, tenant={}", contactId, tenantId);
 
-        Contact contact = contactRepository.findById(contactId, tenantId)
+        Contact contact = contactService.findContactEntity(contactId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kontakt nie istnieje: " + contactId));
 
         List<AvailableDispositionDto> dispositions = customDispositionService.resolveForContact(

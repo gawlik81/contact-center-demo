@@ -17,9 +17,11 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -539,5 +541,39 @@ class CampaignServiceImpl implements CampaignService {
         return campaignRepository.findById(campaignId, tenantId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         String.format("Kampania o ID %s nie istnieje lub brak dostępu.", campaignId)));
+    }
+
+    // =========================================================================
+    // Dostęp do encji (encapsulation pass – pkt 9 wzorca)
+    // =========================================================================
+
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<Campaign> findCampaignEntity(UUID campaignId, UUID tenantId) {
+        return campaignRepository.findById(campaignId, tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<Campaign> findCampaignsByIds(Collection<UUID> ids, UUID tenantId) {
+        return campaignRepository.findAllByIds(ids, tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<Campaign> getCampaignsForAgentCalendar(UUID tenantId, UUID agentId) {
+        return campaignRepository.findByAgentIdViaQueue(tenantId, agentId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<Campaign> getRunningCampaigns(UUID tenantId) {
+        return campaignRepository.findRunningByTenantId(tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<Campaign> getRunningManualCampaigns(UUID tenantId) {
+        return campaignRepository.findRunningManualByTenantId(tenantId);
     }
 }

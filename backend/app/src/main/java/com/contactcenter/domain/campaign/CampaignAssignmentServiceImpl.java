@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -218,5 +219,15 @@ class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
         return campaignRepository.findById(campaignId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Kampania nie istnieje lub nie należy do tego tenanta: " + campaignId));
+    }
+
+    // =========================================================================
+    // Dostęp do encji (encapsulation pass – pkt 9 wzorca)
+    // =========================================================================
+
+    @Transactional(readOnly = true)
+    @Override
+    public Set<UUID> resolveEligibleAgentIds(UUID campaignId, UUID tenantId) {
+        return campaignAssignmentRepository.resolveEligibleAgentIds(campaignId, tenantId);
     }
 }

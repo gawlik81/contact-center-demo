@@ -3,7 +3,7 @@ package com.contactcenter.domain;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.reports.dto.AgentReportParams;
 import com.contactcenter.api.reports.dto.AgentReportRow;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.service.ReportsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.*;
  * Testy jednostkowe dla {@link ReportsService}.
  *
  * <p>Weryfikuje logikę biznesową bez dostępu do prawdziwej bazy danych i Redis.
- * Używa mocków {@link ContactRepository} i {@link StringRedisTemplate}.
+ * Używa mocków {@link ContactService} i {@link StringRedisTemplate}.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -47,7 +47,7 @@ import static org.mockito.Mockito.*;
 class ReportsServiceTest {
 
     @Mock
-    private ContactRepository contactRepository;
+    private ContactService contactService;
 
     @Mock
     private StringRedisTemplate stringRedisTemplate;
@@ -116,9 +116,9 @@ class ReportsServiceTest {
 
             AgentReportParams params = new AgentReportParams(from, to, null, null, null, 0, 20);
 
-            when(contactRepository.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+            when(contactService.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(rowList());
-            when(contactRepository.countAgentReportRows(any(), any(), any(), any(), any(), any()))
+            when(contactService.countAgentReportRows(any(), any(), any(), any(), any(), any()))
                     .thenReturn(0L);
 
             // Nie powinno rzucić wyjątku
@@ -140,11 +140,11 @@ class ReportsServiceTest {
         void shouldReturnPagedAgentReport() {
             Object[] row = buildSampleRow(AGENT_ID, "Jan Kowalski", DATE_FROM, 42L, 180.0, 30.0, 0.75, "PHONE");
 
-            when(contactRepository.findAgentReportRows(
+            when(contactService.findAgentReportRows(
                     eq(TENANT_ID), isNull(), isNull(), isNull(),
                     eq(DATE_FROM), eq(DATE_TO), eq(0), eq(20)))
                     .thenReturn(rowList(row));
-            when(contactRepository.countAgentReportRows(
+            when(contactService.countAgentReportRows(
                     eq(TENANT_ID), isNull(), isNull(), isNull(),
                     eq(DATE_FROM), eq(DATE_TO)))
                     .thenReturn(1L);
@@ -182,15 +182,15 @@ class ReportsServiceTest {
             assertThat(result).isEqualTo(cachedResponse);
 
             // Repozytorium nie powinno być odpytywane przy cache hit
-            verifyNoInteractions(contactRepository);
+            verifyNoInteractions(contactService);
         }
 
         @Test
         @DisplayName("Powinien zapisać wynik do Redis po cache miss")
         void shouldSaveResultToRedisAfterCacheMiss() {
-            when(contactRepository.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+            when(contactService.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(rowList());
-            when(contactRepository.countAgentReportRows(any(), any(), any(), any(), any(), any()))
+            when(contactService.countAgentReportRows(any(), any(), any(), any(), any(), any()))
                     .thenReturn(0L);
 
             AgentReportParams params = new AgentReportParams(DATE_FROM, DATE_TO, null, null, null, 0, 20);
@@ -202,9 +202,9 @@ class ReportsServiceTest {
         @Test
         @DisplayName("Powinien obliczyć totalPages poprawnie")
         void shouldCalculateTotalPagesCorrectly() {
-            when(contactRepository.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+            when(contactService.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(rowList());
-            when(contactRepository.countAgentReportRows(any(), any(), any(), any(), any(), any()))
+            when(contactService.countAgentReportRows(any(), any(), any(), any(), any(), any()))
                     .thenReturn(45L);
 
             AgentReportParams params = new AgentReportParams(DATE_FROM, DATE_TO, null, null, null, 0, 20);
@@ -222,18 +222,18 @@ class ReportsServiceTest {
             UUID queueId = UUID.randomUUID();
             AgentReportParams params = new AgentReportParams(DATE_FROM, DATE_TO, AGENT_ID, queueId, "PHONE", 0, 20);
 
-            when(contactRepository.findAgentReportRows(
+            when(contactService.findAgentReportRows(
                     eq(TENANT_ID), eq(AGENT_ID), eq(queueId), eq("PHONE"),
                     eq(DATE_FROM), eq(DATE_TO), eq(0), eq(20)))
                     .thenReturn(rowList());
-            when(contactRepository.countAgentReportRows(
+            when(contactService.countAgentReportRows(
                     eq(TENANT_ID), eq(AGENT_ID), eq(queueId), eq("PHONE"),
                     eq(DATE_FROM), eq(DATE_TO)))
                     .thenReturn(0L);
 
             reportsService.getAgentReport(params, TENANT_ID);
 
-            verify(contactRepository).findAgentReportRows(
+            verify(contactService).findAgentReportRows(
                     TENANT_ID, AGENT_ID, queueId, "PHONE", DATE_FROM, DATE_TO, 0, 20);
         }
     }
@@ -251,7 +251,7 @@ class ReportsServiceTest {
         void shouldReturnCsvWithHeaders() {
             Object[] row = buildSampleRow(AGENT_ID, "Anna Nowak", DATE_FROM, 10L, 120.0, 15.0, 0.9, "EMAIL");
 
-            when(contactRepository.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+            when(contactService.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(rowList(row));
 
             AgentReportParams params = new AgentReportParams(DATE_FROM, DATE_TO, null, null, null, 0, 100);
@@ -281,7 +281,7 @@ class ReportsServiceTest {
         void shouldEscapeCsvValuesWithCommas() {
             Object[] row = buildSampleRow(AGENT_ID, "Smith, John", DATE_FROM, 5L, 60.0, 10.0, 1.0, "PHONE");
 
-            when(contactRepository.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+            when(contactService.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(rowList(row));
 
             AgentReportParams params = new AgentReportParams(DATE_FROM, DATE_TO, null, null, null, 0, 100);
@@ -305,7 +305,7 @@ class ReportsServiceTest {
         void shouldReturnNonEmptyXlsxBytes() {
             Object[] row = buildSampleRow(AGENT_ID, "Agent X", DATE_FROM, 7L, 90.0, 20.0, 0.85, "CHAT");
 
-            when(contactRepository.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+            when(contactService.findAgentReportRows(any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(rowList(row));
 
             AgentReportParams params = new AgentReportParams(DATE_FROM, DATE_TO, null, null, null, 0, 100);
@@ -338,7 +338,7 @@ class ReportsServiceTest {
     /**
      * Buduje przykładowy wiersz Object[] symulujący wynik natywnego zapytania SQL.
      *
-     * <p>Kolejność kolumn odpowiada zapytaniu w ContactRepository.findAgentReportRows:
+     * <p>Kolejność kolumn odpowiada zapytaniu w ContactService.findAgentReportRows:
      * [agent_id, agent_name, report_date, contacts_count, avg_handle_time, avg_wait_time, fcr, channel]
      */
     private Object[] buildSampleRow(UUID agentId, String agentName, LocalDate date,

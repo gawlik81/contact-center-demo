@@ -2,7 +2,7 @@ package com.contactcenter.domain.telephony;
 
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.customer.Customer;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.customer.CliLookupService;
 import com.contactcenter.domain.customer.CustomerCliResult;
@@ -54,7 +54,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     private final AtomicLong callIdCounter = new AtomicLong(1);
 
     private final TelephonyEventPublisher eventPublisher;
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final CustomerService customerService;
     private final CliLookupService cliLookupService;
 
@@ -126,7 +126,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
             final String cFrom    = session.getFrom();
             final String cTo      = session.getTo();
             try {
-                contactRepository.findById(cContactId, cTenantId)
+                contactService.findContactEntity(cContactId, cTenantId)
                         .map(Contact::getAgentId)
                         .ifPresent(originatingAgentId -> {
                             log.info("[MockTelephony] Konsultacja odebrana – CALL_CONSULT_ANSWERED do inicjatora: agentId={}, callId={}",
@@ -178,7 +178,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
         // zanim agent odpowiedział (softfon dzwonił, agent nie kliknął "Odbierz").
         if (session.getContactId() != null && !"CONSULTATION".equals(session.getDirection())) {
             String endStatus = session.getAnsweredAt() != null ? "COMPLETED" : "ABANDONED";
-            contactRepository.updateContactStatusOnTelephonyEvent(
+            contactService.updateContactStatusOnTelephonyEvent(
                     session.getContactId(), session.getTenantId(), endStatus, endedAt);
         }
 
@@ -636,7 +636,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     .createdAt(now)
                     .build();
 
-            contactRepository.insert(contact);
+            contactService.insertContact(contact);
 
             log.debug("[MockTelephony] Rekord contact utworzony: contactId={}, customerId={}, direction={}, callId={}, tenant={}",
                     contactId, customerId, direction, callId, tenantId);

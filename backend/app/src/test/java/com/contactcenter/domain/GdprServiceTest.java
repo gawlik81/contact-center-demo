@@ -4,7 +4,7 @@ import com.contactcenter.domain.model.AuditLogEvent;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.contact.ContactId;
 import com.contactcenter.domain.customer.Customer;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.service.AuditLogService;
 import com.contactcenter.domain.service.GdprService;
@@ -44,7 +44,7 @@ class GdprServiceTest {
     private static final UUID USER_ID     = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
     @Mock private CustomerService customerService;
-    @Mock private ContactRepository  contactRepository;
+    @Mock private ContactService  contactService;
     @Mock private RecordingService   recordingService;
     @Mock private AuditLogService    auditLogService;
 
@@ -59,7 +59,7 @@ class GdprServiceTest {
         // Ręczna konstrukcja – ObjectMapper nie jest mockiem
         gdprService = new GdprService(
                 customerService,
-                contactRepository,
+                contactService,
                 recordingService,
                 auditLogService,
                 new ObjectMapper().registerModule(new JavaTimeModule())
@@ -86,7 +86,7 @@ class GdprServiceTest {
             Customer customer = buildCustomer();
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
-            when(contactRepository.findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
+            when(contactService.findContactsByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
                     .thenReturn(Collections.emptyList());
 
             // when
@@ -103,7 +103,7 @@ class GdprServiceTest {
             Customer customer = buildCustomer();
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
-            when(contactRepository.findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
+            when(contactService.findContactsByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
                     .thenReturn(Collections.emptyList());
 
             // when
@@ -128,7 +128,7 @@ class GdprServiceTest {
             Customer customer = buildCustomer();
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
-            when(contactRepository.findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
+            when(contactService.findContactsByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
                     .thenReturn(Collections.emptyList());
 
             // when
@@ -169,7 +169,7 @@ class GdprServiceTest {
 
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
-            when(contactRepository.findByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
+            when(contactService.findContactsByCustomerId(CUSTOMER_ID, TENANT_ID, 0, 1000))
                     .thenReturn(contacts);
 
             // when
@@ -199,7 +199,7 @@ class GdprServiceTest {
             Customer customer = buildCustomer();
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
-            when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
+            when(contactService.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Collections.emptyList());
             when(customerService.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
 
@@ -227,7 +227,7 @@ class GdprServiceTest {
             Customer customer = buildCustomer();
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
-            when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
+            when(contactService.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(List.of(s3Key1, s3Key2));
             when(customerService.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
 
@@ -246,7 +246,7 @@ class GdprServiceTest {
             Customer customer = buildCustomer();
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
-            when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
+            when(contactService.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(List.of("tenant-id/2025/01/contact1.mp3"));
             doThrow(new RuntimeException("S3 connection error"))
                     .when(recordingService).deleteFromS3(anyString());
@@ -280,7 +280,7 @@ class GdprServiceTest {
             Customer customer = buildCustomer();
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
-            when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
+            when(contactService.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Collections.emptyList());
             when(customerService.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(0);
 
@@ -298,7 +298,7 @@ class GdprServiceTest {
             Customer customer = buildCustomer();
             when(customerService.findById(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Optional.of(customer));
-            when(contactRepository.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
+            when(contactService.findRecordingUrlsByCustomer(CUSTOMER_ID, TENANT_ID))
                     .thenReturn(Collections.emptyList());
             when(customerService.anonymize(CUSTOMER_ID, TENANT_ID)).thenReturn(1);
 

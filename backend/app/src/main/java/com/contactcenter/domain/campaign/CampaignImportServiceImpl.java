@@ -1,5 +1,7 @@
 package com.contactcenter.domain.campaign;
 
+import com.contactcenter.api.PagedResponse;
+import com.contactcenter.api.campaign.dto.CampaignContactResponse;
 import com.contactcenter.domain.model.ImportJobStatus;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -380,6 +382,16 @@ class CampaignImportServiceImpl implements CampaignImportService {
     @Override
     public ImportJobStatus getJobStatus(UUID jobId) {
         return loadJobStatus(jobId);
+    }
+
+    // =========================================================================
+    // Dostęp do encji (encapsulation pass – pkt 9 wzorca)
+    // =========================================================================
+
+    @Override
+    public PagedResponse<CampaignContactResponse> getCampaignContacts(
+            UUID tenantId, UUID campaignId, String statusFilter, int page, int size) {
+        return campaignContactRepository.findByCampaign(tenantId, campaignId, statusFilter, page, size);
     }
 
     // =========================================================================

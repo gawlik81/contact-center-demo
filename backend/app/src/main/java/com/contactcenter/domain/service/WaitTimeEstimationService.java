@@ -4,7 +4,7 @@ import com.contactcenter.api.queue.dto.QueueStatsResponse;
 import com.contactcenter.api.queue.QueueWaitUpdatePayload;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
@@ -80,7 +80,7 @@ public class WaitTimeEstimationService {
 
     private final TenantService tenantService;
     private final QueueRepository queueRepository;
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final WebSocketEventBroadcaster webSocketEventBroadcaster;
 
@@ -182,8 +182,8 @@ public class WaitTimeEstimationService {
     public void processQueue(UUID tenantId, Queue queue, int availableAgents) {
         UUID queueId = queue.getQueueId();
 
-        int waitingCount = contactRepository.countWaitingByQueueId(tenantId, queueId);
-        double avgHandleTime = contactRepository.getAvgHandleTimeSeconds(tenantId, queueId);
+        int waitingCount = contactService.countWaitingByQueueId(tenantId, queueId);
+        double avgHandleTime = contactService.getAvgHandleTimeSeconds(tenantId, queueId);
 
         int estimatedWaitSeconds = calculateEwt(waitingCount, availableAgents, avgHandleTime);
 
@@ -331,8 +331,8 @@ public class WaitTimeEstimationService {
                         "Queue not found: " + queueId));
 
         int availableAgents = lastKnownAgentCounts.getOrDefault(tenantId, 0);
-        int waitingCount = contactRepository.countWaitingByQueueId(tenantId, queueId);
-        double avgHandleTime = contactRepository.getAvgHandleTimeSeconds(tenantId, queueId);
+        int waitingCount = contactService.countWaitingByQueueId(tenantId, queueId);
+        double avgHandleTime = contactService.getAvgHandleTimeSeconds(tenantId, queueId);
         int estimatedWaitSeconds = calculateEwt(waitingCount, availableAgents, avgHandleTime);
 
         return new QueueStatsResponse(

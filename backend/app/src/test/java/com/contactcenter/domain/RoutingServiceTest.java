@@ -5,7 +5,7 @@ import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.QueueAssignmentRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -15,7 +15,6 @@ import com.contactcenter.domain.routing.RoutingEngine;
 import com.contactcenter.domain.routing.RoutingRequest;
 import com.contactcenter.domain.routing.RoutingResult;
 import com.contactcenter.domain.contact.ContactEventService;
-import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.service.RoutingService;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -71,7 +70,7 @@ class RoutingServiceTest {
     private QueueRepository queueRepository;
 
     @Mock
-    private ContactRepository contactRepository;
+    private ContactService contactService;
 
     @Mock
     private RabbitTemplate rabbitTemplate;
@@ -89,23 +88,20 @@ class RoutingServiceTest {
     private CustomerService customerService;
 
     @Mock
-    private ContactService contactService;
-
-    @Mock
     private ContactEventService contactEventService;
 
     private RoutingService routingService;
 
     @BeforeEach
     void setUp() {
-        routingService = new RoutingService(routingEngine, queueRepository, contactRepository,
+        routingService = new RoutingService(routingEngine, queueRepository,
                 customerService, rabbitTemplate, queueAssignmentRepository, userService,
                 broadcaster, contactService, contactEventService);
         // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047
         lenient().when(queueAssignmentRepository.isAllAgents(any(UUID.class), any(UUID.class)))
                 .thenReturn(true);
         // Broadcast po routingu – domyślnie pusta lista żeby nie rzucać NPE w testach
-        lenient().when(contactRepository.findQueuedContactsForAgentView(any(UUID.class)))
+        lenient().when(contactService.findQueuedContactsForAgentView(any(UUID.class)))
                 .thenReturn(List.of());
     }
 
@@ -124,10 +120,10 @@ class RoutingServiceTest {
             Contact contact = buildContact();
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(routingEngine.findBestAgent(any(RoutingRequest.class)))
                     .thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "SKILL_BASED")));
-            when(contactRepository.update(any(Contact.class))).thenReturn(1);
+            when(contactService.updateContactEntity(any(Contact.class))).thenReturn(1);
 
             Optional<UUID> result = routingService.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
 
@@ -135,7 +131,7 @@ class RoutingServiceTest {
 
             // Weryfikuj aktualizację kontaktu
             ArgumentCaptor<Contact> contactCaptor = ArgumentCaptor.forClass(Contact.class);
-            verify(contactRepository).update(contactCaptor.capture());
+            verify(contactService).updateContactEntity(contactCaptor.capture());
             Contact updated = contactCaptor.getValue();
             assertThat(updated.getAgentId()).isEqualTo(AGENT_ID);
             assertThat(updated.getStatus()).isEqualTo("ASSIGNED");
@@ -156,9 +152,9 @@ class RoutingServiceTest {
             Contact contact = buildContact();
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(routingEngine.findBestAgent(any())).thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "ROUND_ROBIN")));
-            when(contactRepository.update(any())).thenReturn(1);
+            when(contactService.updateContactEntity(any())).thenReturn(1);
 
             routingService.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
 
@@ -179,9 +175,9 @@ class RoutingServiceTest {
             Contact contact = buildContact();
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(routingEngine.findBestAgent(any())).thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "FIRST_AVAILABLE")));
-            when(contactRepository.update(any())).thenReturn(1);
+            when(contactService.updateContactEntity(any())).thenReturn(1);
 
             routingService.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
 
@@ -217,7 +213,7 @@ class RoutingServiceTest {
             Contact contact = buildContact();
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(routingEngine.findBestAgent(any())).thenReturn(Optional.empty());
 
             Optional<UUID> result = routingService.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
@@ -225,7 +221,7 @@ class RoutingServiceTest {
             assertThat(result).isEmpty();
 
             // Kontakt NIE powinien być aktualizowany
-            verify(contactRepository, never()).update(any());
+            verify(contactService, never()).updateContactEntity(any());
 
             // Event contact.queued NIE powinien być publikowany – eliminuje nieskończoną pętlę.
             // Retry nastąpi przez onAgentStatusChanged gdy agent stanie się AVAILABLE.
@@ -243,7 +239,7 @@ class RoutingServiceTest {
             Contact contact = buildContact();
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(routingEngine.findBestAgent(any())).thenReturn(Optional.empty());
 
             routingService.routeContact(CONTACT_ID, QUEUE_ID, TENANT_ID);
@@ -276,7 +272,7 @@ class RoutingServiceTest {
         void shouldThrowWhenContactNotFound() {
             Queue queue = buildQueue("FIRST_AVAILABLE", List.of());
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.empty());
 
             // Fix: brak kontaktu nie rzuca wyjątku – RoutingService loguje ERROR i zwraca empty,
             // żeby wiadomość RabbitMQ nie trafiała do DLQ po exhausted retries.
@@ -291,9 +287,9 @@ class RoutingServiceTest {
             Contact contact = buildContact();
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(routingEngine.findBestAgent(any())).thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "FIRST_AVAILABLE")));
-            when(contactRepository.update(any())).thenReturn(1);
+            when(contactService.updateContactEntity(any())).thenReturn(1);
             doThrow(new RuntimeException("RabbitMQ unavailable"))
                     .when(rabbitTemplate).convertAndSend(anyString(), eq("contact.assigned"), any(Object.class));
 
@@ -318,7 +314,7 @@ class RoutingServiceTest {
             Contact contact = buildContact();
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
             when(routingEngine.findBestAgent(any())).thenReturn(Optional.empty());
 
             ContactQueuedMessage message = new ContactQueuedMessage(CONTACT_ID, QUEUE_ID, TENANT_ID);
@@ -327,7 +323,7 @@ class RoutingServiceTest {
                     .doesNotThrowAnyException();
 
             // Weryfikuj że próba routingu nastąpiła (kontakt wyszukany w DB)
-            verify(contactRepository, atLeastOnce()).findById(CONTACT_ID, TENANT_ID);
+            verify(contactService, atLeastOnce()).findContactEntity(CONTACT_ID, TENANT_ID);
         }
 
         @Test
@@ -357,11 +353,11 @@ class RoutingServiceTest {
             Contact queuedContact = buildContact();
             Queue queue = buildQueue("FIRST_AVAILABLE", List.of());
 
-            when(contactRepository.findQueuedContacts(TENANT_ID)).thenReturn(List.of(queuedContact));
+            when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of(queuedContact));
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(queuedContact));
+            when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(queuedContact));
             when(routingEngine.findBestAgent(any())).thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "FIRST_AVAILABLE")));
-            when(contactRepository.update(any())).thenReturn(1);
+            when(contactService.updateContactEntity(any())).thenReturn(1);
 
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(
                     AGENT_ID, TENANT_ID, UserStatus.BUSY, UserStatus.AVAILABLE);
@@ -369,7 +365,7 @@ class RoutingServiceTest {
             assertThatCode(() -> routingService.onAgentStatusChanged(event))
                     .doesNotThrowAnyException();
 
-            verify(contactRepository).findQueuedContacts(TENANT_ID);
+            verify(contactService).findQueuedContacts(TENANT_ID);
             verify(routingEngine, atLeastOnce()).findBestAgent(any());
         }
 
@@ -383,13 +379,13 @@ class RoutingServiceTest {
                     .doesNotThrowAnyException();
 
             // Nie powinien szukać oczekujących kontaktów
-            verify(contactRepository, never()).findQueuedContacts(any());
+            verify(contactService, never()).findQueuedContacts(any());
         }
 
         @Test
         @DisplayName("powinien nic nie robić gdy brak oczekujących kontaktów")
         void shouldDoNothingWhenNoQueuedContacts() {
-            when(contactRepository.findQueuedContacts(TENANT_ID)).thenReturn(List.of());
+            when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of());
 
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(
                     AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE);
@@ -397,7 +393,7 @@ class RoutingServiceTest {
             assertThatCode(() -> routingService.onAgentStatusChanged(event))
                     .doesNotThrowAnyException();
 
-            verify(contactRepository).findQueuedContacts(TENANT_ID);
+            verify(contactService).findQueuedContacts(TENANT_ID);
             verify(routingEngine, never()).findBestAgent(any());
         }
 
@@ -409,11 +405,11 @@ class RoutingServiceTest {
 
             Queue queue = buildQueue("FIRST_AVAILABLE", List.of());
 
-            when(contactRepository.findQueuedContacts(TENANT_ID)).thenReturn(List.of(contact1, contact2));
+            when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of(contact1, contact2));
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(queue));
-            when(contactRepository.findById(contact1.getContactId(), TENANT_ID)).thenReturn(Optional.of(contact1));
+            when(contactService.findContactEntity(contact1.getContactId(), TENANT_ID)).thenReturn(Optional.of(contact1));
             when(routingEngine.findBestAgent(any())).thenReturn(Optional.of(RoutingResult.of(AGENT_ID, "FIRST_AVAILABLE")));
-            when(contactRepository.update(any())).thenReturn(1);
+            when(contactService.updateContactEntity(any())).thenReturn(1);
 
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(
                     AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE);
@@ -438,7 +434,7 @@ class RoutingServiceTest {
                     .queuedAt(Instant.now())
                     .build();
 
-            when(contactRepository.findQueuedContacts(TENANT_ID)).thenReturn(List.of(contactWithoutQueue));
+            when(contactService.findQueuedContacts(TENANT_ID)).thenReturn(List.of(contactWithoutQueue));
 
             AgentStatusChangedEvent event = AgentStatusChangedEvent.of(
                     AGENT_ID, TENANT_ID, UserStatus.BREAK, UserStatus.AVAILABLE);

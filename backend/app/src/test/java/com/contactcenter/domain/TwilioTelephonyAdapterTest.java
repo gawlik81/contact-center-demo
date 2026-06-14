@@ -3,7 +3,7 @@ package com.contactcenter.domain;
 import com.contactcenter.domain.tenant.TwilioConfigChangedEvent;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.tenant.TenantService;
@@ -82,7 +82,7 @@ class TwilioTelephonyAdapterTest {
     private TelephonyEventPublisher eventPublisher;
 
     @Mock
-    private ContactRepository contactRepository;
+    private ContactService contactService;
 
     @Mock
     private CustomerService customerService;
@@ -169,7 +169,7 @@ class TwilioTelephonyAdapterTest {
         // Tworzymy adapter ręcznie i wywołujemy init() – @PostConstruct nie inicjalizuje Caffeine cache przez SDK,
         // więc clientCache musi być ustawiony przed testami korzystającymi z resolveRestClient().
         adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher,
-                contactRepository, customerService, tenantService,
+                contactService, customerService, tenantService,
                 redisTemplate, stringRedisTemplate, recordingDownloadService,
                 tenantTwilioConfigService, contactEventService,
                 queueRepository, rabbitTemplate, cliLookupService);

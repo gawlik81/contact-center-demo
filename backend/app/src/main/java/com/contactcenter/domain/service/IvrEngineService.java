@@ -8,7 +8,7 @@ import com.contactcenter.domain.model.IvrAudio;
 import com.contactcenter.domain.model.IvrTree;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.contact.ContactEventService;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.IvrAudioRepository;
 import com.contactcenter.domain.repository.IvrTreeRepository;
 import com.contactcenter.domain.repository.QueueRepository;
@@ -96,7 +96,7 @@ public class IvrEngineService {
     private final IvrTreeRepository ivrTreeRepository;
     private final IvrAudioRepository ivrAudioRepository;
     private final QueueRepository queueRepository;
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final TelephonyAdapter telephonyAdapter;
     private final RabbitTemplate rabbitTemplate;
     private final StringRedisTemplate stringRedisTemplate;
@@ -424,7 +424,7 @@ public class IvrEngineService {
             if (contactId != null) {
                 try {
                     TenantContext.setTenantId(tenantId);
-                    int rows = contactRepository.updateQueueId(contactId, tenantId, queueId);
+                    int rows = contactService.updateQueueId(contactId, tenantId, queueId);
                     if (rows == 0) {
                         log.warn("[DirectQueue] updateQueueId: brak zaktualizowanych wierszy: contactId={}, queueId={}",
                             contactId, queueId);
@@ -1355,7 +1355,7 @@ public class IvrEngineService {
             // retry routingu w RoutingService.onAgentStatusChanged() (pomija kontakty z queue_id=NULL).
             if (contactId != null) {
                 try {
-                    int rows = contactRepository.updateQueueId(contactId, session.getTenantId(), queueId);
+                    int rows = contactService.updateQueueId(contactId, session.getTenantId(), queueId);
                     if (rows == 0) {
                         log.warn("[IVR] updateQueueId: brak zaktualizowanych wierszy – " +
                                 "kontakt może nie istnieć lub mieć inny status: contactId={}, queueId={}",
@@ -1411,7 +1411,7 @@ public class IvrEngineService {
         log.info("[IVR] Rozłączanie połączenia: callId={}", callId);
 
         if (session.getContactId() != null) {
-            contactRepository.updateContactStatusIfNotTerminal(
+            contactService.updateContactStatusIfNotTerminal(
                 session.getContactId(), session.getTenantId(), "COMPLETED", Instant.now());
             contactEventService.closeIvr(session.getContactId(), session.getTenantId());
         }
@@ -1752,7 +1752,7 @@ public class IvrEngineService {
                         if (!wasTenantContextSet) {
                             TenantContext.setTenantId(tenantId);
                         }
-                        int rows = contactRepository.updateQueueId(contactId, tenantId, defaultQueue.get().getQueueId());
+                        int rows = contactService.updateQueueId(contactId, tenantId, defaultQueue.get().getQueueId());
                         if (rows == 0) {
                             log.warn("[IVR] Fallback: updateQueueId: brak zaktualizowanych wierszy: contactId={}, queueId={}",
                                 contactId, defaultQueue.get().getQueueId());

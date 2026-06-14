@@ -1,7 +1,6 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.domain.contact.ContactRepository;
-import com.contactcenter.domain.contact.ContactTranscriptionRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
@@ -60,9 +59,7 @@ class TwilioRecordingDownloadServiceTest {
     @Mock
     private RecordingService recordingService;
     @Mock
-    private ContactRepository contactRepository;
-    @Mock
-    private ContactTranscriptionRepository transcriptionRepository;
+    private ContactService contactService;
 
     private TwilioRecordingDownloadService service;
 
@@ -74,7 +71,7 @@ class TwilioRecordingDownloadServiceTest {
     void setUp() throws IOException {
         service = new TwilioRecordingDownloadService(
                 twilioProperties, tenantTwilioConfigService, s3Properties, s3Client, recordingService,
-                contactRepository, transcriptionRepository, java.util.Optional.empty());
+                contactService, java.util.Optional.empty());
 
         // Uruchom serwer HTTP na losowym porcie
         httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);

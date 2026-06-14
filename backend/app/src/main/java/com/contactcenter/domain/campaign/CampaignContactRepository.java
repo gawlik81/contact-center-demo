@@ -38,7 +38,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class CampaignContactRepository extends TenantAwareRepository {
+class CampaignContactRepository extends TenantAwareRepository {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;

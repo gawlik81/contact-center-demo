@@ -7,9 +7,7 @@ import com.contactcenter.domain.contact.ContactAiSummary;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.tenant.TenantAiConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantAiConfigService;
-import com.contactcenter.domain.contact.ContactAiSummaryRepository;
-import com.contactcenter.domain.contact.ContactRepository;
-import com.contactcenter.domain.contact.ContactTranscriptionRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -30,7 +28,7 @@ import java.util.UUID;
  *   <li>Pobranie odszyfrowanej konfiguracji AI dla tenanta.</li>
  *   <li>Wyodrębnienie treści zależnie od kanału kontaktu.</li>
  *   <li>Wywołanie {@link AiSummaryClient} (serwis Python).</li>
- *   <li>Zapis wyniku (summary, modelUsed, timestamp) do tabeli {@code contact_ai_summary} przez {@link com.contactcenter.domain.contact.ContactAiSummaryRepository#save}.</li>
+ *   <li>Zapis wyniku (summary, modelUsed, timestamp) do tabeli {@code contact_ai_summary} przez {@code ContactService#saveAiSummary}.</li>
  * </ol>
  *
  * <p>Nie implementuje kontrolera – ten zostanie dodany w BE-090.
@@ -40,12 +38,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AiSummaryService {
 
-    private final ContactRepository contactRepository;
-    private final ContactTranscriptionRepository transcriptionRepository;
+    private final ContactService contactService;
     private final EmailMessageRepository emailMessageRepository;
     private final TenantAiConfigService aiConfigService;
     private final AiSummaryClient aiSummaryClient;
-    private final ContactAiSummaryRepository aiSummaryRepository;
 
     // =========================================================================
     // Record wynikowy
@@ -84,7 +80,7 @@ public class AiSummaryService {
     @Transactional
     public AiSummaryResult generateSummary(UUID contactId, UUID tenantId) {
         // 1. Pobierz kontakt
-        Contact contact = contactRepository.findById(contactId, tenantId)
+        Contact contact = contactService.findContactEntity(contactId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Kontakt nie istnieje: " + contactId));
 
@@ -124,7 +120,7 @@ public class AiSummaryService {
                 .generatedAt(now)
                 .createdAt(now)
                 .build();
-        aiSummaryRepository.save(aiSummary);
+        contactService.saveAiSummary(aiSummary);
 
         log.info("[AiSummaryService] Podsumowanie zapisane: contactId={}, model={}, tokens={}",
                 contactId, response.modelUsed(), response.tokensUsed());
@@ -155,8 +151,8 @@ public class AiSummaryService {
         String channel = contact.getChannel();
 
         if ("PHONE".equals(channel)) {
-            return transcriptionRepository
-                    .findContentByContactId(contact.getContactId(), tenantId)
+            return contactService
+                    .findTranscriptionContent(contact.getContactId(), tenantId)
                     .filter(t -> !t.isBlank())
                     .orElse("[Brak transkrypcji rozmowy]");
         }

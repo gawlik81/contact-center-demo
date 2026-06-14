@@ -5,7 +5,7 @@ import com.contactcenter.api.queue.QueueWaitUpdatePayload;
 import com.contactcenter.domain.model.Queue;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.service.WaitTimeEstimationService;
@@ -67,7 +67,7 @@ class WaitTimeEstimationServiceTest {
 
     @Mock private TenantService tenantService;
     @Mock private QueueRepository           queueRepository;
-    @Mock private ContactRepository         contactRepository;
+    @Mock private ContactService         contactService;
     @Mock private RedisTemplate<String, Object> redisTemplate;
     @Mock private WebSocketEventBroadcaster webSocketEventBroadcaster;
     @Mock private ValueOperations<String, Object> valueOps;
@@ -176,8 +176,8 @@ class WaitTimeEstimationServiceTest {
         @Test
         @DisplayName("Wysyła WebSocketEvent z typem QUEUE_WAIT_UPDATE gdy są oczekujący i agenci")
         void shouldSendQueueWaitUpdateEvent() {
-            when(contactRepository.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(3);
-            when(contactRepository.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID)).thenReturn(200.0);
+            when(contactService.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(3);
+            when(contactService.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID)).thenReturn(200.0);
 
             service.processQueue(TENANT_ID, testQueue, 2);
 
@@ -201,8 +201,8 @@ class WaitTimeEstimationServiceTest {
         @Test
         @DisplayName("Wysyła EWT = MAX_VALUE gdy brak dostępnych agentów")
         void shouldSendMaxValueEwt_whenNoAgents() {
-            when(contactRepository.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(5);
-            when(contactRepository.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID)).thenReturn(300.0);
+            when(contactService.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(5);
+            when(contactService.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID)).thenReturn(300.0);
 
             service.processQueue(TENANT_ID, testQueue, 0);
 
@@ -217,8 +217,8 @@ class WaitTimeEstimationServiceTest {
         @Test
         @DisplayName("Wysyła EWT = 0 gdy brak oczekujących")
         void shouldSendZeroEwt_whenNoWaiting() {
-            when(contactRepository.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(0);
-            when(contactRepository.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID)).thenReturn(300.0);
+            when(contactService.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(0);
+            when(contactService.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID)).thenReturn(300.0);
 
             service.processQueue(TENANT_ID, testQueue, 3);
 
@@ -233,9 +233,9 @@ class WaitTimeEstimationServiceTest {
         @Test
         @DisplayName("Używa fallback 300s gdy DB zwraca domyślną wartość AVG handle time")
         void shouldUseFallbackAvgHandleTime_whenNoHistory() {
-            when(contactRepository.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(2);
+            when(contactService.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(2);
             // Brak historii → COALESCE zwraca 300.0
-            when(contactRepository.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID))
+            when(contactService.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID))
                     .thenReturn(WaitTimeEstimationService.DEFAULT_AVG_HANDLE_TIME_SECONDS);
 
             service.processQueue(TENANT_ID, testQueue, 1);
@@ -324,7 +324,7 @@ class WaitTimeEstimationServiceTest {
             service.broadcastWaitTimeUpdates();
 
             // Brak wywołań do DB i WebSocket – tenant pominięty
-            verifyNoInteractions(queueRepository, contactRepository, webSocketEventBroadcaster);
+            verifyNoInteractions(queueRepository, contactService, webSocketEventBroadcaster);
         }
 
         @Test
@@ -335,7 +335,7 @@ class WaitTimeEstimationServiceTest {
 
             service.broadcastWaitTimeUpdates();
 
-            verifyNoInteractions(queueRepository, contactRepository, webSocketEventBroadcaster);
+            verifyNoInteractions(queueRepository, contactService, webSocketEventBroadcaster);
         }
 
         @Test
@@ -358,8 +358,8 @@ class WaitTimeEstimationServiceTest {
             when(queueRepository.findAllByTenantId(TENANT_ID, null, 0, 1000))
                     .thenReturn(pagedQueues);
 
-            when(contactRepository.countWaitingByQueueId(eq(TENANT_ID), any(UUID.class))).thenReturn(1);
-            when(contactRepository.getAvgHandleTimeSeconds(eq(TENANT_ID), any(UUID.class))).thenReturn(300.0);
+            when(contactService.countWaitingByQueueId(eq(TENANT_ID), any(UUID.class))).thenReturn(1);
+            when(contactService.getAvgHandleTimeSeconds(eq(TENANT_ID), any(UUID.class))).thenReturn(300.0);
 
             service.broadcastWaitTimeUpdates();
 
@@ -381,7 +381,7 @@ class WaitTimeEstimationServiceTest {
 
             service.broadcastWaitTimeUpdates();
 
-            verifyNoInteractions(contactRepository, webSocketEventBroadcaster);
+            verifyNoInteractions(contactService, webSocketEventBroadcaster);
         }
     }
 
@@ -397,8 +397,8 @@ class WaitTimeEstimationServiceTest {
         @DisplayName("Zwraca poprawne statystyki kolejki")
         void shouldReturnQueueStats() {
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID)).thenReturn(Optional.of(testQueue));
-            when(contactRepository.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(4);
-            when(contactRepository.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID)).thenReturn(180.0);
+            when(contactService.countWaitingByQueueId(TENANT_ID, QUEUE_ID)).thenReturn(4);
+            when(contactService.getAvgHandleTimeSeconds(TENANT_ID, QUEUE_ID)).thenReturn(180.0);
             // lastKnownAgentCounts pusta → availableAgents = 0 → EWT = MAX_VALUE
 
             QueueStatsResponse stats = service.getQueueStats(TENANT_ID, QUEUE_ID);

@@ -25,7 +25,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class ScheduledCallbackRepository extends TenantAwareRepository {
+class ScheduledCallbackRepository extends TenantAwareRepository {
 
     private final JdbcTemplate jdbcTemplate;
 

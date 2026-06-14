@@ -3,7 +3,7 @@ package com.contactcenter.domain.service;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.reports.dto.AgentReportParams;
 import com.contactcenter.api.reports.dto.AgentReportRow;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,7 +68,7 @@ public class ReportsService {
             "Avg Handle Time (s)", "Avg Wait Time (s)", "FCR", "Channel"
     };
 
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -110,12 +110,12 @@ public class ReportsService {
         log.debug("[Reports] Cache miss – odpytuje DB: tenant={}, dateFrom={}, dateTo={}, page={}, size={}",
                 tenantId, params.dateFrom(), params.dateTo(), params.page(), params.size());
 
-        List<Object[]> rows = contactRepository.findAgentReportRows(
+        List<Object[]> rows = contactService.findAgentReportRows(
                 tenantId, params.agentId(), params.queueId(), params.channel(),
                 params.dateFrom(), params.dateTo(),
                 params.offset(), params.size());
 
-        long totalElements = contactRepository.countAgentReportRows(
+        long totalElements = contactService.countAgentReportRows(
                 tenantId, params.agentId(), params.queueId(), params.channel(),
                 params.dateFrom(), params.dateTo());
 
@@ -296,7 +296,7 @@ public class ReportsService {
      * <p>Zwraca max 10 000 wierszy – ochrona przed zbyt dużym zestawem danych.
      */
     private List<AgentReportRow> fetchAllRows(AgentReportParams params, UUID tenantId) {
-        List<Object[]> rows = contactRepository.findAgentReportRows(
+        List<Object[]> rows = contactService.findAgentReportRows(
                 tenantId, params.agentId(), params.queueId(), params.channel(),
                 params.dateFrom(), params.dateTo(),
                 0, 10_000);
@@ -309,7 +309,7 @@ public class ReportsService {
     /**
      * Mapuje tablicę Object[] z natywnego zapytania SQL na DTO {@link AgentReportRow}.
      *
-     * <p>Kolejność kolumn musi odpowiadać zapytaniu w {@link ContactRepository#findAgentReportRows}:
+     * <p>Kolejność kolumn musi odpowiadać zapytaniu w {@link com.contactcenter.domain.contact.ContactService#findAgentReportRows}:
      * {@code [agent_id(0), agent_name(1), report_date(2), contacts_count(3),
      *          avg_handle_time(4), avg_wait_time(5), fcr(6), channel(7)]}.
      */

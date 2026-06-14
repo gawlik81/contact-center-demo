@@ -7,6 +7,9 @@ import com.contactcenter.api.campaign.dto.UpdateCampaignRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import jakarta.persistence.EntityNotFoundException;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -135,4 +138,54 @@ public interface CampaignService {
      * @return {@code true} jeśli nazwa zajęta, {@code false} jeśli dostępna
      */
     boolean isNameTaken(String name, UUID tenantId, UUID excludeId);
+
+    // =========================================================================
+    // Dostęp do encji (encapsulation pass – pkt 9 wzorca)
+    // =========================================================================
+
+    /**
+     * Pobiera encję kampanii po ID z zabezpieczeniem cross-tenant.
+     *
+     * <p>W odróżnieniu od {@link #getCampaign}, zwraca encję domenową {@link Campaign}
+     * (nie DTO) – do użytku przez inne serwisy/komponenty domenowe.
+     *
+     * @param campaignId UUID kampanii
+     * @param tenantId   UUID tenanta
+     * @return Optional z encją kampanii lub empty gdy nie istnieje lub należy do innego tenanta
+     */
+    Optional<Campaign> findCampaignEntity(UUID campaignId, UUID tenantId);
+
+    /**
+     * Pobiera wiele kampanii naraz po zbiorze ID – batch lookup bez problemu N+1.
+     *
+     * @param ids      zbiór UUID kampanii do pobrania (może być pusty)
+     * @param tenantId UUID tenanta – wymagany do izolacji danych
+     * @return lista kampanii spełniających warunki (kolejność niegwarantowana)
+     */
+    List<Campaign> findCampaignsByIds(Collection<UUID> ids, UUID tenantId);
+
+    /**
+     * Pobiera kampanie powiązane z agentem przez kolejkę (kalendarz agenta, BE-051).
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  UUID agenta
+     * @return lista kampanii widocznych dla agenta (bez COMPLETED/CANCELLED)
+     */
+    List<Campaign> getCampaignsForAgentCalendar(UUID tenantId, UUID agentId);
+
+    /**
+     * Pobiera wszystkie kampanie w statusie RUNNING dla danego tenanta (wszystkie typy dialera).
+     *
+     * @param tenantId UUID tenanta
+     * @return lista kampanii w statusie RUNNING
+     */
+    List<Campaign> getRunningCampaigns(UUID tenantId);
+
+    /**
+     * Pobiera kampanie RUNNING z typem dialera MANUAL dla danego tenanta.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista kampanii w statusie RUNNING z dialer_type = 'MANUAL'
+     */
+    List<Campaign> getRunningManualCampaigns(UUID tenantId);
 }

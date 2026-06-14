@@ -1,6 +1,6 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.domain.service.RecordingService;
 import com.contactcenter.domain.telephony.CallEvent;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.*;
 /**
  * Testy jednostkowe dla {@link RecordingService}.
  *
- * <p>Używa mocków S3Client, S3Presigner i ContactRepository.
+ * <p>Używa mocków S3Client, S3Presigner i ContactService.
  * Nie wymaga uruchomionej infrastruktury (S3, DB, RabbitMQ).
  */
 @ExtendWith(MockitoExtension.class)
@@ -52,7 +52,7 @@ class RecordingServiceTest {
 
     @Mock private S3Client s3Client;
     @Mock private S3Presigner s3Presigner;
-    @Mock private ContactRepository contactRepository;
+    @Mock private ContactService contactService;
     @Mock private WebSocketEventBroadcaster wsEventBroadcaster;
 
     private S3Properties s3Properties;
@@ -65,7 +65,7 @@ class RecordingServiceTest {
         s3Properties.setPresignedUrlExpirationMinutes(60);
         s3Properties.setRetentionDays(90);
 
-        recordingService = new RecordingService(s3Client, s3Presigner, s3Properties, contactRepository, wsEventBroadcaster);
+        recordingService = new RecordingService(s3Client, s3Presigner, s3Properties, contactService, wsEventBroadcaster);
     }
 
     // =========================================================================
@@ -111,7 +111,7 @@ class RecordingServiceTest {
         @DisplayName("powinien zignorować null event")
         void shouldIgnoreNullEvent() {
             assertThatNoException().isThrownBy(() -> recordingService.onCallHangup(null));
-            verifyNoInteractions(s3Client, contactRepository);
+            verifyNoInteractions(s3Client, contactService);
         }
 
         @Test
@@ -126,7 +126,7 @@ class RecordingServiceTest {
 
             recordingService.onCallHangup(event);
 
-            verifyNoInteractions(s3Client, contactRepository);
+            verifyNoInteractions(s3Client, contactService);
         }
 
         @Test
@@ -140,7 +140,7 @@ class RecordingServiceTest {
                     .build();
 
             assertThatNoException().isThrownBy(() -> recordingService.onCallHangup(event));
-            verifyNoInteractions(s3Client, contactRepository);
+            verifyNoInteractions(s3Client, contactService);
         }
 
         @Test
@@ -155,7 +155,7 @@ class RecordingServiceTest {
                     .build();
 
             assertThatNoException().isThrownBy(() -> recordingService.onCallHangup(event));
-            verifyNoInteractions(s3Client, contactRepository);
+            verifyNoInteractions(s3Client, contactService);
         }
 
         @Test
@@ -181,7 +181,7 @@ class RecordingServiceTest {
             assertThat(capturedPut.serverSideEncryption()).isNull(); // SSE obsługiwane na poziomie bucketu
 
             // Weryfikacja: recording_url zaktualizowane w DB
-            verify(contactRepository).updateRecordingUrl(
+            verify(contactService).updateRecordingUrl(
                     eq(CONTACT_ID),
                     eq(TENANT_ID),
                     eq(TENANT_ID + "/2026/03/" + CONTACT_ID + ".mp3")
@@ -213,7 +213,7 @@ class RecordingServiceTest {
                 verify(s3Client).putObject(putCaptor.capture(), any(RequestBody.class));
 
                 assertThat(putCaptor.getValue().serverSideEncryption()).isNull(); // SSE obsługiwane na poziomie bucketu
-                verify(contactRepository).updateRecordingUrl(eq(CONTACT_ID), eq(TENANT_ID), any());
+                verify(contactService).updateRecordingUrl(eq(CONTACT_ID), eq(TENANT_ID), any());
 
             } finally {
                 Files.deleteIfExists(tempAudio);
@@ -301,7 +301,7 @@ class RecordingServiceTest {
         @Test
         @DisplayName("powinien zwrócić empty gdy recording_url jest null")
         void shouldReturnEmptyWhenNoRecordingUrl() {
-            when(contactRepository.findRecordingUrl(CONTACT_ID, TENANT_ID))
+            when(contactService.findRecordingUrl(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.empty());
 
             Optional<String> result = recordingService.generatePresignedUrl(CONTACT_ID, TENANT_ID);
@@ -314,7 +314,7 @@ class RecordingServiceTest {
         @DisplayName("powinien wygenerować presigned URL gdy recording_url istnieje")
         void shouldGeneratePresignedUrlWhenRecordingExists() throws MalformedURLException {
             String s3Key = TENANT_ID + "/2026/03/" + CONTACT_ID + ".mp3";
-            when(contactRepository.findRecordingUrl(CONTACT_ID, TENANT_ID))
+            when(contactService.findRecordingUrl(CONTACT_ID, TENANT_ID))
                     .thenReturn(Optional.of(s3Key));
 
             // Mock presigned URL

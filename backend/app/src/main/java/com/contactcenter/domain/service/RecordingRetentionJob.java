@@ -1,7 +1,7 @@
 package com.contactcenter.domain.service;
 
-import com.contactcenter.domain.contact.ContactRepository;
-import com.contactcenter.domain.contact.ContactRepository.ContactRecordingEntry;
+import com.contactcenter.domain.contact.ContactRecordingEntry;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.infrastructure.config.S3Properties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +43,7 @@ public class RecordingRetentionJob {
     private static final int BATCH_SIZE = 100;
 
     private final RecordingService recordingService;
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final S3Properties s3Properties;
 
     // =========================================================================
@@ -77,7 +77,7 @@ public class RecordingRetentionJob {
 
         try {
             // Krok 1: pobierz listę tenantów z nagraniami
-            List<UUID> tenants = contactRepository.findTenantsWithRecordings();
+            List<UUID> tenants = contactService.findTenantsWithRecordings();
             log.info("[RetentionJob] Znaleziono {} tenantów z nagraniami do sprawdzenia", tenants.size());
 
             // Krok 2: przetwarzaj każdy tenant osobno
@@ -113,7 +113,7 @@ public class RecordingRetentionJob {
         log.debug("[RetentionJob] Przetwarzam tenant: {}", tenantId);
 
         try {
-            List<ContactRecordingEntry> expired = contactRepository.findExpiredRecordings(
+            List<ContactRecordingEntry> expired = contactService.findExpiredRecordings(
                     tenantId, cutoffTimestamp, BATCH_SIZE
             );
 
@@ -155,7 +155,7 @@ public class RecordingRetentionJob {
             recordingService.deleteFromS3(entry.recordingUrl());
 
             // Krok 2: wyczyść recording_url w DB (dopiero po pomyślnym usunięciu z S3)
-            contactRepository.clearRecordingUrl(entry.contactId(), tenantId);
+            contactService.clearRecordingUrl(entry.contactId(), tenantId);
 
             log.debug("[RetentionJob] Usunięto nagranie: contactId={}, s3Key={}",
                     entry.contactId(), entry.recordingUrl());

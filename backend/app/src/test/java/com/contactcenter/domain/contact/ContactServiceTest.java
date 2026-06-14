@@ -10,7 +10,7 @@ import com.contactcenter.api.contact.dto.UpdateContactRequest;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.campaign.CampaignRepository;
+import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.domain.service.RecordingService;
@@ -63,7 +63,7 @@ class ContactServiceTest {
     @Mock private EmailMessageRepository emailMessageRepository;
     @Mock private UserService userService;
     @Mock private QueueRepository queueRepository;
-    @Mock private CampaignRepository campaignRepository;
+    @Mock private CampaignService campaignService;
     @Mock private ContactEventService contactEventService;
     @Mock private TelephonyAdapter telephonyAdapter;
     @Mock private TelephonyEventPublisher eventPublisher;

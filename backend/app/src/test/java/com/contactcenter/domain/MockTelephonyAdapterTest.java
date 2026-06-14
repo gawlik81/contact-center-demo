@@ -1,7 +1,7 @@
 package com.contactcenter.domain;
 
 import com.contactcenter.domain.contact.Contact;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.customer.CliLookupService;
 import com.contactcenter.domain.telephony.CallSession;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.*;
  * <p>Weryfikuje logikę zarządzania sesjami i publikację eventów bez rzeczywistego
  * połączenia z RabbitMQ (mock TelephonyEventPublisher).
  *
- * <p>ContactRepository jest mockowany – adapter tworzy rekordy contact przed publikacją
+ * <p>ContactService jest mockowany – adapter tworzy rekordy contact przed publikacją
  * eventu. Mock zwraca przekazany Contact bez wywołania bazy (brak TenantContext w testach).
  */
 @ExtendWith(MockitoExtension.class)
@@ -49,7 +49,7 @@ class MockTelephonyAdapterTest {
     private TelephonyEventPublisher eventPublisher;
 
     @Mock
-    private ContactRepository contactRepository;
+    private ContactService contactService;
 
     @Mock
     private CustomerService customerService;
@@ -61,12 +61,12 @@ class MockTelephonyAdapterTest {
 
     @BeforeEach
     void setUp() {
-        // ContactRepository.insert() zwraca przekazany Contact – symuluje persystencję
-        when(contactRepository.insert(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
+        // ContactService.insert() zwraca przekazany Contact – symuluje persystencję
+        when(contactService.insertContact(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
         // CustomerService.findByPhoneNumber() domyślnie zwraca empty – klient nieznany
         when(customerService.findByPhoneNumber(anyString(), any(UUID.class)))
                 .thenReturn(java.util.Optional.empty());
-        adapter = new MockTelephonyAdapter(eventPublisher, contactRepository, customerService, cliLookupService);
+        adapter = new MockTelephonyAdapter(eventPublisher, contactService, customerService, cliLookupService);
     }
 
     // =========================================================================

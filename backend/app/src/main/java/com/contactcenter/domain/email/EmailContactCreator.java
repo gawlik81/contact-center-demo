@@ -3,7 +3,7 @@ package com.contactcenter.domain.email;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
@@ -39,7 +39,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EmailContactCreator {
 
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final CustomerService customerService;
     private final EmailMessageRepository emailMessageRepository;
     private final RabbitTemplate rabbitTemplate;
@@ -158,7 +158,7 @@ public class EmailContactCreator {
                 .updatedAt(now)
                 .build();
 
-        contactRepository.insert(contact);
+        contactService.insertContact(contact);
         return contactId;
     }
 
@@ -199,7 +199,7 @@ public class EmailContactCreator {
                 return;
             }
             String s3Key = emailEmlService.generateAndUpload(msgOpt.get(), contactId, tenantId);
-            contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
+            contactService.updateRecordingUrl(contactId, tenantId, s3Key);
             log.info("[EmailContact] EML zapisany w S3: contactId={}, s3Key={}", contactId, s3Key);
         } catch (Exception e) {
             // EML jest best-effort – nie blokuje routingu kontaktu
@@ -242,13 +242,13 @@ public class EmailContactCreator {
         TenantContext.restore(snapshot);
 
         try {
-            contactRepository.findById(contactId, tenantId).ifPresent(contact -> {
+            contactService.findContactEntity(contactId, tenantId).ifPresent(contact -> {
                 if (!"COMPLETED".equals(contact.getStatus()) && !"ABANDONED".equals(contact.getStatus())) {
                     Instant now = Instant.now();
                     contact.setStatus("COMPLETED");
                     contact.setEndedAt(now);
                     contact.setUpdatedAt(now);
-                    contactRepository.update(contact);
+                    contactService.updateContactEntity(contact);
                     log.info("[EmailContact] Kontakt EMAIL zakończony po wysłaniu odpowiedzi: contactId={}", contactId);
                 }
             });
@@ -273,7 +273,7 @@ public class EmailContactCreator {
      */
     private void createOutboundContact(UUID tenantId, UUID inboundContactId,
                                         EmailEventPublisher.EmailEvent event) {
-        Optional<Contact> inboundOpt = contactRepository.findById(inboundContactId, tenantId);
+        Optional<Contact> inboundOpt = contactService.findContactEntity(inboundContactId, tenantId);
         if (inboundOpt.isEmpty()) {
             log.warn("[EmailContact] Nie można utworzyć kontaktu OUTBOUND – brak kontaktu przychodzącego: {}",
                     inboundContactId);
@@ -284,7 +284,7 @@ public class EmailContactCreator {
         // Guard przed duplikatami – sprawdź czy kontakt OUTBOUND dla tego inboundContactId
         // już istnieje. Zabezpiecza przed wielokrotnym wywołaniem email.sent dla tej samej
         // wiadomości (np. retry kolejki RabbitMQ lub wielokrotny klik w UI).
-        List<Contact> existingOutbound = contactRepository.findByChannelMetadataValue(
+        List<Contact> existingOutbound = contactService.findByChannelMetadataValue(
                 "inboundContactId", inboundContactId.toString(), tenantId);
         if (!existingOutbound.isEmpty()) {
             log.warn("[EmailContact] Kontakt OUTBOUND dla inboundContactId={} już istnieje ({}), " +
@@ -331,7 +331,7 @@ public class EmailContactCreator {
                 .updatedAt(now)
                 .build();
 
-        contactRepository.insert(outbound);
+        contactService.insertContact(outbound);
 
         log.info("[EmailContact] Kontakt EMAIL OUTBOUND utworzony: contactId={}, inboundContactId={}, customer={}",
                 outboundContactId, inboundContactId, customerId);

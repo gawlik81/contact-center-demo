@@ -2,7 +2,7 @@ package com.contactcenter.domain.campaign;
 
 import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;
@@ -72,7 +72,7 @@ class ProgressiveDialerServiceTest {
     private CampaignContactRepository campaignContactRepository;
 
     @Mock
-    private ContactRepository contactRepository;
+    private ContactService contactService;
 
     @Mock
     private UserService userService;

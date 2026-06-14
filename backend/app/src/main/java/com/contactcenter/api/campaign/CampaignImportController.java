@@ -4,7 +4,6 @@ import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.campaign.dto.CampaignContactResponse;
 import com.contactcenter.api.campaign.dto.ImportJobStatusResponse;
 import com.contactcenter.domain.model.ImportJobStatus;
-import com.contactcenter.domain.campaign.CampaignContactRepository;
 import com.contactcenter.domain.campaign.CampaignImportService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,7 +47,6 @@ import java.util.UUID;
 public class CampaignImportController {
 
     private final CampaignImportService campaignImportService;
-    private final CampaignContactRepository campaignContactRepository;
 
     // =========================================================================
     // POST – inicjacja importu CSV
@@ -249,7 +247,7 @@ public class CampaignImportController {
                 id, tenantId, page, size, status);
 
         PagedResponse<CampaignContactResponse> response =
-                campaignContactRepository.findByCampaign(tenantId, id, status, page, size);
+                campaignImportService.getCampaignContacts(tenantId, id, status, page, size);
 
         return ResponseEntity.ok(response);
     }

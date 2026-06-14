@@ -2,7 +2,6 @@ package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
-import com.contactcenter.domain.contact.ContactRepository;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.routing.RouteResult;
 import com.contactcenter.domain.contact.ContactService;
@@ -78,7 +77,6 @@ public class TwilioWebhookController {
   private final IncomingCallRoutingService incomingCallRoutingService;
   private final ContactService contactService;
   private final CustomerService customerService;
-  private final ContactRepository contactRepository;
   private final TwilioRecordingDownloadService recordingDownloadService;
   private final TwilioProperties twilioProperties;
 
@@ -102,7 +100,6 @@ public class TwilioWebhookController {
       IncomingCallRoutingService incomingCallRoutingService,
       ContactService contactService,
       CustomerService customerService,
-      ContactRepository contactRepository,
       TwilioRecordingDownloadService recordingDownloadService,
       TwilioProperties twilioProperties) {
     this.twilioAdapter = twilioAdapter;
@@ -110,7 +107,6 @@ public class TwilioWebhookController {
     this.incomingCallRoutingService = incomingCallRoutingService;
     this.contactService = contactService;
     this.customerService = customerService;
-    this.contactRepository = contactRepository;
     this.recordingDownloadService = recordingDownloadService;
     this.twilioProperties = twilioProperties;
   }
@@ -413,7 +409,7 @@ public class TwilioWebhookController {
     if (StringUtils.hasText(conferenceSid) && tenantId != null) {
       try {
         TenantContext.setTenantId(tenantId);
-        contactRepository.updateConferenceSidInMetadata(callSid, conferenceSid, tenantId);
+        contactService.updateConferenceSidInMetadata(callSid, conferenceSid, tenantId);
       }
       catch (Exception e) {
         log.warn("[TwilioWebhook] Nie udało się zapisać conference_sid do channel_metadata: " +
@@ -523,7 +519,7 @@ public class TwilioWebhookController {
     try {
       TenantContext.setTenantId(tenantId);
       // Pobierz aktualny status kontaktu – zabezpieczenie przed nadpisaniem statusów terminalnych
-      contactRepository.findById(contactId, tenantId).ifPresentOrElse(
+      contactService.findContactEntity(contactId, tenantId).ifPresentOrElse(
           contact -> {
             String currentStatus = contact.getStatus();
             // Fix #2: TRANSFERRED dodany do listy statusów terminalnych.
@@ -543,7 +539,7 @@ public class TwilioWebhookController {
               log.info("[TwilioConference] Konferencja zakończona, kontakt w statusie {} – " +
                        "ustawiam ABANDONED: contactId={}", currentStatus, contactId);
               // Conditional update zapobiega race z handlerem hangup ustawiającym COMPLETED.
-              contactRepository.updateContactStatusIfNotTerminal(
+              contactService.updateContactStatusIfNotTerminal(
                   contactId, tenantId, "ABANDONED", Instant.now());
             } else {
               log.debug("[TwilioConference] Kontakt w statusie {} – nie zmieniam: contactId={}",

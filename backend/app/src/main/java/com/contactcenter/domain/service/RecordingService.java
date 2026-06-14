@@ -1,6 +1,6 @@
 package com.contactcenter.domain.service;
 
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -69,7 +69,7 @@ public class RecordingService {
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
     private final S3Properties s3Properties;
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final WebSocketEventBroadcaster wsEventBroadcaster;
 
     /**
@@ -170,7 +170,7 @@ public class RecordingService {
             // Wątek RabbitMQ listener nie przechodzi przez TenantFilter – ustawiamy kontekst ręcznie
             TenantContext.setTenantId(tenantId);
             try {
-                contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
+                contactService.updateRecordingUrl(contactId, tenantId, s3Key);
             } finally {
                 TenantContext.clear();
             }
@@ -209,7 +209,7 @@ public class RecordingService {
         UUID previousTenantId = TenantContext.getTenantIdOrNull();
         TenantContext.setTenantId(tenantId);
         try {
-            contactRepository.updateRecordingUrl(contactId, tenantId, s3Key);
+            contactService.updateRecordingUrl(contactId, tenantId, s3Key);
             log.info("[Recording] Zapisano recording_url w DB: contactId={}, s3Key={}", contactId, s3Key);
         } finally {
             if (previousTenantId != null) {
@@ -224,7 +224,7 @@ public class RecordingService {
         UUID previousTenantId = TenantContext.getTenantIdOrNull();
         TenantContext.setTenantId(tenantId);
         try {
-            contactRepository.findById(contactId, tenantId).ifPresent(contact -> {
+            contactService.findContactEntity(contactId, tenantId).ifPresent(contact -> {
                 if (contact.getAgentId() != null) {
                     wsEventBroadcaster.sendToUser(contact.getAgentId(),
                             WebSocketEvent.recordingReady(tenantId, contact.getAgentId(), contactId));
@@ -294,7 +294,7 @@ public class RecordingService {
      */
     @Audited(action = "RECORDING_ACCESS", entityType = "RECORDING")
     public Optional<String> generatePresignedUrl(UUID contactId, UUID tenantId) {
-        Optional<String> recordingUrlOpt = contactRepository.findRecordingUrl(contactId, tenantId);
+        Optional<String> recordingUrlOpt = contactService.findRecordingUrl(contactId, tenantId);
 
         if (recordingUrlOpt.isEmpty() || recordingUrlOpt.get() == null) {
             log.debug("[Recording] Brak nagrania dla contactId={}", contactId);

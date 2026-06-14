@@ -3,7 +3,7 @@ package com.contactcenter.api.telephony;
 import com.contactcenter.api.contact.dto.AssignedContactResponse;
 import com.contactcenter.api.telephony.dto.AgentKpiResponse;
 import com.contactcenter.domain.contact.Contact;
-import com.contactcenter.domain.contact.ContactRepository;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.repository.QueueRepository;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,7 +40,7 @@ import java.util.UUID;
         description = "Endpointy self-service dla zalogowanego agenta (recovery po utracie WebSocket, stan bieżącej sesji).")
 public class AgentSelfController {
 
-    private final ContactRepository contactRepository;
+    private final ContactService contactService;
     private final QueueRepository queueRepository;
 
     /**
@@ -81,7 +81,7 @@ public class AgentSelfController {
 
         log.debug("[AgentSelf] getAssignedContact: agentId={}, tenantId={}", agentId, tenantId);
 
-        return contactRepository.findAssignedContactForAgent(agentId, tenantId)
+        return contactService.findAssignedContactForAgent(agentId, tenantId)
                 .map(contact -> {
                     String queueName = resolveQueueName(contact, tenantId);
                     String customerId = contact.getCustomerId() != null
@@ -148,7 +148,7 @@ public class AgentSelfController {
         Instant dayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant dayEnd = dayStart.plus(1, ChronoUnit.DAYS);
 
-        Object[] row = contactRepository.findAgentKpiToday(agentId, tenantId, dayStart, dayEnd);
+        Object[] row = contactService.findAgentKpiToday(agentId, tenantId, dayStart, dayEnd);
 
         long contactsHandledToday = ((Number) row[0]).longValue();
         double avgHandleTimeSeconds = ((Number) row[1]).doubleValue();

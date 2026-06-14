@@ -20,7 +20,9 @@ import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -347,4 +349,383 @@ public interface ContactService {
      * @param tenantId UUID tenanta (z TenantContext)
      */
     void terminateStaleQueuedContacts(UUID tenantId);
+
+    // =========================================================================
+    // Encapsulation pass (pkt 9 wzorca refaktoru domenowego) – metody delegujące
+    // do ContactRepository / ContactAiSummaryRepository / ContactTranscriptionRepository
+    // dla konsumentów z innych pakietów.
+    // =========================================================================
+
+    /**
+     * Pobiera encję kontaktu po ID z zabezpieczeniem cross-tenant.
+     *
+     * <p>Odpowiednik {@code ContactRepository.findById(UUID, UUID)} – w odróżnieniu
+     * od {@link #getContact} zwraca encję domenową (lub {@code Optional.empty()}),
+     * nie DTO, i nie weryfikuje uprawnień AGENT.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     * @return Optional z encją kontaktu lub empty gdy nie istnieje / inny tenant
+     */
+    Optional<Contact> findContactEntity(UUID contactId, UUID tenantId);
+
+    /**
+     * Pobiera listę encji kontaktów dla danego klienta (bez paginacji DTO).
+     *
+     * <p>Odpowiednik {@code ContactRepository.findByCustomerId(UUID, UUID, int, int)}
+     * – w odróżnieniu od {@link #getCustomerHistory} zwraca encje domenowe, nie DTO.
+     * Używane przez {@code GdprService} do anonimizacji/usuwania danych klienta.
+     *
+     * @param customerId UUID klienta
+     * @param tenantId   UUID tenanta
+     * @param page       numer strony (0-based)
+     * @param size       rozmiar strony
+     * @return lista encji kontaktów klienta posortowana od najnowszych
+     */
+    List<Contact> findContactsByCustomerId(UUID customerId, UUID tenantId, int page, int size);
+
+    /**
+     * Zwraca Twilio Call SID przechowywany w {@code channel_metadata->>'sip_call_id'}
+     * dla danego contactId.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     * @return Optional z Twilio CallSid lub empty gdy kontakt nie istnieje lub brak sip_call_id
+     */
+    Optional<String> findCallSidByContactId(UUID contactId, UUID tenantId);
+
+    /**
+     * Zwraca contactId dla kontaktu z danym Twilio Call SID w {@code channel_metadata->>'sip_call_id'}.
+     *
+     * @param callSid  Twilio Call SID (CA...)
+     * @param tenantId UUID tenanta
+     * @return Optional z UUID contactId lub empty gdy brak kontaktu dla tego callSid
+     */
+    Optional<UUID> findContactIdByCallSid(String callSid, UUID tenantId);
+
+    /**
+     * Zapisuje Twilio Conference SID do {@code channel_metadata->>'conference_sid'} kontaktu
+     * identyfikowanego przez {@code sip_call_id} (Call SID).
+     *
+     * @param callSid       Twilio Call SID (CA...) – identyfikuje rekord contact przez sip_call_id
+     * @param conferenceSid Twilio Conference SID (CF...) – zapisywany do channel_metadata
+     * @param tenantId      UUID tenanta
+     */
+    void updateConferenceSidInMetadata(String callSid, String conferenceSid, UUID tenantId);
+
+    /**
+     * Uzupełnia {@code channel_metadata->>'sip_call_id'} dla kontaktu wychodzącego (OUTBOUND),
+     * który został utworzony przed inicjacją połączenia Twilio i nie ma jeszcze callSid.
+     *
+     * @param contactId UUID rekordu contact (z sesji połączenia)
+     * @param callSid   Twilio Call SID (CA...) do zapisania jako sip_call_id
+     * @param tenantId  UUID tenanta
+     */
+    void backfillCallSidInMetadata(UUID contactId, String callSid, UUID tenantId);
+
+    /**
+     * Tworzy nowy kontakt przez natywny INSERT (encja domenowa, bez przejścia przez DTO/walidację API).
+     *
+     * <p>Odpowiednik {@code ContactRepository.insert(Contact)} – używane przez adaptery telefonii
+     * i social/email, które same budują encję {@link Contact} przed zapisem.
+     *
+     * @param contact encja kontaktu do zapisu (contactId musi być ustawiony)
+     * @return przekazana encja (trigger oblicza duration_seconds przy UPDATE)
+     */
+    Contact insertContact(Contact contact);
+
+    /**
+     * Aktualizuje istniejącą encję kontaktu przez natywny UPDATE.
+     *
+     * <p>Odpowiednik {@code ContactRepository.update(Contact)} – używane przez konsumentów,
+     * którzy modyfikują encję {@link Contact} otrzymaną z {@link #findContactEntity} i zapisują ją
+     * bez przechodzenia przez pełny cykl {@code updateContact}/DTO.
+     *
+     * @param contact encja kontaktu z wypełnionym contactId i startedAt
+     * @return liczba zaktualizowanych wierszy (0 = kontakt nie istnieje)
+     */
+    int updateContactEntity(Contact contact);
+
+    /**
+     * Ustawia {@code campaign_contact_record_id} na kontakcie wychodzącym dialera.
+     *
+     * @param contactId UUID kontaktu
+     * @param recordId  UUID rekordu campaign_contact
+     * @param tenantId  UUID tenanta (cross-tenant safety)
+     * @return liczba zaktualizowanych wierszy
+     */
+    int updateCampaignContactRecordId(UUID contactId, UUID recordId, UUID tenantId);
+
+    /**
+     * Zwraca listę kontaktów powiązanych z danym rekordem listy kampanii.
+     *
+     * @param campaignContactRecordId UUID rekordu campaign_contact
+     * @param tenantId                UUID tenanta
+     * @return lista kontaktów posortowana od najnowszych
+     */
+    List<Contact> findByCampaignContactRecordId(UUID campaignContactRecordId, UUID tenantId);
+
+    /**
+     * Zwraca listę kontaktów powiązanych z danym callbackiem.
+     *
+     * @param callbackId UUID callbacku (scheduled_callback.callback_id)
+     * @param tenantId   UUID tenanta
+     * @return lista kontaktów z ustawionym callback_id równym podanemu callbackId
+     */
+    List<Contact> findByCallbackId(UUID callbackId, UUID tenantId);
+
+    /**
+     * Zwraca listę kontaktów powstałych z transferu kolejkowego danego kontaktu.
+     *
+     * @param transferredFromContactId UUID kontaktu źródłowego (contact.contact_id)
+     * @param tenantId                 UUID tenanta
+     * @return lista kontaktów z ustawionym transferred_from_contact_id równym podanemu UUID
+     */
+    List<Contact> findByTransferredFromContactId(UUID transferredFromContactId, UUID tenantId);
+
+    /**
+     * Pobiera kontakty ze statusem QUEUED dla danego tenanta (oczekujące na przydzielenie agenta).
+     *
+     * @param tenantId UUID tenanta
+     * @return lista oczekujących kontaktów posortowana od najstarszych (queuedAt ASC)
+     */
+    List<Contact> findQueuedContacts(UUID tenantId);
+
+    /**
+     * Aktualizuje status kontaktu po zdarzeniu telefonicznym (hangup → COMPLETED).
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta (zabezpieczenie cross-tenant)
+     * @param newStatus nowy status kontaktu (np. "COMPLETED", "ABANDONED")
+     * @param endedAt   czas zakończenia (może być null)
+     */
+    void updateContactStatusOnTelephonyEvent(UUID contactId, UUID tenantId, String newStatus, Instant endedAt);
+
+    /**
+     * Atomicznie ustawia status kontaktu tylko jeśli nie jest już w stanie terminalnym.
+     *
+     * @return true jeśli status został zmieniony
+     */
+    boolean updateContactStatusIfNotTerminal(UUID contactId, UUID tenantId, String newStatus, Instant endedAt);
+
+    /**
+     * Identyczna logika co {@link #updateContactStatusOnTelephonyEvent}, ale z propagacją
+     * {@code REQUIRES_NEW} – zawiesza zewnętrzną transakcję i commituje natychmiast.
+     */
+    void updateContactStatusRequiresNew(UUID contactId, UUID tenantId, String newStatus, Instant endedAt);
+
+    /**
+     * Aktualizuje {@code queue_id} kontaktu będącego w statusie QUEUED lub IVR.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta (cross-tenant safety)
+     * @param queueId   UUID docelowej kolejki wyznaczonej przez węzeł IVR
+     * @return liczba zaktualizowanych wierszy (0 = kontakt nie istnieje, ma inny tenant lub inny status)
+     */
+    int updateQueueId(UUID contactId, UUID tenantId, UUID queueId);
+
+    /**
+     * Aktualizuje URL nagrania dla podanego kontaktu.
+     *
+     * @param contactId    UUID kontaktu
+     * @param tenantId     UUID tenanta (do weryfikacji RLS i assertSameTenant)
+     * @param recordingUrl ścieżka S3 w formacie {@code /{tenantId}/{year}/{month}/{contactId}.mp3}
+     */
+    void updateRecordingUrl(UUID contactId, UUID tenantId, String recordingUrl);
+
+    /**
+     * Pobiera ścieżkę S3 nagrania dla danego kontaktu.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta (wymagany dla RLS)
+     * @return Optional z ścieżką S3 lub empty jeśli nagranie nie istnieje
+     */
+    Optional<String> findRecordingUrl(UUID contactId, UUID tenantId);
+
+    /**
+     * Usuwa URL nagrania (ustawia NULL) dla podanego kontaktu.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     */
+    void clearRecordingUrl(UUID contactId, UUID tenantId);
+
+    /**
+     * Pobiera listę kontaktów z nagraniami, których data zakończenia jest starsza niż podana data.
+     *
+     * @param tenantId        UUID tenanta
+     * @param cutoffTimestamp timestamp graniczny (ended_at < cutoffTimestamp)
+     * @param limit           maksymalna liczba rekordów do przetworzenia w jednej iteracji
+     * @return lista par (contactId, recordingUrl) do usunięcia
+     */
+    List<ContactRecordingEntry> findExpiredRecordings(UUID tenantId, Instant cutoffTimestamp, int limit);
+
+    /**
+     * Pobiera listę kluczy S3 nagrań dla wszystkich kontaktów danego klienta.
+     *
+     * @param customerId UUID klienta
+     * @param tenantId   UUID tenanta
+     * @return lista kluczy S3 (recording_url) – może być pusta gdy brak nagrań
+     */
+    List<String> findRecordingUrlsByCustomer(UUID customerId, UUID tenantId);
+
+    /**
+     * Pobiera wszystkie tenantId, które posiadają kontakty z nagraniami.
+     *
+     * <p><strong>WYŁĄCZNIE DLA SCHEDULED JOB ({@code RecordingRetentionJob}) – POMIJA RLS.</strong>
+     *
+     * @return lista unikalnych tenant_id posiadających nagrania
+     * @throws IllegalStateException gdy wywoływana z aktywnym TenantContext (błędne użycie)
+     */
+    List<UUID> findTenantsWithRecordings();
+
+    /**
+     * Pobiera paginowane, zagregowane statystyki agentów za dany zakres dat.
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  filtr po agencie (null = wszystkie)
+     * @param queueId  filtr po kolejce (null = wszystkie)
+     * @param channel  filtr po kanale (null = wszystkie)
+     * @param dateFrom data początku zakresu (włącznie)
+     * @param dateTo   data końca zakresu (wyłącznie)
+     * @param offset   offset paginacji
+     * @param size     rozmiar strony
+     * @return lista wierszy agregacji jako Object[]
+     */
+    List<Object[]> findAgentReportRows(UUID tenantId, UUID agentId, UUID queueId, String channel,
+                                        java.time.LocalDate dateFrom, java.time.LocalDate dateTo,
+                                        int offset, int size);
+
+    /**
+     * Zlicza łączną liczbę wierszy raportu agentów – do metadanych paginacji.
+     *
+     * @param tenantId UUID tenanta
+     * @param agentId  filtr po agencie (null = wszystkie)
+     * @param queueId  filtr po kolejce (null = wszystkie)
+     * @param channel  filtr po kanale (null = wszystkie)
+     * @param dateFrom data początku zakresu
+     * @param dateTo   data końca zakresu
+     * @return łączna liczba wierszy grupowania (agent + dzień + kanał)
+     */
+    long countAgentReportRows(UUID tenantId, UUID agentId, UUID queueId, String channel,
+                               java.time.LocalDate dateFrom, java.time.LocalDate dateTo);
+
+    /**
+     * Zwraca listę kontaktów, w których {@code channel_metadata->>'key' = value}.
+     *
+     * @param key      klucz JSON w channel_metadata (np. {@code "inboundContactId"})
+     * @param value    oczekiwana wartość tekstowa
+     * @param tenantId UUID tenanta (cross-tenant safety)
+     * @return lista kontaktów spełniających kryterium (posortowana od najnowszych)
+     */
+    List<Contact> findByChannelMetadataValue(String key, String value, UUID tenantId);
+
+    /**
+     * Oblicza średni czas obsługi kontaktu (handle time) w sekundach dla danej kolejki
+     * na podstawie zakończonych kontaktów z ostatnich 7 dni.
+     *
+     * @param tenantId UUID tenanta
+     * @param queueId  UUID kolejki
+     * @return średni czas obsługi w sekundach (domyślnie 300 jeśli brak danych)
+     */
+    double getAvgHandleTimeSeconds(UUID tenantId, UUID queueId);
+
+    /**
+     * Zlicza kontakty w statusie QUEUED dla danej kolejki tenanta.
+     *
+     * @param tenantId UUID tenanta
+     * @param queueId  UUID kolejki
+     * @return liczba kontaktów ze statusem QUEUED
+     */
+    int countWaitingByQueueId(UUID tenantId, UUID queueId);
+
+    /**
+     * Oblicza średni czas oczekiwania (w sekundach) kontaktów AKTUALNIE czekających
+     * w kolejkach tenanta (status QUEUED), na podstawie {@code NOW() - queued_at}.
+     *
+     * @param tenantId UUID tenanta
+     * @return średni czas oczekiwania w sekundach (0.0 jeśli brak kontaktów QUEUED)
+     */
+    double getAvgCurrentWaitSeconds(UUID tenantId);
+
+    /**
+     * Szuka aktywnego kontaktu social media dla danego nadawcy.
+     *
+     * @param tenantId         UUID tenanta
+     * @param senderExternalId ID nadawcy na platformie (np. Facebook user ID)
+     * @param channel          kanał (np. "SOCIAL_FACEBOOK")
+     * @return Optional z aktywnym kontaktem lub empty gdy brak
+     */
+    Optional<Contact> findActiveSocialContact(UUID tenantId, String senderExternalId, String channel);
+
+    /**
+     * Zwraca kontakt aktualnie przypisany (status ASSIGNED) do danego agenta.
+     *
+     * @param agentId  UUID agenta
+     * @param tenantId UUID tenanta
+     * @return Optional z kontaktem ASSIGNED lub empty gdy brak
+     */
+    Optional<Contact> findAssignedContactForAgent(UUID agentId, UUID tenantId);
+
+    /**
+     * Zwraca listę oczekujących kontaktów (status QUEUED) z detalami potrzebnymi
+     * do wyświetlenia w sidebarze agenta.
+     *
+     * @param tenantId UUID tenanta
+     * @return lista projekcji {@link QueuedContactView} posortowana wg queued_at ASC
+     */
+    List<QueuedContactView> findQueuedContactsForAgentView(UUID tenantId);
+
+    /**
+     * Pobiera zagregowane KPI agenta za podany zakres dat (dzień UTC).
+     *
+     * @param agentId  UUID agenta
+     * @param tenantId UUID tenanta
+     * @param dayStart początek dnia UTC (włącznie)
+     * @param dayEnd   koniec dnia UTC (wyłącznie)
+     * @return tablica Object[] z czterema wartościami liczbowymi
+     */
+    Object[] findAgentKpiToday(UUID agentId, UUID tenantId, Instant dayStart, Instant dayEnd);
+
+    /**
+     * Zapisuje transkrypt nagrania (Whisper) do pola {@code notes} kontaktu.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta (cross-tenant safety)
+     * @param notes     treść transkryptu do zapisania
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy kontakt nie istnieje
+     */
+    void updateNotes(UUID contactId, UUID tenantId, String notes);
+
+    /**
+     * Zwraca treść najnowszej transkrypcji rozmowy dla wskazanego kontaktu.
+     *
+     * <p>Odpowiednik {@code ContactTranscriptionRepository.findContentByContactId}.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta (cross-tenant safety)
+     * @return Optional z treścią transkrypcji lub empty() gdy brak rekordu
+     */
+    Optional<String> findTranscriptionContent(UUID contactId, UUID tenantId);
+
+    /**
+     * Zapisuje nowy rekord transkrypcji dla kontaktu.
+     *
+     * <p>Odpowiednik {@code ContactTranscriptionRepository.save}.
+     *
+     * @param contactId UUID kontaktu (musi istnieć w tabeli {@code contact})
+     * @param tenantId  UUID tenanta (cross-tenant safety)
+     * @param content   pełna transkrypcja rozmowy
+     * @param language  wykryty język ISO 639-1 (np. "pl", "en") – może być null
+     */
+    void saveTranscription(UUID contactId, UUID tenantId, String content, String language);
+
+    /**
+     * Zapisuje nowy rekord podsumowania AI dla kontaktu.
+     *
+     * <p>Odpowiednik {@code ContactAiSummaryRepository.save}.
+     *
+     * @param aiSummary encja podsumowania z uzupełnionymi wszystkimi polami
+     */
+    void saveAiSummary(ContactAiSummary aiSummary);
 }

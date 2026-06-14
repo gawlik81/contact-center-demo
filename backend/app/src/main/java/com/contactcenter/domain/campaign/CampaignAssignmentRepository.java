@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Repository
-public class CampaignAssignmentRepository extends TenantAwareRepository {
+class CampaignAssignmentRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Odczyt – flaga all_agents

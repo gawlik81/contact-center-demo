@@ -25,7 +25,7 @@ import java.util.UUID;
 @Slf4j
 @Repository
 @RequiredArgsConstructor
-public class ContactAiSummaryRepository extends TenantAwareRepository {
+class ContactAiSummaryRepository extends TenantAwareRepository {
 
     private final JdbcTemplate jdbcTemplate;
 

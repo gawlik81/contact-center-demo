@@ -13,6 +13,7 @@ import com.contactcenter.domain.repository.IvrAudioRepository;
 import com.contactcenter.domain.repository.IvrTreeRepository;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
+import com.contactcenter.domain.routing.IncomingCallRoutingService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.config.TwilioProperties;

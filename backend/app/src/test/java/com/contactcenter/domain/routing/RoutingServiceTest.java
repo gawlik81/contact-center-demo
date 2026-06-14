@@ -1,4 +1,4 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.routing;
 
 import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.user.AppUser.UserStatus;
@@ -9,13 +9,7 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.queue.QueueAssignmentService;
 import com.contactcenter.domain.queue.QueueService;
-import com.contactcenter.domain.routing.ContactAssignedEvent;
-import com.contactcenter.domain.routing.ContactQueuedMessage;
-import com.contactcenter.domain.routing.RoutingEngine;
-import com.contactcenter.domain.routing.RoutingRequest;
-import com.contactcenter.domain.routing.RoutingResult;
 import com.contactcenter.domain.contact.ContactEventService;
-import com.contactcenter.domain.service.RoutingService;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import jakarta.persistence.EntityNotFoundException;
@@ -90,11 +84,11 @@ class RoutingServiceTest {
     @Mock
     private ContactEventService contactEventService;
 
-    private RoutingService routingService;
+    private RoutingServiceImpl routingService;
 
     @BeforeEach
     void setUp() {
-        routingService = new RoutingService(routingEngine, queueService,
+        routingService = new RoutingServiceImpl(routingEngine, queueService,
                 customerService, rabbitTemplate, queueAssignmentService, userService,
                 broadcaster, contactService, contactEventService);
         // Domyślnie: all_agents=TRUE (brak filtru) – zachowanie sprzed BE-047

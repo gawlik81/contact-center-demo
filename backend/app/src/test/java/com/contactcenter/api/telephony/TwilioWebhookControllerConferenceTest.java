@@ -3,7 +3,7 @@ package com.contactcenter.api.telephony;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
-import com.contactcenter.domain.service.IncomingCallRoutingService;
+import com.contactcenter.domain.routing.IncomingCallRoutingService;
 import com.contactcenter.domain.service.IvrEngineService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.TwilioTelephonyAdapter;

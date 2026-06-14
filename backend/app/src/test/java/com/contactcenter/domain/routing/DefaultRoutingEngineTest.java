@@ -1,8 +1,7 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.routing;
 
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.routing.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

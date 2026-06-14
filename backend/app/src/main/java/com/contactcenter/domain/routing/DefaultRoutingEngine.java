@@ -35,7 +35,7 @@ import java.util.*;
 @Primary
 @Component
 @RequiredArgsConstructor
-public class DefaultRoutingEngine implements RoutingEngine {
+class DefaultRoutingEngine implements RoutingEngine {
 
     /** Prefix kluczy sesji agenta w Redis. */
     public static final String AGENT_SESSION_KEY_PREFIX = "session:agent:";

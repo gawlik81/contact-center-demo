@@ -1,7 +1,7 @@
 package com.contactcenter.domain.contact;
 
 import com.contactcenter.domain.repository.TenantAwareRepository;
-import com.contactcenter.domain.service.RoutingService;
+import com.contactcenter.domain.routing.RoutingService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;

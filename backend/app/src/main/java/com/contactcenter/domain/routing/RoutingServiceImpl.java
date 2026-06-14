@@ -1,24 +1,17 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.routing;
 
 import com.contactcenter.api.user.dto.AgentStatusChangedEvent;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserStatus;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.queue.Queue;
-import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.contact.QueuedContactView;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.queue.QueueAssignmentService;
 import com.contactcenter.domain.queue.QueueService;
-import com.contactcenter.domain.routing.ContactAssignedEvent;
 import com.contactcenter.domain.contact.ContactEventService;
-import com.contactcenter.domain.routing.ContactQueuedMessage;
-import com.contactcenter.domain.routing.DirectAgentAssignmentMessage;
-import com.contactcenter.domain.routing.RoutingEngine;
-import com.contactcenter.domain.routing.RoutingRequest;
-import com.contactcenter.domain.routing.RoutingResult;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -40,17 +33,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Serwis domenowy orkiestrujący routing kontaktów do agentów.
- *
- * <p>Odpowiedzialności:
- * <ul>
- *   <li>Pobieranie konfiguracji kolejki z bazy danych</li>
- *   <li>Budowanie {@link RoutingRequest} i delegowanie do {@link RoutingEngine}</li>
- *   <li>Aktualizacja statusu kontaktu po przydzieleniu</li>
- *   <li>Publikacja eventów domenowych ({@code contact.assigned})</li>
- *   <li>Nasłuchiwanie eventów {@code contact.queued} i pierwotne próby routingu</li>
- *   <li>Nasłuchiwanie eventów {@code agent.status.changed} i retry routingu dla oczekujących kontaktów</li>
- * </ul>
+ * Implementacja {@link RoutingService}.
  *
  * <p>Metoda {@link #routeContact} jest synchroniczna – wywołanie z {@link RabbitListener}
  * pozwala Spring AMQP poprawnie obsłużyć wyjątki (NACK / DLQ) przy błędzie routingu.
@@ -62,7 +45,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class RoutingService {
+class RoutingServiceImpl implements RoutingService {
 
     private static final String RK_CONTACT_ASSIGNED = "contact.assigned";
 
@@ -80,31 +63,7 @@ public class RoutingService {
     // Główna metoda routingu
     // =========================================================================
 
-    /**
-     * Routuje kontakt do najlepszego dostępnego agenta.
-     *
-     * <p>Przepływ:
-     * <ol>
-     *   <li>Pobierz kolejkę z bazy danych</li>
-     *   <li>Pobierz kontakt z bazy danych</li>
-     *   <li>Wyznacz zbiór uprawnionych agentów: gdy {@code all_agents=FALSE} – jeden SELECT UNION
-     *       ({@code queue_agent} + grupy); gdy {@code all_agents=TRUE} – null (brak filtru)</li>
-     *   <li>Zbuduj {@link RoutingRequest} z konfiguracji kolejki + {@code eligibleAgentIds}</li>
-     *   <li>Wywołaj {@link RoutingEngine#findBestAgent(RoutingRequest)}</li>
-     *   <li>Jeśli znaleziono agenta: zaktualizuj kontakt (status ACTIVE, agent_id) i opublikuj
-     *       event {@code contact.assigned}</li>
-     *   <li>Jeśli nie znaleziono: zwróć empty – kontakt pozostaje w statusie QUEUED w DB.
-     *       Retry nastąpi gdy agent zmieni status na AVAILABLE (patrz {@link #onAgentStatusChanged}).</li>
-     * </ol>
-     *
-     * <p>Metoda jest synchroniczna – wywołanie z {@link RabbitListener} na {@code contact.queued}
-     * lub {@code agent.status.changed} pozwala Spring AMQP poprawnie obsłużyć NACK przy wyjątku.
-     *
-     * @param contactId UUID kontaktu do routowania
-     * @param queueId   UUID kolejki docelowej
-     * @param tenantId  UUID tenanta
-     * @return Optional z UUID agenta lub empty gdy nie znaleziono
-     */
+    @Override
     @Transactional
     public Optional<UUID> routeContact(UUID contactId, UUID queueId, UUID tenantId) {
         log.info("[RoutingService] Routing kontaktu: contactId={}, queueId={}, tenantId={}",

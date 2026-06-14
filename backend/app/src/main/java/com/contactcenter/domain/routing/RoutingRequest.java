@@ -2,7 +2,6 @@ package com.contactcenter.domain.routing;
 
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.queue.Queue;
-import com.contactcenter.domain.service.RoutingService;
 
 import java.util.ArrayList;
 import java.util.List;

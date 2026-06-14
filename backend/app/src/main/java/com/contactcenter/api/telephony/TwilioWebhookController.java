@@ -5,7 +5,7 @@ import com.contactcenter.api.contact.dto.CreateContactRequest;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.routing.RouteResult;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.service.IncomingCallRoutingService;
+import com.contactcenter.domain.routing.IncomingCallRoutingService;
 import com.contactcenter.domain.service.IvrEngineService;
 import com.contactcenter.domain.service.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.TwilioTelephonyAdapter;

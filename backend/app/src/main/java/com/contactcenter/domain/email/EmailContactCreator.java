@@ -7,7 +7,7 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
-import com.contactcenter.domain.service.RoutingService;
+import com.contactcenter.domain.routing.RoutingService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;

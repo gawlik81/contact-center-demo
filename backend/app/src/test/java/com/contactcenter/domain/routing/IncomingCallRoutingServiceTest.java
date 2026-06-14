@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.routing;
 
 import com.contactcenter.domain.model.PhoneNumber;
 import com.contactcenter.domain.model.PhoneRoutingRule;
@@ -6,7 +6,6 @@ import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.repository.PhoneNumberRepository;
 import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
 import com.contactcenter.domain.tenant.TenantService;
-import com.contactcenter.domain.routing.RouteResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -46,7 +45,7 @@ class IncomingCallRoutingServiceTest {
     @Mock
     private TenantService tenantService;
 
-    private IncomingCallRoutingService service;
+    private IncomingCallRoutingServiceImpl service;
 
     private static final UUID TENANT_ID = UUID.randomUUID();
     private static final UUID PHONE_NUMBER_ID = UUID.randomUUID();
@@ -59,7 +58,7 @@ class IncomingCallRoutingServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new IncomingCallRoutingService(phoneNumberRepository, routingRuleRepository, tenantService);
+        service = new IncomingCallRoutingServiceImpl(phoneNumberRepository, routingRuleRepository, tenantService);
 
         // Domyślny tenant z Warsaw timezone
         Tenant tenant = Tenant.builder().build();

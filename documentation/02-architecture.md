@@ -15,6 +15,12 @@ System pozostaje **modularnym monolitem** (ADR-01 z `ARCHITECTURE.md` jest wcią
 - Samodzielny serwis Python/FastAPI (`voicebot/`) do zadań AI/ASR/NLU – jedyny serwis
   działający poza JVM, zgodnie z ADR-06.
 
+Logika biznesowa żyje w pakietach `com.contactcenter.domain.<domena>` – każda domena
+(`campaign`, `routing`, `voicebot`, `etl`, ...) jest samodzielnym, zenkapsulowanym modułem
+(repozytoria package-private, dostęp cross-domain wyłącznie przez publiczny interfejs serwisu).
+Pełny opis konwencji pakietów domenowych i wzorca enkapsulacji – sekcja "Konwencje pakietów
+domenowych i enkapsulacja" w [`04-backend.md`](04-backend.md).
+
 ## 2.2 Diagram wysokopoziomowy (as-built)
 
 ```
@@ -102,8 +108,8 @@ Pełny opis JWT/MFA/role – sekcja "Security" w [`04-backend.md`](04-backend.md
 
 ## 2.6 Przepływ danych operacyjnych → analitycznych (DWH)
 
-`EtlSyncService` (zob. `backend/app/src/main/java/com/contactcenter/domain/service/EtlSyncService.java`)
-działa jako zadania `@Scheduled(fixedDelayString = "${etl.sync.fixed-delay-ms:60000}")`:
+`EtlSyncService` (zob. `backend/app/src/main/java/com/contactcenter/domain/etl/EtlSyncService.java`
++ `EtlSyncServiceImpl.java`) działa jako zadania `@Scheduled(fixedDelayString = "${etl.sync.fixed-delay-ms:60000}")`:
 
 - `runContactSync()` – synchronizuje tabelę kontaktów do `ContactDwRow` w ClickHouse.
 - `runCampaignContactSync()` – fakty kampanii (`CampaignDwRow`).

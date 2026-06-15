@@ -35,7 +35,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class EmailContactCreator {
+class EmailContactCreator {
 
     private final ContactService contactService;
     private final CustomerService customerService;

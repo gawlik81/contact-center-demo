@@ -45,7 +45,7 @@ import java.util.UUID;
         havingValue = "true",
         matchIfMissing = true
 )
-public class AgentBreakActivator {
+class AgentBreakActivator {
 
     private final TenantService tenantService;
     private final AgentBreakRepository agentBreakRepository;

@@ -26,7 +26,7 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DeadLetterConsumer {
+class DeadLetterConsumer {
 
     private static final int MAX_BODY_LOG_LENGTH = 500;
 

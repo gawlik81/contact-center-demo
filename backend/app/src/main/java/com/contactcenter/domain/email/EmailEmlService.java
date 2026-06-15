@@ -42,7 +42,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class EmailEmlService {
+class EmailEmlService {
 
     private static final DateTimeFormatter YEAR_FMT  = DateTimeFormatter.ofPattern("yyyy").withZone(ZoneOffset.UTC);
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("MM").withZone(ZoneOffset.UTC);

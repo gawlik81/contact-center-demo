@@ -888,15 +888,43 @@ Pełny przegląd wszystkich pakietów `domain.*` względem wzorca enkapsulacji (
 
 Build: ✅ (`mvn package -pl app -DskipTests`). Testy: ✅ (`mvn test -pl app`, exit 0).
 
-**Domeny zgodne ✅** (bez zmian): `agentgroup` (poza TODO niżej), `audit`, `campaign`, `contact`, `customer`, `email` (poza TODO niżej), `etl`, `gdpr`, `messaging`, `phonenumber`, `queue`, `recording`, `reporting`, `routing`, `social`, `telephony` (poza TODO niżej), `tenant`, `user`, `voicebot`, `websocket`, `agentbreak`, `disposition` (po poprawkach), `ivr` (poza TODO niżej).
+**Domeny zgodne ✅** (bez zmian): `agentgroup`, `audit`, `campaign`, `contact`, `customer`, `email`, `etl`, `gdpr`, `messaging`, `phonenumber`, `queue`, `recording`, `reporting`, `routing`, `social`, `telephony`, `tenant`, `user`, `voicebot`, `websocket`, `agentbreak`, `disposition`, `ivr`.
 
-**TODO do kolejnej iteracji (wymagają osobnej delegacji/commitów per domena):**
+### Domknięcie TODO z poprzedniej iteracji (3 commity)
 
-1. **`ivr.IvrService` → `phonenumber.PhoneRoutingRuleServiceImpl`**: `PhoneRoutingRuleServiceImpl` wstrzykuje konkretną klasę `IvrService` (`@Autowired @Lazy` setter) zamiast publicznego interfejsu. `IvrService` jest `public class` bez interfejsu (podobnie jak `IvrEngineService`, ale ten drugi nie ma cross-domain konsumentów spoza `ivr`). Naprawa: wydzielić `IvrService` → interfejs `IvrService` + `IvrServiceImpl` (analogicznie do wzorca z `phonenumber`/`gdpr`/`routing`), zachowując cykl `@Lazy` na obu stronach (`PhoneRoutingRuleServiceImpl.setIvrService` / `IvrServiceImpl.setPhoneRoutingRuleService`).
+1. **`ivr.IvrService` → interfejs + `IvrServiceImpl`** (commit `4bc6647`): wydzielono publiczny interfejs `IvrService` (javadoc z oryginału) + package-private `IvrServiceImpl` (`@Service`). Cykl `@Lazy` `ivr` ↔ `phonenumber` zachowany bez zmian (`IvrServiceImpl.setPhoneRoutingRuleService`, `PhoneRoutingRuleServiceImpl.setIvrService` – pole już było typu interfejsowego `IvrService`, bez zmian). Brak istniejących testów dla `IvrService`.
 
-2. **`agentgroup.AgentGroupRepository` → `campaign.CampaignAssignmentServiceImpl` i `queue.QueueAssignmentServiceImpl`**: obie klasy wstrzykują repozytorium `AgentGroupRepository` cross-domain (metody `findByIdAndTenantId`, `countMembers`). Naprawa: dodać brakujące metody do publicznego `AgentGroupService` (np. `getGroupSummary(groupId, tenantId)` zwracające dane potrzebne do `AgentGroupSummary`), zamienić wstrzyknięcia repozytorium na serwis, repozytorium → `package-private`.
+2. **`agentgroup.AgentGroupRepository` → enkapsulacja przez `AgentGroupService`** (commit `a76149a`): `AgentGroupService` (był `public class`) → publiczny interfejs + package-private `AgentGroupServiceImpl`. Dodano nowy rekord `AgentGroupOverview` (groupId, name, memberCount) oraz metodę `AgentGroupService.findGroupSummary(tenantId, groupId)`. `CampaignAssignmentServiceImpl` i `QueueAssignmentServiceImpl` przepisane z bezpośredniego `AgentGroupRepository` na `AgentGroupService.findGroupSummary`. Nowy cykl `QueueAssignmentServiceImpl` ↔ `AgentGroupServiceImpl` (przez `QueueAssignmentService.isGroupAssignedToAnyQueue` używane w `deleteGroup`) rozbity setter injection `@Autowired @Lazy` na stronie `QueueAssignmentServiceImpl.setAgentGroupService` (wzorzec `RecordingServiceImpl`). `AgentGroupRepository` → `package-private`. Testy: `AgentGroupServiceTest` (`@InjectMocks AgentGroupServiceImpl`), `QueueAssignmentServiceTest` (mock `AgentGroupService` + ręczny `setAgentGroupService` w `@BeforeEach`).
 
-3. **`email.EmailMessageRepository` → `contact.AiSummaryServiceImpl` i `contact.ContactServiceImpl`**: obie klasy wstrzykują `EmailMessageRepository` cross-domain (`findByContactId`, `findById`). Dodatkowo `api.email.EmailController` wstrzykuje repozytorium bezpośrednio (pre-existing, poza zakresem domain-to-domain, ale wart odnotowania). Naprawa: dodać publiczny `EmailMessageService` (lub rozszerzyć istniejący serwis email) z metodami potrzebnymi do odczytu treści/wiadomości po `contactId`/`id`, zamienić wstrzyknięcia w `domain.contact` na ten serwis, `EmailMessageRepository` → `package-private` (jeśli `EmailController` zostanie również zmigrowany na serwis – do oceny w osobnej iteracji).
+3. **`email.EmailMessageRepository` → enkapsulacja przez nowy `EmailMessageService`** (commit `5008cb0`): nowy `EmailMessageService` (plain `public class @Service`, konwencja `domain.email` – brak interfejs+Impl w tej domenie) jako fasada nad `EmailMessageRepository` (`findById`, `findByContactId`, `findFirstInboundByContactId`, `findByThreadRootMessageId`, `findAll`). `contact.AiSummaryServiceImpl` i `contact.ContactServiceImpl` przepisane na nowy serwis. **`api.email.EmailController` również zmigrowany** (4 wywołania – zmiana okazała się trywialna, bez dodatkowego refaktoru kontrolera) – brak świadomych wyjątków od wzorca. `EmailMessageRepository` → `package-private`. Testy: `AiSummaryServiceImplTest`, `ContactServiceTest` (mock zmieniony z `EmailMessageRepository` na `EmailMessageService`).
+
+Build po każdym punkcie: ✅ (`mvn package -pl app -DskipTests`). Pełny przebieg testów: **1125 testów, 1 błąd** – ten sam znany pre-existing flaky `SupervisorMetricsServiceTest$KpiCallsInIvrTests` (Redis-dependent, niezależny od refaktoru, patrz "Znane problemy").
+
+### Audyt: `*ServiceImpl` → package-private (kontynuacja serii)
+
+Pełny przegląd wszystkich pakietów `domain.*` pod kątem `public class XxxServiceImpl` (powinno być package-private) oraz `public class XxxService` bez interfejsu (punkt 4 wzorca).
+
+**Wynik dla `*ServiceImpl`:** wszystkie 34 pliki `*ServiceImpl.java` w `domain.*` są już deklarowane jako `class XxxServiceImpl implements XxxService` (package-private) – brak naruszeń, nic do zmiany. Przykłady wskazane przez użytkownika (`telephony`, `disposition`, `agentbreak`) **nie mają plików `*ServiceImpl`** – w tych pakietach są konkretne klasy `public class XxxService` bez interfejsu (patrz niżej).
+
+**Drobne poprawki wykonane od razu** (klasy bez interfejsu, `public` bez uzasadnienia – tylko same-package/javadoc-only referencje), zmiana `public class` → `class`:
+- `domain.email.EmailEmlService`, `domain.email.EmailContactCreator`, `domain.email.EmailRoutingService`, `domain.email.EmailEventPublisher` (wszystkie używane wyłącznie wewnątrz `domain.email`; cross-package "referencje" to tylko `{@code}`/`{@link}` w javadoc).
+- `domain.messaging.DeadLetterConsumer` (jedyna referencja – `package-info.java` javadoc).
+- `domain.agentbreak.AgentBreakActivator` (scheduler `@Component`, jedyne referencje – javadoc w `AgentBreakRepository`).
+- `domain.telephony.CallEventEnricher` (`@Component`, jedyna referencja – javadoc w `CallEvent`).
+
+**Nowe TODO – klasy `public class XxxService` bez interfejsu, z realnymi cross-domain/`api.*` konsumentami** (większy refaktor: wydzielenie interfejs+Impl, analogicznie do `AgentGroupService`/`AiSummaryService`/`WaitTimeEstimationService` z poprzednich audytów – poza zakresem tej iteracji):
+- `agentbreak.AgentBreakService` (konsument: `api.agentbreak.AgentBreakController`)
+- `agentbreak.AgentCalendarService` (konsumenci: `domain.campaign.ScheduledCallbackService`, `api.agentbreak.AgentCalendarController`)
+- `disposition.CustomDispositionService` (konsumenci: `api.disposition.CustomDispositionController`, `api.contact.ContactController`)
+- `disposition.DispositionSetService` (konsument: `api.disposition.DispositionSetController`)
+- `email.EmailEncryptionService`, `email.EmailMessageService`, `email.EmailPollingService`, `email.EmailSendService`, `email.EmailTemplateService`, `email.TemplateVariableResolver` (konsument: `api.email.EmailController`/`EmailTemplateController`; `EmailMessageService` ma też cross-domain konsumentów `domain.contact.*`)
+- `ivr.IvrEngineService` (liczni konsumenci: `infrastructure.config.AsyncConfig`, `domain.contact.*`, `domain.telephony.TwilioTelephonyAdapter`, `domain.queue.QueueService`, `api.telephony.TwilioWebhookController`, `api.ivr.IvrController`)
+- `social.SocialIntegrationService`, `social.SocialMessagePublisher`, `social.SocialMessageService` (konsumenci: `api.social.*`, `domain.contact.ContactRepository` – javadoc only)
+- `telephony.TelephonyEventPublisher` (konsumenci: `domain.email.EmailEventPublisher`, `domain.contact.ContactServiceImpl`, `api.telephony.TelephonyWebhookController`)
+- `telephony.TransferService` (konsumenci: `domain.queue.QueueService`, `api.telephony.TransferController`)
+- `websocket.WebSocketEventBroadcaster` (liczni konsumenci cross-domain: `recording`, `routing`, `telephony`, `queue`, `reporting`, `contact`, `infrastructure.aspect.CrossTenantAspect`)
+
+Build: ✅ czysty (`mvn package -pl app -DskipTests`). Pełny przebieg testów: **1125 testów, 1 błąd** – ten sam znany pre-existing flaky `SupervisorMetricsServiceTest$KpiCallsInIvrTests` (patrz "Znane problemy").
 
 ### Znane duże follow-upy
 

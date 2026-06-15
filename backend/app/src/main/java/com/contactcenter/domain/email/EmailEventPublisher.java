@@ -22,7 +22,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class EmailEventPublisher {
+class EmailEventPublisher {
 
     private static final String ROUTING_KEY_PREFIX = "email.";
 

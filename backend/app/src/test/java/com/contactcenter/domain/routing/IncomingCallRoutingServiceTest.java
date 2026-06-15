@@ -3,8 +3,8 @@ package com.contactcenter.domain.routing;
 import com.contactcenter.domain.phonenumber.PhoneNumber;
 import com.contactcenter.domain.phonenumber.PhoneRoutingRule;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.phonenumber.PhoneNumberRepository;
-import com.contactcenter.domain.phonenumber.PhoneRoutingRuleRepository;
+import com.contactcenter.domain.phonenumber.PhoneNumberService;
+import com.contactcenter.domain.phonenumber.PhoneRoutingRuleService;
 import com.contactcenter.domain.tenant.TenantService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,9 +39,9 @@ import static org.mockito.Mockito.when;
 class IncomingCallRoutingServiceTest {
 
     @Mock
-    private PhoneNumberRepository phoneNumberRepository;
+    private PhoneNumberService phoneNumberService;
     @Mock
-    private PhoneRoutingRuleRepository routingRuleRepository;
+    private PhoneRoutingRuleService phoneRoutingRuleService;
     @Mock
     private TenantService tenantService;
 
@@ -58,7 +58,7 @@ class IncomingCallRoutingServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new IncomingCallRoutingServiceImpl(phoneNumberRepository, routingRuleRepository, tenantService);
+        service = new IncomingCallRoutingServiceImpl(phoneNumberService, phoneRoutingRuleService, tenantService);
 
         // Domyślny tenant z Warsaw timezone
         Tenant tenant = Tenant.builder().build();
@@ -67,7 +67,7 @@ class IncomingCallRoutingServiceTest {
 
         // Domyślny aktywny numer telefonu
         PhoneNumber phone = buildPhoneNumber(true);
-        when(phoneNumberRepository.findByNumberAndTenantId(CALLED_NUMBER, TENANT_ID))
+        when(phoneNumberService.findActiveNumber(TENANT_ID, CALLED_NUMBER))
                 .thenReturn(Optional.of(phone));
     }
 
@@ -88,7 +88,7 @@ class IncomingCallRoutingServiceTest {
             PhoneRoutingRule rule = buildRule(List.of(1, 2, 3, 4, 5),
                     LocalTime.of(9, 0), LocalTime.of(17, 0),
                     IVR_TREE_ID, null, true);
-            when(routingRuleRepository.findByPhoneNumberIdAndTenantId(eq(PHONE_NUMBER_ID), eq(TENANT_ID)))
+            when(phoneRoutingRuleService.findActiveRulesForPhoneNumber(eq(TENANT_ID), eq(PHONE_NUMBER_ID)))
                     .thenReturn(List.of(rule));
 
             RouteResult result = service.resolveRoute(TENANT_ID, CALLED_NUMBER, callTime);
@@ -110,7 +110,7 @@ class IncomingCallRoutingServiceTest {
             PhoneRoutingRule rule = buildRule(List.of(1, 2, 3, 4, 5),
                     LocalTime.of(17, 0), LocalTime.of(20, 0),
                     null, QUEUE_ID, true);
-            when(routingRuleRepository.findByPhoneNumberIdAndTenantId(eq(PHONE_NUMBER_ID), eq(TENANT_ID)))
+            when(phoneRoutingRuleService.findActiveRulesForPhoneNumber(eq(TENANT_ID), eq(PHONE_NUMBER_ID)))
                     .thenReturn(List.of(rule));
 
             RouteResult result = service.resolveRoute(TENANT_ID, CALLED_NUMBER, callTime);
@@ -136,7 +136,7 @@ class IncomingCallRoutingServiceTest {
             PhoneRoutingRule rule = buildRule(List.of(1, 2, 3, 4, 5),
                     LocalTime.of(9, 0), LocalTime.of(17, 0),
                     IVR_TREE_ID, null, true);
-            when(routingRuleRepository.findByPhoneNumberIdAndTenantId(eq(PHONE_NUMBER_ID), eq(TENANT_ID)))
+            when(phoneRoutingRuleService.findActiveRulesForPhoneNumber(eq(TENANT_ID), eq(PHONE_NUMBER_ID)))
                     .thenReturn(List.of(rule));
 
             RouteResult result = service.resolveRoute(TENANT_ID, CALLED_NUMBER, callTime);
@@ -153,7 +153,7 @@ class IncomingCallRoutingServiceTest {
             PhoneRoutingRule rule = buildRule(List.of(1, 2, 3, 4, 5),
                     LocalTime.of(9, 0), LocalTime.of(17, 0),
                     IVR_TREE_ID, null, true);
-            when(routingRuleRepository.findByPhoneNumberIdAndTenantId(eq(PHONE_NUMBER_ID), eq(TENANT_ID)))
+            when(phoneRoutingRuleService.findActiveRulesForPhoneNumber(eq(TENANT_ID), eq(PHONE_NUMBER_ID)))
                     .thenReturn(List.of(rule));
 
             RouteResult result = service.resolveRoute(TENANT_ID, CALLED_NUMBER, callTime);
@@ -164,7 +164,7 @@ class IncomingCallRoutingServiceTest {
         @Test
         @DisplayName("Nieznany numer → REJECT")
         void unknownPhoneNumber() {
-            when(phoneNumberRepository.findByNumberAndTenantId(any(), eq(TENANT_ID)))
+            when(phoneNumberService.findActiveNumber(eq(TENANT_ID), any()))
                     .thenReturn(Optional.empty());
 
             RouteResult result = service.resolveRoute(TENANT_ID, "+48999000000", atWarsaw(2024, 1, 1, 10, 0));
@@ -190,7 +190,7 @@ class IncomingCallRoutingServiceTest {
             PhoneRoutingRule rule = buildRule(List.of(1, 2, 3, 4, 5),
                     LocalTime.of(9, 0), LocalTime.of(17, 0),
                     IVR_TREE_ID, null, true);
-            when(routingRuleRepository.findByPhoneNumberIdAndTenantId(eq(PHONE_NUMBER_ID), eq(TENANT_ID)))
+            when(phoneRoutingRuleService.findActiveRulesForPhoneNumber(eq(TENANT_ID), eq(PHONE_NUMBER_ID)))
                     .thenReturn(List.of(rule));
 
             RouteResult result = service.resolveRoute(TENANT_ID, CALLED_NUMBER, callTime);
@@ -207,7 +207,7 @@ class IncomingCallRoutingServiceTest {
             PhoneRoutingRule rule = buildRule(List.of(1, 2, 3, 4, 5),
                     LocalTime.of(9, 0), LocalTime.of(17, 0),
                     IVR_TREE_ID, null, true);
-            when(routingRuleRepository.findByPhoneNumberIdAndTenantId(eq(PHONE_NUMBER_ID), eq(TENANT_ID)))
+            when(phoneRoutingRuleService.findActiveRulesForPhoneNumber(eq(TENANT_ID), eq(PHONE_NUMBER_ID)))
                     .thenReturn(List.of(rule));
 
             RouteResult result = service.resolveRoute(TENANT_ID, CALLED_NUMBER, callTime);

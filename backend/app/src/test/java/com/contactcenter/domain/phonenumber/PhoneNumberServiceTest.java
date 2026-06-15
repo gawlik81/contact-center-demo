@@ -45,7 +45,7 @@ class PhoneNumberServiceTest {
     @Mock private PhoneRoutingRuleRepository phoneRoutingRuleRepository;
 
     @InjectMocks
-    private PhoneNumberService phoneNumberService;
+    private PhoneNumberServiceImpl phoneNumberService;
 
     @BeforeEach
     void setUp() {

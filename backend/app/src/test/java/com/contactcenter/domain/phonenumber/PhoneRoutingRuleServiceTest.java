@@ -50,9 +50,10 @@ class PhoneRoutingRuleServiceTest {
 
     @Mock private PhoneRoutingRuleRepository phoneRoutingRuleRepository;
     @Mock private PhoneNumberRepository phoneNumberRepository;
+    @Mock private com.contactcenter.domain.ivr.IvrService ivrService;
 
     @InjectMocks
-    private PhoneRoutingRuleService phoneRoutingRuleService;
+    private PhoneRoutingRuleServiceImpl phoneRoutingRuleService;
 
     @BeforeEach
     void setUp() {

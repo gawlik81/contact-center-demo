@@ -18,7 +18,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class IvrTreeRepository extends TenantAwareRepository {
+class IvrTreeRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Odczyt

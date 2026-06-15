@@ -4,10 +4,12 @@ import com.contactcenter.api.ivr.dto.CreateIvrRequest;
 import com.contactcenter.api.ivr.dto.IvrResponse;
 import com.contactcenter.api.ivr.dto.UpdateIvrRequest;
 import com.contactcenter.domain.exception.ConflictException;
-import com.contactcenter.domain.phonenumber.PhoneRoutingRuleRepository;
+import com.contactcenter.domain.phonenumber.PhoneRoutingRuleService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +33,18 @@ import java.util.UUID;
 public class IvrService {
 
     private final IvrTreeRepository ivrTreeRepository;
-    private final PhoneRoutingRuleRepository phoneRoutingRuleRepository;
+
+    /**
+     * PhoneRoutingRuleService – wstrzykiwany przez setter z {@code @Lazy} aby uniknąć
+     * cyklicznej zależności: PhoneRoutingRuleServiceImpl → IvrService → PhoneRoutingRuleService.
+     */
+    private PhoneRoutingRuleService phoneRoutingRuleService;
+
+    @Autowired
+    @Lazy
+    public void setPhoneRoutingRuleService(PhoneRoutingRuleService phoneRoutingRuleService) {
+        this.phoneRoutingRuleService = phoneRoutingRuleService;
+    }
 
     // =========================================================================
     // Lista
@@ -209,7 +222,7 @@ public class IvrService {
     public IvrResponse deactivateIvrTree(UUID ivrId, UUID tenantId) {
         IvrTree ivr = findOrThrow(ivrId, tenantId);
 
-        if (phoneRoutingRuleRepository.existsRulesByIvrTreeId(ivrId, tenantId)) {
+        if (phoneRoutingRuleService.existsRulesByIvrTreeId(tenantId, ivrId)) {
             throw new ConflictException(
                     "Nie można deaktywować drzewa IVR przypisanego do reguły routingu. "
                     + "Usuń drzewo z reguł routingu przed deaktywacją.");
@@ -225,6 +238,26 @@ public class IvrService {
 
         IvrTree refreshed = findOrThrow(ivrId, tenantId);
         return IvrResponse.from(refreshed);
+    }
+
+    // =========================================================================
+    // Cross-domain
+    // =========================================================================
+
+    /**
+     * Sprawdza czy drzewo IVR o podanym identyfikatorze istnieje i jest aktywne.
+     *
+     * <p>Używane przez {@code domain.phonenumber.PhoneRoutingRuleService} do walidacji
+     * {@code ivrTreeId} przy tworzeniu/aktualizacji reguły routingu – reguła może wskazywać
+     * tylko na aktywne drzewo IVR.
+     *
+     * @param tenantId UUID tenanta
+     * @param ivrId    UUID drzewa IVR
+     * @return {@code true} gdy drzewo istnieje i ma {@code is_active = true}
+     */
+    @Transactional(readOnly = true)
+    public boolean existsActiveIvrTree(UUID tenantId, UUID ivrId) {
+        return ivrTreeRepository.existsActiveByIvrId(ivrId, tenantId);
     }
 
     // =========================================================================

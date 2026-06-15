@@ -2,8 +2,8 @@ package com.contactcenter.domain.routing;
 
 import com.contactcenter.domain.phonenumber.PhoneNumber;
 import com.contactcenter.domain.phonenumber.PhoneRoutingRule;
-import com.contactcenter.domain.phonenumber.PhoneNumberRepository;
-import com.contactcenter.domain.phonenumber.PhoneRoutingRuleRepository;
+import com.contactcenter.domain.phonenumber.PhoneNumberService;
+import com.contactcenter.domain.phonenumber.PhoneRoutingRuleService;
 import com.contactcenter.domain.tenant.TenantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +24,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 class IncomingCallRoutingServiceImpl implements IncomingCallRoutingService {
 
-    private final PhoneNumberRepository phoneNumberRepository;
-    private final PhoneRoutingRuleRepository routingRuleRepository;
+    private final PhoneNumberService phoneNumberService;
+    private final PhoneRoutingRuleService phoneRoutingRuleService;
     private final TenantService tenantService;
 
     @Override
@@ -44,22 +44,18 @@ class IncomingCallRoutingServiceImpl implements IncomingCallRoutingService {
         log.debug("[Routing] Połączenie: numer={}, tenant={}, localTime={}, dayOfWeek={}",
                 calledNumber, tenantId, localCall, dayOfWeek);
 
-        // 2. Znajdź konfigurację numeru telefonu
-        Optional<PhoneNumber> phoneOpt = phoneNumberRepository.findByNumberAndTenantId(calledNumber, tenantId);
+        // 2. Znajdź aktywną konfigurację numeru telefonu
+        Optional<PhoneNumber> phoneOpt = phoneNumberService.findActiveNumber(tenantId, calledNumber);
         if (phoneOpt.isEmpty()) {
-            log.info("[Routing] Numer {} nieznany dla tenanta {}", calledNumber, tenantId);
+            log.info("[Routing] Numer {} nieznany lub nieaktywny dla tenanta {}", calledNumber, tenantId);
             return RouteResult.reject();
         }
 
         PhoneNumber phone = phoneOpt.get();
-        if (!phone.isActive()) {
-            log.info("[Routing] Numer {} jest nieaktywny dla tenanta {}", calledNumber, tenantId);
-            return RouteResult.reject();
-        }
 
         // 3. Pobierz reguły routingu dla numeru (posortowane po time_start ASC)
-        List<PhoneRoutingRule> rules = routingRuleRepository.findByPhoneNumberIdAndTenantId(
-                phone.getPhoneNumberId(), tenantId);
+        List<PhoneRoutingRule> rules = phoneRoutingRuleService.findActiveRulesForPhoneNumber(
+                tenantId, phone.getPhoneNumberId());
 
         // 4. Znajdź pierwszą pasującą regułę
         for (PhoneRoutingRule rule : rules) {

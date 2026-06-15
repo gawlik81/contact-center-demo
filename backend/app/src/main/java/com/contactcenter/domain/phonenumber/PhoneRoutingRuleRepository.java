@@ -25,7 +25,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class PhoneRoutingRuleRepository extends TenantAwareRepository {
+class PhoneRoutingRuleRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Odczyt

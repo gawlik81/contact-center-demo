@@ -19,7 +19,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class PhoneNumberRepository extends TenantAwareRepository {
+class PhoneNumberRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Odczyt

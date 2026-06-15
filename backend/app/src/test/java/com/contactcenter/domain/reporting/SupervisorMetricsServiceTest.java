@@ -1,18 +1,17 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.reporting;
 
 import com.contactcenter.api.supervisor.SupervisorMetricsPayload;
 import com.contactcenter.api.supervisor.SupervisorMetricsPayload.AgentMetric;
 import com.contactcenter.api.supervisor.SupervisorMetricsPayload.KpiMetric;
 import com.contactcenter.api.supervisor.SupervisorMetricsPayload.QueueMetric;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.AppUser.UserRole;
 import com.contactcenter.domain.user.AppUser.UserStatus;
-import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.tenant.TenantService;
-import com.contactcenter.domain.service.SupervisorMetricsService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.fasterxml.jackson.databind.ObjectMapper;

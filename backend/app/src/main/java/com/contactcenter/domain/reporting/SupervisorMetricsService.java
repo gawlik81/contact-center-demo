@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.reporting;
 
 import com.contactcenter.api.supervisor.SupervisorMetricsPayload;
 import com.contactcenter.api.supervisor.SupervisorMetricsPayload.AgentMetric;
@@ -61,7 +61,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class SupervisorMetricsService {
+class SupervisorMetricsService {
 
     /** Prefix kluczy sesji agenta w Redis. Pełny klucz: {@code session:agent:{userId}}. */
     private static final String AGENT_SESSION_KEY_PREFIX = "session:agent:";

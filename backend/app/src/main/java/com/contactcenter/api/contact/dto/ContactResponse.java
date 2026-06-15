@@ -1,6 +1,6 @@
 package com.contactcenter.api.contact.dto;
 
-import com.contactcenter.domain.model.Contact;
+import com.contactcenter.domain.contact.Contact;
 
 import java.time.Instant;
 import java.util.Map;

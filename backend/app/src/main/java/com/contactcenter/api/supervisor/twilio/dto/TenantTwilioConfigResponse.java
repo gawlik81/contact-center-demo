@@ -1,6 +1,6 @@
 package com.contactcenter.api.supervisor.twilio.dto;
 
-import com.contactcenter.domain.model.TenantTwilioConfig;
+import com.contactcenter.domain.tenant.TenantTwilioConfig;
 import java.time.Instant;
 import java.util.UUID;
 

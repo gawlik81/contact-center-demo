@@ -2,9 +2,9 @@ package com.contactcenter.api.campaign;
 
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ContactRepository;
+import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -42,8 +42,8 @@ import java.util.UUID;
 @Tag(name = "Campaign Contact History", description = "Historia prób wydzwonienia rekordu kampanii")
 public class CampaignContactHistoryController {
 
-    private final CampaignRepository campaignRepository;
-    private final ContactRepository contactRepository;
+    private final CampaignService campaignService;
+    private final ContactService contactService;
 
     /**
      * Zwraca listę prób wydzwonienia dla danego rekordu kampanii.
@@ -76,11 +76,11 @@ public class CampaignContactHistoryController {
         UUID tenantId = TenantContext.getTenantId();
 
         // Weryfikacja istnienia kampanii
-        campaignRepository.findById(campaignId, tenantId)
+        campaignService.findCampaignEntity(campaignId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Kampania nie istnieje lub nie należy do tego tenanta: " + campaignId));
 
-        List<Contact> contacts = contactRepository.findByCampaignContactRecordId(recordId, tenantId);
+        List<Contact> contacts = contactService.findByCampaignContactRecordId(recordId, tenantId);
 
         List<ContactResponse> response = contacts.stream()
                 .map(ContactResponse::from)

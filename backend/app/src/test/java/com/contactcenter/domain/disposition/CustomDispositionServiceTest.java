@@ -52,7 +52,7 @@ class CustomDispositionServiceTest {
     private CustomDispositionRepository customDispositionRepository;
 
     @InjectMocks
-    private CustomDispositionService customDispositionService;
+    private CustomDispositionServiceImpl customDispositionService;
 
     // =========================================================================
     // resolveForContact – logika priorytetu (bez N+1)
@@ -116,7 +116,7 @@ class CustomDispositionServiceTest {
                     customDispositionService.resolveForContact(CAMPAIGN_ID, QUEUE_ID, TENANT_ID);
 
             // then
-            assertThat(result).isEqualTo(CustomDispositionService.SYSTEM_DEFAULTS);
+            assertThat(result).isEqualTo(CustomDispositionServiceImpl.SYSTEM_DEFAULTS);
             assertThat(result).hasSize(6);
             assertThat(result.get(0).dispositionCode()).isEqualTo("SALE");
         }

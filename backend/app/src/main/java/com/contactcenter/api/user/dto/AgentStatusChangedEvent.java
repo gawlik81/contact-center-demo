@@ -1,6 +1,6 @@
 package com.contactcenter.api.user.dto;
 
-import com.contactcenter.domain.model.AppUser.UserStatus;
+import com.contactcenter.domain.user.AppUser.UserStatus;
 
 import java.time.Instant;
 import java.util.UUID;

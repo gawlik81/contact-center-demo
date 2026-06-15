@@ -41,7 +41,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RabbitToWebSocketRelay {
+class RabbitToWebSocketRelay {
 
     private final WebSocketEventBroadcaster broadcaster;
 

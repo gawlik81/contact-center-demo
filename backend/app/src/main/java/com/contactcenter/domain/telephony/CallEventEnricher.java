@@ -1,7 +1,7 @@
 package com.contactcenter.domain.telephony;
 
-import com.contactcenter.domain.service.CliLookupService;
-import com.contactcenter.domain.service.CustomerCliResult;
+import com.contactcenter.domain.customer.CliLookupService;
+import com.contactcenter.domain.customer.CustomerCliResult;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
@@ -44,7 +44,7 @@ import java.util.Optional;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class CallEventEnricher {
+class CallEventEnricher {
 
     private final CliLookupService cliLookupService;
     private final WebSocketEventBroadcaster broadcaster;

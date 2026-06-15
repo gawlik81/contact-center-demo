@@ -1,6 +1,6 @@
 package com.contactcenter.api.tenant.dto;
 
-import com.contactcenter.domain.model.Tenant.TenantStatus;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;

@@ -22,7 +22,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class DispositionSetItemRepository extends TenantAwareRepository {
+class DispositionSetItemRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Odczyt

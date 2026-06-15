@@ -1,6 +1,6 @@
 package com.contactcenter.api.supervisor.ai.dto;
 
-import com.contactcenter.domain.model.AiProvider;
+import com.contactcenter.domain.tenant.AiProvider;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 

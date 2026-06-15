@@ -1,7 +1,5 @@
 package com.contactcenter.domain.social;
 
-import com.contactcenter.domain.model.SocialPlatform;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;

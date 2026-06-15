@@ -1,8 +1,8 @@
 package com.contactcenter.api.auditlog;
 
 import com.contactcenter.api.auditlog.dto.AuditLogResponse;
-import com.contactcenter.domain.model.AuditLog;
-import com.contactcenter.domain.repository.AuditLogRepository;
+import com.contactcenter.domain.audit.AuditLog;
+import com.contactcenter.domain.audit.AuditLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -49,7 +49,7 @@ public class AuditLogController {
     /** Maksymalna liczba rekordów na stronę (wymóg akceptacyjny). */
     static final int MAX_PAGE_SIZE = 100;
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditLogService auditLogService;
 
     /**
      * Zwraca stronę wpisów dziennika audytu z opcjonalnym filtrowaniem.
@@ -111,7 +111,7 @@ public class AuditLogController {
         log.debug("[AuditLog] Zapytanie: tenantId={}, entityType={}, userId={}, dateFrom={}, dateTo={}, page={}, size={}",
                 tenantId, entityType, userId, dateFrom, dateTo, page, effectiveSize);
 
-        Page<AuditLog> results = auditLogRepository.findByFilters(
+        Page<AuditLog> results = auditLogService.findAuditLogs(
                 tenantId, entityType, userId, dateFrom, dateTo, pageable
         );
 

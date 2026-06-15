@@ -7,11 +7,11 @@ import com.contactcenter.api.email.dto.EmailMessageResponse;
 import com.contactcenter.api.email.dto.EmailReplyRequest;
 import com.contactcenter.api.email.dto.OutboundEmailRequest;
 import com.contactcenter.domain.email.*;
-import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.repository.EmailMessageRepository;
+import com.contactcenter.domain.email.EmailMessage;
+import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,9 +50,9 @@ import java.util.UUID;
 @Tag(name = "Email", description = "Zarządzanie wiadomościami email i konfiguracją IMAP/SMTP")
 public class EmailController {
 
-    private final EmailMessageRepository emailMessageRepository;
+    private final EmailMessageService emailMessageService;
     private final EmailSendService emailSendService;
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final EmailEncryptionService encryptionService;
     private final EmailPollingService emailPollingService;
 
@@ -72,7 +72,7 @@ public class EmailController {
             @RequestParam(defaultValue = "20") int size) {
 
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<EmailMessage> messagesPage = emailMessageRepository.findAll(pageable);
+        Page<EmailMessage> messagesPage = emailMessageService.findAll(pageable);
 
         Page<EmailMessageResponse> mappedPage = messagesPage.map(EmailMessageResponse::from);
         return ResponseEntity.ok(PagedResponse.from(mappedPage));
@@ -84,7 +84,7 @@ public class EmailController {
     @GetMapping("/messages/{id}")
     @Operation(summary = "Szczegóły wiadomości email")
     public ResponseEntity<EmailMessageResponse> getMessage(@PathVariable UUID id) {
-        EmailMessage message = emailMessageRepository.findById(id)
+        EmailMessage message = emailMessageService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Wiadomość email nie istnieje: " + id));
 
         return ResponseEntity.ok(EmailMessageResponse.from(message));
@@ -103,7 +103,7 @@ public class EmailController {
     public ResponseEntity<EmailMessageResponse> getMessageByContactId(@PathVariable UUID contactId) {
         UUID tenantId = TenantContext.getTenantId();
 
-        EmailMessage message = emailMessageRepository.findFirstInboundByContactId(contactId, tenantId)
+        EmailMessage message = emailMessageService.findFirstInboundByContactId(contactId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Brak wiadomości email dla kontaktu: " + contactId));
 
@@ -125,7 +125,7 @@ public class EmailController {
         UUID tenantId = TenantContext.getTenantId();
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
 
-        Page<EmailMessage> threadPage = emailMessageRepository
+        Page<EmailMessage> threadPage = emailMessageService
                 .findByThreadRootMessageId(messageIdHeader, tenantId, pageable);
 
         Page<EmailMessageResponse> mappedThread = threadPage.map(EmailMessageResponse::from);
@@ -195,7 +195,7 @@ public class EmailController {
     public ResponseEntity<EmailConfigResponse> getConfig() {
         UUID tenantId = TenantContext.getTenantId();
 
-        Tenant tenant = tenantRepository.findById(tenantId)
+        Tenant tenant = tenantService.findTenantEntity(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
 
         EmailAccountConfig config = EmailAccountConfig.fromTenantConfig(tenant.getConfig());
@@ -223,7 +223,7 @@ public class EmailController {
 
         UUID tenantId = TenantContext.getTenantId();
 
-        Tenant tenant = tenantRepository.findById(tenantId)
+        Tenant tenant = tenantService.findTenantEntity(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant nie istnieje: " + tenantId));
 
         Map<String, Object> config = tenant.getConfig();
@@ -259,8 +259,7 @@ public class EmailController {
             config.remove("email_default_queue_id");
         }
 
-        tenant.setConfig(config);
-        tenantRepository.save(tenant);
+        tenantService.updateTenantConfig(tenantId, config);
 
         log.info("[EmailController] Konfiguracja email zapisana: tenant={}, user={}, enabled={}",
                 tenantId, request.username(), request.emailEnabled());

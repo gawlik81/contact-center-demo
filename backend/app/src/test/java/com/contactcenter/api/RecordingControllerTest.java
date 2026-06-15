@@ -2,7 +2,7 @@ package com.contactcenter.api;
 
 import com.contactcenter.api.recording.RecordingController;
 import com.contactcenter.api.recording.dto.RecordingUrlResponse;
-import com.contactcenter.domain.service.RecordingService;
+import com.contactcenter.domain.recording.RecordingService;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;

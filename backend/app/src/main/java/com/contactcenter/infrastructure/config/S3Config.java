@@ -20,7 +20,7 @@ import java.net.URI;
  * Dla MinIO wymagane jest path-style access ({@link S3Properties#isPathStyleAccessEnabled()}).
  *
  * <p>Szyfrowanie SSE-S3 (AES-256) jest ustawiane na poziomie każdego {@code PutObjectRequest}
- * w {@link com.contactcenter.domain.service.RecordingService}, nie na poziomie bucketu.
+ * w {@link com.contactcenter.domain.recording.RecordingService}, nie na poziomie bucketu.
  * To daje elastyczność – część plików może być nieszyfrowana (np. testowe).
  *
  * <h3>Zmienne środowiskowe (produkcja):</h3>
@@ -76,7 +76,7 @@ public class S3Config {
     /**
      * Generator presigned URL – do operacji GET (odczyt nagrań przez klienta).
      *
-     * <p>Używany przez {@link com.contactcenter.domain.service.RecordingService}
+     * <p>Używany przez {@link com.contactcenter.domain.recording.RecordingService}
      * do generowania jednorazowych linków z TTL 1h.
      *
      * <p>{@code S3Presigner} jest osobnym klientem od {@code S3Client} –

@@ -1,7 +1,7 @@
 package com.contactcenter.api.telephony;
 
-import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
-import com.contactcenter.domain.service.TenantTwilioConfigService;
+import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.*;

@@ -1,11 +1,7 @@
 package com.contactcenter.domain.email;
 
-import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.model.EmailRoutingRule;
-import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.repository.EmailMessageRepository;
-import com.contactcenter.domain.repository.EmailRoutingRuleRepository;
-import com.contactcenter.domain.repository.QueueRepository;
+import com.contactcenter.domain.queue.Queue;
+import com.contactcenter.domain.queue.QueueService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -54,14 +50,14 @@ class EmailRoutingServiceTest {
     @Mock
     private EmailRoutingRuleRepository routingRuleRepository;
     @Mock
-    private QueueRepository queueRepository;
+    private QueueService queueService;
 
     private EmailRoutingService routingService;
 
     @BeforeEach
     void setUp() {
         routingService = new EmailRoutingService(
-                emailMessageRepository, emailEventPublisher, routingRuleRepository, queueRepository);
+                emailMessageRepository, emailEventPublisher, routingRuleRepository, queueService);
     }
 
     // =========================================================================
@@ -250,7 +246,7 @@ class EmailRoutingServiceTest {
                     .routingStrategy("ROUND_ROBIN")
                     .active(true)
                     .build();
-            when(queueRepository.findByEmailAddressAndTenantId("sales@mycompany.com", TENANT_ID))
+            when(queueService.findQueueByEmailAddress("sales@mycompany.com", TENANT_ID))
                     .thenReturn(java.util.Optional.of(salesQueue));
 
             routingService.route(message, Map.of());
@@ -277,7 +273,7 @@ class EmailRoutingServiceTest {
                     .routingStrategy("ROUND_ROBIN")
                     .active(true)
                     .build();
-            when(queueRepository.findByEmailAddressAndTenantId("sales@mycompany.com", TENANT_ID))
+            when(queueService.findQueueByEmailAddress("sales@mycompany.com", TENANT_ID))
                     .thenReturn(java.util.Optional.of(salesQueue));
 
             routingService.route(message, Map.of());
@@ -301,8 +297,8 @@ class EmailRoutingServiceTest {
             routingService.route(message, Map.of());
 
             verify(emailEventPublisher).publishQueued(eq(message), eq(QUEUE_URGENT));
-            // queueRepository nie powinno być odpytywane – reguła wygrała wcześniej
-            verify(queueRepository, never()).findByEmailAddressAndTenantId(any(), any());
+            // queueService nie powinno być odpytywane – reguła wygrała wcześniej
+            verify(queueService, never()).findQueueByEmailAddress(any(), any());
         }
 
         @Test
@@ -312,7 +308,7 @@ class EmailRoutingServiceTest {
 
             when(routingRuleRepository.findActiveByTenantId(TENANT_ID))
                     .thenReturn(List.of());
-            // queueRepository zwraca empty (domyślne zachowanie Mockito dla Optional)
+            // queueService zwraca empty (domyślne zachowanie Mockito dla Optional)
 
             routingService.route(message, Map.of()); // brak email_default_queue_id
 

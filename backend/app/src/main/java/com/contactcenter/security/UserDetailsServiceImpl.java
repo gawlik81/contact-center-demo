@@ -1,7 +1,7 @@
 package com.contactcenter.security;
 
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -31,7 +31,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     /** Separator między tenantId a emailem w formacie "username". */
     public static final String TENANT_EMAIL_SEPARATOR = ":";
 
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
 
     /**
      * Ładuje użytkownika na podstawie kombinacji tenantId:email.
@@ -63,7 +63,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         // Nie używamy findByTenantIdAndEmail który ładuje też konta z is_active=false lub is_deleted=true,
         // co umożliwiałoby logowanie na dezaktywowane/usunięte konta (Spring Security weryfikuje
         // isEnabled() ale dopiero po załadowaniu UserDetails – lepiej odrzucać wcześniej).
-        AppUser user = appUserRepository.findByTenantIdAndEmailAndActiveTrue(tenantId, email)
+        AppUser user = userService.findAuthenticatableUser(tenantId, email)
                 .orElseThrow(() -> {
                     // Logujemy na DEBUG, nie WARN – żeby nie zdradzać czy konto istnieje (timing attacks)
                     log.debug("[UserDetails] Użytkownik nie znaleziony lub nieaktywny: tenant={}, email={}", tenantId, email);

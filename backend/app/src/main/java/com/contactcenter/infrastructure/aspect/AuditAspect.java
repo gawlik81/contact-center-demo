@@ -1,7 +1,7 @@
 package com.contactcenter.infrastructure.aspect;
 
-import com.contactcenter.domain.model.AuditLogEvent;
-import com.contactcenter.domain.service.AuditLogService;
+import com.contactcenter.domain.audit.AuditLogEvent;
+import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -65,9 +65,9 @@ public class AuditAspect {
     private static final Map<String, Class<?>> ENTITY_CLASS_MAP;
     static {
         Map<String, Class<?>> map = new java.util.HashMap<>();
-        map.put("USER",     com.contactcenter.domain.model.AppUser.class);
-        map.put("TENANT",   com.contactcenter.domain.model.Tenant.class);
-        map.put("CUSTOMER", com.contactcenter.domain.model.Customer.class);
+        map.put("USER",     com.contactcenter.domain.user.AppUser.class);
+        map.put("TENANT",   com.contactcenter.domain.tenant.Tenant.class);
+        map.put("CUSTOMER", com.contactcenter.domain.customer.Customer.class);
         ENTITY_CLASS_MAP = java.util.Collections.unmodifiableMap(map);
     }
 

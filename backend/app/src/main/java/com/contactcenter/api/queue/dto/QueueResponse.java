@@ -1,6 +1,6 @@
 package com.contactcenter.api.queue.dto;
 
-import com.contactcenter.domain.model.Queue;
+import com.contactcenter.domain.queue.Queue;
 
 import java.time.Instant;
 import java.util.List;

@@ -3,9 +3,10 @@ package com.contactcenter.api.email;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.email.dto.*;
 import com.contactcenter.domain.email.PredefinedTemplateVariable;
-import com.contactcenter.domain.model.EmailTemplate;
+import com.contactcenter.domain.email.EmailTemplate;
 import com.contactcenter.domain.email.EmailTemplateService;
-import com.contactcenter.domain.email.EmailTemplateService.RenderedEmailTemplate;
+import com.contactcenter.domain.email.RenderedEmailTemplate;
+import com.contactcenter.domain.email.TemplateVariableResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -49,7 +50,7 @@ import java.util.UUID;
 public class EmailTemplateController {
 
     private final EmailTemplateService emailTemplateService;
-    private final com.contactcenter.domain.email.TemplateVariableResolver templateVariableResolver;
+    private final TemplateVariableResolver templateVariableResolver;
 
     // =========================================================================
     // Predefiniowane zmienne szablonów

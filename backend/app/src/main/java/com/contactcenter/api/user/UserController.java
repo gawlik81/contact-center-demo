@@ -2,7 +2,7 @@ package com.contactcenter.api.user;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.user.dto.*;
-import com.contactcenter.domain.service.UserService;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

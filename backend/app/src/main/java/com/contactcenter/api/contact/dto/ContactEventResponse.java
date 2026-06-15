@@ -1,6 +1,6 @@
 package com.contactcenter.api.contact.dto;
 
-import com.contactcenter.domain.model.ContactEvent;
+import com.contactcenter.domain.contact.ContactEvent;
 
 import java.time.Instant;
 import java.util.Map;

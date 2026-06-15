@@ -1,6 +1,6 @@
 package com.contactcenter.api.customer;
 
-import com.contactcenter.domain.service.GdprService;
+import com.contactcenter.domain.gdpr.GdprService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

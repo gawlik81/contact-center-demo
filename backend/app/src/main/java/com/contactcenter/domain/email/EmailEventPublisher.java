@@ -1,6 +1,5 @@
 package com.contactcenter.domain.email;
 
-import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +22,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class EmailEventPublisher {
+class EmailEventPublisher {
 
     private static final String ROUTING_KEY_PREFIX = "email.";
 

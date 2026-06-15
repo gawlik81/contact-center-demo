@@ -1,6 +1,6 @@
 package com.contactcenter.security;
 
-import com.contactcenter.domain.model.AppUser;
+import com.contactcenter.domain.user.AppUser;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;

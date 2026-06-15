@@ -1,8 +1,8 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
-import com.contactcenter.domain.service.TenantTwilioConfigService;
+import com.contactcenter.domain.campaign.Campaign;
+import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

@@ -1,13 +1,12 @@
 package com.contactcenter.domain.agentbreak;
 
 import com.contactcenter.api.user.dto.UpdateStatusRequest;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserStatus;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.model.Tenant.TenantStatus;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.TenantRepository;
-import com.contactcenter.domain.service.UserService;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.AppUser.UserStatus;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
+import com.contactcenter.domain.tenant.TenantService;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -56,16 +55,13 @@ class AgentBreakActivatorTest {
     private static final UUID AGENT_ID    = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     @Mock
-    private TenantRepository tenantRepository;
+    private TenantService tenantService;
 
     @Mock
     private AgentBreakRepository agentBreakRepository;
 
     @Mock
     private UserService userService;
-
-    @Mock
-    private AppUserRepository appUserRepository;
 
     @InjectMocks
     private AgentBreakActivator agentBreakActivator;
@@ -119,7 +115,7 @@ class AgentBreakActivatorTest {
         @Test
         @DisplayName("brak aktywnych tenantów – repozytorium nie jest wywołane")
         void activateAndCompleteBreaks_skipsWhenNoActiveTenants() {
-            when(tenantRepository.findAll()).thenReturn(List.of());
+            when(tenantService.getActiveTenants()).thenReturn(List.of());
 
             agentBreakActivator.activateAndCompleteBreaks();
 
@@ -133,7 +129,7 @@ class AgentBreakActivatorTest {
             Tenant tenantA = buildTenant(TENANT_A_ID, TenantStatus.ACTIVE);
             Tenant tenantB = buildTenant(TENANT_B_ID, TenantStatus.ACTIVE);
 
-            when(tenantRepository.findAll()).thenReturn(List.of(tenantA, tenantB));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(tenantA, tenantB));
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_A_ID)).thenReturn(List.of());
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_B_ID)).thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID)).thenReturn(List.of());
@@ -148,10 +144,10 @@ class AgentBreakActivatorTest {
         }
 
         @Test
-        @DisplayName("tenant SUSPENDED – pomijany, repozytorium nie wywołane")
+        @DisplayName("tenant SUSPENDED – TenantService nie zwraca go jako aktywnego, repozytorium nie wywołane")
         void activateAndCompleteBreaks_skipsTenantWithStatusNotActive() {
-            Tenant suspended = buildTenant(TENANT_A_ID, TenantStatus.SUSPENDED);
-            when(tenantRepository.findAll()).thenReturn(List.of(suspended));
+            // TenantService.getActiveTenants() filtruje SUSPENDED, więc zwraca pustą listę
+            when(tenantService.getActiveTenants()).thenReturn(List.of());
 
             agentBreakActivator.activateAndCompleteBreaks();
 
@@ -165,7 +161,7 @@ class AgentBreakActivatorTest {
             Tenant tenantA = buildTenant(TENANT_A_ID, TenantStatus.ACTIVE);
             Tenant tenantB = buildTenant(TENANT_B_ID, TenantStatus.ACTIVE);
 
-            when(tenantRepository.findAll()).thenReturn(List.of(tenantA, tenantB));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(tenantA, tenantB));
 
             // pierwszy tenant rzuca wyjątek przy activateDueBreaksAndReturn
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_A_ID))
@@ -189,10 +185,10 @@ class AgentBreakActivatorTest {
         }
 
         @Test
-        @DisplayName("tenant INACTIVE – pomijany, repozytorium nie wywołane")
+        @DisplayName("tenant INACTIVE – TenantService nie zwraca go jako aktywnego, repozytorium nie wywołane")
         void activateAndCompleteBreaks_skipsTenantWithStatusInactive() {
-            Tenant inactive = buildTenant(TENANT_A_ID, TenantStatus.INACTIVE);
-            when(tenantRepository.findAll()).thenReturn(List.of(inactive));
+            // TenantService.getActiveTenants() filtruje INACTIVE, więc zwraca pustą listę
+            when(tenantService.getActiveTenants()).thenReturn(List.of());
 
             agentBreakActivator.activateAndCompleteBreaks();
 
@@ -201,14 +197,13 @@ class AgentBreakActivatorTest {
         }
 
         @Test
-        @DisplayName("mieszana lista – tylko ACTIVE przetwarzane, SUSPENDED i INACTIVE pomijane")
+        @DisplayName("TenantService zwraca tylko ACTIVE – wszystkie zwrócone tenanty są przetwarzane")
         void activateAndCompleteBreaks_processesOnlyActiveTenants() {
-            Tenant active    = buildTenant(TENANT_A_ID, TenantStatus.ACTIVE);
-            Tenant suspended = buildTenant(TENANT_B_ID, TenantStatus.SUSPENDED);
-            UUID inactiveId  = UUID.fromString("33333333-3333-3333-3333-333333333333");
-            Tenant inactive  = buildTenant(inactiveId, TenantStatus.INACTIVE);
+            // SUSPENDED i INACTIVE są filtrowane przez TenantService.getActiveTenants() –
+            // mock zwraca tylko ACTIVE tenanta, zgodnie z kontraktem metody.
+            Tenant active = buildTenant(TENANT_A_ID, TenantStatus.ACTIVE);
 
-            when(tenantRepository.findAll()).thenReturn(List.of(active, suspended, inactive));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(active));
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_A_ID)).thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID)).thenReturn(List.of());
 
@@ -216,10 +211,6 @@ class AgentBreakActivatorTest {
 
             verify(agentBreakRepository, times(1)).activateDueBreaksAndReturn(TENANT_A_ID);
             verify(agentBreakRepository, times(1)).completeExpiredBreaksAndReturn(TENANT_A_ID);
-            verify(agentBreakRepository, never()).activateDueBreaksAndReturn(TENANT_B_ID);
-            verify(agentBreakRepository, never()).completeExpiredBreaksAndReturn(TENANT_B_ID);
-            verify(agentBreakRepository, never()).activateDueBreaksAndReturn(inactiveId);
-            verify(agentBreakRepository, never()).completeExpiredBreaksAndReturn(inactiveId);
         }
     }
 
@@ -237,7 +228,7 @@ class AgentBreakActivatorTest {
             Tenant tenant = buildTenant(TENANT_A_ID, TenantStatus.ACTIVE);
             AgentBreak agentBreak = buildAgentBreak(AGENT_ID, TENANT_A_ID);
 
-            when(tenantRepository.findAll()).thenReturn(List.of(tenant));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(tenant));
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(agentBreak));
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
@@ -257,7 +248,7 @@ class AgentBreakActivatorTest {
             AgentBreak break1 = buildAgentBreak(AGENT_ID, TENANT_A_ID);
             AgentBreak break2 = buildAgentBreak(agentId2, TENANT_A_ID);
 
-            when(tenantRepository.findAll()).thenReturn(List.of(tenant));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(tenant));
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(break1, break2));
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
@@ -290,12 +281,12 @@ class AgentBreakActivatorTest {
             AgentBreak agentBreak = buildAgentBreak(AGENT_ID, TENANT_A_ID);
             AppUser agent = buildAgent(AGENT_ID, TENANT_A_ID, UserStatus.BREAK);
 
-            when(tenantRepository.findAll()).thenReturn(List.of(tenant));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(tenant));
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(agentBreak));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_A_ID))
                     .thenReturn(Optional.of(agent));
 
             agentBreakActivator.activateAndCompleteBreaks();
@@ -311,12 +302,12 @@ class AgentBreakActivatorTest {
             AgentBreak agentBreak = buildAgentBreak(AGENT_ID, TENANT_A_ID);
             AppUser agent = buildAgent(AGENT_ID, TENANT_A_ID, UserStatus.BUSY);
 
-            when(tenantRepository.findAll()).thenReturn(List.of(tenant));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(tenant));
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(agentBreak));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_A_ID))
                     .thenReturn(Optional.of(agent));
 
             agentBreakActivator.activateAndCompleteBreaks();
@@ -332,12 +323,12 @@ class AgentBreakActivatorTest {
             AgentBreak agentBreak = buildAgentBreak(AGENT_ID, TENANT_A_ID);
             AppUser agent = buildAgent(AGENT_ID, TENANT_A_ID, UserStatus.AVAILABLE);
 
-            when(tenantRepository.findAll()).thenReturn(List.of(tenant));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(tenant));
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(agentBreak));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_A_ID))
                     .thenReturn(Optional.of(agent));
 
             agentBreakActivator.activateAndCompleteBreaks();
@@ -355,14 +346,14 @@ class AgentBreakActivatorTest {
             AppUser agent1 = buildAgent(AGENT_ID, TENANT_A_ID, UserStatus.BREAK);
             AppUser agent2 = buildAgent(agentId2, TENANT_A_ID, UserStatus.BREAK);
 
-            when(tenantRepository.findAll()).thenReturn(List.of(tenant));
+            when(tenantService.getActiveTenants()).thenReturn(List.of(tenant));
             when(agentBreakRepository.activateDueBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of());
             when(agentBreakRepository.completeExpiredBreaksAndReturn(TENANT_A_ID))
                     .thenReturn(List.of(break1, break2));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(AGENT_ID, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_A_ID))
                     .thenReturn(Optional.of(agent1));
-            when(appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId2, TENANT_A_ID))
+            when(userService.findAgentByIdAndTenantId(agentId2, TENANT_A_ID))
                     .thenReturn(Optional.of(agent2));
 
             // Pierwszy agent rzuca wyjątek przy zmianie statusu

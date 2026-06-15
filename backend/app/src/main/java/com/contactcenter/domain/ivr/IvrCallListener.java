@@ -1,6 +1,5 @@
 package com.contactcenter.domain.ivr;
 
-import com.contactcenter.domain.service.IvrEngineService;
 import com.contactcenter.domain.telephony.CallEvent;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
@@ -31,7 +30,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class IvrCallListener {
+class IvrCallListener {
 
     private final IvrEngineService ivrEngineService;
 

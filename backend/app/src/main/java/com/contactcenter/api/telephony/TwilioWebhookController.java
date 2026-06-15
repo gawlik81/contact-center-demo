@@ -2,13 +2,12 @@ package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.routing.RouteResult;
-import com.contactcenter.domain.service.ContactService;
-import com.contactcenter.domain.service.IncomingCallRoutingService;
-import com.contactcenter.domain.service.IvrEngineService;
-import com.contactcenter.domain.service.TwilioRecordingDownloadService;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.routing.IncomingCallRoutingService;
+import com.contactcenter.domain.ivr.IvrEngineService;
+import com.contactcenter.domain.recording.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.TwilioTelephonyAdapter;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
@@ -77,8 +76,7 @@ public class TwilioWebhookController {
   private final IvrEngineService ivrEngineService;
   private final IncomingCallRoutingService incomingCallRoutingService;
   private final ContactService contactService;
-  private final CustomerRepository customerRepository;
-  private final ContactRepository contactRepository;
+  private final CustomerService customerService;
   private final TwilioRecordingDownloadService recordingDownloadService;
   private final TwilioProperties twilioProperties;
 
@@ -101,16 +99,14 @@ public class TwilioWebhookController {
       IvrEngineService ivrEngineService,
       IncomingCallRoutingService incomingCallRoutingService,
       ContactService contactService,
-      CustomerRepository customerRepository,
-      ContactRepository contactRepository,
+      CustomerService customerService,
       TwilioRecordingDownloadService recordingDownloadService,
       TwilioProperties twilioProperties) {
     this.twilioAdapter = twilioAdapter;
     this.ivrEngineService = ivrEngineService;
     this.incomingCallRoutingService = incomingCallRoutingService;
     this.contactService = contactService;
-    this.customerRepository = customerRepository;
-    this.contactRepository = contactRepository;
+    this.customerService = customerService;
     this.recordingDownloadService = recordingDownloadService;
     this.twilioProperties = twilioProperties;
   }
@@ -196,7 +192,7 @@ public class TwilioWebhookController {
         UUID customerId = null;
         if (from != null && !from.isBlank()) {
           try {
-            customerId = customerRepository.findByPhoneNumber(from, tenantId)
+            customerId = customerService.findByPhoneNumber(from, tenantId)
                 .map(c -> c.getCustomerId())
                 .orElse(null);
           }
@@ -413,7 +409,7 @@ public class TwilioWebhookController {
     if (StringUtils.hasText(conferenceSid) && tenantId != null) {
       try {
         TenantContext.setTenantId(tenantId);
-        contactRepository.updateConferenceSidInMetadata(callSid, conferenceSid, tenantId);
+        contactService.updateConferenceSidInMetadata(callSid, conferenceSid, tenantId);
       }
       catch (Exception e) {
         log.warn("[TwilioWebhook] Nie udało się zapisać conference_sid do channel_metadata: " +
@@ -446,7 +442,7 @@ public class TwilioWebhookController {
    *
    * <p>Twilio wysyła POST na ten URL gdy konferencja kończy się ({@code statusCallbackEvent=end}).
    * Konfigurowany w TwiML przez atrybut {@code statusCallback} elementu {@code <Conference>}
-   * generowanego przez {@link com.contactcenter.domain.service.IvrEngineService#buildWaitInConferenceTwiml}.
+   * generowanego przez {@link com.contactcenter.domain.ivr.IvrEngineService#buildWaitInConferenceTwiml}.
    *
    * <p>Używany do wykrycia porzucenia kolejki przez klienta (ABANDONED): jeśli konferencja
    * zakończyła się ({@code ConferenceStatus=completed}) a kontakt ma status {@code QUEUED} lub
@@ -523,7 +519,7 @@ public class TwilioWebhookController {
     try {
       TenantContext.setTenantId(tenantId);
       // Pobierz aktualny status kontaktu – zabezpieczenie przed nadpisaniem statusów terminalnych
-      contactRepository.findById(contactId, tenantId).ifPresentOrElse(
+      contactService.findContactEntity(contactId, tenantId).ifPresentOrElse(
           contact -> {
             String currentStatus = contact.getStatus();
             // Fix #2: TRANSFERRED dodany do listy statusów terminalnych.
@@ -543,7 +539,7 @@ public class TwilioWebhookController {
               log.info("[TwilioConference] Konferencja zakończona, kontakt w statusie {} – " +
                        "ustawiam ABANDONED: contactId={}", currentStatus, contactId);
               // Conditional update zapobiega race z handlerem hangup ustawiającym COMPLETED.
-              contactRepository.updateContactStatusIfNotTerminal(
+              contactService.updateContactStatusIfNotTerminal(
                   contactId, tenantId, "ABANDONED", Instant.now());
             } else {
               log.debug("[TwilioConference] Kontakt w statusie {} – nie zmieniam: contactId={}",

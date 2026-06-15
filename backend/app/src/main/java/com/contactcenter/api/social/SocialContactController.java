@@ -3,9 +3,8 @@ package com.contactcenter.api.social;
 import com.contactcenter.api.social.dto.PagedSocialMessagesResponse;
 import com.contactcenter.api.social.dto.SendSocialMessageRequest;
 import com.contactcenter.api.social.dto.SocialMessageResponse;
-import com.contactcenter.domain.model.SocialMessage;
-import com.contactcenter.domain.repository.SocialMessageRepository;
-import com.contactcenter.domain.service.SocialMessageService;
+import com.contactcenter.domain.social.SocialMessage;
+import com.contactcenter.domain.social.SocialMessageService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +30,6 @@ import java.util.UUID;
 public class SocialContactController {
 
     private final SocialMessageService socialMessageService;
-    private final SocialMessageRepository socialMessageRepository;
 
     /**
      * Wysyła wiadomość social media do klienta przez agenta.
@@ -89,7 +87,7 @@ public class SocialContactController {
         log.info("[SocialContactCtrl] Pobieranie wiadomości: contactId={}, tenant={}, page={}, size={}",
                 contactId, tenantId, page, size);
 
-        List<SocialMessage> all = socialMessageRepository.findByContactId(contactId, tenantId);
+        List<SocialMessage> all = socialMessageService.getRecentMessagesForContact(contactId, tenantId);
 
         long totalElements = all.size();
         int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;

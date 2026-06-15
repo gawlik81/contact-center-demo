@@ -19,13 +19,61 @@ Pakiety główne pod `com.contactcenter`:
 ```
 api/             – kontrolery REST + DTO (warstwa wejścia/wyjścia)
 app/             – ContactCenterApplication (main class)
-domain/          – logika biznesowa: model, repository, service, routing, telephony, ...
+domain/          – logika biznesowa, podzielona na pakiety per domena (zob. 1.x)
 infrastructure/  – konfiguracja Spring, AOP, integracje (S3, ETL, social adapters)
 security/        – JWT, TenantContext, filtry, MFA
 ```
 
 Każdy moduł domenowy w `api/<moduł>` zawiera kontroler(y) + pakiet `dto/`. Logika
-biznesowa żyje w `domain/service/`, `domain/model/`, `domain/repository/`.
+biznesowa żyje w `com.contactcenter.domain.<domena>` – dedykowanym pakiecie per domena
+(np. `domain.campaign`, `domain.routing`, `domain.voicebot`, `domain.etl`, ...). Encje JPA,
+repozytoria i serwisy danej domeny znajdują się w jej pakiecie. Wyjątkiem są dwa wspólne
+"jądra" współdzielone przez wszystkie domeny:
+
+- `domain.repository` – zawiera tylko `TenantAwareRepository` (klasa bazowa repozytoriów, RLS).
+- `domain.messaging` – wspólne klasy bazowe dla konsumentów RabbitMQ
+  (`TenantAwareConsumer`, `DeadLetterConsumer`).
+
+Aktualna lista pakietów domenowych: `agentbreak`, `agentgroup`, `audit`, `campaign`,
+`contact`, `customer`, `disposition`, `email`, `etl`, `exception`, `gdpr`, `ivr`,
+`messaging`, `phonenumber`, `queue`, `recording`, `reporting`, `repository`, `routing`,
+`social`, `telephony`, `tenant`, `user`, `voicebot`, `websocket`.
+
+### 1.0 Konwencje pakietów domenowych i enkapsulacja
+
+Każda domena w `com.contactcenter.domain.<nazwa>` stosuje następujący wzorzec enkapsulacji
+(obowiązujący także dla nowych domen/refaktorów):
+
+1. **Repozytoria** (`extends TenantAwareRepository`, `@Repository`) są **package-private**
+   (brak modyfikatora `public`) – dostępne tylko wewnątrz własnej domeny.
+2. **Serwisy** są dzielone na `public interface XxxService` (kontrakt dla innych domen i dla
+   `api/`) oraz package-private `class XxxServiceImpl implements XxxService` (`@Service`) –
+   implementacja jest szczegółem domeny.
+3. **Dostęp cross-domain** odbywa się wyłącznie przez `public interface XxxService` domeny
+   właścicielskiej – nigdy bezpośrednio przez repozytorium lub konkretną klasę implementacyjną
+   innej domeny.
+4. **Cykliczne zależności** między domenami (gdy `ServiceA` potrzebuje `ServiceB`, a `ServiceB`
+   potrzebuje `ServiceA`) rozwiązywane są przez `@Autowired @Lazy` setter injection.
+5. **Wyjątki od podziału interfejs+Impl** są dopuszczalne dla klas czysto wewnętrznych, bez
+   cross-domain DI po nazwie konkretnej klasy – np. `@Scheduled` joby, `@RabbitListener`
+   konsumenci, klienci HTTP/integracji. Przykłady: `AgentBreakActivator`,
+   `RecordingRetentionJob`, `SupervisorMetricsService`, `AiSummaryClient`, `EmailEmlService`,
+   `AuditLogConsumer`, `DeadLetterConsumer`.
+6. **Encje JPA, DTO, wyjątki i enumy** mogą być `public` – są to typy danych współdzielone
+   pomiędzy warstwami (`api/`, `domain/`), nie implementacje logiki.
+
+Przykład (domena `agentgroup`):
+
+```
+domain/agentgroup/
+├── AgentGroup.java              – encja JPA (public)
+├── AgentGroupOverview.java      – DTO/projekcja (public)
+├── AgentGroupRepository.java    – package-private, extends TenantAwareRepository
+├── AgentGroupService.java        – public interface
+└── AgentGroupServiceImpl.java   – package-private @Service implements AgentGroupService
+```
+
+---
 
 ### 1.1 admin
 
@@ -35,7 +83,7 @@ biznesowa żyje w `domain/service/`, `domain/model/`, `domain/repository/`.
 |---|---|
 | `AdminMetricsController` | `/api/admin/metrics` – agregaty po tenantach |
 | `EtlStatusController` | `/api/admin/etl` – status i ręczne wywołanie synchronizacji DW |
-| `AdminMetricsService` | logika agregacji metryk |
+| `AdminMetricsService` (`domain.tenant`, interfejs + `AdminMetricsServiceImpl`) | logika agregacji metryk |
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -59,11 +107,13 @@ endpoint nie jest scope'owany do jednego tenanta, dlatego rola ADMIN).
 | `AgentBreakController` | CRUD przerw agenta |
 | `AgentCalendarController` | zagregowany widok kalendarza |
 | `AgentBreak` (entity) | tabela `agent_break` |
-| `AgentBreakRepository` | `TenantAwareRepository` |
-| `AgentBreakService` | logika CRUD + walidacja kolizji czasowych |
-| `AgentCalendarService` | agreguje breaks + `ScheduledCallback` + kampanie |
+| `AgentBreakRepository` | `TenantAwareRepository`, package-private |
+| `AgentBreakService` (interfejs + `AgentBreakServiceImpl`) | logika CRUD + walidacja kolizji czasowych |
+| `AgentCalendarService` (interfejs + `AgentCalendarServiceImpl`) | agreguje breaks + `ScheduledCallback` + kampanie |
 | `AgentBreakActivator` | `@Scheduled` – automatyczna aktywacja/kończenie przerw |
 | `BreakStatus`, `BreakType` | enumy |
+
+Wszystkie powyższe klasy znajdują się w `com.contactcenter.domain.agentbreak`.
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -87,8 +137,10 @@ endpoint nie jest scope'owany do jednego tenanta, dlatego rola ADMIN).
 |---|---|
 | `AgentGroupController` | `/api/agent-groups` (SUPERVISOR/ADMIN) |
 | `AgentGroup` (entity) | tabela `agent_group` |
-| `AgentGroupRepository` | CRUD + zarządzanie członkami |
-| `AgentGroupService` | logika domenowa |
+| `AgentGroupRepository` | CRUD + zarządzanie członkami, package-private |
+| `AgentGroupService` (interfejs + `AgentGroupServiceImpl`) | logika domenowa |
+
+Pakiet: `com.contactcenter.domain.agentgroup`.
 
 | Metoda | Ścieżka | Opis |
 |---|---|---|
@@ -112,10 +164,12 @@ Relacje: grupy są referowane przez `Queue`/`Campaign` (przypisania – patrz mo
 |---|---|
 | `AuditLogController` | `/api/audit-logs` (ADMIN) – odczyt z paginacją |
 | `AuditLog`, `AuditLogId`, `AuditLogEvent` | model encji + event RabbitMQ |
-| `AuditLogRepository` | odczyt (tabela partycjonowana po czasie) |
-| `AuditLogService` | publikacja eventów do `cc.audit` |
-| `AuditLogConsumer` | `@RabbitListener` na `cc.queue.audit-log` – zapis do DB |
+| `AuditLogRepository` | odczyt (tabela partycjonowana po czasie), package-private |
+| `AuditLogService` (interfejs + `AuditLogServiceImpl`) | publikacja eventów do `cc.audit` |
+| `AuditLogConsumer` | `@RabbitListener` na `cc.queue.audit-log` (extends `TenantAwareConsumer` z `domain.messaging`) – zapis do DB |
 | `infrastructure/aspect/AuditAspect` + `@Audited` | AOP – przechwytuje metody serwisów oznaczone `@Audited` |
+
+Pakiet: `com.contactcenter.domain.audit`.
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -143,12 +197,12 @@ biznesowej.
 | Klasa | Rola |
 |---|---|
 | `AuthController` | `/api/auth/**` |
-| `AuthService` | logika logowania, refresh, MFA, blacklist |
-| `JwtService` / `JwtParser` | wystawianie / parsowanie JWT RS256 |
-| `MfaService` | TOTP (RFC 6238) |
-| `LoginRateLimiter` | limit prób logowania (Redis) |
-| `TokenBlacklistService` | blacklista access tokenów po logout (Redis) |
-| `RefreshToken` (entity) | tabela `refresh_token` |
+| `AuthService` (interfejs + `AuthServiceImpl`, pakiet `domain.user`) | logika logowania, refresh, MFA, blacklist |
+| `JwtService` / `JwtParser` | wystawianie / parsowanie JWT RS256 (`security/`) |
+| `MfaService` | TOTP (RFC 6238) (`security/`) |
+| `LoginRateLimiter` | limit prób logowania (Redis) (`security/`) |
+| `TokenBlacklistService` | blacklista access tokenów po logout (Redis) (`security/`) |
+| `RefreshToken` (entity), `RefreshTokenRepository` | tabela `refresh_token`, pakiet `domain.user`, repozytorium package-private |
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -177,12 +231,14 @@ przypisania agentów/grup, historia połączeń per rekord kampanii.
 | `CampaignContactHistoryController` | historia prób połączeń per rekord |
 | `CampaignImportController` | async import CSV |
 | `Campaign` (entity) | tabela `campaign` |
-| `CampaignRepository`, `CampaignAssignmentRepository`, `CampaignContactRepository` | |
-| `CampaignService` | CRUD, walidacja stanów (`DRAFT/RUNNING/PAUSED/STOPPED`) |
-| `CampaignAssignmentService` | logika przypisań |
-| `CampaignImportService` | async import (Redis job status) |
+| `CampaignRepository`, `CampaignAssignmentRepository`, `CampaignContactRepository` | package-private |
+| `CampaignService` (interfejs + `CampaignServiceImpl`) | CRUD, walidacja stanów (`DRAFT/RUNNING/PAUSED/STOPPED`) |
+| `CampaignAssignmentService` (interfejs + `CampaignAssignmentServiceImpl`) | logika przypisań |
+| `CampaignImportService` (interfejs + `CampaignImportServiceImpl`) | async import (Redis job status, `ImportJobStatus`) |
 | `CampaignWindowActivator` | `@Scheduled` – aktywacja kampanii wg okna czasowego |
-| `ProgressiveDialerService` | silnik wybierania numerów (patrz sekcja 5) |
+| `ProgressiveDialerService` (interfejs + `ProgressiveDialerServiceImpl`) | silnik wybierania numerów (patrz sekcja 5) |
+
+Pakiet: `com.contactcenter.domain.campaign`.
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -216,9 +272,11 @@ partycjonowana `contact`. To "rdzeń" CRM-owy, do którego odwołuje się więks
 | `Contact`, `ContactId`, `ContactEvent`, `ContactAiSummary` | encje |
 | `ContactRepository` (rozszerzony przez wiele BE-xxx) | `TenantAwareRepository`, INSERT/UPDATE z `CAST(:x AS VARCHAR)` (po V025 – patrz uwagi) |
 | `ContactEventRepository`, `ContactAiSummaryRepository`, `ContactTranscriptionRepository` | |
-| `ContactService` | logika domenowa: tworzenie, dyspozycje, akceptacja/abandon, transfery |
-| `ContactEventService` | log zdarzeń (timeline) kontaktu |
-| `AiSummaryService` / `AiSummaryClient` | generowanie podsumowań AI |
+| `ContactService` (interfejs + `ContactServiceImpl`) | logika domenowa: tworzenie, dyspozycje, akceptacja/abandon, transfery |
+| `ContactEventService` (interfejs + `ContactEventServiceImpl`) | log zdarzeń (timeline) kontaktu |
+| `AiSummaryService` (interfejs + `AiSummaryServiceImpl`) / `AiSummaryClient` | generowanie podsumowań AI |
+
+Pakiet: `com.contactcenter.domain.contact`.
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -260,10 +318,12 @@ partycjonowana `contact`. To "rdzeń" CRM-owy, do którego odwołuje się więks
 | `GdprController` | eksport danych / anonimizacja |
 | `Customer` (entity) | tabela `customer`, `phone`/`email` jako JSONB array |
 | `CustomerRepository` | fuzzy search (pg_trgm), wyszukiwanie po telefonie (JSONB) |
-| `CustomerService` | CRUD + walidacja |
-| `CustomerImportService` | async import (`DeduplicationMode`: SKIP/OVERWRITE) |
-| `GdprService` | eksport/anonimizacja |
-| `CliLookupService` | rozpoznawanie numeru dzwoniącego (CLI) → klient |
+| `CustomerService` (interfejs + `CustomerServiceImpl`) | CRUD + walidacja |
+| `CustomerImportService` (interfejs + `CustomerImportServiceImpl`) | async import (`DeduplicationMode`: SKIP/OVERWRITE) |
+| `GdprService` (interfejs + `GdprServiceImpl`, pakiet `domain.gdpr`) | eksport/anonimizacja |
+| `CliLookupService` (interfejs + `CliLookupServiceImpl`) | rozpoznawanie numeru dzwoniącego (CLI) → klient |
+
+Pakiet: `com.contactcenter.domain.customer` (oraz `domain.gdpr` dla `GdprService`).
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -295,10 +355,14 @@ oddzwonienia (scheduled callbacks) + ręczne połączenia agenta.
 | `DialerController` | status dialera, CRUD callbacków, manual dial |
 | `ManualCallbackController` | ręczne planowanie oddzwonienia przez agenta |
 | `ScheduledCallback` (entity) | tabela `scheduled_callback` |
-| `ScheduledCallbackRepository` | |
-| `ProgressiveDialerService` | `@RabbitListener agent.status.changed` – wybiera numer gdy agent staje się AVAILABLE |
-| `DialerCallbackHandler` | `@RabbitListener call.hangup` (dedykowana kolejka `cc.queue.dialer-hangup`) |
+| `ScheduledCallbackRepository` | package-private |
+| `ScheduledCallbackService` (interfejs + `ScheduledCallbackServiceImpl`) | CRUD/reschedule callbacków |
+| `ProgressiveDialerService` (interfejs + `ProgressiveDialerServiceImpl`) | `@RabbitListener agent.status.changed` – wybiera numer gdy agent staje się AVAILABLE |
+| `DialerCallbackHandler` (interfejs + `DialerCallbackHandlerImpl`) | `@RabbitListener call.hangup` (dedykowana kolejka `cc.queue.dialer-hangup`) |
 | `ScheduledCallbackExecutor` | `@Scheduled` – wykonuje zaplanowane oddzwonienia |
+
+Wszystkie powyższe klasy znajdują się w `com.contactcenter.domain.campaign` (moduł `dialer`
+w `api/` korzysta z serwisów domeny `campaign`).
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -337,8 +401,10 @@ dyspozycji przypisywane do kampanii/kolejek.
 | `CustomDispositionController` | `/api/dispositions/**` – dyspozycje per kampania/kolejka |
 | `DispositionSetController` | `/api/disposition-sets` – zestawy + ich elementy |
 | `CustomDisposition`, `DispositionSet`, `DispositionSetItem` | encje |
-| `CustomDispositionRepository`, `DispositionSetRepository`, `DispositionSetItemRepository` | |
-| `CustomDispositionService`, `DispositionSetService` | logika domenowa |
+| `CustomDispositionRepository`, `DispositionSetRepository`, `DispositionSetItemRepository` | package-private |
+| `CustomDispositionService` (interfejs + `CustomDispositionServiceImpl`), `DispositionSetService` (interfejs + `DispositionSetServiceImpl`) | logika domenowa |
+
+Pakiet: `com.contactcenter.domain.disposition`.
 
 | Metoda | Ścieżka | Opis |
 |---|---|---|
@@ -368,14 +434,18 @@ zestaw dyspozycji przypisany do kolejki/kampanii kontaktu.
 | `EmailController` | wiadomości, wątki, konfiguracja IMAP/SMTP |
 | `EmailTemplateController` | CRUD szablonów + podgląd renderowania |
 | `EmailMessage`, `EmailTemplate`, `EmailRoutingRule` | encje |
-| `EmailAccountConfig`, `EmailEncryptionService` | konfiguracja kont (AES-256-GCM dla haseł) |
-| `EmailPollingService` | `@Scheduled` – polling IMAP (`email.poll-delay-ms`, domyślnie 60s) |
-| `EmailSendService` | wysyłka SMTP |
-| `EmailRoutingService` | przypisanie wiadomości do kolejki/kontaktu wg reguł |
-| `EmailContactCreator` | tworzenie rekordu `contact` dla nowej wiadomości |
-| `EmailTemplateService`, `MustacheTemplateEngine`, `TemplateVariableResolver`, `PredefinedTemplateVariable` | renderowanie szablonów |
-| `EmailEventPublisher` | publikacja eventów `email.#` do `cc.events` |
-| `EmailEmlService` | eksport/import `.eml` |
+| `EmailMessageRepository`, `EmailTemplateRepository`, `EmailRoutingRuleRepository` | package-private |
+| `EmailMessageService` (interfejs + `EmailMessageServiceImpl`) | CRUD/odczyt wiadomości i wątków |
+| `EmailAccountConfig`, `EmailEncryptionService` (interfejs + `EmailEncryptionServiceImpl`) | konfiguracja kont (AES-256-GCM dla haseł) |
+| `EmailPollingService` (interfejs + `EmailPollingServiceImpl`) | `@Scheduled` – polling IMAP (`email.poll-delay-ms`, domyślnie 60s) |
+| `EmailSendService` (interfejs + `EmailSendServiceImpl`) | wysyłka SMTP |
+| `EmailRoutingService` | przypisanie wiadomości do kolejki/kontaktu wg reguł (wewnętrzny helper, package-private) |
+| `EmailContactCreator` | tworzenie rekordu `contact` dla nowej wiadomości (wewnętrzny helper, package-private) |
+| `EmailTemplateService` (interfejs + `EmailTemplateServiceImpl`), `MustacheTemplateEngine`, `TemplateVariableResolver` (interfejs + `TemplateVariableResolverImpl`), `PredefinedTemplateVariable` | renderowanie szablonów |
+| `EmailEventPublisher` | publikacja eventów `email.#` do `cc.events` (wewnętrzny helper, package-private) |
+| `EmailEmlService` | eksport/import `.eml` (wewnętrzny helper, package-private) |
+
+Pakiet: `com.contactcenter.domain.email`.
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -409,11 +479,13 @@ zestaw dyspozycji przypisany do kolejki/kampanii kontaktu.
 |---|---|
 | `IvrController` | CRUD drzew IVR + lifecycle + endpoint DTMF |
 | `IvrTree`, `IvrAudio`, `IvrDefinition`, `IvrNode`, `IvrNodePosition`, `IvrOption`, `IvrNodeType` | model drzewa (JSONB) |
-| `IvrTreeRepository`, `IvrAudioRepository` | |
-| `IvrEngineService` | silnik – interpretacja drzewa, sesje Redis, TTS cache |
-| `IvrService` | CRUD + walidacja drzew |
+| `IvrTreeRepository`, `IvrAudioRepository` | package-private |
+| `IvrEngineService` (interfejs + `IvrEngineServiceImpl`) | silnik – interpretacja drzewa, sesje Redis, TTS cache |
+| `IvrService` (interfejs + `IvrServiceImpl`) | CRUD + walidacja drzew |
 | `IvrCallListener` | `@RabbitListener` na `cc.queue.ivr-handler` (routing key `call.incoming`) |
 | `IvrSessionData` | stan sesji w Redis (`ivr:session:{callId}`) |
+
+Pakiet: `com.contactcenter.domain.ivr`.
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -449,8 +521,10 @@ numerów (np. godziny pracy → kolejka/IVR).
 | `PhoneNumberController` | CRUD numerów |
 | `PhoneRoutingRuleController` | CRUD reguł routingu per numer |
 | `PhoneNumber`, `PhoneRoutingRule` (entity) | |
-| `PhoneNumberRepository`, `PhoneRoutingRuleRepository` | |
-| `PhoneNumberService`, `PhoneRoutingRuleService` | walidacja kolizji harmonogramów |
+| `PhoneNumberRepository`, `PhoneRoutingRuleRepository` | package-private |
+| `PhoneNumberService` (interfejs + `PhoneNumberServiceImpl`), `PhoneRoutingRuleService` (interfejs + `PhoneRoutingRuleServiceImpl`) | walidacja kolizji harmonogramów |
+
+Pakiet: `com.contactcenter.domain.phonenumber`.
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -495,10 +569,12 @@ oczekiwania (EWT).
 |---|---|
 | `QueueController` | CRUD kolejek, strategie routingu, statystyki |
 | `QueueAssignmentController` | przypisania agentów/grup do kolejki |
-| `Queue` (entity), `QueueAssignmentRepository`, `QueueRepository` | |
-| `QueueService`, `QueueAssignmentService` | logika domenowa |
-| `WaitTimeEstimationService` | EWT (estimated wait time) – `@Scheduled` co 30s |
+| `Queue` (entity), `QueueAssignmentRepository`, `QueueRepository` | repozytoria package-private |
+| `QueueService` (interfejs + `QueueServiceImpl`), `QueueAssignmentService` (interfejs + `QueueAssignmentServiceImpl`) | logika domenowa |
+| `WaitTimeEstimationService` (interfejs + `WaitTimeEstimationServiceImpl`) | EWT (estimated wait time) – `@Scheduled` co 30s |
 | `QueueWaitUpdatePayload` | payload WebSocket `QUEUE_WAIT_UPDATE` |
+
+Pakiet: `com.contactcenter.domain.queue`.
 
 | Metoda | Ścieżka | Opis |
 |---|---|---|
@@ -523,9 +599,11 @@ Wszystkie endpointy: `@PreAuthorize hasAnyRole('SUPERVISOR','ADMIN')`.
 | Klasa | Rola |
 |---|---|
 | `RecordingController` | `/api/recordings/{contactId}` (SUPERVISOR/ADMIN) |
-| `RecordingService` | generowanie presigned URL, upload |
+| `RecordingService` (interfejs + `RecordingServiceImpl`) | generowanie presigned URL, upload |
 | `RecordingRetentionJob` | `@Scheduled` (cron `s3.retention-cron`, domyślnie 02:00 UTC) – usuwa nagrania starsze niż `s3.retention-days` |
-| `TwilioRecordingDownloadService` | pobiera nagranie z Twilio i zapisuje do S3 |
+| `TwilioRecordingDownloadService` (interfejs + `TwilioRecordingDownloadServiceImpl`) | pobiera nagranie z Twilio i zapisuje do S3 |
+
+Pakiet: `com.contactcenter.domain.recording`.
 
 | Metoda | Ścieżka | Opis |
 |---|---|---|
@@ -543,7 +621,7 @@ Konferencje Twilio (`TwilioWebhookController` → `/recording`) wywołują
 | Klasa | Rola |
 |---|---|
 | `ReportsController` | `/api/reports/**` |
-| `ReportsService` | agregacje SQL |
+| `ReportsService` (interfejs + `ReportsServiceImpl`, pakiet `domain.reporting`) | agregacje SQL |
 | `AgentReportParams`, `AgentReportRow` | DTO |
 
 | Metoda | Ścieżka | Opis |
@@ -568,12 +646,12 @@ webhooki, wysyłka/odbiór wiadomości.
 | `SocialOAuthController` | inicjacja OAuth, callback, lista integracji |
 | `SocialWebhookController` | webhooki FB/IG/WhatsApp (publiczne) |
 | `SocialIntegration`, `SocialMessage`, `SocialPlatform` (entity/enum) | |
-| `SocialIntegrationRepository`, `SocialMessageRepository` | |
-| `SocialIntegrationService` | zarządzanie integracjami, `@Scheduled` refresh tokenów co 1h |
-| `SocialMessageService` | wysyłka/odbiór |
+| `SocialIntegrationRepository`, `SocialMessageRepository` | package-private |
+| `SocialIntegrationService` (interfejs + `SocialIntegrationServiceImpl`) | zarządzanie integracjami, `@Scheduled` refresh tokenów co 1h |
+| `SocialMessageService` (interfejs + `SocialMessageServiceImpl`) | wysyłka/odbiór |
 | `SocialTokenEncryptionService` | AES-256-GCM (BYTEA) dla tokenów OAuth |
 | `infrastructure/social/{Facebook,Instagram,WhatsApp}Adapter` + `SocialAdapterRegistry` | adaptery per platforma |
-| `domain/social/{IncomingSocialMessage, SocialMediaAdapter, SocialMessageConsumer, SocialMessagePublisher}` | abstrakcje + consumer RabbitMQ |
+| `domain/social/{IncomingSocialMessage, SocialMediaAdapter, SocialMessageConsumer}`, `SocialMessagePublisher` (interfejs + `SocialMessagePublisherImpl`) | abstrakcje + consumer RabbitMQ |
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -602,10 +680,10 @@ metryki real-time (WebSocket).
 | `TenantAiConfigController` | `/api/supervisor/ai-config` |
 | `TenantTwilioConfigController` | `/api/supervisor/twilio-config` |
 | `SupervisorMetricsPayload` | payload WebSocket (KPI real-time) |
-| `TenantAiConfig`, `TenantTwilioConfig` (entity) | konfiguracje per-tenant (szyfrowane klucze) |
-| `TenantAiConfigService`, `TenantAiConfigDecrypted` | |
-| `TenantTwilioConfigService`, `TenantTwilioConfigDecrypted` | upsert + masking + decrypt + delete + event `TwilioConfigChangedEvent` |
-| `SupervisorMetricsService` | agregacja KPI (czas oczekiwania, liczba w IVR, w kolejce...) |
+| `TenantAiConfig`, `TenantTwilioConfig` (entity) | konfiguracje per-tenant (szyfrowane klucze), pakiet `domain.tenant` |
+| `TenantAiConfigService` (interfejs + `TenantAiConfigServiceImpl`), `TenantAiConfigDecrypted`, `AiProvider` | pakiet `domain.tenant` |
+| `TenantTwilioConfigService` (interfejs + `TenantTwilioConfigServiceImpl`), `TenantTwilioConfigDecrypted` | upsert + masking + decrypt + delete + event `TwilioConfigChangedEvent`, pakiet `domain.tenant` |
+| `SupervisorMetricsService` | agregacja KPI (czas oczekiwania, liczba w IVR, w kolejce...), pakiet `domain.reporting` |
 
 | Metoda | Ścieżka | Opis |
 |---|---|---|
@@ -652,10 +730,10 @@ transfer.
 | `TwilioVoiceController` | feature flags, Voice Access Token (JS SDK), hold music TwiML |
 | `TwilioWebhookController` | `/api/telephony/webhook/twilio/**` – webhooki Twilio (TwiML, DTMF, status, conference, recording, voicebot) |
 | `domain/telephony/{TelephonyAdapter, MockTelephonyAdapter, TwilioTelephonyAdapter}` | implementacje adaptera |
-| `CallEvent`, `CallSession`, `CallEventEnricher`, `TelephonyEventPublisher` | model eventów + publikacja do RabbitMQ |
+| `CallEvent`, `CallSession`, `CallEventEnricher`, `TelephonyEventPublisher` (interfejs + `TelephonyEventPublisherImpl`) | model eventów + publikacja do RabbitMQ, pakiet `domain.telephony` |
 | `TransferRequest`, `TransferTargetType` | model żądania transferu |
-| `TransferService`, `TransferAgentQueueRepository` | logika transferu (BE-075/077) |
-| `IncomingCallRoutingService` | routing połączeń przychodzących (numer → IVR/kolejka) |
+| `TransferService` (interfejs + `TransferServiceImpl`, pakiet `domain.telephony`), `TransferAgentQueueRepository` (pakiet `domain.queue`) | logika transferu (BE-075/077) |
+| `IncomingCallRoutingService` (interfejs + `IncomingCallRoutingServiceImpl`, pakiet `domain.routing`) | routing połączeń przychodzących (numer → IVR/kolejka) |
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -690,9 +768,11 @@ Webhooki Twilio – patrz sekcja 5.
 |---|---|
 | `TenantController` | `/api/tenants/**` |
 | `Tenant` (entity) | tabela `tenant` |
-| `TenantRepository` | |
-| `TenantService` | CRUD + walidacja |
-| `TenantResourceLimitService` | limity (agenci/kolejki/kampanie) – `get_tenant_limit()` w DB |
+| `TenantRepository` | package-private |
+| `TenantService` (interfejs + `TenantServiceImpl`) | CRUD + walidacja |
+| `TenantResourceLimitService` (interfejs + `TenantResourceLimitServiceImpl`) | limity (agenci/kolejki/kampanie) – `get_tenant_limit()` w DB |
+
+Pakiet: `com.contactcenter.domain.tenant`.
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -721,9 +801,11 @@ preferencje UI.
 | `AdminUserController` | `/api/admin/users` – zarządzanie użytkownikami przez ADMIN |
 | `UserPreferencesController` | `/api/users/me/preferences` |
 | `AppUser` (entity) | tabela `app_user` |
-| `AppUserRepository` | |
-| `UserService`, `AdminUserService`, `UserPreferencesService` | |
+| `AppUserRepository` | package-private |
+| `UserService` (interfejs + `UserServiceImpl`), `AdminUserService` (interfejs + `AdminUserServiceImpl`), `UserPreferencesService` (interfejs + `UserPreferencesServiceImpl`) | |
 | `AgentStatusChangedEvent` | event publikowany do `cc.events` (routing key `agent.status.#`) |
+
+Pakiet: `com.contactcenter.domain.user`.
 
 | Metoda | Ścieżka | Rola | Opis |
 |---|---|---|---|
@@ -759,7 +841,7 @@ preferencje UI.
 | `WebSocketConfig` (infrastructure) | konfiguracja brokera STOMP, endpointy `/ws`, `/ws-native` |
 | `WebSocketAuthInterceptor` (security) | autentykacja JWT przy STOMP CONNECT |
 | `StompPrincipal` (security) | principal z `tenantId`, `userId`, `role` |
-| `domain/websocket/{WebSocketEvent, WebSocketEventBroadcaster, RabbitToWebSocketRelay}` | model eventu, broadcaster, relay RabbitMQ→WebSocket |
+| `domain/websocket/{WebSocketEvent, RabbitToWebSocketRelay}`, `WebSocketEventBroadcaster` (interfejs + `WebSocketEventBroadcasterImpl`) | model eventu, broadcaster, relay RabbitMQ→WebSocket |
 
 Szczegóły – sekcja 5.
 
@@ -1114,7 +1196,7 @@ Katalog `voicebot/app/` (FastAPI): `main.py`, `asr.py` (rozpoznawanie mowy –
 Whisper), `nlu.py` (intencje), `summarize.py` (podsumowania), `session.py`,
 `rabbit.py`.
 
-Backend komunikuje się przez `domain/service/VoicebotClient`
+Backend komunikuje się przez `domain/voicebot/VoicebotClient`
 (`@ConditionalOnProperty(voicebot.enabled=true)`, domyślnie **wyłączone**):
 
 ```
@@ -1253,7 +1335,11 @@ Lokalizacja: `backend/app/src/test/java/com/contactcenter/` (83 klasy `*Test.jav
 api/                – testy kontrolerów (MockMvc / standalone)
   supervisor/, telephony/
 domain/
-  agentbreak/, agentgroup/, disposition/, email/, repository/, service/, websocket/
+  – jeden pakiet testowy per pakiet domenowy, np.
+    agentbreak/, agentgroup/, audit/, campaign/, contact/, customer/,
+    disposition/, email/, etl/, gdpr/, ivr/, phonenumber/, queue/,
+    recording/, reporting/, repository/, routing/, social/, telephony/,
+    tenant/, user/, websocket/
 infrastructure/
   persistence/
 security/

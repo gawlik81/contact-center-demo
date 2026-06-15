@@ -1,7 +1,7 @@
 package com.contactcenter.api.ivr.dto;
 
 import com.contactcenter.domain.ivr.IvrDefinition;
-import com.contactcenter.domain.model.IvrTree;
+import com.contactcenter.domain.ivr.IvrTree;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.Instant;

@@ -128,6 +128,13 @@ public class CrossTenantAspect {
             String className  = joinPoint.getTarget().getClass().getSimpleName();
             String methodName = joinPoint.getSignature().getName();
 
+            if (isAuthenticationBootstrapMethod(className, methodName)) {
+                log.trace("[CrossTenant][AuthBootstrap] TenantContext nie ustawiony dla {}.{} "
+                        + "(oczekiwane – wywołanie z JwtAuthFilter/UserDetailsServiceImpl "
+                        + "przed TenantFilter)", className, methodName);
+                return;
+            }
+
             // Sprawdź czy wywołanie pochodzi z wątku HTTP czy asynchronicznego.
             // RequestContextHolder ma aktywne atrybuty tylko dla żądań HTTP.
             boolean isHttpRequestThread = RequestContextHolder.getRequestAttributes() != null;
@@ -159,6 +166,16 @@ public class CrossTenantAspect {
             // Nie rzucamy wyjątku – pozwalamy na propagację ISE z TenantContext.getTenantId()
             // gdy metoda domeny spróbuje go użyć bez jawnego parametru tenantId.
         }
+    }
+
+    /**
+     * Metody serwisów domenowych wywoływane przez JwtAuthFilter / UserDetailsServiceImpl
+     * jako część bootstrapu autentykacji – PRZED TenantFilter, więc TenantContext
+     * jest celowo nieustawiony niezależnie od URI żądania.
+     */
+    private boolean isAuthenticationBootstrapMethod(String className, String methodName) {
+        return "UserServiceImpl".equals(className)
+            && "findAuthenticatableUser".equals(methodName);
     }
 
     /**

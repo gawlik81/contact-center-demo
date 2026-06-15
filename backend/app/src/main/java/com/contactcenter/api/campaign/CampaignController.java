@@ -4,7 +4,7 @@ import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.campaign.dto.CampaignResponse;
 import com.contactcenter.api.campaign.dto.CreateCampaignRequest;
 import com.contactcenter.api.campaign.dto.UpdateCampaignRequest;
-import com.contactcenter.domain.service.CampaignService;
+import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

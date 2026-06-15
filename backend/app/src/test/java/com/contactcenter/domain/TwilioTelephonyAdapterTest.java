@@ -1,17 +1,16 @@
 package com.contactcenter.domain;
 
-import com.contactcenter.domain.event.TwilioConfigChangedEvent;
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
-import com.contactcenter.domain.repository.QueueRepository;
-import com.contactcenter.domain.repository.TenantRepository;
-import com.contactcenter.domain.service.ContactEventService;
-import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
-import com.contactcenter.domain.service.TenantTwilioConfigService;
-import com.contactcenter.domain.service.TwilioRecordingDownloadService;
+import com.contactcenter.domain.tenant.TwilioConfigChangedEvent;
+import com.contactcenter.domain.customer.Customer;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.customer.CustomerService;
+import com.contactcenter.domain.queue.QueueService;
+import com.contactcenter.domain.tenant.TenantService;
+import com.contactcenter.domain.contact.ContactEventService;
+import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
+import com.contactcenter.domain.recording.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
@@ -83,13 +82,13 @@ class TwilioTelephonyAdapterTest {
     private TelephonyEventPublisher eventPublisher;
 
     @Mock
-    private ContactRepository contactRepository;
+    private ContactService contactService;
 
     @Mock
-    private CustomerRepository customerRepository;
+    private CustomerService customerService;
 
     @Mock
-    private TenantRepository tenantRepository;
+    private TenantService tenantService;
 
     @Mock
     private TwilioRecordingDownloadService recordingDownloadService;
@@ -100,17 +99,15 @@ class TwilioTelephonyAdapterTest {
     @Mock
     private ContactEventService contactEventService;
 
-    @Mock
-    private AppUserRepository appUserRepository;
 
     @Mock
-    private QueueRepository queueRepository;
+    private QueueService queueService;
 
     @Mock
     private RabbitTemplate rabbitTemplate;
 
     @Mock
-    private com.contactcenter.domain.service.CliLookupService cliLookupService;
+    private com.contactcenter.domain.customer.CliLookupService cliLookupService;
 
     private TwilioProperties twilioProperties;
     private TwilioTelephonyAdapter adapter;
@@ -130,8 +127,11 @@ class TwilioTelephonyAdapterTest {
         twilioProperties.setPhoneNumber("+48111000111");
         twilioProperties.setStatusCallbackUrl("https://example.com/api/telephony/webhook/twilio");
 
-        // Domyślnie tenantRepository nie zwraca per-tenant konfiguracji
-        when(tenantRepository.findById(any())).thenReturn(Optional.empty());
+        // Domyślnie tenantService nie zwraca per-tenant konfiguracji
+        when(tenantService.findTenantEntity(any())).thenReturn(Optional.empty());
+
+        // Domyślnie brak aktywnych tenantów (configureStatusCallbacksForAllTenants w init())
+        when(tenantService.getActiveTenants()).thenReturn(List.of());
 
         // Domyślnie brak per-tenant konfiguracji Twilio (fallback do globalnej)
         when(tenantTwilioConfigService.getDecryptedConfig(any())).thenReturn(Optional.empty());
@@ -169,12 +169,13 @@ class TwilioTelephonyAdapterTest {
         // Tworzymy adapter ręcznie i wywołujemy init() – @PostConstruct nie inicjalizuje Caffeine cache przez SDK,
         // więc clientCache musi być ustawiony przed testami korzystającymi z resolveRestClient().
         adapter = new TwilioTelephonyAdapter(twilioProperties, eventPublisher,
-                contactRepository, customerRepository, tenantRepository,
+                customerService, tenantService,
                 redisTemplate, stringRedisTemplate, recordingDownloadService,
                 tenantTwilioConfigService, contactEventService,
-                appUserRepository, queueRepository, rabbitTemplate, cliLookupService);
+                queueService, rabbitTemplate, cliLookupService);
+        adapter.setContactService(contactService);
         // init() inicjalizuje Caffeine cache bez wywoływania Twilio.init() (usunięte w BE-058)
-        // oraz bez konfigurowania statusCallbacków (tenantRepository zwraca pustą listę)
+        // oraz bez konfigurowania statusCallbacków (tenantService zwraca pustą listę)
         adapter.init();
     }
 
@@ -878,7 +879,7 @@ class TwilioTelephonyAdapterTest {
         void shouldReturnPerTenantNumberWhenConfigured() {
             Tenant tenant = mock(Tenant.class);
             when(tenant.getTwilioPhoneNumber()).thenReturn(PER_TENANT_NUMBER);
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
 
             String result = adapter.resolvePhoneNumber(TENANT_ID);
 
@@ -890,7 +891,7 @@ class TwilioTelephonyAdapterTest {
         void shouldFallbackToGlobalNumberWhenPerTenantNotConfigured() {
             Tenant tenant = mock(Tenant.class);
             when(tenant.getTwilioPhoneNumber()).thenReturn(null);
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             twilioProperties.setPhoneNumber(GLOBAL_NUMBER);
 
             String result = adapter.resolvePhoneNumber(TENANT_ID);
@@ -901,7 +902,7 @@ class TwilioTelephonyAdapterTest {
         @Test
         @DisplayName("tenant nieznaleziony → zwraca globalny fallback")
         void shouldFallbackToGlobalNumberWhenTenantNotFound() {
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.empty());
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.empty());
             twilioProperties.setPhoneNumber(GLOBAL_NUMBER);
 
             String result = adapter.resolvePhoneNumber(TENANT_ID);
@@ -914,7 +915,7 @@ class TwilioTelephonyAdapterTest {
         void shouldThrowWhenNoPhoneNumberAvailable() {
             Tenant tenant = mock(Tenant.class);
             when(tenant.getTwilioPhoneNumber()).thenReturn(null);
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             twilioProperties.setPhoneNumber("");
 
             assertThatThrownBy(() -> adapter.resolvePhoneNumber(TENANT_ID))
@@ -927,7 +928,7 @@ class TwilioTelephonyAdapterTest {
         void perTenantNumberTakesPrecedenceOverGlobal() {
             Tenant tenant = mock(Tenant.class);
             when(tenant.getTwilioPhoneNumber()).thenReturn(PER_TENANT_NUMBER);
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             // globalny numer jest też ustawiony – powinien być ignorowany
             twilioProperties.setPhoneNumber(GLOBAL_NUMBER);
 
@@ -945,7 +946,7 @@ class TwilioTelephonyAdapterTest {
             String result = adapter.resolvePhoneNumber(null);
 
             assertThat(result).isEqualTo(GLOBAL_NUMBER);
-            verify(tenantRepository, never()).findById(any());
+            verify(tenantService, never()).findTenantEntity(any());
         }
     }
 

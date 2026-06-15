@@ -1,25 +1,24 @@
 package com.contactcenter.domain.telephony;
 
-import com.contactcenter.domain.event.TwilioConfigChangedEvent;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.model.Queue;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
-import com.contactcenter.domain.repository.QueueRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.TwilioConfigChangedEvent;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.customer.Customer;
+import com.contactcenter.domain.queue.Queue;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.customer.CustomerService;
+import com.contactcenter.domain.queue.QueueService;
+import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.routing.DirectAgentAssignmentMessage;
-import com.contactcenter.domain.service.CliLookupService;
-import com.contactcenter.domain.service.ContactEventService;
-import com.contactcenter.domain.service.CustomerCliResult;
-import com.contactcenter.domain.service.TenantTwilioConfigDecrypted;
-import com.contactcenter.domain.service.TenantTwilioConfigService;
-import com.contactcenter.domain.service.TwilioRecordingDownloadService;
-import com.contactcenter.domain.service.UserService;
+import com.contactcenter.domain.customer.CliLookupService;
+import com.contactcenter.domain.contact.ContactEventService;
+import com.contactcenter.domain.customer.CustomerCliResult;
+import com.contactcenter.domain.tenant.TenantTwilioConfigDecrypted;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
+import com.contactcenter.domain.recording.TwilioRecordingDownloadService;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import com.contactcenter.infrastructure.config.TwilioProperties;
@@ -123,19 +122,16 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
   private final TwilioProperties twilioProperties;
   private final TelephonyEventPublisher eventPublisher;
-  private final ContactRepository contactRepository;
-  private final CustomerRepository customerRepository;
-  private final TenantRepository tenantRepository;
+  private final CustomerService customerService;
+  private final TenantService tenantService;
   private final RedisTemplate<String, Object> redisTemplate;
   /** Używany wyłącznie dla prostych kluczy String (indeks odwrotny contactId → callSid). */
   private final StringRedisTemplate stringRedisTemplate;
   private final TwilioRecordingDownloadService recordingDownloadService;
   private final TenantTwilioConfigService tenantTwilioConfigService;
   private final ContactEventService contactEventService;
-  /** Repozytorium użytkowników – wymagane do lookup agenta przy transferze AGENT. */
-  private final AppUserRepository appUserRepository;
   /** Repozytorium kolejek – wymagane do lookup kolejki przy transferze QUEUE. */
-  private final QueueRepository queueRepository;
+  private final QueueService queueService;
   /** Używany do publikacji eventu contact.queued po transferze do kolejki. */
   private final RabbitTemplate rabbitTemplate;
   /** CLI lookup – rozpoznawanie klienta po numerze telefonu (użyty przy CALL_TRANSFER_CONSULT). */
@@ -147,6 +143,18 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * TwilioTelephonyAdapter → UserService → ContactService → TelephonyAdapter (→ TwilioTelephonyAdapter).
    */
   private UserService userService;
+
+  /**
+   * Wstrzyknięty przez setter z {@code @Lazy} aby uniknąć circular dependency:
+   * ContactServiceImpl → TelephonyAdapter (TwilioTelephonyAdapter) → ContactService.
+   */
+  private ContactService contactService;
+
+  @Lazy
+  @Autowired
+  public void setContactService(ContactService contactService) {
+    this.contactService = contactService;
+  }
 
   /**
    * Bazowy URL aplikacji (np. https://example.com) – wymagany do budowania TwiML
@@ -236,8 +244,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     log.info("[TwilioAdapter] Rozpoczynam konfigurację StatusCallback dla wszystkich aktywnych tenantów...");
 
     try {
-      List<Tenant> activeTenants = tenantRepository.findAllByOptionalFilters(null,
-          Tenant.TenantStatus.ACTIVE.name());
+      List<Tenant> activeTenants = tenantService.getActiveTenants();
 
       if (activeTenants.isEmpty()) {
         log.info("[TwilioAdapter] Brak aktywnych tenantów – pomijam konfigurację StatusCallback.");
@@ -441,7 +448,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // aby nie pozostał na zawsze w statusie QUEUED (co fałszuje metryki kolejki).
       if (contactId != null) {
         try {
-          contactRepository.updateContactStatusOnTelephonyEvent(contactId, tenantId, "ERROR", null);
+          contactService.updateContactStatusOnTelephonyEvent(contactId, tenantId, "ERROR", null);
           log.info("[TwilioAdapter] Kontakt {} oznaczony jako ERROR po błędzie Twilio API (code={})",
               contactId, e.getCode());
         } catch (Exception updateEx) {
@@ -466,7 +473,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * </ol>
    *
    * <p>Nazwa konferencji: {@code contact-{contactId}} – zgodna z TwiML generowanym przez
-   * {@link com.contactcenter.domain.service.IvrEngineService#buildWaitInConferenceTwiml}.
+   * {@link com.contactcenter.domain.ivr.IvrEngineService#buildWaitInConferenceTwiml}.
    *
    * <p>Błąd zestawiania połączenia z agentem jest logowany jako ERROR, ale nie przerywa
    * przepływu – lokalny stan sesji pozostaje ACTIVE.
@@ -550,7 +557,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             final String cFrom    = updated.getFrom();
             final String cTo      = updated.getTo();
             try {
-              contactRepository.findById(cContactId, cTenantId)
+              contactService.findContactEntity(cContactId, cTenantId)
                   .map(Contact::getAgentId)
                   .ifPresent(originatingAgentId -> {
                     log.info("[TwilioAdapter] Konsultacja odebrana – CALL_CONSULT_ANSWERED do inicjatora: agentId={}, callId={}",
@@ -654,7 +661,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // ContactAssignmentMonitor przestaje monitorować ten kontakt (sprawdza tylko status=ASSIGNED).
       if (session.getContactId() != null) {
         try {
-          contactRepository.updateContactStatusOnTelephonyEvent(
+          contactService.updateContactStatusOnTelephonyEvent(
               session.getContactId(), session.getTenantId(), "ACTIVE", null);
           log.debug("[TwilioAdapter] Status kontaktu ASSIGNED→ACTIVE po dialAgentIntoConference: " +
                     "contactId={}", session.getContactId());
@@ -747,7 +754,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
 
     if (updated.getContactId() != null && !"CONSULTATION".equals(updated.getDirection())) {
       String contactDbStatus = resolveContactEndStatus(updated);
-      contactRepository.updateContactStatusOnTelephonyEvent(
+      contactService.updateContactStatusOnTelephonyEvent(
           updated.getContactId(), updated.getTenantId(), contactDbStatus, endedAt);
       contactEventService.closeAgent(updated.getContactId(), updated.getTenantId());
       contactEventService.closeHold(updated.getContactId(), updated.getTenantId());
@@ -756,7 +763,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     if ("CONSULTATION".equals(updated.getDirection()) && updated.getContactId() != null) {
       // Zamknij etap CONSULTING i ponownie otwórz AGENT dla Agent1 (wraca do rozmowy z klientem).
       contactEventService.closeConsulting(updated.getContactId(), updated.getTenantId());
-      contactRepository.findById(updated.getContactId(), updated.getTenantId())
+      contactService.findContactEntity(updated.getContactId(), updated.getTenantId())
           .ifPresent(contact -> {
             if (contact.getAgentId() != null) {
               contactEventService.openAgent(
@@ -1033,7 +1040,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    *
    * <p>Dla {@link TransferTargetType#AGENT}:
    * <ul>
-   *   <li>Pobiera agenta po {@code request.agentId()} z {@link AppUserRepository}.</li>
+   *   <li>Pobiera agenta po {@code request.agentId()} z {@link UserService}.</li>
    *   <li>Ustala cel Twilio: {@code client:agent-{agentId}} (Twilio Client SDK),
    *       taki sam format jak używany w {@link #dialAgentIntoConference}.</li>
    *   <li>Deleguje do {@link #transferCall} – obsługuje BLIND i ATTENDED.</li>
@@ -1041,7 +1048,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    *
    * <p>Dla {@link TransferTargetType#QUEUE} (tylko BLIND – walidacja w {@link TransferRequest#validate()}):
    * <ul>
-   *   <li>Pobiera kolejkę po {@code request.queueId()} z {@link QueueRepository}.</li>
+   *   <li>Pobiera kolejkę po {@code request.queueId()} z {@link QueueService}.</li>
    *   <li>Redirectuje bieżące połączenie klienta przez TwiML {@code <Conference>}
    *       z nową nazwą konferencji ({@code contact-{newContactId}}), analogicznie do
    *       {@code IvrEngineService.buildWaitInConferenceTwiml}.</li>
@@ -1076,8 +1083,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     UUID agentId = request.agentId();
 
     // Weryfikacja agenta – musi należeć do tego samego tenanta
-    AppUser agent = appUserRepository
-        .findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+    AppUser agent = userService
+        .findAgentByIdAndTenantId(agentId, tenantId)
         .orElseThrow(() -> new TelephonyException(callId,
             "Agent nie istnieje lub należy do innego tenanta: agentId=" + agentId));
 
@@ -1181,7 +1188,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     UUID originalContactId = session.getContactId();
     if (originalContactId != null) {
       try {
-        contactRepository.updateContactStatusOnTelephonyEvent(originalContactId, tenantId, "TRANSFERRED", now);
+        contactService.updateContactStatusOnTelephonyEvent(originalContactId, tenantId, "TRANSFERRED", now);
         log.info("[TwilioAdapter] Oryginalny kontakt oznaczony jako TRANSFERRED (agent via conf): " +
             "contactId={}", originalContactId);
       } catch (Exception e) {
@@ -1195,12 +1202,12 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     String originalQueueName = null;
     if (originalContactId != null) {
       try {
-        var origOpt = contactRepository.findById(originalContactId, tenantId);
+        var origOpt = contactService.findContactEntity(originalContactId, tenantId);
         if (origOpt.isPresent()) {
           UUID qId = origOpt.get().getQueueId();
           if (qId != null) {
             originalQueueId = qId;
-            originalQueueName = queueRepository.findByIdAndTenantId(qId, tenantId)
+            originalQueueName = queueService.findQueueEntity(qId, tenantId)
                 .map(q -> q.getName()).orElse(null);
           }
         }
@@ -1286,7 +1293,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .updatedAt(now)
           .channelMetadata(new HashMap<>(java.util.Map.<String, Object>of("sip_call_id", twilioCallSid)))
           .build();
-      contactRepository.insert(newContact);
+      contactService.insertContact(newContact);
       // Nie otwieramy etapu QUEUE dla direct transfer do agenta — klient trafia bezpośrednio
       // do agenta, nie przechodzi przez kolejkę. RoutingService.onDirectAgentAssignment()
       // wywołuje closeQueue() tylko gdy etap QUEUE jest otwarty; bez openQueue() nie powstaje
@@ -1345,8 +1352,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     UUID queueId = request.queueId();
 
     // Weryfikacja kolejki – musi należeć do tego samego tenanta
-    Queue queue = queueRepository
-        .findByIdAndTenantId(queueId, tenantId)
+    Queue queue = queueService
+        .findQueueEntity(queueId, tenantId)
         .orElseThrow(() -> new TelephonyException(callId,
             "Kolejka nie istnieje lub należy do innego tenanta: queueId=" + queueId));
 
@@ -1422,7 +1429,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     UUID originalContactId = session.getContactId();
     if (originalContactId != null) {
       try {
-        contactRepository.updateContactStatusOnTelephonyEvent(
+        contactService.updateContactStatusOnTelephonyEvent(
             originalContactId, tenantId, "TRANSFERRED", now);
         log.info("[TwilioAdapter] Oryginalny kontakt oznaczony jako TRANSFERRED: contactId={}", originalContactId);
       } catch (Exception e) {
@@ -1508,7 +1515,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           .channelMetadata(new HashMap<>(java.util.Map.<String, Object>of("sip_call_id", twilioCallSid)))
           .transferredFromContactId(originalContactId)
           .build();
-      contactRepository.insert(newContact);
+      contactService.insertContact(newContact);
       log.info("[TwilioAdapter] Nowy kontakt po transferze kolejkowym utworzony: newContactId={}, queueId={}, direction={}",
           newContactId, queueId, contactDirection);
       contactEventService.openQueue(newContactId, tenantId, queueId, queue.getName(), now);
@@ -1635,7 +1642,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     Instant now = Instant.now();
     if (session1.getContactId() != null) {
       try {
-        contactRepository.updateContactStatusRequiresNew(
+        contactService.updateContactStatusRequiresNew(
             session1.getContactId(), tenantId, "TRANSFERRED", now);
         log.info("[TwilioAdapter] Bridge: oryginalny kontakt oznaczony jako TRANSFERRED (przed redirect): contactId={}",
             session1.getContactId());
@@ -1801,7 +1808,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         UUID recoveredContactId = null;
         if (tenantId != null) {
           try {
-            recoveredContactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+            recoveredContactId = contactService.findContactIdByCallSid(callSid, tenantId)
                 .orElse(null);
           } catch (Exception e) {
             log.warn("[TwilioAdapter] Nie udało się odszukać outbound contactId z DB: callSid={}, error={}",
@@ -1826,7 +1833,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         // Pierwsze powiadomienie o połączeniu przychodzącym – tworzymy rekord contact w DB
         // i sesję połączenia. contactId z DB jest kluczowy dla frontendu (PATCH /api/contacts/{contactId}/...).
         // Sprawdzamy czy contact nie został już utworzony przez webhook /voice (unikamy duplikatów).
-        UUID contactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+        UUID contactId = contactService.findContactIdByCallSid(callSid, tenantId)
             .orElseGet(() -> persistContact(tenantId, from, to, callSid));
         existing = CallSession.builder()
             .callId(callSid)
@@ -1847,7 +1854,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         if (mappedStatus == CallSession.CallStatus.ENDED && contactId != null) {
           log.info("[TwilioAdapter] Sesja nieznana – webhook ENDED bez wcześniejszej sesji, " +
                    "zapisuję ABANDONED: callSid={}, contactId={}", callSid, contactId);
-          contactRepository.updateContactStatusOnTelephonyEvent(
+          contactService.updateContactStatusOnTelephonyEvent(
               contactId, tenantId, "ABANDONED", Instant.now());
           contactEventService.closeQueue(contactId, tenantId);
           contactEventService.closeAgent(contactId, tenantId);
@@ -1905,7 +1912,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // mogły znaleźć rekord kontaktu po callSid.
       if (updated.getContactId() != null && tenantId != null) {
         try {
-          contactRepository.backfillCallSidInMetadata(updated.getContactId(), callSid, tenantId);
+          contactService.backfillCallSidInMetadata(updated.getContactId(), callSid, tenantId);
         } catch (Exception backfillEx) {
           log.warn("[TwilioAdapter] Nie udało się backfillować sip_call_id: " +
                    "contactId={}, callSid={}, error={}",
@@ -1918,7 +1925,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       // Dzięki temu answerCall() będzie mógł wywołać dialAgentIntoConference().
       if (updated.getContactId() == null && tenantId != null) {
         try {
-          UUID recoveredContactId = contactRepository.findContactIdByCallSid(callSid, tenantId)
+          UUID recoveredContactId = contactService.findContactIdByCallSid(callSid, tenantId)
               .orElse(null);
           if (recoveredContactId != null) {
             updated = updated.withContactId(recoveredContactId);
@@ -1937,7 +1944,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         // Jeśli klient rozłączył się zanim agent odebrał (answeredAt == null),
         // status kontaktu to ABANDONED (inbound) lub NOT_REACHED (outbound), a nie COMPLETED.
         String contactDbStatus = resolveContactEndStatus(updated);
-        boolean updated2 = contactRepository.updateContactStatusIfNotTerminal(
+        boolean updated2 = contactService.updateContactStatusIfNotTerminal(
             updated.getContactId(), updated.getTenantId(), contactDbStatus, webhookEndedAt);
         if (updated2) {
           log.info("[TwilioAdapter] Aktualizacja statusu kontaktu na {}: contactId={}, answeredAt={}",
@@ -1976,7 +1983,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
           && existing.getContactId() != null
           && effectiveTenantId != null) {
         try {
-          Optional<Contact> contactOpt = contactRepository.findById(existing.getContactId(), effectiveTenantId);
+          Optional<Contact> contactOpt = contactService.findContactEntity(existing.getContactId(), effectiveTenantId);
           if (contactOpt.isPresent() && contactOpt.get().getAgentId() != null) {
             effectiveAgentId = contactOpt.get().getAgentId();
             log.debug("[TwilioAdapter] Uzupełniono agentId z Contact DB dla CALL_HANGUP: " +
@@ -2028,7 +2035,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         final String cFrom    = existing.getFrom();
         final String cTo      = existing.getTo();
         try {
-          contactRepository.findById(cContactId, cTenantId)
+          contactService.findContactEntity(cContactId, cTenantId)
               .map(Contact::getAgentId)
               .ifPresent(originatingAgentId -> {
                 log.info("[TwilioAdapter] Konsultacja odebrana – CALL_CONSULT_ANSWERED do inicjatora: agentId={}, callSid={}",
@@ -2068,7 +2075,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         final String consultFrom    = existing.getFrom();
         final String consultTo      = existing.getTo();
         try {
-          contactRepository.findById(consultContactId, consultTenantId)
+          contactService.findContactEntity(consultContactId, consultTenantId)
               .map(Contact::getAgentId)
               .ifPresent(originatingAgentId -> {
                 log.info("[TwilioAdapter] Konsultacja zakończona przez Twilio ({}) – " +
@@ -2196,7 +2203,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
                  "contactId={}, tenantId={}", callSid, contactId, tenantId);
 
         // Sprawdź czy nagranie nie zostało już zapisane przez normalny webhook
-        boolean alreadySaved = contactRepository.findRecordingUrl(contactId, tenantId)
+        boolean alreadySaved = contactService.findRecordingUrl(contactId, tenantId)
             .filter(url -> url != null && !url.isBlank())
             .isPresent();
         if (alreadySaved) {
@@ -2345,7 +2352,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     UUID originalContactId = session.getContactId();
     if (originalContactId != null) {
       try {
-        contactRepository.updateContactStatusOnTelephonyEvent(
+        contactService.updateContactStatusOnTelephonyEvent(
             originalContactId, session.getTenantId(), "TRANSFERRED", now);
         log.info("[TwilioAdapter] Kontakt oznaczony jako TRANSFERRED (blind agent): contactId={}", originalContactId);
       } catch (Exception e) {
@@ -2452,8 +2459,8 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       UUID sessionContactId = session.getContactId();
       if (sessionContactId != null) {
           try {
-              customerPhone = contactRepository
-                  .findById(sessionContactId, session.getTenantId())
+              customerPhone = contactService
+                  .findContactEntity(sessionContactId, session.getTenantId())
                   .map(Contact::getRemoteAddress)
                   .filter(addr -> addr != null && !addr.isBlank())
                   .orElse(customerPhone);
@@ -2521,7 +2528,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
         if (session == null) {
           UUID tenantId = TenantContext.getTenantId();
           if (tenantId != null) {
-            session = contactRepository.findCallSidByContactId(contactId, tenantId)
+            session = contactService.findCallSidByContactId(contactId, tenantId)
                 .map(this::loadSessionFromRedis)
                 .orElse(null);
             if (session != null) {
@@ -2563,7 +2570,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
     try {
       UUID tenantId = TenantContext.getTenantId();
       if (tenantId == null) return null;
-      return contactRepository.findContactIdByCallSid(callSid, tenantId)
+      return contactService.findContactIdByCallSid(callSid, tenantId)
           .map(contactId -> {
             CallSession restored = CallSession.builder()
                 .callId(callSid)
@@ -2606,7 +2613,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   public String resolvePhoneNumber(UUID tenantId) {
     if (tenantId != null) {
       try {
-        String perTenantNumber = tenantRepository.findById(tenantId)
+        String perTenantNumber = tenantService.findTenantEntity(tenantId)
             .map(Tenant::getTwilioPhoneNumber)
             .orElse(null);
         if (StringUtils.hasText(perTenantNumber)) {
@@ -2740,7 +2747,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
   private String buildRawWebhookBaseUrl(UUID tenantId) {
     if (tenantId != null && twilioProperties.isPerTenantCallbackUrlEnabled()) {
       try {
-        String perTenantUrl = tenantRepository.findById(tenantId)
+        String perTenantUrl = tenantService.findTenantEntity(tenantId)
             .map(Tenant::getTwilioStatusCallbackUrl)
             .orElse(null);
         if (StringUtils.hasText(perTenantUrl)) {
@@ -2890,7 +2897,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .createdAt(now)
             .build();
 
-        contactRepository.insert(contact);
+        contactService.insertContact(contact);
       } finally {
         TenantContext.clear();
         TenantContext.restore(snapshot);
@@ -2935,7 +2942,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       metadata.put("sip_call_id", callSid);
 
       // Twilio webhooks hit a public endpoint — TenantFilter does not set TenantContext.
-      // ContactRepository.insert() calls assertSameTenant() which reads TenantContext from
+      // ContactService.insertContact() calls assertSameTenant() which reads TenantContext from
       // ThreadLocal and throws IllegalStateException when it is empty.
       // Solution: temporarily populate TenantContext for the duration of the DB write,
       // then restore the previous state (empty snapshot) in the finally block.
@@ -2960,7 +2967,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
             .createdAt(now)
             .build();
 
-        contactRepository.insert(contact);
+        contactService.insertContact(contact);
       } finally {
         TenantContext.clear();
         TenantContext.restore(snapshot);
@@ -2995,7 +3002,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
       return null;
     }
     try {
-      return customerRepository.findByPhoneNumber(phoneNumber, tenantId)
+      return customerService.findByPhoneNumber(phoneNumber, tenantId)
           .map(Customer::getCustomerId)
           .orElseGet(() -> {
             log.debug("[TwilioAdapter] Klient nie znaleziony dla phone={}, tenant={} – customerId=null",

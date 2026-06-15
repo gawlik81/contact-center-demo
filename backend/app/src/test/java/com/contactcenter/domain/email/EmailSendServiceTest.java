@@ -1,10 +1,8 @@
 package com.contactcenter.domain.email;
 
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.repository.EmailMessageRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.TenantService;
 import jakarta.mail.MessagingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,7 +50,7 @@ class EmailSendServiceTest {
     @Mock
     private EmailEventPublisher emailEventPublisher;
     @Mock
-    private TenantRepository tenantRepository;
+    private TenantService tenantService;
     @Mock
     private EmailEncryptionService encryptionService;
     @Mock
@@ -60,14 +58,14 @@ class EmailSendServiceTest {
     @Mock
     private TemplateVariableResolver templateVariableResolver;
 
-    private EmailSendService emailSendService;
+    private EmailSendServiceImpl emailSendService;
 
     @BeforeEach
     void setUp() {
-        emailSendService = new EmailSendService(
+        emailSendService = new EmailSendServiceImpl(
                 emailMessageRepository,
                 emailEventPublisher,
-                tenantRepository,
+                tenantService,
                 encryptionService,
                 emailTemplateService,
                 templateVariableResolver
@@ -87,14 +85,14 @@ class EmailSendServiceTest {
         void shouldSendSaveAndPublish() throws Exception {
             // given
             Tenant tenant = buildTenantWithSmtpConfig();
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             when(encryptionService.decrypt(anyString())).thenReturn("smtp-plaintext-password");
 
             EmailMessage saved = buildSavedMessage();
             when(emailMessageRepository.save(any(EmailMessage.class))).thenReturn(saved);
 
             // Spy: pomiń rzeczywiste wywołanie SMTP
-            EmailSendService spy = spy(emailSendService);
+            EmailSendServiceImpl spy = spy(emailSendService);
             doNothing().when(spy).sendSmtp(
                     any(), anyString(), anyString(), anyString(),
                     anyString(), anyString(), anyString(), isNull(), isNull());
@@ -131,11 +129,11 @@ class EmailSendServiceTest {
         void shouldCallSendSmtpWithNullThreadHeaders() throws Exception {
             // given
             Tenant tenant = buildTenantWithSmtpConfig();
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             when(encryptionService.decrypt(anyString())).thenReturn("pass");
             when(emailMessageRepository.save(any())).thenReturn(buildSavedMessage());
 
-            EmailSendService spy = spy(emailSendService);
+            EmailSendServiceImpl spy = spy(emailSendService);
             doNothing().when(spy).sendSmtp(
                     any(), anyString(), anyString(), anyString(),
                     anyString(), anyString(), anyString(), any(), any());
@@ -164,7 +162,7 @@ class EmailSendServiceTest {
         @DisplayName("powinien rzucić ResourceNotFoundException gdy tenant nie istnieje")
         void shouldThrowWhenTenantNotFound() {
             // given
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.empty());
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.empty());
 
             // when / then
             assertThatThrownBy(() ->
@@ -183,7 +181,7 @@ class EmailSendServiceTest {
                     .id(TENANT_ID)
                     .config(new HashMap<>()) // brak kluczy SMTP
                     .build();
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
 
             // when / then
             assertThatThrownBy(() ->
@@ -199,7 +197,7 @@ class EmailSendServiceTest {
         void shouldThrowWhenDecryptionFails() {
             // given
             Tenant tenant = buildTenantWithSmtpConfig();
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             when(encryptionService.decrypt(anyString()))
                     .thenThrow(new EmailEncryptionService.EmailEncryptionException("Błąd AES",
                             new RuntimeException("cause")));
@@ -219,10 +217,10 @@ class EmailSendServiceTest {
         void shouldThrowWhenSmtpFails() throws Exception {
             // given
             Tenant tenant = buildTenantWithSmtpConfig();
-            when(tenantRepository.findById(TENANT_ID)).thenReturn(Optional.of(tenant));
+            when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             when(encryptionService.decrypt(anyString())).thenReturn("pass");
 
-            EmailSendService spy = spy(emailSendService);
+            EmailSendServiceImpl spy = spy(emailSendService);
             doThrow(new MessagingException("Connection refused"))
                     .when(spy).sendSmtp(
                             any(), anyString(), anyString(), anyString(),

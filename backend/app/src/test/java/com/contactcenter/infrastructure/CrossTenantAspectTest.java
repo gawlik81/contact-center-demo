@@ -89,6 +89,18 @@ class CrossTenantAspectTest {
         }
     }
 
+    /**
+     * Symuluje {@code UserServiceImpl} – cel pointcutu dla metody bootstrapu
+     * autentykacji ({@code findAuthenticatableUser}), wywoływanej przez
+     * {@code JwtAuthFilter}/{@code UserDetailsServiceImpl} PRZED {@code TenantFilter}.
+     */
+    static class UserServiceImpl {
+        @Override
+        public String toString() {
+            return "UserServiceImpl";
+        }
+    }
+
     // =========================================================================
     // Testy logCrossTenantAttempt()
     // =========================================================================
@@ -194,6 +206,21 @@ class CrossTenantAspectTest {
             when(signature.getName()).thenReturn("createContact");
             when(joinPoint.getTarget()).thenReturn(new FakeService());
 
+            assertThatCode(() -> aspect.verifyTenantContext(joinPoint))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("nie rzuca dla UserServiceImpl.findAuthenticatableUser bez TenantContext "
+                + "(bootstrap autentykacji – early-return przed logiem ERROR)")
+        void verifyTenantContext_authBootstrapMethod_withoutContext_doesNotThrow() {
+            // TenantContext jest pusty (bootstrap autentykacji – JwtAuthFilter
+            // wywołuje UserServiceImpl.findAuthenticatableUser PRZED TenantFilter)
+            when(signature.getName()).thenReturn("findAuthenticatableUser");
+            when(joinPoint.getTarget()).thenReturn(new UserServiceImpl());
+
+            // Aspekt powinien rozpoznać ten przypadek jako oczekiwany (TRACE),
+            // a nie logować ERROR jak dla pozostałych metod domenowych.
             assertThatCode(() -> aspect.verifyTenantContext(joinPoint))
                     .doesNotThrowAnyException();
         }

@@ -47,6 +47,11 @@ ClickHouse i MinIO, których nie było w pierwotnym dokumencie.</p>
 <li>Samodzielny serwis Python/FastAPI (<code>voicebot/</code>) do zadań AI/ASR/NLU – jedyny serwis
 działający poza JVM, zgodnie z ADR-06.</li>
 </ul>
+<p>Logika biznesowa żyje w pakietach <code>com.contactcenter.domain.&lt;domena&gt;</code> – każda domena
+(<code>campaign</code>, <code>routing</code>, <code>voicebot</code>, <code>etl</code>, ...) jest samodzielnym, zenkapsulowanym modułem
+(repozytoria package-private, dostęp cross-domain wyłącznie przez publiczny interfejs serwisu).
+Pełny opis konwencji pakietów domenowych i wzorca enkapsulacji – sekcja &quot;Konwencje pakietów
+domenowych i enkapsulacja&quot; w <a href="04-backend.html"><code>04-backend.md</code></a>.</p>
 <h2>2.2 Diagram wysokopoziomowy (as-built)</h2>
 <pre><code>                         BROWSER (Angular SPA)
             Agent Desktop | Supervisor Dashboard | Admin Panel
@@ -155,8 +160,10 @@ signale komponentów.</li>
 </tr>
 </tbody></table>
 <h2>2.6 Przepływ danych operacyjnych → analitycznych (DWH)</h2>
-<p><code>EtlSyncService</code> (zob. <code>backend/app/src/main/java/com/contactcenter/domain/service/EtlSyncService.java</code>)
-działa jako zadania <code>@Scheduled(fixedDelayString = &quot;${etl.sync.fixed-delay-ms:60000}&quot;)</code>:</p>
+<p><code>EtlSyncService</code> (zob. <code>backend/app/src/main/java/com/contactcenter/domain/etl/EtlSyncService.java</code></p>
+<ul>
+<li><code>EtlSyncServiceImpl.java</code>) działa jako zadania <code>@Scheduled(fixedDelayString = &quot;${etl.sync.fixed-delay-ms:60000}&quot;)</code>:</li>
+</ul>
 <ul>
 <li><code>runContactSync()</code> – synchronizuje tabelę kontaktów do <code>ContactDwRow</code> w ClickHouse.</li>
 <li><code>runCampaignContactSync()</code> – fakty kampanii (<code>CampaignDwRow</code>).</li>

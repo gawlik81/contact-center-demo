@@ -1,6 +1,6 @@
 package com.contactcenter.api.social.dto;
 
-import com.contactcenter.domain.model.SocialPlatform;
+import com.contactcenter.domain.social.SocialPlatform;
 
 import java.time.Instant;
 import java.util.UUID;

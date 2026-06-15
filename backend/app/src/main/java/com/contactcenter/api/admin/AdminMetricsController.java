@@ -2,7 +2,7 @@ package com.contactcenter.api.admin;
 
 import com.contactcenter.api.admin.dto.AdminMetricsResponse;
 import com.contactcenter.api.admin.dto.TenantDetailMetrics;
-import com.contactcenter.domain.service.AdminMetricsService;
+import com.contactcenter.domain.tenant.AdminMetricsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

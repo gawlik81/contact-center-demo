@@ -5,6 +5,7 @@ import com.contactcenter.domain.etl.CampaignDwRow;
 import com.contactcenter.domain.etl.ContactDwRow;
 import com.contactcenter.domain.etl.DataWarehouseException;
 import com.contactcenter.domain.etl.DataWarehouseWriter;
+import com.contactcenter.domain.etl.EtlSyncService;
 import com.contactcenter.domain.etl.QueueDimRow;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

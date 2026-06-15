@@ -1,8 +1,7 @@
 package com.contactcenter.api.public_;
 
-import com.contactcenter.domain.model.Tenant.TenantStatus;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.user.UserService;
+import com.contactcenter.domain.tenant.TenantService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -31,8 +30,8 @@ import java.util.UUID;
 @Tag(name = "Public", description = "Endpointy publiczne (bez autentykacji)")
 public class PublicController {
 
-    private final TenantRepository tenantRepository;
-    private final AppUserRepository appUserRepository;
+    private final TenantService tenantService;
+    private final UserService userService;
 
     /**
      * Lista aktywnych tenantów do wyświetlenia na stronie logowania.
@@ -45,8 +44,7 @@ public class PublicController {
     @Operation(summary = "Lista aktywnych organizacji (publiczna)",
                description = "Zwraca id i name aktywnych tenantów do selecta na stronie logowania.")
     public ResponseEntity<List<TenantDto>> listActiveTenants() {
-        List<TenantDto> tenants = tenantRepository.findAllByOrderByNameAsc().stream()
-                .filter(t -> TenantStatus.ACTIVE == t.getStatus())
+        List<TenantDto> tenants = tenantService.getActiveTenants().stream()
                 .map(t -> new TenantDto(t.getId(), t.getName()))
                 .toList();
         return ResponseEntity.ok(tenants);
@@ -79,7 +77,7 @@ public class PublicController {
     public ResponseEntity<List<TenantDto>> findTenantsByEmail(
             @Valid @RequestBody TenantsByEmailRequest request
     ) {
-        List<TenantDto> tenants = appUserRepository
+        List<TenantDto> tenants = userService
                 .findActiveTenantsByUserEmail(request.email())
                 .stream()
                 .map(row -> new TenantDto(

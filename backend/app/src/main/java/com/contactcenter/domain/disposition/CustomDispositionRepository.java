@@ -22,7 +22,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class CustomDispositionRepository extends TenantAwareRepository {
+class CustomDispositionRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Odczyt — aktywne dyspozycje (dla agenta)

@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.messaging;
 
 import com.contactcenter.security.TenantContext;
 import lombok.extern.slf4j.Slf4j;

@@ -1,6 +1,6 @@
 package com.contactcenter.domain.audit;
 
-import com.contactcenter.domain.service.TenantAwareConsumer;
+import com.contactcenter.domain.messaging.TenantAwareConsumer;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

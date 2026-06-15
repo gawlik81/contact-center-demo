@@ -1,5 +1,6 @@
 package com.contactcenter.api.reports.dto;
 
+import com.contactcenter.domain.reporting.ReportsService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;

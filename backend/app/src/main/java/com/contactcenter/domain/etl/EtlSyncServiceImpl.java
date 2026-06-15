@@ -1,11 +1,5 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.etl;
 
-import com.contactcenter.domain.etl.AgentDimRow;
-import com.contactcenter.domain.etl.CampaignDwRow;
-import com.contactcenter.domain.etl.ContactDwRow;
-import com.contactcenter.domain.etl.DataWarehouseWriter;
-import com.contactcenter.domain.etl.EtlTableStatus;
-import com.contactcenter.domain.etl.QueueDimRow;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -26,48 +20,15 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Serwis ETL: polling-based CDC (Change Data Capture) z PostgreSQL do Data Warehouse.
- *
- * <h3>Algorytm</h3>
- * <ol>
- *   <li>Odczyt {@code last_synced_at} z tabeli {@code etl_sync_state}.</li>
- *   <li>Pobranie rekordów {@code contact} gdzie {@code updated_at > last_synced_at}
- *       (lub {@code created_at > last_synced_at} gdy {@code updated_at IS NULL}).</li>
- *   <li>Filtrowanie: pomijamy rekordy anonimizowane RODO (contact bez customer lub
- *       powiązany customer ma first_name='ANONYMIZED') oraz nieaktywne.</li>
- *   <li>Transformacja do {@link ContactDwRow} i zapis przez {@link DataWarehouseWriter}.</li>
- *   <li>Aktualizacja {@code last_synced_at} do max(updated_at) przetworzonych rekordów.</li>
- * </ol>
- *
- * <h3>Idempotentność</h3>
- * <p>Upsert po {@code contact_id} zapewnia, że ponowne przetworzenie tych samych rekordów
- * nie tworzy duplikatów w DW.
- *
- * <h3>Multi-tenancy</h3>
- * <p>ETL jest zadaniem systemowym – odpytuje wszystkie tenanty jednocześnie.
- * Brak TenantContext – zapytanie natywne nie używa RLS (tabela ETL nie ma polityk RLS).
- * Tenant_id jest uwzględniany w danych wyjściowych ({@link ContactDwRow#tenantId()}).
- *
- * <h3>Alert monitoringowy</h3>
- * <p>Gdy lag > 30 min, publikowany jest event do RabbitMQ (exchange {@code cc.events},
- * routing key {@code etl.lag.alert}). Logowany jest WARN niezależnie od RabbitMQ.
+ * Implementacja {@link EtlSyncService}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class EtlSyncService {
-
-    /** Lag powyżej którego emitowany jest alert (minuty). */
-    public static final long LAG_ALERT_THRESHOLD_MINUTES = 30;
+class EtlSyncServiceImpl implements EtlSyncService {
 
     /** Rozmiar batcha upsert do DW. */
     private static final int BATCH_SIZE = 500;
-
-    /** Nazwa tabeli źródłowej kontaktów (klucz w etl_sync_state). */
-    public static final String TABLE_CONTACT = "contact";
-
-    /** Nazwa tabeli rekordów kampanii (klucz w etl_sync_state). */
-    public static final String TABLE_CAMPAIGN_CONTACT = "campaign_contact";
 
     private static final String EXCHANGE_EVENTS = "cc.events";
     private static final String ROUTING_KEY_ETL_LAG = "etl.lag.alert";
@@ -245,18 +206,7 @@ public class EtlSyncService {
     // Logika synchronizacji
     // =========================================================================
 
-    /**
-     * Synchronizuje jedną tabelę: odczyt -> transformacja -> upsert -> aktualizacja stanu.
-     *
-     * <p>Operacja odbywa się w osobnych transakcjach:
-     * <ol>
-     *   <li>Transakcja 1: blokada wiersza + oznaczenie RUNNING.</li>
-     *   <li>Poza transakcją: pobranie danych + zapis do DW (upsert ma własną transakcję).</li>
-     *   <li>Transakcja 2: aktualizacja stanu na DONE lub ERROR.</li>
-     * </ol>
-     *
-     * @param tableName nazwa tabeli do synchronizacji
-     */
+    @Override
     public void syncTable(String tableName) {
         Instant syncStartedAt = Instant.now();
 
@@ -318,7 +268,7 @@ public class EtlSyncService {
      * @return last_synced_at lub null gdy brak wpisu
      */
     @Transactional
-    public Instant readAndLockSyncState(String tableName) {
+    Instant readAndLockSyncState(String tableName) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(SELECT_SYNC_STATE, tableName);
         if (rows.isEmpty()) {
             return null;
@@ -390,7 +340,7 @@ public class EtlSyncService {
     }
 
     @Transactional
-    public void markDone(String tableName, Instant newSyncedAt, long rowCount) {
+    void markDone(String tableName, Instant newSyncedAt, long rowCount) {
         jdbcTemplate.update(UPDATE_DONE,
                 Timestamp.from(newSyncedAt),
                 rowCount,
@@ -400,7 +350,7 @@ public class EtlSyncService {
     }
 
     @Transactional
-    public void markError(String tableName, String errorMessage) {
+    void markError(String tableName, String errorMessage) {
         jdbcTemplate.update(UPDATE_ERROR,
                 errorMessage != null && errorMessage.length() > 1000
                         ? errorMessage.substring(0, 1000)
@@ -420,7 +370,7 @@ public class EtlSyncService {
      * @param tableName   nazwa tabeli
      * @param lastSyncedAt aktualna pozycja CDC
      */
-    public void checkLagAndAlert(String tableName, Instant lastSyncedAt) {
+    void checkLagAndAlert(String tableName, Instant lastSyncedAt) {
         long lagMinutes = Duration.between(lastSyncedAt, Instant.now()).toMinutes();
 
         if (lagMinutes >= LAG_ALERT_THRESHOLD_MINUTES) {
@@ -447,11 +397,7 @@ public class EtlSyncService {
     // Status ETL dla kontrolera
     // =========================================================================
 
-    /**
-     * Zwraca aktualny status synchronizacji wszystkich tabel ETL.
-     *
-     * @return lista statusów per tabela
-     */
+    @Override
     public List<EtlTableStatus> getStatus() {
         return jdbcTemplate.query(SELECT_STATUS, (rs, rowNum) -> {
             String table = rs.getString("table_name");
@@ -481,7 +427,7 @@ public class EtlSyncService {
      * campaign_contact: JOIN z campaign, odrębny RowMapper i wywołanie
      * {@link DataWarehouseWriter#upsertCampaigns(List)}.
      */
-    public void syncCampaignContactTable() {
+    void syncCampaignContactTable() {
         Instant syncStartedAt = Instant.now();
 
         Instant lastSyncedAt = readAndLockSyncState(TABLE_CAMPAIGN_CONTACT);
@@ -582,7 +528,7 @@ public class EtlSyncService {
      * <p>Brak etl_sync_state – dim tabele nie wymagają CDC, wstawiamy zawsze
      * najnowszy stan. ReplacingMergeTree deduplikuje po (tenant_id, agent_id).
      */
-    public void syncAgentDim() {
+    void syncAgentDim() {
         Instant syncStartedAt = Instant.now();
         long totalRows = 0;
 
@@ -631,7 +577,7 @@ public class EtlSyncService {
      *
      * <p>Brak etl_sync_state – analogicznie do {@link #syncAgentDim()}.
      */
-    public void syncQueueDim() {
+    void syncQueueDim() {
         Instant syncStartedAt = Instant.now();
         long totalRows = 0;
 

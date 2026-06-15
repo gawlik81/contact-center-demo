@@ -1,10 +1,9 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.reporting;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.reports.dto.AgentReportParams;
 import com.contactcenter.api.reports.dto.AgentReportRow;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.service.ReportsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,15 +35,15 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 /**
- * Testy jednostkowe dla {@link ReportsService}.
+ * Testy jednostkowe dla {@link ReportsServiceImpl}.
  *
  * <p>Weryfikuje logikę biznesową bez dostępu do prawdziwej bazy danych i Redis.
  * Używa mocków {@link ContactService} i {@link StringRedisTemplate}.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-@DisplayName("ReportsService – raporty historyczne agentów")
-class ReportsServiceTest {
+@DisplayName("ReportsServiceImpl – raporty historyczne agentów")
+class ReportsServiceImplTest {
 
     @Mock
     private ContactService contactService;
@@ -59,7 +58,7 @@ class ReportsServiceTest {
     private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @InjectMocks
-    private ReportsService reportsService;
+    private ReportsServiceImpl reportsService;
 
     private static final UUID TENANT_ID = UUID.randomUUID();
     private static final UUID AGENT_ID  = UUID.randomUUID();

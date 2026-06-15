@@ -1,10 +1,5 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.etl;
 
-import com.contactcenter.domain.etl.ContactDwRow;
-import com.contactcenter.domain.etl.DataWarehouseException;
-import com.contactcenter.domain.etl.DataWarehouseWriter;
-import com.contactcenter.domain.etl.EtlTableStatus;
-import com.contactcenter.domain.service.EtlSyncService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -47,7 +42,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Testy jednostkowe dla {@link EtlSyncService}.
+ * Testy jednostkowe dla {@link EtlSyncServiceImpl}.
  *
  * <p>Weryfikuje:
  * <ul>
@@ -61,7 +56,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("EtlSyncService – pipeline CDC PostgreSQL → DW")
-class EtlSyncServiceTest {
+class EtlSyncServiceImplTest {
 
     @Mock
     private JdbcTemplate jdbcTemplate;
@@ -73,7 +68,7 @@ class EtlSyncServiceTest {
     private RabbitTemplate rabbitTemplate;
 
     @InjectMocks
-    private EtlSyncService service;
+    private EtlSyncServiceImpl service;
 
     private static final UUID TENANT_ID = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
     private static final UUID CONTACT_ID = UUID.randomUUID();

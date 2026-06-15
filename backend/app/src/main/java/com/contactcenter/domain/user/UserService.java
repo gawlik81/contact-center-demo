@@ -160,6 +160,16 @@ public interface UserService {
      * <p>Używane przez {@code UserDetailsServiceImpl} podczas logowania. Pomija
      * użytkowników z {@code is_active = false}.
      *
+     * <p><strong>Uwaga:</strong> ta metoda jest wywoływana z {@code JwtAuthFilter} /
+     * {@code UserDetailsServiceImpl} jako część bootstrapu autentykacji – PRZED
+     * {@code TenantFilter}. W tym momencie {@code TenantContext} jest celowo
+     * NIEUSTAWIONY (kolejność filtrów: JwtAuthFilter → TenantFilter →
+     * UsernamePasswordAuthenticationFilter). Metoda musi działać wyłącznie na
+     * podstawie jawnie przekazanego {@code tenantId} (z claimów JWT), bez odwołań
+     * do {@code TenantContext.getTenantId()}. {@code CrossTenantAspect} ma dla niej
+     * jawny wyjątek (patrz {@code isAuthenticationBootstrapMethod}) – przyszłe
+     * refaktory nie powinny przenosić tej metody bez zachowania tej własności.
+     *
      * @param tenantId UUID tenanta
      * @param email    adres e-mail użytkownika
      * @return Optional z użytkownikiem lub empty jeśli nie istnieje/nieaktywny

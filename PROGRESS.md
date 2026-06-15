@@ -878,6 +878,26 @@ Domena `phonenumber` (wydzielona w `ed495ac`, poprawka enkapsulacji w `cd479cf`)
 - **Cykliczna zależność `phonenumber`↔`ivr`** (`PhoneRoutingRuleServiceImpl` → `IvrService` i `IvrService` → `PhoneRoutingRuleService`) rozwiązana setter injection z `@Autowired @Lazy` – wzorzec identyczny jak w `RecordingServiceImpl.setContactService`/`TenantServiceImpl` (cykl rozbity na stronie `PhoneRoutingRuleServiceImpl.setIvrService` i `IvrService.setPhoneRoutingRuleService`).
 - Testy: `IncomingCallRoutingServiceTest` (mocki `PhoneNumberService`/`PhoneRoutingRuleService` zamiast repozytoriów), `PhoneNumberServiceTest`/`PhoneRoutingRuleServiceTest` (`@InjectMocks` na `*Impl`, dodany mock `IvrService` w `PhoneRoutingRuleServiceTest`). Build: ✅ czysty (`mvn package -pl app -DskipTests`). Testy: 1125, 0 błędów.
 
+### Audyt końcowy enkapsulacji (commit `343babf`)
+
+Pełny przegląd wszystkich pakietów `domain.*` względem wzorca enkapsulacji (repozytoria package-private, serwisy interfejs+Impl, brak cross-domain dostępu do repozytoriów/konkretnych `*ServiceImpl`).
+
+**Drobne poprawki wykonane od razu** (zmiana `public class XxxRepository` → `class XxxRepository`, brak użycia poza własną domeną), commit `343babf`:
+- `disposition.CustomDispositionRepository`, `disposition.DispositionSetRepository`, `disposition.DispositionSetItemRepository`
+- `agentbreak.AgentBreakRepository`
+
+Build: ✅ (`mvn package -pl app -DskipTests`). Testy: ✅ (`mvn test -pl app`, exit 0).
+
+**Domeny zgodne ✅** (bez zmian): `agentgroup` (poza TODO niżej), `audit`, `campaign`, `contact`, `customer`, `email` (poza TODO niżej), `etl`, `gdpr`, `messaging`, `phonenumber`, `queue`, `recording`, `reporting`, `routing`, `social`, `telephony` (poza TODO niżej), `tenant`, `user`, `voicebot`, `websocket`, `agentbreak`, `disposition` (po poprawkach), `ivr` (poza TODO niżej).
+
+**TODO do kolejnej iteracji (wymagają osobnej delegacji/commitów per domena):**
+
+1. **`ivr.IvrService` → `phonenumber.PhoneRoutingRuleServiceImpl`**: `PhoneRoutingRuleServiceImpl` wstrzykuje konkretną klasę `IvrService` (`@Autowired @Lazy` setter) zamiast publicznego interfejsu. `IvrService` jest `public class` bez interfejsu (podobnie jak `IvrEngineService`, ale ten drugi nie ma cross-domain konsumentów spoza `ivr`). Naprawa: wydzielić `IvrService` → interfejs `IvrService` + `IvrServiceImpl` (analogicznie do wzorca z `phonenumber`/`gdpr`/`routing`), zachowując cykl `@Lazy` na obu stronach (`PhoneRoutingRuleServiceImpl.setIvrService` / `IvrServiceImpl.setPhoneRoutingRuleService`).
+
+2. **`agentgroup.AgentGroupRepository` → `campaign.CampaignAssignmentServiceImpl` i `queue.QueueAssignmentServiceImpl`**: obie klasy wstrzykują repozytorium `AgentGroupRepository` cross-domain (metody `findByIdAndTenantId`, `countMembers`). Naprawa: dodać brakujące metody do publicznego `AgentGroupService` (np. `getGroupSummary(groupId, tenantId)` zwracające dane potrzebne do `AgentGroupSummary`), zamienić wstrzyknięcia repozytorium na serwis, repozytorium → `package-private`.
+
+3. **`email.EmailMessageRepository` → `contact.AiSummaryServiceImpl` i `contact.ContactServiceImpl`**: obie klasy wstrzykują `EmailMessageRepository` cross-domain (`findByContactId`, `findById`). Dodatkowo `api.email.EmailController` wstrzykuje repozytorium bezpośrednio (pre-existing, poza zakresem domain-to-domain, ale wart odnotowania). Naprawa: dodać publiczny `EmailMessageService` (lub rozszerzyć istniejący serwis email) z metodami potrzebnymi do odczytu treści/wiadomości po `contactId`/`id`, zamienić wstrzyknięcia w `domain.contact` na ten serwis, `EmailMessageRepository` → `package-private` (jeśli `EmailController` zostanie również zmigrowany na serwis – do oceny w osobnej iteracji).
+
 ### Znane duże follow-upy
 
 **Przed kolejną sesją:** sprawdzić, czy poprzednia domena ma czysty build i przejść do następnej wg powyższej listy, stosując wzorzec z sekcji "Wzorzec referencyjny".

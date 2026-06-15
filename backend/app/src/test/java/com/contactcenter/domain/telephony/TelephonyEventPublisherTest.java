@@ -1,7 +1,5 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.telephony;
 
-import com.contactcenter.domain.telephony.CallEvent;
-import com.contactcenter.domain.telephony.TelephonyEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -45,7 +43,7 @@ class TelephonyEventPublisherTest {
 
     @BeforeEach
     void setUp() {
-        publisher = new TelephonyEventPublisher(rabbitTemplate);
+        publisher = new TelephonyEventPublisherImpl(rabbitTemplate);
     }
 
     // =========================================================================

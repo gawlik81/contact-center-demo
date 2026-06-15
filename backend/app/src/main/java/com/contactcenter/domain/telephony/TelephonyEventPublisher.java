@@ -2,13 +2,8 @@ package com.contactcenter.domain.telephony;
 
 import com.contactcenter.domain.customer.CustomerCliResult;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,18 +16,7 @@ import java.util.UUID;
  * <p>Konwencja routing keys zgodna z {@link RabbitMQConfig#RK_CALL_ALL} ({@code call.#}),
  * więc wszystkie eventy trafiają do {@code cc.queue.call-events}.
  */
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class TelephonyEventPublisher {
-
-    private static final String ROUTING_KEY_PREFIX = "call.";
-
-    private final RabbitTemplate rabbitTemplate;
-
-    // =========================================================================
-    // Metody publikacji
-    // =========================================================================
+public interface TelephonyEventPublisher {
 
     /**
      * Publikuje event domenowy na RabbitMQ.
@@ -40,29 +24,7 @@ public class TelephonyEventPublisher {
      * @param event event do opublikowania
      * @throws AmqpException gdy komunikacja z RabbitMQ nie powiedzie się
      */
-    public void publish(CallEvent event) {
-        String routingKey = ROUTING_KEY_PREFIX + event.getEventType().toRoutingKeySuffix();
-
-        log.debug("[Telephony] Publikuję event: type={}, callId={}, tenant={}, routingKey={}",
-                event.getEventType(), event.getCallId(), event.getTenantId(), routingKey);
-
-        try {
-            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_EVENTS, routingKey, event);
-
-            log.info("[Telephony] Event opublikowany: type={}, callId={}, tenant={}, from={}, to={}",
-                    event.getEventType(), event.getCallId(),
-                    event.getTenantId(), event.getFrom(), event.getTo());
-
-        } catch (AmqpException e) {
-            log.error("[Telephony] Błąd publikacji eventu: type={}, callId={}, error={}",
-                    event.getEventType(), event.getCallId(), e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    // =========================================================================
-    // Metody fabryczne dla konkretnych typów zdarzeń
-    // =========================================================================
+    void publish(CallEvent event);
 
     /**
      * Publikuje zdarzenie CALL_INCOMING (przychodzące połączenie).
@@ -74,19 +36,8 @@ public class TelephonyEventPublisher {
      * @param from      numer dzwoniącego
      * @param to        numer docelowy
      */
-    public void publishIncoming(String callId, UUID contactId, UUID tenantId, UUID agentId,
-                                 String from, String to) {
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_INCOMING)
-                .callId(callId)
-                .contactId(contactId)
-                .tenantId(tenantId)
-                .agentId(agentId)
-                .from(from)
-                .to(to)
-                .timestamp(Instant.now())
-                .build());
-    }
+    void publishIncoming(String callId, UUID contactId, UUID tenantId, UUID agentId,
+                          String from, String to);
 
     /**
      * Publikuje zdarzenie CALL_OUTBOUND (wychodzące połączenie kampanijne zainicjowane przez dialer).
@@ -102,35 +53,14 @@ public class TelephonyEventPublisher {
      * @param from      numer wychodzący (Twilio phone number)
      * @param to        numer docelowy (numer klienta)
      */
-    public void publishOutbound(String callId, UUID contactId, UUID tenantId, UUID agentId,
-                                String from, String to) {
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_OUTBOUND)
-                .callId(callId)
-                .contactId(contactId)
-                .tenantId(tenantId)
-                .agentId(agentId)
-                .from(from)
-                .to(to)
-                .timestamp(Instant.now())
-                .build());
-    }
+    void publishOutbound(String callId, UUID contactId, UUID tenantId, UUID agentId,
+                          String from, String to);
 
     /**
      * Publikuje zdarzenie CALL_ANSWERED (połączenie odebrane).
      */
-    public void publishAnswered(String callId, UUID tenantId, UUID agentId,
-                                 String from, String to) {
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_ANSWERED)
-                .callId(callId)
-                .tenantId(tenantId)
-                .agentId(agentId)
-                .from(from)
-                .to(to)
-                .timestamp(Instant.now())
-                .build());
-    }
+    void publishAnswered(String callId, UUID tenantId, UUID agentId,
+                          String from, String to);
 
     /**
      * Publikuje zdarzenie CALL_HANGUP (połączenie zakończone).
@@ -139,20 +69,8 @@ public class TelephonyEventPublisher {
      * @param callOutcome wynik połączenia zwrócony przez dostawcę telefonii
      *                    (np. "completed", "no-answer", "busy", "failed", "canceled"); może być null
      */
-    public void publishHangup(String callId, UUID contactId, UUID tenantId, UUID agentId,
-                               String from, String to, String callOutcome) {
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_HANGUP)
-                .callId(callId)
-                .contactId(contactId)
-                .tenantId(tenantId)
-                .agentId(agentId)
-                .from(from)
-                .to(to)
-                .callOutcome(callOutcome)
-                .timestamp(Instant.now())
-                .build());
-    }
+    void publishHangup(String callId, UUID contactId, UUID tenantId, UUID agentId,
+                        String from, String to, String callOutcome);
 
     /**
      * Publikuje zdarzenie CALL_TRANSFERRED (połączenie przekazane).
@@ -160,15 +78,9 @@ public class TelephonyEventPublisher {
      * @param transferTarget numer docelowy przekazania
      * @param transferType   typ przekazania (BLIND/ATTENDED)
      */
-    public void publishTransferred(String callId, UUID tenantId, UUID agentId,
-                                    String from, String to,
-                                    String transferTarget, String transferType) {
-        publishTransferred(callId, tenantId, agentId, from, to, transferTarget, transferType,
-                Map.of(
-                        "transferTarget", transferTarget,
-                        "transferType", transferType
-                ));
-    }
+    void publishTransferred(String callId, UUID tenantId, UUID agentId,
+                             String from, String to,
+                             String transferTarget, String transferType);
 
     /**
      * Publikuje zdarzenie CALL_TRANSFERRED z dodatkowymi metadanymi.
@@ -180,21 +92,10 @@ public class TelephonyEventPublisher {
      * @param transferType   typ przekazania (BLIND/ATTENDED)
      * @param metadata       dodatkowe metadane specyficzne dla typu celu
      */
-    public void publishTransferred(String callId, UUID tenantId, UUID agentId,
-                                    String from, String to,
-                                    String transferTarget, String transferType,
-                                    Map<String, String> metadata) {
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_TRANSFERRED)
-                .callId(callId)
-                .tenantId(tenantId)
-                .agentId(agentId)
-                .from(from)
-                .to(to)
-                .timestamp(Instant.now())
-                .metadata(metadata)
-                .build());
-    }
+    void publishTransferred(String callId, UUID tenantId, UUID agentId,
+                             String from, String to,
+                             String transferTarget, String transferType,
+                             Map<String, String> metadata);
 
     /**
      * Publikuje zdarzenie CALL_TRANSFER_CONSULT (druga noga attended transfer).
@@ -211,25 +112,9 @@ public class TelephonyEventPublisher {
      * @param to                  cel drugiej nogi (numer E.164 lub "client:agent-{uuid}")
      * @param customerInfo        wynik CLI lookup – imię/nazwisko klienta (może być null)
      */
-    public void publishTransferConsult(String callId, UUID tenantId, UUID targetAgentId,
-                                       UUID originatingAgentId, UUID originalContactId,
-                                       String from, String to, CustomerCliResult customerInfo) {
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_TRANSFER_CONSULT)
-                .callId(callId)
-                .contactId(originalContactId)
-                .tenantId(tenantId)
-                .agentId(targetAgentId)
-                .from(from)
-                .to(to)
-                .customerInfo(customerInfo)
-                .timestamp(Instant.now())
-                .metadata(Map.of(
-                        "originalContactId", originalContactId != null ? originalContactId.toString() : "",
-                        "originatingAgentId", originatingAgentId != null ? originatingAgentId.toString() : ""
-                ))
-                .build());
-    }
+    void publishTransferConsult(String callId, UUID tenantId, UUID targetAgentId,
+                                 UUID originatingAgentId, UUID originalContactId,
+                                 String from, String to, CustomerCliResult customerInfo);
 
     /**
      * Publikuje zdarzenie CALL_CONSULT_CANCELLED (konsultacja anulowana przed bridge).
@@ -244,19 +129,8 @@ public class TelephonyEventPublisher {
      * @param from              numer klienta
      * @param to                identyfikator Agent2
      */
-    public void publishConsultCancelled(String callId, UUID tenantId, UUID targetAgentId,
-                                        UUID originalContactId, String from, String to) {
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_CONSULT_CANCELLED)
-                .callId(callId)
-                .contactId(originalContactId)
-                .tenantId(tenantId)
-                .agentId(targetAgentId)
-                .from(from)
-                .to(to)
-                .timestamp(Instant.now())
-                .build());
-    }
+    void publishConsultCancelled(String callId, UUID tenantId, UUID targetAgentId,
+                                  UUID originalContactId, String from, String to);
 
     /**
      * Publikuje zdarzenie CALL_CONSULT_ANSWERED (konsultacja odebrana przez cel).
@@ -272,19 +146,8 @@ public class TelephonyEventPublisher {
      * @param from                 numer klienta
      * @param to                   identyfikator celu konsultacji
      */
-    public void publishConsultAnswered(String callId, UUID tenantId, UUID originatingAgentId,
-                                       UUID originalContactId, String from, String to) {
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_CONSULT_ANSWERED)
-                .callId(callId)
-                .contactId(originalContactId)
-                .tenantId(tenantId)
-                .agentId(originatingAgentId)
-                .from(from)
-                .to(to)
-                .timestamp(Instant.now())
-                .build());
-    }
+    void publishConsultAnswered(String callId, UUID tenantId, UUID originatingAgentId,
+                                 UUID originalContactId, String from, String to);
 
     /**
      * Publikuje zdarzenie CALL_BRIDGE_COMPLETE (bridge attended transfer zakończony).
@@ -297,23 +160,8 @@ public class TelephonyEventPublisher {
      * @param to              identyfikator Agent2
      * @param queueName       nazwa kolejki z oryginalnego kontaktu (może być null)
      */
-    public void publishBridgeComplete(String secondLegCallId, UUID newContactId, UUID tenantId,
-                                      UUID targetAgentId, String from, String to, String queueName) {
-        Map<String, String> metadata = queueName != null && !queueName.isEmpty()
-                ? Map.of("queueName", queueName)
-                : Map.of();
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_BRIDGE_COMPLETE)
-                .callId(secondLegCallId)
-                .contactId(newContactId)
-                .tenantId(tenantId)
-                .agentId(targetAgentId)
-                .from(from)
-                .to(to)
-                .metadata(metadata)
-                .timestamp(Instant.now())
-                .build());
-    }
+    void publishBridgeComplete(String secondLegCallId, UUID newContactId, UUID tenantId,
+                                UUID targetAgentId, String from, String to, String queueName);
 
     /**
      * Publikuje zdarzenie CALL_OUTBOUND z dodatkowymi metadanymi.
@@ -324,18 +172,6 @@ public class TelephonyEventPublisher {
      *
      * @param metadata dodatkowe metadane specyficzne dla kontekstu transferu
      */
-    public void publishOutbound(String callId, UUID contactId, UUID tenantId, UUID agentId,
-                                String from, String to, Map<String, String> metadata) {
-        publish(CallEvent.builder()
-                .eventType(CallEvent.EventType.CALL_OUTBOUND)
-                .callId(callId)
-                .contactId(contactId)
-                .tenantId(tenantId)
-                .agentId(agentId)
-                .from(from)
-                .to(to)
-                .timestamp(Instant.now())
-                .metadata(metadata)
-                .build());
-    }
+    void publishOutbound(String callId, UUID contactId, UUID tenantId, UUID agentId,
+                          String from, String to, Map<String, String> metadata);
 }

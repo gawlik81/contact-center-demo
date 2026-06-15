@@ -44,7 +44,7 @@ class WebSocketEventBroadcasterTest {
     private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
-    private WebSocketEventBroadcaster broadcaster;
+    private WebSocketEventBroadcasterImpl broadcaster;
 
     private WebSocketEvent sampleEvent;
 

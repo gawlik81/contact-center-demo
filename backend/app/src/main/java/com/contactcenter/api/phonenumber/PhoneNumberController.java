@@ -3,7 +3,7 @@ package com.contactcenter.api.phonenumber;
 import com.contactcenter.api.phonenumber.dto.CreatePhoneNumberRequest;
 import com.contactcenter.api.phonenumber.dto.PhoneNumberResponse;
 import com.contactcenter.api.phonenumber.dto.UpdatePhoneNumberRequest;
-import com.contactcenter.domain.service.PhoneNumberService;
+import com.contactcenter.domain.phonenumber.PhoneNumberService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

@@ -1,10 +1,10 @@
 package com.contactcenter.domain.routing;
 
-import com.contactcenter.domain.model.PhoneNumber;
-import com.contactcenter.domain.model.PhoneRoutingRule;
+import com.contactcenter.domain.phonenumber.PhoneNumber;
+import com.contactcenter.domain.phonenumber.PhoneRoutingRule;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.repository.PhoneNumberRepository;
-import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
+import com.contactcenter.domain.phonenumber.PhoneNumberRepository;
+import com.contactcenter.domain.phonenumber.PhoneRoutingRuleRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

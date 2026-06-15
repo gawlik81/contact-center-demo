@@ -1,13 +1,10 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.phonenumber;
 
 import com.contactcenter.api.phonenumber.dto.CreatePhoneNumberRequest;
 import com.contactcenter.api.phonenumber.dto.PhoneNumberResponse;
 import com.contactcenter.api.phonenumber.dto.UpdatePhoneNumberRequest;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.PhoneNumber;
-import com.contactcenter.domain.repository.PhoneNumberRepository;
-import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

@@ -1,6 +1,6 @@
 package com.contactcenter.api.phonenumber.dto;
 
-import com.contactcenter.domain.model.PhoneRoutingRule;
+import com.contactcenter.domain.phonenumber.PhoneRoutingRule;
 
 import java.time.Instant;
 import java.time.LocalTime;

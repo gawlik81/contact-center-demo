@@ -1,15 +1,11 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.phonenumber;
 
 import com.contactcenter.api.phonenumber.dto.CreatePhoneRoutingRuleRequest;
 import com.contactcenter.api.phonenumber.dto.PhoneRoutingRuleResponse;
 import com.contactcenter.api.phonenumber.dto.UpdatePhoneRoutingRuleRequest;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
-import com.contactcenter.domain.model.PhoneNumber;
-import com.contactcenter.domain.model.PhoneRoutingRule;
-import com.contactcenter.domain.repository.IvrTreeRepository;
-import com.contactcenter.domain.repository.PhoneNumberRepository;
-import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
+import com.contactcenter.domain.ivr.IvrTreeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

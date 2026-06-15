@@ -1,14 +1,10 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.phonenumber;
 
 import com.contactcenter.api.phonenumber.dto.CreatePhoneRoutingRuleRequest;
 import com.contactcenter.api.phonenumber.dto.PhoneRoutingRuleResponse;
 import com.contactcenter.api.phonenumber.dto.UpdatePhoneRoutingRuleRequest;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
-import com.contactcenter.domain.model.PhoneNumber;
-import com.contactcenter.domain.model.PhoneRoutingRule;
-import com.contactcenter.domain.repository.PhoneNumberRepository;
-import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;

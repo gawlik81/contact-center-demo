@@ -13,7 +13,7 @@ import java.util.UUID;
  * na historię podsumowań dla jednego kontaktu (np. po ponownym generowaniu)
  * oraz odciąża partycjonowaną tabelę {@code contact}.
  *
- * <p>Wartości wszystkich pól ustawiane są explicite w {@link com.contactcenter.domain.service.AiSummaryService}
+ * <p>Wartości wszystkich pól ustawiane są explicite w {@link com.contactcenter.domain.contact.AiSummaryService}
  * – brak {@code @PrePersist}. Zapis odbywa się przez natywny INSERT w
  * {@link com.contactcenter.domain.contact.ContactAiSummaryRepository}.
  */

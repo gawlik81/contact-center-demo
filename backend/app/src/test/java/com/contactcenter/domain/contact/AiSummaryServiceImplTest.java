@@ -1,15 +1,10 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.contact;
 
 import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.tenant.AiProvider;
-import com.contactcenter.domain.contact.Contact;
-import com.contactcenter.domain.contact.ContactAiSummary;
-import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.email.EmailMessageRepository;
-import com.contactcenter.domain.service.AiSummaryClient;
-import com.contactcenter.domain.service.AiSummaryService;
 import com.contactcenter.domain.tenant.TenantAiConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantAiConfigService;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,7 +39,7 @@ import static org.mockito.Mockito.*;
 @DisplayName("AiSummaryService – logika generowania podsumowań AI")
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class AiSummaryServiceTest {
+class AiSummaryServiceImplTest {
 
     private static final UUID TENANT_ID  = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
     private static final UUID CONTACT_ID = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002");
@@ -62,7 +57,7 @@ class AiSummaryServiceTest {
     private AiSummaryClient aiSummaryClient;
 
     @InjectMocks
-    private AiSummaryService aiSummaryService;
+    private AiSummaryServiceImpl aiSummaryService;
 
     private TenantAiConfigDecrypted validAiConfig;
 

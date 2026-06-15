@@ -15,7 +15,7 @@ import java.util.UUID;
 /**
  * Repozytorium podsumowań AI dla kontaktów (tabela {@code contact_ai_summary}).
  *
- * <p>Podsumowania generowane są przez {@link com.contactcenter.domain.service.AiSummaryService}
+ * <p>Podsumowania generowane są przez {@link com.contactcenter.domain.contact.AiSummaryService}
  * na żądanie (supervisor/agent) i zapisywane z pełnym timestampem. Jeden kontakt może mieć
  * wiele podsumowań – odczyt zawsze zwraca najnowsze (po {@code generated_at DESC}).
  *

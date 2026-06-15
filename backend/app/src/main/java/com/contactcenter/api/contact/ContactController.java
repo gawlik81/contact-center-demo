@@ -16,7 +16,7 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.campaign.ScheduledCallbackService;
 import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.disposition.dto.AvailableDispositionDto;
-import com.contactcenter.domain.service.AiSummaryService;
+import com.contactcenter.domain.contact.AiSummaryService;
 import com.contactcenter.security.TenantContext;
 import org.springframework.security.access.AccessDeniedException;
 import io.swagger.v3.oas.annotations.Operation;

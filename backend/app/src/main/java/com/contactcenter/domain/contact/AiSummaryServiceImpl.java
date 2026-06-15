@@ -1,13 +1,10 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.contact;
 
 import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.contact.Contact;
-import com.contactcenter.domain.contact.ContactAiSummary;
 import com.contactcenter.domain.email.EmailMessage;
 import com.contactcenter.domain.tenant.TenantAiConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantAiConfigService;
-import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.email.EmailMessageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -20,41 +17,20 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Serwis generowania podsumowań AI dla kontaktów (BE-089).
+ * Implementacja {@link AiSummaryService}.
  *
- * <p>Odpowiada za:
- * <ol>
- *   <li>Pobranie kontaktu i walidację jego istnienia.</li>
- *   <li>Pobranie odszyfrowanej konfiguracji AI dla tenanta.</li>
- *   <li>Wyodrębnienie treści zależnie od kanału kontaktu.</li>
- *   <li>Wywołanie {@link AiSummaryClient} (serwis Python).</li>
- *   <li>Zapis wyniku (summary, modelUsed, timestamp) do tabeli {@code contact_ai_summary} przez {@code ContactService#saveAiSummary}.</li>
- * </ol>
- *
- * <p>Nie implementuje kontrolera – ten zostanie dodany w BE-090.
+ * <p>Wywołuje {@link AiSummaryClient} (serwis Python) i zapisuje wynik
+ * do tabeli {@code contact_ai_summary} przez {@code ContactService#saveAiSummary}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AiSummaryService {
+class AiSummaryServiceImpl implements AiSummaryService {
 
     private final ContactService contactService;
     private final EmailMessageRepository emailMessageRepository;
     private final TenantAiConfigService aiConfigService;
     private final AiSummaryClient aiSummaryClient;
-
-    // =========================================================================
-    // Record wynikowy
-    // =========================================================================
-
-    /**
-     * Wynik generowania podsumowania AI.
-     *
-     * @param summary    treść podsumowania
-     * @param modelUsed  nazwa modelu AI, który wygenerował podsumowanie
-     * @param tokensUsed łączna liczba tokenów użytych w żądaniu i odpowiedzi
-     */
-    public record AiSummaryResult(String summary, String modelUsed, int tokensUsed) {}
 
     // =========================================================================
     // Logika biznesowa
@@ -77,6 +53,7 @@ public class AiSummaryService {
      * @throws com.contactcenter.domain.exception.AiSummaryGenerationException
      *         gdy serwis AI zwrócił błąd lub jest niedostępny
      */
+    @Override
     @Transactional
     public AiSummaryResult generateSummary(UUID contactId, UUID tenantId) {
         // 1. Pobierz kontakt
@@ -132,21 +109,7 @@ public class AiSummaryService {
     // Metody pomocnicze
     // =========================================================================
 
-    /**
-     * Wyodrębnia treść kontaktu do podsumowania zależnie od kanału.
-     *
-     * <p>Dla kanału PHONE czyta transkrypcję z tabeli {@code contact_transcription}
-     * (zapisywanej przez Whisper po uploadzie nagrania do S3).
-     * Pole {@code contact.notes} jest zarezerwowane dla ręcznych notatek agenta
-     * i nie jest tu odczytywane.
-     *
-     * <p>Dla kanałów EMAIL i SOCIAL* – szuka treści w {@code channelMetadata} pod kluczami
-     * {@code "body"} i {@code "content"} (standard adaptera email i social media).
-     *
-     * @param contact  encja kontaktu
-     * @param tenantId UUID tenanta (potrzebny do zapytania o transkrypcję)
-     * @return treść do podsumowania lub komunikat zastępczy gdy brak treści
-     */
+    @Override
     public String extractContent(Contact contact, UUID tenantId) {
         String channel = contact.getChannel();
 
@@ -184,12 +147,7 @@ public class AiSummaryService {
         return "[Brak treści kontaktu]";
     }
 
-    /**
-     * Zachowana dla kompatybilności wstecznej z testami wywołującymi bezparametrową wersję.
-     * Dla kanału PHONE zwraca zawsze komunikat zastępczy (brak tenantId → nie odpytuje DB).
-     *
-     * @deprecated Używaj {@link #extractContent(Contact, UUID)}.
-     */
+    @Override
     @Deprecated
     public String extractContent(Contact contact) {
         String channel = contact.getChannel();

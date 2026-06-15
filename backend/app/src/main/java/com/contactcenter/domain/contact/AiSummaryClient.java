@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.contact;
 
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.voicebot.VoicebotClient;
@@ -28,7 +28,7 @@ import java.time.Duration;
  */
 @Slf4j
 @Service
-public class AiSummaryClient {
+class AiSummaryClient {
 
     // =========================================================================
     // DTO

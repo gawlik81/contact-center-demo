@@ -3,7 +3,7 @@ package com.contactcenter.api.campaign;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.campaign.dto.CampaignContactResponse;
 import com.contactcenter.api.campaign.dto.ImportJobStatusResponse;
-import com.contactcenter.domain.model.ImportJobStatus;
+import com.contactcenter.domain.campaign.ImportJobStatus;
 import com.contactcenter.domain.campaign.CampaignImportService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;

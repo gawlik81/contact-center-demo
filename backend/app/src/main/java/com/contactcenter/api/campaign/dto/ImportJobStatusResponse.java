@@ -1,6 +1,6 @@
 package com.contactcenter.api.campaign.dto;
 
-import com.contactcenter.domain.model.ImportJobStatus;
+import com.contactcenter.domain.campaign.ImportJobStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;

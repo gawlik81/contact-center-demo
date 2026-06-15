@@ -2,7 +2,6 @@ package com.contactcenter.domain.campaign;
 
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.campaign.dto.CampaignContactResponse;
-import com.contactcenter.domain.model.ImportJobStatus;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVParser;

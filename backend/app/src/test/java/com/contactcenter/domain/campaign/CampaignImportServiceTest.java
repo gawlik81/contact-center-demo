@@ -1,6 +1,5 @@
 package com.contactcenter.domain.campaign;
 
-import com.contactcenter.domain.model.ImportJobStatus;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;

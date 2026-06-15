@@ -1,4 +1,4 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.campaign;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;

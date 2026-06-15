@@ -30,7 +30,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class IvrCallListener {
+class IvrCallListener {
 
     private final IvrEngineService ivrEngineService;
 

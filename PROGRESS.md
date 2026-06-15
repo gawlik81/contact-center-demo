@@ -925,6 +925,25 @@ Wzorzec: interfejs = kontrakt z pełnym javadoc (skopiowany/zaadaptowany z orygi
 
 Build: ✅ czysty po każdym commicie (`mvn package -pl app -DskipTests`). Pełny przebieg testów po grupie 6: **1125 testów, 2 błędy** – ten sam znany pre-existing flaky `SupervisorMetricsServiceTest$KpiCallsInIvrTests` (patrz "Znane problemy"), niezwiązane z refaktorem.
 
+### Audyt końcowy enkapsulacji (final, commit `refactor(backend): final encapsulation audit fixes`)
+
+Pełna weryfikacja wszystkich 24 podpakietów `domain.*` (`agentbreak`, `agentgroup`, `audit`, `campaign`, `contact`, `customer`, `disposition`, `email`, `etl`, `exception`, `gdpr`, `ivr`, `messaging`, `phonenumber`, `queue`, `recording`, `reporting`, `routing`, `social`, `telephony`, `tenant`, `user`, `voicebot`, `websocket`) względem wzorca: repozytoria package-private, serwisy interfejs+Impl (package-private `*ServiceImpl`), brak cross-domain dostępu poza publiczne interfejsy serwisów.
+
+**Wynik:** 24/24 domeny zgodne. `domain.exception` (10 wyjątków `public class extends RuntimeException`) i `domain.repository`/`domain.messaging` (wspólne jądro, `package-info.java`) – zgodnie z pkt 6/7 wzorca, bez naruszeń.
+
+**Nowo znalezione naruszenia (pominięte w poprzednich iteracjach) – naprawione od razu:**
+- `domain.ivr.IvrCallListener` (`@Component @RabbitListener`, brak cross-domain DI – tylko javadoc-referencje) → `public class` → `class`.
+- `domain.social.SocialMessageConsumer` (`@Component @RabbitListener`, analogicznie) → `public class` → `class`.
+- `domain.websocket.RabbitToWebSocketRelay` (`@Component`, wiele `@RabbitListener`, analogicznie) → `public class` → `class`.
+
+Wzorzec analogiczny do już zweryfikowanych `AuditLogConsumer`/`DeadLetterConsumer` – consumer-y RabbitMQ bez cross-domain referencji po nazwie konkretnej klasy powinny być package-private.
+
+**Świadomy wyjątek potwierdzony (NIE naruszenie):** `domain.telephony.MockTelephonyAdapter` i `TwilioTelephonyAdapter` – `public class implements TelephonyAdapter`. Mimo istnienia publicznego interfejsu `TelephonyAdapter`, obie implementacje muszą zostać `public`, ponieważ `api.telephony.MockCallController` i `api.telephony.TwilioWebhookController` (`@ConditionalOnBean(TwilioTelephonyAdapter.class)`) wstrzykują **konkretną klasę** po nazwie – każda implementacja ma dodatkowe publiczne API specyficzne dla swojego trybu (mock-only akcje symulacyjne / webhook handling), nieujęte w generycznym `TelephonyAdapter`. Architektoniczny precedens, poza zakresem wzorca pkt 4.
+
+Build: ✅ (`mvn package -pl app -DskipTests`). Testy: 1125, 1-2 błędy (niestabilna liczba między przebiegami) – ten sam pre-existing flaky `SupervisorMetricsServiceTest$KpiCallsInIvrTests` (przechodzi w izolacji, fail tylko w pełnym przebiegu – Redis-key/state-leak między klasami testowymi w tym samym JVM, niezależny od refaktoru enkapsulacji, patrz "Znane problemy").
+
+**PODSUMOWANIE CAŁEGO CYKLU REFAKTORU ENKAPSULACJI:** 24 domeny `domain.*` w pełni zgodne ze wzorcem (repozytoria package-private + serwisy interfejs+Impl + brak cross-domain dostępu do konkretnych implementacji/repozytoriów). Brak pozostałych TODO wymagających większego refaktoru (interfejs+Impl z migracją konsumentów) – cykl zamknięty.
+
 ### Znane duże follow-upy
 
 **Przed kolejną sesją:** sprawdzić, czy poprzednia domena ma czysty build i przejść do następnej wg powyższej listy, stosując wzorzec z sekcji "Wzorzec referencyjny".

@@ -301,7 +301,12 @@ export class SoftphoneService implements OnDestroy {
     this.stopDurationTimer();
     this.session.set({ ...s, state: 'ENDED' });
     this.hangupCallHttp(s.contactId)
-      .pipe(catchError((err) => { console.error('[SoftphoneService] hangupCall HTTP error:', err); return of(null); }))
+      .pipe(
+        catchError((err) => {
+          console.error('[SoftphoneService] hangupCall HTTP error:', err);
+          return of(null);
+        }),
+      )
       .subscribe();
     this.cleanupTimeout = setTimeout(() => {
       this.session.set(null);
@@ -776,6 +781,7 @@ export class SoftphoneService implements OnDestroy {
     this.tokenRefreshSub = null;
     if (this.twilioDevice) {
       try {
+        this.twilioDevice.removeAllListeners();
         this.twilioDevice.destroy();
       } catch {
         // ignore errors during cleanup
@@ -784,6 +790,32 @@ export class SoftphoneService implements OnDestroy {
       this.twilioDeviceReady.set(false);
     }
     this.activeCall = null;
+  }
+
+  /**
+   * Fully resets the softphone state when the agent logs out.
+   *
+   * SoftphoneService is `providedIn: 'root'`, so it survives across
+   * login/logout cycles within the same browser tab — Angular DI does not
+   * recreate root singletons on route changes. Without this reset, a stale
+   * Twilio Device (registered under the previous agent's identity, with its
+   * own signaling WebSocket and media/AudioContext resources) keeps running
+   * in the background. When the next agent logs in and a new Device is
+   * created, it can end up "registered" (fires the `registered` event) while
+   * its underlying media layer is left in a broken state inherited from the
+   * stale device's teardown — resulting in calls that reach ACTIVE/
+   * CALL_ANSWERED on the backend but never establish audio on either side.
+   *
+   * Called from AgentShellComponent.ngOnDestroy() (i.e. when navigating away
+   * from the agent area, such as on logout) to guarantee the next
+   * initializeTwilioDevice() call starts from a completely clean slate.
+   */
+  resetForLogout(): void {
+    this.destroyTwilioDevice();
+    this.clearTimers();
+    this.session.set(null);
+    this.twilioDeviceError.set(null);
+    this.secondLegCallId = null;
   }
 
   ngOnDestroy(): void {

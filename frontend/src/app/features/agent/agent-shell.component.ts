@@ -53,5 +53,9 @@ export class AgentShellComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.ws.disconnect();
+    // SoftphoneService is providedIn: 'root' and survives logout in the same
+    // tab — reset its Twilio Device so the next agent who logs in starts
+    // with a fresh Device instead of inheriting a stale/broken one.
+    this.softphoneService.resetForLogout();
   }
 }

@@ -1,6 +1,5 @@
 package com.contactcenter.domain.email;
 
-import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

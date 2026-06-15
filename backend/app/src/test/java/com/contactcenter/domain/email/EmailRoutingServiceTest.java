@@ -1,10 +1,6 @@
 package com.contactcenter.domain.email;
 
-import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.model.EmailRoutingRule;
 import com.contactcenter.domain.queue.Queue;
-import com.contactcenter.domain.repository.EmailMessageRepository;
-import com.contactcenter.domain.repository.EmailRoutingRuleRepository;
 import com.contactcenter.domain.queue.QueueService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

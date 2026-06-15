@@ -7,7 +7,7 @@ import com.contactcenter.domain.model.AiProvider;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.contact.ContactAiSummary;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.repository.EmailMessageRepository;
+import com.contactcenter.domain.email.EmailMessageRepository;
 import com.contactcenter.domain.service.AiSummaryClient;
 import com.contactcenter.domain.service.AiSummaryService;
 import com.contactcenter.domain.tenant.TenantAiConfigDecrypted;

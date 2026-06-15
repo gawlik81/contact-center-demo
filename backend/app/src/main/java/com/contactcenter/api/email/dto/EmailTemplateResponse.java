@@ -1,6 +1,6 @@
 package com.contactcenter.api.email.dto;
 
-import com.contactcenter.domain.model.EmailTemplate;
+import com.contactcenter.domain.email.EmailTemplate;
 
 import java.time.Instant;
 import java.util.List;

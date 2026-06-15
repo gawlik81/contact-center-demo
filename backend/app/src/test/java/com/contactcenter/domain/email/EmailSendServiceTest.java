@@ -1,9 +1,7 @@
 package com.contactcenter.domain.email;
 
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.repository.EmailMessageRepository;
 import com.contactcenter.domain.tenant.TenantService;
 import jakarta.mail.MessagingException;
 import org.junit.jupiter.api.BeforeEach;

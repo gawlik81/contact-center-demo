@@ -1,6 +1,5 @@
 package com.contactcenter.domain.email;
 
-import com.contactcenter.domain.model.EmailMessage;
 import com.contactcenter.infrastructure.config.S3Properties;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;

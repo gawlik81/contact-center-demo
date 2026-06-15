@@ -1,6 +1,6 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.email;
 
-import com.contactcenter.domain.model.EmailRoutingRule;
+import com.contactcenter.domain.repository.TenantAwareRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;

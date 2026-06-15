@@ -1,6 +1,6 @@
 package com.contactcenter.api.supervisor.ai.dto;
 
-import com.contactcenter.domain.model.AiProvider;
+import com.contactcenter.domain.tenant.AiProvider;
 import com.contactcenter.domain.tenant.TenantAiConfig;
 
 import java.time.Instant;

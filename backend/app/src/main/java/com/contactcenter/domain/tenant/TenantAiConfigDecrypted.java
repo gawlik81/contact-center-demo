@@ -1,6 +1,5 @@
 package com.contactcenter.domain.tenant;
 
-import com.contactcenter.domain.model.AiProvider;
 
 public record TenantAiConfigDecrypted(
         AiProvider provider,

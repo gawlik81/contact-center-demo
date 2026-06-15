@@ -3,7 +3,7 @@ package com.contactcenter.domain;
 import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.AiProvider;
+import com.contactcenter.domain.tenant.AiProvider;
 import com.contactcenter.domain.contact.Contact;
 import com.contactcenter.domain.contact.ContactAiSummary;
 import com.contactcenter.domain.contact.ContactService;

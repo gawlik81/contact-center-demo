@@ -1,6 +1,5 @@
 package com.contactcenter.domain.tenant;
 
-import com.contactcenter.domain.model.AiProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

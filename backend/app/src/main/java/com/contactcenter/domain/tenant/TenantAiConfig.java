@@ -1,6 +1,5 @@
 package com.contactcenter.domain.tenant;
 
-import com.contactcenter.domain.model.AiProvider;
 import com.contactcenter.infrastructure.persistence.converter.EncryptedStringConverter;
 import jakarta.persistence.*;
 import lombok.*;

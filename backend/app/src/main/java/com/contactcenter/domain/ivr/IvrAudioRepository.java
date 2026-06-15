@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class IvrAudioRepository extends TenantAwareRepository {
+class IvrAudioRepository extends TenantAwareRepository {
 
     /**
      * Pobiera plik audio po identyfikatorze z weryfikacją tenanta.

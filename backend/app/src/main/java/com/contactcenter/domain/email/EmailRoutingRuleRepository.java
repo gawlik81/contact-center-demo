@@ -17,7 +17,7 @@ import java.util.UUID;
 @Slf4j
 @Repository
 @Transactional(readOnly = true)
-public class EmailRoutingRuleRepository extends TenantAwareRepository {
+class EmailRoutingRuleRepository extends TenantAwareRepository {
 
     /**
      * Pobiera aktywne reguły routingu dla tenanta, posortowane po priorytecie rosnąco.

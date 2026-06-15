@@ -22,7 +22,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class EmailTemplateRepository extends TenantAwareRepository {
+class EmailTemplateRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Odczyt

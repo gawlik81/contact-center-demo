@@ -60,7 +60,7 @@ class DispositionSetServiceTest {
     private CustomDispositionRepository customDispositionRepository;
 
     @InjectMocks
-    private DispositionSetService service;
+    private DispositionSetServiceImpl service;
 
     // =========================================================================
     // createSet

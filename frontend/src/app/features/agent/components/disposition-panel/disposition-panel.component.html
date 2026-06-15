@@ -109,7 +109,12 @@
         <span class="form-field__char-count" aria-live="polite"> {{ notes().length }}/1000 </span>
       </div>
       <!-- AI Summary Section (FE-089) -->
-      <app-ai-summary-panel [contactId]="contactId()" [hasRecording]="hasRecording()" [showCopyButton]="true" (copyToNotes)="onAiSummaryCopy($event)" />
+      <app-ai-summary-panel
+        [contactId]="contactId()"
+        [hasRecording]="hasRecording()"
+        [showCopyButton]="true"
+        (copyToNotes)="onAiSummaryCopy($event)"
+      />
     </div>
 
     <!-- Footer -->

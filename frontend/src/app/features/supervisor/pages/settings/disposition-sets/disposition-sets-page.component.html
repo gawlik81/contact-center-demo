@@ -6,7 +6,10 @@
 
   <div class="ds-layout">
     <!-- ── Lewa kolumna: lista zestawów ──────────────────────────────────── -->
-    <section class="ds-col ds-col--sets" [attr.aria-label]="'supervisor.settings.dispositionSets.ariaSetsList' | transloco">
+    <section
+      class="ds-col ds-col--sets"
+      [attr.aria-label]="'supervisor.settings.dispositionSets.ariaSetsList' | transloco"
+    >
       <div class="ds-col__header">
         <h2 class="ds-col__title">{{ 'supervisor.settings.dispositionSets.setsTitle' | transloco }}</h2>
         @if (setFormMode() === null) {
@@ -27,7 +30,8 @@
         >
           <div class="form-field" [class.form-field--error]="isSetFieldInvalid('name')">
             <label class="form-label" for="setName">
-              {{ 'supervisor.settings.dispositionSets.nameLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+              {{ 'supervisor.settings.dispositionSets.nameLabel' | transloco }}
+              <span class="required" aria-hidden="true">*</span>
             </label>
             <input
               id="setName"
@@ -39,12 +43,16 @@
               [attr.aria-invalid]="isSetFieldInvalid('name') ? 'true' : null"
             />
             @if (isSetFieldInvalid('name')) {
-              <span class="form-error" role="alert">{{ 'supervisor.settings.dispositionSets.nameRequired' | transloco }}</span>
+              <span class="form-error" role="alert">{{
+                'supervisor.settings.dispositionSets.nameRequired' | transloco
+              }}</span>
             }
           </div>
 
           <div class="form-field">
-            <label class="form-label" for="setDesc">{{ 'supervisor.settings.dispositionSets.descLabel' | transloco }}</label>
+            <label class="form-label" for="setDesc">{{
+              'supervisor.settings.dispositionSets.descLabel' | transloco
+            }}</label>
             <input
               id="setDesc"
               type="text"
@@ -56,11 +64,7 @@
           </div>
 
           <div class="form-actions form-actions--compact">
-            <button
-              type="submit"
-              class="btn btn-primary btn-sm"
-              [disabled]="setForm.invalid || setSubmitting()"
-            >
+            <button type="submit" class="btn btn-primary btn-sm" [disabled]="setForm.invalid || setSubmitting()">
               @if (setSubmitting()) {
                 <span class="spinner spinner--sm" aria-hidden="true"></span>
               }
@@ -105,9 +109,11 @@
                 }
                 <span class="ds-set-card__count">
                   {{ set.itemCount }}
-                  {{ set.itemCount === 1
-                    ? ('supervisor.settings.dispositionSets.itemSingular' | transloco)
-                    : ('supervisor.settings.dispositionSets.itemPlural' | transloco) }}
+                  {{
+                    set.itemCount === 1
+                      ? ('supervisor.settings.dispositionSets.itemSingular' | transloco)
+                      : ('supervisor.settings.dispositionSets.itemPlural' | transloco)
+                  }}
                 </span>
               </div>
               <div class="ds-set-card__actions">
@@ -123,7 +129,9 @@
                   type="button"
                   class="btn btn-danger btn-xs"
                   (click)="confirmDeleteSet(set, $event)"
-                  [attr.aria-label]="'supervisor.settings.dispositionSets.ariaDeleteSet' | transloco: { name: set.name }"
+                  [attr.aria-label]="
+                    'supervisor.settings.dispositionSets.ariaDeleteSet' | transloco: { name: set.name }
+                  "
                 >
                   {{ 'common.delete' | transloco }}
                 </button>
@@ -135,15 +143,13 @@
     </section>
 
     <!-- ── Prawa kolumna: elementy zestawu ───────────────────────────────── -->
-    <section class="ds-col ds-col--items" [attr.aria-label]="'supervisor.settings.dispositionSets.ariaItemsList' | transloco">
+    <section
+      class="ds-col ds-col--items"
+      [attr.aria-label]="'supervisor.settings.dispositionSets.ariaItemsList' | transloco"
+    >
       @if (!hasSelectedSet()) {
         <div class="ds-placeholder">
-          <svg
-            class="ds-placeholder__icon"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            focusable="false"
-          >
+          <svg class="ds-placeholder__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path
               d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"
             />
@@ -170,12 +176,10 @@
             [attr.aria-label]="'supervisor.settings.dispositionSets.ariaItemFormLabel' | transloco"
           >
             <div class="form-row">
-              <div
-                class="form-field"
-                [class.form-field--error]="codeError !== null"
-              >
+              <div class="form-field" [class.form-field--error]="codeError !== null">
                 <label class="form-label" for="itemCode">
-                  {{ 'supervisor.dispositionEditor.codeLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+                  {{ 'supervisor.dispositionEditor.codeLabel' | transloco }}
+                  <span class="required" aria-hidden="true">*</span>
                 </label>
                 <input
                   id="itemCode"
@@ -195,7 +199,8 @@
 
               <div class="form-field" [class.form-field--error]="isItemFieldInvalid('label')">
                 <label class="form-label" for="itemLabel">
-                  {{ 'supervisor.dispositionEditor.labelLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+                  {{ 'supervisor.dispositionEditor.labelLabel' | transloco }}
+                  <span class="required" aria-hidden="true">*</span>
                 </label>
                 <input
                   id="itemLabel"
@@ -207,14 +212,18 @@
                   [attr.aria-invalid]="isItemFieldInvalid('label') ? 'true' : null"
                 />
                 @if (isItemFieldInvalid('label')) {
-                  <span class="form-error" role="alert">{{ 'supervisor.dispositionEditor.labelRequired' | transloco }}</span>
+                  <span class="form-error" role="alert">{{
+                    'supervisor.dispositionEditor.labelRequired' | transloco
+                  }}</span>
                 }
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-field">
-                <label class="form-label" for="itemTone">{{ 'supervisor.dispositionEditor.toneLabel' | transloco }}</label>
+                <label class="form-label" for="itemTone">{{
+                  'supervisor.dispositionEditor.toneLabel' | transloco
+                }}</label>
                 <select id="itemTone" class="form-select" formControlName="tone">
                   @for (opt of toneOptions; track opt.value) {
                     <option [value]="opt.value">{{ opt.key | transloco }}</option>
@@ -223,7 +232,9 @@
               </div>
 
               <div class="form-field">
-                <label class="form-label" for="itemOrdinal">{{ 'supervisor.dispositionEditor.ordinalLabel' | transloco }}</label>
+                <label class="form-label" for="itemOrdinal">{{
+                  'supervisor.dispositionEditor.ordinalLabel' | transloco
+                }}</label>
                 <input
                   id="itemOrdinal"
                   type="number"
@@ -235,11 +246,7 @@
             </div>
 
             <div class="form-actions form-actions--compact">
-              <button
-                type="submit"
-                class="btn btn-primary btn-sm"
-                [disabled]="itemForm.invalid || itemSubmitting()"
-              >
+              <button type="submit" class="btn btn-primary btn-sm" [disabled]="itemForm.invalid || itemSubmitting()">
                 @if (itemSubmitting()) {
                   <span class="spinner spinner--sm" aria-hidden="true"></span>
                 }
@@ -281,7 +288,9 @@
                     type="button"
                     class="btn btn-ghost btn-xs"
                     (click)="openEditItem(item)"
-                    [attr.aria-label]="'supervisor.settings.dispositionSets.ariaEditItem' | transloco: { label: item.label }"
+                    [attr.aria-label]="
+                      'supervisor.settings.dispositionSets.ariaEditItem' | transloco: { label: item.label }
+                    "
                   >
                     {{ 'common.edit' | transloco }}
                   </button>
@@ -289,7 +298,9 @@
                     type="button"
                     class="btn btn-danger btn-xs"
                     (click)="confirmDeleteItem(item)"
-                    [attr.aria-label]="'supervisor.settings.dispositionSets.ariaDeleteItem' | transloco: { label: item.label }"
+                    [attr.aria-label]="
+                      'supervisor.settings.dispositionSets.ariaDeleteItem' | transloco: { label: item.label }
+                    "
                   >
                     {{ 'common.delete' | transloco }}
                   </button>

@@ -305,9 +305,17 @@ export class EmailTemplatesComponent implements OnInit {
     const focused = this.focusedField();
 
     if (focused === 'subject') {
-      this.insertAtCursor(this.subjectInputRef.nativeElement, this.form.get('subjectTemplate')!, placeholder);
+      this.insertAtCursor(
+        this.subjectInputRef.nativeElement,
+        this.form.get('subjectTemplate')!,
+        placeholder,
+      );
     } else {
-      this.insertAtCursor(this.bodyTextareaRef.nativeElement, this.form.get('bodyHtml')!, placeholder);
+      this.insertAtCursor(
+        this.bodyTextareaRef.nativeElement,
+        this.form.get('bodyHtml')!,
+        placeholder,
+      );
     }
   }
 
@@ -361,10 +369,7 @@ export class EmailTemplatesComponent implements OnInit {
     }
 
     // Zbuduj listę wszystkich kluczy: custom + predefiniowane użyte w szablonie
-    const allKeys = [
-      ...customVars,
-      ...[...usedPredefined].filter((k) => !customVars.includes(k)),
-    ];
+    const allKeys = [...customVars, ...[...usedPredefined].filter((k) => !customVars.includes(k))];
 
     // Usuń kontrolki których nie ma w allKeys
     Object.keys(this.previewForm.controls).forEach((key) => {

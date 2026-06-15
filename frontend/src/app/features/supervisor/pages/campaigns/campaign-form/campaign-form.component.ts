@@ -79,7 +79,12 @@ const ALL_DAYS: { value: ActiveDay; labelKey: string }[] = [
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, TwilioPhoneNumberSelectComponent, CampaignDispositionsComponent],
+  imports: [
+    TranslocoModule,
+    ReactiveFormsModule,
+    TwilioPhoneNumberSelectComponent,
+    CampaignDispositionsComponent,
+  ],
   templateUrl: './campaign-form.component.html',
   styleUrl: './campaign-form.component.scss',
   host: {

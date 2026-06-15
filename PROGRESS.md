@@ -912,19 +912,18 @@ Pełny przegląd wszystkich pakietów `domain.*` pod kątem `public class XxxSer
 - `domain.agentbreak.AgentBreakActivator` (scheduler `@Component`, jedyne referencje – javadoc w `AgentBreakRepository`).
 - `domain.telephony.CallEventEnricher` (`@Component`, jedyna referencja – javadoc w `CallEvent`).
 
-**Nowe TODO – klasy `public class XxxService` bez interfejsu, z realnymi cross-domain/`api.*` konsumentami** (większy refaktor: wydzielenie interfejs+Impl, analogicznie do `AgentGroupService`/`AiSummaryService`/`WaitTimeEstimationService` z poprzednich audytów – poza zakresem tej iteracji):
-- `agentbreak.AgentBreakService` (konsument: `api.agentbreak.AgentBreakController`)
-- `agentbreak.AgentCalendarService` (konsumenci: `domain.campaign.ScheduledCallbackService`, `api.agentbreak.AgentCalendarController`)
-- `disposition.CustomDispositionService` (konsumenci: `api.disposition.CustomDispositionController`, `api.contact.ContactController`)
-- `disposition.DispositionSetService` (konsument: `api.disposition.DispositionSetController`)
-- `email.EmailEncryptionService`, `email.EmailMessageService`, `email.EmailPollingService`, `email.EmailSendService`, `email.EmailTemplateService`, `email.TemplateVariableResolver` (konsument: `api.email.EmailController`/`EmailTemplateController`; `EmailMessageService` ma też cross-domain konsumentów `domain.contact.*`)
-- `ivr.IvrEngineService` (liczni konsumenci: `infrastructure.config.AsyncConfig`, `domain.contact.*`, `domain.telephony.TwilioTelephonyAdapter`, `domain.queue.QueueService`, `api.telephony.TwilioWebhookController`, `api.ivr.IvrController`)
-- `social.SocialIntegrationService`, `social.SocialMessagePublisher`, `social.SocialMessageService` (konsumenci: `api.social.*`, `domain.contact.ContactRepository` – javadoc only)
-- `telephony.TelephonyEventPublisher` (konsumenci: `domain.email.EmailEventPublisher`, `domain.contact.ContactServiceImpl`, `api.telephony.TelephonyWebhookController`)
-- `telephony.TransferService` (konsumenci: `domain.queue.QueueService`, `api.telephony.TransferController`)
-- `websocket.WebSocketEventBroadcaster` (liczni konsumenci cross-domain: `recording`, `routing`, `telephony`, `queue`, `reporting`, `contact`, `infrastructure.aspect.CrossTenantAspect`)
+**Interfejs+Impl extraction – 15 klas `public class XxxService` bez interfejsu, z realnymi cross-domain/`api.*` konsumentami** (analogicznie do `AgentGroupService`/`AiSummaryService`/`WaitTimeEstimationService` z poprzednich audytów). Wykonano w 6 commitach, jeden per domena:
 
-Build: ✅ czysty (`mvn package -pl app -DskipTests`). Pełny przebieg testów: **1125 testów, 1 błąd** – ten sam znany pre-existing flaky `SupervisorMetricsServiceTest$KpiCallsInIvrTests` (patrz "Znane problemy").
+1. `domain.agentbreak` (commit `f42bc9c`): `AgentBreakService`, `AgentCalendarService` → interfejs + `*ServiceImpl` (`package-private`, `@Service`).
+2. `domain.disposition` (commit `10c0d05`): `CustomDispositionService`, `DispositionSetService` → interfejs + `*ServiceImpl`.
+3. `domain.email` (commit `3b62dfa`): `EmailEncryptionService`, `EmailMessageService`, `EmailPollingService`, `EmailSendService`, `EmailTemplateService`, `TemplateVariableResolver` → interfejs + `*ServiceImpl`. `@Scheduled pollAllTenants` zostaje w `EmailPollingServiceImpl` (framework detail, poza interfejsem). Nested wyjątki (`EmailEncryptionException`, `EmailSendException`) i record `RenderedEmailTemplate` (cross-domain) wydzielone jako publiczne typy najwyższego poziomu.
+4. `domain.ivr` (commit `2852c01`): `IvrEngineService` (~1900 linii) → interfejs (6 publicznych metod konsumowanych cross-domain) + `IvrEngineServiceImpl`. Pozostałe publiczne overloady i metody package-private (`executeNode`, `executeVoicebot`, `resolveTtsUrl`, `loadSession`, `fallbackToDefaultQueue`) zostają w Impl – testy typowane na `IvrEngineServiceImpl`.
+5. `domain.social` (commit `5f355f8`): `SocialIntegrationService`, `SocialMessagePublisher`, `SocialMessageService` → interfejs + `*ServiceImpl`. `@Scheduled refreshExpiringTokens` zostaje w `SocialIntegrationServiceImpl` (poza interfejsem, framework detail); `protected` helpery (`loadIntegrationForDelete`, `deleteIntegrationFromDb`) bez zmian.
+6. `domain.telephony` + `domain.websocket` (commit `d9589ce`): `TelephonyEventPublisher`, `TransferService`, `WebSocketEventBroadcaster` → interfejs + `*ServiceImpl`. Test `TelephonyEventPublisherTest` przeniesiony z `domain` (zły pakiet, pre-existing) do `domain.telephony` – wymagane bo `TelephonyEventPublisherImpl` jest `package-private` i test konstruuje obiekt bezpośrednio (`new`).
+
+Wzorzec: interfejs = kontrakt z pełnym javadoc (skopiowany/zaadaptowany z oryginału); Impl = `package-private @Service` z `@Override` na metodach interfejsu; cykliczne zależności przez `@Autowired @Lazy` setter injection; `@Scheduled`/inne metody frameworkowe zostają tylko w Impl; testy z `@InjectMocks`/`@Spy`/bezpośrednią konstrukcją (`new XxxServiceImpl(...)`) typowane na konkretną klasę `*Impl`.
+
+Build: ✅ czysty po każdym commicie (`mvn package -pl app -DskipTests`). Pełny przebieg testów po grupie 6: **1125 testów, 2 błędy** – ten sam znany pre-existing flaky `SupervisorMetricsServiceTest$KpiCallsInIvrTests` (patrz "Znane problemy"), niezwiązane z refaktorem.
 
 ### Znane duże follow-upy
 

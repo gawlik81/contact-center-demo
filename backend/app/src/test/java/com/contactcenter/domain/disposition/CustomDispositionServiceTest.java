@@ -157,6 +157,70 @@ class CustomDispositionServiceTest {
     }
 
     // =========================================================================
+    // findLabel – fallback dla ContactServiceImpl.resolveDispositionLabel
+    // =========================================================================
+
+    @Nested
+    @DisplayName("findLabel()")
+    class FindLabel {
+
+        @Test
+        @DisplayName("dispositionCode=null → zwraca Optional.empty()")
+        void findLabel_nullCode_returnsEmpty() {
+            // when
+            Optional<String> result = customDispositionService.findLabel(CAMPAIGN_ID, QUEUE_ID, null, TENANT_ID);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("kod znajduje się w custom dyspozycjach kampanii → zwraca jej etykietę")
+        void findLabel_campaignDispositionMatches_returnsCampaignLabel() {
+            // given
+            CustomDisposition d = buildDisposition(DISP_ID, TENANT_ID, CAMPAIGN_ID, null,
+                    "CUSTOM_ERR", "Błąd niestandardowy", "negative", 1);
+            when(customDispositionRepository.findByCampaignId(CAMPAIGN_ID, TENANT_ID)).thenReturn(List.of(d));
+
+            // when
+            Optional<String> result = customDispositionService.findLabel(CAMPAIGN_ID, QUEUE_ID, "CUSTOM_ERR", TENANT_ID);
+
+            // then
+            assertThat(result).contains("Błąd niestandardowy");
+        }
+
+        @Test
+        @DisplayName("kampania bez custom dyspozycji, kod znajduje się w dyspozycjach kolejki → zwraca jej etykietę")
+        void findLabel_queueDispositionMatches_returnsQueueLabel() {
+            // given
+            when(customDispositionRepository.findByCampaignId(CAMPAIGN_ID, TENANT_ID)).thenReturn(List.of());
+            CustomDisposition d = buildDisposition(DISP_ID, TENANT_ID, null, QUEUE_ID,
+                    "CUSTOM_Q", "Etykieta kolejki", "neutral", 1);
+            when(customDispositionRepository.findByQueueId(QUEUE_ID, TENANT_ID)).thenReturn(List.of(d));
+
+            // when
+            Optional<String> result = customDispositionService.findLabel(CAMPAIGN_ID, QUEUE_ID, "CUSTOM_Q", TENANT_ID);
+
+            // then
+            assertThat(result).contains("Etykieta kolejki");
+        }
+
+        @Test
+        @DisplayName("kod nie istnieje w żadnym zestawie (kampania/kolejka/systemowe) → Optional.empty()")
+        void findLabel_codeNotFoundAnywhere_returnsEmpty() {
+            // given – brak custom dyspozycji, kod nie istnieje w systemowych domyślnych
+            when(customDispositionRepository.findByCampaignId(CAMPAIGN_ID, TENANT_ID)).thenReturn(List.of());
+            when(customDispositionRepository.findByQueueId(QUEUE_ID, TENANT_ID)).thenReturn(List.of());
+
+            // when
+            Optional<String> result = customDispositionService.findLabel(CAMPAIGN_ID, QUEUE_ID, "NIEZNANY_KOD", TENANT_ID);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+    }
+
+    // =========================================================================
     // createForCampaign – walidacja duplikatu kodu
     // =========================================================================
 

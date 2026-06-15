@@ -20,6 +20,7 @@ import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.telephony.CallSession;
@@ -80,6 +81,7 @@ class ContactServiceImpl implements ContactService {
     private final EmailMessageService emailMessageService;
     private final QueueService queueService;
     private final CampaignService campaignService;
+    private final CustomDispositionService customDispositionService;
     private final ContactEventService contactEventService;
     private final TelephonyAdapter telephonyAdapter;
     private final TelephonyEventPublisher eventPublisher;
@@ -162,7 +164,7 @@ class ContactServiceImpl implements ContactService {
 
         String agentName = resolveAgentName(contact.getAgentId(), tenantId);
         String dispositionLabel = resolveDispositionLabel(
-                contact.getCampaignId(), contact.getDispositionCode(), tenantId);
+                contact.getCampaignId(), contact.getQueueId(), contact.getDispositionCode(), tenantId);
         return ContactResponse.from(contact, agentName, dispositionLabel);
     }
 
@@ -175,7 +177,7 @@ class ContactServiceImpl implements ContactService {
         Contact contact = findContactOrThrow(contactId, tenantId);
         String agentName = resolveAgentName(contact.getAgentId(), tenantId);
         String dispositionLabel = resolveDispositionLabel(
-                contact.getCampaignId(), contact.getDispositionCode(), tenantId);
+                contact.getCampaignId(), contact.getQueueId(), contact.getDispositionCode(), tenantId);
         return ContactResponse.from(contact, agentName, dispositionLabel);
     }
 
@@ -230,21 +232,38 @@ class ContactServiceImpl implements ContactService {
     /**
      * Rozwiązuje czytelną etykietę dyspozycji dla pojedynczego kontaktu.
      *
-     * <p>Pobiera kampanię z bazy i przeszukuje jej listę {@code dispositionCodes}
-     * (JSONB: {@code [{"code": "SALE", "label": "Sprzedaż"}, ...]}) w celu znalezienia
-     * etykiety pasującej do podanego kodu.
+     * <p>Kolejność rozwiązywania:
+     * <ol>
+     *   <li>Pobiera kampanię z bazy i przeszukuje jej listę {@code dispositionCodes}
+     *       (JSONB: {@code [{"code": "SALE", "label": "Sprzedaż"}, ...]})</li>
+     *   <li>Gdy kod nie znajduje się w dyspozycjach kampanii – fallback do
+     *       {@link CustomDispositionService#findLabel}, który przeszukuje custom
+     *       dyspozycje tenanta wg priorytetu kampania → kolejka → systemowe domyślne</li>
+     * </ol>
      *
      * @param campaignId      UUID kampanii (może być null – kontakt bez kampanii)
+     * @param queueId         UUID kolejki kontaktu (może być null)
      * @param dispositionCode surowy kod dyspozycji (może być null – brak dyspozycji)
      * @param tenantId        UUID tenanta – wymagany do izolacji danych
      * @return czytelna etykieta dyspozycji lub null gdy nie można jej wyznaczyć
      */
-    private String resolveDispositionLabel(UUID campaignId, String dispositionCode, UUID tenantId) {
-        if (campaignId == null || dispositionCode == null) {
+    private String resolveDispositionLabel(UUID campaignId, UUID queueId, String dispositionCode, UUID tenantId) {
+        if (dispositionCode == null) {
             return null;
         }
-        return campaignService.findCampaignEntity(campaignId, tenantId)
-                .map(campaign -> findLabelInDispositionCodes(campaign.getDispositionCodes(), dispositionCode))
+
+        String label = campaignId != null
+                ? campaignService.findCampaignEntity(campaignId, tenantId)
+                        .map(campaign -> findLabelInDispositionCodes(campaign.getDispositionCodes(), dispositionCode))
+                        .orElse(null)
+                : null;
+
+        if (label != null) {
+            return label;
+        }
+
+        // Fallback: custom dyspozycja zdefiniowana przez tenanta (campaign -> queue -> system)
+        return customDispositionService.findLabel(campaignId, queueId, dispositionCode, tenantId)
                 .orElse(null);
     }
 
@@ -288,6 +307,39 @@ class ContactServiceImpl implements ContactService {
         });
 
         return result;
+    }
+
+    /**
+     * Rozwiązuje etykietę dyspozycji dla pojedynczego kontaktu w kontekście listy (batch).
+     *
+     * <p>Najpierw sprawdza prekomputowaną mapę {@code campaignId -> (code -> label)}
+     * zbudowaną przez {@link #resolveDispositionLabelsForContacts}. Gdy etykieta nie
+     * zostanie znaleziona (np. custom dyspozycja zdefiniowana przez tenanta), wykonuje
+     * fallback przez {@link CustomDispositionService#findLabel}.
+     *
+     * @param contact          kontakt, dla którego rozwiązywana jest etykieta
+     * @param dispositionLabels prekomputowana mapa etykiet dyspozycji kampanii
+     * @param tenantId         UUID tenanta
+     * @return etykieta dyspozycji lub null gdy kod jest null lub nie udało się jej wyznaczyć
+     */
+    private String resolveContactDispositionLabel(
+            Contact contact, Map<UUID, Map<String, String>> dispositionLabels, UUID tenantId) {
+
+        String dispositionCode = contact.getDispositionCode();
+        if (dispositionCode == null) {
+            return null;
+        }
+
+        String label = contact.getCampaignId() != null
+                ? dispositionLabels.getOrDefault(contact.getCampaignId(), Map.of()).get(dispositionCode)
+                : null;
+
+        if (label != null) {
+            return label;
+        }
+
+        return customDispositionService.findLabel(
+                contact.getCampaignId(), contact.getQueueId(), dispositionCode, tenantId).orElse(null);
     }
 
     /**
@@ -376,10 +428,7 @@ class ContactServiceImpl implements ContactService {
         Map<UUID, Map<String, String>> dispositionLabels = resolveDispositionLabelsForContacts(contacts, tenantId);
         List<ContactResponse> content = contacts.stream()
                 .map(c -> {
-                    String label = c.getCampaignId() != null && c.getDispositionCode() != null
-                            ? dispositionLabels.getOrDefault(c.getCampaignId(), Map.of())
-                                              .get(c.getDispositionCode())
-                            : null;
+                    String label = resolveContactDispositionLabel(c, dispositionLabels, tenantId);
                     return ContactResponse.from(c, agentNames.get(c.getAgentId()), label);
                 })
                 .toList();
@@ -631,10 +680,7 @@ class ContactServiceImpl implements ContactService {
         Map<UUID, Map<String, String>> dispositionLabels = resolveDispositionLabelsForContacts(contacts, tenantId);
         List<ContactResponse> content = contacts.stream()
                 .map(c -> {
-                    String label = c.getCampaignId() != null && c.getDispositionCode() != null
-                            ? dispositionLabels.getOrDefault(c.getCampaignId(), Map.of())
-                                              .get(c.getDispositionCode())
-                            : null;
+                    String label = resolveContactDispositionLabel(c, dispositionLabels, tenantId);
                     return ContactResponse.from(c, agentNames.get(c.getAgentId()), label);
                 })
                 .toList();

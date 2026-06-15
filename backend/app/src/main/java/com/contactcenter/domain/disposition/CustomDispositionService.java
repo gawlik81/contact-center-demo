@@ -9,6 +9,7 @@ import com.contactcenter.domain.exception.CrossTenantAccessException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -47,6 +48,24 @@ public interface CustomDispositionService {
      * @return niepusta lista dostępnych dyspozycji dla agenta
      */
     List<AvailableDispositionDto> resolveForContact(UUID campaignId, UUID queueId, UUID tenantId);
+
+    /**
+     * Zwraca czytelną etykietę dla podanego kodu dyspozycji, przeszukując dostępne
+     * dyspozycje wg tego samego priorytetu co {@link #resolveForContact(UUID, UUID, UUID)}:
+     * kampania → kolejka → systemowe domyślne.
+     *
+     * <p>Używana jako fallback gdy kod dyspozycji nie jest zdefiniowany w
+     * {@code campaign.dispositionCodes} (np. custom disposition zdefiniowana przez tenanta
+     * w tabeli {@code custom_disposition}).
+     *
+     * @param campaignId      UUID kampanii (nullable)
+     * @param queueId         UUID kolejki (nullable)
+     * @param dispositionCode kod dyspozycji do wyszukania (nullable)
+     * @param tenantId        UUID tenanta
+     * @return etykieta dyspozycji lub {@code Optional.empty()} gdy kod nie istnieje
+     *         w żadnym z dostępnych zestawów lub {@code dispositionCode} jest null
+     */
+    Optional<String> findLabel(UUID campaignId, UUID queueId, String dispositionCode, UUID tenantId);
 
     /**
      * Zwraca listę wszystkich dyspozycji (włącznie z nieaktywnymi) dla kampanii.

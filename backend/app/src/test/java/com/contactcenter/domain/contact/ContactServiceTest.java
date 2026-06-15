@@ -11,6 +11,7 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.email.EmailMessage;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.recording.RecordingException;
@@ -35,6 +36,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -65,6 +67,7 @@ class ContactServiceTest {
     @Mock private UserService userService;
     @Mock private QueueService queueService;
     @Mock private CampaignService campaignService;
+    @Mock private CustomDispositionService customDispositionService;
     @Mock private ContactEventService contactEventService;
     @Mock private TelephonyAdapter telephonyAdapter;
     @Mock private TelephonyEventPublisher eventPublisher;
@@ -82,6 +85,9 @@ class ContactServiceTest {
         TenantContext.setTenantId(TENANT_ID);
         TenantContext.setUserId(AGENT_ID);
         TenantContext.setUserRole("AGENT");
+
+        // Domyślnie brak custom dyspozycji – fallback nie znajduje etykiety.
+        when(customDispositionService.findLabel(any(), any(), any(), any())).thenReturn(Optional.empty());
     }
 
     @AfterEach
@@ -259,6 +265,39 @@ class ContactServiceTest {
             assertThatThrownBy(() -> contactService.getContact(CONTACT_ID, TENANT_ID, AGENT_ID, false))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(CONTACT_ID.toString());
+        }
+
+        @Test
+        @DisplayName("rozwiązuje dispositionLabel z custom dyspozycji tenanta gdy brak w campaign.dispositionCodes")
+        void getContact_resolvesDispositionLabelFromCustomDisposition() {
+            // given – kontakt z disposition code nieobecnym w dyspozycjach kampanii
+            UUID campaignId = UUID.fromString("66666666-6666-6666-6666-666666666666");
+            UUID queueId = UUID.fromString("77777777-7777-7777-7777-777777777777");
+
+            Contact contact = buildContact(CONTACT_ID, "COMPLETED");
+            contact.setCampaignId(campaignId);
+            contact.setQueueId(queueId);
+            contact.setDispositionCode("CUSTOM_ERR");
+            when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+
+            com.contactcenter.domain.campaign.Campaign campaign =
+                    com.contactcenter.domain.campaign.Campaign.builder()
+                            .campaignId(campaignId)
+                            .tenantId(TENANT_ID)
+                            .dispositionCodes(List.of(Map.<String, Object>of("code", "SALE", "label", "Sprzedaż")))
+                            .build();
+            when(campaignService.findCampaignEntity(campaignId, TENANT_ID)).thenReturn(Optional.of(campaign));
+
+            // brak w campaign.dispositionCodes -> fallback do custom_disposition
+            when(customDispositionService.findLabel(campaignId, queueId, "CUSTOM_ERR", TENANT_ID))
+                    .thenReturn(Optional.of("Błąd niestandardowy"));
+
+            // when
+            ContactResponse response = contactService.getContact(CONTACT_ID, TENANT_ID, AGENT_ID, false);
+
+            // then
+            assertThat(response.dispositionLabel()).isEqualTo("Błąd niestandardowy");
+            verify(customDispositionService).findLabel(campaignId, queueId, "CUSTOM_ERR", TENANT_ID);
         }
     }
 

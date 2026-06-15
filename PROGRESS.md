@@ -951,6 +951,18 @@ Build: ✅ (`mvn package -pl app -DskipTests`). Testy: 1125, 1-2 błędy (niesta
 
 W drawerze "ostatni kontakt" (`AgentCustomersTabComponent`) wypisywany był surowy `dispositionCode` (np. "ERR") zamiast czytelnej etykiety. Dodano metodę `getDispositionLabel(label, code)` analogiczną do wzorca z `ContactDetailModalComponent`: preferuje `dispositionLabel` z backendu, w przeciwnym razie próbuje tłumaczenia `common.dispositionLabels.${code}`, a jeśli go nie ma – pokazuje surowy kod. Zastosowano w `agent-customers-tab.component.html`.
 
+### Fix: `resolveDispositionLabel` w `ContactServiceImpl` – fallback do custom dyspozycji tenanta
+
+`resolveDispositionLabel()` w `ContactServiceImpl` mapował `dispositionCode → dispositionLabel` wyłącznie przez lookup w `campaign.dispositionCodes` (JSONB). Dla custom dyspozycji zdefiniowanych przez tenanta w tabeli `custom_disposition` (encja `CustomDisposition`, BE-092) lookup zwracał `null`, a frontend fallbackował do i18n lub surowego kodu.
+
+Zmiany:
+- `CustomDispositionService` / `CustomDispositionServiceImpl`: nowa metoda `findLabel(campaignId, queueId, dispositionCode, tenantId)` – przeszukuje dostępne dyspozycje wg priorytetu kampania → kolejka → systemowe domyślne (reużywa `resolveForContact()`), zwraca `Optional<String>`.
+- `ContactServiceImpl.resolveDispositionLabel()`: rozszerzony o parametr `queueId`; gdy lookup w `campaign.dispositionCodes` nie znajdzie etykiety, fallback do `customDispositionService.findLabel(...)`.
+- Nowy helper `resolveContactDispositionLabel(contact, dispositionLabels, tenantId)` – analogiczny fallback dla list batch (`listContacts`, `getCustomerHistory`).
+- Wstrzyknięto `CustomDispositionService` jako zależność `ContactServiceImpl` (konstruktor Lombok `@RequiredArgsConstructor`).
+
+Testy: `CustomDispositionServiceTest$FindLabel` (4 nowe testy), `ContactServiceTest$GetContactTests` (1 nowy test z fallbackiem custom disposition). `mvn test -pl app -Dtest=CustomDispositionServiceTest,ContactServiceTest` → 65/65 OK. `mvn package -pl app -DskipTests` → BUILD SUCCESS.
+
 ### Znane duże follow-upy
 
 **Przed kolejną sesją:** sprawdzić, czy poprzednia domena ma czysty build i przejść do następnej wg powyższej listy, stosując wzorzec z sekcji "Wzorzec referencyjny".

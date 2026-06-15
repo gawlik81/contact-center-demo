@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -65,6 +66,19 @@ class CustomDispositionServiceImpl implements CustomDispositionService {
 
         log.debug("[CustomDispositionService] Resolucja: systemowe domyślne dyspozycje");
         return SYSTEM_DEFAULTS;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findLabel(UUID campaignId, UUID queueId, String dispositionCode, UUID tenantId) {
+        if (dispositionCode == null) {
+            return Optional.empty();
+        }
+
+        return resolveForContact(campaignId, queueId, tenantId).stream()
+                .filter(d -> dispositionCode.equals(d.dispositionCode()))
+                .map(AvailableDispositionDto::label)
+                .findFirst();
     }
 
     // =========================================================================

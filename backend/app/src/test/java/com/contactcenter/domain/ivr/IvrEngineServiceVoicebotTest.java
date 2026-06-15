@@ -69,12 +69,12 @@ class IvrEngineServiceVoicebotTest {
     @Mock private VoicebotClient voicebotClient;
     @Mock private ContactEventService contactEventService;
 
-    private IvrEngineService ivrEngineService;
+    private IvrEngineServiceImpl ivrEngineService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        ivrEngineService = new IvrEngineService(
+        ivrEngineService = new IvrEngineServiceImpl(
                 ivrTreeRepository,
                 ivrAudioRepository,
                 queueService,
@@ -163,7 +163,7 @@ class IvrEngineServiceVoicebotTest {
         @Test
         @DisplayName("executeNode dla VOICEBOT powinien tylko zalogować i nie zapisywać sesji")
         void executeNode_voicebot_shouldNotCallExecuteVoicebot() {
-            IvrEngineService spyService = spy(ivrEngineService);
+            IvrEngineServiceImpl spyService = spy(ivrEngineService);
 
             IvrSessionData session = new IvrSessionData(CALL_ID, IVR_ID, NODE_VOICEBOT, TENANT_ID);
 

@@ -64,12 +64,12 @@ class IvrEngineServiceTest {
     @Mock private TaskScheduler taskScheduler;
     @Mock private ContactEventService contactEventService;
 
-    private IvrEngineService ivrEngineService;
+    private IvrEngineServiceImpl ivrEngineService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        ivrEngineService = new IvrEngineService(
+        ivrEngineService = new IvrEngineServiceImpl(
                 ivrTreeRepository,
                 ivrAudioRepository,
                 queueService,

@@ -6,7 +6,7 @@ import com.contactcenter.api.queue.dto.QueueResponse;
 import com.contactcenter.api.queue.dto.QueueStatsResponse;
 import com.contactcenter.api.queue.dto.UpdateQueueRequest;
 import com.contactcenter.domain.queue.QueueService;
-import com.contactcenter.domain.service.WaitTimeEstimationService;
+import com.contactcenter.domain.queue.WaitTimeEstimationService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

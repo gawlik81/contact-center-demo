@@ -1,11 +1,9 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.queue;
 
 import com.contactcenter.api.queue.dto.QueueStatsResponse;
 import com.contactcenter.api.queue.QueueWaitUpdatePayload;
-import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
@@ -29,20 +27,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Serwis obliczający szacowany czas oczekiwania (EWT – Estimated Wait Time) w kolejkach.
+ * Implementacja {@link WaitTimeEstimationService}.
  *
  * <p>Co 30 sekund ({@link #broadcastWaitTimeUpdates()}) iteruje po wszystkich aktywnych
- * kolejkach każdego aktywnego tenanta i oblicza EWT według formuły:
- * <pre>
- *   EWT = ceil( waiting_count / available_agents * avg_handle_time_seconds )
- * </pre>
- *
- * <p>Przypadki brzegowe:
- * <ul>
- *   <li>{@code available_agents == 0} → EWT = {@link Integer#MAX_VALUE} (nieokreślony)</li>
- *   <li>{@code waiting_count == 0}    → EWT = 0</li>
- *   <li>brak historii handle time     → fallback 300s (5 minut)</li>
- * </ul>
+ * kolejkach każdego aktywnego tenanta i oblicza EWT.
  *
  * <p>Źródła danych:
  * <ul>
@@ -51,9 +39,6 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>AVG handle time – natywny SQL AVG(ended_at - started_at) z ostatnich 7 dni</li>
  * </ul>
  *
- * <p>Wynik wysyłany przez WebSocket (STOMP) na topic
- * {@code /topic/tenant/{tenantId}/supervisor} jako event {@code QUEUE_WAIT_UPDATE}.
- *
  * <p>Multi-tenancy: dane izolowane per tenant przez jawny filtr {@code tenant_id} w SQL.
  * Serwis iteruje po aktywnych tenantach bez TenantContext (scheduled thread) –
  * zapytania do DB używają jawnych parametrów tenantId zamiast RLS session variable.
@@ -61,10 +46,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class WaitTimeEstimationService {
-
-    /** Fallback AVG handle time gdy brak danych historycznych (5 minut). */
-    public static final double DEFAULT_AVG_HANDLE_TIME_SECONDS = 300.0;
+class WaitTimeEstimationServiceImpl implements WaitTimeEstimationService {
 
     /** Prefix kluczy sesji agenta w Redis. */
     private static final String AGENT_SESSION_KEY_PREFIX = "session:agent:";
@@ -313,18 +295,7 @@ public class WaitTimeEstimationService {
         return sessions;
     }
 
-    /**
-     * Pobiera statystyki RT dla jednej kolejki na żądanie (on-demand, endpoint REST).
-     *
-     * <p>Używane przez {@code GET /api/queues/{id}/stats}. Ładuje pełną encję Queue
-     * z repozytorium (weryfikuje istnienie + przynależność do tenanta), a następnie
-     * odczytuje liczbę dostępnych agentów z cache {@link #lastKnownAgentCounts} zamiast
-     * wykonywać Redis SCAN przy każdym żądaniu HTTP.
-     *
-     * @param tenantId UUID tenanta (z TenantContext)
-     * @param queueId  UUID kolejki
-     * @return DTO ze statystykami kolejki i EWT
-     */
+    @Override
     public QueueStatsResponse getQueueStats(UUID tenantId, UUID queueId) {
         Queue queue = queueService.findQueueEntity(queueId, tenantId)
                 .orElseThrow(() -> new com.contactcenter.domain.exception.ResourceNotFoundException(

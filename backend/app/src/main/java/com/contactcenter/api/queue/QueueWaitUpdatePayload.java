@@ -7,7 +7,7 @@ import java.util.UUID;
  * Payload eventu QUEUE_WAIT_UPDATE wysyłanego przez WebSocket do supervisorów.
  *
  * <p>Event generowany co 30 sekund przez
- * {@link com.contactcenter.domain.service.WaitTimeEstimationService}
+ * {@link com.contactcenter.domain.queue.WaitTimeEstimationService}
  * dla każdej aktywnej kolejki tenanta.
  *
  * <p>Supervisor subskrybuje topic {@code /topic/tenant/{tenantId}/supervisor}

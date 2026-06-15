@@ -1,14 +1,11 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.queue;
 
 import com.contactcenter.api.queue.dto.QueueStatsResponse;
 import com.contactcenter.api.queue.QueueWaitUpdatePayload;
-import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.tenant.TenantService;
-import com.contactcenter.domain.service.WaitTimeEstimationService;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.websocket.WebSocketEvent;
 import com.contactcenter.domain.websocket.WebSocketEventBroadcaster;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,7 +54,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("WaitTimeEstimationService – szacowany czas oczekiwania (EWT)")
-class WaitTimeEstimationServiceTest {
+class WaitTimeEstimationServiceImplTest {
 
     private static final UUID TENANT_ID   = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static final UUID TENANT_ID_2 = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
@@ -73,7 +70,7 @@ class WaitTimeEstimationServiceTest {
     @Mock private ValueOperations<String, Object> valueOps;
 
     @InjectMocks
-    private WaitTimeEstimationService service;
+    private WaitTimeEstimationServiceImpl service;
 
     private Queue testQueue;
     private Tenant activeTenant;

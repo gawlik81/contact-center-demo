@@ -1589,7 +1589,7 @@ class ContactRepository extends TenantAwareRepository {
   /**
    * Zlicza kontakty w statusie QUEUED dla danej kolejki tenanta.
    *
-   * <p>Używane przez {@link com.contactcenter.domain.service.WaitTimeEstimationService}
+   * <p>Używane przez {@link com.contactcenter.domain.queue.WaitTimeEstimationService}
    * do wyznaczania liczby oczekujących kontaktów przy obliczaniu EWT.
    *
    * <p>Nie wywołuje {@code setTenantContextInDb()} – analogicznie do

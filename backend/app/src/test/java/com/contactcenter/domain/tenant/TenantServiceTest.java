@@ -7,7 +7,6 @@ import com.contactcenter.api.tenant.dto.TenantResponse;
 import com.contactcenter.api.tenant.dto.UpdateTenantRequest;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.service.AdminMetricsService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

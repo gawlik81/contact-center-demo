@@ -1,13 +1,10 @@
-package com.contactcenter.domain;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.api.admin.dto.AdminMetricsResponse;
 import com.contactcenter.api.admin.dto.TenantDetailMetrics;
 import com.contactcenter.api.admin.dto.TenantMetrics;
-import com.contactcenter.domain.tenant.Tenant;
-import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.tenant.TenantService;
-import com.contactcenter.domain.service.AdminMetricsService;
+import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,7 +45,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("AdminMetricsService – metryki RT platformy")
-class AdminMetricsServiceTest {
+class AdminMetricsServiceImplTest {
 
     private static final UUID TENANT_ID_1 = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID TENANT_ID_2 = UUID.fromString("22222222-2222-2222-2222-222222222222");
@@ -67,7 +64,7 @@ class AdminMetricsServiceTest {
     private ValueOperations<String, Object> valueOps;
 
     @InjectMocks
-    private AdminMetricsService adminMetricsService;
+    private AdminMetricsServiceImpl adminMetricsService;
 
     private Tenant activeTenant1;
     private Tenant activeTenant2;

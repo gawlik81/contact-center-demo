@@ -1,12 +1,10 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.tenant;
 
 import com.contactcenter.api.admin.dto.AdminMetricsResponse;
 import com.contactcenter.api.admin.dto.TenantDetailMetrics;
 import com.contactcenter.api.admin.dto.TenantMetrics;
-import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.Tenant.TenantStatus;
 import com.contactcenter.domain.user.UserService;
-import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.infrastructure.config.RedisConfig;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -28,26 +26,12 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Serwis domenowy dostarczający metryki RT (real-time) dla endpointów admin.
- *
- * <p>Odpowiedzialności:
- * <ul>
- *   <li>Pobieranie listy aktywnych tenantów z bazy danych</li>
- *   <li>Zliczanie agentów online per tenant na podstawie kluczy Redis {@code session:agent:{userId}}</li>
- *   <li>Cachowanie wyników w Redis (TTL 30s) przez {@code @Cacheable(ADMIN_METRICS)}</li>
- *   <li>Inwalidacja cache po zmianie statusu tenanta (wywoływana przez {@link TenantService})</li>
- * </ul>
- *
- * <p>Agent jest uznany za "online" gdy jego klucz {@code session:agent:{userId}} istnieje w Redis
- * z wartością wskazującą status AVAILABLE, BUSY lub AFTER_CONTACT.
- *
- * <p>Dostęp wyłącznie dla roli ADMIN – weryfikacja w {@code AdminMetricsController}
- * przez {@code @PreAuthorize("hasRole('ADMIN')")}.
+ * Implementacja {@link AdminMetricsService}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AdminMetricsService {
+class AdminMetricsServiceImpl implements AdminMetricsService {
 
     /** Prefix kluczy sesji agenta w Redis. Pełny klucz: {@code session:agent:{userId}}. */
     private static final String AGENT_SESSION_KEY_PREFIX = "session:agent:";
@@ -63,21 +47,7 @@ public class AdminMetricsService {
     // Globalne metryki platformy
     // =========================================================================
 
-    /**
-     * Zwraca zagregowane metryki RT platformy – lista tenantów z agentami online.
-     *
-     * <p>Wynik jest cachowany w Redis ({@code admin-metrics} → klucz {@code "global"})
-     * z TTL 30s zdefiniowanym w {@link RedisConfig}.
-     *
-     * <p>Logika liczenia agentów online:
-     * <ol>
-     *   <li>Skanuje klucze {@code session:agent:*} z Redis (SCAN – bezpieczniejsze niż KEYS)</li>
-     *   <li>Dla każdego klucza pobiera UUID agenta</li>
-     *   <li>Liczy agentów należących do danego tenanta (weryfikacja przez bazę danych)</li>
-     * </ol>
-     *
-     * @return odpowiedź z globalnymi metrykami platformy
-     */
+    @Override
     @Cacheable(cacheNames = RedisConfig.CacheNames.ADMIN_METRICS, key = "'global'")
     @Transactional(readOnly = true)
     public AdminMetricsResponse getGlobalMetrics() {
@@ -135,19 +105,7 @@ public class AdminMetricsService {
     // Metryki per tenant
     // =========================================================================
 
-    /**
-     * Zwraca szczegółowe metryki dla konkretnego tenanta.
-     *
-     * <p>Endpoint MVP – pola {@code cpuUsage} i {@code memoryUsage} są mockami (0.0).
-     * Docelowo dane te powinny być pobierane z systemu monitoringu (np. Prometheus/Grafana).
-     *
-     * <p>Brak cachowania na tym endpoincie – dane per tenant są mniej popularne
-     * i wymagają zawsze aktualnych wartości (wywołanie rzadsze niż globalny dashboard).
-     *
-     * @param tenantId UUID tenanta
-     * @return szczegółowe metryki tenanta
-     * @throws EntityNotFoundException gdy tenant nie istnieje
-     */
+    @Override
     @Transactional(readOnly = true)
     public TenantDetailMetrics getTenantMetrics(UUID tenantId) {
         log.debug("[AdminMetrics] Pobieranie metryk tenanta: id={}", tenantId);
@@ -178,19 +136,7 @@ public class AdminMetricsService {
     // Inwalidacja cache
     // =========================================================================
 
-    /**
-     * Inwaliduje cache globalnych metryk admin.
-     *
-     * <p>Powinien być wywoływany po każdej zmianie statusu tenanta
-     * (np. deactivateTenant, updateTenant ze zmianą statusu) aby zapewnić
-     * spójność danych w dashboardzie ADMIN.
-     *
-     * <p>Używaj bezpośrednio z serwisów domenowych lub przez zdarzenia Spring.
-     * Przykład wywołania z {@link TenantService}:
-     * <pre>
-     *   adminMetricsService.evictGlobalMetricsCache();
-     * </pre>
-     */
+    @Override
     @CacheEvict(cacheNames = RedisConfig.CacheNames.ADMIN_METRICS, key = "'global'")
     public void evictGlobalMetricsCache() {
         log.info("[AdminMetrics] Cache globalnych metryk inwalidowany (evict)");

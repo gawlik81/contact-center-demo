@@ -55,7 +55,7 @@ class AgentGroupServiceTest {
     @Mock private UserService userService;
 
     @InjectMocks
-    private AgentGroupService agentGroupService;
+    private AgentGroupServiceImpl agentGroupService;
 
     // =========================================================================
     // listGroups – paginacja z memberCount

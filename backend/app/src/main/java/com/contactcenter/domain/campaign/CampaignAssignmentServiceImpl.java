@@ -4,8 +4,8 @@ import com.contactcenter.api.agentgroup.dto.AgentSummary;
 import com.contactcenter.api.campaign.dto.CampaignAssignmentResponse;
 import com.contactcenter.api.campaign.dto.UpdateCampaignAssignmentRequest;
 import com.contactcenter.api.queue.dto.AgentGroupSummary;
-import com.contactcenter.domain.agentgroup.AgentGroup;
-import com.contactcenter.domain.agentgroup.AgentGroupRepository;
+import com.contactcenter.domain.agentgroup.AgentGroupOverview;
+import com.contactcenter.domain.agentgroup.AgentGroupService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.UserService;
@@ -29,7 +29,7 @@ class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
 
     private final CampaignRepository campaignRepository;
     private final CampaignAssignmentRepository campaignAssignmentRepository;
-    private final AgentGroupRepository agentGroupRepository;
+    private final AgentGroupService agentGroupService;
     private final UserService userService;
 
     // =========================================================================
@@ -146,9 +146,9 @@ class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
 
     private List<AgentGroupSummary> enrichGroups(List<UUID> groupIds, UUID tenantId) {
         return groupIds.stream()
-                .flatMap(groupId -> agentGroupRepository
-                        .findByIdAndTenantId(groupId, tenantId)
-                        .map(group -> toGroupSummary(group, tenantId))
+                .flatMap(groupId -> agentGroupService
+                        .findGroupSummary(tenantId, groupId)
+                        .map(this::toGroupSummary)
                         .stream())
                 .toList();
     }
@@ -178,7 +178,7 @@ class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
     }
 
     private AgentGroupSummary validateAndMapGroup(UUID groupId, UUID tenantId) {
-        AgentGroup group = agentGroupRepository.findByIdAndTenantId(groupId, tenantId)
+        AgentGroupOverview group = agentGroupService.findGroupSummary(tenantId, groupId)
                 .orElseThrow(() -> {
                     log.warn("[CampaignAssignmentService] Grupa nie istnieje w tenancie: groupId={}, tenant={}",
                             groupId, tenantId);
@@ -186,7 +186,7 @@ class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
                             "Grupa agentów nie istnieje lub nie należy do tenanta: " + groupId);
                 });
 
-        return toGroupSummary(group, tenantId);
+        return toGroupSummary(group);
     }
 
     // =========================================================================
@@ -202,12 +202,11 @@ class CampaignAssignmentServiceImpl implements CampaignAssignmentService {
         );
     }
 
-    private AgentGroupSummary toGroupSummary(AgentGroup group, UUID tenantId) {
-        long memberCount = agentGroupRepository.countMembers(group.getGroupId(), tenantId);
+    private AgentGroupSummary toGroupSummary(AgentGroupOverview group) {
         return new AgentGroupSummary(
-                group.getGroupId(),
-                group.getName(),
-                (int) memberCount
+                group.groupId(),
+                group.name(),
+                group.memberCount()
         );
     }
 

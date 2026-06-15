@@ -4,13 +4,15 @@ import com.contactcenter.api.agentgroup.dto.AgentSummary;
 import com.contactcenter.api.queue.dto.AgentGroupSummary;
 import com.contactcenter.api.queue.dto.QueueAssignmentResponse;
 import com.contactcenter.api.queue.dto.UpdateQueueAssignmentRequest;
-import com.contactcenter.domain.agentgroup.AgentGroup;
-import com.contactcenter.domain.agentgroup.AgentGroupRepository;
+import com.contactcenter.domain.agentgroup.AgentGroupOverview;
+import com.contactcenter.domain.agentgroup.AgentGroupService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,8 +28,20 @@ class QueueAssignmentServiceImpl implements QueueAssignmentService {
 
     private final QueueRepository queueRepository;
     private final QueueAssignmentRepository queueAssignmentRepository;
-    private final AgentGroupRepository agentGroupRepository;
     private final UserService userService;
+
+    /**
+     * AgentGroupService – wstrzykiwany przez setter z {@code @Lazy} aby uniknąć cyklicznej
+     * zależności: AgentGroupServiceImpl (deleteGroup -> isGroupAssignedToAnyQueue) ->
+     * QueueAssignmentService -> AgentGroupService.
+     */
+    private AgentGroupService agentGroupService;
+
+    @Autowired
+    @Lazy
+    public void setAgentGroupService(AgentGroupService agentGroupService) {
+        this.agentGroupService = agentGroupService;
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -146,9 +160,9 @@ class QueueAssignmentServiceImpl implements QueueAssignmentService {
      */
     private List<AgentGroupSummary> enrichGroups(List<UUID> groupIds, UUID tenantId) {
         return groupIds.stream()
-                .flatMap(groupId -> agentGroupRepository
-                        .findByIdAndTenantId(groupId, tenantId)
-                        .map(group -> toGroupSummary(group, tenantId))
+                .flatMap(groupId -> agentGroupService
+                        .findGroupSummary(tenantId, groupId)
+                        .map(this::toGroupSummary)
                         .stream())
                 .toList();
     }
@@ -189,7 +203,8 @@ class QueueAssignmentServiceImpl implements QueueAssignmentService {
      * @throws IllegalArgumentException (HTTP 400) gdy grupa nie istnieje w tenancie
      */
     private AgentGroupSummary validateAndMapGroup(UUID groupId, UUID tenantId) {
-        AgentGroup group = agentGroupRepository.findByIdAndTenantId(groupId, tenantId)
+        AgentGroupOverview group = agentGroupService
+                .findGroupSummary(tenantId, groupId)
                 .orElseThrow(() -> {
                     log.warn("[QueueAssignmentService] Grupa nie istnieje w tenancie: groupId={}, tenant={}",
                             groupId, tenantId);
@@ -197,7 +212,7 @@ class QueueAssignmentServiceImpl implements QueueAssignmentService {
                             "Grupa agentów nie istnieje lub nie należy do tenanta: " + groupId);
                 });
 
-        return toGroupSummary(group, tenantId);
+        return toGroupSummary(group);
     }
 
     // =========================================================================
@@ -213,12 +228,11 @@ class QueueAssignmentServiceImpl implements QueueAssignmentService {
         );
     }
 
-    private AgentGroupSummary toGroupSummary(AgentGroup group, UUID tenantId) {
-        long memberCount = agentGroupRepository.countMembers(group.getGroupId(), tenantId);
+    private AgentGroupSummary toGroupSummary(AgentGroupOverview group) {
         return new AgentGroupSummary(
-                group.getGroupId(),
-                group.getName(),
-                (int) memberCount
+                group.groupId(),
+                group.name(),
+                group.memberCount()
         );
     }
 

@@ -4,8 +4,8 @@ import com.contactcenter.api.agentgroup.dto.AgentSummary;
 import com.contactcenter.api.queue.dto.AgentGroupSummary;
 import com.contactcenter.api.queue.dto.QueueAssignmentResponse;
 import com.contactcenter.api.queue.dto.UpdateQueueAssignmentRequest;
-import com.contactcenter.domain.agentgroup.AgentGroup;
-import com.contactcenter.domain.agentgroup.AgentGroupRepository;
+import com.contactcenter.domain.agentgroup.AgentGroupOverview;
+import com.contactcenter.domain.agentgroup.AgentGroupService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.user.UserService;
@@ -17,7 +17,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,11 +53,16 @@ class QueueAssignmentServiceTest {
 
     @Mock private QueueRepository queueRepository;
     @Mock private QueueAssignmentRepository queueAssignmentRepository;
-    @Mock private AgentGroupRepository agentGroupRepository;
+    @Mock private AgentGroupService agentGroupService;
     @Mock private UserService userService;
 
     @InjectMocks
     private QueueAssignmentServiceImpl service;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        service.setAgentGroupService(agentGroupService);
+    }
 
     // =========================================================================
     // GET – odczyt przypisania
@@ -81,9 +85,8 @@ class QueueAssignmentServiceTest {
                     .thenReturn(List.of(GROUP_ID));
             when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildAgent(AGENT_ID)));
-            when(agentGroupRepository.findByIdAndTenantId(GROUP_ID, TENANT_ID))
-                    .thenReturn(Optional.of(buildGroup(GROUP_ID, "Grupa Alpha")));
-            when(agentGroupRepository.countMembers(GROUP_ID, TENANT_ID)).thenReturn(3L);
+            when(agentGroupService.findGroupSummary(TENANT_ID, GROUP_ID))
+                    .thenReturn(Optional.of(buildGroupOverview(GROUP_ID, "Grupa Alpha", 3)));
 
             // when
             QueueAssignmentResponse response = service.getAssignment(QUEUE_ID, TENANT_ID);
@@ -190,9 +193,8 @@ class QueueAssignmentServiceTest {
                     .thenReturn(Optional.of(buildQueue()));
             when(userService.findAgentByIdAndTenantId(AGENT_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildAgent(AGENT_ID)));
-            when(agentGroupRepository.findByIdAndTenantId(GROUP_ID, TENANT_ID))
-                    .thenReturn(Optional.of(buildGroup(GROUP_ID, "Zmienna Grupa")));
-            when(agentGroupRepository.countMembers(GROUP_ID, TENANT_ID)).thenReturn(5L);
+            when(agentGroupService.findGroupSummary(TENANT_ID, GROUP_ID))
+                    .thenReturn(Optional.of(buildGroupOverview(GROUP_ID, "Zmienna Grupa", 5)));
 
             // when
             QueueAssignmentResponse response = service.updateAssignment(QUEUE_ID, request, TENANT_ID);
@@ -306,7 +308,7 @@ class QueueAssignmentServiceTest {
 
             when(queueRepository.findByIdAndTenantId(QUEUE_ID, TENANT_ID))
                     .thenReturn(Optional.of(buildQueue()));
-            when(agentGroupRepository.findByIdAndTenantId(GROUP_ID, TENANT_ID))
+            when(agentGroupService.findGroupSummary(TENANT_ID, GROUP_ID))
                     .thenReturn(Optional.empty()); // nie istnieje w tenancie
 
             // when / then
@@ -353,13 +355,7 @@ class QueueAssignmentServiceTest {
                 .build();
     }
 
-    private AgentGroup buildGroup(UUID groupId, String name) {
-        AgentGroup g = new AgentGroup();
-        g.setGroupId(groupId);
-        g.setTenantId(TENANT_ID);
-        g.setName(name);
-        g.setCreatedAt(Instant.now());
-        g.setUpdatedAt(Instant.now());
-        return g;
+    private AgentGroupOverview buildGroupOverview(UUID groupId, String name, int memberCount) {
+        return new AgentGroupOverview(groupId, name, memberCount);
     }
 }

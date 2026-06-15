@@ -1,16 +1,8 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.ivr;
 
-import com.contactcenter.domain.ivr.IvrDefinition;
-import com.contactcenter.domain.ivr.IvrNode;
-import com.contactcenter.domain.ivr.IvrOption;
-import com.contactcenter.domain.ivr.IvrSessionData;
-import com.contactcenter.domain.model.IvrAudio;
-import com.contactcenter.domain.model.IvrTree;
 import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.contact.ContactEventService;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.repository.IvrAudioRepository;
-import com.contactcenter.domain.repository.IvrTreeRepository;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
 import com.contactcenter.domain.routing.IncomingCallRoutingService;

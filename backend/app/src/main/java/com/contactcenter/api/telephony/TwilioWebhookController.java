@@ -6,7 +6,7 @@ import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.routing.RouteResult;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.routing.IncomingCallRoutingService;
-import com.contactcenter.domain.service.IvrEngineService;
+import com.contactcenter.domain.ivr.IvrEngineService;
 import com.contactcenter.domain.recording.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.TwilioTelephonyAdapter;
 import com.contactcenter.infrastructure.config.TwilioProperties;
@@ -442,7 +442,7 @@ public class TwilioWebhookController {
    *
    * <p>Twilio wysyła POST na ten URL gdy konferencja kończy się ({@code statusCallbackEvent=end}).
    * Konfigurowany w TwiML przez atrybut {@code statusCallback} elementu {@code <Conference>}
-   * generowanego przez {@link com.contactcenter.domain.service.IvrEngineService#buildWaitInConferenceTwiml}.
+   * generowanego przez {@link com.contactcenter.domain.ivr.IvrEngineService#buildWaitInConferenceTwiml}.
    *
    * <p>Używany do wykrycia porzucenia kolejki przez klienta (ABANDONED): jeśli konferencja
    * zakończyła się ({@code ConferenceStatus=completed}) a kontakt ma status {@code QUEUED} lub

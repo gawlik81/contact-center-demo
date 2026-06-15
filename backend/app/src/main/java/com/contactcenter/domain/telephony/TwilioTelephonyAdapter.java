@@ -473,7 +473,7 @@ public class TwilioTelephonyAdapter implements TelephonyAdapter {
    * </ol>
    *
    * <p>Nazwa konferencji: {@code contact-{contactId}} – zgodna z TwiML generowanym przez
-   * {@link com.contactcenter.domain.service.IvrEngineService#buildWaitInConferenceTwiml}.
+   * {@link com.contactcenter.domain.ivr.IvrEngineService#buildWaitInConferenceTwiml}.
    *
    * <p>Błąd zestawiania połączenia z agentem jest logowany jako ERROR, ale nie przerywa
    * przepływu – lokalny stan sesji pozostaje ACTIVE.

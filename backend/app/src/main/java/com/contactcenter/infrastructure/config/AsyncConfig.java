@@ -57,7 +57,7 @@ public class AsyncConfig implements AsyncConfigurer {
     /**
      * TaskScheduler dla IVR timeoutów DTMF oraz innych zaplanowanych zadań.
      *
-     * <p>Używany przez {@link com.contactcenter.domain.service.IvrEngineService}
+     * <p>Używany przez {@link com.contactcenter.domain.ivr.IvrEngineService}
      * do planowania timeoutów oczekiwania na wejście DTMF.
      */
     @Bean

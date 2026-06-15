@@ -1,12 +1,10 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.ivr;
 
 import com.contactcenter.api.ivr.dto.CreateIvrRequest;
 import com.contactcenter.api.ivr.dto.IvrResponse;
 import com.contactcenter.api.ivr.dto.UpdateIvrRequest;
-import com.contactcenter.domain.model.IvrTree;
 import com.contactcenter.domain.exception.ConflictException;
-import com.contactcenter.domain.repository.IvrTreeRepository;
-import com.contactcenter.domain.repository.PhoneRoutingRuleRepository;
+import com.contactcenter.domain.phonenumber.PhoneRoutingRuleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

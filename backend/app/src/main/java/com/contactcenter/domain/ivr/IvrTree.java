@@ -1,6 +1,5 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.ivr;
 
-import com.contactcenter.domain.ivr.IvrDefinition;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -56,7 +55,7 @@ public class IvrTree {
 
     /**
      * Flaga aktywności. Tylko jedno drzewo IVR per tenant może być aktywne jednocześnie.
-     * Aktywacja przez {@link com.contactcenter.domain.service.IvrEngineService}.
+     * Aktywacja przez {@link com.contactcenter.domain.ivr.IvrEngineService}.
      */
     @Column(name = "is_active", nullable = false)
     @Builder.Default

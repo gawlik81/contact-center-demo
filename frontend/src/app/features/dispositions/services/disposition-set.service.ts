@@ -71,9 +71,6 @@ export class DispositionSetService {
   }
 
   applyToQueue(setId: string, queueId: string): Observable<ApplySetResponse> {
-    return this.http.post<ApplySetResponse>(
-      `${this.base}/${setId}/apply-to-queue/${queueId}`,
-      {},
-    );
+    return this.http.post<ApplySetResponse>(`${this.base}/${setId}/apply-to-queue/${queueId}`, {});
   }
 }

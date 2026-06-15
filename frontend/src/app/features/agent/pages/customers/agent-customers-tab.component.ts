@@ -198,5 +198,13 @@ export class AgentCustomersTabComponent implements OnInit {
     this.selectedContactId.set(null);
   }
 
+  protected getDispositionLabel(label: string | null, code: string | null): string {
+    if (label) return label;
+    if (!code) return '';
+    const key = `common.dispositionLabels.${code}`;
+    const translated = this.transloco.translate(key);
+    return translated === key ? code : translated;
+  }
+
   protected readonly trackByCustomerId = (_i: number, c: CustomerSummary) => c.customerId;
 }

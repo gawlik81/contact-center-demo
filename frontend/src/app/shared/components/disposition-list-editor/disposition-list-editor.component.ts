@@ -97,18 +97,16 @@ export class DispositionListEditorComponent {
       ? this.service.listForCampaign(campaignId)
       : this.service.listForQueue(queueId!);
 
-    list$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (items) => {
-          this.dispositions.set(items);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.error.set(this.transloco.translate('supervisor.dispositionEditor.errorLoad'));
-          this.loading.set(false);
-        },
-      });
+    list$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (items) => {
+        this.dispositions.set(items);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.error.set(this.transloco.translate('supervisor.dispositionEditor.errorLoad'));
+        this.loading.set(false);
+      },
+    });
   }
 
   onAdd(): void {
@@ -181,9 +179,13 @@ export class DispositionListEditorComponent {
       .pipe(
         catchError((err: { status?: number }) => {
           if (err.status === 409) {
-            this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorSaveDuplicate'));
+            this.notifications.error(
+              this.transloco.translate('supervisor.dispositionEditor.errorSaveDuplicate'),
+            );
           } else {
-            this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorSave'));
+            this.notifications.error(
+              this.transloco.translate('supervisor.dispositionEditor.errorSave'),
+            );
           }
           this.submitting.set(false);
           return EMPTY;
@@ -220,7 +222,9 @@ export class DispositionListEditorComponent {
     delete$
       .pipe(
         catchError(() => {
-          this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorDelete'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.dispositionEditor.errorDelete'),
+          );
           this.deletingId.set(null);
           return EMPTY;
         }),
@@ -244,7 +248,9 @@ export class DispositionListEditorComponent {
         .listSets()
         .pipe(
           catchError(() => {
-            this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorLoadSets'));
+            this.notifications.error(
+              this.transloco.translate('supervisor.dispositionEditor.errorLoadSets'),
+            );
             this.setsLoading.set(false);
             return EMPTY;
           }),
@@ -280,7 +286,9 @@ export class DispositionListEditorComponent {
     apply$
       .pipe(
         catchError(() => {
-          this.notifications.error(this.transloco.translate('supervisor.dispositionEditor.errorApplySet'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.dispositionEditor.errorApplySet'),
+          );
           this.applyingSet.set(false);
           return EMPTY;
         }),
@@ -301,17 +309,22 @@ export class DispositionListEditorComponent {
   get codeError(): string | null {
     const ctrl = this.form.get('dispositionCode')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.dispositionEditor.codeRequired');
-    if (ctrl.hasError('pattern')) return this.transloco.translate('supervisor.dispositionEditor.codePattern');
-    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.dispositionEditor.codeMaxLength');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.dispositionEditor.codeRequired');
+    if (ctrl.hasError('pattern'))
+      return this.transloco.translate('supervisor.dispositionEditor.codePattern');
+    if (ctrl.hasError('maxlength'))
+      return this.transloco.translate('supervisor.dispositionEditor.codeMaxLength');
     return null;
   }
 
   get labelError(): string | null {
     const ctrl = this.form.get('label')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.dispositionEditor.labelRequired');
-    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.dispositionEditor.labelMaxLength');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.dispositionEditor.labelRequired');
+    if (ctrl.hasError('maxlength'))
+      return this.transloco.translate('supervisor.dispositionEditor.labelMaxLength');
     return null;
   }
 }

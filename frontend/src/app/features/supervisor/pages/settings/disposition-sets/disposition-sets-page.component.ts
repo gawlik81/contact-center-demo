@@ -128,7 +128,9 @@ export class DispositionSetsPageComponent {
           this.setsLoading.set(false);
         },
         error: () => {
-          this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorLoadSets'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.dispositionSets.errorLoadSets'),
+          );
           this.setsLoading.set(false);
         },
       });
@@ -152,7 +154,9 @@ export class DispositionSetsPageComponent {
           this.itemsLoading.set(false);
         },
         error: () => {
-          this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorLoadItems'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.dispositionSets.errorLoadItems'),
+          );
           this.itemsLoading.set(false);
         },
       });
@@ -197,9 +201,15 @@ export class DispositionSetsPageComponent {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err.status === 409) {
-              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveSetDuplicate'));
+              this.notifications.error(
+                this.transloco.translate(
+                  'supervisor.settings.dispositionSets.errorSaveSetDuplicate',
+                ),
+              );
             } else {
-              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveSet'));
+              this.notifications.error(
+                this.transloco.translate('supervisor.settings.dispositionSets.errorSaveSet'),
+              );
             }
             this.setSubmitting.set(false);
             return EMPTY;
@@ -213,7 +223,9 @@ export class DispositionSetsPageComponent {
           }
           this.setSubmitting.set(false);
           this.cancelSetForm();
-          this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successUpdateSet'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.dispositionSets.successUpdateSet'),
+          );
         });
     } else {
       const req: CreateDispositionSetRequest = {
@@ -225,7 +237,11 @@ export class DispositionSetsPageComponent {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err.status === 409) {
-              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveSetDuplicate'));
+              this.notifications.error(
+                this.transloco.translate(
+                  'supervisor.settings.dispositionSets.errorSaveSetDuplicate',
+                ),
+              );
             } else {
               this.notifications.error('Nie udało się utworzyć zestawu.');
             }
@@ -238,7 +254,9 @@ export class DispositionSetsPageComponent {
           this.sets.update((list) => [created, ...list]);
           this.setSubmitting.set(false);
           this.cancelSetForm();
-          this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successCreateSet'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.dispositionSets.successCreateSet'),
+          );
         });
     }
   }
@@ -255,7 +273,9 @@ export class DispositionSetsPageComponent {
       .deleteSet(id)
       .pipe(
         catchError(() => {
-          this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorDeleteSet'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.dispositionSets.errorDeleteSet'),
+          );
           this.deletingSetId.set(null);
           return EMPTY;
         }),
@@ -268,7 +288,9 @@ export class DispositionSetsPageComponent {
           this.items.set([]);
         }
         this.deletingSetId.set(null);
-        this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successDeleteSet'));
+        this.notifications.success(
+          this.transloco.translate('supervisor.settings.dispositionSets.successDeleteSet'),
+        );
       });
   }
 
@@ -323,9 +345,15 @@ export class DispositionSetsPageComponent {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err.status === 409) {
-              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItemDuplicate'));
+              this.notifications.error(
+                this.transloco.translate(
+                  'supervisor.settings.dispositionSets.errorSaveItemDuplicate',
+                ),
+              );
             } else {
-              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItem'));
+              this.notifications.error(
+                this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItem'),
+              );
             }
             this.itemSubmitting.set(false);
             return EMPTY;
@@ -336,7 +364,9 @@ export class DispositionSetsPageComponent {
           this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
           this.itemSubmitting.set(false);
           this.cancelItemForm();
-          this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successUpdateItem'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.dispositionSets.successUpdateItem'),
+          );
         });
     } else {
       const req: CreateDispositionSetItemRequest = {
@@ -350,9 +380,15 @@ export class DispositionSetsPageComponent {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err.status === 409) {
-              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItemDuplicate'));
+              this.notifications.error(
+                this.transloco.translate(
+                  'supervisor.settings.dispositionSets.errorSaveItemDuplicate',
+                ),
+              );
             } else {
-              this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItem'));
+              this.notifications.error(
+                this.transloco.translate('supervisor.settings.dispositionSets.errorSaveItem'),
+              );
             }
             this.itemSubmitting.set(false);
             return EMPTY;
@@ -367,7 +403,9 @@ export class DispositionSetsPageComponent {
           this.selectedSet.update((s) => (s ? { ...s, itemCount: s.itemCount + 1 } : s));
           this.itemSubmitting.set(false);
           this.cancelItemForm();
-          this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successCreateItem'));
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.dispositionSets.successCreateItem'),
+          );
         });
     }
   }
@@ -384,7 +422,9 @@ export class DispositionSetsPageComponent {
       .removeItem(set.id, id)
       .pipe(
         catchError(() => {
-          this.notifications.error(this.transloco.translate('supervisor.settings.dispositionSets.errorDeleteItem'));
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.dispositionSets.errorDeleteItem'),
+          );
           this.deletingItemId.set(null);
           return EMPTY;
         }),
@@ -393,11 +433,15 @@ export class DispositionSetsPageComponent {
       .subscribe(() => {
         this.items.update((list) => list.filter((i) => i.id !== id));
         this.sets.update((list) =>
-          list.map((s) => (s.id === set.id ? { ...s, itemCount: Math.max(0, s.itemCount - 1) } : s)),
+          list.map((s) =>
+            s.id === set.id ? { ...s, itemCount: Math.max(0, s.itemCount - 1) } : s,
+          ),
         );
         this.selectedSet.update((s) => (s ? { ...s, itemCount: Math.max(0, s.itemCount - 1) } : s));
         this.deletingItemId.set(null);
-        this.notifications.success(this.transloco.translate('supervisor.settings.dispositionSets.successDeleteItem'));
+        this.notifications.success(
+          this.transloco.translate('supervisor.settings.dispositionSets.successDeleteItem'),
+        );
       });
   }
 
@@ -416,9 +460,12 @@ export class DispositionSetsPageComponent {
   get codeError(): string | null {
     const ctrl = this.itemForm.get('dispositionCode')!;
     if (!ctrl.invalid || !ctrl.touched) return null;
-    if (ctrl.hasError('required')) return this.transloco.translate('supervisor.dispositionEditor.codeRequired');
-    if (ctrl.hasError('pattern')) return this.transloco.translate('supervisor.dispositionEditor.codePattern');
-    if (ctrl.hasError('maxlength')) return this.transloco.translate('supervisor.dispositionEditor.codeMaxLength');
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.dispositionEditor.codeRequired');
+    if (ctrl.hasError('pattern'))
+      return this.transloco.translate('supervisor.dispositionEditor.codePattern');
+    if (ctrl.hasError('maxlength'))
+      return this.transloco.translate('supervisor.dispositionEditor.codeMaxLength');
     return null;
   }
 

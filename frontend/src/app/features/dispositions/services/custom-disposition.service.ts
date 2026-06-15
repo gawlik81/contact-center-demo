@@ -30,10 +30,7 @@ export class CustomDispositionService {
     id: string,
     req: UpdateCustomDispositionRequest,
   ): Observable<CustomDisposition> {
-    return this.http.put<CustomDisposition>(
-      `/api/dispositions/campaigns/${campaignId}/${id}`,
-      req,
-    );
+    return this.http.put<CustomDisposition>(`/api/dispositions/campaigns/${campaignId}/${id}`, req);
   }
 
   deleteFromCampaign(campaignId: string, id: string): Observable<void> {

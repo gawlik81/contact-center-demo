@@ -64,7 +64,9 @@
                   class="et-btn et-btn--ghost et-btn--sm"
                   (click)="openPreviewModal(template)"
                   [title]="'supervisor.settings.emailTemplates.previewTitle' | transloco"
-                  [attr.aria-label]="('supervisor.settings.emailTemplates.previewTitle' | transloco) + ' ' + template.name"
+                  [attr.aria-label]="
+                    ('supervisor.settings.emailTemplates.previewTitle' | transloco) + ' ' + template.name
+                  "
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path
@@ -77,7 +79,9 @@
                   class="et-btn et-btn--ghost et-btn--sm"
                   (click)="openEditModal(template)"
                   [title]="'supervisor.settings.emailTemplates.editTemplate' | transloco"
-                  [attr.aria-label]="('supervisor.settings.emailTemplates.editTemplate' | transloco) + ' ' + template.name"
+                  [attr.aria-label]="
+                    ('supervisor.settings.emailTemplates.editTemplate' | transloco) + ' ' + template.name
+                  "
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path
@@ -90,7 +94,9 @@
                   class="et-btn et-btn--danger-ghost et-btn--sm"
                   (click)="openDeleteModal(template)"
                   [title]="'supervisor.settings.emailTemplates.deleteTitle' | transloco"
-                  [attr.aria-label]="('supervisor.settings.emailTemplates.deleteTitle' | transloco) + ' ' + template.name"
+                  [attr.aria-label]="
+                    ('supervisor.settings.emailTemplates.deleteTitle' | transloco) + ' ' + template.name
+                  "
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
@@ -152,7 +158,9 @@
       <!-- Left sidebar: predefined + custom variables -->
       <aside class="et-form__sidebar">
         @if (availableVars().length > 0) {
-          <p class="et-sidebar-section-title">{{ 'supervisor.settings.emailTemplates.predefinedVarsTitle' | transloco }}</p>
+          <p class="et-sidebar-section-title">
+            {{ 'supervisor.settings.emailTemplates.predefinedVarsTitle' | transloco }}
+          </p>
           <p class="et-sidebar-hint">{{ 'supervisor.settings.emailTemplates.predefinedVarsHint' | transloco }}</p>
 
           @if (customerVars().length > 0) {
@@ -232,8 +240,12 @@
 
         <div class="et-sidebar-custom-vars">
           <div class="et-sidebar-custom-vars__header">
-            <p class="et-sidebar-section-title">{{ 'supervisor.settings.emailTemplates.customVarsTitle' | transloco }}</p>
-            <button type="button" class="et-btn et-btn--ghost et-btn--xs" (click)="addVariable()">{{ 'supervisor.settings.emailTemplates.addVariableBtn' | transloco }}</button>
+            <p class="et-sidebar-section-title">
+              {{ 'supervisor.settings.emailTemplates.customVarsTitle' | transloco }}
+            </p>
+            <button type="button" class="et-btn et-btn--ghost et-btn--xs" (click)="addVariable()">
+              {{ 'supervisor.settings.emailTemplates.addVariableBtn' | transloco }}
+            </button>
           </div>
           <div formArrayName="variables" class="et-variables-list">
             @for (ctrl of variablesArray.controls; track $index) {
@@ -250,7 +262,9 @@
                   type="button"
                   class="et-btn et-btn--danger-ghost et-btn--icon"
                   (click)="removeVariable($index)"
-                  [attr.aria-label]="('supervisor.settings.emailTemplates.removeVariable' | transloco) + ' ' + ($index + 1)"
+                  [attr.aria-label]="
+                    ('supervisor.settings.emailTemplates.removeVariable' | transloco) + ' ' + ($index + 1)
+                  "
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path
@@ -411,14 +425,18 @@
     <div class="et-dialog__body et-preview-body">
       @if (previewVariableKeys().length > 0) {
         <form [formGroup]="previewForm" (ngSubmit)="runPreview()" class="et-preview-vars" novalidate>
-          <p class="et-preview-vars__label">{{ 'supervisor.settings.emailTemplates.previewVarsEditableLabel' | transloco }}</p>
+          <p class="et-preview-vars__label">
+            {{ 'supervisor.settings.emailTemplates.previewVarsEditableLabel' | transloco }}
+          </p>
           <div class="et-preview-vars__fields">
             @for (key of previewVariableKeys(); track key) {
               <div class="et-field">
                 <label class="et-label" [for]="'pv-' + key">
                   <code class="et-preview-var-code">{{ '{{' + key + '}}' }}</code>
                   @if (isPredefinedVar(key)) {
-                    <span class="et-preview-badge">{{ 'supervisor.settings.emailTemplates.predefinedVarAuto' | transloco }}</span>
+                    <span class="et-preview-badge">{{
+                      'supervisor.settings.emailTemplates.predefinedVarAuto' | transloco
+                    }}</span>
                   }
                 </label>
                 <input

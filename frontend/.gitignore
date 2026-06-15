@@ -6,6 +6,9 @@
 /out-tsc
 /bazel-out
 
+# Auto-generated version info (see scripts/generate-version.mjs)
+src/environments/version.ts
+
 # Node
 /node_modules
 npm-debug.log

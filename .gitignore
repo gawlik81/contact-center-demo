@@ -10,6 +10,9 @@
 # Logi aplikacji
 logs/
 
+# Node
+node_modules/
+
 #Bugfix
 BUGFIX*
 DEBUG*

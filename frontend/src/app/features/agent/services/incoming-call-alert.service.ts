@@ -1,14 +1,20 @@
 import { Injectable, OnDestroy, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
-import { filter, takeUntil } from 'rxjs/operators';
+import { filter, take, takeUntil } from 'rxjs/operators';
 import { TranslocoService } from '@jsverse/transloco';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ContactTabStore, TabLimitReason } from './contact-tab.store';
 import { SoftphoneService } from './softphone.service';
 import { CustomerLookupService } from './customer-lookup.service';
-import { CallIncomingPayload, ContactAssignedPayload } from '../models/ws-event.model';
+import { CallDirection } from '../models/contact-tab.model';
+import {
+  CallIncomingPayload,
+  CallOutboundPayload,
+  CallTransferConsultPayload,
+  ContactAssignedPayload,
+} from '../models/ws-event.model';
 
 export interface IncomingCallAlert {
   contactId: string;
@@ -86,12 +92,26 @@ export class IncomingCallAlertService implements OnDestroy {
   private subscribeToWsEvents(): void {
     this.ws.events$
       .pipe(
-        filter((e) => e.eventType === 'CALL_INCOMING' || e.eventType === 'CONTACT_ASSIGNED'),
+        filter(
+          (e) =>
+            e.eventType === 'CALL_INCOMING' ||
+            e.eventType === 'CALL_OUTBOUND' ||
+            e.eventType === 'CALL_TRANSFER_CONSULT' ||
+            e.eventType === 'CALL_CONSULT_CANCELLED' ||
+            e.eventType === 'CONTACT_ASSIGNED',
+        ),
         takeUntil(this.destroy$),
       )
       .subscribe((event) => {
         if (event.eventType === 'CALL_INCOMING') {
           this.handleCallIncoming(event.payload as CallIncomingPayload);
+        } else if (event.eventType === 'CALL_OUTBOUND') {
+          this.handleCallOutbound(event.payload as CallOutboundPayload);
+        } else if (event.eventType === 'CALL_TRANSFER_CONSULT') {
+          this.handleCallTransferConsult(event.payload as CallTransferConsultPayload);
+        } else if (event.eventType === 'CALL_CONSULT_CANCELLED') {
+          // Agent1 anulował konsultację – wyczyść banner i audio (jeśli alert nadal aktywny)
+          this.dismissAlert();
         } else if (event.eventType === 'CONTACT_ASSIGNED') {
           const payload = event.payload as ContactAssignedPayload;
           if (payload.type === 'PHONE') {
@@ -104,6 +124,11 @@ export class IncomingCallAlertService implements OnDestroy {
   private handleCallIncoming(payload: CallIncomingPayload): void {
     this.lookupService.evict(payload.customerPhone);
 
+    // If a PHONE tab for this contactId already exists, this is the enriched event from
+    // CallEventEnricher (arrives after CLI lookup, ~100-500ms after the unenriched relay event).
+    // Update the existing tab and session instead of attempting to open a duplicate.
+    if (this.applyEnrichedDataIfTabExists(payload.contactId, payload.customerName)) return;
+
     const reason = this.tabStore.openFromCallIncoming(payload);
 
     if (reason !== null) {
@@ -112,6 +137,7 @@ export class IncomingCallAlertService implements OnDestroy {
     }
 
     this.softphoneService.incomingCall(payload);
+    this.lookupAndUpdateTabName(payload.customerPhone, payload.contactId);
 
     const alert: IncomingCallAlert = {
       contactId: payload.contactId,
@@ -120,6 +146,139 @@ export class IncomingCallAlertService implements OnDestroy {
       queueName: payload.queueName,
       receivedAt: new Date(),
     };
+    this.pendingAlert.set(alert);
+    this.playAudio();
+    this.showSystemNotification(alert);
+  }
+
+  private handleCallOutbound(payload: CallOutboundPayload): void {
+    this.lookupService.evict(payload.customerPhone);
+
+    // If a tab already exists (CONTACT_ASSIGNED arrived first), only correct the direction.
+    // Do NOT overwrite customerName: the HTTP lookup fired at tab-creation time already
+    // set the definitive name (or will update it shortly via lookupAndUpdateTabName).
+    const existing = this.tabStore
+      .tabs()
+      .find((t) => t.contactId === payload.contactId && t.type === 'PHONE');
+    if (existing) {
+      if (existing.direction !== 'OUTBOUND') {
+        this.tabStore.updateTabCustomerInfo(existing.contactId, existing.customerName, 'OUTBOUND');
+      }
+      return;
+    }
+
+    const reason = this.tabStore.openFromCallOutbound(payload);
+
+    if (reason !== null) {
+      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
+      return;
+    }
+
+    this.softphoneService.incomingCall(payload);
+    this.lookupAndUpdateTabName(payload.customerPhone, payload.contactId);
+
+    const alert: IncomingCallAlert = {
+      contactId: payload.contactId,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      queueName: payload.queueName,
+      receivedAt: new Date(),
+    };
+    this.pendingAlert.set(alert);
+    this.playAudio();
+    this.showSystemNotification(alert);
+  }
+
+  /**
+   * Returns true and updates tab/session/alert if a PHONE tab with the given contactId exists.
+   * Used to handle enriched CLI events and CALL_OUTBOUND arriving after CONTACT_ASSIGNED.
+   * Pass `direction` to also correct the tab's direction (used by CALL_OUTBOUND handler).
+   */
+  private applyEnrichedDataIfTabExists(
+    contactId: string,
+    customerName: string,
+    direction?: CallDirection,
+  ): boolean {
+    const existing = this.tabStore
+      .tabs()
+      .find((t) => t.contactId === contactId && t.type === 'PHONE');
+    if (!existing) return false;
+
+    this.tabStore.updateTabCustomerInfo(contactId, customerName, direction);
+    this.softphoneService.updateCustomerName(customerName);
+    const alert = this.pendingAlert();
+    if (alert?.contactId === contactId) {
+      this.pendingAlert.set({ ...alert, customerName });
+    }
+    return true;
+  }
+
+  /**
+   * Obsługuje przychodzącą konsultację attended transfer (CALL_TRANSFER_CONSULT).
+   *
+   * Agent2 dostaje ten event gdy Agent1 inicjuje konsultację. Otwieramy zakładkę
+   * PHONE (bez niej SoftphoneComponent nie renderuje się — agent-desktop pokazuje
+   * softphone tylko dla aktywnej zakładki type='PHONE'), a następnie inicjalizujemy
+   * sesję softphonu (state=RINGING) aby Twilio Device nie odrzucił przychodzącego
+   * połączenia SDK z powodu braku aktywnej sesji (handleIncomingCall guard).
+   *
+   * contactId sesji ustawiamy na secondLegCallId (CA_...) — to właśnie ten callSid
+   * jest używany przez backend do identyfikacji nogi konsultacji.
+   */
+  private handleCallTransferConsult(payload: CallTransferConsultPayload): void {
+    const customerName = `[Konsultacja] ${payload.customerName}`;
+
+    // Otwórz zakładkę PHONE – bez niej SoftphoneComponent nie renderuje się
+    // (agent-desktop pokazuje softphone tylko dla aktywnej zakładki type='PHONE').
+    const reason = this.tabStore.openTab({
+      id: crypto.randomUUID(),
+      type: 'PHONE',
+      contactId: payload.secondLegCallId,
+      customerName,
+      customerIdentifier: payload.customerPhone,
+      status: 'ACTIVE',
+      startedAt: new Date(),
+      direction: 'INBOUND',
+      originalContactId: payload.originalContactId,
+    });
+
+    if (reason !== null) {
+      this.notifications.warning(this.transloco.translate(LIMIT_MESSAGE_KEYS[reason]));
+      return;
+    }
+
+    // Inicjalizuj sesję softphonu tak aby handleIncomingCall() nie odrzucił połączenia.
+    // Używamy secondLegCallId jako contactId — backend identyfikuje nogę konsultacji
+    // po tym callSid, nie po originalContactId.
+    this.softphoneService.incomingCall({
+      contactId: payload.secondLegCallId,
+      customerName,
+      customerPhone: payload.customerPhone,
+      queueName: '',
+    });
+
+    // HTTP lookup by customer phone — updates tab name from "[Konsultacja] Nieznany"
+    // to "[Konsultacja] Paweł Miernik" once the API responds.
+    if (payload.customerPhone) {
+      this.lookupService
+        .lookupByPhone(payload.customerPhone)
+        .pipe(take(1))
+        .subscribe((profile) => {
+          if (!profile) return;
+          const resolved = `[Konsultacja] ${`${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim()}`;
+          this.tabStore.updateTabCustomerInfo(payload.secondLegCallId, resolved);
+          this.softphoneService.updateCustomerName(resolved);
+        });
+    }
+
+    const alert: IncomingCallAlert = {
+      contactId: payload.secondLegCallId,
+      customerName,
+      customerPhone: payload.customerPhone,
+      queueName: '',
+      receivedAt: new Date(),
+    };
+
     this.pendingAlert.set(alert);
     this.playAudio();
     this.showSystemNotification(alert);
@@ -134,6 +293,7 @@ export class IncomingCallAlertService implements OnDestroy {
     }
 
     this.softphoneService.incomingCall(payload);
+    this.lookupAndUpdateTabName(payload.customerIdentifier, payload.contactId);
 
     const alert: IncomingCallAlert = {
       contactId: payload.contactId,
@@ -145,6 +305,29 @@ export class IncomingCallAlertService implements OnDestroy {
     this.pendingAlert.set(alert);
     this.playAudio();
     this.showSystemNotification(alert);
+  }
+
+  /**
+   * Fires an HTTP customer lookup by phone number and updates the tab, session and alert
+   * with the resolved full name. This is the authoritative name source — independent of
+   * WS event ordering or CLI enricher availability.
+   */
+  private lookupAndUpdateTabName(phoneNumber: string, contactId: string): void {
+    if (!phoneNumber) return;
+    this.lookupService
+      .lookupByPhone(phoneNumber)
+      .pipe(take(1))
+      .subscribe((profile) => {
+        if (!profile) return;
+        const name = `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim();
+        if (!name) return;
+        this.tabStore.updateTabCustomerInfo(contactId, name);
+        this.softphoneService.updateCustomerName(name);
+        const alert = this.pendingAlert();
+        if (alert?.contactId === contactId) {
+          this.pendingAlert.set({ ...alert, customerName: name });
+        }
+      });
   }
 
   // ── Auto-dismiss effect ────────────────────────────────────────────────────

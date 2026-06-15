@@ -72,7 +72,7 @@ export class EmailSettingsComponent implements OnInit {
     this.http
       .get<{ content: { queueId: string; name: string }[] }>('/api/queues')
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: (res) => this.queues.set(res.content), error: () => {} });
+      .subscribe({ next: (res) => this.queues.set(res.content) });
   }
 
   private loadConfig(): void {

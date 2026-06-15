@@ -13,4 +13,5 @@ export interface ContactHistoryItem {
   date: string; // ISO 8601
   disposition: string;
   agentName?: string;
+  notes?: string | null;
 }

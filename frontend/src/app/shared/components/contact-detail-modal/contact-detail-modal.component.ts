@@ -17,6 +17,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
 import {
+  ContactEventResponse,
   ContactResponse,
   EmailPreviewResponse,
   RecordingUrlResponse,
@@ -62,6 +63,28 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
 
   readonly emailPreviewState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   readonly emailPreview = signal<EmailPreviewResponse | null>(null);
+
+  readonly events = signal<ContactEventResponse[]>([]);
+  readonly eventsState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+  readonly headerSubtitle = computed(() => {
+    const c = this.contact();
+    if (!c) return '';
+    const channel = this.transloco.translate(`contactDetailModal.channelLabels.${c.channel}`);
+    const dir = this.transloco.translate(`contactDetailModal.directionLabels.${c.direction}`);
+    const date = c.startedAt
+      ? new Date(c.startedAt).toLocaleDateString('pl-PL', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+    return [c.remoteAddress, `${channel} ${dir}`, date].filter(Boolean).join(' · ');
+  });
+
+  readonly isEmailChannel = computed(() => this.contact()?.channel === 'EMAIL');
 
   readonly hasRecording = computed(() => {
     const c = this.contact();
@@ -133,6 +156,8 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     this.relatedContacts.set([]);
     this.emailPreviewState.set('idle');
     this.emailPreview.set(null);
+    this.events.set([]);
+    this.eventsState.set('idle');
 
     this.contactService
       .getContact(id)
@@ -148,7 +173,19 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
           this.contact.set(c);
           this.loadState.set('loaded');
           this.loadRelatedContacts(id);
+          this.loadEvents(id);
         }
+      });
+  }
+
+  private loadEvents(id: string): void {
+    this.eventsState.set('loading');
+    this.contactService
+      .getContactEvents(id)
+      .pipe(catchError(() => of([])))
+      .subscribe((list) => {
+        this.events.set(list);
+        this.eventsState.set('loaded');
       });
   }
 
@@ -214,6 +251,48 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
       });
   }
 
+  protected getStageLabel(stage: ContactEventResponse['stage']): string {
+    return this.transloco.translate(`contactDetailModal.stage${stage}`);
+  }
+
+  protected formatDuration(seconds: number | null): string {
+    if (seconds === null || seconds === undefined) return '—';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+
+  protected getEventDuration(event: ContactEventResponse): number | null {
+    if (event.durationSeconds != null) return event.durationSeconds;
+    if (event.endedAt && event.startedAt) {
+      return Math.floor(
+        (new Date(event.endedAt).getTime() - new Date(event.startedAt).getTime()) / 1000,
+      );
+    }
+    return null;
+  }
+
+  protected getStageContext(event: ContactEventResponse): string {
+    const m = event.metadata;
+    if (event.stage === 'TRANSFER' || event.stage === 'CONSULTING') {
+      const targetType = m['target_type'] as string | undefined;
+      const transferType = m['transfer_type'] ? ` (${m['transfer_type']})` : '';
+
+      if (targetType === 'QUEUE') {
+        const name = (m['target_queue_name'] ?? m['target_queue_id'] ?? '') as string;
+        return name + transferType;
+      }
+      if (targetType === 'AGENT') {
+        const name = (m['target_agent_name'] ?? m['target'] ?? '') as string;
+        return name + transferType;
+      }
+      // PHONE lub brak target_type
+      const phone = (m['target'] ?? '') as string;
+      return phone + transferType;
+    }
+    return m['ivr_tree_name'] ?? m['queue_name'] ?? m['agent_name'] ?? '';
+  }
+
   private reset(): void {
     this.loadState.set('idle');
     this.contact.set(null);
@@ -223,6 +302,8 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     this.relatedLoading.set(false);
     this.emailPreviewState.set('idle');
     this.emailPreview.set(null);
+    this.events.set([]);
+    this.eventsState.set('idle');
     this.currentContactId.set(null);
   }
 
@@ -254,7 +335,17 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   }
 
   getStatusLabel(status: string): string {
-    return this.transloco.translate(`contactDetailModal.statusLabels.${status}`);
+    const key = `supervisor.customerDetail.contactStatusLabels.${status}`;
+    const translated = this.transloco.translate(key);
+    return translated === key ? status : translated;
+  }
+
+  getDispositionLabel(label: string | null, code: string | null): string {
+    if (label) return label;
+    if (!code) return '—';
+    const key = `common.dispositionLabels.${code}`;
+    const translated = this.transloco.translate(key);
+    return translated === key ? code : translated;
   }
 
   getDirectionLabel(direction: string): string {
@@ -263,6 +354,27 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
 
   getCallbackStatusLabel(status: string): string {
     return this.transloco.translate(`contactDetailModal.callbackStatusLabels.${status}`);
+  }
+
+  /**
+   * Returns the i18n key for a related-contact badge.
+   * Transfer detection relies on the status of the related item (PARENT with TRANSFERRED status)
+   * or the currently displayed contact (CHILD when current contact is TRANSFERRED).
+   */
+  getRelatedContactBadgeKey(item: RelatedItem): string {
+    if (item.itemType === 'CONTACT') {
+      if (item.relationType === 'PARENT' && item.status === 'TRANSFERRED') {
+        return 'contactDetailModal.transferSource';
+      }
+      if (item.relationType === 'CHILD' && this.contact()?.status === 'TRANSFERRED') {
+        return 'contactDetailModal.transferTarget';
+      }
+      return item.relationType === 'PARENT'
+        ? 'contactDetailModal.parentContact'
+        : 'contactDetailModal.childContact';
+    }
+    // CALLBACK items — label handled in template via separate translation key
+    return 'agent.rescheduleCallback.title';
   }
 
   private formatDurationSeconds(totalSeconds: number): string {

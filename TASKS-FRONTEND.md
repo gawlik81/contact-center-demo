@@ -2921,3 +2921,1921 @@ maxAttempts: new FormControl(3, [
 - [ ] Wartości zapisywane na `POST /api/campaigns` i `PUT /api/campaigns/{id}`
 - [ ] Wartości ładowane poprawnie przy edycji istniejącej kampanii
 - [ ] Helptexty/tooltips przy obu polach
+
+---
+
+## MODUŁ: Ad hoc połączenia i email z panelu agenta
+
+### FE-071 – Przycisk „Zadzwoń" na karcie klienta i w szufladzie szczegółów
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-067
+**Status:** [ ] Do zrobienia
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Dodanie przycisku „Zadzwoń" do `AgentCustomerCardComponent` oraz do szuflady szczegółów klienta w `AgentCustomersTabComponent`. Po kliknięciu:
+- Jeśli klient ma jeden numer telefonu — od razu inicjuje połączenie
+- Jeśli klient ma wiele numerów — wyświetla mini-dropdown z wyborem numeru
+- Po wyborze numeru: wywołuje `POST /api/telephony/calls/outbound` i pokazuje powiadomienie sukcesu/błędu
+
+**Implementacja:**
+- `AgentCustomerCardComponent`: nowy `@Output() initiateCall = new EventEmitter<{customer, phoneNumber}>()`
+- Nowy przycisk z ikoną telefonu (`customer-card__btn--call`) — zielony akcent, widoczny gdy `customer.phone.length > 0`
+- `AgentCustomersTabComponent.onInitiateCall()`: wywołuje nowy `OutboundCallService.call(phoneNumber, customerId)`
+- `OutboundCallService` (nowy, `providedIn: 'root'`): HTTP `POST /api/telephony/calls/outbound`, zwraca `Observable<{contactId, callId}>`
+- Szuflada szczegółów: analogiczny przycisk obok istniejącego „Zamów oddzwonienie"
+- Po sukcesie: `NotificationService.success('Połączenie zainicjowane')` + opcjonalne przejście do zakładki desktop
+- i18n: `agent.customers.initiateCall`, `agent.customers.selectPhone`, `agent.customers.callInitiated`, `agent.customers.callError`
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Zadzwoń" widoczny na karcie gdy klient ma ≥1 numer telefonu
+- [ ] Klient z 1 numerem: kliknięcie od razu inicjuje połączenie (bez dropdown)
+- [ ] Klient z wieloma numerami: dropdown z listą numerów przed wywołaniem
+- [ ] Wywołanie `POST /api/telephony/calls/outbound` z poprawnym `phoneNumber` i `customerId`
+- [ ] Sukces: powiadomienie toast
+- [ ] Błąd HTTP: powiadomienie z komunikatem błędu
+- [ ] Brak numeru: przycisk niewidoczny lub disabled
+- [ ] Tłumaczenia w pl.json i en.json
+
+---
+
+### FE-072 – Modal „Wyślij email" do klienta ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** FE-040 (AgentCustomersTabComponent), BE-068
+**Status:** [ ] Do zrobienia
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy komponent `AdHocEmailModalComponent` — formularz wysyłki nowego emaila do klienta, otwierany z karty klienta lub szuflady szczegółów. Formularz zawiera: pole `Do` (pre-wypełnione adresem klienta, edytowalne), `Temat`, edytor treści HTML (lub textarea), przycisk „Wyślij".
+
+**Plik:** `frontend/src/app/features/agent/pages/customers/adhoc-email-modal/adhoc-email-modal.component.ts`
+
+**Implementacja:**
+- Standalone component, `ChangeDetectionStrategy.OnPush`
+- `@Input() customer: CustomerSummary` — do pre-wypełnienia pola `Do`
+- `@Output() sent = new EventEmitter<void>()`
+- `@Output() cancelled = new EventEmitter<void>()`
+- Formularz reaktywny (`ReactiveFormsModule`): `toAddress` (@Email, pre-fill z `customer.email[0]` jeśli istnieje), `subject` (required, max 500), `bodyHtml` (textarea, required)
+- Jeśli klient ma wiele emaili: dropdown wyboru adresu (zamiast ręcznego wpisywania)
+- Serwis: `EmailService.sendOutbound(toAddress, subject, bodyHtml, customerId)` — nowa metoda wywołująca `POST /api/email/messages/outbound`
+- Po sukcesie: `sent.emit()`, zamknięcie modala, toast sukcesu
+- Po błędzie: komunikat w modalu (nie toast) — np. „Brak konfiguracji SMTP" lub „Błąd wysyłki"
+- Integracja w `AgentCustomersTabComponent`:
+  - Nowy `@Output() sendEmail` na `AgentCustomerCardComponent` → `onSendEmail(customer)` w tabie
+  - Signal `emailCustomer = signal<CustomerSummary | null>(null)`
+  - `@if (emailCustomer()) { <app-adhoc-email-modal ... /> }`
+- Szuflada szczegółów: przycisk „Wyślij email" obok „Zamów oddzwonienie"
+- i18n: `agent.customers.sendEmail`, `agent.adhocEmail.title`, `agent.adhocEmail.toLabel`, `agent.adhocEmail.subjectLabel`, `agent.adhocEmail.bodyLabel`, `agent.adhocEmail.send`, `agent.adhocEmail.cancel`, `agent.adhocEmail.sent`, `agent.adhocEmail.errorNoSmtp`, `agent.adhocEmail.errorSend`
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Wyślij email" widoczny na karcie gdy klient ma ≥1 adres email
+- [ ] Kliknięcie otwiera modal z pre-wypełnionym polem `Do`
+- [ ] Klient z wieloma emailami: dropdown wyboru adresu
+- [ ] Walidacja formularza: `toAddress` poprawny email, `subject` i `bodyHtml` niepuste
+- [ ] Kliknięcie „Wyślij" wywołuje `POST /api/email/messages/outbound`
+- [ ] Sukces: modal zamknięty, toast z potwierdzeniem
+- [ ] Błąd SMTP: komunikat wewnątrz modala (nie toast), modal pozostaje otwarty
+- [ ] Anulowanie: modal zamknięty, brak wywołania API
+- [ ] Tłumaczenia w pl.json i en.json
+- [ ] Brak emaila klienta: przycisk niewidoczny lub disabled
+
+---
+
+## MODUŁ: Notatki do kontaktów (EPIC-22)
+
+### FE-073 – Wyświetlanie notatki w widoku szczegółów kontaktu (`contact-detail-modal`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-069 (pole `notes` w `ContactResponse`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Modal szczegółów kontaktu (`contact-detail-modal.component.html`) zawiera już martwy kod wyświetlający `c.notes` (sekcja "Status", linie ~142-147):
+```html
+@if (c.notes) {
+  <div class="contact-dl__row contact-dl__row--tall">
+    <dt class="contact-dl__term">{{ 'contactDetailModal.fieldNotes' | transloco }}</dt>
+    <dd class="contact-dl__desc contact-dl__desc--notes">{{ c.notes }}</dd>
+  </div>
+}
+```
+Po wdrożeniu BE-069 ten kod "ożyje" automatycznie. Zadanie obejmuje weryfikację i dopracowanie UX dla długich notatek — `dd` musi obsługiwać wieloliniowy tekst bez obcinania.
+
+**Zakres pracy:**
+
+1. **`contact-detail-modal.component.scss`** — sprawdź czy klasa `.contact-dl__desc--notes` istnieje; jeśli nie, dodaj:
+   ```scss
+   .contact-dl__desc--notes {
+     white-space: pre-wrap;   // zachowaj znaki nowej linii z notatki
+     word-break: break-word;  // łam długie słowa
+     max-height: 200px;
+     overflow-y: auto;
+     line-height: 1.5;
+   }
+   ```
+
+2. **`contact-detail-modal.component.ts`** — sprawdź czy model `ContactResponse` w `src/app/core/models/contact.model.ts` ma pole `notes?: string | null`. Jeśli tak — brak zmian w TypeScript. Jeśli nie — dodaj.
+
+3. **Tłumaczenia** — klucz `contactDetailModal.fieldNotes` powinien już istnieć w pl.json (sprawdź). Upewnij się że jest też w `en.json`, `de.json`, `uk.json`.
+
+**Kryteria akceptacji:**
+- [ ] Kontakt z notatką: pole „Notatka" widoczne w sekcji Status modala
+- [ ] Kontakt bez notatki: sekcja notatki nie renderuje się (warunek `@if (c.notes)`)
+- [ ] Długa notatka (>500 znaków): wyświetla się w scrollowalnym obszarze, nie rozrywa layoutu
+- [ ] Notatka z wieloma liniami (`\n`): znaki nowej linii są respektowane (nie zwinięte w jedną linię)
+- [ ] Klucz `contactDetailModal.fieldNotes` przetłumaczony w pl, en, de, uk
+
+---
+
+### FE-074 – Notatki z ostatnich kontaktów w panelu klienta (`customer-panel`) — truncation + expand
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-070 (pole `notes` w `ContactSummaryDto` → `CustomerLookupResponse`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Panel klienta (`cc-customer-panel`) wyświetla ostatnie 5 kontaktów klienta w sekcji "Historia kontaktów". Aktualnie pokazuje: ikonę kanału, dyspozycję i datę. Po wdrożeniu BE-070 API zwróci `notes` przy każdym kontakcie. Notatki mogą być długie — nie mogą być wyświetlane w całości w zwartej liście.
+
+**Rozwiązanie UX:** każdy element historii pokazuje maksymalnie 2 linie notatki z przyciskiem „Rozwiń / Zwiń" gdy notatka jest dłuższa.
+
+**Pliki do modyfikacji:**
+
+1. **`customer-profile.model.ts`** (`src/app/core/models/`) — dodaj `notes?: string | null` do `ContactHistoryItem`:
+   ```typescript
+   export interface ContactHistoryItem {
+     id: string;
+     channel: 'PHONE' | 'EMAIL' | 'CHAT' | 'SOCIAL';
+     date: string;
+     disposition: string;
+     agentName?: string;
+     notes?: string | null;  // nowe pole
+   }
+   ```
+
+2. **`customer-panel.component.ts`** — dodaj mechanizm expand/collapse:
+   ```typescript
+   protected readonly expandedNotes = signal<Set<string>>(new Set());
+
+   protected toggleNote(contactId: string): void {
+     this.expandedNotes.update(set => {
+       const next = new Set(set);
+       next.has(contactId) ? next.delete(contactId) : next.add(contactId);
+       return next;
+     });
+   }
+
+   protected isNoteExpanded(contactId: string): boolean {
+     return this.expandedNotes().has(contactId);
+   }
+
+   protected hasLongNote(note: string | null | undefined): boolean {
+     return !!note && note.length > 120;
+   }
+   ```
+
+3. **`customer-panel.component.html`** — w bloku `@for (item of profile()!.recentContacts; ...)`, wewnątrz `<div class="cp__history-details">`, po `cp__history-agent` dodaj:
+   ```html
+   @if (item.notes) {
+     <div class="cp__history-note-wrap">
+       <p class="cp__history-note"
+          [class.cp__history-note--collapsed]="!isNoteExpanded(item.id)">
+         {{ item.notes }}
+       </p>
+       @if (hasLongNote(item.notes)) {
+         <button
+           type="button"
+           class="cp__history-note-toggle"
+           (click)="toggleNote(item.id)">
+           {{ isNoteExpanded(item.id)
+               ? ('agent.customerPanel.noteCollapse' | transloco)
+               : ('agent.customerPanel.noteExpand' | transloco) }}
+         </button>
+       }
+     </div>
+   }
+   ```
+
+4. **`customer-panel.component.scss`** — dodaj style:
+   ```scss
+   .cp__history-note-wrap {
+     margin-top: 4px;
+   }
+
+   .cp__history-note {
+     font-size: 0.75rem;
+     color: var(--color-text-secondary);
+     line-height: 1.4;
+     white-space: pre-wrap;
+     word-break: break-word;
+     margin: 0;
+
+     &--collapsed {
+       display: -webkit-box;
+       -webkit-line-clamp: 2;
+       -webkit-box-orient: vertical;
+       overflow: hidden;
+     }
+   }
+
+   .cp__history-note-toggle {
+     background: none;
+     border: none;
+     padding: 0;
+     font-size: 0.7rem;
+     color: var(--color-primary);
+     cursor: pointer;
+     margin-top: 2px;
+
+     &:hover {
+       text-decoration: underline;
+     }
+   }
+   ```
+
+5. **Tłumaczenia** (`public/i18n/pl.json`, `en.json`, `de.json`, `uk.json`) — w sekcji `agent.customerPanel` dodaj:
+   - `noteExpand`: `"Pokaż więcej"` / `"Show more"` / `"Mehr anzeigen"` / `"Показати більше"`
+   - `noteCollapse`: `"Pokaż mniej"` / `"Show less"` / `"Weniger anzeigen"` / `"Показати менше"`
+
+**Kryteria akceptacji:**
+- [ ] Kontakt bez notatki: brak elementu notatki w historii
+- [ ] Kontakt z krótką notatką (≤120 znaków): wyświetlana w całości, bez przycisku "Pokaż więcej"
+- [ ] Kontakt z długą notatką (>120 znaków): widoczne 2 linie + przycisk "Pokaż więcej"
+- [ ] Kliknięcie "Pokaż więcej": pełna notatka widoczna, przycisk zmienia się na "Pokaż mniej"
+- [ ] Kliknięcie "Pokaż mniej": notatka zwinięta z powrotem do 2 linii
+- [ ] Notatka z `\n`: znaki nowej linii zachowane (`white-space: pre-wrap`)
+- [ ] Stan expand/collapse niezależny per element historii (rozwinięcie jednego nie wpływa na inne)
+- [ ] Tłumaczenia `noteExpand` i `noteCollapse` w pl, en, de, uk
+
+---
+
+## MODUŁ: Historia etapów kontaktu (EPIC-23)
+
+### FE-075 – Sekcja „Historia kontaktu" w modalu szczegółów kontaktu (`contact-detail-modal`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-073 (endpoint `GET /api/contacts/{id}/events`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Epic:** EPIC-23 Historia etapów kontaktu
+
+**Opis:**
+Modal szczegółów kontaktu (`contact-detail-modal`) pokazuje aktualnie: kanał, kierunek, status, czas trwania, dyspozycję, notatkę, nagranie i powiązane kontakty. Nowa sekcja „Historia kontaktu" prezentuje pełny przepływ kontaktu przez etapy: IVR → Kolejka → Agent → (Hold → Agent), z datą rozpoczęcia i czasem trwania każdego etapu.
+
+**Projekt UI (mockup sekcji):**
+```
+── Historia kontaktu ──────────────────────────────────────
+  [IVR]      10:00:05    2m 30s    "Powitanie"
+  [KOLEJKA]  10:02:35    5m 10s    "Sprzedaż"
+  [AGENT]    10:07:45    6m 00s    "Jan Kowalski"
+  [WSTRZYM.] 10:09:45    1m 30s
+  [AGENT]    10:11:15    3m 30s    "Jan Kowalski"
+───────────────────────────────────────────────────────────
+```
+Każdy wiersz: ikona/badge etapu | czas startu | czas trwania (lub „w toku" gdy `ended_at = null`) | kontekst z metadata.
+
+**Pliki do stworzenia/modyfikacji:**
+
+**1. `src/app/core/models/contact.model.ts`** — dodaj interfejsy:
+```typescript
+export interface ContactEventResponse {
+  eventId: string;
+  stage: 'IVR' | 'VOICEBOT' | 'QUEUE' | 'AGENT' | 'ON_HOLD' | 'CONSULTING' | 'TRANSFER';
+  startedAt: string;           // ISO 8601
+  endedAt: string | null;      // null = etap aktywny; dla TRANSFER = startedAt
+  durationSeconds: number | null;
+  metadata: Record<string, string>;
+  // IVR/VOICEBOT: ivr_tree_name, outcome (ESCALATED|COMPLETED|ERROR)
+  // QUEUE: queue_name
+  // AGENT: agent_name
+  // CONSULTING: target, transfer_type
+  // TRANSFER: target, transfer_type, target_agent_name (nullable)
+}
+```
+
+**2. `src/app/features/agent/services/contact.service.ts`** (lub shared) — dodaj metodę:
+```typescript
+getContactEvents(contactId: string): Observable<ContactEventResponse[]> {
+  return this.http.get<ContactEventResponse[]>(
+    `${environment.apiUrl}/contacts/${contactId}/events`
+  );
+}
+```
+
+**3. `contact-detail-modal.component.ts`** — dodaj logikę pobierania historii:
+```typescript
+protected readonly events = signal<ContactEventResponse[]>([]);
+protected readonly eventsState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+// W ngOnInit lub po załadowaniu kontaktu:
+private loadEvents(contactId: string): void {
+  this.eventsState.set('loading');
+  this.contactService.getContactEvents(contactId)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({
+      next: (list) => { this.events.set(list); this.eventsState.set('loaded'); },
+      error: () => this.eventsState.set('error'),
+    });
+}
+
+// Helper do formatowania czasu trwania:
+protected formatDuration(seconds: number | null): string {
+  if (seconds === null) return '—';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+// Helper do etykiety etapu (i18n przez klucze transloco):
+protected getStageLabel(stage: ContactEventResponse['stage']): string {
+  const labels: Record<string, string> = {
+    IVR: 'IVR',
+    VOICEBOT: 'Bot',
+    QUEUE: 'Kolejka',
+    AGENT: 'Agent',
+    ON_HOLD: 'Wstrzym.',
+    CONSULTING: 'Konsult.',
+    TRANSFER: 'Transfer',
+  };
+  return labels[stage] ?? stage;
+}
+
+// Helper do metadanych (nazwa IVR / bota / kolejki / agenta / celu transferu):
+protected getStageContext(event: ContactEventResponse): string {
+  const m = event.metadata;
+  if (event.stage === 'TRANSFER' || event.stage === 'CONSULTING') {
+    const who = m['target_agent_name'] ?? m['target'] ?? '';
+    const type = m['transfer_type'] ? ` (${m['transfer_type']})` : '';
+    return who + type;
+  }
+  return m['ivr_tree_name'] ?? m['queue_name'] ?? m['agent_name'] ?? '';
+}
+```
+
+**4. `contact-detail-modal.component.html`** — nowa sekcja po sekcji „Status", przed nagraniem:
+```html
+<!-- Section: Historia kontaktu -->
+@if (eventsState() === 'loading') {
+  <section class="contact-section" aria-labelledby="contact-section-events">
+    <h3 id="contact-section-events" class="contact-section__title">
+      {{ 'contactDetailModal.sectionEvents' | transloco }}
+    </h3>
+    <div class="events-skeleton">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="skeleton-block skeleton-block--event"></div>
+      }
+    </div>
+  </section>
+}
+
+@if (eventsState() === 'loaded' && events().length > 0) {
+  <section class="contact-section" aria-labelledby="contact-section-events">
+    <h3 id="contact-section-events" class="contact-section__title">
+      {{ 'contactDetailModal.sectionEvents' | transloco }}
+    </h3>
+    <ol class="contact-events" aria-label="Historia etapów kontaktu">
+      @for (event of events(); track event.eventId) {
+        <li class="contact-event contact-event--{{ event.stage.toLowerCase() }}">
+          <span class="contact-event__badge">
+            {{ getStageLabel(event.stage) }}
+          </span>
+          <span class="contact-event__time">
+            {{ event.startedAt | date: 'HH:mm:ss' }}
+          </span>
+          <span class="contact-event__duration">
+            {{ event.endedAt ? formatDuration(event.durationSeconds) : ('contactDetailModal.eventInProgress' | transloco) }}
+          </span>
+          @if (getStageContext(event)) {
+            <span class="contact-event__context">{{ getStageContext(event) }}</span>
+          }
+        </li>
+      }
+    </ol>
+  </section>
+}
+```
+
+**5. `contact-detail-modal.component.scss`** — style dla listy etapów:
+```scss
+.contact-events {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contact-event {
+  display: grid;
+  grid-template-columns: 90px 70px 80px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--color-surface-secondary, #f5f5f5);
+  font-size: 0.8rem;
+
+  &__badge {
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  &__time   { font-variant-numeric: tabular-nums; }
+  &__duration { color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+  &__context  { color: var(--color-text-secondary); font-size: 0.75rem; truncate: ellipsis; }
+
+  &--ivr        .contact-event__badge { background: #e3f2fd; color: #1565c0; }  // niebieski
+  &--voicebot   .contact-event__badge { background: #ede7f6; color: #4527a0; }  // fioletowy
+  &--queue      .contact-event__badge { background: #fff8e1; color: #f57f17; }  // żółty
+  &--agent      .contact-event__badge { background: #e8f5e9; color: #2e7d32; }  // zielony
+  &--on_hold    .contact-event__badge { background: #fff3e0; color: #e65100; }  // pomarańczowy
+  &--consulting .contact-event__badge { background: #e0f7fa; color: #006064; }  // cyjanowy
+  &--transfer   .contact-event__badge { background: #f5f5f5; color: #424242; }  // szary
+}
+
+.skeleton-block--event {
+  height: 36px;
+  border-radius: 6px;
+}
+```
+
+**6. Tłumaczenia** (`public/i18n/pl.json`, `en.json`, `de.json`, `uk.json`) — w sekcji `contactDetailModal`:
+- `sectionEvents`: `"Historia kontaktu"` / `"Contact timeline"` / `"Kontaktverlauf"` / `"Історія контакту"`
+- `eventInProgress`: `"w toku"` / `"in progress"` / `"laufend"` / `"у процесі"`
+
+**Uwagi implementacyjne:**
+- `loadEvents()` wywołaj po załadowaniu kontaktu (`loadState() === 'loaded'`), nie przy inicjalizacji komponentu — unikaj zbędnego requestu gdy kontakt nie załaduje się poprawnie
+- Sekcja historii nie wyświetla się gdy `eventsState === 'idle'` lub `eventsState === 'error'` (cicha degradacja — brak historii nie powinien blokować wyświetlania pozostałych danych kontaktu)
+- Lista `events()` posortowana po `startedAt ASC` przez backend — frontend nie sortuje
+
+**Kryteria akceptacji:**
+- [ ] Po otwarciu modalu kontaktu z historią → sekcja „Historia kontaktu" widoczna z listą etapów
+- [ ] Każdy etap: badge z nazwą etapu, godzina startu, czas trwania, kontekst (IVR/kolejka/agent)
+- [ ] Etap bez `ended_at` (aktywny) → wyświetla „w toku" zamiast czasu trwania
+- [ ] Kontakt bez historii etapów → sekcja się nie renderuje
+- [ ] Stany ładowania: skeleton podczas ładowania historii
+- [ ] Badge etapów mają różne kolory: IVR=niebieski, VOICEBOT=fioletowy, QUEUE=żółty, AGENT=zielony, ON_HOLD=pomarańczowy, CONSULTING=cyjanowy, TRANSFER=szary
+- [ ] Tłumaczenia `sectionEvents` i `eventInProgress` w pl, en, de, uk
+- [ ] Brak regresji: pozostałe sekcje modalu działają bez zmian
+
+---
+
+## EPIC-24 Transfer połączenia: agent i kolejka
+
+Rozszerzenie panelu transferu w softphonie agenta o dwa nowe cele: **Agent** (transfer BLIND + konsultacja ATTENDED) i **Kolejka** (transfer BLIND). Obecny UI obsługuje tylko transfer na numer telefonu.
+
+---
+
+### FE-076 – Rozszerzenie modelu i serwisu softphone o typ celu transferu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-077, BE-078
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-077, FE-078, FE-079, FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Warstwa modelu i serwisu przed pracą na UI. Definiuje nowe typy, modele i sygnatury metod w `SoftphoneService`.
+
+**1. Rozszerzenie `call-session.model.ts`:**
+
+```typescript
+export type TransferMode       = 'BLIND' | 'ATTENDED';
+export type TransferTargetType = 'PHONE' | 'AGENT' | 'QUEUE';
+
+export interface TransferAgentItem {
+  agentId:    string;
+  firstName:  string;
+  lastName:   string;
+  status:     'AVAILABLE' | 'BUSY' | 'BREAK' | 'ON_CALL';
+  queueNames: string[];
+}
+
+export interface TransferQueueItem {
+  queueId:         string;
+  name:            string;
+  waitingContacts: number;
+  availableAgents: number;
+}
+```
+
+**2. Nowe sygnatury w `SoftphoneService`:**
+
+```typescript
+// Pobieranie list do panelu transferu
+fetchTransferAgents(): Observable<TransferAgentItem[]>
+fetchTransferQueues(): Observable<TransferQueueItem[]>
+
+// Transfer do agenta
+initiateBlindTransferToAgent(callId: string, agentId: string): void
+initiateAttendedTransferToAgent(callId: string, agentId: string): void
+
+// Transfer do kolejki (tylko BLIND)
+initiateBlindTransferToQueue(callId: string, queueId: string): void
+```
+
+**3. Implementacja HTTP — zastąpienie `/api/dev/telephony/simulate`:**
+
+Wszystkie metody transfer wywołują:
+```
+POST /api/telephony/calls/{callId}/transfer
+Body: { transferType, targetType, phoneNumber?, agentId?, queueId? }
+```
+
+Attended bridge wywołuje:
+```
+POST /api/telephony/calls/{callId}/bridge/{secondCallId}
+```
+
+**Kryteria akceptacji:**
+- [ ] `TransferTargetType`, `TransferAgentItem`, `TransferQueueItem` wyeksportowane z modelu
+- [ ] `fetchTransferAgents()` → `GET /api/telephony/transfer/agents`
+- [ ] `fetchTransferQueues()` → `GET /api/telephony/transfer/queues`
+- [ ] `initiateBlindTransferToAgent()`, `initiateAttendedTransferToAgent()` → `POST .../transfer` z `targetType=AGENT`
+- [ ] `initiateBlindTransferToQueue()` → `POST .../transfer` z `targetType=QUEUE`
+- [ ] Bridge (attended complete) → `POST .../bridge/{secondCallId}`
+- [ ] `npm run lint` i `npm test` przechodzą
+
+---
+
+### FE-077 – Panel transferu: zakładki „Telefon / Agent / Kolejka"
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-076
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-078, FE-079
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Przebudowa layoutu panelu transferu w `softphone.component.html` — dodanie selektora typu celu jako zakładek. Zawartość pod zakładkami zostanie zaimplementowana w FE-078 i FE-079.
+
+**Selektor trybu celu (`TransferTargetType`):**
+
+```html
+<div class="transfer-panel__target-tabs">
+  <button
+    *ngFor="let tab of transferTargetTabs"
+    [class.active]="transferTargetType() === tab.value"
+    (click)="setTransferTargetType(tab.value)"
+    type="button">
+    {{ tab.label }}
+  </button>
+</div>
+```
+
+Zakładki (label / value):
+- `"Telefon"` / `PHONE` — istniejący formularz z inputem numer + tryby BLIND/ATTENDED
+- `"Agent"` / `AGENT` — lista agentów (FE-078)
+- `"Kolejka"` / `QUEUE` — lista kolejek, tylko BLIND (FE-079)
+
+**Nowy sygnał w komponencie:**
+
+```typescript
+protected readonly transferTargetType = signal<TransferTargetType>('PHONE');
+
+protected setTransferTargetType(type: TransferTargetType): void {
+  this.transferTargetType.set(type);
+  this.transferTarget.set('');
+  this.attendedConnected.set(false);
+}
+```
+
+**Warunkowe renderowanie:**
+
+```html
+@if (transferTargetType() === 'PHONE') {
+  <!-- istniejący formularz tel -->
+}
+@if (transferTargetType() === 'AGENT') {
+  <app-transfer-agent-list ... />
+}
+@if (transferTargetType() === 'QUEUE') {
+  <app-transfer-queue-list ... />
+}
+```
+
+**Styl zakładek** — spójny z istniejącymi przyciskami trybu (BLIND/ATTENDED); aktywna zakładka podkreślona kolorem `--color-primary`.
+
+**Selektor trybu BLIND/ATTENDED** — wyświetlany tylko gdy `transferTargetType() !== 'QUEUE'`.
+
+**Kryteria akceptacji:**
+- [ ] Panel transferu zawiera trzy zakładki: Telefon / Agent / Kolejka
+- [ ] Kliknięcie zakładki resetuje stan wyboru (target, attendedConnected)
+- [ ] Zakładka QUEUE ukrywa selektor BLIND/ATTENDED (queue = zawsze BLIND)
+- [ ] Zakładka Telefon renderuje istniejący formularz bez zmian funkcjonalnych
+- [ ] Styl zakładek spójny z resztą panelu
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-078 – Lista agentów w panelu transferu z wyszukiwaniem i statusem
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-076, FE-077, BE-075
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Nowy standalone komponent `TransferAgentListComponent` wyświetlający listę agentów dostępnych do transferu z wyszukiwaniem i wskaźnikiem statusu.
+
+**Selekto komponentu:** `app-transfer-agent-list`
+
+**Inputs / Outputs:**
+
+```typescript
+// Input
+transferMode = input.required<TransferMode>(); // BLIND | ATTENDED
+
+// Output
+agentSelected = output<{ agentId: string; mode: TransferMode }>();
+```
+
+**Template (szkielet):**
+
+```html
+<div class="transfer-agent-list">
+  <input
+    type="search"
+    placeholder="Szukaj agenta..."
+    (input)="searchQuery.set($event.target.value)" />
+
+  @if (loadState() === 'loading') {
+    <div class="transfer-agent-list__skeleton">
+      <!-- 4 skeleton rows -->
+    </div>
+  }
+
+  @for (agent of filteredAgents(); track agent.agentId) {
+    <button
+      class="transfer-agent-list__item"
+      [class]="'status--' + agent.status.toLowerCase()"
+      (click)="selectAgent(agent)">
+      <span class="transfer-agent-list__status-dot"></span>
+      <span class="transfer-agent-list__name">
+        {{ agent.firstName }} {{ agent.lastName }}
+      </span>
+      <span class="transfer-agent-list__queues">
+        {{ agent.queueNames.join(', ') }}
+      </span>
+    </button>
+  }
+
+  @empty {
+    <p class="transfer-agent-list__empty">Brak dostępnych agentów</p>
+  }
+</div>
+```
+
+**Logika:**
+
+```typescript
+private readonly agents = signal<TransferAgentItem[]>([]);
+protected readonly searchQuery  = signal('');
+protected readonly loadState    = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+protected readonly filteredAgents = computed(() =>
+  this.agents().filter(a =>
+    `${a.firstName} ${a.lastName}`.toLowerCase()
+      .includes(this.searchQuery().toLowerCase())
+  )
+);
+
+ngOnInit(): void {
+  this.loadState.set('loading');
+  this.softphoneService.fetchTransferAgents()
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({ next: data => { this.agents.set(data); this.loadState.set('loaded'); },
+                 error: ()   => this.loadState.set('error') });
+}
+
+protected selectAgent(agent: TransferAgentItem): void {
+  this.agentSelected.emit({ agentId: agent.agentId, mode: this.transferMode() });
+}
+```
+
+**Kolory statusu (dot):**
+- `AVAILABLE` → zielony (`--color-success`)
+- `BUSY` / `ON_CALL` → pomarańczowy (`--color-warning`)
+- `BREAK` → żółty
+
+**Kryteria akceptacji:**
+- [ ] Lista agentów ładuje się po przełączeniu zakładki „Agent"
+- [ ] Pole wyszukiwania filtruje po imieniu i nazwisku (case-insensitive)
+- [ ] Wskaźnik statusu (dot) z odpowiednim kolorem
+- [ ] Skeleton podczas ładowania (4 wiersze)
+- [ ] Pusta lista → komunikat „Brak dostępnych agentów"
+- [ ] Kliknięcie agenta emituje `agentSelected` z `agentId` i aktualnym `transferMode`
+- [ ] Komponent nie przechowuje stanu po odmontowaniu (destroyRef)
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-079 – Lista kolejek w panelu transferu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-076, FE-077, BE-076
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Nowy standalone komponent `TransferQueueListComponent` — lista kolejek dostępnych jako cel transferu. Transfer do kolejki jest zawsze BLIND (bez konsultacji).
+
+**Selektor komponentu:** `app-transfer-queue-list`
+
+**Output:**
+
+```typescript
+queueSelected = output<{ queueId: string }>();
+```
+
+**Template (szkielet):**
+
+```html
+<div class="transfer-queue-list">
+  @for (queue of queues(); track queue.queueId) {
+    <button
+      class="transfer-queue-list__item"
+      (click)="selectQueue(queue)">
+      <span class="transfer-queue-list__name">{{ queue.name }}</span>
+      <span class="transfer-queue-list__stats">
+        <span class="badge badge--waiting">
+          {{ queue.waitingContacts }} czeka
+        </span>
+        <span class="badge badge--agents">
+          {{ queue.availableAgents }} agentów
+        </span>
+      </span>
+    </button>
+  }
+
+  @empty {
+    <p class="transfer-queue-list__empty">Brak dostępnych kolejek</p>
+  }
+</div>
+```
+
+**Logika:**
+
+```typescript
+protected readonly queues    = signal<TransferQueueItem[]>([]);
+protected readonly loadState = signal<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+ngOnInit(): void {
+  this.loadState.set('loading');
+  this.softphoneService.fetchTransferQueues()
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({ next: data => { this.queues.set(data); this.loadState.set('loaded'); },
+                 error: ()   => this.loadState.set('error') });
+}
+
+protected selectQueue(queue: TransferQueueItem): void {
+  this.queueSelected.emit({ queueId: queue.queueId });
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Lista kolejek ładuje się po przełączeniu zakładki „Kolejka"
+- [ ] Każda pozycja: nazwa kolejki, liczba oczekujących, liczba dostępnych agentów
+- [ ] Skeleton podczas ładowania
+- [ ] Pusta lista → komunikat „Brak dostępnych kolejek"
+- [ ] Kliknięcie emituje `queueSelected` z `queueId`
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-080 – Integracja panelu transferu z nowym API
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-076, FE-077, FE-078, FE-079, BE-077, BE-078
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Spinanie wszystkich elementów: obsługa outputów z list agentów/kolejek w `SoftphoneComponent`, wywołanie właściwych metod serwisu, aktualizacja stanu sesji po transferze. Zastąpienie wywołań `/api/dev/telephony/simulate` właściwymi endpointami.
+
+**Zmiany w `softphone.component.ts`:**
+
+```typescript
+// Obsługa outputu z listy agentów
+protected onAgentSelected(event: { agentId: string; mode: TransferMode }): void {
+  if (event.mode === 'BLIND') {
+    this.softphoneService.initiateBlindTransferToAgent(
+      this.session()!.contactId, event.agentId);
+  } else {
+    this.softphoneService.initiateAttendedTransferToAgent(
+      this.session()!.contactId, event.agentId);
+    this.attendedConnected.set(true);
+  }
+}
+
+// Obsługa outputu z listy kolejek (zawsze BLIND)
+protected onQueueSelected(event: { queueId: string }): void {
+  this.softphoneService.initiateBlindTransferToQueue(
+    this.session()!.contactId, event.queueId);
+}
+```
+
+**Attended transfer do agenta — faza 2 (Complete / Cancel):**
+
+Istniejące przyciski „Ukończ" i „Anuluj" działają tak samo niezależnie od targetType — warunek wyświetlania: `attendedConnected() === true` (bez zmian).
+
+**Usunięcie zależności od `/api/dev/telephony/simulate`:**
+
+- `SoftphoneService` — usuń wywołania `POST /api/dev/telephony/simulate` z metod transfer
+- Zastąp wywołaniami `POST /api/telephony/calls/{callId}/transfer`
+- Bridge zastąp `POST /api/telephony/calls/{callId}/bridge/{secondCallId}`
+
+**Kryteria akceptacji:**
+- [ ] Wybór agenta BLIND → kontakt przechodzi w `TRANSFERRING` → `ENDED`
+- [ ] Wybór agenta ATTENDED → stan `TRANSFERRING`, pojawia się przycisk „Ukończ" / „Anuluj"
+- [ ] „Ukończ" → bridge API → `ENDED`
+- [ ] „Anuluj" → cancel → `ACTIVE`
+- [ ] Wybór kolejki → kontakt `TRANSFERRING` → `ENDED`
+- [ ] Żadne wywołanie do `/api/dev/telephony/simulate` w ścieżce transferu
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+
+### FE-081 – Usunięcie pola `queueId` z formularza kampanii
+
+**Typ:** Refactor
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-079
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-082
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+Formularz tworzenia kampanii (`campaign-form.component`) zawiera obowiązkowy dropdown wyboru kolejki (`queueId: ['', Validators.required]`). Po EPIC-25 kampanie nie są powiązane z kolejką — to pole należy usunąć.
+
+**Zakres zmian:**
+
+1. **`campaign.model.ts`**:
+   - `CreateCampaignRequest`: usuń `queueId: string` (pole obowiązkowe) — całkowite usunięcie
+   - `UpdateCampaignRequest`: usuń `queueId?: string`
+   - `Campaign`: `queueId?: string` — zostaje jako opcjonalne (dane historyczne)
+
+2. **`campaign-form.component.ts`**:
+   - Usuń `queueId: ['', Validators.required]` z `form`
+   - Usuń import i wstrzyknięcie `QueueService`
+   - Usuń sygnały `queuesLoading`, `queues`
+   - Usuń metodę `loadQueues()`
+   - Usuń wywołanie `loadQueues()` z `ngOnInit()`
+   - Usuń `get queueIdError()` getter
+   - W `onSubmit()` przy create: usuń `queueId: raw.queueId!`
+
+3. **`campaign-form.component.html`**:
+   - Usuń sekcję HTML z dropdownem kolejki (`<select formControlName="queueId">`) i jej etykietę
+   - Usuń blok błędu `queueIdError`
+
+4. **i18n** (pliki transloco `pl.json`, `en.json`):
+   - Usuń klucze `supervisor.campaignForm.errors.queueRequired` i `supervisor.campaigns.queue` (jeśli istnieją)
+
+**Kryteria akceptacji:**
+- [ ] Formularz tworzenia kampanii nie zawiera pola kolejki
+- [ ] `POST /api/campaigns` wysyłany bez `queueId`
+- [ ] Formularz edycji kampanii (DRAFT) nie zawiera pola kolejki
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-082 – Modal zarządzania przypisaniem agentów do kampanii (trójpoziomowy)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-080, BE-084, FE-081
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-083
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Opis:**
+Modal zarządzania przypisaniem agentów do kampanii — identyczny w strukturze UI z `queue-agents-modal.component`. Obsługuje trzy poziomy przypisania: `allAgents`, grupy agentów i agenci bezpośredni. Używa jednego endpointu `PUT /api/campaigns/{id}/assignment` do atomowej podmiany całego przypisania.
+
+**Nowe pliki:**
+```
+features/supervisor/pages/campaigns/campaign-assignment-modal/
+  campaign-assignment-modal.component.ts
+  campaign-assignment-modal.component.html
+  campaign-assignment-modal.component.scss
+```
+
+**Model danych — rozszerzenie `campaign.model.ts`:**
+```typescript
+export interface CampaignAssignment {
+  campaignId: string;
+  allAgents: boolean;
+  directAgents: AgentSummary[];
+  groups: AgentGroupSummary[];
+}
+
+export interface AgentSummary {
+  agentId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export interface AgentGroupSummary {
+  groupId: string;
+  name: string;
+  memberCount: number;
+}
+
+export interface UpdateCampaignAssignmentRequest {
+  allAgents: boolean;
+  directAgentIds: string[];
+  groupIds: string[];
+}
+```
+
+**Rozszerzenie `CampaignService` (frontend):**
+```typescript
+getCampaignAssignment(campaignId: string): Observable<CampaignAssignment>
+updateCampaignAssignment(campaignId: string, req: UpdateCampaignAssignmentRequest): Observable<CampaignAssignment>
+```
+
+**Komponent `CampaignAssignmentModalComponent`:**
+```typescript
+@Component({ selector: 'app-campaign-assignment-modal', ... })
+export class CampaignAssignmentModalComponent implements OnInit {
+  readonly campaign = input.required<Campaign>();
+  readonly closed = output<void>();
+
+  readonly assignment = signal<CampaignAssignment | null>(null);
+  readonly loading = signal(true);
+  readonly saving = signal(false);
+
+  // Lokalne kopie do edycji (nie mutują assignment sygnału bezpośrednio)
+  readonly allAgents = signal(false);
+  readonly selectedAgentIds = signal<string[]>([]);
+  readonly selectedGroupIds = signal<string[]>([]);
+
+  // Listy dostępne do wyboru (GET /api/users + GET /api/agent-groups)
+  readonly availableAgents = signal<AgentSummary[]>([]);
+  readonly availableGroups = signal<AgentGroupSummary[]>([]);
+}
+```
+
+**Layout modalu — analogiczny do `queue-agents-modal`:**
+
+1. **Przełącznik "Wszyscy agenci"** (toggle) — gdy ON: sekcje grup i agentów ukryte (wystarczy flaga)
+2. **Sekcja "Grupy agentów"** — lista przypisanych grup z `memberCount`, przycisk usuwania; poniżej dropdown/search do dodawania grup
+3. **Sekcja "Agenci bezpośredni"** — lista przypisanych agentów, przycisk usuwania; poniżej dropdown/search do dodawania agentów
+4. **Ostrzeżenie** gdy `allAgents=false` i obie listy puste: "Brak przypisania — dialer nie będzie dzwonił, panel manualny nie wyświetli rekordów tej kampanii."
+5. **Przycisk "Zapisz"** — wywołuje `PUT /api/campaigns/{id}/assignment` z aktualnym stanem (atomowa podmiana)
+
+**Integracja w `campaign-info.component`:**
+- Przycisk "Zarządzaj agentami" otwiera `CampaignAssignmentModalComponent`
+- Po zamknięciu modalu z sukcesem: odświeżenie `assignedAgentsCount` w widoku kampanii
+
+**Kryteria akceptacji:**
+- [ ] Modal ładuje aktualny stan przypisania z `GET /api/campaigns/{id}/assignment`
+- [ ] Toggle "Wszyscy agenci" — włączenie ukrywa sekcje grup/agentów, nie usuwa istniejących przypisań (tylko flaga)
+- [ ] Dodanie grupy: pojawia się w sekcji grup z `memberCount`
+- [ ] Usunięcie grupy: usuwana z lokalnej listy (bez natychmiastowego zapisu — zapis przez "Zapisz")
+- [ ] Dodanie agenta: pojawia się w sekcji agentów bezpośrednich
+- [ ] Usunięcie agenta: usuwany z lokalnej listy
+- [ ] "Zapisz" → `PUT /api/campaigns/{id}/assignment` → success toast + zamknięcie modalu
+- [ ] Ostrzeżenie widoczne gdy `allAgents=false` i obie listy puste
+- [ ] Komponent standalone, bez NgModules
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-083 – Wyświetlenie stanu przypisania agentów na liście kampanii i w szczegółach
+
+**Typ:** Feature
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-082, BE-080
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Opis:**
+Stan przypisania agentów powinien być widoczny bez otwierania modalu. `CampaignResponse` rozszerzony o pole sumaryczne; frontend pokazuje badge z informacją o trybie przypisania.
+
+**Zmiany:**
+
+1. **`CampaignResponse` (backend)** — rozszerzyć o:
+   ```java
+   boolean allAgents,
+   int assignedAgentsCount   // 0 gdy allAgents=true (nie liczymy) lub suma direct+groups
+   ```
+   Backend zlicza w `CampaignService.getCampaign()` przez `CampaignAssignmentRepository`.
+   Gdy `allAgents=true` → `assignedAgentsCount` = -1 (sygnał "wszyscy") lub specjalna wartość.
+
+2. **`Campaign` model (frontend)**:
+   ```typescript
+   allAgents?: boolean;
+   assignedAgentsCount?: number; // -1 = all agents mode
+   ```
+
+3. **`campaign-list.component.html`** — badge przy nazwie kampanii:
+   ```html
+   @if (campaign.allAgents) {
+     <span class="badge badge--info">Wszyscy agenci</span>
+   } @else if ((campaign.assignedAgentsCount ?? 0) === 0) {
+     <span class="badge badge--warning" title="Brak agentów — dialer nieaktywny">
+       Brak agentów
+     </span>
+   } @else {
+     <span class="badge badge--agents">{{ campaign.assignedAgentsCount }} agentów</span>
+   }
+   ```
+
+4. **`campaign-info.component.html`** — wiersz w sekcji konfiguracji:
+   ```
+   Agenci: [Wszyscy] / [X agentów] / [⚠ Brak przypisania]  [Zarządzaj]
+   ```
+
+**Kryteria akceptacji:**
+- [ ] Badge z liczbą agentów widoczny na liście kampanii
+- [ ] Badge w kolorze ostrzegawczym gdy `assignedAgentsCount === 0`
+- [ ] Liczba agentów aktualizuje się po zamknięciu modalu przypisania (FE-082)
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-084 – Ukrycie zakładki „Kolejka" w panelu transferu dla połączeń wychodzących
+
+**Typ:** Bug fix / UX
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-076 (TransferTargetType), FE-077 (panel transferu)
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+`SoftphoneComponent.transferTargetTabs` jest stałą tablicą `['PHONE', 'AGENT', 'QUEUE']` — niezależnie od kierunku połączenia. Pole `tab.direction` (`'INBOUND' | 'OUTBOUND'`) jest już dostępne w komponencie i ustawiane przez `contact-tab.store.ts` w momencie tworzenia zakładki. Dla połączeń wychodzących (`OUTBOUND`) transfer do kolejki jest niemożliwy — kolejka przyjmuje tylko ruch przychodzący.
+
+**Zmiana w `softphone.component.ts`:**
+
+```typescript
+// Przed (stała tablica):
+protected readonly transferTargetTabs: TransferTargetType[] = ['PHONE', 'AGENT', 'QUEUE'];
+
+// Po (computed signal filtrujący QUEUE dla OUTBOUND):
+protected readonly transferTargetTabs = computed<TransferTargetType[]>(() =>
+  this.tab.direction === 'OUTBOUND'
+    ? ['PHONE', 'AGENT']
+    : ['PHONE', 'AGENT', 'QUEUE']
+);
+```
+
+Przy okazji: jeśli `transferTargetType()` jest aktualnie `'QUEUE'` i zmieni się kierunek na `OUTBOUND` (edge case), zresetować do `'PHONE'`. W praktyce zakładka powstaje raz z ustalonym kierunkiem i nie zmienia się — reset nie jest konieczny, wystarczy computed.
+
+**Brak zmian w szablonie** — `@for (tab of transferTargetTabs; track tab)` już iteruje po aktualnej wartości; computed signal obsługuje zmianę automatycznie.
+
+**Kryteria akceptacji:**
+- [ ] Dla połączeń `OUTBOUND`: panel transferu zawiera tylko zakładki „Telefon" i „Agent" (brak „Kolejka")
+- [ ] Dla połączeń `INBOUND`: panel transferu zawiera wszystkie trzy zakładki bez zmian
+- [ ] Zmiana nie wpływa na działanie transferu BLIND/ATTENDED na zakładkach PHONE i AGENT
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+## MODUŁ: Historia prób wydzwonienia rekordu kampanii (EPIC-25)
+
+### FE-085 – Nawigacja z rekordu kampanii do historii kontaktów (prób wydzwonienia)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-085, FE-082
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+Widok `campaign-contacts.component` (modal listy rekordów kampanii) wyświetla rekordy z pola `CampaignContact`, w tym `attemptCount` i `status`. Po BE-085 `CampaignContactResponse` zawiera `lastContactId`. Potrzebny jest sposób przejścia do widoku szczegółów konkretnej próby oraz do listy wszystkich prób dla rekordu.
+
+**Model danych — rozszerzenie `campaign.model.ts`:**
+```typescript
+export interface CampaignContact {
+  // ... istniejące pola bez zmian ...
+  lastContactId: string | null;   // null gdy brak prób — nowe pole
+}
+
+export interface ContactAttempt {
+  contactId: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  status: string;
+  dispositionCode: string | null;
+  agentId: string | null;
+  // standardowe pola ContactResponse
+}
+```
+
+**Rozszerzenie `CampaignService` (frontend):**
+```typescript
+getContactAttempts(
+  campaignId: string,
+  recordId: string
+): Observable<ContactAttempt[]>
+// GET /api/campaigns/{campaignId}/contacts/{recordId}/attempts
+```
+
+**Zmiany w `campaign-contacts.component`:**
+
+### UI per rekord — przycisk historii prób
+
+W szablonie `campaign-contacts.component.html` dodaj przy każdym rekordzie:
+
+```html
+@if (contact.attemptCount > 0) {
+  <button
+    class="btn-attempts"
+    type="button"
+    (click)="showAttempts(contact)"
+    [attr.aria-label]="'supervisor.campaigns.showAttempts' | transloco"
+  >
+    {{ contact.attemptCount }}
+    {{ 'supervisor.campaigns.attempts' | transloco }}
+  </button>
+}
+```
+
+### Stan rozwinięcia historii
+
+```typescript
+// Sygnał: który rekord ma rozwiniętą historię
+readonly expandedRecordId = signal<string | null>(null);
+readonly attempts = signal<ContactAttempt[]>([]);
+readonly attemptsLoading = signal(false);
+
+showAttempts(contact: CampaignContact): void {
+  if (this.expandedRecordId() === contact.recordId) {
+    this.expandedRecordId.set(null); // zwiń
+    return;
+  }
+  this.expandedRecordId.set(contact.recordId);
+  this.attemptsLoading.set(true);
+  this.campaignService.getContactAttempts(this.campaign().campaignId, contact.recordId)
+    .pipe(
+      catchError(() => of([])),
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => this.attemptsLoading.set(false))
+    )
+    .subscribe(a => this.attempts.set(a));
+}
+```
+
+### Lista prób (rozwijana pod rekordem)
+
+Inline pod wierszem rekordu, gdy `expandedRecordId() === contact.recordId`:
+
+```html
+@if (expandedRecordId() === contact.recordId) {
+  <div class="attempts-panel">
+    @if (attemptsLoading()) {
+      <div class="skeleton skeleton--short"></div>
+    } @else if (attempts().length === 0) {
+      <p class="attempts-empty">{{ 'supervisor.campaigns.noAttempts' | transloco }}</p>
+    } @else {
+      @for (attempt of attempts(); track attempt.contactId) {
+        <div class="attempt-row" (click)="openContactDetail(attempt.contactId)">
+          <span class="attempt-date">{{ attempt.startedAt | date:'dd.MM.yyyy HH:mm' }}</span>
+          <span class="attempt-status attempt-status--{{ attempt.status | lowercase }}">
+            {{ attempt.status }}
+          </span>
+          <span class="attempt-duration">
+            @if (attempt.durationSeconds) {
+              {{ attempt.durationSeconds | duration }}
+            } @else {
+              —
+            }
+          </span>
+          <span class="attempt-disposition">{{ attempt.dispositionCode ?? '—' }}</span>
+          <svg class="attempt-chevron" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+          </svg>
+        </div>
+      }
+    }
+  </div>
+}
+```
+
+### Nawigacja do szczegółów kontaktu
+
+Po kliknięciu próby — otwieramy istniejący `contact-detail-modal` (jeśli istnieje w kontekście supervisora) lub przekierowujemy do widoku kontaktów z filtrem `contactId`:
+
+```typescript
+openContactDetail(contactId: string): void {
+  // Emit event do rodzica (campaign-info lub campaign-list)
+  // rodzic otwiera contact-detail-modal z danym contactId
+  this.contactSelected.emit(contactId);
+}
+
+// Output:
+readonly contactSelected = output<string>();
+```
+
+**Kryteria akceptacji:**
+- [ ] Rekord z `attemptCount > 0`: widoczny przycisk „X prób" (liczba prób z `attemptCount`)
+- [ ] Kliknięcie przycisku: rozwinięcie listy prób ładowanej z `GET /.../attempts`
+- [ ] Ponowne kliknięcie: zwinięcie listy
+- [ ] Lista prób: data, czas trwania, status, kod dyspozycji w każdym wierszu, posortowane od najnowszych
+- [ ] Kliknięcie próby: emituje `contactSelected` → rodzic otwiera contact-detail-modal
+- [ ] Rekord z `attemptCount === 0`: brak przycisku historii
+- [ ] Loading skeleton podczas ładowania prób
+- [ ] Pusta lista prób (edge case API): komunikat „Brak prób"
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+## EPIC-26: AI-Powered Conversation Summary
+
+### FE-086 – `AiSummaryService`: serwis Angular do generowania podsumowania AI
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-090 (endpoint `POST /api/contacts/{contactId}/ai-summary`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-087, FE-088, FE-089
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Standalone Angular service `AiSummaryService` (`shared/services/ai-summary.service.ts`) obsługujący komunikację z backendem.
+
+```typescript
+export interface AiSummaryResponse {
+  summary: string;
+  modelUsed: string;
+  tokensUsed: number;
+}
+
+@Injectable({ providedIn: 'root' })
+export class AiSummaryService {
+  private readonly http = inject(HttpClient);
+
+  generateSummary(contactId: string): Observable<AiSummaryResponse> {
+    return this.http.post<AiSummaryResponse>(
+      `/api/contacts/${contactId}/ai-summary`,
+      null
+    );
+  }
+}
+```
+
+**Obsługa błędów HTTP:**
+- 422: rzuć `AiConfigNotSetError` — frontend wyświetli komunikat „Skonfiguruj dostawcę AI w ustawieniach"
+- 502: rzuć `AiServiceUnavailableError` — „Serwis AI tymczasowo niedostępny. Spróbuj ponownie."
+- Inne: propaguj do komponentu
+
+**Kryteria akceptacji:**
+- [x] Serwis wstrzykiwalny jako standalone (`providedIn: 'root'`)
+- [x] `generateSummary()` zwraca `Observable<AiSummaryResponse>`
+- [x] 422 → rzuca `AiConfigNotSetError` z komunikatem dla użytkownika
+- [x] 502 → rzuca `AiServiceUnavailableError`
+- [x] Testy jednostkowe Vitest: happy path + 422 + 502
+- [x] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-087 – Przycisk „Generuj podsumowanie AI" na formularzu dyspozycji
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-086 (AiSummaryService)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-089
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Rozszerzenie istniejącego formularza dyspozycji (disposition form) po zakończeniu kontaktu telefonicznego. Agent ma możliwość wygenerowania podsumowania AI przed zapisaniem dyspozycji.
+
+**Lokalizacja:** komponent formularza dyspozycji widoczny po zakończeniu rozmowy (agent desktop — zakładka/modal po rozłączeniu).
+
+**UI — nowa sekcja „Podsumowanie AI":**
+
+```html
+<!-- Sekcja AI Summary — widoczna gdy contactId jest dostępny -->
+<section class="ai-summary-section">
+  <div class="ai-summary-header">
+    <span class="ai-summary-label">Podsumowanie AI</span>
+    <button
+      type="button"
+      class="btn-ai-generate"
+      [disabled]="aiLoading()"
+      (click)="generateAiSummary()"
+      aria-label="Generuj podsumowanie AI"
+    >
+      @if (aiLoading()) {
+        <span class="spinner spinner--xs" aria-hidden="true"></span>
+        Generowanie…
+      } @else {
+        <svg class="icon-sparkle" aria-hidden="true">…</svg>
+        Generuj podsumowanie AI
+      }
+    </button>
+  </div>
+
+  @if (aiError()) {
+    <p class="ai-error" role="alert">{{ aiError() }}</p>
+  }
+
+  @if (aiSummary()) {
+    <textarea
+      class="ai-summary-textarea"
+      [(ngModel)]="aiSummary"
+      rows="4"
+      placeholder="Podsumowanie zostanie wygenerowane…"
+      aria-label="Podsumowanie AI — możesz edytować przed zapisaniem"
+    ></textarea>
+    <p class="ai-summary-meta">
+      Model: {{ aiModelUsed() }} · {{ aiTokensUsed() }} tokenów
+    </p>
+  }
+</section>
+```
+
+**Logika komponentu (sygnały):**
+
+```typescript
+readonly aiLoading = signal(false);
+readonly aiSummary = signal<string | null>(null);
+readonly aiModelUsed = signal<string | null>(null);
+readonly aiTokensUsed = signal<number | null>(null);
+readonly aiError = signal<string | null>(null);
+
+generateAiSummary(): void {
+  if (!this.contactId()) return;
+  this.aiLoading.set(true);
+  this.aiError.set(null);
+  this.aiSummaryService.generateSummary(this.contactId()!)
+    .pipe(
+      catchError((err: AiConfigNotSetError | AiServiceUnavailableError | unknown) => {
+        this.aiError.set(err instanceof Error ? err.message : 'Nieznany błąd.');
+        return EMPTY;
+      }),
+      takeUntilDestroyed(this.destroyRef),
+      finalize(() => this.aiLoading.set(false))
+    )
+    .subscribe(res => {
+      this.aiSummary.set(res.summary);
+      this.aiModelUsed.set(res.modelUsed);
+      this.aiTokensUsed.set(res.tokensUsed);
+    });
+}
+```
+
+**Zapis dyspozycji:** `aiSummary()` jest tylko informacyjne dla agenta — agent może edytować. Wartość tekstowa z textarea powinna być uwzględniona w payload zapisu dyspozycji (lub zapisana osobno przez serwis). Backend już przechowuje `contact.ai_summary` zapisany przez `BE-090` — w tym tasku frontend jedynie wyświetla wynik.
+
+**Kryteria akceptacji:**
+- [x] Przycisk „Generuj podsumowanie AI" widoczny na formularzu dyspozycji gdy `contactId` jest dostępny
+- [x] Kliknięcie przycisku → spinner + tekst „Generowanie…" + przycisk disabled
+- [x] Po sukcesie: textarea z podsumowaniem + metadane (model, tokeny)
+- [x] Agent może edytować treść w textarea przed zapisaniem dyspozycji
+- [x] Błąd 422 → komunikat „Skonfiguruj dostawcę AI w ustawieniach"
+- [x] Błąd 502 → komunikat „Serwis AI tymczasowo niedostępny"
+- [x] Ponowne kliknięcie „Generuj" nadpisuje poprzednie podsumowanie
+- [x] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-088 – Panel konfiguracji dostawcy AI w ustawieniach supervisora
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-088 (TenantAiConfigController), FE-086
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** —
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Nowa zakładka/sekcja „Konfiguracja AI" w panelu ustawień supervisora. Umożliwia ustawienie dostawcy AI, klucza API, modelu i opcjonalnego promptu systemowego.
+
+**Routing:** `/supervisor/settings/ai-config` (standalone komponent z lazy loading)
+
+**UI — formularz konfiguracji AI:**
+
+```html
+<form [formGroup]="form" (ngSubmit)="save()">
+  <div class="form-group">
+    <label for="provider">Dostawca AI</label>
+    <select id="provider" formControlName="provider">
+      <option value="ANTHROPIC">Anthropic (Claude)</option>
+      <option value="OPENAI">OpenAI (GPT)</option>
+      <option value="AZURE_OPENAI">Azure OpenAI</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="apiKey">Klucz API</label>
+    <input type="password" id="apiKey" formControlName="apiKey"
+           autocomplete="new-password"
+           placeholder="Wprowadź klucz API (zostanie zaszyfrowany)"/>
+    @if (maskedKey()) {
+      <p class="api-key-hint">Aktualny klucz: {{ maskedKey() }}</p>
+    }
+  </div>
+
+  <div class="form-group">
+    <label for="modelName">Nazwa modelu</label>
+    <input type="text" id="modelName" formControlName="modelName"
+           placeholder="np. claude-opus-4-7 / gpt-4o"/>
+  </div>
+
+  <!-- Widoczne tylko dla AZURE_OPENAI -->
+  @if (form.get('provider')?.value === 'AZURE_OPENAI') {
+    <div class="form-group">
+      <label for="azureEndpoint">Azure Endpoint URL</label>
+      <input type="url" id="azureEndpoint" formControlName="azureEndpoint"/>
+    </div>
+    <div class="form-group">
+      <label for="deploymentName">Nazwa deployment</label>
+      <input type="text" id="deploymentName" formControlName="deploymentName"/>
+    </div>
+  }
+
+  <div class="form-group">
+    <label for="promptTemplate">Prompt systemowy (opcjonalny)</label>
+    <textarea id="promptTemplate" formControlName="summaryPromptTemplate" rows="4"
+              placeholder="Zostaw puste, aby użyć domyślnego promptu aplikacji."></textarea>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" [disabled]="form.invalid || saving()">
+      @if (saving()) { Zapisywanie… } @else { Zapisz konfigurację }
+    </button>
+    @if (hasConfig()) {
+      <button type="button" class="btn-danger" (click)="deleteConfig()">
+        Usuń konfigurację AI
+      </button>
+    }
+  </div>
+</form>
+```
+
+**Serwis `AiConfigService`** (`supervisor/services/ai-config.service.ts`):
+- `getConfig(): Observable<AiConfigResponse | null>`
+- `saveConfig(request: AiConfigRequest): Observable<AiConfigResponse>`
+- `deleteConfig(): Observable<void>`
+
+**Kryteria akceptacji:**
+- [x] Formularz ładuje istniejącą konfigurację przy wejściu na stronę (404 → pusty formularz)
+- [x] Pole „Klucz API" typu `password`; przy istniejącej konfiguracji wyświetla zamaskowany klucz `****xxxx`
+- [x] Pola Azure widoczne tylko gdy wybrany dostawca `AZURE_OPENAI`
+- [x] Zapis → toast sukcesu „Konfiguracja AI zapisana"
+- [x] Usunięcie → potwierdzenie dialog → toast „Konfiguracja AI usunięta"
+- [x] Walidacja: `provider` + `apiKey` + `modelName` wymagane; `azureEndpoint` wymagane dla Azure
+- [x] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-089 – Podsumowanie AI dla kanału email (widok obsługi emaila)
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-086 (AiSummaryService), FE-087 (AiSummaryPanelComponent)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** —
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Rozszerzenie widoku obsługi kontaktu email przez agenta — analogiczny przycisk „Generuj podsumowanie AI" jak w FE-087. Umożliwia agentowi szybkie podsumowanie wątku emailowego przed wysłaniem odpowiedzi lub zapisaniem dyspozycji.
+
+**Lokalizacja:** komponent widoku emaila (panel agenta — zakładka email, widok wątku z klientem).
+
+**Różnica względem FE-087:** treść do podsumowania to wątek emailowy zamiast transkrypcji rozmowy — logika backendowa (BE-089) już obsługuje tę różnicę na podstawie `channel` kontaktu. Komponent frontendowy jest identyczny — wywołuje ten sam endpoint z `contactId`.
+
+**Współdzielenie kodu:** Wyodrębnij sekcję AI summary do **osobnego standalone komponentu** `AiSummaryPanelComponent` (`shared/components/ai-summary-panel/`), który przyjmuje `@Input() contactId: string` i enkapsuluje całą logikę sygnałów oraz UI. Użyj go zarówno w FE-087 (dyspozycja telefon) jak i w FE-089 (email).
+
+**Kryteria akceptacji:**
+- [x] `AiSummaryPanelComponent` wyodrębniony jako standalone z `@Input() contactId`
+- [x] FE-087 refaktoryzowany do użycia `AiSummaryPanelComponent`
+- [x] Przycisk „Generuj podsumowanie AI" widoczny w widoku emaila gdy `contactId` jest dostępny
+- [x] Zachowanie identyczne jak FE-087: spinner, textarea z wynikiem, obsługa błędów
+- [x] `npm run lint`, `npm test` przechodzą
+
+---
+
+## EPIC-27: Własne dyspozycje per kampania i kolejka
+
+### FE-090 – `CustomDispositionService` i modele — warstwa danych Angular
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-092, BE-093, BE-094
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-093, BE-094
+**Blokuje:** FE-091, FE-092, FE-093
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Serwis Angular i modele TypeScript obsługujące API własnych dyspozycji. Serwis jest współdzielony między panelem supervisora (CRUD) a panelem agenta (odczyt dostępnych dyspozycji).
+
+**Modele (`features/dispositions/models/custom-disposition.model.ts`):**
+```typescript
+export interface AvailableDisposition {
+  dispositionCode: string;
+  label: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  ordinal: number;
+}
+
+export interface CustomDisposition extends AvailableDisposition {
+  id: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CreateCustomDispositionRequest {
+  dispositionCode: string;
+  label: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  ordinal: number;
+}
+
+export interface UpdateCustomDispositionRequest {
+  label: string;
+  tone: 'positive' | 'negative' | 'neutral' | 'warning';
+  ordinal: number;
+  isActive: boolean;
+}
+```
+
+**`CustomDispositionService` (`features/dispositions/services/custom-disposition.service.ts`):**
+```typescript
+// Supervisor — zarządzanie per kampania
+listForCampaign(campaignId: string): Observable<CustomDisposition[]>
+createForCampaign(campaignId: string, req: CreateCustomDispositionRequest): Observable<CustomDisposition>
+updateDisposition(campaignId: string, id: string, req: UpdateCustomDispositionRequest): Observable<CustomDisposition>
+deleteDisposition(campaignId: string, id: string): Observable<void>
+
+// Supervisor — zarządzanie per kolejka
+listForQueue(queueId: string): Observable<CustomDisposition[]>
+createForQueue(queueId: string, req: CreateCustomDispositionRequest): Observable<CustomDisposition>
+
+// Agent — pobieranie dostępnych dyspozycji dla aktywnego kontaktu
+getAvailableDispositions(contactId: string): Observable<AvailableDisposition[]>
+```
+
+**Kryteria akceptacji:**
+- [ ] Modele zgodne z odpowiedziami backendu (camelCase przez Angular `HttpClient`)
+- [ ] `getAvailableDispositions` wywołuje `GET /api/contacts/{contactId}/available-dispositions`
+- [ ] Serwis standalone, dostarczany przez `providedIn: 'root'`
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-091 – Panel zarządzania dyspozycjami w ustawieniach kampanii (supervisor)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-090
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-093
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Nowa sekcja „Dyspozycje" w widoku szczegółów / edycji kampanii w panelu supervisora. Pozwala dodawać, edytować i usuwać własne dyspozycje dla danej kampanii. Informacja o tym, że gdy lista jest pusta, stosowane są dyspozycje systemowe.
+
+**Komponent:** `CampaignDispositionsComponent` (`features/campaigns/components/campaign-dispositions/`)
+
+**Funkcjonalność:**
+- Lista istniejących dyspozycji posortowanych po `ordinal` — wyświetla chip z kolorem wg `tone`, etykietę i kod
+- Przycisk „Dodaj dyspozycję" → inline formularz lub dialog z polami: `dispositionCode`, `label`, `tone` (dropdown), `ordinal`
+- Edycja istniejącej dyspozycji (kod niezmienialny)
+- Usunięcie z potwierdzeniem dialog
+- Informacja systemowa gdy lista pusta: „Brak własnych dyspozycji — stosowane są dyspozycje systemowe"
+- Zmiany zapisywane natychmiast przez API (nie wymagają zapisu całego formularza kampanii)
+
+**UI — tone chip colors:**
+- `positive` → zielony (`mat-chip` z `color="primary"` lub custom)
+- `negative` → czerwony
+- `warning` → pomarańczowy
+- `neutral` → szary
+
+**Kryteria akceptacji:**
+- [ ] Sekcja „Dyspozycje" widoczna w edycji kampanii (tab lub sekcja)
+- [ ] Dodanie dyspozycji → pojawia się na liście bez przeładowania strony
+- [ ] Walidacja formularza: `dispositionCode` wymagany, tylko wielkie litery i `_`, max 50 znaków
+- [ ] Duplikat kodu → `409` z API obsłużony, toast z komunikatem błędu
+- [ ] Usunięcie: potwierdzenie dialog → usunięcie z listy
+- [ ] Pusta lista → komunikat o stosowaniu dyspozycji systemowych
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-092 – Panel zarządzania dyspozycjami w ustawieniach kolejki (supervisor)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-090
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-093
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Analogiczna sekcja jak FE-091, ale w widoku szczegółów/edycji kolejki. Użyj komponentu `QueueDispositionsComponent` budując go zgodnie z tym samym wzorcem co `CampaignDispositionsComponent`. Całą logikę UI (lista z chipami, formularz, dialogi) należy wyodrębnić do współdzielonego komponentu `DispositionListEditorComponent` używanego przez oba widoki.
+
+**Komponent:** `DispositionListEditorComponent` (`shared/components/disposition-list-editor/`) — przyjmuje `@Input() campaignId?: string` i `@Input() queueId?: string`. Na podstawie tego który input jest ustawiony, wywołuje odpowiednie metody serwisu.
+
+**Kryteria akceptacji:**
+- [x] `DispositionListEditorComponent` jest standalone, przyjmuje `campaignId` lub `queueId`
+- [x] `CampaignDispositionsComponent` i `QueueDispositionsComponent` używają `DispositionListEditorComponent`
+- [x] Funkcjonalność identyczna jak FE-091
+- [x] `npm run lint` przechodzi
+
+---
+
+### FE-093 – Aktualizacja panelu dyspozycji agenta — dynamiczne ładowanie z API
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-090, BE-094
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-094
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Obecny panel dyspozycji agenta używa statycznej listy `DISPOSITION_CODES` zakodowanej w `disposition.model.ts`. Należy zastąpić ją dynamicznym pobieraniem z endpointu `GET /api/contacts/{contactId}/available-dispositions`. Backend zawsze zwraca kompletną listę (custom lub systemowe defaulty), więc frontend nie musi znać dyspozycji systemowych.
+
+**Lokalizacja:** komponent dyspozycji w agent desktop — plik `disposition.model.ts` + komponent dyspozycji (prawdopodobnie `DispositionPanelComponent` lub `WrapUpComponent`).
+
+**Zmiany:**
+1. W momencie otwarcia panelu dyspozycji (kontakt przechodzi w stan wrap-up): wywołaj `CustomDispositionService.getAvailableDispositions(contactId)` jako `signal`-based resource lub `Observable`
+2. Zastąp hardcoded `DISPOSITION_CODES` odpowiedzią z API
+3. Skeleton loader podczas ładowania
+4. Obsługa błędu API: fallback do hardcoded `DISPOSITION_CODES` z warninga w konsoli (graceful degradation)
+5. Stare pole `DISPOSITION_CODES` w `disposition.model.ts` można zachować tylko jako fallback, oznaczone `@deprecated`
+
+**Stan komponentu (signals):**
+```typescript
+availableDispositions = signal<AvailableDisposition[]>([]);
+dispositionsLoading = signal(false);
+dispositionsError = signal<string | null>(null);
+```
+
+**Tone → CSS mapping** (zachować istniejący styl, rozszerzyć o nowe tony):
+```typescript
+toneClass(tone: string): string {
+  return { positive: 'tone-positive', negative: 'tone-negative',
+           warning: 'tone-warning', neutral: 'tone-neutral' }[tone] ?? 'tone-neutral';
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Panel dyspozycji ładuje listę z API zamiast hardcoded — widoczne w network tab
+- [ ] Kontakt z kampanią własną → wyświetla custom dyspozycje (nie systemowe)
+- [ ] Kontakt bez custom → wyświetla 6 systemowych (zwróconych przez backend)
+- [ ] Skeleton loader podczas ładowania listy
+- [ ] Błąd API (5xx) → fallback do hardcoded z informacją w konsoli
+- [ ] Wybrany `dispositionCode` z custom listy wysyłany do `PATCH /api/contacts/{id}/disposition` — niezmieniona logika zapisu
+- [ ] `npm run lint`, `npm test` przechodzą
+
+---
+
+### FE-094 – `DispositionSetService` i modele — warstwa danych Angular
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-096
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-096
+**Blokuje:** FE-095, FE-096
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Serwis Angular i modele TypeScript dla zestawów dyspozycji. Współdzielony między stroną zarządzania zestawami (FE-095) a przyciskiem „Zastosuj zestaw" w edytorze dyspozycji (FE-096).
+
+**Modele (`features/dispositions/models/disposition-set.model.ts`):**
+
+```typescript
+export interface DispositionSetItem {
+  id: string;
+  dispositionCode: string;
+  label: string;
+  tone: DispositionToneApi;
+  ordinal: number;
+}
+
+export interface DispositionSet {
+  id: string;
+  name: string;
+  description?: string;
+  itemCount: number;
+  createdAt: string;
+}
+
+export interface DispositionSetDetail extends DispositionSet {
+  items: DispositionSetItem[];
+}
+
+export interface CreateDispositionSetRequest { name: string; description?: string; }
+export interface UpdateDispositionSetRequest { name: string; description?: string; }
+export interface CreateDispositionSetItemRequest {
+  dispositionCode: string;
+  label: string;
+  tone: DispositionToneApi;
+  ordinal: number;
+}
+export interface UpdateDispositionSetItemRequest { label: string; tone: DispositionToneApi; ordinal: number; }
+
+export interface ApplySetResponse { copied: number; skipped: number; message: string; }
+```
+
+**`DispositionSetService` (`features/dispositions/services/disposition-set.service.ts`):**
+
+```typescript
+// Zestawy
+listSets(): Observable<DispositionSet[]>
+createSet(req: CreateDispositionSetRequest): Observable<DispositionSet>
+updateSet(setId: string, req: UpdateDispositionSetRequest): Observable<DispositionSet>
+deleteSet(setId: string): Observable<void>
+
+// Elementy zestawu
+listItems(setId: string): Observable<DispositionSetItem[]>
+addItem(setId: string, req: CreateDispositionSetItemRequest): Observable<DispositionSetItem>
+updateItem(setId: string, itemId: string, req: UpdateDispositionSetItemRequest): Observable<DispositionSetItem>
+removeItem(setId: string, itemId: string): Observable<void>
+
+// Aplikowanie
+applyToCampaign(setId: string, campaignId: string): Observable<ApplySetResponse>
+applyToQueue(setId: string, queueId: string): Observable<ApplySetResponse>
+```
+
+**Kryteria akceptacji:**
+- [ ] Modele zgodne z odpowiedziami backendu
+- [ ] Serwis `providedIn: 'root'`
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-095 – Strona „Ustawienia > Zestawy dyspozycji" (supervisor)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-094
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-096
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Nowa strona w panelu supervisora pod ścieżką `/supervisor/settings/disposition-sets`. Umożliwia pełne zarządzanie zestawami dyspozycji — tworzenie, edycję, usuwanie zestawów oraz zarządzanie ich elementami.
+
+**Lokalizacja:**
+```
+frontend/src/app/features/supervisor/pages/settings/disposition-sets/
+  disposition-sets-page.component.ts
+  disposition-sets-page.component.html
+  disposition-sets-page.component.scss
+```
+
+**Funkcjonalność:**
+
+*Lewa kolumna — lista zestawów:*
+- Lista kart zestawów z nazwą, opisem, liczbą elementów (`itemCount`)
+- Przycisk „+ Nowy zestaw" → inline formularz lub modal: `name` (required), `description` (optional)
+- Kliknięcie karty → zaznacza zestaw i ładuje jego elementy po prawej
+- Przycisk Edytuj (nazwa/opis) i Usuń (z potwierdzeniem `ConfirmDialogComponent`)
+
+*Prawa kolumna — elementy wybranego zestawu:*
+- Nagłówek: nazwa zestawu
+- Lista elementów — reużyj lub wzoruj na `DispositionListEditorComponent`, ale operujący na `DispositionSetService.addItem/updateItem/removeItem`
+- Formularz dodawania/edycji elementu: dispositionCode, label, tone (select), ordinal
+
+**Routing:**
+Dodaj trasę do routingu supervisora (sprawdź `supervisor-routing.module.ts` lub analogiczny plik routes).
+
+**Sidenav:**
+Dodaj pozycję „Zestawy dyspozycji" w menu Ustawienia supervisora (sprawdź `supervisor-shell.component` lub sidenav).
+
+**Kryteria akceptacji:**
+- [ ] Strona dostępna pod `/supervisor/settings/disposition-sets`
+- [ ] Pozycja w menu Ustawienia supervisora
+- [ ] CRUD zestawów: tworzenie, edycja nazwy/opisu, usunięcie z potwierdzeniem
+- [ ] CRUD elementów: dodawanie, edycja, usunięcie
+- [ ] Duplikat nazwy zestawu → `409` obsłużony, toast z komunikatem
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-096 – Przycisk „Zastosuj zestaw" w `DispositionListEditorComponent`
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-094
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-096
+**Blokuje:** —
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Rozszerzenie `DispositionListEditorComponent` o możliwość wybrania istniejącego zestawu dyspozycji i skopiowania jego elementów do bieżącej kampanii lub kolejki.
+
+**Lokalizacja:** `shared/components/disposition-list-editor/disposition-list-editor.component.ts/html`
+
+**Funkcjonalność:**
+
+Nowy przycisk „Zastosuj zestaw" (obok „+ Dodaj dyspozycję"):
+1. Kliknięcie → wyświetla dropdown/listę dostępnych zestawów (pobrana przez `DispositionSetService.listSets()`)
+2. Supervisor wybiera zestaw → pojawia się potwierdzenie: `"Czy skopiować X dyspozycji z zestawu '[nazwa]'? Istniejące dyspozycje o tych samych kodach zostaną pominięte."`
+3. Po potwierdzeniu → wywołaj `applyToCampaign(setId, campaignId)` lub `applyToQueue(setId, queueId)` w zależności od kontekstu
+4. Po sukcesie → przeładuj listę dyspozycji, wyświetl toast: `"Skopiowano X dyspozycji (Y pominiętych)"`
+
+**UI zestawów:**
+```html
+<!-- Przycisk rozwijający listę zestawów -->
+<div class="apply-set-wrapper">
+  <button type="button" class="btn btn-secondary" (click)="toggleSetPicker()">
+    Zastosuj zestaw
+  </button>
+  @if (showSetPicker()) {
+    <div class="set-picker">
+      @if (setsLoading()) { <div class="set-picker__loading">Ładowanie...</div> }
+      @for (set of availableSets(); track set.id) {
+        <button type="button" class="set-picker__item" (click)="onSetSelected(set)">
+          <strong>{{ set.name }}</strong>
+          <span class="set-picker__count">{{ set.itemCount }} dyspozycji</span>
+        </button>
+      }
+      @if (!setsLoading() && availableSets().length === 0) {
+        <div class="set-picker__empty">Brak zdefiniowanych zestawów</div>
+      }
+    </div>
+  }
+</div>
+```
+
+**Sygnały:**
+```typescript
+showSetPicker = signal(false);
+availableSets = signal<DispositionSet[]>([]);
+setsLoading = signal(false);
+applyingSet = signal(false);
+pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwierdzenie
+```
+
+**Kryteria akceptacji:**
+- [ ] Przycisk „Zastosuj zestaw" widoczny gdy `campaignId` lub `queueId` ustawiony
+- [ ] Dropdown z listą zestawów (ładowana leniwie przy pierwszym otwarciu)
+- [ ] Dialog potwierdzenia przed kopiowaniem (reużyj `ConfirmDialogComponent`)
+- [ ] Toast po sukcesie z licznikami `copied`/`skipped`
+- [ ] Lista dyspozycji przeładowana po zastosowaniu zestawu
+- [ ] Brak zestawów → komunikat „Brak zdefiniowanych zestawów" + link do strony zarządzania
+- [ ] `npm run lint` przechodzi

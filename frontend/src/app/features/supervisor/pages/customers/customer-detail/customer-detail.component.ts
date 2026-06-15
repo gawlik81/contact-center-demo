@@ -208,23 +208,37 @@ export class CustomerDetailComponent implements OnInit {
       });
   }
 
-  formatDuration(startedAt: string, endedAt: string | null): string {
-    if (!endedAt) return '—';
-    const start = new Date(startedAt).getTime();
-    const end = new Date(endedAt).getTime();
-    const diffSeconds = Math.floor((end - start) / 1000);
-    if (diffSeconds < 0) return '—';
-    const minutes = Math.floor(diffSeconds / 60);
-    const seconds = diffSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  formatDuration(seconds: number | undefined | null): string {
+    if (seconds === undefined || seconds === null) return '—';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
 
   getChannelLabel(channel: string): string {
     return this.transloco.translate(`supervisor.customerDetail.channelLabels.${channel}`);
   }
 
+  getDirectionLabel(direction: string): string {
+    return this.transloco.translate(`supervisor.customerDetail.directionLabels.${direction}`);
+  }
+
   getStatusLabel(status: string): string {
-    return this.transloco.translate(`supervisor.customerDetail.contactStatusLabels.${status}`);
+    const key = `supervisor.customerDetail.contactStatusLabels.${status}`;
+    const translated = this.transloco.translate(key);
+    return translated === key ? status : translated;
+  }
+
+  getDispositionLabel(label: string | null, code: string | null): string {
+    if (label) return label;
+    if (!code) return '—';
+    const key = `common.dispositionLabels.${code}`;
+    const translated = this.transloco.translate(key);
+    return translated === key ? code : translated;
   }
 
   onGdprExport(): void {

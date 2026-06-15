@@ -3,7 +3,7 @@ package com.contactcenter.api.reports;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.reports.dto.AgentReportParams;
 import com.contactcenter.api.reports.dto.AgentReportRow;
-import com.contactcenter.domain.service.ReportsService;
+import com.contactcenter.domain.reporting.ReportsService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

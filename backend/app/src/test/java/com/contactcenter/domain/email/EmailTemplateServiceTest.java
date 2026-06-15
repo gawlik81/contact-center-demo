@@ -1,7 +1,5 @@
 package com.contactcenter.domain.email;
 
-import com.contactcenter.domain.model.EmailTemplate;
-import com.contactcenter.domain.repository.EmailTemplateRepository;
 import com.contactcenter.api.email.dto.CreateEmailTemplateRequest;
 import com.contactcenter.api.email.dto.UpdateEmailTemplateRequest;
 import com.contactcenter.domain.exception.ConflictException;
@@ -57,13 +55,13 @@ class EmailTemplateServiceTest {
     @Mock
     private MustacheTemplateEngine templateEngine;
 
-    private EmailTemplateService service;
+    private EmailTemplateServiceImpl service;
 
     private MockedStatic<TenantContext> tenantContextMock;
 
     @BeforeEach
     void setUp() {
-        service = new EmailTemplateService(emailTemplateRepository, templateEngine);
+        service = new EmailTemplateServiceImpl(emailTemplateRepository, templateEngine);
 
         tenantContextMock = mockStatic(TenantContext.class);
         tenantContextMock.when(TenantContext::getTenantId).thenReturn(TENANT_ID);
@@ -310,7 +308,7 @@ class EmailTemplateServiceTest {
             Map<String, Object> variables = Map.of("customerName", "Jan");
 
             // when
-            EmailTemplateService.RenderedEmailTemplate result = service.render(TEMPLATE_ID, variables);
+            RenderedEmailTemplate result = service.render(TEMPLATE_ID, variables);
 
             // then
             assertThat(result.subject()).isEqualTo("Witaj Jan!");
@@ -358,7 +356,7 @@ class EmailTemplateServiceTest {
             when(templateEngine.render(eq("<p>Stała treść</p>"), anyMap())).thenReturn("<p>Stała treść</p>");
 
             // when
-            EmailTemplateService.RenderedEmailTemplate result = service.render(TEMPLATE_ID, Map.of());
+            RenderedEmailTemplate result = service.render(TEMPLATE_ID, Map.of());
 
             // then
             assertThat(result.subject()).isEqualTo("Stały temat");

@@ -13,7 +13,7 @@ body {
   padding: 0;
 }
 
-// ── CSS Custom Properties (Design Tokens) ─────────────────────────────────────
+// ── Legacy CSS Custom Properties (Design Tokens) ──────────────────────────────
 :root {
   // Brand colors
   --color-brand: #1565c0;
@@ -41,18 +41,8 @@ body {
   --color-border: #e2e8f0;
   --color-border-focus: var(--color-brand-600);
 
-  // Radius
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
+  // Radius (legacy)
   --radius-full: 9999px;
-
-  // Shadows
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 10px 15px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
 
   // Transitions
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
@@ -61,6 +51,197 @@ body {
   --duration-fast: 120ms;
   --duration-normal: 200ms;
   --duration-slow: 300ms;
+}
+
+// ── New Design System Tokens (oklch) ─────────────────────────────────────────
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+  --bg-app: oklch(98% 0.004 80);
+  --bg-sidebar: oklch(96% 0.004 80);
+  --bg-surface: oklch(100% 0 0);
+  --bg-elevated: oklch(99% 0.004 80);
+  --bg-subtle: oklch(94.5% 0.005 80);
+  --bg-input: oklch(98% 0.004 80);
+
+  --text-1: oklch(24% 0.012 250);
+  --text-2: oklch(45% 0.012 250);
+  --text-3: oklch(58% 0.012 250);
+  --text-muted: oklch(70% 0.008 250);
+
+  --border-1: oklch(91% 0.005 80);
+  --border-2: oklch(87% 0.005 80);
+  --border-strong: oklch(80% 0.008 80);
+
+  --accent: oklch(58% 0.13 255);
+  --accent-soft: oklch(94% 0.025 255);
+  --accent-text: oklch(45% 0.14 255);
+  --accent-fg: #ffffff;
+
+  --success: oklch(58% 0.12 155);
+  --success-soft: oklch(94% 0.03 155);
+  --success-text: oklch(42% 0.12 155);
+
+  --warning: oklch(70% 0.13 70);
+  --warning-soft: oklch(95% 0.04 75);
+  --warning-text: oklch(50% 0.12 60);
+
+  --danger: oklch(60% 0.18 25);
+  --danger-soft: oklch(95% 0.025 25);
+  --danger-text: oklch(48% 0.18 25);
+
+  --violet: oklch(58% 0.14 290);
+  --violet-soft: oklch(95% 0.025 290);
+  --violet-text: oklch(45% 0.15 290);
+
+  --neutral: oklch(60% 0.012 250);
+  --neutral-soft: oklch(94% 0.006 250);
+  --neutral-text: oklch(40% 0.012 250);
+
+  --shadow-sm: 0 1px 2px oklch(20% 0.02 250 / 0.04), 0 1px 1px oklch(20% 0.02 250 / 0.03);
+  --shadow-md: 0 2px 6px oklch(20% 0.02 250 / 0.05), 0 4px 12px oklch(20% 0.02 250 / 0.04);
+  --shadow-lg: 0 8px 24px oklch(20% 0.02 250 / 0.08), 0 2px 6px oklch(20% 0.02 250 / 0.04);
+  --shadow-pop: 0 12px 40px oklch(20% 0.02 250 / 0.16);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-app: oklch(18% 0.012 250);
+  --bg-sidebar: oklch(16% 0.012 250);
+  --bg-surface: oklch(21% 0.012 250);
+  --bg-elevated: oklch(24% 0.012 250);
+  --bg-subtle: oklch(22% 0.012 250);
+  --bg-input: oklch(23% 0.012 250);
+
+  --text-1: oklch(92% 0.008 250);
+  --text-2: oklch(74% 0.008 250);
+  --text-3: oklch(62% 0.008 250);
+  --text-muted: oklch(50% 0.008 250);
+
+  --border-1: oklch(28% 0.012 250);
+  --border-2: oklch(33% 0.012 250);
+  --border-strong: oklch(40% 0.012 250);
+
+  --accent: oklch(70% 0.13 255);
+  --accent-soft: oklch(30% 0.07 255);
+  --accent-text: oklch(82% 0.1 255);
+  --accent-fg: oklch(15% 0.02 250);
+
+  --success: oklch(70% 0.12 155);
+  --success-soft: oklch(28% 0.06 155);
+  --success-text: oklch(80% 0.1 155);
+
+  --warning: oklch(78% 0.13 70);
+  --warning-soft: oklch(32% 0.06 70);
+  --warning-text: oklch(82% 0.1 75);
+
+  --danger: oklch(68% 0.17 25);
+  --danger-soft: oklch(30% 0.08 25);
+  --danger-text: oklch(80% 0.13 25);
+
+  --violet: oklch(72% 0.13 290);
+  --violet-soft: oklch(30% 0.07 290);
+  --violet-text: oklch(82% 0.1 290);
+
+  --neutral: oklch(60% 0.012 250);
+  --neutral-soft: oklch(28% 0.012 250);
+  --neutral-text: oklch(80% 0.012 250);
+
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
+  --shadow-md: 0 2px 6px oklch(0% 0 0 / 0.35), 0 4px 12px oklch(0% 0 0 / 0.25);
+  --shadow-lg: 0 8px 24px oklch(0% 0 0 / 0.4), 0 2px 6px oklch(0% 0 0 / 0.25);
+  --shadow-pop: 0 12px 40px oklch(0% 0 0 / 0.5);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  // Legacy overrides for dark mode compatibility
+  --color-surface: oklch(21% 0.012 250);
+  --color-surface-2: oklch(18% 0.012 250);
+  --color-surface-3: oklch(22% 0.012 250);
+  --color-border: oklch(28% 0.012 250);
+  --color-text-primary: oklch(92% 0.008 250);
+  --color-text-secondary: oklch(74% 0.008 250);
+  --color-text-muted: oklch(50% 0.008 250);
+}
+
+// ── Global animations ─────────────────────────────────────────────────────────
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 oklch(58% 0.13 255 / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 18px oklch(58% 0.13 255 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 oklch(58% 0.13 255 / 0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// ── Body ──────────────────────────────────────────────────────────────────────
+body {
+  font-family:
+    'Geist',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background: var(--bg-app);
+  color: var(--text-1);
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+  transition:
+    background 240ms ease,
+    color 240ms ease;
+}
+
+// ── Native form controls — token override ─────────────────────────────────────
+// Ensures select/input/textarea use design tokens in both themes.
+// color-scheme (set on :root) controls the browser-rendered dropdown popup.
+select,
+input,
+textarea {
+  color-scheme: inherit;
+  background: var(--bg-input);
+  color: var(--text-1);
+  border-color: var(--border-2);
+}
+
+select {
+  // Styled chevron that respects current text color (visible in dark mode)
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
 }
 
 // ── Reduced motion support ─────────────────────────────────────────────────────
@@ -77,7 +258,7 @@ body {
 
 // ── Global focus visible ──────────────────────────────────────────────────────
 :focus-visible {
-  outline: 2px solid var(--color-brand-600, #1a56db);
+  outline: 2px solid var(--accent, #1a56db);
   outline-offset: 3px;
   border-radius: 4px;
 }

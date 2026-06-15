@@ -62,6 +62,7 @@
 - [feedback_twilio_webhook_async_pattern.md](feedback_twilio_webhook_async_pattern.md) – Webhook handler zwraca 204 natychmiast; logika Twilio REST API (Conference.fetcher) w @Async; X-Twilio-Signature walidacja przez RequestValidator; HttpClient jako pole
 - [feedback_oauth_csrf_state_redis.md](feedback_oauth_csrf_state_redis.md) – OAuth state w Redis: klucz `oauth:state:{state}` → tenantId, TTL 10min, single-use; ustawia TenantContext w publicznym callbacku
 - [feedback_transactional_no_external_io.md](feedback_transactional_no_external_io.md) – @Transactional bez blokującego HTTP I/O: podziel na readOnly→delete→external-call; metody pomocnicze muszą być protected (nie private)
+- [feedback_supervisor_metrics_flaky_ivr_test.md](feedback_supervisor_metrics_flaky_ivr_test.md) – SupervisorMetricsServiceTest$KpiCallsInIvrTests jest pre-existing flaky/order-dependent (failuje w batch run, przechodzi w izolacji) – nie traktować jako regresji
 
 ## Projekty
 
@@ -93,3 +94,5 @@
 - [BE-056 TenantTwilioConfig serwis domenowy](project_twilio_config.md) — upsert+masking+decrypted DTO+delete+event; nowy katalog domain/event/
 - [BE-057 TenantTwilioConfig REST API (kontroler)](project_twilio_config_controller.md) — GET/PUT/DELETE/test; 204 przy braku; walidacja Jakarta na DTO; SecurityConfig
 - [BE-059 per-tenant Twilio config](project_be059_per_tenant_twilio.md) — getVoiceToken() z per-tenant fallbackiem; klucze testowe muszą mieć >= 32 znaków
+- [BE-075 Transfer Agents endpoint](project_be075_transfer_agents.md) — GET /api/telephony/transfer/agents; TransferService + TransferAgentQueueRepository (UNION 3 źródeł kolejek); batch query bez N+1
+- [BE-077 Transfer Call endpoint](project_be077_transfer_endpoint.md) — POST /api/telephony/calls/{callId}/transfer w AgentCallController; logika w ContactService.initiateTransfer(); DTO TransferCallRequest

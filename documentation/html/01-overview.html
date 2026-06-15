@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1. Przegląd projektu – Contact Center SaaS – Contact Center SaaS – Dokumentacja</title>
+<style>
+  :root { --max-width: 980px; --fg: #1a1a1a; --bg: #fff; --accent: #2563eb; --code-bg: #f4f4f5; --border: #e5e7eb; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; }
+  .layout { display: flex; max-width: var(--max-width); margin: 0 auto; }
+  main { padding: 2rem; max-width: 100%; overflow-x: auto; flex: 1; }
+  h1, h2, h3, h4 { line-height: 1.25; }
+  h1 { border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .2em; margin-top: 2em; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code-bg); padding: 1em; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .5em .7em; text-align: left; }
+  th { background: var(--code-bg); }
+  blockquote { border-left: 4px solid var(--accent); margin: 1em 0; padding: .3em 1em; background: var(--code-bg); }
+  .top-nav { font-size: .9em; margin-bottom: 1.5em; }
+  .top-nav a { margin-right: .5em; }
+  .mermaid { background: var(--bg); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="layout">
+<main>
+<div class="top-nav"><a href="00-index.html">&larr; Spis treści</a></div>
+<h1>1. Przegląd projektu – Contact Center SaaS</h1>
+<h2>1.1 Czym jest system</h2>
+<p>Contact Center SaaS to <strong>wielokanałowa, wielonajemna (multi-tenant) platforma</strong> do zarządzania
+kontaktami przychodzącymi (inbound) i wychodzącymi (outbound). Pozwala organizacjom obsługiwać
+klientów przez telefon (VoIP/WebRTC za pomocą Twilio), e-mail i media społecznościowe z jednego
+&quot;agent desktopu&quot;, a supervisorom i administratorom – monitorować i konfigurować pracę zespołów
+w czasie rzeczywistym.</p>
+<p>Pełny kontekst biznesowy, persony i wymagania funkcjonalne znajdują się w <a href="../PRD.md"><code>PRD.md</code></a>.
+Ten dokument (oraz pliki w <code>documentation/</code>) opisują <strong>stan faktyczny implementacji</strong> – jak system
+jest <em>zbudowany</em>, nie jak był pierwotnie <em>zaplanowany</em> (pierwotny projekt architektury w
+<a href="../ARCHITECTURE.md"><code>ARCHITECTURE.md</code></a> bywa częściowo nieaktualny).</p>
+<h2>1.2 Persony użytkowników</h2>
+<table>
+<thead>
+<tr>
+<th>Rola</th>
+<th>Zakres</th>
+<th>Typowe zadania</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>ADMIN</strong></td>
+<td>cała platforma, wszyscy tenanci</td>
+<td>zarządzanie tenantami, użytkownikami globalnymi, monitoring techniczny, integracje</td>
+</tr>
+<tr>
+<td><strong>SUPERVISOR</strong></td>
+<td>jeden tenant</td>
+<td>zarządzanie agentami, kolejkami, kampaniami, IVR, raporty, dyspozycje (dispositions)</td>
+</tr>
+<tr>
+<td><strong>AGENT</strong></td>
+<td>jeden tenant, przypisane kolejki</td>
+<td>obsługa kontaktów (telefon/e-mail/social), zmiana statusu, przerwy, callbacki</td>
+</tr>
+</tbody></table>
+<p>Role są wymuszane na froncie przez <code>roleGuard</code> (sekcja routingu w
+<a href="05-frontend.html"><code>05-frontend.md</code></a>) oraz na backendzie przez <code>SecurityConfig</code>
+(sekcja security w <a href="04-backend.html"><code>04-backend.md</code></a>).</p>
+<h2>1.3 Mapa modułów domenowych (backend)</h2>
+<p>Backend (<code>backend/app/src/main/java/com/contactcenter/api/</code>) jest podzielony na moduły wg
+domeny biznesowej:</p>
+<table>
+<thead>
+<tr>
+<th>Moduł</th>
+<th>Odpowiedzialność</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>tenant</code></td>
+<td>Zarządzanie tenantami (najemcami) platformy</td>
+</tr>
+<tr>
+<td><code>user</code>, <code>auth</code></td>
+<td>Użytkownicy, logowanie, JWT, MFA, zmiana hasła</td>
+</tr>
+<tr>
+<td><code>agentgroup</code>, <code>agentbreak</code></td>
+<td>Grupy agentów, przerwy/statusy &quot;niedostępności&quot;</td>
+</tr>
+<tr>
+<td><code>queue</code></td>
+<td>Kolejki kontaktów i routing</td>
+</tr>
+<tr>
+<td><code>telephony</code>, <code>dialer</code>, <code>ivr</code></td>
+<td>Telefonia (Twilio), progresywny dialer kampanii, drzewa IVR</td>
+</tr>
+<tr>
+<td><code>campaign</code></td>
+<td>Kampanie outbound</td>
+</tr>
+<tr>
+<td><code>contact</code>, <code>customer</code></td>
+<td>Kontakty (interakcje) i baza klientów</td>
+</tr>
+<tr>
+<td><code>disposition</code></td>
+<td>Kody dyspozycji (wyniku) kontaktu</td>
+</tr>
+<tr>
+<td><code>email</code>, <code>social</code></td>
+<td>Kanały e-mail i social media</td>
+</tr>
+<tr>
+<td><code>recording</code></td>
+<td>Nagrania rozmów (S3/MinIO)</td>
+</tr>
+<tr>
+<td><code>reports</code>, <code>telemetry</code>, <code>admin</code></td>
+<td>Raporty, ETL do Data Warehouse, metryki techniczne</td>
+</tr>
+<tr>
+<td><code>auditlog</code></td>
+<td>Log audytowy zmian</td>
+</tr>
+<tr>
+<td><code>phonenumber</code></td>
+<td>Zarządzanie numerami telefonów (DID)</td>
+</tr>
+<tr>
+<td><code>websocket</code></td>
+<td>Kanał realtime (STOMP/WebSocket)</td>
+</tr>
+<tr>
+<td><code>public_</code></td>
+<td>Endpointy publiczne (np. webhooki Twilio, formularze)</td>
+</tr>
+</tbody></table>
+<p>Szczegóły każdego modułu (klasy, endpointy, relacje) – patrz <a href="04-backend.html"><code>04-backend.md</code></a>.</p>
+<h2>1.4 Mapa funkcji frontendu (Angular)</h2>
+<p><code>frontend/src/app/features/</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>auth</code></td>
+<td>Logowanie, zmiana hasła, MFA</td>
+</tr>
+<tr>
+<td><code>admin</code></td>
+<td>Panel administratora platformy (tenanci, metryki, ETL)</td>
+</tr>
+<tr>
+<td><code>supervisor</code></td>
+<td>Dashboard supervisora: agenci, kolejki, kampanie, IVR editor, raporty</td>
+</tr>
+<tr>
+<td><code>agent</code></td>
+<td>Desktop agenta: softphone, aktywny kontakt, dyspozycje, status</td>
+</tr>
+<tr>
+<td><code>campaigns</code>, <code>customers</code>, <code>dispositions</code>, <code>integrations</code>, <code>reports</code>, <code>tenants</code></td>
+<td>Współdzielone widoki zarządcze wykorzystywane przez ww. role</td>
+</tr>
+</tbody></table>
+<p>Szczegóły – patrz <a href="05-frontend.html"><code>05-frontend.md</code></a>.</p>
+<h2>1.5 Najważniejsze przepływy biznesowe</h2>
+<p>Pełne opisy w <a href="07-data-flows.html"><code>07-data-flows.md</code></a>:</p>
+<ol>
+<li><strong>Logowanie i multi-tenancy</strong> – JWT + <code>TenantContext</code> per-request.</li>
+<li><strong>Połączenie przychodzące (inbound call)</strong> – Twilio webhook → IVR → routing do kolejki → agent.</li>
+<li><strong>Kampania outbound (progressive dialer)</strong> – dialer wybiera kontakty, inicjuje połączenia Twilio.</li>
+<li><strong>Realtime UI</strong> – WebSocket/STOMP: statusy agentów, KPI kolejek, powiadomienia.</li>
+<li><strong>Voicebot/AI</strong> – serwis Python (FastAPI) wspomaga IVR (ASR, NLU, podsumowania rozmów).</li>
+<li><strong>ETL do Data Warehouse</strong> – <code>EtlSyncService</code> synchronizuje dane operacyjne do ClickHouse na potrzeby raportów.</li>
+<li><strong>Nagrania</strong> – pobieranie nagrań z Twilio i zapis do MinIO/S3.</li>
+<li><strong>Kanał e-mail</strong> – IMAP polling, routing do kolejek, szablony odpowiedzi, wysyłka SMTP.</li>
+<li><strong>Kanał social media (chat)</strong> – integracje OAuth (Facebook/Instagram/WhatsApp), odbiór
+wiadomości przez webhooki + RabbitMQ, odpowiedzi agenta. Chatbot tekstowy – patrz §7.13
+(status: planowany, niezaimplementowany).</li>
+</ol>
+<h2>1.6 Jak korzystać z tej dokumentacji</h2>
+<table>
+<thead>
+<tr>
+<th>Dokument</th>
+<th>Zawartość</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="00-index.html">00-index.md</a></td>
+<td>Spis treści / punkt startowy</td>
+</tr>
+<tr>
+<td><a href="01-overview.html">01-overview.md</a></td>
+<td>Ten dokument – przegląd ogólny</td>
+</tr>
+<tr>
+<td><a href="02-architecture.html">02-architecture.md</a></td>
+<td>Architektura systemu &quot;as-built&quot;</td>
+</tr>
+<tr>
+<td><a href="03-tech-stack.html">03-tech-stack.md</a></td>
+<td>Stos technologiczny i wersje</td>
+</tr>
+<tr>
+<td><a href="04-backend.html">04-backend.md</a></td>
+<td>Dokumentacja backendu (Spring Boot)</td>
+</tr>
+<tr>
+<td><a href="05-frontend.html">05-frontend.md</a></td>
+<td>Dokumentacja frontendu (Angular)</td>
+</tr>
+<tr>
+<td><a href="06-database.html">06-database.md</a></td>
+<td>Schemat bazy danych (PostgreSQL/Flyway)</td>
+</tr>
+<tr>
+<td><a href="07-data-flows.html">07-data-flows.md</a></td>
+<td>Kluczowe przepływy end-to-end</td>
+</tr>
+<tr>
+<td><a href="08-infrastructure.html">08-infrastructure.md</a></td>
+<td>Infrastruktura, Docker Compose, deployment</td>
+</tr>
+<tr>
+<td><a href="09-getting-started.html">09-getting-started.md</a></td>
+<td>Jak uruchomić projekt lokalnie i zacząć pracę</td>
+</tr>
+</tbody></table>
+<p>Dla osoby zaczynającej pracę nad projektem zalecana kolejność czytania:
+<strong>01 → 03 → 02 → 09 → 04/05/06 (wg zadania) → 07 → 08</strong>.</p>
+
+</main>
+</div>
+<script>
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  }
+</script>
+</body>
+</html>

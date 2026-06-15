@@ -41,7 +41,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RabbitToWebSocketRelay {
+class RabbitToWebSocketRelay {
 
     private final WebSocketEventBroadcaster broadcaster;
 
@@ -89,10 +89,14 @@ public class RabbitToWebSocketRelay {
             }
 
             switch (routingKey) {
-                case "call.incoming" -> handleCallIncoming(callEvent);
-                case "call.outbound" -> handleCallOutbound(callEvent);
-                case "call.answered" -> handleCallAnswered(callEvent);
-                case "call.hangup"   -> handleCallHangup(callEvent);
+                case "call.incoming"          -> handleCallIncoming(callEvent);
+                case "call.outbound"          -> handleCallOutbound(callEvent);
+                case "call.answered"          -> handleCallAnswered(callEvent);
+                case "call.hangup"            -> handleCallHangup(callEvent);
+                case "call.transfer_consult"  -> handleCallTransferConsult(callEvent);
+                case "call.consult_cancelled" -> handleConsultCancelled(callEvent);
+                case "call.consult_answered"  -> handleConsultAnswered(callEvent);
+                case "call.bridge_complete"   -> handleCallBridgeComplete(callEvent);
                 default -> log.debug("[WS-Relay] Nieobsługiwany routing key call: {}", routingKey);
             }
         } catch (Exception e) {
@@ -320,6 +324,84 @@ public class RabbitToWebSocketRelay {
             broadcaster.sendToUser(callEvent.getAgentId(), WebSocketEvent.callHangup(callEvent));
         }
         broadcaster.sendToTenantSupervisors(callEvent.getTenantId(), WebSocketEvent.callHangup(callEvent));
+    }
+
+    /**
+     * Obsługuje event CALL_TRANSFER_CONSULT – drugą nogę attended transfer.
+     *
+     * <p>Gdy Agent1 inicjuje konsultację:
+     * <ul>
+     *   <li>Jeśli cel to konkretny agent ({@code agentId != null}): unicast do tego agenta.</li>
+     *   <li>Jeśli cel to numer zewnętrzny ({@code agentId == null}): brak WS (nikt nie odbierze).</li>
+     * </ul>
+     * <p>Agent1 (inicjujący) nie dostaje tego eventu – on już widzi stan TRANSFERRING w swoim softphonie.
+     */
+    private void handleCallTransferConsult(CallEvent callEvent) {
+        UUID targetAgentId = callEvent.getAgentId();
+
+        if (targetAgentId == null) {
+            log.info("[WS-Relay] CALL_TRANSFER_CONSULT bez targetAgentId – transfer na numer zewnętrzny, pomijam WS: callId={}",
+                    callEvent.getCallId());
+            return;
+        }
+
+        log.info("[WS-Relay] CALL_TRANSFER_CONSULT → unicast do agenta docelowego: targetAgentId={}, callId={}, originalContactId={}",
+                targetAgentId, callEvent.getCallId(),
+                callEvent.getMetadata() != null ? callEvent.getMetadata().get("originalContactId") : "?");
+
+        WebSocketEvent event = WebSocketEvent.callTransferConsult(callEvent);
+        broadcaster.sendToUser(targetAgentId, event);
+    }
+
+    /**
+     * Obsługuje CALL_CONSULT_CANCELLED – konsultacja anulowana przez Agent1 przed bridge.
+     *
+     * <p>Wysyła unicast do Agent2 (agentId). Frontend Agent2 powinien wyjść z ekranu
+     * konsultacji i wrócić do stanu AVAILABLE bez otwierania ekranu ACW.
+     * Backend już zmienił status agenta na AVAILABLE w {@code UserService}.
+     */
+    private void handleConsultCancelled(CallEvent callEvent) {
+        UUID targetAgentId = callEvent.getAgentId();
+        if (targetAgentId == null) {
+            log.warn("[WS-Relay] CALL_CONSULT_CANCELLED bez targetAgentId – pomijam WS: callId={}",
+                    callEvent.getCallId());
+            return;
+        }
+        log.info("[WS-Relay] CALL_CONSULT_CANCELLED → unicast do Agent2: agentId={}, callId={}, originalContactId={}",
+                targetAgentId, callEvent.getCallId(), callEvent.getContactId());
+        broadcaster.sendToUser(targetAgentId, WebSocketEvent.callConsultCancelled(callEvent));
+    }
+
+    /**
+     * Obsługuje CALL_CONSULT_ANSWERED – konsultacja odebrana przez cel.
+     *
+     * <p>Wysyła unicast do Agent1 (agentId) aby aktywował przycisk "Przekaż".
+     * Wywoływane gdy noga konsultacyjna wchodzi w stan in-progress.
+     */
+    private void handleConsultAnswered(CallEvent callEvent) {
+        UUID agent1Id = callEvent.getAgentId();
+        if (agent1Id == null) {
+            log.warn("[WS-Relay] CALL_CONSULT_ANSWERED bez agentId – pomijam WS: callId={}", callEvent.getCallId());
+            return;
+        }
+        log.info("[WS-Relay] CALL_CONSULT_ANSWERED → unicast do Agent1: agentId={}, callId={}", agent1Id, callEvent.getCallId());
+        broadcaster.sendToUser(agent1Id, WebSocketEvent.callConsultAnswered(callEvent));
+    }
+
+    /**
+     * Obsługuje CALL_BRIDGE_COMPLETE – bridge attended transfer zakończony.
+     *
+     * <p>Wysyła unicast do Agent2 aby zaktualizował swoje session.contactId na nowy kontakt.
+     */
+    private void handleCallBridgeComplete(CallEvent callEvent) {
+        UUID targetAgentId = callEvent.getAgentId();
+        if (targetAgentId == null) {
+            log.warn("[WS-Relay] CALL_BRIDGE_COMPLETE bez targetAgentId: callId={}", callEvent.getCallId());
+            return;
+        }
+        log.info("[WS-Relay] CALL_BRIDGE_COMPLETE → unicast do Agent2: agentId={}, newContactId={}",
+                targetAgentId, callEvent.getContactId());
+        broadcaster.sendToUser(targetAgentId, WebSocketEvent.callBridgeComplete(callEvent));
     }
 
     private void handleContactAssigned(Map<String, String> payload, UUID tenantId) {

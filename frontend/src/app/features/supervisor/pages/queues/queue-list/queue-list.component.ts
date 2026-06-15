@@ -140,6 +140,11 @@ export class QueueListComponent implements OnInit {
     this.selectedQueueForAgents.set(null);
   }
 
+  onAgentsModalClosed(): void {
+    this.closeAgentsModal();
+    this.loadQueues();
+  }
+
   openDeleteModal(queue: Queue): void {
     this.selectedQueue.set(queue);
     this.showDeleteModal.set(true);

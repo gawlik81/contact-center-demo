@@ -5,7 +5,7 @@ import com.contactcenter.api.phonenumber.dto.CreatePhoneRoutingRuleRequest;
 import com.contactcenter.api.phonenumber.dto.PhoneRoutingRuleResponse;
 import com.contactcenter.api.phonenumber.dto.UpdatePhoneRoutingRuleRequest;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
-import com.contactcenter.domain.service.PhoneRoutingRuleService;
+import com.contactcenter.domain.phonenumber.PhoneRoutingRuleService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

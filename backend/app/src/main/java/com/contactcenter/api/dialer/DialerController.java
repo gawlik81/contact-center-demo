@@ -12,19 +12,19 @@ import com.contactcenter.api.dialer.dto.RescheduleCallbackRequest;
 import com.contactcenter.api.dialer.dto.UpdateCallbackRequest;
 import com.contactcenter.api.dialer.dto.ScheduledCallbackResponse;
 import com.contactcenter.domain.exception.ConflictException;
-import com.contactcenter.domain.repository.CampaignContactRepository;
 import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.Campaign;
-import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.ScheduledCallbackRepository;
-import com.contactcenter.domain.service.DialerCallbackHandler;
-import com.contactcenter.domain.service.ProgressiveDialerService;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.campaign.Campaign;
+import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.campaign.ScheduledCallback;
+import com.contactcenter.domain.user.UserService;
+import com.contactcenter.domain.campaign.CampaignAssignmentService;
+import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
+import com.contactcenter.domain.campaign.DialerCallbackHandler;
+import com.contactcenter.domain.campaign.ProgressiveDialerService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;
@@ -82,12 +82,12 @@ public class DialerController {
 
     private final ProgressiveDialerService progressiveDialerService;
     private final DialerCallbackHandler dialerCallbackHandler;
-    private final CampaignRepository campaignRepository;
-    private final CampaignContactRepository campaignContactRepository;
-    private final ScheduledCallbackRepository scheduledCallbackRepository;
+    private final CampaignService campaignService;
+    private final CampaignAssignmentService campaignAssignmentService;
+    private final ScheduledCallbackService scheduledCallbackService;
     private final TelephonyAdapter telephonyAdapter;
-    private final ContactRepository contactRepository;
-    private final AppUserRepository appUserRepository;
+    private final ContactService contactService;
+    private final UserService userService;
 
     // Statusy uwzględniane w podsumowaniu dialera
     private static final List<String> DIALER_STATUSES =
@@ -103,7 +103,7 @@ public class DialerController {
      * <p>Zawiera listę aktywnych kampanii (status=RUNNING), liczbę kontaktów PENDING/DIALING,
      * informację o harmonogramie i łączną liczbę aktywnych połączeń dialera.
      *
-     * <p>Implementacja: jedno zapytanie GROUP BY do {@link CampaignContactRepository}
+     * <p>Implementacja: jedno zapytanie GROUP BY do {@link ProgressiveDialerService}
      * zamiast N×3 zapytań COUNT – eliminuje problem N+1 queries.
      *
      * @return stan dialera
@@ -122,7 +122,7 @@ public class DialerController {
     public ResponseEntity<DialerStatusResponse> getDialerStatus() {
         UUID tenantId = TenantContext.getTenantId();
 
-        List<Campaign> runningCampaigns = campaignRepository.findRunningByTenantId(tenantId);
+        List<Campaign> runningCampaigns = campaignService.getRunningCampaigns(tenantId);
 
         if (runningCampaigns.isEmpty()) {
             return ResponseEntity.ok(new DialerStatusResponse(tenantId, List.of(), 0, Instant.now()));
@@ -134,7 +134,7 @@ public class DialerController {
 
         // Jedno zapytanie GROUP BY zamiast N×3 COUNT – eliminacja N+1 queries
         Map<UUID, Map<String, Long>> countsByCampaign =
-                campaignContactRepository.countByStatusGroupedByCampaign(tenantId, campaignIds, DIALER_STATUSES);
+                progressiveDialerService.getContactCountsByStatus(tenantId, campaignIds, DIALER_STATUSES);
 
         List<DialerStatusResponse.ActiveCampaignSummary> summaries = new ArrayList<>();
         int totalActiveCalls = 0;
@@ -237,14 +237,14 @@ public class DialerController {
 
         if ("AGENT".equals(role)) {
             // AGENT widzi wyłącznie własne callbacki – parametr agentId z query jest ignorowany
-            callbacks = scheduledCallbackRepository.findByAgentId(
+            callbacks = scheduledCallbackService.findCallbacksByAgentId(
                     tenantId, jwtAgentId, effectiveStatus, effectiveSortDir, page, size);
-            total = scheduledCallbackRepository.countByAgentId(tenantId, jwtAgentId, effectiveStatus);
+            total = scheduledCallbackService.countCallbacksByAgentId(tenantId, jwtAgentId, effectiveStatus);
         } else {
             // SUPERVISOR / ADMIN – widok wszystkich callbacków tenanta z opcjonalnym filtrem agentId
-            callbacks = scheduledCallbackRepository.findByTenantIdWithFilters(
+            callbacks = scheduledCallbackService.findCallbacksByTenantIdWithFilters(
                     tenantId, effectiveStatus, agentId, effectiveSortDir, page, size);
-            total = scheduledCallbackRepository.countByTenantIdWithFilters(tenantId, effectiveStatus, agentId);
+            total = scheduledCallbackService.countCallbacksByTenantIdWithFilters(tenantId, effectiveStatus, agentId);
         }
 
         // Batch lookup agentów – jeden SELECT dla wszystkich unikalnych agentId na stronie
@@ -255,7 +255,7 @@ public class DialerController {
 
         Map<UUID, String> agentNames = agentIds.isEmpty()
                 ? Map.of()
-                : appUserRepository.findAllById(agentIds).stream()
+                : userService.findUsersByIds(agentIds).stream()
                         .collect(Collectors.toMap(
                                 AppUser::getId,
                                 u -> u.getFirstName() + " " + u.getLastName()
@@ -356,7 +356,7 @@ public class DialerController {
                     .status("PENDING")
                     .build();
 
-            callback = scheduledCallbackRepository.save(newCallback);
+            callback = scheduledCallbackService.saveCallback(newCallback);
         }
 
         log.info("[DialerController] Callback zaplanowany: callbackId={}, tenant={}, scheduledAt={}",
@@ -410,9 +410,7 @@ public class DialerController {
         String role = TenantContext.getUserRole();
 
         // 1. Pobierz callback – 404 jeśli nie istnieje lub inny tenant
-        ScheduledCallback callback = scheduledCallbackRepository.findById(callbackId, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Callback nie istnieje: " + callbackId));
+        ScheduledCallback callback = scheduledCallbackService.getCallbackOrThrow(callbackId, tenantId);
 
         // 2. Weryfikacja statusu – tylko PENDING można przełożyć
         if (!"PENDING".equals(callback.getStatus())) {
@@ -433,7 +431,7 @@ public class DialerController {
             callback.setNotes(request.notes());
         }
 
-        ScheduledCallback updated = scheduledCallbackRepository.save(callback);
+        ScheduledCallback updated = scheduledCallbackService.saveCallback(callback);
 
         log.info("[DialerController] Callback przełożony: callbackId={}, tenant={}, scheduledAt={}, role={}",
                 callbackId, tenantId, request.scheduledAt(), role);
@@ -483,9 +481,7 @@ public class DialerController {
         String role     = TenantContext.getUserRole();
 
         // 1. Pobierz callback – 404 jeśli nie istnieje lub inny tenant
-        ScheduledCallback callback = scheduledCallbackRepository.findById(callbackId, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Callback nie istnieje: " + callbackId));
+        ScheduledCallback callback = scheduledCallbackService.getCallbackOrThrow(callbackId, tenantId);
 
         // 2. Weryfikacja statusu – PATCH dozwolony tylko dla PENDING
         if (!"PENDING".equals(callback.getStatus())) {
@@ -522,7 +518,7 @@ public class DialerController {
         }
 
         // 5. Zapisz i zwróć
-        ScheduledCallback updated = scheduledCallbackRepository.save(callback);
+        ScheduledCallback updated = scheduledCallbackService.saveCallback(callback);
 
         log.info("[DialerController] Callback zaktualizowany (PATCH): callbackId={}, tenant={}, role={}",
                 callbackId, tenantId, role);
@@ -530,7 +526,7 @@ public class DialerController {
         // Batch lookup agentName (może być po reassign)
         String agentName = null;
         if (updated.getAgentId() != null) {
-            agentName = appUserRepository.findById(updated.getAgentId())
+            agentName = userService.findUserById(updated.getAgentId())
                     .map(u -> u.getFirstName() + " " + u.getLastName())
                     .orElse(null);
         }
@@ -590,9 +586,7 @@ public class DialerController {
         String role     = TenantContext.getUserRole();
 
         // 1. Pobierz callback – 404 jeśli nie istnieje lub inny tenant
-        ScheduledCallback callback = scheduledCallbackRepository.findById(callbackId, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Callback nie istnieje: " + callbackId));
+        ScheduledCallback callback = scheduledCallbackService.getCallbackOrThrow(callbackId, tenantId);
 
         // 2. Autoryzacja – AGENT może anulować tylko własny callback
         if ("AGENT".equals(role) && !jwtAgentId.equals(callback.getAgentId())) {
@@ -607,7 +601,7 @@ public class DialerController {
         }
 
         // 4. Soft-delete: zmiana statusu na CANCELLED
-        scheduledCallbackRepository.cancelCallback(callbackId, tenantId);
+        scheduledCallbackService.cancelCallback(callbackId, tenantId);
 
         log.info("[DialerController] Callback anulowany (soft-delete): callbackId={}, tenant={}, role={}",
                 callbackId, tenantId, role);
@@ -651,22 +645,39 @@ public class DialerController {
     )
     public ResponseEntity<List<ManualCampaignRecordsResponse>> getManualCampaignRecords() {
         UUID tenantId = TenantContext.getTenantId();
+        UUID agentId = TenantContext.getUserId();
 
         // 1. Kampanie MANUAL+RUNNING dla tenanta
-        List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
+        List<Campaign> manualCampaigns = campaignService.getRunningManualCampaigns(tenantId);
 
         if (manualCampaigns.isEmpty()) {
             log.debug("[DialerController] Brak aktywnych kampanii MANUAL dla tenant={}", tenantId);
             return ResponseEntity.ok(List.of());
         }
 
-        List<UUID> campaignIds = manualCampaigns.stream()
+        // BE-084: filtruj kampanie do których agent jest przypisany
+        List<Campaign> eligibleCampaigns = manualCampaigns.stream()
+                .filter(campaign -> {
+                    if (campaign.isAllAgents()) return true;
+                    Set<UUID> eligible = campaignAssignmentService
+                            .resolveEligibleAgentIds(campaign.getCampaignId(), tenantId);
+                    return eligible.contains(agentId);
+                })
+                .toList();
+
+        if (eligibleCampaigns.isEmpty()) {
+            log.debug("[DialerController] Agent {} nie jest przypisany do żadnej kampanii MANUAL (tenant={})",
+                    agentId, tenantId);
+            return ResponseEntity.ok(List.of());
+        }
+
+        List<UUID> campaignIds = eligibleCampaigns.stream()
                 .map(Campaign::getCampaignId)
                 .toList();
 
         // 2. Rekordy PENDING dla wszystkich kampanii jednym zapytaniem (batch IN)
         List<Map<String, Object>> pendingRows =
-                campaignContactRepository.findPendingByCampaignIds(tenantId, campaignIds);
+                progressiveDialerService.findPendingRecordsByCampaignIds(tenantId, campaignIds);
 
         // 3. Grupowanie rekordów po campaignId
         java.util.Map<UUID, List<ManualCampaignRecordsResponse.ManualCampaignRecord>> recordsByCampaign =
@@ -687,7 +698,7 @@ public class DialerController {
         }
 
         // 4. Budowanie odpowiedzi – zachowuje kolejność kampanii z DB (created_at ASC)
-        List<ManualCampaignRecordsResponse> response = manualCampaigns.stream()
+        List<ManualCampaignRecordsResponse> response = eligibleCampaigns.stream()
                 .map(campaign -> new ManualCampaignRecordsResponse(
                         campaign.getCampaignId(),
                         campaign.getName(),
@@ -695,8 +706,8 @@ public class DialerController {
                 ))
                 .toList();
 
-        log.debug("[DialerController] Kampanie MANUAL dla agent/tenant={}: kampanie={}, rekordy PENDING={}",
-                tenantId, manualCampaigns.size(), pendingRows.size());
+        log.debug("[DialerController] Kampanie MANUAL dla agent={}, tenant={}: kampanie={}, rekordy PENDING={}",
+                agentId, tenantId, eligibleCampaigns.size(), pendingRows.size());
 
         return ResponseEntity.ok(response);
     }
@@ -744,7 +755,7 @@ public class DialerController {
         UUID agentId = TenantContext.getUserId();
 
         // Weryfikacja kampanii
-        Campaign campaign = campaignRepository.findById(request.campaignId(), tenantId)
+        Campaign campaign = campaignService.findCampaignEntity(request.campaignId(), tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Kampania nie istnieje: " + request.campaignId()));
 
@@ -759,17 +770,20 @@ public class DialerController {
                     "Dla kampanii PROGRESSIVE połączenia są inicjowane automatycznie przez dialer.");
         }
 
-        // Pobranie rekordu campaign_contact z weryfikacją statusu PENDING
-        // (logika przeniesiona do CampaignContactRepository – brak SQL w kontrolerze)
-        Map<String, Object> row = campaignContactRepository
+        // Pobranie rekordu campaign_contact z weryfikacją dostępności do wydzwonienia
+        Map<String, Object> row = progressiveDialerService
                 .findRecordForManualDial(request.recordId(), request.campaignId(), tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Rekord campaign_contact nie istnieje: " + request.recordId()));
 
         String currentStatus = (String) row.get("status");
-        if (!"PENDING".equals(currentStatus)) {
+        java.sql.Timestamp nextAttemptTs = (java.sql.Timestamp) row.get("next_attempt_at");
+        boolean retryReady = ("NO_ANSWER".equals(currentStatus) || "FAILED".equals(currentStatus))
+                && (nextAttemptTs == null || !nextAttemptTs.toInstant().isAfter(Instant.now()));
+
+        if (!"PENDING".equals(currentStatus) && !retryReady) {
             throw new InvalidOperationException(
-                    "Rekord " + request.recordId() + " nie jest w statusie PENDING (status=" + currentStatus + ")");
+                    "Rekord " + request.recordId() + " nie jest dostępny do wydzwonienia (status=" + currentStatus + ")");
         }
 
         String phone = (String) row.get("phone");
@@ -779,17 +793,17 @@ public class DialerController {
         }
 
         // Oznacz rekord jako DIALING
-        campaignContactRepository.markAsDialing(request.recordId(), request.campaignId(), tenantId);
+        progressiveDialerService.markRecordAsDialing(request.recordId(), request.campaignId(), tenantId);
 
         // Inicjuj połączenie przez TelephonyAdapter
         CallSession session;
         try {
             session = telephonyAdapter.initiateCall(
-                    tenantId, defaultOutboundNumber, phone, agentId, campaign.getQueueId(), null);
+                    tenantId, defaultOutboundNumber, phone, agentId, campaign.getCampaignId(), null);
         } catch (TelephonyAdapter.TelephonyException e) {
             // Oznacz rekord jako ERROR – błąd Twilio API jest trwały (np. niezweryfikowany numer)
             // i nie ma sensu wracać do PENDING, bo kolejna próba da ten sam błąd.
-            campaignContactRepository.markAsError(
+            progressiveDialerService.markRecordAsError(
                     request.recordId(), request.campaignId(), tenantId);
             throw new InvalidOperationException(
                     "Błąd inicjowania połączenia: " + e.getMessage());
@@ -805,6 +819,20 @@ public class DialerController {
                 agentId,
                 tenantId
         );
+        // Ustaw klucz ring timeout – checkRingTimeouts() uzna brak tego klucza za NO_ANSWER.
+        // Bez tego wywołania każde połączenie manualne jest natychmiast rozłączane przez scheduler.
+        progressiveDialerService.scheduleNoAnswerTimeout(
+                session.getCallId(),
+                campaign.getRingTimeoutSeconds()
+        );
+
+        // Powiąż contact ↔ campaign_contact_record – bez tego UI pokazuje "Brak prób wydzwonienia".
+        if (session.getContactId() != null) {
+            contactService.updateCampaignContactRecordId(
+                    session.getContactId(), request.recordId(), tenantId);
+            progressiveDialerService.updateLastContactId(
+                    request.recordId(), request.campaignId(), session.getContactId());
+        }
 
         log.info("[ManualDialer] Połączenie zainicjowane ręcznie: kampania={}, rekord={}, agent={}, callId={}, tenant={}",
                 request.campaignId(), request.recordId(), agentId, session.getCallId(), tenantId);

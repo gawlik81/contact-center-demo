@@ -128,6 +128,15 @@ export const SUPERVISOR_ROUTES: Routes = [
               ),
           },
           {
+            path: 'disposition-sets',
+            data: { breadcrumb: 'nav.settingsDispositionSets', roles: ['SUPERVISOR', 'ADMIN'] },
+            canActivate: [roleGuard],
+            loadComponent: () =>
+              import('./pages/settings/disposition-sets/disposition-sets-page.component').then(
+                (m) => m.DispositionSetsPageComponent,
+              ),
+          },
+          {
             path: 'twilio',
             data: { breadcrumb: 'nav.settingsTwilioConfig', roles: ['SUPERVISOR', 'ADMIN'] },
             canActivate: [roleGuard],
@@ -135,6 +144,12 @@ export const SUPERVISOR_ROUTES: Routes = [
               import('./pages/twilio-config/twilio-config.component').then(
                 (m) => m.TwilioConfigComponent,
               ),
+          },
+          {
+            path: 'ai-config',
+            data: { breadcrumb: 'nav.settingsAiConfig' },
+            loadComponent: () =>
+              import('./pages/ai-config/ai-config.component').then((m) => m.AiConfigComponent),
           },
         ],
       },

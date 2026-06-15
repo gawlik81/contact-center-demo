@@ -1,5 +1,24 @@
 export type CallState = 'RINGING' | 'ACTIVE' | 'ON_HOLD' | 'TRANSFERRING' | 'ENDED';
 
+export type TransferTargetType = 'PHONE' | 'AGENT' | 'QUEUE';
+
+export type TransferMode = 'BLIND' | 'ATTENDED';
+
+export interface TransferAgentItem {
+  agentId: string;
+  firstName: string;
+  lastName: string;
+  status: 'AVAILABLE' | 'BUSY' | 'AFTER_CONTACT' | 'ACTIVE' | 'BREAK' | 'INACTIVE' | 'OFFLINE';
+  queueNames: string[];
+}
+
+export interface TransferQueueItem {
+  queueId: string;
+  name: string;
+  waitingContacts: number;
+  availableAgents: number;
+}
+
 export interface CallSession {
   contactId: string;
   customerName: string;

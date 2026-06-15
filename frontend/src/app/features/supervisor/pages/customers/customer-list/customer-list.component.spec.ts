@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { TranslocoTestingModule } from '@jsverse/transloco';
 import { of, throwError } from 'rxjs';
 import { CustomerListComponent } from './customer-list.component';
 import { CustomerService } from '../services/customer.service';
@@ -56,7 +57,24 @@ describe('CustomerListComponent', () => {
     } as unknown as NotificationService;
 
     await TestBed.configureTestingModule({
-      imports: [CustomerListComponent],
+      imports: [
+        CustomerListComponent,
+        TranslocoTestingModule.forRoot({
+          langs: {
+            pl: {
+              supervisor: {
+                customers: { errorLoad: 'Nie udało się pobrać listy klientów.' },
+                gdprAnonymize: {
+                  successAnonymize: 'Dane klienta zostały zanonimizowane.',
+                  errorAnonymize: 'Nie udało się zanonimizować danych klienta. Spróbuj ponownie.',
+                },
+              },
+              common: { sortAsc: 'Najwcześniejsze', sortDesc: 'Najpóźniejsze' },
+            },
+          },
+          translocoConfig: { availableLangs: ['pl'], defaultLang: 'pl' },
+        }),
+      ],
       providers: [
         provideRouter([]),
         { provide: CustomerService, useValue: customerServiceMock },
@@ -95,7 +113,7 @@ describe('CustomerListComponent', () => {
     getCustomersSpy.mockReturnValue(throwError(() => new Error('Network error')));
     component.loadCustomers();
     fixture.detectChanges();
-    expect(errorSpy).toHaveBeenCalledWith('Nie udało się pobrać listy klientów. Spróbuj ponownie.');
+    expect(errorSpy).toHaveBeenCalledWith('Nie udało się pobrać listy klientów.');
     expect(component.customers()).toEqual([]);
   });
 
@@ -146,9 +164,7 @@ describe('CustomerListComponent', () => {
     component.onDeleteConfirmed();
     fixture.detectChanges();
     expect(deleteCustomerSpy).toHaveBeenCalledWith('c1');
-    expect(successSpy).toHaveBeenCalledWith(
-      'Dane klienta "Anna Nowak" zostały zanonimizowane (RODO).',
-    );
+    expect(successSpy).toHaveBeenCalledWith('Dane klienta zostały zanonimizowane.');
     expect(component.showDeleteModal()).toBe(false);
   });
 
@@ -239,9 +255,9 @@ describe('CustomerListComponent', () => {
   it('getSortAriaLabel – returns correct labels', () => {
     component.sortField.set('firstName');
     component.sortDir.set('asc');
-    expect(component.getSortAriaLabel('firstName')).toBe('Sortuj malejąco');
-    expect(component.getSortAriaLabel('lastName')).toBe('Sortuj rosnąco');
+    expect(component.getSortAriaLabel('firstName')).toBe('Najpóźniejsze');
+    expect(component.getSortAriaLabel('lastName')).toBe('Najwcześniejsze');
     component.sortDir.set('desc');
-    expect(component.getSortAriaLabel('firstName')).toBe('Sortuj rosnąco');
+    expect(component.getSortAriaLabel('firstName')).toBe('Najwcześniejsze');
   });
 });

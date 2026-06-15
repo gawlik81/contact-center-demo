@@ -1,0 +1,195 @@
+// ============================================================
+// TransferAgentList component – BEM
+// ============================================================
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.transfer-agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  // ── Search input ─────────────────────────────────────────
+  &__search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    color: var(--text-1);
+    background: var(--bg-input, var(--bg-surface));
+    outline: none;
+    font-family: inherit;
+    transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    &::placeholder {
+      color: var(--text-muted);
+    }
+
+    &:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+  }
+
+  // ── Skeleton loading ─────────────────────────────────────
+  &__skeletons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  &__skeleton {
+    height: 44px;
+    border-radius: 8px;
+    background: linear-gradient(
+      90deg,
+      var(--bg-subtle) 25%,
+      var(--bg-elevated, color-mix(in oklch, var(--bg-subtle) 60%, var(--border-1))) 50%,
+      var(--bg-subtle) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% center;
+    }
+    100% {
+      background-position: -200% center;
+    }
+  }
+
+  // ── Error / empty states ─────────────────────────────────
+  &__error {
+    font-size: 0.8125rem;
+    color: var(--danger-text, #c62828);
+    background: var(--danger-soft, #ffebee);
+    border: 1px solid color-mix(in oklch, var(--danger, #ef5350) 30%, transparent);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin: 0;
+    text-align: center;
+  }
+
+  &__empty {
+    font-size: 0.8125rem;
+    color: var(--text-2);
+    text-align: center;
+    padding: 16px 0;
+    margin: 0;
+  }
+
+  // ── Agent item ────────────────────────────────────────────
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-1);
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition:
+      background 130ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 130ms cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: 44px;
+    box-sizing: border-box;
+
+    &:hover {
+      background: var(--bg-elevated, var(--bg-subtle));
+      border-color: var(--accent);
+    }
+
+    &:active {
+      background: var(--accent-soft);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+  }
+
+  // ── Status dot ────────────────────────────────────────────
+  &__status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--text-muted);
+
+    &--available {
+      background: var(--success, #4caf50);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--success, #4caf50) 25%, transparent);
+    }
+
+    &--busy,
+    &--after_contact {
+      background: var(--warning, #ff9800);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--warning, #ff9800) 25%, transparent);
+    }
+
+    &--active {
+      background: var(--success, #4caf50);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--success, #4caf50) 25%, transparent);
+    }
+
+    &--break {
+      background: #ffc107;
+      box-shadow: 0 0 0 2px color-mix(in oklch, #ffc107 25%, transparent);
+    }
+
+    &--inactive,
+    &--offline {
+      background: var(--text-muted);
+    }
+  }
+
+  // ── Name + queues ─────────────────────────────────────────
+  &__info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  &__name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__queues {
+    font-size: 0.6875rem;
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // ── Action badge ──────────────────────────────────────────
+  &__mode-badge {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}

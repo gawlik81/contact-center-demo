@@ -10,6 +10,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, finalize, of } from 'rxjs';
@@ -27,7 +28,8 @@ import { ContactDetailModalComponent } from '../../../../shared/components/conta
 @Component({
   selector: 'app-contacts-report',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, ContactDetailModalComponent],
+  imports: [TranslocoModule, ReactiveFormsModule, ContactDetailModalComponent, DatePipe],
+  providers: [DatePipe],
   templateUrl: './contacts-report.component.html',
   styleUrl: './contacts-report.component.scss',
 })
@@ -42,6 +44,7 @@ export class ContactsReportComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly translocoService = inject(TranslocoService);
+  private readonly datePipe = inject(DatePipe);
 
   readonly loading = signal(false);
   readonly exportingCsv = signal(false);
@@ -60,7 +63,17 @@ export class ContactsReportComponent implements OnInit {
     { value: 'CHAT', labelKey: 'supervisor.contactsReport.channelChat' },
     { value: 'SOCIAL', labelKey: 'supervisor.contactsReport.channelSocial' },
   ];
-  readonly statuses = ['COMPLETED', 'ABANDONED', 'FAILED', 'ACTIVE', 'QUEUED', 'ON_HOLD'];
+  readonly statuses = [
+    'COMPLETED',
+    'ABANDONED',
+    'TRANSFERRED',
+    'FAILED',
+    'ACTIVE',
+    'IVR',
+    'QUEUED',
+    'ON_HOLD',
+    'NOT_REACHED',
+  ];
 
   private formatDate(d: Date): string {
     const yyyy = d.getFullYear();
@@ -291,16 +304,18 @@ export class ContactsReportComponent implements OnInit {
         t('supervisor.contactsReport.csvColDuration'),
         t('supervisor.contactsReport.csvColStatus'),
         t('supervisor.contactsReport.csvColDisposition'),
+        t('supervisor.contactsReport.csvColAgent'),
       ];
       const csvRows = data.map((c) => [
-        this.formatDateTime(c.startedAt),
+        this.datePipe.transform(c.startedAt, 'dd.MM.yyyy HH:mm') ?? '—',
         c.channel,
         c.direction,
         c.remoteAddress ?? '',
         c.queueId ?? '',
         c.durationSeconds !== undefined ? String(c.durationSeconds) : '',
-        c.status,
-        c.dispositionCode ?? '',
+        this.getStatusLabel(c.status),
+        this.getDispositionLabel(c.dispositionLabel, c.dispositionCode),
+        c.agentName ?? '',
       ]);
       const csvContent = [headers, ...csvRows]
         .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
@@ -324,22 +339,15 @@ export class ContactsReportComponent implements OnInit {
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
-  formatDateTime(iso: string): string {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, '0');
-    const min = String(d.getMinutes()).padStart(2, '0');
-    return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
-  }
-
   formatDuration(seconds: number | undefined): string {
     if (seconds === undefined || seconds === null) return '—';
-    const m = Math.floor(seconds / 60);
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
 
   getQueueName(queueId: string | undefined): string {
@@ -348,17 +356,29 @@ export class ContactsReportComponent implements OnInit {
     return q ? q.name : queueId.substring(0, 8) + '...';
   }
 
+  getStatusLabel(status: string): string {
+    const key = `supervisor.customerDetail.contactStatusLabels.${status}`;
+    const translated = this.translocoService.translate(key);
+    return translated === key ? status : translated;
+  }
+
   getChannelLabel(channel: string): string {
     const ch = this.channels.find((c) => c.value === channel);
     return ch ? this.translocoService.translate(ch.labelKey) : channel;
   }
 
+  getDispositionLabel(label: string | null, code: string | null): string {
+    if (label) return label;
+    if (!code) return '—';
+    const key = `common.dispositionLabels.${code}`;
+    const translated = this.translocoService.translate(key);
+    return translated === key ? code : translated;
+  }
+
   getDirectionLabel(direction: string): string {
-    const key =
-      direction === 'INBOUND'
-        ? 'supervisor.contactsReport.inboundShort'
-        : 'supervisor.contactsReport.outboundShort';
-    return this.translocoService.translate(key);
+    return this.translocoService.translate(
+      `supervisor.customerDetail.directionLabels.${direction}`,
+    );
   }
 
   trackByContact(_index: number, row: ContactResponse): string {

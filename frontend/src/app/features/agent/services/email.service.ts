@@ -42,6 +42,20 @@ export interface SendReplyRequest {
   templateVariables?: Record<string, string>;
 }
 
+export interface SendOutboundEmailRequest {
+  toAddress: string;
+  subject: string;
+  bodyHtml: string;
+  customerId?: string;
+}
+
+export interface AvailableVariable {
+  key: string;
+  category: string;
+  labelPl: string;
+  exampleValue: string;
+}
+
 export interface CreateTemplateRequest {
   name: string;
   subjectTemplate: string;
@@ -89,10 +103,11 @@ export class EmailService {
   previewTemplate(
     templateId: string,
     variables: Record<string, string>,
+    contactId?: string,
   ): Observable<{ subject: string; bodyHtml: string }> {
     return this.http.post<{ subject: string; bodyHtml: string }>(
       `/api/email-templates/${templateId}/preview`,
-      { variables },
+      { variables, contactId: contactId ?? null },
     );
   }
 
@@ -106,5 +121,13 @@ export class EmailService {
 
   deleteTemplate(id: string): Observable<void> {
     return this.http.delete<void>(`/api/email-templates/${id}`);
+  }
+
+  getAvailableVariables(): Observable<AvailableVariable[]> {
+    return this.http.get<AvailableVariable[]>(`/api/email-templates/available-variables`);
+  }
+
+  sendOutbound(request: SendOutboundEmailRequest): Observable<EmailMessage> {
+    return this.http.post<EmailMessage>(`${this.baseUrl}/messages/outbound`, request);
   }
 }

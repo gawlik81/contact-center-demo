@@ -1,17 +1,3 @@
-// ===== Design tokens (local aliases) =====
-// All colors reference global CSS custom properties where available
-
-$surface: #ffffff;
-$surface-2: #f8fafc;
-$surface-3: #f1f5f9;
-$border: #e2e8f0;
-$text-primary: #1e293b;
-$text-secondary: #64748b;
-$text-muted: #94a3b8;
-$brand: #1a56db;
-$danger: #c62828;
-$success: #2e7d32;
-
 // ===== WS / Limit Banners =====
 
 .ws-banner {
@@ -19,7 +5,7 @@ $success: #2e7d32;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1.25rem;
-  background: linear-gradient(90deg, #f57f17 0%, #e65100 100%);
+  background: var(--warning, #f57f17);
   color: #fff;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -59,7 +45,7 @@ $success: #2e7d32;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1.25rem;
-  background: linear-gradient(90deg, #1a56db 0%, #1d4ed8 100%);
+  background: var(--accent, #1a56db);
   color: #fff;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -96,20 +82,13 @@ $success: #2e7d32;
   }
 }
 
-// ===== Host element fills the entire shell__content area =====
-// shell__content is a flex column child with flex: 1 and min-height: 0.
-// We make the host element (app-agent-desktop) expand to fill it completely,
-// then stack the banners + desktop layout via flex column on the host itself.
+// ===== Host element =====
 :host {
-  // Take up the full flex-allocated space inside shell__content (which is display:flex).
-  // Negative margin + compensated width escape the 1.5rem padding on all sides,
-  // making the desktop panel appear full-bleed (edge-to-edge).
   display: flex;
   flex-direction: column;
   flex: 1;
   margin: -1.5rem;
   width: calc(100% + 3rem);
-  // Prevent the host from collapsing — flex: 1 covers height when parent has definite size
   min-height: 0;
   overflow: hidden;
 
@@ -120,31 +99,80 @@ $success: #2e7d32;
 }
 
 // ===== Desktop Layout =====
-// Fills all remaining space below the (optional) banners.
 
 .desktop {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: $surface-2;
+  background: var(--bg-app, #f8fafc);
   overflow: hidden;
 
-  // ── Status bar (slim, compact) ─────────────────────────────────────────────
+  // ── Status bar ─────────────────────────────────────────────────────────────
   &__header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 1.5rem;
-    background: $surface;
-    border-bottom: 1px solid $border;
+    padding: 0 1.25rem;
+    background: var(--bg-surface, #ffffff);
+    border-bottom: 1px solid var(--border-1, #e2e8f0);
     flex-shrink: 0;
-    gap: 1rem;
-    height: 44px; // fixed compact height — more space for contacts below
+    gap: 0.875rem;
+    height: 48px;
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.03));
 
     @media (max-width: 640px) {
       padding: 0 1rem;
-      height: 40px;
+      height: 44px;
+    }
+  }
+
+  // ── Header quick actions (Calendar + Break) ────────────────────────────────
+  &__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-left: auto;
+  }
+
+  &__header-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-md, 10px);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-2, #64748b);
+    transition:
+      background 150ms,
+      color 150ms,
+      border-color 150ms;
+    white-space: nowrap;
+
+    svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+
+    &:hover {
+      background: var(--bg-subtle, #f1f5f9);
+      border-color: var(--border-1, #e2e8f0);
+      color: var(--text-1, #1e293b);
+    }
+
+    &--active {
+      color: var(--accent, #1a56db);
+      background: var(--accent-soft, #eff6ff);
+      border-color: color-mix(in oklch, var(--accent) 25%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent, #1a56db);
+      outline-offset: 2px;
     }
   }
 
@@ -158,29 +186,26 @@ $success: #2e7d32;
 
   // ── Left sidebar: queue panel ─────────────────────────────────────────────
   &__sidebar {
-    width: 240px;
+    width: 264px;
     flex-shrink: 0;
-    background: $surface;
-    border-right: 1px solid $border;
+    background: var(--bg-sidebar, #f8fafc);
+    border-right: 1px solid var(--border-1, #e2e8f0);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     scrollbar-width: thin;
-    scrollbar-color: $border transparent;
+    scrollbar-color: var(--border-1, #e2e8f0) transparent;
 
     &::-webkit-scrollbar {
       width: 4px;
     }
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
     &::-webkit-scrollbar-thumb {
-      background: $border;
+      background: var(--border-1, #e2e8f0);
       border-radius: 2px;
     }
 
     @media (max-width: 960px) {
-      width: 200px;
+      width: 220px;
     }
 
     @media (max-width: 640px) {
@@ -204,29 +229,27 @@ $success: #2e7d32;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    background: $surface-2;
+    background: var(--bg-app, #f8fafc);
   }
 
   // ── Right panel: customer profile ─────────────────────────────────────────
   &__customer-panel {
     width: 280px;
     flex-shrink: 0;
-    background: $surface;
-    border-left: 1px solid $border;
+    background: var(--bg-elevated, #ffffff);
+    border-left: 1px solid var(--border-1, #e2e8f0);
     overflow-y: auto;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    transition: width var(--duration-normal, 200ms) ease;
     scrollbar-width: thin;
-    scrollbar-color: $border transparent;
+    scrollbar-color: var(--border-1, #e2e8f0) transparent;
 
     &::-webkit-scrollbar {
       width: 4px;
     }
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
     &::-webkit-scrollbar-thumb {
-      background: $border;
+      background: var(--border-1, #e2e8f0);
       border-radius: 2px;
     }
 
@@ -237,18 +260,61 @@ $success: #2e7d32;
     @media (max-width: 900px) {
       display: none;
     }
+
+    &--collapsed {
+      width: 16px;
+      overflow: hidden;
+    }
+
+    cc-customer-panel {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+  }
+
+  &__customer-panel-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    flex-shrink: 0;
+    border: none;
+    border-right: 1px solid var(--border-1, #e2e8f0);
+    background: transparent;
+    cursor: pointer;
+    color: var(--text-2, #64748b);
+    align-self: stretch;
+    transition:
+      background var(--duration-fast, 120ms),
+      color var(--duration-fast, 120ms);
+
+    &:hover {
+      background: var(--bg-subtle, #f1f5f9);
+      color: var(--text-1, #1e293b);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent, #1a56db);
+      outline-offset: -2px;
+    }
+  }
+
+  &__customer-panel-toggle-icon {
+    width: 0.625rem;
+    height: 0.625rem;
   }
 }
 
-// ===== Bottom Tab Nav (Calendar / future tabs) =====
+// ===== Bottom Tab Nav =====
 
 .desktop {
   &__tab-nav {
     display: flex;
     align-items: center;
-    gap: 0;
-    background: $surface;
-    border-top: 1px solid $border;
+    background: var(--bg-elevated, #ffffff);
+    border-top: 1px solid var(--border-1, #e2e8f0);
     flex-shrink: 0;
     height: 40px;
     padding: 0 0.5rem;
@@ -261,28 +327,29 @@ $success: #2e7d32;
     padding: 0 0.875rem;
     height: 100%;
     border: none;
-    border-right: 1px solid $border;
+    border-right: 1px solid var(--border-1, #e2e8f0);
     background: transparent;
     cursor: pointer;
     font-size: 0.8125rem;
-    color: $text-secondary;
+    font-weight: 500;
+    color: var(--text-2, #64748b);
     transition:
       background var(--duration-fast, 120ms),
       color var(--duration-fast, 120ms);
     position: relative;
 
     &:first-child {
-      border-left: 1px solid $border;
+      border-left: 1px solid var(--border-1, #e2e8f0);
     }
 
     &:hover:not(&--active) {
-      background: $surface-3;
-      color: $text-primary;
+      background: var(--bg-subtle, #f1f5f9);
+      color: var(--text-1, #1e293b);
     }
 
     &--active {
-      background: #eff6ff;
-      color: $brand;
+      background: var(--accent-soft, #eff6ff);
+      color: var(--accent, #1a56db);
       font-weight: 600;
 
       &::after {
@@ -292,12 +359,13 @@ $success: #2e7d32;
         left: 0;
         right: 0;
         height: 2px;
-        background: $brand;
+        background: var(--accent, #1a56db);
+        border-radius: 0 0 2px 2px;
       }
     }
 
     &:focus-visible {
-      outline: 2px solid $brand;
+      outline: 2px solid var(--accent, #1a56db);
       outline-offset: -3px;
     }
   }
@@ -327,7 +395,8 @@ $success: #2e7d32;
 
   &__label {
     font-size: 0.8125rem;
-    color: $text-secondary;
+    font-weight: 500;
+    color: var(--text-2, #64748b);
     white-space: nowrap;
   }
 
@@ -340,8 +409,8 @@ $success: #2e7d32;
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.3125rem 0.75rem;
-  border: 1.5px solid;
+  padding: 5px 12px 5px 10px;
+  border: 1.5px solid transparent;
   border-radius: 9999px;
   background: transparent;
   cursor: pointer;
@@ -351,6 +420,7 @@ $success: #2e7d32;
     opacity var(--duration-fast, 120ms) var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
     transform var(--duration-fast, 120ms) var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   white-space: nowrap;
+  letter-spacing: -0.005em;
 
   &:hover {
     opacity: 0.85;
@@ -361,7 +431,7 @@ $success: #2e7d32;
   }
 
   &:focus-visible {
-    outline: 2px solid $brand;
+    outline: 2px solid var(--accent, #1a56db);
     outline-offset: 2px;
   }
 
@@ -395,12 +465,10 @@ $success: #2e7d32;
   left: 0;
   z-index: 200;
   min-width: 200px;
-  background: $surface;
-  border: 1px solid $border;
-  border-radius: var(--radius-lg, 10px);
-  box-shadow:
-    0 4px 6px rgba(0, 0, 0, 0.05),
-    0 10px 30px rgba(0, 0, 0, 0.12);
+  background: var(--bg-elevated, #ffffff);
+  border: 1px solid var(--border-1, #e2e8f0);
+  border-radius: var(--radius-lg, 14px);
+  box-shadow: var(--shadow-pop, 0 12px 40px rgba(0, 0, 0, 0.12));
   overflow: hidden;
   transform-origin: top left;
   animation: menu-enter 180ms var(--ease-spring, cubic-bezier(0.16, 1, 0.3, 1));
@@ -415,21 +483,22 @@ $success: #2e7d32;
     border: none;
     cursor: pointer;
     font-size: 0.875rem;
+    font-weight: 500;
     text-align: left;
-    color: $text-primary;
+    color: var(--text-1, #1e293b);
     transition: background var(--duration-fast, 120ms);
 
     &:hover {
-      background: $surface-3;
+      background: var(--bg-subtle, #f1f5f9);
     }
 
     &:focus-visible {
-      outline: 2px solid $brand;
+      outline: 2px solid var(--accent, #1a56db);
       outline-offset: -2px;
     }
 
     &--active {
-      background: #e3f2fd;
+      background: var(--accent-soft, #e3f2fd);
       font-weight: 600;
     }
   }
@@ -444,7 +513,7 @@ $success: #2e7d32;
     width: 1rem;
     height: 1rem;
     margin-left: auto;
-    color: $brand;
+    color: var(--accent, #1a56db);
   }
 }
 
@@ -461,19 +530,21 @@ $success: #2e7d32;
   align-items: center;
   gap: 0.375rem;
   font-size: 0.75rem;
-  color: $text-secondary;
+  font-weight: 500;
+  color: var(--text-muted, #94a3b8);
 
   &__ws-indicator {
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: $danger;
+    background: var(--danger, #c62828);
     flex-shrink: 0;
     transition: background var(--duration-normal, 200ms);
 
     &--connected {
-      background: $success;
-      box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+      background: var(--success, #22c55e);
+      box-shadow: 0 0 0 2px var(--success-soft, rgba(34, 197, 94, 0.2));
+      animation: pulse-dot 2s ease-in-out infinite;
     }
   }
 }
@@ -481,22 +552,22 @@ $success: #2e7d32;
 // ===== Queue Panel =====
 
 .queue-panel {
-  padding: 0.875rem;
+  padding: 12px;
   flex: 1;
 
   &__header {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.625rem;
+    margin-bottom: 8px;
   }
 
   &__title {
     font-size: 0.6875rem;
     font-weight: 700;
-    color: $text-muted;
+    color: var(--text-muted, #94a3b8);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.07em;
     margin: 0;
   }
 
@@ -507,18 +578,35 @@ $success: #2e7d32;
     min-width: 18px;
     height: 18px;
     padding: 0 4px;
-    background: #1565c0;
-    color: #fff;
-    font-size: 0.6875rem;
+    background: var(--accent, #1565c0);
+    color: var(--accent-fg, #fff);
+    font-size: 0.625rem;
     font-weight: 700;
     border-radius: 9999px;
   }
 
-  &__empty {
+  &__empty-state {
+    padding: 1.125rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-subtle, #f8fafc);
+    border-radius: var(--radius-md, 10px);
+    border: 1px dashed var(--border-2, #cbd5e1);
+  }
+
+  &__empty-icon {
+    width: 28px;
+    height: 28px;
+    color: var(--text-muted, #94a3b8);
+    opacity: 0.6;
+  }
+
+  &__empty-text {
     font-size: 0.8125rem;
-    color: $text-muted;
+    color: var(--text-3, #64748b);
     text-align: center;
-    padding: 2rem 0;
     margin: 0;
   }
 }
@@ -529,41 +617,42 @@ $success: #2e7d32;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 4px;
 }
 
 .queue-item {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.5625rem 0.625rem;
-  background: $surface-2;
-  border: 1px solid $border;
-  border-radius: var(--radius-md, 6px);
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-elevated, #ffffff);
+  border: 1px solid var(--border-1, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
   transition:
     background var(--duration-fast, 120ms),
     box-shadow var(--duration-fast, 120ms);
   cursor: default;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.03));
 
   &:hover {
-    background: $surface-3;
-    box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.05));
+    background: var(--bg-subtle, #f1f5f9);
+    box-shadow: var(--shadow-md, 0 2px 6px rgba(0, 0, 0, 0.06));
   }
 
   &__avatar {
-    width: 1.875rem;
-    height: 1.875rem;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%);
+    background: var(--accent-soft, #e0e7ff);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 
     svg {
-      width: 0.9375rem;
-      height: 0.9375rem;
-      color: #4f46e5;
+      width: 14px;
+      height: 14px;
+      color: var(--accent, #4f46e5);
     }
   }
 
@@ -578,7 +667,7 @@ $success: #2e7d32;
   &__name {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-1, #1e293b);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -586,7 +675,7 @@ $success: #2e7d32;
 
   &__identifier {
     font-size: 0.6875rem;
-    color: $text-secondary;
+    color: var(--text-2, #64748b);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -594,17 +683,18 @@ $success: #2e7d32;
 
   &__queue {
     font-size: 0.6875rem;
-    color: $text-muted;
+    color: var(--text-muted, #94a3b8);
   }
 
   &__wait {
     font-size: 0.6875rem;
     font-weight: 700;
-    color: $danger;
+    color: var(--danger-text, #c62828);
     white-space: nowrap;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
+    font-family: 'Geist Mono', monospace;
   }
 }
 
@@ -619,25 +709,26 @@ $success: #2e7d32;
   padding: 3rem 2rem;
   text-align: center;
   height: 100%;
+  animation: slide-up 300ms var(--ease-spring, cubic-bezier(0.16, 1, 0.3, 1));
 
   &__icon {
-    width: 4rem;
-    height: 4rem;
-    color: #cbd5e1;
+    width: 56px;
+    height: 56px;
+    color: var(--border-strong, #cbd5e1);
     margin-bottom: 1.25rem;
   }
 
   &__text {
-    font-size: 1.0625rem;
+    font-size: 1rem;
     font-weight: 700;
-    color: #475569;
+    color: var(--text-2, #475569);
     margin: 0 0 0.5rem;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
   }
 
   &__subtext {
     font-size: 0.875rem;
-    color: $text-muted;
+    color: var(--text-muted, #94a3b8);
     margin: 0;
     max-width: 300px;
     line-height: 1.6;
@@ -654,17 +745,16 @@ $success: #2e7d32;
   height: 100%;
   min-height: 0;
 
-  // Tab strip — visible, prominent tabs
   &__bar {
     display: flex;
     align-items: stretch;
     gap: 0;
     padding: 0 1rem;
-    background: $surface-3;
-    border-bottom: 2px solid $border;
+    background: var(--bg-subtle, #f1f5f9);
+    border-bottom: 1px solid var(--border-1, #e2e8f0);
     overflow-x: auto;
     flex-shrink: 0;
-    height: 42px;
+    height: 44px;
     scrollbar-width: none;
 
     &::-webkit-scrollbar {
@@ -672,11 +762,10 @@ $success: #2e7d32;
     }
   }
 
-  // Tab content area — fills all remaining space
   &__panel {
     flex: 1;
     overflow: hidden;
-    background: $surface;
+    background: var(--bg-elevated, #ffffff);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -686,14 +775,15 @@ $success: #2e7d32;
 .contact-tab {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0 1rem;
+  gap: 6px;
+  padding: 0 14px;
   background: transparent;
   border: none;
-  border-right: 1px solid $border;
+  border-right: 1px solid var(--border-1, #e2e8f0);
   cursor: pointer;
   font-size: 0.8125rem;
-  color: $text-secondary;
+  font-weight: 500;
+  color: var(--text-2, #64748b);
   transition:
     background var(--duration-fast, 120ms),
     color var(--duration-fast, 120ms);
@@ -702,52 +792,49 @@ $success: #2e7d32;
   height: 100%;
   min-width: 0;
 
-  // Left border on first tab
   &:first-child {
-    border-left: 1px solid $border;
+    border-left: 1px solid var(--border-1, #e2e8f0);
   }
 
   &:focus-visible {
-    outline: 2px solid $brand;
+    outline: 2px solid var(--accent, #1a56db);
     outline-offset: -3px;
   }
 
   &:hover:not(&--active) {
-    background: rgba(0, 0, 0, 0.04);
-    color: $text-primary;
+    background: var(--border-1, rgba(0, 0, 0, 0.04));
+    color: var(--text-1, #1e293b);
   }
 
-  // Active tab: white background, bottom indicator bar
   &--active {
-    background: $surface;
-    color: $text-primary;
+    background: var(--bg-elevated, #ffffff);
+    color: var(--text-1, #1e293b);
     font-weight: 600;
 
     &::after {
       content: '';
       position: absolute;
-      bottom: -2px;
+      bottom: -1px;
       left: 0;
       right: 0;
       height: 2px;
-      background: $brand;
+      background: var(--accent, #1a56db);
     }
   }
 
-  // Channel-specific active indicator color
   &--phone#{&}--active::after {
-    background: #2563eb;
+    background: var(--accent, #2563eb);
   }
   &--chat#{&}--active::after {
-    background: #16a34a;
+    background: var(--success, #16a34a);
   }
   &--email#{&}--active::after {
-    background: #9333ea;
+    background: var(--violet, #9333ea);
   }
 
   &__icon {
-    width: 0.9375rem;
-    height: 0.9375rem;
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
     opacity: 0.55;
     transition: opacity var(--duration-fast, 120ms);
@@ -761,33 +848,33 @@ $success: #2e7d32;
     flex: 0 1 auto;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 140px;
+    max-width: 130px;
   }
 
   &__type-badge {
-    font-size: 0.625rem;
+    font-size: 0.5625rem;
     font-weight: 700;
-    padding: 1px 6px;
-    border-radius: var(--radius-full, 9999px);
-    letter-spacing: 0.04em;
+    padding: 1px 5px;
+    border-radius: 9999px;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     flex-shrink: 0;
 
     .contact-tab--phone & {
-      background: #dbeafe;
-      color: #1d4ed8;
+      background: var(--accent-soft, #dbeafe);
+      color: var(--accent-text, #1d4ed8);
     }
     .contact-tab--chat & {
-      background: #dcfce7;
-      color: #15803d;
+      background: var(--success-soft, #dcfce7);
+      color: var(--success-text, #15803d);
     }
     .contact-tab--email & {
-      background: #f3e8ff;
-      color: #7e22ce;
+      background: var(--violet-soft, #f3e8ff);
+      color: var(--violet-text, #7e22ce);
     }
     .contact-tab--social & {
-      background: #fff7ed;
-      color: #c2410c;
+      background: var(--warning-soft, #fff7ed);
+      color: var(--warning-text, #c2410c);
     }
   }
 
@@ -795,38 +882,38 @@ $success: #2e7d32;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 18px;
+    height: 18px;
     border: none;
     background: transparent;
-    border-radius: var(--radius-sm, 4px);
+    border-radius: var(--radius-sm, 6px);
     cursor: pointer;
-    color: $text-muted;
+    color: var(--text-muted, #94a3b8);
     padding: 0;
     flex-shrink: 0;
-    margin-left: 0.125rem;
+    margin-left: 2px;
     transition:
       background var(--duration-fast, 120ms),
       color var(--duration-fast, 120ms);
 
     svg {
-      width: 0.8125rem;
-      height: 0.8125rem;
+      width: 11px;
+      height: 11px;
     }
 
     &:hover {
-      background: #fee2e2;
-      color: $danger;
+      background: var(--danger-soft, #fee2e2);
+      color: var(--danger, #dc2626);
     }
 
     &:focus-visible {
-      outline: 2px solid $brand;
+      outline: 2px solid var(--accent, #1a56db);
       outline-offset: 1px;
     }
   }
 }
 
-// ===== Contact Panel (active tab content wrapper) =====
+// ===== Contact Panel =====
 
 .contact-panel {
   display: flex;
@@ -835,32 +922,31 @@ $success: #2e7d32;
   min-height: 0;
   overflow: hidden;
 
-  // Compact but informative header
   &__header {
     display: flex;
     align-items: center;
-    gap: 0.875rem;
-    padding: 0.75rem 1.5rem;
-    border-bottom: 1px solid $border;
-    background: $surface;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-1, #e2e8f0);
+    background: var(--bg-elevated, #ffffff);
     flex-shrink: 0;
-    box-shadow: 0 1px 0 $border;
+    box-shadow: var(--shadow-sm, 0 1px 0 #e2e8f0);
   }
 
   &__avatar {
-    width: 2.25rem;
-    height: 2.25rem;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, var(--accent, #3b82f6) 0%, var(--violet, #8b5cf6) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     color: #fff;
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 700;
     flex-shrink: 0;
     letter-spacing: -0.01em;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 0 2px var(--accent-soft, rgba(59, 130, 246, 0.2));
   }
 
   &__info {
@@ -874,18 +960,18 @@ $success: #2e7d32;
   &__name {
     font-size: 0.9375rem;
     font-weight: 700;
-    color: $text-primary;
+    color: var(--text-1, #1e293b);
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
     line-height: 1.3;
   }
 
   &__identifier {
     font-size: 0.8125rem;
-    color: $text-secondary;
+    color: var(--text-2, #64748b);
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -895,38 +981,42 @@ $success: #2e7d32;
 
   &__since {
     font-size: 0.75rem;
-    color: $text-muted;
+    color: var(--text-muted, #94a3b8);
     margin: 0;
     line-height: 1.4;
     font-variant-numeric: tabular-nums;
   }
 
   &__type-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-full, 9999px);
-    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
     font-weight: 700;
     flex-shrink: 0;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
 
     &--phone {
-      background: #dbeafe;
-      color: #1d4ed8;
+      background: var(--accent-soft, #dbeafe);
+      color: var(--accent-text, #1d4ed8);
     }
 
     &--chat {
-      background: #dcfce7;
-      color: #15803d;
+      background: var(--success-soft, #dcfce7);
+      color: var(--success-text, #15803d);
     }
 
     &--email {
-      background: #f3e8ff;
-      color: #7e22ce;
+      background: var(--violet-soft, #f3e8ff);
+      color: var(--violet-text, #7e22ce);
+    }
+
+    &--social {
+      background: var(--warning-soft, #fff7ed);
+      color: var(--warning-text, #c2410c);
     }
   }
 
-  // Body fills all remaining space — sub-components manage their own scrolling
   &__body {
     flex: 1;
     display: flex;
@@ -936,7 +1026,7 @@ $success: #2e7d32;
   }
 }
 
-// Chat placeholder (phone handled by softphone, email by cc-email-contact)
+// Chat placeholder
 %contact-placeholder-base {
   display: flex;
   flex-direction: column;
@@ -945,19 +1035,19 @@ $success: #2e7d32;
   flex: 1;
   gap: 0.75rem;
   text-align: center;
-  color: $text-muted;
+  color: var(--text-muted, #94a3b8);
   padding: 2.5rem;
 
   svg {
     width: 3rem;
     height: 3rem;
-    opacity: 0.4;
+    opacity: 0.35;
   }
 
   p {
     font-size: 0.9375rem;
     font-weight: 600;
-    color: $text-secondary;
+    color: var(--text-2, #64748b);
     margin: 0;
   }
 }
@@ -970,7 +1060,7 @@ $success: #2e7d32;
   &__sub {
     font-size: 0.8125rem !important;
     font-weight: 400 !important;
-    color: $text-muted !important;
+    color: var(--text-muted, #94a3b8) !important;
   }
 }
 

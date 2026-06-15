@@ -4,11 +4,10 @@ import com.contactcenter.api.contact.ContactController;
 import com.contactcenter.api.dialer.dto.CreateInboundCallbackRequest;
 import com.contactcenter.api.dialer.dto.ScheduledCallbackResponse;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.ScheduledCallbackRepository;
-import com.contactcenter.domain.service.ContactService;
+import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.campaign.ScheduledCallback;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
 import com.contactcenter.security.TenantContext;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
@@ -55,10 +54,7 @@ class InboundCallbackCreationTest {
     private ContactService contactService;
 
     @Mock
-    private ContactRepository contactRepository;
-
-    @Mock
-    private ScheduledCallbackRepository scheduledCallbackRepository;
+    private ScheduledCallbackService scheduledCallbackService;
 
     @InjectMocks
     private ContactController contactController;
@@ -102,8 +98,8 @@ class InboundCallbackCreationTest {
         Contact contact = buildContact(CONTACT_ID, TENANT_ID, AGENT_ID);
         ScheduledCallback saved = buildSavedCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, scheduledAt, CONTACT_ID);
 
-        when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-        when(scheduledCallbackRepository.save(any(ScheduledCallback.class))).thenReturn(saved);
+        when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+        when(scheduledCallbackService.saveCallback(any(ScheduledCallback.class))).thenReturn(saved);
 
         CreateInboundCallbackRequest request = new CreateInboundCallbackRequest(
                 "+48123456789", "Jan", "Kowalski", scheduledAt, "Oddzwonić po 15:00", null);
@@ -119,7 +115,7 @@ class InboundCallbackCreationTest {
         assertThat(response.getBody().originContactId()).isEqualTo(CONTACT_ID);
         assertThat(response.getBody().callbackId()).isEqualTo(CALLBACK_ID);
 
-        verify(scheduledCallbackRepository).save(any(ScheduledCallback.class));
+        verify(scheduledCallbackService).saveCallback(any(ScheduledCallback.class));
     }
 
     // =========================================================================
@@ -140,8 +136,8 @@ class InboundCallbackCreationTest {
         ScheduledCallback saved = buildSavedCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, scheduledAt, CONTACT_ID,
                 "OUTBOUND_CALLBACK");
 
-        when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-        when(scheduledCallbackRepository.save(any(ScheduledCallback.class))).thenReturn(saved);
+        when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+        when(scheduledCallbackService.saveCallback(any(ScheduledCallback.class))).thenReturn(saved);
 
         CreateInboundCallbackRequest request = new CreateInboundCallbackRequest(
                 "+48123456789", "Jan", "Kowalski", scheduledAt, "Oddzwonic po 15:00", null);
@@ -156,7 +152,7 @@ class InboundCallbackCreationTest {
         assertThat(response.getBody().sourceType()).isEqualTo("OUTBOUND_CALLBACK");
         assertThat(response.getBody().originContactId()).isEqualTo(CONTACT_ID);
 
-        verify(scheduledCallbackRepository).save(any(ScheduledCallback.class));
+        verify(scheduledCallbackService).saveCallback(any(ScheduledCallback.class));
     }
 
     // =========================================================================
@@ -173,7 +169,7 @@ class InboundCallbackCreationTest {
         TenantContext.setUserId(AGENT_ID);
         TenantContext.setUserRole("AGENT");
 
-        when(contactRepository.findById(unknownContactId, TENANT_ID)).thenReturn(Optional.empty());
+        when(contactService.findContactEntity(unknownContactId, TENANT_ID)).thenReturn(Optional.empty());
 
         CreateInboundCallbackRequest request = new CreateInboundCallbackRequest(
                 "+48123456789", null, null, scheduledAt, null, null);
@@ -183,7 +179,7 @@ class InboundCallbackCreationTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining(unknownContactId.toString());
 
-        verify(scheduledCallbackRepository, never()).save(any());
+        verify(scheduledCallbackService, never()).saveCallback(any());
     }
 
     // =========================================================================
@@ -201,7 +197,7 @@ class InboundCallbackCreationTest {
 
         // Kontakt przypisany do INNEGO agenta
         Contact contact = buildContact(CONTACT_ID, TENANT_ID, OTHER_AGENT);
-        when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+        when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
 
         CreateInboundCallbackRequest request = new CreateInboundCallbackRequest(
                 "+48123456789", null, null, scheduledAt, null, null);
@@ -210,7 +206,7 @@ class InboundCallbackCreationTest {
         assertThatThrownBy(() -> contactController.createInboundCallback(CONTACT_ID, request))
                 .isInstanceOf(AccessDeniedException.class);
 
-        verify(scheduledCallbackRepository, never()).save(any());
+        verify(scheduledCallbackService, never()).saveCallback(any());
     }
 
     // =========================================================================
@@ -230,8 +226,8 @@ class InboundCallbackCreationTest {
         Contact contact = buildContact(CONTACT_ID, TENANT_ID, null);
         ScheduledCallback saved = buildSavedCallback(CALLBACK_ID, TENANT_ID, AGENT_ID, scheduledAt, CONTACT_ID);
 
-        when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-        when(scheduledCallbackRepository.save(any(ScheduledCallback.class))).thenReturn(saved);
+        when(contactService.findContactEntity(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
+        when(scheduledCallbackService.saveCallback(any(ScheduledCallback.class))).thenReturn(saved);
 
         CreateInboundCallbackRequest request = new CreateInboundCallbackRequest(
                 "+48123456789", null, null, scheduledAt, null, null);
@@ -245,7 +241,7 @@ class InboundCallbackCreationTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().sourceType()).isEqualTo("INBOUND_CALLBACK");
 
-        verify(scheduledCallbackRepository).save(any(ScheduledCallback.class));
+        verify(scheduledCallbackService).saveCallback(any(ScheduledCallback.class));
     }
 
     // =========================================================================

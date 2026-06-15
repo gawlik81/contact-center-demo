@@ -5,7 +5,7 @@ import com.contactcenter.api.customer.CustomerController;
 import com.contactcenter.api.customer.dto.CreateCustomerRequest;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
-import com.contactcenter.domain.service.CustomerService;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.*;

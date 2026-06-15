@@ -37,7 +37,9 @@
             <tr>
               <th scope="col">{{ 'common.name' | transloco }}</th>
               <th scope="col">{{ 'supervisor.agentGroups.membersCount' | transloco }}</th>
-              <th scope="col"><span class="sr-only">{{ 'common.actions' | transloco }}</span></th>
+              <th scope="col">
+                <span class="sr-only">{{ 'common.actions' | transloco }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -157,5 +159,5 @@
       </div>
     </div>
   </dialog>
-  <div class="confirm-dialog__overlay" (click)="closeDeleteModal()" aria-hidden="true"></div>
+  <div class="confirm-dialog__overlay" aria-hidden="true"></div>
 }

@@ -3,10 +3,10 @@ package com.contactcenter.api.dialer;
 import com.contactcenter.api.dialer.dto.ManualCallbackRequest;
 import com.contactcenter.api.dialer.dto.ManualCallbackResponse;
 import com.contactcenter.domain.exception.CrossTenantAccessException;
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.repository.CustomerRepository;
-import com.contactcenter.domain.repository.ScheduledCallbackRepository;
+import com.contactcenter.domain.customer.Customer;
+import com.contactcenter.domain.campaign.ScheduledCallback;
+import com.contactcenter.domain.customer.CustomerService;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -54,8 +54,8 @@ public class ManualCallbackController {
     /** Minimalne wyprzedzenie czasowe scheduledAt od momentu wywołania (5 minut). */
     private static final long MIN_SCHEDULED_AT_OFFSET_SECONDS = 5 * 60L;
 
-    private final CustomerRepository customerRepository;
-    private final ScheduledCallbackRepository scheduledCallbackRepository;
+    private final CustomerService customerService;
+    private final ScheduledCallbackService scheduledCallbackService;
 
     /**
      * Planuje manualne oddzwonienie do klienta.
@@ -105,7 +105,7 @@ public class ManualCallbackController {
         }
 
         // 2. Weryfikacja klienta – czy istnieje i należy do tenanta
-        Customer customer = customerRepository.findById(request.customerId(), tenantId)
+        Customer customer = customerService.findById(request.customerId(), tenantId)
                 .orElseThrow(() -> {
                     // Nie ujawniamy czy klient istnieje w innym tenancie – zawsze 403
                     log.warn("[ManualCallbackController] Klient nie istnieje lub inny tenant: " +
@@ -130,7 +130,7 @@ public class ManualCallbackController {
                 // campaign_id i origin_contact_id są null – callback niezwiązany z kampanią/kontaktem
                 .build();
 
-        ScheduledCallback saved = scheduledCallbackRepository.save(callback);
+        ScheduledCallback saved = scheduledCallbackService.saveCallback(callback);
 
         log.info("[ManualCallbackController] Zaplanowano manualne oddzwonienie: " +
                         "callbackId={}, customerId={}, agent={}, scheduledAt={}, tenant={}",

@@ -14,18 +14,29 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { NgClass } from '@angular/common';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
-import { catchError, EMPTY } from 'rxjs';
+import { catchError, EMPTY, filter, tap } from 'rxjs';
 import { ContactService } from '../../services/contact.service';
 import { AgentStatusService } from '../../services/agent-status.service';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { DISPOSITION_CODES, DispositionCode } from '../../models/disposition.model';
+import { DISPOSITION_CODES } from '../../models/disposition.model';
+import { AiSummaryPanelComponent } from '../../../../shared/components/ai-summary-panel/ai-summary-panel.component';
+import { CustomDispositionService } from '../../../../features/dispositions/services/custom-disposition.service';
+import { WebSocketService } from '../../../../core/services/websocket.service';
+import { RecordingReadyPayload } from '../../models/ws-event.model';
+
+interface AvailableDispositionForPanel {
+  code: string;
+  label: string;
+  tone: string;
+}
 
 @Component({
   selector: 'app-disposition-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, TranslocoModule],
+  imports: [FormsModule, NgClass, TranslocoModule, AiSummaryPanelComponent],
   templateUrl: './disposition-panel.component.html',
   styleUrl: './disposition-panel.component.scss',
 })
@@ -34,6 +45,8 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
   readonly contactId = input.required<string>();
   /** Nazwa klienta do wyświetlenia w nagłówku */
   readonly customerName = input<string>('');
+  /** Notatka z rozmowy wpisana przez agenta – pre-fills pole notatki */
+  readonly prefillNotes = input<string>('');
   /** Emitowane po poprawnym zapisie dyspozycji */
   readonly saved = output<void>();
 
@@ -42,10 +55,14 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly transloco = inject(TranslocoService);
+  private readonly customDispositionService = inject(CustomDispositionService);
+  private readonly wsService = inject(WebSocketService);
 
   private readonly dialogRef = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
 
-  protected readonly dispositionCodes: DispositionCode[] = DISPOSITION_CODES;
+  protected readonly availableDispositions = signal<AvailableDispositionForPanel[]>([]);
+  protected readonly dispositionsLoading = signal(false);
+  protected readonly dispositionsError = signal<string | null>(null);
 
   protected readonly selectedCode = signal<string>('');
   protected readonly notes = signal<string>('');
@@ -64,9 +81,59 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
 
   protected readonly canSave = computed(() => this.selectedCode().length > 0 && !this.isSaving());
 
+  readonly hasRecording = signal(false);
+
   ngOnInit(): void {
     this.dialogRef().nativeElement.showModal();
+    if (this.prefillNotes()) {
+      this.notes.set(this.prefillNotes());
+    }
     this.startAcwTimer();
+
+    this.contactService
+      .getContact(this.contactId())
+      .pipe(
+        tap((c) => this.hasRecording.set(!!c.recordingUrl)),
+        catchError(() => EMPTY),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+
+    this.wsService.events$
+      .pipe(
+        filter((e) => e.eventType === 'RECORDING_READY'),
+        filter((e) => (e.payload as RecordingReadyPayload).contactId === this.contactId()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.hasRecording.set(true));
+
+    this.dispositionsLoading.set(true);
+    this.customDispositionService
+      .getAvailableDispositions(this.contactId())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (dispositions) => {
+          this.availableDispositions.set(
+            dispositions.map((d) => ({ code: d.dispositionCode, label: d.label, tone: d.tone })),
+          );
+          this.dispositionsLoading.set(false);
+        },
+        error: (err) => {
+          console.warn(
+            '[DispositionPanel] Failed to load dispositions from API, using fallback',
+            err,
+          );
+          this.availableDispositions.set(
+            DISPOSITION_CODES.map((d) => ({
+              code: d.code,
+              label: this.transloco.translate(d.labelKey),
+              tone: 'neutral',
+            })),
+          );
+          this.dispositionsLoading.set(false);
+          this.dispositionsError.set('Używam dyspozycji systemowych (błąd pobierania)');
+        },
+      });
   }
 
   ngOnDestroy(): void {
@@ -87,12 +154,27 @@ export class DispositionPanelComponent implements OnInit, OnDestroy {
     }
   }
 
-  protected onCodeChange(event: Event): void {
-    this.selectedCode.set((event.target as HTMLSelectElement).value);
+  protected toneClass(tone: string): string {
+    const map: Record<string, string> = {
+      positive: 'tone-positive',
+      negative: 'tone-negative',
+      warning: 'tone-warning',
+      neutral: 'tone-neutral',
+    };
+    return map[tone] ?? 'tone-neutral';
+  }
+
+  protected selectCode(code: string): void {
+    this.selectedCode.set(code);
   }
 
   protected onNotesChange(value: string): void {
     this.notes.set(value);
+  }
+
+  protected onAiSummaryCopy(summary: string): void {
+    const current = this.notes().trim();
+    this.notes.set(current ? current + '\n\n' + summary : summary);
   }
 
   protected save(): void {

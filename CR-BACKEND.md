@@ -1625,3 +1625,422 @@ log.debug("[EWT] Queue {}: waiting={}, agents={}, avgHT={}s, EWT={}s",
 Implementacja EWT jest architektonicznie spójna i demonstruje dobre decyzje projektowe (jednorazowy SCAN, izolacja błędów per-kolejka, fallback 300s). Trzy problemy wymagają uwagi przed merge: (1) brak `is_deleted = false` w SQL zawyża `waitingCount` dla soft-deleted kontaktów QUEUED, (2) rekonstrukcja encji `Queue` z DTO w kontrolerze to anty-wzorzec tworzący partial object podatny na NPE przy rozszerzeniu, (3) `GET /api/queues/{id}/stats` triggeruje pełny Redis SCAN per żądanie HTTP bez cache — wektor DoS. Pominięcie `findAllByStatusOrderByNameAsc` (wczytywanie wszystkich tenantów zamiast aktywnych) to niepotrzebny narzut przy każdym ticku schedulera. Problem z `fixedRate` (nakładanie się wywołań) i brak ShedLock (multi-instancja) to znany dług techniczny wymagający adresowania przed wdrożeniem produkcyjnym.
 
 **Ocena: 3.5/5** — solidna logika biznesowa i dobra odporność na błędy, ale bug soft-delete w SQL i anty-wzorzec partial-entity w kontrolerze muszą być naprawione przed merge.
+
+---
+
+## Review: EPIC-24 Transfer połączenia — pliki backendowe — 2026-05-15
+
+Scope: TransferTargetType, TransferRequest, TelephonyAdapter, TelephonyEventPublisher, MockTelephonyAdapter, TwilioTelephonyAdapter, TransferController, AgentCallController, TransferAgentResponse, TransferCallRequest, TransferQueueResponse, TransferAgentQueueRepository, TransferQueueStatsRepository, TransferService, ContactService (metody initiateTransfer + bridgeCalls).
+
+---
+
+## [KRYTYCZNE] secondCallId w bridge endpoint nie jest weryfikowany relative do tenanta
+
+**Plik:** `ContactService.java` linia ~930–961 (metoda `bridgeCalls`)
+
+**Problem:** Metoda weryfikuje własność `callId` (pierwsza noga), ale `secondCallId` jest przekazywany bezpośrednio do `telephonyAdapter.bridgeCalls(callId, secondCallId)` bez żadnej weryfikacji, że ta sesja należy do tego samego tenanta lub do tego samego agenta. `MockTelephonyAdapter.requireSession()` nie sprawdza tenant — pobiera sesję wyłącznie po kluczu z globalnej `ConcurrentHashMap`. Agent tenanta A mógłby wywołać `POST /api/telephony/calls/{własnyCallId}/bridge/{callIdInnegoTenanta}` i połączyć dwie nogi należące do różnych tenantów.
+
+**Rekomendacja:** Przed wywołaniem adaptera zweryfikuj, że sesja pod `secondCallId` istnieje i należy do tego samego tenanta:
+```java
+CallSession secondSession = telephonyAdapter.getSession(secondCallId)
+    .orElseThrow(() -> new EntityNotFoundException("Sesja drugiej nogi nie istnieje: " + secondCallId));
+if (!tenantId.equals(secondSession.getTenantId())) {
+    throw new CrossTenantAccessException(UUID.fromString(secondCallId), tenantId, secondSession.getTenantId());
+}
+```
+Wymaga to dodania metody `getSession(String callId): Optional<CallSession>` do interfejsu `TelephonyAdapter`.
+
+---
+
+## [KRYTYCZNE] UnsupportedOperationException w TwilioAdapter przekłada się na HTTP 500
+
+**Plik:** `TwilioTelephonyAdapter.java` — metoda `initiateTransfer`, case `AGENT, QUEUE`
+
+**Problem:** `UnsupportedOperationException` rzucana przez `TwilioTelephonyAdapter.initiateTransfer()` dla `AGENT` i `QUEUE` nie jest obsługiwana przez `GlobalExceptionHandler` — nie ma tam dedykowanego handlera. Zostanie złapana przez ogólny fallback i zwrócona jako HTTP 500 z technicznym komunikatem. W środowisku produkcyjnym (Twilio), transfer do agenta lub kolejki zwróci 500 zamiast zrozumiałego 501/400.
+
+**Rekomendacja:** Dwie opcje:
+
+1. Dodać handler w `GlobalExceptionHandler`:
+```java
+@ExceptionHandler(UnsupportedOperationException.class)
+public ResponseEntity<ProblemDetail> handleUnsupportedOp(UnsupportedOperationException ex, WebRequest req) {
+    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, ex.getMessage());
+    return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(pd);
+}
+```
+2. Zamiast `UnsupportedOperationException` rzucać dedykowany `TelephonyException` lub `FeatureNotSupportedException`, który jest już obsługiwany.
+
+---
+
+## [WAŻNE] Dead code — mapa `meta` budowana, lecz nigdy nie przekazywana do `contactEventService`
+
+**Plik:** `ContactService.java` linie 864–884 (metoda `recordTransferEvent`)
+
+**Problem:** `Map<String, Object> meta` jest tworzona i wypełniana (transfer_type, target_type, target_agent_id / target_queue_id), ale do `contactEventService.recordTransfer(...)` przekazywana jest jedynie zakodowana wartość `resolveTransferTarget(req)` i `req.transferType().name()`. Mapa `meta` nie jest nigdzie użyta — dead code wprowadzający mylące wrażenie, że metadane są zapisywane.
+
+**Rekomendacja:** Usunąć mapę `meta` jeśli `contactEventService.recordTransfer` nie przyjmuje parametru metadata, albo rozszerzyć sygnaturę `recordTransfer` o `Map<String, Object> metadata` i faktycznie persystować te metadane. Metadane transferu (type, target) są przydatne do raportowania i historii.
+
+---
+
+## [WAŻNE] Brak filtra `is_deleted = FALSE` przy zliczaniu kontaktów QUEUED
+
+**Plik:** `TransferQueueStatsRepository.java` linia 83–86 (metoda `countWaitingContactsByQueueIds`)
+
+**Problem:** Zapytanie:
+```sql
+WHERE c.tenant_id = CAST(:tenantId AS uuid)
+  AND c.queue_id  = ANY(CAST(:queueIds AS uuid[]))
+  AND c.status    = 'QUEUED'
+```
+nie filtruje `c.is_deleted = FALSE`. Kontakty soft-deleted, które mają status `QUEUED`, zostaną wliczone do metryki `waitingContacts`. RLS na tabeli `contact` (V012) filtruje tylko po `tenant_id`, nie po `is_deleted`. Wynik: zawyżona liczba oczekujących kontaktów w `TransferQueueResponse`.
+
+**Rekomendacja:**
+```sql
+WHERE c.tenant_id  = CAST(:tenantId AS uuid)
+  AND c.queue_id   = ANY(CAST(:queueIds AS uuid[]))
+  AND c.status     = 'QUEUED'
+  AND c.is_deleted = FALSE
+```
+
+---
+
+## [WAŻNE] `TransferService.getAvailableAgents` ładuje wszystkich agentów tenanta bez limitu
+
+**Plik:** `TransferService.java` linia 75 (metoda `getAvailableAgents`)
+
+**Problem:** `appUserRepository.findAllByTenantIdAndDeletedFalse(tenantId, Pageable.unpaged())` ładuje **wszystkich** nieusunętych użytkowników tenanta do pamięci bez żadnego limitu. Dla dużych call center (np. 500–1000 agentów) jest to nadmiarowe obciążenie pamięci przy każdym otwarciu panelu transferu przez każdego agenta. Filtrowanie po roli `AGENT`, statusie i `excludeUserId` odbywa się w Javie (stream), zamiast na poziomie zapytania SQL.
+
+**Rekomendacja:** Dodać dedykowane zapytanie filtrujące na poziomie bazy:
+```java
+@Query("SELECT u FROM AppUser u WHERE u.tenantId = :tenantId AND u.deleted = false " +
+       "AND u.role = 'AGENT' AND u.status != 'OFFLINE' AND u.id != :excludeId")
+List<AppUser> findTransferCandidates(@Param("tenantId") UUID tenantId, @Param("excludeId") UUID excludeId);
+```
+Alternatywnie: cachowanie wyników na ~10–15 sekund w Redis z kluczem `transfer:agents:{tenantId}`.
+
+---
+
+## [WAŻNE] Brak walidacji formatu E.164 dla `phoneNumber`
+
+**Plik:** `TransferRequest.java` linia 40–44 oraz `TransferCallRequest.java`
+
+**Problem:** `TransferRequest.validate()` sprawdza jedynie czy `phoneNumber != null` dla `PHONE` transferów. Nie waliduje formatu E.164. Backend przekaże do adaptera dowolny string jako numer telefonu. Dodatkowo `TransferCallRequest` (DTO HTTP) nie ma żadnej adnotacji walidującej `phoneNumber`.
+
+**Rekomendacja:** Dodać walidację w `TransferRequest.validate()`:
+```java
+case PHONE -> {
+    Objects.requireNonNull(phoneNumber, "phoneNumber required for PHONE transfer");
+    if (!phoneNumber.matches("^\\+[1-9]\\d{6,14}$")) {
+        throw new IllegalArgumentException("phoneNumber must be in E.164 format: " + phoneNumber);
+    }
+}
+```
+Oraz w `TransferCallRequest`:
+```java
+@Pattern(regexp = "^\\+[1-9]\\d{6,14}$", message = "phoneNumber must be in E.164 format")
+String phoneNumber,
+```
+
+---
+
+## [WAŻNE] `@Transactional` obejmuje wywołanie zewnętrznego adaptera telefonii
+
+**Plik:** `ContactService.java` linia ~770 (metoda `initiateTransfer`)
+
+**Problem:** Metoda jest oznaczona `@Transactional`. W tej samej transakcji wczytywany jest kontakt z bazy, wywoływany jest `telephonyAdapter.initiateTransfer()` (efekt uboczny poza bazą — wywołanie do Twilio lub operacja na sesji w pamięci) i zapisywane jest zdarzenie do historii. Jeśli transakcja zostanie wycofana z dowolnego powodu po wywołaniu adaptera, operacja telefoniczna jest nieodwracalna — rozbieżność między stanem DB a stanem telefonii.
+
+**Rekomendacja:** Rozdzielić na dwie fazy:
+- Faza 1 `@Transactional(readOnly=true)`: wczytanie i walidacja kontaktu.
+- Faza 2 (bez `@Transactional`): wywołanie adaptera.
+- Faza 3 `@Transactional`: zapis zdarzenia.
+
+---
+
+## [WAŻNE] Brak testów jednostkowych i integracyjnych dla nowego kodu
+
+**Problem:** Zero testów dla `TransferRequest.validate()`, `TransferService`, `ContactService.initiateTransfer/bridgeCalls`, `TransferController`, `AgentCallController` (nowe endpointy), `MockTelephonyAdapter.initiateTransfer`. Krytyczne ścieżki multi-tenancy i walidacja nie są pokryte testami.
+
+**Rekomendacja:** Jako minimum:
+- Testy jednostkowe `TransferRequest.validate()` — wszystkie kombinacje targetType + transferType
+- Testy `TransferService` z mockiem repozytoriów
+- Test integracyjny `POST /api/telephony/calls/{callId}/transfer` z weryfikacją 403 dla innego agenta i cross-tenant
+
+---
+
+## [SUGESTIA] Brak stałych dla kluczy metadanych w `TelephonyEventPublisher`
+
+**Plik:** `TelephonyEventPublisher.java` — nowe przeciążenie `publishTransferred(..., Map<String, String> metadata)`
+
+**Problem:** Klucze mapy (`transfer_type`, `target_type`, `target_agent_id`, `target_queue_id`) są hardcoded jako string literały w `MockTelephonyAdapter` bez wspólnego kontraktu. Różne implementacje mogą użyć innych kluczy niekompatybilnie.
+
+**Rekomendacja:** Zdefiniować stałe w `TelephonyEventPublisher`:
+```java
+public static final String META_TRANSFER_TYPE    = "transfer_type";
+public static final String META_TARGET_TYPE      = "target_type";
+public static final String META_TARGET_AGENT_ID  = "target_agent_id";
+public static final String META_TARGET_QUEUE_ID  = "target_queue_id";
+```
+
+---
+
+## [SUGESTIA] Brak `@Size` na `@PathVariable callId` i `secondCallId`
+
+**Plik:** `AgentCallController.java` — endpointy `/{callId}/transfer` i `/{callId}/bridge/{secondCallId}`
+
+**Rekomendacja:**
+```java
+@PathVariable @Size(max = 64) String callId,
+@PathVariable @Size(max = 64) String secondCallId,
+```
+
+---
+
+## Podsumowanie EPIC-24 Backend
+
+**Ocena: 3/5** — Architektura jest solidna: N+1 rozwiązany przez zbiorowe SQL, `TransferRequest.validate()` eleganckie, dokumentacja Javadoc obszerna. Wykryto dwa problemy bezpieczeństwa (cross-tenant bridge, UnsupportedOperationException → 500) i kilka ważnych błędów poprawności (dead code meta, brak is_deleted, brak walidacji E.164, transakcja wokół zewnętrznego adaptera). Brak testów dla całego nowego kodu jest poważną luką.
+
+**Najważniejsze do poprawy przed merge:**
+1. Weryfikacja tenanta dla `secondCallId` w `bridgeCalls` — luka bezpieczeństwa
+2. Obsługa `UnsupportedOperationException` w `GlobalExceptionHandler` — HTTP 500 w produkcji z Twilio
+3. Usunięcie dead code mapy `meta` lub jej faktyczne użycie
+4. Dodanie `AND c.is_deleted = FALSE` do `countWaitingContactsByQueueIds`
+5. Walidacja formatu E.164 dla `phoneNumber`
+6. Przynajmniej minimalne testy jednostkowe dla krytycznych ścieżek
+
+---
+
+## Review: EPIC-27 — CustomDisposition (domain + API + testy) — 2026-05-27
+
+**Branch:** custom-dispozition
+**Reviewer:** senior-code-reviewer agent
+**Pliki:** `CustomDisposition.java`, `CustomDispositionRepository.java`, `CustomDispositionService.java`, `CustomDispositionController.java`, `ContactController.java` (available-dispositions endpoint), DTOs (4 pliki), `CustomDispositionServiceTest.java`
+
+---
+
+### [CRITICAL] `rows.get(0)` w `update()` — potencjalny `IndexOutOfBoundsException`
+
+**Plik:** `CustomDispositionRepository.java:385`
+
+**Problem:** Metoda `update()` wywołuje `rows.get(0)` bez sprawdzenia, czy lista jest niepusta. Serwis wywołuje `findByIdAndTenantId()` (sprawdza istnienie), a następnie `update()` — ale obie operacje są w osobnych transakcjach (serwis nie ma `@Transactional`). Przy współbieżnym usunięciu dyspozycji między `find` a `update`, zapytanie UPDATE...RETURNING zwróci 0 wierszy, a `rows.get(0)` rzuci `IndexOutOfBoundsException` → HTTP 500 zamiast 404.
+
+**Sugestia:**
+```java
+if (rows.isEmpty()) {
+    throw new ResourceNotFoundException("Dyspozycja nie istnieje lub została usunięta: " + d.getId());
+}
+CustomDisposition updated = mapRow(rows.get(0));
+```
+Alternatywnie: oznaczyć `CustomDispositionService.update()` jako `@Transactional`, żeby find i update były w jednej transakcji.
+
+---
+
+### [MAJOR] `@Pattern` na `tone` bez `@NotNull` — null przechodzi walidację i trafia do DB jako NULL
+
+**Plik:** `CreateCustomDispositionRequest.java:17`, `UpdateCustomDispositionRequest.java:13`
+
+**Problem:** `@Pattern(regexp = "positive|negative|neutral|warning")` w Jakarta Bean Validation domyślnie pozwala na `null` (adnotacja jest ignorowana gdy pole jest null). Brak `@NotNull` na polu `tone` oznacza, że JSON `{"tone": null}` przejdzie walidację bez błędu 400 i dotrze do DB, gdzie natrafi na `NOT NULL` constraint — skutkując HTTP 500 zamiast HTTP 400.
+
+**Sugestia:**
+```java
+@NotNull @Pattern(regexp = "positive|negative|neutral|warning") String tone,
+```
+Analogicznie w `UpdateCustomDispositionRequest`.
+
+---
+
+### [MAJOR] `campaignId` / `queueId` z path parametru jest ignorowany w `updateForCampaign` i `deleteForCampaign`
+
+**Plik:** `CustomDispositionController.java:140-152`, `CustomDispositionController.java:166-178`
+
+**Problem:** Endpointy `PUT /campaigns/{campaignId}/{id}` i `DELETE /campaigns/{campaignId}/{id}` przyjmują `campaignId` jako path variable, ale go nie używają — serwis weryfikuje jedynie `id + tenantId`. Supervisor może więc wywołać `PUT /api/dispositions/campaigns/CAMPAIGN_X/{dispId}`, gdzie `{dispId}` należy do `CAMPAIGN_Y` (innej kampanii, ale tego samego tenanta), i operacja się powiedzie. To narusza semantyczny kontrakt URL i może prowadzić do nieintencjonalnych modyfikacji.
+
+**Sugestia:** Dodać weryfikację zakresu w serwisie:
+```java
+public CustomDispositionDto updateForCampaign(UUID campaignId, UUID dispositionId, UpdateCustomDispositionRequest req, UUID tenantId) {
+    CustomDisposition existing = customDispositionRepository.findByIdAndTenantId(dispositionId, tenantId)
+            .orElseThrow(() -> new ResourceNotFoundException(...));
+    if (!campaignId.equals(existing.getCampaignId())) {
+        throw new ResourceNotFoundException("Dyspozycja nie należy do kampanii: " + campaignId);
+    }
+    // ... reszta update
+}
+```
+
+---
+
+### [MAJOR] N+1 round-trips w `resolveForContact` — podwójne zapytanie do DB
+
+**Plik:** `CustomDispositionService.java:79-93`
+
+**Problem:** Dla każdego wywołania `resolveForContact` z kampanią z dyspozycjami wykonywane są:
+1. `setTenantContextInDb()` + `existsByCampaignId()` (2 round-trips)
+2. `setTenantContextInDb()` + `findByCampaignId()` (2 round-trips)
+
+Łącznie 4 round-trips, które można zredukować do 2. Dla każdego agenta kończącego kontakt to dodatkowe latency.
+
+**Sugestia:** Dodać metodę `findByCampaignIdIfExists()` w repozytorium, która zwraca listę lub empty, i zastąpić pattern `exists + find` pojedynczym zapytaniem:
+```java
+List<CustomDisposition> campaignDisps = customDispositionRepository.findByCampaignId(campaignId, tenantId);
+if (!campaignDisps.isEmpty()) {
+    return campaignDisps.stream().map(this::mapToAvailable).toList();
+}
+```
+Wtedy `existsByCampaignId` i `existsByQueueId` stają się zbędne dla flow resolucji.
+
+---
+
+### [MAJOR] Brak `@Transactional` w `update()` na poziomie serwisu — TOCTOU między find a update
+
+**Plik:** `CustomDispositionService.java:223-238`
+
+**Problem:** Metoda `update()` serwisu wykonuje dwie osobne operacje bazodanowe (`findByIdAndTenantId` + `update`) bez otaczającej transakcji. Brak `@Transactional` oznacza brak izolacji między odczytem a zapisem. W połączeniu z błędem opisanym wyżej (`rows.get(0)`) jest to potencjalne źródło HTTP 500 przy współbieżnych requestach.
+
+**Sugestia:**
+```java
+@Transactional
+public CustomDispositionDto update(UUID dispositionId, UpdateCustomDispositionRequest req, UUID tenantId) {
+```
+
+---
+
+### [MINOR] Błędna numer migracji w JavaDoc encji i repozytorium
+
+**Plik:** `CustomDisposition.java:17`, `CustomDispositionRepository.java:15`
+
+**Problem:** JavaDoc obu klas odwołuje się do `(V092)`, podczas gdy faktyczna migracja to `V069__create_custom_disposition.sql`.
+
+**Sugestia:** Poprawić referencje w JavaDoc na `V069`.
+
+---
+
+### [MINOR] Brak walidacji `@Min` dla `ordinal` — negatywne wartości przepuszczone
+
+**Plik:** `CreateCustomDispositionRequest.java:18`, `UpdateCustomDispositionRequest.java:14`
+
+**Problem:** Pole `ordinal` jest typem `int` bez żadnego ograniczenia zakresu. API akceptuje `ordinal: -999`, co może powodować nieoczekiwane sortowanie w interfejsie.
+
+**Sugestia:**
+```java
+@Min(0) int ordinal
+```
+
+---
+
+### [MINOR] Brak testu sukcesu dla `createForQueue` w `CustomDispositionServiceTest`
+
+**Plik:** `CustomDispositionServiceTest.java:218-239`
+
+**Problem:** Klasa `CreateForQueue` zawiera tylko test dla duplikatu kodu (rzuca ConflictException), ale brak symetrycznego testu ścieżki sukcesu (analogiczny do `createForCampaign_success_returnsDto`). Ryzyko: przyszła regresja w `createForQueue` nie zostanie wykryta.
+
+**Sugestia:** Dodać test:
+```java
+@Test
+@DisplayName("sukces → tworzy dyspozycję przypisaną do kolejki")
+void createForQueue_success_returnsDto() { ... }
+```
+
+---
+
+### [MINOR] `CustomDispositionService.resolveForContact` bez `@Transactional(readOnly = true)`
+
+**Plik:** `CustomDispositionService.java:75`
+
+**Problem:** Metoda wykonuje 2-4 zapytania bazodanowe bez otaczającej transakcji read-only. Choć nie powoduje błędów, brak `@Transactional(readOnly = true)` oznacza potencjalne niespójności odczytu między wywołaniami `exists` i `find` (niepowtarzalny odczyt) oraz brak optymalizacji Hibernate dla trybu read-only.
+
+**Sugestia:**
+```java
+@Transactional(readOnly = true)
+public List<AvailableDispositionDto> resolveForContact(UUID campaignId, UUID queueId, UUID tenantId) {
+```
+
+---
+
+### Pozytywne obserwacje
+
+- Multi-tenancy: wszystkie metody repozytorium poprawnie wywołują `setTenantContextInDb()` przed każdym zapytaniem i `assertSameTenant()` przed każdym zapisem — pełna zgodność z wzorcem projektu.
+- `CustomDispositionRepository` poprawnie rozszerza `TenantAwareRepository`.
+- Logika resolucji w `resolveForContact` jest czytelna, priorytet (kampania → kolejka → system) jest prawidłowy, a gwarancja niepustej listy jest efektywnie egzekwowana przez fallback `SYSTEM_DEFAULTS`.
+- Walidacja Bean Validation na DTO jest w większości kompletna (`@NotBlank`, `@Size`, `@Pattern` na dispositionCode).
+- `@PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")` na poziomie klasy kontrolera — poprawne; endpoint agenta (`/available-dispositions`) ma `hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')`.
+- Wzorzec INSERT/UPDATE z `RETURNING` i natywnym SQL przez EntityManager jest spójny z resztą projektu.
+- `SYSTEM_DEFAULTS` jako `static final List` — immutable, dobrze zdefiniowane.
+- Testy jednostkowe mają dobrą strukturę `@Nested`, opisowe `@DisplayName` i używają AssertJ.
+
+### Summary
+
+Implementacja backendowa jest solidna architektonicznie (TenantAware, assertSameTenant, proper DTOs, clear resolution logic), ale ma dwie rzeczywiste usterki blokujące: potencjalny NPE/IndexOutOfBounds w update przy współbieżności (brakuje @Transactional i null-guard) oraz przepuszczenie null tone przez walidację (~500 zamiast 400). Pominięcie campaignId w update/delete to naruszenie semantyki URL.
+
+**Ocena: 3/5** — wymaga naprawienia błędu walidacji tone i guard w `update()` przed mergem.
+
+---
+
+## Review: EPIC-27 — DispositionSet backend (V071, entities, repos, service, controller, DTOs, tests) — 2026-05-28
+
+**Branch:** custom-dispozition
+
+### Bugs / Critical Issues
+
+- **DispositionSetService.java:281-289 / 321-329 (transakcja ulega rollback po złapanym wyjątku — `@Transactional` z `catch(Exception)`)** Metody `applyToCampaign` i `applyToQueue` są oznaczone `@Transactional`. Gdy `customDispositionRepository.insert(cd)` rzuca wyjątek (np. `DataIntegrityViolationException` z powodu duplikatu), Spring domyślnie oznacza transakcję do rollback po wyjściu z metody `@Transactional` — nawet jeśli wyjątek zostanie złapany wewnątrz (`catch(Exception e)`). Zachowanie to zależy od implementacji JPA/Hibernate: JPA może oznaczyć transakcję jako `rollback-only` po każdym wyjątku rzuconym przez EntityManager, co uniemożliwi COMMIT całej transakcji mimo złapania wyjątku. W praktyce dostaniesz `javax.persistence.RollbackException: Transaction marked as rollbackOnly` lub milczący rollback poprzednio wstawionych wierszy.
+  - Fix: Wydziel insert pojedynczego elementu do osobnej metody oznaczonej `@Transactional(propagation = Propagation.REQUIRES_NEW)` — wewnętrzna transakcja upadnie niezależnie od zewnętrznej. Alternatywnie wykonuj try/catch dopiero w metodzie `insert` w repozytorium w osobnym `Propagation.REQUIRES_NEW`, lub użyj `@Transactional(noRollbackFor = DataIntegrityViolationException.class)` (mniej elastyczne).
+
+- **DispositionSetService.java:271-278 / 311-318 (błędna semantyka ResourceNotFoundException dla pustego zestawu)** Gdy zestaw istnieje, ale jest pusty, metoda `applyToCampaign` rzuca `ResourceNotFoundException("Zestaw nie istnieje lub jest pusty")`. To zwraca HTTP 404, podczas gdy poprawna semantyka to 422 Unprocessable Entity lub 400 Bad Request (zasób istnieje, ale żądanie nie ma sensu). Komunikat błędu jest mylący — klient nie wie, czy zestaw naprawdę nie istnieje, czy jest tylko pusty.
+  - Fix: Sprawdź istnienie zestawu przez `setRepo.findByIdAndTenantId` przed pobraniem elementów (analogicznie jak w `listItems`), rzuć `ResourceNotFoundException` jeśli zestaw nie istnieje, a dla pustego zestawu rzuć dedykowany `ValidationException` z HTTP 400 lub 422.
+
+- **DispositionSetService.java:52-62 (N+1 queries w `listSets`)** Dla każdego zestawu z `findAllByTenantId` wykonywane jest osobne zapytanie `countBySetId`. Przy 50 zestawach = 51 zapytań do DB. Każde z nich wywołuje też `setTenantContextInDb` (dodatkowe `SELECT set_tenant_context(...)` per iteracja).
+  - Fix: Zastąp całą pętlę jednym zapytaniem SQL: `SELECT s.*, COUNT(i.id) as item_count FROM disposition_set s LEFT JOIN disposition_set_item i ON i.set_id = s.id WHERE s.tenant_id = :tid GROUP BY s.id ORDER BY s.name`. To samo dotyczy `updateSet` (linia 137).
+
+- **DispositionSetService.java:119-139 (TOCTOU race condition w `updateSet` — sprawdzenie nazwy bez blokady)** Metoda `updateSet` nie jest oznaczona `@Transactional`. Sekwencja: (1) `findByIdAndTenantId`, (2) `existsByNameAndTenantId`, (3) `setRepo.update` — to trzy osobne transakcje. Między krokiem 2 a 3 inny wątek może wstawić zestaw o tej samej nazwie. Baza danych UNIQUE constraint zapewni ostateczną spójność, ale wyjątek z bazy nie zostanie zmapowany do użytecznego HTTP 409.
+  - Fix: Dodaj `@Transactional` na `updateSet` i obsłuż `DataIntegrityViolationException` z warstwy serwisowej, mapując go do `ConflictException`.
+
+- **DispositionSetService.java:91-107 (analogiczny TOCTOU w `createSet`)** Identyczny problem: `existsByNameAndTenantId` bez `@Transactional` na `createSet`. UNIQUE constraint w bazie ochroni przed duplikatem, ale wyjątek nie trafi do czytelnego błędu 409.
+  - Fix: Dodaj `@Transactional` na `createSet`.
+
+### Security Concerns
+
+- **DispositionSetService.java:282-288 (catch(Exception) — zbyt szerokie łapanie wyjątków)** Złapanie `Exception` zamiast `DataIntegrityViolationException` (lub bardziej specyficznego `org.postgresql.util.PSQLException`) ukrywa niespodziewane błędy (np. problemy z połączeniem, błędy mapowania) jako "pominięty duplikat". Takie błędy lądują w logach jako `WARN` zamiast `ERROR`, co utrudnia monitoring.
+  - Fix: Złap `DataIntegrityViolationException` (Spring) lub sprawdzaj kod błędu PostgreSQL `23505` (unique_violation). Pozostałe wyjątki przepuść wyżej.
+
+- **DispositionSetController.java (brak walidacji istnienia campaign/queue przed apply)** Endpointy `applyToCampaign` i `applyToQueue` przyjmują `campaignId`/`queueId` jako path variable bez sprawdzenia, czy te zasoby istnieją i należą do aktualnego tenanta. Wywołanie z UUID innej kampanii z innego tenanta jest zablokowane przez RLS w `customDispositionRepository.insert`, ale brak walidacji przynależności na poziomie serwisu to architektoniczne naruszenie zasady "fail fast".
+  - Fix: Wstrzyknij odpowiednie repozytoria kampanii/kolejki do `DispositionSetService` i sprawdź przynależność do tenanta przed insertem.
+
+### Architecture / Pattern Violations
+
+- **DispositionSetService.java:270 i 310 (brak `@Transactional` na metodach CRUD — `createSet`, `updateSet`, `deleteSet`, `listSets`, `getSet`, `addItem`, `updateItem`, `removeItem`)** Tylko metody `applyToCampaign` i `applyToQueue` mają `@Transactional`. Pozostałe metody modyfikujące dane nie są transakcyjne na poziomie serwisu — transakcje są otwierane i zamykane w każdym wywołaniu repozytorium osobno. To łamie wzorzec "serwis jest granicą transakcji". Metody odczytu powinny mieć `@Transactional(readOnly = true)`.
+  - Fix: Dodaj `@Transactional` na wszystkich metodach mutujących i `@Transactional(readOnly = true)` na metodach tylko odczytujących w serwisie.
+
+- **CreateDispositionSetItemRequest.java:15 i UpdateDispositionSetItemRequest.java:13 (brak `@Min(0)` na polu `ordinal`)** Pole `ordinal` jest typem `int` bez żadnego ograniczenia, dopuszcza wartości ujemne (`-1`, `Integer.MIN_VALUE`). Baza danych nie ma CHECK constraint na `ordinal` w `disposition_set_item`.
+  - Fix: Dodaj `@Min(0)` na polu `ordinal` w obu request DTO. Opcjonalnie dodaj CHECK constraint do migracji.
+
+- **DispositionSetRepository.java:163-165 (em.detach przed assertSameTenant — zbędna operacja)** `em.detach(s)` jest wywoływany na encji `s` przed `setTenantContextInDb`. Ponieważ repozytorium używa natywnego SQL (nie merge/persist), `detach` jest zbędne — encja nigdy nie jest zarządzana przez EntityManager. To pozostałość skopiowana z innych repozytoriów używających `merge`.
+  - Fix: Usuń wywołanie `em.detach(s)`.
+
+- **DispositionSetItemRepository.java:200-202 (identyczny problem z em.detach)** To samo co powyżej.
+
+### Improvements & Suggestions
+
+- **DispositionSetService.java:92 (name uniqueness check — brak trim po stronie serwisu)** Request DTO `name` jest walidowane przez `@NotBlank`, ale trim wykonywany jest dopiero w kontrolerze frontendowym. Jeśli klient wyśle `"  TestSet  "` (spacje), `existsByNameAndTenantId` może zwrócić false, a UNIQUE constraint w bazie zadziała jako "fallback" z nieczytelnym błędem.
+  - Fix: Wykonaj `req.name().trim()` przy porównaniu nazw i przy budowaniu encji — identycznie jak frontend robi `.trim()` w `submitSetForm()`.
+
+- **DispositionSetService.java:362-365 (buildResultMessage — logika wynikowego komunikatu)** Komunikat wynikowy jest budowany ręcznie przez konkatenację Stringa po polsku, co utrudnia i18n oraz testowanie. Lepiej zwracać dane strukturalne (co już robi `ApplySetResponse`) i budować komunikat po stronie klienta.
+
+- **DispositionSetServiceTest.java:189 (importowanie argThat z własnej metody wrappera)** Klasa testowa definiuje prywatną statyczną metodę `argThat` jako wrapper dla `Mockito.argThat`. To zbędne — można używać `org.mockito.Mockito.argThat` lub `org.mockito.ArgumentMatchers.argThat` bezpośrednio.
+
+- **DispositionSetServiceTest.java (brak testów dla `updateSet`, `deleteSet`, `addItem`, `removeItem`, `updateItem`, `listSets`, `getSet`)** Testy pokrywają tylko `createSet` i `applyToCampaign/applyToQueue`. Brakuje testów dla reszty metod CRUD, co przy N+1 i TOCTOU problemach oznacza brak regresji.
+
+### Positive Observations
+
+- Oba repozytoria poprawnie rozszerzają `TenantAwareRepository` i wywołują `assertSameTenant` + `setTenantContextInDb` przed każdym zapisem.
+- Metoda `update` w obu repozytoriach zwraca `Optional<T>` — poprawna obsługa race condition na concurrent delete.
+- Metoda `delete` w obu repozytoriach zwraca `int` — serwis poprawnie sprawdza 0 i rzuca `ResourceNotFoundException`.
+- Wszystkie DTO to rekordy Javy (`record`). DTOs są poprawnie oddzielone od encji i nie wyciekają przez API.
+- `mapRow` używa bezpiecznego pattern matching typów (`instanceof Instant | Timestamp | OffsetDateTime`) z `IllegalArgumentException` jako fallback — defensywne i wyczerpujące.
+- Kontroler poprawnie używa `@PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")` na poziomie klasy.
+- Endpointy POST zwracają HTTP 201 z nagłówkiem `Location` — prawidłowa semantyka REST.
+- Swagger annotations (`@Operation`, `@ApiResponse`) są kompletne i pokrywają wszystkie kody błędów.
+- `DispositionSetItem` nie ma `created_at/updated_at` w encji — spójne z brakiem tych kolumn w DDL (co samo w sobie jest problemem, ale spójność encja-DDL jest zachowana).
+
+### Summary
+
+Kod backendowy jest dobrze zorganizowany architektonicznie: TenantAware, asercje bezpieczeństwa, właściwa separacja DTO/encja, kompletna dokumentacja Swagger. Dwa krytyczne problemy wymagają naprawy przed merge: (1) `@Transactional` z `catch(Exception)` w metodach apply może spowodować niekonsekwentny stan przy duplikatach (JPA `rollback-only`), (2) N+1 queries w `listSets` to problem skalowalności. Brakujące `@Transactional` na metodach CRUD serwisu to naruszenie wzorca projektowego.
+
+**Ocena: 3/5** — wymaga naprawy transakcji w apply* i N+1 przed mergem.

@@ -2951,3 +2951,2080 @@ redisTemplate.delete("dialer:callback-attempt:" + callSid);
 - [ ] Klucz Redis `dialer:callback-attempt:{callSid}` czyszczony po obsłudze
 - [ ] Dla callbacków bez `campaignId`: brak zmian w działaniu (backward compatible)
 - [ ] Test jednostkowy: callback attempt nie inkrementuje `attempt_count`
+
+---
+
+## MODUŁ: Ad hoc połączenia i email z panelu agenta
+
+### BE-067 – Endpoint `POST /api/telephony/calls/outbound` — inicjowanie wychodzącego połączenia ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-001, BE-030 (TelephonyAdapter.initiateCall)
+**Status:** [x] Zrobione
+**Blokuje:** FE-071
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy endpoint REST umożliwiający agentowi zainicjowanie wychodzącego połączenia telefonicznego do dowolnego numeru (ad hoc, bez kampanii). Reużywa istniejącego `TelephonyAdapter.initiateCall()`. Numer `from` pobierany z konfiguracji Twilio tenanta (`TenantTwilioConfig.phoneNumber`), analogicznie jak w `ProgressiveDialerService`.
+
+**Endpoint:**
+```
+POST /api/telephony/calls/outbound
+Body: { "phoneNumber": "+48123456789", "customerId": "uuid" (opcjonalne) }
+Response 200: { "contactId": "uuid", "callId": "string" }
+```
+
+**Implementacja:**
+- Kontroler: `AgentCallController` — nowa metoda `initiateOutboundCall()`
+- DTO request: `OutboundCallRequest` (record) — `phoneNumber` (@Pattern E.164, @NotBlank), `customerId` (UUID, nullable)
+- DTO response: `OutboundCallResponse` (record) — `contactId`, `callId`
+- Walidacja: numer E.164 przez Bean Validation
+- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")`
+- Logika: `telephonyAdapter.initiateCall(tenantId, resolvedFromNumber, phoneNumber, agentId, null, null)`
+- `resolvedFromNumber`: odczyt z `TenantTwilioConfig` (jeśli null — `TwilioProperties.defaultFrom` lub pusty string dla mock)
+- Wynik: kontakt tworzony przez adapter (jak dla callbacków); zwróć `contactId` i `callId` z `CallSession`
+- Nie tworzy `ScheduledCallback`; `queueId=null`, `callbackId=null`
+
+**Kryteria akceptacji:**
+- [x] `POST /api/telephony/calls/outbound` z poprawnym numerem E.164 zwraca 200 z `contactId` i `callId`
+- [x] Niepoprawny format numeru zwraca 400 (Bean Validation)
+- [x] Agent bez tokenu JWT otrzymuje 401
+- [ ] Dla Mock adaptera: nowy kontakt OUTBOUND tworzony w DB, event `CALL_ASSIGNED` wysłany WS do agenta
+- [ ] Dla Twilio adaptera: połączenie inicjowane przez Twilio REST API
+- [x] Dokumentacja OpenAPI uzupełniona
+
+---
+
+### BE-068 – Endpoint `POST /api/email/messages/outbound` — wysyłka nowego emaila ad hoc
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-001, BE-038 (EmailSendService)
+**Status:** [ ] Do zrobienia
+**Blokuje:** FE-072
+**Odniesienie PRD:** Agent desktop – kontakt z klientem
+
+**Opis:**
+Nowy endpoint REST do wysyłki nowej wiadomości email (nie odpowiedzi na istniejącą). Reużywa infrastruktury SMTP z `EmailSendService`, ale bez wymagania `originalMessageId`. Tworzy nowy wątek emailowy.
+
+**Endpoint:**
+```
+POST /api/email/messages/outbound
+Body: {
+  "toAddress": "klient@example.com",
+  "subject": "Temat",
+  "bodyHtml": "<p>Treść</p>",
+  "customerId": "uuid" (opcjonalne)
+}
+Response 200: EmailMessageResponse
+```
+
+**Implementacja:**
+- Kontroler: `EmailController` — nowa metoda `sendOutboundEmail()`
+- DTO request: `OutboundEmailRequest` (record) — `toAddress` (@Email, @NotBlank), `subject` (@NotBlank, max 500), `bodyHtml` (@NotBlank), `customerId` (UUID, nullable)
+- Logika w nowej metodzie `EmailSendService.sendNew()`:
+  - Pobiera konfigurację SMTP tenanta (jak w `sendReply`)
+  - Generuje nowy `Message-ID`, brak nagłówków `In-Reply-To` / `References`
+  - Wywołuje `sendSmtp()` bez `inReplyTo` i `references` (null)
+  - Zapisuje `EmailMessage` z `direction=OUTBOUND`, `contactId` = null lub powiązany z `customerId` jeśli podano
+  - Opcjonalnie: tworzy kontakt typu EMAIL_OUTBOUND jeśli `customerId` podano (przez `EmailContactCreator` lub bezpośrednio)
+- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")`
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/email/messages/outbound` z poprawnymi danymi zwraca 200 z `EmailMessageResponse`
+- [ ] Brak skonfigurowanego SMTP → 422/500 z czytelnym komunikatem
+- [ ] `toAddress` nie jest emailem → 400 (Bean Validation)
+- [ ] Wiadomość zapisana w DB jako `direction=OUTBOUND`
+- [ ] Wysyłka przez SMTP przebiega poprawnie (test integracyjny z mock SMTP lub Greenmail)
+- [ ] Dokumentacja OpenAPI uzupełniona
+
+---
+
+## MODUŁ: Notatki do kontaktów (EPIC-22)
+
+### BE-069 – Zapis notatki agenta do kontaktu — `Contact`, `DispositionRequest`, `ContactResponse`, `ContactRepository`, `ContactService`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-034 (kolumna `notes` w tabeli `contact`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** FE-073
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Agent wpisuje notatkę w panelu softphone (zaimplementowane po stronie frontendu — `SetDispositionRequest` wysyła `notes` jako string). Aktualnie backend ignoruje to pole: `DispositionRequest` nie ma pola `notes`, a `Contact` nie ma odpowiedniej kolumny. Zadanie domyka pętlę: odbiór → zapis → zwrot notatki w API.
+
+**Pliki do modyfikacji:**
+
+1. **`Contact.java`** (`domain/model/`) — dodaj pole:
+   ```java
+   @Column(name = "notes", columnDefinition = "TEXT")
+   private String notes;
+   ```
+
+2. **`DispositionRequest.java`** (`api/contact/dto/`) — dodaj opcjonalne pole:
+   ```java
+   @Size(max = 5000, message = "notes nie może przekraczać 5000 znaków")
+   String notes
+   ```
+   Pole nullable (nie `@NotBlank`) — notatka jest opcjonalna.
+
+3. **`ContactService.setDisposition()`** — po `contact.setDispositionCode(...)` dodaj:
+   ```java
+   contact.setNotes(request.notes());
+   ```
+
+4. **`ContactResponse.java`** — dodaj pole `String notes` do rekordu i zmapuj w `from(contact)`:
+   ```java
+   contact.getNotes()
+   ```
+   Pole na pozycji po `dispositionCode`, przed `recordingUrl`.
+
+5. **`ContactRepository.java`** — dwa miejsca:
+   - **`insert()`**: dodaj `notes` do listy kolumn i `:notes` do VALUES; dodaj `.setParameter("notes", contact.getNotes())`
+   - **`update()`**: dodaj `notes = :notes` do SET i `.setParameter("notes", contact.getNotes())`
+
+**Uwagi implementacyjne:**
+- `notes` w `DispositionRequest` nullable — agent może zapisać dyspozycję bez notatki
+- `@Size(max = 5000)` to limit aplikacyjny; kolumna DB jest TEXT — chroni przed patologicznie dużymi payloadami
+- Zapis `notes` w `update()` nadpisuje poprzednią wartość — celowe (agent może poprawić notatkę)
+
+**Kryteria akceptacji:**
+- [ ] `PATCH /api/contacts/{id}/disposition` z `{"dispositionCode":"SALE","notes":"Klient zainteresowany"}` zapisuje notatkę w DB
+- [ ] `GET /api/contacts/{id}` zwraca pole `notes` z zapisaną wartością
+- [ ] `PATCH` z `notes: null` lub bez pola `notes` — kontakt zapisywany z `notes = null` w DB
+- [ ] `PATCH` z `notes` przekraczającym 5000 znaków → 400 z komunikatem walidacyjnym
+- [ ] Istniejące kontakty bez notatki — `GET` zwraca `notes: null`
+- [ ] `ContactRepository.insert()` — nowa kolumna `notes` przekazywana (NULL domyślnie przy tworzeniu kontaktu)
+
+---
+
+### BE-070 – Notatka w historii klienta — `CustomerLookupResponse`, `CustomerRepository`, `CustomerService`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-034, BE-069
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** FE-074
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Panel klienta (prawy panel w Agent Desktop) wyświetla ostatnie 5 kontaktów klienta. Aktualnie dla każdego kontaktu pokazuje kanał, dyspozycję i datę — bez notatki. Zadanie rozszerza endpoint `GET /api/customers/lookup` o pole `notes` w każdym elemencie historii, żeby agent widział notatki z poprzednich rozmów z klientem.
+
+**Pliki do modyfikacji:**
+
+1. **`CustomerRepository.findLastContactsForCustomer()`** — rozszerz natywny SELECT o kolumnę `notes`:
+   ```sql
+   SELECT contact_id, channel::text, status::text, started_at, notes
+   FROM contact
+   WHERE tenant_id  = CAST(:tenantId AS uuid)
+     AND customer_id = CAST(:customerId AS uuid)
+     AND status NOT IN ('QUEUED', 'ACTIVE', 'ON_HOLD')
+   ORDER BY started_at DESC
+   LIMIT :limit
+   ```
+   Zwracane `Object[]` ma teraz 5 elementów: `[0]=contact_id, [1]=channel, [2]=status, [3]=started_at, [4]=notes`.
+   Zaktualizuj javadoc metody (zmień `(contact_id, channel, status, started_at)` na `(contact_id, channel, status, started_at, notes)`).
+
+2. **`CustomerLookupResponse.ContactSummaryDto`** — dodaj pole `String notes` jako ostatnie:
+   ```java
+   public record ContactSummaryDto(
+       UUID id,
+       String channel,
+       String disposition,
+       String date,
+       String agentName,
+       String notes
+   ) {}
+   ```
+
+3. **`CustomerService.fetchRecentContactsForLookup()`** — zmapuj `row[4]` na `notes`:
+   ```java
+   String notes = row[4] != null ? row[4].toString() : null;
+   result.add(new CustomerLookupResponse.ContactSummaryDto(
+       contactId, channel, status, date, null, notes));
+   ```
+
+**Uwagi implementacyjne:**
+- `agentName` jest hardcodowane jako `null` — bez zmian (osobny zakres)
+- `notes` może być bardzo długi — frontend odpowiada za truncation/expand; backend zwraca pełny tekst bez przycinania
+- Dodanie pola do rekordu `ContactSummaryDto` jest addytywne — JSON z nowym polem `notes` nie łamie istniejących klientów API
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/customers/lookup?phone=+48123456789` zwraca `recentContacts[].notes` (string lub null)
+- [ ] Kontakt z notatką — `notes` zawiera pełny tekst notatki (bez truncacji backendowej)
+- [ ] Kontakt bez notatki — `notes: null` (nie pusty string)
+- [ ] `GET /api/customers/lookup/email?email=test@example.com` — analogicznie zwraca `notes`
+- [ ] Brak regresji w istniejących testach `CustomerServiceTest` / `CustomerControllerTest`
+
+---
+
+## MODUŁ: Historia etapów kontaktu (EPIC-23)
+
+### BE-071 – Model `ContactEvent`, repozytorium i serwis zarządzania etapami
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** DB-035 (tabela `contact_event`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** BE-072, BE-073
+**Epic:** EPIC-23 Historia etapów kontaktu
+
+**Opis:**
+Fundament warstwy domenowej dla historii etapów: encja JPA, repozytorium (natywny SQL — tabela bez partycjonowania, można użyć `JpaRepository`), i serwis z metodami do otwierania i zamykania etapów.
+
+**Pliki do stworzenia/modyfikacji:**
+
+**1. `domain/model/ContactEvent.java`** — encja JPA:
+```java
+@Entity
+@Table(name = "contact_event")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class ContactEvent {
+
+    @Id
+    @Column(name = "event_id", nullable = false)
+    private UUID eventId;
+
+    @Column(name = "contact_id", nullable = false)
+    private UUID contactId;
+
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
+
+    @Column(name = "stage", nullable = false, length = 20)
+    private String stage; // IVR | QUEUE | AGENT | ON_HOLD
+
+    @Column(name = "started_at", nullable = false)
+    private Instant startedAt;
+
+    @Column(name = "ended_at")
+    private Instant endedAt;
+
+    @Column(name = "duration_seconds")
+    private Integer durationSeconds;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private Map<String, Object> metadata = new HashMap<>();
+}
+```
+
+**2. `domain/repository/ContactEventRepository.java`** — rozszerzenie `TenantAwareRepository`:
+```java
+@Repository
+public class ContactEventRepository extends TenantAwareRepository {
+
+    // Zapisz nowe zdarzenie
+    public ContactEvent save(ContactEvent event) { ... }
+
+    // Zamknij ostatnie otwarte zdarzenie danego etapu dla kontaktu
+    // Ustawia ended_at = NOW(); trigger DB obliczy duration_seconds
+    public int closeLastOpenEvent(UUID contactId, UUID tenantId, String stage, Instant endedAt) { ... }
+
+    // Pobierz wszystkie zdarzenia kontaktu posortowane chronologicznie
+    public List<ContactEvent> findByContactId(UUID contactId, UUID tenantId) { ... }
+
+    // Pobierz ostatnie otwarte zdarzenie danego etapu (ended_at IS NULL)
+    public Optional<ContactEvent> findLastOpen(UUID contactId, UUID tenantId, String stage) { ... }
+}
+```
+Metody `save()` i `closeLastOpenEvent()` używają natywnego SQL (INSERT / UPDATE). `findByContactId()` i `findLastOpen()` używają JPQL lub natywnego SELECT.
+
+**3. `domain/service/ContactEventService.java`** — fasada domenowa:
+```java
+@Service
+@RequiredArgsConstructor
+public class ContactEventService {
+
+    private final ContactEventRepository repository;
+
+    // Otwórz nowy etap IVR
+    public void openIvr(UUID contactId, UUID tenantId, UUID ivrTreeId, String ivrTreeName) { ... }
+
+    // Zamknij etap IVR
+    public void closeIvr(UUID contactId, UUID tenantId) { ... }
+
+    // Otwórz etap QUEUE
+    public void openQueue(UUID contactId, UUID tenantId, UUID queueId, String queueName, Instant queuedAt) { ... }
+
+    // Zamknij etap QUEUE
+    public void closeQueue(UUID contactId, UUID tenantId) { ... }
+
+    // Otwórz etap AGENT
+    public void openAgent(UUID contactId, UUID tenantId, UUID agentId, String agentName) { ... }
+
+    // Zamknij etap AGENT
+    public void closeAgent(UUID contactId, UUID tenantId) { ... }
+
+    // Otwórz etap ON_HOLD
+    public void openHold(UUID contactId, UUID tenantId) { ... }
+
+    // Zamknij etap ON_HOLD
+    public void closeHold(UUID contactId, UUID tenantId) { ... }
+
+    // Otwórz etap VOICEBOT (wejście w węzeł VOICEBOT w IVR)
+    public void openVoicebot(UUID contactId, UUID tenantId, UUID ivrTreeId, String ivrTreeName) { ... }
+
+    // Zamknij etap VOICEBOT; outcome: "ESCALATED" | "COMPLETED" | "ERROR"
+    public void closeVoicebot(UUID contactId, UUID tenantId, String outcome) { ... }
+
+    // Otwórz etap CONSULTING (faza konsultacji przy attended transfer)
+    public void openConsulting(UUID contactId, UUID tenantId, String target) { ... }
+
+    // Zamknij etap CONSULTING
+    public void closeConsulting(UUID contactId, UUID tenantId) { ... }
+
+    // Zapisz zdarzenie TRANSFER (punkt w czasie — started_at = ended_at)
+    // transferType: "BLIND" | "ATTENDED"; targetAgentName nullable
+    public void recordTransfer(UUID contactId, UUID tenantId,
+                               String target, String transferType, String targetAgentName) { ... }
+
+    // Pobierz pełną historię etapów kontaktu
+    public List<ContactEvent> getHistory(UUID contactId, UUID tenantId) { ... }
+}
+```
+
+Każda metoda `open*` zapisuje nowy rekord z `started_at = Instant.now()` i `ended_at = null`. Każda metoda `close*` woła `closeLastOpenEvent()` z `ended_at = Instant.now()`. Metody są odporne na brak otwartego etapu (gdy `closeLastOpenEvent` zwraca 0 wierszy — loguj WARN, nie rzucaj wyjątku).
+
+**Uwagi implementacyjne:**
+- `assertSameTenant(tenantId)` przed każdym zapisem (wzorzec z `ContactRepository`)
+- `TenantContext.snapshot()` / `restore()` / `clear()` jeśli `ContactEventService` jest wołany z wątku `@Async`
+- Metody serwisu NIE są `@Transactional` — każde zdarzenie to osobna operacja; rollback rodzica nie powinien cofać historii etapów
+
+**Kryteria akceptacji:**
+- [ ] `ContactEvent` mapuje tabelę `contact_event` poprawnie (kolumny, typy, JSONB)
+- [ ] `ContactEventRepository.save()` zapisuje rekord z `ended_at = null`
+- [ ] `ContactEventRepository.closeLastOpenEvent()` ustawia `ended_at`; trigger DB oblicza `duration_seconds`
+- [ ] `ContactEventRepository.findByContactId()` zwraca rekordy posortowane po `started_at ASC`
+- [ ] `ContactEventService.openIvr()` + `closeIvr()` tworzą parę rekordów IVR
+- [ ] `ContactEventService.closeAgent()` gdy brak otwartego etapu AGENT — loguje WARN, nie rzuca wyjątku
+- [ ] `mvn verify -pl app` przechodzi po dodaniu klasy
+
+---
+
+### BE-072 – Rejestracja etapów w punktach przejścia kontaktu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** M
+**Zależy od:** BE-071
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** BE-073
+**Epic:** EPIC-23 Historia etapów kontaktu
+
+**Opis:**
+Podpięcie `ContactEventService` w punktach, gdzie kontakt faktycznie zmienia etap. Wszystkie modyfikacje są addytywne — nie zmieniają istniejącej logiki biznesowej.
+
+**Punkty integracji:**
+
+**1. `IvrEngineService.startIvrSession()` (lub `startIvrSessionAndBuildTwiml()`):**
+Po pobraniu `ivrTree` i ustawieniu `session.setContactId(contactId)`:
+```java
+if (contactId != null) {
+    contactEventService.openIvr(contactId, tenantId,
+        ivrTree.getIvrId(), ivrTree.getName());
+}
+```
+
+**2. `IvrEngineService` — wyjście z IVR do kolejki** (metoda `routeToQueue()` lub `fallbackToDefaultQueue()`):
+Gdy kontakt opuszcza IVR i trafia do kolejki:
+```java
+contactEventService.closeIvr(contactId, tenantId);
+contactEventService.openQueue(contactId, tenantId, queueId, queue.getName(), Instant.now());
+```
+
+**3. `ContactService.assignAgent()` — agent odpowiada:**
+Po sukcesie `contactRepository.assignAgent(...)`:
+```java
+contactEventService.closeQueue(contactId, tenantId);
+contactEventService.openAgent(contactId, tenantId, agentId, resolveAgentName(agentId, tenantId));
+```
+`resolveAgentName()` — pobierz imię+nazwisko agenta z `AppUserRepository.findById()` (nullable safe: jeśli brak → pusty string).
+
+**4. `TwilioTelephonyAdapter.holdCall()` / `unholdCall()`:**
+W `holdCall()` przy sukcesie Twilio:
+```java
+contactEventService.closeAgent(contactId, tenantId);
+contactEventService.openHold(contactId, tenantId);
+```
+W `unholdCall()` przy sukcesie:
+```java
+contactEventService.closeHold(contactId, tenantId);
+contactEventService.openAgent(contactId, tenantId, agentId, agentName);
+```
+`contactId` i `agentId` odczytaj z `CallSession` (dostępne przez `softphone.session()`).
+
+**5. `ContactService.updateContact()` — zakończenie kontaktu:**
+Gdy `request.status()` to `COMPLETED` lub `ABANDONED`:
+```java
+// Zamknij każdy potencjalnie otwarty etap
+contactEventService.closeAgent(contactId, tenantId);
+contactEventService.closeQueue(contactId, tenantId);
+contactEventService.closeHold(contactId, tenantId);
+contactEventService.closeConsulting(contactId, tenantId);
+```
+Wielokrotne wywołania `close*` gdy etap nie istnieje — serwis loguje WARN i kontynuuje.
+
+**6. `IvrEngineService` — wejście i wyjście z węzła VOICEBOT:**
+Gdy silnik IVR przetwarza węzeł typu `VOICEBOT`:
+```java
+// Zamknij bieżący etap IVR i otwórz VOICEBOT
+contactEventService.closeIvr(contactId, tenantId);
+contactEventService.openVoicebot(contactId, tenantId, ivrTree.getIvrId(), ivrTree.getName());
+```
+Po odpowiedzi voicebota (callback `/voicebot-recording`, metoda `handleVoicebotCallback()`):
+```java
+// outcome: "ESCALATED" gdy routing do kolejki, "COMPLETED" gdy kontynuacja IVR, "ERROR" przy błędzie
+contactEventService.closeVoicebot(contactId, tenantId, outcome);
+if ("ESCALATED".equals(outcome)) {
+    contactEventService.openQueue(contactId, tenantId, queueId, queueName, Instant.now());
+} else {
+    contactEventService.openIvr(contactId, tenantId, ivrTree.getIvrId(), ivrTree.getName());
+}
+```
+
+**7. `TwilioTelephonyAdapter.transferCall()` — faza konsultacji i transfer:**
+
+Blind transfer (`TransferType.BLIND`) — po sukcesie:
+```java
+contactEventService.closeAgent(contactId, tenantId);
+contactEventService.recordTransfer(contactId, tenantId, target, "BLIND", null);
+```
+
+Attended transfer (`TransferType.ATTENDED`) — po sukcesie (2. noga nawiązana):
+```java
+contactEventService.closeAgent(contactId, tenantId);
+contactEventService.openConsulting(contactId, tenantId, target);
+```
+
+`completeAttendedTransfer()` — gdy agent potwierdza przekazanie:
+```java
+contactEventService.closeConsulting(contactId, tenantId);
+contactEventService.recordTransfer(contactId, tenantId, target, "ATTENDED", targetAgentName);
+```
+
+`cancelTransfer()` — gdy agent anuluje attended (klient wraca do agenta):
+```java
+contactEventService.closeConsulting(contactId, tenantId);
+contactEventService.openAgent(contactId, tenantId, agentId, agentName);
+```
+
+**Uwagi implementacyjne:**
+- Wstrzyknij `ContactEventService` przez konstruktor (`@RequiredArgsConstructor`) w każdym z powyższych serwisów
+- Błąd zapisu historii NIE powinien przerywać głównego przepływu — owijaj wywołania `contactEventService.*` w `try/catch(Exception e) { log.warn(...) }` w krytycznych miejscach
+- `IvrEngineService` działa synchronicznie — `TenantContext` jest już ustawiony, brak potrzeby `snapshot()`
+- `TwilioTelephonyAdapter` może być wołany z wątku asynchronicznego — sprawdź czy `TenantContext` jest dostępny; jeśli nie — przekaż `tenantId` explicite
+
+**Kryteria akceptacji:**
+- [ ] Połączenie przez IVR bez VOICEBOT → rekordy: IVR → QUEUE → AGENT (chronologicznie)
+- [ ] Połączenie przez IVR z węzłem VOICEBOT → rekordy: IVR → VOICEBOT → QUEUE → AGENT
+- [ ] VOICEBOT zakończony eskalacją → `outcome = "ESCALATED"` w metadata
+- [ ] Hold → rekord ON_HOLD; Unhold → nowy rekord AGENT
+- [ ] Blind transfer → AGENT zakończony + rekord TRANSFER z `transfer_type = "BLIND"` i `target`
+- [ ] Attended transfer → AGENT zakończony + CONSULTING → po potwierdzeniu: TRANSFER z `transfer_type = "ATTENDED"`
+- [ ] Anulowanie attended transfer → CONSULTING zakończony + nowy rekord AGENT (agent wraca)
+- [ ] ABANDONED w kolejce → rekord QUEUE (bez rekordu AGENT)
+- [ ] Błąd zapisu historii nie rzuca wyjątku do klienta — tylko WARN w logu
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-073 – Endpoint `GET /api/contacts/{id}/events` — historia etapów kontaktu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** BE-071, BE-072
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** FE-075
+**Epic:** EPIC-23 Historia etapów kontaktu
+
+**Opis:**
+Nowy endpoint zwracający listę etapów kontaktu. Używany przez modal szczegółów kontaktu na frontendzie.
+
+**DTO — `ContactEventResponse.java`:**
+```java
+public record ContactEventResponse(
+    UUID eventId,
+    String stage,           // IVR | QUEUE | AGENT | ON_HOLD
+    Instant startedAt,
+    Instant endedAt,        // null jeśli etap trwa
+    Integer durationSeconds,
+    Map<String, Object> metadata
+) {
+    public static ContactEventResponse from(ContactEvent e) { ... }
+}
+```
+
+**Endpoint w `ContactController`:**
+```
+GET /api/contacts/{id}/events
+Authorization: AGENT (tylko własne kontakty), SUPERVISOR, ADMIN
+Response: List<ContactEventResponse>  (posortowana po startedAt ASC)
+HTTP 200 — lista (może być pusta)
+HTTP 404 — kontakt nie istnieje lub inny tenant
+HTTP 403 — AGENT próbuje pobrać historię cudzego kontaktu
+```
+
+**Implementacja w `ContactService`:**
+```java
+public List<ContactEventResponse> getContactEvents(
+        UUID contactId, UUID tenantId, UUID userId, boolean isAgent) {
+    // 1. Zweryfikuj istnienie i dostęp (użyj findContactOrThrow + sprawdzenie agentId)
+    // 2. Zwróć contactEventService.getHistory(contactId, tenantId)
+    //    .stream().map(ContactEventResponse::from).toList()
+}
+```
+
+**Uwagi implementacyjne:**
+- Dodaj endpoint do `SecurityConfig` i `TenantFilter.PUBLIC_PATH_PREFIXES` NIE jest potrzebne — endpoint wymaga JWT
+- `@PreAuthorize` lub logika w serwisie (wzorzec jak `getContact()`)
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/contacts/{id}/events` zwraca 200 z listą `ContactEventResponse`
+- [ ] Lista jest posortowana po `startedAt ASC`
+- [ ] Kontakt bez historii → pusta lista `[]`
+- [ ] Nieistniejący kontakt → 404
+- [ ] AGENT dla cudzego kontaktu → 409 (zgodnie z wzorcem `getContact()`)
+- [ ] Dokumentacja OpenAPI: endpoint opisany w Swagger UI
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+## EPIC-24 Transfer połączenia: agent i kolejka
+
+Rozszerzenie istniejącego panelu transferu połączeń o możliwość przekazania lub konsultacji z konkretnym agentem oraz przekazania do innej kolejki. Obecna implementacja obsługuje tylko transfer na numer telefonu (BLIND + ATTENDED). Po tej epoce agent będzie miał do wyboru trzy cele transferu: **Telefon**, **Agent**, **Kolejka**.
+
+---
+
+### BE-074 – Rozszerzenie modelu transferu: `TransferTargetType`, `TransferRequest`, rozszerzenie `TelephonyAdapter` i `MockTelephonyAdapter`
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** —
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-077, BE-078
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Warstwa fundamentalna całego epiku — model i adapter przed implementacją endpointów.
+
+**1. Nowe typy w pakiecie `domain/telephony`:**
+
+```java
+// TransferTargetType.java
+public enum TransferTargetType {
+    PHONE,   // numer telefonu (istniejące)
+    AGENT,   // konkretny agent
+    QUEUE    // kolejka
+}
+```
+
+**2. `TransferRequest.java` — DTO żądania transferu:**
+
+```java
+public record TransferRequest(
+    TransferType    transferType,   // BLIND | ATTENDED
+    TransferTargetType targetType,  // PHONE | AGENT | QUEUE
+
+    String phoneNumber,   // wymagane gdy targetType=PHONE
+    UUID   agentId,       // wymagane gdy targetType=AGENT
+    UUID   queueId        // wymagane gdy targetType=QUEUE
+) {
+    /** Walidacja wywołana przed przekazaniem do adaptera */
+    public void validate() {
+        switch (targetType) {
+            case PHONE -> Objects.requireNonNull(phoneNumber, "phoneNumber required for PHONE transfer");
+            case AGENT -> Objects.requireNonNull(agentId,    "agentId required for AGENT transfer");
+            case QUEUE -> {
+                Objects.requireNonNull(queueId, "queueId required for QUEUE transfer");
+                if (transferType == TransferType.ATTENDED)
+                    throw new IllegalArgumentException("ATTENDED transfer to QUEUE is not supported");
+            }
+        }
+    }
+}
+```
+
+**3. Rozszerzenie `TelephonyAdapter` — nowa metoda zamiast dwóch oddzielnych:**
+
+```java
+// Nowa, ujednolicona metoda (stara transferCall zostaje dla kompatybilności z istniejącym kodem)
+CallSession initiateTransfer(String callId, TransferRequest request);
+```
+
+**4. Rozszerzenie `MockTelephonyAdapter`:**
+
+- `targetType=PHONE` → istniejąca logika (blind/attended na numer telefonu)
+- `targetType=AGENT`:
+  - BLIND: przypisuje kontakt do agenta-celu (`contact.agentId = targetAgentId`), kończy sesję aktualnego agenta, publikuje `CALL_TRANSFERRED` z `target_agent_id` w metadanych
+  - ATTENDED: tworzy drugą nogę (`secondLegCallId`) jako symulowane połączenie do agenta-celu, publikuje `CALL_OUTBOUND`; bridge łączy obie nogi
+- `targetType=QUEUE`:
+  - Tylko BLIND: ustawia `contact.status = QUEUED`, `contact.agentId = null`, `contact.queueId = targetQueueId`; publikuje `CALL_TRANSFERRED` z `target_queue_id`
+
+**5. Rozszerzenie metadanych `contact_event` (stage=TRANSFER):**
+
+```jsonc
+{
+  "transfer_type": "BLIND|ATTENDED",
+  "target_type":   "PHONE|AGENT|QUEUE",
+
+  // PHONE:
+  "target": "+48123456789",
+
+  // AGENT:
+  "target_agent_id":   "uuid",
+  "target_agent_name": "Jan Kowalski",
+
+  // QUEUE:
+  "target_queue_id":   "uuid",
+  "target_queue_name": "Obsługa VIP"
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] `TransferTargetType`, `TransferRequest` skompilowane i dostępne w pakiecie `domain/telephony`
+- [ ] `TransferRequest.validate()` rzuca `IllegalArgumentException` przy błędnych kombinacjach (QUEUE + ATTENDED)
+- [ ] `TelephonyAdapter.initiateTransfer()` dodane do interfejsu
+- [ ] `MockTelephonyAdapter.initiateTransfer()` obsługuje wszystkie trzy `targetType`
+- [ ] `contact_event` z `stage=TRANSFER` zawiera `target_type` we wszystkich ścieżkach
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-075 – Endpoint `GET /api/telephony/transfer/agents` — lista agentów dostępnych do transferu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** —
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-078
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Endpoint zwracający listę agentów tego samego tenanta, którzy mogą odebrać transfer. Wywoływany przez panel transferu na frontendzie przy przełączeniu na zakładkę „Agent".
+
+**DTO — `TransferAgentResponse.java`:**
+
+```java
+public record TransferAgentResponse(
+    UUID   agentId,
+    String firstName,
+    String lastName,
+    String status,        // AVAILABLE | BUSY | BREAK | ON_CALL
+    List<String> queueNames   // kolejki, do których należy agent
+) {}
+```
+
+**Endpoint w `AgentCallController` (lub nowym `TransferController`):**
+
+```
+GET /api/telephony/transfer/agents
+Authorization: AGENT, SUPERVISOR, ADMIN (JWT)
+Response: List<TransferAgentResponse>
+HTTP 200 – lista (może być pusta)
+```
+
+**Filtrowanie:**
+- Tylko agenci tego samego tenanta (`TenantContext`)
+- Wyklucz zalogowanego agenta (`principal.userId`)
+- Wyklucz statusy `OFFLINE`, `LOGGED_OUT`
+- Sortuj: AVAILABLE najpierw, potem BUSY, potem pozostałe; alfabetycznie po nazwisku
+
+**Implementacja:**
+
+```java
+// TransferService.java
+public List<TransferAgentResponse> getAvailableAgents(UUID tenantId, UUID excludeUserId) {
+    return userRepository.findByTenantIdAndStatusNotIn(
+            tenantId,
+            List.of(UserStatus.OFFLINE, UserStatus.LOGGED_OUT))
+        .stream()
+        .filter(u -> !u.getUserId().equals(excludeUserId))
+        .map(u -> new TransferAgentResponse(
+            u.getUserId(), u.getFirstName(), u.getLastName(),
+            u.getStatus().name(),
+            queueRepository.findQueueNamesByAgentId(u.getUserId())))
+        .sorted(Comparator.comparing(r -> agentStatusOrder(r.status())))
+        .toList();
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/telephony/transfer/agents` zwraca 200 z listą agentów
+- [ ] Zalogowany agent nie pojawia się na liście
+- [ ] Agenci OFFLINE/LOGGED_OUT są wykluczone
+- [ ] Sortowanie: AVAILABLE → BUSY → pozostałe, następnie alfabetycznie po nazwisku
+- [ ] Każdy rekord zawiera: `agentId`, `firstName`, `lastName`, `status`, `queueNames`
+- [ ] Dokumentacja OpenAPI dostępna w Swagger UI
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-076 – Endpoint `GET /api/telephony/transfer/queues` — lista kolejek dostępnych do transferu
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** —
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-079
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Endpoint zwracający kolejki tego samego tenanta dostępne jako cel transferu. Wywoływany przez panel transferu przy przełączeniu na zakładkę „Kolejka".
+
+**DTO — `TransferQueueResponse.java`:**
+
+```java
+public record TransferQueueResponse(
+    UUID   queueId,
+    String name,
+    int    waitingContacts,    // aktualnie w kolejce
+    int    availableAgents     // agenci ze statusem AVAILABLE przypisani do kolejki
+) {}
+```
+
+**Endpoint:**
+
+```
+GET /api/telephony/transfer/queues
+Authorization: AGENT, SUPERVISOR, ADMIN (JWT)
+Response: List<TransferQueueResponse>
+HTTP 200 – lista kolejek (sortowana alfabetycznie po name)
+```
+
+**Implementacja — `TransferService.java`:**
+
+```java
+public List<TransferQueueResponse> getAvailableQueues(UUID tenantId) {
+    return queueRepository.findAllByTenantId(tenantId)
+        .stream()
+        .map(q -> new TransferQueueResponse(
+            q.getQueueId(),
+            q.getName(),
+            contactRepository.countByQueueIdAndStatus(q.getQueueId(), ContactStatus.QUEUED),
+            queueAgentRepository.countAvailableAgentsByQueueId(q.getQueueId())))
+        .sorted(Comparator.comparing(TransferQueueResponse::name))
+        .toList();
+}
+```
+
+**Uwagi:**
+- `waitingContacts` i `availableAgents` — snapshot, nie real-time; wartości mogą być lekko nieaktualne
+- Nie filtruj kolejek po aktualnej kolejce kontaktu — agent może transferować do tej samej kolejki (re-queue)
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/telephony/transfer/queues` zwraca 200 z listą kolejek tenanta
+- [ ] Każdy rekord zawiera: `queueId`, `name`, `waitingContacts`, `availableAgents`
+- [ ] Lista posortowana alfabetycznie po `name`
+- [ ] Dokumentacja OpenAPI dostępna w Swagger UI
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-077 – Endpoint `POST /api/telephony/calls/{callId}/transfer` — ujednolicony transfer (phone / agent / queue)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-074
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Docelowy endpoint transferu dla frontendu — zastępuje użycie `/api/dev/telephony/simulate` do transferów. Obsługuje wszystkie trzy typy celów i oba tryby (BLIND/ATTENDED tam gdzie ma zastosowanie).
+
+**Request DTO — `TransferCallRequest.java` (API layer):**
+
+```java
+public record TransferCallRequest(
+    @NotNull TransferType       transferType,
+    @NotNull TransferTargetType targetType,
+
+    String phoneNumber,  // wymagane gdy targetType=PHONE
+    UUID   agentId,      // wymagane gdy targetType=AGENT
+    UUID   queueId       // wymagane gdy targetType=QUEUE
+) {}
+```
+
+**Endpoint w `AgentCallController`:**
+
+```
+POST /api/telephony/calls/{callId}/transfer
+Authorization: AGENT, SUPERVISOR (JWT)
+Body: TransferCallRequest (JSON)
+Response: CallSessionResponse (JSON)
+HTTP 200  – transfer zainicjowany, zwraca stan sesji
+HTTP 400  – błędna kombinacja (QUEUE + ATTENDED)
+HTTP 403  – kontakt nie należy do zalogowanego agenta
+HTTP 404  – kontakt nie istnieje lub inny tenant
+HTTP 409  – kontakt nie jest w stanie ACTIVE (np. już ON_HOLD)
+```
+
+**Implementacja:**
+
+```java
+@PostMapping("/{callId}/transfer")
+public ResponseEntity<CallSessionResponse> transferCall(
+        @PathVariable String callId,
+        @RequestBody @Valid TransferCallRequest req,
+        Authentication auth) {
+
+    UUID tenantId = TenantContext.getTenantId();
+    UUID userId   = ((UserPrincipal) auth.getPrincipal()).getUserId();
+
+    // 1. Zbuduj domenowy TransferRequest i wywołaj validate()
+    TransferRequest domainReq = new TransferRequest(
+        req.transferType(), req.targetType(),
+        req.phoneNumber(), req.agentId(), req.queueId());
+    domainReq.validate();
+
+    // 2. Sprawdź, że callId należy do zalogowanego agenta i jest ACTIVE
+    // 3. Wywołaj telephonyAdapter.initiateTransfer(callId, domainReq)
+    // 4. Zapisz contact_event z stage=TRANSFER
+    // 5. Zwróć CallSessionResponse
+    CallSession session = agentCallService.initiateTransfer(callId, domainReq, tenantId, userId);
+    return ResponseEntity.ok(CallSessionResponse.from(session));
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/telephony/calls/{callId}/transfer` z `targetType=PHONE` działa identycznie jak dotychczasowy `/api/dev/telephony/simulate` (BLIND + ATTENDED)
+- [ ] `targetType=AGENT`, `transferType=BLIND` — kontakt przypisany do agenta-celu
+- [ ] `targetType=AGENT`, `transferType=ATTENDED` — zwraca `CallSession` ze stanem secondLeg (gotowy do bridge)
+- [ ] `targetType=QUEUE`, `transferType=BLIND` — kontakt przechodzi w status QUEUED w docelowej kolejce
+- [ ] `targetType=QUEUE`, `transferType=ATTENDED` → 400
+- [ ] Kontakt nienależący do agenta → 403
+- [ ] Kontakt nieaktywny → 409
+- [ ] `contact_event` z `stage=TRANSFER` zapisywany we wszystkich ścieżkach
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+---
+
+## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+
+### BE-079 – Usunięcie obowiązkowego powiązania kampanii z kolejką
+
+**Typ:** Refactor
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-036
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-080, BE-081, FE-081
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+`CampaignService.createCampaign()` wywołuje `validateQueue(request.queueId(), tenantId)`, która wymaga podania `queueId` należącego do tenanta. `CreateCampaignRequest` ma `@NotNull UUID queueId`. Kampanie wychodzące nie powinny wymagać kolejki — kolejki służą tylko do routingu przychodzącego.
+
+**Zakres zmian:**
+
+1. **`CreateCampaignRequest`** (`api/campaign/dto/`):
+   - Usuń `@NotNull` z pola `queueId` → `UUID queueId` (nullable, opcjonalne)
+
+2. **`UpdateCampaignRequest`** (`api/campaign/dto/`):
+   - Bez zmian — `queueId` już jest nullable
+
+3. **`CampaignService`**:
+   - Usuń wywołanie `validateQueue(request.queueId(), tenantId)` z `createCampaign()`
+   - Usuń wywołanie aktualizacji `queueId` z `updateCampaign()` (lub zostaw jako opcjonalne dla backward compat)
+   - Usuń import `QueueRepository` i pole `queueRepository` z serwisu (używane wyłącznie przez `validateQueue`)
+   - Metoda prywatna `validateQueue()` — usuń całkowicie
+
+4. **`CampaignResponse`** (`api/campaign/dto/`):
+   - `queueId` pozostaje jako nullable UUID (dane historyczne mogą mieć przypisaną kolejkę)
+
+5. **Testy** — zaktualizuj testy które dostarczają `queueId` jako required:
+   - `CampaignCallerIdTest`, `CampaignImportServiceTest` — usuń `queueId` z builderów lub zmień na opcjonalny
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/campaigns` bez pola `queueId` zwraca 201 (kampania tworzona bez kolejki)
+- [ ] `POST /api/campaigns` z `queueId` nadal działa (backward compat — pole zapisywane, ale nie walidowane)
+- [ ] `mvn verify -pl app` przechodzi — brak kompilacji do `QueueRepository` w `CampaignService`
+- [ ] Istniejące kampanie z `queue_id != NULL` działają bez zmian
+
+---
+
+### BE-080 – Campaign Assignment API: trójpoziomowe przypisanie agentów (`CampaignAssignmentController`)
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-036, BE-079
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-081, BE-084, FE-082
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Opis:**
+Nowy kontroler i serwis zarządzający przypisaniem agentów do kampanii — wzorowany 1:1 na `QueueAssignmentController` + `QueueAssignmentService`. Obsługuje trzy poziomy: flagę `all_agents`, bezpośrednich agentów (`campaign_agent`) i grupy agentów (`campaign_agent_group`).
+
+**Nowe pliki:**
+- `domain/repository/CampaignAssignmentRepository.java` — analogiczny do `QueueAssignmentRepository`
+- `domain/service/CampaignAssignmentService.java` — analogiczny do `QueueAssignmentService`
+- `api/campaign/CampaignAssignmentController.java`
+- `api/campaign/dto/CampaignAssignmentResponse.java`
+- `api/campaign/dto/UpdateCampaignAssignmentRequest.java`
+
+**Endpointy w `CampaignAssignmentController` (`/api/campaigns/{campaignId}/assignment`):**
+
+```
+GET /api/campaigns/{campaignId}/assignment
+    Role: ADMIN, SUPERVISOR
+    Response: CampaignAssignmentResponse
+
+PUT /api/campaigns/{campaignId}/assignment
+    Role: ADMIN, SUPERVISOR
+    Body: UpdateCampaignAssignmentRequest
+    Response: CampaignAssignmentResponse
+```
+
+**DTO:**
+```java
+public record CampaignAssignmentResponse(
+    UUID    campaignId,
+    boolean allAgents,
+    List<AgentSummary>      directAgents,  // puste gdy allAgents=true
+    List<AgentGroupSummary> groups         // puste gdy allAgents=true
+) {}
+
+public record UpdateCampaignAssignmentRequest(
+    @NotNull Boolean      allAgents,
+    List<UUID>            directAgentIds,  // ignorowane gdy allAgents=true
+    List<UUID>            groupIds         // ignorowane gdy allAgents=true
+) {}
+```
+
+**`CampaignAssignmentService`** — kopia logiki `QueueAssignmentService` z podmianą `queue` → `campaign`:
+
+- **`getAssignment(campaignId, tenantId)`**: czyta `all_agents` + bezpośrednich agentów + grupy z enrichowanymi danymi (imię, nazwisko, memberCount)
+- **`updateAssignment(campaignId, request, tenantId)`**:
+  - `allAgents=true` → ustawia flagę, istniejące przypisania pozostają (silnik je ignoruje)
+  - `allAgents=false` → wyłącza flagę, atomowo podmienia listy agentów i grup (DELETE + batch INSERT)
+  - Walidacja: każdy `directAgentId` musi należeć do tenanta i mieć rolę AGENT; każdy `groupId` musi należeć do tenanta
+
+**`CampaignAssignmentRepository`** — kopia `QueueAssignmentRepository` z podmianą tabel:
+
+```java
+boolean isAllAgents(UUID campaignId, UUID tenantId);
+List<UUID> findDirectAgentIds(UUID campaignId, UUID tenantId);
+List<UUID> findGroupIds(UUID campaignId, UUID tenantId);
+Set<UUID> resolveEligibleAgentIds(UUID campaignId, UUID tenantId); // UNION campaign_agent + campaign_agent_group→agent_group_member
+boolean isGroupAssignedToAnyCampaign(UUID groupId, UUID tenantId);
+void setAllAgents(UUID campaignId, UUID tenantId, boolean value);
+void replaceDirectAgents(UUID campaignId, UUID tenantId, List<UUID> agentIds);
+void replaceGroups(UUID campaignId, UUID tenantId, List<UUID> groupIds);
+```
+
+Metoda `resolveEligibleAgentIds()` — SQL UNION identyczny jak w `QueueAssignmentRepository`:
+```sql
+SELECT agent_id FROM campaign_agent WHERE campaign_id = :campaignId
+UNION
+SELECT agm.agent_id FROM campaign_agent_group cag
+    JOIN agent_group_member agm ON agm.group_id = cag.group_id
+WHERE cag.campaign_id = :campaignId
+```
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/campaigns/{id}/assignment` — zwraca `allAgents=true` dla migrowanych kampanii
+- [ ] `PUT /api/campaigns/{id}/assignment` z `allAgents=true` → ustawia flagę, listy puste w response
+- [ ] `PUT` z `allAgents=false, directAgentIds=[A,B], groupIds=[G1]` → atomowo podmienia przypisanie
+- [ ] Przypisanie agenta z innego tenanta → HTTP 400 (jak `QueueAssignmentService`)
+- [ ] Przypisanie grupy z innego tenanta → HTTP 400
+- [ ] `resolveEligibleAgentIds()` zwraca UNION bezpośrednich agentów + członków grup (bez duplikatów)
+- [ ] Wszystkie endpointy wymagają ADMIN lub SUPERVISOR
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-081 – Aktualizacja `ProgressiveDialerService`: trójpoziomowa kwalifikacja agentów do kampanii
+
+**Typ:** Refactor + Feature
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-036, BE-079, BE-080
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+`ProgressiveDialerService.agentHasRequiredSkills()` używa `campaign.getQueueId()` do weryfikacji agenta. Po EPIC-25 kolejka jest usunięta z kampanii. Kwalifikacja agenta opiera się wyłącznie na modelu trójpoziomowym (`all_agents` / grupy / bezpośrednie przypisania).
+
+**Logika kwalifikacji agenta dla kampanii (`isAgentEligibleForCampaign`):**
+
+```
+campaign.all_agents == TRUE
+    → agent kwalifikuje się (wszyscy agenci tenanta)
+
+campaign.all_agents == FALSE
+    AND resolveEligibleAgentIds(campaignId).isEmpty()
+    → kampania nie ma agentów → POMIŃ kampanię (WARN log), nie dzwoń
+
+campaign.all_agents == FALSE
+    AND agentId ∈ resolveEligibleAgentIds(campaignId)
+    → agent kwalifikuje się
+
+campaign.all_agents == FALSE
+    AND agentId ∉ resolveEligibleAgentIds(campaignId)
+    → agent nie kwalifikuje się do tej kampanii
+```
+
+**Zakres zmian w `ProgressiveDialerService`:**
+
+1. **Wstrzyknij `CampaignAssignmentRepository`** (BE-080), usuń `QueueRepository`
+
+2. **Zastąp `agentHasRequiredSkills()`** nową metodą `isAgentEligibleForCampaign(agentId, campaign, tenantId)`:
+   ```java
+   private boolean isAgentEligibleForCampaign(UUID agentId, Campaign campaign, UUID tenantId) {
+       if (campaign.isAllAgents()) {
+           return true;
+       }
+       Set<UUID> eligible = campaignAssignmentRepository
+               .resolveEligibleAgentIds(campaign.getCampaignId(), tenantId);
+       if (eligible.isEmpty()) {
+           log.warn("[Dialer] Kampania {} (all_agents=false) nie ma przypisanych agentów — pomijam",
+                   campaign.getCampaignId());
+           return false;
+       }
+       return eligible.contains(agentId);
+   }
+   ```
+
+3. **Encja `Campaign`** — dodaj pole `allAgents`:
+   ```java
+   @Column(name = "all_agents", nullable = false)
+   @Builder.Default
+   private boolean allAgents = false;
+   ```
+
+4. **Usuń `QueueRepository`** z serwisu (nie jest już potrzebny)
+
+**Zachowanie przy braku przypisania:**
+- `all_agents = false` + puste przypisanie → kampania jest **pominięta** przez dialer — WARN log
+- `all_agents = true` → wszyscy agenci tenanta kwalifikują się (backward compat dla migrowanych kampanii)
+
+**Kryteria akceptacji:**
+- [ ] `all_agents=true`: dialer inicjuje połączenia dla każdego AVAILABLE agenta tenanta
+- [ ] `all_agents=false` + przypisany bezpośrednio: dialer dzwoni przez tego agenta
+- [ ] `all_agents=false` + agent należy do przypisanej grupy: dialer dzwoni przez tego agenta
+- [ ] `all_agents=false` + brak przypisania: kampania pominięta (WARN log), brak połączeń
+- [ ] `all_agents=false` + agent nie przypisany: kampania pominięta dla tego agenta
+- [ ] Dialer nie wywołuje `QueueRepository` — kompilacja bez tej zależności
+- [ ] Testy jednostkowe `ProgressiveDialerServiceTest` pokrywają wszystkie 5 przypadków powyżej
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-084 – Filtrowanie `GET /api/dialer/manual/records` według przypisania agenta do kampanii
+
+**Typ:** Feature / Bug fix
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-036, BE-080
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-082
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+`DialerController.getManualCampaignRecords()` (linia 656) pobiera **wszystkie** kampanie `MANUAL+RUNNING` dla tenanta bez żadnej weryfikacji przypisania agenta:
+```java
+List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
+```
+Po EPIC-25: agenci przypisani do kampanii przez `all_agents/campaign_agent/campaign_agent_group`. Gdy `all_agents=false` i agent nie jest przypisany do kampanii — rekordy tej kampanii **nie powinny być widoczne** w panelu manualnym agenta.
+
+**Zakres zmian w `DialerController.getManualCampaignRecords()`:**
+
+```java
+UUID agentId = TenantContext.getUserId();
+
+// 1. Kampanie MANUAL+RUNNING dla tenanta (bez zmian)
+List<Campaign> manualCampaigns = campaignRepository.findRunningManualByTenantId(tenantId);
+
+// 2. Filtruj po przypisaniu agenta
+List<Campaign> eligibleCampaigns = manualCampaigns.stream()
+    .filter(campaign -> {
+        if (campaign.isAllAgents()) return true;
+        Set<UUID> eligible = campaignAssignmentRepository
+                .resolveEligibleAgentIds(campaign.getCampaignId(), tenantId);
+        return eligible.contains(agentId);
+    })
+    .toList();
+
+if (eligibleCampaigns.isEmpty()) {
+    return ResponseEntity.ok(List.of());
+}
+// ... reszta bez zmian, używa eligibleCampaigns zamiast manualCampaigns
+```
+
+**Wstrzyknij `CampaignAssignmentRepository`** do `DialerController` (już dostępny po BE-080).
+
+**Kryteria akceptacji:**
+- [ ] Agent z `all_agents=true` dla kampanii: widzi rekordy tej kampanii
+- [ ] Agent bezpośrednio przypisany (`campaign_agent`): widzi rekordy
+- [ ] Agent w grupie przypisanej do kampanii (`campaign_agent_group`): widzi rekordy
+- [ ] Agent nieprzypisany (`all_agents=false`, brak bezpośredniego/grupowego przypisania): **nie widzi** kampanii w panelu manualnym
+- [ ] Kampania bez żadnych przypisań (`all_agents=false`, puste tabele): żaden agent jej nie widzi
+- [ ] Testy jednostkowe: 5 przypadków powyżej
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-082 – Ustawienie `campaign_id` na kontakcie wychodzącym — przepięcie `queueId` na `campaignId` w `TelephonyAdapter.initiateCall()`
+
+**Typ:** Bug fix
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-079
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** brak
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+Tabela `contact` ma kolumnę `campaign_id` (nullable). Encja `Contact` ma pole `campaignId`. Jednak `TwilioTelephonyAdapter.persistOutboundContact()` **nigdy nie ustawia `campaign_id`** — zamiast tego ustawia `queue_id = campaign.queue_id`. Oznacza to, że `GET /api/contacts?campaignId=X` nie zwraca żadnych kontaktów wychodzących z dialera, bo pole jest zawsze `NULL`.
+
+Analogia z inbound jest prawidłowa:
+- Kontakt **przychodzący** → `queue_id` ustawiany przez IVR/routing (`ContactRepository.updateQueueId()`)
+- Kontakt **wychodzący** → `campaign_id` powinien być ustawiany przez dialer, ale dotychczas nie był
+
+**Zakres zmian:**
+
+### 1. `TelephonyAdapter` — zmiana sygnatury `initiateCall()`
+
+```java
+// Przed:
+CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId);
+
+// Po:
+CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID campaignId, UUID callbackId);
+```
+
+Zmiana nazwy parametru `queueId` → `campaignId`. Semantycznie: dla połączeń wychodzących z kampanii to `campaign_id`, nie `queue_id`, ma być ustawiony na kontakcie. Dla połączeń ad-hoc i callbacków bez kampanii — `null`.
+
+### 2. `TwilioTelephonyAdapter.persistOutboundContact()` — ustawienie `campaign_id`
+
+```java
+// Przed:
+Contact contact = Contact.builder()
+    // ...
+    .queueId(queueId)       // Kolejka kampanii – wymagana przez RoutingService do ACW
+    // ...
+    .build();
+
+// Po:
+Contact contact = Contact.builder()
+    // ...
+    .campaignId(campaignId) // Kampania outbound — powiązanie kontaktu z kampanią
+    // ...
+    .build();
+```
+
+Usunąć `queueId` z buildera. `RoutingService` pomija outbound kontakty z `agentId != null` (linia 251-254 `RoutingService.onAgentStatusChanged()`) — zmiana nie wpływa na routing.
+
+### 3. Aktualizacja wszystkich wywołań `initiateCall()`
+
+| Miejsce | Przed | Po |
+|---------|-------|----|
+| `ProgressiveDialerService.initiateDialForAgent()` | `campaign.getQueueId()` | `campaign.getCampaignId()` |
+| `DialerController` (MANUAL) | `campaign.getQueueId()` | `campaign.getCampaignId()` |
+| `ScheduledCallbackExecutor` | `null` | `callback.getCampaignId()` (null dla inbound callbacków) |
+| `AgentCallController` (ad-hoc) | `null` | `null` (bez zmian — połączenia nieoparte o kampanię) |
+
+### 4. `MockTelephonyAdapter.initiateCall()` — aktualizacja sygnatury i logiki
+
+Analogiczne zmiany jak w `TwilioTelephonyAdapter` — parametr `queueId` → `campaignId`, ustawienie `.campaignId()` w builderze `Contact`.
+
+### 5. Log w `TwilioTelephonyAdapter`
+
+```java
+// Przed:
+log.debug("[TwilioAdapter] Rekord contact OUTBOUND utworzony: contactId={}, to={}, queueId={}, tenant={}",
+    contactId, to, queueId, tenantId);
+
+// Po:
+log.debug("[TwilioAdapter] Rekord contact OUTBOUND utworzony: contactId={}, to={}, campaignId={}, tenant={}",
+    contactId, to, campaignId, tenantId);
+```
+
+**Kryteria akceptacji:**
+- [ ] `GET /api/contacts?campaignId={id}` zwraca kontakty wychodzące zainicjowane przez dialer dla tej kampanii
+- [ ] Rekord `contact` ma `campaign_id = campaign.campaignId` po wywołaniu dialera
+- [ ] Rekord `contact` ma `campaign_id = callback.campaignId` po wykonaniu campaign-callback przez `ScheduledCallbackExecutor`
+- [ ] Rekord `contact` ma `campaign_id = NULL` dla połączeń ad-hoc (`AgentCallController`)
+- [ ] `contact.queue_id` pozostaje `NULL` dla kontaktów wychodzących (nie wchodzą do routingu kolejkowego)
+- [ ] `RoutingService` nadal poprawnie pomija outbound kontakty z `agentId != null`
+- [ ] `MockTelephonyAdapter` zaktualizowany — testy jednostkowe przechodzą
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-078 – Endpoint `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` — łączenie nóg dla attended transfer
+
+**Typ:** Feature
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-074
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-080
+**Epic:** EPIC-24 Transfer połączenia: agent i kolejka
+
+**Opis:**
+
+Dedykowany endpoint do finalizacji attended transfer — łączy nogę klienta z nogą agenta-celu. Dotychczas wywoływany przez `/api/dev/telephony/simulate` z `action=BRIDGE`. Po tym zadaniu frontend wywołuje właściwy endpoint.
+
+**Endpoint w `AgentCallController`:**
+
+```
+POST /api/telephony/calls/{callId}/bridge/{secondCallId}
+Authorization: AGENT, SUPERVISOR (JWT)
+Response: 204 No Content
+HTTP 204  – bridge wykonany
+HTTP 403  – callId nie należy do zalogowanego agenta
+HTTP 404  – jedna z sesji nie istnieje lub inny tenant
+HTTP 409  – nogi nie są w stanie kompatybilnym z bridge (np. callId nie ON_HOLD)
+```
+
+**Implementacja:**
+
+```java
+@PostMapping("/{callId}/bridge/{secondCallId}")
+@ResponseStatus(HttpStatus.NO_CONTENT)
+public void bridgeCalls(
+        @PathVariable String callId,
+        @PathVariable String secondCallId,
+        Authentication auth) {
+
+    UUID tenantId = TenantContext.getTenantId();
+    UUID userId   = ((UserPrincipal) auth.getPrincipal()).getUserId();
+
+    // 1. Sprawdź, że callId należy do zalogowanego agenta
+    // 2. Wywołaj telephonyAdapter.bridgeCalls(callId, secondCallId)
+    // 3. Aktualizuj contact_event (stage=TRANSFER, zapisz czas zakończenia)
+    agentCallService.bridgeCalls(callId, secondCallId, tenantId, userId);
+}
+```
+
+**Uwagi:**
+- Metoda `MockTelephonyAdapter.bridgeCalls()` już istnieje — potrzebny jest tylko endpoint HTTP i wołanie z `AgentCallService`
+- `TwilioTelephonyAdapter.bridgeCalls()` też istnieje — wystarczy podpiąć
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/telephony/calls/{callId}/bridge/{secondCallId}` zwraca 204
+- [ ] Po bridge: callId → `TRANSFERRED`, secondCallId → `ACTIVE`
+- [ ] Publikowany event `CALL_TRANSFERRED` z `transferType=ATTENDED`
+- [ ] callId nienależący do agenta → 403
+- [ ] Niezgodny stan sesji → 409
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+## MODUŁ: Blokada transferu do kolejki dla połączeń wychodzących (EPIC-25)
+
+### BE-083 – Guard: odrzucenie transferu OUTBOUND → QUEUE w endpoincie transferu
+
+**Typ:** Bug fix / Validation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-077 (endpoint transferu), BE-082 (contact.direction ustawiony poprawnie)
+**Status:** ⬜ Nie rozpoczęte
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+Endpoint `POST /api/telephony/calls/{callId}/transfer` (BE-077) nie weryfikuje kierunku połączenia. Dla połączeń wychodzących (`contact.direction = 'OUTBOUND'`) transfer do kolejki jest semantycznie niemożliwy — kolejka obsługuje wyłącznie ruch przychodzący. FE-084 blokuje ten scenariusz na poziomie UI, ale API musi być odporne na bezpośrednie wywołania (curl, testy, inne klienty).
+
+**Implementacja — rozszerzenie `AgentCallService.initiateTransfer()` lub kontrolera:**
+
+```java
+// W AgentCallService.initiateTransfer() po pobraniu sesji / kontaktu:
+
+Contact contact = contactRepository.findById(contactId, tenantId)
+    .orElseThrow(...);
+
+if ("OUTBOUND".equals(contact.getDirection())
+        && TransferTargetType.QUEUE == domainReq.targetType()) {
+    throw new InvalidOperationException(
+        "Transfer do kolejki jest niedozwolony dla połączeń wychodzących (outbound). " +
+        "Dla kampanii wychodzących dostępny jest wyłącznie transfer do agenta lub na numer telefonu.");
+}
+```
+
+**Mapowanie wyjątku:** `InvalidOperationException` → HTTP 400 (obsługiwane przez `GlobalExceptionHandler`).
+
+**Nie wymaga zmian w DB ani modelu** — weryfikacja na poziomie logiki serwisowej.
+
+**Kryteria akceptacji:**
+- [ ] `POST /api/telephony/calls/{callId}/transfer` z `targetType=QUEUE` dla kontaktu `direction=OUTBOUND` → HTTP 400 z opisowym komunikatem
+- [ ] Ten sam endpoint z `targetType=QUEUE` dla kontaktu `direction=INBOUND` → działa poprawnie (bez zmian)
+- [ ] Transfer `OUTBOUND` z `targetType=PHONE` lub `targetType=AGENT` → działa poprawnie (bez zmian)
+- [ ] Test jednostkowy: `outbound + QUEUE → InvalidOperationException`
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+## MODUŁ: Historia prób wydzwonienia rekordu kampanii (EPIC-25)
+
+### BE-085 – Powiązanie kontaktu z rekordem kampanii: zapis `campaign_contact_record_id` + endpoint historii
+
+**Typ:** Feature + Bug fix
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-037, BE-082 (campaign_id na kontakcie)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** FE-085
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+- `ProgressiveDialerService.initiateDialForAgent()` zna `recordId` (campaign_contact) w momencie wywołania dialera, ale NIE przekazuje go do `telephonyAdapter.initiateCall()` ani nie zapisuje na kontakcie
+- `telephonyAdapter.initiateCall()` zwraca `CallSession` z `contactId` — w tym momencie znane są obie wartości (`recordId` + `contactId`), ale powiązanie nie jest zapisywane
+- `campaign_contact.last_contact_id` nigdy nie jest ustawiane (pole istnieje od V009, kod go nie używa)
+- Redis state: `{campaignContactId},{campaignId},{agentId},{tenantId}` — brak `contactId`, więc `DialerCallbackHandler` nie może zaktualizować `last_contact_id`
+
+**Zakres zmian:**
+
+### 1. `Contact` entity — nowe pole
+
+```java
+@Column(name = "campaign_contact_record_id")
+private UUID campaignContactRecordId;
+```
+
+### 2. `ContactRepository` — nowa metoda zapisu
+
+```java
+public int updateCampaignContactRecordId(UUID contactId, UUID recordId, UUID tenantId) {
+    // UPDATE contact SET campaign_contact_record_id = :recordId WHERE contact_id = :contactId AND tenant_id = :tenantId
+}
+```
+
+### 3. `ProgressiveDialerService.initiateDialForAgent()` — zapis po `initiateCall()`
+
+```java
+// Po:
+CallSession session = telephonyAdapter.initiateCall(...);
+saveCallState(session.getCallId(), recordId, campaign.getCampaignId(), agentId, tenantId);
+
+// Dodać:
+if (session.getContactId() != null) {
+    contactRepository.updateCampaignContactRecordId(session.getContactId(), recordId, tenantId);
+}
+```
+
+### 4. Redis state — rozszerzenie o `contactId`
+
+Zmiana formatu klucza `dialer:call:{callSid}` z:
+```
+{campaignContactId},{campaignId},{agentId},{tenantId}
+```
+na:
+```
+{campaignContactId},{campaignId},{agentId},{tenantId},{contactId}
+```
+
+`contactId` może być pusty string gdy `session.getContactId() == null` (błąd DB — defensywnie).
+
+Zaktualizować `DialerCallbackHandler.onCallHangup()` i `onCallAnswered()` by parsowały 5. element (backward compat: jeśli `parts.length == 4` → `contactId = null`).
+
+### 5. `campaign_contact.last_contact_id` — wypełnianie przy CONNECTED
+
+W `DialerCallbackHandler.handleAnswered()` (lub `updateCampaignContact()` przy statusie CONNECTED):
+
+```java
+// Gdy kontakt odbiera (CONNECTED) — zapisz last_contact_id na rekordzie kampanii
+if (contactId != null) {
+    jdbcTemplate.update("""
+        UPDATE campaign_contact
+        SET last_contact_id = ?::uuid, updated_at = NOW()
+        WHERE record_id = ?::uuid AND campaign_id = ?::uuid
+    """, contactId.toString(), recordId.toString(), campaignId.toString());
+}
+```
+
+### 6. `CampaignContactResponse` — dodaj `lastContactId`
+
+```java
+public record CampaignContactResponse(
+    UUID recordId,
+    String phone,
+    String firstName,
+    String lastName,
+    Map<String, String> customFields,
+    String status,
+    String dispositionCode,
+    Instant createdAt,
+    int attemptCount,
+    Instant nextAttemptAt,
+    UUID lastContactId   // null gdy brak prób — nowe pole
+) {}
+```
+
+### 7. Nowy endpoint: historia prób dla rekordu
+
+```
+GET /api/campaigns/{campaignId}/contacts/{recordId}/attempts
+Role: ADMIN, SUPERVISOR
+Response: List<ContactResponse>  — lista kontaktów powiązanych z rekordem,
+          posortowana started_at DESC (najnowsza próba pierwsza)
+```
+
+Implementacja w `CampaignImportController` (lub nowym `CampaignContactsController`):
+```java
+@GetMapping("/{campaignId}/contacts/{recordId}/attempts")
+public ResponseEntity<List<ContactResponse>> getAttempts(
+        @PathVariable UUID campaignId,
+        @PathVariable UUID recordId) {
+    UUID tenantId = TenantContext.getTenantId();
+    // SELECT * FROM contact WHERE campaign_contact_record_id = :recordId
+    //   AND campaign_id = :campaignId AND tenant_id = :tenantId
+    //   ORDER BY started_at DESC
+    List<ContactResponse> attempts = contactRepository
+            .findByCampaignContactRecordId(recordId, campaignId, tenantId);
+    return ResponseEntity.ok(attempts);
+}
+```
+
+**`ContactRepository.findByCampaignContactRecordId()`:**
+```java
+public List<ContactResponse> findByCampaignContactRecordId(UUID recordId, UUID campaignId, UUID tenantId) {
+    // Natywne SQL z ORDER BY started_at DESC, max 100 wyników
+}
+```
+
+**Kryteria akceptacji:**
+- [ ] Po zainicjowaniu połączenia przez dialer: `contact.campaign_contact_record_id = recordId`
+- [ ] Po odebraniu przez klienta (CONNECTED): `campaign_contact.last_contact_id = contactId`
+- [ ] `GET /api/campaigns/{campaignId}/contacts/{recordId}/attempts` zwraca listę kontaktów dla rekordu
+- [ ] Lista posortowana `started_at DESC` — najnowsza próba na górze
+- [ ] `CampaignContactResponse.lastContactId` wypełnione gdy kampania ma przynajmniej jedną próbę
+- [ ] Backward compat: istniejące rekordy bez `campaign_contact_record_id` (NULL) — endpoint zwraca pustą listę
+- [ ] Redis backward compat: stary format (4 części) obsługiwany przez `DialerCallbackHandler`
+- [ ] Test jednostkowy: `DialerCallbackHandlerTest` — hangup z 5-elementowym Redis state
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+## EPIC-26: AI-Powered Conversation Summary
+
+### BE-086 – Encja `TenantAiConfig` + Repository + konwerter szyfrowania
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-038 (tabela `tenant_ai_config`), BE-055 (wzorzec `EncryptedStringConverter`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Zależy od:** DB-038
+**Blokuje:** BE-087
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Encja JPA + repozytorium dla konfiguracji AI per tenant. Wzorzec identyczny jak `TenantTwilioConfig` (BE-055) — `api_key_encrypted` annotowane `@Convert(converter = EncryptedStringConverter.class)`.
+
+**Komponenty:**
+
+1. **`AiProvider`** (`domain/model/AiProvider.java`) — ENUM: `ANTHROPIC`, `OPENAI`, `AZURE_OPENAI`
+
+2. **`TenantAiConfig`** (`domain/model/TenantAiConfig.java`) — encja JPA:
+   - Pola: `id`, `tenantId`, `provider` (AiProvider), `apiKeyEncrypted` (zaszyfrowany `@Convert`), `modelName`, `azureEndpoint`, `azureDeploymentName`, `summaryPromptTemplate`, `isActive`, `createdAt`, `updatedAt`
+   - `@PreUpdate` ustawia `updatedAt = Instant.now()`
+
+3. **`TenantAiConfigRepository`** (`domain/repository/TenantAiConfigRepository.java`) — rozszerza `TenantAwareRepository`:
+   - `findByTenantId(UUID tenantId): Optional<TenantAiConfig>`
+   - `assertSameTenant()` przed każdym `save()`
+
+**Kryteria akceptacji:**
+- [x] `TenantAiConfig` mapuje na tabelę `tenant_ai_config` z poprawnymi typami kolumn
+- [x] `api_key_encrypted` w bazie jest szyfrowany (nie plaintext) — weryfikacja przez `SELECT api_key_encrypted FROM tenant_ai_config`
+- [x] `findByTenantId()` zwraca `Optional.empty()` gdy brak konfiguracji dla tenanta
+- [x] Multi-tenancy: `assertSameTenant()` rzuca wyjątek przy próbie zapisu dla innego tenanta
+- [x] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-087 – `TenantAiConfigService`: logika biznesowa konfiguracji AI
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-086
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-088, BE-089
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Serwis zarządzania konfiguracją AI (`domain/service/TenantAiConfigService.java`).
+
+**Metody:**
+- `saveConfig(UUID tenantId, TenantAiConfigRequest request): TenantAiConfigResponse` — upsert; waliduje `modelName` (nie pusty), dla `AZURE_OPENAI` wymaga `azureEndpoint` i `azureDeploymentName`
+- `getConfig(UUID tenantId): Optional<TenantAiConfigResponse>` — z maskowaniem `apiKey` w response DTO (pokazuj tylko ostatnie 4 znaki: `****xxxx`)
+- `getDecryptedConfig(UUID tenantId): Optional<TenantAiConfigDecrypted>` — package-private, pełne odszyfrowane dane dla `AiSummaryService`; nie eksponować przez REST
+- `deleteConfig(UUID tenantId): void`
+
+**DTO (records):**
+- `TenantAiConfigRequest`: `provider` (AiProvider), `apiKey` (plaintext — nigdy nie zapisywać bez szyfrowania), `modelName`, `azureEndpoint`?, `azureDeploymentName`?, `summaryPromptTemplate`?
+- `TenantAiConfigResponse`: wszystkie pola + `isActive`, `createdAt`, `updatedAt` — `apiKey` zamaskowane
+- `TenantAiConfigDecrypted` (nie eksponować przez REST): wszystkie pola z odszyfrowanym `apiKey`
+
+**Kryteria akceptacji:**
+- [x] Upsert działa poprawnie: przy istniejącej konfiguracji UPDATE, przy braku INSERT
+- [x] `apiKey` nigdy nie pojawia się w plaintext w `TenantAiConfigResponse` — zawsze maskowany
+- [x] `getDecryptedConfig()` zwraca odszyfrowany klucz — weryfikacja w teście jednostkowym (nie przez REST)
+- [x] Walidacja: `AZURE_OPENAI` bez `azureEndpoint` → `400 Bad Request`
+- [x] `mvn verify -pl app` przechodzi (15 testów)
+
+---
+
+### BE-088 – `TenantAiConfigController`: REST API konfiguracji AI dla supervisora
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-087
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-088
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Kontroler REST eksponujący zarządzanie konfiguracją AI dla roli SUPERVISOR w kontekście własnego tenanta.
+
+**Endpointy (`/api/supervisor/ai-config`):**
+```
+GET    /api/supervisor/ai-config    → 200 TenantAiConfigResponse | 204 (brak konfiguracji)
+PUT    /api/supervisor/ai-config    → 200 TenantAiConfigResponse (upsert)
+DELETE /api/supervisor/ai-config    → 204
+```
+
+**Wymagania bezpieczeństwa:**
+- Wymagana rola `ROLE_SUPERVISOR`
+- `tenantId` pochodzi z `TenantContext` — nie z parametru URL (izolacja multi-tenant)
+- Endpoint dodać do `SecurityConfig` i `TenantFilter.PUBLIC_PATH_PREFIXES` NIE — endpoint wymaga JWT
+
+**Kryteria akceptacji:**
+- [x] `GET` zwraca 204 gdy brak konfiguracji, 200 z DTO gdy istnieje
+- [x] `PUT` działa jako upsert — zwraca 200 z aktualnym stanem
+- [x] `DELETE` usuwa konfigurację — kolejny `GET` zwraca 204
+- [x] Agent (`ROLE_AGENT`) dostaje 403 na wszystkich endpointach
+- [x] Inny tenant nie widzi konfiguracji (izolacja RLS + `TenantContext`)
+- [x] Swagger: `@Operation` z opisem bezpieczeństwa kluczy API
+- [x] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-089 – `AiSummaryService`: logika generowania podsumowania przez Python AI service
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-087 (TenantAiConfigService), DB-039 (kolumny `ai_summary` w `contact`), BE-091 (Python AI service)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-090
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Serwis orchestrujący generowanie podsumowania AI dla kontaktu. Wywołuje Python AI service (FastAPI) przez REST, zapisuje wynik w `contact.ai_summary`.
+
+**Przepływ:**
+1. Pobierz kontakt z bazy — rzuć `ContactNotFoundException` jeśli nie istnieje
+2. Pobierz `TenantAiConfigDecrypted` — rzuć `AiConfigNotFoundException` jeśli brak konfiguracji
+3. Wyodrębnij zawartość do podsumowania zależnie od kanału:
+   - `PHONE`: `contact.notes` (transkrypcja/notatki agenta) + metadane (czas trwania, queue)
+   - `EMAIL`: treść emaila z `email.body` (relacja przez `contact.email_id`)
+   - `SOCIAL_MEDIA`: wątki wiadomości z `social_message` (relacja przez `contact.social_integration_id`)
+4. Zbuduj payload `AiSummarizeRequest` i wywołaj `POST {ai_service_url}/ai/summarize`
+5. Zapisz wynik: `contact.ai_summary`, `contact.ai_summary_model`, `contact.ai_summary_generated_at = NOW()`
+6. Zwróć `AiSummaryResponse`
+
+**HTTP client do Python AI service:**
+Użyj istniejącego `RestTemplate` lub `WebClient` — zgodnie ze wzorcem stosowanym w projekcie dla innych wywołań serwisów zewnętrznych. Timeout: 30s (generowanie może być wolne).
+
+**DTO komunikacji ze Spring → Python AI service:**
+```java
+record AiSummarizeRequest(
+    String channel,         // PHONE | EMAIL | SOCIAL_MEDIA
+    String content,         // treść do podsumowania
+    String provider,        // ANTHROPIC | OPENAI | AZURE_OPENAI
+    String apiKey,          // odszyfrowany klucz — tylko przez sieć wewnętrzną
+    String modelName,
+    String azureEndpoint,   // null dla non-Azure
+    String deploymentName,  // null dla non-Azure
+    String promptTemplate   // null = użyj domyślnego w Python service
+) {}
+
+record AiSummarizeResponse(
+    String summary,
+    String modelUsed,
+    int tokensUsed
+) {}
+```
+
+**Wyjątki:**
+- `AiConfigNotFoundException` — brak konfiguracji AI dla tenanta
+- `AiSummaryGenerationException` — błąd wywołania Python AI service (4xx/5xx/timeout) — nie retryować
+
+**Kryteria akceptacji:**
+- [x] Kontakt nieistniejący → `404 Not Found`
+- [x] Brak konfiguracji AI dla tenanta → `422 Unprocessable Entity` z opisowym komunikatem
+- [x] Błąd Python AI service → `502 Bad Gateway` z komunikatem nie eksponującym klucza API
+- [x] `contact.ai_summary` zapisany w bazie po pomyślnym wywołaniu
+- [x] Klucz API (`apiKey`) nie pojawia się w logach aplikacji (maskowanie w MDC lub przez `@Sensitive`)
+- [x] Timeout 30s — po przekroczeniu `AiSummaryGenerationException`
+- [x] Test jednostkowy z zaślepionym HTTP client: happy path + błąd HTTP 500 z serwisu AI (8 testów)
+- [x] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-090 – Endpoint `POST /api/contacts/{contactId}/ai-summary`
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-089 (AiSummaryService)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** FE-086
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Endpoint REST wywoływany przez agenta z formularza dyspozycji. Deleguje do `AiSummaryService`, zwraca wygenerowane podsumowanie.
+
+```
+POST /api/contacts/{contactId}/ai-summary
+Role: AGENT, SUPERVISOR
+Body: brak (contactId w path wystarczy)
+Response 200: AiSummaryResponse { summary, modelUsed, tokensUsed }
+Response 404: kontakt nie istnieje
+Response 422: brak konfiguracji AI dla tenanta
+Response 502: błąd wywołania serwisu AI
+```
+
+**Wymagania:**
+- Kontakt musi należeć do tenanta z `TenantContext` — izolacja multi-tenant
+- Agent może wygenerować podsumowanie dowolnego kontaktu swojego tenanta (nie tylko własnego) — SUPERVISOR i AGENT mają dostęp
+- Wywołanie idempotentne — wielokrotne wywołanie nadpisuje poprzednie `ai_summary` (brak blokady)
+
+**Dodać do `SecurityConfig`:** `requestMatchers("/api/contacts/*/ai-summary").hasAnyRole("AGENT", "SUPERVISOR")`
+
+**Kryteria akceptacji:**
+- [x] `POST /api/contacts/{contactId}/ai-summary` — poprawna odpowiedź 200 z polem `summary`
+- [x] Kontakt z innego tenanta → 404 (nie 403 — nie ujawniamy istnienia)
+- [x] Brak konfiguracji AI → 422 z czytelnym komunikatem dla agenta
+- [x] Błąd serwisu AI → 502 — klucz API nie w odpowiedzi błędu
+- [x] Po wywołaniu: `contact.ai_summary` zaktualizowany w bazie (weryfikacja przez `GET /api/contacts/{id}`)
+- [x] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-091 – Python AI service: endpoint `/ai/summarize`
+
+**Typ:** Backend implementation (Python FastAPI)
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** Architektura Python AI service (ADR-06)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-089
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Opis:**
+Nowy endpoint w istniejącym Python FastAPI AI service. Przyjmuje request z danymi kontaktu i konfiguracją dostawcy, wywołuje wybrany model AI, zwraca podsumowanie.
+
+**Endpoint:**
+```
+POST /ai/summarize
+Internal network only — nie eksponować publicznie
+```
+
+**Pydantic modele:**
+```python
+class AiProvider(str, Enum):
+    ANTHROPIC = "ANTHROPIC"
+    OPENAI = "OPENAI"
+    AZURE_OPENAI = "AZURE_OPENAI"
+
+class SummarizeRequest(BaseModel):
+    channel: str                    # PHONE | EMAIL | SOCIAL_MEDIA
+    content: str                    # treść do podsumowania
+    provider: AiProvider
+    api_key: str
+    model_name: str
+    azure_endpoint: str | None = None
+    deployment_name: str | None = None
+    prompt_template: str | None = None  # None = użyj domyślnego
+
+class SummarizeResponse(BaseModel):
+    summary: str
+    model_used: str
+    tokens_used: int
+```
+
+**Logika:**
+- Domyślny prompt systemowy (gdy `prompt_template` is None):
+  ```
+  You are an expert contact center assistant. Summarize the following {channel} contact
+  in 3-5 sentences. Focus on: customer issue, resolution outcome, and any follow-up actions.
+  Reply in the same language as the content.
+  ```
+- Dispatcher na podstawie `provider`: `AnthropicSummarizer`, `OpenAiSummarizer`, `AzureOpenAiSummarizer`
+- Każdy summarizer używa oficjalnego SDK: `anthropic` / `openai`
+- Timeout: 25s (Spring timeout 30s — Python musi zdążyć odpowiedzieć wcześniej)
+- Błąd SDK → HTTP 502 z `{"detail": "AI provider error: <sanitized message>"}` (nie eksponuj klucza)
+
+**Kryteria akceptacji:**
+- [x] Endpoint `/ai/summarize` odpowiada 200 z poprawnym `SummarizeResponse`
+- [x] Provider `ANTHROPIC`: używa `anthropic` SDK (`claude-*` modele)
+- [x] Provider `OPENAI`: używa `openai` SDK (`gpt-*` modele)
+- [x] Provider `AZURE_OPENAI`: używa `openai` SDK z `azure_endpoint` i `api_version`
+- [x] Provider `OPENROUTER`: obsługiwany przez dispatcher (dodany ponad zakres pierwotny)
+- [x] `prompt_template = None` → użyty domyślny prompt
+- [x] Błąd autoryzacji SDK (nieprawidłowy klucz) → HTTP 502, klucz nie w odpowiedzi
+- [x] Timeout 25s — asyncio z `asyncio.wait_for`
+- [x] `pytest` dla happy path każdego providera (mockowane SDK calls) — 9 testów
+
+---
+
+## EPIC-27: Własne dyspozycje per kampania i kolejka
+
+### BE-092 – Encja `CustomDisposition`, repozytorium i `CustomDispositionService`
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-040 (tabela `custom_disposition`)
+**Status:** ✅ Zrealizowane
+**Blokuje:** BE-093, BE-094
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Warstwa domenowa obsługi własnych dyspozycji. Encja JPA z multi-tenancy. Repozytorium rozszerzające `TenantAwareRepository`. Serwis z logiką CRUD i kluczową metodą rozwiązywania dyspozycji (resolution) dla danego kontaktu.
+
+**Encja `CustomDisposition` (`domain/model/CustomDisposition.java`):**
+```java
+@Entity
+@Table(name = "custom_disposition")
+public class CustomDisposition {
+    @Id UUID id;
+    UUID tenantId;
+    UUID campaignId;   // nullable — zakres kampania
+    UUID queueId;      // nullable — zakres kolejka
+    String dispositionCode;
+    String label;
+    String tone;       // positive | negative | neutral | warning
+    int ordinal;
+    boolean isActive;
+    Instant createdAt;
+    Instant updatedAt;
+}
+```
+
+**Repozytorium (`CustomDispositionRepository`):**
+```java
+List<CustomDisposition> findByCampaignIdAndTenantIdAndIsActiveTrueOrderByOrdinalAsc(UUID campaignId, UUID tenantId);
+List<CustomDisposition> findByQueueIdAndTenantIdAndIsActiveTrueOrderByOrdinalAsc(UUID queueId, UUID tenantId);
+boolean existsByCampaignIdAndTenantId(UUID campaignId, UUID tenantId);
+boolean existsByQueueIdAndTenantId(UUID queueId, UUID tenantId);
+```
+
+**`CustomDispositionService` — kluczowe metody:**
+
+```java
+// Zwraca listę dyspozycji dla agenta — custom lub systemowe defaulty.
+// Priorytet: kampania → kolejka → system.
+// Nigdy nie zwraca pustej listy.
+List<AvailableDispositionDto> resolveForContact(UUID contactId, UUID tenantId);
+
+// CRUD per kampania (supervisor)
+List<CustomDispositionDto> listForCampaign(UUID campaignId, UUID tenantId);
+CustomDispositionDto createForCampaign(UUID campaignId, CreateCustomDispositionRequest req, UUID tenantId);
+CustomDispositionDto update(UUID dispositionId, UpdateCustomDispositionRequest req, UUID tenantId);
+void delete(UUID dispositionId, UUID tenantId);
+
+// CRUD per kolejka (supervisor)
+List<CustomDispositionDto> listForQueue(UUID queueId, UUID tenantId);
+CustomDispositionDto createForQueue(UUID queueId, CreateCustomDispositionRequest req, UUID tenantId);
+```
+
+**Logika `resolveForContact`:**
+1. Pobierz kontakt przez `ContactRepository` → odczytaj `campaignId` i `queueId`
+2. Jeśli `campaignId != null` i `existsByCampaignId(campaignId)` → zwróć `findByCampaignId(...)`
+3. Else jeśli `queueId != null` i `existsByQueueId(queueId)` → zwróć `findByQueueId(...)`
+4. Else → zwróć `SYSTEM_DEFAULT_DISPOSITIONS` (statyczna lista 6 kodów)
+
+**Systemowe defaulty (stałe w serwisie):**
+```java
+private static final List<AvailableDispositionDto> SYSTEM_DEFAULT_DISPOSITIONS = List.of(
+    new AvailableDispositionDto("SALE",         "Sprzedaż",            "positive", 1),
+    new AvailableDispositionDto("NO_INTEREST",  "Brak zainteresowania", "negative", 2),
+    new AvailableDispositionDto("CALLBACK",     "Oddzwonienie",         "warning",  3),
+    new AvailableDispositionDto("WRONG_NUMBER", "Zły numer",            "neutral",  4),
+    new AvailableDispositionDto("TECH_ISSUE",   "Problem techniczny",   "neutral",  5),
+    new AvailableDispositionDto("OTHER",        "Inne",                 "neutral",  6)
+);
+```
+
+**DTO:**
+- `AvailableDispositionDto(dispositionCode, label, tone, ordinal)` — dla agenta
+- `CustomDispositionDto` — pełny widok dla supervisora (zawiera `id`, `isActive`, `createdAt`)
+- `CreateCustomDispositionRequest(dispositionCode, label, tone, ordinal)` — walidacja: `@NotBlank`, `@Size(max=50/100)`, `@Pattern` dla tone
+- `UpdateCustomDispositionRequest(label, tone, ordinal, isActive)` — kod jest niezmienny po stworzeniu
+
+**Kryteria akceptacji:**
+- [ ] `CustomDisposition` encja mapuje na tabelę `custom_disposition`; `assertSameTenant()` w każdej operacji zapisu
+- [ ] `resolveForContact` — priorytet kampania > kolejka > system, nigdy nie zwraca pustej listy
+- [ ] Systemowe defaulty zwracane gdy żadna custom dyspozycja nie skonfigurowana
+- [ ] Walidacja: zduplikowany `dispositionCode` per zakres → `409 Conflict`
+- [ ] `mvn test` — testy jednostkowe logiki resolucji (mock repo), minimum 5 scenariuszy
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-093 – `CustomDispositionController`: REST API zarządzania dyspozycjami dla supervisora
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-092
+**Status:** ✅ Zrobione
+**Blokuje:** FE-090
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Endpointy REST dla supervisora do zarządzania własnymi dyspozycjami per kampania i per kolejka. Dostęp ograniczony do roli `SUPERVISOR` / `ADMIN`. Pełne CRUD.
+
+**Endpointy (`/api/dispositions`):**
+```
+GET    /api/dispositions/campaigns/{campaignId}        → 200 List<CustomDispositionDto>
+POST   /api/dispositions/campaigns/{campaignId}        → 201 CustomDispositionDto
+PUT    /api/dispositions/campaigns/{campaignId}/{id}   → 200 CustomDispositionDto
+DELETE /api/dispositions/campaigns/{campaignId}/{id}   → 204
+
+GET    /api/dispositions/queues/{queueId}              → 200 List<CustomDispositionDto>
+POST   /api/dispositions/queues/{queueId}              → 201 CustomDispositionDto
+PUT    /api/dispositions/queues/{queueId}/{id}         → 200 CustomDispositionDto
+DELETE /api/dispositions/queues/{queueId}/{id}         → 204
+```
+
+**Bezpieczeństwo:**
+- `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")` na wszystkich metodach
+- `campaignId` i `queueId` weryfikowane przez `assertSameTenant()` w serwisie przed każdą operacją
+
+**Walidacja:**
+- `dispositionCode` niezmienialny po stworzeniu (PUT nie przyjmuje `dispositionCode`)
+- Duplikat kodu per zakres → `409 Conflict` z czytelnym komunikatem
+- Usunięcie ostatniej dyspozycji → dozwolone (zakres wraca do systemowych defaultów)
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie 8 endpointów udokumentowane przez OpenAPI (`@Operation`, `@ApiResponse`)
+- [ ] `GET /campaigns/{campaignId}` zwraca pustą listę `[]` gdy brak własnych dyspozycji (nie 404)
+- [ ] Rola AGENT wywołująca supervisor endpoint → `403 Forbidden`
+- [ ] `campaign_id` / `queue_id` innego tenanta → `403 Forbidden`
+- [ ] Integracja: `DELETE` → ponowny `GET` zwraca pustą listę
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-094 – Endpoint `GET /api/contacts/{contactId}/available-dispositions` — dyspozycje dla agenta
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-092
+**Status:** ✅ Zrobione
+**Blokuje:** FE-093
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Endpoint wywoływany przez panel dyspozycji agenta tuż po zakończeniu kontaktu. Zwraca listę dyspozycji do wyboru — własne per kampania, własne per kolejka lub systemowe defaulty. Agent nie wie skąd pochodzi lista; zawsze dostaje gotowy zestaw.
+
+**Endpoint:**
+```
+GET /api/contacts/{contactId}/available-dispositions
+Authorization: Bearer <agent-token>
+→ 200 List<AvailableDispositionDto>
+```
+
+**Response body:**
+```json
+[
+  { "dispositionCode": "SALE_FULL", "label": "Pełna sprzedaż", "tone": "positive", "ordinal": 1 },
+  { "dispositionCode": "SALE_PARTIAL", "label": "Częściowa sprzedaż", "tone": "positive", "ordinal": 2 }
+]
+```
+
+**Lokalizacja:** dodać jako nową metodę w `ContactController` (`@GetMapping("/{contactId}/available-dispositions")`), delegującą do `CustomDispositionService.resolveForContact()`.
+
+**Dostęp:** `hasAnyRole('AGENT','SUPERVISOR','ADMIN')` — agent musi mieć możliwość wywołania.
+
+**Kryteria akceptacji:**
+- [ ] Kontakt bez konfiguracji custom → zwraca 6 systemowych defaultów (nigdy pusta lista)
+- [ ] Kontakt z kampanią z 3 custom dyspozycjami → zwraca te 3, posortowane po `ordinal`
+- [ ] Kontakt bez kampanii, ale kolejka ma custom → zwraca dyspozycje kolejki
+- [ ] Kontakt innego tenanta → `403 Forbidden`
+- [ ] Nieistniejący `contactId` → `404 Not Found`
+- [ ] Endpoint w Swagger UI z przykładem response
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### ✅ BE-095 – Encja `DispositionSet`, `DispositionSetItem`, repozytoria i `DispositionSetService`
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-041
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-096
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Warstwa domenowa zestawów dyspozycji. Dwie encje JPA, dwa repozytoria (native SQL, wzorzec z `AgentGroupRepository`), serwis z CRUD zestawów i elementów oraz kluczową metodą `applyToCampaign`/`applyToQueue` kopiującą elementy do `custom_disposition`.
+
+**Encje:**
+
+```java
+// domain/disposition/DispositionSet.java
+@Entity @Table(name = "disposition_set")
+public class DispositionSet {
+    @Id UUID id;
+    UUID tenantId;
+    String name;
+    String description;
+    Instant createdAt;
+    Instant updatedAt;
+}
+
+// domain/disposition/DispositionSetItem.java
+@Entity @Table(name = "disposition_set_item")
+public class DispositionSetItem {
+    @Id UUID id;
+    UUID setId;
+    UUID tenantId;
+    String dispositionCode;
+    String label;
+    String tone;
+    int ordinal;
+}
+```
+
+**Repozytoria (`DispositionSetRepository`, `DispositionSetItemRepository`):**
+- Native SQL przez `TenantAwareRepository`
+- `findAllByTenantId(tenantId)` — lista zestawów
+- `findByIdAndTenantId(id, tenantId)` — pojedynczy zestaw
+- `existsByNameAndTenantId(name, tenantId)` — walidacja duplikatu
+- `findItemsBySetId(setId, tenantId)` — elementy zestawu (ORDER BY ordinal)
+- `insertSet(DispositionSet)` / `updateSet(DispositionSet)` / `deleteSet(id, tenantId)`
+- `insertItem(DispositionSetItem)` / `updateItem(...)` / `deleteItem(id, tenantId)`
+
+**`DispositionSetService` — kluczowe metody:**
+
+```java
+// CRUD zestawów
+List<DispositionSetDto> listSets(UUID tenantId);
+DispositionSetDto createSet(CreateDispositionSetRequest req, UUID tenantId);
+DispositionSetDto updateSet(UUID setId, UpdateDispositionSetRequest req, UUID tenantId);
+void deleteSet(UUID setId, UUID tenantId);
+
+// CRUD elementów zestawu
+List<DispositionSetItemDto> listItems(UUID setId, UUID tenantId);
+DispositionSetItemDto addItem(UUID setId, CreateDispositionSetItemRequest req, UUID tenantId);
+DispositionSetItemDto updateItem(UUID setId, UUID itemId, UpdateDispositionSetItemRequest req, UUID tenantId);
+void removeItem(UUID setId, UUID itemId, UUID tenantId);
+
+// Aplikowanie zestawu (snapshot copy)
+void applyToCampaign(UUID setId, UUID campaignId, UUID tenantId);
+void applyToQueue(UUID setId, UUID queueId, UUID tenantId);
+```
+
+**Logika `applyToCampaign(setId, campaignId, tenantId)`:**
+1. Pobierz elementy zestawu przez `findItemsBySetId`
+2. Jeśli pusta lista → `ResourceNotFoundException("Zestaw nie istnieje lub jest pusty")`
+3. Dla każdego elementu zestawu: utwórz nowy `CustomDisposition` z `campaignId` i wstaw przez `CustomDispositionRepository.insert()`
+4. Duplikaty kodów (jeśli kampania już ma ten kod) → pomiń z logiem WARN (nie przerywaj całej operacji)
+
+Analogicznie `applyToQueue`.
+
+**DTO:**
+- `DispositionSetDto(id, name, description, itemCount, createdAt)` — lista zestawów
+- `DispositionSetDetailDto(id, name, description, items: List<DispositionSetItemDto>, createdAt)` — szczegóły
+- `DispositionSetItemDto(id, dispositionCode, label, tone, ordinal)`
+- `CreateDispositionSetRequest(@NotBlank @Size(max=100) name, @Size(max=500) description)`
+- `UpdateDispositionSetRequest` — jak Create
+- `CreateDispositionSetItemRequest(@NotBlank @Size(max=50) @Pattern dispositionCode, @NotBlank @Size(max=100) label, @NotNull @Pattern tone, ordinal)`
+- `UpdateDispositionSetItemRequest(label, tone, ordinal)` — kod niezmienialny
+
+**Kryteria akceptacji:**
+- [ ] Encje mapują na tabele DB-041
+- [ ] `applyToCampaign/Queue` kopiuje elementy jako nowe wiersze `custom_disposition`; duplikaty pomijane z WARN
+- [ ] Duplikat nazwy zestawu → `409 Conflict`
+- [ ] Duplikat kodu elementu w zestawie → `409 Conflict`
+- [ ] Usunięcie zestawu nie wpływa na istniejące `custom_disposition` (są niezależnymi kopiami)
+- [ ] Testy jednostkowe logiki `apply*` (min. 4 scenariusze: sukces kampania, sukces kolejka, pusty zestaw → 404, duplikat kodu → pominięty)
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-096 – `DispositionSetController`: REST API zarządzania zestawami dyspozycji
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-095
+**Status:** ✅ Zrobione
+**Blokuje:** FE-094
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Opis:**
+Kontroler REST dla supervisora do zarządzania zestawami dyspozycji i aplikowania ich do kampanii/kolejek.
+
+**Endpointy (`/api/disposition-sets`):**
+
+```
+GET    /api/disposition-sets                                    → 200 List<DispositionSetDto>
+POST   /api/disposition-sets                                    → 201 DispositionSetDto
+PUT    /api/disposition-sets/{setId}                            → 200 DispositionSetDto
+DELETE /api/disposition-sets/{setId}                            → 204
+
+GET    /api/disposition-sets/{setId}/items                      → 200 List<DispositionSetItemDto>
+POST   /api/disposition-sets/{setId}/items                      → 201 DispositionSetItemDto
+PUT    /api/disposition-sets/{setId}/items/{itemId}             → 200 DispositionSetItemDto
+DELETE /api/disposition-sets/{setId}/items/{itemId}             → 204
+
+POST   /api/disposition-sets/{setId}/apply-to-campaign/{campaignId}  → 200 (liczba skopiowanych)
+POST   /api/disposition-sets/{setId}/apply-to-queue/{queueId}        → 200 (liczba skopiowanych)
+```
+
+**Bezpieczeństwo:** `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")` na klasie.
+
+**Response `apply-to-*`:**
+```json
+{ "copied": 4, "skipped": 1, "message": "Skopiowano 4 dyspozycje (1 pominięto — duplikat kodu)" }
+```
+
+**Kryteria akceptacji:**
+- [ ] Wszystkie 10 endpointów z dokumentacją OpenAPI
+- [ ] Rola AGENT → `403 Forbidden`
+- [ ] `apply-to-campaign` z obcym `campaignId` → `403 Forbidden`
+- [ ] `apply-to-*` z pustym zestawem → `404 Not Found`
+- [ ] Response body `apply-to-*` zawiera liczniki `copied` i `skipped`
+- [ ] `mvn verify -pl app` przechodzi

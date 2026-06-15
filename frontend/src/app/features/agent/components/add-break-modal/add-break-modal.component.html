@@ -2,7 +2,6 @@
   #dialogEl
   class="break-dialog"
   [attr.aria-labelledby]="isEditMode() ? 'break-dialog-title-edit' : 'break-dialog-title-add'"
-  (click)="onBackdropClick($event)"
 >
   <div class="break-dialog__content">
     <!-- Header -->
@@ -78,23 +77,72 @@
       } @else {
         <!-- Main form -->
         <form [formGroup]="form" (ngSubmit)="submit()" id="break-form" novalidate>
-          <!-- Break type -->
+          <!-- Break type — custom dropdown -->
           <div class="form-field" [class.form-field--error]="breakTypeError">
-            <label class="form-field__label" for="break-type">
+            <label class="form-field__label" for="break-type-btn" id="break-type-label">
               {{ 'agent.addBreak.breakTypeLabel' | transloco }}
               <span class="form-field__required" aria-hidden="true">*</span>
             </label>
-            <select
-              id="break-type"
-              class="form-field__select"
-              formControlName="breakType"
-              aria-required="true"
-              [attr.aria-invalid]="form.controls.breakType.invalid && form.controls.breakType.touched"
-            >
-              @for (opt of breakTypes; track opt.value) {
-                <option [value]="opt.value">{{ opt.label | transloco }}</option>
+            <div class="custom-select">
+              @if (breakTypeOpen()) {
+                <div class="custom-select__backdrop" aria-hidden="true"></div>
               }
-            </select>
+              <button
+                id="break-type-btn"
+                type="button"
+                class="custom-select__trigger"
+                aria-haspopup="listbox"
+                aria-labelledby="break-type-label"
+                [attr.aria-expanded]="breakTypeOpen()"
+                (click)="breakTypeOpen.update(v => !v)"
+              >
+                <span>{{ currentBreakTypeLabel() | transloco }}</span>
+                <svg
+                  class="custom-select__chevron"
+                  [class.custom-select__chevron--open]="breakTypeOpen()"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              @if (breakTypeOpen()) {
+                <ul class="custom-select__menu" role="listbox" aria-labelledby="break-type-label">
+                  @for (opt of breakTypes; track opt.value) {
+                    <li
+                      role="option"
+                      class="custom-select__option"
+                      tabindex="0"
+                      [class.custom-select__option--active]="form.controls.breakType.value === opt.value"
+                      [attr.aria-selected]="form.controls.breakType.value === opt.value"
+                      (click)="selectBreakType(opt.value)"
+                      (keydown.enter)="selectBreakType(opt.value)"
+                    >
+                      @if (form.controls.breakType.value === opt.value) {
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                          class="custom-select__check"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      }
+                      {{ opt.label | transloco }}
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
             @if (breakTypeError) {
               <span class="form-field__hint" role="alert">
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -172,6 +220,16 @@
                 }
               </div>
             </div>
+            @if (startTimeInPastError) {
+              <span class="form-field__hint" role="alert">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                  />
+                </svg>
+                {{ startTimeInPastError }}
+              </span>
+            }
           </div>
 
           <!-- End date + time -->

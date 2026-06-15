@@ -1,20 +1,29 @@
 package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.contact.dto.ContactResponse;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.service.ContactService;
+import com.contactcenter.api.telephony.dto.OutboundCallRequest;
+import com.contactcenter.api.telephony.dto.OutboundCallResponse;
+import com.contactcenter.api.telephony.dto.TransferCallRequest;
+import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.tenant.TenantTwilioConfigService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
+import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -37,6 +46,7 @@ import java.util.UUID;
  * This ensures {@code ContactService.setDisposition} can validate agent ownership.
  */
 @Slf4j
+@Validated
 @RestController
 @RequestMapping("/api/telephony/calls")
 @RequiredArgsConstructor
@@ -48,7 +58,74 @@ public class AgentCallController {
 
     private final TelephonyAdapter telephonyAdapter;
     private final ContactService contactService;
-    private final ContactRepository contactRepository;
+    private final TenantTwilioConfigService tenantTwilioConfigService;
+    private final TwilioProperties twilioProperties;
+
+    // =========================================================================
+    // Initiate outbound call (ad hoc – without campaign)
+    // =========================================================================
+
+    /**
+     * Agent initiates an outbound call to an arbitrary phone number.
+     *
+     * <p>The call is ad hoc – not linked to any campaign or scheduled callback.
+     * A new contact record is created by the telephony adapter with direction=OUTBOUND.
+     *
+     * <p>Resolves the "from" number in the following priority:
+     * <ol>
+     *   <li>Per-tenant {@code TenantTwilioConfig.phoneNumber}</li>
+     *   <li>Global {@code TwilioProperties.phoneNumber} (fallback)</li>
+     *   <li>Empty string (mock / dev environment)</li>
+     * </ol>
+     *
+     * @param request body containing {@code phoneNumber} (E.164) and optional {@code customerId}
+     * @return {@link OutboundCallResponse} with {@code contactId} and {@code callId}
+     */
+    @PostMapping("/outbound")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Initiate an outbound call (ad hoc)",
+            description = """
+                    Agent initiates an outbound call to the given phone number.
+                    The call is not tied to any campaign or scheduled callback.
+
+                    The response contains:
+                    - contactId: UUID of the newly created contact record in the database.
+                    - callId: telephony session identifier (Twilio CallSid or mock UUID).
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Call initiated, contactId and callId returned"),
+                    @ApiResponse(responseCode = "400", description = "Invalid phone number format (not E.164)"),
+                    @ApiResponse(responseCode = "401", description = "Missing or invalid JWT token"),
+                    @ApiResponse(responseCode = "403", description = "Insufficient role"),
+                    @ApiResponse(responseCode = "500", description = "Telephony adapter error")
+            }
+    )
+    public ResponseEntity<OutboundCallResponse> initiateOutboundCall(
+            @Valid @RequestBody OutboundCallRequest request
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID agentId  = TenantContext.getUserId();
+
+        String resolvedFromNumber = resolveFromNumber(tenantId);
+
+        log.info("[AgentCallController] OUTBOUND: to={}, agentId={}, tenant={}, from={}",
+                request.phoneNumber(), agentId, tenantId, maskPhone(resolvedFromNumber));
+
+        CallSession session = telephonyAdapter.initiateCall(
+                tenantId,
+                resolvedFromNumber,
+                request.phoneNumber(),
+                agentId,
+                null,  // campaignId – not applicable for ad hoc calls
+                null   // callbackId – not a scheduled callback
+        );
+
+        log.info("[AgentCallController] Połączenie wychodzące zainicjowane: callId={}, contactId={}, agentId={}",
+                session.getCallId(), session.getContactId(), agentId);
+
+        return ResponseEntity.ok(new OutboundCallResponse(session.getContactId(), session.getCallId()));
+    }
 
     // =========================================================================
     // Answer call
@@ -126,6 +203,30 @@ public class AgentCallController {
             log.warn("[AgentCallController] Brak contactId w sesji dla callId={} – pomijam aktualizację agenta w DB",
                     callId);
             return ResponseEntity.notFound().build();
+        }
+
+        // BUG #1 fix: consultation leg (direction=CONSULTATION) shares contactId with Agent1's
+        // original contact. Calling assignAgent() on it would overwrite Agent1's ownership
+        // with Agent2's agentId. For CONSULTATION legs Agent2 joins the Twilio conference
+        // automatically via TwiML – no DB assignment needed here.
+        boolean isConsultationLeg = false;
+        try {
+            CallSession consultSession = telephonyAdapter.getCallSession(resolvedCallSid);
+            isConsultationLeg = "CONSULTATION".equals(consultSession.getDirection());
+        } catch (TelephonyAdapter.TelephonyException ignored) {
+            // session may not exist yet – treat as non-consultation (safe default)
+        }
+
+        if (isConsultationLeg) {
+            log.info("[AgentCallController] Consultation leg answered – skipping assignAgent to avoid overwriting Agent1 ownership: " +
+                     "callId={}, contactId={}, agentId={}", callId, contactId, agentId);
+            // Return the existing contact without modifying agent ownership
+            Contact existingContact = contactService.findContactEntity(contactId, tenantId)
+                    .orElse(null);
+            if (existingContact == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(ContactResponse.from(existingContact));
         }
 
         ContactResponse response = contactService.assignAgent(contactId, tenantId, agentId);
@@ -241,6 +342,148 @@ public class AgentCallController {
     }
 
     // =========================================================================
+    // Transfer call (BE-077)
+    // =========================================================================
+
+    /**
+     * Inicjuje transfer aktywnego połączenia do numeru telefonu, agenta lub kolejki.
+     *
+     * <p>Obsługiwane typy celu ({@code targetType}):
+     * <ul>
+     *   <li>{@code PHONE} – przekazanie na numer E.164; wymaga {@code phoneNumber}</li>
+     *   <li>{@code AGENT} – przekazanie do innego agenta; wymaga {@code agentId}</li>
+     *   <li>{@code QUEUE} – przekazanie do kolejki; wymaga {@code queueId}; tylko BLIND</li>
+     * </ul>
+     *
+     * <p>Obsługiwane typy transferu ({@code transferType}):
+     * <ul>
+     *   <li>{@code BLIND} – natychmiastowe przekazanie bez konsultacji (dostępne dla wszystkich celów)</li>
+     *   <li>{@code ATTENDED} – z konsultacją, druga noga tworzona przed przekazaniem (PHONE i AGENT)</li>
+     * </ul>
+     *
+     * @param callId identyfikator sesji (contactId jako UUID lub Twilio SID CA...)
+     * @param req    ciało żądania z typem transferu i danymi celu
+     * @return sesja połączenia zwrócona przez adapter (HTTP 200)
+     */
+    @PostMapping("/{callId}/transfer")
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Initiate call transfer (BE-077)",
+            description = """
+                    Transfers an active call to a phone number, another agent, or a queue.
+
+                    Target types:
+                    - PHONE: transfers to an E.164 phone number (requires phoneNumber)
+                    - AGENT: transfers to another agent (requires agentId)
+                    - QUEUE: transfers to a queue (requires queueId; BLIND only)
+
+                    Transfer types:
+                    - BLIND: immediate transfer without consultation
+                    - ATTENDED: consultation leg first; bridge calls after confirmation
+
+                    Validation:
+                    - QUEUE + ATTENDED combination is rejected (400)
+                    - Contact must be ACTIVE (409)
+                    - Caller must be the assigned agent (403)
+                    - Contact must exist and belong to the same tenant (404)
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Transfer initiated, session returned"),
+                    @ApiResponse(responseCode = "400", description = "Invalid targetType/transferType combination or missing required field"),
+                    @ApiResponse(responseCode = "403", description = "Agent is not the owner of this contact or cross-tenant access"),
+                    @ApiResponse(responseCode = "404", description = "Contact not found for this callId"),
+                    @ApiResponse(responseCode = "409", description = "Contact is not in ACTIVE state")
+            }
+    )
+    public ResponseEntity<Map<String, String>> transferCall(
+            @Parameter(description = "Contact UUID or Twilio Call SID", required = true)
+            @PathVariable @Size(max = 64) String callId,
+            @Valid @RequestBody TransferCallRequest req
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID agentId  = TenantContext.getUserId();
+
+        log.info("[AgentCallController] TRANSFER: callId={}, targetType={}, transferType={}, agentId={}, tenant={}",
+                callId, req.targetType(), req.transferType(), agentId, tenantId);
+
+        CallSession session = contactService.initiateTransfer(callId, req, tenantId, agentId);
+
+        // Dla ATTENDED zwracamy secondLegCallId żeby frontend mógł wywołać bridge.
+        // CallSession.callId to SID nowo utworzonej drugiej nogi.
+        Map<String, String> body = (TelephonyAdapter.TransferType.ATTENDED.equals(req.transferType())
+                && session != null
+                && session.getCallId() != null)
+                ? Map.of("secondLegCallId", session.getCallId())
+                : Map.of();
+
+        return ResponseEntity.ok(body);
+    }
+
+    // =========================================================================
+    // Bridge calls – finalizacja attended transfer (BE-078)
+    // =========================================================================
+
+    /**
+     * Finalizuje attended transfer łącząc dwie nogi połączenia (bridge).
+     *
+     * <p>Wywołać po tym jak agent skonsultował się z drugą stroną i chce przekazać klienta.
+     * {@code callId} to oryginalne połączenie z klientem (ON_HOLD),
+     * {@code secondCallId} to noga konsultacyjna (druga sesja).
+     *
+     * @param callId       identyfikator pierwotnej sesji (UUID lub Twilio SID)
+     * @param secondCallId identyfikator drugiej nogi transferu
+     * @param auth         kontekst uwierzytelnienia (JWT)
+     * @return 204 No Content
+     */
+    @PostMapping("/{callId}/bridge/{secondCallId}")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Bridge two call legs (finalize attended transfer)",
+            description = """
+                    Connects two call legs after an attended transfer consultation.
+
+                    callId is the original call (customer leg, typically ON_HOLD).
+                    secondCallId is the consultation leg (to the target agent or number).
+
+                    After a successful bridge:
+                    - First leg (callId) transitions to TRANSFERRED.
+                    - Second leg (secondCallId) transitions to ACTIVE.
+                    - CONSULTING and ON_HOLD stages are closed in contact history.
+                    - A TRANSFER event is recorded.
+
+                    Validation:
+                    - Caller must be the assigned agent of callId (403).
+                    - Both sessions must exist and belong to the same tenant (404).
+                    - Sessions must be in ACTIVE or ON_HOLD state (409).
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "Bridge executed, calls connected"),
+                    @ApiResponse(responseCode = "403", description = "Agent is not the owner of callId or cross-tenant access"),
+                    @ApiResponse(responseCode = "404", description = "Contact or call session not found for this callId"),
+                    @ApiResponse(responseCode = "409", description = "Call sessions not in bridgeable state (ACTIVE or ON_HOLD)")
+            }
+    )
+    public void bridgeCalls(
+            @Parameter(description = "Original call leg (customer) – UUID or Twilio SID", required = true)
+            @PathVariable @Size(max = 64) String callId,
+            @Parameter(description = "Second call leg (consultation target) – UUID or Twilio SID", required = true)
+            @PathVariable @Size(max = 64) String secondCallId,
+            org.springframework.security.core.Authentication auth
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID agentId  = TenantContext.getUserId();
+
+        log.info("[AgentCallController] BRIDGE: callId={}, secondCallId={}, agentId={}, tenant={}",
+                callId, secondCallId, agentId, tenantId);
+
+        contactService.bridgeCalls(callId, secondCallId, tenantId, agentId);
+
+        log.info("[AgentCallController] Bridge wykonany: callId={}, secondCallId={}, agentId={}",
+                callId, secondCallId, agentId);
+    }
+
+    // =========================================================================
     // Session info
     // =========================================================================
 
@@ -277,6 +520,62 @@ public class AgentCallController {
     // =========================================================================
 
     /**
+     * Resolves the "from" phone number for outbound calls.
+     *
+     * <p>Priority:
+     * <ol>
+     *   <li>Per-tenant phone number from {@link TenantTwilioConfigService}</li>
+     *   <li>Global {@link TwilioProperties#getPhoneNumber()} (fallback for Twilio)</li>
+     *   <li>Empty string (mock / dev environment – adapter ignores the value)</li>
+     * </ol>
+     *
+     * @param tenantId tenant scope
+     * @return resolved "from" number, never null
+     */
+    private String resolveFromNumber(UUID tenantId) {
+        try {
+            String perTenantNumber = tenantTwilioConfigService.getDecryptedConfig(tenantId)
+                    .map(cfg -> cfg.phoneNumber())
+                    .filter(StringUtils::hasText)
+                    .orElse(null);
+            if (perTenantNumber != null) {
+                log.debug("[AgentCallController] Używam numeru per-tenant: {}, tenant={}",
+                        maskPhone(perTenantNumber), tenantId);
+                return perTenantNumber;
+            }
+        } catch (Exception e) {
+            log.warn("[AgentCallController] Błąd odczytu per-tenant phone_number, tenant={}: {} – fallback",
+                    tenantId, e.getMessage());
+        }
+
+        String globalNumber = twilioProperties.getPhoneNumber();
+        if (StringUtils.hasText(globalNumber)) {
+            log.debug("[AgentCallController] Używam globalnego numeru Twilio: {}, tenant={}",
+                    maskPhone(globalNumber), tenantId);
+            return globalNumber;
+        }
+
+        log.debug("[AgentCallController] Brak skonfigurowanego numeru from – używam pustego (mock), tenant={}", tenantId);
+        return "";
+    }
+
+    /**
+     * Masks a phone number for log output (last 4 digits visible).
+     *
+     * @param phone raw phone number
+     * @return masked phone number (e.g. "+48****5678")
+     */
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() <= 4) {
+            return "****";
+        }
+        return phone.substring(0, phone.length() - 4).replaceAll("\\d", "*")
+                + phone.substring(phone.length() - 4);
+    }
+
+
+
+    /**
      * Translates a callId to a Twilio CallSid if the callId looks like a UUID (contactId from DB).
      *
      * <p>The frontend receives {@code contactId} (UUID) via the WebSocket {@code contact.assigned}
@@ -290,7 +589,7 @@ public class AgentCallController {
     private String resolveCallSid(String callId, UUID tenantId) {
         try {
             UUID contactId = UUID.fromString(callId);
-            return contactRepository.findCallSidByContactId(contactId, tenantId)
+            return contactService.findCallSidByContactId(contactId, tenantId)
                     .orElse(callId);
         } catch (IllegalArgumentException e) {
             return callId;

@@ -1,6 +1,6 @@
 package com.contactcenter.api.phonenumber.dto;
 
-import com.contactcenter.domain.model.PhoneNumber;
+import com.contactcenter.domain.phonenumber.PhoneNumber;
 
 import java.time.Instant;
 import java.util.UUID;

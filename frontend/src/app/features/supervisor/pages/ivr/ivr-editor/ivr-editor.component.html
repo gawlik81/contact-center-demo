@@ -136,230 +136,294 @@
       <!-- ─── CANVAS ─────────────────────────────────────────────────────────── -->
       <main
         class="canvas-wrapper"
+        #wrapperRef
+        tabindex="-1"
         (dragover)="onCanvasDragOver($event)"
         (drop)="onCanvasDrop($event)"
         (mousemove)="onCanvasMouseMove($event)"
         (mouseup)="onCanvasMouseUp()"
         (click)="onCanvasClick()"
+        (keydown.escape)="onCanvasClick()"
+        (wheel)="onCanvasWheel($event)"
       >
-        <div class="ivr-canvas" #canvasRef>
-          <!-- SVG overlay for connections -->
-          <svg class="canvas-svg" [attr.width]="canvasSvgWidth" [attr.height]="canvasSvgHeight" aria-hidden="true">
-            <defs>
-              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                <polygon points="0 0, 8 3, 0 6" fill="#4a90d9" />
-              </marker>
-            </defs>
-            @for (conn of svgConnections(); track conn.fromNodeId + conn.fromOptionKey) {
-              <path
-                [attr.d]="conn.pathD"
-                class="svg-connection"
-                [class.svg-connection--active]="isConnectingFromOption(conn.fromNodeId, conn.fromOptionKey)"
-                marker-end="url(#arrowhead)"
-              />
-            }
-          </svg>
-
-          <!-- Nodes -->
-          @for (node of definition().nodes; track node.node_id) {
-            <div
-              class="ivr-node"
-              [class]="
-                'ivr-node ivr-node--' +
-                node.type +
-                (selectedNodeId() === node.node_id ? ' ivr-node--selected' : '') +
-                (definition().entry_node_id === node.node_id ? ' ivr-node--entry' : '')
-              "
-              [style.left.px]="node.x"
-              [style.top.px]="node.y"
-              (mousedown)="onNodeMouseDown($event, node.node_id)"
-              (click)="onNodeClick($event, node.node_id)"
-            >
-              <div class="node-header">
-                <span class="node-icon">{{ nodeTypeIcons[node.type] }}</span>
-                <span class="node-title">{{ getNodeLabel(node.type) }}</span>
-                @if (definition().entry_node_id === node.node_id) {
-                  <span
-                    class="node-entry-badge"
-                    [attr.aria-label]="'supervisor.ivrEditor.entryNodeBadgeLabel' | transloco"
-                    >START</span
-                  >
-                }
-                <button
-                  class="node-delete"
-                  type="button"
-                  (click)="onDeleteNode($event, node.node_id)"
-                  [attr.aria-label]="
-                    ('supervisor.ivrEditor.deleteNodeLabel' | transloco) + ' ' + getNodeLabel(node.type)
-                  "
-                  [title]="'supervisor.ivrEditor.deleteNodeTitle' | transloco"
-                >
-                  ✕
-                </button>
-              </div>
-              @if (node.prompt) {
-                <div class="node-body">
-                  <span class="node-prompt">{{
-                    node.prompt.length > 40 ? node.prompt.slice(0, 40) + '…' : node.prompt
-                  }}</span>
-                </div>
-              }
-              @if (node.type === 'COLLECT_DTMF' && node.variable_name) {
-                <div class="node-var-badge">
-                  <span class="node-var-label">→ {{ node.variable_name }}</span>
-                </div>
-              }
-              @if (node.type === 'SET') {
-                <div class="node-var-badge">
-                  <span class="node-var-label"
-                    >{{ node.variable_name || '?' }} = {{ node.value || '""' | slice: 0 : 15 }}</span
-                  >
-                </div>
-              }
-              @if (node.type === 'IF' || node.type === 'SWITCH') {
-                <div class="node-var-badge">
-                  <span class="node-var-label">{{ node.variable_name || '?' }}</span>
-                </div>
-              }
-              @if (node.type === 'VOICEBOT') {
-                <div class="node-var-badge">
-                  <span class="node-var-label">ASR + NLU</span>
-                </div>
-              }
-              <!-- Input port (top-center) -->
-              <div
-                class="node-port node-input-port"
-                (click)="onNodeClick($event, node.node_id)"
-                [title]="'supervisor.ivrEditor.inputPortTitle' | transloco"
-              ></div>
-              <!-- Output: PLAY_AUDIO – single "next" port -->
-              @if (node.type === 'PLAY_AUDIO') {
-                <div class="node-next-connection">
-                  <span class="node-option__arrow">→</span>
-                  <span class="node-option__target">
-                    @let nextId = node.options?.[0]?.next_node_id;
-                    {{ nextId ? getNodeShortLabel(nextId) : '—' }}
-                  </span>
-                  <div
-                    class="node-port node-output-port"
-                    [class.node-output-port--active]="isConnectingFromOption(node.node_id, 'next')"
-                    (click)="onOutputPortClick($event, node.node_id, 'next')"
-                    [attr.aria-label]="'supervisor.ivrEditor.outputPortNextLabel' | transloco"
-                    [title]="'supervisor.ivrEditor.outputPortNextTitle' | transloco"
-                    role="button"
-                    tabindex="0"
-                  ></div>
-                </div>
-              }
-              <!-- Output: MENU / COLLECT_DTMF – one port per DTMF option -->
-              @if (node.type === 'MENU' || node.type === 'COLLECT_DTMF') {
-                <div class="node-options">
-                  @for (opt of node.options ?? []; track trackByIndex($index)) {
-                    <div class="node-option">
-                      <span class="node-option__key">{{ opt.key || '?' }}</span>
-                      <span class="node-option__arrow">→</span>
-                      <span class="node-option__target">{{
-                        opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
-                      }}</span>
-                      <div
-                        class="node-port node-output-port"
-                        [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
-                        (click)="onOutputPortClick($event, node.node_id, opt.key)"
-                        [attr.aria-label]="('supervisor.ivrEditor.outputPortOptionLabel' | transloco) + ' ' + opt.key"
-                        [title]="'supervisor.ivrEditor.outputPortTitle' | transloco"
-                        role="button"
-                        tabindex="0"
-                      ></div>
-                    </div>
-                  }
-                </div>
-              }
-              <!-- Output: SET – single "next" port -->
-              @if (node.type === 'SET') {
-                <div class="node-next-connection">
-                  <span class="node-option__arrow">→</span>
-                  <span class="node-option__target">
-                    @let nextId = node.options?.[0]?.next_node_id;
-                    {{ nextId ? getNodeShortLabel(nextId) : '—' }}
-                  </span>
-                  <div
-                    class="node-port node-output-port"
-                    [class.node-output-port--active]="isConnectingFromOption(node.node_id, 'next')"
-                    (click)="onOutputPortClick($event, node.node_id, 'next')"
-                    [attr.aria-label]="'supervisor.ivrEditor.outputPortNextLabel' | transloco"
-                    [title]="'supervisor.ivrEditor.outputPortNextTitle' | transloco"
-                    role="button"
-                    tabindex="0"
-                  ></div>
-                </div>
-              }
-              <!-- Output: IF / SWITCH – one port per option (true/false or cases) -->
-              @if (node.type === 'IF' || node.type === 'SWITCH') {
-                <div class="node-options">
-                  @for (opt of node.options ?? []; track trackByIndex($index)) {
-                    <div class="node-option">
-                      <span class="node-option__key">{{ opt.key || '?' }}</span>
-                      <span class="node-option__arrow">→</span>
-                      <span class="node-option__target">{{
-                        opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
-                      }}</span>
-                      <div
-                        class="node-port node-output-port"
-                        [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
-                        (click)="onOutputPortClick($event, node.node_id, opt.key)"
-                        [attr.aria-label]="('supervisor.ivrEditor.outputPortOptionLabel' | transloco) + ' ' + opt.key"
-                        [title]="'supervisor.ivrEditor.outputPortTitle' | transloco"
-                        role="button"
-                        tabindex="0"
-                      ></div>
-                    </div>
-                  }
-                </div>
-              }
-              <!-- Output: VOICEBOT – fixed ports: next / escalate / fallback -->
-              @if (node.type === 'VOICEBOT') {
-                <div class="node-options">
-                  @for (opt of node.options ?? []; track trackByIndex($index)) {
-                    <div class="node-option">
-                      <span class="node-option__key">{{ opt.key }}</span>
-                      <span class="node-option__arrow">→</span>
-                      <span class="node-option__target">{{
-                        opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
-                      }}</span>
-                      <div
-                        class="node-port node-output-port"
-                        [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
-                        (click)="onOutputPortClick($event, node.node_id, opt.key)"
-                        [attr.aria-label]="('supervisor.ivrEditor.outputPortOptionLabel' | transloco) + ' ' + opt.key"
-                        [title]="'supervisor.ivrEditor.outputPortTitle' | transloco"
-                        role="button"
-                        tabindex="0"
-                      ></div>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          }
-
-          <!-- Empty state on canvas -->
-          @if (definition().nodes.length === 0) {
-            <div class="canvas-empty-state">
-              <svg
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden="true"
-                width="48"
-                height="48"
-                style="color: #94a3b8"
-              >
+        <div class="canvas-scroll" #scrollRef>
+          <div class="ivr-canvas" #canvasRef [style.transform]="'scale(' + zoom() + ')'">
+            <!-- SVG overlay for connections -->
+            <svg class="canvas-svg" [attr.width]="canvasSvgWidth" [attr.height]="canvasSvgHeight" aria-hidden="true">
+              <defs>
+                <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="#4a90d9" />
+                </marker>
+              </defs>
+              @for (conn of svgConnections(); track conn.fromNodeId + conn.fromOptionKey) {
                 <path
-                  d="M12 1c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm1-11h-2v3H8v2h3v3h2v-3h3v-2h-3V6z"
+                  [attr.d]="conn.pathD"
+                  class="svg-connection"
+                  [class.svg-connection--active]="isConnectingFromOption(conn.fromNodeId, conn.fromOptionKey)"
+                  marker-end="url(#arrowhead)"
                 />
-              </svg>
-              <p>{{ 'supervisor.ivr.canvasEmpty' | transloco }}</p>
-            </div>
-          }
+              }
+            </svg>
+
+            <!-- Nodes -->
+            @for (node of definition().nodes; track node.node_id) {
+              <div
+                class="ivr-node"
+                [class]="
+                  'ivr-node ivr-node--' +
+                  node.type +
+                  (selectedNodeId() === node.node_id ? ' ivr-node--selected' : '') +
+                  (definition().entry_node_id === node.node_id ? ' ivr-node--entry' : '')
+                "
+                role="button"
+                tabindex="0"
+                [style.left.px]="node.x"
+                [style.top.px]="node.y"
+                (mousedown)="onNodeMouseDown($event, node.node_id)"
+                (click)="onNodeClick($event, node.node_id)"
+                (keydown.enter)="onNodeClick($event, node.node_id)"
+              >
+                <div class="node-header">
+                  <span class="node-icon">{{ nodeTypeIcons[node.type] }}</span>
+                  <span class="node-title">{{ getNodeLabel(node.type) }}</span>
+                  @if (definition().entry_node_id === node.node_id) {
+                    <span
+                      class="node-entry-badge"
+                      [attr.aria-label]="'supervisor.ivrEditor.entryNodeBadgeLabel' | transloco"
+                      >START</span
+                    >
+                  }
+                  <button
+                    class="node-delete"
+                    type="button"
+                    (click)="onDeleteNode($event, node.node_id)"
+                    [attr.aria-label]="
+                      ('supervisor.ivrEditor.deleteNodeLabel' | transloco) + ' ' + getNodeLabel(node.type)
+                    "
+                    [title]="'supervisor.ivrEditor.deleteNodeTitle' | transloco"
+                  >
+                    ✕
+                  </button>
+                </div>
+                @if (node.prompt) {
+                  <div class="node-body">
+                    <span class="node-prompt">{{
+                      node.prompt.length > 40 ? node.prompt.slice(0, 40) + '…' : node.prompt
+                    }}</span>
+                  </div>
+                }
+                @if (node.type === 'COLLECT_DTMF' && node.variable_name) {
+                  <div class="node-var-badge">
+                    <span class="node-var-label">→ {{ node.variable_name }}</span>
+                  </div>
+                }
+                @if (node.type === 'SET') {
+                  <div class="node-var-badge">
+                    <span class="node-var-label"
+                      >{{ node.variable_name || '?' }} = {{ node.value || '""' | slice: 0 : 15 }}</span
+                    >
+                  </div>
+                }
+                @if (node.type === 'IF' || node.type === 'SWITCH') {
+                  <div class="node-var-badge">
+                    <span class="node-var-label">{{ node.variable_name || '?' }}</span>
+                  </div>
+                }
+                @if (node.type === 'VOICEBOT') {
+                  <div class="node-var-badge">
+                    <span class="node-var-label">ASR + NLU</span>
+                  </div>
+                }
+                <!-- Input port (top-center) -->
+                <div
+                  class="node-port node-input-port"
+                  role="button"
+                  tabindex="0"
+                  (click)="onNodeClick($event, node.node_id)"
+                  (keydown.enter)="onNodeClick($event, node.node_id)"
+                  [title]="'supervisor.ivrEditor.inputPortTitle' | transloco"
+                ></div>
+                <!-- Output: PLAY_AUDIO – single "next" port -->
+                @if (node.type === 'PLAY_AUDIO') {
+                  <div class="node-next-connection">
+                    <span class="node-option__arrow">→</span>
+                    <span class="node-option__target">
+                      @let nextId = node.options?.[0]?.next_node_id;
+                      {{ nextId ? getNodeShortLabel(nextId) : '—' }}
+                    </span>
+                    <div
+                      class="node-port node-output-port"
+                      [class.node-output-port--active]="isConnectingFromOption(node.node_id, 'next')"
+                      (click)="onOutputPortClick($event, node.node_id, 'next')"
+                      [attr.aria-label]="'supervisor.ivrEditor.outputPortNextLabel' | transloco"
+                      [title]="'supervisor.ivrEditor.outputPortNextTitle' | transloco"
+                      role="button"
+                      tabindex="0"
+                    ></div>
+                  </div>
+                }
+                <!-- Output: MENU / COLLECT_DTMF – one port per DTMF option -->
+                @if (node.type === 'MENU' || node.type === 'COLLECT_DTMF') {
+                  <div class="node-options">
+                    @for (opt of node.options ?? []; track trackByIndex($index)) {
+                      <div class="node-option">
+                        <span class="node-option__key">{{ opt.key || '?' }}</span>
+                        <span class="node-option__arrow">→</span>
+                        <span class="node-option__target">{{
+                          opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
+                        }}</span>
+                        <div
+                          class="node-port node-output-port"
+                          [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
+                          (click)="onOutputPortClick($event, node.node_id, opt.key)"
+                          [attr.aria-label]="('supervisor.ivrEditor.outputPortOptionLabel' | transloco) + ' ' + opt.key"
+                          [title]="'supervisor.ivrEditor.outputPortTitle' | transloco"
+                          role="button"
+                          tabindex="0"
+                        ></div>
+                      </div>
+                    }
+                  </div>
+                }
+                <!-- Output: SET – single "next" port -->
+                @if (node.type === 'SET') {
+                  <div class="node-next-connection">
+                    <span class="node-option__arrow">→</span>
+                    <span class="node-option__target">
+                      @let nextId = node.options?.[0]?.next_node_id;
+                      {{ nextId ? getNodeShortLabel(nextId) : '—' }}
+                    </span>
+                    <div
+                      class="node-port node-output-port"
+                      [class.node-output-port--active]="isConnectingFromOption(node.node_id, 'next')"
+                      (click)="onOutputPortClick($event, node.node_id, 'next')"
+                      [attr.aria-label]="'supervisor.ivrEditor.outputPortNextLabel' | transloco"
+                      [title]="'supervisor.ivrEditor.outputPortNextTitle' | transloco"
+                      role="button"
+                      tabindex="0"
+                    ></div>
+                  </div>
+                }
+                <!-- Output: IF / SWITCH – one port per option (true/false or cases) -->
+                @if (node.type === 'IF' || node.type === 'SWITCH') {
+                  <div class="node-options">
+                    @for (opt of node.options ?? []; track trackByIndex($index)) {
+                      <div class="node-option">
+                        <span class="node-option__key">{{ opt.key || '?' }}</span>
+                        <span class="node-option__arrow">→</span>
+                        <span class="node-option__target">{{
+                          opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
+                        }}</span>
+                        <div
+                          class="node-port node-output-port"
+                          [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
+                          (click)="onOutputPortClick($event, node.node_id, opt.key)"
+                          [attr.aria-label]="('supervisor.ivrEditor.outputPortOptionLabel' | transloco) + ' ' + opt.key"
+                          [title]="'supervisor.ivrEditor.outputPortTitle' | transloco"
+                          role="button"
+                          tabindex="0"
+                        ></div>
+                      </div>
+                    }
+                  </div>
+                }
+                <!-- Output: VOICEBOT – fixed ports: next / escalate / fallback -->
+                @if (node.type === 'VOICEBOT') {
+                  <div class="node-options">
+                    @for (opt of node.options ?? []; track trackByIndex($index)) {
+                      <div class="node-option">
+                        <span class="node-option__key">{{ opt.key }}</span>
+                        <span class="node-option__arrow">→</span>
+                        <span class="node-option__target">{{
+                          opt.next_node_id ? getNodeShortLabel(opt.next_node_id) : '—'
+                        }}</span>
+                        <div
+                          class="node-port node-output-port"
+                          [class.node-output-port--active]="isConnectingFromOption(node.node_id, opt.key)"
+                          (click)="onOutputPortClick($event, node.node_id, opt.key)"
+                          [attr.aria-label]="('supervisor.ivrEditor.outputPortOptionLabel' | transloco) + ' ' + opt.key"
+                          [title]="'supervisor.ivrEditor.outputPortTitle' | transloco"
+                          role="button"
+                          tabindex="0"
+                        ></div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- Empty state on canvas -->
+            @if (definition().nodes.length === 0) {
+              <div class="canvas-empty-state">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  width="48"
+                  height="48"
+                  style="color: #94a3b8"
+                >
+                  <path
+                    d="M12 1c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm1-11h-2v3H8v2h3v3h2v-3h3v-2h-3V6z"
+                  />
+                </svg>
+                <p>{{ 'supervisor.ivr.canvasEmpty' | transloco }}</p>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Zoom toolbar -->
+        <div class="zoom-toolbar">
+          <button
+            class="btn btn-icon zoom-toolbar__btn"
+            type="button"
+            (click)="zoomOut()"
+            [attr.aria-label]="'supervisor.ivrEditor.zoomOutLabel' | transloco"
+            [title]="'supervisor.ivrEditor.zoomOutLabel' | transloco"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18">
+              <path d="M19 13H5v-2h14v2z" />
+            </svg>
+          </button>
+          <span class="zoom-toolbar__value">{{ zoom() * 100 | number: '1.0-0' }}%</span>
+          <button
+            class="btn btn-icon zoom-toolbar__btn"
+            type="button"
+            (click)="zoomIn()"
+            [attr.aria-label]="'supervisor.ivrEditor.zoomInLabel' | transloco"
+            [title]="'supervisor.ivrEditor.zoomInLabel' | transloco"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+            </svg>
+          </button>
+          <span class="zoom-toolbar__separator"></span>
+          <button
+            class="btn btn-icon zoom-toolbar__btn"
+            type="button"
+            (click)="resetZoom()"
+            [attr.aria-label]="'supervisor.ivrEditor.zoomResetLabel' | transloco"
+            [title]="'supervisor.ivrEditor.zoomResetLabel' | transloco"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18">
+              <path
+                d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
+              />
+            </svg>
+          </button>
+          <button
+            class="btn btn-icon zoom-toolbar__btn"
+            type="button"
+            (click)="fitToView()"
+            [attr.aria-label]="'supervisor.ivrEditor.fitToViewLabel' | transloco"
+            [title]="'supervisor.ivrEditor.fitToViewLabel' | transloco"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18">
+              <path d="M5 5h5V3H3v7h2V5zm0 14v-5H3v7h7v-2H5zm14-5v5h-5v2h7v-7h-2zM14 3v2h5v5h2V3h-7z" />
+            </svg>
+          </button>
         </div>
       </main>
 
@@ -374,21 +438,36 @@
                 <label class="form-label" [for]="'prompt-' + node.node_id">{{
                   'supervisor.ivrEditor.promptLabel' | transloco
                 }}</label>
-                <textarea
-                  [id]="'prompt-' + node.node_id"
-                  class="form-control form-control--textarea"
-                  [value]="node.prompt ?? ''"
-                  (input)="updateSelectedNodeProp('prompt', $any($event.target).value)"
-                  rows="3"
-                  [placeholder]="'supervisor.ivr.nodeMessagePlaceholder' | transloco"
-                ></textarea>
+                <div class="var-field-wrap">
+                  <textarea
+                    [id]="'prompt-' + node.node_id"
+                    class="form-control form-control--textarea"
+                    [value]="node.prompt ?? ''"
+                    (input)="onVarFieldInput($event, 'prompt')"
+                    (blur)="closeVarDropdown()"
+                    rows="3"
+                    [placeholder]="'supervisor.ivr.nodeMessagePlaceholder' | transloco"
+                  ></textarea>
+                  @if (showVarDropdown() && varDropdownField() === 'prompt' && availableVariables().length) {
+                    <div class="var-dropdown">
+                      @for (v of availableVariables(); track v) {
+                        <button class="var-dropdown__item" type="button" (mousedown)="insertVariable(v, 'prompt')">
+                          \${{ '{' + v + '}' }}
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+                @if (availableVariables().length) {
+                  <p class="form-hint">{{ 'supervisor.ivr.varHint' | transloco }}</p>
+                }
               </div>
             }
 
             <!-- PLAY_AUDIO: audio file upload -->
             @if (node.type === 'PLAY_AUDIO') {
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.audioFileLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.audioFileLabel' | transloco }}</p>
                 @if (node.audio_id) {
                   <div class="audio-info">
                     <span class="audio-filename">{{ node.audio_id }}</span>
@@ -424,6 +503,22 @@
                   </div>
                 }
                 <p class="form-hint">{{ 'supervisor.ivrEditor.uploadHint' | transloco }}</p>
+              </div>
+              <div class="form-group">
+                <p class="form-label">{{ 'supervisor.ivrEditor.nextNode' | transloco }}</p>
+                <select
+                  class="form-control"
+                  [ngModel]="node.options?.[0]?.next_node_id ?? ''"
+                  (ngModelChange)="updateOption(0, 'next_node_id', $event)"
+                  [attr.aria-label]="'supervisor.ivrEditor.nextNode' | transloco"
+                >
+                  <option value="">{{ 'supervisor.ivrEditor.noTarget' | transloco }}</option>
+                  @for (n of otherNodes(node.node_id); track n.node_id) {
+                    <option [value]="n.node_id">
+                      {{ getNodeLabel(n.type) }}: {{ n.prompt?.slice(0, 20) ?? n.node_id }}
+                    </option>
+                  }
+                </select>
               </div>
             }
 
@@ -463,7 +558,7 @@
             <!-- MENU: options DTMF (edytowalne klucze) -->
             @if (node.type === 'MENU') {
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.dtmfOptionsLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.dtmfOptionsLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track trackByIndex($index)) {
                     <div class="option-row">
@@ -608,9 +703,9 @@
                 />
               </div>
 
-              <!-- Routing: success / timeout / no-input – stałe, tylko wybór węzła docelowego -->
+              <!-- Routing: success / timeout – stałe, tylko wybór węzła docelowego -->
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track opt.key) {
                     <div class="option-row option-row--fixed">
@@ -687,19 +782,34 @@
                 <label class="form-label" [for]="'setval-' + node.node_id">{{
                   'supervisor.ivr.nodeSetValue' | transloco
                 }}</label>
-                <input
-                  [id]="'setval-' + node.node_id"
-                  class="form-control"
-                  type="text"
-                  [value]="node.value ?? ''"
-                  (input)="updateSelectedNodeProp('value', $any($event.target).value)"
-                  [placeholder]="'supervisor.ivr.nodeSetValuePlaceholder' | transloco"
-                  maxlength="200"
-                />
+                <div class="var-field-wrap">
+                  <input
+                    [id]="'setval-' + node.node_id"
+                    class="form-control"
+                    type="text"
+                    [value]="node.value ?? ''"
+                    (input)="onVarFieldInput($event, 'value')"
+                    (blur)="closeVarDropdown()"
+                    [placeholder]="'supervisor.ivr.nodeSetValuePlaceholder' | transloco"
+                    maxlength="200"
+                  />
+                  @if (showVarDropdown() && varDropdownField() === 'value' && availableVariables().length) {
+                    <div class="var-dropdown">
+                      @for (v of availableVariables(); track v) {
+                        <button class="var-dropdown__item" type="button" (mousedown)="insertVariable(v, 'value')">
+                          \${{ '{' + v + '}' }}
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
                 <p class="form-hint">{{ 'supervisor.ivr.nodeSetValueHint' | transloco }}</p>
+                @if (availableVariables().length) {
+                  <p class="form-hint">{{ 'supervisor.ivr.varHint' | transloco }}</p>
+                }
               </div>
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.nextNode' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.nextNode' | transloco }}</p>
                 <select
                   class="form-control"
                   [ngModel]="node.options?.[0]?.next_node_id ?? ''"
@@ -755,19 +865,38 @@
                   <label class="form-label" [for]="'ifcmp-' + node.node_id">{{
                     'supervisor.ivr.nodeCompareValue' | transloco
                   }}</label>
-                  <input
-                    [id]="'ifcmp-' + node.node_id"
-                    class="form-control"
-                    type="text"
-                    [value]="node.compare_value ?? ''"
-                    (input)="updateSelectedNodeProp('compare_value', $any($event.target).value)"
-                    [placeholder]="'supervisor.ivr.nodeCompareValuePlaceholder' | transloco"
-                    maxlength="200"
-                  />
+                  <div class="var-field-wrap">
+                    <input
+                      [id]="'ifcmp-' + node.node_id"
+                      class="form-control"
+                      type="text"
+                      [value]="node.compare_value ?? ''"
+                      (input)="onVarFieldInput($event, 'compare_value')"
+                      (blur)="closeVarDropdown()"
+                      [placeholder]="'supervisor.ivr.nodeCompareValuePlaceholder' | transloco"
+                      maxlength="200"
+                    />
+                    @if (showVarDropdown() && varDropdownField() === 'compare_value' && availableVariables().length) {
+                      <div class="var-dropdown">
+                        @for (v of availableVariables(); track v) {
+                          <button
+                            class="var-dropdown__item"
+                            type="button"
+                            (mousedown)="insertVariable(v, 'compare_value')"
+                          >
+                            \${{ '{' + v + '}' }}
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+                  @if (availableVariables().length) {
+                    <p class="form-hint">{{ 'supervisor.ivr.varHint' | transloco }}</p>
+                  }
                 </div>
               }
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track opt.key) {
                     <div class="option-row option-row--fixed">
@@ -813,7 +942,7 @@
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.casesLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.casesLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track trackByIndex($index)) {
                     <div class="option-row">
@@ -896,7 +1025,7 @@
                 </p>
               </div>
               <div class="form-group">
-                <label class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</label>
+                <p class="form-label">{{ 'supervisor.ivrEditor.routingLabel' | transloco }}</p>
                 <div class="options-list">
                   @for (opt of node.options ?? []; track opt.key) {
                     <div class="option-row option-row--fixed">
@@ -983,14 +1112,16 @@
 
 <!-- ═══ WARNINGS MODAL ════════════════════════════════════════════════════════ -->
 @if (showWarningsModal()) {
+  <div class="modal-overlay" aria-hidden="true"></div>
   <div
-    class="modal-overlay"
+    class="modal-overlay modal-overlay--panel"
     role="dialog"
     aria-modal="true"
     aria-labelledby="warnings-title"
-    (click)="showWarningsModal.set(false)"
+    (keydown.escape)="showWarningsModal.set(false)"
+    tabindex="-1"
   >
-    <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal">
       <div class="modal__header">
         <h2 class="modal__title" id="warnings-title">{{ 'supervisor.ivr.warningsTitle' | transloco }}</h2>
       </div>

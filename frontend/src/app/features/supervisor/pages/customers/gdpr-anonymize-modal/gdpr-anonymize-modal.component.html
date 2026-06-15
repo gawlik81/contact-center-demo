@@ -1,10 +1,4 @@
-<dialog
-  #dialogEl
-  class="anonymize-dialog"
-  aria-labelledby="anonymize-title"
-  aria-describedby="anonymize-desc"
-  (click)="$event.target === dialogEl ? onCancel() : null"
->
+<dialog #dialogEl class="anonymize-dialog" aria-labelledby="anonymize-title" aria-describedby="anonymize-desc">
   <div class="anonymize-dialog__content" role="document">
     <div class="anonymize-dialog__header">
       <svg

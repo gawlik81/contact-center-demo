@@ -1,9 +1,7 @@
 package com.contactcenter.domain.email;
 
-import com.contactcenter.domain.model.EmailMessage;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.repository.EmailMessageRepository;
-import com.contactcenter.domain.repository.TenantRepository;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.TenantService;
 import jakarta.mail.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,19 +46,19 @@ class EmailPollingServiceTest {
     private static final String TEST_KEY  =
             "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
 
-    @Mock private TenantRepository tenantRepository;
+    @Mock private TenantService tenantService;
     @Mock private EmailMessageRepository emailMessageRepository;
     @Mock private EmailRoutingService emailRoutingService;
     @Mock private EmailEventPublisher emailEventPublisher;
 
     private EmailEncryptionService encryptionService;
-    private EmailPollingService pollingService;
+    private EmailPollingServiceImpl pollingService;
 
     @BeforeEach
     void setUp() {
-        encryptionService = new EmailEncryptionService(TEST_KEY);
-        pollingService = new EmailPollingService(
-                tenantRepository,
+        encryptionService = new EmailEncryptionServiceImpl(TEST_KEY);
+        pollingService = new EmailPollingServiceImpl(
+                tenantService,
                 emailMessageRepository,
                 emailRoutingService,
                 emailEventPublisher,
@@ -91,7 +89,7 @@ class EmailPollingServiceTest {
             Message mockMessage = mockImapMessage("<existing@domain.com>", "Re: stary temat",
                     "sender@example.com", "inbox@company.com");
 
-            EmailPollingService spy = spy(pollingService);
+            EmailPollingServiceImpl spy = spy(pollingService);
             Store mockStore = mock(Store.class);
             Folder mockFolder = mock(Folder.class);
 
@@ -124,7 +122,7 @@ class EmailPollingServiceTest {
             Message mockMessage = mockImapMessage("<new@domain.com>", "Nowy temat",
                     "new@sender.com", "inbox@company.com");
 
-            EmailPollingService spy = spy(pollingService);
+            EmailPollingServiceImpl spy = spy(pollingService);
             Store mockStore = mock(Store.class);
             Folder mockFolder = mock(Folder.class);
 
@@ -159,7 +157,7 @@ class EmailPollingServiceTest {
                     .build();
 
             // Brak wywołania connectImap – nie łączymy gdy brak konfiguracji
-            EmailPollingService spy = spy(pollingService);
+            EmailPollingServiceImpl spy = spy(pollingService);
             spy.pollTenantInbox(tenant);
 
             verify(spy, never()).connectImap(any(), anyString());

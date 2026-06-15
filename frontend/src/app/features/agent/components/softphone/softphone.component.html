@@ -26,13 +26,16 @@
           {{ 'agent.softphone.incomingCall' | transloco }}
         </p>
 
-        <div class="softphone__avatar softphone__avatar--pulse" aria-hidden="true">
-          {{ customerInitial() }}
+        <div class="softphone__avatar-wrap" aria-hidden="true">
+          <div class="softphone__avatar-ring"></div>
+          <div class="softphone__avatar softphone__avatar--pulse">
+            {{ customerInitial() }}
+          </div>
         </div>
 
         <div class="softphone__caller-info">
-          <p class="softphone__caller-name">{{ s.customerName }}</p>
-          <p class="softphone__caller-phone">{{ s.customerPhone }}</p>
+          <p class="softphone__caller-name softphone__caller-name--big">{{ s.customerPhone }}</p>
+          <p class="softphone__caller-phone">{{ s.customerName }}</p>
           <p class="softphone__caller-queue">{{ 'agent.softphone.queue' | transloco }} {{ s.queueName }}</p>
         </div>
 
@@ -69,7 +72,7 @@
     }
 
     <!-- ===== ACTIVE ===== -->
-    @if (s.state === 'ACTIVE' && !_showTransferPanel()) {
+    @if (s.state === 'ACTIVE' && !_showTransferPanel() && !_showNotePanel()) {
       <div class="softphone__active">
         <div class="softphone__active-header">
           <span class="softphone__recording-dot" aria-hidden="true"></span>
@@ -100,19 +103,21 @@
             [attr.aria-pressed]="s.isMuted"
             (click)="toggleMute()"
           >
-            @if (s.isMuted) {
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"
-                />
-              </svg>
-            } @else {
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"
-                />
-              </svg>
-            }
+            <span class="ctrl-icon-wrap" aria-hidden="true">
+              @if (s.isMuted) {
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"
+                  />
+                </svg>
+              } @else {
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"
+                  />
+                </svg>
+              }
+            </span>
             <span>
               {{ s.isMuted ? ('agent.softphone.unmute' | transloco) : ('agent.softphone.mute' | transloco) }}
             </span>
@@ -124,9 +129,11 @@
             [attr.aria-label]="'agent.softphone.holdLabel' | transloco"
             (click)="toggleHold()"
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-            </svg>
+            <span class="ctrl-icon-wrap" aria-hidden="true">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+              </svg>
+            </span>
             <span>{{ 'agent.softphone.hold' | transloco }}</span>
           </button>
 
@@ -136,10 +143,31 @@
             [attr.aria-label]="'agent.softphone.transferLabel' | transloco"
             (click)="openTransferView()"
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17 5H3V3H1v6h2V7h14v3l4-4-4-4v3zM7 19h14v2h2v-6h-2v2H7v-3l-4 4 4 4v-3z" />
-            </svg>
+            <span class="ctrl-icon-wrap" aria-hidden="true">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 5H3V3H1v6h2V7h14v3l4-4-4-4v3zM7 19h14v2h2v-6h-2v2H7v-3l-4 4 4 4v-3z" />
+              </svg>
+            </span>
             <span>{{ 'agent.softphone.transfer' | transloco }}</span>
+          </button>
+
+          <!-- 4th button: Note -->
+          <button
+            type="button"
+            class="softphone__ctrl-btn"
+            [class.softphone__ctrl-btn--active]="_showNotePanel()"
+            [attr.aria-label]="'agent.softphone.noteLabel' | transloco"
+            [attr.aria-pressed]="_showNotePanel()"
+            (click)="openNotePanel()"
+          >
+            <span class="ctrl-icon-wrap" aria-hidden="true">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"
+                />
+              </svg>
+            </span>
+            <span>{{ 'agent.softphone.note' | transloco }}</span>
           </button>
         </div>
 
@@ -202,95 +230,163 @@
             </svg>
             {{ 'agent.softphone.transferBack' | transloco }}
           </button>
-          <span class="softphone__transfer-title">{{ 'agent.softphone.transferTitle' | transloco }}</span>
-        </div>
-
-        <div
-          class="softphone__transfer-modes"
-          role="group"
-          [attr.aria-label]="'agent.softphone.transferMode' | transloco"
-        >
-          <button
-            type="button"
-            class="softphone__mode-btn"
-            [class.softphone__mode-btn--active]="transferMode() === 'BLIND'"
-            aria-pressed="{{ transferMode() === 'BLIND' }}"
-            (click)="setTransferMode('BLIND')"
-          >
-            {{ 'agent.softphone.blindTransfer' | transloco }}
-          </button>
-          <button
-            type="button"
-            class="softphone__mode-btn"
-            [class.softphone__mode-btn--active]="transferMode() === 'ATTENDED'"
-            aria-pressed="{{ transferMode() === 'ATTENDED' }}"
-            (click)="setTransferMode('ATTENDED')"
-          >
-            {{ 'agent.softphone.attendedTransfer' | transloco }}
-          </button>
-        </div>
-
-        <div class="softphone__transfer-form">
-          <label class="softphone__transfer-label" for="transfer-target">
-            {{ 'agent.softphone.transferTarget' | transloco }}
-          </label>
-          <input
-            id="transfer-target"
-            type="tel"
-            class="softphone__transfer-input"
-            placeholder="+48 123 456 789"
-            [value]="transferTarget()"
-            (input)="onTransferTargetChange($any($event.target).value)"
-            [attr.aria-invalid]="transferTarget().length > 0 && !transferTargetValid()"
-            aria-describedby="transfer-target-hint"
-          />
-          <span id="transfer-target-hint" class="softphone__transfer-hint">
-            {{ 'agent.softphone.transferHint' | transloco }}
+          <span class="softphone__transfer-title">
+            @if (transferTargetType() === 'AGENT' && attendedConnected()) {
+              {{ 'agent.softphone.consultingAgent' | transloco }}
+            } @else {
+              {{ 'agent.softphone.transferTitle' | transloco }}
+            }
           </span>
         </div>
 
-        @if (transferMode() === 'BLIND') {
-          <button
-            type="button"
-            class="softphone__transfer-submit"
-            [disabled]="!transferTargetValid()"
-            [attr.aria-label]="'agent.softphone.transferSubmitLabel' | transloco"
-            (click)="submitTransfer()"
+        <!-- Zakładki celu transferu -->
+        <div class="softphone__target-tabs" role="group" aria-label="Cel transferu">
+          @for (tab of transferTargetTabs(); track tab) {
+            <button
+              type="button"
+              class="softphone__target-tab"
+              [class.softphone__target-tab--active]="transferTargetType() === tab"
+              [attr.aria-pressed]="transferTargetType() === tab"
+              (click)="setTransferTargetType(tab)"
+            >
+              @switch (tab) {
+                @case ('PHONE') {
+                  {{ 'agent.softphone.tabPhone' | transloco }}
+                }
+                @case ('AGENT') {
+                  {{ 'agent.softphone.tabAgent' | transloco }}
+                }
+                @case ('QUEUE') {
+                  {{ 'agent.softphone.tabQueue' | transloco }}
+                }
+              }
+            </button>
+          }
+        </div>
+
+        <!-- Selektor trybu BLIND/ATTENDED — ukryty dla QUEUE -->
+        @if (transferTargetType() !== 'QUEUE') {
+          <div
+            class="softphone__transfer-modes"
+            role="group"
+            [attr.aria-label]="'agent.softphone.transferMode' | transloco"
           >
-            {{ 'agent.softphone.transferSubmit' | transloco }}
-          </button>
-        } @else {
-          @if (!attendedConnected()) {
+            <button
+              type="button"
+              class="softphone__mode-btn"
+              [class.softphone__mode-btn--active]="transferMode() === 'BLIND'"
+              aria-pressed="{{ transferMode() === 'BLIND' }}"
+              (click)="setTransferMode('BLIND')"
+            >
+              {{ 'agent.softphone.blindTransfer' | transloco }}
+            </button>
+            <button
+              type="button"
+              class="softphone__mode-btn"
+              [class.softphone__mode-btn--active]="transferMode() === 'ATTENDED'"
+              aria-pressed="{{ transferMode() === 'ATTENDED' }}"
+              (click)="setTransferMode('ATTENDED')"
+            >
+              {{ 'agent.softphone.attendedTransfer' | transloco }}
+            </button>
+          </div>
+        }
+
+        <!-- Zawartość zakładki PHONE -->
+        @if (transferTargetType() === 'PHONE') {
+          <div class="softphone__transfer-form">
+            <label class="softphone__transfer-label" for="transfer-target">
+              {{ 'agent.softphone.transferTarget' | transloco }}
+            </label>
+            <input
+              id="transfer-target"
+              type="tel"
+              class="softphone__transfer-input"
+              placeholder="+48 123 456 789"
+              [value]="transferTarget()"
+              (input)="onTransferTargetChange($any($event.target).value)"
+              [attr.aria-invalid]="transferTarget().length > 0 && !transferTargetValid()"
+              aria-describedby="transfer-target-hint"
+            />
+            <span id="transfer-target-hint" class="softphone__transfer-hint">
+              {{ 'agent.softphone.transferHint' | transloco }}
+            </span>
+          </div>
+
+          @if (transferMode() === 'BLIND') {
             <button
               type="button"
               class="softphone__transfer-submit"
-              [disabled]="!transferTargetValid()"
+              [disabled]="!transferTargetValid() || isTransferring()"
+              [attr.aria-label]="'agent.softphone.transferSubmitLabel' | transloco"
+              (click)="submitTransfer()"
+            >
+              @if (isTransferring()) {
+                <span class="softphone__btn-spinner" aria-hidden="true"></span>
+              }
+              {{ 'agent.softphone.transferSubmit' | transloco }}
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="softphone__transfer-submit"
+              [disabled]="!transferTargetValid() || isTransferring()"
               [attr.aria-label]="'agent.softphone.attendedConnectLabel' | transloco"
               (click)="submitTransfer()"
             >
+              @if (isTransferring()) {
+                <span class="softphone__btn-spinner" aria-hidden="true"></span>
+              }
               {{ 'agent.softphone.attendedConnect' | transloco }}
             </button>
-          } @else {
-            <div class="softphone__attended-actions">
-              <button
-                type="button"
-                class="softphone__transfer-submit softphone__transfer-submit--complete"
-                [attr.aria-label]="'agent.softphone.attendedCompleteLabel' | transloco"
-                (click)="completeAttended()"
-              >
-                {{ 'agent.softphone.attendedComplete' | transloco }}
-              </button>
-              <button
-                type="button"
-                class="softphone__transfer-submit softphone__transfer-submit--cancel"
-                [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
-                (click)="cancelTransfer()"
-              >
-                {{ 'agent.softphone.attendedCancel' | transloco }}
-              </button>
-            </div>
           }
         }
+
+        <!-- Zawartość zakładki AGENT -->
+        @if (transferTargetType() === 'AGENT') {
+          <app-transfer-agent-list
+            [transferMode]="transferMode()"
+            [isTransferring]="isTransferring()"
+            (agentSelected)="onAgentSelected($event)"
+          />
+        }
+
+        <!-- Zawartość zakładki QUEUE -->
+        @if (transferTargetType() === 'QUEUE') {
+          <app-transfer-queue-list [isTransferring]="isTransferring()" (queueSelected)="onQueueSelected($event)" />
+        }
+      </div>
+    }
+
+    <!-- ===== NOTE PANEL (overlay on ACTIVE/ON_HOLD) ===== -->
+    @if ((s.state === 'ACTIVE' || s.state === 'ON_HOLD') && _showNotePanel()) {
+      <div class="softphone__note">
+        <div class="softphone__note-header">
+          <button
+            type="button"
+            class="softphone__back-btn"
+            [attr.aria-label]="'agent.softphone.noteBackLabel' | transloco"
+            (click)="closeNotePanel()"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+            </svg>
+            {{ 'agent.softphone.noteBack' | transloco }}
+          </button>
+          <span class="softphone__note-title">{{ 'agent.softphone.noteTitle' | transloco }}</span>
+        </div>
+        <div class="softphone__note-form">
+          <textarea
+            class="softphone__note-textarea"
+            rows="6"
+            maxlength="1000"
+            [attr.placeholder]="'agent.softphone.notePlaceholder' | transloco"
+            [value]="currentNote()"
+            (input)="onNoteChange($any($event.target).value)"
+            [attr.aria-label]="'agent.softphone.noteLabel' | transloco"
+          ></textarea>
+          <span class="softphone__note-hint">{{ 'agent.softphone.noteHint' | transloco }}</span>
+        </div>
       </div>
     }
 
@@ -394,31 +490,35 @@
         <p class="softphone__transferring-label">{{ 'agent.softphone.transferring' | transloco }}</p>
         <p class="softphone__transferring-target">{{ s.transferTarget }}</p>
 
-        @if (attendedConnected()) {
-          <div class="softphone__attended-actions">
+        <div class="softphone__attended-actions">
+          @if (attendedConnected()) {
             <button
               type="button"
               class="softphone__transfer-submit softphone__transfer-submit--complete"
+              [disabled]="isTransferring()"
               [attr.aria-label]="'agent.softphone.attendedCompleteLabel' | transloco"
               (click)="completeAttended()"
             >
+              @if (isTransferring()) {
+                <span class="softphone__btn-spinner" aria-hidden="true"></span>
+              }
               {{ 'agent.softphone.attendedComplete' | transloco }}
             </button>
-            <button
-              type="button"
-              class="softphone__transfer-submit softphone__transfer-submit--cancel"
-              [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
-              (click)="cancelTransfer()"
-            >
-              {{ 'agent.softphone.attendedCancel' | transloco }}
-            </button>
-          </div>
-        } @else {
-          <span
-            class="softphone__transferring-spinner"
-            [attr.aria-label]="'agent.softphone.connecting' | transloco"
-          ></span>
-        }
+          } @else {
+            <span
+              class="softphone__transferring-spinner"
+              [attr.aria-label]="'agent.softphone.connecting' | transloco"
+            ></span>
+          }
+          <button
+            type="button"
+            class="softphone__transfer-submit softphone__transfer-submit--cancel"
+            [attr.aria-label]="'agent.softphone.attendedCancelLabel' | transloco"
+            (click)="cancelTransfer()"
+          >
+            {{ 'agent.softphone.attendedCancel' | transloco }}
+          </button>
+        </div>
       </div>
     }
 

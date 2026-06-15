@@ -186,7 +186,7 @@ public class MockCallController {
 
         String callId = mockAdapter.resolveCallId(request.callId());
         String secondCallId = mockAdapter.resolveCallId(request.secondCallId());
-        mockAdapter.bridgeCalls(callId, secondCallId);
+        mockAdapter.bridgeCalls(callId, secondCallId, java.util.UUID.randomUUID());
         return ResponseEntity.ok(Map.of(
                 "callId1", callId,
                 "callId2", secondCallId,

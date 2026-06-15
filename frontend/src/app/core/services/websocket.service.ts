@@ -96,6 +96,7 @@ export class WebSocketService {
       this.client.deactivate();
       this.client = null;
     }
+    this._extraTopics.clear();
     this.connectionState.set('DISCONNECTED');
   }
 

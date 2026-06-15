@@ -1,7 +1,7 @@
 package com.contactcenter.infrastructure;
 
-import com.contactcenter.domain.model.AuditLogEvent;
-import com.contactcenter.domain.service.AuditLogService;
+import com.contactcenter.domain.audit.AuditLogEvent;
+import com.contactcenter.domain.audit.AuditLogService;
 import com.contactcenter.infrastructure.aspect.AuditAspect;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.security.TenantContext;

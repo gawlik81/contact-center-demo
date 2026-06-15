@@ -1,7 +1,7 @@
 package com.contactcenter.api.recording;
 
 import com.contactcenter.api.recording.dto.RecordingUrlResponse;
-import com.contactcenter.domain.service.RecordingService;
+import com.contactcenter.domain.recording.RecordingService;
 import com.contactcenter.infrastructure.config.S3Properties;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;

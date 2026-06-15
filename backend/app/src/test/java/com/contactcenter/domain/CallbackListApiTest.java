@@ -3,15 +3,15 @@ package com.contactcenter.domain;
 import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.dialer.DialerController;
 import com.contactcenter.api.dialer.dto.CallbackListItemResponse;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.ScheduledCallback;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.CampaignContactRepository;
-import com.contactcenter.domain.repository.CampaignRepository;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.ScheduledCallbackRepository;
-import com.contactcenter.domain.service.DialerCallbackHandler;
-import com.contactcenter.domain.service.ProgressiveDialerService;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.campaign.ScheduledCallback;
+import com.contactcenter.domain.user.UserService;
+import com.contactcenter.domain.campaign.CampaignService;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.campaign.ScheduledCallbackService;
+import com.contactcenter.domain.campaign.CampaignAssignmentService;
+import com.contactcenter.domain.campaign.DialerCallbackHandler;
+import com.contactcenter.domain.campaign.ProgressiveDialerService;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
@@ -28,7 +28,6 @@ import org.springframework.http.ResponseEntity;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,14 +57,14 @@ import static org.mockito.Mockito.when;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class CallbackListApiTest {
 
-    @Mock private ScheduledCallbackRepository scheduledCallbackRepository;
-    @Mock private AppUserRepository appUserRepository;
+    @Mock private ScheduledCallbackService scheduledCallbackService;
+    @Mock private UserService userService;
     @Mock private ProgressiveDialerService progressiveDialerService;
     @Mock private DialerCallbackHandler dialerCallbackHandler;
-    @Mock private CampaignRepository campaignRepository;
-    @Mock private CampaignContactRepository campaignContactRepository;
+    @Mock private CampaignService campaignService;
+    @Mock private CampaignAssignmentService campaignAssignmentService;
     @Mock private TelephonyAdapter telephonyAdapter;
-    @Mock private ContactRepository contactRepository;
+    @Mock private ContactService contactService;
 
     @InjectMocks
     private DialerController dialerController;
@@ -92,19 +91,19 @@ class CallbackListApiTest {
     // =========================================================================
 
     @Test
-    @DisplayName("AGENT widzi tylko swoje callbacki – findByAgentId wywołane z jwtAgentId")
+    @DisplayName("AGENT widzi tylko swoje callbacki – findCallbacksByAgentId wywołane z jwtAgentId")
     void listCallbacks_asAgent_returnsOnlyOwnCallbacks() {
         // given
         TenantContext.setUserId(AGENT_ID);
         TenantContext.setUserRole("AGENT");
 
         ScheduledCallback cb = buildCallback(CALLBACK_ID_1, AGENT_ID, "PENDING");
-        when(scheduledCallbackRepository.findByAgentId(
+        when(scheduledCallbackService.findCallbacksByAgentId(
                 eq(TENANT_ID), eq(AGENT_ID), isNull(), eq("ASC"), eq(0), eq(20)))
                 .thenReturn(List.of(cb));
-        when(scheduledCallbackRepository.countByAgentId(eq(TENANT_ID), eq(AGENT_ID), isNull()))
+        when(scheduledCallbackService.countCallbacksByAgentId(eq(TENANT_ID), eq(AGENT_ID), isNull()))
                 .thenReturn(1L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
+        when(userService.findUsersByIds(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
 
         // when
         ResponseEntity<PagedResponse<CallbackListItemResponse>> response =
@@ -118,11 +117,11 @@ class CallbackListApiTest {
         assertThat(response.getBody().content().get(0).agentId()).isEqualTo(AGENT_ID);
         assertThat(response.getBody().totalElements()).isEqualTo(1L);
 
-        // findByAgentId musi być wywołane z AGENT_ID z JWT, nie z parametru
-        verify(scheduledCallbackRepository).findByAgentId(
+        // findCallbacksByAgentId musi być wywołane z AGENT_ID z JWT, nie z parametru
+        verify(scheduledCallbackService).findCallbacksByAgentId(
                 eq(TENANT_ID), eq(AGENT_ID), isNull(), eq("ASC"), eq(0), eq(20));
-        // findByTenantIdWithFilters NIE może być wywołany dla AGENT
-        verify(scheduledCallbackRepository, never()).findByTenantIdWithFilters(
+        // findCallbacksByTenantIdWithFilters NIE może być wywołany dla AGENT
+        verify(scheduledCallbackService, never()).findCallbacksByTenantIdWithFilters(
                 any(), any(), any(), any(), anyInt(), anyInt());
     }
 
@@ -131,7 +130,7 @@ class CallbackListApiTest {
     // =========================================================================
 
     @Test
-    @DisplayName("SUPERVISOR widzi wszystkie callbacki tenanta – findByTenantIdWithFilters wywołane")
+    @DisplayName("SUPERVISOR widzi wszystkie callbacki tenanta – findCallbacksByTenantIdWithFilters wywołane")
     void listCallbacks_asSupervisor_returnsAllTenantCallbacks() {
         // given
         TenantContext.setUserId(AGENT_ID);
@@ -139,12 +138,12 @@ class CallbackListApiTest {
 
         ScheduledCallback cb1 = buildCallback(CALLBACK_ID_1, AGENT_ID, "PENDING");
         ScheduledCallback cb2 = buildCallback(CALLBACK_ID_2, OTHER_AGENT_ID, "COMPLETED");
-        when(scheduledCallbackRepository.findByTenantIdWithFilters(
+        when(scheduledCallbackService.findCallbacksByTenantIdWithFilters(
                 eq(TENANT_ID), isNull(), isNull(), eq("ASC"), eq(0), eq(20)))
                 .thenReturn(List.of(cb1, cb2));
-        when(scheduledCallbackRepository.countByTenantIdWithFilters(eq(TENANT_ID), isNull(), isNull()))
+        when(scheduledCallbackService.countCallbacksByTenantIdWithFilters(eq(TENANT_ID), isNull(), isNull()))
                 .thenReturn(2L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(
+        when(userService.findUsersByIds(any())).thenReturn(List.of(
                 buildAgent(AGENT_ID, "Jan", "Kowalski"),
                 buildAgent(OTHER_AGENT_ID, "Anna", "Nowak")
         ));
@@ -168,10 +167,10 @@ class CallbackListApiTest {
         assertThat(item2.agentId()).isEqualTo(OTHER_AGENT_ID);
         assertThat(item2.agentName()).isEqualTo("Anna Nowak");
 
-        // findByTenantIdWithFilters wywołane, NIE findByAgentId
-        verify(scheduledCallbackRepository).findByTenantIdWithFilters(
+        // findCallbacksByTenantIdWithFilters wywołane, NIE findCallbacksByAgentId
+        verify(scheduledCallbackService).findCallbacksByTenantIdWithFilters(
                 eq(TENANT_ID), isNull(), isNull(), eq("ASC"), eq(0), eq(20));
-        verify(scheduledCallbackRepository, never()).findByAgentId(any(), any(), any(), any(), anyInt(), anyInt());
+        verify(scheduledCallbackService, never()).findCallbacksByAgentId(any(), any(), any(), any(), anyInt(), anyInt());
     }
 
     // =========================================================================
@@ -186,12 +185,12 @@ class CallbackListApiTest {
         TenantContext.setUserRole("SUPERVISOR");
 
         ScheduledCallback cb = buildCallback(CALLBACK_ID_1, AGENT_ID, "COMPLETED");
-        when(scheduledCallbackRepository.findByTenantIdWithFilters(
+        when(scheduledCallbackService.findCallbacksByTenantIdWithFilters(
                 eq(TENANT_ID), eq("COMPLETED"), isNull(), eq("ASC"), eq(0), eq(20)))
                 .thenReturn(List.of(cb));
-        when(scheduledCallbackRepository.countByTenantIdWithFilters(eq(TENANT_ID), eq("COMPLETED"), isNull()))
+        when(scheduledCallbackService.countCallbacksByTenantIdWithFilters(eq(TENANT_ID), eq("COMPLETED"), isNull()))
                 .thenReturn(1L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
+        when(userService.findUsersByIds(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
 
         // when
         ResponseEntity<PagedResponse<CallbackListItemResponse>> response =
@@ -202,9 +201,9 @@ class CallbackListApiTest {
         assertThat(response.getBody().content()).hasSize(1);
         assertThat(response.getBody().content().get(0).status()).isEqualTo("COMPLETED");
 
-        verify(scheduledCallbackRepository).findByTenantIdWithFilters(
+        verify(scheduledCallbackService).findCallbacksByTenantIdWithFilters(
                 eq(TENANT_ID), eq("COMPLETED"), isNull(), eq("ASC"), eq(0), eq(20));
-        verify(scheduledCallbackRepository).countByTenantIdWithFilters(eq(TENANT_ID), eq("COMPLETED"), isNull());
+        verify(scheduledCallbackService).countCallbacksByTenantIdWithFilters(eq(TENANT_ID), eq("COMPLETED"), isNull());
     }
 
     // =========================================================================
@@ -220,12 +219,12 @@ class CallbackListApiTest {
 
         ScheduledCallback pending    = buildCallback(CALLBACK_ID_1, AGENT_ID, "PENDING");
         ScheduledCallback completed  = buildCallback(CALLBACK_ID_2, AGENT_ID, "COMPLETED");
-        when(scheduledCallbackRepository.findByAgentId(
+        when(scheduledCallbackService.findCallbacksByAgentId(
                 eq(TENANT_ID), eq(AGENT_ID), isNull(), eq("ASC"), eq(0), eq(20)))
                 .thenReturn(List.of(pending, completed));
-        when(scheduledCallbackRepository.countByAgentId(eq(TENANT_ID), eq(AGENT_ID), isNull()))
+        when(scheduledCallbackService.countCallbacksByAgentId(eq(TENANT_ID), eq(AGENT_ID), isNull()))
                 .thenReturn(2L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
+        when(userService.findUsersByIds(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
 
         // when
         ResponseEntity<PagedResponse<CallbackListItemResponse>> response =
@@ -237,7 +236,7 @@ class CallbackListApiTest {
         assertThat(response.getBody().totalElements()).isEqualTo(2L);
 
         // Status null (brak filtra) przekazany do repozytorium
-        verify(scheduledCallbackRepository).findByAgentId(
+        verify(scheduledCallbackService).findCallbacksByAgentId(
                 eq(TENANT_ID), eq(AGENT_ID), isNull(), eq("ASC"), eq(0), eq(20));
     }
 
@@ -246,19 +245,19 @@ class CallbackListApiTest {
     // =========================================================================
 
     @Test
-    @DisplayName("SUPERVISOR filtruje po agentId → findByTenantIdWithFilters wywołany z agentIdFilter")
+    @DisplayName("SUPERVISOR filtruje po agentId → findCallbacksByTenantIdWithFilters wywołany z agentIdFilter")
     void listCallbacks_supervisorFiltersByAgentId_passesAgentIdFilterToRepository() {
         // given
         TenantContext.setUserId(AGENT_ID);
         TenantContext.setUserRole("SUPERVISOR");
 
         ScheduledCallback cb = buildCallback(CALLBACK_ID_1, OTHER_AGENT_ID, "PENDING");
-        when(scheduledCallbackRepository.findByTenantIdWithFilters(
+        when(scheduledCallbackService.findCallbacksByTenantIdWithFilters(
                 eq(TENANT_ID), isNull(), eq(OTHER_AGENT_ID), eq("ASC"), eq(0), eq(20)))
                 .thenReturn(List.of(cb));
-        when(scheduledCallbackRepository.countByTenantIdWithFilters(eq(TENANT_ID), isNull(), eq(OTHER_AGENT_ID)))
+        when(scheduledCallbackService.countCallbacksByTenantIdWithFilters(eq(TENANT_ID), isNull(), eq(OTHER_AGENT_ID)))
                 .thenReturn(1L);
-        when(appUserRepository.findAllById(any()))
+        when(userService.findUsersByIds(any()))
                 .thenReturn(List.of(buildAgent(OTHER_AGENT_ID, "Anna", "Nowak")));
 
         // when
@@ -271,7 +270,7 @@ class CallbackListApiTest {
         assertThat(response.getBody().content().get(0).agentId()).isEqualTo(OTHER_AGENT_ID);
         assertThat(response.getBody().content().get(0).agentName()).isEqualTo("Anna Nowak");
 
-        verify(scheduledCallbackRepository).findByTenantIdWithFilters(
+        verify(scheduledCallbackService).findCallbacksByTenantIdWithFilters(
                 eq(TENANT_ID), isNull(), eq(OTHER_AGENT_ID), eq("ASC"), eq(0), eq(20));
     }
 
@@ -287,12 +286,12 @@ class CallbackListApiTest {
         TenantContext.setUserRole("AGENT");
 
         ScheduledCallback ownCallback = buildCallback(CALLBACK_ID_1, AGENT_ID, "PENDING");
-        when(scheduledCallbackRepository.findByAgentId(
+        when(scheduledCallbackService.findCallbacksByAgentId(
                 eq(TENANT_ID), eq(AGENT_ID), isNull(), eq("ASC"), eq(0), eq(20)))
                 .thenReturn(List.of(ownCallback));
-        when(scheduledCallbackRepository.countByAgentId(eq(TENANT_ID), eq(AGENT_ID), isNull()))
+        when(scheduledCallbackService.countCallbacksByAgentId(eq(TENANT_ID), eq(AGENT_ID), isNull()))
                 .thenReturn(1L);
-        when(appUserRepository.findAllById(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
+        when(userService.findUsersByIds(any())).thenReturn(List.of(buildAgent(AGENT_ID, "Jan", "Kowalski")));
 
         // when – AGENT przekazuje OTHER_AGENT_ID jako parametr, powinien być ignorowany
         ResponseEntity<PagedResponse<CallbackListItemResponse>> response =
@@ -303,11 +302,11 @@ class CallbackListApiTest {
         assertThat(response.getBody().content()).hasSize(1);
         assertThat(response.getBody().content().get(0).agentId()).isEqualTo(AGENT_ID);
 
-        // findByAgentId wywołany z AGENT_ID z JWT, nie z OTHER_AGENT_ID z parametru
-        verify(scheduledCallbackRepository).findByAgentId(
+        // findCallbacksByAgentId wywołany z AGENT_ID z JWT, nie z OTHER_AGENT_ID z parametru
+        verify(scheduledCallbackService).findCallbacksByAgentId(
                 eq(TENANT_ID), eq(AGENT_ID), isNull(), eq("ASC"), eq(0), eq(20));
-        // findByTenantIdWithFilters NIE może być wywołany
-        verify(scheduledCallbackRepository, never()).findByTenantIdWithFilters(
+        // findCallbacksByTenantIdWithFilters NIE może być wywołany
+        verify(scheduledCallbackService, never()).findCallbacksByTenantIdWithFilters(
                 any(), any(), any(), any(), anyInt(), anyInt());
     }
 

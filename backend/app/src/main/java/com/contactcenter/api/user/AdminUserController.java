@@ -4,7 +4,7 @@ import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.user.dto.AdminCreateUserRequest;
 import com.contactcenter.api.user.dto.AdminUpdateUserRequest;
 import com.contactcenter.api.user.dto.UserResponse;
-import com.contactcenter.domain.service.AdminUserService;
+import com.contactcenter.domain.user.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

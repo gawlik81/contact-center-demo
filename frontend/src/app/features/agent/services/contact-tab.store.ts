@@ -118,6 +118,38 @@ export class ContactTabStore {
     this.updateTabStatus(id, 'WRAPPING');
   }
 
+  updateTabNote(id: string, note: string): void {
+    this.tabs.update((current) => current.map((t) => (t.id === id ? { ...t, note } : t)));
+  }
+
+  updateTabCustomerInfo(contactId: string, customerName: string, direction?: CallDirection): void {
+    this.tabs.update((current) =>
+      current.map((t) => {
+        if (t.contactId !== contactId) return t;
+        return { ...t, customerName, ...(direction !== undefined ? { direction } : {}) };
+      }),
+    );
+  }
+
+  /**
+   * Updates the contactId of a tab (used when attended transfer bridge completes).
+   * Clears originalContactId since the new contactId is already the proper UUID.
+   * Optionally updates customerName when the consultation prefix must be removed.
+   */
+  updateTabContactId(id: string, newContactId: string, customerName?: string): void {
+    this.tabs.update((current) =>
+      current.map((t) => {
+        if (t.id !== id) return t;
+        return {
+          ...t,
+          contactId: newContactId,
+          originalContactId: undefined,
+          ...(customerName !== undefined ? { customerName } : {}),
+        };
+      }),
+    );
+  }
+
   private checkLimits(type: ContactType): TabLimitReason {
     if (this.totalTabCount() >= MAX_TOTAL_TABS) return 'MAX_TOTAL';
     if (type === 'PHONE' && this.phoneTabCount() >= MAX_PHONE_TABS) return 'MAX_PHONE';

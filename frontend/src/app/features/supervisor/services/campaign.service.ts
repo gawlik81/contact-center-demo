@@ -3,11 +3,14 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   Campaign,
+  CampaignAssignment,
   CampaignContact,
+  ContactAttempt,
   CreateCampaignRequest,
   ImportJobStartResponse,
   ImportJobStatus,
   PagedResponse,
+  UpdateCampaignAssignmentRequest,
   UpdateCampaignRequest,
 } from '../models/campaign.model';
 
@@ -86,5 +89,30 @@ export class CampaignService {
     return this.http.get<PagedResponse<CampaignContact>>(`${this.API}/${campaignId}/contacts`, {
       params,
     });
+  }
+
+  getContactAttempts(campaignId: string, recordId: string): Observable<ContactAttempt[]> {
+    return this.http.get<ContactAttempt[]>(
+      `${this.API}/${campaignId}/contacts/${recordId}/attempts`,
+    );
+  }
+
+  getCampaignAssignment(campaignId: string): Observable<CampaignAssignment> {
+    return this.http.get<CampaignAssignment>(`${this.API}/${campaignId}/assignment`);
+  }
+
+  updateCampaignAssignment(
+    campaignId: string,
+    req: UpdateCampaignAssignmentRequest,
+  ): Observable<CampaignAssignment> {
+    return this.http.put<CampaignAssignment>(`${this.API}/${campaignId}/assignment`, req);
+  }
+
+  checkNameAvailability(name: string, excludeId?: string): Observable<{ available: boolean }> {
+    let params = new HttpParams().set('name', name);
+    if (excludeId) {
+      params = params.set('excludeId', excludeId);
+    }
+    return this.http.get<{ available: boolean }>(`${this.API}/check-name`, { params });
   }
 }

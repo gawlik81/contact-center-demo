@@ -50,25 +50,42 @@
 
     <h2 class="cal__label">{{ displayLabel() }}</h2>
 
-    <div class="cal__mode-switch" role="group" [attr.aria-label]="'agent.calendar.viewMode' | transloco">
-      <button
-        type="button"
-        class="cal__mode-btn"
-        [class.cal__mode-btn--active]="viewMode() === 'week'"
-        (click)="setViewMode('week')"
-        aria-pressed="{{ viewMode() === 'week' }}"
-      >
-        {{ 'agent.calendar.week' | transloco }}
-      </button>
-      <button
-        type="button"
-        class="cal__mode-btn"
-        [class.cal__mode-btn--active]="viewMode() === 'day'"
-        (click)="setViewMode('day')"
-        aria-pressed="{{ viewMode() === 'day' }}"
-      >
-        {{ 'agent.calendar.day' | transloco }}
-      </button>
+    <div class="cal__header-actions">
+      <label class="cal__closed-toggle">
+        <input
+          type="checkbox"
+          class="cal__closed-toggle-input"
+          [checked]="showClosedCampaigns()"
+          (change)="showClosedCampaigns.set(!showClosedCampaigns())"
+        />
+        <span class="cal__closed-toggle-label">
+          @if (showClosedCampaigns()) {
+            {{ 'agent.calendar.hideClosedCampaigns' | transloco }}
+          } @else {
+            {{ 'agent.calendar.showClosedCampaigns' | transloco }}
+          }
+        </span>
+      </label>
+      <div class="cal__mode-switch" role="group" [attr.aria-label]="'agent.calendar.viewMode' | transloco">
+        <button
+          type="button"
+          class="cal__mode-btn"
+          [class.cal__mode-btn--active]="viewMode() === 'week'"
+          (click)="setViewMode('week')"
+          aria-pressed="{{ viewMode() === 'week' }}"
+        >
+          {{ 'agent.calendar.week' | transloco }}
+        </button>
+        <button
+          type="button"
+          class="cal__mode-btn"
+          [class.cal__mode-btn--active]="viewMode() === 'day'"
+          (click)="setViewMode('day')"
+          aria-pressed="{{ viewMode() === 'day' }}"
+        >
+          {{ 'agent.calendar.day' | transloco }}
+        </button>
+      </div>
     </div>
   </div>
 

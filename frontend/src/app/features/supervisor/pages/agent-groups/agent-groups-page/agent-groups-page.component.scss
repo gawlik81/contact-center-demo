@@ -1,23 +1,5 @@
-// ── Variables ─────────────────────────────────────────────────────────────────
-$brand-blue: #1565c0;
-$brand-blue-dark: #0d47a1;
-$text-primary: #212121;
-$text-secondary: #616161;
-$border-color: #e2e8f0;
-$bg-white: #ffffff;
-$bg-row-hover: #f8fafc;
-$danger: #c62828;
-$danger-bg: #ffebee;
-$danger-border: #ef9a9a;
-$blue-bg: #e3f2fd;
-$green: #2e7d32;
-$green-bg: #e8f5e9;
-$radius: 6px;
-
 // ── Page layout ────────────────────────────────────────────────────────────────
 .agent-groups-page {
-  max-width: 1200px;
-
   &__header {
     display: flex;
     align-items: center;
@@ -30,7 +12,7 @@ $radius: 6px;
   &__title {
     font-size: 1.5rem;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-1);
     margin: 0;
     display: flex;
     align-items: center;
@@ -40,17 +22,17 @@ $radius: 6px;
   &__count {
     font-size: 1rem;
     font-weight: 400;
-    color: $text-secondary;
+    color: var(--text-2);
   }
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
 .table-wrapper {
   overflow-x: auto;
-  border-radius: $radius;
-  border: 1px solid $border-color;
-  background: $bg-white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-1);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .groups-table {
@@ -59,8 +41,8 @@ $radius: 6px;
   font-size: 0.9375rem;
 
   thead tr {
-    background: #f8fafc;
-    border-bottom: 1px solid $border-color;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-1);
   }
 
   th {
@@ -69,15 +51,15 @@ $radius: 6px;
     white-space: nowrap;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: $text-secondary;
+    color: var(--text-2);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
 
   td {
     padding: 0.875rem 1rem;
-    color: $text-primary;
-    border-bottom: 1px solid $border-color;
+    color: var(--text-1);
+    border-bottom: 1px solid var(--border-1);
     vertical-align: middle;
   }
 
@@ -92,8 +74,8 @@ $radius: 6px;
     box-shadow 120ms cubic-bezier(0.4, 0, 0.2, 1);
 
   &:hover {
-    background: $bg-row-hover;
-    box-shadow: inset 3px 0 0 $brand-blue;
+    background: var(--bg-subtle);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 }
 
@@ -102,7 +84,7 @@ $radius: 6px;
 }
 
 .cell-count {
-  color: $text-secondary;
+  color: var(--text-2);
   font-size: 0.875rem;
 }
 
@@ -123,8 +105,8 @@ $radius: 6px;
   min-width: 28px;
   padding: 0.2rem 0.5rem;
   border-radius: 1rem;
-  background: $blue-bg;
-  color: $brand-blue;
+  background: var(--accent-soft);
+  color: var(--accent-text);
   font-size: 0.8125rem;
   font-weight: 600;
 }
@@ -136,7 +118,7 @@ $radius: 6px;
   justify-content: center;
   gap: 0.375rem;
   border: none;
-  border-radius: $radius;
+  border-radius: var(--radius-sm);
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
@@ -153,88 +135,87 @@ $radius: 6px;
   }
 
   &:focus-visible {
-    outline: 2px solid $brand-blue;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 }
 
 .btn-primary {
   padding: 0.625rem 1.125rem;
-  background: $brand-blue;
-  color: #fff;
-  border: 1.5px solid $brand-blue;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: 1.5px solid var(--accent);
 
   &:hover:not(:disabled) {
-    background: $brand-blue-dark;
-    border-color: $brand-blue-dark;
+    opacity: 0.88;
   }
 }
 
 .btn-secondary {
   padding: 0.625rem 1.125rem;
-  background: $bg-white;
-  color: $brand-blue;
-  border: 1.5px solid $brand-blue;
+  background: var(--bg-surface);
+  color: var(--accent-text);
+  border: 1.5px solid var(--accent);
 
   &:hover:not(:disabled) {
-    background: $blue-bg;
+    background: var(--accent-soft);
   }
 }
 
 .btn-danger {
   padding: 0.625rem 1.125rem;
-  background: $danger;
-  color: #fff;
-  border: 1.5px solid $danger;
+  background: var(--danger);
+  color: var(--accent-fg);
+  border: 1.5px solid var(--danger);
 
   &:hover:not(:disabled) {
-    background: #9e2020;
+    opacity: 0.88;
   }
 }
 
 .btn-icon-outline {
   padding: 0.375rem;
   background: transparent;
-  color: $brand-blue;
-  border: 1.5px solid $border-color;
-  border-radius: $radius;
+  color: var(--accent-text);
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius-sm);
 
   &:hover:not(:disabled) {
-    background: $blue-bg;
-    border-color: $brand-blue;
+    background: var(--accent-soft);
+    border-color: var(--accent);
   }
 }
 
 .btn-icon-members {
   padding: 0.375rem;
   background: transparent;
-  color: $green;
-  border: 1.5px solid #a5d6a7;
-  border-radius: $radius;
+  color: var(--success-text);
+  border: 1.5px solid color-mix(in oklch, var(--success) 40%, transparent);
+  border-radius: var(--radius-sm);
 
   &:hover:not(:disabled) {
-    background: $green-bg;
-    border-color: $green;
+    background: var(--success-soft);
+    border-color: var(--success);
   }
 }
 
 .btn-icon-danger {
   padding: 0.375rem;
   background: transparent;
-  color: $danger;
-  border: 1.5px solid $danger-border;
-  border-radius: $radius;
+  color: var(--danger-text);
+  border: 1.5px solid color-mix(in oklch, var(--danger) 40%, transparent);
+  border-radius: var(--radius-sm);
 
   &:hover:not(:disabled) {
-    background: $danger-bg;
+    background: var(--danger-soft);
   }
 }
 
 // ── Skeleton loading ───────────────────────────────────────────────────────────
 .skeleton-wrapper {
-  border: 1px solid $border-color;
-  border-radius: $radius;
-  background: $bg-white;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
   overflow: hidden;
 }
 
@@ -242,7 +223,7 @@ $radius: 6px;
   display: flex;
   gap: 1rem;
   padding: 0.875rem 1rem;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-1);
   align-items: center;
 
   &:last-child {
@@ -255,9 +236,9 @@ $radius: 6px;
   border-radius: 4px;
   background: linear-gradient(
     90deg,
-    rgba(226, 232, 240, 0.5) 0%,
-    rgba(241, 245, 249, 0.9) 40%,
-    rgba(226, 232, 240, 0.5) 100%
+    var(--bg-subtle) 0%,
+    var(--bg-elevated) 40%,
+    var(--bg-subtle) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease infinite;
@@ -292,28 +273,28 @@ $radius: 6px;
   align-items: center;
   padding: 3rem 1rem;
   text-align: center;
-  background: $bg-white;
-  border: 1px solid $border-color;
-  border-radius: $radius;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
   gap: 0.5rem;
 
   &__icon {
     width: 48px;
     height: 48px;
-    color: #cbd5e1;
+    color: var(--text-muted);
     margin-bottom: 0.5rem;
   }
 
   &__message {
     font-size: 1rem;
     font-weight: 500;
-    color: $text-primary;
+    color: var(--text-1);
     margin: 0;
   }
 
   &__hint {
     font-size: 0.875rem;
-    color: $text-secondary;
+    color: var(--text-2);
     margin: 0;
   }
 }
@@ -338,19 +319,19 @@ $radius: 6px;
   &__overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: color-mix(in oklch, oklch(0% 0 0) 40%, transparent);
     z-index: 999;
   }
 
   &__content {
     position: relative;
     z-index: 1001;
-    background: $bg-white;
-    border-radius: $radius * 1.5;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
     padding: 2rem;
     max-width: 480px;
     width: calc(100% - 2rem);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
+    box-shadow: var(--shadow-pop);
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -359,20 +340,20 @@ $radius: 6px;
   &__title {
     font-size: 1.125rem;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-1);
     margin: 0;
   }
 
   &__body {
     font-size: 0.9375rem;
-    color: $text-primary;
+    color: var(--text-1);
     margin: 0;
     line-height: 1.5;
   }
 
   &__warning {
     font-size: 0.875rem;
-    color: $danger;
+    color: var(--danger-text);
     margin: 0;
   }
 

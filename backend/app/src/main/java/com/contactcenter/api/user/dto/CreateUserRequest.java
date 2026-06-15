@@ -1,6 +1,6 @@
 package com.contactcenter.api.user.dto;
 
-import com.contactcenter.domain.model.AppUser.UserRole;
+import com.contactcenter.domain.user.AppUser.UserRole;
 import jakarta.validation.constraints.*;
 import lombok.Builder;
 

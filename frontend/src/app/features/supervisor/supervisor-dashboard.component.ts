@@ -35,6 +35,7 @@ export class SupervisorDashboardComponent implements OnInit, OnDestroy {
 
   // ─── KPI derived values ────────────────────────────────────────
   protected readonly activeCalls = computed(() => this.metrics()?.kpi.activeCalls ?? 0);
+  protected readonly callsInIvr = computed(() => this.metrics()?.kpi.callsInIvr ?? 0);
   protected readonly avgWaitTime = computed(() => this.metrics()?.kpi.avgWaitTime ?? 0);
   protected readonly avgHandleTime = computed(() => this.metrics()?.kpi.avgHandleTime ?? 0);
 
@@ -73,6 +74,7 @@ export class SupervisorDashboardComponent implements OnInit, OnDestroy {
     if (tenantId) {
       this.metricsService.unsubscribe(tenantId);
     }
+    this.wsService.disconnect();
   }
 
   // ─── Helpers ───────────────────────────────────────────────────
@@ -112,8 +114,9 @@ export class SupervisorDashboardComponent implements OnInit, OnDestroy {
 
   /** Format seconds → MM:SS */
   protected secondsToTime(secs: number): string {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
+    const total = Math.round(secs);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 

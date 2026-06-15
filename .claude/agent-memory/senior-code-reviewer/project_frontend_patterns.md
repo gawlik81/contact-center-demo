@@ -117,3 +117,58 @@ The frontend is Angular 21 with standalone components, Signals, OnPush everywher
 
 **Why:** This context loads before any future review session so findings are not rediscovered from scratch.
 **How to apply:** When reviewing new frontend PRs, check against these known issues to see if they've been resolved or if new code repeats the patterns.
+
+## EPIC-24 (Call Transfer) — new findings 2026-05-15
+
+**Critical bug:**
+- `softphone.service.ts` attended transfer methods (`initiateAttendedTransferToAgent`, `initiateAttendedTransfer`): `catchError(() => of(null))` + session set to TRANSFERRING before HTTP — on HTTP error, sesja stays TRANSFERRING, `attendedConnected.set(true)` fires, agent is stuck. Fix: `catchError` must restore `session.set({...s, state: 'ACTIVE'})` and return `EMPTY`.
+
+**Type mismatch:**
+- `TransferAgentItem.status` missing `AFTER_CONTACT`, `ACTIVE`, `INACTIVE`; has `ON_CALL` which doesn't exist in backend. Recurring pattern: frontend enums not kept in sync with backend.
+
+**Hardcoded Polish strings (recurring, fourth+ occurrence):**
+- Tab labels `'Telefon'`, `'Agent'`, `'Kolejka'` hardcoded in `softphone.component.ts` transferTargetTabs array.
+- All strings in `transfer-agent-list.component.html` and `transfer-queue-list.component.html` are Polish literals without Transloco.
+
+**Architecture:**
+- Missing `[disabled]="isTransferring"` on agent/queue buttons inside transfer list components — parent guards state but child components don't. Keyboard users can still trigger double-click.
+- Dead code: `@else { completeAttended }` block in PHONE attended section of transfer panel — unreachable because session goes TRANSFERRING before `attendedConnected=true`.
+- `completeAttendedTransfer` silently skips bridge when `secondLegCallId` is null — session moved to ENDED without actual bridge.
+
+**Positive patterns:**
+- `takeUntilDestroyed(this.destroyRef)` in both `TransferAgentListComponent` and `TransferQueueListComponent` — no subscription leaks.
+- `ChangeDetectionStrategy.OnPush` on all three new components.
+- `isTransferring` signal correctly blocks duplicate HTTP calls from component layer.
+- Skeleton loading states and error states in both new components.
+- `@for ... track agent.agentId` and `track queue.queueId` — correct trackBy usage.
+- `searchQuery` computed filter via `filteredAgents` signal — correct, no pipe overhead.
+
+**Check in future softphone-related reviews:**
+- Does `catchError` in attended transfer restore session to ACTIVE on error?
+- Are frontend TypeScript union types for agent/user statuses in sync with backend enum values?
+- Are all user-visible strings using Transloco, not hardcoded Polish literals?
+
+## EPIC-27 (Custom Dispositions) — new findings 2026-05-27
+
+**Major bugs:**
+- `DispositionListEditorComponent` loads data only in `ngOnInit()` — no `effect()` on `campaignId`/`queueId` signals. If parent changes context without destroying component, list never refreshes. Fix: use `effect()` in constructor to react to input signal changes.
+- `DispositionPanelComponent.ngOnInit` fallback uses `d.code` as label (`label: d.code`) instead of `this.transloco.translate(d.labelKey)` — agent sees `"NO_INTEREST"` instead of `"Brak zainteresowania"` when API fails.
+
+**Minor issues:**
+- `DispositionTone` in `disposition.model.ts` defines `'accent' | 'success' | 'danger' | 'violet'` — values incompatible with API `DispositionToneApi` and `toneClass()` map. Old model is deprecated but the type discrepancy can cause confusion.
+- `onDeleteExecute()` and `onSubmit()` in `DispositionListEditorComponent` use `queueId!` non-null assertion when both campaignId and queueId could be undefined — API called with `undefined` in URL path.
+- Multiple `loadDispositions()` calls (after save, after delete) each create new subscriptions — no switchMap to cancel in-flight requests; last response wins.
+
+**Positive patterns (EPIC-27):**
+- `DispositionListEditorComponent`: `standalone: true`, `OnPush`, `signal()` for state, `takeUntilDestroyed` on all subscriptions, `catchError` + EMPTY for all HTTP ops — correct across the board.
+- 409 error handled user-friendly (specific message vs generic error).
+- Form disables `dispositionCode` field during edit (code is immutable after create) — correct UX.
+- `TONE_CSS_CLASS: Record<DispositionToneApi, string>` is type-safe, exhaustive mapping.
+- Fallback agent panel uses `console.warn` (not `console.error`) for graceful degradation — correct severity.
+- `CampaignDispositionsComponent` and `QueueDispositionsComponent` are minimal wrappers with `input.required<string>()` — clean interface.
+- Dispositions section in campaign/queue forms shown only in edit mode (`@if campaignId()`) — correct.
+
+**Check in future disposition-related reviews:**
+- Does `DispositionListEditorComponent` use `effect()` to react to `campaignId`/`queueId` changes?
+- Does agent panel fallback use `transloco.translate(d.labelKey)` for labels, not `d.code`?
+- Are both `campaignId` and `queueId` guarded before using `!` assertion in HTTP calls?

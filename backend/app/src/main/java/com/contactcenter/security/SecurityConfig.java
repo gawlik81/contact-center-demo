@@ -13,7 +13,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -57,6 +56,7 @@ public class SecurityConfig {
     private final TenantFilter tenantFilter;
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsServiceImpl userDetailsService;
+    private final PasswordEncoder passwordEncoder;
 
     /** Dozwolone origins CORS – nadpisywalne przez ENV var (prod: domena SPA). */
     @Value("${cors.allowed-origins:http://localhost:4200,http://localhost:3000}")
@@ -129,6 +129,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/tenants/**").hasRole("ADMIN")
                 // Twilio config – zarządzanie per-tenant konfiguracją Twilio (BE-057)
                 .requestMatchers("/api/supervisor/twilio-config/**").hasRole("SUPERVISOR")
+                // AI Config – zarządzanie konfiguracją AI per-tenant (BE-088)
+                .requestMatchers("/api/supervisor/ai-config/**").hasRole("SUPERVISOR")
+                // AI Summary – generowanie podsumowania AI dla kontaktu (BE-090)
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/contacts/*/ai-summary").hasAnyRole("AGENT", "SUPERVISOR", "ADMIN")
                 // Wszystkie pozostałe endpointy – wymagają autentykacji
                 .anyRequest().authenticated()
             )
@@ -150,17 +154,6 @@ public class SecurityConfig {
     // =========================================================================
 
     /**
-     * BCrypt password encoder z 12 rundami.
-     *
-     * <p>Cost factor 12: ~500ms na hash (skuteczne dla brute-force).
-     * Weryfikacja: {@code new BCryptPasswordEncoder(12)}.
-     */
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12);
-    }
-
-    /**
      * Provider autentykacji: ładuje użytkownika przez UserDetailsService + weryfikuje hasło bcrypt.
      *
      * <p>{@link DaoAuthenticationProvider} wywołuje:
@@ -173,7 +166,7 @@ public class SecurityConfig {
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder());
+        provider.setPasswordEncoder(passwordEncoder);
         // Nie ujawniamy czy konto istnieje czy hasło jest złe (security best practice)
         provider.setHideUserNotFoundExceptions(true);
         return provider;

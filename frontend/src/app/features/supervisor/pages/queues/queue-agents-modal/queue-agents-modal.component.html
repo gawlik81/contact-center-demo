@@ -2,23 +2,13 @@
 
 <dialog class="modal-dialog" open aria-modal="true" aria-labelledby="queue-agents-title">
   <div class="modal-content">
+    <!-- Header -->
     <div class="modal-header">
       <div class="modal-header__text">
         <h2 class="modal-title" id="queue-agents-title">
-          {{ 'supervisor.queueAgents.title' | transloco }}: <span class="modal-title__queue">{{ queue().name }}</span>
+          {{ 'supervisor.queueAgents.title' | transloco }}:
+          <span class="modal-title__queue">{{ queue().name }}</span>
         </h2>
-        <p class="modal-subtitle">
-          @if (!loading() && totalAgentCount() !== null) {
-            {{ totalAgentCount() }}
-            {{
-              totalAgentCount() === 1
-                ? ('supervisor.queueAgents.agentSingular' | transloco)
-                : ('supervisor.queueAgents.agentsPlural' | transloco)
-            }}
-          } @else {
-            {{ 'supervisor.queueAgents.subtitle' | transloco }}
-          }
-        </p>
       </div>
       <button class="btn-close" type="button" (click)="onClose()" [attr.aria-label]="'common.close' | transloco">
         <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
@@ -29,6 +19,7 @@
       </button>
     </div>
 
+    <!-- Body -->
     <div class="modal-body">
       @if (loading()) {
         <div class="skeleton-wrapper" aria-busy="true">
@@ -37,85 +28,182 @@
           <div class="skeleton"></div>
           <div class="skeleton skeleton--medium"></div>
         </div>
-      } @else if (notConfigured()) {
-        <p class="info-empty">{{ 'supervisor.queueAgents.notConfigured' | transloco }}</p>
-      } @else if (assignment()!.allAgents) {
-        <div class="all-agents-badge">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
-            <path
-              d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
-            />
-          </svg>
-          {{ 'supervisor.queueAgents.allAgents' | transloco }}
-        </div>
       } @else {
-        @if (assignment()!.groups.length > 0) {
-          <section class="agents-section">
-            <h3 class="agents-section__title">{{ 'supervisor.queueAgents.groupsTitle' | transloco }}</h3>
-            <ul class="agents-list" [attr.aria-label]="'supervisor.queueAgents.groupsTitle' | transloco">
-              @for (group of assignment()!.groups; track group.groupId) {
-                <li class="agents-list__item">
-                  <svg
-                    class="item-icon"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    width="16"
-                    height="16"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
-                    />
-                  </svg>
-                  <span class="item-name">{{ group.name }}</span>
-                  <span class="item-count"
-                    >{{ group.memberCount }} {{ 'supervisor.queueAgents.agentsAbbr' | transloco }}</span
-                  >
-                </li>
-              }
-            </ul>
+        <!-- All agents toggle -->
+        <div class="all-agents-row">
+          <label class="toggle-label" [attr.for]="'all-agents-toggle-' + queue().queueId">
+            <input
+              type="checkbox"
+              class="toggle-checkbox"
+              [id]="'all-agents-toggle-' + queue().queueId"
+              [checked]="allAgents()"
+              (change)="allAgents.set($any($event.target).checked)"
+              [attr.aria-describedby]="'all-agents-hint'"
+            />
+            <span class="toggle-label__text">
+              {{ 'supervisor.queueAgents.allAgentsLabel' | transloco }}
+            </span>
+          </label>
+          <p class="all-agents-hint" id="all-agents-hint">
+            {{ 'supervisor.queueAgents.allAgentsHint' | transloco }}
+          </p>
+        </div>
+
+        @if (!allAgents()) {
+          <!-- Groups section -->
+          <section class="assignment-section" aria-labelledby="qa-groups-section-title">
+            <h3 class="assignment-section__title" id="qa-groups-section-title">
+              {{ 'supervisor.queueAgents.groupsSection' | transloco }}
+            </h3>
+
+            @if (selectedGroups().length > 0) {
+              <ul class="assigned-list" [attr.aria-label]="'supervisor.queueAgents.groupsSection' | transloco">
+                @for (group of selectedGroups(); track group.groupId) {
+                  <li class="assigned-list__item">
+                    <svg
+                      class="item-icon"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      width="16"
+                      height="16"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                      />
+                    </svg>
+                    <span class="item-name">{{ group.name }}</span>
+                    <span class="item-count">{{ group.memberCount }}</span>
+                    <button
+                      type="button"
+                      class="btn-remove"
+                      (click)="removeGroup(group.groupId)"
+                      [attr.aria-label]="group.name"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+                        <path
+                          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                        />
+                      </svg>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+
+            @if (unselectedGroups().length > 0) {
+              <div class="add-row">
+                <label class="sr-only" [attr.for]="'add-group-select-' + queue().queueId">
+                  {{ 'supervisor.queueAgents.addGroup' | transloco }}
+                </label>
+                <select
+                  class="add-select"
+                  [id]="'add-group-select-' + queue().queueId"
+                  (change)="onAddGroupFromSelect($event)"
+                >
+                  <option value="">
+                    {{ 'supervisor.queueAgents.addGroup' | transloco }}
+                  </option>
+                  @for (group of unselectedGroups(); track group.groupId) {
+                    <option [value]="group.groupId">{{ group.name }} ({{ group.memberCount }})</option>
+                  }
+                </select>
+              </div>
+            }
+          </section>
+
+          <!-- Direct agents section -->
+          <section class="assignment-section" aria-labelledby="qa-agents-section-title">
+            <h3 class="assignment-section__title" id="qa-agents-section-title">
+              {{ 'supervisor.queueAgents.agentsSection' | transloco }}
+            </h3>
+
+            @if (selectedAgents().length > 0) {
+              <ul class="assigned-list" [attr.aria-label]="'supervisor.queueAgents.agentsSection' | transloco">
+                @for (agent of selectedAgents(); track agent.id) {
+                  <li class="assigned-list__item">
+                    <svg
+                      class="item-icon"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      width="16"
+                      height="16"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                      />
+                    </svg>
+                    <span class="item-name">{{ agent.firstName }} {{ agent.lastName }}</span>
+                    <span class="item-email">{{ agent.email }}</span>
+                    <button
+                      type="button"
+                      class="btn-remove"
+                      (click)="removeAgent(agent.id)"
+                      [attr.aria-label]="agent.firstName + ' ' + agent.lastName"
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+                        <path
+                          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                        />
+                      </svg>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+
+            @if (unselectedAgents().length > 0) {
+              <div class="add-row">
+                <label class="sr-only" [attr.for]="'add-agent-select-' + queue().queueId">
+                  {{ 'supervisor.queueAgents.addAgent' | transloco }}
+                </label>
+                <select
+                  class="add-select"
+                  [id]="'add-agent-select-' + queue().queueId"
+                  (change)="onAddAgentFromSelect($event)"
+                >
+                  <option value="">
+                    {{ 'supervisor.queueAgents.addAgent' | transloco }}
+                  </option>
+                  @for (agent of unselectedAgents(); track agent.id) {
+                    <option [value]="agent.id">{{ agent.firstName }} {{ agent.lastName }} — {{ agent.email }}</option>
+                  }
+                </select>
+              </div>
+            }
           </section>
         }
 
-        @if (assignment()!.directAgents.length > 0) {
-          <section class="agents-section">
-            <h3 class="agents-section__title">{{ 'supervisor.queueAgents.directAgentsTitle' | transloco }}</h3>
-            <ul class="agents-list" [attr.aria-label]="'supervisor.queueAgents.directAgentsTitle' | transloco">
-              @for (agent of assignment()!.directAgents; track agent.agentId) {
-                <li class="agents-list__item">
-                  <svg
-                    class="item-icon"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    width="16"
-                    height="16"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
-                    />
-                  </svg>
-                  <span class="item-name">{{ agent.firstName }} {{ agent.lastName }}</span>
-                  <span class="item-email">{{ agent.email }}</span>
-                </li>
-              }
-            </ul>
-          </section>
-        }
-
-        @if (assignment()!.groups.length === 0 && assignment()!.directAgents.length === 0) {
-          <div class="info-warning">
+        <!-- Empty warning -->
+        @if (showEmptyWarning()) {
+          <div class="info-warning" role="alert">
             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
               <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
             </svg>
-            {{ 'supervisor.queueAgents.noAssignment' | transloco }}
+            {{ 'supervisor.queueAgents.emptyWarning' | transloco }}
           </div>
         }
       }
     </div>
 
+    <!-- Footer -->
     <div class="modal-footer">
-      <button class="btn btn-close-footer" type="button" (click)="onClose()">{{ 'common.close' | transloco }}</button>
+      <button class="btn btn-cancel" type="button" (click)="onClose()">
+        {{ 'supervisor.queueAgents.cancelButton' | transloco }}
+      </button>
+      <button
+        class="btn btn-save"
+        type="button"
+        (click)="save()"
+        [disabled]="saving() || loading()"
+        [attr.aria-busy]="saving()"
+      >
+        @if (saving()) {
+          <span class="spinner" aria-hidden="true"></span>
+        }
+        {{ 'supervisor.queueAgents.saveButton' | transloco }}
+      </button>
     </div>
   </div>
 </dialog>

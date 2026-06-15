@@ -1,7 +1,7 @@
 package com.contactcenter.api.customer;
 
 import com.contactcenter.api.customer.dto.CustomerImportStatusResponse;
-import com.contactcenter.domain.service.CustomerImportService;
+import com.contactcenter.domain.customer.CustomerImportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

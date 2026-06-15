@@ -77,6 +77,8 @@
               [customer]="customer"
               (viewDetails)="onViewDetails($event)"
               (scheduleCallback)="onScheduleCallback($event)"
+              (initiateCall)="onInitiateCall($event)"
+              (sendEmail)="onSendEmail($event)"
             />
           </li>
         }
@@ -115,6 +117,14 @@
       (cancelled)="onCallbackCancelled()"
     />
   }
+
+  <!-- ===== Ad hoc email modal ===== -->
+  @if (emailCustomer()) {
+    <app-adhoc-email-modal [customer]="emailCustomer()!" (sent)="onEmailSent()" (cancelled)="onEmailCancelled()" />
+  }
+
+  <!-- ===== Contact detail modal ===== -->
+  <app-contact-detail-modal [contactId]="selectedContactId()" (closed)="onContactDetailClosed()" />
 
   <!-- ===== Customer detail drawer ===== -->
   @if (selectedCustomer()) {
@@ -164,18 +174,71 @@
 
         <div class="drawer-section">
           <p class="drawer-section__label">{{ 'agent.customers.lastContact' | transloco }}</p>
-          <p class="drawer-section__value">
-            @if (selectedCustomer()!.lastContactAt) {
-              {{ selectedCustomer()!.lastContactAt | date: 'dd.MM.yyyy, HH:mm' }}
-            } @else {
-              {{ 'agent.customers.noContacts' | transloco }}
+          @if (lastContactLoading()) {
+            <div class="drawer-contact-skeleton">
+              <div class="skeleton-line skeleton-pulse"></div>
+              <div class="skeleton-line skeleton-line--short skeleton-pulse"></div>
+            </div>
+          } @else if (lastContact()) {
+            <p class="drawer-section__value">{{ lastContact()!.startedAt | date: 'dd.MM.yyyy, HH:mm' }}</p>
+            <div class="drawer-contact-meta">
+              <span class="drawer-contact-channel drawer-contact-channel--{{ lastContact()!.channel | lowercase }}">{{
+                lastContact()!.channel
+              }}</span>
+              @if (lastContact()!.dispositionCode) {
+                <span class="drawer-contact-disposition">{{ lastContact()!.dispositionCode }}</span>
+              }
+            </div>
+            @if (lastContact()!.notes) {
+              <p class="drawer-contact-note">{{ lastContact()!.notes }}</p>
             }
-          </p>
+            <button type="button" class="drawer-contact-details-btn" (click)="openContactDetail()">
+              {{ 'agent.customers.viewContactDetails' | transloco }}
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+              </svg>
+            </button>
+          } @else if (selectedCustomer()!.lastContactAt) {
+            <p class="drawer-section__value">
+              {{ selectedCustomer()!.lastContactAt | date: 'dd.MM.yyyy, HH:mm' }}
+            </p>
+            <p class="drawer-section__value--muted">{{ 'agent.customers.noContactDetails' | transloco }}</p>
+          } @else {
+            <p class="drawer-section__value">{{ 'agent.customers.noContacts' | transloco }}</p>
+          }
         </div>
 
         <button type="button" class="drawer-action-btn" (click)="onScheduleCallback(selectedCustomer()!)">
           {{ 'agent.customers.scheduleCallback' | transloco }}
         </button>
+
+        @if (selectedCustomer()!.email.length > 0) {
+          <button type="button" class="drawer-action-btn drawer-action-btn--email" (click)="onSendEmailFromDrawer()">
+            {{ 'agent.customers.sendEmail' | transloco }}
+          </button>
+        }
+
+        @if (selectedCustomer()!.phone.length > 0) {
+          <div class="drawer-call-actions">
+            @for (phone of selectedCustomer()!.phone; track phone) {
+              <button
+                type="button"
+                class="drawer-action-btn drawer-action-btn--call"
+                (click)="onInitiateCallFromDrawer(phone)"
+              >
+                <svg class="drawer-action-btn__icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                  />
+                </svg>
+                {{ 'agent.customers.initiateCall' | transloco }}
+                @if (selectedCustomer()!.phone.length > 1) {
+                  <span class="drawer-action-btn__phone">{{ phone }}</span>
+                }
+              </button>
+            }
+          </div>
+        }
       </div>
     </div>
   }

@@ -10,9 +10,10 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { catchError, EMPTY } from 'rxjs';
+import { catchError, EMPTY, filter } from 'rxjs';
 import { AgentCalendarService } from '../../../services/agent-calendar.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
+import { WebSocketService } from '../../../../../core/services/websocket.service';
 import { RescheduleCallbackModalComponent } from '../../../components/reschedule-callback-modal/reschedule-callback-modal.component';
 import { AddBreakModalComponent } from '../../../components/add-break-modal/add-break-modal.component';
 import {
@@ -21,6 +22,7 @@ import {
   CalendarCallback,
   CalendarCampaign,
 } from '../../../models/agent-calendar.model';
+import { WsEvent } from '../../../models/ws-event.model';
 
 type CalendarViewMode = 'week' | 'day';
 
@@ -52,6 +54,7 @@ export class AgentCalendarComponent implements OnInit {
   private readonly calendarService = inject(AgentCalendarService);
   private readonly notifications = inject(NotificationService);
   private readonly transloco = inject(TranslocoService);
+  private readonly ws = inject(WebSocketService);
   private readonly destroyRef = inject(DestroyRef);
 
   // ── View state ──────────────────────────────────────────────────────────────
@@ -69,6 +72,7 @@ export class AgentCalendarComponent implements OnInit {
   readonly selectedBreak = signal<CalendarBreak | null>(null);
   readonly selectedCampaign = signal<CalendarCampaign | null>(null);
   readonly addBreakMode = signal(false);
+  readonly showClosedCampaigns = signal(false);
   readonly currentLang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
   });
@@ -90,7 +94,9 @@ export class AgentCalendarComponent implements OnInit {
       const dayEnd = new Date(date);
       dayEnd.setHours(23, 59, 59, 999);
 
-      const DONE_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
+      const DONE_STATUSES = this.showClosedCampaigns()
+        ? new Set(['CANCELLED'])
+        : new Set(['COMPLETED', 'STOPPED', 'CANCELLED']);
 
       const callbacks = data.callbacks.filter((cb) => {
         if (DONE_STATUSES.has(cb.status)) return false;
@@ -115,8 +121,13 @@ export class AgentCalendarComponent implements OnInit {
       };
       const dayName = JS_DAY_TO_NAME[date.getDay()];
 
+      const TERMINAL_STATUSES = new Set(['COMPLETED', 'STOPPED', 'CANCELLED']);
+
       const campaigns = data.campaigns.filter((c) => {
         if (DONE_STATUSES.has(c.status)) return false;
+
+        // Always hide terminal-status campaigns with no defined date range — they have no calendar position
+        if (TERMINAL_STATUSES.has(c.status) && !c.startDate && !c.endDate) return false;
 
         // Check date range
         const start = c.startDate ? new Date(c.startDate) : null;
@@ -136,10 +147,10 @@ export class AgentCalendarComponent implements OnInit {
       });
 
       // Merge callbacks and breaks into one chronologically sorted timed-events list
-      const timedEvents: Array<
+      const timedEvents: (
         | { kind: 'callback'; item: CalendarCallback; t: number }
         | { kind: 'break'; item: CalendarBreak; t: number }
-      > = [
+      )[] = [
         ...callbacks.map((cb) => ({
           kind: 'callback' as const,
           item: cb,
@@ -201,6 +212,17 @@ export class AgentCalendarComponent implements OnInit {
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
   ngOnInit(): void {
+    this.loadData();
+
+    this.ws.events$
+      .pipe(
+        filter((e: WsEvent) => e.eventType === 'AGENT_STATUS_CHANGED'),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => this.loadData());
+  }
+
+  reload(): void {
     this.loadData();
   }
 

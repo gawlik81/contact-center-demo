@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import {
+  ContactEventResponse,
   ContactResponse,
   EmailPreviewResponse,
   RecordingUrlResponse,
@@ -12,6 +13,7 @@ import {
 import { PagedResponse } from '../../../core/models/paged-response.model';
 
 export type {
+  ContactEventResponse,
   ContactResponse,
   EmailPreviewResponse,
   RecordingUrlResponse,
@@ -65,6 +67,12 @@ export class ContactService {
 
   getRelatedContacts(contactId: string): Observable<RelatedItem[]> {
     return this.http.get<RelatedItem[]>(`${environment.apiUrl}/contacts/${contactId}/related`);
+  }
+
+  getContactEvents(contactId: string): Observable<ContactEventResponse[]> {
+    return this.http.get<ContactEventResponse[]>(
+      `${environment.apiUrl}/contacts/${contactId}/events`,
+    );
   }
 
   /**

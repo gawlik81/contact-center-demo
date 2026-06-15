@@ -1,12 +1,11 @@
 package com.contactcenter.domain.agentbreak;
 
 import com.contactcenter.api.user.dto.UpdateStatusRequest;
-import com.contactcenter.domain.model.AppUser;
-import com.contactcenter.domain.model.AppUser.UserStatus;
-import com.contactcenter.domain.model.Tenant;
-import com.contactcenter.domain.repository.AppUserRepository;
-import com.contactcenter.domain.repository.TenantRepository;
-import com.contactcenter.domain.service.UserService;
+import com.contactcenter.domain.user.AppUser;
+import com.contactcenter.domain.user.AppUser.UserStatus;
+import com.contactcenter.domain.tenant.Tenant;
+import com.contactcenter.domain.tenant.TenantService;
+import com.contactcenter.domain.user.UserService;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,12 +45,11 @@ import java.util.UUID;
         havingValue = "true",
         matchIfMissing = true
 )
-public class AgentBreakActivator {
+class AgentBreakActivator {
 
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
     private final AgentBreakRepository agentBreakRepository;
     private final UserService userService;
-    private final AppUserRepository appUserRepository;
 
     // =========================================================================
     // Scheduler
@@ -67,9 +65,7 @@ public class AgentBreakActivator {
     public void activateAndCompleteBreaks() {
         log.debug("[BreakActivator] Rozpoczynam cykl aktywacji/kończenia przerw");
 
-        List<Tenant> activeTenants = tenantRepository.findAll().stream()
-                .filter(t -> t.getStatus() == Tenant.TenantStatus.ACTIVE)
-                .toList();
+        List<Tenant> activeTenants = tenantService.getActiveTenants();
 
         if (activeTenants.isEmpty()) {
             log.debug("[BreakActivator] Brak aktywnych tenantów – pomijam cykl");
@@ -166,7 +162,7 @@ public class AgentBreakActivator {
      */
     private void changeAgentStatusIfBreak(UUID agentId, UUID tenantId) {
         try {
-            AppUser agent = appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId).orElse(null);
+            AppUser agent = userService.findAgentByIdAndTenantId(agentId, tenantId).orElse(null);
             if (agent != null && agent.getStatus() == UserStatus.BREAK) {
                 userService.updateStatus(agentId, new UpdateStatusRequest(UserStatus.AVAILABLE), tenantId);
                 log.debug("[BreakActivator] Status agenta przywrócony na AVAILABLE: agentId={}", agentId);

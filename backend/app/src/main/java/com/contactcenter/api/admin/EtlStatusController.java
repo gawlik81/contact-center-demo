@@ -1,7 +1,7 @@
 package com.contactcenter.api.admin;
 
+import com.contactcenter.domain.etl.EtlSyncService;
 import com.contactcenter.domain.etl.EtlTableStatus;
-import com.contactcenter.domain.service.EtlSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

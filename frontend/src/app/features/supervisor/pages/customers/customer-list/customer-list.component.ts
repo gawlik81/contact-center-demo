@@ -12,7 +12,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { catchError, debounceTime, distinctUntilChanged, finalize, of, switchMap } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, finalize, of } from 'rxjs';
 import { CustomerService } from '../services/customer.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerDeleteModalComponent } from '../customer-delete-modal/customer-delete-modal.component';
@@ -129,7 +129,6 @@ export class CustomerListComponent implements OnInit {
     if (!customer) return;
 
     this.deleting.set(true);
-    const name = this.getCustomerName(customer);
 
     this.customerService
       .deleteCustomer(customer.customerId)

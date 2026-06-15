@@ -1,4 +1,4 @@
-<dialog #dialogEl class="callback-dialog" aria-labelledby="callback-dialog-title" (click)="onBackdropClick($event)">
+<dialog #dialogEl class="callback-dialog" aria-labelledby="callback-dialog-title">
   <div class="callback-dialog__content" role="document">
     <!-- Header -->
     <div class="callback-dialog__header">
@@ -75,7 +75,9 @@
         @if (phoneError) {
           <span id="phoneNumber-error" class="form-error" role="alert">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+              />
             </svg>
             {{ phoneError }}
           </span>
@@ -85,7 +87,8 @@
       <!-- Date and time — two separate inputs for reliable cross-browser time selection -->
       <div class="form-field">
         <span class="form-label" aria-hidden="true">
-          {{ 'agent.manualCallbackModal.scheduledAtLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
+          {{ 'agent.manualCallbackModal.scheduledAtLabel' | transloco }}
+          <span class="required" aria-hidden="true">*</span>
         </span>
         <div class="form-row">
           <div class="form-row__col" [class.form-field--error]="scheduledDateError">
@@ -201,7 +204,9 @@
 
     <!-- Footer -->
     <div class="callback-dialog__footer">
-      <button class="btn btn-cancel" type="button" (click)="cancel()" [disabled]="loading()">{{ 'agent.manualCallbackModal.cancel' | transloco }}</button>
+      <button class="btn btn-cancel" type="button" (click)="cancel()" [disabled]="loading()">
+        {{ 'agent.manualCallbackModal.cancel' | transloco }}
+      </button>
       <button
         class="btn btn-save"
         type="submit"

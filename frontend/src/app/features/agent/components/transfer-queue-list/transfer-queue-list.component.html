@@ -1,0 +1,39 @@
+<div class="transfer-queue-list">
+  @if (loadState() === 'loading') {
+    <div class="transfer-queue-list__skeletons" aria-busy="true" aria-label="Ładowanie listy kolejek">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="transfer-queue-list__skeleton"></div>
+      }
+    </div>
+  }
+
+  @if (loadState() === 'error') {
+    <p class="transfer-queue-list__error" role="alert">
+      {{ 'agent.softphone.loadQueuesError' | transloco }}
+    </p>
+  }
+
+  @if (loadState() === 'loaded') {
+    @for (queue of queues(); track queue.queueId) {
+      <button
+        type="button"
+        class="transfer-queue-list__item"
+        [disabled]="isTransferring()"
+        [attr.aria-label]="queue.name + ', ' + ('agent.softphone.transferAction' | transloco)"
+        (click)="selectQueue(queue)"
+      >
+        <span class="transfer-queue-list__name">{{ queue.name }}</span>
+        <span class="transfer-queue-list__stats">
+          <span class="transfer-queue-list__badge transfer-queue-list__badge--waiting">
+            {{ queue.waitingContacts }} {{ 'agent.softphone.waitingContacts' | transloco }}
+          </span>
+          <span class="transfer-queue-list__badge transfer-queue-list__badge--agents">
+            {{ queue.availableAgents }} {{ 'agent.softphone.availableAgents' | transloco }}
+          </span>
+        </span>
+      </button>
+    } @empty {
+      <p class="transfer-queue-list__empty">{{ 'agent.softphone.noQueuesAvailable' | transloco }}</p>
+    }
+  }
+</div>

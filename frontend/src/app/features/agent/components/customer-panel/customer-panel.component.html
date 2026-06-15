@@ -1,11 +1,14 @@
 <!-- ===== Empty state: no active contact ===== -->
 @if (state() === 'empty') {
   <div class="cp cp--empty" role="status">
-    <svg class="cp__empty-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-      <path
-        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
-      />
-    </svg>
+    <div class="cp__empty-icon-wrap" aria-hidden="true">
+      <svg class="cp__empty-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+        <path
+          d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+        />
+      </svg>
+    </div>
+    <p class="cp__empty-title">{{ 'agent.customerPanel.emptyTitle' | transloco }}</p>
     <p class="cp__empty-text">{{ 'agent.customerPanel.empty' | transloco }}</p>
   </div>
 }
@@ -109,7 +112,9 @@
         type="button"
         class="cp__profile-link"
         (click)="navigateToFullProfile()"
-        [attr.aria-label]="('agent.customerPanel.viewProfile' | transloco) + ' ' + profile()!.firstName + ' ' + profile()!.lastName"
+        [attr.aria-label]="
+          ('agent.customerPanel.viewProfile' | transloco) + ' ' + profile()!.firstName + ' ' + profile()!.lastName
+        "
       >
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
           <path
@@ -132,6 +137,16 @@
         <ul class="cp__history-list" role="list">
           @for (item of profile()!.recentContacts; track trackByContactId($index, item)) {
             <li class="cp__history-item">
+              <button
+                type="button"
+                class="cp__history-detail-btn"
+                [attr.aria-label]="'Szczegóły kontaktu ' + (item.date | date: 'dd.MM.yyyy')"
+                (click)="onContactDetails(item)"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z" />
+                </svg>
+              </button>
               <div
                 class="cp__history-channel cp__history-channel--{{ item.channel | lowercase }}"
                 [attr.aria-label]="getChannelLabel(item.channel)"
@@ -166,6 +181,22 @@
                 <span class="cp__history-date">{{ item.date | date: 'dd.MM.yyyy HH:mm' }}</span>
                 @if (item.agentName) {
                   <span class="cp__history-agent">{{ item.agentName }}</span>
+                }
+                @if (item.notes) {
+                  <div class="cp__history-note-wrap">
+                    <p class="cp__history-note" [class.cp__history-note--collapsed]="!isNoteExpanded(item.id)">
+                      {{ item.notes }}
+                    </p>
+                    @if (hasLongNote(item.notes)) {
+                      <button type="button" class="cp__history-note-toggle" (click)="toggleNote(item.id)">
+                        {{
+                          isNoteExpanded(item.id)
+                            ? ('agent.customerPanel.noteCollapse' | transloco)
+                            : ('agent.customerPanel.noteExpand' | transloco)
+                        }}
+                      </button>
+                    }
+                  </div>
                 }
               </div>
             </li>

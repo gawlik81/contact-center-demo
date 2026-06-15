@@ -2,13 +2,12 @@ package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.contact.dto.ContactResponse;
 import com.contactcenter.api.contact.dto.CreateContactRequest;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
+import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.routing.RouteResult;
-import com.contactcenter.domain.service.ContactService;
-import com.contactcenter.domain.service.IncomingCallRoutingService;
-import com.contactcenter.domain.service.IvrEngineService;
-import com.contactcenter.domain.service.TwilioRecordingDownloadService;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.routing.IncomingCallRoutingService;
+import com.contactcenter.domain.ivr.IvrEngineService;
+import com.contactcenter.domain.recording.TwilioRecordingDownloadService;
 import com.contactcenter.domain.telephony.TwilioTelephonyAdapter;
 import com.contactcenter.infrastructure.config.TwilioProperties;
 import com.contactcenter.security.TenantContext;
@@ -16,6 +15,7 @@ import com.twilio.security.RequestValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,8 +76,7 @@ public class TwilioWebhookController {
   private final IvrEngineService ivrEngineService;
   private final IncomingCallRoutingService incomingCallRoutingService;
   private final ContactService contactService;
-  private final CustomerRepository customerRepository;
-  private final ContactRepository contactRepository;
+  private final CustomerService customerService;
   private final TwilioRecordingDownloadService recordingDownloadService;
   private final TwilioProperties twilioProperties;
 
@@ -100,18 +99,26 @@ public class TwilioWebhookController {
       IvrEngineService ivrEngineService,
       IncomingCallRoutingService incomingCallRoutingService,
       ContactService contactService,
-      CustomerRepository customerRepository,
-      ContactRepository contactRepository,
+      CustomerService customerService,
       TwilioRecordingDownloadService recordingDownloadService,
       TwilioProperties twilioProperties) {
     this.twilioAdapter = twilioAdapter;
     this.ivrEngineService = ivrEngineService;
     this.incomingCallRoutingService = incomingCallRoutingService;
     this.contactService = contactService;
-    this.customerRepository = customerRepository;
-    this.contactRepository = contactRepository;
+    this.customerService = customerService;
     this.recordingDownloadService = recordingDownloadService;
     this.twilioProperties = twilioProperties;
+  }
+
+  @PostConstruct
+  void warnIfSignatureValidationDisabled() {
+    if (!twilioProperties.isSignatureValidationEnabled()) {
+      log.warn("[TwilioWebhook] *** UWAGA BEZPIECZENSTWA *** " +
+               "twilio.signature-validation-enabled=false — weryfikacja X-Twilio-Signature jest WYLACZONA. " +
+               "Kazdy moze wyslac falszywy webhook na endpointy /voice, /status i /recording. " +
+               "Uzyj wylacznie lokalnie (localhost) — NIGDY nie udostepniaj portu przez ngrok bez wlaczenia walidacji.");
+    }
   }
 
   // =========================================================================
@@ -170,6 +177,13 @@ public class TwilioWebhookController {
       log.info("[TwilioVoiceWebhook] Nowe połączenie: callSid={}, from={}, to={}, tenantId={}",
           callSid, from, to, tenantId);
 
+      // Rozwiąż trasę PRZED utworzeniem rekordu contact – resolveRoute() jest operacją
+      // tylko do odczytu (reguły harmonogramu), a wynik decyduje o statusie startowym
+      // kontaktu: IVR (klient wchodzi do drzewa IVR, queuedAt=null) vs QUEUED (kierowanie
+      // bezpośrednio do kolejki agentów, queuedAt=now).
+      RouteResult route = incomingCallRoutingService.resolveRoute(tenantId, to, ZonedDateTime.now());
+      log.info("[TwilioVoiceWebhook] Wynik routingu: callSid={}, route={}/{}", callSid, route.type(), route.targetId());
+
       // Utwórz rekord contact w DB przed uruchomieniem IVR, żeby RoutingService mógł
       // znaleźć kontakt po jego ID. TenantContext musi być ustawiony dla @Audited.
       UUID contactId = null;
@@ -178,7 +192,7 @@ public class TwilioWebhookController {
         UUID customerId = null;
         if (from != null && !from.isBlank()) {
           try {
-            customerId = customerRepository.findByPhoneNumber(from, tenantId)
+            customerId = customerService.findByPhoneNumber(from, tenantId)
                 .map(c -> c.getCustomerId())
                 .orElse(null);
           }
@@ -201,7 +215,12 @@ public class TwilioWebhookController {
             metadata,   // channelMetadata
             null    // callbackId – połączenie inbound, nie realizacja callbacku
         );
-        ContactResponse contactResponse = contactService.createContact(contactRequest, tenantId);
+        // ivrEntry=true tylko gdy połączenie jest faktycznie kierowane do drzewa IVR
+        // (route.isIvr()). Dla QUEUE (routing bezpośredni) i REJECT/unknown zachowujemy
+        // dotychczasowe QUEUED+queuedAt=now (REJECT i tak nie trafia do IVR/kolejki,
+        // ale kontakt musi mieć poprawny stan dla historii/raportów).
+        boolean ivrEntry = route.isIvr();
+        ContactResponse contactResponse = contactService.createContact(contactRequest, tenantId, ivrEntry);
         contactId = contactResponse.contactId();
         log.info("[TwilioVoiceWebhook] Rekord contact utworzony: contactId={}, callSid={}",
             contactId, callSid);
@@ -222,10 +241,6 @@ public class TwilioWebhookController {
       finally {
         TenantContext.clear();
       }
-
-      // Rozwiąż trasę na podstawie reguł harmonogramu (phone_number + phone_routing_rule)
-      RouteResult route = incomingCallRoutingService.resolveRoute(tenantId, to, ZonedDateTime.now());
-      log.info("[TwilioVoiceWebhook] Wynik routingu: callSid={}, route={}/{}", callSid, route.type(), route.targetId());
 
       String twiml;
       if (route.isReject() || to == null) {
@@ -296,7 +311,11 @@ public class TwilioWebhookController {
       return ResponseEntity.status(403).contentType(MediaType.APPLICATION_XML).body(forbidden);
     }
     try {
-      String dtmfInput = digits != null ? digits : (digit != null ? digit : "timeout");
+      // Z actionOnEmptyResult="true" Twilio przy braku wejścia wysyła Digits="" (pusty string,
+      // nie null) – w obu przypadkach (brak parametru lub pusty string) traktujemy to jako
+      // "timeout" (brak wejścia), zgodnie z logiką ponawiania prób w silniku IVR.
+      String rawDigits = digits != null ? digits : digit;
+      String dtmfInput = (rawDigits == null || rawDigits.isEmpty()) ? "timeout" : rawDigits;
       log.info("[TwilioDtmf] DTMF input: callSid={}, input='{}', tenantId={}", callSid, dtmfInput, tenantId);
       TenantContext.setTenantId(tenantId);
       try {
@@ -390,7 +409,7 @@ public class TwilioWebhookController {
     if (StringUtils.hasText(conferenceSid) && tenantId != null) {
       try {
         TenantContext.setTenantId(tenantId);
-        contactRepository.updateConferenceSidInMetadata(callSid, conferenceSid, tenantId);
+        contactService.updateConferenceSidInMetadata(callSid, conferenceSid, tenantId);
       }
       catch (Exception e) {
         log.warn("[TwilioWebhook] Nie udało się zapisać conference_sid do channel_metadata: " +
@@ -423,11 +442,13 @@ public class TwilioWebhookController {
    *
    * <p>Twilio wysyła POST na ten URL gdy konferencja kończy się ({@code statusCallbackEvent=end}).
    * Konfigurowany w TwiML przez atrybut {@code statusCallback} elementu {@code <Conference>}
-   * generowanego przez {@link com.contactcenter.domain.service.IvrEngineService#buildWaitInConferenceTwiml}.
+   * generowanego przez {@link com.contactcenter.domain.ivr.IvrEngineService#buildWaitInConferenceTwiml}.
    *
    * <p>Używany do wykrycia porzucenia kolejki przez klienta (ABANDONED): jeśli konferencja
-   * zakończyła się ({@code ConferenceStatus=completed}) a kontakt nadal ma status {@code QUEUED},
-   * oznacza to że klient rozłączył się przed odebraniem przez agenta.
+   * zakończyła się ({@code ConferenceStatus=completed}) a kontakt ma status {@code QUEUED} lub
+   * {@code ASSIGNED}, oznacza to że klient rozłączył się przed odebraniem przez agenta.
+   * Statusy {@code ACTIVE} i {@code ON_HOLD} są celowo wykluczone – konferencja dla aktywnego
+   * połączenia jest zamykana przez handler hangup, który ustawia {@code COMPLETED}.
    *
    * <p>Zabezpieczenie przed duplikatami: jeśli kontakt ma już status {@code COMPLETED} lub
    * {@code ABANDONED}, nie nadpisujemy go.
@@ -498,22 +519,27 @@ public class TwilioWebhookController {
     try {
       TenantContext.setTenantId(tenantId);
       // Pobierz aktualny status kontaktu – zabezpieczenie przed nadpisaniem statusów terminalnych
-      contactRepository.findById(contactId, tenantId).ifPresentOrElse(
+      contactService.findContactEntity(contactId, tenantId).ifPresentOrElse(
           contact -> {
             String currentStatus = contact.getStatus();
+            // Fix #2: TRANSFERRED dodany do listy statusów terminalnych.
+            // Gdy klient był transferowany do nowej kolejki, oryginalna konferencja kończy się
+            // po przekierowaniu klienta. Bez tego sprawdzenia webhook nadpisałby TRANSFERRED → ABANDONED.
             if ("COMPLETED".equals(currentStatus) || "ABANDONED".equals(currentStatus)
-                || "NOT_REACHED".equals(currentStatus) || "ERROR".equals(currentStatus)) {
-              log.debug("[TwilioConference] Kontakt już zakończony (status={}), pomijam: contactId={}",
+                || "NOT_REACHED".equals(currentStatus) || "ERROR".equals(currentStatus)
+                || "TRANSFERRED".equals(currentStatus)) {
+              log.debug("[TwilioConference] Kontakt już zakończony lub transferowany (status={}), pomijam: contactId={}",
                   currentStatus, contactId);
               return;
             }
-            // ASSIGNED oznacza że routing przydzielił agenta, ale agent jeszcze nie odebrał
-            // (WS event mógł nie dotrzeć). Traktujemy tak samo jak QUEUED/ACTIVE – ABANDONED.
-            if ("QUEUED".equals(currentStatus) || "ASSIGNED".equals(currentStatus)
-                || "ACTIVE".equals(currentStatus) || "ON_HOLD".equals(currentStatus)) {
+            // ASSIGNED oznacza że routing przydzielił agenta, ale agent jeszcze nie odebrał.
+            // ACTIVE/ON_HOLD = agent już rozmawiał → kończy go handler hangup (→ COMPLETED).
+            // Conference-end nie może ustawić ABANDONED gdy agent był podłączony.
+            if ("QUEUED".equals(currentStatus) || "ASSIGNED".equals(currentStatus)) {
               log.info("[TwilioConference] Konferencja zakończona, kontakt w statusie {} – " +
                        "ustawiam ABANDONED: contactId={}", currentStatus, contactId);
-              contactRepository.updateContactStatusOnTelephonyEvent(
+              // Conditional update zapobiega race z handlerem hangup ustawiającym COMPLETED.
+              contactService.updateContactStatusIfNotTerminal(
                   contactId, tenantId, "ABANDONED", Instant.now());
             } else {
               log.debug("[TwilioConference] Kontakt w statusie {} – nie zmieniam: contactId={}",
@@ -749,9 +775,22 @@ public class TwilioWebhookController {
     String requestUrl = appBaseUrl + request.getRequestURI();
 
     // Zbieramy parametry POST (form-encoded) jako mapę – Twilio używa ich do podpisu.
+    // getParameterMap() łączy parametry POST i GET (query string). Twilio podpisuje TYLKO
+    // parametry POST – parametry query string (np. ?tenantId=UUID) są częścią URL,
+    // który jest osobno uwzględniany w podpisie HMAC i nie mogą być powielane w mapie params.
+    java.util.Set<String> queryKeys = new java.util.HashSet<>();
+    String qs = request.getQueryString();
+    if (qs != null && !qs.isBlank()) {
+      for (String pair : qs.split("&")) {
+        int eqIdx = pair.indexOf('=');
+        String key = eqIdx >= 0 ? pair.substring(0, eqIdx) : pair;
+        queryKeys.add(java.net.URLDecoder.decode(key, java.nio.charset.StandardCharsets.UTF_8));
+      }
+    }
+
     Map<String, String> params = new HashMap<>();
     request.getParameterMap().forEach((key, values) -> {
-      if (values != null && values.length > 0) {
+      if (!queryKeys.contains(key) && values != null && values.length > 0) {
         params.put(key, values[0]);
       }
     });

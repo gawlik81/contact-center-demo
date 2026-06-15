@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * Konfiguracja konta email per-tenant.
  *
- * <p>Nie jest encją JPA – dane są pobierane z pola {@code config} (JSONB) encji {@link com.contactcenter.domain.model.Tenant}.
+ * <p>Nie jest encją JPA – dane są pobierane z pola {@code config} (JSONB) encji {@link com.contactcenter.domain.tenant.Tenant}.
  *
  * <p>Klucze w tenant.config:
  * <pre>

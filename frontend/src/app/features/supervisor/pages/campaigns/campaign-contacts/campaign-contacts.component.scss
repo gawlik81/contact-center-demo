@@ -1,31 +1,10 @@
-@use 'sass:color';
-
-// ── Variables (consistent with campaign-list palette) ─────────────────────────
-$brand-blue: #1565c0;
-$brand-blue-dark: #0d47a1;
-$text-primary: #212121;
-$text-secondary: #616161;
-$border-color: #e2e8f0;
-$bg-white: #ffffff;
-$bg-row-hover: #f8fafc;
-$danger: #c62828;
-$danger-bg: #ffebee;
-$success: #2e7d32;
-$success-bg: #e8f5e9;
-$warning: #f57f17;
-$warning-bg: #fff8e1;
-$inactive-bg: #f5f5f5;
-$inactive-text: #757575;
-$blue-bg: #e3f2fd;
-$radius: 6px;
-
 // ── Native dialog reset & backdrop ────────────────────────────────────────────
 .contacts-dialog {
   border: none;
   padding: 0;
-  border-radius: 10px;
-  background: $bg-white;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-pop);
   width: min(90vw, 1000px);
   max-height: 90vh;
   overflow: hidden;
@@ -63,13 +42,13 @@ $radius: 6px;
   &__title {
     font-size: 1.25rem;
     font-weight: 600;
-    color: $text-primary;
+    color: var(--text-1);
     margin: 0;
   }
 
   &__campaign-name {
     font-size: 0.875rem;
-    color: $text-secondary;
+    color: var(--text-2);
   }
 
   &__toolbar {
@@ -78,17 +57,17 @@ $radius: 6px;
     justify-content: space-between;
     gap: 1rem;
     padding: 1rem 1.5rem;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--border-1);
     flex-shrink: 0;
     flex-wrap: wrap;
   }
 
   &__count {
     font-size: 0.9375rem;
-    color: $text-secondary;
+    color: var(--text-2);
 
     strong {
-      color: $text-primary;
+      color: var(--text-1);
       font-weight: 600;
     }
   }
@@ -105,16 +84,16 @@ $radius: 6px;
     gap: 0.5rem;
     margin: 0.75rem 1.5rem;
     padding: 0.75rem 1rem;
-    background: $danger-bg;
-    color: $danger;
-    border-radius: $radius;
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    border-radius: var(--radius-sm);
     font-size: 0.9rem;
     flex-shrink: 0;
   }
 
   &__footer {
     padding: 1rem 1.5rem;
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--border-1);
     display: flex;
     justify-content: flex-end;
     flex-shrink: 0;
@@ -125,23 +104,23 @@ $radius: 6px;
 .filter-label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: $text-secondary;
+  color: var(--text-2);
   white-space: nowrap;
 }
 
 .filter-select {
   padding: 0.375rem 0.625rem;
-  border: 1.5px solid $border-color;
-  border-radius: $radius;
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius-sm);
   font-size: 0.875rem;
-  color: $text-primary;
-  background: $bg-white;
+  color: var(--text-1);
+  background: var(--bg-surface);
   cursor: pointer;
   transition: border-color 0.15s ease;
 
   &:focus {
     outline: none;
-    border-color: $brand-blue;
+    border-color: var(--accent);
   }
 }
 
@@ -158,11 +137,11 @@ $radius: 6px;
   font-size: 0.9rem;
 
   thead tr {
-    background: #f8fafc;
+    background: var(--bg-subtle);
     position: sticky;
     top: 0;
     z-index: 1;
-    box-shadow: 0 1px 0 $border-color;
+    box-shadow: 0 1px 0 var(--border-1);
   }
 
   th {
@@ -170,17 +149,17 @@ $radius: 6px;
     text-align: left;
     font-size: 0.8rem;
     font-weight: 600;
-    color: $text-secondary;
+    color: var(--text-2);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     white-space: nowrap;
-    background: #f8fafc;
+    background: var(--bg-subtle);
   }
 
   td {
     padding: 0.75rem 0.875rem;
-    color: $text-primary;
-    border-bottom: 1px solid $border-color;
+    color: var(--text-1);
+    border-bottom: 1px solid var(--border-1);
     vertical-align: middle;
   }
 
@@ -193,7 +172,7 @@ $radius: 6px;
   transition: background 0.1s ease;
 
   &:hover {
-    background: $bg-row-hover;
+    background: var(--bg-subtle);
   }
 }
 
@@ -206,7 +185,7 @@ $radius: 6px;
 
 .contact-name {
   font-size: 0.875rem;
-  color: $text-secondary;
+  color: var(--text-2);
 }
 
 .contact-error {
@@ -214,7 +193,7 @@ $radius: 6px;
 
   &__text {
     font-size: 0.8125rem;
-    color: $danger;
+    color: var(--danger-text);
     display: block;
     white-space: nowrap;
     overflow: hidden;
@@ -226,12 +205,12 @@ $radius: 6px;
 
 .contact-date {
   font-size: 0.8125rem;
-  color: $text-secondary;
+  color: var(--text-2);
   white-space: nowrap;
 }
 
 .contact-empty {
-  color: $text-secondary;
+  color: var(--text-2);
   font-size: 0.875rem;
 }
 
@@ -246,54 +225,54 @@ $radius: 6px;
   white-space: nowrap;
 
   &--pending {
-    background: $inactive-bg;
-    color: $inactive-text;
+    background: var(--neutral-soft);
+    color: var(--neutral-text);
   }
 
   &--called {
-    background: $success-bg;
-    color: $success;
+    background: var(--success-soft);
+    color: var(--success-text);
   }
 
   &--failed {
-    background: $danger-bg;
-    color: $danger;
+    background: var(--danger-soft);
+    color: var(--danger-text);
   }
 
   &--skipped {
-    background: $warning-bg;
-    color: $warning;
+    background: var(--warning-soft);
+    color: var(--warning-text);
   }
 
   &--dialing {
-    background: $blue-bg;
-    color: $brand-blue;
+    background: var(--accent-soft);
+    color: var(--accent-text);
   }
 
   &--connected,
   &--completed {
-    background: rgba(34, 197, 94, 0.15);
-    color: #15803d;
+    background: var(--success-soft);
+    color: var(--success-text);
   }
 
   &--no-answer {
-    background: rgba(251, 146, 60, 0.15);
-    color: #c2410c;
+    background: var(--warning-soft);
+    color: var(--warning-text);
   }
 
   &--not-reached {
-    background: rgba(239, 68, 68, 0.15);
-    color: #b91c1c;
+    background: var(--danger-soft);
+    color: var(--danger-text);
   }
 
   &--callback {
-    background: rgba(139, 92, 246, 0.15);
-    color: #6d28d9;
+    background: var(--violet-soft);
+    color: var(--violet-text);
   }
 
   &--error {
-    background: rgba(239, 68, 68, 0.15);
-    color: #b91c1c;
+    background: var(--danger-soft);
+    color: var(--danger-text);
   }
 }
 
@@ -301,7 +280,7 @@ $radius: 6px;
 .contact-attempts {
   text-align: center;
   font-size: 0.875rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-2);
 }
 
 // ── Next attempt column ───────────────────────────────────────────────────────
@@ -310,7 +289,7 @@ $radius: 6px;
   font-size: 0.875rem;
 
   &__time {
-    color: var(--text-primary, #111827);
+    color: var(--text-1);
   }
 }
 
@@ -321,7 +300,7 @@ $radius: 6px;
   justify-content: center;
   gap: 0.375rem;
   border: none;
-  border-radius: $radius;
+  border-radius: var(--radius-sm);
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
@@ -337,7 +316,7 @@ $radius: 6px;
   }
 
   &:focus-visible {
-    outline: 2px solid $brand-blue;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 }
@@ -345,61 +324,61 @@ $radius: 6px;
 .btn-close {
   padding: 0.375rem;
   background: transparent;
-  color: $text-secondary;
-  border-radius: $radius;
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
 
   &:hover {
-    background: $inactive-bg;
-    color: $text-primary;
+    background: var(--neutral-soft);
+    color: var(--text-1);
   }
 }
 
 .btn-secondary {
   padding: 0.5625rem 1.125rem;
-  background: $bg-white;
-  color: $brand-blue;
-  border: 1.5px solid $border-color;
+  background: var(--bg-surface);
+  color: var(--accent-text);
+  border: 1.5px solid var(--border-1);
 
   &:hover:not(:disabled) {
-    background: $blue-bg;
-    border-color: $brand-blue;
+    background: var(--accent-soft);
+    border-color: var(--accent);
   }
 }
 
 .btn-pagination {
   padding: 0.4375rem 0.875rem;
-  background: $bg-white;
-  color: $brand-blue;
-  border: 1.5px solid $border-color;
-  border-radius: $radius;
+  background: var(--bg-surface);
+  color: var(--accent-text);
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius-sm);
   font-size: 0.875rem;
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
 
   &:hover:not(:disabled) {
-    background: $blue-bg;
-    border-color: $brand-blue;
+    background: var(--accent-soft);
+    border-color: var(--accent);
   }
 }
 
 .btn-call {
   padding: 0.375rem 0.75rem;
-  background: $brand-blue;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-fg);
   border: none;
-  border-radius: $radius;
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
   font-weight: 500;
   white-space: nowrap;
   min-width: 100px;
 
   &:hover:not(:disabled) {
-    background: $brand-blue-dark;
+    opacity: 0.88;
   }
 
   &--loading {
-    background: color.adjust($brand-blue, $lightness: 10%);
+    opacity: 0.85;
     cursor: wait;
   }
 
@@ -433,14 +412,14 @@ $radius: 6px;
   align-items: center;
   justify-content: space-between;
   padding: 0.875rem 1.5rem;
-  border-top: 1px solid $border-color;
+  border-top: 1px solid var(--border-1);
   flex-wrap: wrap;
   gap: 0.75rem;
   flex-shrink: 0;
 
   &__info {
     font-size: 0.875rem;
-    color: $text-secondary;
+    color: var(--text-2);
   }
 
   &__controls {
@@ -451,7 +430,7 @@ $radius: 6px;
 
   &__pages {
     font-size: 0.875rem;
-    color: $text-secondary;
+    color: var(--text-2);
     white-space: nowrap;
     min-width: 90px;
     text-align: center;
@@ -469,7 +448,7 @@ $radius: 6px;
   display: flex;
   gap: 1rem;
   padding: 0.75rem 0;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--border-1);
   align-items: center;
 
   &:last-child {
@@ -480,7 +459,12 @@ $radius: 6px;
 .skeleton-cell {
   height: 14px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle) 0%,
+    var(--bg-elevated) 40%,
+    var(--bg-subtle) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease infinite;
 
@@ -523,6 +507,162 @@ $radius: 6px;
   }
 }
 
+// ── Attempts expand button ─────────────────────────────────────────────────────
+.btn-attempts {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  &__chevron {
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  &--expanded &__chevron {
+    transform: rotate(180deg);
+  }
+}
+
+// ── Attempts expanded row ──────────────────────────────────────────────────────
+.contact-row--expanded td {
+  border-bottom: none;
+}
+
+.attempts-row {
+  background: var(--bg-subtle);
+}
+
+.attempts-cell {
+  padding: 0 !important;
+}
+
+.attempts-panel {
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border-1);
+}
+
+.attempts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.attempt-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s ease;
+  font-size: 0.8125rem;
+
+  &:hover {
+    background: var(--bg-elevated);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.attempt-date {
+  color: var(--text-2);
+  white-space: nowrap;
+  min-width: 130px;
+}
+
+.attempt-status {
+  padding: 0.15rem 0.45rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--neutral-soft);
+  color: var(--neutral-text);
+
+  &--completed,
+  &--connected {
+    background: var(--success-soft);
+    color: var(--success-text);
+  }
+
+  &--failed,
+  &--not_reached,
+  &--error {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+  }
+
+  &--no_answer {
+    background: var(--warning-soft);
+    color: var(--warning-text);
+  }
+
+  &--dialing {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  &--callback {
+    background: var(--violet-soft);
+    color: var(--violet-text);
+  }
+}
+
+.attempt-duration {
+  color: var(--text-2);
+  white-space: nowrap;
+  min-width: 50px;
+}
+
+.attempt-disposition {
+  color: var(--text-2);
+  font-size: 0.8rem;
+}
+
+.attempts-empty {
+  font-size: 0.875rem;
+  color: var(--text-2);
+  margin: 0;
+  padding: 0.25rem 0;
+}
+
+.skeleton--short {
+  height: 14px;
+  width: 200px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle) 0%,
+    var(--bg-elevated) 40%,
+    var(--bg-subtle) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
 // ── Empty state ───────────────────────────────────────────────────────────────
 .contacts-empty {
   display: flex;
@@ -535,20 +675,20 @@ $radius: 6px;
   &__icon {
     width: 48px;
     height: 48px;
-    color: #cbd5e1;
+    color: var(--text-muted);
     margin-bottom: 1rem;
   }
 
   &__message {
     font-size: 1rem;
     font-weight: 500;
-    color: $text-primary;
+    color: var(--text-1);
     margin: 0 0 0.25rem;
   }
 
   &__hint {
     font-size: 0.875rem;
-    color: $text-secondary;
+    color: var(--text-2);
     margin: 0;
   }
 }

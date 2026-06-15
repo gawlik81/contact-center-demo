@@ -191,6 +191,35 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - Are all `LocalDate.parse` calls in scheduler wrapped with `DateTimeParseException` catch?
 - Does `markAsDialingForCallback` call `setTenantContextInDb` exactly once?
 
+## EPIC-24 (Call Transfer) — issues found 2026-05-15
+
+**Critical — must fix before production deploy:**
+- `ContactService.bridgeCalls`: `secondCallId` passed to `telephonyAdapter.bridgeCalls()` without tenant verification. `MockTelephonyAdapter.requireSession()` has no tenant check — cross-tenant bridge possible. Fix: add `TelephonyAdapter.getSession(callId): Optional<CallSession>` and verify `secondSession.getTenantId().equals(tenantId)` before bridge.
+- `TwilioTelephonyAdapter.initiateTransfer` throws `UnsupportedOperationException` for AGENT/QUEUE targets. No handler in `GlobalExceptionHandler` → HTTP 500 in production. Fix: add `@ExceptionHandler(UnsupportedOperationException.class)` returning HTTP 501, or throw `TelephonyException` instead.
+
+**Bugs:**
+- `ContactService.recordTransferEvent`: `Map<String, Object> meta` built (lines 864–877) but never passed to `contactEventService.recordTransfer()` — dead code, metadata silently discarded.
+- `TransferQueueStatsRepository.countWaitingContactsByQueueIds`: missing `AND c.is_deleted = FALSE` filter — soft-deleted QUEUED contacts inflate `waitingContacts` metric. RLS on `contact` only filters `tenant_id`, not `is_deleted`. Recurring pattern from BE-021.
+- `TransferRequest.validate()` checks `phoneNumber != null` but not E.164 format — any string accepted. Add `^\\+[1-9]\\d{6,14}$` regex check.
+
+**Architecture issues:**
+- `TransferService.getAvailableAgents` uses `Pageable.unpaged()` to load ALL users, filters in Java stream. For large tenants (500+ agents) this causes unnecessary memory load at every transfer panel open. Needs dedicated query `findTransferCandidates(tenantId, excludeId)` filtering role/status/is_deleted in SQL.
+- `ContactService.initiateTransfer` is `@Transactional` but calls external `telephonyAdapter.initiateTransfer()` inside the transaction — DB lock held during telephony API call, non-atomicity risk. Pattern: validate in readOnly @Transactional, call adapter outside, record event in new @Transactional.
+- Zero tests for new transfer code (TransferRequest.validate, TransferService, initiateTransfer, bridgeCalls, TransferController, AgentCallController new endpoints).
+
+**Positive patterns:**
+- N+1 solved: `TransferAgentQueueRepository` batches queue-names for all agents in single UNION SQL; `TransferQueueStatsRepository` uses 3 separate GROUP BY queries instead of N queries.
+- `TransferRequest.validate()` is a clean domain validation record with explicit switch-case rules per targetType.
+- Javadoc quality is high — `@throws` documented, expected error codes in `@ApiResponse`, doc comments on all complex SQL queries.
+- `@PreAuthorize("hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')")` on all new endpoints with correct `anyRequest().authenticated()` fallback.
+- `SecurityConfig` and `PublicPathsConfig` correctly NOT updated for these endpoints (they are authenticated, not public).
+
+**Check in future telephony-related reviews:**
+- Is `secondCallId` in bridge operations verified against the same tenantId?
+- Does `GlobalExceptionHandler` cover `UnsupportedOperationException` (HTTP 501)?
+- Are new `contact` table queries filtering `AND c.is_deleted = FALSE`?
+- Is `@Transactional` used around external adapter calls (telephony, email, etc.)?
+
 ## BE-024 (Progressive Dialer) — issues found 2026-04-08
 
 **Critical:**
@@ -268,6 +297,36 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - Are tokens never in URL query strings (must use Authorization header)?
 - Is `exchangeForLongLivedToken()` fully implemented (not stub)?
 - Are RLS write policies present for any new table with `ENABLE ROW LEVEL SECURITY`?
+
+## EPIC-27 (Custom Dispositions per Campaign/Queue) — issues found 2026-05-27
+
+**Critical — must fix before merge:**
+- `CustomDispositionRepository.update()` line 385: `rows.get(0)` called without checking if list is empty. Service calls `findByIdAndTenantId` + `update` in separate (non-transactional) calls — concurrent delete between them causes `IndexOutOfBoundsException` → HTTP 500. Fix: null-guard + `@Transactional` on `CustomDispositionService.update()`.
+- `CreateCustomDispositionRequest.tone` has `@Pattern` but no `@NotNull` — Jakarta Bean Validation allows null through `@Pattern`. `tone: null` in JSON passes 400 validation, hits DB NOT NULL constraint → HTTP 500. Same issue in `UpdateCustomDispositionRequest.tone`. Fix: add `@NotNull`.
+
+**Architecture violations:**
+- `campaignId` / `queueId` path params in `PUT /campaigns/{campaignId}/{id}` and `DELETE` are ignored — only `id + tenantId` used. A supervisor can update a disposition from campaign B using campaign A's URL. Fix: verify `disposition.getCampaignId().equals(campaignId)` in service.
+- `resolveForContact` makes 2 DB round-trips (existsBy + findBy) per scope instead of 1. Fix: use `findByCampaignId` return directly (empty = no dispositions), remove `existsByCampaignId/Queue` from resolution path.
+- `CustomDispositionService` has no `@Transactional` at all — multi-step operations (findByIdAndTenantId + update) run in separate transactions.
+
+**Minor:**
+- JavaDoc in `CustomDisposition.java:17` and `CustomDispositionRepository.java:15` references `V092` — actual migration is `V069`.
+- `ordinal` field has no `@Min(0)` — negative values accepted.
+- Test class `CreateForQueue` has only duplicate-code test, missing success path test.
+- `resolveForContact` missing `@Transactional(readOnly = true)` — reads across separate transactions.
+
+**Positive patterns in EPIC-27:**
+- All repository methods call `setTenantContextInDb()` before queries and `assertSameTenant()` before writes — full multi-tenancy compliance.
+- `CustomDispositionRepository extends TenantAwareRepository` — correct.
+- INSERT/UPDATE with `RETURNING` pattern — consistent with rest of project.
+- `SYSTEM_DEFAULTS` as immutable static field — correct fallback guarantee.
+- `@PreAuthorize` at class level on controller (SUPERVISOR+ADMIN), agent endpoint correctly allows AGENT role.
+- 409 conflict returned for duplicate disposition_code — correct HTTP semantics.
+
+**Check in future disposition-related reviews:**
+- Does `update()` guard against empty RETURNING result before `rows.get(0)`?
+- Is `@NotNull` present on `tone` in request DTOs?
+- Are campaignId/queueId path params actually validated against the disposition's scope?
 
 ## Architectural patterns observed in BE-027
 

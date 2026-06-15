@@ -63,7 +63,29 @@
     "errorForbidden": "Brak uprawnień",
     "errorNotFound": "Zasób nie został znaleziony",
     "errorServer": "Błąd serwera, spróbuj ponownie",
-    "errorBadRequest": "Wystąpił błąd. Sprawdź dane i spróbuj ponownie."
+    "errorBadRequest": "Wystąpił błąd. Sprawdź dane i spróbuj ponownie.",
+    "dispositionLabels": {
+      "OTHER": "Inne",
+      "RESOLVED": "Rozwiązany",
+      "ESCALATED": "Eskalowany",
+      "CALLBACK": "Oddzwonienie",
+      "SALE": "Sprzedaż",
+      "DECLINED": "Odmowa",
+      "NO_ANSWER": "Brak odpowiedzi",
+      "TECH_ISSUE": "Problem techniczny",
+      "NO_INTEREST": "Brak zainteresowania",
+      "CANCELLED": "Anulowane",
+      "WRONG_NUMBER": "Zły numer",
+      "VOICEMAIL": "Poczta głosowa",
+      "TRANSFER": "Transfer",
+      "ESCALATE": "Eskalacja"
+    },
+    "tones": {
+      "positive": "Pozytywny",
+      "negative": "Negatywny",
+      "neutral": "Neutralny",
+      "warning": "Ostrzeżenie"
+    }
   },
   "auth": {
     "login": {
@@ -140,9 +162,9 @@
     "logout": "Wyloguj się",
     "tenantLabel": "Tenant:",
     "menu": "Menu",
-    "collapse": "Zwij",
+    "collapse": "Zwiń",
     "mainNav": "Nawigacja główna",
-    "collapseNav": "Zwij nawigację",
+    "collapseNav": "Zwiń nawigację",
     "expandNav": "Rozwiń nawigację",
     "desktop": "Desktop",
     "tenants": "Tenanci",
@@ -163,7 +185,9 @@
     "ivrEditor": "Edytor IVR",
     "oauthCallback": "OAuth Callback",
     "breadcrumbNav": "Ścieżka nawigacji",
-    "settingsTwilioConfig": "Integracja Twilio"
+    "settingsTwilioConfig": "Integracja Twilio",
+    "settingsAiConfig": "Konfiguracja AI",
+    "settingsDispositionSets": "Zestawy dyspozycji"
   },
   "role": {
     "admin": "Admin",
@@ -210,13 +234,16 @@
       "chatPlaceholder": "Panel chatu",
       "chatPlaceholderSub": "Tutaj zostanie załadowany widok chatu",
       "profileLabel": "Profil klienta",
+      "expandCustomerPanel": "Rozwiń panel klienta",
+      "collapseCustomerPanel": "Zwiń panel klienta",
       "viewSwitcher": "Przełącznik widoku",
       "calendar": "Kalendarz",
       "tabPhone": "Telefon",
       "tabChat": "Chat",
       "tabEmail": "Email",
       "tabSocial": "Social",
-      "replySent": "Odpowiedź wysłana"
+      "replySent": "Odpowiedź wysłana",
+      "consultCancelled": "Konsultacja anulowana przez agenta inicjującego"
     },
     "softphone": {
       "incomingCall": "Połączenie przychodzące",
@@ -241,6 +268,7 @@
       "transfer": "Transfer",
       "transferLabel": "Transfer połączenia",
       "transferTitle": "Transfer połączenia",
+      "consultingAgent": "Konsultacja z agentem",
       "transferBack": "Wstecz",
       "transferBackLabel": "Wróć do połączenia",
       "transferMode": "Tryb transferu",
@@ -263,7 +291,26 @@
       "scheduleCallback": "Zaplanuj oddzwonienie",
       "scheduleCallbackLabel": "Zaplanuj oddzwonienie",
       "callbackScheduled": "Oddzwonienie zaplanowane",
-      "idle": "Oczekiwanie na połączenie..."
+      "note": "Notatka",
+      "noteLabel": "Dodaj notatkę do połączenia",
+      "noteBack": "Wróć",
+      "noteBackLabel": "Wróć do połączenia",
+      "noteTitle": "Notatka z rozmowy",
+      "notePlaceholder": "Wpisz notatkę do rozmowy...",
+      "noteHint": "Notatka będzie widoczna w formularzu dyspozycji",
+      "idle": "Oczekiwanie na połączenie...",
+      "tabPhone": "Telefon",
+      "tabAgent": "Agent",
+      "tabQueue": "Kolejka",
+      "searchAgentPlaceholder": "Szukaj agenta...",
+      "transferAction": "Przekaż",
+      "consultAction": "Konsultuj",
+      "noAgentsAvailable": "Brak dostępnych agentów.",
+      "loadAgentsError": "Nie udało się załadować listy agentów.",
+      "noQueuesAvailable": "Brak dostępnych kolejek.",
+      "loadQueuesError": "Nie udało się załadować listy kolejek.",
+      "waitingContacts": "czeka",
+      "availableAgents": "agentów"
     },
     "disposition": {
       "title": "Zakończ kontakt",
@@ -284,7 +331,8 @@
       "statusChanged": "Status zmieniony na Dostępny."
     },
     "customerPanel": {
-      "empty": "Brak aktywnego kontaktu",
+      "empty": "Karta klienta pojawi się tutaj po podjęciu rozmowy.",
+      "emptyTitle": "Brak aktywnego kontaktu",
       "loadingLabel": "Ładowanie danych klienta",
       "unknownTitle": "Nieznany klient",
       "unknownDesc": "Brak profilu klienta dla tego numeru telefonu.",
@@ -294,7 +342,9 @@
       "errorText": "Nie można pobrać danych klienta (błąd serwera).",
       "recentContacts": "Ostatnie kontakty",
       "noHistory": "Brak historii kontaktów",
-      "lookupError": "Nie udało się pobrać danych klienta."
+      "lookupError": "Nie udało się pobrać danych klienta.",
+      "noteExpand": "Pokaż więcej",
+      "noteCollapse": "Pokaż mniej"
     },
     "incomingCall": {
       "label": "Przychodzące połączenie",
@@ -343,7 +393,9 @@
         "TRAINING": "Szkolenie",
         "MEETING": "Spotkanie",
         "OTHER": "Inna"
-      }
+      },
+      "errorStartInPast": "Czas rozpoczęcia musi być w przyszłości.",
+      "errorConflict": "Przerwa koliduje z istniejącym wpisem w harmonogramie."
     },
     "rescheduleCallback": {
       "title": "Przesuń oddzwonienie",
@@ -455,7 +507,9 @@
       "outboundTo": "Wiadomość wychodząca do",
       "inbound": "Przychodząca",
       "outbound": "Wychodząca",
-      "messageContent": "Treść wiadomości email"
+      "messageContent": "Treść wiadomości email",
+      "expandThread": "Rozwiń wątek",
+      "collapseThread": "Zwiń wątek"
     },
     "emailThread": {
       "inbound": "Przychodząca",
@@ -587,7 +641,9 @@
       "loading": "Ładowanie kalendarza",
       "prevPeriod": "Poprzedni okres",
       "nextPeriod": "Następny okres",
-      "viewMode": "Tryb widoku"
+      "viewMode": "Tryb widoku",
+      "showClosedCampaigns": "Pokaż zakończone",
+      "hideClosedCampaigns": "Ukryj zakończone"
     },
     "callbacks": {
       "title": "Moje oddzwonienia",
@@ -646,10 +702,38 @@
       "emails": "Emaile",
       "lastContact": "Ostatni kontakt",
       "noContacts": "Brak kontaktów",
+      "noContactDetails": "Brak szczegółów",
       "scheduleCallback": "Zamów oddzwonienie",
       "closeDetails": "Zamknij szczegóły",
       "details": "Szczegóły",
-      "callbackFor": "Zamów oddzwonienie dla"
+      "callbackFor": "Zamów oddzwonienie dla",
+      "initiateCall": "Zadzwoń",
+      "selectPhone": "Wybierz numer",
+      "callInitiated": "Połączenie zostało zainicjowane",
+      "callError": "Nie udało się zainicjować połączenia",
+      "sendEmail": "Wyślij email",
+      "viewContactDetails": "Szczegóły kontaktu"
+    },
+    "adhocEmail": {
+      "title": "Wyślij email do klienta",
+      "toLabel": "Do",
+      "subjectLabel": "Temat",
+      "bodyLabel": "Treść wiadomości",
+      "send": "Wyślij",
+      "cancel": "Anuluj",
+      "sent": "Email został wysłany",
+      "errorNoSmtp": "Brak konfiguracji SMTP. Skontaktuj się z administratorem.",
+      "errorSend": "Nie udało się wysłać emaila. Spróbuj ponownie.",
+      "toRequired": "Adres email jest wymagany.",
+      "toInvalid": "Podaj poprawny adres email.",
+      "subjectRequired": "Temat jest wymagany.",
+      "subjectMaxLength": "Temat nie może przekraczać 500 znaków.",
+      "bodyRequired": "Treść wiadomości jest wymagana.",
+      "templateLabel": "Szablon",
+      "templatePlaceholder": "— Brak szablonu —",
+      "templateVariablesLabel": "Zmienne szablonu",
+      "applyTemplate": "Zastosuj szablon",
+      "errorTemplateApply": "Nie udało się zastosować szablonu."
     },
     "manualCallbackModal": {
       "title": "Zamów oddzwonienie",
@@ -779,6 +863,7 @@
       "fullscreenLabel": "Tryb pełnoekranowy",
       "loadingMetrics": "Ładowanie metryk",
       "kpiActiveCalls": "Aktywne połączenia",
+      "kpiCallsInIvr": "W IVR",
       "kpiAvailable": "Dostępni agenci",
       "kpiBreak": "Na przerwie",
       "kpiAfterContact": "Po kontakcie",
@@ -951,7 +1036,8 @@
       "statusLabel": "Status kolejki",
       "assignmentTitle": "Przypisanie agentów",
       "assignmentHint": "Zapisz kolejkę, aby skonfigurować przypisanie agentów.",
-      "saveLabel": "Zapisz kolejkę"
+      "saveLabel": "Zapisz kolejkę",
+      "dispositionsTitle": "Dyspozycje po kontakcie"
     },
     "queueDelete": {
       "title": "Usuń kolejkę",
@@ -973,7 +1059,23 @@
       "groupsTitle": "Grupy agentów",
       "directAgentsTitle": "Indywidualni agenci",
       "agentsAbbr": "ag.",
-      "noAssignment": "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu."
+      "noAssignment": "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu.",
+      "allAgentsLabel": "Wszyscy agenci tenanta",
+      "allAgentsHint": "Kolejka dostępna dla wszystkich agentów",
+      "groupsSection": "Grupy agentów",
+      "agentsSection": "Agenci bezpośredni",
+      "addGroup": "Dodaj grupę",
+      "addAgent": "Dodaj agenta",
+      "emptyWarning": "Brak przypisania — kolejka nie obsłuży żadnego kontaktu.",
+      "saveButton": "Zapisz",
+      "cancelButton": "Anuluj",
+      "successToast": "Przypisanie agentów zaktualizowane",
+      "errorSave": "Nie udało się zapisać przypisania",
+      "manageButton": "Zarządzaj agentami",
+      "badgeAllAgents": "Wszyscy agenci",
+      "badgeNoAgents": "Brak agentów",
+      "badgeNoAgentsHint": "Brak przypisanych agentów — kolejka nie obsłuży żadnego kontaktu",
+      "badgeAgents": "agentów"
     },
     "queueAssignment": {
       "title": "Przypisanie do kolejki",
@@ -1037,7 +1139,46 @@
       "successStop": "została zatrzymana.",
       "errorRevert": "Nie udało się cofnąć kampanii",
       "successRevert": "cofnięta do statusu Szkic.",
-      "errorRevertSuffix": "do szkicu."
+      "errorRevertSuffix": "do szkicu.",
+      "showClosed": "Pokaż zakończone",
+      "hideClosed": "Ukryj zakończone",
+      "typeOutboundVoice": "Wychodzące głosy",
+      "typeOutboundEmail": "Wychodzące email",
+      "dialerProgressive": "Progresywny",
+      "dialerPredictive": "Predyktywny",
+      "dialerManual": "Manualny",
+      "importSuccess": "Import kontaktów został zakończony pomyślnie.",
+      "errors": {
+        "loadFailed": "Nie udało się pobrać listy kampanii. Spróbuj ponownie."
+      },
+      "campaignAssignment": {
+        "title": "Zarządzaj agentami kampanii",
+        "allAgentsLabel": "Wszyscy agenci tenanta",
+        "allAgentsHint": "Kampania dostępna dla wszystkich agentów",
+        "groupsSection": "Grupy agentów",
+        "agentsSection": "Agenci bezpośredni",
+        "addGroup": "Dodaj grupę",
+        "addAgent": "Dodaj agenta",
+        "emptyWarning": "Brak przypisania — dialer nie będzie dzwonił, panel manualny nie wyświetli rekordów tej kampanii.",
+        "saveButton": "Zapisz",
+        "cancelButton": "Anuluj",
+        "successToast": "Przypisanie agentów zaktualizowane",
+        "errorSave": "Nie udało się zapisać przypisania",
+        "manageButton": "Zarządzaj agentami"
+      },
+      "badgeAllAgents": "Wszyscy agenci",
+      "badgeNoAgents": "Brak agentów",
+      "badgeNoAgentsHint": "Dialer nieaktywny — brak przypisanych agentów",
+      "badgeAgents": "agentów",
+      "attempts": "prób",
+      "showAttempts": "Pokaż próby wydzwonienia",
+      "noAttempts": "Brak prób wydzwonienia",
+      "statsTotal": "Łącznie",
+      "statsCompleted": "Zakończone",
+      "statsRemaining": "Do wydzwonienia",
+      "statsHeader": "Rekordy",
+      "dispositionsTitle": "Dyspozycje po kontakcie",
+      "dispositionsDesc": "Zdefiniuj własne dyspozycje dla tej kampanii. Jeśli lista jest pusta, agenci widzą dyspozycje systemowe."
     },
     "campaignForm": {
       "titleCreate": "Nowa kampania",
@@ -1055,10 +1196,8 @@
       "cancel": "Anuluj",
       "closeLabel": "Zamknij formularz",
       "dialerTypeLabel": "Typ dialera",
-      "queueLabel": "Kolejka",
-      "queuePlaceholder": "-- Wybierz kolejkę --",
-      "maxAttemptsLabel": "Maks. prób",
-      "retryDelayLabel": "Opóźnienie retry (min)",
+      "maxAttemptsLabel": "Maksymalna liczba prób",
+      "retryDelayLabel": "Czas między próbami (minuty)",
       "scheduleLabel": "Harmonogram (opcjonalny)",
       "timeFromLabel": "Godzina od",
       "timeToLabel": "Godzina do",
@@ -1070,7 +1209,31 @@
         "placeholder": "— Wybierz numer —",
         "defaultTenant": "— Domyślny numer tenanta —",
         "hint": "Wybierz numer z konta Twilio lub pozostaw pusty aby użyć domyślnego numeru tenanta."
-      }
+      },
+      "maxAttemptsHint": "Po ilu nieudanych próbach oznaczyć rekord jako Niedodzwoniony",
+      "retryDelayHint": "Ile minut odczekać przed kolejną próbą połączenia gdy klient nie odbierze",
+      "ringTimeoutLabel": "Czas oczekiwania na odebranie (sekundy)",
+      "ringTimeoutHint": "Ile sekund dzwonić do klienta — jeśli nie odbierze w tym czasie, połączenie zostanie uznane za nieodebrane",
+      "errors": {
+        "nameRequired": "Nazwa jest wymagana.",
+        "nameMaxLength": "Nazwa nie może przekraczać 255 znaków.",
+        "nameTaken": "Kampania o tej nazwie już istnieje.",
+        "fieldRequired": "Pole jest wymagane.",
+        "maxAttemptsMin": "Minimalna liczba prób to 1.",
+        "maxAttemptsMax": "Maksymalna liczba prób to 10.",
+        "retryDelayMin": "Minimalny czas między próbami to 1 minuta.",
+        "retryDelayMax": "Maksymalny czas między próbami to 1440 minut (24h).",
+        "ringTimeoutMin": "Minimalny czas to 15 sekund.",
+        "ringTimeoutMax": "Maksymalny czas to 120 sekund.",
+        "timeFromPattern": "Format: GG:MM (np. 09:00)",
+        "timeToPattern": "Format: GG:MM (np. 18:00)",
+        "timeRangeInvalid": "Godzina \"do\" musi być później niż godzina \"od\".",
+        "dateRangeInvalid": "Data końca nie może być wcześniej niż data startu.",
+        "updateFailed": "Nie udało się zaktualizować kampanii. Spróbuj ponownie.",
+        "limitExceeded": "Przekroczono limit kampanii dla tego tenanta.",
+        "createFailed": "Nie udało się utworzyć kampanii. Spróbuj ponownie."
+      },
+      "checkingName": "Sprawdzam dostępność nazwy..."
     },
     "campaignImport": {
       "title": "Importuj kontakty",
@@ -1084,7 +1247,28 @@
       "skipDuplicates": "Pomiń duplikaty (na podstawie numeru telefonu)",
       "importButton": "Importuj kontakty",
       "rejected": "Odrzuconych",
-      "sampleErrors": "Przykładowe błędy ({{ count }})"
+      "sampleErrors": "Przykładowe błędy ({{ count }})",
+      "initializing": "Inicjalizacja importu...",
+      "fieldPhone": "Telefon (wymagany)",
+      "fieldFirstName": "Imię",
+      "fieldLastName": "Nazwisko",
+      "fieldCustom1": "Pole niestandardowe 1",
+      "fieldCustom2": "Pole niestandardowe 2",
+      "fieldIgnore": "Ignoruj kolumnę",
+      "mappingColumnLabel": "Mapowanie kolumny {{ column }}",
+      "progressLabel": "Postęp importu: {{ percent }}%",
+      "stepperAriaLabel": "Kroki importu",
+      "dropZoneAriaLabel": "Strefa przeciągania pliku CSV",
+      "fileInputAriaLabel": "Wybierz plik CSV",
+      "previewTableAriaLabel": "Podgląd zawartości CSV",
+      "mappingTableAriaLabel": "Tabela mapowania kolumn",
+      "reportSummaryAriaLabel": "Podsumowanie importu",
+      "rejectedListAriaLabel": "Lista błędów importu",
+      "errors": {
+        "csvOnly": "Dozwolone są tylko pliki CSV (.csv).",
+        "phoneMissing": "Pole \"Telefon\" musi być zmapowane na jedną z kolumn CSV.",
+        "startFailed": "Nie udało się rozpocząć importu. Spróbuj ponownie."
+      }
     },
     "campaignInfo": {
       "title": "Szczegóły kampanii",
@@ -1113,6 +1297,10 @@
       "tableName": "Imię i nazwisko",
       "tableStatus": "Status",
       "tableAttempts": "Próby",
+      "tableNextAttempt": "Następna próba",
+      "tableAction": "Akcja",
+      "statusAriaLabel": "Status: {{ status }}",
+      "paginationAriaLabel": "Nawigacja stron kontaktów",
       "emptyText": "Brak kontaktów w kampanii.",
       "loadingLabel": "Wczytywanie kontaktów...",
       "tableLabel": "Lista kontaktów kampanii",
@@ -1122,7 +1310,26 @@
       "changeFilter": "Zmień filtr statusu, aby zobaczyć inne kontakty.",
       "noContacts": "Do tej kampanii nie zaimportowano jeszcze żadnych kontaktów.",
       "calling": "Dzwonię...",
-      "call": "Zadzwoń"
+      "call": "Zadzwoń",
+      "contactStatusLabels": {
+        "PENDING": "Oczekuje",
+        "DIALING": "Wybieranie",
+        "CONNECTED": "Połączony",
+        "COMPLETED": "Zakończono",
+        "NO_ANSWER": "Brak odpowiedzi",
+        "NOT_REACHED": "Niedodzwoniony",
+        "CALLBACK": "Oddzwonienie",
+        "FAILED": "Błąd połączenia",
+        "SKIPPED": "Pominięto",
+        "ERROR": "Błąd techniczny",
+        "CALLED": "Zadzwoniony"
+      },
+      "now": "Teraz",
+      "errors": {
+        "loadFailed": "Nie udało się pobrać listy kontaktów. Spróbuj ponownie.",
+        "callNotFound": "Rekord nie został znaleziony.",
+        "callFailed": "Nie udało się zainicjować połączenia. Spróbuj ponownie."
+      }
     },
     "customers": {
       "title": "Klienci",
@@ -1181,11 +1388,16 @@
       "errorScheduleCallback": "Nie udało się zaplanować oddzwonienia.",
       "successScheduleCallback": "Oddzwonienie zostało zaplanowane.",
       "contactStatusLabels": {
+        "IVR": "W IVR",
         "QUEUED": "W kolejce",
+        "ASSIGNED": "Przydzielony",
         "ACTIVE": "Aktywny",
         "ON_HOLD": "Wstrzymany",
         "COMPLETED": "Zakończony",
         "ABANDONED": "Porzucony",
+        "TRANSFERRED": "Przetransferowany",
+        "NOT_REACHED": "Niedodzwoniony",
+        "ERROR": "Błąd",
         "FAILED": "Nieudany"
       },
       "phones": "Numery telefonów",
@@ -1220,7 +1432,7 @@
       "thDuration": "Czas trwania",
       "thDisposition": "Dyspozycja",
       "thNote": "Notatka",
-      "thAgentId": "Agent ID",
+      "thAgent": "Agent",
       "openContactLabel": "Otwórz szczegóły kontaktu z",
       "paginationLabel": "Nawigacja po historii kontaktów",
       "prevPageLabel": "Poprzednia strona historii",
@@ -1241,6 +1453,11 @@
         "EMAIL": "Email",
         "CHAT": "Chat",
         "SOCIAL": "Social"
+      },
+      "direction": "Kierunek",
+      "directionLabels": {
+        "INBOUND": "Przychodzący",
+        "OUTBOUND": "Wychodzący"
       }
     },
     "customerEdit": {
@@ -1424,6 +1641,7 @@
       "nodeSetValue": "Wartość",
       "nodeSetValuePlaceholder": "wartość lub ${inna_zmienna}",
       "nodeSetValueHint": "Możesz użyć ${nazwa_zmiennej} by wstawić wartość z sesji.",
+      "varHint": "Wpisz $ aby wstawić zmienną z przepływu",
       "nodeConditionEquals": "równa się (=)",
       "nodeConditionNotEquals": "różna od (≠)",
       "nodeConditionStartsWith": "zaczyna się od",
@@ -1480,6 +1698,10 @@
       "closeJson": "Zamknij panel JSON",
       "nextNode": "Następny węzeł",
       "nodePaletteLabel": "Paleta węzłów",
+      "zoomInLabel": "Powiększ",
+      "zoomOutLabel": "Pomniejsz",
+      "zoomResetLabel": "Resetuj powiększenie (100%)",
+      "fitToViewLabel": "Dopasuj widok do całego grafu",
       "entryNodeBadgeLabel": "Węzeł startowy",
       "deleteNodeLabel": "Usuń węzeł",
       "deleteNodeTitle": "Usuń węzeł",
@@ -1599,6 +1821,7 @@
       "thQueue": "Kolejka",
       "thDuration": "Czas trwania",
       "thDisposition": "Dyspozycja",
+      "thAgent": "Agent",
       "inbound": "Przychodzący",
       "outbound": "Wychodzący",
       "inboundShort": "Przych.",
@@ -1643,7 +1866,8 @@
       "csvColQueue": "Kolejka",
       "csvColDuration": "Czas trwania (s)",
       "csvColStatus": "Status",
-      "csvColDisposition": "Dyspozycja"
+      "csvColDisposition": "Dyspozycja",
+      "csvColAgent": "Agent"
     },
     "agentGroups": {
       "title": "Grupy agentów",
@@ -1779,7 +2003,16 @@
         "variableHint": "Używaj składni {{nazwa}} aby wstawiać dynamiczne wartości.",
         "templateCount_one": "szablon",
         "templateCount_few": "szablony",
-        "templateCount_many": "szablonów"
+        "templateCount_many": "szablonów",
+        "predefinedVarsTitle": "Predefiniowane zmienne",
+        "predefinedVarsHint": "Kliknij aby wstawić w zaznaczone pole",
+        "categoryCustomer": "Klient",
+        "categoryAgent": "Agent",
+        "customVarsTitle": "Własne zmienne",
+        "addVariableBtn": "+ Dodaj",
+        "previewVarsEditableLabel": "Wartości zmiennych — możesz je edytować przed wygenerowaniem podglądu:",
+        "predefinedVarAuto": "auto",
+        "removeVariable": "Usuń zmienną"
       },
       "twilio": {
         "title": "Telefonia VoIP / Twilio",
@@ -1824,6 +2057,31 @@
         "saveSuccess": "Konfiguracja Twilio zapisana pomyślnie",
         "deleteSuccess": "Konfiguracja Twilio usunięta",
         "loadError": "Nie udało się załadować konfiguracji Twilio."
+      },
+      "aiConfig": {
+        "title": "Konfiguracja AI",
+        "subtitle": "Zarządzaj dostawcą AI do generowania podsumowań kontaktów.",
+        "noConfigTitle": "Brak konfiguracji AI",
+        "noConfigHint": "Skonfiguruj dostawcę AI, aby agenci mogli generować podsumowania kontaktów.",
+        "setupButton": "Skonfiguruj",
+        "providerLabel": "Dostawca AI",
+        "apiKeyLabel": "Klucz API",
+        "apiKeyPlaceholder": "Wpisz nowy klucz API",
+        "editSecretButton": "Zmień",
+        "modelNameLabel": "Nazwa modelu",
+        "modelNamePlaceholder": "np. claude-opus-4-7, gpt-4o",
+        "azureSectionTitle": "Ustawienia Azure OpenAI",
+        "azureEndpointLabel": "Azure Endpoint URL",
+        "azureDeploymentNameLabel": "Nazwa deployment",
+        "promptTemplateSectionTitle": "Prompt systemowy",
+        "summaryPromptLabel": "Prompt systemowy (opcjonalny)",
+        "summaryPromptPlaceholder": "Zostaw puste, aby użyć domyślnego promptu aplikacji.",
+        "dangerZoneTitle": "Strefa niebezpieczna",
+        "saveButton": "Zapisz konfigurację",
+        "cancelButton": "Anuluj",
+        "deleteButton": "Usuń konfigurację AI",
+        "deleteConfirm": "Czy na pewno chcesz usunąć konfigurację AI? Ta operacja jest nieodwracalna.",
+        "loadError": "Nie udało się załadować konfiguracji AI."
       },
       "twilioPhoneSelect": {
         "loading": "Pobieranie numerów...",
@@ -1900,6 +2158,46 @@
         "saveButton": "Zapisz regułę",
         "errorDays": "Wybierz co najmniej jeden dzień tygodnia.",
         "errorTime": "Godzina \"Do\" musi być późniejsza niż \"Od\"."
+      },
+      "dispositionSets": {
+        "pageTitle": "Zestawy dyspozycji",
+        "pageSubtitle": "Zarządzaj zestawami dyspozycji wielokrotnego użytku — przypisz je do kampanii lub kolejki.",
+        "setsTitle": "Zestawy",
+        "createButton": "+ Nowy zestaw",
+        "nameLabel": "Nazwa",
+        "nameRequired": "Nazwa jest wymagana.",
+        "descLabel": "Opis",
+        "emptySetList": "Brak zestawów dyspozycji. Kliknij „+ Nowy zestaw\", aby dodać pierwszy.",
+        "selectSetHint": "Wybierz zestaw z lewej kolumny, aby zobaczyć jego elementy.",
+        "addItemButton": "+ Dodaj dyspozycję",
+        "itemsEmpty": "Ten zestaw nie ma jeszcze żadnych dyspozycji. Kliknij „+ Dodaj dyspozycję\".",
+        "itemSingular": "dyspozycja",
+        "itemPlural": "dyspozycji",
+        "confirmDeleteSet": "Czy na pewno chcesz usunąć zestaw \"{{ name }}\"? Operacja jest nieodwracalna.",
+        "confirmDeleteItem": "Czy na pewno chcesz usunąć dyspozycję \"{{ label }}\" z zestawu?",
+        "ariaSetsList": "Lista zestawów dyspozycji",
+        "ariaItemsList": "Elementy wybranego zestawu",
+        "ariaSetFormLabel": "Formularz zestawu dyspozycji",
+        "ariaItemFormLabel": "Formularz elementu zestawu",
+        "ariaSelectSet": "Wybierz zestaw {{ name }}",
+        "ariaEditSet": "Edytuj zestaw {{ name }}",
+        "ariaDeleteSet": "Usuń zestaw {{ name }}",
+        "ariaEditItem": "Edytuj dyspozycję {{ label }}",
+        "ariaDeleteItem": "Usuń dyspozycję {{ label }}",
+        "errorLoadSets": "Nie udało się załadować zestawów.",
+        "errorSaveSet": "Nie udało się zapisać zestawu.",
+        "errorSaveSetDuplicate": "Zestaw o tej nazwie już istnieje.",
+        "errorDeleteSet": "Nie udało się usunąć zestawu.",
+        "errorLoadItems": "Nie udało się załadować elementów zestawu.",
+        "errorSaveItem": "Nie udało się zapisać elementu.",
+        "errorSaveItemDuplicate": "Dyspozycja o tym kodzie już istnieje w zestawie.",
+        "errorDeleteItem": "Nie udało się usunąć elementu.",
+        "successCreateSet": "Zestaw został utworzony.",
+        "successUpdateSet": "Zestaw został zaktualizowany.",
+        "successDeleteSet": "Zestaw został usunięty.",
+        "successCreateItem": "Element został dodany do zestawu.",
+        "successUpdateItem": "Element zestawu został zaktualizowany.",
+        "successDeleteItem": "Element został usunięty z zestawu."
       }
     },
     "reports": {
@@ -1954,6 +2252,35 @@
       "IF": "Warunek",
       "SWITCH": "Przełącznik",
       "VOICEBOT": "Voicebot ASR/NLU"
+    },
+    "dispositionEditor": {
+      "emptyState": "Brak własnych dyspozycji — agenci widzą dyspozycje systemowe.",
+      "inactiveLabel": "nieaktywna",
+      "codeLabel": "Kod",
+      "codePlaceholder": "np. CALLBACK_AGREED",
+      "codeHint": "Wielkie litery, cyfry i podkreślnik.",
+      "codeRequired": "Kod jest wymagany.",
+      "codePattern": "Tylko wielkie litery, cyfry i podkreślnik (A-Z, 0-9, _).",
+      "codeMaxLength": "Maksymalnie 50 znaków.",
+      "labelLabel": "Etykieta",
+      "labelRequired": "Etykieta jest wymagana.",
+      "labelMaxLength": "Maksymalnie 100 znaków.",
+      "toneLabel": "Ton",
+      "ordinalLabel": "Kolejność",
+      "activeLabel": "Aktywna",
+      "addButton": "+ Dodaj dyspozycję",
+      "applySetButton": "Zastosuj zestaw",
+      "itemsCount": "{{ count }} dyspozycji",
+      "noSets": "Brak zdefiniowanych zestawów",
+      "confirmApplySet": "Czy skopiować {{ count }} dyspozycji z zestawu \"{{ name }}\"? Istniejące dyspozycje o tych samych kodach zostaną pominięte.",
+      "confirmDelete": "Czy na pewno chcesz usunąć tę dyspozycję?",
+      "errorLoad": "Nie udało się załadować dyspozycji.",
+      "errorSave": "Nie udało się zapisać dyspozycji.",
+      "errorSaveDuplicate": "Kod dyspozycji już istnieje w tym zakresie",
+      "errorDelete": "Nie udało się usunąć dyspozycji.",
+      "errorLoadSets": "Nie udało się załadować zestawów dyspozycji.",
+      "errorApplySet": "Nie udało się zastosować zestawu dyspozycji.",
+      "listAriaLabel": "Lista dyspozycji"
     }
   },
   "admin": {
@@ -2129,7 +2456,8 @@
     "sectionStatus": "Status i czas trwania",
     "fieldStatus": "Status",
     "fieldDuration": "Czas trwania",
-    "fieldDisposition": "Kod dyspozycji",
+    "fieldDisposition": "Dyspozycja",
+    "fieldAgent": "Agent",
     "fieldNotes": "Notatka",
     "sectionEmail": "Wiadomość email (EML)",
     "sectionRecording": "Nagranie rozmowy",
@@ -2152,11 +2480,23 @@
     "emailSubject": "Temat:",
     "emailDate": "Data:",
     "emailEmpty": "Brak treści wiadomości.",
+    "sectionEvents": "Historia kontaktu",
+    "noEvents": "Brak zarejestrowanych etapów.",
+    "eventInProgress": "w toku",
+    "stageIVR": "IVR",
+    "stageVOICEBOT": "Bot",
+    "stageQUEUE": "Kolejka",
+    "stageAGENT": "Agent",
+    "stageON_HOLD": "Wstrzym.",
+    "stageCONSULTING": "Konsult.",
+    "stageTRANSFER": "Transfer",
     "sectionRelated": "Powiązane kontakty",
     "loadingRelatedLabel": "Wczytywanie powiązanych kontaktów...",
     "related": "Powiązania",
     "parentContact": "Kontakt źródłowy",
     "childContact": "Kontakt wynikowy",
+    "transferSource": "Kontakt przed transferem",
+    "transferTarget": "Kontakt po transferze",
     "goToParent": "Przejdź do kontaktu źródłowego",
     "goToChild": "Przejdź do kontaktu wynikowego",
     "close": "Zamknij",
@@ -2164,15 +2504,6 @@
     "errorRecording": "Nie udało się pobrać URL nagrania.",
     "errorEmailPreview": "Nie udało się pobrać podglądu wiadomości.",
     "loadingRelated": "Wczytywanie powiązanych kontaktów...",
-    "statusLabels": {
-      "QUEUED": "W kolejce",
-      "ACTIVE": "Aktywny",
-      "ON_HOLD": "Wstrzymany",
-      "COMPLETED": "Zakończony",
-      "ABANDONED": "Porzucony",
-      "FAILED": "Nieudany",
-      "NOT_REACHED": "Nie osiągnięto"
-    },
     "callbackStatusLabels": {
       "PENDING": "Oczekujące",
       "PROCESSING": "W trakcie",

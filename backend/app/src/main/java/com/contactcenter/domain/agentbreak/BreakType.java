@@ -10,5 +10,6 @@ public enum BreakType {
     LUNCH,
     SHORT_BREAK,
     TRAINING,
+    MEETING,
     OTHER
 }

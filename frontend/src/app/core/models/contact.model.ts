@@ -3,10 +3,20 @@ export interface ContactResponse {
   tenantId: string;
   customerId: string | null;
   agentId: string;
+  agentName: string | null;
   queueId?: string;
   campaignId?: string;
   channel: 'PHONE' | 'EMAIL' | 'CHAT' | 'SOCIAL';
-  status: 'QUEUED' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'ABANDONED' | 'FAILED' | string;
+  status:
+    | 'IVR'
+    | 'QUEUED'
+    | 'ACTIVE'
+    | 'ON_HOLD'
+    | 'COMPLETED'
+    | 'ABANDONED'
+    | 'FAILED'
+    | 'TRANSFERRED'
+    | string;
   direction: 'INBOUND' | 'OUTBOUND' | string;
   remoteAddress?: string;
   startedAt: string;
@@ -14,6 +24,7 @@ export interface ContactResponse {
   endedAt: string | null;
   durationSeconds?: number;
   dispositionCode: string | null;
+  dispositionLabel: string | null;
   notes?: string | null;
   recordingUrl?: string | null;
   callbackId?: string | null;
@@ -60,4 +71,13 @@ export interface EmailPreviewResponse {
   bodyText: string | null;
   receivedAt: string;
   direction: 'INBOUND' | 'OUTBOUND';
+}
+
+export interface ContactEventResponse {
+  eventId: string;
+  stage: 'IVR' | 'VOICEBOT' | 'QUEUE' | 'AGENT' | 'ON_HOLD' | 'CONSULTING' | 'TRANSFER';
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  metadata: Record<string, string>;
 }

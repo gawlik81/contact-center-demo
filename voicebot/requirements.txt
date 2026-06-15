@@ -5,3 +5,6 @@ pydantic-settings>=2.0.0
 redis>=5.0.0
 aio-pika>=9.4.0
 python-multipart>=0.0.9
+anthropic>=0.30.0
+openai>=1.40.0
+pytest-asyncio>=0.23.0

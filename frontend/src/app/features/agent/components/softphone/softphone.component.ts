@@ -8,21 +8,29 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { TranslocoModule } from '@jsverse/transloco';
 import { SoftphoneService } from '../../services/softphone.service';
 import { ContactTab } from '../../models/contact-tab.model';
-import { CallSession } from '../../models/call-session.model';
+import { CallSession, TransferMode, TransferTargetType } from '../../models/call-session.model';
 import { ScheduleInboundCallbackModalComponent } from '../schedule-inbound-callback-modal/schedule-inbound-callback-modal.component';
 import { ScheduledCallbackDto } from '../../models/callback.model';
-
-type TransferMode = 'BLIND' | 'ATTENDED';
+import { ContactTabStore } from '../../services/contact-tab.store';
+import { TransferAgentListComponent } from '../transfer-agent-list/transfer-agent-list.component';
+import { TransferQueueListComponent } from '../transfer-queue-list/transfer-queue-list.component';
 
 @Component({
   selector: 'app-softphone',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, TranslocoModule, ScheduleInboundCallbackModalComponent],
+  imports: [
+    FormsModule,
+    TranslocoModule,
+    ScheduleInboundCallbackModalComponent,
+    TransferAgentListComponent,
+    TransferQueueListComponent,
+  ],
   templateUrl: './softphone.component.html',
   styleUrl: './softphone.component.scss',
 })
@@ -30,12 +38,25 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   @Input({ required: true }) tab!: ContactTab;
 
   protected readonly softphone = inject(SoftphoneService);
+  private readonly tabStore = inject(ContactTabStore);
 
   protected readonly session = this.softphone.session;
 
   protected readonly transferMode = signal<TransferMode>('BLIND');
   protected readonly transferTarget = signal<string>('');
   protected readonly attendedConnected = signal<boolean>(false);
+  protected readonly transferTargetType = signal<TransferTargetType>('PHONE');
+  /** True while an HTTP transfer request is in flight — disables transfer buttons */
+  protected readonly isTransferring = signal<boolean>(false);
+
+  protected readonly transferTargetTabs = computed<TransferTargetType[]>(() => {
+    // Queue transfer only makes sense for calls that arrived through a queue.
+    // Outbound calls have no queueName; also guard against direction being temporarily wrong
+    // when CONTACT_ASSIGNED creates the tab before CALL_OUTBOUND corrects it.
+    const s = this.session();
+    const hasQueue = s != null && s.queueName != null && s.queueName.length > 0;
+    return hasQueue ? ['PHONE', 'AGENT', 'QUEUE'] : ['PHONE', 'AGENT'];
+  });
 
   protected readonly transferTargetValid = computed(
     () => this.transferTarget().replace(/[\s+]/g, '').length >= 3,
@@ -60,6 +81,7 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
   });
 
   private holdTickInterval: ReturnType<typeof setInterval> | null = null;
+  private consultAnsweredSub: Subscription | null = null;
 
   ngOnInit(): void {
     // Force re-render of hold timer tick
@@ -68,12 +90,19 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
       // we need a small auxiliary signal to trigger CD.
       this._holdTick.update((v) => v + 1);
     }, 1000);
+
+    // Set attendedConnected only when consultation target actually answers (WS event),
+    // NOT when the HTTP initiation request returns.
+    this.consultAnsweredSub = this.softphone.consultAnswered$.subscribe(() => {
+      this.attendedConnected.set(true);
+    });
   }
 
   ngOnDestroy(): void {
     if (this.holdTickInterval !== null) {
       clearInterval(this.holdTickInterval);
     }
+    this.consultAnsweredSub?.unsubscribe();
   }
 
   // auxiliary tick to force hold-timer re-evaluation in OnPush
@@ -105,29 +134,42 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     this.attendedConnected.set(false);
   }
 
+  protected setTransferTargetType(type: TransferTargetType): void {
+    this.transferTargetType.set(type);
+    this.transferTarget.set('');
+    this.attendedConnected.set(false);
+  }
+
   protected onTransferTargetChange(value: string): void {
     this.transferTarget.set(value);
   }
 
   protected submitTransfer(): void {
     const target = this.transferTarget();
-    if (!this.transferTargetValid()) return;
+    if (!this.transferTargetValid() || this.isTransferring()) return;
+    this.isTransferring.set(true);
     if (this.transferMode() === 'BLIND') {
-      this.softphone.initiateBlindTransfer(target);
+      this.softphone.initiateBlindTransfer(target, () => this.isTransferring.set(false));
     } else {
-      this.softphone.initiateAttendedTransfer(target);
-      this.attendedConnected.set(true);
+      this.softphone.initiateAttendedTransfer(target, () => {
+        this.isTransferring.set(false);
+      });
     }
   }
 
   protected completeAttended(): void {
-    this.softphone.completeAttendedTransfer();
+    if (this.isTransferring()) return;
+    this.isTransferring.set(true);
+    this.softphone.completeAttendedTransfer(() => this.isTransferring.set(false));
   }
 
   protected cancelTransfer(): void {
     this.softphone.cancelTransfer();
     this.transferTarget.set('');
     this.attendedConnected.set(false);
+    this.isTransferring.set(false);
+    // After cancelling attended, close the transfer panel so the main ACTIVE view shows
+    this._showTransferPanel.set(false);
   }
 
   protected openTransferView(): void {
@@ -143,9 +185,15 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
     this._showTransferPanel.set(false);
     this.transferTarget.set('');
     this.attendedConnected.set(false);
+    this.transferTargetType.set('PHONE');
   }
 
   protected readonly _showTransferPanel = signal(false);
+  protected readonly _showNotePanel = signal(false);
+
+  protected readonly currentNote = computed(
+    () => this.tabStore.tabs().find((t) => t.id === this.tab.id)?.note ?? '',
+  );
 
   /** Whether the schedule-callback modal is open */
   protected readonly _showCallbackModal = signal(false);
@@ -163,17 +211,84 @@ export class SoftphoneComponent implements OnInit, OnDestroy {
       (this.tab.direction === 'INBOUND' || this.tab.direction === 'OUTBOUND'),
   );
 
+  protected openNotePanel(): void {
+    this._showNotePanel.set(true);
+  }
+
+  protected closeNotePanel(): void {
+    this._showNotePanel.set(false);
+  }
+
+  protected onNoteChange(value: string): void {
+    this.tabStore.updateTabNote(this.tab.id, value);
+  }
+
   protected openCallbackModal(): void {
     this._showCallbackModal.set(true);
+    this.softphone.callbackModalOpen.set(true);
   }
 
   protected onCallbackScheduled(_dto: ScheduledCallbackDto): void {
     this._showCallbackModal.set(false);
     this._callbackScheduled.set(true);
+    this.softphone.callbackModalOpen.set(false);
+    this.wrapIfCallEnded();
   }
 
   protected onCallbackCancelled(): void {
     this._showCallbackModal.set(false);
+    this.softphone.callbackModalOpen.set(false);
+    this.wrapIfCallEnded();
+  }
+
+  /**
+   * If the call has already ended while the callback modal was open,
+   * trigger the ACW (wrapping) phase now that the modal is closed.
+   */
+  private wrapIfCallEnded(): void {
+    const s = this.softphone.session();
+    if (!s || s.state === 'ENDED') {
+      this.tabStore.markAsWrapping(this.tab.id);
+    }
+  }
+
+  protected onAgentSelected(event: {
+    agentId: string;
+    displayName: string;
+    mode: TransferMode;
+  }): void {
+    const session = this.session();
+    if (!session || this.isTransferring()) return;
+    this.isTransferring.set(true);
+    if (event.mode === 'BLIND') {
+      this.softphone.initiateBlindTransferToAgent(
+        session.contactId,
+        event.agentId,
+        event.displayName,
+        () => this.isTransferring.set(false),
+      );
+    } else {
+      this.softphone.initiateAttendedTransferToAgent(
+        session.contactId,
+        event.agentId,
+        event.displayName,
+        () => {
+          this.isTransferring.set(false);
+        },
+      );
+    }
+  }
+
+  protected onQueueSelected(event: { queueId: string; displayName: string }): void {
+    const session = this.session();
+    if (!session || this.isTransferring()) return;
+    this.isTransferring.set(true);
+    this.softphone.initiateBlindTransferToQueue(
+      session.contactId,
+      event.queueId,
+      event.displayName,
+      () => this.isTransferring.set(false),
+    );
   }
 
   protected formatSeconds(total: number): string {

@@ -63,7 +63,29 @@
     "errorForbidden": "Access denied",
     "errorNotFound": "Resource not found",
     "errorServer": "Server error, please try again",
-    "errorBadRequest": "An error occurred. Check your data and try again."
+    "errorBadRequest": "An error occurred. Check your data and try again.",
+    "dispositionLabels": {
+      "OTHER": "Other",
+      "RESOLVED": "Resolved",
+      "ESCALATED": "Escalated",
+      "CALLBACK": "Callback",
+      "SALE": "Sale",
+      "DECLINED": "Declined",
+      "NO_ANSWER": "No answer",
+      "TECH_ISSUE": "Technical issue",
+      "NO_INTEREST": "No interest",
+      "CANCELLED": "Cancelled",
+      "WRONG_NUMBER": "Wrong number",
+      "VOICEMAIL": "Voicemail",
+      "TRANSFER": "Transfer",
+      "ESCALATE": "Escalate"
+    },
+    "tones": {
+      "positive": "Positive",
+      "negative": "Negative",
+      "neutral": "Neutral",
+      "warning": "Warning"
+    }
   },
   "auth": {
     "login": {
@@ -163,7 +185,9 @@
     "ivrEditor": "IVR Editor",
     "oauthCallback": "OAuth Callback",
     "breadcrumbNav": "Navigation path",
-    "settingsTwilioConfig": "Twilio Integration"
+    "settingsTwilioConfig": "Twilio Integration",
+    "settingsAiConfig": "AI Configuration",
+    "settingsDispositionSets": "Disposition Sets"
   },
   "role": {
     "admin": "Admin",
@@ -210,13 +234,16 @@
       "chatPlaceholder": "Chat panel",
       "chatPlaceholderSub": "Chat view will be loaded here",
       "profileLabel": "Customer profile",
+      "expandCustomerPanel": "Expand customer panel",
+      "collapseCustomerPanel": "Collapse customer panel",
       "viewSwitcher": "View switcher",
       "calendar": "Calendar",
       "tabPhone": "Phone",
       "tabChat": "Chat",
       "tabEmail": "Email",
       "tabSocial": "Social",
-      "replySent": "Reply sent"
+      "replySent": "Reply sent",
+      "consultCancelled": "Consultation cancelled by the initiating agent"
     },
     "softphone": {
       "incomingCall": "Incoming call",
@@ -241,6 +268,7 @@
       "transfer": "Transfer",
       "transferLabel": "Transfer call",
       "transferTitle": "Transfer call",
+      "consultingAgent": "Consulting with agent",
       "transferBack": "Back",
       "transferBackLabel": "Back to call",
       "transferMode": "Transfer mode",
@@ -263,7 +291,26 @@
       "scheduleCallback": "Schedule callback",
       "scheduleCallbackLabel": "Schedule callback",
       "callbackScheduled": "Callback scheduled",
-      "idle": "Waiting for a call..."
+      "note": "Note",
+      "noteLabel": "Add a note to the call",
+      "noteBack": "Back",
+      "noteBackLabel": "Back to call",
+      "noteTitle": "Call note",
+      "notePlaceholder": "Enter call note...",
+      "noteHint": "Note will appear in the disposition form",
+      "idle": "Waiting for a call...",
+      "tabPhone": "Phone",
+      "tabAgent": "Agent",
+      "tabQueue": "Queue",
+      "searchAgentPlaceholder": "Search agent...",
+      "transferAction": "Transfer",
+      "consultAction": "Consult",
+      "noAgentsAvailable": "No agents available.",
+      "loadAgentsError": "Failed to load agent list.",
+      "noQueuesAvailable": "No queues available.",
+      "loadQueuesError": "Failed to load queue list.",
+      "waitingContacts": "waiting",
+      "availableAgents": "agents"
     },
     "disposition": {
       "title": "End contact",
@@ -284,7 +331,8 @@
       "statusChanged": "Status changed to Available."
     },
     "customerPanel": {
-      "empty": "No active contact",
+      "empty": "Customer card will appear here when a contact is assigned.",
+      "emptyTitle": "No active contact",
       "loadingLabel": "Loading customer data",
       "unknownTitle": "Unknown customer",
       "unknownDesc": "No customer profile for this phone number.",
@@ -294,7 +342,9 @@
       "errorText": "Unable to load customer data (server error).",
       "recentContacts": "Recent contacts",
       "noHistory": "No contact history",
-      "lookupError": "Failed to load customer data."
+      "lookupError": "Failed to load customer data.",
+      "noteExpand": "Show more",
+      "noteCollapse": "Show less"
     },
     "incomingCall": {
       "label": "Incoming call",
@@ -343,7 +393,9 @@
         "TRAINING": "Training",
         "MEETING": "Meeting",
         "OTHER": "Other"
-      }
+      },
+      "errorStartInPast": "Start time must be in the future.",
+      "errorConflict": "The break conflicts with an existing schedule entry."
     },
     "rescheduleCallback": {
       "title": "Reschedule callback",
@@ -455,7 +507,9 @@
       "outboundTo": "Outgoing message to",
       "inbound": "Incoming",
       "outbound": "Outgoing",
-      "messageContent": "Email message content"
+      "messageContent": "Email message content",
+      "expandThread": "Expand thread",
+      "collapseThread": "Collapse thread"
     },
     "emailThread": {
       "inbound": "Inbound",
@@ -587,7 +641,9 @@
       "loading": "Loading calendar",
       "prevPeriod": "Previous period",
       "nextPeriod": "Next period",
-      "viewMode": "View mode"
+      "viewMode": "View mode",
+      "showClosedCampaigns": "Show closed",
+      "hideClosedCampaigns": "Hide closed"
     },
     "callbacks": {
       "title": "My callbacks",
@@ -649,7 +705,35 @@
       "scheduleCallback": "Schedule callback",
       "closeDetails": "Close details",
       "details": "Details",
-      "callbackFor": "Schedule callback for"
+      "callbackFor": "Schedule callback for",
+      "initiateCall": "Call",
+      "selectPhone": "Select phone number",
+      "callInitiated": "Call initiated successfully",
+      "callError": "Failed to initiate call",
+      "sendEmail": "Send email",
+      "noContactDetails": "No details",
+      "viewContactDetails": "Contact details"
+    },
+    "adhocEmail": {
+      "title": "Send email to customer",
+      "toLabel": "To",
+      "subjectLabel": "Subject",
+      "bodyLabel": "Message body",
+      "send": "Send",
+      "cancel": "Cancel",
+      "sent": "Email sent successfully",
+      "errorNoSmtp": "No SMTP configuration. Please contact your administrator.",
+      "errorSend": "Failed to send email. Please try again.",
+      "toRequired": "Email address is required.",
+      "toInvalid": "Please enter a valid email address.",
+      "subjectRequired": "Subject is required.",
+      "subjectMaxLength": "Subject cannot exceed 500 characters.",
+      "bodyRequired": "Message body is required.",
+      "templateLabel": "Template",
+      "templatePlaceholder": "— No template —",
+      "templateVariablesLabel": "Template variables",
+      "applyTemplate": "Apply template",
+      "errorTemplateApply": "Failed to apply template."
     },
     "manualCallbackModal": {
       "title": "Schedule callback",
@@ -779,6 +863,7 @@
       "fullscreenLabel": "Full screen mode",
       "loadingMetrics": "Loading metrics",
       "kpiActiveCalls": "Active calls",
+      "kpiCallsInIvr": "In IVR",
       "kpiAvailable": "Available agents",
       "kpiBreak": "On break",
       "kpiAfterContact": "After contact",
@@ -951,7 +1036,8 @@
       "statusLabel": "Queue status",
       "assignmentTitle": "Agent assignment",
       "assignmentHint": "Save the queue to configure agent assignment.",
-      "saveLabel": "Save queue"
+      "saveLabel": "Save queue",
+      "dispositionsTitle": "Post-contact dispositions"
     },
     "queueDelete": {
       "title": "Delete queue",
@@ -973,7 +1059,23 @@
       "groupsTitle": "Agent groups",
       "directAgentsTitle": "Individual agents",
       "agentsAbbr": "ag.",
-      "noAssignment": "No assigned agents — queue will not handle any contacts."
+      "noAssignment": "No assigned agents — queue will not handle any contacts.",
+      "allAgentsLabel": "All tenant agents",
+      "allAgentsHint": "Queue available to all agents",
+      "groupsSection": "Agent groups",
+      "agentsSection": "Direct agents",
+      "addGroup": "Add group",
+      "addAgent": "Add agent",
+      "emptyWarning": "No assignment — queue will not handle any contacts.",
+      "saveButton": "Save",
+      "cancelButton": "Cancel",
+      "successToast": "Agent assignment updated",
+      "errorSave": "Failed to save assignment",
+      "manageButton": "Manage agents",
+      "badgeAllAgents": "All agents",
+      "badgeNoAgents": "No agents",
+      "badgeNoAgentsHint": "No assigned agents — queue will not handle any contacts",
+      "badgeAgents": "agents"
     },
     "queueAssignment": {
       "title": "Queue assignment",
@@ -1037,7 +1139,46 @@
       "successStop": "has been stopped.",
       "errorRevert": "Failed to revert campaign",
       "successRevert": "reverted to Draft.",
-      "errorRevertSuffix": "to draft."
+      "errorRevertSuffix": "to draft.",
+      "showClosed": "Show closed",
+      "hideClosed": "Hide closed",
+      "typeOutboundVoice": "Outbound Voice",
+      "typeOutboundEmail": "Outbound Email",
+      "dialerProgressive": "Progressive",
+      "dialerPredictive": "Predictive",
+      "dialerManual": "Manual",
+      "importSuccess": "Contact import completed successfully.",
+      "errors": {
+        "loadFailed": "Failed to load campaigns. Please try again."
+      },
+      "campaignAssignment": {
+        "title": "Manage campaign agents",
+        "allAgentsLabel": "All tenant agents",
+        "allAgentsHint": "Campaign available to all agents",
+        "groupsSection": "Agent groups",
+        "agentsSection": "Direct agents",
+        "addGroup": "Add group",
+        "addAgent": "Add agent",
+        "emptyWarning": "No assignment — dialer will not call, manual panel will not show records for this campaign.",
+        "saveButton": "Save",
+        "cancelButton": "Cancel",
+        "successToast": "Agent assignment updated",
+        "errorSave": "Failed to save assignment",
+        "manageButton": "Manage agents"
+      },
+      "badgeAllAgents": "All agents",
+      "badgeNoAgents": "No agents",
+      "badgeNoAgentsHint": "Dialer inactive — no agents assigned",
+      "badgeAgents": "agents",
+      "attempts": "attempts",
+      "showAttempts": "Show call attempts",
+      "noAttempts": "No call attempts",
+      "statsTotal": "Total",
+      "statsCompleted": "Completed",
+      "statsRemaining": "Remaining",
+      "statsHeader": "Records",
+      "dispositionsTitle": "Post-contact dispositions",
+      "dispositionsDesc": "Define custom dispositions for this campaign. If the list is empty, agents see system dispositions."
     },
     "campaignForm": {
       "titleCreate": "New campaign",
@@ -1055,10 +1196,8 @@
       "cancel": "Cancel",
       "closeLabel": "Close form",
       "dialerTypeLabel": "Dialer type",
-      "queueLabel": "Queue",
-      "queuePlaceholder": "-- Select queue --",
-      "maxAttemptsLabel": "Max attempts",
-      "retryDelayLabel": "Retry delay (min)",
+      "maxAttemptsLabel": "Maximum number of attempts",
+      "retryDelayLabel": "Time between attempts (minutes)",
       "scheduleLabel": "Schedule (optional)",
       "timeFromLabel": "From time",
       "timeToLabel": "To time",
@@ -1070,7 +1209,31 @@
         "placeholder": "— Select a number —",
         "defaultTenant": "— Tenant default number —",
         "hint": "Select a number from your Twilio account or leave empty to use the tenant default."
-      }
+      },
+      "maxAttemptsHint": "After how many failed attempts to mark the record as Not Reached",
+      "retryDelayHint": "How many minutes to wait before the next call attempt when the customer does not answer",
+      "ringTimeoutLabel": "Ring timeout (seconds)",
+      "ringTimeoutHint": "How many seconds to ring the customer — if they do not answer within this time, the call will be marked as unanswered",
+      "errors": {
+        "nameRequired": "Name is required.",
+        "nameMaxLength": "Name cannot exceed 255 characters.",
+        "nameTaken": "A campaign with this name already exists.",
+        "fieldRequired": "Field is required.",
+        "maxAttemptsMin": "Minimum number of attempts is 1.",
+        "maxAttemptsMax": "Maximum number of attempts is 10.",
+        "retryDelayMin": "Minimum time between attempts is 1 minute.",
+        "retryDelayMax": "Maximum time between attempts is 1440 minutes (24h).",
+        "ringTimeoutMin": "Minimum ring timeout is 15 seconds.",
+        "ringTimeoutMax": "Maximum ring timeout is 120 seconds.",
+        "timeFromPattern": "Format: HH:MM (e.g. 09:00)",
+        "timeToPattern": "Format: HH:MM (e.g. 18:00)",
+        "timeRangeInvalid": "The \"to\" time must be later than the \"from\" time.",
+        "dateRangeInvalid": "End date cannot be earlier than start date.",
+        "updateFailed": "Failed to update campaign. Please try again.",
+        "limitExceeded": "Campaign limit exceeded for this tenant.",
+        "createFailed": "Failed to create campaign. Please try again."
+      },
+      "checkingName": "Checking name availability..."
     },
     "campaignImport": {
       "title": "Import contacts",
@@ -1084,7 +1247,28 @@
       "skipDuplicates": "Skip duplicates (by phone number)",
       "importButton": "Import contacts",
       "rejected": "Rejected",
-      "sampleErrors": "Sample errors ({{ count }})"
+      "sampleErrors": "Sample errors ({{ count }})",
+      "initializing": "Initializing import...",
+      "fieldPhone": "Phone (required)",
+      "fieldFirstName": "First name",
+      "fieldLastName": "Last name",
+      "fieldCustom1": "Custom field 1",
+      "fieldCustom2": "Custom field 2",
+      "fieldIgnore": "Ignore column",
+      "mappingColumnLabel": "Mapping column {{ column }}",
+      "progressLabel": "Import progress: {{ percent }}%",
+      "stepperAriaLabel": "Import steps",
+      "dropZoneAriaLabel": "CSV file drop zone",
+      "fileInputAriaLabel": "Select CSV file",
+      "previewTableAriaLabel": "CSV content preview",
+      "mappingTableAriaLabel": "Column mapping table",
+      "reportSummaryAriaLabel": "Import summary",
+      "rejectedListAriaLabel": "Import error list",
+      "errors": {
+        "csvOnly": "Only CSV files (.csv) are allowed.",
+        "phoneMissing": "The \"Phone\" field must be mapped to one of the CSV columns.",
+        "startFailed": "Failed to start import. Please try again."
+      }
     },
     "campaignInfo": {
       "title": "Campaign details",
@@ -1113,6 +1297,10 @@
       "tableName": "Full name",
       "tableStatus": "Status",
       "tableAttempts": "Attempts",
+      "tableNextAttempt": "Next attempt",
+      "tableAction": "Action",
+      "statusAriaLabel": "Status: {{ status }}",
+      "paginationAriaLabel": "Contact page navigation",
       "emptyText": "No contacts in campaign.",
       "loadingLabel": "Loading contacts...",
       "tableLabel": "Campaign contacts list",
@@ -1122,7 +1310,26 @@
       "changeFilter": "Change status filter to see other contacts.",
       "noContacts": "No contacts have been imported to this campaign yet.",
       "calling": "Calling...",
-      "call": "Call"
+      "call": "Call",
+      "contactStatusLabels": {
+        "PENDING": "Pending",
+        "DIALING": "Dialing",
+        "CONNECTED": "Connected",
+        "COMPLETED": "Completed",
+        "NO_ANSWER": "No Answer",
+        "NOT_REACHED": "Not Reached",
+        "CALLBACK": "Callback",
+        "FAILED": "Connection Error",
+        "SKIPPED": "Skipped",
+        "ERROR": "Technical Error",
+        "CALLED": "Called"
+      },
+      "now": "Now",
+      "errors": {
+        "loadFailed": "Failed to load contacts. Please try again.",
+        "callNotFound": "Record not found.",
+        "callFailed": "Failed to initiate call. Please try again."
+      }
     },
     "customers": {
       "title": "Customers",
@@ -1181,11 +1388,16 @@
       "errorScheduleCallback": "Failed to schedule callback.",
       "successScheduleCallback": "Callback scheduled.",
       "contactStatusLabels": {
+        "IVR": "In IVR",
         "QUEUED": "Queued",
+        "ASSIGNED": "Assigned",
         "ACTIVE": "Active",
         "ON_HOLD": "On Hold",
         "COMPLETED": "Completed",
         "ABANDONED": "Abandoned",
+        "TRANSFERRED": "Transferred",
+        "NOT_REACHED": "Not Reached",
+        "ERROR": "Error",
         "FAILED": "Failed"
       },
       "phones": "Phone numbers",
@@ -1220,7 +1432,7 @@
       "thDuration": "Duration",
       "thDisposition": "Disposition",
       "thNote": "Note",
-      "thAgentId": "Agent ID",
+      "thAgent": "Agent",
       "openContactLabel": "Open contact details from",
       "paginationLabel": "Contact history page navigation",
       "prevPageLabel": "Previous history page",
@@ -1241,6 +1453,11 @@
         "EMAIL": "Email",
         "CHAT": "Chat",
         "SOCIAL": "Social"
+      },
+      "direction": "Direction",
+      "directionLabels": {
+        "INBOUND": "Inbound",
+        "OUTBOUND": "Outbound"
       }
     },
     "customerEdit": {
@@ -1424,6 +1641,7 @@
       "nodeSetValue": "Value",
       "nodeSetValuePlaceholder": "value or ${other_variable}",
       "nodeSetValueHint": "You can use ${variable_name} to insert a session value.",
+      "varHint": "Type $ to insert a variable from the flow",
       "nodeConditionEquals": "equals (=)",
       "nodeConditionNotEquals": "not equal (≠)",
       "nodeConditionStartsWith": "starts with",
@@ -1480,6 +1698,10 @@
       "closeJson": "Close JSON panel",
       "nextNode": "Next node",
       "nodePaletteLabel": "Node palette",
+      "zoomInLabel": "Zoom in",
+      "zoomOutLabel": "Zoom out",
+      "zoomResetLabel": "Reset zoom (100%)",
+      "fitToViewLabel": "Fit view to entire graph",
       "entryNodeBadgeLabel": "Entry node",
       "deleteNodeLabel": "Delete node",
       "deleteNodeTitle": "Delete node",
@@ -1599,6 +1821,7 @@
       "thQueue": "Queue",
       "thDuration": "Duration",
       "thDisposition": "Disposition",
+      "thAgent": "Agent",
       "inbound": "Inbound",
       "outbound": "Outbound",
       "inboundShort": "Inb.",
@@ -1643,7 +1866,8 @@
       "csvColQueue": "Queue",
       "csvColDuration": "Duration (s)",
       "csvColStatus": "Status",
-      "csvColDisposition": "Disposition"
+      "csvColDisposition": "Disposition",
+      "csvColAgent": "Agent"
     },
     "agentGroups": {
       "title": "Agent groups",
@@ -1779,7 +2003,16 @@
         "variableHint": "Use {{name}} syntax to insert dynamic values.",
         "templateCount_one": "template",
         "templateCount_few": "templates",
-        "templateCount_many": "templates"
+        "templateCount_many": "templates",
+        "predefinedVarsTitle": "Predefined variables",
+        "predefinedVarsHint": "Click to insert at cursor",
+        "categoryCustomer": "Customer",
+        "categoryAgent": "Agent",
+        "customVarsTitle": "Custom variables",
+        "addVariableBtn": "+ Add",
+        "previewVarsEditableLabel": "Variable values — you can edit them before generating the preview:",
+        "predefinedVarAuto": "auto",
+        "removeVariable": "Remove variable"
       },
       "twilio": {
         "title": "VoIP Telephony / Twilio",
@@ -1824,6 +2057,31 @@
         "saveSuccess": "Twilio configuration saved successfully",
         "deleteSuccess": "Twilio configuration deleted",
         "loadError": "Failed to load Twilio configuration."
+      },
+      "aiConfig": {
+        "title": "AI Configuration",
+        "subtitle": "Manage the AI provider for generating contact summaries.",
+        "noConfigTitle": "No AI configuration",
+        "noConfigHint": "Set up an AI provider so agents can generate contact summaries.",
+        "setupButton": "Set up",
+        "providerLabel": "AI Provider",
+        "apiKeyLabel": "API Key",
+        "apiKeyPlaceholder": "Enter new API key",
+        "editSecretButton": "Change",
+        "modelNameLabel": "Model name",
+        "modelNamePlaceholder": "e.g. claude-opus-4-7, gpt-4o",
+        "azureSectionTitle": "Azure OpenAI settings",
+        "azureEndpointLabel": "Azure Endpoint URL",
+        "azureDeploymentNameLabel": "Deployment name",
+        "promptTemplateSectionTitle": "System prompt",
+        "summaryPromptLabel": "System prompt (optional)",
+        "summaryPromptPlaceholder": "Leave empty to use the application default prompt.",
+        "dangerZoneTitle": "Danger zone",
+        "saveButton": "Save configuration",
+        "cancelButton": "Cancel",
+        "deleteButton": "Delete AI configuration",
+        "deleteConfirm": "Are you sure you want to delete the AI configuration? This action is irreversible.",
+        "loadError": "Failed to load AI configuration."
       },
       "twilioPhoneSelect": {
         "loading": "Loading phone numbers...",
@@ -1900,6 +2158,46 @@
         "saveButton": "Save rule",
         "errorDays": "Select at least one day of the week.",
         "errorTime": "\"To\" time must be later than \"From\" time."
+      },
+      "dispositionSets": {
+        "pageTitle": "Disposition sets",
+        "pageSubtitle": "Manage reusable disposition sets — assign them to a campaign or queue.",
+        "setsTitle": "Sets",
+        "createButton": "+ New set",
+        "nameLabel": "Name",
+        "nameRequired": "Name is required.",
+        "descLabel": "Description",
+        "emptySetList": "No disposition sets. Click \"+ New set\" to add the first one.",
+        "selectSetHint": "Select a set from the left column to view its items.",
+        "addItemButton": "+ Add disposition",
+        "itemsEmpty": "This set has no dispositions yet. Click \"+ Add disposition\".",
+        "itemSingular": "disposition",
+        "itemPlural": "dispositions",
+        "confirmDeleteSet": "Are you sure you want to delete set \"{{ name }}\"? This action is irreversible.",
+        "confirmDeleteItem": "Are you sure you want to remove disposition \"{{ label }}\" from the set?",
+        "ariaSetsList": "Disposition sets list",
+        "ariaItemsList": "Selected set items",
+        "ariaSetFormLabel": "Disposition set form",
+        "ariaItemFormLabel": "Set item form",
+        "ariaSelectSet": "Select set {{ name }}",
+        "ariaEditSet": "Edit set {{ name }}",
+        "ariaDeleteSet": "Delete set {{ name }}",
+        "ariaEditItem": "Edit disposition {{ label }}",
+        "ariaDeleteItem": "Delete disposition {{ label }}",
+        "errorLoadSets": "Failed to load sets.",
+        "errorSaveSet": "Failed to save set.",
+        "errorSaveSetDuplicate": "A set with this name already exists.",
+        "errorDeleteSet": "Failed to delete set.",
+        "errorLoadItems": "Failed to load set items.",
+        "errorSaveItem": "Failed to save item.",
+        "errorSaveItemDuplicate": "A disposition with this code already exists in the set.",
+        "errorDeleteItem": "Failed to delete item.",
+        "successCreateSet": "Set created.",
+        "successUpdateSet": "Set updated.",
+        "successDeleteSet": "Set deleted.",
+        "successCreateItem": "Item added to set.",
+        "successUpdateItem": "Set item updated.",
+        "successDeleteItem": "Item removed from set."
       }
     },
     "reports": {
@@ -1954,6 +2252,35 @@
       "IF": "Condition",
       "SWITCH": "Switch",
       "VOICEBOT": "Voicebot ASR/NLU"
+    },
+    "dispositionEditor": {
+      "emptyState": "No custom dispositions — agents see system dispositions.",
+      "inactiveLabel": "inactive",
+      "codeLabel": "Code",
+      "codePlaceholder": "e.g. CALLBACK_AGREED",
+      "codeHint": "Uppercase letters, digits and underscores.",
+      "codeRequired": "Code is required.",
+      "codePattern": "Only uppercase letters, digits and underscores (A-Z, 0-9, _).",
+      "codeMaxLength": "Maximum 50 characters.",
+      "labelLabel": "Label",
+      "labelRequired": "Label is required.",
+      "labelMaxLength": "Maximum 100 characters.",
+      "toneLabel": "Tone",
+      "ordinalLabel": "Order",
+      "activeLabel": "Active",
+      "addButton": "+ Add disposition",
+      "applySetButton": "Apply set",
+      "itemsCount": "{{ count }} dispositions",
+      "noSets": "No defined sets",
+      "confirmApplySet": "Copy {{ count }} dispositions from set \"{{ name }}\"? Dispositions with the same codes will be skipped.",
+      "confirmDelete": "Are you sure you want to delete this disposition?",
+      "errorLoad": "Failed to load dispositions.",
+      "errorSave": "Failed to save disposition.",
+      "errorSaveDuplicate": "Disposition code already exists in this scope",
+      "errorDelete": "Failed to delete disposition.",
+      "errorLoadSets": "Failed to load disposition sets.",
+      "errorApplySet": "Failed to apply disposition set.",
+      "listAriaLabel": "Dispositions list"
     }
   },
   "admin": {
@@ -2129,7 +2456,8 @@
     "sectionStatus": "Status and duration",
     "fieldStatus": "Status",
     "fieldDuration": "Duration",
-    "fieldDisposition": "Disposition code",
+    "fieldDisposition": "Disposition",
+    "fieldAgent": "Agent",
     "fieldNotes": "Notes",
     "sectionEmail": "Email message (EML)",
     "sectionRecording": "Call recording",
@@ -2152,11 +2480,23 @@
     "emailSubject": "Subject:",
     "emailDate": "Date:",
     "emailEmpty": "No message content.",
+    "sectionEvents": "Contact timeline",
+    "noEvents": "No recorded stages.",
+    "eventInProgress": "in progress",
+    "stageIVR": "IVR",
+    "stageVOICEBOT": "Bot",
+    "stageQUEUE": "Queue",
+    "stageAGENT": "Agent",
+    "stageON_HOLD": "Hold",
+    "stageCONSULTING": "Consult.",
+    "stageTRANSFER": "Transfer",
     "sectionRelated": "Related contacts",
     "loadingRelatedLabel": "Loading related contacts...",
     "related": "Related",
     "parentContact": "Source contact",
     "childContact": "Result contact",
+    "transferSource": "Contact before transfer",
+    "transferTarget": "Contact after transfer",
     "goToParent": "Go to source contact",
     "goToChild": "Go to result contact",
     "close": "Close",
@@ -2164,15 +2504,6 @@
     "errorRecording": "Failed to load recording URL.",
     "errorEmailPreview": "Failed to load email preview.",
     "loadingRelated": "Loading related contacts...",
-    "statusLabels": {
-      "QUEUED": "Queued",
-      "ACTIVE": "Active",
-      "ON_HOLD": "On Hold",
-      "COMPLETED": "Completed",
-      "ABANDONED": "Abandoned",
-      "FAILED": "Failed",
-      "NOT_REACHED": "Not Reached"
-    },
     "callbackStatusLabels": {
       "PENDING": "Pending",
       "PROCESSING": "Processing",

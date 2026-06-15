@@ -1,5 +1,6 @@
 package com.contactcenter.domain.telephony;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -25,19 +26,18 @@ public interface TelephonyAdapter {
     /**
      * Inicjuje wychodzące połączenie telefoniczne.
      *
-     * @param tenantId  identyfikator tenanta (wymagany dla multi-tenancy)
-     * @param from      numer dzwoniącego w formacie E.164 (np. +48123456789)
-     * @param to        numer docelowy w formacie E.164
-     * @param agentId   agent inicjujący połączenie
-     * @param queueId    UUID kolejki przypisanej do kampanii (nullable – ustawiany na rekordzie
-     *                   contact aby RoutingService mógł przeprowadzić routing ACW; null gdy
-     *                   połączenie wychodzące nie pochodzi z kampanii)
+     * @param tenantId   identyfikator tenanta (wymagany dla multi-tenancy)
+     * @param from       numer dzwoniącego w formacie E.164 (np. +48123456789)
+     * @param to         numer docelowy w formacie E.164
+     * @param agentId    agent inicjujący połączenie
+     * @param campaignId UUID kampanii (nullable – ustawiany na rekordzie contact dla połączeń
+     *                   kampanijnych; null gdy połączenie ad-hoc lub inbound)
      * @param callbackId UUID powiązanego oddzwonienia (nullable – ustawiany gdy połączenie
      *                   jest realizacją {@code ScheduledCallback}; null dla pozostałych połączeń)
      * @return sesja połączenia ze statusem {@code RINGING}
      * @throws TelephonyException gdy nie można zainicjować połączenia
      */
-    CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId);
+    CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID campaignId, UUID callbackId);
 
     /**
      * Odbiera przychodzące połączenie.
@@ -82,7 +82,7 @@ public interface TelephonyAdapter {
      * <p>Dla {@link TransferType#BLIND}: połączenie przekazywane natychmiast, sesja kończy się
      * po stronie inicjatora.
      * <p>Dla {@link TransferType#ATTENDED}: tworzona jest druga noga połączenia do {@code target};
-     * po potwierdzeniu przez target wywołaj {@link #bridgeCalls(String, String)} aby połączyć obie nogi.
+     * po potwierdzeniu przez target wywołaj {@link #bridgeCalls(String, String, UUID)} aby połączyć obie nogi.
      *
      * @param callId       identyfikator pierwotnej sesji
      * @param target       numer docelowy w formacie E.164
@@ -93,16 +93,39 @@ public interface TelephonyAdapter {
     CallSession transferCall(String callId, String target, TransferType transferType);
 
     /**
-     * Łączy dwie nogi połączenia po attended transfer.
+     * Przekazuje połączenie do agenta, kolejki lub numeru telefonu.
+     *
+     * <p>Uogólnienie {@link #transferCall(String, String, TransferType)} wspierające
+     * przekazanie do agenta ({@link TransferTargetType#AGENT}) i kolejki ({@link TransferTargetType#QUEUE})
+     * poza dotychczasowym przekazaniem na numer telefonu ({@link TransferTargetType#PHONE}).
+     *
+     * <p>Przed wywołaniem należy wykonać {@link TransferRequest#validate()}.
+     *
+     * @param callId  identyfikator pierwotnej sesji
+     * @param request żądanie przekazania z typem celu i odpowiednimi polami
+     * @return nowa sesja drugiej nogi (dla ATTENDED) lub oryginalna sesja ze statusem TRANSFERRED (dla BLIND)
+     * @throws TelephonyAdapter.TelephonyException gdy połączenie nie jest w stanie ACTIVE/ON_HOLD
+     * @throws UnsupportedOperationException       gdy implementacja nie obsługuje danego targetType
+     */
+    CallSession initiateTransfer(String callId, TransferRequest request);
+
+    /**
+     * Łączy dwie nogi połączenia po attended transfer, przekierowując klienta i Agent2
+     * do nowej, dedykowanej konferencji Twilio {@code contact-{newContactId}}.
      *
      * <p>Wywołaj po tym jak agent potwierdził połączenie z {@code callId2}.
      * Obie sesje muszą być aktywne lub w stanie ON_HOLD.
      *
-     * @param callId1 identyfikator pierwszej nogi (oryginalne połączenie z klientem)
-     * @param callId2 identyfikator drugiej nogi (połączenie do docelowego agenta)
+     * <p>Adapter jest odpowiedzialny za aktualizację sesji Redis drugiej nogi
+     * (contactId, conferenceName, customerCallSid) – wywołujący nie musi wywoływać
+     * {@link #updateSessionContact} po bridge.
+     *
+     * @param callId1      identyfikator pierwszej nogi (oryginalne połączenie z klientem)
+     * @param callId2      identyfikator drugiej nogi (połączenie do docelowego agenta)
+     * @param newContactId UUID nowego kontaktu wygenerowany przez ContactService przed wywołaniem
      * @throws TelephonyException gdy któraś z sesji nie istnieje lub jest w złym stanie
      */
-    void bridgeCalls(String callId1, String callId2);
+    void bridgeCalls(String callId1, String callId2, UUID newContactId);
 
     /**
      * Pobiera aktualny stan sesji połączenia.
@@ -112,6 +135,48 @@ public interface TelephonyAdapter {
      * @throws TelephonyException gdy połączenie nie istnieje
      */
     CallSession getCallSession(String callId);
+
+    /**
+     * Aktualizuje contactId w sesji Redis dla danego callId.
+     *
+     * <p>Wywoływane po bridge attended transfer gdy tworzy się nowy kontakt dla Agent2.
+     * Domyślnie no-op (MockTelephonyAdapter nie zarządza Redis).
+     *
+     * @param callId       identyfikator sesji połączenia (drugiej nogi)
+     * @param newContactId UUID nowego kontaktu Agent2
+     */
+    default void updateSessionContact(String callId, UUID newContactId) {}
+
+    /**
+     * Pobiera sesję połączenia jako Optional – nie rzuca wyjątku gdy sesja nie istnieje.
+     *
+     * <p>Używane do weryfikacji cross-tenant przy bridge/transfer:
+     * pozwala sprawdzić czy {@code secondCallId} należy do tego samego tenanta
+     * bez konieczności łapania wyjątku w warstwie domenowej.
+     *
+     * @param callId identyfikator sesji połączenia
+     * @return Optional z sesją lub empty gdy sesja nie istnieje
+     */
+    default Optional<CallSession> getSession(String callId) {
+        try {
+            return Optional.of(getCallSession(callId));
+        } catch (TelephonyException e) {
+            return Optional.empty();
+        }
+    }
+
+    // =========================================================================
+    // Stałe kluczy metadanych zdarzeń transferu
+    // =========================================================================
+
+    /** Klucz metadanych: typ transferu (BLIND / ATTENDED). */
+    String META_TRANSFER_TYPE   = "transfer_type";
+    /** Klucz metadanych: typ celu transferu (PHONE / AGENT / QUEUE). */
+    String META_TARGET_TYPE     = "target_type";
+    /** Klucz metadanych: UUID agenta docelowego (targetType=AGENT). */
+    String META_TARGET_AGENT_ID = "target_agent_id";
+    /** Klucz metadanych: UUID kolejki docelowej (targetType=QUEUE). */
+    String META_TARGET_QUEUE_ID = "target_queue_id";
 
     // =========================================================================
     // Typy i wyjątki

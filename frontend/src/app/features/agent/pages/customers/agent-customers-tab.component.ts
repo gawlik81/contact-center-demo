@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -10,7 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DatePipe } from '@angular/common';
+import { DatePipe, LowerCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   EMPTY,
@@ -19,6 +19,7 @@ import {
   debounceTime,
   distinctUntilChanged,
   filter,
+  finalize,
   switchMap,
   tap,
 } from 'rxjs';
@@ -27,6 +28,11 @@ import { CustomerSearchService } from '../../services/customer-search.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { AgentCustomerCardComponent } from './agent-customer-card.component';
 import { ManualCallbackModalComponent } from './manual-callback-modal/manual-callback-modal.component';
+import { AdHocEmailModalComponent } from './adhoc-email-modal/adhoc-email-modal.component';
+import { OutboundCallService } from '../../services/outbound-call.service';
+import { EmailService } from '../../services/email.service';
+import { ContactResponse } from '../../../../core/models/contact.model';
+import { ContactDetailModalComponent } from '../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
 
 const MIN_QUERY_LENGTH = 2;
 
@@ -36,9 +42,12 @@ const MIN_QUERY_LENGTH = 2;
   imports: [
     TranslocoModule,
     DatePipe,
+    LowerCasePipe,
     FormsModule,
     AgentCustomerCardComponent,
     ManualCallbackModalComponent,
+    AdHocEmailModalComponent,
+    ContactDetailModalComponent,
   ],
   templateUrl: './agent-customers-tab.component.html',
   styleUrl: './agent-customers-tab.component.scss',
@@ -49,6 +58,9 @@ export class AgentCustomersTabComponent implements OnInit {
 
   private readonly searchService = inject(CustomerSearchService);
   private readonly notifications = inject(NotificationService);
+  private readonly outboundCallService = inject(OutboundCallService);
+  private readonly emailService = inject(EmailService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly searchQuery = signal('');
@@ -57,6 +69,10 @@ export class AgentCustomersTabComponent implements OnInit {
   protected readonly hasSearched = signal(false);
   protected readonly selectedCustomer = signal<CustomerSummary | null>(null);
   protected readonly callbackCustomer = signal<CustomerSummary | null>(null);
+  protected readonly emailCustomer = signal<CustomerSummary | null>(null);
+  protected readonly lastContact = signal<ContactResponse | null>(null);
+  protected readonly lastContactLoading = signal(false);
+  protected readonly selectedContactId = signal<string | null>(null);
 
   /** Intermediate subject for debouncing raw input events */
   private readonly queryInput$ = new Subject<string>();
@@ -103,6 +119,18 @@ export class AgentCustomersTabComponent implements OnInit {
 
   protected onViewDetails(customer: CustomerSummary): void {
     this.selectedCustomer.set(customer);
+    this.lastContact.set(null);
+    this.lastContactLoading.set(true);
+    this.searchService
+      .getLastContact(customer.customerId)
+      .pipe(
+        finalize(() => this.lastContactLoading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (contact) => this.lastContact.set(contact),
+        error: () => this.lastContact.set(null),
+      });
   }
 
   protected onScheduleCallback(customer: CustomerSummary): void {
@@ -124,6 +152,50 @@ export class AgentCustomersTabComponent implements OnInit {
     this.customers.set([]);
     this.hasSearched.set(false);
     this.selectedCustomer.set(null);
+  }
+
+  protected onInitiateCall(event: { customer: CustomerSummary; phoneNumber: string }): void {
+    this.outboundCallService
+      .call(event.phoneNumber, event.customer.customerId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () =>
+          this.notifications.success(this.transloco.translate('agent.customers.callInitiated')),
+        error: () =>
+          this.notifications.error(this.transloco.translate('agent.customers.callError')),
+      });
+  }
+
+  protected onInitiateCallFromDrawer(phoneNumber: string): void {
+    const customer = this.selectedCustomer();
+    if (!customer) return;
+    this.onInitiateCall({ customer, phoneNumber });
+  }
+
+  protected onSendEmail(customer: CustomerSummary): void {
+    this.emailCustomer.set(customer);
+  }
+
+  protected onEmailSent(): void {
+    this.emailCustomer.set(null);
+  }
+
+  protected onEmailCancelled(): void {
+    this.emailCustomer.set(null);
+  }
+
+  protected onSendEmailFromDrawer(): void {
+    const customer = this.selectedCustomer();
+    if (customer) this.emailCustomer.set(customer);
+  }
+
+  protected openContactDetail(): void {
+    const c = this.lastContact();
+    if (c) this.selectedContactId.set(c.contactId);
+  }
+
+  protected onContactDetailClosed(): void {
+    this.selectedContactId.set(null);
   }
 
   protected readonly trackByCustomerId = (_i: number, c: CustomerSummary) => c.customerId;

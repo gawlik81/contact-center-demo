@@ -1352,3 +1352,640 @@ COMMENT ON INDEX idx_scheduled_callback_cc_record IS
 - [ ] Kolumna `campaign_contact_record_id` istnieje i przyjmuje NULL (dla non-campaign callbacków)
 - [ ] Indeks `idx_scheduled_callback_cc_record` istnieje z predykatem `IS NOT NULL AND is_deleted = FALSE`
 - [ ] Istniejące wiersze `scheduled_callback` nie są naruszone (kolumna domyślnie NULL)
+
+---
+
+## MODUŁ: Notatki do kontaktów (EPIC-22)
+
+### DB-034 – Kolumna `notes` w tabeli `contact` — migracja V058
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-006 (tabela `contact`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** BE-069, BE-070
+**Epic:** EPIC-22 Notatki do kontaktów
+
+**Opis:**
+Agent może wpisać notatkę podczas obsługi połączenia telefonicznego (panel softphone). Notatka powinna zostać zapisana przy kontakcie i być prezentowana w widoku szczegółów kontaktu oraz w historii klienta w panelu agenta. Notatki mogą być długie — kolumna musi być typu `TEXT`.
+
+**DDL migracji (`V058__add_notes_to_contact.sql`):**
+
+```sql
+ALTER TABLE contact
+    ADD COLUMN IF NOT EXISTS notes TEXT;
+
+COMMENT ON COLUMN contact.notes IS
+    'Notatka agenta wpisana podczas lub po zakończeniu kontaktu. '
+    'Opcjonalna, bez limitu długości. Ustawiana przez PATCH /api/contacts/{id}/disposition.';
+```
+
+**Uwagi implementacyjne:**
+- Kolumna nullable — backward-compatible z istniejącymi kontaktami
+- Brak indeksu — pole nie jest używane w filtrach wyszukiwania, tylko do odczytu
+- Tabela jest partycjonowana RANGE po `started_at` — `ALTER TABLE ADD COLUMN` propaguje automatycznie na wszystkie partycje
+- RLS na tabeli `contact` pokrywa nową kolumnę bez dodatkowych zmian (policy oparta na `tenant_id`)
+
+**Kryteria akceptacji:**
+- [ ] Migracja `V058__add_notes_to_contact.sql` aplikuje się bez błędów na dev i test
+- [ ] Kolumna `notes TEXT` istnieje w tabeli `contact` i przyjmuje NULL
+- [ ] Istniejące wiersze kontaktów nie są naruszone
+- [ ] `ALTER TABLE` propaguje na wszystkie partycje miesięczne (weryfikacja przez `\d+ contact_y2026m01` itp.)
+- [ ] Migracja idempotentna (`ADD COLUMN IF NOT EXISTS`)
+
+---
+
+## MODUŁ: Historia etapów kontaktu (EPIC-23)
+
+### DB-035 – Tabela `contact_event`: rejestracja etapów kontaktu (IVR, kolejka, agent, hold)
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Zlozonosc:** S
+**Zależy od:** DB-006 (tabela `contact`), DB-002 (tabela `tenant`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-14
+**Blokuje:** BE-071, BE-072, BE-073
+**Epic:** EPIC-23 Historia etapów kontaktu
+**Flyway:** V059__create_contact_event.sql
+
+**Opis:**
+Każdy kontakt przechodzi przez kolejne etapy: IVR → Kolejka → Agent → (Hold → Agent → ...). Aktualnie tabela `contact` przechowuje tylko `queued_at` (wejście do kolejki) i `assigned_at` (przypisanie agenta) — brak czasu IVR i persystencji zdarzeń hold/unhold. Nowa tabela `contact_event` rejestruje każde zdarzenie z dokładnym znacznikiem czasu, umożliwiając pełną rekonstrukcję historii przepływu kontaktu.
+
+**DDL migracji (`V059__create_contact_event.sql`):**
+
+```sql
+CREATE TABLE contact_event (
+    event_id         UUID         NOT NULL DEFAULT uuid_generate_v4(),
+    contact_id       UUID         NOT NULL,
+    tenant_id        UUID         NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE,
+    stage            VARCHAR(20)  NOT NULL,
+    started_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    ended_at         TIMESTAMPTZ,
+    duration_seconds INT,
+    metadata         JSONB        NOT NULL DEFAULT '{}',
+    CONSTRAINT pk_contact_event PRIMARY KEY (event_id),
+    CONSTRAINT chk_contact_event_stage CHECK (
+        stage IN ('IVR', 'VOICEBOT', 'QUEUE', 'AGENT', 'ON_HOLD', 'CONSULTING', 'TRANSFER')
+    ),
+    CONSTRAINT chk_contact_event_times CHECK (
+        ended_at IS NULL OR ended_at >= started_at
+    )
+);
+
+COMMENT ON TABLE contact_event IS
+    'Historia etapów kontaktu. Jeden rekord per zdarzenie: wejście do IVR, '
+    'oczekiwanie w kolejce, obsługa przez agenta, wstrzymanie (hold). '
+    'metadata JSONB zawiera kontekst etapu: nazwę IVR, kolejki lub agenta.';
+
+COMMENT ON COLUMN contact_event.stage IS
+    'IVR = obsługa w drzewie IVR (węzły MENU/DTMF/PLAY_AUDIO), '
+    'VOICEBOT = obsługa przez bota ASR+NLU (węzeł VOICEBOT), '
+    'QUEUE = oczekiwanie w kolejce, '
+    'AGENT = obsługa przez agenta, '
+    'ON_HOLD = wstrzymanie połączenia, '
+    'CONSULTING = faza konsultacji przy attended transfer (agent rozmawia z celem przed przekazaniem), '
+    'TRANSFER = zdarzenie przekazania kontaktu (punkt w czasie, started_at = ended_at).';
+
+COMMENT ON COLUMN contact_event.metadata IS
+    'Kontekst etapu. '
+    'IVR/VOICEBOT: {"ivr_tree_id":"...", "ivr_tree_name":"...", "outcome":"ESCALATED|COMPLETED|ERROR"}. '
+    'QUEUE: {"queue_id":"...", "queue_name":"..."}. '
+    'AGENT: {"agent_id":"...", "agent_name":"..."}. '
+    'ON_HOLD: {}. '
+    'CONSULTING: {"target":"+48...", "transfer_type":"ATTENDED"}. '
+    'TRANSFER: {"target":"+48...", "transfer_type":"BLIND|ATTENDED", "target_agent_name":"..."}.';
+
+-- Trigger: automatyczne obliczanie duration_seconds przy zamknięciu etapu
+CREATE OR REPLACE FUNCTION fn_contact_event_on_update()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.ended_at IS NOT NULL AND OLD.ended_at IS NULL THEN
+        NEW.duration_seconds :=
+            EXTRACT(EPOCH FROM (NEW.ended_at - NEW.started_at))::INT;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_contact_event_on_update
+    BEFORE UPDATE ON contact_event
+    FOR EACH ROW EXECUTE FUNCTION fn_contact_event_on_update();
+
+-- Indeks główny: pobierz wszystkie etapy kontaktu posortowane chronologicznie
+CREATE INDEX idx_contact_event_contact
+    ON contact_event (contact_id, started_at ASC);
+
+-- Indeks tenant: zapytania raportowe i RLS
+CREATE INDEX idx_contact_event_tenant
+    ON contact_event (tenant_id, started_at DESC);
+
+-- RLS
+ALTER TABLE contact_event ENABLE ROW LEVEL SECURITY;
+CREATE POLICY contact_event_tenant_isolation ON contact_event
+    USING (tenant_id = current_setting('app.tenant_id', TRUE)::uuid);
+```
+
+**Semantyka etapów (`stage`):**
+| Etap | Znaczenie | Punkt startu | Punkt końca |
+|------|-----------|-------------|-------------|
+| `IVR` | Węzły MENU/DTMF/PLAY_AUDIO — interaktywne drzewo IVR | `IvrEngineService.startIvrSession()` | Wejście w węzeł VOICEBOT lub wyjście do kolejki |
+| `VOICEBOT` | Węzeł VOICEBOT — bot ASR+NLU prowadzi konwersację | Wejście w węzeł VOICEBOT | Eskalacja do kolejki lub przejście do `next` node |
+| `QUEUE` | Kontakt oczekuje na agenta | Publikacja `ContactQueuedMessage` | Agent odbiera kontakt |
+| `AGENT` | Agent obsługuje kontakt | Agent odpowiada | Zakończenie, hold lub transfer |
+| `ON_HOLD` | Połączenie wstrzymane | `holdCall()` | `unholdCall()` |
+| `CONSULTING` | Faza konsultacji — agent rozmawia z celem attended transfer zanim przekaże klienta | `transferCall(ATTENDED)` sukces | `completeAttendedTransfer()` lub `cancelTransfer()` |
+| `TRANSFER` | Zdarzenie przekazania — punkt w czasie (`started_at = ended_at`) | Transfer zakończony | = `started_at` |
+
+**Kryteria akceptacji:**
+- [ ] Migracja V059 aplikuje się bez błędów na dev i test
+- [ ] CHECK constraint `stage` akceptuje: IVR, VOICEBOT, QUEUE, AGENT, ON_HOLD, CONSULTING, TRANSFER i odrzuca inne
+- [ ] CHECK constraint `ended_at >= started_at` działa poprawnie (TRANSFER: `started_at = ended_at` jest dozwolone)
+- [ ] Trigger `trg_contact_event_on_update` oblicza `duration_seconds` przy ustawieniu `ended_at`
+- [ ] Indeks `idx_contact_event_contact` widoczny w `pg_indexes`
+- [ ] RLS policy izoluje zdarzenia między tenantami
+
+---
+
+## MODUŁ: Przypisywanie agentów do kampanii (EPIC-25)
+
+### DB-036 – Schemat przypisania agentów do kampanii: `all_agents`, `campaign_agent`, `campaign_agent_group` — migracja V062
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-011 (`campaign`), DB-003 (`app_user`), DB-024 (`agent_group`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-079, BE-080
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst:**
+Model przypisania agentów do kampanii jest trójipoziomowy — identyczny z modelem kolejek (V043):
+1. **`campaign.all_agents = TRUE`** — dialer/widok manualny dostępny dla wszystkich agentów tenanta
+2. **`campaign_agent_group`** — kampania powiązana z grupami agentów (`agent_group`)
+3. **`campaign_agent`** — bezpośrednie przypisanie konkretnych agentów
+
+Gdy `all_agents = FALSE` i brak przypisań (puste obie tabele dla kampanii) → dialer **nie inicjuje połączeń**, a panel manualny **nie wyświetla rekordów** tej kampanii dla danego agenta.
+
+Istniejące kampanie dostają `all_agents = TRUE` (zachowanie dotychczasowe). Nowe kampanie domyślnie `all_agents = FALSE` — wymagają jawnego przypisania.
+
+**DDL migracji (`V062__campaign_agent_assignment.sql`):**
+
+```sql
+-- =============================================================================
+-- V062__campaign_agent_assignment.sql
+-- DB-036: Trójpoziomowe przypisanie agentów do kampanii wychodzącej.
+--
+-- Model identyczny z V043 (queue_agent_group):
+--   campaign.all_agents    → wszyscy agenci tenanta
+--   campaign_agent_group   → kampania ↔ agent_group (many-to-many)
+--   campaign_agent         → kampania ↔ agent bezpośrednio (many-to-many)
+--
+-- Istniejące kampanie: all_agents = TRUE (backward compat).
+-- Nowe kampanie: all_agents = FALSE (domyślnie — wymagają jawnego przypisania).
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. Flaga all_agents na tabeli campaign
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE campaign
+    ADD COLUMN IF NOT EXISTS all_agents BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Istniejące kampanie zachowują dotychczasowe zachowanie (wszyscy agenci tenanta)
+UPDATE campaign SET all_agents = TRUE WHERE all_agents = FALSE;
+
+COMMENT ON COLUMN campaign.all_agents IS
+    'TRUE = dialer i widok manualny dostępne dla wszystkich agentów tenanta. '
+    'FALSE = tylko agenci z campaign_agent i/lub campaign_agent_group. '
+    'Gdy FALSE i obie tabele puste — dialer nie dzwoni, panel manualny nie pokazuje rekordów.';
+
+-- ---------------------------------------------------------------------------
+-- 2. Tabela campaign_agent (bezpośrednie przypisanie agent → kampania)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE campaign_agent (
+    campaign_id  UUID        NOT NULL REFERENCES campaign(campaign_id)  ON DELETE CASCADE,
+    agent_id     UUID        NOT NULL REFERENCES app_user(user_id)      ON DELETE CASCADE,
+    assigned_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_campaign_agent PRIMARY KEY (campaign_id, agent_id)
+);
+
+CREATE INDEX idx_campaign_agent_campaign ON campaign_agent (campaign_id);
+CREATE INDEX idx_campaign_agent_agent    ON campaign_agent (agent_id);
+
+COMMENT ON TABLE campaign_agent IS
+    'Bezpośrednie przypisanie agenta do kampanii wychodzącej. '
+    'Aktywne tylko gdy campaign.all_agents = FALSE. CASCADE DELETE przy usunięciu kampanii lub agenta.';
+
+-- ---------------------------------------------------------------------------
+-- 3. Tabela campaign_agent_group (przypisanie grupy agentów → kampania)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE campaign_agent_group (
+    campaign_id UUID        NOT NULL REFERENCES campaign(campaign_id)    ON DELETE CASCADE,
+    group_id    UUID        NOT NULL REFERENCES agent_group(group_id)    ON DELETE CASCADE,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_campaign_agent_group PRIMARY KEY (campaign_id, group_id)
+);
+
+CREATE INDEX idx_campaign_agent_group_campaign ON campaign_agent_group (campaign_id);
+CREATE INDEX idx_campaign_agent_group_group    ON campaign_agent_group (group_id);
+
+COMMENT ON TABLE campaign_agent_group IS
+    'Powiązanie many-to-many kampania ↔ grupa agentów. '
+    'Aktywne tylko gdy campaign.all_agents = FALSE. CASCADE DELETE przy usunięciu kampanii lub grupy.';
+
+-- ---------------------------------------------------------------------------
+-- 4. Indeksy pokrywające (wydajność resolveEligibleAgentIds — UNION)
+-- ---------------------------------------------------------------------------
+
+-- Covering: campaign_id → group_id (join campaign_agent_group → agent_group_member)
+CREATE INDEX idx_campaign_agent_group_lookup
+    ON campaign_agent_group (campaign_id)
+    INCLUDE (group_id);
+
+-- Covering: agent_id → group_id (odwrotny lookup: agent → grupy kampanii)
+CREATE INDEX idx_campaign_agent_member_lookup
+    ON agent_group_member (agent_id)
+    INCLUDE (group_id);
+```
+
+**Uwagi implementacyjne:**
+- Brak `tenant_id` w `campaign_agent` i `campaign_agent_group` — izolacja przez FK do `campaign` (RLS na `campaign` pokrywa pośrednio)
+- `agent_group_member` istnieje już z V042 — nowy indeks `idx_campaign_agent_member_lookup` dodany IF NOT EXISTS
+- CASCADE DELETE na obu tabelach: usunięcie kampanii lub agenta/grupy usuwa przypisanie
+
+**Kryteria akceptacji:**
+- [ ] Migracja V062 aplikuje się bez błędów
+- [ ] Kolumna `campaign.all_agents BOOLEAN NOT NULL DEFAULT FALSE` istnieje
+- [ ] Istniejące kampanie mają `all_agents = TRUE` po migracji
+- [ ] Tabela `campaign_agent` z PK `(campaign_id, agent_id)` i indeksami
+- [ ] Tabela `campaign_agent_group` z PK `(campaign_id, group_id)` i indeksami
+- [ ] CASCADE DELETE: usunięcie kampanii usuwa wiersze z obu tabel przypisania
+- [ ] CASCADE DELETE: usunięcie agenta usuwa jego wiersze z `campaign_agent`
+- [ ] CASCADE DELETE: usunięcie grupy usuwa jej wiersze z `campaign_agent_group`
+
+---
+
+### DB-037 – Kolumna `campaign_contact_record_id` w tabeli `contact` — migracja V063
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-011 (`campaign_contact`), DB-006 (`contact`)
+**Status:** ⬜ Nie rozpoczęte
+**Blokuje:** BE-085
+**Epic:** EPIC-25 Przypisywanie agentów do kampanii
+
+**Kontekst — zweryfikowany stan:**
+Każde połączenie wychodzące z dialera tworzy rekord w tabeli `contact`. Jeden rekord `campaign_contact` (lista kampanii) może generować wiele kontaktów (wiele prób wydzwonienia). Aktualnie:
+- `campaign_contact.last_contact_id` istnieje w schemacie (V009), ale **nigdy nie jest wypełniany** przez dialer — grep po całym kodzie zwrócił zero wyników
+- `contact` nie ma pola `campaign_contact_record_id` — brak możliwości zapytania „wszystkie kontakty dla rekordu X"
+- `DialerCallbackHandler` zna `recordId` (campaign_contact) i `contactId` (z Redis state), ale nie zapisuje powiązania
+
+Rozwiązanie: dodać `campaign_contact_record_id` do `contact`. Brak FK (jak `callback_id` — tabela `campaign_contact` ma composite PK `(record_id, campaign_id)` niekompatybilny z prostą FK).
+
+**DDL migracji (`V063__add_campaign_contact_record_id_to_contact.sql`):**
+
+```sql
+-- =============================================================================
+-- V063__add_campaign_contact_record_id_to_contact.sql
+-- DB-037: Powiązanie kontaktu wychodzącego z rekordem listy kampanii.
+--
+-- Brak FK: campaign_contact ma composite PK (record_id, campaign_id) —
+-- analogicznie do callback_id (V040) używamy UUID bez FK constraint.
+-- =============================================================================
+
+ALTER TABLE contact
+    ADD COLUMN IF NOT EXISTS campaign_contact_record_id UUID;
+
+CREATE INDEX idx_contact_campaign_contact_record
+    ON contact (campaign_contact_record_id)
+    WHERE campaign_contact_record_id IS NOT NULL;
+
+COMMENT ON COLUMN contact.campaign_contact_record_id IS
+    'UUID rekordu campaign_contact (campaign_contact.record_id), z którego powstał ten kontakt. '
+    'Nullable — wypełniany tylko dla kontaktów wychodzących z dialera kampanijnego. '
+    'Brak FK ze względu na composite PK w campaign_contact (analogicznie do callback_id).';
+```
+
+Dodatkowo: upewnić się że `campaign_contact.last_contact_id` będzie wypełniany przez dialer (logika w BE-085).
+
+**Kryteria akceptacji:**
+- [ ] Migracja V063 aplikuje się bez błędów na dev i test
+- [ ] Kolumna `contact.campaign_contact_record_id UUID` istnieje i jest nullable
+- [ ] Indeks `idx_contact_campaign_contact_record` widoczny w `pg_indexes` z filtrem `WHERE ... IS NOT NULL`
+- [ ] Istniejące wiersze kontaktów nie są naruszone (NULL backfill)
+- [ ] Tabela `contact` jest partycjonowana — `ADD COLUMN` propaguje na wszystkie partycje automatycznie
+
+---
+
+## EPIC-26: AI-Powered Conversation Summary
+
+### DB-038 – Tabela `tenant_ai_config`: konfiguracja dostawcy AI per tenant — migracja V064
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-002 (tabela `tenant`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-086
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Kontekst:**
+System musi umożliwiać konfigurację dostawcy AI (Claude/OpenAI/Azure OpenAI) niezależnie per tenant. Klucze API muszą być szyfrowane — analogicznie do `tenant_twilio_config` (DB-030) z konwerterem AES-256-GCM. Wzorzec: jeden wiersz per tenant (`UNIQUE tenant_id`).
+
+**DDL migracji (`V064__create_tenant_ai_config.sql`):**
+
+```sql
+-- =============================================================================
+-- V064__create_tenant_ai_config.sql
+-- DB-038: Konfiguracja dostawcy AI per tenant.
+-- Klucz api_key szyfrowany AES-256-GCM przez EncryptedStringConverter (JPA).
+-- Wzorzec: analogiczny do tenant_twilio_config (V051).
+-- =============================================================================
+
+CREATE TYPE ai_provider AS ENUM ('ANTHROPIC', 'OPENAI', 'AZURE_OPENAI');
+
+CREATE TABLE tenant_ai_config (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id               UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+
+    provider                ai_provider NOT NULL,
+    api_key_encrypted       TEXT NOT NULL,
+    model_name              VARCHAR(100) NOT NULL,
+
+    -- Opcjonalne — używane tylko dla Azure OpenAI
+    azure_endpoint          VARCHAR(500),
+    azure_deployment_name   VARCHAR(100),
+
+    -- Prompt systemowy do podsumowania; NULL = użyj domyślnego z aplikacji
+    summary_prompt_template TEXT,
+
+    is_active               BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_tenant_ai_config UNIQUE (tenant_id)
+);
+
+CREATE INDEX idx_tenant_ai_config_tenant ON tenant_ai_config (tenant_id) WHERE is_active;
+
+ALTER TABLE tenant_ai_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_ai_config_isolation ON tenant_ai_config
+    USING (tenant_id = current_setting('app.tenant_id', TRUE)::UUID);
+
+COMMENT ON TABLE tenant_ai_config IS
+    'Konfiguracja dostawcy AI per tenant. api_key_encrypted przechowywany jako szyfrowany blob AES-256-GCM.';
+COMMENT ON COLUMN tenant_ai_config.api_key_encrypted IS
+    'Klucz API dostawcy AI (Claude / OpenAI / Azure). Szyfrowany przez EncryptedStringConverter, nigdy nie eksponować plaintext przez REST.';
+COMMENT ON COLUMN tenant_ai_config.summary_prompt_template IS
+    'Opcjonalny prompt systemowy nadpisujący domyślny z aplikacji. NULL = użyj domyślnego.';
+COMMENT ON COLUMN tenant_ai_config.azure_endpoint IS
+    'Wymagane tylko dla AZURE_OPENAI: URL endpointu (https://<resource>.openai.azure.com/).';
+```
+
+**Kryteria akceptacji:**
+- [x] Migracja V064 aplikuje się bez błędów na dev i test
+- [x] ENUM `ai_provider` z wartościami `ANTHROPIC`, `OPENAI`, `AZURE_OPENAI` (+ `OPENROUTER` dodany w V066)
+- [x] UNIQUE constraint na `tenant_id` — max jedna konfiguracja per tenant
+- [x] RLS policy izoluje dane między tenantami
+- [x] Partial index `WHERE is_active` na `tenant_id`
+- [x] Komentarze kolumn dokumentują szyfrowanie `api_key_encrypted`
+
+---
+
+### DB-039 – Kolumny AI summary w tabeli `contact` — migracja V065
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-006 (tabela `contact`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-24
+**Blokuje:** BE-089
+**Epic:** EPIC-26 AI-Powered Conversation Summary
+
+**Kontekst:**
+Wygenerowane podsumowanie AI musi być trwale powiązane z kontaktem. Przechowujemy: treść podsumowania, nazwę modelu który je wygenerował, czas generowania — do celów audytowych i raportowania. Tabela `contact` jest partycjonowana, `ADD COLUMN` propaguje automatycznie na wszystkie partycje.
+
+**DDL migracji (`V065__add_ai_summary_to_contact.sql`):**
+
+```sql
+-- =============================================================================
+-- V065__add_ai_summary_to_contact.sql
+-- DB-039: Pola podsumowania AI w tabeli contact.
+-- Tabela jest partycjonowana — ADD COLUMN propaguje automatycznie.
+-- =============================================================================
+
+ALTER TABLE contact
+    ADD COLUMN IF NOT EXISTS ai_summary                TEXT,
+    ADD COLUMN IF NOT EXISTS ai_summary_model          VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS ai_summary_generated_at   TIMESTAMPTZ;
+
+COMMENT ON COLUMN contact.ai_summary IS
+    'Podsumowanie kontaktu wygenerowane przez AI. NULL jeśli agent nie zlecił generowania.';
+COMMENT ON COLUMN contact.ai_summary_model IS
+    'Nazwa modelu AI który wygenerował podsumowanie, np. claude-opus-4-7, gpt-4o. Null gdy brak podsumowania.';
+COMMENT ON COLUMN contact.ai_summary_generated_at IS
+    'Timestamp wygenerowania podsumowania przez AI. NULL gdy brak podsumowania.';
+```
+
+**Kryteria akceptacji:**
+- [x] Migracja V065 aplikuje się bez błędów na dev i test
+- [x] Trzy kolumny nullable: `ai_summary TEXT`, `ai_summary_model VARCHAR(100)`, `ai_summary_generated_at TIMESTAMPTZ`
+- [x] Istniejące wiersze nie są naruszone (NULL backfill)
+- [x] Partycjonowanie: `ADD COLUMN` aplikuje się na wszystkich partycjach (weryfikacja przez `SELECT count(*) FROM pg_attribute...`)
+- [x] Komentarze kolumn dokumentują semantykę
+
+---
+
+## EPIC-27: Własne dyspozycje per kampania i kolejka
+
+### DB-040 – Tabela `custom_disposition`: konfiguracja dyspozycji po kontakcie per kampania i per kolejka — migracja V069
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-004 (tabela `campaign`), DB-005 (tabela `queue`), DB-002 (tabela `tenant`)
+**Status:** ✅ Zrobione
+**Blokuje:** BE-092
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Kontekst:**
+Obecne dyspozycje (SALE, NO_INTEREST, CALLBACK, itp.) są zakodowane statycznie na froncie. Tabela `campaign` posiada co prawda kolumnę `disposition_codes JSONB`, ale przechowuje tylko kody bez pełnych metadanych (etykieta, ton, kolejność). Nowa tabela `custom_disposition` umożliwia supervisorowi konfigurację własnych zestawów dyspozycji dla konkretnej kampanii lub kolejki — gdy skonfigurowane, zastępują one całkowicie dyspozycje systemowe.
+
+Zasada zakresu (scope): wiersz należy **albo** do kampanii, **albo** do kolejki — nigdy do obu naraz. Egzekwowane przez `CHECK` constraint. Unikalność kodu per zakres egzekwowana przez dwa partial unique indexy (NULL nie jest równy NULL w UNIQUE constraint PostgreSQL).
+
+**DDL migracji (`V069__create_custom_disposition.sql`):**
+
+```sql
+-- =============================================================================
+-- V069__create_custom_disposition.sql
+-- DB-040: Własne dyspozycje po kontakcie per kampania lub kolejka.
+-- Gdy skonfigurowane dla danego zakresu, zastępują dyspozycje systemowe.
+-- Zakres: dokładnie jeden z campaign_id / queue_id musi być ustawiony.
+-- =============================================================================
+
+CREATE TABLE custom_disposition (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id        UUID        NOT NULL REFERENCES tenant(id)    ON DELETE CASCADE,
+
+    -- Zakres: dokładnie jeden z poniższych musi być NOT NULL
+    campaign_id      UUID        REFERENCES campaign(campaign_id)  ON DELETE CASCADE,
+    queue_id         UUID        REFERENCES queue(id)              ON DELETE CASCADE,
+
+    -- Definicja dyspozycji
+    disposition_code VARCHAR(50) NOT NULL,
+    label            VARCHAR(100) NOT NULL,
+    tone             VARCHAR(20) NOT NULL DEFAULT 'neutral',
+    ordinal          INT         NOT NULL DEFAULT 0,
+    is_active        BOOLEAN     NOT NULL DEFAULT TRUE,
+
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_custom_disposition_scope CHECK (
+        (campaign_id IS NOT NULL AND queue_id IS NULL) OR
+        (campaign_id IS NULL     AND queue_id IS NOT NULL)
+    ),
+    CONSTRAINT chk_custom_disposition_tone CHECK (
+        tone IN ('positive', 'negative', 'neutral', 'warning')
+    )
+);
+
+-- Partial unique indexes — obsługa NULL w UNIQUE dla PostgreSQL
+CREATE UNIQUE INDEX uq_custom_disposition_code_per_campaign
+    ON custom_disposition (tenant_id, campaign_id, disposition_code)
+    WHERE campaign_id IS NOT NULL;
+
+CREATE UNIQUE INDEX uq_custom_disposition_code_per_queue
+    ON custom_disposition (tenant_id, queue_id, disposition_code)
+    WHERE queue_id IS NOT NULL;
+
+-- Indeksy wyszukiwania
+CREATE INDEX idx_custom_disposition_campaign
+    ON custom_disposition (tenant_id, campaign_id, ordinal)
+    WHERE campaign_id IS NOT NULL AND is_active = TRUE;
+
+CREATE INDEX idx_custom_disposition_queue
+    ON custom_disposition (tenant_id, queue_id, ordinal)
+    WHERE queue_id IS NOT NULL AND is_active = TRUE;
+
+ALTER TABLE custom_disposition ENABLE ROW LEVEL SECURITY;
+CREATE POLICY custom_disposition_isolation ON custom_disposition
+    USING (tenant_id = current_setting('app.tenant_id', TRUE)::UUID);
+
+COMMENT ON TABLE custom_disposition IS
+    'Własne dyspozycje po kontakcie dla kampanii lub kolejki. Gdy istnieją dla danego zakresu, zastępują dyspozycje systemowe.';
+COMMENT ON COLUMN custom_disposition.disposition_code IS
+    'Unikalny kod dyspozycji w obrębie zakresu (kampania lub kolejka). Maks. 50 znaków.';
+COMMENT ON COLUMN custom_disposition.tone IS
+    'Ton wizualny w UI: positive (zielony), negative (czerwony), neutral (szary), warning (pomarańczowy).';
+COMMENT ON COLUMN custom_disposition.ordinal IS
+    'Kolejność wyświetlania na liście. Rosnąco, domyślnie 0.';
+COMMENT ON COLUMN custom_disposition.campaign_id IS
+    'Jeśli ustawiony: dyspozycja należy do tej kampanii. Wzajemnie wyklucza się z queue_id.';
+COMMENT ON COLUMN custom_disposition.queue_id IS
+    'Jeśli ustawiony: dyspozycja należy do tej kolejki. Wzajemnie wyklucza się z campaign_id.';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V069 aplikuje się bez błędów na dev i test
+- [ ] `chk_custom_disposition_scope` — INSERT z `campaign_id IS NOT NULL AND queue_id IS NOT NULL` odrzucony
+- [ ] `chk_custom_disposition_scope` — INSERT z `campaign_id IS NULL AND queue_id IS NULL` odrzucony
+- [ ] Partial unique indexes — duplikat `disposition_code` per kampania odrzucony; ten sam kod dla różnych kampanii dozwolony
+- [ ] RLS policy izoluje dane między tenantami
+- [ ] `chk_custom_disposition_tone` — wartość spoza listy odrzucona
+- [ ] Komentarze na tabeli i kluczowych kolumnach
+
+---
+
+### DB-041 – Tabele `disposition_set` i `disposition_set_item`: zestawy dyspozycji wielokrotnego użytku — migracja V071
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-040 (tabela `custom_disposition`), DB-002 (tabela `tenant`)
+**Status:** ✅ Ukończone
+**Zrealizowane:** 2026-05-28
+**Blokuje:** BE-095
+**Epic:** EPIC-27 Własne dyspozycje per kampania i kolejka
+
+**Kontekst:**
+Zestawy dyspozycji (`disposition_set`) to nazwane szablony wielokrotnego użytku. Supervisor definiuje zestaw raz, a następnie przypisuje go do wielu kampanii lub kolejek — elementy zestawu są wtedy **kopiowane** (snapshot) do tabeli `custom_disposition` dla danego zakresu. Po skopiowaniu dyspozycje kampanii/kolejki są niezależne od zestawu i mogą być edytowane ręcznie.
+
+**DDL migracji (`V071__create_disposition_set.sql`):**
+
+```sql
+-- =============================================================================
+-- V071__create_disposition_set.sql
+-- DB-041: Zestawy dyspozycji wielokrotnego użytku (szablony).
+-- Przypisanie zestawu do kampanii/kolejki kopiuje elementy (snapshot).
+-- =============================================================================
+
+CREATE TABLE disposition_set (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   UUID        NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    name        VARCHAR(100) NOT NULL,
+    description VARCHAR(500),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_disposition_set_tenant_name UNIQUE (tenant_id, name)
+);
+
+CREATE TABLE disposition_set_item (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    set_id           UUID        NOT NULL REFERENCES disposition_set(id) ON DELETE CASCADE,
+    tenant_id        UUID        NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    disposition_code VARCHAR(50)  NOT NULL,
+    label            VARCHAR(100) NOT NULL,
+    tone             VARCHAR(20)  NOT NULL DEFAULT 'neutral',
+    ordinal          INT          NOT NULL DEFAULT 0,
+
+    CONSTRAINT uq_disposition_set_item_code UNIQUE (set_id, disposition_code),
+    CONSTRAINT chk_disposition_set_item_tone CHECK (
+        tone IN ('positive', 'negative', 'neutral', 'warning')
+    )
+);
+
+-- Indeksy
+CREATE INDEX idx_disposition_set_tenant
+    ON disposition_set (tenant_id, name);
+
+CREATE INDEX idx_disposition_set_item_set
+    ON disposition_set_item (set_id, ordinal);
+
+-- RLS
+ALTER TABLE disposition_set ENABLE ROW LEVEL SECURITY;
+ALTER TABLE disposition_set FORCE ROW LEVEL SECURITY;
+CREATE POLICY disposition_set_isolation ON disposition_set
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+
+ALTER TABLE disposition_set_item ENABLE ROW LEVEL SECURITY;
+ALTER TABLE disposition_set_item FORCE ROW LEVEL SECURITY;
+CREATE POLICY disposition_set_item_isolation ON disposition_set_item
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+
+COMMENT ON TABLE disposition_set IS
+    'Nazwane zestawy dyspozycji wielokrotnego użytku. Przypisanie do kampanii/kolejki kopiuje elementy (snapshot).';
+COMMENT ON TABLE disposition_set_item IS
+    'Elementy zestawu dyspozycji. Kopiowane do custom_disposition przy przypisaniu zestawu.';
+COMMENT ON COLUMN disposition_set_item.disposition_code IS
+    'Unikalny kod w obrębie zestawu. Maks. 50 znaków, tylko A-Z, 0-9, _.';
+```
+
+**Kryteria akceptacji:**
+- [ ] Migracja V071 aplikuje się bez błędów
+- [ ] `uq_disposition_set_tenant_name` — duplikat nazwy zestawu per tenant odrzucony
+- [ ] `uq_disposition_set_item_code` — duplikat kodu per zestaw odrzucony
+- [ ] `chk_disposition_set_item_tone` — wartość spoza listy odrzucona
+- [ ] RLS + FORCE RLS na obu tabelach — izolacja między tenantami
+- [ ] CASCADE DELETE: usunięcie zestawu usuwa jego elementy

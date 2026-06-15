@@ -4,6 +4,7 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -16,9 +17,12 @@ import { CampaignFormComponent } from '../campaign-form/campaign-form.component'
 import { CampaignImportComponent } from '../campaign-import/campaign-import.component';
 import { CampaignContactsComponent } from '../campaign-contacts/campaign-contacts.component';
 import { CampaignInfoComponent } from '../campaign-info/campaign-info.component';
+import { CampaignAssignmentModalComponent } from '../campaign-assignment-modal/campaign-assignment-modal.component';
 import { ConfirmDialogComponent } from '../../../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { ContactDetailModalComponent } from '../../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
 
 const POLLING_INTERVAL_MS = 10_000;
+const CLOSED_STATUSES = new Set<CampaignStatus>(['STOPPED', 'COMPLETED']);
 
 @Component({
   selector: 'app-campaign-list',
@@ -29,7 +33,9 @@ const POLLING_INTERVAL_MS = 10_000;
     CampaignImportComponent,
     CampaignContactsComponent,
     CampaignInfoComponent,
+    CampaignAssignmentModalComponent,
     ConfirmDialogComponent,
+    ContactDetailModalComponent,
   ],
   templateUrl: './campaign-list.component.html',
   styleUrl: './campaign-list.component.scss',
@@ -42,6 +48,12 @@ export class CampaignListComponent implements OnInit {
 
   readonly loading = signal(false);
   readonly campaigns = signal<Campaign[]>([]);
+  readonly hideClosedCampaigns = signal(true);
+  readonly filteredCampaigns = computed(() =>
+    this.hideClosedCampaigns()
+      ? this.campaigns().filter((c) => !CLOSED_STATUSES.has(c.status))
+      : this.campaigns(),
+  );
   readonly totalElements = signal(0);
   readonly totalPages = signal(0);
   readonly currentPage = signal(0);
@@ -61,6 +73,10 @@ export class CampaignListComponent implements OnInit {
 
   readonly showInfoModal = signal(false);
   readonly infoCampaign = signal<Campaign | null>(null);
+
+  readonly assignmentCampaign = signal<Campaign | null>(null);
+
+  readonly selectedContactId = signal<string | null>(null);
 
   readonly showConfirmDialog = signal(false);
   readonly confirmDialogMessage = signal('');
@@ -97,7 +113,9 @@ export class CampaignListComponent implements OnInit {
       .getCampaigns(this.currentPage(), this.pageSize)
       .pipe(
         catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac listy kampanii. Sprobuj ponownie.');
+          this.notifications.error(
+            this.transloco.translate('supervisor.campaigns.errors.loadFailed'),
+          );
           const empty: PagedResponse<Campaign> = {
             content: [],
             page: 0,
@@ -158,7 +176,7 @@ export class CampaignListComponent implements OnInit {
     this.showImportModal.set(false);
     this.importCampaign.set(null);
     if (success) {
-      this.notifications.success('Import kontaktow zostal zakonczony pomyslnie.');
+      this.notifications.success(this.transloco.translate('supervisor.campaigns.importSuccess'));
       this.loadCampaigns();
     }
   }
@@ -173,6 +191,10 @@ export class CampaignListComponent implements OnInit {
     this.contactsCampaign.set(null);
   }
 
+  onContactSelected(contactId: string): void {
+    this.selectedContactId.set(contactId);
+  }
+
   openInfoModal(campaign: Campaign): void {
     this.infoCampaign.set(campaign);
     this.showInfoModal.set(true);
@@ -181,6 +203,16 @@ export class CampaignListComponent implements OnInit {
   onInfoClosed(): void {
     this.showInfoModal.set(false);
     this.infoCampaign.set(null);
+  }
+
+  openAssignment(campaign: Campaign, event: Event): void {
+    event.stopPropagation();
+    this.assignmentCampaign.set(campaign);
+  }
+
+  onAssignmentClosed(): void {
+    this.assignmentCampaign.set(null);
+    this.loadCampaigns();
   }
 
   canStart(status: CampaignStatus): boolean {
@@ -397,11 +429,11 @@ export class CampaignListComponent implements OnInit {
   formatDialerType(dialerType: string): string {
     switch (dialerType) {
       case 'PROGRESSIVE':
-        return 'Progresywny';
+        return this.transloco.translate('supervisor.campaigns.dialerProgressive');
       case 'PREDICTIVE':
-        return 'Predyktywny';
+        return this.transloco.translate('supervisor.campaigns.dialerPredictive');
       case 'MANUAL':
-        return 'Manualny';
+        return this.transloco.translate('supervisor.campaigns.dialerManual');
       default:
         return dialerType;
     }
@@ -410,9 +442,9 @@ export class CampaignListComponent implements OnInit {
   formatType(type: string): string {
     switch (type) {
       case 'OUTBOUND_VOICE':
-        return 'Wychodzace glosy';
+        return this.transloco.translate('supervisor.campaigns.typeOutboundVoice');
       case 'OUTBOUND_EMAIL':
-        return 'Wychodzace email';
+        return this.transloco.translate('supervisor.campaigns.typeOutboundEmail');
       default:
         return type;
     }

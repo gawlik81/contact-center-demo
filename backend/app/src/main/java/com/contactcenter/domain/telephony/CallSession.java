@@ -98,6 +98,22 @@ public class CallSession {
      */
     private final String agentCallSid;
 
+    /**
+     * Nazwa konferencji Twilio, do której agent jest podłączony.
+     * Ustawiana w dialAgentIntoConference() i przy tworzeniu nogi konsultacji.
+     * Nie zmienia się po updateSessionContact() – pozwala na prawidłowe zarządzanie
+     * konferencją po zmianie logicznego contactId.
+     */
+    private final String conferenceName;
+
+    /**
+     * Twilio Call SID oryginalnego połączenia klienta (CA...).
+     * Propagowany przez łańcuch attended transfer, żeby bridgeCalls()
+     * mógł przekierować klienta do nowej konferencji.
+     * Null dla starszych sesji Redis – @JsonIgnoreProperties obsłuży brak pola.
+     */
+    private final String customerCallSid;
+
     // =========================================================================
     // Enum statusów
     // =========================================================================

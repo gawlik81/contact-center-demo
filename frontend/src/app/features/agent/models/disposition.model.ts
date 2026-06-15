@@ -1,13 +1,17 @@
+export type DispositionTone = 'accent' | 'success' | 'warning' | 'danger' | 'violet' | 'neutral';
+
 export interface DispositionCode {
   code: string;
   labelKey: string;
+  tone: DispositionTone;
 }
 
+/** @deprecated Używaj CustomDispositionService.getAvailableDispositions() — fallback tylko przy błędzie API */
 export const DISPOSITION_CODES: DispositionCode[] = [
-  { code: 'SALE', labelKey: 'agent.dispositionCodes.SALE' },
-  { code: 'NO_INTEREST', labelKey: 'agent.dispositionCodes.NO_INTEREST' },
-  { code: 'CALLBACK', labelKey: 'agent.dispositionCodes.CALLBACK' },
-  { code: 'WRONG_NUMBER', labelKey: 'agent.dispositionCodes.WRONG_NUMBER' },
-  { code: 'TECH_ISSUE', labelKey: 'agent.dispositionCodes.TECH_ISSUE' },
-  { code: 'OTHER', labelKey: 'agent.dispositionCodes.OTHER' },
+  { code: 'SALE', labelKey: 'agent.dispositionCodes.SALE', tone: 'violet' },
+  { code: 'NO_INTEREST', labelKey: 'agent.dispositionCodes.NO_INTEREST', tone: 'warning' },
+  { code: 'CALLBACK', labelKey: 'agent.dispositionCodes.CALLBACK', tone: 'accent' },
+  { code: 'WRONG_NUMBER', labelKey: 'agent.dispositionCodes.WRONG_NUMBER', tone: 'danger' },
+  { code: 'TECH_ISSUE', labelKey: 'agent.dispositionCodes.TECH_ISSUE', tone: 'neutral' },
+  { code: 'OTHER', labelKey: 'agent.dispositionCodes.OTHER', tone: 'neutral' },
 ];

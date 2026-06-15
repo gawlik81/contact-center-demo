@@ -1,4 +1,4 @@
-import { TranslocoModule } from '@jsverse/transloco';
+import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -16,17 +16,18 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
+  AsyncValidatorFn,
   FormBuilder,
   ReactiveFormsModule,
   ValidationErrors,
   ValidatorFn,
   Validators,
 } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, first, map, of, switchMap } from 'rxjs';
 import { CampaignService } from '../../../services/campaign.service';
-import { QueueService } from '../../../services/queue.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { TwilioPhoneNumberSelectComponent } from '../../../components/twilio-phone-number-select/twilio-phone-number-select.component';
+import { CampaignDispositionsComponent } from '../campaign-dispositions/campaign-dispositions.component';
 import {
   ActiveDay,
   Campaign,
@@ -34,7 +35,6 @@ import {
   CampaignType,
   DialerType,
 } from '../../../models/campaign.model';
-import { Queue } from '../../../models/queue.model';
 
 /** Validates HH:MM time format */
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -79,7 +79,7 @@ const ALL_DAYS: { value: ActiveDay; labelKey: string }[] = [
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule, TwilioPhoneNumberSelectComponent],
+  imports: [TranslocoModule, ReactiveFormsModule, TwilioPhoneNumberSelectComponent, CampaignDispositionsComponent],
   templateUrl: './campaign-form.component.html',
   styleUrl: './campaign-form.component.scss',
   host: {
@@ -94,28 +94,26 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   readonly cancelled = output<void>();
 
   private readonly campaignService = inject(CampaignService);
-  private readonly queueService = inject(QueueService);
   private readonly notifications = inject(NotificationService);
+  private readonly transloco = inject(TranslocoService);
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
 
   readonly submitting = signal(false);
-  readonly queuesLoading = signal(false);
-  readonly queues = signal<Queue[]>([]);
   readonly allDays = ALL_DAYS;
 
-  readonly typeOptions: { value: CampaignType; label: string }[] = [
-    { value: 'OUTBOUND_VOICE', label: 'Wychodzace glosy' },
-    { value: 'OUTBOUND_EMAIL', label: 'Wychodzace email' },
-  ];
+  readonly typeOptions = signal<{ value: CampaignType; label: string }[]>([
+    { value: 'OUTBOUND_VOICE', label: '' },
+    { value: 'OUTBOUND_EMAIL', label: '' },
+  ]);
 
-  readonly dialerOptions: { value: DialerType; label: string }[] = [
-    { value: 'PROGRESSIVE', label: 'Progresywny' },
-    { value: 'PREDICTIVE', label: 'Predyktywny' },
-    { value: 'MANUAL', label: 'Manualny' },
-  ];
+  readonly dialerOptions = signal<{ value: DialerType; label: string }[]>([
+    { value: 'PROGRESSIVE', label: '' },
+    { value: 'PREDICTIVE', label: '' },
+    { value: 'MANUAL', label: '' },
+  ]);
 
   readonly timezoneOptions: string[] = [
     'Europe/Warsaw',
@@ -137,10 +135,9 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   );
 
   readonly form = this.fb.group({
-    name: ['', [Validators.required, Validators.maxLength(255)]],
+    name: ['', [Validators.required, Validators.maxLength(255)], [this.createNameAsyncValidator()]],
     type: ['OUTBOUND_VOICE' as CampaignType, Validators.required],
     dialerType: ['PROGRESSIVE' as DialerType, Validators.required],
-    queueId: ['', Validators.required],
     callerId: this.fb.control<string | null>(null),
     maxAttempts: [3, [Validators.required, Validators.min(1), Validators.max(10)]],
     retryDelayMinutes: [60, [Validators.required, Validators.min(1), Validators.max(1440)]],
@@ -151,11 +148,42 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
   readonly campaignType = signal<string>(this.form.get('type')!.value ?? 'OUTBOUND_VOICE');
   readonly isOutboundVoice = computed(() => this.campaignType() === 'OUTBOUND_VOICE');
 
+  /** Returns campaignId when in edit mode, undefined otherwise */
+  readonly campaignId = computed(() =>
+    this.isEditMode() ? (this.campaign()?.campaignId ?? undefined) : undefined,
+  );
+
   /** Separate signal for active_days checkboxes (not in reactive form to keep it simple) */
   readonly selectedDays = signal<Set<ActiveDay>>(new Set());
 
+  private createNameAsyncValidator(): AsyncValidatorFn {
+    return (control: AbstractControl) => {
+      const name: string = (control.value ?? '').trim();
+      if (!name || name.length > 255) return of(null);
+
+      const currentName = this.campaign()?.name;
+      const excludeId = this.isEditMode() ? (this.campaign()?.campaignId ?? undefined) : undefined;
+
+      if (this.isEditMode() && currentName && name.toLowerCase() === currentName.toLowerCase()) {
+        return of(null);
+      }
+
+      return of(name).pipe(
+        debounceTime(400),
+        distinctUntilChanged(),
+        switchMap((n) => this.campaignService.checkNameAvailability(n, excludeId)),
+        map((res) => (res.available ? null : { nameTaken: true })),
+        first(),
+      );
+    };
+  }
+
   ngOnInit(): void {
-    this.loadQueues();
+    this.initOptions();
+
+    this.transloco.langChanges$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.initOptions();
+    });
 
     this.form
       .get('type')!
@@ -168,7 +196,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         name: editCampaign.name,
         type: editCampaign.type,
         dialerType: editCampaign.dialerType,
-        queueId: editCampaign.queueId ?? '',
         callerId: editCampaign.callerId ?? null,
         maxAttempts: editCampaign.maxAttempts,
         retryDelayMinutes: editCampaign.retryDelayMinutes,
@@ -194,23 +221,31 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
     }
   }
 
-  private loadQueues(): void {
-    this.queuesLoading.set(true);
-    this.queueService
-      .getQueues(0, 100)
-      .pipe(
-        catchError(() => {
-          this.notifications.error('Nie udalo sie pobrac listy kolejek.');
-          return of(null);
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((result) => {
-        this.queuesLoading.set(false);
-        if (result) {
-          this.queues.set(result.content.filter((q) => q.active));
-        }
-      });
+  private initOptions(): void {
+    this.typeOptions.set([
+      {
+        value: 'OUTBOUND_VOICE',
+        label: this.transloco.translate('supervisor.campaigns.typeOutboundVoice'),
+      },
+      {
+        value: 'OUTBOUND_EMAIL',
+        label: this.transloco.translate('supervisor.campaigns.typeOutboundEmail'),
+      },
+    ]);
+    this.dialerOptions.set([
+      {
+        value: 'PROGRESSIVE',
+        label: this.transloco.translate('supervisor.campaigns.dialerProgressive'),
+      },
+      {
+        value: 'PREDICTIVE',
+        label: this.transloco.translate('supervisor.campaigns.dialerPredictive'),
+      },
+      {
+        value: 'MANUAL',
+        label: this.transloco.translate('supervisor.campaigns.dialerManual'),
+      },
+    ]);
   }
 
   ngAfterViewInit(): void {
@@ -264,78 +299,91 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
 
   // ── Error getters ────────────────────────────────────────────────────────────
 
+  get nameChecking(): boolean {
+    return this.form.get('name')!.status === 'PENDING';
+  }
+
   get nameError(): string | null {
     const ctrl = this.form.get('name')!;
+    if (ctrl.status === 'PENDING') return null;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Nazwa jest wymagana.';
-    if (ctrl.hasError('maxlength')) return 'Nazwa nie moze przekraczac 255 znakow.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.campaignForm.errors.nameRequired');
+    if (ctrl.hasError('maxlength'))
+      return this.transloco.translate('supervisor.campaignForm.errors.nameMaxLength');
+    if (ctrl.hasError('nameTaken'))
+      return this.transloco.translate('supervisor.campaignForm.errors.nameTaken');
     return null;
   }
 
   get maxAttemptsError(): string | null {
     const ctrl = this.form.get('maxAttempts')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Pole jest wymagane.';
-    if (ctrl.hasError('min')) return 'Minimalna liczba prób to 1.';
-    if (ctrl.hasError('max')) return 'Maksymalna liczba prób to 10.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.campaignForm.errors.fieldRequired');
+    if (ctrl.hasError('min'))
+      return this.transloco.translate('supervisor.campaignForm.errors.maxAttemptsMin');
+    if (ctrl.hasError('max'))
+      return this.transloco.translate('supervisor.campaignForm.errors.maxAttemptsMax');
     return null;
   }
 
   get retryDelayError(): string | null {
     const ctrl = this.form.get('retryDelayMinutes')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Pole jest wymagane.';
-    if (ctrl.hasError('min')) return 'Minimalny czas między próbami to 1 minuta.';
-    if (ctrl.hasError('max')) return 'Maksymalny czas między próbami to 1440 minut (24h).';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.campaignForm.errors.fieldRequired');
+    if (ctrl.hasError('min'))
+      return this.transloco.translate('supervisor.campaignForm.errors.retryDelayMin');
+    if (ctrl.hasError('max'))
+      return this.transloco.translate('supervisor.campaignForm.errors.retryDelayMax');
     return null;
   }
 
   get ringTimeoutError(): string | null {
     const ctrl = this.form.get('ringTimeoutSeconds')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Pole jest wymagane.';
-    if (ctrl.hasError('min')) return 'Minimalny czas to 15 sekund.';
-    if (ctrl.hasError('max')) return 'Maksymalny czas to 120 sekund.';
+    if (ctrl.hasError('required'))
+      return this.transloco.translate('supervisor.campaignForm.errors.fieldRequired');
+    if (ctrl.hasError('min'))
+      return this.transloco.translate('supervisor.campaignForm.errors.ringTimeoutMin');
+    if (ctrl.hasError('max'))
+      return this.transloco.translate('supervisor.campaignForm.errors.ringTimeoutMax');
     return null;
   }
 
   get timeFromError(): string | null {
     const ctrl = this.scheduleGroup.get('timeFrom')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('timePattern')) return 'Format: GG:MM (np. 09:00)';
+    if (ctrl.hasError('timePattern'))
+      return this.transloco.translate('supervisor.campaignForm.errors.timeFromPattern');
     return null;
   }
 
   get timeToError(): string | null {
     const ctrl = this.scheduleGroup.get('timeTo')!;
     if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('timePattern')) return 'Format: GG:MM (np. 18:00)';
+    if (ctrl.hasError('timePattern'))
+      return this.transloco.translate('supervisor.campaignForm.errors.timeToPattern');
     return null;
   }
 
   get scheduleTimeRangeError(): string | null {
     if (this.scheduleGroup.hasError('timeToNotAfterFrom') && this.scheduleGroup.touched) {
-      return 'Godzina "do" musi byc pozniej niz godzina "od".';
+      return this.transloco.translate('supervisor.campaignForm.errors.timeRangeInvalid');
     }
-    return null;
-  }
-
-  get queueIdError(): string | null {
-    const ctrl = this.form.get('queueId')!;
-    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required')) return 'Kolejka jest wymagana.';
     return null;
   }
 
   get scheduleDateRangeError(): string | null {
     if (this.scheduleGroup.hasError('endDateBeforeStart') && this.scheduleGroup.touched) {
-      return 'Data konca nie moze byc wczesniej niz data startu.';
+      return this.transloco.translate('supervisor.campaignForm.errors.dateRangeInvalid');
     }
     return null;
   }
 
   get isSaveDisabled(): boolean {
-    return this.form.invalid || this.submitting();
+    return this.form.invalid || this.submitting() || this.form.get('name')!.status === 'PENDING';
   }
 
   onSubmit(): void {
@@ -361,7 +409,9 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         })
         .pipe(
           catchError(() => {
-            this.notifications.error('Nie udalo sie zaktualizowac kampanii. Sprobuj ponownie.');
+            this.notifications.error(
+              this.transloco.translate('supervisor.campaignForm.errors.updateFailed'),
+            );
             return of(null);
           }),
           takeUntilDestroyed(this.destroyRef),
@@ -379,7 +429,6 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
           name: raw.name!.trim(),
           type: raw.type as CampaignType,
           dialerType: raw.dialerType as DialerType,
-          queueId: raw.queueId!,
           maxAttempts: raw.maxAttempts!,
           retryDelayMinutes: raw.retryDelayMinutes!,
           ringTimeoutSeconds: raw.ringTimeoutSeconds!,
@@ -389,9 +438,13 @@ export class CampaignFormComponent implements OnInit, AfterViewInit {
         .pipe(
           catchError((err: { status?: number }) => {
             if (err?.status === 422) {
-              this.notifications.error('Przekroczono limit kampanii dla tego tenanta.');
+              this.notifications.error(
+                this.transloco.translate('supervisor.campaignForm.errors.limitExceeded'),
+              );
             } else {
-              this.notifications.error('Nie udalo sie utworzyc kampanii. Sprobuj ponownie.');
+              this.notifications.error(
+                this.transloco.translate('supervisor.campaignForm.errors.createFailed'),
+              );
             }
             return of(null);
           }),

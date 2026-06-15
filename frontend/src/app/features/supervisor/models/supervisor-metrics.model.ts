@@ -17,6 +17,7 @@ export interface QueueMetric {
 
 export interface KpiMetric {
   activeCalls: number;
+  callsInIvr: number;
   avgWaitTime: number; // seconds
   avgHandleTime: number; // seconds
 }
@@ -29,21 +30,22 @@ export interface SupervisorMetrics {
 
 /** Raw snake_case payload received from WebSocket backend */
 export interface SupervisorMetricsRawPayload {
-  agents: Array<{
+  agents: {
     id: string;
     name: string;
     status: AgentStatus;
     current_contact: string | null;
     break_started_at: string | null;
-  }>;
-  queues: Array<{
+  }[];
+  queues: {
     id: string;
     name: string;
     waiting: number;
     available_agents: number;
-  }>;
+  }[];
   kpi: {
     active_calls: number;
+    calls_in_ivr: number;
     avg_wait_time: number;
     avg_handle_time: number;
   };

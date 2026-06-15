@@ -1,6 +1,6 @@
 package com.contactcenter.api.social.dto;
 
-import com.contactcenter.domain.model.SocialPlatform;
+import com.contactcenter.domain.social.SocialPlatform;
 
 /**
  * Odpowiedź inicjacji OAuth – zawiera URL do przekierowania użytkownika.

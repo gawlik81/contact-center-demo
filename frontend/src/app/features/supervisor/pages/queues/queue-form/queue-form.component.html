@@ -1,9 +1,4 @@
-<dialog
-  #dialogEl
-  class="queue-form-dialog"
-  aria-labelledby="queue-form-title"
-  (click)="$event.target === $event.currentTarget ? onCancel() : null"
->
+<dialog #dialogEl class="queue-form-dialog" aria-labelledby="queue-form-title">
   <div class="queue-form-dialog__content" role="document">
     <div class="queue-form-dialog__header">
       <h2 id="queue-form-title" class="queue-form-dialog__title">
@@ -204,16 +199,13 @@
           }
         </div>
       </form>
-
-      @if (isEditMode() && queue()) {
-        <div class="assignment-section">
-          <p class="assignment-section__heading">{{ 'supervisor.queueForm.assignmentTitle' | transloco }}</p>
-          <app-queue-assignment-panel [queueId]="queue()!.queueId" />
-        </div>
-      } @else if (!isEditMode()) {
-        <p class="assignment-new-queue-hint">{{ 'supervisor.queueForm.assignmentHint' | transloco }}</p>
-      }
     </div>
+
+    @if (queueId(); as id) {
+      <div class="queue-form-dialog__dispositions">
+        <app-queue-dispositions [queueId]="id" />
+      </div>
+    }
 
     <div class="queue-form-dialog__footer">
       <button class="btn btn-cancel" type="button" (click)="onCancel()">{{ 'common.cancel' | transloco }}</button>

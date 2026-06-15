@@ -87,30 +87,24 @@ export class CampaignInfoComponent implements OnInit, AfterViewInit {
   }
 
   formatStatus(status: string): string {
-    switch (status) {
-      case 'DRAFT':
-        return 'Szkic';
-      case 'SCHEDULED':
-        return 'Zaplanowana';
-      case 'RUNNING':
-        return 'Aktywna';
-      case 'PAUSED':
-        return 'Wstrzymana';
-      case 'STOPPED':
-        return 'Zatrzymana';
-      case 'COMPLETED':
-        return 'Zakonczona';
-      default:
-        return status;
-    }
+    const keyMap: Record<string, string> = {
+      DRAFT: 'supervisor.campaigns.statusDraft',
+      SCHEDULED: 'supervisor.campaigns.statusScheduled',
+      RUNNING: 'supervisor.campaigns.statusRunning',
+      PAUSED: 'supervisor.campaigns.statusPaused',
+      STOPPED: 'supervisor.campaigns.statusStopped',
+      COMPLETED: 'supervisor.campaigns.statusCompleted',
+    };
+    const key = keyMap[status];
+    return key ? this.transloco.translate(key) : status;
   }
 
   formatType(type: string): string {
     switch (type) {
       case 'OUTBOUND_VOICE':
-        return 'Wychodzace glosy';
+        return this.transloco.translate('supervisor.campaigns.typeOutboundVoice');
       case 'OUTBOUND_EMAIL':
-        return 'Wychodzace email';
+        return this.transloco.translate('supervisor.campaigns.typeOutboundEmail');
       default:
         return type;
     }
@@ -119,11 +113,11 @@ export class CampaignInfoComponent implements OnInit, AfterViewInit {
   formatDialerType(dialerType: string): string {
     switch (dialerType) {
       case 'PROGRESSIVE':
-        return 'Progresywny';
+        return this.transloco.translate('supervisor.campaigns.dialerProgressive');
       case 'PREDICTIVE':
-        return 'Predyktywny';
+        return this.transloco.translate('supervisor.campaigns.dialerPredictive');
       case 'MANUAL':
-        return 'Manualny';
+        return this.transloco.translate('supervisor.campaigns.dialerManual');
       default:
         return dialerType;
     }

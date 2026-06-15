@@ -63,7 +63,29 @@
     "errorForbidden": "Доступ заборонено",
     "errorNotFound": "Ресурс не знайдено",
     "errorServer": "Помилка сервера, спробуйте ще раз",
-    "errorBadRequest": "Сталася помилка. Перевірте дані та спробуйте ще раз."
+    "errorBadRequest": "Сталася помилка. Перевірте дані та спробуйте ще раз.",
+    "dispositionLabels": {
+      "OTHER": "Інше",
+      "RESOLVED": "Вирішено",
+      "ESCALATED": "Ескальовано",
+      "CALLBACK": "Передзвонити",
+      "SALE": "Продаж",
+      "DECLINED": "Відмова",
+      "NO_ANSWER": "Немає відповіді",
+      "TECH_ISSUE": "Технічна проблема",
+      "NO_INTEREST": "Немає інтересу",
+      "CANCELLED": "Скасовано",
+      "WRONG_NUMBER": "Невірний номер",
+      "VOICEMAIL": "Голосова пошта",
+      "TRANSFER": "Трансфер",
+      "ESCALATE": "Ескалація"
+    },
+    "tones": {
+      "positive": "Позитивний",
+      "negative": "Негативний",
+      "neutral": "Нейтральний",
+      "warning": "Попередження"
+    }
   },
   "auth": {
     "login": {
@@ -157,6 +179,8 @@
     "settingsSocialMedia": "Соціальні мережі",
     "settingsEmailTemplates": "Шаблони email",
     "settingsTwilioConfig": "Інтеграція Twilio",
+    "settingsAiConfig": "Налаштування ШІ",
+    "settingsDispositionSets": "Набори диспозицій",
     "reportsHistorical": "Історичні",
     "reportsContacts": "Контакти",
     "importCsv": "Імпорт CSV",
@@ -210,13 +234,16 @@
       "chatPlaceholder": "Панель чату",
       "chatPlaceholderSub": "Тут буде завантажено вигляд чату",
       "profileLabel": "Профіль клієнта",
+      "expandCustomerPanel": "Розгорнути панель клієнта",
+      "collapseCustomerPanel": "Згорнути панель клієнта",
       "viewSwitcher": "Перемикач виду",
       "calendar": "Календар",
       "tabPhone": "Телефон",
       "tabChat": "Чат",
       "tabEmail": "Email",
       "tabSocial": "Соц. мережі",
-      "replySent": "Відповідь надіслана"
+      "replySent": "Відповідь надіслана",
+      "consultCancelled": "Консультацію скасовано агентом-ініціатором"
     },
     "softphone": {
       "incomingCall": "Вхідний дзвінок",
@@ -263,7 +290,27 @@
       "scheduleCallback": "Запланувати передзвін",
       "scheduleCallbackLabel": "Запланувати передзвін",
       "callbackScheduled": "Передзвін заплановано",
-      "idle": "Очікування дзвінка..."
+      "note": "Нотатка",
+      "noteLabel": "Додати нотатку до дзвінка",
+      "noteBack": "Назад",
+      "noteBackLabel": "Повернутися до дзвінка",
+      "noteTitle": "Нотатка дзвінка",
+      "notePlaceholder": "Введіть нотатку...",
+      "noteHint": "Нотатка з'явиться у формі диспозиції",
+      "idle": "Очікування дзвінка...",
+      "consultingAgent": "Консультація з агентом",
+      "tabPhone": "Телефон",
+      "tabAgent": "Агент",
+      "tabQueue": "Черга",
+      "searchAgentPlaceholder": "Пошук агента...",
+      "transferAction": "Перевести",
+      "consultAction": "Консультувати",
+      "noAgentsAvailable": "Немає доступних агентів.",
+      "loadAgentsError": "Не вдалося завантажити список агентів.",
+      "noQueuesAvailable": "Немає доступних черг.",
+      "loadQueuesError": "Не вдалося завантажити список черг.",
+      "waitingContacts": "очікує",
+      "availableAgents": "агентів"
     },
     "disposition": {
       "title": "Завершити контакт",
@@ -284,7 +331,8 @@
       "statusChanged": "Статус змінено на Доступний."
     },
     "customerPanel": {
-      "empty": "Немає активного контакту",
+      "emptyTitle": "Немає активного контакту",
+      "empty": "Картка клієнта з'явиться тут після відповіді на дзвінок.",
       "loadingLabel": "Завантаження даних клієнта",
       "unknownTitle": "Невідомий клієнт",
       "unknownDesc": "Немає профілю клієнта для цього номера телефону.",
@@ -294,7 +342,9 @@
       "errorText": "Неможливо завантажити дані клієнта (помилка сервера).",
       "recentContacts": "Останні контакти",
       "noHistory": "Немає історії контактів",
-      "lookupError": "Не вдалося отримати дані клієнта."
+      "lookupError": "Не вдалося отримати дані клієнта.",
+      "noteExpand": "Показати більше",
+      "noteCollapse": "Показати менше"
     },
     "incomingCall": {
       "label": "Вхідний дзвінок",
@@ -343,7 +393,9 @@
         "TRAINING": "Навчання",
         "MEETING": "Нарада",
         "OTHER": "Інше"
-      }
+      },
+      "errorStartInPast": "Час початку має бути у майбутньому.",
+      "errorConflict": "Перерва конфліктує з наявним записом у розкладі."
     },
     "rescheduleCallback": {
       "title": "Перенести передзвін",
@@ -455,7 +507,9 @@
       "outboundTo": "Вихідне повідомлення до",
       "inbound": "Вхідне",
       "outbound": "Вихідне",
-      "messageContent": "Вміст email-повідомлення"
+      "messageContent": "Вміст email-повідомлення",
+      "expandThread": "Розгорнути вкладку",
+      "collapseThread": "Згорнути вкладку"
     },
     "emailThread": {
       "inbound": "Вхідне",
@@ -587,7 +641,9 @@
       "loading": "Завантаження календаря",
       "prevPeriod": "Попередній період",
       "nextPeriod": "Наступний період",
-      "viewMode": "Режим перегляду"
+      "viewMode": "Режим перегляду",
+      "showClosedCampaigns": "Показати закриті",
+      "hideClosedCampaigns": "Сховати закриті"
     },
     "callbacks": {
       "title": "Мої передзвони",
@@ -649,7 +705,35 @@
       "scheduleCallback": "Замовити передзвін",
       "closeDetails": "Закрити деталі",
       "details": "Деталі",
-      "callbackFor": "Замовити передзвін для"
+      "callbackFor": "Замовити передзвін для",
+      "initiateCall": "Зателефонувати",
+      "selectPhone": "Оберіть номер телефону",
+      "callInitiated": "Виклик успішно ініційовано",
+      "callError": "Не вдалося ініціювати виклик",
+      "sendEmail": "Надіслати email",
+      "noContactDetails": "Немає деталей",
+      "viewContactDetails": "Деталі контакту"
+    },
+    "adhocEmail": {
+      "title": "Надіслати email клієнту",
+      "toLabel": "Кому",
+      "subjectLabel": "Тема",
+      "bodyLabel": "Текст повідомлення",
+      "send": "Надіслати",
+      "cancel": "Скасувати",
+      "sent": "Email успішно надіслано",
+      "errorNoSmtp": "Відсутня конфігурація SMTP. Зверніться до адміністратора.",
+      "errorSend": "Не вдалося надіслати email. Спробуйте ще раз.",
+      "toRequired": "Адреса email є обов'язковою.",
+      "toInvalid": "Введіть коректну адресу email.",
+      "subjectRequired": "Тема є обов'язковою.",
+      "subjectMaxLength": "Тема не може перевищувати 500 символів.",
+      "bodyRequired": "Текст повідомлення є обов'язковим.",
+      "templateLabel": "Шаблон",
+      "templatePlaceholder": "— Без шаблону —",
+      "templateVariablesLabel": "Змінні шаблону",
+      "applyTemplate": "Застосувати шаблон",
+      "errorTemplateApply": "Не вдалося застосувати шаблон."
     },
     "manualCallbackModal": {
       "title": "Замовити передзвін",
@@ -779,6 +863,7 @@
       "fullscreenLabel": "Повноекранний режим",
       "loadingMetrics": "Завантаження метрик",
       "kpiActiveCalls": "Активні дзвінки",
+      "kpiCallsInIvr": "В IVR",
       "kpiAvailable": "Доступні агенти",
       "kpiBreak": "На перерві",
       "kpiAfterContact": "Після контакту",
@@ -951,7 +1036,8 @@
       "statusLabel": "Статус черги",
       "assignmentTitle": "Призначення агентів",
       "assignmentHint": "Збережіть чергу, щоб налаштувати призначення агентів.",
-      "saveLabel": "Зберегти чергу"
+      "saveLabel": "Зберегти чергу",
+      "dispositionsTitle": "Диспозиції після контакту"
     },
     "queueDelete": {
       "title": "Видалити чергу",
@@ -973,7 +1059,23 @@
       "groupsTitle": "Групи агентів",
       "directAgentsTitle": "Окремі агенти",
       "agentsAbbr": "аг.",
-      "noAssignment": "Немає призначених агентів — черга не оброблятиме жодних контактів."
+      "noAssignment": "Немає призначених агентів — черга не оброблятиме жодних контактів.",
+      "allAgentsLabel": "Всі агенти тенанта",
+      "allAgentsHint": "Черга доступна для всіх агентів",
+      "groupsSection": "Групи агентів",
+      "agentsSection": "Прямі агенти",
+      "addGroup": "Додати групу",
+      "addAgent": "Додати агента",
+      "emptyWarning": "Немає призначення — черга не оброблятиме жодних контактів.",
+      "saveButton": "Зберегти",
+      "cancelButton": "Скасувати",
+      "successToast": "Призначення агентів оновлено",
+      "errorSave": "Не вдалося зберегти призначення",
+      "manageButton": "Керувати агентами",
+      "badgeAllAgents": "Всі агенти",
+      "badgeNoAgents": "Немає агентів",
+      "badgeNoAgentsHint": "Немає призначених агентів — черга не оброблятиме жодних контактів",
+      "badgeAgents": "агентів"
     },
     "queueAssignment": {
       "title": "Призначення до черги",
@@ -1037,7 +1139,46 @@
       "successStop": "зупинено.",
       "errorRevert": "Не вдалося повернути кампанію",
       "successRevert": "повернуто до статусу Чернетка.",
-      "errorRevertSuffix": "до чернетки."
+      "errorRevertSuffix": "до чернетки.",
+      "showClosed": "Показати закриті",
+      "hideClosed": "Сховати закриті",
+      "typeOutboundVoice": "Вихідні дзвінки",
+      "typeOutboundEmail": "Вихідні електронні листи",
+      "dialerProgressive": "Прогресивний",
+      "dialerPredictive": "Предиктивний",
+      "dialerManual": "Ручний",
+      "importSuccess": "Імпорт контактів успішно завершено.",
+      "errors": {
+        "loadFailed": "Не вдалося завантажити список кампаній. Спробуйте ще раз."
+      },
+      "campaignAssignment": {
+        "title": "Управління агентами кампанії",
+        "allAgentsLabel": "Всі агенти тенанта",
+        "allAgentsHint": "Кампанія доступна для всіх агентів",
+        "groupsSection": "Групи агентів",
+        "agentsSection": "Прямі агенти",
+        "addGroup": "Додати групу",
+        "addAgent": "Додати агента",
+        "emptyWarning": "Немає призначення — диалер не дзвонить, ручна панель не показує записи цієї кампанії.",
+        "saveButton": "Зберегти",
+        "cancelButton": "Скасувати",
+        "successToast": "Призначення агентів оновлено",
+        "errorSave": "Не вдалося зберегти призначення",
+        "manageButton": "Управляти агентами"
+      },
+      "badgeAllAgents": "Всі агенти",
+      "badgeNoAgents": "Немає агентів",
+      "badgeNoAgentsHint": "Диалер неактивний — немає призначених агентів",
+      "badgeAgents": "агентів",
+      "attempts": "спроб",
+      "showAttempts": "Показати спроби дзвінків",
+      "noAttempts": "Немає спроб дзвінків",
+      "statsTotal": "Всього",
+      "statsCompleted": "Завершено",
+      "statsRemaining": "Залишилось",
+      "statsHeader": "Записи",
+      "dispositionsTitle": "Диспозиції після контакту",
+      "dispositionsDesc": "Визначте власні диспозиції для цієї кампанії. Якщо список порожній, агенти бачать системні диспозиції."
     },
     "campaignForm": {
       "titleCreate": "Нова кампанія",
@@ -1055,10 +1196,8 @@
       "cancel": "Скасувати",
       "closeLabel": "Закрити форму",
       "dialerTypeLabel": "Тип Dialer",
-      "queueLabel": "Черга",
-      "queuePlaceholder": "-- Оберіть чергу --",
-      "maxAttemptsLabel": "Макс. спроб",
-      "retryDelayLabel": "Затримка повтору (хв)",
+      "maxAttemptsLabel": "Максимальна кількість спроб",
+      "retryDelayLabel": "Час між спробами (хвилини)",
       "scheduleLabel": "Розклад (необов'язково)",
       "timeFromLabel": "Час від",
       "timeToLabel": "Час до",
@@ -1070,7 +1209,31 @@
         "placeholder": "— Вибрати номер —",
         "defaultTenant": "— Номер за замовчуванням тенанта —",
         "hint": "Виберіть номер з облікового запису Twilio або залиште порожнім для використання номера за замовчуванням."
-      }
+      },
+      "maxAttemptsHint": "Після скількох невдалих спроб позначити запис як Недодзвонений",
+      "retryDelayHint": "Скільки хвилин чекати до наступної спроби дзвінка, якщо клієнт не відповідає",
+      "ringTimeoutLabel": "Час очікування відповіді (секунди)",
+      "ringTimeoutHint": "Скільки секунд дзвонити клієнту — якщо він не відповідає за цей час, дзвінок буде вважатися не відповіченим",
+      "errors": {
+        "nameRequired": "Назва є обов'язковою.",
+        "nameMaxLength": "Назва не може перевищувати 255 символів.",
+        "nameTaken": "Кампанія з такою назвою вже існує.",
+        "fieldRequired": "Поле є обов'язковим.",
+        "maxAttemptsMin": "Мінімальна кількість спроб — 1.",
+        "maxAttemptsMax": "Максимальна кількість спроб — 10.",
+        "retryDelayMin": "Мінімальний час між спробами — 1 хвилина.",
+        "retryDelayMax": "Максимальний час між спробами — 1440 хвилин (24 год).",
+        "ringTimeoutMin": "Мінімальний час очікування — 15 секунд.",
+        "ringTimeoutMax": "Максимальний час очікування — 120 секунд.",
+        "timeFromPattern": "Формат: ГГ:ХХ (наприклад, 09:00)",
+        "timeToPattern": "Формат: ГГ:ХХ (наприклад, 18:00)",
+        "timeRangeInvalid": "Час \"до\" має бути пізніше, ніж час \"від\".",
+        "dateRangeInvalid": "Дата завершення не може бути раніше дати початку.",
+        "updateFailed": "Не вдалося оновити кампанію. Спробуйте ще раз.",
+        "limitExceeded": "Перевищено ліміт кампаній для цього орендаря.",
+        "createFailed": "Не вдалося створити кампанію. Спробуйте ще раз."
+      },
+      "checkingName": "Перевірка доступності назви..."
     },
     "campaignImport": {
       "title": "Імпортувати контакти",
@@ -1084,7 +1247,28 @@
       "skipDuplicates": "Пропустити дублікати (за номером телефону)",
       "importButton": "Імпортувати контакти",
       "rejected": "Відхилені",
-      "sampleErrors": "Приклади помилок ({{ count }})"
+      "sampleErrors": "Приклади помилок ({{ count }})",
+      "initializing": "Ініціалізація імпорту...",
+      "fieldPhone": "Телефон (обов'язково)",
+      "fieldFirstName": "Ім'я",
+      "fieldLastName": "Прізвище",
+      "fieldCustom1": "Користувацьке поле 1",
+      "fieldCustom2": "Користувацьке поле 2",
+      "fieldIgnore": "Ігнорувати стовпець",
+      "mappingColumnLabel": "Зіставлення стовпця {{ column }}",
+      "progressLabel": "Прогрес імпорту: {{ percent }}%",
+      "stepperAriaLabel": "Кроки імпорту",
+      "dropZoneAriaLabel": "Зона перетягування CSV-файлу",
+      "fileInputAriaLabel": "Вибрати CSV-файл",
+      "previewTableAriaLabel": "Попередній перегляд вмісту CSV",
+      "mappingTableAriaLabel": "Таблиця зіставлення стовпців",
+      "reportSummaryAriaLabel": "Підсумок імпорту",
+      "rejectedListAriaLabel": "Список помилок імпорту",
+      "errors": {
+        "csvOnly": "Дозволені лише файли CSV (.csv).",
+        "phoneMissing": "Поле \"Телефон\" має бути зіставлено з одним із стовпців CSV.",
+        "startFailed": "Не вдалося розпочати імпорт. Спробуйте ще раз."
+      }
     },
     "campaignInfo": {
       "title": "Деталі кампанії",
@@ -1113,6 +1297,10 @@
       "tableName": "Повне ім'я",
       "tableStatus": "Статус",
       "tableAttempts": "Спроби",
+      "tableNextAttempt": "Наступна спроба",
+      "tableAction": "Дія",
+      "statusAriaLabel": "Статус: {{ status }}",
+      "paginationAriaLabel": "Навігація сторінок контактів",
       "emptyText": "Немає контактів у кампанії.",
       "loadingLabel": "Завантаження контактів...",
       "tableLabel": "Список контактів кампанії",
@@ -1122,7 +1310,26 @@
       "changeFilter": "Змініть фільтр статусу, щоб побачити інші контакти.",
       "noContacts": "До цієї кампанії ще не імпортовано жодного контакту.",
       "calling": "Дзвінок...",
-      "call": "Зателефонувати"
+      "call": "Зателефонувати",
+      "contactStatusLabels": {
+        "PENDING": "Очікує",
+        "DIALING": "Набір",
+        "CONNECTED": "З'єднано",
+        "COMPLETED": "Завершено",
+        "NO_ANSWER": "Немає відповіді",
+        "NOT_REACHED": "Не досягнуто",
+        "CALLBACK": "Передзвінок",
+        "FAILED": "Помилка з'єднання",
+        "SKIPPED": "Пропущено",
+        "ERROR": "Технічна помилка",
+        "CALLED": "Зателефоновано"
+      },
+      "now": "Зараз",
+      "errors": {
+        "loadFailed": "Не вдалося завантажити список контактів. Спробуйте ще раз.",
+        "callNotFound": "Запис не знайдено.",
+        "callFailed": "Не вдалося ініціювати дзвінок. Спробуйте ще раз."
+      }
     },
     "customers": {
       "title": "Клієнти",
@@ -1181,6 +1388,7 @@
       "errorScheduleCallback": "Не вдалося запланувати зворотний дзвінок.",
       "successScheduleCallback": "Зворотний дзвінок заплановано.",
       "contactStatusLabels": {
+        "IVR": "В IVR",
         "QUEUED": "У черзі",
         "ACTIVE": "Активний",
         "ON_HOLD": "Утримання",
@@ -1220,7 +1428,7 @@
       "thDuration": "Тривалість",
       "thDisposition": "Диспозиція",
       "thNote": "Нотатка",
-      "thAgentId": "ID агента",
+      "thAgent": "Агент",
       "openContactLabel": "Відкрити деталі контакту від",
       "paginationLabel": "Навігація по сторінках історії контактів",
       "prevPageLabel": "Попередня сторінка історії",
@@ -1241,6 +1449,11 @@
         "EMAIL": "Email",
         "CHAT": "Чат",
         "SOCIAL": "Соціальні медіа"
+      },
+      "direction": "Напрям",
+      "directionLabels": {
+        "INBOUND": "Вхідний",
+        "OUTBOUND": "Вихідний"
       }
     },
     "customerEdit": {
@@ -1424,6 +1637,7 @@
       "nodeSetValue": "Значення",
       "nodeSetValuePlaceholder": "значення або ${інша_змінна}",
       "nodeSetValueHint": "Можна використовувати ${назва_змінної} для вставки значення з сеансу.",
+      "varHint": "Введіть $, щоб вставити змінну з потоку",
       "nodeConditionEquals": "дорівнює (=)",
       "nodeConditionNotEquals": "не дорівнює (≠)",
       "nodeConditionStartsWith": "починається з",
@@ -1480,6 +1694,10 @@
       "closeJson": "Закрити панель JSON",
       "nextNode": "Наступний вузол",
       "nodePaletteLabel": "Палітра вузлів",
+      "zoomInLabel": "Збільшити",
+      "zoomOutLabel": "Зменшити",
+      "zoomResetLabel": "Скинути масштаб (100%)",
+      "fitToViewLabel": "Підігнати вигляд під весь граф",
       "entryNodeBadgeLabel": "Початковий вузол",
       "deleteNodeLabel": "Видалити вузол",
       "deleteNodeTitle": "Видалити вузол",
@@ -1599,6 +1817,7 @@
       "thQueue": "Черга",
       "thDuration": "Тривалість",
       "thDisposition": "Диспозиція",
+      "thAgent": "Агент",
       "inbound": "Вхідний",
       "outbound": "Вихідний",
       "inboundShort": "Вхід.",
@@ -1643,7 +1862,8 @@
       "csvColQueue": "Черга",
       "csvColDuration": "Тривалість (с)",
       "csvColStatus": "Статус",
-      "csvColDisposition": "Диспозиція"
+      "csvColDisposition": "Диспозиція",
+      "csvColAgent": "Агент"
     },
     "agentGroups": {
       "title": "Групи агентів",
@@ -1779,7 +1999,16 @@
         "variableHint": "Використовуйте синтаксис {{назва}} для вставки динамічних значень.",
         "templateCount_one": "шаблон",
         "templateCount_few": "шаблони",
-        "templateCount_many": "шаблонів"
+        "templateCount_many": "шаблонів",
+        "predefinedVarsTitle": "Попередньо визначені змінні",
+        "predefinedVarsHint": "Натисніть щоб вставити в поточну позицію",
+        "categoryCustomer": "Клієнт",
+        "categoryAgent": "Агент",
+        "customVarsTitle": "Власні змінні",
+        "addVariableBtn": "+ Додати",
+        "previewVarsEditableLabel": "Значення змінних — ви можете редагувати їх перед генерацією:",
+        "predefinedVarAuto": "авто",
+        "removeVariable": "Видалити змінну"
       },
       "twilio": {
         "title": "VoIP Телефонія / Twilio",
@@ -1824,6 +2053,31 @@
         "saveSuccess": "Конфігурацію Twilio збережено успішно",
         "deleteSuccess": "Конфігурацію Twilio видалено",
         "loadError": "Не вдалося завантажити конфігурацію Twilio."
+      },
+      "aiConfig": {
+        "title": "Налаштування ШІ",
+        "subtitle": "Керуйте постачальником ШІ для генерації підсумків контактів.",
+        "noConfigTitle": "Немає конфігурації ШІ",
+        "noConfigHint": "Налаштуйте постачальника ШІ, щоб агенти могли генерувати підсумки контактів.",
+        "setupButton": "Налаштувати",
+        "providerLabel": "Постачальник ШІ",
+        "apiKeyLabel": "API-ключ",
+        "apiKeyPlaceholder": "Введіть новий API-ключ",
+        "editSecretButton": "Змінити",
+        "modelNameLabel": "Назва моделі",
+        "modelNamePlaceholder": "напр. claude-opus-4-7, gpt-4o",
+        "azureSectionTitle": "Налаштування Azure OpenAI",
+        "azureEndpointLabel": "Azure Endpoint URL",
+        "azureDeploymentNameLabel": "Назва deployment",
+        "promptTemplateSectionTitle": "Системний промпт",
+        "summaryPromptLabel": "Системний промпт (необов'язково)",
+        "summaryPromptPlaceholder": "Залиште порожнім, щоб використовувати стандартний промпт.",
+        "dangerZoneTitle": "Небезпечна зона",
+        "saveButton": "Зберегти конфігурацію",
+        "cancelButton": "Скасувати",
+        "deleteButton": "Видалити конфігурацію ШІ",
+        "deleteConfirm": "Ви впевнені, що хочете видалити конфігурацію ШІ? Цю дію неможливо скасувати.",
+        "loadError": "Не вдалося завантажити конфігурацію ШІ."
       },
       "twilioPhoneSelect": {
         "loading": "Завантаження номерів...",
@@ -1900,6 +2154,46 @@
         "saveButton": "Зберегти правило",
         "errorDays": "Виберіть принаймні один день тижня.",
         "errorTime": "\"До\" має бути пізніше ніж \"Від\"."
+      },
+      "dispositionSets": {
+        "pageTitle": "Набори диспозицій",
+        "pageSubtitle": "Керуйте багаторазовими наборами диспозицій — призначайте їх кампаніям або чергам.",
+        "setsTitle": "Набори",
+        "createButton": "+ Новий набір",
+        "nameLabel": "Назва",
+        "nameRequired": "Назва є обов'язковою.",
+        "descLabel": "Опис",
+        "emptySetList": "Немає наборів диспозицій. Натисніть \"+ Новий набір\", щоб додати перший.",
+        "selectSetHint": "Виберіть набір у лівій колонці, щоб переглянути його елементи.",
+        "addItemButton": "+ Додати диспозицію",
+        "itemsEmpty": "Цей набір ще не має диспозицій. Натисніть \"+ Додати диспозицію\".",
+        "itemSingular": "диспозиція",
+        "itemPlural": "диспозицій",
+        "confirmDeleteSet": "Ви впевнені, що хочете видалити набір \"{{ name }}\"? Ця операція незворотна.",
+        "confirmDeleteItem": "Ви впевнені, що хочете видалити диспозицію \"{{ label }}\" з набору?",
+        "ariaSetsList": "Список наборів диспозицій",
+        "ariaItemsList": "Елементи вибраного набору",
+        "ariaSetFormLabel": "Форма набору диспозицій",
+        "ariaItemFormLabel": "Форма елемента набору",
+        "ariaSelectSet": "Вибрати набір {{ name }}",
+        "ariaEditSet": "Редагувати набір {{ name }}",
+        "ariaDeleteSet": "Видалити набір {{ name }}",
+        "ariaEditItem": "Редагувати диспозицію {{ label }}",
+        "ariaDeleteItem": "Видалити диспозицію {{ label }}",
+        "errorLoadSets": "Не вдалося завантажити набори.",
+        "errorSaveSet": "Не вдалося зберегти набір.",
+        "errorSaveSetDuplicate": "Набір з такою назвою вже існує.",
+        "errorDeleteSet": "Не вдалося видалити набір.",
+        "errorLoadItems": "Не вдалося завантажити елементи набору.",
+        "errorSaveItem": "Не вдалося зберегти елемент.",
+        "errorSaveItemDuplicate": "Диспозиція з таким кодом вже існує в наборі.",
+        "errorDeleteItem": "Не вдалося видалити елемент.",
+        "successCreateSet": "Набір створено.",
+        "successUpdateSet": "Набір оновлено.",
+        "successDeleteSet": "Набір видалено.",
+        "successCreateItem": "Елемент додано до набору.",
+        "successUpdateItem": "Елемент набору оновлено.",
+        "successDeleteItem": "Елемент видалено з набору."
       }
     },
     "reports": {
@@ -1954,6 +2248,35 @@
       "IF": "Умова",
       "SWITCH": "Перемикач",
       "VOICEBOT": "Voicebot ASR/NLU"
+    },
+    "dispositionEditor": {
+      "emptyState": "Немає власних диспозицій — агенти бачать системні диспозиції.",
+      "inactiveLabel": "неактивна",
+      "codeLabel": "Код",
+      "codePlaceholder": "напр. CALLBACK_AGREED",
+      "codeHint": "Великі літери, цифри та підкреслення.",
+      "codeRequired": "Код є обов'язковим.",
+      "codePattern": "Лише великі літери, цифри та підкреслення (A-Z, 0-9, _).",
+      "codeMaxLength": "Максимум 50 символів.",
+      "labelLabel": "Мітка",
+      "labelRequired": "Мітка є обов'язковою.",
+      "labelMaxLength": "Максимум 100 символів.",
+      "toneLabel": "Тон",
+      "ordinalLabel": "Порядок",
+      "activeLabel": "Активна",
+      "addButton": "+ Додати диспозицію",
+      "applySetButton": "Застосувати набір",
+      "itemsCount": "{{ count }} диспозицій",
+      "noSets": "Немає визначених наборів",
+      "confirmApplySet": "Скопіювати {{ count }} диспозицій з набору \"{{ name }}\"? Диспозиції з однаковими кодами будуть пропущені.",
+      "confirmDelete": "Ви впевнені, що хочете видалити цю диспозицію?",
+      "errorLoad": "Не вдалося завантажити диспозиції.",
+      "errorSave": "Не вдалося зберегти диспозицію.",
+      "errorSaveDuplicate": "Код диспозиції вже існує в цьому діапазоні",
+      "errorDelete": "Не вдалося видалити диспозицію.",
+      "errorLoadSets": "Не вдалося завантажити набори диспозицій.",
+      "errorApplySet": "Не вдалося застосувати набір диспозицій.",
+      "listAriaLabel": "Список диспозицій"
     }
   },
   "admin": {
@@ -2129,7 +2452,8 @@
     "sectionStatus": "Статус і тривалість",
     "fieldStatus": "Статус",
     "fieldDuration": "Тривалість",
-    "fieldDisposition": "Код диспозиції",
+    "fieldDisposition": "Диспозиція",
+    "fieldAgent": "Агент",
     "fieldNotes": "Нотатка",
     "sectionEmail": "Електронний лист (EML)",
     "sectionRecording": "Запис розмови",
@@ -2152,11 +2476,23 @@
     "emailSubject": "Тема:",
     "emailDate": "Дата:",
     "emailEmpty": "Вміст повідомлення відсутній.",
+    "sectionEvents": "Історія контакту",
+    "noEvents": "Немає зареєстрованих етапів.",
+    "eventInProgress": "у процесі",
+    "stageIVR": "IVR",
+    "stageVOICEBOT": "Бот",
+    "stageQUEUE": "Черга",
+    "stageAGENT": "Агент",
+    "stageON_HOLD": "Утрим.",
+    "stageCONSULTING": "Консульт.",
+    "stageTRANSFER": "Передача",
     "sectionRelated": "Пов'язані контакти",
     "loadingRelatedLabel": "Завантаження пов'язаних контактів...",
     "related": "Пов'язані",
     "parentContact": "Вихідний контакт",
     "childContact": "Результуючий контакт",
+    "transferSource": "Контакт до трансферу",
+    "transferTarget": "Контакт після трансферу",
     "goToParent": "Перейти до вихідного контакту",
     "goToChild": "Перейти до результуючого контакту",
     "close": "Закрити",
@@ -2164,15 +2500,6 @@
     "errorRecording": "Не вдалося завантажити URL запису.",
     "errorEmailPreview": "Не вдалося завантажити попередній перегляд.",
     "loadingRelated": "Завантаження пов'язаних контактів...",
-    "statusLabels": {
-      "QUEUED": "У черзі",
-      "ACTIVE": "Активний",
-      "ON_HOLD": "Утримання",
-      "COMPLETED": "Завершений",
-      "ABANDONED": "Покинутий",
-      "FAILED": "Невдалий",
-      "NOT_REACHED": "Не досягнуто"
-    },
     "callbackStatusLabels": {
       "PENDING": "Очікує",
       "PROCESSING": "В обробці",

@@ -47,10 +47,14 @@ Odpowiadaj użytkownikowi **po polsku**. Kod, komentarze w kodzie i nazwy techni
 ### Infrastruktura
 
 ```bash
-docker compose up -d          # start (PostgreSQL 16, Redis 7, RabbitMQ 3.13)
-docker compose down            # stop (zachowaj dane)
-docker compose down -v         # stop + wyczyść dane
+docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml up -d --remove-orphans   # start
+docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml down     # stop (zachowaj dane)
+docker compose --env-file .env.local-demo -f docker-compose.yml -f docker-compose.local-demo.yml down -v  # stop + wyczyść dane
 ```
+
+> **WAŻNE:** Zawsze używaj `--env-file .env.local-demo` oraz obu plików `-f`.
+> Uruchomienie bez tych flag użyje pustych haseł / `guest:guest` i może odtworzyć
+> kontenery z błędną konfiguracją, niszcząc dane wolumenów.
 
 ### Backend (uruchamiać z `backend/`)
 

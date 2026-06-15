@@ -1,6 +1,8 @@
 package com.contactcenter.api;
 
 import com.contactcenter.domain.email.TemplateRenderException;
+import com.contactcenter.domain.exception.AiConfigNotFoundException;
+import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.RoutingRuleConflictException;
 import com.contactcenter.domain.exception.TwilioApiException;
@@ -10,7 +12,7 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.exception.RateLimitExceededException;
 import com.contactcenter.domain.exception.ResourceLimitExceededException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.domain.service.AuthService;
+import com.contactcenter.domain.user.InvalidTokenException;
 import com.contactcenter.security.MfaService;
 import jakarta.persistence.EntityNotFoundException;
 import org.hibernate.exception.GenericJDBCException;
@@ -170,9 +172,9 @@ public class GlobalExceptionHandler {
     /**
      * Nieprawidłowy lub wygasły refresh token – HTTP 401.
      */
-    @ExceptionHandler(AuthService.InvalidTokenException.class)
+    @ExceptionHandler(InvalidTokenException.class)
     public ResponseEntity<ProblemDetail> handleInvalidTokenException(
-            AuthService.InvalidTokenException ex, WebRequest request) {
+            InvalidTokenException ex, WebRequest request) {
 
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNAUTHORIZED);
         problem.setType(URI.create(ERROR_BASE_URI + "invalid-token"));
@@ -537,6 +539,30 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Operacja nieobsługiwana przez bieżącą implementację – HTTP 501 Not Implemented.
+     *
+     * <p>Rzucany np. przez {@code TwilioTelephonyAdapter.initiateTransfer()} gdy
+     * adapter nie obsługuje danego {@code TransferTargetType} (np. QUEUE lub AGENT
+     * wymagające osobnej integracji Twilio). Zwracamy 501, a nie 500, bo to informacja
+     * dla klienta, że operacja jest planowana lecz jeszcze niezrealizowana.
+     */
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<ProblemDetail> handleUnsupportedOperationException(
+            UnsupportedOperationException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_IMPLEMENTED);
+        problem.setType(URI.create(ERROR_BASE_URI + "not-implemented"));
+        problem.setTitle("Operacja niezaimplementowana");
+        problem.setDetail(ex.getMessage() != null
+                ? ex.getMessage()
+                : "Ta operacja nie jest obsługiwana przez bieżącą implementację.");
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API] Wywołanie niezaimplementowanej operacji: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(problem);
+    }
+
+    /**
      * Błąd zewnętrznego API Twilio – HTTP 502 Bad Gateway.
      *
      * <p>Rzucany gdy wywołanie Twilio REST API zakończy się niepowodzeniem
@@ -553,6 +579,47 @@ public class GlobalExceptionHandler {
         problem.setProperty("timestamp", Instant.now());
 
         log.warn("[API][Twilio] Błąd Twilio API: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
+    }
+
+    /**
+     * Brak konfiguracji AI dla tenanta – HTTP 422 Unprocessable Entity.
+     *
+     * <p>Rzucany przez {@code AiSummaryService} gdy tenant nie skonfigurował jeszcze
+     * dostawcy AI (klucz API, wybór modelu). Zwracamy 422 – żądanie jest poprawne
+     * składniowo, ale nie może być przetworzone z powodu braku konfiguracji po stronie tenanta.
+     */
+    @ExceptionHandler(AiConfigNotFoundException.class)
+    public ResponseEntity<ProblemDetail> handleAiConfigNotFoundException(
+            AiConfigNotFoundException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
+        problem.setType(URI.create(ERROR_BASE_URI + "ai-config-not-found"));
+        problem.setTitle("Brak konfiguracji AI");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API][AI] Brak konfiguracji AI: {}", ex.getMessage());
+        return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    /**
+     * Błąd generowania podsumowania AI – HTTP 502 Bad Gateway.
+     *
+     * <p>Rzucany przez {@code AiSummaryClient} gdy zewnętrzny serwis AI jest niedostępny,
+     * zwrócił błąd HTTP lub przekroczył timeout. Analogicznie do {@link TwilioApiException}.
+     */
+    @ExceptionHandler(AiSummaryGenerationException.class)
+    public ResponseEntity<ProblemDetail> handleAiSummaryGenerationException(
+            AiSummaryGenerationException ex, WebRequest request) {
+
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_GATEWAY);
+        problem.setType(URI.create(ERROR_BASE_URI + "ai-summary-generation-error"));
+        problem.setTitle("Błąd generowania podsumowania AI");
+        problem.setDetail(ex.getMessage());
+        problem.setProperty("timestamp", Instant.now());
+
+        log.warn("[API][AI] Błąd serwisu AI: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem);
     }
 

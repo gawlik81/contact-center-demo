@@ -1,10 +1,11 @@
 package com.contactcenter.domain.telephony;
 
-import com.contactcenter.domain.model.Contact;
-import com.contactcenter.domain.model.Customer;
-import com.contactcenter.domain.repository.ContactRepository;
-import com.contactcenter.domain.repository.CustomerRepository;
-import com.contactcenter.domain.service.CliLookupService;
+import com.contactcenter.domain.contact.Contact;
+import com.contactcenter.domain.customer.Customer;
+import com.contactcenter.domain.contact.ContactService;
+import com.contactcenter.domain.customer.CustomerService;
+import com.contactcenter.domain.customer.CliLookupService;
+import com.contactcenter.domain.customer.CustomerCliResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -52,8 +54,8 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     private final AtomicLong callIdCounter = new AtomicLong(1);
 
     private final TelephonyEventPublisher eventPublisher;
-    private final ContactRepository contactRepository;
-    private final CustomerRepository customerRepository;
+    private final ContactService contactService;
+    private final CustomerService customerService;
     private final CliLookupService cliLookupService;
 
     // =========================================================================
@@ -61,7 +63,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     // =========================================================================
 
     @Override
-    public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID queueId, UUID callbackId) {
+    public CallSession initiateCall(UUID tenantId, String from, String to, UUID agentId, UUID campaignId, UUID callbackId) {
         String callId = generateCallId();
         Instant now = Instant.now();
 
@@ -116,6 +118,27 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
         log.info("[MockTelephony] Połączenie odebrane: callId={}, tenant={}",
                 callId, updated.getTenantId());
 
+        // Jeśli noga konsultacyjna została odebrana – powiadom Agent1 o gotowości do bridge.
+        if ("CONSULTATION".equals(session.getDirection()) && session.getContactId() != null) {
+            final UUID cTenantId  = updated.getTenantId();
+            final UUID cContactId = session.getContactId();
+            final String cCallId  = callId;
+            final String cFrom    = session.getFrom();
+            final String cTo      = session.getTo();
+            try {
+                contactService.findContactEntity(cContactId, cTenantId)
+                        .map(Contact::getAgentId)
+                        .ifPresent(originatingAgentId -> {
+                            log.info("[MockTelephony] Konsultacja odebrana – CALL_CONSULT_ANSWERED do inicjatora: agentId={}, callId={}",
+                                     originatingAgentId, cCallId);
+                            eventPublisher.publishConsultAnswered(
+                                    cCallId, cTenantId, originatingAgentId, cContactId, cFrom, cTo);
+                        });
+            } catch (Exception e) {
+                log.warn("[MockTelephony] Błąd wysyłania CALL_CONSULT_ANSWERED: callId={}, error={}", callId, e.getMessage());
+            }
+        }
+
         eventPublisher.publishAnswered(
                 callId, updated.getTenantId(), updated.getAgentId(),
                 updated.getFrom(), updated.getTo()
@@ -148,10 +171,15 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
         }
 
         // Aktualizacja statusu kontaktu w DB – wymagane żeby agent mógł ustawić disposition
-        // (ContactService.setDisposition blokuje kontakty ze statusem QUEUED/ACTIVE)
-        if (session.getContactId() != null) {
-            contactRepository.updateContactStatusOnTelephonyEvent(
-                    session.getContactId(), session.getTenantId(), "COMPLETED", endedAt);
+        // (ContactService.setDisposition blokuje kontakty ze statusem QUEUED/ACTIVE).
+        // Nogi konsultacyjne (direction=CONSULTATION) pomijamy – mają ten sam contactId co
+        // oryginalna sesja Agent1 i nie powinny zmieniać jego statusu na COMPLETED/ABANDONED.
+        // Jeśli agent nigdy nie odebrał (answeredAt == null), status to ABANDONED – klient rozłączył się
+        // zanim agent odpowiedział (softfon dzwonił, agent nie kliknął "Odbierz").
+        if (session.getContactId() != null && !"CONSULTATION".equals(session.getDirection())) {
+            String endStatus = session.getAnsweredAt() != null ? "COMPLETED" : "ABANDONED";
+            contactService.updateContactStatusOnTelephonyEvent(
+                    session.getContactId(), session.getTenantId(), endStatus, endedAt);
         }
 
         eventPublisher.publishHangup(
@@ -244,7 +272,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     .callId(secondLegCallId)
                     .tenantId(session.getTenantId())
                     .agentId(session.getAgentId())
-                    .from(session.getTo())   // agent dzwoni do target
+                    .from(session.getFrom())  // preserve customer's number through transfer chain
                     .to(target)
                     .status(CallSession.CallStatus.RINGING)
                     .startedAt(now)
@@ -271,7 +299,140 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
     }
 
     @Override
-    public void bridgeCalls(String callId1, String callId2) {
+    public CallSession initiateTransfer(String callId, TransferRequest request) {
+        request.validate();
+
+        return switch (request.targetType()) {
+            case PHONE -> transferCall(callId, request.phoneNumber(), request.transferType());
+
+            case AGENT -> {
+                CallSession session = requireSession(callId);
+                if (session.getStatus() != CallSession.CallStatus.ACTIVE
+                        && session.getStatus() != CallSession.CallStatus.ON_HOLD) {
+                    throw new TelephonyException(callId,
+                            "Przekazanie możliwe tylko dla połączenia ACTIVE lub ON_HOLD. Aktualny status: "
+                                    + session.getStatus());
+                }
+
+                if (request.transferType() == TransferType.BLIND) {
+                    // Blind transfer do agenta – oznaczamy sesję TRANSFERRED i kończymy
+                    CallSession transferred = session
+                            .withStatus(CallSession.CallStatus.TRANSFERRED)
+                            .withEndedAt(Instant.now());
+                    sessions.put(callId, transferred);
+
+                    log.info("[MockTelephony] Blind transfer do agenta: callId={}, targetAgentId={}, tenant={}",
+                            callId, request.agentId(), session.getTenantId());
+
+                    eventPublisher.publishTransferred(
+                            callId, session.getTenantId(), session.getAgentId(),
+                            session.getFrom(), session.getTo(),
+                            request.agentId().toString(), TransferType.BLIND.name(),
+                            Map.of(
+                                    META_TRANSFER_TYPE,   "BLIND",
+                                    META_TARGET_TYPE,     "AGENT",
+                                    META_TARGET_AGENT_ID, request.agentId().toString()
+                            )
+                    );
+
+                    // Sesja zakończona – usuń z mapy odwrotnej
+                    if (session.getContactId() != null) {
+                        contactIdToCallId.remove(session.getContactId());
+                    }
+
+                    yield transferred;
+
+                } else {
+                    // Attended transfer do agenta – oryginalna sesja na ON_HOLD, tworzymy drugą nogę
+                    sessions.put(callId, session.withStatus(CallSession.CallStatus.ON_HOLD));
+
+                    String secondLegCallId = generateCallId();
+                    Instant now = Instant.now();
+
+                    // Numer klienta: dla połączeń przychodzących to from (dzwoniący),
+                    // zachowujemy go przez łańcuch transferu żeby Agent2 widział klienta.
+                    String customerPhone = session.getFrom();
+
+                    CallSession secondLeg = CallSession.builder()
+                            .callId(secondLegCallId)
+                            .tenantId(session.getTenantId())
+                            .agentId(request.agentId())
+                            .from(customerPhone)                    // preserve customer number
+                            .to(request.agentId().toString())       // symboliczny "numer" agenta
+                            .status(CallSession.CallStatus.RINGING)
+                            .startedAt(now)
+                            .contactId(session.getContactId())      // preserve original contact
+                            .direction("CONSULTATION")              // prevents contact status overwrite
+                            .build();
+
+                    sessions.put(secondLegCallId, secondLeg);
+
+                    log.info("[MockTelephony] Attended transfer do agenta – 2nd leg: callId={}, secondLegCallId={}, targetAgentId={}",
+                            callId, secondLegCallId, request.agentId());
+
+                    // CLI lookup – Agent2 powinien widzieć imię klienta, nie numer
+                    CustomerCliResult customerInfo = cliLookupService
+                            .lookupCustomer(customerPhone, session.getTenantId())
+                            .orElse(null);
+
+                    // Publikuj CALL_TRANSFER_CONSULT (zgodnie z zachowaniem Twilio) –
+                    // Agent2 dostaje kontekst konsultacji (numer klienta, imię, originalContactId)
+                    eventPublisher.publishTransferConsult(
+                            secondLegCallId,
+                            session.getTenantId(),
+                            request.agentId(),                 // target Agent2
+                            session.getAgentId(),              // originating Agent1
+                            session.getContactId(),            // original contact
+                            customerPhone,                     // customer's phone number
+                            request.agentId().toString(),      // to
+                            customerInfo
+                    );
+
+                    yield secondLeg;
+                }
+            }
+
+            case QUEUE -> {
+                // Specyfikacja: ATTENDED do kolejki odrzucone przez validate() – tu zawsze BLIND
+                CallSession session = requireSession(callId);
+                if (session.getStatus() != CallSession.CallStatus.ACTIVE
+                        && session.getStatus() != CallSession.CallStatus.ON_HOLD) {
+                    throw new TelephonyException(callId,
+                            "Przekazanie możliwe tylko dla połączenia ACTIVE lub ON_HOLD. Aktualny status: "
+                                    + session.getStatus());
+                }
+
+                CallSession transferred = session
+                        .withStatus(CallSession.CallStatus.TRANSFERRED)
+                        .withEndedAt(Instant.now());
+                sessions.put(callId, transferred);
+
+                log.info("[MockTelephony] Blind transfer do kolejki: callId={}, targetQueueId={}, tenant={}",
+                        callId, request.queueId(), session.getTenantId());
+
+                eventPublisher.publishTransferred(
+                        callId, session.getTenantId(), session.getAgentId(),
+                        session.getFrom(), session.getTo(),
+                        request.queueId().toString(), TransferType.BLIND.name(),
+                        Map.of(
+                                META_TRANSFER_TYPE,   "BLIND",
+                                META_TARGET_TYPE,     "QUEUE",
+                                META_TARGET_QUEUE_ID, request.queueId().toString()
+                        )
+                );
+
+                // Sesja zakończona – usuń z mapy odwrotnej
+                if (session.getContactId() != null) {
+                    contactIdToCallId.remove(session.getContactId());
+                }
+
+                yield transferred;
+            }
+        };
+    }
+
+    @Override
+    public void bridgeCalls(String callId1, String callId2, UUID newContactId) {
         CallSession session1 = requireSession(callId1);
         CallSession session2 = requireSession(callId2);
 
@@ -279,18 +440,27 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
         validateBridgeable(session1);
         validateBridgeable(session2);
 
-        // Po bridge: pierwsza sesja zakończona (przekazana), druga aktywna
+        // Po bridge: pierwsza sesja zakończona (przekazana), druga aktywna z nowym contactId
         CallSession transferred = session1
                 .withStatus(CallSession.CallStatus.TRANSFERRED)
                 .withEndedAt(Instant.now());
 
-        CallSession active = session2.withStatus(CallSession.CallStatus.ACTIVE);
+        String newConferenceName = "contact-" + newContactId;
+        String customerCallSid = session1.getCustomerCallSid() != null
+                ? session1.getCustomerCallSid()
+                : session1.getCallId();  // fallback dla sesji bez customerCallSid
+        CallSession active = session2
+                .withStatus(CallSession.CallStatus.ACTIVE)
+                .withContactId(newContactId)
+                .withConferenceName(newConferenceName)
+                .withDirection(null)
+                .withCustomerCallSid(customerCallSid);
 
         sessions.put(callId1, transferred);
         sessions.put(callId2, active);
 
-        log.info("[MockTelephony] Bridge: callId1={} (TRANSFERRED), callId2={} (ACTIVE)",
-                callId1, callId2);
+        log.info("[MockTelephony] Bridge: callId1={} (TRANSFERRED), callId2={} (ACTIVE), newContactId={}",
+                callId1, callId2, newContactId);
 
         eventPublisher.publishTransferred(
                 callId1, session1.getTenantId(), session1.getAgentId(),
@@ -466,7 +636,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
                     .createdAt(now)
                     .build();
 
-            contactRepository.insert(contact);
+            contactService.insertContact(contact);
 
             log.debug("[MockTelephony] Rekord contact utworzony: contactId={}, customerId={}, direction={}, callId={}, tenant={}",
                     contactId, customerId, direction, callId, tenantId);
@@ -509,7 +679,7 @@ public class MockTelephonyAdapter implements TelephonyAdapter {
             return null;
         }
         try {
-            return customerRepository.findByPhoneNumber(phoneNumber, tenantId)
+            return customerService.findByPhoneNumber(phoneNumber, tenantId)
                     .map(Customer::getCustomerId)
                     .orElseGet(() -> {
                         log.debug("[MockTelephony] Klient nie znaleziony dla phone={}, tenant={} – customerId=null",

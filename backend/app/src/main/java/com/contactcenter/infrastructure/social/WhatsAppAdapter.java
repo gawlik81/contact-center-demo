@@ -1,6 +1,6 @@
 package com.contactcenter.infrastructure.social;
 
-import com.contactcenter.domain.model.SocialPlatform;
+import com.contactcenter.domain.social.SocialPlatform;
 import com.contactcenter.domain.social.SocialMediaAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

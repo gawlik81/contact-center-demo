@@ -1,4 +1,4 @@
-<dialog #dialogEl class="reschedule-dialog" aria-labelledby="reschedule-dialog-title" (click)="onBackdropClick($event)">
+<dialog #dialogEl class="reschedule-dialog" aria-labelledby="reschedule-dialog-title">
   <div class="reschedule-dialog__content">
     <!-- Header -->
     <header class="reschedule-dialog__header">
@@ -13,7 +13,9 @@
         <h2 id="reschedule-dialog-title" class="reschedule-dialog__title">
           {{ 'agent.rescheduleCallback.title' | transloco }}
         </h2>
-        <p class="reschedule-dialog__subtitle">{{ 'agent.rescheduleCallback.currentDate' | transloco }} {{ currentScheduledAtFormatted() }}</p>
+        <p class="reschedule-dialog__subtitle">
+          {{ 'agent.rescheduleCallback.currentDate' | transloco }} {{ currentScheduledAtFormatted() }}
+        </p>
       </div>
       <button
         type="button"
@@ -37,7 +39,8 @@
         <!-- Date and time -->
         <div class="form-field">
           <span class="form-field__label" aria-hidden="true">
-            {{ 'agent.rescheduleCallback.newDateLabel' | transloco }} <span class="form-field__required" aria-hidden="true">*</span>
+            {{ 'agent.rescheduleCallback.newDateLabel' | transloco }}
+            <span class="form-field__required" aria-hidden="true">*</span>
           </span>
           <div class="form-row">
             <div class="form-row__col" [class.form-field--error]="scheduledDateError">

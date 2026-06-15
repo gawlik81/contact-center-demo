@@ -10,7 +10,14 @@ Backend: Java Spring Boot (modularny monolit Faza 1). Frontend: Angular SPA.
 
 **Why:** PRD v1.0 z 2026-03-12. Faza 1 = MVP z kanałami PHONE/EMAIL/SOCIAL_MEDIA.
 
-**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V035 już istnieją. Numery migracji kontynuuj od V036+.
+**How to apply:** Przy kolejnych zadaniach DB zakładaj że V001-V069 już istnieją. Numery migracji kontynuuj od V070+.
+
+KRYTYCZNA PUŁAPKA — nazwy PK w tym projekcie NIE są `id`. Konwencja: `{tabela}_id`:
+- tenant.tenant_id (nie id)
+- queue.queue_id (nie id)
+- campaign.campaign_id (nie id)
+- app_user.user_id (nie id)
+Zawsze sprawdzaj \d <tabela> przez psql zanim napiszesz FK. Logowanie do bazy: user=ccapp, db=contact_center (nie postgres/contact_center_dev).
 
 Kluczowe decyzje architektoniczne:
 - Izolacja logiczna przez tenant_id (nie osobne schematy/bazy) + RLS jako dodatkowa warstwa
@@ -27,6 +34,14 @@ Znane pułapki i poprawki:
 - V007 linia 176 (naprawiono 2026-03-13): started_at::DATE na kolumnie TIMESTAMPTZ w wyrażeniu indeksowym — STABLE, nie IMMUTABLE (wynik zależy od TimeZone GUC). Zamieniono na zwykłą kolumnę started_at w indeksie. Reguła ogólna: nigdy nie używaj ::DATE, AT TIME ZONE, DATE_TRUNC w wyrażeniach indeksowych na kolumnach timestamptz.
 - V011 linia 116 i 126 (naprawiono 2026-03-13): te same błędy co V007 — dwa indeksy z (started_at::DATE) DESC. Zamieniono na started_at DESC bez rzutowania.
 
+Znana niekonsekwencja RLS (do uwagi przy nowych tabelach i przy ewentualnym fix):
+- Konwencja ustalona w V012 i utrwalona w V042/V048/V051/V070: current_setting('app.current_tenant_id', TRUE)::UUID
+- Ale V059 (contact_event), V064 (tenant_ai_config), V067 (contact_transcription), V068 (contact_ai_summary) używają app.tenant_id (bez current_)
+- Zawsze pisz nowe polityki RLS z app.current_tenant_id — to jest to, co faktycznie ustawia aplikacja.
+
+Dokumentacja DB napisana 2026-06-12: /home/pawelm/contact-center/documentation/06-database.md
+- Pokrywa wszystkie 73 migracje (V001-V073), konwencje Flyway, RLS, mapę schematu per domena, ERD mermaid, wzorce (soft-delete/audit/wersjonowanie/JSONB/enum->varchar/partycjonowanie), anti-pattern overloaded columns, krok-po-kroku jak dodać tabelę.
+
 Lokalizacja migracji:
 - PostgreSQL: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\migration\
 - Seed DEV: D:\CloudeAI\contact-center-demo\backend\src\main\resources\db\seed\V999__dev_seed.sql
@@ -39,6 +54,52 @@ Stan migracji po V035 (2026-04-08):
   - idx_contact_duration: (tenant_id, duration_seconds) WHERE duration_seconds IS NOT NULL – filtrowanie po czasie trwania (BE-036)
   - Oba z CREATE INDEX IF NOT EXISTS; propagują do partycji automatycznie (PostgreSQL 11+)
   - Odblokowano: BE-036 GET /api/contacts z filtrami queueId/dateFrom/dateTo/durationMin/Max
+
+Stan migracji po V070 (2026-05-27):
+- V069__create_custom_disposition.sql (DB-040, EPIC-27): własne dyspozycje po kontakcie per kampania lub kolejka.
+  - Zakres (scope): dokładnie jeden z campaign_id/queue_id musi być NOT NULL — egzekwowany przez chk_custom_disposition_scope CHECK.
+  - Tone: positive/negative/neutral/warning — egzekwowany przez chk_custom_disposition_tone CHECK.
+  - Unikalność kodu per zakres: dwa partial unique indexy (WHERE campaign_id IS NOT NULL / WHERE queue_id IS NOT NULL).
+  - Indeksy wyszukiwania: (tenant_id, campaign_id, ordinal) + (tenant_id, queue_id, ordinal) — oba partial WHERE is_active=TRUE.
+  - RLS: custom_disposition_isolation USING current_setting('app.tenant_id', TRUE)::UUID.
+  - UWAGA: DDL w TASKS-DATABASE.md miał błąd — tenant(id) i queue(id) nie istnieją. Poprawiono na tenant(tenant_id) i queue(queue_id).
+  - Flyway checksum: -878697635 (CRC32 per-line UTF-8, signed int32).
+- V070__fix_custom_disposition_rls_and_indexes.sql (code-review fix, EPIC-27): poprawki RLS i indeksów dla custom_disposition.
+  - [CRITICAL fix] RLS: zmieniono app.tenant_id → app.current_tenant_id (izolacja multi-tenant była wyłączona).
+  - [MAJOR fix] Dodano WITH CHECK do polityki RLS (ochrona INSERT/UPDATE).
+  - [MAJOR fix] ALTER TABLE custom_disposition FORCE ROW LEVEL SECURITY (blokuje właściciela tabeli).
+  - [MINOR fix] Nowy indeks idx_custom_disposition_tenant_id ON (tenant_id, id) dla wzorca findByIdAndTenantId.
+  - [MINOR fix] Nowe indeksy _all bez filtra is_active dla widoku supervisora (zwraca wszystkie wiersze):
+      idx_custom_disposition_campaign_all ON (tenant_id, campaign_id, ordinal) WHERE campaign_id IS NOT NULL
+      idx_custom_disposition_queue_all    ON (tenant_id, queue_id, ordinal)    WHERE queue_id IS NOT NULL
+  - Flyway checksum: -1578165228. Rejestracja ręczna przez INSERT do flyway_schema_history (migracja przez psql).
+
+Stan migracji po V068 (2026-05-25):
+- V064__create_tenant_ai_config.sql (DB-038): konfiguracja dostawcy AI per tenant.
+  - Enum ai_provider: ANTHROPIC | OPENAI | AZURE_OPENAI
+  - UNIQUE (tenant_id) — jeden rekord per tenant, FK ON DELETE CASCADE
+  - api_key_encrypted TEXT: klucz API szyfrowany AES-256-GCM przez JPA EncryptedStringConverter
+  - Pola Azure-only: azure_endpoint, azure_deployment_name (nullable)
+  - summary_prompt_template TEXT NULL: nadpisuje domyślny prompt aplikacji; NULL = użyj domyślnego
+  - Partial index WHERE is_active; RLS USING current_setting('app.tenant_id', TRUE)::UUID
+- V065__add_ai_summary_to_contact.sql (DB-039): pola podsumowania AI w tabeli contact (tymczasowe, wycofane przez V068).
+- V067__create_contact_transcription.sql: transkrypcje rozmów od Whisper; contact_id+tenant_id bez FK (contact partycjonowana); RLS; wzorzec dla V068.
+- V068__extract_ai_summary_to_own_table.sql (2026-05-25): wyodrębnienie AI summary z contact do contact_ai_summary.
+  - Kolejność: CREATE TABLE → indeks → RLS → INSERT (migracja danych) → DROP COLUMN
+  - Brak FK do contact — tabela partycjonowana RANGE (PostgreSQL nie obsługuje FK do partycji ze strony child)
+  - Kolumny: ai_summary_id UUID PK, contact_id UUID, tenant_id UUID, summary TEXT, model VARCHAR(100), generated_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW()
+  - Indeks: idx_contact_ai_summary_contact ON (contact_id, tenant_id)
+  - RLS policy: contact_ai_summary_isolation USING (tenant_id = current_setting('app.tenant_id', TRUE)::UUID)
+  - DROP COLUMN z IF EXISTS na: ai_summary, ai_summary_model, ai_summary_generated_at (propaguje do partycji automatycznie)
+
+Stan migracji po V062 (2026-05-21):
+- V062__campaign_agent_assignment.sql (DB-036): trójpoziomowe przypisanie agentów do kampanii wychodzącej.
+  - campaign.all_agents BOOLEAN DEFAULT FALSE: TRUE = wszyscy agenci tenanta, FALSE = jawne przypisanie
+  - Istniejące kampanie: UPDATE SET all_agents = TRUE (backward compat)
+  - campaign_agent: many-to-many kampania ↔ agent (bezpośrednie), PK (campaign_id, agent_id), CASCADE DELETE
+  - campaign_agent_group: many-to-many kampania ↔ agent_group, PK (campaign_id, group_id), CASCADE DELETE
+  - Indeksy pokrywające: idx_campaign_agent_group_lookup INCLUDE(group_id), idx_campaign_agent_member_lookup na agent_group_member(agent_id) INCLUDE(group_id)
+  - BUILD SUCCESS: mvn verify -pl app -DskipTests (01:15 min)
 
 Stan migracji po V053 (2026-05-08):
 - V053__add_not_reached_callback_status.sql (DB-032): rozszerzenie CHECK constraint na campaign_contact i campaign_contact_archive o statusy NOT_REACHED i CALLBACK; przebudowa idx_campaign_contact_dialer (teraz WHERE status IN ('PENDING', 'NO_ANSWER') – retry); przebudowa mv_campaign_stats z nowymi kolumnami not_reached_records i callback_records; COMMENT ON COLUMN campaign_contact.status z opisem wszystkich 10 statusów.

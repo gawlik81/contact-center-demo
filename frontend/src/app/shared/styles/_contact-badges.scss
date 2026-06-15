@@ -1,0 +1,104 @@
+// Shared badge styles for contact channel, direction and status.
+// Import this partial in every component that displays ContactResponse data.
+
+%badge-base {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2em 0.7em;
+  border-radius: 99px;
+  font-size: 0.71875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+// ── Channel ───────────────────────────────────────────────────────────────────
+.channel-badge {
+  @extend %badge-base;
+
+  &--phone {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  &--email {
+    background: var(--violet-soft);
+    color: var(--violet-text);
+  }
+
+  &--chat {
+    background: var(--success-soft);
+    color: var(--success-text);
+  }
+
+  &--social {
+    background: var(--warning-soft);
+    color: var(--warning-text);
+  }
+}
+
+// ── Direction ─────────────────────────────────────────────────────────────────
+.direction-badge {
+  @extend %badge-base;
+
+  &--inbound {
+    background: var(--success-soft);
+    color: var(--success-text);
+  }
+
+  &--outbound {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+.status-badge {
+  @extend %badge-base;
+  background: var(--neutral-soft);
+  color: var(--neutral-text);
+
+  &--ivr {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  &--queued {
+    background: var(--warning-soft);
+    color: var(--warning-text);
+  }
+
+  &--active {
+    background: var(--success-soft);
+    color: var(--success-text);
+  }
+
+  &--on-hold {
+    background: var(--warning-soft);
+    color: var(--warning-text);
+  }
+
+  &--completed {
+    background: var(--success-soft);
+    color: var(--success-text);
+  }
+
+  &--abandoned {
+    background: var(--neutral-soft);
+    color: var(--neutral-text);
+  }
+
+  &--transferred {
+    background: var(--violet-soft);
+    color: var(--violet-text);
+  }
+
+  &--failed {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+  }
+
+  &--not-reached {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+  }
+}

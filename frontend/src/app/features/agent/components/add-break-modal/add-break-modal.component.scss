@@ -1,53 +1,24 @@
-@use 'sass:color';
-
 $primary: #166534;
 $primary-dark: #15803d;
-$primary-light: #f0fdf4;
-$primary-ring: rgba(22, 101, 52, 0.18);
-
-$color-text-primary: var(--color-text-primary, #1e293b);
-$color-text-secondary: var(--color-text-secondary, #64748b);
-$color-text-muted: var(--color-text-muted, #94a3b8);
-
-$color-surface: var(--color-surface, #ffffff);
-$color-surface-2: var(--color-surface-2, #f8fafc);
-$color-border: var(--color-border, #e2e8f0);
-
-$color-danger: var(--color-danger, #c62828);
-$color-danger-bg: var(--color-danger-bg, #ffebee);
-$color-danger-border: #fca5a5;
-
-$color-warning: #92400e;
-$color-warning-bg: #fffbeb;
-$color-warning-border: #fcd34d;
-
-$radius-md: var(--radius-md, 6px);
-$radius-lg: var(--radius-lg, 10px);
-$radius-xl: var(--radius-xl, 12px);
-
-$ease-spring: var(--ease-spring, cubic-bezier(0.16, 1, 0.3, 1));
-$ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+$ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+$ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ── Dialog shell ──────────────────────────────────────────────────────────────
 .break-dialog {
   border: none;
   border-radius: 16px;
   padding: 0;
-  box-shadow:
-    0 0 0 1px rgba(22, 101, 52, 0.08),
-    0 4px 6px rgba(0, 0, 0, 0.04),
-    0 10px 25px rgba(0, 0, 0, 0.1),
-    0 30px 60px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-pop);
   width: 100%;
   max-width: 480px;
-  background: $color-surface;
+  background: var(--bg-elevated);
   overflow: hidden;
   animation: panel-in 320ms $ease-spring forwards;
 
   &::backdrop {
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: color-mix(in oklch, oklch(0% 0 0) 60%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     animation: backdrop-in 220ms $ease-standard forwards;
   }
 
@@ -163,7 +134,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     max-height: calc(100dvh - 240px);
 
     scrollbar-width: thin;
-    scrollbar-color: rgba(22, 101, 52, 0.2) transparent;
+    scrollbar-color: color-mix(in oklch, var(--accent) 20%, transparent) transparent;
 
     &::-webkit-scrollbar {
       width: 4px;
@@ -174,19 +145,19 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     }
 
     &::-webkit-scrollbar-thumb {
-      background: rgba(22, 101, 52, 0.2);
+      background: color-mix(in oklch, var(--accent) 20%, transparent);
       border-radius: 2px;
     }
   }
 
   &__footer {
     padding: 16px 24px;
-    border-top: 1px solid $color-border;
+    border-top: 1px solid var(--border-1);
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 10px;
-    background: $color-surface-2;
+    background: var(--bg-subtle);
   }
 
   &__footer-actions {
@@ -201,10 +172,10 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     align-items: flex-start;
     gap: 10px;
     padding: 12px 14px;
-    background: $color-danger-bg;
-    border: 1px solid $color-danger-border;
-    border-radius: $radius-lg;
-    color: $color-danger;
+    background: var(--danger-soft);
+    border: 1px solid color-mix(in oklch, var(--danger) 30%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--danger-text);
     font-size: 0.875rem;
     line-height: 1.5;
 
@@ -229,12 +200,12 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: $color-warning-bg;
-    border: 1px solid $color-warning-border;
+    background: var(--warning-soft);
+    border: 1px solid color-mix(in oklch, var(--warning) 40%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: $color-warning;
+    color: var(--warning-text);
 
     svg {
       width: 24px;
@@ -244,7 +215,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 
   &__confirm-text {
     font-size: 0.9375rem;
-    color: $color-text-primary;
+    color: var(--text-1);
     line-height: 1.6;
     margin: 0;
     max-width: 340px;
@@ -269,12 +240,12 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     gap: 4px;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: $color-text-primary;
+    color: var(--text-1);
     letter-spacing: 0.01em;
   }
 
   &__required {
-    color: $color-danger;
+    color: var(--danger-text);
     margin-left: 1px;
     font-weight: 400;
   }
@@ -282,16 +253,16 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &__optional {
     font-size: 0.6875rem;
     font-weight: 400;
-    color: $color-text-muted;
+    color: var(--text-muted);
   }
 
   &__input {
     padding: 11px 12px;
     font-size: 0.9375rem;
-    color: $color-text-primary;
-    background: $color-surface;
-    border: 1.5px solid $color-border;
-    border-radius: $radius-lg;
+    color: var(--text-1);
+    background: var(--bg-input, var(--bg-surface));
+    border: 1.5px solid var(--border-1);
+    border-radius: var(--radius-md);
     font-family: inherit;
     width: 100%;
     transition:
@@ -299,20 +270,18 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
       box-shadow 180ms $ease-standard;
 
     &::placeholder {
-      color: $color-text-muted;
+      color: var(--text-muted);
       font-weight: 400;
     }
 
     &:hover:not(:focus) {
-      border-color: #cbd5e1;
+      border-color: var(--border-2, var(--border-1));
     }
 
     &:focus {
       outline: none;
-      border-color: $primary;
-      box-shadow:
-        0 0 0 3px $primary-ring,
-        0 1px 4px rgba(22, 101, 52, 0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
   }
 
@@ -320,14 +289,14 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     padding: 11px 12px;
     padding-right: 2rem;
     font-size: 0.9375rem;
-    color: $color-text-primary;
-    background: $color-surface;
-    border: 1.5px solid $color-border;
-    border-radius: $radius-lg;
+    color: var(--text-1);
+    background: var(--bg-input, var(--bg-surface));
+    border: 1.5px solid var(--border-1);
+    border-radius: var(--radius-md);
     font-family: inherit;
     width: 100%;
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 8px center;
     background-size: 18px;
@@ -337,47 +306,43 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
       box-shadow 180ms $ease-standard;
 
     &:hover:not(:focus) {
-      border-color: #cbd5e1;
+      border-color: var(--border-2, var(--border-1));
     }
 
     &:focus {
       outline: none;
-      border-color: $primary;
-      box-shadow:
-        0 0 0 3px $primary-ring,
-        0 1px 4px rgba(22, 101, 52, 0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
   }
 
   &__textarea {
     padding: 11px 12px;
     font-size: 0.875rem;
-    color: $color-text-primary;
-    border: 1.5px solid $color-border;
-    border-radius: $radius-lg;
+    color: var(--text-1);
+    border: 1.5px solid var(--border-1);
+    border-radius: var(--radius-md);
     resize: vertical;
     font-family: inherit;
     line-height: 1.6;
-    background: $color-surface;
+    background: var(--bg-input, var(--bg-surface));
     transition:
       border-color 180ms $ease-standard,
       box-shadow 180ms $ease-standard;
     min-height: 80px;
 
     &::placeholder {
-      color: $color-text-muted;
+      color: var(--text-muted);
     }
 
     &:hover:not(:focus) {
-      border-color: #cbd5e1;
+      border-color: var(--border-2, var(--border-1));
     }
 
     &:focus {
       outline: none;
-      border-color: $primary;
-      box-shadow:
-        0 0 0 3px $primary-ring,
-        0 1px 4px rgba(22, 101, 52, 0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
   }
 
@@ -386,7 +351,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
     display: flex;
     align-items: center;
     gap: 5px;
-    color: $color-danger;
+    color: var(--danger-text);
 
     svg {
       flex-shrink: 0;
@@ -398,7 +363,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &__char-count {
     font-size: 0.6875rem;
     font-weight: 500;
-    color: $color-text-muted;
+    color: var(--text-muted);
     text-align: right;
     transition: color 180ms $ease-standard;
   }
@@ -406,8 +371,8 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &--error {
     .form-field__input,
     .form-field__select {
-      border-color: $color-danger !important;
-      box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1);
+      border-color: var(--danger) !important;
+      box-shadow: 0 0 0 3px var(--danger-soft);
     }
   }
 }
@@ -452,7 +417,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   &__sep {
     font-size: 1rem;
     font-weight: 600;
-    color: $color-text-secondary;
+    color: var(--text-2);
     flex-shrink: 0;
     line-height: 1;
   }
@@ -465,7 +430,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   justify-content: center;
   gap: 7px;
   padding: 10px 20px;
-  border-radius: $radius-lg;
+  border-radius: var(--radius-md);
   font-size: 0.9375rem;
   font-weight: 500;
   font-family: inherit;
@@ -490,7 +455,7 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
       0 4px 12px rgba(22, 101, 52, 0.25);
 
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, color.adjust(#166534, $lightness: 6%) 0%, $primary 100%);
+      opacity: 0.92;
       box-shadow:
         0 2px 4px rgba(21, 128, 61, 0.35),
         0 6px 16px rgba(22, 101, 52, 0.3);
@@ -523,13 +488,13 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 
   &--secondary {
     background: transparent;
-    color: $color-text-secondary;
-    border: 1.5px solid $color-border;
+    color: var(--text-2);
+    border: 1.5px solid var(--border-1);
 
     &:hover:not(:disabled) {
-      background: $color-surface-2;
-      border-color: #cbd5e1;
-      color: $color-text-primary;
+      background: var(--bg-subtle);
+      border-color: var(--border-2, var(--border-1));
+      color: var(--text-1);
     }
 
     &:focus-visible {
@@ -544,18 +509,18 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   }
 
   &--danger {
-    background: $color-danger;
-    color: #fff;
-    box-shadow: 0 1px 2px rgba(198, 40, 40, 0.3);
+    background: var(--danger);
+    color: var(--accent-fg);
+    box-shadow: 0 1px 2px color-mix(in oklch, var(--danger) 30%, transparent);
 
     &:hover:not(:disabled) {
-      background: color.adjust(#c62828, $lightness: -6%);
-      box-shadow: 0 2px 6px rgba(198, 40, 40, 0.35);
+      opacity: 0.88;
+      box-shadow: 0 2px 6px color-mix(in oklch, var(--danger) 35%, transparent);
       transform: translateY(-1px);
     }
 
     &:focus-visible {
-      outline: 2px solid $color-danger;
+      outline: 2px solid var(--danger);
       outline-offset: 3px;
     }
 
@@ -569,16 +534,16 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 
   &--danger-outline {
     background: transparent;
-    color: $color-danger;
-    border: 1.5px solid rgba(198, 40, 40, 0.4);
+    color: var(--danger-text);
+    border: 1.5px solid color-mix(in oklch, var(--danger) 40%, transparent);
 
     &:hover:not(:disabled) {
-      background: $color-danger-bg;
-      border-color: $color-danger;
+      background: var(--danger-soft);
+      border-color: var(--danger);
     }
 
     &:focus-visible {
-      outline: 2px solid $color-danger;
+      outline: 2px solid var(--danger);
       outline-offset: 3px;
     }
 
@@ -646,5 +611,111 @@ $ease-standard: var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
   .btn__spinner {
     animation: none;
     border-top-color: rgba(255, 255, 255, 0.8);
+  }
+}
+
+// ── Custom select dropdown ────────────────────────────────────────────────────
+.custom-select {
+  position: relative;
+
+  &__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+  }
+
+  &__trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--border-2);
+    background: var(--bg-input);
+    color: var(--text-1);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+    text-align: left;
+
+    &:hover {
+      border-color: var(--border-strong);
+    }
+
+    &:focus-visible {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+  }
+
+  &__chevron {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--text-3);
+    transition: transform 200ms ease;
+
+    &--open {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+    animation: slide-up 160ms ease;
+  }
+
+  &__option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-1);
+    cursor: pointer;
+    transition: background 120ms ease;
+
+    &:hover {
+      background: var(--bg-subtle);
+    }
+
+    &--active {
+      background: var(--accent-soft);
+      color: var(--accent-text);
+      font-weight: 600;
+    }
+  }
+
+  &__check {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--accent);
+  }
+}
+
+// ── Dark mode chevron override ────────────────────────────────────────────────
+:host-context([data-theme='dark']) {
+  .form-field__select,
+  .time-selects__select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23bbb'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
   }
 }

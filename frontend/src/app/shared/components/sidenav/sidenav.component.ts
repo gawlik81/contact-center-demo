@@ -176,6 +176,20 @@ const SUPERVISOR_NAV: NavItem[] = [
         svgPath:
           'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z',
       },
+      {
+        label: 'nav.settingsAiConfig',
+        route: '/supervisor/settings/ai-config',
+        ariaLabel: 'nav.settingsAiConfig',
+        svgPath:
+          'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z',
+      },
+      {
+        label: 'nav.settingsDispositionSets',
+        route: '/supervisor/settings/disposition-sets',
+        ariaLabel: 'nav.settingsDispositionSets',
+        svgPath:
+          'M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z',
+      },
     ],
   },
 ];

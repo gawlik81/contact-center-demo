@@ -27,6 +27,7 @@ describe('LanguageService', () => {
   let translocoService: TranslocoService;
 
   function setup(authenticated: boolean) {
+    TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [
         TranslocoTestingModule.forRoot({

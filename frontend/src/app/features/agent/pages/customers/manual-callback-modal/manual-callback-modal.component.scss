@@ -7,23 +7,6 @@
   box-sizing: border-box;
 }
 
-$brand-blue: #1565c0;
-$brand-blue-dark: #0d47a1;
-$brand-blue-light: #1976d2;
-$header-gradient-start: #1565c0;
-$header-gradient-end: #0d47a1;
-$text-on-dark: #ffffff;
-
-$color-text-primary: #1e293b;
-$color-text-secondary: #64748b;
-$color-text-muted: #94a3b8;
-$color-surface: #ffffff;
-$color-surface-2: #f8fafc;
-$color-border: #e2e8f0;
-$color-danger: #c62828;
-$color-danger-bg: #ffebee;
-$color-danger-border: #fca5a5;
-
 $ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -48,22 +31,19 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 // ── Dialog shell ──────────────────────────────────────────────────────────────
 .callback-dialog {
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 0;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.07),
-    0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 20px 48px -8px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-pop);
   width: 100%;
   max-width: 480px;
-  background: $color-surface;
+  background: var(--bg-elevated);
   animation: dialog-enter 280ms $ease-spring both;
   overflow: hidden;
 
   &::backdrop {
-    background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: color-mix(in oklch, oklch(0% 0 0) 55%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
 
   // ── Content wrapper ──────────────────────────────────────────────────────
@@ -78,7 +58,11 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     align-items: center;
     justify-content: space-between;
     padding: 1.25rem 1.5rem;
-    background: linear-gradient(135deg, $header-gradient-start 0%, $header-gradient-end 100%);
+    background: linear-gradient(
+      135deg,
+      var(--accent) 0%,
+      color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+    );
     position: relative;
 
     // Subtle shine overlay
@@ -103,7 +87,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     height: 36px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.15);
-    color: $text-on-dark;
+    color: var(--accent-fg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -123,7 +107,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   &__title {
     font-size: 1.0625rem;
     font-weight: 600;
-    color: $text-on-dark;
+    color: var(--accent-fg);
     margin: 0;
     letter-spacing: -0.01em;
   }
@@ -149,7 +133,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     min-width: 0;
     max-height: calc(92vh - 148px);
     scrollbar-width: thin;
-    scrollbar-color: rgba(21, 101, 192, 0.2) transparent;
+    scrollbar-color: color-mix(in oklch, var(--accent) 20%, transparent) transparent;
 
     &::-webkit-scrollbar {
       width: 4px;
@@ -160,7 +144,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     &::-webkit-scrollbar-thumb {
-      background: rgba(21, 101, 192, 0.2);
+      background: color-mix(in oklch, var(--accent) 20%, transparent);
       border-radius: 2px;
     }
   }
@@ -168,12 +152,12 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   // ── Footer ────────────────────────────────────────────────────────────────
   &__footer {
     padding: 1rem 1.5rem;
-    border-top: 1px solid $color-border;
+    border-top: 1px solid var(--border-1);
     display: flex;
     justify-content: flex-end;
     align-items: center;
     gap: 0.625rem;
-    background: $color-surface-2;
+    background: var(--bg-subtle);
   }
 
   // ── Server error banner ───────────────────────────────────────────────────
@@ -182,10 +166,10 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     align-items: flex-start;
     gap: 10px;
     padding: 12px 14px;
-    background: $color-danger-bg;
-    border: 1px solid $color-danger-border;
-    border-radius: 8px;
-    color: $color-danger;
+    background: var(--danger-soft);
+    border: 1px solid color-mix(in oklch, var(--danger) 30%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--danger-text);
     font-size: 0.875rem;
     line-height: 1.5;
 
@@ -223,7 +207,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
   &:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.22);
-    color: $text-on-dark;
+    color: var(--accent-fg);
   }
 
   &:active:not(:disabled) {
@@ -250,8 +234,8 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   &--error {
     .form-input,
     .form-select {
-      border-color: $color-danger !important;
-      box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1);
+      border-color: var(--danger) !important;
+      box-shadow: 0 0 0 3px var(--danger-soft);
     }
   }
 }
@@ -262,12 +246,12 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   gap: 4px;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: $color-text-primary;
+  color: var(--text-1);
   letter-spacing: 0.01em;
 }
 
 .required {
-  color: $color-danger;
+  color: var(--danger-text);
   font-weight: 400;
   margin-left: 1px;
 }
@@ -275,35 +259,35 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 .optional {
   font-size: 0.6875rem;
   font-weight: 400;
-  color: $color-text-muted;
+  color: var(--text-muted);
 }
 
 .form-input {
   padding: 0.46rem 0.75rem;
   font-size: 0.875rem;
   font-family: inherit;
-  color: $color-text-primary;
-  background: $color-surface;
-  border: 1.5px solid $color-border;
-  border-radius: 8px;
+  color: var(--text-1);
+  background: var(--bg-input, var(--bg-surface));
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius-md);
   width: 100%;
   transition:
     border-color 180ms $ease-standard,
     box-shadow 180ms $ease-standard;
 
   &::placeholder {
-    color: $color-text-muted;
+    color: var(--text-muted);
     font-weight: 400;
   }
 
   &:hover:not(:focus) {
-    border-color: #cbd5e1;
+    border-color: var(--border-2, var(--border-1));
   }
 
   &:focus {
     outline: none;
-    border-color: $brand-blue;
-    box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.13);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
   &--textarea {
@@ -334,7 +318,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   &__sep {
     font-size: 1rem;
     font-weight: 600;
-    color: $color-text-secondary;
+    color: var(--text-2);
     flex-shrink: 0;
     line-height: 1;
   }
@@ -363,13 +347,13 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0.46rem 2rem 0.46rem 0.75rem;
   font-size: 0.875rem;
   font-family: inherit;
-  color: $color-text-primary;
-  background: $color-surface;
-  border: 1.5px solid $color-border;
-  border-radius: 8px;
+  color: var(--text-1);
+  background: var(--bg-input, var(--bg-surface));
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius-md);
   width: 100%;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 18px;
@@ -379,13 +363,13 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow 180ms $ease-standard;
 
   &:hover:not(:focus) {
-    border-color: #cbd5e1;
+    border-color: var(--border-2, var(--border-1));
   }
 
   &:focus {
     outline: none;
-    border-color: $brand-blue;
-    box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.13);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 }
 
@@ -394,7 +378,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   align-items: center;
   gap: 5px;
   font-size: 0.75rem;
-  color: $color-danger;
+  color: var(--danger-text);
 
   svg {
     flex-shrink: 0;
@@ -405,7 +389,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
 .form-hint {
   font-size: 0.75rem;
-  color: $color-text-muted;
+  color: var(--text-muted);
 
   &--right {
     text-align: right;
@@ -420,7 +404,7 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   justify-content: center;
   gap: 6px;
   padding: 0.5625rem 1.25rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 0.9375rem;
   font-weight: 500;
   font-family: inherit;
@@ -440,17 +424,17 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
 .btn-cancel {
   background: transparent;
-  color: $color-text-secondary;
-  border: 1.5px solid $color-border;
+  color: var(--text-2);
+  border: 1.5px solid var(--border-1);
 
   &:hover:not(:disabled) {
-    background: $color-surface-2;
-    border-color: #cbd5e1;
-    color: $color-text-primary;
+    background: var(--bg-subtle);
+    border-color: var(--border-2, var(--border-1));
+    color: var(--text-1);
   }
 
   &:focus-visible {
-    outline: 2px solid $brand-blue;
+    outline: 2px solid var(--accent);
     outline-offset: 3px;
   }
 
@@ -461,21 +445,25 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-save {
-  background: linear-gradient(135deg, $brand-blue-light 0%, $brand-blue-dark 100%);
-  color: $text-on-dark;
+  background: linear-gradient(
+    135deg,
+    var(--accent) 0%,
+    color-mix(in oklch, var(--accent) 70%, oklch(0% 0 0)) 100%
+  );
+  color: var(--accent-fg);
   box-shadow:
-    0 1px 2px rgba(13, 71, 161, 0.3),
-    0 4px 12px rgba(21, 101, 192, 0.25);
+    0 1px 2px color-mix(in oklch, var(--accent) 30%, transparent),
+    0 4px 12px color-mix(in oklch, var(--accent) 25%, transparent);
 
   &:hover:not(:disabled) {
     box-shadow:
-      0 2px 4px rgba(13, 71, 161, 0.35),
-      0 6px 16px rgba(21, 101, 192, 0.3);
+      0 2px 4px color-mix(in oklch, var(--accent) 35%, transparent),
+      0 6px 16px color-mix(in oklch, var(--accent) 30%, transparent);
     transform: translateY(-1px);
   }
 
   &:focus-visible {
-    outline: 2px solid $brand-blue;
+    outline: 2px solid var(--accent);
     outline-offset: 3px;
   }
 
@@ -512,5 +500,13 @@ $ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   .spinner {
     animation: none;
     border-top-color: rgba(255, 255, 255, 0.8);
+  }
+}
+
+// ── Dark mode chevron override ────────────────────────────────────────────────
+:host-context([data-theme='dark']) {
+  .form-select,
+  .time-selects__select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23bbb'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
   }
 }

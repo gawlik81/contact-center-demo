@@ -165,7 +165,6 @@ export class IvrListComponent implements OnInit {
   confirmDelete(): void {
     const id = this.confirmDeleteId();
     if (!id) return;
-    const ivr = this.ivrs().find((i) => i.ivr_id === id);
     this.confirmDeleteId.set(null);
     this.setActionInProgress(id, true);
     this.ivrService

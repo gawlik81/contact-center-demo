@@ -1,6 +1,6 @@
 package com.contactcenter.domain.routing;
 
-import com.contactcenter.domain.repository.AppUserRepository;
+import com.contactcenter.domain.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
@@ -35,7 +35,7 @@ import java.util.*;
 @Primary
 @Component
 @RequiredArgsConstructor
-public class DefaultRoutingEngine implements RoutingEngine {
+class DefaultRoutingEngine implements RoutingEngine {
 
     /** Prefix kluczy sesji agenta w Redis. */
     public static final String AGENT_SESSION_KEY_PREFIX = "session:agent:";
@@ -47,7 +47,7 @@ public class DefaultRoutingEngine implements RoutingEngine {
     public static final String ROUND_ROBIN_COUNTER_PREFIX = "routing:rr:";
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final AppUserRepository appUserRepository;
+    private final UserService userService;
 
     // =========================================================================
     // RoutingEngine
@@ -443,7 +443,7 @@ public class DefaultRoutingEngine implements RoutingEngine {
             return true;
         }
         try {
-            return appUserRepository.findByIdAndTenantIdAndDeletedFalse(agentId, tenantId)
+            return userService.findAgentByIdAndTenantId(agentId, tenantId)
                     .map(user -> {
                         List<String> agentSkills = user.getSkills();
                         if (agentSkills == null || agentSkills.isEmpty()) {
@@ -462,7 +462,7 @@ public class DefaultRoutingEngine implements RoutingEngine {
      * Spośród listy kandydatów wybiera agenta z najmniejszą liczbą aktywnych kontaktów.
      *
      * <p>Aktywne kontakty: status IN (QUEUED, ACTIVE, ON_HOLD). Używa jednego zapytania
-     * SQL batch ({@link com.contactcenter.domain.repository.AppUserRepository#countActiveContactsByAgentIds})
+     * SQL batch ({@link com.contactcenter.domain.user.UserService#countActiveContactsByAgentIds})
      * zamiast N osobnych SELECT COUNT(*) – eliminuje problem N+1 zapytań.
      *
      * <p>Agenci, którzy nie pojawią się w wyniku batch query (0 aktywnych kontaktów),
@@ -494,7 +494,7 @@ public class DefaultRoutingEngine implements RoutingEngine {
         }
 
         try {
-            List<Object[]> rows = appUserRepository.countActiveContactsByAgentIds(tenantId, sorted);
+            List<Object[]> rows = userService.countActiveContactsByAgentIds(tenantId, sorted);
             for (Object[] row : rows) {
                 UUID agentId = UUID.fromString(row[0].toString());
                 long count = ((Number) row[1]).longValue();

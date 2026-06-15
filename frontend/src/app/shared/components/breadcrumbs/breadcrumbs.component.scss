@@ -19,29 +19,29 @@
   }
 
   &__link {
-    color: #1a56db;
+    color: var(--accent-text);
     text-decoration: none;
     transition: color 0.15s;
 
     &:hover {
-      color: #1240a8;
+      filter: brightness(0.85);
       text-decoration: underline;
     }
 
     &:focus-visible {
-      outline: 2px solid #1a56db;
+      outline: 2px solid var(--accent);
       outline-offset: 2px;
       border-radius: 2px;
     }
   }
 
   &__separator {
-    color: #94a3b8;
+    color: var(--text-muted);
     user-select: none;
   }
 
   &__current {
-    color: #475569;
+    color: var(--text-2);
     font-weight: 500;
   }
 }

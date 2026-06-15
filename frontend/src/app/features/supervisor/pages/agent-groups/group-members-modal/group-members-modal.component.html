@@ -50,7 +50,11 @@
               {{ 'supervisor.agentGroupMembers.noResults' | transloco: { query: searchQuery() } }}
             </p>
           } @else {
-            <ul class="agents-list" role="list" [attr.aria-label]="'supervisor.agentGroupMembers.agentsListLabel' | transloco">
+            <ul
+              class="agents-list"
+              role="list"
+              [attr.aria-label]="'supervisor.agentGroupMembers.agentsListLabel' | transloco"
+            >
               @for (agent of filteredAgents(); track trackByAgentId($index, agent)) {
                 <li class="agent-item">
                   <label class="agent-label" [for]="'agent-' + agent.id">
@@ -60,7 +64,13 @@
                       [id]="'agent-' + agent.id"
                       [checked]="isSelected(agent.id)"
                       (change)="toggleAgent(agent.id)"
-                      [attr.aria-label]="('supervisor.agentGroupMembers.addAgentPrefix' | transloco) + ' ' + getAgentFullName(agent) + ' ' + ('supervisor.agentGroupMembers.addAgentSuffix' | transloco)"
+                      [attr.aria-label]="
+                        ('supervisor.agentGroupMembers.addAgentPrefix' | transloco) +
+                        ' ' +
+                        getAgentFullName(agent) +
+                        ' ' +
+                        ('supervisor.agentGroupMembers.addAgentSuffix' | transloco)
+                      "
                     />
                     <span class="agent-info">
                       <span class="agent-name">{{ getAgentFullName(agent) }}</span>

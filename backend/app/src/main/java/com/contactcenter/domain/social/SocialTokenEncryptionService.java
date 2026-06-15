@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.social;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +28,7 @@ import java.util.Arrays;
  */
 @Slf4j
 @Service
-public class SocialTokenEncryptionService {
+class SocialTokenEncryptionService {
 
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int IV_LENGTH_BYTES = 12;

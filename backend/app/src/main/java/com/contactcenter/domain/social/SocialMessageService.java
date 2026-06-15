@@ -1,14 +1,8 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.social;
 
 import com.contactcenter.domain.contact.Contact;
-import com.contactcenter.domain.model.SocialMessage;
-import com.contactcenter.domain.model.SocialPlatform;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.repository.SocialIntegrationRepository;
-import com.contactcenter.domain.repository.SocialMessageRepository;
 import com.contactcenter.domain.routing.ContactQueuedMessage;
-import com.contactcenter.domain.social.IncomingSocialMessage;
-import com.contactcenter.domain.model.SocialIntegration;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.social.SocialAdapterRegistry;
 import com.contactcenter.security.TenantContext;
@@ -233,6 +227,25 @@ public class SocialMessageService {
 
         socialMessageRepository.save(outbound);
         log.info("[SocialMessage] Wiadomość OUTBOUND zapisana: contactId={}, platform={}", contactId, platform);
+    }
+
+    // =========================================================================
+    // Odczyt historii wiadomości
+    // =========================================================================
+
+    /**
+     * Pobiera historię wiadomości social media dla kontaktu (do 50 najnowszych, {@code sentAt DESC}).
+     *
+     * <p>Paginacja po stronie API – ta metoda zwraca pełną (ograniczoną do 50) listę,
+     * a kontroler wykonuje wycinanie strony i mapowanie na DTO.
+     *
+     * @param contactId UUID kontaktu
+     * @param tenantId  UUID tenanta
+     * @return lista wiadomości posortowanych po {@code sentAt DESC}
+     */
+    @Transactional(readOnly = true)
+    public List<SocialMessage> getRecentMessagesForContact(UUID contactId, UUID tenantId) {
+        return socialMessageRepository.findByContactId(contactId, tenantId);
     }
 
     // =========================================================================

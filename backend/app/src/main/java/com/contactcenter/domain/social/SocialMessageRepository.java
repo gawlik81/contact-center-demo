@@ -1,6 +1,6 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.social;
 
-import com.contactcenter.domain.model.SocialMessage;
+import com.contactcenter.domain.repository.TenantAwareRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +21,7 @@ import java.util.UUID;
 @Slf4j
 @Repository
 @Transactional
-public class SocialMessageRepository extends TenantAwareRepository {
+class SocialMessageRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Zapis

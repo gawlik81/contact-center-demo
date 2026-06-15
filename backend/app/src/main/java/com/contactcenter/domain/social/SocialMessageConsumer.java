@@ -1,6 +1,5 @@
 package com.contactcenter.domain.social;
 
-import com.contactcenter.domain.service.SocialMessageService;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

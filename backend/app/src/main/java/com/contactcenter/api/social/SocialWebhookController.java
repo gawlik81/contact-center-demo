@@ -1,6 +1,6 @@
 package com.contactcenter.api.social;
 
-import com.contactcenter.domain.model.SocialPlatform;
+import com.contactcenter.domain.social.SocialPlatform;
 import com.contactcenter.domain.social.IncomingSocialMessage;
 import com.contactcenter.domain.social.SocialMessagePublisher;
 import com.fasterxml.jackson.databind.JsonNode;

@@ -1,4 +1,4 @@
-package com.contactcenter.domain.model;
+package com.contactcenter.domain.social;
 
 /**
  * Enum reprezentujący obsługiwane platformy social media.

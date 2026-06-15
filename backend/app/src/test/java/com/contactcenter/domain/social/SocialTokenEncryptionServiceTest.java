@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.social;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

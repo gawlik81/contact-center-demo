@@ -1,7 +1,6 @@
-package com.contactcenter.domain.repository;
+package com.contactcenter.domain.social;
 
-import com.contactcenter.domain.model.SocialIntegration;
-import com.contactcenter.domain.model.SocialPlatform;
+import com.contactcenter.domain.repository.TenantAwareRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +20,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Repository
-public class SocialIntegrationRepository extends TenantAwareRepository {
+class SocialIntegrationRepository extends TenantAwareRepository {
 
     /**
      * Zwraca wszystkie integracje dla aktualnego tenanta.

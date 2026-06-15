@@ -1,7 +1,5 @@
 package com.contactcenter.domain.social;
 
-import com.contactcenter.domain.model.SocialPlatform;
-
 import java.util.List;
 import java.util.UUID;
 

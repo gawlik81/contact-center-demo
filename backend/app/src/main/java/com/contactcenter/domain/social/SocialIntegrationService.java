@@ -1,11 +1,8 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.social;
 
 import com.contactcenter.api.social.dto.SocialIntegrationDto;
 import com.contactcenter.domain.audit.AuditLogEvent;
 import com.contactcenter.domain.audit.AuditLogService;
-import com.contactcenter.domain.model.SocialIntegration;
-import com.contactcenter.domain.model.SocialPlatform;
-import com.contactcenter.domain.repository.SocialIntegrationRepository;
 import com.contactcenter.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

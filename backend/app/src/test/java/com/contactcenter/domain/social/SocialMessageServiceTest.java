@@ -1,14 +1,8 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.social;
 
 import com.contactcenter.domain.contact.Contact;
-import com.contactcenter.domain.model.SocialIntegration;
-import com.contactcenter.domain.model.SocialMessage;
-import com.contactcenter.domain.model.SocialPlatform;
 import com.contactcenter.domain.contact.ContactService;
-import com.contactcenter.domain.repository.SocialIntegrationRepository;
-import com.contactcenter.domain.repository.SocialMessageRepository;
 import com.contactcenter.domain.social.IncomingSocialMessage;
-import com.contactcenter.domain.social.SocialMediaAdapter;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.infrastructure.social.SocialAdapterRegistry;
 import com.contactcenter.security.TenantContext;

@@ -25,11 +25,11 @@ class EmailEncryptionServiceTest {
     private static final String TEST_KEY =
             "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
 
-    private EmailEncryptionService service;
+    private EmailEncryptionServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new EmailEncryptionService(TEST_KEY);
+        service = new EmailEncryptionServiceImpl(TEST_KEY);
     }
 
     // =========================================================================
@@ -155,7 +155,7 @@ class EmailEncryptionServiceTest {
             // 30 bajtów hex (60 znaków) zamiast 32 (64 znaki)
             String badKey = "deadbeef".repeat(7) + "dead"; // 30 bytes
 
-            assertThatThrownBy(() -> new EmailEncryptionService(badKey))
+            assertThatThrownBy(() -> new EmailEncryptionServiceImpl(badKey))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("32 bajty");
         }
@@ -165,7 +165,7 @@ class EmailEncryptionServiceTest {
         void shouldThrowWhenDecryptingWithDifferentKey() {
             String differentKey =
                     "cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe";
-            EmailEncryptionService otherService = new EmailEncryptionService(differentKey);
+            EmailEncryptionServiceImpl otherService = new EmailEncryptionServiceImpl(differentKey);
 
             String encrypted = service.encrypt("sekretne-haslo");
 

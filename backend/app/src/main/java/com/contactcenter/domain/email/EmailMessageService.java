@@ -1,10 +1,7 @@
 package com.contactcenter.domain.email;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -16,11 +13,7 @@ import java.util.UUID;
  * <p>Stanowi fasadę nad {@link EmailMessageRepository} – wszystkie metody są
  * prostym przekazaniem do repozytorium, bez dodatkowej logiki biznesowej.
  */
-@Service
-@RequiredArgsConstructor
-public class EmailMessageService {
-
-    private final EmailMessageRepository emailMessageRepository;
+public interface EmailMessageService {
 
     /**
      * Pobiera wiadomość po UUID (PK).
@@ -28,10 +21,7 @@ public class EmailMessageService {
      * @param messageId UUID wiadomości (kolumna message_id)
      * @return Optional z wiadomością lub empty
      */
-    @Transactional(readOnly = true)
-    public Optional<EmailMessage> findById(UUID messageId) {
-        return emailMessageRepository.findById(messageId);
-    }
+    Optional<EmailMessage> findById(UUID messageId);
 
     /**
      * Pobiera historię wiadomości dla kontaktu (paginacja).
@@ -41,10 +31,7 @@ public class EmailMessageService {
      * @param pageable  parametry paginacji
      * @return strona wiadomości posortowanych po {@code received_at DESC}
      */
-    @Transactional(readOnly = true)
-    public Page<EmailMessage> findByContactId(UUID contactId, UUID tenantId, Pageable pageable) {
-        return emailMessageRepository.findByContactId(contactId, tenantId, pageable);
-    }
+    Page<EmailMessage> findByContactId(UUID contactId, UUID tenantId, Pageable pageable);
 
     /**
      * Pobiera pierwszą wiadomość INBOUND powiązaną z kontaktem (root kontaktu email).
@@ -53,10 +40,7 @@ public class EmailMessageService {
      * @param tenantId  UUID tenanta
      * @return Optional z wiadomością lub empty gdy brak
      */
-    @Transactional(readOnly = true)
-    public Optional<EmailMessage> findFirstInboundByContactId(UUID contactId, UUID tenantId) {
-        return emailMessageRepository.findFirstInboundByContactId(contactId, tenantId);
-    }
+    Optional<EmailMessage> findFirstInboundByContactId(UUID contactId, UUID tenantId);
 
     /**
      * Pobiera listę wiadomości w wątku emailowym (pogrupowane po In-Reply-To).
@@ -66,11 +50,7 @@ public class EmailMessageService {
      * @param pageable                parametry paginacji
      * @return strona wiadomości wątku posortowanych chronologicznie
      */
-    @Transactional(readOnly = true)
-    public Page<EmailMessage> findByThreadRootMessageId(
-            String originalMessageIdHeader, UUID tenantId, Pageable pageable) {
-        return emailMessageRepository.findByThreadRootMessageId(originalMessageIdHeader, tenantId, pageable);
-    }
+    Page<EmailMessage> findByThreadRootMessageId(String originalMessageIdHeader, UUID tenantId, Pageable pageable);
 
     /**
      * Pobiera paginowaną listę wiadomości dla bieżącego tenanta (widok listy).
@@ -78,8 +58,5 @@ public class EmailMessageService {
      * @param pageable parametry paginacji
      * @return strona wiadomości posortowanych po {@code created_at DESC}
      */
-    @Transactional(readOnly = true)
-    public Page<EmailMessage> findAll(Pageable pageable) {
-        return emailMessageRepository.findAll(pageable);
-    }
+    Page<EmailMessage> findAll(Pageable pageable);
 }

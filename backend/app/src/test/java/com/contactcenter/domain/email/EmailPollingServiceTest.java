@@ -52,12 +52,12 @@ class EmailPollingServiceTest {
     @Mock private EmailEventPublisher emailEventPublisher;
 
     private EmailEncryptionService encryptionService;
-    private EmailPollingService pollingService;
+    private EmailPollingServiceImpl pollingService;
 
     @BeforeEach
     void setUp() {
-        encryptionService = new EmailEncryptionService(TEST_KEY);
-        pollingService = new EmailPollingService(
+        encryptionService = new EmailEncryptionServiceImpl(TEST_KEY);
+        pollingService = new EmailPollingServiceImpl(
                 tenantService,
                 emailMessageRepository,
                 emailRoutingService,
@@ -89,7 +89,7 @@ class EmailPollingServiceTest {
             Message mockMessage = mockImapMessage("<existing@domain.com>", "Re: stary temat",
                     "sender@example.com", "inbox@company.com");
 
-            EmailPollingService spy = spy(pollingService);
+            EmailPollingServiceImpl spy = spy(pollingService);
             Store mockStore = mock(Store.class);
             Folder mockFolder = mock(Folder.class);
 
@@ -122,7 +122,7 @@ class EmailPollingServiceTest {
             Message mockMessage = mockImapMessage("<new@domain.com>", "Nowy temat",
                     "new@sender.com", "inbox@company.com");
 
-            EmailPollingService spy = spy(pollingService);
+            EmailPollingServiceImpl spy = spy(pollingService);
             Store mockStore = mock(Store.class);
             Folder mockFolder = mock(Folder.class);
 
@@ -157,7 +157,7 @@ class EmailPollingServiceTest {
                     .build();
 
             // Brak wywołania connectImap – nie łączymy gdy brak konfiguracji
-            EmailPollingService spy = spy(pollingService);
+            EmailPollingServiceImpl spy = spy(pollingService);
             spy.pollTenantInbox(tenant);
 
             verify(spy, never()).connectImap(any(), anyString());

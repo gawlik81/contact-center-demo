@@ -58,11 +58,11 @@ class EmailSendServiceTest {
     @Mock
     private TemplateVariableResolver templateVariableResolver;
 
-    private EmailSendService emailSendService;
+    private EmailSendServiceImpl emailSendService;
 
     @BeforeEach
     void setUp() {
-        emailSendService = new EmailSendService(
+        emailSendService = new EmailSendServiceImpl(
                 emailMessageRepository,
                 emailEventPublisher,
                 tenantService,
@@ -92,7 +92,7 @@ class EmailSendServiceTest {
             when(emailMessageRepository.save(any(EmailMessage.class))).thenReturn(saved);
 
             // Spy: pomiń rzeczywiste wywołanie SMTP
-            EmailSendService spy = spy(emailSendService);
+            EmailSendServiceImpl spy = spy(emailSendService);
             doNothing().when(spy).sendSmtp(
                     any(), anyString(), anyString(), anyString(),
                     anyString(), anyString(), anyString(), isNull(), isNull());
@@ -133,7 +133,7 @@ class EmailSendServiceTest {
             when(encryptionService.decrypt(anyString())).thenReturn("pass");
             when(emailMessageRepository.save(any())).thenReturn(buildSavedMessage());
 
-            EmailSendService spy = spy(emailSendService);
+            EmailSendServiceImpl spy = spy(emailSendService);
             doNothing().when(spy).sendSmtp(
                     any(), anyString(), anyString(), anyString(),
                     anyString(), anyString(), anyString(), any(), any());
@@ -220,7 +220,7 @@ class EmailSendServiceTest {
             when(tenantService.findTenantEntity(TENANT_ID)).thenReturn(Optional.of(tenant));
             when(encryptionService.decrypt(anyString())).thenReturn("pass");
 
-            EmailSendService spy = spy(emailSendService);
+            EmailSendServiceImpl spy = spy(emailSendService);
             doThrow(new MessagingException("Connection refused"))
                     .when(spy).sendSmtp(
                             any(), anyString(), anyString(), anyString(),

@@ -4,16 +4,9 @@ import com.contactcenter.api.email.dto.CreateEmailTemplateRequest;
 import com.contactcenter.api.email.dto.UpdateEmailTemplateRequest;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
-import com.contactcenter.infrastructure.aspect.Audited;
-import com.contactcenter.security.TenantContext;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -33,17 +26,7 @@ import java.util.UUID;
  *   <li>Operacje audytowane przez {@code @Audited}</li>
  * </ul>
  */
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class EmailTemplateService {
-
-    private final EmailTemplateRepository emailTemplateRepository;
-    private final MustacheTemplateEngine templateEngine;
-
-    // =========================================================================
-    // Odczyt
-    // =========================================================================
+public interface EmailTemplateService {
 
     /**
      * Lista aktywnych szablonów dla bieżącego tenanta (paginacja).
@@ -51,11 +34,7 @@ public class EmailTemplateService {
      * @param pageable parametry paginacji
      * @return strona szablonów
      */
-    @Transactional(readOnly = true)
-    public Page<EmailTemplate> list(Pageable pageable) {
-        UUID tenantId = TenantContext.getTenantId();
-        return emailTemplateRepository.findAllByTenantIdAndIsActiveTrue(tenantId, pageable);
-    }
+    Page<EmailTemplate> list(Pageable pageable);
 
     /**
      * Pobiera szablon po ID.
@@ -64,16 +43,7 @@ public class EmailTemplateService {
      * @return encja szablonu
      * @throws ResourceNotFoundException gdy szablon nie istnieje lub należy do innego tenanta
      */
-    @Transactional(readOnly = true)
-    public EmailTemplate getById(UUID id) {
-        UUID tenantId = TenantContext.getTenantId();
-        return emailTemplateRepository.findByIdAndTenantIdAndIsActiveTrue(id, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Szablon email nie istnieje: " + id));
-    }
-
-    // =========================================================================
-    // Tworzenie
-    // =========================================================================
+    EmailTemplate getById(UUID id);
 
     /**
      * Tworzy nowy szablon email.
@@ -84,35 +54,7 @@ public class EmailTemplateService {
      * @return utworzony szablon
      * @throws ConflictException gdy szablon o tej nazwie już istnieje
      */
-    @Transactional
-    @Audited(action = "EMAIL_TEMPLATE_CREATED", entityType = "EMAIL_TEMPLATE")
-    public EmailTemplate create(CreateEmailTemplateRequest dto) {
-        UUID tenantId = TenantContext.getTenantId();
-
-        // Walidacja unikalności nazwy
-        if (emailTemplateRepository.existsByNameAndTenantIdAndIsActiveTrue(dto.name(), tenantId)) {
-            throw new ConflictException("Szablon email o nazwie '" + dto.name() + "' już istnieje");
-        }
-
-        EmailTemplate template = EmailTemplate.builder()
-                .tenantId(tenantId)
-                .name(dto.name())
-                .subjectTemplate(dto.subjectTemplate())
-                .bodyHtml(dto.bodyHtml())
-                .variables(dto.variables())
-                .build();
-
-        EmailTemplate saved = emailTemplateRepository.save(template);
-
-        log.info("[EmailTemplateService] Utworzono szablon: id={}, name='{}', tenant={}",
-                saved.getId(), saved.getName(), tenantId);
-
-        return saved;
-    }
-
-    // =========================================================================
-    // Aktualizacja
-    // =========================================================================
+    EmailTemplate create(CreateEmailTemplateRequest dto);
 
     /**
      * Częściowa aktualizacja szablonu (PATCH semantics).
@@ -126,42 +68,7 @@ public class EmailTemplateService {
      * @throws ResourceNotFoundException gdy szablon nie istnieje
      * @throws ConflictException         gdy nowa nazwa jest już zajęta
      */
-    @Transactional
-    @Audited(action = "EMAIL_TEMPLATE_UPDATED", entityType = "EMAIL_TEMPLATE",
-             captureOldValue = true, fetchOldValueMethod = "getById")
-    public EmailTemplate update(UUID id, UpdateEmailTemplateRequest dto) {
-        EmailTemplate template = getById(id);
-        UUID tenantId = template.getTenantId();
-
-        // Walidacja unikalności nowej nazwy (gdy zmieniana)
-        if (dto.name() != null && !dto.name().equals(template.getName())) {
-            if (emailTemplateRepository.existsByNameAndTenantIdAndIsActiveTrueAndIdNot(
-                    dto.name(), tenantId, id)) {
-                throw new ConflictException("Szablon email o nazwie '" + dto.name() + "' już istnieje");
-            }
-            template.setName(dto.name());
-        }
-
-        if (dto.subjectTemplate() != null) {
-            template.setSubjectTemplate(dto.subjectTemplate());
-        }
-        if (dto.bodyHtml() != null) {
-            template.setBodyHtml(dto.bodyHtml());
-        }
-        if (dto.variables() != null) {
-            template.setVariables(dto.variables());
-        }
-
-        EmailTemplate updated = emailTemplateRepository.save(template);
-
-        log.info("[EmailTemplateService] Zaktualizowano szablon: id={}, tenant={}", id, tenantId);
-
-        return updated;
-    }
-
-    // =========================================================================
-    // Usunięcie (soft delete)
-    // =========================================================================
+    EmailTemplate update(UUID id, UpdateEmailTemplateRequest dto);
 
     /**
      * Soft delete szablonu – ustawia {@code is_active = false} (schemat V010).
@@ -171,22 +78,7 @@ public class EmailTemplateService {
      * @param id UUID szablonu
      * @throws ResourceNotFoundException gdy szablon nie istnieje
      */
-    @Transactional
-    @Audited(action = "EMAIL_TEMPLATE_DELETED", entityType = "EMAIL_TEMPLATE",
-             captureOldValue = true, fetchOldValueMethod = "getById")
-    public void delete(UUID id) {
-        EmailTemplate template = getById(id);
-
-        template.setActive(false);
-        emailTemplateRepository.save(template);
-
-        log.info("[EmailTemplateService] Usunięto (soft delete) szablon: id={}, tenant={}",
-                id, template.getTenantId());
-    }
-
-    // =========================================================================
-    // Renderowanie
-    // =========================================================================
+    void delete(UUID id);
 
     /**
      * Renderuje szablon Mustache podstawiając dostarczone zmienne.
@@ -201,45 +93,5 @@ public class EmailTemplateService {
      * @throws ResourceNotFoundException gdy szablon nie istnieje
      * @throws TemplateRenderException   gdy brakuje wymaganych zmiennych
      */
-    @Transactional(readOnly = true)
-    public RenderedEmailTemplate render(UUID templateId, Map<String, Object> variables) {
-        EmailTemplate template = getById(templateId);
-
-        // Walidacja: czy wszystkie zadeklarowane zmienne szablonu są dostarczone
-        // Predefiniowane zmienne (PredefinedTemplateVariable) są auto-uzupełniane – nie liczymy ich jako brakujące
-        List<String> declaredVariables = template.getVariables();
-        if (declaredVariables != null && !declaredVariables.isEmpty()) {
-            List<String> missing = declaredVariables.stream()
-                    .filter(varName -> !variables.containsKey(varName)
-                            && !PredefinedTemplateVariable.BY_KEY.containsKey(varName))
-                    .toList();
-
-            if (!missing.isEmpty()) {
-                log.warn("[EmailTemplateService] Brakujące zmienne szablonu: templateId={}, missing={}",
-                        templateId, missing);
-                throw new TemplateRenderException(missing);
-            }
-        }
-
-        // Renderuj temat i treść
-        String renderedSubject = templateEngine.render(template.getSubjectTemplate(), variables);
-        String renderedBodyHtml = templateEngine.render(template.getBodyHtml(), variables);
-
-        log.debug("[EmailTemplateService] Wyrenderowano szablon: id={}, subject='{}'",
-                templateId, renderedSubject);
-
-        return new RenderedEmailTemplate(renderedSubject, renderedBodyHtml);
-    }
-
-    // =========================================================================
-    // Rekord wyniku renderowania
-    // =========================================================================
-
-    /**
-     * Wynik renderowania szablonu Mustache.
-     *
-     * @param subject  wyrenderowany temat wiadomości
-     * @param bodyHtml wyrenderowana treść HTML
-     */
-    public record RenderedEmailTemplate(String subject, String bodyHtml) {}
+    RenderedEmailTemplate render(UUID templateId, Map<String, Object> variables);
 }

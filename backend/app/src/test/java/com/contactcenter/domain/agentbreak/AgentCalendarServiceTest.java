@@ -52,7 +52,7 @@ class AgentCalendarServiceTest {
     private AgentBreakRepository agentBreakRepository;
 
     @InjectMocks
-    private AgentCalendarService agentCalendarService;
+    private AgentCalendarServiceImpl agentCalendarService;
 
     // =========================================================================
     // Happy path – agregacja wszystkich źródeł

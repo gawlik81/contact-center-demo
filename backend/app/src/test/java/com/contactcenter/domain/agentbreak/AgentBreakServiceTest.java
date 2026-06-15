@@ -50,7 +50,7 @@ class AgentBreakServiceTest {
     private AgentBreakRepository agentBreakRepository;
 
     @InjectMocks
-    private AgentBreakService agentBreakService;
+    private AgentBreakServiceImpl agentBreakService;
 
     // =========================================================================
     // listBreaks

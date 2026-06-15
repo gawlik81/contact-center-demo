@@ -20,7 +20,7 @@ import com.contactcenter.domain.user.AppUser;
 import com.contactcenter.domain.queue.Queue;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
-import com.contactcenter.domain.email.EmailMessageRepository;
+import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.telephony.CallSession;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
@@ -77,7 +77,7 @@ class ContactServiceImpl implements ContactService {
     private final ContactAiSummaryRepository contactAiSummaryRepository;
     private final ContactTranscriptionRepository contactTranscriptionRepository;
     private final RecordingService recordingService;
-    private final EmailMessageRepository emailMessageRepository;
+    private final EmailMessageService emailMessageService;
     private final QueueService queueService;
     private final CampaignService campaignService;
     private final ContactEventService contactEventService;
@@ -723,7 +723,7 @@ class ContactServiceImpl implements ContactService {
         }
 
         // Próba 1: szukaj po contact_id (działa dla INBOUND – EmailMessage ma contact_id ustawione)
-        Page<EmailMessage> page = emailMessageRepository.findByContactId(
+        Page<EmailMessage> page = emailMessageService.findByContactId(
                 contactId, tenantId, Pageable.ofSize(1));
 
         EmailMessage message = page.getContent().stream().findFirst().orElse(null);
@@ -737,7 +737,7 @@ class ContactServiceImpl implements ContactService {
             if (emailMsgIdObj instanceof String emailMsgIdStr && !emailMsgIdStr.isBlank()) {
                 try {
                     UUID emailMsgId = UUID.fromString(emailMsgIdStr);
-                    message = emailMessageRepository.findById(emailMsgId).orElse(null);
+                    message = emailMessageService.findById(emailMsgId).orElse(null);
                 } catch (IllegalArgumentException e) {
                     log.warn("[ContactService] Nieprawidłowy UUID w channelMetadata.emailMessageId: " +
                             "contactId={}, wartość={}", contactId, emailMsgIdObj);

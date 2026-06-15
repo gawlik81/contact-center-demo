@@ -11,7 +11,7 @@ import com.contactcenter.domain.exception.InvalidOperationException;
 import com.contactcenter.domain.email.EmailMessage;
 import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
-import com.contactcenter.domain.email.EmailMessageRepository;
+import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.recording.RecordingException;
 import com.contactcenter.domain.recording.RecordingService;
@@ -61,7 +61,7 @@ class ContactServiceTest {
 
     @Mock private ContactRepository contactRepository;
     @Mock private RecordingService recordingService;
-    @Mock private EmailMessageRepository emailMessageRepository;
+    @Mock private EmailMessageService emailMessageService;
     @Mock private UserService userService;
     @Mock private QueueService queueService;
     @Mock private CampaignService campaignService;
@@ -914,7 +914,7 @@ class ContactServiceTest {
             Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
             EmailMessage message = buildEmailMessage(MESSAGE_ID, contactId -> contact.getContactId());
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
+            when(emailMessageService.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(message)));
 
             // when
@@ -946,7 +946,7 @@ class ContactServiceTest {
                         assertThat(rse.getReason()).contains("EMAIL");
                     });
 
-            verifyNoInteractions(emailMessageRepository);
+            verifyNoInteractions(emailMessageService);
         }
 
         @Test
@@ -955,7 +955,7 @@ class ContactServiceTest {
             // given
             Contact contact = buildEmailContact(CONTACT_ID, "COMPLETED");
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
+            when(emailMessageService.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             // when / then
@@ -979,7 +979,7 @@ class ContactServiceTest {
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(CONTACT_ID.toString());
 
-            verifyNoInteractions(emailMessageRepository);
+            verifyNoInteractions(emailMessageService);
         }
 
         @Test
@@ -1002,7 +1002,7 @@ class ContactServiceTest {
                     .createdAt(Instant.now())
                     .build();
             when(contactRepository.findById(CONTACT_ID, TENANT_ID)).thenReturn(Optional.of(contact));
-            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
+            when(emailMessageService.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(message)));
 
             // when

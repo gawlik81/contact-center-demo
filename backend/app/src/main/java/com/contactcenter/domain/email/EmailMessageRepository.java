@@ -24,7 +24,7 @@ import java.util.UUID;
 @Slf4j
 @Repository
 @Transactional
-public class EmailMessageRepository extends TenantAwareRepository {
+class EmailMessageRepository extends TenantAwareRepository {
 
     // =========================================================================
     // Zapis

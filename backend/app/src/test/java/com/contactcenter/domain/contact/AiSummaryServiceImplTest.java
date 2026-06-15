@@ -4,7 +4,7 @@ import com.contactcenter.domain.exception.AiConfigNotFoundException;
 import com.contactcenter.domain.exception.AiSummaryGenerationException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.tenant.AiProvider;
-import com.contactcenter.domain.email.EmailMessageRepository;
+import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.tenant.TenantAiConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantAiConfigService;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,7 +48,7 @@ class AiSummaryServiceImplTest {
     private ContactService contactService;
 
     @Mock
-    private EmailMessageRepository emailMessageRepository;
+    private EmailMessageService emailMessageService;
 
     @Mock
     private TenantAiConfigService aiConfigService;
@@ -118,7 +118,7 @@ class AiSummaryServiceImplTest {
         }
 
         @Test
-        @DisplayName("EMAIL: treść pobierana z emailMessageRepository (brak wiadomości → fallback)")
+        @DisplayName("EMAIL: treść pobierana z emailMessageService (brak wiadomości → fallback)")
         void generateSummary_emailChannel_usesChannelMetadataBody() {
             // given
             Contact contact = buildContact("EMAIL");
@@ -128,7 +128,7 @@ class AiSummaryServiceImplTest {
                     .thenReturn(Optional.of(contact));
             when(aiConfigService.getDecryptedConfig(TENANT_ID))
                     .thenReturn(Optional.of(validAiConfig));
-            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any()))
+            when(emailMessageService.findByContactId(eq(CONTACT_ID), eq(TENANT_ID), any()))
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
             when(aiSummaryClient.summarize(any()))
                     .thenReturn(new AiSummaryClient.AiSummarizeResponse("Brak emaili.", "gpt-4o", 20));
@@ -263,8 +263,8 @@ class AiSummaryServiceImplTest {
         void extractContent_emailNoBodyContent_returnsFallback() {
             Contact contact = buildContact("EMAIL");
             contact.setChannelMetadata(new HashMap<>());
-            // extractContent(Contact, UUID) z tenantId=null → emailMessageRepository zwraca pustą stronę
-            when(emailMessageRepository.findByContactId(eq(CONTACT_ID), any(), any()))
+            // extractContent(Contact, UUID) z tenantId=null → emailMessageService zwraca pustą stronę
+            when(emailMessageService.findByContactId(eq(CONTACT_ID), any(), any()))
                     .thenReturn(new PageImpl<>(Collections.emptyList()));
 
             String result = aiSummaryService.extractContent(contact);

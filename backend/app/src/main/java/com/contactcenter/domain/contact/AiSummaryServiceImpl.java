@@ -5,7 +5,7 @@ import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.email.EmailMessage;
 import com.contactcenter.domain.tenant.TenantAiConfigDecrypted;
 import com.contactcenter.domain.tenant.TenantAiConfigService;
-import com.contactcenter.domain.email.EmailMessageRepository;
+import com.contactcenter.domain.email.EmailMessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -28,7 +28,7 @@ import java.util.UUID;
 class AiSummaryServiceImpl implements AiSummaryService {
 
     private final ContactService contactService;
-    private final EmailMessageRepository emailMessageRepository;
+    private final EmailMessageService emailMessageService;
     private final TenantAiConfigService aiConfigService;
     private final AiSummaryClient aiSummaryClient;
 
@@ -121,7 +121,7 @@ class AiSummaryServiceImpl implements AiSummaryService {
         }
 
         if ("EMAIL".equals(channel)) {
-            String emailBody = emailMessageRepository
+            String emailBody = emailMessageService
                     .findByContactId(contact.getContactId(), tenantId,
                             PageRequest.of(0, 20, Sort.by("receivedAt").ascending()))
                     .getContent().stream()

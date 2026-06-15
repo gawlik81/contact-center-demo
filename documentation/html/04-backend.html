@@ -47,12 +47,55 @@ opcjonalna mikrousługa <strong>Python/FastAPI</strong> (<code>voicebot/</code>)
 <p>Pakiety główne pod <code>com.contactcenter</code>:</p>
 <pre><code>api/             – kontrolery REST + DTO (warstwa wejścia/wyjścia)
 app/             – ContactCenterApplication (main class)
-domain/          – logika biznesowa: model, repository, service, routing, telephony, ...
+domain/          – logika biznesowa, podzielona na pakiety per domena (zob. 1.x)
 infrastructure/  – konfiguracja Spring, AOP, integracje (S3, ETL, social adapters)
 security/        – JWT, TenantContext, filtry, MFA
 </code></pre>
 <p>Każdy moduł domenowy w <code>api/&lt;moduł&gt;</code> zawiera kontroler(y) + pakiet <code>dto/</code>. Logika
-biznesowa żyje w <code>domain/service/</code>, <code>domain/model/</code>, <code>domain/repository/</code>.</p>
+biznesowa żyje w <code>com.contactcenter.domain.&lt;domena&gt;</code> – dedykowanym pakiecie per domena
+(np. <code>domain.campaign</code>, <code>domain.routing</code>, <code>domain.voicebot</code>, <code>domain.etl</code>, ...). Encje JPA,
+repozytoria i serwisy danej domeny znajdują się w jej pakiecie. Wyjątkiem są dwa wspólne
+&quot;jądra&quot; współdzielone przez wszystkie domeny:</p>
+<ul>
+<li><code>domain.repository</code> – zawiera tylko <code>TenantAwareRepository</code> (klasa bazowa repozytoriów, RLS).</li>
+<li><code>domain.messaging</code> – wspólne klasy bazowe dla konsumentów RabbitMQ
+(<code>TenantAwareConsumer</code>, <code>DeadLetterConsumer</code>).</li>
+</ul>
+<p>Aktualna lista pakietów domenowych: <code>agentbreak</code>, <code>agentgroup</code>, <code>audit</code>, <code>campaign</code>,
+<code>contact</code>, <code>customer</code>, <code>disposition</code>, <code>email</code>, <code>etl</code>, <code>exception</code>, <code>gdpr</code>, <code>ivr</code>,
+<code>messaging</code>, <code>phonenumber</code>, <code>queue</code>, <code>recording</code>, <code>reporting</code>, <code>repository</code>, <code>routing</code>,
+<code>social</code>, <code>telephony</code>, <code>tenant</code>, <code>user</code>, <code>voicebot</code>, <code>websocket</code>.</p>
+<h3>1.0 Konwencje pakietów domenowych i enkapsulacja</h3>
+<p>Każda domena w <code>com.contactcenter.domain.&lt;nazwa&gt;</code> stosuje następujący wzorzec enkapsulacji
+(obowiązujący także dla nowych domen/refaktorów):</p>
+<ol>
+<li><strong>Repozytoria</strong> (<code>extends TenantAwareRepository</code>, <code>@Repository</code>) są <strong>package-private</strong>
+(brak modyfikatora <code>public</code>) – dostępne tylko wewnątrz własnej domeny.</li>
+<li><strong>Serwisy</strong> są dzielone na <code>public interface XxxService</code> (kontrakt dla innych domen i dla
+<code>api/</code>) oraz package-private <code>class XxxServiceImpl implements XxxService</code> (<code>@Service</code>) –
+implementacja jest szczegółem domeny.</li>
+<li><strong>Dostęp cross-domain</strong> odbywa się wyłącznie przez <code>public interface XxxService</code> domeny
+właścicielskiej – nigdy bezpośrednio przez repozytorium lub konkretną klasę implementacyjną
+innej domeny.</li>
+<li><strong>Cykliczne zależności</strong> między domenami (gdy <code>ServiceA</code> potrzebuje <code>ServiceB</code>, a <code>ServiceB</code>
+potrzebuje <code>ServiceA</code>) rozwiązywane są przez <code>@Autowired @Lazy</code> setter injection.</li>
+<li><strong>Wyjątki od podziału interfejs+Impl</strong> są dopuszczalne dla klas czysto wewnętrznych, bez
+cross-domain DI po nazwie konkretnej klasy – np. <code>@Scheduled</code> joby, <code>@RabbitListener</code>
+konsumenci, klienci HTTP/integracji. Przykłady: <code>AgentBreakActivator</code>,
+<code>RecordingRetentionJob</code>, <code>SupervisorMetricsService</code>, <code>AiSummaryClient</code>, <code>EmailEmlService</code>,
+<code>AuditLogConsumer</code>, <code>DeadLetterConsumer</code>.</li>
+<li><strong>Encje JPA, DTO, wyjątki i enumy</strong> mogą być <code>public</code> – są to typy danych współdzielone
+pomiędzy warstwami (<code>api/</code>, <code>domain/</code>), nie implementacje logiki.</li>
+</ol>
+<p>Przykład (domena <code>agentgroup</code>):</p>
+<pre><code>domain/agentgroup/
+├── AgentGroup.java              – encja JPA (public)
+├── AgentGroupOverview.java      – DTO/projekcja (public)
+├── AgentGroupRepository.java    – package-private, extends TenantAwareRepository
+├── AgentGroupService.java        – public interface
+└── AgentGroupServiceImpl.java   – package-private @Service implements AgentGroupService
+</code></pre>
+<hr>
 <h3>1.1 admin</h3>
 <p><strong>Cel:</strong> metryki administracyjne (przegląd wszystkich tenantów) oraz status pipeline&#39;u ETL.</p>
 <table>
@@ -71,7 +114,7 @@ biznesowa żyje w <code>domain/service/</code>, <code>domain/model/</code>, <cod
 <td><code>/api/admin/etl</code> – status i ręczne wywołanie synchronizacji DW</td>
 </tr>
 <tr>
-<td><code>AdminMetricsService</code></td>
+<td><code>AdminMetricsService</code> (<code>domain.tenant</code>, interfejs + <code>AdminMetricsServiceImpl</code>)</td>
 <td>logika agregacji metryk</td>
 </tr>
 </tbody></table>
@@ -136,14 +179,14 @@ endpoint nie jest scope&#39;owany do jednego tenanta, dlatego rola ADMIN).</p>
 </tr>
 <tr>
 <td><code>AgentBreakRepository</code></td>
-<td><code>TenantAwareRepository</code></td>
+<td><code>TenantAwareRepository</code>, package-private</td>
 </tr>
 <tr>
-<td><code>AgentBreakService</code></td>
+<td><code>AgentBreakService</code> (interfejs + <code>AgentBreakServiceImpl</code>)</td>
 <td>logika CRUD + walidacja kolizji czasowych</td>
 </tr>
 <tr>
-<td><code>AgentCalendarService</code></td>
+<td><code>AgentCalendarService</code> (interfejs + <code>AgentCalendarServiceImpl</code>)</td>
 <td>agreguje breaks + <code>ScheduledCallback</code> + kampanie</td>
 </tr>
 <tr>
@@ -155,6 +198,7 @@ endpoint nie jest scope&#39;owany do jednego tenanta, dlatego rola ADMIN).</p>
 <td>enumy</td>
 </tr>
 </tbody></table>
+<p>Wszystkie powyższe klasy znajdują się w <code>com.contactcenter.domain.agentbreak</code>.</p>
 <table>
 <thead>
 <tr>
@@ -218,13 +262,14 @@ endpoint nie jest scope&#39;owany do jednego tenanta, dlatego rola ADMIN).</p>
 </tr>
 <tr>
 <td><code>AgentGroupRepository</code></td>
-<td>CRUD + zarządzanie członkami</td>
+<td>CRUD + zarządzanie członkami, package-private</td>
 </tr>
 <tr>
-<td><code>AgentGroupService</code></td>
+<td><code>AgentGroupService</code> (interfejs + <code>AgentGroupServiceImpl</code>)</td>
 <td>logika domenowa</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.agentgroup</code>.</p>
 <table>
 <thead>
 <tr>
@@ -286,21 +331,22 @@ endpoint nie jest scope&#39;owany do jednego tenanta, dlatego rola ADMIN).</p>
 </tr>
 <tr>
 <td><code>AuditLogRepository</code></td>
-<td>odczyt (tabela partycjonowana po czasie)</td>
+<td>odczyt (tabela partycjonowana po czasie), package-private</td>
 </tr>
 <tr>
-<td><code>AuditLogService</code></td>
+<td><code>AuditLogService</code> (interfejs + <code>AuditLogServiceImpl</code>)</td>
 <td>publikacja eventów do <code>cc.audit</code></td>
 </tr>
 <tr>
 <td><code>AuditLogConsumer</code></td>
-<td><code>@RabbitListener</code> na <code>cc.queue.audit-log</code> – zapis do DB</td>
+<td><code>@RabbitListener</code> na <code>cc.queue.audit-log</code> (extends <code>TenantAwareConsumer</code> z <code>domain.messaging</code>) – zapis do DB</td>
 </tr>
 <tr>
 <td><code>infrastructure/aspect/AuditAspect</code> + <code>@Audited</code></td>
 <td>AOP – przechwytuje metody serwisów oznaczone <code>@Audited</code></td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.audit</code>.</p>
 <table>
 <thead>
 <tr>
@@ -343,28 +389,28 @@ biznesowej.</p>
 <td><code>/api/auth/**</code></td>
 </tr>
 <tr>
-<td><code>AuthService</code></td>
+<td><code>AuthService</code> (interfejs + <code>AuthServiceImpl</code>, pakiet <code>domain.user</code>)</td>
 <td>logika logowania, refresh, MFA, blacklist</td>
 </tr>
 <tr>
 <td><code>JwtService</code> / <code>JwtParser</code></td>
-<td>wystawianie / parsowanie JWT RS256</td>
+<td>wystawianie / parsowanie JWT RS256 (<code>security/</code>)</td>
 </tr>
 <tr>
 <td><code>MfaService</code></td>
-<td>TOTP (RFC 6238)</td>
+<td>TOTP (RFC 6238) (<code>security/</code>)</td>
 </tr>
 <tr>
 <td><code>LoginRateLimiter</code></td>
-<td>limit prób logowania (Redis)</td>
+<td>limit prób logowania (Redis) (<code>security/</code>)</td>
 </tr>
 <tr>
 <td><code>TokenBlacklistService</code></td>
-<td>blacklista access tokenów po logout (Redis)</td>
+<td>blacklista access tokenów po logout (Redis) (<code>security/</code>)</td>
 </tr>
 <tr>
-<td><code>RefreshToken</code> (entity)</td>
-<td>tabela <code>refresh_token</code></td>
+<td><code>RefreshToken</code> (entity), <code>RefreshTokenRepository</code></td>
+<td>tabela <code>refresh_token</code>, pakiet <code>domain.user</code>, repozytorium package-private</td>
 </tr>
 </tbody></table>
 <table>
@@ -459,29 +505,30 @@ przypisania agentów/grup, historia połączeń per rekord kampanii.</p>
 </tr>
 <tr>
 <td><code>CampaignRepository</code>, <code>CampaignAssignmentRepository</code>, <code>CampaignContactRepository</code></td>
-<td></td>
+<td>package-private</td>
 </tr>
 <tr>
-<td><code>CampaignService</code></td>
+<td><code>CampaignService</code> (interfejs + <code>CampaignServiceImpl</code>)</td>
 <td>CRUD, walidacja stanów (<code>DRAFT/RUNNING/PAUSED/STOPPED</code>)</td>
 </tr>
 <tr>
-<td><code>CampaignAssignmentService</code></td>
+<td><code>CampaignAssignmentService</code> (interfejs + <code>CampaignAssignmentServiceImpl</code>)</td>
 <td>logika przypisań</td>
 </tr>
 <tr>
-<td><code>CampaignImportService</code></td>
-<td>async import (Redis job status)</td>
+<td><code>CampaignImportService</code> (interfejs + <code>CampaignImportServiceImpl</code>)</td>
+<td>async import (Redis job status, <code>ImportJobStatus</code>)</td>
 </tr>
 <tr>
 <td><code>CampaignWindowActivator</code></td>
 <td><code>@Scheduled</code> – aktywacja kampanii wg okna czasowego</td>
 </tr>
 <tr>
-<td><code>ProgressiveDialerService</code></td>
+<td><code>ProgressiveDialerService</code> (interfejs + <code>ProgressiveDialerServiceImpl</code>)</td>
 <td>silnik wybierania numerów (patrz sekcja 5)</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.campaign</code>.</p>
 <table>
 <thead>
 <tr>
@@ -595,18 +642,19 @@ partycjonowana <code>contact</code>. To &quot;rdzeń&quot; CRM-owy, do którego 
 <td></td>
 </tr>
 <tr>
-<td><code>ContactService</code></td>
+<td><code>ContactService</code> (interfejs + <code>ContactServiceImpl</code>)</td>
 <td>logika domenowa: tworzenie, dyspozycje, akceptacja/abandon, transfery</td>
 </tr>
 <tr>
-<td><code>ContactEventService</code></td>
+<td><code>ContactEventService</code> (interfejs + <code>ContactEventServiceImpl</code>)</td>
 <td>log zdarzeń (timeline) kontaktu</td>
 </tr>
 <tr>
-<td><code>AiSummaryService</code> / <code>AiSummaryClient</code></td>
+<td><code>AiSummaryService</code> (interfejs + <code>AiSummaryServiceImpl</code>) / <code>AiSummaryClient</code></td>
 <td>generowanie podsumowań AI</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.contact</code>.</p>
 <table>
 <thead>
 <tr>
@@ -748,22 +796,23 @@ VARCHAR+CHECK w V025 → repozytorium musi rzucać <code>CAST(:x AS VARCHAR)</co
 <td>fuzzy search (pg_trgm), wyszukiwanie po telefonie (JSONB)</td>
 </tr>
 <tr>
-<td><code>CustomerService</code></td>
+<td><code>CustomerService</code> (interfejs + <code>CustomerServiceImpl</code>)</td>
 <td>CRUD + walidacja</td>
 </tr>
 <tr>
-<td><code>CustomerImportService</code></td>
+<td><code>CustomerImportService</code> (interfejs + <code>CustomerImportServiceImpl</code>)</td>
 <td>async import (<code>DeduplicationMode</code>: SKIP/OVERWRITE)</td>
 </tr>
 <tr>
-<td><code>GdprService</code></td>
+<td><code>GdprService</code> (interfejs + <code>GdprServiceImpl</code>, pakiet <code>domain.gdpr</code>)</td>
 <td>eksport/anonimizacja</td>
 </tr>
 <tr>
-<td><code>CliLookupService</code></td>
+<td><code>CliLookupService</code> (interfejs + <code>CliLookupServiceImpl</code>)</td>
 <td>rozpoznawanie numeru dzwoniącego (CLI) → klient</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.customer</code> (oraz <code>domain.gdpr</code> dla <code>GdprService</code>).</p>
 <table>
 <thead>
 <tr>
@@ -873,14 +922,18 @@ oddzwonienia (scheduled callbacks) + ręczne połączenia agenta.</p>
 </tr>
 <tr>
 <td><code>ScheduledCallbackRepository</code></td>
-<td></td>
+<td>package-private</td>
 </tr>
 <tr>
-<td><code>ProgressiveDialerService</code></td>
+<td><code>ScheduledCallbackService</code> (interfejs + <code>ScheduledCallbackServiceImpl</code>)</td>
+<td>CRUD/reschedule callbacków</td>
+</tr>
+<tr>
+<td><code>ProgressiveDialerService</code> (interfejs + <code>ProgressiveDialerServiceImpl</code>)</td>
 <td><code>@RabbitListener agent.status.changed</code> – wybiera numer gdy agent staje się AVAILABLE</td>
 </tr>
 <tr>
-<td><code>DialerCallbackHandler</code></td>
+<td><code>DialerCallbackHandler</code> (interfejs + <code>DialerCallbackHandlerImpl</code>)</td>
 <td><code>@RabbitListener call.hangup</code> (dedykowana kolejka <code>cc.queue.dialer-hangup</code>)</td>
 </tr>
 <tr>
@@ -888,6 +941,8 @@ oddzwonienia (scheduled callbacks) + ręczne połączenia agenta.</p>
 <td><code>@Scheduled</code> – wykonuje zaplanowane oddzwonienia</td>
 </tr>
 </tbody></table>
+<p>Wszystkie powyższe klasy znajdują się w <code>com.contactcenter.domain.campaign</code> (moduł <code>dialer</code>
+w <code>api/</code> korzysta z serwisów domeny <code>campaign</code>).</p>
 <table>
 <thead>
 <tr>
@@ -983,13 +1038,14 @@ dyspozycji przypisywane do kampanii/kolejek.</p>
 </tr>
 <tr>
 <td><code>CustomDispositionRepository</code>, <code>DispositionSetRepository</code>, <code>DispositionSetItemRepository</code></td>
-<td></td>
+<td>package-private</td>
 </tr>
 <tr>
-<td><code>CustomDispositionService</code>, <code>DispositionSetService</code></td>
+<td><code>CustomDispositionService</code> (interfejs + <code>CustomDispositionServiceImpl</code>), <code>DispositionSetService</code> (interfejs + <code>DispositionSetServiceImpl</code>)</td>
 <td>logika domenowa</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.disposition</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1075,38 +1131,47 @@ zestaw dyspozycji przypisany do kolejki/kampanii kontaktu.</p>
 <td>encje</td>
 </tr>
 <tr>
-<td><code>EmailAccountConfig</code>, <code>EmailEncryptionService</code></td>
+<td><code>EmailMessageRepository</code>, <code>EmailTemplateRepository</code>, <code>EmailRoutingRuleRepository</code></td>
+<td>package-private</td>
+</tr>
+<tr>
+<td><code>EmailMessageService</code> (interfejs + <code>EmailMessageServiceImpl</code>)</td>
+<td>CRUD/odczyt wiadomości i wątków</td>
+</tr>
+<tr>
+<td><code>EmailAccountConfig</code>, <code>EmailEncryptionService</code> (interfejs + <code>EmailEncryptionServiceImpl</code>)</td>
 <td>konfiguracja kont (AES-256-GCM dla haseł)</td>
 </tr>
 <tr>
-<td><code>EmailPollingService</code></td>
+<td><code>EmailPollingService</code> (interfejs + <code>EmailPollingServiceImpl</code>)</td>
 <td><code>@Scheduled</code> – polling IMAP (<code>email.poll-delay-ms</code>, domyślnie 60s)</td>
 </tr>
 <tr>
-<td><code>EmailSendService</code></td>
+<td><code>EmailSendService</code> (interfejs + <code>EmailSendServiceImpl</code>)</td>
 <td>wysyłka SMTP</td>
 </tr>
 <tr>
 <td><code>EmailRoutingService</code></td>
-<td>przypisanie wiadomości do kolejki/kontaktu wg reguł</td>
+<td>przypisanie wiadomości do kolejki/kontaktu wg reguł (wewnętrzny helper, package-private)</td>
 </tr>
 <tr>
 <td><code>EmailContactCreator</code></td>
-<td>tworzenie rekordu <code>contact</code> dla nowej wiadomości</td>
+<td>tworzenie rekordu <code>contact</code> dla nowej wiadomości (wewnętrzny helper, package-private)</td>
 </tr>
 <tr>
-<td><code>EmailTemplateService</code>, <code>MustacheTemplateEngine</code>, <code>TemplateVariableResolver</code>, <code>PredefinedTemplateVariable</code></td>
+<td><code>EmailTemplateService</code> (interfejs + <code>EmailTemplateServiceImpl</code>), <code>MustacheTemplateEngine</code>, <code>TemplateVariableResolver</code> (interfejs + <code>TemplateVariableResolverImpl</code>), <code>PredefinedTemplateVariable</code></td>
 <td>renderowanie szablonów</td>
 </tr>
 <tr>
 <td><code>EmailEventPublisher</code></td>
-<td>publikacja eventów <code>email.#</code> do <code>cc.events</code></td>
+<td>publikacja eventów <code>email.#</code> do <code>cc.events</code> (wewnętrzny helper, package-private)</td>
 </tr>
 <tr>
 <td><code>EmailEmlService</code></td>
-<td>eksport/import <code>.eml</code></td>
+<td>eksport/import <code>.eml</code> (wewnętrzny helper, package-private)</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.email</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1235,14 +1300,14 @@ zestaw dyspozycji przypisany do kolejki/kampanii kontaktu.</p>
 </tr>
 <tr>
 <td><code>IvrTreeRepository</code>, <code>IvrAudioRepository</code></td>
-<td></td>
+<td>package-private</td>
 </tr>
 <tr>
-<td><code>IvrEngineService</code></td>
+<td><code>IvrEngineService</code> (interfejs + <code>IvrEngineServiceImpl</code>)</td>
 <td>silnik – interpretacja drzewa, sesje Redis, TTS cache</td>
 </tr>
 <tr>
-<td><code>IvrService</code></td>
+<td><code>IvrService</code> (interfejs + <code>IvrServiceImpl</code>)</td>
 <td>CRUD + walidacja drzew</td>
 </tr>
 <tr>
@@ -1254,6 +1319,7 @@ zestaw dyspozycji przypisany do kolejki/kampanii kontaktu.</p>
 <td>stan sesji w Redis (<code>ivr:session:{callId}</code>)</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.ivr</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1341,13 +1407,14 @@ numerów (np. godziny pracy → kolejka/IVR).</p>
 </tr>
 <tr>
 <td><code>PhoneNumberRepository</code>, <code>PhoneRoutingRuleRepository</code></td>
-<td></td>
+<td>package-private</td>
 </tr>
 <tr>
-<td><code>PhoneNumberService</code>, <code>PhoneRoutingRuleService</code></td>
+<td><code>PhoneNumberService</code> (interfejs + <code>PhoneNumberServiceImpl</code>), <code>PhoneRoutingRuleService</code> (interfejs + <code>PhoneRoutingRuleServiceImpl</code>)</td>
 <td>walidacja kolizji harmonogramów</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.phonenumber</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1471,14 +1538,14 @@ oczekiwania (EWT).</p>
 </tr>
 <tr>
 <td><code>Queue</code> (entity), <code>QueueAssignmentRepository</code>, <code>QueueRepository</code></td>
-<td></td>
+<td>repozytoria package-private</td>
 </tr>
 <tr>
-<td><code>QueueService</code>, <code>QueueAssignmentService</code></td>
+<td><code>QueueService</code> (interfejs + <code>QueueServiceImpl</code>), <code>QueueAssignmentService</code> (interfejs + <code>QueueAssignmentServiceImpl</code>)</td>
 <td>logika domenowa</td>
 </tr>
 <tr>
-<td><code>WaitTimeEstimationService</code></td>
+<td><code>WaitTimeEstimationService</code> (interfejs + <code>WaitTimeEstimationServiceImpl</code>)</td>
 <td>EWT (estimated wait time) – <code>@Scheduled</code> co 30s</td>
 </tr>
 <tr>
@@ -1486,6 +1553,7 @@ oczekiwania (EWT).</p>
 <td>payload WebSocket <code>QUEUE_WAIT_UPDATE</code></td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.queue</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1556,7 +1624,7 @@ oczekiwania (EWT).</p>
 <td><code>/api/recordings/{contactId}</code> (SUPERVISOR/ADMIN)</td>
 </tr>
 <tr>
-<td><code>RecordingService</code></td>
+<td><code>RecordingService</code> (interfejs + <code>RecordingServiceImpl</code>)</td>
 <td>generowanie presigned URL, upload</td>
 </tr>
 <tr>
@@ -1564,10 +1632,11 @@ oczekiwania (EWT).</p>
 <td><code>@Scheduled</code> (cron <code>s3.retention-cron</code>, domyślnie 02:00 UTC) – usuwa nagrania starsze niż <code>s3.retention-days</code></td>
 </tr>
 <tr>
-<td><code>TwilioRecordingDownloadService</code></td>
+<td><code>TwilioRecordingDownloadService</code> (interfejs + <code>TwilioRecordingDownloadServiceImpl</code>)</td>
 <td>pobiera nagranie z Twilio i zapisuje do S3</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.recording</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1599,7 +1668,7 @@ oczekiwania (EWT).</p>
 <td><code>/api/reports/**</code></td>
 </tr>
 <tr>
-<td><code>ReportsService</code></td>
+<td><code>ReportsService</code> (interfejs + <code>ReportsServiceImpl</code>, pakiet <code>domain.reporting</code>)</td>
 <td>agregacje SQL</td>
 </tr>
 <tr>
@@ -1666,14 +1735,14 @@ webhooki, wysyłka/odbiór wiadomości.</p>
 </tr>
 <tr>
 <td><code>SocialIntegrationRepository</code>, <code>SocialMessageRepository</code></td>
-<td></td>
+<td>package-private</td>
 </tr>
 <tr>
-<td><code>SocialIntegrationService</code></td>
+<td><code>SocialIntegrationService</code> (interfejs + <code>SocialIntegrationServiceImpl</code>)</td>
 <td>zarządzanie integracjami, <code>@Scheduled</code> refresh tokenów co 1h</td>
 </tr>
 <tr>
-<td><code>SocialMessageService</code></td>
+<td><code>SocialMessageService</code> (interfejs + <code>SocialMessageServiceImpl</code>)</td>
 <td>wysyłka/odbiór</td>
 </tr>
 <tr>
@@ -1685,7 +1754,7 @@ webhooki, wysyłka/odbiór wiadomości.</p>
 <td>adaptery per platforma</td>
 </tr>
 <tr>
-<td><code>domain/social/{IncomingSocialMessage, SocialMediaAdapter, SocialMessageConsumer, SocialMessagePublisher}</code></td>
+<td><code>domain/social/{IncomingSocialMessage, SocialMediaAdapter, SocialMessageConsumer}</code>, <code>SocialMessagePublisher</code> (interfejs + <code>SocialMessagePublisherImpl</code>)</td>
 <td>abstrakcje + consumer RabbitMQ</td>
 </tr>
 </tbody></table>
@@ -1770,19 +1839,19 @@ metryki real-time (WebSocket).</p>
 </tr>
 <tr>
 <td><code>TenantAiConfig</code>, <code>TenantTwilioConfig</code> (entity)</td>
-<td>konfiguracje per-tenant (szyfrowane klucze)</td>
+<td>konfiguracje per-tenant (szyfrowane klucze), pakiet <code>domain.tenant</code></td>
 </tr>
 <tr>
-<td><code>TenantAiConfigService</code>, <code>TenantAiConfigDecrypted</code></td>
-<td></td>
+<td><code>TenantAiConfigService</code> (interfejs + <code>TenantAiConfigServiceImpl</code>), <code>TenantAiConfigDecrypted</code>, <code>AiProvider</code></td>
+<td>pakiet <code>domain.tenant</code></td>
 </tr>
 <tr>
-<td><code>TenantTwilioConfigService</code>, <code>TenantTwilioConfigDecrypted</code></td>
-<td>upsert + masking + decrypt + delete + event <code>TwilioConfigChangedEvent</code></td>
+<td><code>TenantTwilioConfigService</code> (interfejs + <code>TenantTwilioConfigServiceImpl</code>), <code>TenantTwilioConfigDecrypted</code></td>
+<td>upsert + masking + decrypt + delete + event <code>TwilioConfigChangedEvent</code>, pakiet <code>domain.tenant</code></td>
 </tr>
 <tr>
 <td><code>SupervisorMetricsService</code></td>
-<td>agregacja KPI (czas oczekiwania, liczba w IVR, w kolejce...)</td>
+<td>agregacja KPI (czas oczekiwania, liczba w IVR, w kolejce...), pakiet <code>domain.reporting</code></td>
 </tr>
 </tbody></table>
 <table>
@@ -1892,19 +1961,19 @@ transfer.</p>
 <td>implementacje adaptera</td>
 </tr>
 <tr>
-<td><code>CallEvent</code>, <code>CallSession</code>, <code>CallEventEnricher</code>, <code>TelephonyEventPublisher</code></td>
-<td>model eventów + publikacja do RabbitMQ</td>
+<td><code>CallEvent</code>, <code>CallSession</code>, <code>CallEventEnricher</code>, <code>TelephonyEventPublisher</code> (interfejs + <code>TelephonyEventPublisherImpl</code>)</td>
+<td>model eventów + publikacja do RabbitMQ, pakiet <code>domain.telephony</code></td>
 </tr>
 <tr>
 <td><code>TransferRequest</code>, <code>TransferTargetType</code></td>
 <td>model żądania transferu</td>
 </tr>
 <tr>
-<td><code>TransferService</code>, <code>TransferAgentQueueRepository</code></td>
+<td><code>TransferService</code> (interfejs + <code>TransferServiceImpl</code>, pakiet <code>domain.telephony</code>), <code>TransferAgentQueueRepository</code> (pakiet <code>domain.queue</code>)</td>
 <td>logika transferu (BE-075/077)</td>
 </tr>
 <tr>
-<td><code>IncomingCallRoutingService</code></td>
+<td><code>IncomingCallRoutingService</code> (interfejs + <code>IncomingCallRoutingServiceImpl</code>, pakiet <code>domain.routing</code>)</td>
 <td>routing połączeń przychodzących (numer → IVR/kolejka)</td>
 </tr>
 </tbody></table>
@@ -2047,17 +2116,18 @@ transfer.</p>
 </tr>
 <tr>
 <td><code>TenantRepository</code></td>
-<td></td>
+<td>package-private</td>
 </tr>
 <tr>
-<td><code>TenantService</code></td>
+<td><code>TenantService</code> (interfejs + <code>TenantServiceImpl</code>)</td>
 <td>CRUD + walidacja</td>
 </tr>
 <tr>
-<td><code>TenantResourceLimitService</code></td>
+<td><code>TenantResourceLimitService</code> (interfejs + <code>TenantResourceLimitServiceImpl</code>)</td>
 <td>limity (agenci/kolejki/kampanie) – <code>get_tenant_limit()</code> w DB</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.tenant</code>.</p>
 <table>
 <thead>
 <tr>
@@ -2147,10 +2217,10 @@ preferencje UI.</p>
 </tr>
 <tr>
 <td><code>AppUserRepository</code></td>
-<td></td>
+<td>package-private</td>
 </tr>
 <tr>
-<td><code>UserService</code>, <code>AdminUserService</code>, <code>UserPreferencesService</code></td>
+<td><code>UserService</code> (interfejs + <code>UserServiceImpl</code>), <code>AdminUserService</code> (interfejs + <code>AdminUserServiceImpl</code>), <code>UserPreferencesService</code> (interfejs + <code>UserPreferencesServiceImpl</code>)</td>
 <td></td>
 </tr>
 <tr>
@@ -2158,6 +2228,7 @@ preferencje UI.</p>
 <td>event publikowany do <code>cc.events</code> (routing key <code>agent.status.#</code>)</td>
 </tr>
 </tbody></table>
+<p>Pakiet: <code>com.contactcenter.domain.user</code>.</p>
 <table>
 <thead>
 <tr>
@@ -2288,7 +2359,7 @@ preferencje UI.</p>
 <td>principal z <code>tenantId</code>, <code>userId</code>, <code>role</code></td>
 </tr>
 <tr>
-<td><code>domain/websocket/{WebSocketEvent, WebSocketEventBroadcaster, RabbitToWebSocketRelay}</code></td>
+<td><code>domain/websocket/{WebSocketEvent, RabbitToWebSocketRelay}</code>, <code>WebSocketEventBroadcaster</code> (interfejs + <code>WebSocketEventBroadcasterImpl</code>)</td>
 <td>model eventu, broadcaster, relay RabbitMQ→WebSocket</td>
 </tr>
 </tbody></table>
@@ -2727,7 +2798,7 @@ przydzielony kontakt po reconnect (V046).</p>
 <p>Katalog <code>voicebot/app/</code> (FastAPI): <code>main.py</code>, <code>asr.py</code> (rozpoznawanie mowy –
 Whisper), <code>nlu.py</code> (intencje), <code>summarize.py</code> (podsumowania), <code>session.py</code>,
 <code>rabbit.py</code>.</p>
-<p>Backend komunikuje się przez <code>domain/service/VoicebotClient</code>
+<p>Backend komunikuje się przez <code>domain/voicebot/VoicebotClient</code>
 (<code>@ConditionalOnProperty(voicebot.enabled=true)</code>, domyślnie <strong>wyłączone</strong>):</p>
 <pre><code>HTTP POST {voicebot.url}/... (java.net.http.HttpClient, connectTimeout=1s)
   TurnRequest  { session_id, tenant_id, contact_id, audio_base64, audio_format, turn_number }
@@ -3071,7 +3142,11 @@ dla <code>dev</code>.</p>
 <pre><code>api/                – testy kontrolerów (MockMvc / standalone)
   supervisor/, telephony/
 domain/
-  agentbreak/, agentgroup/, disposition/, email/, repository/, service/, websocket/
+  – jeden pakiet testowy per pakiet domenowy, np.
+    agentbreak/, agentgroup/, audit/, campaign/, contact/, customer/,
+    disposition/, email/, etl/, gdpr/, ivr/, phonenumber/, queue/,
+    recording/, reporting/, repository/, routing/, social/, telephony/,
+    tenant/, user/, websocket/
 infrastructure/
   persistence/
 security/

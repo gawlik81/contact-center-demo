@@ -1,4 +1,4 @@
-package com.contactcenter.domain.service;
+package com.contactcenter.domain.telephony;
 
 import com.contactcenter.api.telephony.dto.TransferAgentResponse;
 import com.contactcenter.api.telephony.dto.TransferQueueResponse;

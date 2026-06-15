@@ -2,7 +2,7 @@ package com.contactcenter.api.telephony;
 
 import com.contactcenter.api.telephony.dto.TransferAgentResponse;
 import com.contactcenter.api.telephony.dto.TransferQueueResponse;
-import com.contactcenter.domain.service.TransferService;
+import com.contactcenter.domain.telephony.TransferService;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

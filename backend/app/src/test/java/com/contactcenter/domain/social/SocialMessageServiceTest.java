@@ -57,11 +57,11 @@ class SocialMessageServiceTest {
     @Mock private SocialAdapterRegistry adapterRegistry;
     @Mock private RabbitTemplate rabbitTemplate;
 
-    private SocialMessageService service;
+    private SocialMessageServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new SocialMessageService(
+        service = new SocialMessageServiceImpl(
                 socialIntegrationRepository,
                 socialMessageRepository,
                 contactService,

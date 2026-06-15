@@ -186,7 +186,9 @@
                 lastContact()!.channel
               }}</span>
               @if (lastContact()!.dispositionCode) {
-                <span class="drawer-contact-disposition">{{ lastContact()!.dispositionCode }}</span>
+                <span class="drawer-contact-disposition">{{
+                  getDispositionLabel(lastContact()!.dispositionLabel, lastContact()!.dispositionCode)
+                }}</span>
               }
             </div>
             @if (lastContact()!.notes) {

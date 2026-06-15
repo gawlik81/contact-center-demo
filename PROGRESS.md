@@ -947,6 +947,10 @@ Build: ✅ (`mvn package -pl app -DskipTests`). Testy: 1125, 1-2 błędy (niesta
 
 **PODSUMOWANIE CAŁEGO CYKLU REFAKTORU ENKAPSULACJI:** 24 domeny `domain.*` w pełni zgodne ze wzorcem (repozytoria package-private + serwisy interfejs+Impl + brak cross-domain dostępu do konkretnych implementacji/repozytoriów). Brak pozostałych TODO wymagających większego refaktoru (interfejs+Impl z migracją konsumentów) – cykl zamknięty.
 
+### Fix: mapowanie etykiety dyspozycji w panelu klienta agenta
+
+W drawerze "ostatni kontakt" (`AgentCustomersTabComponent`) wypisywany był surowy `dispositionCode` (np. "ERR") zamiast czytelnej etykiety. Dodano metodę `getDispositionLabel(label, code)` analogiczną do wzorca z `ContactDetailModalComponent`: preferuje `dispositionLabel` z backendu, w przeciwnym razie próbuje tłumaczenia `common.dispositionLabels.${code}`, a jeśli go nie ma – pokazuje surowy kod. Zastosowano w `agent-customers-tab.component.html`.
+
 ### Znane duże follow-upy
 
 **Przed kolejną sesją:** sprawdzić, czy poprzednia domena ma czysty build i przejść do następnej wg powyższej listy, stosując wzorzec z sekcji "Wzorzec referencyjny".

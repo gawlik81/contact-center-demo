@@ -1,12 +1,16 @@
 package com.contactcenter.domain.email;
 
 import com.contactcenter.infrastructure.config.S3Properties;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.activation.DataHandler;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.util.ByteArrayDataSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,6 +25,9 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -50,6 +57,8 @@ class EmailEmlService {
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
     private final S3Properties s3Properties;
+    private final EmailAttachmentStorageService attachmentStorageService;
+    private final ObjectMapper objectMapper;
 
     // =========================================================================
     // Publiczny API
@@ -199,24 +208,39 @@ class EmailEmlService {
         boolean hasHtml = message.getBodyHtml() != null && !message.getBodyHtml().isBlank();
         boolean hasText = message.getBodyText() != null && !message.getBodyText().isBlank();
 
+        // Buduj część z treścią (text/plain, text/html lub multipart/alternative)
+        MimeBodyPart bodyWrapper = new MimeBodyPart();
         if (hasHtml && hasText) {
-            // Oba formaty → multipart/alternative
-            MimeMultipart multipart = new MimeMultipart("alternative");
-            multipart.addBodyPart(buildTextPart(message.getBodyText()));
-            multipart.addBodyPart(buildHtmlPart(message.getBodyHtml()));
-            mimeMessage.setContent(multipart);
+            MimeMultipart alternative = new MimeMultipart("alternative");
+            alternative.addBodyPart(buildTextPart(message.getBodyText()));
+            alternative.addBodyPart(buildHtmlPart(message.getBodyHtml()));
+            bodyWrapper.setContent(alternative);
         } else if (hasHtml) {
-            // Tylko HTML → multipart/alternative z auto-wygenerowanym text/plain
-            String plainFallback = stripHtml(message.getBodyHtml());
-            MimeMultipart multipart = new MimeMultipart("alternative");
-            multipart.addBodyPart(buildTextPart(plainFallback));
-            multipart.addBodyPart(buildHtmlPart(message.getBodyHtml()));
-            mimeMessage.setContent(multipart);
+            MimeMultipart alternative = new MimeMultipart("alternative");
+            alternative.addBodyPart(buildTextPart(stripHtml(message.getBodyHtml())));
+            alternative.addBodyPart(buildHtmlPart(message.getBodyHtml()));
+            bodyWrapper.setContent(alternative);
         } else if (hasText) {
-            // Tylko text/plain
-            mimeMessage.setText(message.getBodyText(), "UTF-8");
+            bodyWrapper.setText(message.getBodyText(), "UTF-8", "plain");
         } else {
-            // Brak treści – pusta wiadomość
+            bodyWrapper.setText("", "UTF-8", "plain");
+        }
+
+        // Jeśli są załączniki → multipart/mixed: [treść] + [załączniki]
+        List<Map<String, Object>> attachments = parseAttachments(message.getAttachments());
+        if (!attachments.isEmpty()) {
+            MimeMultipart mixed = new MimeMultipart("mixed");
+            mixed.addBodyPart(bodyWrapper);
+            for (Map<String, Object> meta : attachments) {
+                MimeBodyPart attPart = buildAttachmentPart(meta);
+                if (attPart != null) {
+                    mixed.addBodyPart(attPart);
+                }
+            }
+            mimeMessage.setContent(mixed);
+        } else if (hasHtml || hasText) {
+            mimeMessage.setContent(bodyWrapper.getContent(), bodyWrapper.getContentType());
+        } else {
             mimeMessage.setText("", "UTF-8");
         }
 
@@ -239,6 +263,42 @@ class EmailEmlService {
         MimeBodyPart part = new MimeBodyPart();
         part.setText(html, "UTF-8", "html");
         return part;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseAttachments(String attachmentsJson) {
+        if (attachmentsJson == null || attachmentsJson.isBlank() || "[]".equals(attachmentsJson.trim())) {
+            return Collections.emptyList();
+        }
+        try {
+            return objectMapper.readValue(attachmentsJson, new TypeReference<>() {});
+        } catch (Exception e) {
+            log.warn("[EmailEml] Błąd parsowania JSON załączników: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private MimeBodyPart buildAttachmentPart(Map<String, Object> meta) {
+        String filename    = (String) meta.get("filename");
+        String contentType = (String) meta.getOrDefault("content_type", "application/octet-stream");
+        String s3Key       = (String) meta.get("s3_key");
+
+        if (s3Key == null || s3Key.isBlank()) {
+            log.warn("[EmailEml] Pominięto załącznik bez s3_key: {}", meta);
+            return null;
+        }
+
+        try {
+            byte[] data = attachmentStorageService.download(s3Key);
+            MimeBodyPart part = new MimeBodyPart();
+            part.setDataHandler(new DataHandler(new ByteArrayDataSource(data, contentType)));
+            part.setFileName(filename != null ? filename : "attachment");
+            part.setDisposition(MimeBodyPart.ATTACHMENT);
+            return part;
+        } catch (Exception e) {
+            log.warn("[EmailEml] Pominięto załącznik '{}' (błąd pobierania z S3): {}", filename, e.getMessage());
+            return null;
+        }
     }
 
     /**

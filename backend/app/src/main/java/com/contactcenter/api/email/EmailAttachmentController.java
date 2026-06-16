@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.URI;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -122,8 +122,8 @@ public class EmailAttachmentController {
      */
     @GetMapping("/download")
     @Operation(summary = "Pobierz załącznik email",
-               description = "Zwraca redirect 302 na presigned URL S3 (TTL 1h). Wymaga uwierzytelnienia.")
-    public ResponseEntity<Void> downloadAttachment(@RequestParam("s3Key") String s3Key) {
+               description = "Zwraca presigned URL S3 jako JSON (TTL 1h). Wymaga uwierzytelnienia.")
+    public ResponseEntity<Map<String, String>> downloadAttachment(@RequestParam("s3Key") String s3Key) {
         UUID tenantId = TenantContext.getTenantId();
 
         // IDOR protection: s3Key musi należeć do bieżącego tenanta
@@ -136,11 +136,9 @@ public class EmailAttachmentController {
 
         String presignedUrl = attachmentStorageService.presignedDownloadUrl(s3Key);
 
-        log.info("[EmailAttachment] Przekierowanie do presigned URL: s3Key={}, tenant={}", s3Key, tenantId);
+        log.info("[EmailAttachment] Wygenerowano presigned URL: s3Key={}, tenant={}", s3Key, tenantId);
 
-        return ResponseEntity.status(302)
-                .location(URI.create(presignedUrl))
-                .build();
+        return ResponseEntity.ok(Map.of("url", presignedUrl));
     }
 
     // =========================================================================

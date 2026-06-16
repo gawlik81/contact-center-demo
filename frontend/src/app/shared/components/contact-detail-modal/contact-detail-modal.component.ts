@@ -377,6 +377,16 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     return 'agent.rescheduleCallback.title';
   }
 
+  protected encodeURIComponent(s: string): string {
+    return encodeURIComponent(s);
+  }
+
+  protected formatAttachmentSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
   private formatDurationSeconds(totalSeconds: number): string {
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);

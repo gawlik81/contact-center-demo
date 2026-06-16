@@ -2,6 +2,7 @@ package com.contactcenter.domain.email;
 
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +51,7 @@ class EmailPollingServiceTest {
     @Mock private EmailMessageRepository emailMessageRepository;
     @Mock private EmailRoutingService emailRoutingService;
     @Mock private EmailEventPublisher emailEventPublisher;
+    @Mock private EmailAttachmentStorageService attachmentStorageService;
 
     private EmailEncryptionService encryptionService;
     private EmailPollingServiceImpl pollingService;
@@ -62,7 +64,9 @@ class EmailPollingServiceTest {
                 emailMessageRepository,
                 emailRoutingService,
                 emailEventPublisher,
-                encryptionService
+                encryptionService,
+                attachmentStorageService,
+                new ObjectMapper()
         );
     }
 

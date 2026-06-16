@@ -1,16 +1,22 @@
 package com.contactcenter.domain.email;
 
+import com.contactcenter.api.email.dto.EmailReplyRequest;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.activation.DataHandler;
 import jakarta.mail.*;
 import jakarta.mail.internet.*;
+import jakarta.mail.util.ByteArrayDataSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
@@ -26,6 +32,8 @@ class EmailSendServiceImpl implements EmailSendService {
     private final EmailEncryptionService encryptionService;
     private final EmailTemplateService emailTemplateService;
     private final TemplateVariableResolver templateVariableResolver;
+    private final EmailAttachmentStorageService attachmentStorageService;
+    private final ObjectMapper objectMapper;
 
     // =========================================================================
     // Wysyłka odpowiedzi
@@ -34,7 +42,8 @@ class EmailSendServiceImpl implements EmailSendService {
     @Override
     @Transactional
     public EmailMessage sendReply(UUID tenantId, UUID originalMessageId,
-                                   String bodyHtml, String subject, UUID agentId) {
+                                   String bodyHtml, String subject, UUID agentId,
+                                   List<EmailReplyRequest.PendingAttachment> attachments) {
 
         // 1. Pobierz oryginalną wiadomość
         EmailMessage original = emailMessageRepository.findById(originalMessageId)
@@ -66,21 +75,28 @@ class EmailSendServiceImpl implements EmailSendService {
         String newMessageId = "<" + UUID.randomUUID() + "@" + extractDomain(config.getUsername()) + ">";
 
         // 5. Wyślij przez SMTP
-        log.info("[EmailSend] Wysyłam odpowiedź: originalId={}, to={}, tenant={}, agent={}",
-                originalMessageId, original.getFromAddress(), tenantId, agentId);
+        List<EmailReplyRequest.PendingAttachment> safeAttachments =
+                attachments != null ? attachments : List.of();
+
+        log.info("[EmailSend] Wysyłam odpowiedź: originalId={}, to={}, tenant={}, agent={}, attachments={}",
+                originalMessageId, original.getFromAddress(), tenantId, agentId, safeAttachments.size());
 
         try {
             sendSmtp(config, password, config.getUsername(), original.getFromAddress(),
                     replySubject, bodyHtml, newMessageId,
                     original.getMessageIdHeader(), // In-Reply-To
-                    buildReferences(original));    // References
+                    buildReferences(original),     // References
+                    safeAttachments);
         } catch (MessagingException e) {
             log.error("[EmailSend] Błąd SMTP: tenant={}, to={}, error={}",
                     tenantId, original.getFromAddress(), e.getMessage(), e);
             throw new EmailSendException("Wysyłka SMTP nie powiodła się: " + e.getMessage(), e);
         }
 
-        // 6. Zapisz jako OUTBOUND w DB
+        // 6. Zbuduj JSON metadanych załączników dla OUTBOUND
+        String attachmentsJson = buildAttachmentsJson(safeAttachments);
+
+        // 7. Zapisz jako OUTBOUND w DB
         EmailMessage reply = EmailMessage.builder()
                 .tenantId(tenantId)
                 .contactId(original.getContactId())
@@ -91,13 +107,14 @@ class EmailSendServiceImpl implements EmailSendService {
                 .bodyHtml(bodyHtml)
                 .messageIdHeader(newMessageId)
                 .inReplyTo(original.getMessageIdHeader())
+                .attachments(attachmentsJson)
                 .sentAt(Instant.now())
                 .deliveryStatus(EmailMessage.DeliveryStatus.SENT.name())
                 .build();
 
         EmailMessage saved = emailMessageRepository.save(reply);
 
-        // 7. Publikuj event
+        // 8. Publikuj event
         emailEventPublisher.publishSent(saved, agentId);
 
         log.info("[EmailSend] Odpowiedź wysłana i zapisana: replyId={}, originalId={}, agent={}",
@@ -113,7 +130,7 @@ class EmailSendServiceImpl implements EmailSendService {
     @Override
     @Transactional
     public EmailMessage sendReplyWithTemplate(UUID tenantId, UUID originalMessageId,
-                                              UUID templateId, java.util.Map<String, Object> variables,
+                                              UUID templateId, Map<String, Object> variables,
                                               UUID agentId) {
 
         log.info("[EmailSend] Wysyłam odpowiedź z szablonem: templateId={}, originalId={}, tenant={}, agent={}",
@@ -130,8 +147,8 @@ class EmailSendServiceImpl implements EmailSendService {
         // Renderuj szablon – predefiniowane zmienne są już uzupełnione
         RenderedEmailTemplate rendered = emailTemplateService.render(templateId, allVars);
 
-        // Wyślij przez istniejącą metodę z wyrenderowanymi wartościami
-        return sendReply(tenantId, originalMessageId, rendered.bodyHtml(), rendered.subject(), agentId);
+        // Wyślij przez istniejącą metodę z wyrenderowanymi wartościami (bez załączników)
+        return sendReply(tenantId, originalMessageId, rendered.bodyHtml(), rendered.subject(), agentId, List.of());
     }
 
     // =========================================================================
@@ -167,7 +184,7 @@ class EmailSendServiceImpl implements EmailSendService {
 
         try {
             sendSmtp(config, password, config.getUsername(), toAddress,
-                    subject, bodyHtml, newMessageId, null, null);
+                    subject, bodyHtml, newMessageId, null, null, List.of());
         } catch (MessagingException e) {
             log.error("[EmailSend] Błąd SMTP: tenant={}, to={}, error={}",
                     tenantId, toAddress, e.getMessage(), e);
@@ -206,19 +223,26 @@ class EmailSendServiceImpl implements EmailSendService {
     /**
      * Wysyła wiadomość przez Jakarta Mail SMTP.
      *
-     * @param config       konfiguracja SMTP
-     * @param password     hasło (odszyfrowane, NIE logujemy)
-     * @param from         adres nadawcy
-     * @param to           adres odbiorcy
-     * @param subject      temat
-     * @param bodyHtml     treść HTML
-     * @param messageId    nagłówek Message-ID (nowy UUID)
-     * @param inReplyTo    nagłówek In-Reply-To (z oryginalnej wiadomości)
-     * @param references   nagłówek References (łańcuch wątku)
+     * <p>Jeśli lista {@code attachments} jest niepusta, wiadomość jest strukturyzowana
+     * jako {@code multipart/mixed}: alternatywa text/html jako pierwsza część,
+     * następnie każdy załącznik pobierany z S3 jako kolejna część.
+     * Jeśli brak załączników, stosowana jest prostsza struktura {@code multipart/alternative}.
+     *
+     * @param config      konfiguracja SMTP
+     * @param password    hasło (odszyfrowane, NIE logujemy)
+     * @param from        adres nadawcy
+     * @param to          adres odbiorcy
+     * @param subject     temat
+     * @param bodyHtml    treść HTML
+     * @param messageId   nagłówek Message-ID (nowy UUID)
+     * @param inReplyTo   nagłówek In-Reply-To (z oryginalnej wiadomości)
+     * @param references  nagłówek References (łańcuch wątku)
+     * @param attachments lista załączników do dołączenia (pobierane z S3)
      */
     void sendSmtp(EmailAccountConfig config, String password,
                   String from, String to, String subject, String bodyHtml,
-                  String messageId, String inReplyTo, String references)
+                  String messageId, String inReplyTo, String references,
+                  List<EmailReplyRequest.PendingAttachment> attachments)
             throws MessagingException {
 
         Properties props = buildSmtpProperties(config);
@@ -243,22 +267,74 @@ class EmailSendServiceImpl implements EmailSendService {
             message.setHeader("References", references);
         }
 
-        // Treść HTML + alternatywa tekstowa
-        MimeMultipart multipart = new MimeMultipart("alternative");
+        if (attachments == null || attachments.isEmpty()) {
+            // Brak załączników: multipart/alternative (text + html)
+            MimeMultipart alternative = buildAlternativePart(bodyHtml);
+            message.setContent(alternative);
+        } else {
+            // Z załącznikami: multipart/mixed { multipart/alternative, attachment... }
+            MimeMultipart mixed = new MimeMultipart("mixed");
 
-        // Wersja tekstowa (stripped HTML – uproszczona)
-        MimeBodyPart textPart = new MimeBodyPart();
-        textPart.setText(stripHtml(bodyHtml), "UTF-8");
-        multipart.addBodyPart(textPart);
+            // Part 1: treść (alternative)
+            MimeBodyPart alternativePart = new MimeBodyPart();
+            alternativePart.setContent(buildAlternativePart(bodyHtml));
+            mixed.addBodyPart(alternativePart);
 
-        // Wersja HTML
-        MimeBodyPart htmlPart = new MimeBodyPart();
-        htmlPart.setContent(bodyHtml, "text/html; charset=UTF-8");
-        multipart.addBodyPart(htmlPart);
+            // Part 2..N: załączniki
+            for (EmailReplyRequest.PendingAttachment attachment : attachments) {
+                MimeBodyPart attachmentPart = buildAttachmentPart(attachment);
+                if (attachmentPart != null) {
+                    mixed.addBodyPart(attachmentPart);
+                }
+            }
 
-        message.setContent(multipart);
+            message.setContent(mixed);
+        }
 
         Transport.send(message);
+    }
+
+    /**
+     * Buduje część {@code multipart/alternative} z plain text i HTML.
+     */
+    private MimeMultipart buildAlternativePart(String bodyHtml) throws MessagingException {
+        MimeMultipart alternative = new MimeMultipart("alternative");
+
+        MimeBodyPart textPart = new MimeBodyPart();
+        textPart.setText(stripHtml(bodyHtml), "UTF-8");
+        alternative.addBodyPart(textPart);
+
+        MimeBodyPart htmlPart = new MimeBodyPart();
+        htmlPart.setContent(bodyHtml, "text/html; charset=UTF-8");
+        alternative.addBodyPart(htmlPart);
+
+        return alternative;
+    }
+
+    /**
+     * Pobiera bajty załącznika z S3 i buduje {@link MimeBodyPart}.
+     * Błędy logowane per-załącznik – nie przerywają wysyłki pozostałych.
+     */
+    private MimeBodyPart buildAttachmentPart(EmailReplyRequest.PendingAttachment attachment) {
+        try {
+            byte[] data = attachmentStorageService.download(attachment.s3Key());
+            String contentType = attachment.contentType() != null
+                    ? attachment.contentType()
+                    : "application/octet-stream";
+
+            MimeBodyPart part = new MimeBodyPart();
+            part.setDataHandler(new DataHandler(new ByteArrayDataSource(data, contentType)));
+            part.setFileName(MimeUtility.encodeText(attachment.filename(), "UTF-8", "B"));
+            part.setDisposition(MimePart.ATTACHMENT);
+
+            log.debug("[EmailSend] Dołączono załącznik: filename={}, size={}B",
+                    attachment.filename(), data.length);
+            return part;
+        } catch (Exception e) {
+            log.error("[EmailSend] Błąd dołączania załącznika s3Key={}: {}",
+                    attachment.s3Key(), e.getMessage(), e);
+            return null;
+        }
     }
 
     private Properties buildSmtpProperties(EmailAccountConfig config) {
@@ -287,6 +363,31 @@ class EmailSendServiceImpl implements EmailSendService {
     // Metody pomocnicze
     // =========================================================================
 
+    /**
+     * Serializuje listę załączników do JSON dla kolumny JSONB {@code attachments}.
+     * Format: [{"filename": "...", "content_type": "...", "size_bytes": N, "s3_key": "..."}]
+     */
+    private String buildAttachmentsJson(List<EmailReplyRequest.PendingAttachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) {
+            return "[]";
+        }
+        try {
+            List<Map<String, Object>> list = new ArrayList<>();
+            for (EmailReplyRequest.PendingAttachment a : attachments) {
+                list.add(Map.of(
+                        "filename", a.filename() != null ? a.filename() : "",
+                        "content_type", a.contentType() != null ? a.contentType() : "application/octet-stream",
+                        "size_bytes", a.sizeBytes(),
+                        "s3_key", a.s3Key() != null ? a.s3Key() : ""
+                ));
+            }
+            return objectMapper.writeValueAsString(list);
+        } catch (Exception e) {
+            log.warn("[EmailSend] Nie można serializować metadanych załączników: {}", e.getMessage());
+            return "[]";
+        }
+    }
+
     private String buildReplySubject(String originalSubject) {
         if (originalSubject == null || originalSubject.isBlank()) {
             return "Re: (brak tematu)";
@@ -301,8 +402,6 @@ class EmailSendServiceImpl implements EmailSendService {
         if (original.getMessageIdHeader() == null) {
             return null;
         }
-        // References = istniejące References + Message-ID oryginalnej wiadomości
-        // Uproszczona implementacja: tylko Message-ID poprzedniej wiadomości
         return original.getMessageIdHeader();
     }
 

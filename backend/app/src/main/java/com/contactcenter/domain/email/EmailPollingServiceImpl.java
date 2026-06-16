@@ -3,8 +3,11 @@ package com.contactcenter.domain.email;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
 import com.contactcenter.security.TenantContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.*;
 import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.internet.MimePart;
+import jakarta.mail.internet.MimeUtility;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,8 +16,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -29,6 +35,8 @@ class EmailPollingServiceImpl implements EmailPollingService {
     private final EmailRoutingService emailRoutingService;
     private final EmailEventPublisher emailEventPublisher;
     private final EmailEncryptionService encryptionService;
+    private final EmailAttachmentStorageService attachmentStorageService;
+    private final ObjectMapper objectMapper;
 
     @Value("${email.poll-delay-ms:60000}")
     private long pollDelayMs;
@@ -163,7 +171,8 @@ class EmailPollingServiceImpl implements EmailPollingService {
     }
 
     /**
-     * Przetwarza pojedynczą wiadomość IMAP: parsuje, deduplikuje, zapisuje w DB.
+     * Przetwarza pojedynczą wiadomość IMAP: parsuje, deduplikuje, zapisuje w DB,
+     * a następnie extrahuje i uploaduje załączniki do S3.
      *
      * @param message wiadomość Jakarta Mail
      * @param tenant  tenant docelowy
@@ -186,6 +195,9 @@ class EmailPollingServiceImpl implements EmailPollingService {
 
         EmailMessage emailMessage = parseMessage(message, tenant.getId(), messageIdHeader);
         EmailMessage saved = emailMessageRepository.save(emailMessage);
+
+        // Wyodrębnij i uploaduj załączniki do S3 po zapisaniu EmailMessage
+        saved = extractAndStoreAttachments(message, saved, tenant.getId());
 
         // Publikuj event received
         emailEventPublisher.publishReceived(saved);
@@ -231,7 +243,7 @@ class EmailPollingServiceImpl implements EmailPollingService {
                 bodyText = text;
             }
         } else if (content instanceof MimeMultipart multipart) {
-            String[] parts = extractMultipart(multipart);
+            String[] parts = extractTextParts(multipart);
             bodyText = parts[0];
             bodyHtml = parts[1];
         }
@@ -255,6 +267,141 @@ class EmailPollingServiceImpl implements EmailPollingService {
                 .receivedAt(receivedDate)
                 .deliveryStatus(null) // INBOUND – brak delivery status
                 .build();
+    }
+
+    // =========================================================================
+    // Wyodrębnianie załączników
+    // =========================================================================
+
+    /**
+     * Wyodrębnia załączniki z wiadomości MIME, uploaduje do S3 i aktualizuje
+     * pole {@code attachments} JSONB na zapisanej encji {@link EmailMessage}.
+     *
+     * <p>Błędy per-załącznik są logowane ale nie przerywają przetwarzania pozostałych.
+     * Tylko części z {@code Content-Disposition: attachment} są traktowane jako załączniki –
+     * części {@code inline} (np. osadzone obrazy) są pomijane.
+     *
+     * @param message wiadomość IMAP
+     * @param saved   zapisana encja (potrzebny {@code id} jako messageId w kluczu S3)
+     * @param tenantId UUID tenanta
+     * @return zaktualizowana encja (z wypełnionym polem {@code attachments})
+     */
+    private EmailMessage extractAndStoreAttachments(Message message, EmailMessage saved, UUID tenantId) {
+        List<Map<String, Object>> attachmentMeta = new ArrayList<>();
+
+        try {
+            Object content = message.getContent();
+            if (content instanceof MimeMultipart multipart) {
+                collectAttachments(multipart, tenantId, saved.getId(), attachmentMeta);
+            }
+            // Wiadomość niebędąca multipart nie ma załączników
+        } catch (Exception e) {
+            log.error("[EmailPolling] Błąd wyodrębniania załączników dla messageId={}: {}",
+                    saved.getId(), e.getMessage(), e);
+        }
+
+        if (attachmentMeta.isEmpty()) {
+            return saved;
+        }
+
+        try {
+            String json = objectMapper.writeValueAsString(attachmentMeta);
+            saved.setAttachments(json);
+            saved = emailMessageRepository.save(saved);
+            log.info("[EmailPolling] Zapisano {} załącznik(ów) dla messageId={}",
+                    attachmentMeta.size(), saved.getId());
+        } catch (Exception e) {
+            log.error("[EmailPolling] Błąd aktualizacji metadanych załączników dla messageId={}: {}",
+                    saved.getId(), e.getMessage(), e);
+        }
+
+        return saved;
+    }
+
+    /**
+     * Rekurencyjnie przeszukuje strukturę {@link MimeMultipart} w poszukiwaniu
+     * części z {@code Content-Disposition: attachment} i uploaduje je do S3.
+     *
+     * @param multipart      struktura do przeszukania
+     * @param tenantId       UUID tenanta
+     * @param messageId      UUID wiadomości (do klucza S3)
+     * @param attachmentMeta lista do wypełnienia metadanymi
+     */
+    private void collectAttachments(MimeMultipart multipart, UUID tenantId, UUID messageId,
+                                    List<Map<String, Object>> attachmentMeta)
+            throws MessagingException, IOException {
+
+        for (int i = 0; i < multipart.getCount(); i++) {
+            BodyPart part = multipart.getBodyPart(i);
+
+            // Rekurencja: zagnieżdżone multipart/mixed lub multipart/related
+            if (part.getContent() instanceof MimeMultipart nested) {
+                collectAttachments(nested, tenantId, messageId, attachmentMeta);
+                continue;
+            }
+
+            // Sprawdź Content-Disposition: tylko "attachment", pomiń "inline" i null
+            String disposition = part.getDisposition();
+            if (disposition == null || !disposition.equalsIgnoreCase(MimePart.ATTACHMENT)) {
+                continue;
+            }
+
+            // Pobierz nazwę pliku (może być zakodowana RFC 2047)
+            String filename = decodeFilename(part.getFileName());
+            if (filename == null || filename.isBlank()) {
+                filename = "attachment-" + (attachmentMeta.size() + 1);
+            }
+
+            // Pobierz MIME type (bez parametrów)
+            String contentType = extractBaseContentType(part.getContentType());
+            long sizeBytes;
+            String s3Key;
+
+            try (InputStream is = part.getInputStream()) {
+                byte[] data = is.readAllBytes();
+                sizeBytes = data.length;
+                s3Key = attachmentStorageService.store(tenantId, messageId, filename, contentType, data);
+                log.debug("[EmailPolling] Załącznik uploadowany: filename={}, size={}B, s3Key={}",
+                        filename, sizeBytes, s3Key);
+            } catch (Exception e) {
+                log.error("[EmailPolling] Błąd uploadu załącznika '{}' dla messageId={}: {}",
+                        filename, messageId, e.getMessage(), e);
+                continue; // pomiń ten załącznik, kontynuuj z pozostałymi
+            }
+
+            attachmentMeta.add(Map.of(
+                    "filename", filename,
+                    "content_type", contentType,
+                    "size_bytes", sizeBytes,
+                    "s3_key", s3Key
+            ));
+        }
+    }
+
+    /**
+     * Dekoduje nazwę pliku z nagłówka MIME (RFC 2047 / RFC 2231).
+     */
+    private String decodeFilename(String rawFilename) {
+        if (rawFilename == null) {
+            return null;
+        }
+        try {
+            return MimeUtility.decodeText(rawFilename);
+        } catch (Exception e) {
+            log.debug("[EmailPolling] Nie można zdekodować nazwy pliku '{}': {}", rawFilename, e.getMessage());
+            return rawFilename;
+        }
+    }
+
+    /**
+     * Zwraca base MIME type bez parametrów (np. "application/pdf" z "application/pdf; name=...").
+     */
+    private String extractBaseContentType(String contentType) {
+        if (contentType == null) {
+            return "application/octet-stream";
+        }
+        int semicolon = contentType.indexOf(';');
+        return semicolon > 0 ? contentType.substring(0, semicolon).trim().toLowerCase() : contentType.trim().toLowerCase();
     }
 
     // =========================================================================
@@ -316,16 +463,24 @@ class EmailPollingServiceImpl implements EmailPollingService {
 
     /**
      * Rekurencyjnie wyodrębnia treść tekstową i HTML z multipart wiadomości.
+     * Pomija części z Content-Disposition: attachment (te obsługuje {@link #collectAttachments}).
      *
      * @param multipart struktura multipart
      * @return tablica 2-elementowa: [0]=text/plain, [1]=text/html
      */
-    private String[] extractMultipart(MimeMultipart multipart) throws MessagingException, IOException {
+    private String[] extractTextParts(MimeMultipart multipart) throws MessagingException, IOException {
         String bodyText = null;
         String bodyHtml = null;
 
         for (int i = 0; i < multipart.getCount(); i++) {
             BodyPart part = multipart.getBodyPart(i);
+
+            // Pomiń załączniki – zostaną obsłużone osobno
+            String disposition = part.getDisposition();
+            if (MimePart.ATTACHMENT.equalsIgnoreCase(disposition)) {
+                continue;
+            }
+
             String contentType = part.getContentType().toLowerCase();
 
             if (contentType.startsWith("text/plain")) {
@@ -333,9 +488,9 @@ class EmailPollingServiceImpl implements EmailPollingService {
             } else if (contentType.startsWith("text/html")) {
                 bodyHtml = part.getContent().toString();
             } else if (part.getContent() instanceof MimeMultipart nested) {
-                String[] nested_parts = extractMultipart(nested);
-                if (bodyText == null) bodyText = nested_parts[0];
-                if (bodyHtml == null) bodyHtml = nested_parts[1];
+                String[] nestedParts = extractTextParts(nested);
+                if (bodyText == null) bodyText = nestedParts[0];
+                if (bodyHtml == null) bodyHtml = nestedParts[1];
             }
         }
         return new String[]{bodyText, bodyHtml};

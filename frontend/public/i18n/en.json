@@ -509,7 +509,13 @@
       "outbound": "Outgoing",
       "messageContent": "Email message content",
       "expandThread": "Expand thread",
-      "collapseThread": "Collapse thread"
+      "collapseThread": "Collapse thread",
+      "attachFile": "Attach file",
+      "attachFileLabel": "Add attachment",
+      "attachments": "Attachments",
+      "pendingAttachments": "Files to send",
+      "removeAttachment": "Remove attachment",
+      "uploadError": "Upload error"
     },
     "emailThread": {
       "inbound": "Inbound",

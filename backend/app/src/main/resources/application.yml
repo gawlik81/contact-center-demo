@@ -110,6 +110,15 @@ spring:
       name: ${SECURITY_DEFAULT_USER:disabled}
       password: ${SECURITY_DEFAULT_PASSWORD:disabled}
 
+  # ---------------------------------------------------------------------------
+  # Multipart – upload załączników email (EmailAttachmentController)
+  # Maksymalny rozmiar pliku: 25 MB; maksymalny rozmiar żądania: 30 MB
+  # ---------------------------------------------------------------------------
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 30MB
+
 # =============================================================================
 # Actuator – health checks i metryki
 # =============================================================================

@@ -509,7 +509,13 @@
       "outbound": "Ausgehend",
       "messageContent": "E-Mail-Nachrichteninhalt",
       "expandThread": "Thread erweitern",
-      "collapseThread": "Thread reduzieren"
+      "collapseThread": "Thread reduzieren",
+      "attachFile": "Datei anhängen",
+      "attachFileLabel": "Anhang hinzufügen",
+      "attachments": "Anhänge",
+      "pendingAttachments": "Dateien zum Senden",
+      "removeAttachment": "Anhang entfernen",
+      "uploadError": "Upload-Fehler"
     },
     "emailThread": {
       "inbound": "Eingehend",

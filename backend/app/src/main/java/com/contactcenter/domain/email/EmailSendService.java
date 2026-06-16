@@ -1,7 +1,9 @@
 package com.contactcenter.domain.email;
 
+import com.contactcenter.api.email.dto.EmailReplyRequest;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -10,7 +12,7 @@ import java.util.UUID;
  *
  * <p>Obsługuje:
  * <ul>
- *   <li>Wysyłkę odpowiedzi na wiadomości przychodzące (In-Reply-To, References)</li>
+ *   <li>Wysyłkę odpowiedzi na wiadomości przychodzące (In-Reply-To, References) z opcjonalnymi załącznikami</li>
  *   <li>Generowanie unikalnego Message-ID dla każdej wysyłanej wiadomości</li>
  *   <li>Zapis wysłanej wiadomości jako OUTBOUND {@link EmailMessage} w DB</li>
  *   <li>Publikację eventu {@code email.sent} na RabbitMQ</li>
@@ -21,21 +23,25 @@ import java.util.UUID;
 public interface EmailSendService {
 
     /**
-     * Wysyła odpowiedź na istniejącą wiadomość email.
+     * Wysyła odpowiedź na istniejącą wiadomość email, opcjonalnie z załącznikami.
      *
      * <p>Nagłówki {@code In-Reply-To} i {@code References} są ustawiane na podstawie
      * oryginalnej wiadomości dla poprawnego wątkowania w klientach email.
+     * Jeśli lista {@code attachments} nie jest pusta, wiadomość jest wysyłana jako
+     * {@code multipart/mixed} (alternative + attached files z S3).
      *
      * @param tenantId          UUID tenanta (z TenantContext)
      * @param originalMessageId UUID wiadomości oryginalnej (PK tabeli email_message)
      * @param bodyHtml          treść odpowiedzi w HTML
      * @param subject           temat odpowiedzi (przekazany przez klienta lub auto-generowany)
      * @param agentId           UUID agenta wysyłającego odpowiedź
+     * @param attachments       lista załączników do dołączenia (null lub pusta = brak)
      * @return zapisana encja wiadomości OUTBOUND
      * @throws ResourceNotFoundException gdy oryginalna wiadomość nie istnieje
      * @throws EmailSendException        gdy wysyłka SMTP się nie powiedzie
      */
-    EmailMessage sendReply(UUID tenantId, UUID originalMessageId, String bodyHtml, String subject, UUID agentId);
+    EmailMessage sendReply(UUID tenantId, UUID originalMessageId, String bodyHtml, String subject,
+                           UUID agentId, List<EmailReplyRequest.PendingAttachment> attachments);
 
     /**
      * Wysyła odpowiedź na istniejącą wiadomość email z użyciem szablonu Mustache.

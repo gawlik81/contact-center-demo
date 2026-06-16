@@ -2,6 +2,7 @@ import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   ViewChild,
   inject,
@@ -9,7 +10,8 @@ import {
   signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { EmailMessage } from '../../../../services/email.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { EmailAttachment, EmailMessage, EmailService } from '../../../../services/email.service';
 
 @Component({
   selector: 'cc-email-thread-message',
@@ -22,6 +24,8 @@ export class EmailThreadMessageComponent {
   message = input.required<EmailMessage>();
 
   private readonly transloco = inject(TranslocoService);
+  private readonly emailService = inject(EmailService);
+  private readonly destroyRef = inject(DestroyRef);
 
   @ViewChild('iframe') iframeRef?: ElementRef<HTMLIFrameElement>;
 
@@ -56,5 +60,25 @@ export class EmailThreadMessageComponent {
   blockquote { border-left: 3px solid #cbd5e1; margin: 0; padding-left: 1em; color: #64748b; }
 </style>
 </head><body>${content}</body></html>`;
+  }
+
+  protected downloadAttachment(attachment: EmailAttachment): void {
+    this.emailService
+      .getAttachmentDownloadUrl(attachment.s3Key)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (resp) => {
+          window.open(resp.url, '_blank', 'noopener,noreferrer');
+        },
+        error: () => {
+          // non-critical — fail silently; user can retry
+        },
+      });
+  }
+
+  protected formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 }

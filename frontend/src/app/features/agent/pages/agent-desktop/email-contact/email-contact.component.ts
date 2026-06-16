@@ -20,6 +20,7 @@ import {
   EmailService,
   EmailMessage,
   EmailTemplate,
+  PendingAttachment,
   SendReplyRequest,
 } from '../../../services/email.service';
 import { ContactService } from '../../../services/contact.service';
@@ -43,6 +44,7 @@ export class EmailContactComponent implements OnInit {
   replySent = output<boolean>();
 
   @ViewChild('editor') private editorRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('fileInput') private fileInputRef?: ElementRef<HTMLInputElement>;
 
   private readonly emailService = inject(EmailService);
   private readonly contactService = inject(ContactService);
@@ -66,6 +68,11 @@ export class EmailContactComponent implements OnInit {
 
   protected readonly replyHtml = signal<string>('');
   protected readonly replySubject = signal<string>('');
+
+  // ===== Attachment upload state =====
+  protected readonly pendingAttachments = signal<PendingAttachment[]>([]);
+  protected readonly uploading = signal(false);
+  protected readonly uploadError = signal<string | null>(null);
 
   protected readonly templateSearchControl = new FormControl<string>('');
   protected readonly filteredTemplates = signal<EmailTemplate[]>([]);
@@ -243,6 +250,65 @@ export class EmailContactComponent implements OnInit {
     }
   }
 
+  // ===== Attachment methods =====
+
+  protected triggerFileInput(): void {
+    this.fileInputRef?.nativeElement.click();
+  }
+
+  protected onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    if (!files.length) return;
+    input.value = ''; // reset so same file can be re-selected
+
+    this.uploading.set(true);
+    this.uploadError.set(null);
+
+    const uploadNext = (index: number): void => {
+      if (index >= files.length) {
+        this.uploading.set(false);
+        return;
+      }
+      const file = files[index];
+      this.emailService
+        .uploadAttachment(file)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (resp) => {
+            this.pendingAttachments.update((list) => [
+              ...list,
+              {
+                s3Key: resp.s3Key,
+                filename: resp.filename,
+                contentType: resp.contentType,
+                sizeBytes: resp.sizeBytes,
+              },
+            ]);
+            uploadNext(index + 1);
+          },
+          error: () => {
+            this.uploading.set(false);
+            this.uploadError.set('Nie udało się przesłać pliku: ' + file.name);
+          },
+        });
+    };
+
+    uploadNext(0);
+  }
+
+  protected removeAttachment(s3Key: string): void {
+    this.pendingAttachments.update((list) => list.filter((a) => a.s3Key !== s3Key));
+  }
+
+  protected formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  // ===== Send / Cancel =====
+
   protected sendReply(): void {
     const root = this.rootMessage();
     if (!root || !this.canSend()) return;
@@ -253,6 +319,7 @@ export class EmailContactComponent implements OnInit {
     const request: SendReplyRequest = {
       bodyHtml: this.replyHtml(),
       subject: this.replySubject(),
+      attachments: this.pendingAttachments().length > 0 ? this.pendingAttachments() : undefined,
     };
 
     const tpl = this.selectedTemplate();
@@ -270,6 +337,7 @@ export class EmailContactComponent implements OnInit {
       .subscribe({
         next: () => {
           this.sending.set(false);
+          this.pendingAttachments.set([]);
           this.replySent.emit(true);
         },
         error: () => {
@@ -307,5 +375,9 @@ export class EmailContactComponent implements OnInit {
 
   protected trackByKey(_index: number, key: string): string {
     return key;
+  }
+
+  protected trackByS3Key(_index: number, att: PendingAttachment): string {
+    return att.s3Key;
   }
 }

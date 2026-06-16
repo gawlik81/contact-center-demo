@@ -509,7 +509,13 @@
       "outbound": "Вихідне",
       "messageContent": "Вміст email-повідомлення",
       "expandThread": "Розгорнути вкладку",
-      "collapseThread": "Згорнути вкладку"
+      "collapseThread": "Згорнути вкладку",
+      "attachFile": "Додати файл",
+      "attachFileLabel": "Додати вкладення",
+      "attachments": "Вкладення",
+      "pendingAttachments": "Файли для надсилання",
+      "removeAttachment": "Видалити вкладення",
+      "uploadError": "Помилка завантаження"
     },
     "emailThread": {
       "inbound": "Вхідне",

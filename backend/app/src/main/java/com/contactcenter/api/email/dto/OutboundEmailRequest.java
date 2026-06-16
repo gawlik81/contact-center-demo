@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -25,5 +26,7 @@ public record OutboundEmailRequest(
         @NotBlank(message = "Treść wiadomości jest wymagana")
         String bodyHtml,
 
-        UUID customerId  // opcjonalne – nie używane do tworzenia kontaktu w tej wersji
+        UUID customerId,  // opcjonalne – nie używane do tworzenia kontaktu w tej wersji
+
+        List<EmailReplyRequest.PendingAttachment> attachments
 ) {}

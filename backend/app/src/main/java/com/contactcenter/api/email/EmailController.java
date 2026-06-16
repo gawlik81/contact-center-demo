@@ -182,7 +182,7 @@ public class EmailController {
         UUID agentId  = TenantContext.getUserId();
 
         EmailMessage sent = emailSendService.sendNew(tenantId, request.toAddress(),
-                request.subject(), request.bodyHtml(), agentId);
+                request.subject(), request.bodyHtml(), agentId, request.attachments());
 
         log.info("[EmailController] Email ad hoc wysłany: id={}, to={}, agent={}",
                 sent.getId(), request.toAddress(), agentId);

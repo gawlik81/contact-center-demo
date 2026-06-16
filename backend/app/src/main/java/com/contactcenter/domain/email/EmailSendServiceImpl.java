@@ -158,7 +158,8 @@ class EmailSendServiceImpl implements EmailSendService {
     @Override
     @Transactional
     public EmailMessage sendNew(UUID tenantId, String toAddress, String subject,
-                                String bodyHtml, UUID agentId) {
+                                String bodyHtml, UUID agentId,
+                                List<EmailReplyRequest.PendingAttachment> attachments) {
 
         // 1. Pobierz konfigurację SMTP tenanta
         Tenant tenant = tenantService.findTenantEntity(tenantId)
@@ -182,9 +183,12 @@ class EmailSendServiceImpl implements EmailSendService {
         // 3. Wyślij przez SMTP
         log.info("[EmailSend] Wysyłam nową wiadomość: to={}, tenant={}, agent={}", toAddress, tenantId, agentId);
 
+        List<EmailReplyRequest.PendingAttachment> safeAttachments =
+                attachments != null ? attachments : List.of();
+
         try {
             sendSmtp(config, password, config.getUsername(), toAddress,
-                    subject, bodyHtml, newMessageId, null, null, List.of());
+                    subject, bodyHtml, newMessageId, null, null, safeAttachments);
         } catch (MessagingException e) {
             log.error("[EmailSend] Błąd SMTP: tenant={}, to={}, error={}",
                     tenantId, toAddress, e.getMessage(), e);
@@ -192,6 +196,7 @@ class EmailSendServiceImpl implements EmailSendService {
         }
 
         // 4. Zapisz jako OUTBOUND w DB (contactId = null dla ad hoc)
+        String attachmentsJson = buildAttachmentsJson(safeAttachments);
         EmailMessage outbound = EmailMessage.builder()
                 .tenantId(tenantId)
                 .contactId(null)
@@ -203,6 +208,7 @@ class EmailSendServiceImpl implements EmailSendService {
                 .messageIdHeader(newMessageId)
                 .sentAt(Instant.now())
                 .deliveryStatus(EmailMessage.DeliveryStatus.SENT.name())
+                .attachments(attachmentsJson)
                 .build();
 
         EmailMessage saved = emailMessageRepository.save(outbound);

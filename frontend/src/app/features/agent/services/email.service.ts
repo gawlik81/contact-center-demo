@@ -71,6 +71,7 @@ export interface SendOutboundEmailRequest {
   subject: string;
   bodyHtml: string;
   customerId?: string;
+  attachments?: PendingAttachment[];
 }
 
 export interface AvailableVariable {

@@ -77,7 +77,8 @@ public interface EmailSendService {
      * @throws ResourceNotFoundException gdy tenant nie istnieje
      * @throws EmailSendException        gdy brak konfiguracji SMTP lub wysyłka się nie powiedzie
      */
-    EmailMessage sendNew(UUID tenantId, String toAddress, String subject, String bodyHtml, UUID agentId);
+    EmailMessage sendNew(UUID tenantId, String toAddress, String subject, String bodyHtml, UUID agentId,
+                         List<EmailReplyRequest.PendingAttachment> attachments);
 
     /** Wyjątek wysyłki email przez SMTP. */
     class EmailSendException extends RuntimeException {

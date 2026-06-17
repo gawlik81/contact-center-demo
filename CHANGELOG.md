@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.0](https://github.com/gawlik81/contact-center-demo/compare/v1.1.0...v1.2.0) (2026-06-17)
+
+
+### Features
+
+* **email:** dodaj obsługę załączników w mailu ad hoc ([ae73df5](https://github.com/gawlik81/contact-center-demo/commit/ae73df5255b08335dea1904a661b47a61241e731))
+* **email:** dodaj obsługę załączników w panelu agenta ([684b4c7](https://github.com/gawlik81/contact-center-demo/commit/684b4c7dba8b0e6a03cd9e29ee2f0495a6f486f6))
+
+
+### Bug Fixes
+
+* **email:** napraw 4 błędy w obsłudze emaili i załączników ([342b33c](https://github.com/gawlik81/contact-center-demo/commit/342b33c698fd4ca5f38b2f05d53a884e70dce9d5))
+* **email:** pobieranie załączników przez JWT zamiast direct link ([50697e1](https://github.com/gawlik81/contact-center-demo/commit/50697e14592a33939be2ef974d6ea0ca303da6b9))
+* **email:** utwórz kontakt OUTBOUND dla emaila ad hoc ([38dde05](https://github.com/gawlik81/contact-center-demo/commit/38dde05ac85f3ac33fed46858e3a7bc707d2cdf0))
+* **tests:** zaktualizuj testy email po dodaniu EmailAttachmentStorageService i ObjectMapper ([8ebf397](https://github.com/gawlik81/contact-center-demo/commit/8ebf397ca89a44c20a463d2caabad569c610df36))
+* **ui:** usuń margin-top: auto z przycisku akcji w szufladzie klienta ([eb58077](https://github.com/gawlik81/contact-center-demo/commit/eb5807724329a95ed01b33847651fcec4c2af8c3))
+* **ui:** wyśrodkuj etykietę i ikonę w przycisku Zadzwoń ([a6b9e76](https://github.com/gawlik81/contact-center-demo/commit/a6b9e76e74780f7e60261d51151db3cd1d9be61c))
+
 ## [1.1.0](https://github.com/gawlik81/contact-center-demo/compare/v1.0.0...v1.1.0) (2026-06-15)
 
 

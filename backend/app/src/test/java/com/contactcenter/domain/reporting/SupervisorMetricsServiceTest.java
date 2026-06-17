@@ -23,22 +23,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.redis.connection.RedisConnection;
-import org.springframework.data.redis.connection.RedisKeyCommands;
-import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -85,7 +82,7 @@ class SupervisorMetricsServiceTest {
     @Mock private org.springframework.data.redis.core.ValueOperations<String, String> stringValueOps;
     @org.mockito.Spy private ObjectMapper objectMapper = new ObjectMapper();
 
-    @InjectMocks
+    @Spy @InjectMocks
     private SupervisorMetricsService service;
 
     private Tenant activeTenant;
@@ -128,10 +125,10 @@ class SupervisorMetricsServiceTest {
 
         // Domyślne stuby
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        // SCAN domyślnie zwraca puste wyniki (żadnych kluczy)
+        // SCAN sesji agentów domyślnie zwraca puste wyniki (żadnych kluczy)
         when(redisTemplate.execute(any(RedisCallback.class), anyBoolean())).thenReturn(null);
-        // SCAN sesji IVR domyślnie zwraca puste wyniki (żadnych kluczy)
-        when(stringRedisTemplate.execute(any(RedisCallback.class), anyBoolean())).thenReturn(null);
+        // scanIvrSessionKeys() domyślnie zwraca pusty zbiór (żadnych sesji IVR)
+        doReturn(Collections.emptySet()).when(service).scanIvrSessionKeys();
         when(stringRedisTemplate.opsForValue()).thenReturn(stringValueOps);
     }
 
@@ -576,29 +573,17 @@ class SupervisorMetricsServiceTest {
         }
 
         /**
-         * Mockuje SCAN po kluczach {@code ivr:session:*} oraz odczyt wartości każdego klucza.
+         * Stubuje {@link SupervisorMetricsService#scanIvrSessionKeys()} tak, żeby zwróciła
+         * podane klucze, i konfiguruje odczyt wartości przez {@code opsForValue().get(key)}.
+         *
+         * <p>Unika mockowania nisko-poziomowego {@code RedisCallback} / SCAN cursor, co było
+         * źródłem niedeterministycznego (flaky) zachowania w Mockito 5 + Java 21 przy pełnej suicie.
          *
          * @param keyToValue mapa: klucz Redis → JSON sesji IVR (String)
          */
-        @SuppressWarnings("unchecked")
         private void mockIvrSessionScan(Map<String, String> keyToValue) {
-            RedisConnection connection = mock(RedisConnection.class);
-            RedisKeyCommands keyCommands = mock(RedisKeyCommands.class);
-            Cursor<byte[]> cursor = mock(Cursor.class);
-
-            when(connection.keyCommands()).thenReturn(keyCommands);
-            when(keyCommands.scan(any(org.springframework.data.redis.core.ScanOptions.class))).thenReturn(cursor);
-
-            List<String> keys = new ArrayList<>(keyToValue.keySet());
-            int[] idx = {0};
-            when(cursor.hasNext()).thenAnswer(inv -> idx[0] < keys.size());
-            when(cursor.next()).thenAnswer(inv -> keys.get(idx[0]++).getBytes());
-
-            when(stringRedisTemplate.execute(any(RedisCallback.class), anyBoolean()))
-                    .thenAnswer(inv -> {
-                        RedisCallback<?> callback = inv.getArgument(0);
-                        return callback.doInRedis(connection);
-                    });
+            doReturn(new java.util.HashSet<>(keyToValue.keySet()))
+                    .when(service).scanIvrSessionKeys();
 
             for (Map.Entry<String, String> entry : keyToValue.entrySet()) {
                 when(stringValueOps.get(entry.getKey())).thenReturn(entry.getValue());

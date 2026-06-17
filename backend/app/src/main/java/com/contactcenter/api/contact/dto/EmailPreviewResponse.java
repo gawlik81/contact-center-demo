@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * DTO z podglądem treści wiadomości email powiązanej z kontaktem.
@@ -45,6 +46,16 @@ public record EmailPreviewResponse(
 
         @Schema(description = "Kierunek wiadomości: INBOUND (przychodzące) lub OUTBOUND (wychodzące)",
                 example = "INBOUND", allowableValues = {"INBOUND", "OUTBOUND"})
-        String direction
+        String direction,
+
+        @Schema(description = "Lista załączników wiadomości")
+        List<AttachmentDto> attachments
 ) {
+
+    public record AttachmentDto(
+            String filename,
+            String contentType,
+            long sizeBytes,
+            String s3Key
+    ) {}
 }

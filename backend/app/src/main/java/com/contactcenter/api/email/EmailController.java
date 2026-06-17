@@ -26,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,11 +38,13 @@ import java.util.UUID;
  *   <li>GET  /api/email/messages          – lista wiadomości (paginacja)</li>
  *   <li>GET  /api/email/messages/{id}     – szczegóły wiadomości</li>
  *   <li>GET  /api/email/threads/{messageIdHeader} – wątek emaila</li>
- *   <li>POST /api/email/messages/{id}/reply – wysyłka odpowiedzi</li>
+ *   <li>POST /api/email/messages/{id}/reply – wysyłka odpowiedzi (z opcjonalnymi załącznikami)</li>
  *   <li>GET  /api/email/config            – odczyt konfiguracji IMAP/SMTP (bez hasła)</li>
  *   <li>PUT  /api/email/config            – zapis konfiguracji IMAP/SMTP (SUPERVISOR/ADMIN)</li>
  *   <li>POST /api/email/config/test       – test połączenia IMAP</li>
  * </ul>
+ *
+ * <p>Upload i pobieranie załączników obsługuje {@link EmailAttachmentController}.
  */
 @Slf4j
 @RestController
@@ -133,12 +136,16 @@ public class EmailController {
     }
 
     /**
-     * Wysyłka odpowiedzi na wiadomość email.
+     * Wysyłka odpowiedzi na wiadomość email, opcjonalnie z załącznikami.
+     *
+     * <p>Załączniki muszą być wcześniej załadowane przez
+     * {@code POST /api/email/attachments/upload} – klient przekazuje {@code s3Key}.
      *
      * <p>Dostępne dla agentów i supervisorów.
      */
     @PostMapping("/messages/{id}/reply")
-    @Operation(summary = "Wyślij odpowiedź email")
+    @Operation(summary = "Wyślij odpowiedź email",
+               description = "Wysyła odpowiedź; opcjonalne pole attachments przyjmuje listę s3Key z wcześniejszego uploadu")
     public ResponseEntity<EmailMessageResponse> replyToMessage(
             @PathVariable UUID id,
             @Valid @RequestBody EmailReplyRequest request) {
@@ -146,11 +153,14 @@ public class EmailController {
         UUID tenantId = TenantContext.getTenantId();
         UUID agentId  = TenantContext.getUserId();
 
-        EmailMessage reply = emailSendService.sendReply(tenantId, id,
-                request.bodyHtml(), request.subject(), agentId);
+        List<EmailReplyRequest.PendingAttachment> attachments =
+                request.attachments() != null ? request.attachments() : List.of();
 
-        log.info("[EmailController] Odpowiedź wysłana: replyId={}, originalId={}, agent={}",
-                reply.getId(), id, agentId);
+        EmailMessage reply = emailSendService.sendReply(tenantId, id,
+                request.bodyHtml(), request.subject(), agentId, attachments);
+
+        log.info("[EmailController] Odpowiedź wysłana: replyId={}, originalId={}, agent={}, attachments={}",
+                reply.getId(), id, agentId, attachments.size());
 
         return ResponseEntity.ok(EmailMessageResponse.from(reply));
     }
@@ -172,7 +182,7 @@ public class EmailController {
         UUID agentId  = TenantContext.getUserId();
 
         EmailMessage sent = emailSendService.sendNew(tenantId, request.toAddress(),
-                request.subject(), request.bodyHtml(), agentId);
+                request.subject(), request.bodyHtml(), agentId, request.attachments());
 
         log.info("[EmailController] Email ad hoc wysłany: id={}, to={}, agent={}",
                 sent.getId(), request.toAddress(), agentId);

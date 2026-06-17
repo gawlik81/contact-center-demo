@@ -509,7 +509,13 @@
       "outbound": "Wychodząca",
       "messageContent": "Treść wiadomości email",
       "expandThread": "Rozwiń wątek",
-      "collapseThread": "Zwiń wątek"
+      "collapseThread": "Zwiń wątek",
+      "attachFile": "Załącz plik",
+      "attachFileLabel": "Dodaj załącznik",
+      "attachments": "Załączniki",
+      "pendingAttachments": "Pliki do wysłania",
+      "removeAttachment": "Usuń załącznik",
+      "uploadError": "Błąd przesyłania"
     },
     "emailThread": {
       "inbound": "Przychodząca",

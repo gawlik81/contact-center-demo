@@ -71,6 +71,14 @@ export interface EmailPreviewResponse {
   bodyText: string | null;
   receivedAt: string;
   direction: 'INBOUND' | 'OUTBOUND';
+  attachments: EmailAttachmentInfo[];
+}
+
+export interface EmailAttachmentInfo {
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  s3Key: string;
 }
 
 export interface ContactEventResponse {

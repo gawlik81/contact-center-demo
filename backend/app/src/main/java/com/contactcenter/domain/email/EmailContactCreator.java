@@ -219,17 +219,35 @@ class EmailContactCreator {
     }
 
     /**
-     * Obsługuje event {@code email.sent} – zamyka kontakt EMAIL po wysłaniu odpowiedzi.
+     * Obsługuje event {@code email.sent} – zamyka kontakt EMAIL po wysłaniu odpowiedzi
+     * lub tworzy nowy kontakt OUTBOUND dla emaila ad hoc (bez powiązania z kontaktem przychodzącym).
      *
-     * <p>Zmienia status kontaktu na COMPLETED i ustawia {@code ended_at}, o ile kontakt
-     * nie jest już w stanie końcowym (COMPLETED lub ABANDONED).
+     * <p>Dwa przypadki:
+     * <ol>
+     *   <li><b>Reply</b> ({@code contactId != null}): zamknięcie istniejącego kontaktu INBOUND
+     *       (status → COMPLETED) + utworzenie kontaktu OUTBOUND dziedziczącego dane z INBOUND.</li>
+     *   <li><b>Ad hoc</b> ({@code contactId == null}): tworzenie nowego kontaktu OUTBOUND
+     *       bezpośrednio z danych eventu (toAddress, agentId, tenantId) bez kontaktu źródłowego.</li>
+     * </ol>
      * TenantContext jest ustawiany ręcznie (wątek RabbitMQ nie ma aktywnego kontekstu HTTP).
      *
      * @param event event email.sent z RabbitMQ
      */
     private void handleEmailSent(EmailEventPublisher.EmailEvent event) {
         if (event.contactId() == null) {
-            log.warn("[EmailContact] email.sent bez contactId – kontakt OUTBOUND nie zostanie utworzony: messageId={}, tenant={}", event.messageId(), event.tenantId());
+            // Email ad hoc – brak kontaktu przychodzącego; utwórz kontakt OUTBOUND z danych eventu
+            log.info("[EmailContact] email.sent ad hoc (brak contactId) – tworzę kontakt OUTBOUND: messageId={}, tenant={}",
+                    event.messageId(), event.tenantId());
+
+            UUID tenantId = event.tenantId();
+            TenantContext.Snapshot snapshot = new TenantContext.Snapshot(tenantId, null, null, "SYSTEM");
+            TenantContext.restore(snapshot);
+
+            try {
+                createAdHocOutboundContact(tenantId, event);
+            } finally {
+                TenantContext.clear();
+            }
             return;
         }
 
@@ -338,6 +356,96 @@ class EmailContactCreator {
         if (event.messageId() != null) {
             generateAndStoreEml(event.messageId(), outboundContactId, tenantId);
         }
+    }
+
+    /**
+     * Tworzy kontakt OUTBOUND EMAIL dla wiadomości ad hoc – wysłanej bez powiązania z kontaktem
+     * przychodzącym (brak {@code contactId} w evencie).
+     *
+     * <p>Kontakt jest natychmiast oznaczony jako COMPLETED. {@code queueId} i {@code customerId}
+     * są opcjonalne – jeśli nie można ich ustalić, kontakt powstaje bez nich.
+     *
+     * <p>Guard przed duplikatami sprawdza {@code emailMessageId} w {@code channelMetadata}
+     * istniejących kontaktów OUTBOUND, zabezpieczając przed retry kolejki RabbitMQ.
+     *
+     * @param tenantId UUID tenanta
+     * @param event    event email.sent z RabbitMQ
+     */
+    private void createAdHocOutboundContact(UUID tenantId, EmailEventPublisher.EmailEvent event) {
+        if (event.messageId() == null) {
+            log.warn("[EmailContact] Ad hoc OUTBOUND – brak messageId w evencie, pomijam tworzenie kontaktu: tenant={}",
+                    tenantId);
+            return;
+        }
+
+        // Guard przed duplikatami – zabezpieczenie przed retry RabbitMQ
+        List<Contact> existing = contactService.findByChannelMetadataValue(
+                "emailMessageId", event.messageId().toString(), tenantId);
+        if (!existing.isEmpty()) {
+            log.warn("[EmailContact] Kontakt OUTBOUND ad hoc dla messageId={} już istnieje ({}), pomijam duplikat.",
+                    event.messageId(), existing.get(0).getContactId());
+            return;
+        }
+
+        // Pobierz adres odbiorcy z zapisanej wiadomości OUTBOUND
+        String toAddress = null;
+        UUID customerId = null;
+        Optional<EmailMessage> outboundMsgOpt = emailMessageRepository.findById(event.messageId());
+        if (outboundMsgOpt.isPresent()) {
+            EmailMessage outboundMsg = outboundMsgOpt.get();
+            toAddress = outboundMsg.getToAddress();
+
+            // Spróbuj znaleźć klienta po adresie odbiorcy
+            if (toAddress != null) {
+                String emailAddr = extractEmailAddress(toAddress);
+                if (emailAddr != null) {
+                    customerId = customerService.findByEmail(emailAddr, tenantId)
+                            .map(Customer::getCustomerId)
+                            .orElse(null);
+                    if (customerId != null) {
+                        log.info("[EmailContact] Ad hoc OUTBOUND – znaleziono klienta: customerId={}, email={}",
+                                customerId, emailAddr);
+                    }
+                }
+            }
+        }
+
+        Instant now = Instant.now();
+        UUID outboundContactId = UUID.randomUUID();
+
+        Map<String, Object> channelMetadata = new HashMap<>();
+        channelMetadata.put("emailMessageId", event.messageId().toString());
+        channelMetadata.put("subject",        event.subject());
+        channelMetadata.put("fromAddress",    event.fromAddress());
+
+        Contact outbound = Contact.builder()
+                .contactId(outboundContactId)
+                .tenantId(tenantId)
+                .customerId(customerId)
+                .queueId(null)          // ad hoc nie pochodzi z kolejki
+                .channel("EMAIL")
+                .direction("OUTBOUND")
+                .status("COMPLETED")
+                .agentId(event.agentId())
+                .remoteAddress(toAddress)
+                .queuedAt(now)
+                .startedAt(now)
+                .endedAt(now)
+                .channelMetadata(channelMetadata)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        contactService.insertContact(outbound);
+
+        log.info("[EmailContact] Kontakt EMAIL OUTBOUND ad hoc utworzony: contactId={}, to={}, agent={}, messageId={}",
+                outboundContactId, toAddress, event.agentId(), event.messageId());
+
+        // Powiąż wiadomość z nowym kontaktem
+        linkMessageToContact(event.messageId(), outboundContactId, tenantId);
+
+        // Generuj EML (best-effort)
+        generateAndStoreEml(event.messageId(), outboundContactId, tenantId);
     }
 
     /**

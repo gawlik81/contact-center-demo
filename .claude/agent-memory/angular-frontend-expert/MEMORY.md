@@ -49,6 +49,7 @@
   positions), walidacja, mock audio upload
 - [FE-022 Reports module](./project_fe022_reports.md) – historical reports for SUPERVISOR/ADMIN; files created, conventions, decisions (2026-03-22)
 - [Email contact component (FE-012)](./project_fe012_email_contact.md) – EmailContactComponent (split-panel thread+reply), EmailThreadMessageComponent (iframe srcdoc), EmailService, contenteditable rich text editor, no Angular Material
+- [Email attachment support (FE-012 ext)](./project_fe012_email_attachments.md) – upload (POST /api/email/attachments/upload), download presigned URL, pending list signals, sr-only class convention confirmed
 - [Twilio settings panel per tenant (FE-025)](./project_fe025_twilio_settings.md) – TwilioSettingsComponent, TwilioConfigService, badge per-tenant vs fallback, E.164 walidacja, route settings/twilio
 - [Manual dialer call button (FE-027)](./project_fe027_manual_dialer_button.md) – DialerService (POST /api/dialer/manual/call), przycisk "Zadzwoń" w CampaignContactsComponent, callingRecordId signal, optymistyczna aktualizacja
 - [Contact detail modal + audio player (FE-028/030)](./project_fe028_contact_detail_modal.md) – ContactDetailModalComponent (native dialog, 3 sekcje, lazy recording), AudioPlayerComponent (HTML5 Audio, własny UI), CustomerDetailComponent integracja (selectedContactId signal, klikalne wiersze)

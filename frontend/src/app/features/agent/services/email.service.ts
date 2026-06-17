@@ -3,6 +3,28 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { PagedResponse } from '../../../core/models/paged-response.model';
 
+export interface EmailAttachment {
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  s3Key: string;
+}
+
+export interface PendingAttachment {
+  s3Key: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
+export interface UploadedAttachmentResponse {
+  id: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  s3Key: string;
+}
+
 export interface EmailMessage {
   id: string;
   messageIdHeader: string;
@@ -19,6 +41,7 @@ export interface EmailMessage {
   receivedAt?: string;
   sentAt?: string;
   contactId?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailThread {
@@ -40,6 +63,7 @@ export interface SendReplyRequest {
   subject: string;
   templateId?: string;
   templateVariables?: Record<string, string>;
+  attachments?: PendingAttachment[];
 }
 
 export interface SendOutboundEmailRequest {
@@ -47,6 +71,7 @@ export interface SendOutboundEmailRequest {
   subject: string;
   bodyHtml: string;
   customerId?: string;
+  attachments?: PendingAttachment[];
 }
 
 export interface AvailableVariable {
@@ -129,5 +154,19 @@ export class EmailService {
 
   sendOutbound(request: SendOutboundEmailRequest): Observable<EmailMessage> {
     return this.http.post<EmailMessage>(`${this.baseUrl}/messages/outbound`, request);
+  }
+
+  uploadAttachment(file: File): Observable<UploadedAttachmentResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<UploadedAttachmentResponse>(
+      `${this.baseUrl}/attachments/upload`,
+      formData,
+    );
+  }
+
+  getAttachmentDownloadUrl(s3Key: string): Observable<{ url: string }> {
+    const params = new HttpParams().set('s3Key', s3Key);
+    return this.http.get<{ url: string }>(`${this.baseUrl}/attachments/download`, { params });
   }
 }

@@ -19,6 +19,7 @@
   ochrona double-processing, ręczny TenantContext w wątku schedulera
 - [Inbound Callback Endpoint BE-040](project_be040_inbound_callback.md) — POST /api/contacts/{contactId}/callback w DialerController (ścieżka absolutna),
   sourceType=INBOUND_CALLBACK, originContactId, logika 403/404 dla agentów
+- [Email Attachments](project_email_attachments.md) — S3 storage, IMAP extraction, agent upload endpoint, SMTP multipart/mixed send
 
 ## Wzorce/konwencje
 

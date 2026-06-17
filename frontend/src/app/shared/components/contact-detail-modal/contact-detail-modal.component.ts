@@ -13,6 +13,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
 import { catchError, of } from 'rxjs';
@@ -49,6 +50,7 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
   private readonly notifications = inject(NotificationService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly transloco = inject(TranslocoService);
+  private readonly http = inject(HttpClient);
 
   /** Wewnętrzny sygnał aktualnie wyświetlanego kontaktu — umożliwia nawigację między powiązanymi. */
   private readonly currentContactId = signal<string | null>(null);
@@ -375,6 +377,20 @@ export class ContactDetailModalComponent implements AfterViewInit, OnChanges {
     }
     // CALLBACK items — label handled in template via separate translation key
     return 'agent.rescheduleCallback.title';
+  }
+
+  protected downloadEmailAttachment(s3Key: string): void {
+    const params = new HttpParams().set('s3Key', s3Key);
+    this.http.get<{ url: string }>('/api/email/attachments/download', { params }).subscribe({
+      next: (resp) => window.open(resp.url, '_blank', 'noopener,noreferrer'),
+      error: () => this.notifications.error('Nie udało się pobrać załącznika. Spróbuj ponownie.'),
+    });
+  }
+
+  protected formatAttachmentSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
   private formatDurationSeconds(totalSeconds: number): string {

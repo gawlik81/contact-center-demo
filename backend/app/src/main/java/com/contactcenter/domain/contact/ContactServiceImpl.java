@@ -30,6 +30,8 @@ import com.contactcenter.domain.telephony.TransferRequest;
 import com.contactcenter.domain.telephony.TransferTargetType;
 import com.contactcenter.infrastructure.aspect.Audited;
 import com.contactcenter.security.TenantContext;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +48,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +88,7 @@ class ContactServiceImpl implements ContactService {
     private final ContactEventService contactEventService;
     private final TelephonyAdapter telephonyAdapter;
     private final TelephonyEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
     /**
      * Wymagany do rozwiązywania nazw agentów (resolveAgentName, transfer metadata).
@@ -799,6 +803,8 @@ class ContactServiceImpl implements ContactService {
         log.debug("[ContactService] Podgląd email: contactId={}, messageId={}, direction={}",
                 contactId, message.getId(), message.getDirection());
 
+        List<EmailPreviewResponse.AttachmentDto> attachments = parseAttachmentDtos(message.getAttachments());
+
         return new EmailPreviewResponse(
                 message.getFromAddress(),
                 message.getToAddress(),
@@ -807,8 +813,30 @@ class ContactServiceImpl implements ContactService {
                 message.getBodyHtml(),
                 message.getBodyText(),
                 message.getReceivedAt(),
-                message.getDirection()
+                message.getDirection(),
+                attachments
         );
+    }
+
+    private List<EmailPreviewResponse.AttachmentDto> parseAttachmentDtos(String attachmentsJson) {
+        if (attachmentsJson == null || attachmentsJson.isBlank() || "[]".equals(attachmentsJson.trim())) {
+            return Collections.emptyList();
+        }
+        try {
+            List<Map<String, Object>> raw = objectMapper.readValue(
+                    attachmentsJson, new TypeReference<>() {});
+            return raw.stream()
+                    .map(m -> new EmailPreviewResponse.AttachmentDto(
+                            (String) m.get("filename"),
+                            (String) m.getOrDefault("content_type", "application/octet-stream"),
+                            m.get("size_bytes") instanceof Number n ? n.longValue() : 0L,
+                            (String) m.get("s3_key")
+                    ))
+                    .toList();
+        } catch (Exception e) {
+            log.warn("[ContactService] Błąd parsowania załączników email: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     // =========================================================================

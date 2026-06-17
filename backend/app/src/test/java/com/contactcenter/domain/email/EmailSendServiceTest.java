@@ -3,6 +3,7 @@ package com.contactcenter.domain.email;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.tenant.Tenant;
 import com.contactcenter.domain.tenant.TenantService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.MessagingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +58,8 @@ class EmailSendServiceTest {
     private EmailTemplateService emailTemplateService;
     @Mock
     private TemplateVariableResolver templateVariableResolver;
+    @Mock
+    private EmailAttachmentStorageService attachmentStorageService;
 
     private EmailSendServiceImpl emailSendService;
 
@@ -68,7 +71,9 @@ class EmailSendServiceTest {
                 tenantService,
                 encryptionService,
                 emailTemplateService,
-                templateVariableResolver
+                templateVariableResolver,
+                attachmentStorageService,
+                new ObjectMapper()
         );
     }
 
@@ -95,10 +100,10 @@ class EmailSendServiceTest {
             EmailSendServiceImpl spy = spy(emailSendService);
             doNothing().when(spy).sendSmtp(
                     any(), anyString(), anyString(), anyString(),
-                    anyString(), anyString(), anyString(), isNull(), isNull());
+                    anyString(), anyString(), anyString(), isNull(), isNull(), anyList());
 
             // when
-            EmailMessage result = spy.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID);
+            EmailMessage result = spy.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID, null);
 
             // then – wynik to zapisana encja
             assertThat(result).isNotNull();
@@ -136,17 +141,18 @@ class EmailSendServiceTest {
             EmailSendServiceImpl spy = spy(emailSendService);
             doNothing().when(spy).sendSmtp(
                     any(), anyString(), anyString(), anyString(),
-                    anyString(), anyString(), anyString(), any(), any());
+                    anyString(), anyString(), anyString(), any(), any(), anyList());
 
             // when
-            spy.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID);
+            spy.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID, null);
 
             // then – inReplyTo i references muszą być null
             verify(spy).sendSmtp(
                     any(), anyString(), anyString(), eq(TO_ADDRESS),
                     eq(SUBJECT), eq(BODY_HTML), anyString(),
                     isNull(),  // inReplyTo
-                    isNull()); // references
+                    isNull(),  // references
+                    anyList()); // attachments
         }
     }
 
@@ -166,7 +172,7 @@ class EmailSendServiceTest {
 
             // when / then
             assertThatThrownBy(() ->
-                    emailSendService.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID))
+                    emailSendService.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID, null))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining(TENANT_ID.toString());
 
@@ -185,7 +191,7 @@ class EmailSendServiceTest {
 
             // when / then
             assertThatThrownBy(() ->
-                    emailSendService.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID))
+                    emailSendService.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID, null))
                     .isInstanceOf(EmailSendService.EmailSendException.class)
                     .hasMessageContaining("nie ma skonfigurowanego konta SMTP");
 
@@ -204,7 +210,7 @@ class EmailSendServiceTest {
 
             // when / then
             assertThatThrownBy(() ->
-                    emailSendService.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID))
+                    emailSendService.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID, null))
                     .isInstanceOf(EmailSendService.EmailSendException.class)
                     .hasMessageContaining("odszyfrować hasła SMTP")
                     .hasCauseInstanceOf(EmailEncryptionService.EmailEncryptionException.class);
@@ -224,11 +230,11 @@ class EmailSendServiceTest {
             doThrow(new MessagingException("Connection refused"))
                     .when(spy).sendSmtp(
                             any(), anyString(), anyString(), anyString(),
-                            anyString(), anyString(), anyString(), any(), any());
+                            anyString(), anyString(), anyString(), any(), any(), anyList());
 
             // when / then
             assertThatThrownBy(() ->
-                    spy.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID))
+                    spy.sendNew(TENANT_ID, TO_ADDRESS, SUBJECT, BODY_HTML, AGENT_ID, null))
                     .isInstanceOf(EmailSendService.EmailSendException.class)
                     .hasMessageContaining("Wysyłka SMTP nie powiodła się")
                     .hasCauseInstanceOf(MessagingException.class);

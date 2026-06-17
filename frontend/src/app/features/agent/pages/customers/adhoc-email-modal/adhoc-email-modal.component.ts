@@ -14,9 +14,9 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { catchError, EMPTY } from 'rxjs';
+import { catchError, EMPTY, finalize } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
-import { EmailService, EmailTemplate } from '../../../services/email.service';
+import { EmailService, EmailTemplate, PendingAttachment } from '../../../services/email.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerSummary } from '../../../models/customer-search.model';
 
@@ -43,10 +43,15 @@ export class AdHocEmailModalComponent implements AfterViewInit {
   private readonly translocoService = inject(TranslocoService);
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
+  readonly fileInputRef = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
   readonly loading = signal(false);
   readonly visible = signal(false);
   readonly errorMessage = signal<string | null>(null);
+
+  readonly pendingAttachments = signal<PendingAttachment[]>([]);
+  readonly uploading = signal(false);
+  readonly uploadError = signal<string | null>(null);
 
   readonly templates = signal<EmailTemplate[]>([]);
   readonly templatesLoading = signal(false);
@@ -100,7 +105,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
   }
 
   get isSubmitDisabled(): boolean {
-    return this.form.invalid || this.form.pending || this.loading();
+    return this.form.invalid || this.form.pending || this.loading() || this.uploading();
   }
 
   ngAfterViewInit(): void {
@@ -189,6 +194,67 @@ export class AdHocEmailModalComponent implements AfterViewInit {
     return Object.keys(this.templateVariables());
   }
 
+  triggerFileInput(): void {
+    this.fileInputRef()?.nativeElement.click();
+  }
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    if (files.length === 0) return;
+
+    this.uploadError.set(null);
+    this.uploading.set(true);
+
+    let remaining = files.length;
+
+    for (const file of files) {
+      this.emailService
+        .uploadAttachment(file)
+        .pipe(
+          finalize(() => {
+            remaining--;
+            if (remaining === 0) {
+              this.uploading.set(false);
+            }
+          }),
+          catchError(() => {
+            this.uploadError.set('Nie udało się przesłać pliku: ' + file.name);
+            return EMPTY;
+          }),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe((uploaded) => {
+          this.pendingAttachments.update((list) => [
+            ...list,
+            {
+              s3Key: uploaded.s3Key,
+              filename: uploaded.filename,
+              contentType: uploaded.contentType,
+              sizeBytes: uploaded.sizeBytes,
+            },
+          ]);
+        });
+    }
+
+    // Reset input so the same file can be selected again
+    input.value = '';
+  }
+
+  removeAttachment(s3Key: string): void {
+    this.pendingAttachments.update((list) => list.filter((a) => a.s3Key !== s3Key));
+  }
+
+  trackByS3Key(_index: number, att: PendingAttachment): string {
+    return att.s3Key;
+  }
+
+  formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
   open(): void {
     this.visible.set(true);
     const dialog = this.dialogRef()?.nativeElement;
@@ -237,6 +303,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
         subject: raw.subject!.trim(),
         bodyHtml: raw.bodyHtml!,
         customerId: this.customer().customerId,
+        attachments: this.pendingAttachments(),
       })
       .pipe(
         catchError((err: HttpErrorResponse) => {
@@ -252,6 +319,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
       )
       .subscribe(() => {
         this.loading.set(false);
+        this.pendingAttachments.set([]);
         this.notifications.success(this.translocoService.translate('agent.adhocEmail.sent'));
         this.close();
         this.sent.emit();

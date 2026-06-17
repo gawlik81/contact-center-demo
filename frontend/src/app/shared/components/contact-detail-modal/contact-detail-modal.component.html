@@ -489,6 +489,29 @@
                               {{ 'contactDetailModal.emailEmpty' | transloco }}
                             </p>
                           }
+                          @if (ep.attachments && ep.attachments.length > 0) {
+                            <div class="email-preview__attachments">
+                              <strong class="email-preview__attachments-label"
+                                >Załączniki ({{ ep.attachments.length }}):</strong
+                              >
+                              <ul class="email-preview__attachments-list">
+                                @for (att of ep.attachments; track att.s3Key) {
+                                  <li class="email-preview__attachment-item">
+                                    <button
+                                      type="button"
+                                      class="email-preview__attachment-link"
+                                      (click)="downloadEmailAttachment(att.s3Key)"
+                                    >
+                                      {{ att.filename
+                                      }}<span class="email-preview__attachment-size"
+                                        >({{ formatAttachmentSize(att.sizeBytes) }})</span
+                                      >
+                                    </button>
+                                  </li>
+                                }
+                              </ul>
+                            </div>
+                          }
                         </div>
                       }
                     } @else {

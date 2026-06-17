@@ -426,6 +426,7 @@ class RoutingServiceImpl implements RoutingService {
                     );
 
                     if (assignedAgent.isPresent()) {
+                        broadcastQueueStateToAgents(tenantId);
                         // Agent zajęty po przydzieleniu kontaktu – przejdź do następnego agenta
                         break;
                     }

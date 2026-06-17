@@ -52,4 +52,35 @@
       [attr.aria-label]="'agent.emailContact.messageContent' | transloco"
     ></iframe>
   </div>
+
+  @if (message().attachments?.length) {
+    <div class="thread-message__attachments">
+      <p class="thread-message__attachments-label">
+        {{ 'agent.emailContact.attachments' | transloco }} ({{ message().attachments!.length }})
+      </p>
+      <ul class="thread-message__attachment-list" aria-label="{{ 'agent.emailContact.attachments' | transloco }}">
+        @for (att of message().attachments!; track att.s3Key) {
+          <li class="thread-message__attachment-item">
+            <button
+              type="button"
+              class="attachment-chip"
+              (click)="downloadAttachment(att)"
+              [attr.aria-label]="('agent.emailContact.attachments' | transloco) + ': ' + att.filename"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="attachment-chip__icon">
+                <path
+                  d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"
+                />
+              </svg>
+              <span class="attachment-chip__name">{{ att.filename }}</span>
+              <span class="attachment-chip__size">{{ formatFileSize(att.sizeBytes) }}</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" class="attachment-chip__download">
+                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+              </svg>
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+  }
 </article>

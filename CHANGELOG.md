@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/gawlik81/contact-center-demo/compare/v1.2.0...v1.2.1) (2026-06-17)
+
+
+### Bug Fixes
+
+* **test:** usuń flaky mockowanie SCAN w SupervisorMetricsServiceTest ([c98adb2](https://github.com/gawlik81/contact-center-demo/commit/c98adb2a822f99be8117940dd9ac64c7a21193db))
+* **test:** usuń flaky mockowanie SCAN w SupervisorMetricsServiceTest ([1a95da8](https://github.com/gawlik81/contact-center-demo/commit/1a95da865a4a7ad0faf3c6814fcfa3124d5a9a79))
+
 ## [1.2.0](https://github.com/gawlik81/contact-center-demo/compare/v1.1.0...v1.2.0) (2026-06-17)
 
 

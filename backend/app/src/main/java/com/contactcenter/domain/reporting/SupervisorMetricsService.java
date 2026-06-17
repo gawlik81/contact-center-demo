@@ -422,22 +422,7 @@ class SupervisorMetricsService {
         String tenantIdStr = tenantId.toString();
 
         try {
-            Set<String> keys = new HashSet<>();
-            ScanOptions options = ScanOptions.scanOptions()
-                    .match(IVR_SESSION_SCAN_PATTERN)
-                    .count(100)
-                    .build();
-
-            stringRedisTemplate.execute((RedisConnection connection) -> {
-                try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
-                    while (cursor.hasNext()) {
-                        keys.add(new String(cursor.next()));
-                    }
-                } catch (Exception e) {
-                    log.warn("[SupervisorMetrics] Błąd SCAN kluczy sesji IVR: {}", e.getMessage());
-                }
-                return null;
-            }, true);
+            Set<String> keys = scanIvrSessionKeys();
 
             for (String key : keys) {
                 try {
@@ -460,6 +445,41 @@ class SupervisorMetricsService {
         }
 
         return count;
+    }
+
+    /**
+     * Skanuje Redis i zwraca zbiór kluczy sesji IVR ({@code ivr:session:*}).
+     *
+     * <p>Package-private – dostępna dla testów jednostkowych, które mogą ją zastubować
+     * przez {@code @Spy} bez konieczności mockowania nisko-poziomowego {@code RedisCallback}.
+     *
+     * <p>Używamy SCAN (cursor-based) zamiast KEYS, aby nie blokować Redis event loop.
+     *
+     * @return zbiór kluczy Redis pasujących do wzorca {@code ivr:session:*}
+     */
+    Set<String> scanIvrSessionKeys() {
+        Set<String> keys = new HashSet<>();
+        try {
+            ScanOptions options = ScanOptions.scanOptions()
+                    .match(IVR_SESSION_SCAN_PATTERN)
+                    .count(100)
+                    .build();
+
+            stringRedisTemplate.execute((RedisConnection connection) -> {
+                try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
+                    while (cursor.hasNext()) {
+                        keys.add(new String(cursor.next()));
+                    }
+                } catch (Exception e) {
+                    log.warn("[SupervisorMetrics] Błąd SCAN kluczy sesji IVR: {}", e.getMessage());
+                }
+                return null;
+            }, true);
+
+        } catch (Exception e) {
+            log.warn("[SupervisorMetrics] Błąd skanowania kluczy IVR z Redis: {}", e.getMessage());
+        }
+        return keys;
     }
 
     /**

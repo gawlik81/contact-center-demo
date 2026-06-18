@@ -1,4 +1,11 @@
-<dialog #dialogEl class="email-dialog" aria-labelledby="email-dialog-title">
+<dialog
+  #dialogEl
+  class="email-dialog"
+  aria-labelledby="email-dialog-title"
+  appResizableDialog
+  [appResizableDialogMinWidth]="520"
+  [appResizableDialogMinHeight]="420"
+>
   <div class="email-dialog__content" role="document">
     <!-- Header -->
     <div class="email-dialog__header">
@@ -167,22 +174,76 @@
       </div>
 
       <!-- Body -->
-      <div
-        class="form-field"
-        [class.form-field--error]="form.controls.bodyHtml.touched && form.controls.bodyHtml.invalid"
-      >
+      <div class="form-field" [class.form-field--error]="bodyHtmlError">
         <label class="form-label" for="email-bodyHtml">
           {{ 'agent.adhocEmail.bodyLabel' | transloco }} <span class="required" aria-hidden="true">*</span>
         </label>
-        <textarea
-          id="email-bodyHtml"
-          class="form-input form-input--textarea"
-          rows="6"
-          formControlName="bodyHtml"
-          aria-required="true"
-          aria-multiline="true"
-          aria-describedby="bodyHtml-error"
-        ></textarea>
+
+        <div class="editor-wrapper">
+          <div
+            class="editor-toolbar"
+            role="toolbar"
+            [attr.aria-label]="'agent.emailContact.editorToolbarLabel' | transloco"
+          >
+            <button
+              type="button"
+              class="editor-btn"
+              [title]="'agent.emailContact.bold' | transloco"
+              [attr.aria-label]="'agent.emailContact.boldLabel' | transloco"
+              (click)="execCommand('bold')"
+            >
+              <strong>B</strong>
+            </button>
+            <button
+              type="button"
+              class="editor-btn editor-btn--italic"
+              [title]="'agent.emailContact.italic' | transloco"
+              [attr.aria-label]="'agent.emailContact.italicLabel' | transloco"
+              (click)="execCommand('italic')"
+            >
+              <em>I</em>
+            </button>
+            <button
+              type="button"
+              class="editor-btn editor-btn--underline"
+              [title]="'agent.emailContact.underline' | transloco"
+              [attr.aria-label]="'agent.emailContact.underlineLabel' | transloco"
+              (click)="execCommand('underline')"
+            >
+              <u>U</u>
+            </button>
+            <div class="editor-separator" aria-hidden="true"></div>
+            <button
+              type="button"
+              class="editor-btn"
+              [title]="'agent.emailContact.insertLink' | transloco"
+              [attr.aria-label]="'agent.emailContact.insertLinkLabel' | transloco"
+              (click)="insertLink()"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div
+            #editor
+            id="email-bodyHtml"
+            class="editor-content"
+            contenteditable="true"
+            dir="ltr"
+            role="textbox"
+            aria-multiline="true"
+            [attr.aria-describedby]="bodyHtmlError ? 'bodyHtml-error' : null"
+            [attr.aria-invalid]="!!bodyHtmlError"
+            [attr.data-placeholder]="'agent.emailContact.editorPlaceholder' | transloco"
+            (input)="onEditorInput($event)"
+            (blur)="onEditorBlur()"
+          ></div>
+        </div>
+
         @if (bodyHtmlError) {
           <span id="bodyHtml-error" class="form-error" role="alert">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

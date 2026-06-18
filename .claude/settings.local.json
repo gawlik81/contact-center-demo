@@ -379,7 +379,22 @@
       "Bash(sed -i 's/com\\\\.contactcenter\\\\.domain\\\\.service\\\\.AuditLogService/com.contactcenter.domain.audit.AuditLogService/g' infrastructure/aspect/AuditAspect.java domain/service/SocialIntegrationService.java domain/service/GdprService.java)",
       "Bash(awk -F'[:,]' '{t+=$2; f+=$4; e+=$6; s+=$8} END {print \"Total:\",t,\"Failures:\",f,\"Errors:\",e,\"Skipped:\",s}')",
       "Bash(awk -F'[ ,]+' '{run+=$3; fail+=$5; err+=$7} END {print \"Tests run:\",run,\" Failures:\",fail,\" Errors:\",err}')",
-      "Bash(awk -F'[ ,]+' '{tr+=$3; fa+=$5; er+=$7; sk+=$9} END {print \"Tests run:\", tr, \"Failures:\", fa, \"Errors:\", er, \"Skipped:\", sk, \"files:\", NR}')"
+      "Bash(awk -F'[ ,]+' '{tr+=$3; fa+=$5; er+=$7; sk+=$9} END {print \"Tests run:\", tr, \"Failures:\", fa, \"Errors:\", er, \"Skipped:\", sk, \"files:\", NR}')",
+      "Bash(tee /tmp/full_test_run1.log)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo \"TSC EXIT: $?\")",
+      "Skill(run)",
+      "Bash(docker port *)",
+      "Bash(docker network *)",
+      "Bash(nohup npm start)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(npx playwright *)",
+      "Bash(npx -y playwright@1.61.0 node -e \"1\")",
+      "Bash(NODE_PATH=/home/pawelm/.npm/_npx/48b1ca104c3549f4/node_modules node *)",
+      "Bash(docker stop *)",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"ng serve --proxy-config\")",
+      "Bash(echo \"TSC: $?\")"
     ]
   }
 }

@@ -65,3 +65,4 @@
 - [Language switcher component (FE-051)](./project_fe051_language_switcher.md) – LanguageSwitcherComponent (custom dropdown, HostListener outside-click, signal isOpen), osadzony w TopNavbar
 - [Twilio phone number select (FE-068)](./project_fe068_twilio_phone_select.md) – TwilioPhoneNumberSelectComponent (ControlValueAccessor, 5 stanów, allowNull), TwilioConfigService.getPhoneNumbers(), integracja w TwilioConfig + CampaignForm
 - [Nowy design system oklch + ThemeService](./project_new_design_system.md) – tokeny oklch light/dark/auto, ThemeService (signal+effect), KPI strip w navbar, przebudowa wizualna shell+agent desktop
+- [AdHocEmailModal WYSIWYG fix](./project_fe_adhoc_email_wysiwyg.md) – bodyHtml textarea→contenteditable, wzorowane na EmailContactComponent, gotcha z label-has-associated-control

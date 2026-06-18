@@ -19,11 +19,12 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { EmailService, EmailTemplate, PendingAttachment } from '../../../services/email.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { CustomerSummary } from '../../../models/customer-search.model';
+import { ResizableDialogDirective } from '../../../../../shared/directives/resizable-dialog.directive';
 
 @Component({
   selector: 'app-adhoc-email-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoModule, ReactiveFormsModule],
+  imports: [TranslocoModule, ReactiveFormsModule, ResizableDialogDirective],
   templateUrl: './adhoc-email-modal.component.html',
   styleUrl: './adhoc-email-modal.component.scss',
   host: {
@@ -44,6 +45,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
 
   private readonly dialogRef = viewChild<ElementRef<HTMLDialogElement>>('dialogEl');
   readonly fileInputRef = viewChild<ElementRef<HTMLInputElement>>('fileInput');
+  readonly editorRef = viewChild<ElementRef<HTMLDivElement>>('editor');
 
   readonly loading = signal(false);
   readonly visible = signal(false);
@@ -58,6 +60,8 @@ export class AdHocEmailModalComponent implements AfterViewInit {
   readonly selectedTemplate = signal<EmailTemplate | null>(null);
   readonly templateVariables = signal<Record<string, string>>({});
 
+  readonly bodyHtml = signal<string>('');
+
   readonly hasMultipleEmails = computed(() => this.customer().email.length > 1);
 
   readonly selectedTemplateHasVariables = computed(
@@ -69,11 +73,12 @@ export class AdHocEmailModalComponent implements AfterViewInit {
     return [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Klient';
   });
 
+  readonly bodyHtmlTouched = signal(false);
+
   readonly form = this.fb.group({
     templateId: [null as string | null],
     toAddress: ['', [Validators.required, Validators.email]],
     subject: ['', [Validators.required, Validators.maxLength(500)]],
-    bodyHtml: ['', [Validators.required]],
   });
 
   get toAddressError(): string | null {
@@ -97,15 +102,18 @@ export class AdHocEmailModalComponent implements AfterViewInit {
   }
 
   get bodyHtmlError(): string | null {
-    const ctrl = this.form.controls.bodyHtml;
-    if (!ctrl.invalid || (!ctrl.dirty && !ctrl.touched)) return null;
-    if (ctrl.hasError('required'))
-      return this.translocoService.translate('agent.adhocEmail.bodyRequired');
-    return null;
+    if (!this.bodyHtmlTouched() || this.bodyHtml().trim().length > 0) return null;
+    return this.translocoService.translate('agent.adhocEmail.bodyRequired');
   }
 
   get isSubmitDisabled(): boolean {
-    return this.form.invalid || this.form.pending || this.loading() || this.uploading();
+    return (
+      this.form.invalid ||
+      this.form.pending ||
+      this.loading() ||
+      this.uploading() ||
+      this.bodyHtml().trim().length === 0
+    );
   }
 
   ngAfterViewInit(): void {
@@ -140,7 +148,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
       this.selectedTemplate.set(null);
       this.templateVariables.set({});
       this.form.controls.subject.patchValue('');
-      this.form.controls.bodyHtml.patchValue('');
+      this.setEditorHtml('');
       return;
     }
 
@@ -186,12 +194,40 @@ export class AdHocEmailModalComponent implements AfterViewInit {
       .subscribe((preview) => {
         this.templatesLoading.set(false);
         this.form.controls.subject.patchValue(preview.subject);
-        this.form.controls.bodyHtml.patchValue(preview.bodyHtml);
+        this.setEditorHtml(preview.bodyHtml);
       });
   }
 
   templateVariableKeys(): string[] {
     return Object.keys(this.templateVariables());
+  }
+
+  private setEditorHtml(html: string): void {
+    const editor = this.editorRef()?.nativeElement;
+    if (editor) {
+      editor.innerHTML = html;
+    }
+    this.bodyHtml.set(html);
+  }
+
+  onEditorInput(event: Event): void {
+    const div = event.target as HTMLDivElement;
+    this.bodyHtml.set(div.innerHTML);
+  }
+
+  onEditorBlur(): void {
+    this.bodyHtmlTouched.set(true);
+  }
+
+  execCommand(command: string): void {
+    document.execCommand(command, false);
+  }
+
+  insertLink(): void {
+    const url = window.prompt('Podaj adres URL:');
+    if (url) {
+      document.execCommand('createLink', false, url);
+    }
   }
 
   triggerFileInput(): void {
@@ -290,6 +326,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
 
   protected submit(): void {
     this.form.markAllAsTouched();
+    this.bodyHtmlTouched.set(true);
     if (this.isSubmitDisabled) return;
 
     this.errorMessage.set(null);
@@ -301,7 +338,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
       .sendOutbound({
         toAddress: raw.toAddress!.trim(),
         subject: raw.subject!.trim(),
-        bodyHtml: raw.bodyHtml!,
+        bodyHtml: this.bodyHtml(),
         customerId: this.customer().customerId,
         attachments: this.pendingAttachments(),
       })

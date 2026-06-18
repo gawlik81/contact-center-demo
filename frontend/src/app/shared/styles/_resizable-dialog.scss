@@ -1,0 +1,50 @@
+// Shared styles for the drag-to-resize handle added by `ResizableDialogDirective`
+// (see shared/directives/resizable-dialog.directive.ts).
+//
+// Usage in a dialog component's SCSS:
+//   @use '../../../../shared/styles/resizable-dialog' as *; // adjust relative path
+//   .my-dialog { @extend %resizable-dialog-host; }
+//
+// Apply the `appResizableDialog` attribute directive to the same `<dialog>` element.
+
+%resizable-dialog-host {
+  position: relative;
+
+  // While actively dragging, suppress the entry transition/shadow changes so resizing feels
+  // instantaneous rather than animated.
+  &.is-resizing {
+    transition: none !important;
+    user-select: none;
+  }
+}
+
+.resizable-dialog__handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+  z-index: 10;
+  border-radius: 0 0 4px 0;
+
+  // Diagonal grip lines, similar to native OS resize handles.
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--text-muted) 70%, transparent) 0,
+    color-mix(in oklch, var(--text-muted) 70%, transparent) 1.5px,
+    transparent 1.5px,
+    transparent 4.5px
+  );
+  background-position: bottom right;
+  background-repeat: no-repeat;
+  background-size: 12px 12px;
+  opacity: 0.55;
+  transition: opacity 150ms ease;
+
+  &:hover,
+  &:active {
+    opacity: 1;
+  }
+}

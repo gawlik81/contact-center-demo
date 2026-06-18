@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.2](https://github.com/gawlik81/contact-center-demo/compare/v1.2.1...v1.2.2) (2026-06-18)
+
+
+### Bug Fixes
+
+* **email:** zamień textarea na edytor wysiwyg i dodaj resize okna w m… ([ac3396a](https://github.com/gawlik81/contact-center-demo/commit/ac3396ac8d380fc6bba38704c0284017ce832e87))
+* **email:** zamień textarea na edytor wysiwyg i dodaj resize okna w mailu ad hoc ([0c387fb](https://github.com/gawlik81/contact-center-demo/commit/0c387fb7b4ffd6870a6b2921b3c2c2349268c70d))
+
 ## [1.2.1](https://github.com/gawlik81/contact-center-demo/compare/v1.2.0...v1.2.1) (2026-06-17)
 
 

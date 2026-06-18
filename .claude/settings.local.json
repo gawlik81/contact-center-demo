@@ -394,7 +394,15 @@
       "Bash(docker stop *)",
       "Bash(kill %1)",
       "Bash(pkill -f \"ng serve --proxy-config\")",
-      "Bash(echo \"TSC: $?\")"
+      "Bash(echo \"TSC: $?\")",
+      "Bash(break)",
+      "Bash(pkill -f \"npm start\")",
+      "Bash(npx --yes chromium-cli --version)",
+      "Bash(command -v chromium-cli)",
+      "Bash(pip show *)",
+      "Bash(npx --yes -p playwright -c \"echo has-playwright-cli\")",
+      "Bash(pkill -f \"proxy-config\")",
+      "Bash(rm -rf /tmp/pw-test /tmp/proxy-test.json /tmp/ng-serve.log)"
     ]
   }
 }

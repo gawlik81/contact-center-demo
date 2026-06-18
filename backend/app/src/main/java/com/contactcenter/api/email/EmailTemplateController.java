@@ -195,11 +195,12 @@ public class EmailTemplateController {
         Map<String, Object> variables = new HashMap<>(
                 request.variables() != null ? request.variables() : Map.of());
 
-        if (request.contactId() != null) {
-            // Rozwiąż predefiniowane zmienne z prawdziwych danych kontaktu/agenta
+        if (request.customerId() != null || request.contactId() != null) {
+            // Rozwiąż predefiniowane zmienne z prawdziwych danych klienta/kontaktu/agenta.
+            // customerId ma priorytet — używany np. w podglądzie maila ad hoc, zanim kontakt powstanie.
             UUID agentId = com.contactcenter.security.TenantContext.getUserIdOrNull();
             Map<String, Object> resolved = templateVariableResolver.resolveForContext(
-                    request.contactId(), agentId);
+                    request.contactId(), request.customerId(), agentId);
             resolved.forEach(variables::putIfAbsent);
         } else {
             // Brak kontekstu — użyj przykładowych wartości

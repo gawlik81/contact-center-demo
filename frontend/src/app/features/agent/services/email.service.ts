@@ -129,10 +129,11 @@ export class EmailService {
     templateId: string,
     variables: Record<string, string>,
     contactId?: string,
+    customerId?: string,
   ): Observable<{ subject: string; bodyHtml: string }> {
     return this.http.post<{ subject: string; bodyHtml: string }>(
       `/api/email-templates/${templateId}/preview`,
-      { variables, contactId: contactId ?? null },
+      { variables, contactId: contactId ?? null, customerId: customerId ?? null },
     );
   }
 

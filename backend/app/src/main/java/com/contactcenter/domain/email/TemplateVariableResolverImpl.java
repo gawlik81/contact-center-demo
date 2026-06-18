@@ -30,14 +30,24 @@ class TemplateVariableResolverImpl implements TemplateVariableResolver {
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> resolveForContext(UUID contactId, UUID agentId) {
+        return resolveForContext(contactId, null, agentId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> resolveForContext(UUID contactId, UUID customerId, UUID agentId) {
         UUID tenantId = TenantContext.getTenantId();
         Map<String, Object> vars = new HashMap<>();
 
-        resolveCustomerVars(contactId, tenantId, vars);
+        if (customerId != null) {
+            resolveCustomerVarsByCustomerId(customerId, tenantId, vars);
+        } else {
+            resolveCustomerVars(contactId, tenantId, vars);
+        }
         resolveAgentVars(agentId, tenantId, vars);
 
-        log.debug("[TemplateVariableResolver] Resolved {} variables for contactId={}, agentId={}",
-                vars.size(), contactId, agentId);
+        log.debug("[TemplateVariableResolver] Resolved {} variables for contactId={}, customerId={}, agentId={}",
+                vars.size(), contactId, customerId, agentId);
         return vars;
     }
 
@@ -63,6 +73,10 @@ class TemplateVariableResolverImpl implements TemplateVariableResolver {
         }
 
         UUID customerId = contactOpt.get().getCustomerId();
+        resolveCustomerVarsByCustomerId(customerId, tenantId, vars);
+    }
+
+    private void resolveCustomerVarsByCustomerId(UUID customerId, UUID tenantId, Map<String, Object> vars) {
         Optional<Customer> customerOpt = customerService.findById(customerId, tenantId);
         if (customerOpt.isEmpty()) {
             putEmptyCustomerVars(vars);

@@ -180,7 +180,7 @@ export class AdHocEmailModalComponent implements AfterViewInit {
     this.templatesLoading.set(true);
 
     this.emailService
-      .previewTemplate(template.id, this.templateVariables())
+      .previewTemplate(template.id, this.templateVariables(), undefined, this.customer().customerId)
       .pipe(
         catchError(() => {
           this.templatesLoading.set(false);

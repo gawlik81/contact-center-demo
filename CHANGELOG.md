@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.3](https://github.com/gawlik81/contact-center-demo/compare/v1.2.2...v1.2.3) (2026-06-19)
+
+
+### Bug Fixes
+
+* **email:** napraw layout modala maila ad hoc po wczytaniu szablonu ([7e633df](https://github.com/gawlik81/contact-center-demo/commit/7e633df4c363fc7b865695ca8bc6b528a73d4c93))
+* **email:** podstawiaj prawdziwe dane klienta w podglądzie szablonu maila ad hoc ([46be85b](https://github.com/gawlik81/contact-center-demo/commit/46be85b454543ed44360f5651f5e4ae70d2f820a))
+
 ## [1.2.2](https://github.com/gawlik81/contact-center-demo/compare/v1.2.1...v1.2.2) (2026-06-18)
 
 

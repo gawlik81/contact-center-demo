@@ -5027,4 +5027,517 @@ POST   /api/disposition-sets/{setId}/apply-to-queue/{queueId}        → 200 (li
 - [ ] `apply-to-campaign` z obcym `campaignId` → `403 Forbidden`
 - [ ] `apply-to-*` z pustym zestawem → `404 Not Found`
 - [ ] Response body `apply-to-*` zawiera liczniki `copied` i `skipped`
+
+---
+
+## MODUL: Per-Tenant Plugin (Extension) System (EPIC-28)
+
+> Źródło architektury: `ARCHITECTURE.md` §11 (ADR-09…ADR-13, RT-09…RT-14). Pre-agreed decyzje
+> (nie renegocjować bez wyraźnej prośby użytkownika): izolacja in-process przez dedykowany
+> `ClassLoader` per `(tenant_id, plugin_key)`, NIE proces/kontener osobny; punkty rozszerzeń to
+> stały, wersjonowany enum dispatchowany przez `ExtensionPointPublisher`, NIE generyczny
+> interceptor AOP; UI pluginu w cross-origin sandboxed iframe + `postMessage`, NIE web component
+> same-origin. Tabele bazowe: DB-042…DB-045 (TASKS-DATABASE.md).
+
+### BE-097 – Nowy moduł Maven `plugin-sdk`: `PluginEntryPoint`, `PluginContext`, DTO
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** brak (nowy moduł niezależny od `app`)
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-098
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Nowy, minimalny moduł Maven `backend/plugin-sdk` — **jedyna** zależność compile-time, jakiej potrzebuje deweloper pluginu firmy trzeciej (ARCHITECTURE.md §11.6). Zawiera wyłącznie interfejsy i niemutowalne DTO (rekordy) — zero zależności od `spring-*`, `jakarta.persistence`, `hibernate-*`. Dodaj `<module>plugin-sdk</module>` do root `pom.xml`, obok istniejącego `<module>app</module>`.
+
+**Struktura modułu:**
+```
+backend/plugin-sdk/
+  pom.xml                                          ← packaging: jar, brak spring-boot-starter-parent jako parent (tylko parent groupId/version z root POM, bez Spring BOM)
+  src/main/java/com/contactcenter/pluginsdk/
+    PluginEntryPoint.java
+    PluginContext.java
+    HttpEgressClient.java
+    HttpResponse.java
+    PluginLogger.java
+    PluginConfig.java
+    model/
+      CustomerView.java          (record, immutable)
+      ContactView.java            (record, immutable)
+      ContactEvent.java
+      CustomerSyncRequest.java
+      CustomerSyncResult.java
+      DispositionEvent.java
+      ManualActionRequest.java
+      ManualActionResult.java
+      PreContactConnectResult.java
+```
+
+**`PluginEntryPoint` (z ARCHITECTURE.md §11.6, kopiuj sygnatury 1:1):**
+```java
+public interface PluginEntryPoint {
+    void onActivate(PluginContext context);
+    void onDeactivate();
+    default PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) { return PreContactConnectResult.empty(); }
+    default void onPostContactEnd(PluginContext ctx, ContactEvent e) { }
+    default CustomerSyncResult onCustomerSync(PluginContext ctx, CustomerSyncRequest req) { return CustomerSyncResult.noop(); }
+    default void onDispositionSet(PluginContext ctx, DispositionEvent e) { }
+    default ManualActionResult onManualAction(PluginContext ctx, ManualActionRequest req) { return ManualActionResult.unsupported(); }
+}
+```
+
+**`PluginContext` (fasada SDK, z ARCHITECTURE.md §11.6):**
+```java
+public interface PluginContext {
+    CustomerView getCustomer(UUID customerId);
+    void updateCustomerFields(UUID customerId, Map<String, Object> customFields);
+    ContactView getContact(UUID contactId);
+    void appendContactNote(UUID contactId, String note);
+    HttpEgressClient httpClient();
+    PluginLogger logger();
+    PluginConfig config();
+}
+```
+
+**Kluczowe ograniczenia kontraktu (wymuszone typami, nie dyscypliną pluginu):**
+- `CustomerView`/`ContactView` to `record` — plugin nigdy nie może otrzymać encji JPA zarządzanej przez Hibernate
+- `updateCustomerFields` to jedyny sposób zapisu — implementacja (BE-101) musi pisać wyłącznie do `customer.custom_fields.plugins.<pluginKey>`, nigdy do flat merge ani istniejącej typowanej kolumny (reguła anti-overloaded-column, CLAUDE.md; RT-14)
+- `HttpEgressClient` ma tylko `get`/`post` — egress allow-list per `http:egress:<host>` z manifestu jest wymuszony w implementacji (BE-101), nie w SDK
+
+**Kryteria akceptacji:**
+- [ ] `cd backend/plugin-sdk && mvn package` przechodzi jako samodzielny moduł
+- [ ] `mvn dependency:tree -pl plugin-sdk` nie zawiera żadnej zależności `org.springframework.*` ani `jakarta.persistence.*`
+- [ ] `PluginEntryPoint` ma 2 metody wymagane (`onActivate`/`onDeactivate`) + 5 metod `default` no-op
+- [ ] Wszystkie DTO w `model/` są `record` (niemutowalne)
+- [ ] Javadoc na każdym publicznym interfejsie i metodzie (to jedyna dokumentacja, jaką zobaczy zewnętrzny deweloper pluginu)
+- [ ] Root `pom.xml` zawiera `<module>plugin-sdk</module>`
+- [ ] `mvn package -pl app -DskipTests` (istniejący moduł `app`) wciąż przechodzi bez zmian
+
+---
+
+### BE-098 – Encje `Plugin`/`PluginVersion` + `PluginValidationService` (manifest, checksum, ASM scan)
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** BE-097, DB-042
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-099
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Warstwa domenowa katalogu globalnego pluginów + serwis walidacji JAR-a — gate egzekwowany **przed** dotknięciem jakiejkolwiek klasy z JAR-a (ARCHITECTURE.md §11.4). Nowy pakiet domenowy `domain.plugin` w module `app`, wzorzec interfejs+Impl zgodny z resztą projektu (zob. PROGRESS.md — audyt enkapsulacji).
+
+**Pliki do stworzenia:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/plugin/Plugin.java                          (encja JPA, tabela DB-042)
+  domain/plugin/PluginVersion.java                   (encja JPA, tabela DB-042)
+  domain/plugin/PluginRepository.java                (package-private, native SQL, extends TenantAwareRepository — UWAGA: ta tabela nie ma tenant_id, więc bez assertSameTenant; potwierdzić wzorzec dla tabel globalnych przed implementacją, np. zwykłe JdbcTemplate repo bez TenantAwareRepository)
+  domain/plugin/PluginVersionRepository.java          (jak wyżej)
+  domain/plugin/PluginValidationService.java          (publiczny interfejs)
+  domain/plugin/PluginValidationServiceImpl.java      (package-private, @Service)
+  domain/plugin/PluginManifest.java                   (record — sparsowany manifest)
+  domain/plugin/dto/PluginVersionDto.java
+  domain/plugin/dto/ValidationResult.java              (record: status, validationErrors)
+```
+
+**`PluginValidationService.validate(byte[] jarBytes, UUID uploadedByUserId)` — etapy (ARCHITECTURE.md §11.4):**
+1. Guard rozmiaru/MIME: odrzuć >50MB, odrzuć jeśli magic bytes nie wskazują na ZIP/JAR (`PK\x03\x04`)
+2. Policz SHA-256 uploadowanych bajtów, porównaj z `manifest.checksumSha256` (po rozpakowaniu manifestu — wymaga otwarcia ZIP najpierw dla odczytu manifestu, ale przed jakimkolwiek `ClassLoader.loadClass`)
+3. Otwórz jako ZIP, odczytaj `META-INF/plugin-manifest.json`, zwaliduj względem JSON Schema (biblioteka: `everit-org/json-schema` lub `networknt/json-schema-validator` — sprawdź, czy jakaś jest już na classpath aplikacji przed dodaniem nowej zależności)
+4. Statyczny skan listy klas JAR-a przez ASM (`org.ow2.asm:asm`, bez ładowania klas) — odrzuć jeśli referencje do `java.lang.reflect.*` (poza zwykłym użyciem), `java.lang.ProcessBuilder`, `java.nio.file.*` poza dozwolonym scratch dir, `sun.misc.*`, własne podklasy `ClassLoader`; odrzuć jeśli `entryPointClass` nie istnieje lub nie implementuje `PluginEntryPoint` (z `plugin-sdk`, BE-097); odrzuć jeśli `extensionPoints`/`permissions` nie są podzbiorem enuma platformy
+5. (Opcjonalnie, flagowane jako OQ-28-1 w EPIC-28-PLAN.md — NIE blokować tego ticketu na decyzji o signing) — zostaw hook/no-op do weryfikacji podpisu, ale nie implementuj logiki podpisu w tym tickecie
+6. Zapisz JAR do object storage (BE-099, nie ten ticket) + wstaw wiersz `plugin_version`, `status = PENDING_REVIEW` lub `VALIDATED`
+
+**Kryteria akceptacji:**
+- [ ] Encje mapują na tabele DB-042 (`plugin`, `plugin_version`) — bez `tenant_id`
+- [ ] JSON Schema waliduje wszystkie pola manifestu z ARCHITECTURE.md §11.2 (pluginKey, displayName, version, vendor, sdkVersion, entryPointClass, extensionPoints, permissions, uiPanels, manualActions, checksumSha256)
+- [ ] Checksum mismatch → `ValidationResult` ze statusem `REJECTED` i opisowym błędem w `validationErrors`
+- [ ] ASM scan odrzuca JAR z referencją do `java.lang.reflect.Method.setAccessible` (test z przygotowanym JAR-em testowym)
+- [ ] ASM scan odrzuca JAR z `entryPointClass` nieimplementującym `PluginEntryPoint`
+- [ ] `extensionPoints`/`permissions` spoza enuma platformy → `REJECTED`
+- [ ] Testy jednostkowe ≥8 scenariuszy walidacji (rozmiar, MIME, checksum, schema, ASM blacklist x3, sukces)
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-099 – `PluginUploadController` + integracja object storage (MinIO/S3)
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-098
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-100
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Endpoint REST do uploadu JAR-a przez admina tenanta — `multipart/form-data`. Po `VALIDATED` zapisuje bajty JAR-a do object storage. Reużyj istniejący wzorzec `S3Config`/`S3Properties` (`infrastructure/config/`, ten sam bucket family co `recording`, ARCHITECTURE.md §11.4 punkt 6) — nie twórz nowej konfiguracji klienta S3 od zera.
+
+**Endpoint:**
+```
+POST /api/supervisor/plugins
+  multipart/form-data: file=<jar bytes>
+  → 201 Created: PluginVersionDto (status=VALIDATED|PENDING_REVIEW)
+  → 400 Bad Request: { validationErrors: [...] } (status=REJECTED, JAR NIE zapisany do storage)
+```
+
+**Bezpieczeństwo:** `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")`.
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  api/plugin/PluginUploadController.java
+  domain/plugin/PluginStorageService.java            (publiczny interfejs)
+  domain/plugin/PluginStorageServiceImpl.java         (package-private, @Service, wstrzykuje istniejący S3 client bean z infrastructure/config/S3Config)
+```
+
+**Kryteria akceptacji:**
+- [ ] Upload >50MB → `400 Bad Request` z czytelnym komunikatem, request odrzucony przed wejściem do `PluginValidationService`
+- [ ] Upload pliku niebędącego JAR/ZIP (np. `.txt` z fałszywym rozszerzeniem) → `400 Bad Request`
+- [ ] JAR zapisany do object storage TYLKO gdy `status` ∈ {`VALIDATED`, `PENDING_REVIEW`} — `REJECTED` nigdy nie trafia do storage
+- [ ] `jar_object_key` zapisany w `plugin_version` wskazuje na rzeczywisty obiekt w MinIO (test integracyjny z lokalnym MinIO z docker-compose)
+- [ ] Endpoint w Swagger UI z przykładem multipart i response
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-100 – Encja `TenantPluginInstallation` + `PluginRegistrationService` (install/enable/disable/rollback)
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** BE-099, DB-043
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-101, BE-106
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Warstwa domenowa instalacji per tenant. `PluginRegistrationService` zarządza cyklem życia instalacji **bez** jeszcze ładowania klas pluginu do JVM (to robi `PluginRuntimeManager`, BE-101 — ten ticket tylko zapisuje stan w DB i woła BE-101 jako kolejny krok zintegrowany w BE-101).
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/plugin/TenantPluginInstallation.java         (encja JPA, tabela DB-043, RLS)
+  domain/plugin/TenantPluginInstallationRepository.java (package-private, extends TenantAwareRepository)
+  domain/plugin/PluginRegistrationService.java         (publiczny interfejs)
+  domain/plugin/PluginRegistrationServiceImpl.java      (package-private, @Service)
+  domain/plugin/dto/TenantPluginInstallationDto.java
+  domain/plugin/dto/InstallPluginRequest.java           (pluginVersionId, grantedPermissions: List<String>)
+```
+
+**`PluginRegistrationService` — metody kluczowe:**
+```java
+TenantPluginInstallationDto install(UUID tenantId, UUID pluginVersionId, List<String> grantedPermissions, UUID installedByUserId);
+void enable(UUID tenantId, UUID installationId);
+void disable(UUID tenantId, UUID installationId);
+List<TenantPluginInstallationDto> listInstallations(UUID tenantId);
+TenantPluginInstallationDto rollback(UUID tenantId, UUID currentInstallationId, UUID targetInstallationId);
+```
+
+**Logika `install`:**
+1. Sprawdź `assertSameTenant` (CLAUDE.md — przed każdym zapisem)
+2. Wstaw `tenant_plugin_installation` z `enabled=false`, `granted_permissions` = przecięcie żądanych z dozwolonymi przez manifest (nigdy auto-grant pełnego manifestu — ARCHITECTURE.md §11.4/RT-13)
+3. Zwróć DTO — **nie** ładuje jeszcze `ClassLoader`a (to dzieje się przy `enable`, zintegrowane w BE-101)
+
+**Logika `rollback`:** przełącza `enabled=true` na `targetInstallationId` (starsza wersja) i `enabled=false` na `currentInstallationId` — atomowo w jednej transakcji (ARCHITECTURE.md §11.11). Nie usuwa żadnego wiersza.
+
+**Kryteria akceptacji:**
+- [ ] Encja mapuje na tabelę DB-043, repozytorium wywołuje `assertSameTenant` przed każdym zapisem
+- [ ] `install` z duplikatem `(tenant_id, plugin_version_id)` → `409 Conflict` (DB constraint propagowany jako wyjątek domenowy)
+- [ ] `granted_permissions` zapisane to przecięcie żądanych ∩ manifestu — żądanie permission nie zadeklarowanej w manifeście jest ignorowane, nie powoduje błędu
+- [ ] `rollback` jest atomowy — test weryfikujący, że przy wyjątku w trakcie żaden z dwóch wierszy nie zmienia `enabled`
+- [ ] Testy jednostkowe ≥5 scenariuszy (install sukces, duplikat, rollback sukces, rollback obcego tenanta → 403, disable)
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-101 – `PluginRuntimeManager` + `PluginClassLoader` + implementacja `PluginContext`
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** XL
+**Zależy od:** BE-100, BE-097
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-102, BE-106
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Jądro mechanizmu izolacji — najbardziej krytyczny i najbardziej ryzykowny ticket epika (RT-10). Implementuje model z ARCHITECTURE.md §11.3: dedykowany `ClassLoader` per `(tenant_id, plugin_key)`, wąski parent classloader eksponujący tylko `com.contactcenter.pluginsdk.*`, oraz implementację `PluginContext` jako **jedyny** obiekt przekazywany do pluginu.
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/plugin/runtime/PluginRuntimeManager.java       (publiczny interfejs)
+  domain/plugin/runtime/PluginRuntimeManagerImpl.java    (package-private, @Service)
+  domain/plugin/runtime/PluginClassLoader.java           (extends URLClassLoader lub custom; parent = PlatformApiClassLoader)
+  domain/plugin/runtime/PlatformApiClassLoader.java      (eksponuje WYŁĄCZNIE com.contactcenter.pluginsdk.* — singleton, jeden na cały JVM, nie per-instalacja)
+  domain/plugin/runtime/PluginContextImpl.java            (package-private, implements PluginContext z plugin-sdk; instancjowany PER WYWOŁANIE z tenantId zabranym z TenantContext, NIGDY od pluginu)
+  domain/plugin/runtime/PluginRegistry.java               (publiczny interfejs — lookup (tenantId, extensionPoint) -> List<PluginInstanceHandle>)
+  domain/plugin/runtime/PluginRegistryImpl.java
+  domain/plugin/runtime/PluginInstanceHandle.java         (record: installationId, tenantId, pluginKey, PluginEntryPoint instance, classLoader)
+```
+
+**`PluginRuntimeManager` — metody kluczowe:**
+```java
+PluginInstanceHandle load(UUID tenantId, UUID pluginVersionId);   // downloads JAR (cache local disk), new PluginClassLoader, instantiate entryPointClass via no-arg constructor, call onActivate(PluginContext)
+void unload(UUID tenantId, UUID installationId);                   // calls onDeactivate() best-effort timeout-bounded, drops last strong reference to ClassLoader (GC-eligible)
+```
+
+**Wymogi krytyczne (testowalne, nie tylko opisowe — ARCHITECTURE.md §11.3):**
+- `entryPointClass` instancjowany **wyłącznie** przez konstruktor bezargumentowy — żadnego DI do konstruktora pluginu
+- `PluginContextImpl` budowany **per wywołanie** z `tenantId` branym z `TenantContext` aktualnego wątku — plugin nigdy nie dostaje obiektu, z którego mógłby odczytać/wstrzyknąć inny `tenantId`
+- `PlatformApiClassLoader` to JEDEN classloader dla całego JVM, eksponujący tylko pakiet `com.contactcenter.pluginsdk` — NIE cały classpath aplikacji jako parent
+- Każda para `(tenant_id, plugin_key)` (nawet ten sam JAR dla dwóch tenantów) dostaje **odrębną instancję** `PluginClassLoader` — bez współdzielonego stanu statycznego
+
+**Kryteria akceptacji:**
+- [ ] Test negatywny: kod testowy w pluginie testowym próbujący `Class.forName("com.contactcenter.domain.tenant.TenantServiceImpl")` przez classloader pluginu — musi rzucić `ClassNotFoundException` (parent classloader nie eksponuje pakietów `app`)
+- [ ] Test: dwa tenanty instalujące ten sam `plugin_key`/`plugin_version_id` dostają dwa różne obiekty `ClassLoader` (porównanie referencji)
+- [ ] Test: `PluginContextImpl.getCustomer(id)` zwraca dane tylko dla tenanta z `TenantContext` bieżącego wątku, niezależnie od tego, jaki `tenantId` "próbowałby" przekazać kod pluginu (SDK nie przyjmuje `tenantId` jako parametr — zweryfikować, że sygnatura `PluginContext.getCustomer` z `plugin-sdk`, BE-097, rzeczywiście nie ma parametru tenantId)
+- [ ] `unload` zwalnia silną referencję do `ClassLoader`a (test z `WeakReference` + `System.gc()` + assert na czyszczenie, akceptowalne jako best-effort/no-flaky-retry test)
+- [ ] `onActivate`/`onDeactivate` wywoływane w odpowiednich momentach cyklu życia, timeout-bounded (reużyj mechanizm z BE-102 jeśli już gotowy w trakcie code review, inaczej prosty `Future.get(timeout)` lokalnie w tym tickecie)
+- [ ] `mvn verify -pl app` przechodzi
+- [ ] Code review (`senior-code-reviewer`) obowiązkowy przed merge — to ticket z największym ryzykiem bezpieczeństwa w epiku (RT-10)
+
+---
+
+### BE-102 – `ExtensionPointPublisher` + `PluginInvocationExecutor` (timeouty, circuit breaker)
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** BE-101
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-103, BE-104, BE-105
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Mechanizm dispatchu i fault containment (ARCHITECTURE.md §11.5/§11.7). `ExtensionPointPublisher` to jedyny sposób wywołania pluginu — żaden inny serwis nie woła `PluginEntryPoint` bezpośrednio.
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/plugin/runtime/ExtensionPointPublisher.java      (publiczny interfejs)
+  domain/plugin/runtime/ExtensionPointPublisherImpl.java   (package-private, @Service)
+  domain/plugin/runtime/PluginInvocationExecutor.java      (bounded ThreadPoolExecutor, bean odrębny od istniejących @Async/@Scheduled pools — sprawdź AsyncConfig istniejący w infrastructure/config przed dodaniem nowego)
+  domain/plugin/runtime/CircuitBreakerState.java            (per installation: consecutive failures, opens after N=5, w pamięci lub Redis — sprawdź wzorzec circuit breaker jeśli istnieje gdzieś w projekcie, np. HttpEgressClient pattern)
+```
+
+**`ExtensionPointPublisher` — metody kluczowe:**
+```java
+PreContactConnectResult publishPreContactConnect(UUID tenantId, ContactEvent event);   // blocking, timeout 2s default, never throws — empty result on timeout/error
+ManualActionResult publishManualAction(UUID tenantId, UUID installationId, ManualActionRequest req);  // blocking, timeout 5s default
+void publishPostContactEnd(UUID tenantId, ContactEvent event);          // fire-and-forget (delegates to BE-104's RabbitMQ publish)
+void publishCustomerSync(UUID tenantId, CustomerSyncRequest req);       // fire-and-forget
+void publishDispositionSet(UUID tenantId, DispositionEvent event);     // fire-and-forget
+```
+
+**Logika wywołania blocking (`publishPreContactConnect`/`publishManualAction`):**
+1. `PluginRegistry.lookup(tenantId, extensionPoint)` → lista `PluginInstanceHandle`
+2. Dla każdej instalacji: sprawdź circuit breaker — jeśli `OPEN`, zapisz `CIRCUIT_OPEN` do logu (BE-105) i przejdź dalej
+3. `TenantContext.snapshot()` na wątku wywołującym → `pluginInvocationExecutor.submit(...)` → w wątku roboczym `TenantContext.restore(snapshot)` w `try`, `TenantContext.clear()` w `finally` (wzorzec CLAUDE.md/§11.8 — kopiuj dokładnie)
+4. `Future.get(timeoutMs)` — na `TimeoutException` oznacz `TIMED_OUT`, zwróć wynik pusty/domyślny (nigdy nie blokuje dalej, nigdy nie propaguje wyjątku do wołającego)
+5. Każda ścieżka (sukces/błąd/timeout/circuit-open) zapisana do logu (BE-105)
+
+**Kryteria akceptacji:**
+- [ ] `PluginInvocationExecutor` to odrębny bean `ThreadPoolExecutor`, NIE współdzieli poola z Tomcat request threads ani z istniejącym `@Async` executorem
+- [ ] Domyślne timeouty: `PRE_CONTACT_CONNECT`=2000ms, `MANUAL_ACTION`=5000ms, async (BE-104)=30000ms — konfigurowalne, capped przez maksimum platformy
+- [ ] Test: plugin który wywołuje `Thread.sleep(10000)` w `onPreContactConnect` → wynik `TIMED_OUT` po ~2s, wołający kod otrzymuje wynik pusty (nie wyjątek, nie blokuje się 10s)
+- [ ] Test: plugin który rzuca `Throwable`/`Error` (nie tylko `Exception`) jest złapany przez `try/catch(Throwable)` na granicy executora i nie propaguje się dalej
+- [ ] Circuit breaker: po 5 kolejnych `TIMED_OUT`/`FAILED` dla tej samej instalacji → `health_status=DEGRADED` w DB (DB-043), kolejne wywołania pomijane jako `CIRCUIT_OPEN` bez próby wywołania
+- [ ] `TenantContext.snapshot()/restore()/clear()` na granicy wątku — test weryfikujący brak leaku tenant context między dwoma kolejnymi wywołaniami różnych tenantów na tym samym executorze
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-103 – Integracja `PRE_CONTACT_CONNECT`/`MANUAL_ACTION` w przepływie połączenia
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-102
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-107
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Podłączenie `ExtensionPointPublisher.publishPreContactConnect`/`publishManualAction` do istniejącego przepływu połączenia agenta. To pierwszy ticket, który dotyka kodu telefonii poza pakietem `domain.plugin` — zachowaj szczególną ostrożność, żeby nie zmienić istniejącego zachowania telefonii dla tenantów bez zainstalowanych pluginów.
+
+**Punkty integracji (zlokalizować przed implementacją — sprawdzić aktualny przepływ w `domain.telephony`/`api.telephony`, prawdopodobnie `AgentCallController`/`TelephonyAdapter.initiateCall` lub miejsce, gdzie agent dostaje powiadomienie o nadchodzącym połączeniu z danymi klienta):**
+```
+[miejsce, gdzie kontakt jest o krok od połączenia z agentem, dane klienta już rozwiązane]
+  → ExtensionPointPublisher.publishPreContactConnect(tenantId, contactEvent)
+  → wynik (lub pusty po timeout/braku pluginów) scalony z danymi kontaktu zwracanymi do agenta
+  → connect przebiega NIEZALEŻNIE od wyniku pluginu (nigdy nie blokuje na błędzie, ARCHITECTURE.md §11.5/RT-12)
+```
+
+**Nowy endpoint manual action:**
+```
+POST /api/agent/plugins/{installationId}/manual-action/{actionId}
+  body: { payload: {...} }
+  → 200: ManualActionResult
+  → 504 Gateway Timeout: jeśli plugin przekroczy 5s (ManualActionResult z polem error, NIE wyjątek nieobsłużony)
+```
+
+**Kryteria akceptacji:**
+- [ ] Tenant BEZ zainstalowanych pluginów: zachowanie connect identyczne jak przed epikiem (zero regresji — test regresyjny na istniejącym flow telefonii)
+- [ ] Tenant z pluginem na `PRE_CONTACT_CONNECT`, który timeoutuje → connect i tak następuje w budżecie pierwotnego SLA telefonii (`< 3s` z ARCHITECTURE.md Appendix C) + budżet pluginu, nie zamiast
+- [ ] `POST .../manual-action/{actionId}` z nieistniejącym `installationId` → `404`
+- [ ] `POST .../manual-action/{actionId}` z `installationId` innego tenanta → `403`
+- [ ] Endpoint w Swagger UI
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-104 – Async punkty rozszerzeń: `POST_CONTACT_END`/`CUSTOMER_SYNC`/`DISPOSITION_SET` przez RabbitMQ
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** BE-102
+**Status:** ⬜ Do zrobienia
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Trzy punkty rozszerzeń fire-and-forget publikowane do nowej kolejki RabbitMQ `cc.queue.plugin-invocation`, konsumowane asynchronicznie — odpowiedzialność za latencję pluginu jest całkowicie odseparowana od żądania agenta (ARCHITECTURE.md §11.5). Wzorzec identyczny z istniejącymi domenowymi event'ami `agent.status.changed`/`call.incoming` (§3.5) — sprawdź istniejącą konfigurację RabbitMQ (exchange/queue/binding) przed dodaniem nowej.
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/plugin/runtime/PluginInvocationMessage.java       (record — serializowalny payload kolejki: tenantId, installationId, extensionPoint, eventPayload jako JSON)
+  domain/plugin/runtime/PluginInvocationConsumer.java       (@RabbitListener na cc.queue.plugin-invocation, TenantContext snapshot/restore/clear na granicy listenera — wzorzec identyczny jak istniejący TenantAwareConsumer w domain.messaging)
+  infrastructure/config/RabbitMqPluginConfig.java            (deklaracja exchange/queue/binding cc.queue.plugin-invocation, dead-letter queue wzorcem istniejącego DeadLetterConsumer)
+```
+
+**Rozważ:** `PluginInvocationConsumer` powinien `extends TenantAwareConsumer` (domain.messaging) jeśli ta klasa bazowa już obsługuje wzorzec snapshot/restore/clear — sprawdź `domain/messaging/TenantAwareConsumer.java` przed pisaniem własnej logiki od zera.
+
+**Logika konsumenta:**
+1. Deserializuj `PluginInvocationMessage`
+2. `TenantContext.restore(...)` (lub wzorzec z `TenantAwareConsumer`)
+3. `PluginRegistry.lookup(tenantId, extensionPoint)` → dla każdej instalacji, jeśli `enabled=false` → log `SKIPPED_DISABLED` (nie silently dropped, ARCHITECTURE.md §11.11), inaczej wywołaj odpowiedni `onPostContactEnd`/`onCustomerSync`/`onDispositionSet` z timeoutem 30s (reużyj `PluginInvocationExecutor` z BE-102)
+4. Każda ścieżka zapisana do `plugin_invocation_log` (BE-105)
+
+**Kryteria akceptacji:**
+- [ ] Kolejka `cc.queue.plugin-invocation` zadeklarowana z dead-letter queue (wzorzec istniejącego `DeadLetterConsumer`)
+- [ ] Test: wiadomość dla instalacji, która między publikacją a konsumpcją została `disabled` → log `SKIPPED_DISABLED`, nie wyjątek, nie silent drop
+- [ ] `TenantContext` poprawnie ustawiony na wątku listenera (test integracyjny z dwoma tenantami w kolejce na raz — brak cross-tenant leak)
+- [ ] Plugin rzucający wyjątek w `onPostContactEnd` nie powoduje requeue w nieskończoność (DLQ po N retry, wzorzec istniejący)
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-105 – `PluginInvocationLogService` + REST historii wywołań
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-102, DB-045
+**Status:** ⬜ Do zrobienia
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Serwis zapisu (wołany z BE-102/BE-103/BE-104 na każdej ścieżce wywołania) + endpoint REST do przeglądania historii przez supervisora, analogicznie do `EtlStatusController` (ARCHITECTURE.md §11.12, §3.6/§8.3).
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  domain/plugin/runtime/PluginInvocationLogService.java      (publiczny interfejs)
+  domain/plugin/runtime/PluginInvocationLogServiceImpl.java   (package-private, @Service)
+  domain/plugin/PluginInvocationLogRepository.java             (package-private, extends TenantAwareRepository, tabela DB-045)
+  api/plugin/PluginInvocationLogController.java
+  domain/plugin/dto/PluginInvocationLogDto.java
+```
+
+**Endpoint:**
+```
+GET /api/supervisor/plugins/{installationId}/invocations?page=0&size=20&status=FAILED
+  → 200: Page<PluginInvocationLogDto>
+```
+
+**Bezpieczeństwo:** `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")`.
+
+**Kryteria akceptacji:**
+- [ ] `record(...)` wywoływane na każdej z 5 ścieżek statusu (SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN/SKIPPED_DISABLED) — weryfikacja przez testy istniejących wywołujących (BE-102/BE-104) po integracji
+- [ ] `request_payload_redacted` nie zawiera PII surowego klienta — test z przykładowym payloadem weryfikujący redakcję pól (np. `phoneNumber`, `email`)
+- [ ] Endpoint paginowany, filtrowanie po `status`
+- [ ] `installationId` innego tenanta → `403`
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-106 – `PluginAdminController`: enable/disable, rollback, platform `REVOKED` kill switch
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-101
+**Status:** ⬜ Do zrobienia
+**Blokuje:** BE-107
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Kontroler REST dla panelu admina tenanta (enable/disable/rollback instalacji) + endpoint globalny dla administratora systemowego (`REVOKED` — kill switch wpływający na wszystkich tenantów niezależnie od ich `enabled`, ARCHITECTURE.md §11.11).
+
+**Endpointy:**
+```
+GET    /api/supervisor/plugins                                    → 200 List<TenantPluginInstallationDto> (wszystkie instalacje tenanta, w tym disabled)
+POST   /api/supervisor/plugins/{pluginVersionId}/install           → 201 TenantPluginInstallationDto
+POST   /api/supervisor/plugins/installations/{id}/enable           → 200 (PluginRuntimeManager.load wywołany jeśli jeszcze nie był)
+POST   /api/supervisor/plugins/installations/{id}/disable           → 200 (bindingi usunięte z PluginRegistry NATYCHMIAST)
+POST   /api/supervisor/plugins/installations/{id}/rollback/{targetId} → 200 TenantPluginInstallationDto
+DELETE /api/supervisor/plugins/installations/{id}                   → 204 (uninstall: onDeactivate best-effort, unload ClassLoader, log zostaje — FK SET NULL)
+
+-- Endpoint administratora SYSTEMOWEGO (nie tenant admin — sprawdź istniejący wzorzec roli system-admin, jeśli istnieje, np. AdminMetricsController)
+POST   /api/admin/plugins/versions/{pluginVersionId}/revoke         → 200 (status=REVOKED, wyłącza WSZYSTKIE instalacje wszystkich tenantów, checked w PluginRegistry.lookup)
+```
+
+**Bezpieczeństwo:** `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")` dla `/api/supervisor/plugins/**`; endpoint `/api/admin/plugins/**` — sprawdź i reużyj dokładnie ten sam mechanizm autoryzacji co istniejący `AdminMetricsController`/`AdminTenantController` dla roli systemowej (prawdopodobnie inna od tenant `ADMIN`).
+
+**Kryteria akceptacji:**
+- [ ] `enable` woła `PluginRuntimeManager.load` (BE-101) jeśli `ClassLoader` jeszcze nie istnieje dla tej instalacji
+- [ ] `disable` usuwa bindingi z `PluginRegistry.lookup` table NATYCHMIAST — test: wywołanie `ExtensionPointPublisher` zaraz po `disable` nie zwraca już tej instalacji
+- [ ] `rollback` deleguje do `PluginRegistrationService.rollback` (BE-100) i dodatkowo przełącza runtime: stary `ClassLoader` ładowany (jeśli był odładowany), nowy odładowany
+- [ ] `revoke` (endpoint systemowy) — test z 2 tenantami mającymi `enabled=true` dla tej samej wersji: po revoke `PluginRegistry.lookup` dla obu zwraca puste, NIEZALEŻNIE od ich `enabled` w DB
+- [ ] Rola tenant `SUPERVISOR` → `403` na endpoincie `/api/admin/plugins/**`
+- [ ] `mvn verify -pl app` przechodzi
+
+---
+
+### BE-107 – Serwowanie `plugin-ui/` assetów + manual-action proxy endpoint dla iframe
+
+**Typ:** Backend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** BE-103, BE-106
+**Status:** ⬜ Do zrobienia
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Backend dla integracji UI pluginu (ARCHITECTURE.md §11.10/ADR-12). Dwie odpowiedzialności: (a) ekstrakcja i serwowanie statycznych assetów `plugin-ui/` z JAR-a z dedykowanej originy (NIE tej samej co główne SPA), (b) endpoint proxy, przez który `PluginUiSdk.invokeManualAction` (FE-099) woła backend — iframe nigdy nie woła `/api/**` z JWT agenta bezpośrednio.
+
+**Pliki:**
+```
+backend/app/src/main/java/com/contactcenter/
+  api/plugin/PluginAssetController.java                  (serwuje pliki z plugin-ui/ rozpakowane przy install na dysk lokalny per node lub object storage, Content-Security-Policy nagłówki per ARCHITECTURE.md §11.10)
+  domain/plugin/runtime/PluginAssetExtractionService.java (publiczny interfejs — rozpakowuje plugin-ui/ z JAR-a przy load(), BE-101)
+```
+
+**Wymogi nagłówków (ARCHITECTURE.md §11.10 — krytyczne dla bezpieczeństwa, weryfikowane testami):**
+- Response assetów: `Content-Security-Policy: default-src 'self'; connect-src <egress hosts z manifestu>` — NIE `*`
+- Serwowane z subdomeny/path **innej originy** niż główne SPA (np. `/plugin-assets/{installationId}/**` z osobnym CORS policy, lub osobny vhost — potwierdź z istniejącą konfiguracją deploymentu/nginx przed implementacją, może wymagać współpracy z infra poza zakresem tego ticketu jeśli wymaga zmiany DNS/reverse proxy w środowisku — w takim przypadku zaimplementuj ścieżkę względną i udokumentuj wymóg dla DevOps)
+
+**Manual-action proxy endpoint** (już zadeklarowany w BE-103 jako `POST /api/agent/plugins/{installationId}/manual-action/{actionId}`) — ten ticket dodaje warunek: endpoint dostępny tylko gdy `tenant_plugin_installation.enabled=true` AND `health_status != 'DISABLED_BY_ADMIN'` AND powiązana `plugin_version.status != 'REVOKED'`.
+
+**Kryteria akceptacji:**
+- [ ] Response assetów zawiera `Content-Security-Policy` z `connect-src` ograniczonym do hostów z `manifest.permissions` (`http:egress:<host>`)
+- [ ] Asset serwowany z innej originy niż główne SPA (zweryfikowane nagłówkiem `Access-Control-Allow-Origin` lub strukturą URL — dokumentować decyzję w PR jeśli wymaga współpracy z infra)
+- [ ] Manual-action proxy odrzuca wywołanie dla `enabled=false`/`DISABLED_BY_ADMIN`/`REVOKED` → `403`
+- [ ] Iframe (test E2E poza zakresem backendu, ale endpoint testowany izolowanie) nie wymaga JWT agenta w żądaniu do `/plugin-assets/**` — autoryzacja przez stronę hosta, nie przez iframe
+- [ ] `mvn verify -pl app` przechodzi
 - [ ] `mvn verify -pl app` przechodzi

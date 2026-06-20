@@ -4839,3 +4839,255 @@ pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwie
 - [ ] Lista dyspozycji przeładowana po zastosowaniu zestawu
 - [ ] Brak zestawów → komunikat „Brak zdefiniowanych zestawów" + link do strony zarządzania
 - [ ] `npm run lint` przechodzi
+
+---
+
+## MODUL: Per-Tenant Plugin (Extension) System (EPIC-28)
+
+> Źródło architektury: `ARCHITECTURE.md` §11 (ADR-09…ADR-13, RT-09…RT-14). Decyzja UI
+> pre-agreed (ADR-12): plugin UI renderowane w cross-origin `<iframe sandbox="allow-scripts
+> allow-forms">` (BEZ `allow-same-origin`), komunikacja wyłącznie przez `postMessage`-owy
+> `PluginUiSdk` — NIE web component same-origin, bo kod pluginu jest nieautoryzowanym kodem
+> firmy trzeciej (CLAUDE.md "standalone components" governuje tylko first-party Angular).
+> Backend: BE-099 (upload), BE-106 (admin), BE-107 (assety + proxy).
+
+### FE-097 – `PluginAdminService` i modele TypeScript — warstwa danych Angular
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-099, BE-106
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-099, BE-106
+**Blokuje:** FE-098, FE-099
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Serwis i modele bazowe dla panelu administracyjnego pluginów. Brak logiki UI — czysta warstwa danych konsumowana przez FE-098/FE-099.
+
+**Lokalizacja:**
+```
+frontend/src/app/features/plugins/
+  models/plugin.model.ts
+  services/plugin-admin.service.ts
+```
+
+**Modele (`plugin.model.ts`):**
+```typescript
+export type PluginVersionStatus = 'UPLOADED' | 'VALIDATED' | 'PENDING_REVIEW' | 'REJECTED' | 'REVOKED';
+export type PluginHealthStatus = 'HEALTHY' | 'DEGRADED' | 'DISABLED_BY_ADMIN';
+export type ExtensionPoint = 'PRE_CONTACT_CONNECT' | 'POST_CONTACT_END' | 'CUSTOMER_SYNC' | 'DISPOSITION_SET' | 'MANUAL_ACTION';
+
+export interface PluginVersionDto {
+  id: string;
+  pluginId: string;
+  pluginKey: string;
+  displayName: string;
+  vendor: string;
+  version: string;
+  status: PluginVersionStatus;
+  validationErrors: string[] | null;
+  uploadedAt: string;
+}
+
+export interface ManualActionDef {
+  actionId: string;
+  label: string;
+  mountPoint: string;
+}
+
+export interface UiPanelDef {
+  panelId: string;
+  mountPoint: string;
+  url: string;
+}
+
+export interface TenantPluginInstallationDto {
+  id: string;
+  pluginVersionId: string;
+  pluginKey: string;
+  displayName: string;
+  version: string;
+  enabled: boolean;
+  grantedPermissions: string[];
+  healthStatus: PluginHealthStatus;
+  consecutiveFailureCount: number;
+  manualActions: ManualActionDef[];
+  uiPanels: UiPanelDef[];
+  installedAt: string;
+}
+
+export interface InstallPluginRequest {
+  pluginVersionId: string;
+  grantedPermissions: string[];
+}
+```
+
+**`PluginAdminService` (`features/plugins/services/plugin-admin.service.ts`):**
+```typescript
+uploadJar(file: File): Observable<PluginVersionDto>                                  // multipart, POST /api/supervisor/plugins
+listInstallations(): Observable<TenantPluginInstallationDto[]>                       // GET /api/supervisor/plugins
+install(req: InstallPluginRequest): Observable<TenantPluginInstallationDto>           // POST /api/supervisor/plugins/{pluginVersionId}/install
+enable(installationId: string): Observable<void>                                      // POST .../installations/{id}/enable
+disable(installationId: string): Observable<void>                                     // POST .../installations/{id}/disable
+rollback(installationId: string, targetId: string): Observable<TenantPluginInstallationDto> // POST .../installations/{id}/rollback/{targetId}
+uninstall(installationId: string): Observable<void>                                   // DELETE .../installations/{id}
+```
+
+**Kryteria akceptacji:**
+- [ ] Modele zgodne z kontraktami BE-099 (`PluginVersionDto`)/BE-106 (`TenantPluginInstallationDto`)
+- [ ] `uploadJar` wysyła `multipart/form-data` z polem `file`
+- [ ] Serwis `providedIn: 'root'`
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-098 – Strona „Ustawienia > Pluginy” (supervisor/admin)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** FE-097
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-099, BE-106
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Nowa strona w panelu supervisora pod ścieżką `/supervisor/settings/plugins`. Upload JAR-a, lista zainstalowanych pluginów z health status, enable/disable, rollback do poprzedniej wersji, uninstall.
+
+**Lokalizacja:**
+```
+frontend/src/app/features/supervisor/pages/settings/plugins/
+  plugins-page.component.ts
+  plugins-page.component.html
+  plugins-page.component.scss
+```
+
+**Funkcjonalność:**
+
+*Sekcja upload:*
+- Drag&drop lub input `type="file"` ograniczony do `.jar`
+- Walidacja client-side: rozmiar ≤50MB, rozszerzenie `.jar` (best-effort — walidacja autorytatywna jest po stronie backendu, BE-098)
+- Po uploadzie: jeśli `status=REJECTED` → wyświetl `validationErrors` w czytelnej liście; jeśli `VALIDATED`/`PENDING_REVIEW` → przycisk „Zainstaluj”
+
+*Dialog instalacji:*
+- Lista `permissions` z manifestu (pobrana z `PluginVersionDto` — uwaga: jeśli `PluginVersionDto` z FE-097 nie zawiera pełnych `permissions`, doprecyzować z BE-099 czy manifest jest eksponowany w odpowiedzi uploadu czy trzeba dodać pole; jeśli brak czasu na backend round-trip, traktować jako known-gap i logować TODO)
+- Checkboxy do zaznaczenia, które uprawnienia admin zatwierdza (`grantedPermissions`)
+- Potwierdzenie → `PluginAdminService.install(...)`
+
+*Lista instalacji:*
+- Karta per instalacja: `displayName`, `version`, `healthStatus` (badge: zielony HEALTHY / żółty DEGRADED / szary DISABLED_BY_ADMIN), `consecutiveFailureCount` gdy >0
+- Toggle enable/disable
+- Przycisk „Wycofaj do poprzedniej wersji” (rollback) — widoczny tylko gdy istnieje starsza instalacja tego samego `pluginKey` z `enabled=false`
+- Przycisk „Odinstaluj” z potwierdzeniem (`ConfirmDialogComponent`)
+
+**Routing:** dodaj trasę do routingu supervisora (sprawdź `supervisor-routing.module.ts` lub analogiczny plik routes, wzorzec z FE-095).
+
+**Sidenav:** dodaj pozycję „Pluginy” w menu Ustawienia supervisora.
+
+**Kryteria akceptacji:**
+- [ ] Strona dostępna pod `/supervisor/settings/plugins`
+- [ ] Pozycja w menu Ustawienia supervisora
+- [ ] Upload JAR z obsługą `REJECTED` (lista błędów) i sukcesu (przycisk instalacji)
+- [ ] Lista instalacji z badge `healthStatus`
+- [ ] Enable/disable, rollback, uninstall z potwierdzeniem
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-099 – `cc-plugin-panel-host`: iframe sandboxed + `PluginUiSdk` (postMessage)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** FE-097
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-107
+**Blokuje:** FE-100
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Komponent hosta renderujący panel UI pluginu w sandboxed iframe (ARCHITECTURE.md §11.10/ADR-12) + SDK `postMessage` umożliwiający pluginowi komunikację z hostem przez ograniczony, typowany kanał.
+
+**Lokalizacja:**
+```
+frontend/src/app/shared/components/plugin-panel-host/
+  plugin-panel-host.component.ts      (selector: cc-plugin-panel-host)
+  plugin-panel-host.component.html
+  plugin-panel-host.component.scss
+frontend/src/app/shared/plugin-ui-sdk/
+  plugin-ui-sdk-message.model.ts      (typy wiadomości postMessage, używane też do walidacji shape)
+```
+
+**`cc-plugin-panel-host` — kontrakt:**
+```typescript
+@Input() installationId!: string;
+@Input() mountPoint!: 'AGENT_DESKTOP_SIDE_PANEL' | 'AGENT_DESKTOP_TOOLBAR' | 'SUPERVISOR_DASHBOARD';
+```
+
+**Szablon (ARCHITECTURE.md §11.10 — kopiuj atrybuty `sandbox`/`referrerpolicy` dokładnie, to jest krytyczny element bezpieczeństwa RT-11):**
+```html
+<iframe
+  [src]="trustedPluginPanelUrl()"
+  sandbox="allow-scripts allow-forms"
+  referrerpolicy="no-referrer"
+  (load)="onIframeLoad()"
+></iframe>
+```
+
+**Logika hosta:**
+- `trustedPluginPanelUrl` budowany z endpointu BE-107 (`/plugin-assets/{installationId}/index.html`), przepuszczony przez Angular `DomSanitizer.bypassSecurityTrustResourceUrl` TYLKO dla URL-i z tej dedykowanej ścieżki (nigdy generyczny bypass)
+- Listener `window.addEventListener('message', ...)`: **waliduj `event.origin`** względem oczekiwanej originy plugin-assets PRZED jakimkolwiek przetwarzaniem; wiadomości z nieoczekiwanej originy są odrzucane i logowane (`console.warn`, nie wyjątek)
+- Waliduj shape wiadomości względem fixed schema (`plugin-ui-sdk-message.model.ts`) przed wykonaniem akcji
+
+**`PluginUiSdk` (`plugin-ui-sdk.js`, serwowany przez platformę przez BE-107, NIE przez vendora pluginu) — API eksponowane w iframe:**
+```typescript
+PluginUiSdk.getContext(): Promise<{ tenantId: string; contactId: string | null; customerId: string | null }>
+PluginUiSdk.invokeManualAction(actionId: string, payload: unknown): Promise<ManualActionResult>
+PluginUiSdk.requestResize(height: number): void
+PluginUiSdk.notify(message: string, severity: 'info' | 'warning' | 'error'): void
+```
+
+`invokeManualAction` na hoście robi REST call do `POST /api/agent/plugins/{installationId}/manual-action/{actionId}` (BE-103/BE-107) — iframe **nigdy** nie woła `/api/**` z własnym fetch, host proxy'uje wywołanie i dołącza JWT agenta.
+
+**Kryteria akceptacji:**
+- [ ] `sandbox="allow-scripts allow-forms"` — BEZ `allow-same-origin`, BEZ `allow-top-navigation`, BEZ `allow-popups` (test: atrybut sandbox w renderowanym DOM)
+- [ ] Host waliduje `event.origin` na każdej przychodzącej wiadomości — test: wiadomość z nieoczekiwanej originy jest odrzucona i nie wywołuje żadnej akcji
+- [ ] `PluginUiSdk.getContext()` zwraca tylko `tenantId`/`contactId`/`customerId` — nigdy pełny obiekt klienta/kontaktu
+- [ ] `invokeManualAction` nie przekazuje JWT do iframe — JWT dodawany przez `HttpInterceptor` hosta przy wywołaniu REST z Angulara, iframe nie ma do niego dostępu
+- [ ] `requestResize`/`notify` działają (toast hosta, zmiana wysokości iframe)
+- [ ] `npm run lint` przechodzi
+
+---
+
+### FE-100 – Mount panelu bocznego i przycisku manual-action w agent desktop
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-099
+**Status:** ⬜ Do zrobienia
+**Czeka na BE:** BE-103
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Integracja `cc-plugin-panel-host` (FE-099) w istniejący agent desktop: panel boczny dla pluginów z `uiPanels` w manifeście, przycisk w toolbarze dla pluginów z `manualActions`.
+
+**Punkty integracji (zlokalizować przed implementacją — prawdopodobnie `AgentDesktopComponent`/layout z istniejącym side panel slotem i toolbarem, sprawdź strukturę katalogu `features/agent/`):**
+
+*Side panel:*
+- Pobierz listę `enabled`/`HEALTHY` instalacji z `manualActions`/`uiPanels` przez `PluginAdminService.listInstallations()` (lub dedykowany lżejszy endpoint agenta, jeśli `/api/supervisor/plugins` wymaga roli SUPERVISOR — zweryfikować z BE-106 czy potrzebny jest osobny endpoint `GET /api/agent/plugins` z mniejszym zakresem danych; jeśli tak, to known-gap do zaadresowania jako follow-up BE ticket, nie blokować tego FE ticketu na nim — w tym przypadku użyj mockowanych danych i oznacz `TODO` w kodzie)
+- Dla każdej instalacji z `uiPanels` zawierającym `mountPoint: 'AGENT_DESKTOP_SIDE_PANEL'` → renderuj `<cc-plugin-panel-host>` w slocie side panelu (zakładka/tab per plugin, jeśli więcej niż jeden)
+
+*Toolbar:*
+- Dla każdej instalacji z `manualActions` zawierającym `mountPoint: 'AGENT_DESKTOP_TOOLBAR'` → renderuj przycisk z `label` z manifestu
+- Kliknięcie → `PluginUiSdk`-equivalent wywołanie z hosta (bez iframe, bo to przycisk natywny Angulara, nie element pluginu UI) → `POST /api/agent/plugins/{installationId}/manual-action/{actionId}` (BE-103) → wynik w toast/modal
+
+**Kryteria akceptacji:**
+- [ ] Side panel renderuje `cc-plugin-panel-host` tylko dla instalacji `enabled=true` AND `healthStatus !== 'DISABLED_BY_ADMIN'`
+- [ ] Toolbar button widoczny tylko gdy plugin zadeklarował `manualActions` z `mountPoint: 'AGENT_DESKTOP_TOOLBAR'`
+- [ ] Klik przycisku toolbar → wywołanie REST → wynik (sukces/błąd/timeout 504) wyświetlony agentowi w sposób nieblokujący (toast, nie modal blokujący UI)
+- [ ] Brak zainstalowanych pluginów → brak zmian w istniejącym layoucie agent desktop (zero regresji wizualnej)
+- [ ] `npm run lint` przechodzi

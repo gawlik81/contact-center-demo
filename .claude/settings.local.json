@@ -402,7 +402,9 @@
       "Bash(pip show *)",
       "Bash(npx --yes -p playwright -c \"echo has-playwright-cli\")",
       "Bash(pkill -f \"proxy-config\")",
-      "Bash(rm -rf /tmp/pw-test /tmp/proxy-test.json /tmp/ng-serve.log)"
+      "Bash(rm -rf /tmp/pw-test /tmp/proxy-test.json /tmp/ng-serve.log)",
+      "Bash(sort -t- -k2 -n -u)",
+      "Bash(awk '$1>1')"
     ]
   }
 }

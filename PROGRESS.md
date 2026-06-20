@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-05-24 (EPIC-25 zakończony ✅; EPIC-26 zakończony ✅; łączny stan: DB 39/39, BE 92/92, FE 75/75)
+**Ostatnia aktualizacja:** 2026-06-20 (EPIC-25 zakończony ✅; EPIC-26 zakończony ✅; EPIC-28 zaplanowany ⬜ — patrz `EPIC-28-PLAN.md`; łączny stan: DB 39/43, BE 92/103, FE 75/79)
 
 ---
 
@@ -58,6 +58,10 @@
 | DB-037 | Kolumna `campaign_contact_record_id` w tabeli `contact` — migracja V063 | ✅ | V063__add_campaign_contact_record_id_to_contact.sql. EPIC-25. |
 | DB-038 | Tabela `tenant_ai_config`: konfiguracja dostawcy AI per tenant — migracja V064 | ✅ | EPIC-26. V064: tabela tenant_ai_config (ENUM ai_provider: ANTHROPIC/OPENAI/AZURE_OPENAI/OPENROUTER, RLS, szyfrowanie AES-256-GCM). V066: ADD VALUE 'OPENROUTER' do ENUM ai_provider |
 | DB-039 | Kolumny AI summary w tabeli `contact` — migracja V065 | ✅ | EPIC-26. V065: kolumny ai_summary TEXT, ai_summary_model VARCHAR(100), ai_summary_generated_at TIMESTAMPTZ w tabeli contact |
+| DB-042 | Tabele `plugin`, `plugin_version`: globalny katalog pluginów (bez RLS) — migracja V074 | ⬜ | EPIC-28. Planowanie: `EPIC-28-PLAN.md`. Katalog globalny, bez tenant_id (ADR-13) |
+| DB-043 | Tabela `tenant_plugin_installation`: instalacja pluginu per tenant (RLS) — migracja V075 | ⬜ | EPIC-28. RLS od tej tabeli; `installation_config` szyfrowane AES-256-GCM (wzorzec tenant_ai_config) |
+| DB-044 | Tabela `tenant_plugin_extension_binding`: bindingi punktów rozszerzeń (RLS) — migracja V076 | ⬜ | EPIC-28. 5 punktów rozszerzeń: PRE_CONTACT_CONNECT/POST_CONTACT_END/CUSTOMER_SYNC/DISPOSITION_SET/MANUAL_ACTION |
+| DB-045 | Tabela `plugin_invocation_log`: audit log wywołań pluginów (RLS, partycjonowana) — migracja V077 | ⬜ | EPIC-28. RANGE-partycjonowana miesięcznie po invoked_at, wzorzec audit_log/contact |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -164,6 +168,17 @@
 | BE-089 | `AiSummaryService`: logika generowania podsumowania przez Python AI service | ✅ | EPIC-26. AiSummaryClient (HTTP java.net.http, 30s timeout), orchestracja, GlobalExceptionHandler (422/502), 8 testów |
 | BE-090 | Endpoint `POST /api/contacts/{contactId}/ai-summary` | ✅ | EPIC-26. AGENT/SUPERVISOR/ADMIN, AiSummaryResponse DTO |
 | BE-091 | Python AI service: endpoint `/ai/summarize` | ✅ | EPIC-26. moduł summarize.py (Anthropic/OpenAI/Azure/OpenRouter dispatcher), 9 testów pytest |
+| BE-097 | Nowy moduł Maven `plugin-sdk`: `PluginEntryPoint`, `PluginContext`, DTO (bez Spring/JPA) | ⬜ | EPIC-28. Planowanie: `EPIC-28-PLAN.md`. Jedyna zależność compile-time dla dewelopera pluginu |
+| BE-098 | Encje `Plugin`/`PluginVersion` + `PluginValidationService` (manifest JSON Schema, checksum, ASM scan) | ⬜ | EPIC-28. Gate walidacji przed dotknięciem jakiejkolwiek klasy z JAR-a (ADR-11) |
+| BE-099 | `PluginUploadController` + integracja object storage (MinIO/S3) | ⬜ | EPIC-28. Reużycie wzorca S3Config/S3Properties (recording bucket family) |
+| BE-100 | Encja `TenantPluginInstallation` + `PluginRegistrationService` (install/enable/disable/rollback) | ⬜ | EPIC-28. Upgrade = nowy wiersz, stary `enabled=false` jako mechanizm rollbacku |
+| BE-101 | `PluginRuntimeManager` + `PluginClassLoader` + implementacja `PluginContext` | ⬜ | EPIC-28. Najwyższe ryzyko epika (RT-10) — dedykowany ClassLoader per (tenant_id, plugin_key), wymaga code review przed merge |
+| BE-102 | `ExtensionPointPublisher` + `PluginInvocationExecutor` (timeouty, circuit breaker) | ⬜ | EPIC-28. Bounded pool odseparowany od Tomcat/@Async; TenantContext snapshot/restore/clear |
+| BE-103 | Integracja `PRE_CONTACT_CONNECT`/`MANUAL_ACTION` w przepływie połączenia | ⬜ | EPIC-28. Never-block-on-failure (RT-12); zero regresji dla tenantów bez pluginów |
+| BE-104 | Async punkty rozszerzeń: `POST_CONTACT_END`/`CUSTOMER_SYNC`/`DISPOSITION_SET` przez RabbitMQ | ⬜ | EPIC-28. Kolejka `cc.queue.plugin-invocation` + DLQ, wzorzec TenantAwareConsumer |
+| BE-105 | `PluginInvocationLogService` + REST historii wywołań | ⬜ | EPIC-28. Wzorzec EtlStatusController; redakcja PII w `request_payload_redacted` |
+| BE-106 | `PluginAdminController`: enable/disable, rollback, platform `REVOKED` kill switch | ⬜ | EPIC-28. `REVOKED` wyłącza wszystkie instalacje wszystkich tenantów niezależnie od `enabled` |
+| BE-107 | Serwowanie `plugin-ui/` assetów + manual-action proxy endpoint dla iframe | ⬜ | EPIC-28. CSP `connect-src` ograniczone do hostów z manifestu; dedykowana origin (ADR-12) |
 
 ---
 
@@ -260,6 +275,10 @@
 | FE-087 | Przycisk „Generuj podsumowanie AI" na formularzu dyspozycji | ✅ | EPIC-26. sekcja AI na DispositionPanelComponent (sygnały, przycisk, spinner, textarea, error handling) |
 | FE-088 | Panel konfiguracji dostawcy AI w ustawieniach supervisora | ✅ | EPIC-26. AiConfigService, AiConfigComponent (4 providerzy, masking klucza, pola Azure warunkowe), routing /supervisor/settings/ai-config |
 | FE-089 | Podsumowanie AI dla kanału email (widok obsługi emaila) | ✅ | EPIC-26. AiSummaryPanelComponent (shared standalone), refaktor DispositionPanelComponent, integracja z EmailContactComponent |
+| FE-097 | `PluginAdminService` i modele TypeScript — warstwa danych Angular | ⬜ | EPIC-28. Planowanie: `EPIC-28-PLAN.md`. Czeka na BE-099, BE-106 |
+| FE-098 | Strona „Ustawienia > Pluginy” (supervisor/admin) | ⬜ | EPIC-28. Upload JAR, lista instalacji z health status, enable/disable, rollback |
+| FE-099 | `cc-plugin-panel-host`: iframe sandboxed + `PluginUiSdk` (postMessage) | ⬜ | EPIC-28. `sandbox="allow-scripts allow-forms"` bez `allow-same-origin` (ADR-12/RT-11). Czeka na BE-107 |
+| FE-100 | Mount panelu bocznego i przycisku manual-action w agent desktop | ⬜ | EPIC-28. Czeka na BE-103; zero regresji layoutu gdy brak zainstalowanych pluginów |
 
 ---
 
@@ -267,10 +286,10 @@
 
 | Obszar | Ukończone | W trakcie | Nie rozpoczęte | Razem |
 |--------|-----------|-----------|----------------|-------|
-| Database (DB) | 39 | 0 | 0 | 39 |
-| Backend (BE) | 92 | 0 | 0 | 92 |
-| Frontend (FE) | 75 | 0 | 0 | 75 |
-| **RAZEM** | **206** | **0** | **0** | **206** |
+| Database (DB) | 39 | 0 | 4 | 43 |
+| Backend (BE) | 92 | 0 | 11 | 103 |
+| Frontend (FE) | 75 | 0 | 4 | 79 |
+| **RAZEM** | **206** | **0** | **19** | **225** |
 
 ### Nie rozpoczęte wg EPIC
 
@@ -278,7 +297,8 @@
 |------|----|----|-----|-------|
 | EPIC-25 Kampanie — refaktor i transfer | 0 | 0 | 0 | 0 ✅ |
 | EPIC-26 AI-Powered Conversation Summary | 0 | 0 | 0 | 0 ✅ |
-| **Łącznie** | **0** | **0** | **0** | **0** |
+| EPIC-28 Per-Tenant Plugin (Extension) System | 4 | 11 | 4 | 19 ⬜ (plan: `EPIC-28-PLAN.md`) |
+| **Łącznie** | **4** | **11** | **4** | **19** |
 
 ---
 

@@ -418,7 +418,9 @@
       "Bash(mkdir -p /tmp/flyway-run-local)",
       "Bash(cp /tmp/flyway-run/RunFlyway.java /tmp/flyway-run-local/)",
       "Bash(javac -cp \"*\" RunFlyway.java)",
-      "Bash(export PGPASSWORD='0Xf6oN10ZjIsT8YJoWA0KZsCCxg=')"
+      "Bash(export PGPASSWORD='0Xf6oN10ZjIsT8YJoWA0KZsCCxg=')",
+      "Bash(awk '/^## 11\\\\. EPIC-28/,/^## 12\\\\./' /home/pawelm/contact-center/ARCHITECTURE.md)",
+      "Bash(awk -F: '$1>5042 && $1<5125')"
     ]
   }
 }

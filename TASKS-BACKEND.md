@@ -5045,7 +5045,7 @@ POST   /api/disposition-sets/{setId}/apply-to-queue/{queueId}        → 200 (li
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** brak (nowy moduł niezależny od `app`)
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** BE-098
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
@@ -5107,13 +5107,13 @@ public interface PluginContext {
 - `HttpEgressClient` ma tylko `get`/`post` — egress allow-list per `http:egress:<host>` z manifestu jest wymuszony w implementacji (BE-101), nie w SDK
 
 **Kryteria akceptacji:**
-- [ ] `cd backend/plugin-sdk && mvn package` przechodzi jako samodzielny moduł
-- [ ] `mvn dependency:tree -pl plugin-sdk` nie zawiera żadnej zależności `org.springframework.*` ani `jakarta.persistence.*`
-- [ ] `PluginEntryPoint` ma 2 metody wymagane (`onActivate`/`onDeactivate`) + 5 metod `default` no-op
-- [ ] Wszystkie DTO w `model/` są `record` (niemutowalne)
-- [ ] Javadoc na każdym publicznym interfejsie i metodzie (to jedyna dokumentacja, jaką zobaczy zewnętrzny deweloper pluginu)
-- [ ] Root `pom.xml` zawiera `<module>plugin-sdk</module>`
-- [ ] `mvn package -pl app -DskipTests` (istniejący moduł `app`) wciąż przechodzi bez zmian
+- [x] `cd backend/plugin-sdk && mvn package` przechodzi jako samodzielny moduł
+- [x] `mvn dependency:tree -pl plugin-sdk` nie zawiera żadnej zależności `org.springframework.*` ani `jakarta.persistence.*`
+- [x] `PluginEntryPoint` ma 2 metody wymagane (`onActivate`/`onDeactivate`) + 5 metod `default` no-op
+- [x] Wszystkie DTO w `model/` są `record` (niemutowalne)
+- [x] Javadoc na każdym publicznym interfejsie i metodzie (to jedyna dokumentacja, jaką zobaczy zewnętrzny deweloper pluginu)
+- [x] Root `pom.xml` zawiera `<module>plugin-sdk</module>`
+- [x] `mvn package -pl app -DskipTests` (istniejący moduł `app`) wciąż przechodzi bez zmian
 
 ---
 

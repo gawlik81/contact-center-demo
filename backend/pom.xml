@@ -20,6 +20,7 @@
     <description>Multi-tenant Contact Center SaaS – Spring Boot 3.x backend</description>
 
     <modules>
+        <module>plugin-sdk</module>
         <module>app</module>
     </modules>
 

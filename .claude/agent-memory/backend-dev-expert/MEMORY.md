@@ -97,3 +97,4 @@
 - [BE-059 per-tenant Twilio config](project_be059_per_tenant_twilio.md) — getVoiceToken() z per-tenant fallbackiem; klucze testowe muszą mieć >= 32 znaków
 - [BE-075 Transfer Agents endpoint](project_be075_transfer_agents.md) — GET /api/telephony/transfer/agents; TransferService + TransferAgentQueueRepository (UNION 3 źródeł kolejek); batch query bez N+1
 - [BE-077 Transfer Call endpoint](project_be077_transfer_endpoint.md) — POST /api/telephony/calls/{callId}/transfer w AgentCallController; logika w ContactService.initiateTransfer(); DTO TransferCallRequest
+- [BE-097 Plugin SDK module](project_be097_plugin_sdk.md) — nowy moduł backend/plugin-sdk (EPIC-28), zero zależności Spring/JPA, PluginEntryPoint+PluginContext+DTO record, parent classloader izolacji pluginów

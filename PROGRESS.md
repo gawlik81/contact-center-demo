@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-06-20 (EPIC-25 zakończony ✅; EPIC-26 zakończony ✅; EPIC-28 w trakcie 🔄 — warstwa DB zamknięta (DB-042..DB-045 zrobione, 43/43), patrz `EPIC-28-PLAN.md`; następny w kolejce BE-097 (plugin-sdk); łączny stan: DB 43/43, BE 92/103, FE 75/79)
+**Ostatnia aktualizacja:** 2026-06-20 (EPIC-25 zakończony ✅; EPIC-26 zakończony ✅; EPIC-28 w trakcie 🔄 — warstwa DB zamknięta (DB-042..DB-045 zrobione, 43/43), BE-097 (plugin-sdk) zrobione ✅, patrz `EPIC-28-PLAN.md`; następny w kolejce BE-098 (Plugin/PluginVersion + walidacja); łączny stan: DB 43/43, BE 93/103, FE 75/79)
 
 ---
 
@@ -168,7 +168,7 @@
 | BE-089 | `AiSummaryService`: logika generowania podsumowania przez Python AI service | ✅ | EPIC-26. AiSummaryClient (HTTP java.net.http, 30s timeout), orchestracja, GlobalExceptionHandler (422/502), 8 testów |
 | BE-090 | Endpoint `POST /api/contacts/{contactId}/ai-summary` | ✅ | EPIC-26. AGENT/SUPERVISOR/ADMIN, AiSummaryResponse DTO |
 | BE-091 | Python AI service: endpoint `/ai/summarize` | ✅ | EPIC-26. moduł summarize.py (Anthropic/OpenAI/Azure/OpenRouter dispatcher), 9 testów pytest |
-| BE-097 | Nowy moduł Maven `plugin-sdk`: `PluginEntryPoint`, `PluginContext`, DTO (bez Spring/JPA) | ⬜ | EPIC-28. Planowanie: `EPIC-28-PLAN.md`. Jedyna zależność compile-time dla dewelopera pluginu |
+| BE-097 | Nowy moduł Maven `plugin-sdk`: `PluginEntryPoint`, `PluginContext`, DTO (bez Spring/JPA) | ✅ | EPIC-28. Zrealizowane 2026-06-20. Nowy samodzielny moduł `backend/plugin-sdk` (packaging jar, parent = root POM, zero zależności dodatkowych); `dependency:tree` bez `org.springframework.*`/`jakarta.persistence.*`. `PluginEntryPoint` (2 metody wymagane + 5 default no-op), `PluginContext`, `HttpEgressClient`/`HttpResponse`, `PluginLogger`, `PluginConfig`, DTO w `model/` (`CustomerView`, `ContactView`, `ContactEvent`, `CustomerSyncRequest/Result`, `DispositionEvent`, `ManualActionRequest/Result`, `PreContactConnectResult`) — wszystkie jako `record`. Javadoc na każdym publicznym elemencie. Root `pom.xml` rozszerzony o `<module>plugin-sdk</module>` (przed `app`). Weryfikacja: `mvn package -pl plugin-sdk` ✅, `mvn dependency:tree -pl plugin-sdk` czyste ✅, `mvn package -pl app -DskipTests` (regresja) ✅ |
 | BE-098 | Encje `Plugin`/`PluginVersion` + `PluginValidationService` (manifest JSON Schema, checksum, ASM scan) | ⬜ | EPIC-28. Gate walidacji przed dotknięciem jakiejkolwiek klasy z JAR-a (ADR-11) |
 | BE-099 | `PluginUploadController` + integracja object storage (MinIO/S3) | ⬜ | EPIC-28. Reużycie wzorca S3Config/S3Properties (recording bucket family) |
 | BE-100 | Encja `TenantPluginInstallation` + `PluginRegistrationService` (install/enable/disable/rollback) | ⬜ | EPIC-28. Upgrade = nowy wiersz, stary `enabled=false` jako mechanizm rollbacku |

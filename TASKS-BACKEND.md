@@ -5123,7 +5123,7 @@ public interface PluginContext {
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** BE-097, DB-042
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione (2026-06-20)
 **Blokuje:** BE-099
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
@@ -5153,14 +5153,16 @@ backend/app/src/main/java/com/contactcenter/
 6. Zapisz JAR do object storage (BE-099, nie ten ticket) + wstaw wiersz `plugin_version`, `status = PENDING_REVIEW` lub `VALIDATED`
 
 **Kryteria akceptacji:**
-- [ ] Encje mapują na tabele DB-042 (`plugin`, `plugin_version`) — bez `tenant_id`
-- [ ] JSON Schema waliduje wszystkie pola manifestu z ARCHITECTURE.md §11.2 (pluginKey, displayName, version, vendor, sdkVersion, entryPointClass, extensionPoints, permissions, uiPanels, manualActions, checksumSha256)
-- [ ] Checksum mismatch → `ValidationResult` ze statusem `REJECTED` i opisowym błędem w `validationErrors`
-- [ ] ASM scan odrzuca JAR z referencją do `java.lang.reflect.Method.setAccessible` (test z przygotowanym JAR-em testowym)
-- [ ] ASM scan odrzuca JAR z `entryPointClass` nieimplementującym `PluginEntryPoint`
-- [ ] `extensionPoints`/`permissions` spoza enuma platformy → `REJECTED`
-- [ ] Testy jednostkowe ≥8 scenariuszy walidacji (rozmiar, MIME, checksum, schema, ASM blacklist x3, sukces)
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Encje mapują na tabele DB-042 (`plugin`, `plugin_version`) — bez `tenant_id`
+- [x] JSON Schema waliduje wszystkie pola manifestu z ARCHITECTURE.md §11.2 (pluginKey, displayName, version, vendor, sdkVersion, entryPointClass, extensionPoints, permissions, uiPanels, manualActions, checksumSha256)
+- [x] Checksum mismatch → `ValidationResult` ze statusem `REJECTED` i opisowym błędem w `validationErrors`
+- [x] ASM scan odrzuca JAR z referencją do `java.lang.reflect.Method.setAccessible` (test z przygotowanym JAR-em testowym)
+- [x] ASM scan odrzuca JAR z `entryPointClass` nieimplementującym `PluginEntryPoint`
+- [x] `extensionPoints`/`permissions` spoza enuma platformy → `REJECTED`
+- [x] Testy jednostkowe ≥8 scenariuszy walidacji (rozmiar, MIME, checksum, schema, ASM blacklist x3, sukces) — zrealizowano 14 scenariuszy
+- [x] `mvn verify -pl app` przechodzi (1156 testów, 0 failures, 0 errors)
+
+**Uwaga implementacyjna (odstępstwo od literalnego opisu kroku 2):** checksum SHA-256 jest liczony z wpisów ZIP-a **z wyłączeniem `META-INF/plugin-manifest.json`** samego, nie z całych "uploaded bytes" dosłownie. Hashowanie całego pliku łącznie z polem zawierającym ten sam hash jest matematycznie niewykonalne do spełnienia przez dostawcę pluginu (self-referencyjny SHA-256 nie ma praktycznych punktów stałych) — analogicznie do `META-INF/MANIFEST.MF` w standardowych JAR-ach Javy, który też nigdy nie zawiera checksumu samego siebie, oraz precedensów branżowych (Maven `.sha256` jest plikiem zewnętrznym, Docker image digest nie jest polem we własnym manifeście). Cel kroku ("detects accidental corruption; NOT a substitute for signing", ARCHITECTURE.md §11.4) jest zachowany.
 
 ---
 

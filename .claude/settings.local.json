@@ -421,7 +421,14 @@
       "Bash(export PGPASSWORD='0Xf6oN10ZjIsT8YJoWA0KZsCCxg=')",
       "Bash(awk '/^## 11\\\\. EPIC-28/,/^## 12\\\\./' /home/pawelm/contact-center/ARCHITECTURE.md)",
       "Bash(awk -F: '$1>5042 && $1<5125')",
-      "WebSearch"
+      "WebSearch",
+      "Bash(awk '/^### 11.4/,/^### 11.5/' ARCHITECTURE.md)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(cat app/target/surefire-reports/com.contactcenter.domain.plugin.PluginStorageServiceImplTest.txt)",
+      "Bash(cat app/target/surefire-reports/com.contactcenter.api.plugin.PluginUploadControllerTest.txt)",
+      "Bash(tee /tmp/verify_output.log)",
+      "Bash(echo \"RC=$?\")",
+      "Bash(kill -0 1642543)"
     ]
   }
 }

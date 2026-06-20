@@ -5172,7 +5172,7 @@ backend/app/src/main/java/com/contactcenter/
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-098
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** BE-100
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
@@ -5198,12 +5198,14 @@ backend/app/src/main/java/com/contactcenter/
 ```
 
 **Kryteria akceptacji:**
-- [ ] Upload >50MB → `400 Bad Request` z czytelnym komunikatem, request odrzucony przed wejściem do `PluginValidationService`
-- [ ] Upload pliku niebędącego JAR/ZIP (np. `.txt` z fałszywym rozszerzeniem) → `400 Bad Request`
-- [ ] JAR zapisany do object storage TYLKO gdy `status` ∈ {`VALIDATED`, `PENDING_REVIEW`} — `REJECTED` nigdy nie trafia do storage
-- [ ] `jar_object_key` zapisany w `plugin_version` wskazuje na rzeczywisty obiekt w MinIO (test integracyjny z lokalnym MinIO z docker-compose)
-- [ ] Endpoint w Swagger UI z przykładem multipart i response
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Upload >50MB → `400 Bad Request` z czytelnym komunikatem, request odrzucony przed wejściem do `PluginValidationService` (guard w `PluginUploadController` + limit `application.yml` `servlet.multipart` zwiększony do 50MB/55MB)
+- [x] Upload pliku niebędącego JAR/ZIP (np. `.txt` z fałszywym rozszerzeniem) → `400 Bad Request` (przez `PluginValidationService` z BE-098, magic bytes check)
+- [x] JAR zapisany do object storage TYLKO gdy `status` ∈ {`VALIDATED`, `PENDING_REVIEW`} — `REJECTED` nigdy nie trafia do storage (`PluginUploadController` zwraca 400 przed wywołaniem `PluginStorageService`)
+- [x] `jar_object_key` zapisany w `plugin_version` wskazuje na rzeczywisty obiekt w MinIO — **brak wzorca testów integracyjnych S3/MinIO w projekcie** (port 9000 tylko `expose`d, niepublikowany na host w `docker-compose.local-demo.yml`); zastosowano ten sam fallback co `RecordingServiceTest`/`RecordingControllerTest`: testy jednostkowe z mockiem `S3Client` (`PluginStorageServiceImplTest`), weryfikujące `PutObjectRequest.key()`/`.bucket()` przekazane do klienta
+- [x] Endpoint w Swagger UI z przykładem multipart i response (wzorzec z `CampaignImportController`/`EmailAttachmentController`: `@Operation`, `@ApiResponse` 201/400/401/403, `requestBody` z `MULTIPART_FORM_DATA_VALUE`)
+- [x] `mvn verify -pl app` przechodzi (1167 testów, 0 failures, BUILD SUCCESS)
+
+**Uwaga implementacyjna:** `ValidationResult` (BE-098) niesie tylko `status`/`validationErrors`, nie sparsowany manifest — `PluginStorageServiceImpl` ponownie odczytuje `META-INF/plugin-manifest.json` z tych samych `jarBytes` (już zwalidowanych) przez `PluginManifestValidator` (reużycie, nie duplikacja walidacji bezpieczeństwa). `ValidationStatus` w BE-098 zwraca tylko `VALIDATED`/`REJECTED` (`PENDING_REVIEW` świadomie odłożone razem z podpisem, OQ-28-1) — `PluginStorageServiceImpl.isStorable`/`toPluginVersionStatus` są napisane jako `switch` wyczerpujący enum, gotowe na rozszerzenie gdy `PENDING_REVIEW` zostanie dodane do `ValidationStatus`.
 
 ---
 

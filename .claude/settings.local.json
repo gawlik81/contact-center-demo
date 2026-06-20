@@ -428,7 +428,9 @@
       "Bash(cat app/target/surefire-reports/com.contactcenter.api.plugin.PluginUploadControllerTest.txt)",
       "Bash(tee /tmp/verify_output.log)",
       "Bash(echo \"RC=$?\")",
-      "Bash(kill -0 1642543)"
+      "Bash(kill -0 1642543)",
+      "Bash(xargs -I{} grep -A3 \"Tests run\" {})",
+      "Bash(echo \"EXIT_CODE=$?\")"
     ]
   }
 }

@@ -5215,7 +5215,7 @@ backend/app/src/main/java/com/contactcenter/
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** BE-099, DB-043
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** BE-101, BE-106
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
@@ -5250,12 +5250,14 @@ TenantPluginInstallationDto rollback(UUID tenantId, UUID currentInstallationId, 
 **Logika `rollback`:** przełącza `enabled=true` na `targetInstallationId` (starsza wersja) i `enabled=false` na `currentInstallationId` — atomowo w jednej transakcji (ARCHITECTURE.md §11.11). Nie usuwa żadnego wiersza.
 
 **Kryteria akceptacji:**
-- [ ] Encja mapuje na tabelę DB-043, repozytorium wywołuje `assertSameTenant` przed każdym zapisem
-- [ ] `install` z duplikatem `(tenant_id, plugin_version_id)` → `409 Conflict` (DB constraint propagowany jako wyjątek domenowy)
-- [ ] `granted_permissions` zapisane to przecięcie żądanych ∩ manifestu — żądanie permission nie zadeklarowanej w manifeście jest ignorowane, nie powoduje błędu
-- [ ] `rollback` jest atomowy — test weryfikujący, że przy wyjątku w trakcie żaden z dwóch wierszy nie zmienia `enabled`
-- [ ] Testy jednostkowe ≥5 scenariuszy (install sukces, duplikat, rollback sukces, rollback obcego tenanta → 403, disable)
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Encja mapuje na tabelę DB-043, repozytorium wywołuje `assertSameTenant` przed każdym zapisem
+- [x] `install` z duplikatem `(tenant_id, plugin_version_id)` → `409 Conflict` (DB constraint propagowany jako wyjątek domenowy)
+- [x] `granted_permissions` zapisane to przecięcie żądanych ∩ manifestu — żądanie permission nie zadeklarowanej w manifeście jest ignorowane, nie powoduje błędu
+- [x] `rollback` jest atomowy — test weryfikujący, że przy wyjątku w trakcie żaden z dwóch wierszy nie zmienia `enabled`
+- [x] Testy jednostkowe ≥5 scenariuszy (install sukces, duplikat, rollback sukces, rollback obcego tenanta → 403, disable)
+- [x] `mvn verify -pl app` przechodzi
+
+**Uwaga implementacyjna:** Tabela `tenant_plugin_installation` ma RLS (V075) — repozytorium napisane jako natywny SQL przez `EntityManager` rozszerzający `TenantAwareRepository`, wzorzec identyczny do `CustomDispositionRepository` (EPIC-27), a nie zwykły `JpaRepository` (jak `PluginRepository`/`PluginVersionRepository`, tabele globalne bez RLS). Duplikat unikalnego indeksu propaguje się jako `DataIntegrityViolationException` — translacja Spring działa automatycznie dzięki `@Repository` na klasie, mapowanie na HTTP 409 już istnieje globalnie w `GlobalExceptionHandler` (fallback generyczny), bez potrzeby dodatkowego kodu w serwisie. `rollback` weryfikuje przynależność OBU instalacji do tenanta PRZED jakimkolwiek `UPDATE` — atomowość na poziomie logiki serwisu (żaden wiersz nie zmienia się, jeśli walidacja drugiej instalacji zawiedzie), nie wymaga ręcznego try/catch z rollbackiem transakcji.
 
 ---
 

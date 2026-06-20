@@ -404,7 +404,21 @@
       "Bash(pkill -f \"proxy-config\")",
       "Bash(rm -rf /tmp/pw-test /tmp/proxy-test.json /tmp/ng-serve.log)",
       "Bash(sort -t- -k2 -n -u)",
-      "Bash(awk '$1>1')"
+      "Bash(awk '$1>1')",
+      "Bash(sort -t/ -k1)",
+      "Bash(xargs -I{} dirname {})",
+      "Bash(mkdir -p /tmp/flyway-run)",
+      "Bash(cp /home/pawelm/.m2/repository/org/flywaydb/flyway-core/10.20.1/flyway-core-10.20.1.jar /tmp/flyway-run/)",
+      "Bash(cp /home/pawelm/.m2/repository/org/flywaydb/flyway-database-postgresql/10.20.1/flyway-database-postgresql-10.20.1.jar /tmp/flyway-run/)",
+      "Bash(cp /home/pawelm/.m2/repository/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar /tmp/flyway-run/)",
+      "Bash(javac -cp \"flyway-core-10.20.1.jar:flyway-database-postgresql-10.20.1.jar:postgresql-42.7.4.jar\" RunFlyway.java)",
+      "Bash(cp ~/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.17.2/jackson-databind-2.17.2.jar /tmp/flyway-run/)",
+      "Bash(cp ~/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.17.2/jackson-core-2.17.2.jar /tmp/flyway-run/)",
+      "Bash(cp ~/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.17.2/jackson-annotations-2.17.2.jar /tmp/flyway-run/)",
+      "Bash(mkdir -p /tmp/flyway-run-local)",
+      "Bash(cp /tmp/flyway-run/RunFlyway.java /tmp/flyway-run-local/)",
+      "Bash(javac -cp \"*\" RunFlyway.java)",
+      "Bash(export PGPASSWORD='0Xf6oN10ZjIsT8YJoWA0KZsCCxg=')"
     ]
   }
 }

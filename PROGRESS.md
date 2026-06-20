@@ -1,7 +1,7 @@
 # PROGRESS.md
 # Contact Center SaaS – Postęp prac
 
-**Ostatnia aktualizacja:** 2026-06-20 (EPIC-25 zakończony ✅; EPIC-26 zakończony ✅; EPIC-28 zaplanowany ⬜ — patrz `EPIC-28-PLAN.md`; łączny stan: DB 39/43, BE 92/103, FE 75/79)
+**Ostatnia aktualizacja:** 2026-06-20 (EPIC-25 zakończony ✅; EPIC-26 zakończony ✅; EPIC-28 w trakcie 🔄 — warstwa DB zamknięta (DB-042..DB-045 zrobione, 43/43), patrz `EPIC-28-PLAN.md`; następny w kolejce BE-097 (plugin-sdk); łączny stan: DB 43/43, BE 92/103, FE 75/79)
 
 ---
 
@@ -58,10 +58,10 @@
 | DB-037 | Kolumna `campaign_contact_record_id` w tabeli `contact` — migracja V063 | ✅ | V063__add_campaign_contact_record_id_to_contact.sql. EPIC-25. |
 | DB-038 | Tabela `tenant_ai_config`: konfiguracja dostawcy AI per tenant — migracja V064 | ✅ | EPIC-26. V064: tabela tenant_ai_config (ENUM ai_provider: ANTHROPIC/OPENAI/AZURE_OPENAI/OPENROUTER, RLS, szyfrowanie AES-256-GCM). V066: ADD VALUE 'OPENROUTER' do ENUM ai_provider |
 | DB-039 | Kolumny AI summary w tabeli `contact` — migracja V065 | ✅ | EPIC-26. V065: kolumny ai_summary TEXT, ai_summary_model VARCHAR(100), ai_summary_generated_at TIMESTAMPTZ w tabeli contact |
-| DB-042 | Tabele `plugin`, `plugin_version`: globalny katalog pluginów (bez RLS) — migracja V074 | ⬜ | EPIC-28. Planowanie: `EPIC-28-PLAN.md`. Katalog globalny, bez tenant_id (ADR-13) |
-| DB-043 | Tabela `tenant_plugin_installation`: instalacja pluginu per tenant (RLS) — migracja V075 | ⬜ | EPIC-28. RLS od tej tabeli; `installation_config` szyfrowane AES-256-GCM (wzorzec tenant_ai_config) |
-| DB-044 | Tabela `tenant_plugin_extension_binding`: bindingi punktów rozszerzeń (RLS) — migracja V076 | ⬜ | EPIC-28. 5 punktów rozszerzeń: PRE_CONTACT_CONNECT/POST_CONTACT_END/CUSTOMER_SYNC/DISPOSITION_SET/MANUAL_ACTION |
-| DB-045 | Tabela `plugin_invocation_log`: audit log wywołań pluginów (RLS, partycjonowana) — migracja V077 | ⬜ | EPIC-28. RANGE-partycjonowana miesięcznie po invoked_at, wzorzec audit_log/contact |
+| DB-042 | Tabele `plugin`, `plugin_version`: globalny katalog pluginów (bez RLS) — migracja V074 | ✅ | EPIC-28. Zastosowana na dev, zweryfikowana (constrainty + FK ON DELETE SET NULL). FK `uploaded_by_user_id` poprawione na `app_user(user_id)` (PK tej tabeli to nie `id`) |
+| DB-043 | Tabela `tenant_plugin_installation`: instalacja pluginu per tenant (RLS) — migracja V075 | ✅ | EPIC-28. Zastosowana na dev, zweryfikowana (RLS izolacja pod `app_user`, unique, check, FK RESTRICT). FK `tenant_id`/`installed_by_user_id` poprawione na `tenant(tenant_id)`/`app_user(user_id)` — DDL miał dwa błędne PK |
+| DB-044 | Tabela `tenant_plugin_extension_binding`: bindingi punktów rozszerzeń (RLS) — migracja V076 | ✅ | EPIC-28. Zastosowana na dev, zweryfikowana (RLS izolacja pod `app_user`, unique, 2x check, EXPLAIN użycia indeksu lookup). FK `tenant_id` poprawione na `tenant(tenant_id)` — DDL miał ten sam błędny PK co DB-043 |
+| DB-045 | Tabela `plugin_invocation_log`: audit log wywołań pluginów (RLS, partycjonowana) — migracja V077 | ✅ | EPIC-28. RANGE-partycjonowana miesięcznie po invoked_at, podłączona do istniejącego mechanizmu auto-partycjonowania (create_next_month_partitions rozszerzona, nowy wpis scheduled_job). FK `tenant_id` poprawione na `tenant(tenant_id)` — ten sam błędny PK co DB-043/044. RLS zweryfikowana pod `app_user` na partycji DEFAULT i partycji ręcznej. Zamyka warstwę DB EPIC-28 (43/43) |
 
 ### Dodatkowe migracje z DB-002 (ponad zakres TASKS-DATABASE.md)
 
@@ -297,7 +297,7 @@
 |------|----|----|-----|-------|
 | EPIC-25 Kampanie — refaktor i transfer | 0 | 0 | 0 | 0 ✅ |
 | EPIC-26 AI-Powered Conversation Summary | 0 | 0 | 0 | 0 ✅ |
-| EPIC-28 Per-Tenant Plugin (Extension) System | 4 | 11 | 4 | 19 ⬜ (plan: `EPIC-28-PLAN.md`) |
+| EPIC-28 Per-Tenant Plugin (Extension) System | 4 | 11 | 4 | 19 🔄 (3/4 DB zrobione, plan: `EPIC-28-PLAN.md`) |
 | **Łącznie** | **4** | **11** | **4** | **19** |
 
 ---

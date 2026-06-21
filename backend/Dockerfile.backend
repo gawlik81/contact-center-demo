@@ -3,13 +3,15 @@ FROM maven:3.9.6-eclipse-temurin-21-alpine AS builder
 WORKDIR /build
 COPY pom.xml .
 COPY app/pom.xml app/
+COPY plugin-sdk/pom.xml plugin-sdk/
 
-RUN mvn dependency:go-offline -pl app -q
+RUN mvn dependency:go-offline -pl app -am -q
 
 COPY app/src app/src
+COPY plugin-sdk/src plugin-sdk/src
 COPY src src
 
-RUN mvn clean package -pl app -DskipTests -q
+RUN mvn clean package -pl app -am -DskipTests -q
 
 FROM eclipse-temurin:21-jre-alpine AS runtime
 

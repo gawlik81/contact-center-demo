@@ -81,6 +81,16 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public TenantPluginInstallationDto getInstallation(UUID tenantId, UUID installationId) {
+        log.debug("[PluginRegistrationService] getInstallation: tenant={}, installation={}", tenantId, installationId);
+
+        return installationRepository.findByIdAndTenantId(installationId, tenantId)
+                .map(this::mapToDto)
+                .orElseThrow(() -> new ResourceNotFoundException("Instalacja nie istnieje: " + installationId));
+    }
+
+    @Override
     @Transactional
     public TenantPluginInstallationDto rollback(UUID tenantId, UUID currentInstallationId, UUID targetInstallationId) {
         log.debug("[PluginRegistrationService] rollback: tenant={}, current={}, target={}",

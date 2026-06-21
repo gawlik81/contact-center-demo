@@ -52,8 +52,14 @@ public class PluginInvocationProperties {
 
     /**
      * Zwraca timeout dla {@code MANUAL_ACTION}, capped przez {@link #maxTimeoutMs}.
+     *
+     * <p>Publiczna (w przeciwieństwie do {@link #effectivePreContactConnectTimeoutMs()}) — wołana
+     * przez {@code PluginManualActionController} (BE-103, poza pakietem {@code domain.plugin.runtime})
+     * żeby rozpoznać przekroczenie budżetu czasowego i zwrócić HTTP 504 zamiast 200, bo
+     * {@code ManualActionResult.unsupported()} jest niemożliwe do odróżnienia od "plugin nie
+     * wsparł akcji" na poziomie samego DTO (oba przypadki dają identyczny wynik z publishera).
      */
-    long effectiveManualActionTimeoutMs() {
+    public long effectiveManualActionTimeoutMs() {
         return Math.min(manualActionTimeoutMs, maxTimeoutMs);
     }
 }

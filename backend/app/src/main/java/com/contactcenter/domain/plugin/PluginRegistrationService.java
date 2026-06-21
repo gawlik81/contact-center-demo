@@ -69,6 +69,24 @@ public interface PluginRegistrationService {
     List<TenantPluginInstallationDto> listInstallations(UUID tenantId);
 
     /**
+     * Wyszukuje jedną instalację po identyfikatorze, ograniczoną do tenanta wywołującego.
+     *
+     * <p>RLS (tabela {@code tenant_plugin_installation}, V075) sprawia, że zapytanie nie
+     * zwróci wiersza innego tenanta — z punktu widzenia tej metody instalacja innego tenanta
+     * jest niewidoczna, więc zachowuje się identycznie jak instalacja, która nie istnieje
+     * wcale. Wołający (np. {@code PluginManualActionController}, BE-103) świadomie mapuje to
+     * na HTTP 404 w obu przypadkach (konwencja "nie ujawniaj istnienia zasobu innego tenanta"),
+     * a nie na rozróżnienie 403/404.
+     *
+     * @param tenantId       tenant-właściciel instalacji
+     * @param installationId instalacja do odnalezienia
+     * @return DTO instalacji
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy instalacja nie
+     *         istnieje dla tego tenanta (włącznie z przypadkiem, gdy istnieje dla innego tenanta)
+     */
+    TenantPluginInstallationDto getInstallation(UUID tenantId, UUID installationId);
+
+    /**
      * Atomowo przełącza aktywną instalację (rollback do starszej wersji, ARCHITECTURE.md §11.11).
      *
      * <p>W jednej transakcji: {@code targetInstallationId} (starsza wersja) ustawiana jest na

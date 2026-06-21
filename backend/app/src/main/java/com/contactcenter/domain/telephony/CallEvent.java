@@ -76,6 +76,26 @@ public class CallEvent {
      */
     private final CustomerCliResult customerInfo;
 
+    /**
+     * Dane wzbogacenia z pluginu {@code PRE_CONTACT_CONNECT} (EPIC-28, BE-103),
+     * {@code PreContactConnectResult.displayData()} — para klucz/wartość do wyświetlenia
+     * agentowi w panelu klienta (np. "ostatnie 3 zamówienia z CRM").
+     *
+     * <p>Wypełniane przez {@code CallEventEnricher} po wywołaniu
+     * {@code ExtensionPointPublisher.publishPreContactConnect}. {@code null} (nie pusta mapa)
+     * gdy tenant nie ma zainstalowanych pluginów na tym extension point, plugin zwrócił wynik
+     * pusty, lub wystąpił timeout/błąd — connect przebiega identycznie w obu przypadkach
+     * (ARCHITECTURE.md §11.5/RT-12, zero regresji dla tenantów bez pluginów).
+     */
+    private final Map<String, Object> pluginDisplayData;
+
+    /**
+     * Opcjonalne ostrzeżenie z pluginu {@code PRE_CONTACT_CONNECT}
+     * ({@code PreContactConnectResult.warning()}), np. "klient ma otwartą reklamację".
+     * {@code null} gdy plugin nie zwrócił ostrzeżenia, brak pluginów, lub timeout/błąd.
+     */
+    private final String pluginWarning;
+
     // =========================================================================
     // Typy zdarzeń
     // =========================================================================

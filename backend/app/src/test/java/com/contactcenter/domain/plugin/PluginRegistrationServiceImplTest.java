@@ -211,6 +211,55 @@ class PluginRegistrationServiceImplTest {
     }
 
     // =========================================================================
+    // getInstallation() (EPIC-28, BE-103)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getInstallation()")
+    class GetInstallation {
+
+        @Test
+        @DisplayName("instalacja istnieje dla tenanta → DTO zmapowane poprawnie")
+        void existingInstallation_returnsDto() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of("customer:read"))));
+
+            TenantPluginInstallationDto dto = service.getInstallation(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(dto.id()).isEqualTo(INSTALLATION_ID);
+            assertThat(dto.tenantId()).isEqualTo(TENANT_ID);
+            assertThat(dto.enabled()).isTrue();
+            assertThat(dto.grantedPermissions()).containsExactly("customer:read");
+        }
+
+        @Test
+        @DisplayName("instalacja nie istnieje dla tenanta → ResourceNotFoundException (404)")
+        void missingInstallation_throwsResourceNotFound() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("instalacja innego tenanta jest niewidoczna – ten serwis nie rozróżnia "
+                + "od 'nie istnieje wcale' (RLS filtruje wiersz, repo zwraca Optional.empty() "
+                + "tak samo jak dla braku rekordu)")
+        void crossTenantInstallation_behavesLikeMissing() {
+            // Symuluje RLS: zapytanie repozytorium dla OTHER_TENANT na instalację należącą
+            // faktycznie do TENANT_ID nigdy nie zwróci wiersza – stąd ta sama metoda mocka
+            // (findByIdAndTenantId z OTHER_TENANT) zwraca Optional.empty(), identycznie jak
+            // dla zupełnie nieistniejącego UUID.
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, OTHER_TENANT))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.getInstallation(OTHER_TENANT, INSTALLATION_ID))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
+
+    // =========================================================================
     // rollback()
     // =========================================================================
 

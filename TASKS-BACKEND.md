@@ -5384,7 +5384,7 @@ Testy: `CircuitBreakerStateTest` (6), `ExtensionPointPublisherImplTest` (12, exe
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-102
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione (2026-06-21)
 **Blokuje:** BE-107
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
@@ -5408,12 +5408,33 @@ POST /api/agent/plugins/{installationId}/manual-action/{actionId}
 ```
 
 **Kryteria akceptacji:**
-- [ ] Tenant BEZ zainstalowanych pluginów: zachowanie connect identyczne jak przed epikiem (zero regresji — test regresyjny na istniejącym flow telefonii)
-- [ ] Tenant z pluginem na `PRE_CONTACT_CONNECT`, który timeoutuje → connect i tak następuje w budżecie pierwotnego SLA telefonii (`< 3s` z ARCHITECTURE.md Appendix C) + budżet pluginu, nie zamiast
-- [ ] `POST .../manual-action/{actionId}` z nieistniejącym `installationId` → `404`
-- [ ] `POST .../manual-action/{actionId}` z `installationId` innego tenanta → `403`
-- [ ] Endpoint w Swagger UI
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Tenant BEZ zainstalowanych pluginów: zachowanie connect identyczne jak przed epikiem (zero regresji — test regresyjny na istniejącym flow telefonii)
+- [x] Tenant z pluginem na `PRE_CONTACT_CONNECT`, który timeoutuje → connect i tak następuje w budżecie pierwotnego SLA telefonii (`< 3s` z ARCHITECTURE.md Appendix C) + budżet pluginu, nie zamiast
+- [x] `POST .../manual-action/{actionId}` z nieistniejącym `installationId` → `404`
+- [x] `POST .../manual-action/{actionId}` z `installationId` innego tenanta → `404` (świadome odejście od `403` — patrz notatka poniżej)
+- [x] Endpoint w Swagger UI
+- [x] `mvn verify -pl app` przechodzi
+
+**Zrealizowane 2026-06-21:**
+
+**Punkt integracji telefonii (zlokalizowany):** `domain/telephony/CallEventEnricher.java`, metoda `onCallEvent()` — jedyny wspólny punkt dla `call.incoming` i `call.outbound` (inbound i dialer/outbound zbiegają się w tym samym listenerze RabbitMQ), gdzie `agentId` jest już znany i dane klienta są już rozwiązane przez `CliLookupService`. Wstawiono jedno wywołanie `ExtensionPointPublisher.publishPreContactConnect`, bez duplikacji w innych miejscach (np. `TwilioTelephonyAdapter`/`ProgressiveDialerServiceImpl` nie wymagały zmian — oba routing keys trafiają do tego enrichera).
+
+**Decyzja response-first (nie late-arriving event):** wynik pluginu jest scalany z `CallEvent` (nowe pola `pluginDisplayData`/`pluginWarning`) PRZED wysłaniem `WebSocketEvent.callIncoming/callOutbound` do agenta — nie jako osobny, późniejszy event. Uzasadnienie: `publishPreContactConnect` ma już wbudowany twardy budżet 2s i nigdy nie rzuca/nie blokuje dłużej; telefon klienta dzwoni niezależnie od tego listenera, więc dodatkowe maks. 2s przed dostarczeniem danych do agenta nie zagraża SLA telefonii. Late-arriving event wymagałby nowego typu eventu WS i logiki merge po stronie frontendu bez wystarczającego zysku przy tej wielkości budżetu.
+
+**TenantContext w wątku RabbitMQ:** `CallEventEnricher` działa na wątku konsumenta (async, bez `TenantFilter`) — dodano jawne `TenantContext.setTenantId(...)` na początku `onCallEvent` i `TenantContext.clear()` w `finally`, żeby `ExtensionPointPublisherImpl.invokeBlocking`'s `TenantContext.snapshot()/restore()` miało co propagować na wątek roboczy `pluginInvocationExecutor` (CLAUDE.md, ARCHITECTURE.md §11.8).
+
+**Decyzja 404 vs 403 dla manual-action na instalacji innego tenanta:** tabela `tenant_plugin_installation` ma RLS (V075) — zapytanie tenant-aware (`TenantPluginInstallationRepository.findByIdAndTenantId`) nie zwraca wiersza innego tenanta, więc z punktu widzenia backendu wygląda identycznie jak "nie istnieje wcale". W projekcie nie istnieje żaden wzorzec zapytania z bypassem RLS (zweryfikowano grep po repozytoriach domenowych) — dodanie go tylko na potrzeby tego jednego endpointu byłoby nieproporcjonalnym ryzykiem bezpieczeństwa względem korzyści z literalnego rozróżnienia 403/404. **Świadome odejście od kryterium akceptacji:** kontroler zwraca **404 dla obu przypadków** (nieistniejąca instalacja ORAZ instalacja innego tenanta), zgodnie z istniejącą konwencją projektu (`PluginRegistrationService.enable`/`disable`/`rollback` — wszystkie traktują "nie znaleziono dla tego tenanta" jako `ResourceNotFoundException`/404, nigdy 403).
+
+**Pliki:**
+- `domain/telephony/CallEventEnricher.java` — wywołanie `publishPreContactConnect`, `TenantContext` jawny, scalanie wyniku
+- `domain/telephony/CallEvent.java` — nowe pola `pluginDisplayData: Map<String,Object>`, `pluginWarning: String`
+- `domain/websocket/WebSocketEvent.java` — `CallIncomingPayload` rozszerzony o `pluginDisplayData`/`pluginWarning` (obsługuje zarówno `callIncoming` jak i `callOutbound`, bo obie metody używają tego samego payloadu)
+- `domain/plugin/PluginRegistrationService(Impl).java` — nowa metoda `getInstallation(tenantId, installationId)` → `ResourceNotFoundException` gdy nie istnieje dla tenanta
+- `domain/plugin/runtime/PluginInvocationProperties.java` — `effectiveManualActionTimeoutMs()` zmieniona z package-private na `public` (potrzebna kontrolerowi do wykrycia przekroczenia budżetu, bo `ManualActionResult.unsupported()` jest nierozróżnialne między timeout i "plugin nie wsparł akcji")
+- `api/plugin/PluginManualActionController.java` (nowy) — `POST /api/agent/plugins/{installationId}/manual-action/{actionId}`, `@PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMIN')")`, mierzy czas wywołania i mapuje przekroczenie budżetu na 504 z ciałem JSON
+- `api/plugin/dto/ManualActionRequestDto.java`, `ManualActionResponseDto.java` (nowe)
+
+**Testy:** `CallEventEnricherTest` (10, nowy plik — regresja brak pluginów, scalanie wyniku, TenantContext set/clear na granicy wątku, early return), `PluginManualActionControllerTest` (9, nowy plik — happy path, timeout→504, ownership→404), `PluginRegistrationServiceImplTest` (+3 w nowym `@Nested GetInstallation`). `mvn verify -pl app`: **1258 testów, 0 failures, 0 errors, BUILD SUCCESS** (przyrost +22 względem BE-102: 1236→1258).
 
 ---
 

@@ -435,7 +435,11 @@
       "Bash(awk -F: '$1>5264 && $1<5320')",
       "Bash(xargs -I{} sh -c 'echo === {} ===; cat {}')",
       "Bash(awk -F'Failures: |Errors: ' '{print}')",
-      "Bash(tee /tmp/verify_full.log)"
+      "Bash(tee /tmp/verify_full.log)",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat {}')",
+      "Bash(grep -rln \"bypass_rls\\\\|BYPASSRLS\\\\|bypass.*rls\" --include='*.java' . --include='*.sql' /home/pawelm/contact-center/backend/app/src/main/resources/db/migration/)",
+      "Bash(grep -rn \"ResourceNotFoundException\" domain/exception/ResourceNotFoundException.java)",
+      "Bash(cat domain/exception/ResourceNotFoundException.java)"
     ]
   }
 }

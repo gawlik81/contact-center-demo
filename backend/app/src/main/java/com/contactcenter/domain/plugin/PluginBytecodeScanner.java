@@ -22,8 +22,9 @@ import java.util.Enumeration;
  *
  * <p>Odrzuca JAR jeśli którakolwiek klasa zawiera referencję do zablokowanej kategorii API
  * (reflection {@code setAccessible}, {@code ProcessBuilder}, {@code java.nio.file.*} poza
- * dozwolonym scratch dir, {@code sun.misc.*}, własna podklasa {@code ClassLoader}), lub jeśli
- * {@code entryPointClass} z manifestu nie istnieje w JAR-ze albo nie implementuje
+ * dozwolonym scratch dir, {@code sun.misc.*}, własna podklasa {@code ClassLoader},
+ * {@code Thread#getContextClassLoader}/{@code setContextClassLoader}, {@code ServiceLoader}),
+ * lub jeśli {@code entryPointClass} z manifestu nie istnieje w JAR-ze albo nie implementuje
  * {@link PluginEntryPoint}.
  */
 @Slf4j
@@ -38,14 +39,24 @@ final class PluginBytecodeScanner {
             "java/lang/reflect/AccessibleObject#setAccessible",
             "java/lang/reflect/Method#setAccessible",
             "java/lang/reflect/Field#setAccessible",
-            "java/lang/reflect/Constructor#setAccessible"
+            "java/lang/reflect/Constructor#setAccessible",
+            // Defense in depth dla fix-u TCCL (PluginExecutionContext, code review BE-101,
+            // finding Critical): nawet gdyby manager kiedyś przestał ustawiać/przywracać TCCL
+            // wokół wywołania kodu pluginu, plugin nie może JAWNIE odczytać/nadpisać TCCL żeby
+            // dotrzeć do classloadera aplikacji przez Thread.currentThread().getContextClassLoader().
+            "java/lang/Thread#getContextClassLoader",
+            "java/lang/Thread#setContextClassLoader"
     );
 
     /** Prefiksy internal-name pakietów całkowicie zablokowanych (każda referencja do klasy z tego pakietu). */
     private static final List<String> BLOCKED_OWNER_PREFIXES = List.of(
             "java/lang/ProcessBuilder",
             "java/nio/file/",
-            "sun/misc/"
+            "sun/misc/",
+            // ServiceLoader.load(...) bez explicit classloadera używa domyślnie TCCL — blokowanie
+            // całego typu (nie tylko #load) zamyka też warianty load(Class, ClassLoader) gdzie
+            // plugin mógłby próbować przekazać TCCL jawnie odczytany skąd indziej.
+            "java/util/ServiceLoader"
     );
 
     private PluginBytecodeScanner() {

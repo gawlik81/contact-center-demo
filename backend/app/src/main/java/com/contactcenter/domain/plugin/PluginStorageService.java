@@ -40,4 +40,20 @@ public interface PluginStorageService {
             String originalFilename,
             ValidationResult validationResult,
             UUID uploadedByUserId);
+
+    /**
+     * Pobiera bajty JAR-a pluginu z object storage.
+     *
+     * <p>Używane przez {@code PluginRuntimeManager} (BE-101) do pobrania JAR-a, który następnie
+     * jest zapisywany do lokalnego cache na dysku węzła i ładowany przez dedykowany
+     * {@code PluginClassLoader}. Katalog jest globalny (bez {@code tenantId}/RLS, ADR-13) —
+     * ten sam JAR jest współdzielony między tenantami, więc ta metoda nie przyjmuje
+     * parametru tenanta.
+     *
+     * @param jarObjectKey klucz S3/MinIO ({@code PluginVersion.jarObjectKey})
+     * @return surowe bajty JAR-a
+     * @throws PluginStorageServiceImpl.PluginStorageException gdy obiekt nie istnieje lub
+     *         pobranie z object storage się nie powiodło
+     */
+    byte[] downloadJar(String jarObjectKey);
 }

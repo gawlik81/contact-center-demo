@@ -430,7 +430,9 @@
       "Bash(echo \"RC=$?\")",
       "Bash(kill -0 1642543)",
       "Bash(xargs -I{} grep -A3 \"Tests run\" {})",
-      "Bash(echo \"EXIT_CODE=$?\")"
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(xargs -I{} basename {})",
+      "Bash(awk -F: '$1>5264 && $1<5320')"
     ]
   }
 }

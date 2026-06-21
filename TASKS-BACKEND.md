@@ -5267,7 +5267,7 @@ TenantPluginInstallationDto rollback(UUID tenantId, UUID currentInstallationId, 
 **Priorytet:** Must Have
 **Złożoność:** XL
 **Zależy od:** BE-100, BE-097
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione — code review (`senior-code-reviewer`) zakończony, blokujące znaleziska naprawione 2026-06-20
 **Blokuje:** BE-102, BE-106
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
@@ -5300,13 +5300,19 @@ void unload(UUID tenantId, UUID installationId);                   // calls onDe
 - Każda para `(tenant_id, plugin_key)` (nawet ten sam JAR dla dwóch tenantów) dostaje **odrębną instancję** `PluginClassLoader` — bez współdzielonego stanu statycznego
 
 **Kryteria akceptacji:**
-- [ ] Test negatywny: kod testowy w pluginie testowym próbujący `Class.forName("com.contactcenter.domain.tenant.TenantServiceImpl")` przez classloader pluginu — musi rzucić `ClassNotFoundException` (parent classloader nie eksponuje pakietów `app`)
-- [ ] Test: dwa tenanty instalujące ten sam `plugin_key`/`plugin_version_id` dostają dwa różne obiekty `ClassLoader` (porównanie referencji)
-- [ ] Test: `PluginContextImpl.getCustomer(id)` zwraca dane tylko dla tenanta z `TenantContext` bieżącego wątku, niezależnie od tego, jaki `tenantId` "próbowałby" przekazać kod pluginu (SDK nie przyjmuje `tenantId` jako parametr — zweryfikować, że sygnatura `PluginContext.getCustomer` z `plugin-sdk`, BE-097, rzeczywiście nie ma parametru tenantId)
-- [ ] `unload` zwalnia silną referencję do `ClassLoader`a (test z `WeakReference` + `System.gc()` + assert na czyszczenie, akceptowalne jako best-effort/no-flaky-retry test)
-- [ ] `onActivate`/`onDeactivate` wywoływane w odpowiednich momentach cyklu życia, timeout-bounded (reużyj mechanizm z BE-102 jeśli już gotowy w trakcie code review, inaczej prosty `Future.get(timeout)` lokalnie w tym tickecie)
-- [ ] `mvn verify -pl app` przechodzi
-- [ ] Code review (`senior-code-reviewer`) obowiązkowy przed merge — to ticket z największym ryzykiem bezpieczeństwa w epiku (RT-10)
+- [x] Test negatywny: kod testowy w pluginie testowym próbujący `Class.forName("com.contactcenter.domain.tenant.TenantServiceImpl")` przez classloader pluginu — musi rzucić `ClassNotFoundException` (parent classloader nie eksponuje pakietów `app`). Zaimplementowane w `PlatformApiClassLoaderTest`/`PluginClassLoaderTest` (testy też pokrywają `domain.customer.CustomerServiceImpl` i `org.springframework.*`)
+- [x] Test: dwa tenanty instalujące ten sam `plugin_key`/`plugin_version_id` dostają dwa różne obiekty `ClassLoader` (porównanie referencji). `PluginClassLoaderTest.twoTenantsWithSameJarGetDifferentClassLoaderInstances`
+- [x] Test: `PluginContextImpl.getCustomer(id)` zwraca dane tylko dla tenanta z `TenantContext` bieżącego wątku, niezależnie od tego, jaki `tenantId` "próbowałby" przekazać kod pluginu (SDK nie przyjmuje `tenantId` jako parametr — zweryfikowane, sygnatura `PluginContext.getCustomer` z plugin-sdk nie ma parametru tenantId). `PluginContextImplTest$GetCustomerTests`
+- [x] `unload` zwalnia silną referencję do `ClassLoader`a (test z `WeakReference` + `System.gc()` + assert na czyszczenie, best-effort/no-flaky-retry). `PluginRuntimeManagerImplTest$UnloadTests.classLoaderIsGarbageCollectibleAfterUnload`
+- [x] `onActivate`/`onDeactivate` wywoływane w odpowiednich momentach cyklu życia, timeout-bounded — prosty `Future.get(timeout)` lokalny w tym tickecie (`PluginRuntimeManagerImpl.invokeWithTimeout`, `ExecutorService` dedykowany, 10s); pełny `PluginInvocationExecutor`/circuit breaker pozostaje BE-102
+- [x] `mvn verify -pl app` przechodzi — 1216 testów, 0 failures, 0 errors, BUILD SUCCESS (2026-06-20)
+- [x] **Code review (`senior-code-reviewer`) wykonany — werdykt NO-GO (2 blokujące: Critical + High), oba naprawione 2026-06-20, patrz CR-BACKEND.md.**
+
+**Naprawa po code review (2026-06-20) — oba blokery NO-GO usunięte:**
+- **Critical (TCCL leak):** `lifecycleExecutor` nie ustawiał Thread-Context ClassLoader na granicy `onActivate`/`onDeactivate` — kod pluginu mógł przez `Thread.currentThread().getContextClassLoader()` dostać classloader aplikacji i obejść `PlatformApiClassLoader` (`Class.forName` na klasę hosta). Fix: nowa klasa `PluginExecutionContext.runWithPluginClassLoader(pluginClassLoader, action)` (snapshot/set/restore TCCL, wzorzec analogiczny do `TenantContext`) — zastosowana wokół KAŻDEGO wywołania `entryPoint.onActivate`/`onDeactivate` w `PluginRuntimeManagerImpl`. Defense in depth: `PluginBytecodeScanner` (BE-098) rozszerzony o blacklistę `Thread#getContextClassLoader`/`setContextClassLoader` i `ServiceLoader` — JAR-y próbujące to jawnie wywołać są odrzucane przy walidacji. Test regresyjny `PluginRuntimeManagerImplTest$LoadTests.onActivateRunsWithPluginClassLoaderAsThreadContextClassLoader` — zweryfikowano empirycznie, że PRZED fixem test faktycznie failuje (`"FOUND:com.contactcenter.app.ContactCenterApplication"`), PO fixie przechodzi (`ClassNotFoundException` → `"NOT_FOUND"`).
+- **High (wyciek plików tymczasowych):** `downloadJarToLocalCache` nigdy nie czyściła `Files.createTempFile`. Fix: `PluginInstanceHandle` ma nowe pole `localJarPath`; `unload()` usuwa plik PO `closeQuietly(classLoader)` (URLClassLoader musi zwolnić uchwyt pierwszy); ścieżki błędu w `load()` (instancjonowanie/`onActivate` rzuca) też czyszczą plik. Test `PluginRuntimeManagerImplTest$UnloadTests.unloadDeletesLocalJarCacheFile`.
+- **Medium (opcjonalny, zaadresowany):** `PluginLoggerImpl` truncate na 4000 znaków + escape CRLF, mitygacja log-forging/log-flood do czasu pełnego `PluginInvocationLogService` (BE-102).
+- Weryfikacja: `mvn verify -pl app` ✅ (1218 testów, 0 failures, 0 errors, BUILD SUCCESS).
 
 ---
 

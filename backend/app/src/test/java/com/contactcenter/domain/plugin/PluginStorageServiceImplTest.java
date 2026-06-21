@@ -10,12 +10,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -222,5 +227,41 @@ class PluginStorageServiceImplTest {
         PluginVersionDto dto = service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, UPLOADED_BY);
 
         assertThat(dto.validationErrors()).isEqualTo(List.of());
+    }
+
+    // =========================================================================
+    // downloadJar (BE-101 — konsumowane przez PluginRuntimeManager)
+    // =========================================================================
+
+    @Test
+    @DisplayName("downloadJar: pobiera bajty JAR-a z S3 dla podanego jarObjectKey")
+    void downloadJarReturnsBytesFromS3() {
+        byte[] expectedBytes = buildValidJar();
+        String jarObjectKey = "plugins/acme-crm-sync/1.3.0/plugin.jar";
+
+        ResponseInputStream<GetObjectResponse> responseStream = new ResponseInputStream<>(
+                GetObjectResponse.builder().build(),
+                AbortableInputStream.create(new ByteArrayInputStream(expectedBytes)));
+
+        when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(responseStream);
+
+        byte[] actualBytes = service.downloadJar(jarObjectKey);
+
+        assertThat(actualBytes).isEqualTo(expectedBytes);
+
+        ArgumentCaptor<GetObjectRequest> requestCaptor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(s3Client).getObject(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().bucket()).isEqualTo(BUCKET);
+        assertThat(requestCaptor.getValue().key()).isEqualTo(jarObjectKey);
+    }
+
+    @Test
+    @DisplayName("downloadJar: błąd S3 propaguje się jako PluginStorageException")
+    void downloadJarPropagatesS3Failure() {
+        when(s3Client.getObject(any(GetObjectRequest.class)))
+                .thenThrow(S3Exception.builder().message("object not found").build());
+
+        assertThatThrownBy(() -> service.downloadJar("plugins/missing/1.0.0/plugin.jar"))
+                .isInstanceOf(PluginStorageServiceImpl.PluginStorageException.class);
     }
 }

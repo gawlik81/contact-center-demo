@@ -7,8 +7,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -92,6 +95,28 @@ class PluginStorageServiceImpl implements PluginStorageService {
                 manifest.pluginKey(), manifest.version(), versionStatus, s3Key, uploadedByUserId);
 
         return toDto(pluginVersion, manifest.pluginKey());
+    }
+
+    @Override
+    public byte[] downloadJar(String jarObjectKey) {
+        try {
+            GetObjectRequest getRequest = GetObjectRequest.builder()
+                    .bucket(s3Properties.getBucket())
+                    .key(jarObjectKey)
+                    .build();
+
+            try (ResponseInputStream<GetObjectResponse> response = s3Client.getObject(getRequest)) {
+                byte[] jarBytes = response.readAllBytes();
+                log.debug("[PluginStorage] Pobrano JAR z S3: key={}, size={}B", jarObjectKey, jarBytes.length);
+                return jarBytes;
+            }
+        } catch (S3Exception e) {
+            log.error("[PluginStorage] Błąd pobierania JAR-a z S3: key={}, error={}", jarObjectKey, e.getMessage(), e);
+            throw new PluginStorageException("Pobranie JAR-a pluginu z object storage nie powiodło się: " + jarObjectKey, e);
+        } catch (IOException e) {
+            log.error("[PluginStorage] Błąd odczytu strumienia JAR-a: key={}, error={}", jarObjectKey, e.getMessage(), e);
+            throw new PluginStorageException("Odczyt JAR-a pluginu z object storage nie powiódł się: " + jarObjectKey, e);
+        }
     }
 
     // =========================================================================

@@ -107,6 +107,26 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
         return mapToDto(target);
     }
 
+    @Override
+    @Transactional
+    public boolean updateHealthStatus(UUID tenantId, UUID installationId, String healthStatus,
+                                       int consecutiveFailureCount) {
+        int updated = installationRepository.updateHealthStatus(
+                installationId, tenantId, healthStatus, consecutiveFailureCount);
+
+        if (updated == 0) {
+            log.warn("[PluginRegistrationService] updateHealthStatus: instalacja nie istnieje, "
+                            + "pomijam (best-effort): tenant={}, installation={}, healthStatus={}",
+                    tenantId, installationId, healthStatus);
+            return false;
+        }
+
+        log.debug("[PluginRegistrationService] updateHealthStatus: tenant={}, installation={}, "
+                        + "healthStatus={}, consecutiveFailureCount={}",
+                tenantId, installationId, healthStatus, consecutiveFailureCount);
+        return true;
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================

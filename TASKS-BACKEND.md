@@ -5322,7 +5322,7 @@ void unload(UUID tenantId, UUID installationId);                   // calls onDe
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** BE-101
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione (2026-06-21)
 **Blokuje:** BE-103, BE-104, BE-105
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
@@ -5355,13 +5355,26 @@ void publishDispositionSet(UUID tenantId, DispositionEvent event);     // fire-a
 5. Każda ścieżka (sukces/błąd/timeout/circuit-open) zapisana do logu (BE-105)
 
 **Kryteria akceptacji:**
-- [ ] `PluginInvocationExecutor` to odrębny bean `ThreadPoolExecutor`, NIE współdzieli poola z Tomcat request threads ani z istniejącym `@Async` executorem
-- [ ] Domyślne timeouty: `PRE_CONTACT_CONNECT`=2000ms, `MANUAL_ACTION`=5000ms, async (BE-104)=30000ms — konfigurowalne, capped przez maksimum platformy
-- [ ] Test: plugin który wywołuje `Thread.sleep(10000)` w `onPreContactConnect` → wynik `TIMED_OUT` po ~2s, wołający kod otrzymuje wynik pusty (nie wyjątek, nie blokuje się 10s)
-- [ ] Test: plugin który rzuca `Throwable`/`Error` (nie tylko `Exception`) jest złapany przez `try/catch(Throwable)` na granicy executora i nie propaguje się dalej
-- [ ] Circuit breaker: po 5 kolejnych `TIMED_OUT`/`FAILED` dla tej samej instalacji → `health_status=DEGRADED` w DB (DB-043), kolejne wywołania pomijane jako `CIRCUIT_OPEN` bez próby wywołania
-- [ ] `TenantContext.snapshot()/restore()/clear()` na granicy wątku — test weryfikujący brak leaku tenant context między dwoma kolejnymi wywołaniami różnych tenantów na tym samym executorze
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `PluginInvocationExecutor` to odrębny bean `ThreadPoolExecutor`, NIE współdzieli poola z Tomcat request threads ani z istniejącym `@Async` executorem
+- [x] Domyślne timeouty: `PRE_CONTACT_CONNECT`=2000ms, `MANUAL_ACTION`=5000ms, async (BE-104)=30000ms — konfigurowalne, capped przez maksimum platformy
+- [x] Test: plugin który wywołuje `Thread.sleep(10000)` w `onPreContactConnect` → wynik `TIMED_OUT` po ~2s, wołający kod otrzymuje wynik pusty (nie wyjątek, nie blokuje się 10s)
+- [x] Test: plugin który rzuca `Throwable`/`Error` (nie tylko `Exception`) jest złapany przez `try/catch(Throwable)` na granicy executora i nie propaguje się dalej
+- [x] Circuit breaker: po 5 kolejnych `TIMED_OUT`/`FAILED` dla tej samej instalacji → `health_status=DEGRADED` w DB (DB-043), kolejne wywołania pomijane jako `CIRCUIT_OPEN` bez próby wywołania
+- [x] `TenantContext.snapshot()/restore()/clear()` na granicy wątku — test weryfikujący brak leaku tenant context między dwoma kolejnymi wywołaniami różnych tenantów na tym samym executorze
+- [x] `mvn verify -pl app` przechodzi
+
+**Zrealizowane 2026-06-21:**
+Pakiet `domain.plugin.runtime` rozszerzony o: `ExtensionPointPublisher`/`Impl`, `PluginInvocationExecutor` (`@Configuration`, bean `pluginInvocationExecutor`, core=8/max=32/queue=200, `CallerRunsPolicy`, wątki daemon), `PluginInvocationProperties` (`@ConfigurationProperties(prefix="plugin.invocation")`), `CircuitBreakerState` (`ConcurrentHashMap<UUID, AtomicInteger>` w pamięci, próg 5, "closed on first success"), `InvocationStatus` (enum lokalny, placeholder do podmiany przez BE-105), `PluginInvocationFailedException`.
+
+Dodano `TenantPluginInstallationRepository.updateHealthStatus(...)` + `PluginRegistrationService.updateHealthStatus(...)` (BE-100) — wołane wyłącznie przez `CircuitBreakerState`, best-effort.
+
+**Logowanie wywołań jest placeholderem SLF4J** (`recordInvocation`, private w `ExtensionPointPublisherImpl`) — BE-105 podmieni ciało tej jednej metody na `PluginInvocationLogService` bez zmiany sygnatury/miejsc wołających.
+
+**Decyzja merge wyników wielu instalacji** (`publishPreContactConnect`): SDK nie definiuje semantyki łączenia wielu `PreContactConnectResult` — zwracany jest wynik pierwszej instalacji w porządku rejestracji, której wywołanie zwróciło wynik niepusty (`!displayData.isEmpty() || warning != null`); każda próbowana instalacja jest mimo to w pełni zarejestrowana w circuit breakerze/logu.
+
+`publishPostContactEnd`/`publishCustomerSync`/`publishDispositionSet`: w tym tickecie submit-and-forget na `pluginInvocationExecutor` bez integracji RabbitMQ (BE-104, kolejny ticket).
+
+Testy: `CircuitBreakerStateTest` (6), `ExtensionPointPublisherImplTest` (12, executor realny nie mockowany). Weryfikacja: `mvn verify -pl app` ✅ (1236 testów, 0 failures, 0 errors, BUILD SUCCESS).
 
 ---
 

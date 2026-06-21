@@ -83,4 +83,23 @@ public interface PluginRegistrationService {
      *         instalacja nie istnieje dla tego tenanta
      */
     TenantPluginInstallationDto rollback(UUID tenantId, UUID currentInstallationId, UUID targetInstallationId);
+
+    /**
+     * Aktualizuje {@code health_status}/{@code consecutive_failure_count} jednej instalacji.
+     *
+     * <p>Wołane wyłącznie przez {@code ExtensionPointPublisherImpl}/{@code CircuitBreakerState}
+     * (BE-102, ARCHITECTURE.md §11.7) — przejście na {@code DEGRADED} po N kolejnych
+     * {@code TIMED_OUT}/{@code FAILED} wywołaniach, lub powrót na {@code HEALTHY} po pierwszym
+     * {@code SUCCESS}. Nie rzuca przy braku instalacji (best-effort — wołający nie powinien
+     * blokować ścieżki invocation na błędzie aktualizacji metadanych zdrowia) — zamiast tego
+     * loguje ostrzeżenie i zwraca {@code false}.
+     *
+     * @param tenantId               tenant-właściciel instalacji
+     * @param installationId        instalacja, której status jest aktualizowany
+     * @param healthStatus            jedna z wartości {@code TenantPluginInstallation.HealthStatus}
+     * @param consecutiveFailureCount aktualna wartość licznika kolejnych błędów do zapisania
+     * @return {@code true} jeśli wiersz został zaktualizowany, {@code false} gdy instalacja nie
+     *         istnieje dla tego tenanta
+     */
+    boolean updateHealthStatus(UUID tenantId, UUID installationId, String healthStatus, int consecutiveFailureCount);
 }

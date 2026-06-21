@@ -178,6 +178,41 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         return updated;
     }
 
+    /**
+     * Aktualizuje {@code health_status} i {@code consecutive_failure_count} jednej instalacji.
+     *
+     * <p>Wołane wyłącznie przez {@code ExtensionPointPublisherImpl}/{@code CircuitBreakerState}
+     * (BE-102, ARCHITECTURE.md §11.7) po N kolejnych {@code TIMED_OUT}/{@code FAILED} wywołaniach
+     * tej instalacji (przejście na {@code DEGRADED}) lub po pierwszym {@code SUCCESS} po serii
+     * błędów (powrót do {@code HEALTHY}, zresetowanie licznika).
+     *
+     * @return liczba zaktualizowanych wierszy (0 = instalacja nie istnieje dla tego tenanta)
+     */
+    @Transactional
+    int updateHealthStatus(UUID id, UUID tenantId, String healthStatus, int consecutiveFailureCount) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        int updated = em.createNativeQuery("""
+                UPDATE tenant_plugin_installation
+                SET health_status             = :healthStatus,
+                    consecutive_failure_count  = :consecutiveFailureCount,
+                    updated_at                 = NOW()
+                WHERE id        = CAST(:id AS uuid)
+                  AND tenant_id = CAST(:tenantId AS uuid)
+                """)
+                .setParameter("healthStatus", healthStatus)
+                .setParameter("consecutiveFailureCount", consecutiveFailureCount)
+                .setParameter("id", id.toString())
+                .setParameter("tenantId", tenantId.toString())
+                .executeUpdate();
+
+        log.info("[TenantPluginInstallationRepo] UPDATE healthStatus={}, failures={}: id={}, tenant={}, wierszy={}",
+                healthStatus, consecutiveFailureCount, id, tenantId, updated);
+
+        return updated;
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================

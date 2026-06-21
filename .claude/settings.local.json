@@ -432,7 +432,10 @@
       "Bash(xargs -I{} grep -A3 \"Tests run\" {})",
       "Bash(echo \"EXIT_CODE=$?\")",
       "Bash(xargs -I{} basename {})",
-      "Bash(awk -F: '$1>5264 && $1<5320')"
+      "Bash(awk -F: '$1>5264 && $1<5320')",
+      "Bash(xargs -I{} sh -c 'echo === {} ===; cat {}')",
+      "Bash(awk -F'Failures: |Errors: ' '{print}')",
+      "Bash(tee /tmp/verify_full.log)"
     ]
   }
 }

@@ -29,6 +29,14 @@ public class PluginInvocationProperties {
     private long manualActionTimeoutMs = 5000L;
 
     /**
+     * Timeout domyślny dla wywołań fire-and-forget konsumowanych z {@code cc.queue.plugin-invocation}
+     * ({@code POST_CONTACT_END}/{@code CUSTOMER_SYNC}/{@code DISPOSITION_SET}, BE-104) — większy
+     * niż {@link #manualActionTimeoutMs}, bo żaden agent nie czeka na ten wynik (ARCHITECTURE.md
+     * §11.5: "decoupling plugin latency entirely from the agent-facing request").
+     */
+    private long asyncInvocationTimeoutMs = 30_000L;
+
+    /**
      * Maksimum platformy dla każdego skonfigurowanego timeoutu — zgodne z
      * {@code chk_tenant_plugin_extension_binding_timeout} (V076: {@code timeout_ms <= 60000}).
      */
@@ -61,5 +69,14 @@ public class PluginInvocationProperties {
      */
     public long effectiveManualActionTimeoutMs() {
         return Math.min(manualActionTimeoutMs, maxTimeoutMs);
+    }
+
+    /**
+     * Zwraca timeout dla wywołań fire-and-forget z {@code PluginInvocationConsumer} (BE-104),
+     * capped przez {@link #maxTimeoutMs} (30000ms domyślnie, w praktyce nigdy capped przez
+     * 60000ms domyślny {@code maxTimeoutMs}).
+     */
+    long effectiveAsyncInvocationTimeoutMs() {
+        return Math.min(asyncInvocationTimeoutMs, maxTimeoutMs);
     }
 }

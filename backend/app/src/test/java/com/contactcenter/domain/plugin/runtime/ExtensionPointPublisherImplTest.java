@@ -5,13 +5,18 @@ import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.plugin.ExtensionPoint;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
 import com.contactcenter.domain.plugin.TenantPluginInstallation;
+import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.pluginsdk.PluginContext;
 import com.contactcenter.pluginsdk.PluginEntryPoint;
 import com.contactcenter.pluginsdk.model.ContactEvent;
+import com.contactcenter.pluginsdk.model.CustomerSyncRequest;
+import com.contactcenter.pluginsdk.model.DispositionEvent;
 import com.contactcenter.pluginsdk.model.ManualActionRequest;
 import com.contactcenter.pluginsdk.model.ManualActionResult;
 import com.contactcenter.pluginsdk.model.PreContactConnectResult;
 import com.contactcenter.security.TenantContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -58,10 +65,12 @@ class ExtensionPointPublisherImplTest {
     @Mock private PluginRegistrationService pluginRegistrationService;
     @Mock private CustomerService customerService;
     @Mock private ContactService contactService;
+    @Mock private RabbitTemplate rabbitTemplate;
 
     private CircuitBreakerState circuitBreakerState;
     private PluginInvocationProperties properties;
     private ExecutorService executorService;
+    private ObjectMapper objectMapper;
     private ExtensionPointPublisherImpl publisher;
 
     @BeforeEach
@@ -71,9 +80,10 @@ class ExtensionPointPublisherImplTest {
         properties.setPreContactConnectTimeoutMs(2000L);
         properties.setManualActionTimeoutMs(5000L);
         executorService = Executors.newCachedThreadPool();
+        objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         publisher = new ExtensionPointPublisherImpl(
                 pluginRegistry, circuitBreakerState, customerService, contactService,
-                properties, executorService);
+                properties, rabbitTemplate, objectMapper, executorService);
 
         TenantContext.setTenantId(TENANT_ID);
         TenantContext.setUserId(UUID.randomUUID());
@@ -93,22 +103,6 @@ class ExtensionPointPublisherImplTest {
 
     private static ContactEvent contactEvent() {
         return new ContactEvent(UUID.randomUUID(), UUID.randomUUID(), "PRE_CONTACT_CONNECT", Instant.now());
-    }
-
-    /** Polling proste — projekt nie ma zależności Awaitility w tym module testowym. */
-    private static void awaitTrue(AtomicBoolean flag, long timeoutMs) {
-        long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
-        while (!flag.get()) {
-            if (System.nanoTime() > deadline) {
-                throw new AssertionError("Warunek nie został spełniony w ciągu " + timeoutMs + "ms");
-            }
-            try {
-                Thread.sleep(20L);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new AssertionError("Przerwano podczas czekania", e);
-            }
-        }
     }
 
     @Nested
@@ -372,57 +366,101 @@ class ExtensionPointPublisherImplTest {
     }
 
     @Nested
-    @DisplayName("Fire-and-forget — publishPostContactEnd/publishCustomerSync/publishDispositionSet")
+    @DisplayName("Fire-and-forget — publishPostContactEnd/publishCustomerSync/publishDispositionSet (BE-104: publikacja RabbitMQ)")
     class FireAndForgetTests {
 
         @Test
-        @DisplayName("publishPostContactEnd nie blokuje wątku wywołującego, plugin jest wywołany asynchronicznie")
-        void publishPostContactEnd_doesNotBlockCallingThread() {
+        @DisplayName("publishPostContactEnd publikuje PluginInvocationMessage na cc.events/plugin.invocation, NIE wywołuje pluginu")
+        void publishPostContactEnd_publishesToRabbitMq_doesNotInvokePluginDirectly() {
             AtomicBoolean invoked = new AtomicBoolean(false);
             PluginEntryPoint entryPoint = new PluginEntryPoint() {
                 @Override public void onActivate(PluginContext context) { }
                 @Override public void onDeactivate() { }
                 @Override public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
-                    try {
-                        Thread.sleep(200L);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    }
                     invoked.set(true);
                 }
             };
-            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.POST_CONTACT_END))
-                    .thenReturn(List.of(handleWith(entryPoint)));
+            // pluginRegistry.lookup NIE jest wołany przez publishPostContactEnd od BE-104 —
+            // lookup się przeniósł do PluginInvocationConsumer. Nie stubujemy go celowo: jeśli
+            // publisher zacząłby go wołać, test by failował (UnnecessaryStubbingException nie
+            // dotyczy braku stubu, ale invoked.get() poniżej wykryje regresję behawioralną).
+            ContactEvent event = contactEvent();
 
-            long startedAt = System.nanoTime();
-            publisher.publishPostContactEnd(TENANT_ID, contactEvent());
-            long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
+            publisher.publishPostContactEnd(TENANT_ID, event);
 
-            assertThat(elapsedMs).isLessThan(200L);
-            awaitTrue(invoked, 2_000L);
+            verify(rabbitTemplate).convertAndSend(
+                    eq(RabbitMQConfig.EXCHANGE_EVENTS),
+                    eq(RabbitMQConfig.RK_PLUGIN_INVOCATION),
+                    any(PluginInvocationMessage.class));
+            assertThat(invoked.get()).isFalse();
         }
 
         @Test
-        @DisplayName("Circuit breaker OPEN -> publishPostContactEnd pomija wywołanie pluginu")
-        void publishPostContactEnd_skipsWhenCircuitOpen() {
-            AtomicInteger invocationCount = new AtomicInteger(0);
-            PluginEntryPoint entryPoint = new PluginEntryPoint() {
-                @Override public void onActivate(PluginContext context) { }
-                @Override public void onDeactivate() { }
-                @Override public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
-                    invocationCount.incrementAndGet();
-                }
-            };
-            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.POST_CONTACT_END))
-                    .thenReturn(List.of(handleWith(entryPoint)));
+        @DisplayName("publishPostContactEnd: wiadomość niesie tenantId, extensionPoint=POST_CONTACT_END i eventPayload serializowalny do ContactEvent")
+        void publishPostContactEnd_messageContainsExpectedFields() {
+            ContactEvent event = contactEvent();
 
-            for (int i = 0; i < CircuitBreakerState.FAILURE_THRESHOLD; i++) {
-                circuitBreakerState.recordResult(TENANT_ID, INSTALLATION_ID, false);
-            }
+            publisher.publishPostContactEnd(TENANT_ID, event);
 
+            org.mockito.ArgumentCaptor<PluginInvocationMessage> captor =
+                    org.mockito.ArgumentCaptor.forClass(PluginInvocationMessage.class);
+            verify(rabbitTemplate).convertAndSend(
+                    eq(RabbitMQConfig.EXCHANGE_EVENTS), eq(RabbitMQConfig.RK_PLUGIN_INVOCATION), captor.capture());
+
+            PluginInvocationMessage message = captor.getValue();
+            assertThat(message.tenantId()).isEqualTo(TENANT_ID);
+            assertThat(message.extensionPoint()).isEqualTo(ExtensionPoint.POST_CONTACT_END.name());
+            ContactEvent roundTripped = objectMapper.convertValue(message.eventPayload(), ContactEvent.class);
+            assertThat(roundTripped.contactId()).isEqualTo(event.contactId());
+        }
+
+        @Test
+        @DisplayName("publishCustomerSync publikuje extensionPoint=CUSTOMER_SYNC z eventPayload serializowalnym do CustomerSyncRequest")
+        void publishCustomerSync_publishesExpectedMessage() {
+            CustomerSyncRequest request = new CustomerSyncRequest(UUID.randomUUID(), "CUSTOMER_UPDATED");
+
+            publisher.publishCustomerSync(TENANT_ID, request);
+
+            org.mockito.ArgumentCaptor<PluginInvocationMessage> captor =
+                    org.mockito.ArgumentCaptor.forClass(PluginInvocationMessage.class);
+            verify(rabbitTemplate).convertAndSend(
+                    eq(RabbitMQConfig.EXCHANGE_EVENTS), eq(RabbitMQConfig.RK_PLUGIN_INVOCATION), captor.capture());
+
+            PluginInvocationMessage message = captor.getValue();
+            assertThat(message.extensionPoint()).isEqualTo(ExtensionPoint.CUSTOMER_SYNC.name());
+            CustomerSyncRequest roundTripped =
+                    objectMapper.convertValue(message.eventPayload(), CustomerSyncRequest.class);
+            assertThat(roundTripped).isEqualTo(request);
+        }
+
+        @Test
+        @DisplayName("publishDispositionSet publikuje extensionPoint=DISPOSITION_SET z eventPayload serializowalnym do DispositionEvent")
+        void publishDispositionSet_publishesExpectedMessage() {
+            DispositionEvent event = new DispositionEvent(
+                    UUID.randomUUID(), UUID.randomUUID(), "RESOLVED", UUID.randomUUID(), Instant.now());
+
+            publisher.publishDispositionSet(TENANT_ID, event);
+
+            org.mockito.ArgumentCaptor<PluginInvocationMessage> captor =
+                    org.mockito.ArgumentCaptor.forClass(PluginInvocationMessage.class);
+            verify(rabbitTemplate).convertAndSend(
+                    eq(RabbitMQConfig.EXCHANGE_EVENTS), eq(RabbitMQConfig.RK_PLUGIN_INVOCATION), captor.capture());
+
+            PluginInvocationMessage message = captor.getValue();
+            assertThat(message.extensionPoint()).isEqualTo(ExtensionPoint.DISPOSITION_SET.name());
+            DispositionEvent roundTripped =
+                    objectMapper.convertValue(message.eventPayload(), DispositionEvent.class);
+            assertThat(roundTripped.dispositionCode()).isEqualTo("RESOLVED");
+        }
+
+        @Test
+        @DisplayName("Błąd publikacji do RabbitMQ jest zawierany — nie propaguje się do wołającego")
+        void publishPostContactEnd_rabbitTemplateThrows_isContainedAndDoesNotPropagate() {
+            org.mockito.Mockito.doThrow(new org.springframework.amqp.AmqpException("broker niedostępny"))
+                    .when(rabbitTemplate).convertAndSend(any(String.class), any(String.class), any(Object.class));
+
+            // Nie powinno rzucić wyjątku do wołającego — publikacja jest non-critical.
             publisher.publishPostContactEnd(TENANT_ID, contactEvent());
-
-            assertThat(invocationCount.get()).isZero();
         }
     }
 }

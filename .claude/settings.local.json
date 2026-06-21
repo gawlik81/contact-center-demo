@@ -439,7 +439,8 @@
       "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat {}')",
       "Bash(grep -rln \"bypass_rls\\\\|BYPASSRLS\\\\|bypass.*rls\" --include='*.java' . --include='*.sql' /home/pawelm/contact-center/backend/app/src/main/resources/db/migration/)",
       "Bash(grep -rn \"ResourceNotFoundException\" domain/exception/ResourceNotFoundException.java)",
-      "Bash(cat domain/exception/ResourceNotFoundException.java)"
+      "Bash(cat domain/exception/ResourceNotFoundException.java)",
+      "Bash(echo \"EXIT CODE: $?\")"
     ]
   }
 }

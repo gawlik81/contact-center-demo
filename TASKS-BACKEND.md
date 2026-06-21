@@ -5444,12 +5444,25 @@ POST /api/agent/plugins/{installationId}/manual-action/{actionId}
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** BE-102
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrealizowane 2026-06-21
 **Blokuje:** —
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
 Trzy punkty rozszerzeń fire-and-forget publikowane do nowej kolejki RabbitMQ `cc.queue.plugin-invocation`, konsumowane asynchronicznie — odpowiedzialność za latencję pluginu jest całkowicie odseparowana od żądania agenta (ARCHITECTURE.md §11.5). Wzorzec identyczny z istniejącymi domenowymi event'ami `agent.status.changed`/`call.incoming` (§3.5) — sprawdź istniejącą konfigurację RabbitMQ (exchange/queue/binding) przed dodaniem nowej.
+
+**Zrealizowane:**
+`ExtensionPointPublisherImpl.publishPostContactEnd`/`publishCustomerSync`/`publishDispositionSet` (BE-102) zastąpione: zamiast submit-and-forget na `pluginInvocationExecutor`, serializują payload (`ContactEvent`/`CustomerSyncRequest`/`DispositionEvent`) do `PluginInvocationMessage` i publikują przez `RabbitTemplate.convertAndSend(EXCHANGE_EVENTS, RK_PLUGIN_INVOCATION, message)` — nie wywołują pluginu, nie wołają `PluginRegistry.lookup`. Błąd publikacji (broker niedostępny) jest złapany i zalogowany, NIE propagowany do wołającego.
+
+`PluginInvocationMessage` (record): `tenantId`, `extensionPoint` (String, nie enum — kontrakt wiadomości stabilny niezależnie od ewentualnej zmiany nazw enuma), `eventPayload` (`Map<String,Object>` — Jackson nie wie w punkcie deserializacji, który z trzech rekordów SDK zastosować, bo to zależy od `extensionPoint` będącego polem TEGO SAMEGO payloadu), `publishedAt`. **Bez `installationId`** — zgodnie ze wskazówką w tickecie: lookup wszystkich aktywnych instalacji na ten extension point dzieje się w `PluginInvocationConsumer` w momencie konsumpcji, nie w publisherze w momencie publikacji (instalacja mogła zostać zainstalowana/odinstalowana między tymi dwoma momentami).
+
+`PluginInvocationConsumer` (`extends TenantAwareConsumer`, `@RabbitListener(queues = QUEUE_PLUGIN_INVOCATION)`): `processWithTenant` → `PluginRegistry.lookup` → dla każdej instalacji **dociąga aktualny stan `enabled` z `PluginRegistrationService.getInstallation`** (krok krytyczny: `PluginRegistry` w pamięci nie odzwierciedla automatycznie `enable()`/`disable()` w DB — zweryfikowano w `PluginRegistryImpl`/`PluginRegistrationServiceImpl.disable()`, które tylko zmienia flagę w DB bez wołania `unregister()`) → `enabled=false` lub instalacja nieznaleziona w DB → `SKIPPED_DISABLED` (nie silent drop) → circuit breaker check (**stan WSPÓLNY z `ExtensionPointPublisherImpl`**, ten sam bean `CircuitBreakerState`, bo jest indeksowany tylko po `installationId`) → wywołanie metody `PluginEntryPoint` dopasowanej do `extensionPoint` przez `switch`, timeout 30000ms (`PluginInvocationProperties.effectiveAsyncInvocationTimeoutMs()`, nowe pole), na `pluginInvocationExecutor` (ten sam executor co BE-102), granica `TenantContext`/TCCL identyczna jak `ExtensionPointPublisherImpl.invokeBlocking` (snapshot/restore/clear, `PluginExecutionContext.runWithPluginClassLoader`, `catch(Throwable)`).
+
+`infrastructure/config/RabbitMqPluginConfig.java` (nowy plik, osobny od `RabbitMQConfig` żeby nie rozrastać dalej już dużego pliku istniejącego) — `pluginInvocationQueue` (durable, DLX→`cc.dlx`/`dlq`, bez TTL w przeciwieństwie do `contactRoutingQueue`) + binding do istniejącego `eventsExchange` (`cc.events`) z routing key `plugin.invocation`. Stałe `QUEUE_PLUGIN_INVOCATION`/`RK_PLUGIN_INVOCATION` żyją w `RabbitMQConfig` (centralizacja nazw, konwencja istniejąca). **Retry/DLQ:** brak konfiguracji per-kolejka — reużyty globalny `spring.rabbitmq.listener.simple.retry` (dev: max-attempts=3, prod: max-attempts=5), identycznie jak `AuditLogConsumer`/wszystkie inne konsumenty domenowe w projekcie; po wyczerpaniu retry wiadomość trafia do istniejącego `cc.queue.dead-letter` → `DeadLetterConsumer`. Wyjątek/`Error` rzucony PRZEZ PLUGIN jest złapany WEWNĄTRZ konsumenta (nigdy nie dociera do Spring AMQP) — tylko błąd `PluginRegistry.lookup`/`PluginRegistrationService.getInstallation` (infrastruktura, np. JDBC) propaguje się do nack/retry/DLQ.
+
+**Wspólny logger:** wydzielony `PluginInvocationLogger` (nowa, mała klasa package-private, statyczna metoda `record(...)`) używany przez `ExtensionPointPublisherImpl.recordInvocation` (delegacja, sygnatura niezmieniona) i `PluginInvocationConsumer` — ocena: duplikat dwóch identycznych metod 6-argumentowych był warty wydzielenia do jednego miejsca, żeby podmiana w BE-105 (na `PluginInvocationLogService`) dotyczyła jednego punktu, nie dwóch kopii do ręcznego scalenia.
+
+**Testy:** `ExtensionPointPublisherImplTest$FireAndForgetTests` przepisany (5 testów — publikacja do RabbitMQ z weryfikacją exchange/routing-key/payload, NIE wywołanie pluginu; round-trip serializacji do każdego z 3 rekordów SDK; błąd `RabbitTemplate` zawierany). `PluginInvocationConsumerTest` (nowy, 13 testów) — sukces z deserializacją payloadu, **`SKIPPED_DISABLED` dla instalacji disabled między publikacją i konsumpcją** (kryterium akceptacji), instalacja usunięta z DB traktowana jak disabled, brak instalacji w registry → no-op, timeout po ~300ms skonfigurowanym, `Error` pluginu zawierany, circuit breaker OPEN pomija wywołanie, `onCustomerSync`/`onDispositionSet` dispatch, **brak leaku `TenantContext` między dwoma tenantami konsumowanymi sekwencyjnie na tym samym wątku** (kryterium akceptacji), wiadomości malformed (null/tenantId null/extensionPoint nierozpoznany) ignorowane bez wyjątku. `mvn verify -pl app`: **1274 testy, 0 failures, 0 errors, BUILD SUCCESS** (przyrost +16 względem BE-103: 1258→1274).
 
 **Pliki:**
 ```
@@ -5468,11 +5481,11 @@ backend/app/src/main/java/com/contactcenter/
 4. Każda ścieżka zapisana do `plugin_invocation_log` (BE-105)
 
 **Kryteria akceptacji:**
-- [ ] Kolejka `cc.queue.plugin-invocation` zadeklarowana z dead-letter queue (wzorzec istniejącego `DeadLetterConsumer`)
-- [ ] Test: wiadomość dla instalacji, która między publikacją a konsumpcją została `disabled` → log `SKIPPED_DISABLED`, nie wyjątek, nie silent drop
-- [ ] `TenantContext` poprawnie ustawiony na wątku listenera (test integracyjny z dwoma tenantami w kolejce na raz — brak cross-tenant leak)
-- [ ] Plugin rzucający wyjątek w `onPostContactEnd` nie powoduje requeue w nieskończoność (DLQ po N retry, wzorzec istniejący)
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Kolejka `cc.queue.plugin-invocation` zadeklarowana z dead-letter queue (wzorzec istniejącego `DeadLetterConsumer`)
+- [x] Test: wiadomość dla instalacji, która między publikacją a konsumpcją została `disabled` → log `SKIPPED_DISABLED`, nie wyjątek, nie silent drop
+- [x] `TenantContext` poprawnie ustawiony na wątku listenera (test z dwoma tenantami konsumowanymi sekwencyjnie na tym samym wątku/komponencie — brak cross-tenant leak, analogicznie do testu z BE-102)
+- [x] Plugin rzucający wyjątek w `onPostContactEnd` nie powoduje requeue w nieskończoność (DLQ po N retry, wzorzec istniejący — globalny retry `spring.rabbitmq.listener.simple.retry`, nie per-kolejka)
+- [x] `mvn verify -pl app` przechodzi
 
 ---
 

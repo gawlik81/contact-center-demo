@@ -3,6 +3,7 @@ package com.contactcenter.domain.plugin.runtime;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.plugin.ExtensionPoint;
+import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.pluginsdk.PluginContext;
 import com.contactcenter.pluginsdk.model.ContactEvent;
 import com.contactcenter.pluginsdk.model.CustomerSyncRequest;
@@ -11,12 +12,16 @@ import com.contactcenter.pluginsdk.model.ManualActionRequest;
 import com.contactcenter.pluginsdk.model.ManualActionResult;
 import com.contactcenter.pluginsdk.model.PreContactConnectResult;
 import com.contactcenter.security.TenantContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -29,7 +34,16 @@ import java.util.function.Supplier;
 
 /**
  * Implementacja {@link ExtensionPointPublisher} — dispatch + fault containment
- * (ARCHITECTURE.md §11.5/§11.7/§11.8, EPIC-28, BE-102).
+ * (ARCHITECTURE.md §11.5/§11.7/§11.8, EPIC-28, BE-102/BE-104).
+ *
+ * <p><strong>Blocking vs. fire-and-forget (BE-104):</strong> {@code publishPreContactConnect}/
+ * {@code publishManualAction} wywołują plugin bezpośrednio na {@code pluginInvocationExecutor},
+ * blocking, timeout-bounded (logika niezmieniona od BE-102). {@code publishPostContactEnd}/
+ * {@code publishCustomerSync}/{@code publishDispositionSet} NIE wywołują pluginu w tej klasie —
+ * serializują payload do {@link PluginInvocationMessage} i publikują go na
+ * {@code cc.queue.plugin-invocation} przez {@code RabbitTemplate}; lookup instalacji, wywołanie
+ * pluginu, timeout, circuit breaker i logowanie dla tych trzech punktów rozszerzeń żyją w
+ * {@link PluginInvocationConsumer} (BE-104, zastępuje tymczasowy submit-and-forget z BE-102).
  *
  * <p><strong>Decyzja o łączeniu wyników wielu instalacji ({@code publishPreContactConnect}):</strong>
  * gdy więcej niż jedna instalacja jest zarejestrowana na {@code PRE_CONTACT_CONNECT} dla tego
@@ -67,6 +81,8 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
     private final CustomerService customerService;
     private final ContactService contactService;
     private final PluginInvocationProperties properties;
+    private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
 
     @Qualifier("pluginInvocationExecutor")
     private final ExecutorService pluginInvocationExecutor;
@@ -127,36 +143,26 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
     // =========================================================================
     // Fire-and-forget — POST_CONTACT_END / CUSTOMER_SYNC / DISPOSITION_SET
     //
-    // BE-102: submit-and-forget na pluginInvocationExecutor, sin czekania na wynik.
-    // Integracja pełna z RabbitMQ (cc.queue.plugin-invocation) jest zakresem BE-104 — NIE
-    // implementowana tutaj.
+    // BE-104: publikacja do RabbitMQ (cc.queue.plugin-invocation), konsumowana asynchronicznie
+    // przez PluginInvocationConsumer — lookup instalacji, wywołanie pluginu, timeout, circuit
+    // breaker i logowanie żyją teraz w konsumencie, NIE tutaj (poprzednia implementacja BE-102,
+    // submit-and-forget na pluginInvocationExecutor bez RabbitMQ, była tymczasowym placeholderem
+    // zastąpionym w tym tickecie).
     // =========================================================================
 
     @Override
     public void publishPostContactEnd(UUID tenantId, ContactEvent event) {
-        dispatchFireAndForget(tenantId, ExtensionPoint.POST_CONTACT_END,
-                (handle, ctx) -> {
-                    handle.entryPoint().onPostContactEnd(ctx, event);
-                    return null;
-                });
+        publishToQueue(tenantId, ExtensionPoint.POST_CONTACT_END, event);
     }
 
     @Override
     public void publishCustomerSync(UUID tenantId, CustomerSyncRequest req) {
-        dispatchFireAndForget(tenantId, ExtensionPoint.CUSTOMER_SYNC,
-                (handle, ctx) -> {
-                    handle.entryPoint().onCustomerSync(ctx, req);
-                    return null;
-                });
+        publishToQueue(tenantId, ExtensionPoint.CUSTOMER_SYNC, req);
     }
 
     @Override
     public void publishDispositionSet(UUID tenantId, DispositionEvent event) {
-        dispatchFireAndForget(tenantId, ExtensionPoint.DISPOSITION_SET,
-                (handle, ctx) -> {
-                    handle.entryPoint().onDispositionSet(ctx, event);
-                    return null;
-                });
+        publishToQueue(tenantId, ExtensionPoint.DISPOSITION_SET, event);
     }
 
     // =========================================================================
@@ -266,54 +272,48 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
     }
 
     // =========================================================================
-    // Mechanizm wspólny — fire-and-forget
+    // Mechanizm wspólny — fire-and-forget (publikacja do RabbitMQ, BE-104)
     // =========================================================================
 
     /**
-     * Submit-and-forget na {@code pluginInvocationExecutor} dla wszystkie instalacje tenanta
-     * zarejestrowane na {@code extensionPoint} — nie czeka na wynik, nie blokuje wątku
-     * wywołującego (RabbitMQ listener thread lub request thread, w zależności od wywołującego).
+     * Serializuje {@code eventPayload} (jeden z rekordów SDK: {@code ContactEvent}/
+     * {@code CustomerSyncRequest}/{@code DispositionEvent}) do {@link PluginInvocationMessage}
+     * i publikuje go na {@code cc.queue.plugin-invocation} (exchange {@code cc.events},
+     * routing key {@code plugin.invocation}) — nie wywołuje żadnego pluginu bezpośrednio i nie
+     * sprawdza {@link PluginRegistry#lookup} (to jest teraz odpowiedzialność
+     * {@code PluginInvocationConsumer} w momencie konsumpcji, zob. Javadoc
+     * {@link PluginInvocationMessage}).
      *
-     * <p>Mimo braku czekania na wynik, circuit breaker i log invocation są aktualizowane
-     * asynchronicznie WEWNĄTRZ zadania na executorze (po zakończeniu wywołania pluginu) — fire-
-     * and-forget znaczy "wołający nie czeka", nie "wynik nigdy nie jest obserwowany".
+     * <p>Wołający (request thread lub RabbitMQ listener thread innego konsumenta, np.
+     * {@code CallEventEnricher}) nie czeka na żadne potwierdzenie wywołania pluginu —
+     * {@code RabbitTemplate#convertAndSend} jest non-blocking względem konsumenta (publisher
+     * confirm jest asynchroniczny, skonfigurowany w {@code RabbitMQConfig#rabbitTemplate}).
+     * Błąd samej publikacji (broker niedostępny) jest logowany i NIE propagowany do wołającego —
+     * zgodnie z klasyfikacją fire-and-forget tego punktu rozszerzenia (ARCHITECTURE.md §11.5),
+     * utrata jednej próby publikacji nie może zepsuć przepływu domenowego (np. zakończenia
+     * kontaktu), który wywołał ten publish.
      */
-    private void dispatchFireAndForget(
-            UUID tenantId, ExtensionPoint extensionPoint,
-            java.util.function.BiFunction<PluginInstanceHandle, PluginContext, Void> invocation) {
+    private void publishToQueue(UUID tenantId, ExtensionPoint extensionPoint, Object eventPayload) {
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payloadAsMap =
+                    objectMapper.convertValue(eventPayload, Map.class);
+            PluginInvocationMessage message = new PluginInvocationMessage(
+                    tenantId, extensionPoint.name(), payloadAsMap, Instant.now());
 
-        List<PluginInstanceHandle> handles = pluginRegistry.lookup(tenantId, extensionPoint);
-        if (handles.isEmpty()) {
-            return;
-        }
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.EXCHANGE_EVENTS, RabbitMQConfig.RK_PLUGIN_INVOCATION, message);
 
-        TenantContext.Snapshot snapshot = TenantContext.snapshot();
-
-        for (PluginInstanceHandle handle : handles) {
-            if (circuitBreakerState.isOpen(handle.installationId())) {
-                recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                        InvocationStatus.CIRCUIT_OPEN, 0L,
-                        "Circuit breaker otwarty (>= " + CircuitBreakerState.FAILURE_THRESHOLD
-                                + " kolejnych błędów)");
-                continue;
-            }
-
-            pluginInvocationExecutor.submit(() -> {
-                long startedAtNanos = System.nanoTime();
-                try {
-                    runOnWorkerThread(snapshot, tenantId, handle,
-                            ctx -> invocation.apply(handle, ctx));
-                    long durationMs = elapsedMillis(startedAtNanos);
-                    circuitBreakerState.recordResult(tenantId, handle.installationId(), true);
-                    recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                            InvocationStatus.SUCCESS, durationMs, null);
-                } catch (RuntimeException e) {
-                    long durationMs = elapsedMillis(startedAtNanos);
-                    circuitBreakerState.recordResult(tenantId, handle.installationId(), false);
-                    recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                            InvocationStatus.FAILED, durationMs, e.getMessage());
-                }
-            });
+            log.debug("[ExtensionPointPublisher] Opublikowano do {} (rk={}): tenant={}, extensionPoint={}",
+                    RabbitMQConfig.EXCHANGE_EVENTS, RabbitMQConfig.RK_PLUGIN_INVOCATION,
+                    tenantId, extensionPoint);
+        } catch (Exception e) {
+            // Publikacja jest non-critical względem przepływu wołającego — np. zakończenie
+            // kontaktu (POST_CONTACT_END) musi się powiedzieć niezależnie od dostępności
+            // RabbitMQ. Brak instalacji/dostarczenia jest w tym wypadku akceptowalną utratą
+            // jednego wywołania pluginu, nie błędem do propagacji.
+            log.error("[ExtensionPointPublisher] Błąd publikacji do {} dla extensionPoint={}, tenant={}: {}",
+                    RabbitMQConfig.QUEUE_PLUGIN_INVOCATION, extensionPoint, tenantId, e.getMessage(), e);
         }
     }
 
@@ -339,21 +339,15 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
     }
 
     /**
-     * Zapisuje wynik jednej próby wywołania — TYMCZASOWO tylko przez SLF4J (BE-105 podmieni
-     * ciało tej metody na wołanie {@code PluginInvocationLogService} bez zmiany sygnatury ani
-     * miejsc wołających, zgodnie z notatką w Javadoc klasy i {@link ExtensionPointPublisher}).
+     * Zapisuje wynik jednej próby wywołania — delega do {@link PluginInvocationLogger} (wspólny
+     * z {@link PluginInvocationConsumer}, BE-104), TYMCZASOWO tylko przez SLF4J (BE-105 podmieni
+     * ciało {@link PluginInvocationLogger#record} na wołanie {@code PluginInvocationLogService}
+     * bez zmiany sygnatury ani miejsc wołających w obu klasach, zgodnie z notatką w Javadoc
+     * klasy i {@link ExtensionPointPublisher}).
      */
     private void recordInvocation(
             UUID tenantId, UUID installationId, ExtensionPoint extensionPoint,
             InvocationStatus status, long durationMs, String errorSummary) {
-        if (status == InvocationStatus.FAILED || status == InvocationStatus.TIMED_OUT) {
-            log.warn("[PluginInvocation] tenant={}, installation={}, extensionPoint={}, status={}, "
-                            + "durationMs={}, error={}",
-                    tenantId, installationId, extensionPoint, status, durationMs, errorSummary);
-        } else {
-            log.info("[PluginInvocation] tenant={}, installation={}, extensionPoint={}, status={}, "
-                            + "durationMs={}",
-                    tenantId, installationId, extensionPoint, status, durationMs);
-        }
+        PluginInvocationLogger.record(tenantId, installationId, extensionPoint, status, durationMs, errorSummary);
     }
 }

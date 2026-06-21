@@ -22,15 +22,16 @@ import java.util.UUID;
  *       nie otrzymuje wyjątku — błąd/timeout/circuit-open zwracają zawsze wynik domyślny SDK
  *       ({@code *.empty()}/{@code *.unsupported()}).</li>
  *   <li>{@link #publishPostContactEnd}/{@link #publishCustomerSync}/{@link #publishDispositionSet}
- *       — fire-and-forget; w tym tickecie (BE-102) realizowane jako submit-and-forget na
- *       {@code pluginInvocationExecutor} (integracja pełna z RabbitMQ
- *       {@code cc.queue.plugin-invocation} jest zakresem BE-104, kolejny ticket).</li>
+ *       — fire-and-forget; od BE-104 publikowane jako {@code PluginInvocationMessage} na
+ *       RabbitMQ ({@code cc.queue.plugin-invocation}) i konsumowane asynchronicznie przez
+ *       {@code PluginInvocationConsumer}, który wykonuje lookup instalacji, wywołanie pluginu,
+ *       timeout i circuit breaker — ta klasa NIE wywołuje pluginu dla tych trzech punktów.</li>
  * </ul>
  *
- * <p>Każda ścieżka (sukces, błąd, timeout, circuit-open, disabled) jest zapisywana — w tym
- * tickecie tymczasowo przez SLF4J ({@code recordInvocation} w
- * {@link ExtensionPointPublisherImpl}); BE-105 podmieni to wołanie na
- * {@code PluginInvocationLogService} bez zmiany reszty tej klasy.
+ * <p>Każda ścieżka (sukces, błąd, timeout, circuit-open, disabled) jest zapisywana — tymczasowo
+ * tylko przez SLF4J ({@code PluginInvocationLogger}, wspólny dla
+ * {@link ExtensionPointPublisherImpl} i {@code PluginInvocationConsumer}); BE-105 podmieni to
+ * wołanie na {@code PluginInvocationLogService} w jednym miejscu, bez zmiany reszty tych klas.
  */
 public interface ExtensionPointPublisher {
 
@@ -69,8 +70,9 @@ public interface ExtensionPointPublisher {
      * Fire-and-forget dispatch {@code onPostContactEnd} dla wszystkich instalacji tenanta
      * zarejestrowanych na {@code POST_CONTACT_END}.
      *
-     * <p>W tym tickecie: submit-and-forget na {@code pluginInvocationExecutor}, bez czekania na
-     * wynik. Integracja z RabbitMQ ({@code cc.queue.plugin-invocation}) jest zakresem BE-104.
+     * <p>Publikuje {@code event} na {@code cc.queue.plugin-invocation} (BE-104) i wraca
+     * natychmiast — lookup instalacji i wywołanie pluginu odbywa się asynchronicznie w
+     * {@code PluginInvocationConsumer}.
      */
     void publishPostContactEnd(UUID tenantId, ContactEvent event);
 

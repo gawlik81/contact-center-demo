@@ -66,6 +66,7 @@ class ExtensionPointPublisherImplTest {
     @Mock private CustomerService customerService;
     @Mock private ContactService contactService;
     @Mock private RabbitTemplate rabbitTemplate;
+    @Mock private PluginInvocationLogService pluginInvocationLogService;
 
     private CircuitBreakerState circuitBreakerState;
     private PluginInvocationProperties properties;
@@ -83,7 +84,7 @@ class ExtensionPointPublisherImplTest {
         objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         publisher = new ExtensionPointPublisherImpl(
                 pluginRegistry, circuitBreakerState, customerService, contactService,
-                properties, rabbitTemplate, objectMapper, executorService);
+                properties, rabbitTemplate, objectMapper, pluginInvocationLogService, executorService);
 
         TenantContext.setTenantId(TENANT_ID);
         TenantContext.setUserId(UUID.randomUUID());
@@ -121,7 +122,7 @@ class ExtensionPointPublisherImplTest {
         }
 
         @Test
-        @DisplayName("Sukces -> wynik niepusty zwracany wołającemu, circuit breaker resetowany")
+        @DisplayName("Sukces -> wynik niepusty zwracany wołającemu, circuit breaker resetowany, record(SUCCESS) wywołane")
         void success_returnsResultFromPlugin() {
             PreContactConnectResult expected =
                     new PreContactConnectResult(Map.of("order", "12345"), null);
@@ -136,13 +137,18 @@ class ExtensionPointPublisherImplTest {
             when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
                     .thenReturn(List.of(handleWith(entryPoint)));
 
-            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+            ContactEvent event = contactEvent();
+            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, event);
 
             assertThat(result.displayData()).containsEntry("order", "12345");
+            verify(pluginInvocationLogService).record(
+                    eq(TENANT_ID), eq(INSTALLATION_ID), eq(ExtensionPoint.PRE_CONTACT_CONNECT),
+                    eq(InvocationStatus.SUCCESS), org.mockito.ArgumentMatchers.anyLong(), eq(null),
+                    eq(event.contactId()), eq(event));
         }
 
         @Test
-        @DisplayName("KRYTERIUM AKCEPTACJI: plugin Thread.sleep(10000) -> TIMED_OUT po ~2s, wynik empty(), brak wyjątku")
+        @DisplayName("KRYTERIUM AKCEPTACJI: plugin Thread.sleep(10000) -> TIMED_OUT po ~2s, wynik empty(), brak wyjątku, record(TIMED_OUT) wywołane")
         void hangingPlugin_timesOutAfterConfiguredTimeout() {
             PluginEntryPoint hangingEntryPoint = new PluginEntryPoint() {
                 @Override public void onActivate(PluginContext context) { }
@@ -159,8 +165,9 @@ class ExtensionPointPublisherImplTest {
             when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
                     .thenReturn(List.of(handleWith(hangingEntryPoint)));
 
+            ContactEvent event = contactEvent();
             long startedAt = System.nanoTime();
-            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, event);
             long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
 
             // Wołający NIE czeka 10s — tylko ~2s (timeout skonfigurowany) + narzut testu.
@@ -171,10 +178,14 @@ class ExtensionPointPublisherImplTest {
             // Circuit breaker zarejestrował błąd (TIMED_OUT liczy się jak failure).
             verify(pluginRegistrationService, never()).updateHealthStatus(
                     any(), any(), any(), org.mockito.ArgumentMatchers.eq(1));
+            verify(pluginInvocationLogService).record(
+                    eq(TENANT_ID), eq(INSTALLATION_ID), eq(ExtensionPoint.PRE_CONTACT_CONNECT),
+                    eq(InvocationStatus.TIMED_OUT), org.mockito.ArgumentMatchers.anyLong(),
+                    org.mockito.ArgumentMatchers.anyString(), eq(event.contactId()), eq(event));
         }
 
         @Test
-        @DisplayName("KRYTERIUM AKCEPTACJI: plugin rzucający Error (nie Exception) jest złapany, nie propaguje się")
+        @DisplayName("KRYTERIUM AKCEPTACJI: plugin rzucający Error (nie Exception) jest złapany, nie propaguje się, record(FAILED) wywołane")
         void pluginThrowingError_isContainedAndDoesNotPropagate() {
             PluginEntryPoint throwingEntryPoint = new PluginEntryPoint() {
                 @Override public void onActivate(PluginContext context) { }
@@ -186,14 +197,19 @@ class ExtensionPointPublisherImplTest {
             when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
                     .thenReturn(List.of(handleWith(throwingEntryPoint)));
 
-            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+            ContactEvent event = contactEvent();
+            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, event);
 
             assertThat(result.displayData()).isEmpty();
             assertThat(result.warning()).isNull();
+            verify(pluginInvocationLogService).record(
+                    eq(TENANT_ID), eq(INSTALLATION_ID), eq(ExtensionPoint.PRE_CONTACT_CONNECT),
+                    eq(InvocationStatus.FAILED), org.mockito.ArgumentMatchers.anyLong(),
+                    org.mockito.ArgumentMatchers.anyString(), eq(event.contactId()), eq(event));
         }
 
         @Test
-        @DisplayName("Circuit breaker OPEN -> plugin NIE jest wywoływany, wynik empty()")
+        @DisplayName("Circuit breaker OPEN -> plugin NIE jest wywoływany, wynik empty(), record(CIRCUIT_OPEN) wywołane")
         void circuitOpen_skipsInvocationEntirely() {
             AtomicInteger invocationCount = new AtomicInteger(0);
             PluginEntryPoint entryPoint = new PluginEntryPoint() {
@@ -211,10 +227,15 @@ class ExtensionPointPublisherImplTest {
                 circuitBreakerState.recordResult(TENANT_ID, INSTALLATION_ID, false);
             }
 
-            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+            ContactEvent event = contactEvent();
+            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, event);
 
             assertThat(result).isEqualTo(PreContactConnectResult.empty());
             assertThat(invocationCount.get()).isZero();
+            verify(pluginInvocationLogService).record(
+                    eq(TENANT_ID), eq(INSTALLATION_ID), eq(ExtensionPoint.PRE_CONTACT_CONNECT),
+                    eq(InvocationStatus.CIRCUIT_OPEN), eq(0L), org.mockito.ArgumentMatchers.anyString(),
+                    eq(event.contactId()), eq(event));
         }
 
         @Test
@@ -257,14 +278,18 @@ class ExtensionPointPublisherImplTest {
     class PublishManualActionTests {
 
         @Test
-        @DisplayName("Instalacja nieznaleziona dla MANUAL_ACTION -> ManualActionResult.unsupported()")
+        @DisplayName("Instalacja nieznaleziona dla MANUAL_ACTION -> ManualActionResult.unsupported(), record(SKIPPED_DISABLED) wywołane")
         void installationNotFound_returnsUnsupported() {
             when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.MANUAL_ACTION)).thenReturn(List.of());
 
-            ManualActionResult result = publisher.publishManualAction(
-                    TENANT_ID, INSTALLATION_ID, new ManualActionRequest("open-ticket", null, null, Map.of()));
+            ManualActionRequest request = new ManualActionRequest("open-ticket", null, null, Map.of());
+            ManualActionResult result = publisher.publishManualAction(TENANT_ID, INSTALLATION_ID, request);
 
             assertThat(result.success()).isFalse();
+            verify(pluginInvocationLogService).record(
+                    eq(TENANT_ID), eq(INSTALLATION_ID), eq(ExtensionPoint.MANUAL_ACTION),
+                    eq(InvocationStatus.SKIPPED_DISABLED), eq(0L), org.mockito.ArgumentMatchers.anyString(),
+                    eq(request.contactId()), eq(request));
         }
 
         @Test
@@ -281,10 +306,14 @@ class ExtensionPointPublisherImplTest {
             when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.MANUAL_ACTION))
                     .thenReturn(List.of(handleWith(entryPoint)));
 
-            ManualActionResult result = publisher.publishManualAction(
-                    TENANT_ID, INSTALLATION_ID, new ManualActionRequest("open-ticket", null, null, Map.of()));
+            ManualActionRequest request = new ManualActionRequest("open-ticket", null, null, Map.of());
+            ManualActionResult result = publisher.publishManualAction(TENANT_ID, INSTALLATION_ID, request);
 
             assertThat(result).isEqualTo(expected);
+            verify(pluginInvocationLogService).record(
+                    eq(TENANT_ID), eq(INSTALLATION_ID), eq(ExtensionPoint.MANUAL_ACTION),
+                    eq(InvocationStatus.SUCCESS), org.mockito.ArgumentMatchers.anyLong(), eq(null),
+                    eq(request.contactId()), eq(request));
         }
 
         @Test

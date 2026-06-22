@@ -58,7 +58,7 @@ import java.util.concurrent.TimeoutException;
  *       wiadomości z tej kolejki na wątku listenera; granica {@code TenantContext}/TCCL wokół
  *       wywołania pluginu jak w {@link ExtensionPointPublisherImpl})</li>
  *   <li>każda ścieżka (SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN/SKIPPED_DISABLED) →
- *       {@link PluginInvocationLogger#record} + aktualizacja {@link CircuitBreakerState}</li>
+ *       {@link PluginInvocationLogService#record} + aktualizacja {@link CircuitBreakerState}</li>
  * </ol>
  *
  * <p><strong>Retry i DLQ:</strong> ta klasa NIE łapie wyjątków na granicy
@@ -87,6 +87,7 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
     private final ContactService contactService;
     private final PluginInvocationProperties properties;
     private final ObjectMapper objectMapper;
+    private final PluginInvocationLogService pluginInvocationLogService;
 
     @Qualifier("pluginInvocationExecutor")
     private final ExecutorService pluginInvocationExecutor;
@@ -135,6 +136,12 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
 
         UUID installationId = handle.installationId();
 
+        // Payload zdeserializowany na samym początku — potrzebny do EKSTRAKCJI
+        // relatedContactId i jako requestPayload dla KAŻDEJ ścieżki record(...) poniżej
+        // (SKIPPED_DISABLED/CIRCUIT_OPEN włącznie, nie tylko po faktycznym wywołaniu pluginu).
+        Object eventPayload = deserializePayload(extensionPoint, message);
+        UUID relatedContactId = extractContactId(extensionPoint, eventPayload);
+
         // Krok 1: stan enabled w DB jest źródłem prawdy aktualnym w chwili KONSUMPCJI, nie
         // publikacji — instalacja mogła zostać disabled między tymi dwoma momentami (kryterium
         // akceptacji tego ticketu). PluginRegistry.lookup nie wie nic o tej fladze (rejestr w
@@ -149,8 +156,9 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
             log.warn("[PluginInvocationConsumer] Instalacja nieznaleziona w DB: tenant={}, installation={}, "
                             + "extensionPoint={} – traktuję jak SKIPPED_DISABLED",
                     tenantId, installationId, extensionPoint);
-            PluginInvocationLogger.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.SKIPPED_DISABLED, 0L, "Instalacja nie istnieje w DB: " + e.getMessage());
+            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                    InvocationStatus.SKIPPED_DISABLED, 0L, "Instalacja nie istnieje w DB: " + e.getMessage(),
+                    relatedContactId, eventPayload);
             return;
         }
 
@@ -158,23 +166,24 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
             log.info("[PluginInvocationConsumer] Instalacja disabled: tenant={}, installation={}, "
                             + "extensionPoint={} – SKIPPED_DISABLED (nie silent drop)",
                     tenantId, installationId, extensionPoint);
-            PluginInvocationLogger.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.SKIPPED_DISABLED, 0L, "Instalacja wyłączona (enabled=false)");
+            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                    InvocationStatus.SKIPPED_DISABLED, 0L, "Instalacja wyłączona (enabled=false)",
+                    relatedContactId, eventPayload);
             return;
         }
 
         // Krok 2: circuit breaker – wspólny stan w pamięci z ExtensionPointPublisherImpl, bo
         // jest indeksowany tylko po installationId, nie po ścieżce wywołania (blocking/async).
         if (circuitBreakerState.isOpen(installationId)) {
-            PluginInvocationLogger.record(tenantId, installationId, extensionPoint,
+            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
                     InvocationStatus.CIRCUIT_OPEN, 0L,
                     "Circuit breaker otwarty (>= " + CircuitBreakerState.FAILURE_THRESHOLD
-                            + " kolejnych błędów)");
+                            + " kolejnych błędów)",
+                    relatedContactId, eventPayload);
             return;
         }
 
         // Krok 3: wywołanie pluginu, timeout-bounded, na pluginInvocationExecutor.
-        Object eventPayload = deserializePayload(extensionPoint, message);
         long timeoutMs = properties.effectiveAsyncInvocationTimeoutMs();
         long startedAtNanos = System.nanoTime();
 
@@ -182,26 +191,41 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
             invokeWithTimeout(tenantId, handle, extensionPoint, eventPayload, timeoutMs);
             long durationMs = elapsedMillis(startedAtNanos);
             circuitBreakerState.recordResult(tenantId, installationId, true);
-            PluginInvocationLogger.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.SUCCESS, durationMs, null);
+            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                    InvocationStatus.SUCCESS, durationMs, null, relatedContactId, eventPayload);
         } catch (TimeoutException e) {
             long durationMs = elapsedMillis(startedAtNanos);
             circuitBreakerState.recordResult(tenantId, installationId, false);
-            PluginInvocationLogger.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.TIMED_OUT, durationMs, "Przekroczono timeout " + timeoutMs + "ms");
+            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                    InvocationStatus.TIMED_OUT, durationMs, "Przekroczono timeout " + timeoutMs + "ms",
+                    relatedContactId, eventPayload);
         } catch (ExecutionException e) {
             long durationMs = elapsedMillis(startedAtNanos);
             circuitBreakerState.recordResult(tenantId, installationId, false);
             String errorSummary = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
-            PluginInvocationLogger.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.FAILED, durationMs, errorSummary);
+            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                    InvocationStatus.FAILED, durationMs, errorSummary, relatedContactId, eventPayload);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             long durationMs = elapsedMillis(startedAtNanos);
             circuitBreakerState.recordResult(tenantId, installationId, false);
-            PluginInvocationLogger.record(tenantId, installationId, extensionPoint,
-                    InvocationStatus.FAILED, durationMs, "Wątek listenera przerwany");
+            pluginInvocationLogService.record(tenantId, installationId, extensionPoint,
+                    InvocationStatus.FAILED, durationMs, "Wątek listenera przerwany",
+                    relatedContactId, eventPayload);
         }
+    }
+
+    /**
+     * Wyciąga {@code contactId} z payloadu, jeśli dostępny — {@code ContactEvent}/
+     * {@code DispositionEvent} mają to pole, {@code CustomerSyncRequest} nie (brak kontekstu
+     * kontaktu dla synchronizacji klienta).
+     */
+    private static UUID extractContactId(ExtensionPoint extensionPoint, Object eventPayload) {
+        return switch (extensionPoint) {
+            case POST_CONTACT_END -> ((ContactEvent) eventPayload).contactId();
+            case DISPOSITION_SET -> ((DispositionEvent) eventPayload).contactId();
+            default -> null;
+        };
     }
 
     /**

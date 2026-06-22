@@ -28,10 +28,10 @@ import java.util.UUID;
  *       timeout i circuit breaker — ta klasa NIE wywołuje pluginu dla tych trzech punktów.</li>
  * </ul>
  *
- * <p>Każda ścieżka (sukces, błąd, timeout, circuit-open, disabled) jest zapisywana — tymczasowo
- * tylko przez SLF4J ({@code PluginInvocationLogger}, wspólny dla
- * {@link ExtensionPointPublisherImpl} i {@code PluginInvocationConsumer}); BE-105 podmieni to
- * wołanie na {@code PluginInvocationLogService} w jednym miejscu, bez zmiany reszty tych klas.
+ * <p>Każda ścieżka (sukces, błąd, timeout, circuit-open, disabled) jest zapisywana do
+ * {@code plugin_invocation_log} przez {@code PluginInvocationLogService} (BE-105) — wstrzyknięty
+ * bezpośrednio w {@link ExtensionPointPublisherImpl} i {@code PluginInvocationConsumer}, bez
+ * pośredniej klasy {@code PluginInvocationLogger} (placeholder SLF4J z BE-102/104, usunięty).
  */
 public interface ExtensionPointPublisher {
 

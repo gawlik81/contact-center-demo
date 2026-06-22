@@ -61,6 +61,7 @@ class PluginInvocationConsumerTest {
     @Mock private PluginRegistrationService pluginRegistrationService;
     @Mock private CustomerService customerService;
     @Mock private ContactService contactService;
+    @Mock private PluginInvocationLogService pluginInvocationLogService;
 
     private CircuitBreakerState circuitBreakerState;
     private PluginInvocationProperties properties;
@@ -77,7 +78,8 @@ class PluginInvocationConsumerTest {
         objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         consumer = new PluginInvocationConsumer(
                 pluginRegistry, pluginRegistrationService, circuitBreakerState,
-                customerService, contactService, properties, objectMapper, executorService);
+                customerService, contactService, properties, objectMapper,
+                pluginInvocationLogService, executorService);
     }
 
     @AfterEach
@@ -118,7 +120,7 @@ class PluginInvocationConsumerTest {
     class PostContactEndTests {
 
         @Test
-        @DisplayName("Sukces -> plugin wywołany z deserializowanym ContactEvent, circuit breaker resetowany")
+        @DisplayName("Sukces -> plugin wywołany z deserializowanym ContactEvent, circuit breaker resetowany, record(SUCCESS) wywołane")
         void success_invokesPluginWithDeserializedEvent() {
             AtomicReference<ContactEvent> received = new AtomicReference<>();
             PluginEntryPoint entryPoint = new PluginEntryPoint() {
@@ -138,10 +140,16 @@ class PluginInvocationConsumerTest {
 
             assertThat(received.get()).isNotNull();
             assertThat(received.get().contactId()).isEqualTo(event.contactId());
+            verify(pluginInvocationLogService).record(
+                    org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(INSTALLATION_ID),
+                    org.mockito.ArgumentMatchers.eq(ExtensionPoint.POST_CONTACT_END),
+                    org.mockito.ArgumentMatchers.eq(InvocationStatus.SUCCESS),
+                    org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.eq(null),
+                    org.mockito.ArgumentMatchers.eq(event.contactId()), org.mockito.ArgumentMatchers.any());
         }
 
         @Test
-        @DisplayName("KRYTERIUM AKCEPTACJI: instalacja disabled między publikacją i konsumpcją -> SKIPPED_DISABLED, NIE wyjątek, NIE silent drop")
+        @DisplayName("KRYTERIUM AKCEPTACJI: instalacja disabled między publikacją i konsumpcją -> SKIPPED_DISABLED, NIE wyjątek, NIE silent drop, record(SKIPPED_DISABLED) wywołane")
         void installationDisabledBetweenPublishAndConsume_skipsWithoutException() {
             AtomicInteger invocationCount = new AtomicInteger(0);
             PluginEntryPoint entryPoint = new PluginEntryPoint() {
@@ -164,10 +172,15 @@ class PluginInvocationConsumerTest {
                     messageFor(TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
 
             assertThat(invocationCount.get()).isZero();
+            verify(pluginInvocationLogService).record(
+                    org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(INSTALLATION_ID),
+                    org.mockito.ArgumentMatchers.eq(ExtensionPoint.POST_CONTACT_END),
+                    org.mockito.ArgumentMatchers.eq(InvocationStatus.SKIPPED_DISABLED), org.mockito.ArgumentMatchers.eq(0L),
+                    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         }
 
         @Test
-        @DisplayName("Instalacja usunięta z DB między publikacją i konsumpcją -> traktowana jak SKIPPED_DISABLED, brak wyjątku")
+        @DisplayName("Instalacja usunięta z DB między publikacją i konsumpcją -> traktowana jak SKIPPED_DISABLED, brak wyjątku, record(SKIPPED_DISABLED) wywołane")
         void installationNotFoundInDb_treatedAsSkippedDisabled() {
             AtomicInteger invocationCount = new AtomicInteger(0);
             PluginEntryPoint entryPoint = new PluginEntryPoint() {
@@ -186,6 +199,11 @@ class PluginInvocationConsumerTest {
                     messageFor(TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
 
             assertThat(invocationCount.get()).isZero();
+            verify(pluginInvocationLogService).record(
+                    org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(INSTALLATION_ID),
+                    org.mockito.ArgumentMatchers.eq(ExtensionPoint.POST_CONTACT_END),
+                    org.mockito.ArgumentMatchers.eq(InvocationStatus.SKIPPED_DISABLED), org.mockito.ArgumentMatchers.eq(0L),
+                    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         }
 
         @Test
@@ -226,10 +244,15 @@ class PluginInvocationConsumerTest {
 
             // Wątek listenera NIE czeka 5s – tylko ~300ms (timeout skonfigurowany) + narzut testu.
             assertThat(elapsedMs).isLessThan(4_000L);
+            verify(pluginInvocationLogService).record(
+                    org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(INSTALLATION_ID),
+                    org.mockito.ArgumentMatchers.eq(ExtensionPoint.POST_CONTACT_END),
+                    org.mockito.ArgumentMatchers.eq(InvocationStatus.TIMED_OUT), org.mockito.ArgumentMatchers.anyLong(),
+                    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         }
 
         @Test
-        @DisplayName("Plugin rzucający Error (nie Exception) jest złapany, NIE propaguje się do Spring AMQP")
+        @DisplayName("Plugin rzucający Error (nie Exception) jest złapany, NIE propaguje się do Spring AMQP, record(FAILED) wywołane")
         void pluginThrowingError_isContainedAndDoesNotPropagate() {
             PluginEntryPoint throwingEntryPoint = new PluginEntryPoint() {
                 @Override public void onActivate(PluginContext context) { }
@@ -247,10 +270,16 @@ class PluginInvocationConsumerTest {
             // dla wiadomości, której skutek biznesowy jest tylko FAILED, nie infrastrukturalny.
             consumer.handleInvocation(
                     messageFor(TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
+
+            verify(pluginInvocationLogService).record(
+                    org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(INSTALLATION_ID),
+                    org.mockito.ArgumentMatchers.eq(ExtensionPoint.POST_CONTACT_END),
+                    org.mockito.ArgumentMatchers.eq(InvocationStatus.FAILED), org.mockito.ArgumentMatchers.anyLong(),
+                    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         }
 
         @Test
-        @DisplayName("Circuit breaker OPEN -> plugin NIE jest wywoływany")
+        @DisplayName("Circuit breaker OPEN -> plugin NIE jest wywoływany, record(CIRCUIT_OPEN) wywołane")
         void circuitOpen_skipsInvocationEntirely() {
             AtomicInteger invocationCount = new AtomicInteger(0);
             PluginEntryPoint entryPoint = new PluginEntryPoint() {
@@ -273,6 +302,11 @@ class PluginInvocationConsumerTest {
                     messageFor(TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
 
             assertThat(invocationCount.get()).isZero();
+            verify(pluginInvocationLogService).record(
+                    org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(INSTALLATION_ID),
+                    org.mockito.ArgumentMatchers.eq(ExtensionPoint.POST_CONTACT_END),
+                    org.mockito.ArgumentMatchers.eq(InvocationStatus.CIRCUIT_OPEN), org.mockito.ArgumentMatchers.eq(0L),
+                    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         }
     }
 

@@ -5495,7 +5495,7 @@ backend/app/src/main/java/com/contactcenter/
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-102, DB-045
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrealizowane (2026-06-22)
 **Blokuje:** —
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
@@ -5521,11 +5521,25 @@ GET /api/supervisor/plugins/{installationId}/invocations?page=0&size=20&status=F
 **Bezpieczeństwo:** `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")`.
 
 **Kryteria akceptacji:**
-- [ ] `record(...)` wywoływane na każdej z 5 ścieżek statusu (SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN/SKIPPED_DISABLED) — weryfikacja przez testy istniejących wywołujących (BE-102/BE-104) po integracji
-- [ ] `request_payload_redacted` nie zawiera PII surowego klienta — test z przykładowym payloadem weryfikujący redakcję pól (np. `phoneNumber`, `email`)
-- [ ] Endpoint paginowany, filtrowanie po `status`
-- [ ] `installationId` innego tenanta → `403`
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `record(...)` wywoływane na każdej z 5 ścieżek statusu (SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN/SKIPPED_DISABLED) — weryfikacja przez testy istniejących wywołujących (BE-102/BE-104) po integracji
+- [x] `request_payload_redacted` nie zawiera PII surowego klienta — test z przykładowym payloadem weryfikujący redakcję pól (np. `phoneNumber`, `email`)
+- [x] Endpoint paginowany, filtrowanie po `status`
+- [x] `installationId` innego tenanta → `404` (świadome odejście od `403` — patrz notatka poniżej)
+- [x] `mvn verify -pl app` przechodzi
+
+**Zrealizowane 2026-06-22:**
+
+**Złożony PK partycjonowanej tabeli:** `PluginInvocationLog` (`@Entity`, tabela `plugin_invocation_log`, V077) używa `@IdClass(PluginInvocationLogId.class)` z dwoma polami `@Id` (`id`, `invokedAt`) — wzorzec 1:1 skopiowany z `AuditLog`/`AuditLogId` (V004), jedynej innej encji partycjonowanej po kolumnie czasowej w projekcie. Zapis przez natywny `INSERT ... CAST(... AS jsonb)` w `PluginInvocationLogRepository.insert` (PostgreSQL nie wspiera standardowych INSERT-ów JPA na tabelach partycjonowanych z PK obejmującym kolumnę partycjonowania), odczyt przez JPQL z `PageImpl`/`setFirstResult`/`setMaxResults` (Hibernate odpytuje tabelę nadrzędną, automatyczne przekierowanie do partycji) — wzorzec paginacji 1:1 z `EmailMessageRepository`.
+
+**Widoczność repozytorium:** w przeciwieństwie do `TenantPluginInstallationRepository` (package-private, BE-100), `PluginInvocationLogRepository` jest **publiczne** — jedyny konsument (`PluginInvocationLogServiceImpl`) leży w innym pakiecie (`domain.plugin.runtime`), zgodnie ze strukturą plików zdefiniowaną w tickecie (repo w `domain.plugin`, serwis w `domain.plugin.runtime`).
+
+**Integracja z wołającymi:** klasa-placeholder `PluginInvocationLogger` (SLF4J-only, BE-102/104) **usunięta** — `ExtensionPointPublisherImpl` i `PluginInvocationConsumer` wstrzykują teraz `PluginInvocationLogService` bezpośrednio przez DI. Sygnatura `record(...)` rozszerzona o `relatedContactId`/`requestPayload` względem pierwotnego placeholdera — wymagało przeniesienia parametru payloadu (`ContactEvent`/`ManualActionRequest`/`DispositionEvent`/itd.) przez `invokeBlocking`/`processOneInstallation` do punktu wołania `record`. `relatedContactId` wyciągany z `event.contactId()`/`req.contactId()` gdzie dostępne (`CustomerSyncRequest` nie ma tego pola → `null`). W `PluginInvocationConsumer` deserializacja payloadu przesunięta na samy początek `processOneInstallation` (wcześniej działa się tylko przed faktycznym wywołaniem pluginu) — potrzebna dla **wszystkich** ścieżek `record(...)`, włącznie z `SKIPPED_DISABLED`/`CIRCUIT_OPEN`, nie tylko `SUCCESS`/`FAILED`/`TIMED_OUT`.
+
+**Redakcja PII (`PiiRedactor`, nowa klasa, package-private w `domain.plugin.runtime`):** brak istniejącego mechanizmu redakcji PII gdzie indziej w projekcie (zweryfikowano — `audit_log` przechowuje surowe `old_value`/`new_value`, bo dostęp jest ograniczony do ADMIN, inny model ryzyka). Rekurencyjne przejście `Map`/`List` (wynik `ObjectMapper.convertValue(payload, Object.class)`), zamiana wartości dla kluczy z ustalonej listy na `"[REDACTED]"`, normalizacja klucza case-insensitive + usunięcie `_`/`-` przed porównaniem. **Lista pól PII:** `phoneNumber`/`phone`/`msisdn`, `email`/`emailAddress`, `firstName`/`lastName`/`fullName`/`customerName`/`name`, `address`/`street`/`city`/`postalCode`/`zipCode`, `pesel`/`nip`/`ssn`, `cardNumber`/`creditCardNumber`/`iban`. Ryzyko PII leży głównie w `ManualActionRequest.parameters()` (dowolna `Map<String,Object>` z UI agenta) — payloady SDK (`ContactEvent`/`CustomerSyncRequest`/`DispositionEvent`) niosą tylko UUID/kody/timestampy, bez PII na poziomie własnych pól.
+
+**Decyzja 404 vs 403 dla `installationId` innego tenanta:** kontynuacja konwencji ustalonej w BE-103 (`PluginManualActionController`) — `tenant_plugin_installation` ma RLS (V075), więc zapytanie tenant-aware nie odróżnia "nie istnieje" od "istnieje, ale innego tenanta". Świadomie zwrócone **404 dla obu przypadków** przez `PluginRegistrationService.getInstallation` (już istniejąca metoda z BE-103) wołaną w `PluginInvocationLogServiceImpl.findByInstallation` PRZED odczytem historii — to jest odejście od literalnego zapisu kryterium akceptacji tego ticketu (które wymienia 403) na rzecz konsekwencji z resztą epiku; brak w projekcie wzorca zapytania z bypassem RLS do odróżnienia tych dwóch przypadków bez ryzyka bezpieczeństwa nieproporcjonalnego do korzyści.
+
+**Testy:** `PiiRedactorTest` (10 — redakcja top-level, rekurencyjna w mapach/listach zagnieżdżonych, case/separator-insensitive matching, null/empty), `PluginInvocationLogServiceImplTest` (9 — mapowanie encji, **redakcja PII zweryfikowana asercją na zawartości JSON wynikowego** nie tylko wywołaniem metody, błąd repozytorium złapany/nie propagowany, 404 ownership propagowany bez wołania repo), `PluginInvocationLogControllerTest` (5 — happy path, paginacja/filtr status, 404 propagowany). Zaktualizowane `ExtensionPointPublisherImplTest`/`PluginInvocationConsumerTest` (BE-102/104) z dodatkowymi asercjami `verify(pluginInvocationLogService).record(...)` dla każdej z 5 ścieżek statusu już istniejącej w tych klasach. `mvn verify -pl app`: **1323 testy, 0 failures, 0 errors, BUILD SUCCESS** (+49 vs BE-104: 1274→1323).
 
 ---
 

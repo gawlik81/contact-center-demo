@@ -83,6 +83,7 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
     private final PluginInvocationProperties properties;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
+    private final PluginInvocationLogService pluginInvocationLogService;
 
     @Qualifier("pluginInvocationExecutor")
     private final ExecutorService pluginInvocationExecutor;
@@ -100,7 +101,8 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
             PreContactConnectResult result = invokeBlocking(
                     tenantId, handle, ExtensionPoint.PRE_CONTACT_CONNECT, timeoutMs,
                     ctx -> handle.entryPoint().onPreContactConnect(ctx, event),
-                    PreContactConnectResult::empty);
+                    PreContactConnectResult::empty,
+                    event.contactId(), event);
 
             boolean nonEmpty = !result.displayData().isEmpty() || result.warning() != null;
             if (nonEmpty) {
@@ -129,7 +131,8 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
                     tenantId, installationId);
             recordInvocation(tenantId, installationId, ExtensionPoint.MANUAL_ACTION,
                     InvocationStatus.SKIPPED_DISABLED, 0L,
-                    "Instalacja nieaktywna lub nie zadeklarowała MANUAL_ACTION");
+                    "Instalacja nieaktywna lub nie zadeklarowała MANUAL_ACTION",
+                    req.contactId(), req);
             return ManualActionResult.unsupported();
         }
 
@@ -137,7 +140,8 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
         return invokeBlocking(
                 tenantId, handle, ExtensionPoint.MANUAL_ACTION, timeoutMs,
                 ctx -> handle.entryPoint().onManualAction(ctx, req),
-                ManualActionResult::unsupported);
+                ManualActionResult::unsupported,
+                req.contactId(), req);
     }
 
     // =========================================================================
@@ -193,13 +197,16 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
             ExtensionPoint extensionPoint,
             long timeoutMs,
             Function<PluginContext, R> invocation,
-            Supplier<R> defaultResult) {
+            Supplier<R> defaultResult,
+            UUID relatedContactId,
+            Object requestPayload) {
 
         if (circuitBreakerState.isOpen(handle.installationId())) {
             recordInvocation(tenantId, handle.installationId(), extensionPoint,
                     InvocationStatus.CIRCUIT_OPEN, 0L,
                     "Circuit breaker otwarty (>= " + CircuitBreakerState.FAILURE_THRESHOLD
-                            + " kolejnych błędów)");
+                            + " kolejnych błędów)",
+                    relatedContactId, requestPayload);
             return defaultResult.get();
         }
 
@@ -214,7 +221,7 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
             long durationMs = elapsedMillis(startedAtNanos);
             circuitBreakerState.recordResult(tenantId, handle.installationId(), true);
             recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                    InvocationStatus.SUCCESS, durationMs, null);
+                    InvocationStatus.SUCCESS, durationMs, null, relatedContactId, requestPayload);
             return result;
         } catch (TimeoutException e) {
             // "Timeout = no kill" (ARCHITECTURE.md §11.7) — JVM nie może wymusić zatrzymania
@@ -225,21 +232,23 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
             circuitBreakerState.recordResult(tenantId, handle.installationId(), false);
             recordInvocation(tenantId, handle.installationId(), extensionPoint,
                     InvocationStatus.TIMED_OUT, durationMs,
-                    "Przekroczono timeout " + timeoutMs + "ms");
+                    "Przekroczono timeout " + timeoutMs + "ms",
+                    relatedContactId, requestPayload);
             return defaultResult.get();
         } catch (ExecutionException e) {
             long durationMs = elapsedMillis(startedAtNanos);
             circuitBreakerState.recordResult(tenantId, handle.installationId(), false);
             String errorSummary = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
             recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                    InvocationStatus.FAILED, durationMs, errorSummary);
+                    InvocationStatus.FAILED, durationMs, errorSummary, relatedContactId, requestPayload);
             return defaultResult.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             long durationMs = elapsedMillis(startedAtNanos);
             circuitBreakerState.recordResult(tenantId, handle.installationId(), false);
             recordInvocation(tenantId, handle.installationId(), extensionPoint,
-                    InvocationStatus.FAILED, durationMs, "Wątek wywołujący przerwany");
+                    InvocationStatus.FAILED, durationMs, "Wątek wywołujący przerwany",
+                    relatedContactId, requestPayload);
             return defaultResult.get();
         }
     }
@@ -339,15 +348,19 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
     }
 
     /**
-     * Zapisuje wynik jednej próby wywołania — delega do {@link PluginInvocationLogger} (wspólny
-     * z {@link PluginInvocationConsumer}, BE-104), TYMCZASOWO tylko przez SLF4J (BE-105 podmieni
-     * ciało {@link PluginInvocationLogger#record} na wołanie {@code PluginInvocationLogService}
-     * bez zmiany sygnatury ani miejsc wołających w obu klasach, zgodnie z notatką w Javadoc
-     * klasy i {@link ExtensionPointPublisher}).
+     * Zapisuje wynik jednej próby wywołania do {@code plugin_invocation_log} (BE-105) —
+     * {@code requestPayload} jest redagowany ({@code PiiRedactor}) wewnątrz
+     * {@link PluginInvocationLogService} przed zapisem, nigdy surowy PII klienta.
+     *
+     * <p>Zastępuje placeholder SLF4J ({@code PluginInvocationLogger}, BE-102/104, usunięty w
+     * BE-105) — wołane identycznie z {@link PluginInvocationConsumer}, oba miejsca wstrzykują
+     * teraz {@link PluginInvocationLogService} bezpośrednio.
      */
     private void recordInvocation(
             UUID tenantId, UUID installationId, ExtensionPoint extensionPoint,
-            InvocationStatus status, long durationMs, String errorSummary) {
-        PluginInvocationLogger.record(tenantId, installationId, extensionPoint, status, durationMs, errorSummary);
+            InvocationStatus status, long durationMs, String errorSummary,
+            UUID relatedContactId, Object requestPayload) {
+        pluginInvocationLogService.record(tenantId, installationId, extensionPoint, status,
+                durationMs, errorSummary, relatedContactId, requestPayload);
     }
 }

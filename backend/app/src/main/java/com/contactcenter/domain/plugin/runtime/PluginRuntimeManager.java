@@ -41,9 +41,24 @@ public interface PluginRuntimeManager {
      *         wersja pluginu nie istnieje
      * @throws PluginActivationException gdy {@code onActivate} rzuci wyjątek lub przekroczy
      *         timeout — instalacja pozostaje nieaktywowana (nic nie jest rejestrowane w
-     *         {@link PluginRegistry})
+     *         {@link PluginRegistry}), lub gdy {@code PluginVersion.status == REVOKED}
+     *         (BE-106, platform-level kill switch, ARCHITECTURE.md §11.11) — odmowa ładowania
+     *         jest blokadą egzekwowaną tutaj, nie przez {@link PluginRegistry#lookup}
      */
     PluginInstanceHandle load(UUID tenantId, UUID installationId);
+
+    /**
+     * Sprawdza, czy dana instalacja ma aktualnie aktywny {@link PluginInstanceHandle}
+     * (classloader + instancja {@code entryPoint}) w tym managerze.
+     *
+     * <p>Używana przez {@code PluginAdminController#enable} (BE-106) do idempotentnego
+     * {@code enable} — jeśli instalacja jest już załadowana, {@code enable} nie wywołuje
+     * ponownie {@link #load}, by nie zduplikować classloadera dla tej samej instalacji.
+     *
+     * @param installationId instalacja do sprawdzenia
+     * @return {@code true} jeśli instalacja ma aktywny uchwyt w tym managerze
+     */
+    boolean isLoaded(UUID installationId);
 
     /**
      * Dezaktywuje i zwalnia jedną instalację pluginu.

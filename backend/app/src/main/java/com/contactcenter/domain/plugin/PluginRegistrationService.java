@@ -120,4 +120,27 @@ public interface PluginRegistrationService {
      *         istnieje dla tego tenanta
      */
     boolean updateHealthStatus(UUID tenantId, UUID installationId, String healthStatus, int consecutiveFailureCount);
+
+    /**
+     * Odinstalowuje (fizycznie usuwa) instalację pluginu (BE-106, ARCHITECTURE.md §11.11:
+     * "Uninstall: ... deletes the TENANT_PLUGIN_INSTALLATION + bindings; PLUGIN_INVOCATION_LOG
+     * history is retained").
+     *
+     * <p><strong>Wyłącznie operacja na DB</strong> — nie wywołuje {@code onDeactivate()} ani nie
+     * zwalnia {@code PluginClassLoader}; to odpowiedzialność wołającego
+     * ({@code PluginAdminController}, BE-106), analogicznie do podziału odpowiedzialności
+     * {@code enable}/{@code disable} (ten serwis = DB, {@code PluginRuntimeManager} = JVM
+     * runtime). Wołający musi odładować runtime PRZED wywołaniem tej metody (lub best-effort
+     * po niej — nie ma znaczenia z punktu widzenia tej metody, bo ona tylko usuwa wiersz).
+     *
+     * <p>Bindingi {@code tenant_plugin_extension_binding} są usuwane automatycznie przez
+     * {@code ON DELETE CASCADE} (V076). Wpisy {@code plugin_invocation_log} przetrwają
+     * (FK {@code ON DELETE SET NULL}, V077) — historia audytowa nie jest tracona.
+     *
+     * @param tenantId       tenant-właściciel instalacji
+     * @param installationId instalacja do odinstalowania
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy instalacja nie
+     *         istnieje dla tego tenanta
+     */
+    void uninstall(UUID tenantId, UUID installationId);
 }

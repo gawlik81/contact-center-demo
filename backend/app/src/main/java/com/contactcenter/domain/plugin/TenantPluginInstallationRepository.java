@@ -62,6 +62,66 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         return rows.isEmpty() ? Optional.empty() : Optional.of(mapRow(rows.get(0)));
     }
 
+    /**
+     * Wyszukuje instalacje z {@code enabled=true} dla danej wersji pluginu, w ramach
+     * kontekstu RLS aktualnie ustawionego na tenanta {@code tenantId} (wołający musi sam
+     * wywołać {@link #findAllEnabledByPluginVersionIdForTenant} — ta metoda ustawia kontekst
+     * jawnie przed zapytaniem, więc bezpieczna do wywołania w pętli po wielu tenantach, bo
+     * każde wywołanie resetuje {@code app.current_tenant_id} na nowo przed SELECT-em).
+     *
+     * <p>Używana wyłącznie przez {@code PluginCatalogQueryServiceImpl#findAllEnabledAcrossTenantsByVersionId}
+     * (BE-106, platform-level kill switch) — N wywołań, jedno per tenant, zero bypassu RLS.
+     */
+    @Transactional(readOnly = true)
+    List<TenantPluginInstallation> findAllEnabledByPluginVersionIdForTenant(UUID pluginVersionId, UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT id, tenant_id, plugin_version_id, enabled, granted_permissions,
+                       health_status, consecutive_failure_count, installation_config,
+                       installed_by_user_id, installed_at, updated_at
+                FROM tenant_plugin_installation
+                WHERE plugin_version_id = CAST(:pluginVersionId AS uuid)
+                  AND tenant_id         = CAST(:tenantId AS uuid)
+                  AND enabled           = TRUE
+                """)
+                .setParameter("pluginVersionId", pluginVersionId.toString())
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        return rows.stream().map(this::mapRow).toList();
+    }
+
+    /**
+     * Usuwa fizycznie (DELETE) jedną instalację — uninstall (BE-106, ARCHITECTURE.md §11.11:
+     * "deletes the TENANT_PLUGIN_INSTALLATION + bindings; PLUGIN_INVOCATION_LOG history is
+     * retained (tenant_plugin_installation_id FK uses ON DELETE SET NULL)"). Bindingi
+     * ({@code tenant_plugin_extension_binding}) są usuwane automatycznie przez
+     * {@code ON DELETE CASCADE} (V076) — nie wymaga dodatkowego zapytania.
+     *
+     * @return liczba usuniętych wierszy (0 = instalacja nie istnieje dla tego tenanta)
+     */
+    @Transactional
+    int delete(UUID id, UUID tenantId) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        int deleted = em.createNativeQuery("""
+                DELETE FROM tenant_plugin_installation
+                WHERE id        = CAST(:id AS uuid)
+                  AND tenant_id = CAST(:tenantId AS uuid)
+                """)
+                .setParameter("id", id.toString())
+                .setParameter("tenantId", tenantId.toString())
+                .executeUpdate();
+
+        log.info("[TenantPluginInstallationRepo] DELETE instalacja: id={}, tenant={}, wierszy={}",
+                id, tenantId, deleted);
+
+        return deleted;
+    }
+
     @Transactional(readOnly = true)
     List<TenantPluginInstallation> findAllByTenantId(UUID tenantId) {
         setTenantContextInDb(tenantId);

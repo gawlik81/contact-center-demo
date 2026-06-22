@@ -137,6 +137,21 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
         return true;
     }
 
+    @Override
+    @Transactional
+    public void uninstall(UUID tenantId, UUID installationId) {
+        log.debug("[PluginRegistrationService] uninstall: tenant={}, installation={}", tenantId, installationId);
+
+        // Weryfikacja istnienia/przynależności PRZED DELETE — zwraca 404, nie 0 wierszy ciche.
+        installationRepository.findByIdAndTenantId(installationId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Instalacja nie istnieje: " + installationId));
+
+        installationRepository.delete(installationId, tenantId);
+
+        log.info("[PluginRegistrationService] Instalacja odinstalowana (DELETE): id={}, tenant={}",
+                installationId, tenantId);
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================

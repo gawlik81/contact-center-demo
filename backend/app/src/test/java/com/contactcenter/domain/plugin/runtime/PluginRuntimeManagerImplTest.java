@@ -212,6 +212,55 @@ class PluginRuntimeManagerImplTest {
     }
 
     @Nested
+    @DisplayName("isLoaded (BE-106)")
+    class IsLoadedTests {
+
+        @Test
+        @DisplayName("false dla instalacji, która nigdy nie była ładowana")
+        void falseForNeverLoadedInstallation() {
+            assertThat(manager.isLoaded(INSTALLATION_ID)).isFalse();
+        }
+
+        @Test
+        @DisplayName("true po load(), false po unload() — idempotentny enable nie duplikuje classloadera")
+        void trueAfterLoadFalseAfterUnload() throws IOException {
+            String className = "com.acme.IsLoadedCheckPlugin";
+            stubInstallationAndVersion(className, List.of());
+
+            manager.load(TENANT_ID, INSTALLATION_ID);
+            assertThat(manager.isLoaded(INSTALLATION_ID)).isTrue();
+
+            manager.unload(TENANT_ID, INSTALLATION_ID);
+            assertThat(manager.isLoaded(INSTALLATION_ID)).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("load — platform-level kill switch REVOKED (BE-106)")
+    class RevokedKillSwitchTests {
+
+        @Test
+        @DisplayName("KRYTERIUM AKCEPTACJI: load() odmawia ładowania wersji ze statusem REVOKED")
+        void refusesToLoadRevokedVersion() {
+            TenantPluginInstallation installation = installationEntity();
+            when(pluginCatalogQueryService.findInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(Optional.of(installation));
+
+            PluginVersion revokedVersion = pluginVersionEntity("com.acme.RevokedPlugin", List.of());
+            revokedVersion.setStatus(PluginVersion.PluginVersionStatus.REVOKED);
+            when(pluginCatalogQueryService.findVersionById(PLUGIN_VERSION_ID))
+                    .thenReturn(Optional.of(revokedVersion));
+
+            assertThatThrownBy(() -> manager.load(TENANT_ID, INSTALLATION_ID))
+                    .isInstanceOf(PluginActivationException.class)
+                    .hasMessageContaining("REVOKED");
+
+            verify(pluginRegistry, never()).register(any(), any());
+            verify(pluginStorageService, never()).downloadJar(any());
+        }
+    }
+
+    @Nested
     @DisplayName("unload")
     class UnloadTests {
 

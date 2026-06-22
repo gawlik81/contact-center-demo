@@ -340,6 +340,49 @@ class PluginRegistrationServiceImplTest {
         }
     }
 
+    @Nested
+    @DisplayName("uninstall() (BE-106)")
+    class Uninstall {
+
+        @Test
+        @DisplayName("sukces: weryfikuje ownership, potem DELETE")
+        void uninstall_existingInstallation_deletesRow() {
+            TenantPluginInstallation installation = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(installation));
+
+            service.uninstall(TENANT_ID, INSTALLATION_ID);
+
+            verify(installationRepository).delete(INSTALLATION_ID, TENANT_ID);
+        }
+
+        @Test
+        @DisplayName("instalacja nieistniejąca dla tenanta → ResourceNotFoundException, DELETE nie wywołane")
+        void uninstall_nonExistentInstallation_throwsAndDoesNotDelete() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.uninstall(TENANT_ID, INSTALLATION_ID))
+                    .isInstanceOf(ResourceNotFoundException.class);
+
+            verify(installationRepository, never()).delete(any(), any());
+        }
+
+        @Test
+        @DisplayName("instalacja innego tenanta jest niewidoczna (RLS) → ResourceNotFoundException")
+        void uninstall_otherTenantInstallation_throwsResourceNotFoundException() {
+            // findByIdAndTenantId(id, TENANT_ID) zwraca empty, bo wiersz istnieje tylko dla OTHER_TENANT —
+            // identycznie jak w enable/disable/getInstallation (konwencja "nie ujawniaj istnienia zasobu").
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.uninstall(TENANT_ID, INSTALLATION_ID))
+                    .isInstanceOf(ResourceNotFoundException.class);
+
+            verify(installationRepository, never()).delete(any(), any());
+        }
+    }
+
     // =========================================================================
     // Fixtures
     // =========================================================================

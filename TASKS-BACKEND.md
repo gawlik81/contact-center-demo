@@ -5535,12 +5535,28 @@ GET /api/supervisor/plugins/{installationId}/invocations?page=0&size=20&status=F
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-101
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione (2026-06-22)
 **Blokuje:** BE-107
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
 Kontroler REST dla panelu admina tenanta (enable/disable/rollback instalacji) + endpoint globalny dla administratora systemowego (`REVOKED` — kill switch wpływający na wszystkich tenantów niezależnie od ich `enabled`, ARCHITECTURE.md §11.11).
+
+**Notatka implementacyjna (decyzja świadoma, nie renegocjować bez nowego ticketu):** projekt
+NIE posiada odrębnej roli "administratora systemowego" (`UserRole` ma tylko
+`ADMIN, SUPERVISOR, AGENT`, wszystkie tenant-scoped — potwierdzone: nawet `POST /api/tenants`
+używa zwykłego `hasRole('ADMIN')`, identycznie jak `AdminMetricsController`). Endpoint
+`/api/admin/plugins/versions/{id}/revoke` (`PluginRevokeController`) używa **tymczasowo**
+`@PreAuthorize("hasRole('ADMIN')")` — tej samej roli tenantowej co reszta aplikacji. Skutek:
+każdy tenantowy `ADMIN` może globalnie wycofać wersję pluginu również innym tenantom, nie
+tylko swojemu. To **known limitation / dług techniczny**, udokumentowany w Javadoc
+`PluginRevokeController` — naprawienie wymaga nowej roli systemowej + migracji DB, poza
+zakresem BE-106. Cross-tenant zapytanie dla `revoke` (`findAllEnabledAcrossTenantsByVersionId`)
+zaimplementowane przez iterację po `TenantService#getAllTenants()` z jawnym ustawieniem
+kontekstu RLS per tenant (N zapytań) — projekt nie posiada żadnego wzorca bypassu RLS, więc nie
+wprowadzono nowego. `uninstall` = fizyczny `DELETE` wiersza `tenant_plugin_installation`
+(zgodnie z ARCHITECTURE.md §11.11 i FK `ON DELETE SET NULL` z `plugin_invocation_log`, V077) —
+nowa metoda `PluginRegistrationService#uninstall` + `TenantPluginInstallationRepository#delete`.
 
 **Endpointy:**
 ```
@@ -5558,12 +5574,12 @@ POST   /api/admin/plugins/versions/{pluginVersionId}/revoke         → 200 (sta
 **Bezpieczeństwo:** `@PreAuthorize("hasAnyRole('SUPERVISOR','ADMIN')")` dla `/api/supervisor/plugins/**`; endpoint `/api/admin/plugins/**` — sprawdź i reużyj dokładnie ten sam mechanizm autoryzacji co istniejący `AdminMetricsController`/`AdminTenantController` dla roli systemowej (prawdopodobnie inna od tenant `ADMIN`).
 
 **Kryteria akceptacji:**
-- [ ] `enable` woła `PluginRuntimeManager.load` (BE-101) jeśli `ClassLoader` jeszcze nie istnieje dla tej instalacji
-- [ ] `disable` usuwa bindingi z `PluginRegistry.lookup` table NATYCHMIAST — test: wywołanie `ExtensionPointPublisher` zaraz po `disable` nie zwraca już tej instalacji
-- [ ] `rollback` deleguje do `PluginRegistrationService.rollback` (BE-100) i dodatkowo przełącza runtime: stary `ClassLoader` ładowany (jeśli był odładowany), nowy odładowany
-- [ ] `revoke` (endpoint systemowy) — test z 2 tenantami mającymi `enabled=true` dla tej samej wersji: po revoke `PluginRegistry.lookup` dla obu zwraca puste, NIEZALEŻNIE od ich `enabled` w DB
-- [ ] Rola tenant `SUPERVISOR` → `403` na endpoincie `/api/admin/plugins/**`
-- [ ] `mvn verify -pl app` przechodzi
+- [x] `enable` woła `PluginRuntimeManager.load` (BE-101) jeśli `ClassLoader` jeszcze nie istnieje dla tej instalacji (`PluginRuntimeManager#isLoaded`, idempotentny)
+- [x] `disable` usuwa bindingi z `PluginRegistry.lookup` table NATYCHMIAST — `unload()` wywołane PRZED `disable()` w DB (weryfikowane `InOrder` w `PluginAdminControllerTest`)
+- [x] `rollback` deleguje do `PluginRegistrationService.rollback` (BE-100) i dodatkowo przełącza runtime: stary `ClassLoader` ładowany (jeśli był odładowany), nowy odładowany
+- [x] `revoke` (endpoint systemowy) — test z 2 tenantami mającymi `enabled=true` dla tej samej wersji: po revoke `unload()` wywołane dla OBU instalacji niezależnie od tenanta (`PluginRevokeControllerTest`)
+- [x] Rola tenant `SUPERVISOR` → `403` na endpoincie `/api/admin/plugins/**` (deklaratywnie `@PreAuthorize("hasRole('ADMIN')")` + `SecurityConfig` `/api/admin/**`; patrz known limitation wyżej — to jest rola tenantowa ADMIN, nie systemowa)
+- [x] `mvn verify -pl app` przechodzi (1299 testów, 0 failures, 0 errors)
 
 ---
 

@@ -440,7 +440,11 @@
       "Bash(grep -rln \"bypass_rls\\\\|BYPASSRLS\\\\|bypass.*rls\" --include='*.java' . --include='*.sql' /home/pawelm/contact-center/backend/app/src/main/resources/db/migration/)",
       "Bash(grep -rn \"ResourceNotFoundException\" domain/exception/ResourceNotFoundException.java)",
       "Bash(cat domain/exception/ResourceNotFoundException.java)",
-      "Bash(echo \"EXIT CODE: $?\")"
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(awk -F, '{fail+=$2; err+=$3} {split\\($1,a,\"Tests run: \"\\); total+=a[2]} END {print \"Total: \" total, \"Failures+Errors in those lines:\"}')",
+      "Bash(awk '{sum1+=$3; sum2+=$5; sum3+=$7} END {print \"Tests run total:\", sum1, \"Failures:\", sum2, \"Errors:\", sum3}')",
+      "Bash(awk '{run+=$3; fail+=$5; err+=$7; skip+=$9} END {print \"Total Tests run:\", run, \" Failures:\", fail, \" Errors:\", err, \" Skipped:\", skip}')",
+      "Bash(echo \"EXIT=$?\")"
     ]
   }
 }

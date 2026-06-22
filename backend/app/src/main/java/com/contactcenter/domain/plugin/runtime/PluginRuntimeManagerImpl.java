@@ -90,6 +90,16 @@ class PluginRuntimeManagerImpl implements PluginRuntimeManager {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Wersja pluginu nie istnieje: " + installation.getPluginVersionId()));
 
+        // Platform-level kill switch (BE-106, ARCHITECTURE.md §11.11): wersja oznaczona REVOKED
+        // przez administratora systemowego nie może być ponownie załadowana przez ŻADNEGO
+        // tenanta, niezależnie od ich własnego enabled=true w DB — blokada egzekwowana tutaj
+        // (jedyne miejsce wejścia do JVM dla bytecodu pluginu), nie w PluginRegistry.lookup.
+        if (pluginVersion.getStatus() == PluginVersion.PluginVersionStatus.REVOKED) {
+            throw new PluginActivationException(
+                    "Wersja pluginu została globalnie wycofana (REVOKED) przez administratora "
+                            + "systemowego i nie może być załadowana: pluginVersionId=" + pluginVersion.getId());
+        }
+
         Map<String, Object> manifest = pluginVersion.getManifestJson() != null
                 ? pluginVersion.getManifestJson() : EMPTY_MANIFEST;
 
@@ -158,6 +168,11 @@ class PluginRuntimeManagerImpl implements PluginRuntimeManager {
                 tenantId, pluginKey, installationId, extensionPoints);
 
         return handle;
+    }
+
+    @Override
+    public boolean isLoaded(UUID installationId) {
+        return activeHandles.containsKey(installationId);
     }
 
     @Override

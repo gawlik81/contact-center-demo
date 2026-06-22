@@ -2,7 +2,12 @@ package com.contactcenter.api.plugin;
 
 import com.contactcenter.api.plugin.dto.ManualActionRequestDto;
 import com.contactcenter.api.plugin.dto.ManualActionResponseDto;
+import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
+import com.contactcenter.domain.plugin.PluginVersion;
+import com.contactcenter.domain.plugin.TenantPluginInstallation;
+import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.runtime.ExtensionPointPublisher;
 import com.contactcenter.domain.plugin.runtime.PluginInvocationProperties;
 import com.contactcenter.pluginsdk.model.ManualActionRequest;
@@ -69,6 +74,7 @@ import java.util.UUID;
 public class PluginManualActionController {
 
     private final PluginRegistrationService pluginRegistrationService;
+    private final PluginCatalogQueryService pluginCatalogQueryService;
     private final ExtensionPointPublisher extensionPointPublisher;
     private final PluginInvocationProperties pluginInvocationProperties;
 
@@ -100,7 +106,16 @@ public class PluginManualActionController {
         // Weryfikacja ownership PRZED wywołaniem pluginu — rzuca ResourceNotFoundException
         // (mapowane globalnie na 404) gdy instalacja nie istnieje dla tego tenanta, włącznie
         // z przypadkiem "istnieje, ale dla innego tenanta" (RLS, patrz Javadoc klasy).
-        pluginRegistrationService.getInstallation(tenantId, installationId);
+        TenantPluginInstallationDto installation = pluginRegistrationService.getInstallation(tenantId, installationId);
+
+        // BE-107: instalacja disabled/DISABLED_BY_ADMIN/REVOKED odrzucana jawnie z 403, ZAMIAST
+        // pozwolić ExtensionPointPublisher zwrócić ManualActionResult.unsupported() (200) —
+        // ten ostatni byłby nierozróżnialny od "plugin świadomie nie wsparł akcji", co myli
+        // wywołującego (FE-099) co do przyczyny odmowy.
+        ResponseEntity<ManualActionResponseDto> forbidden = checkInstallationInvokable(installation);
+        if (forbidden != null) {
+            return forbidden;
+        }
 
         Map<String, Object> payload = (request != null && request.payload() != null)
                 ? request.payload() : Map.of();
@@ -132,5 +147,50 @@ public class PluginManualActionController {
         }
 
         return ResponseEntity.ok(ManualActionResponseDto.from(result));
+    }
+
+    // =========================================================================
+    // BE-107: odmowa wywołania dla instalacji disabled/DISABLED_BY_ADMIN/REVOKED
+    // =========================================================================
+
+    /**
+     * Sprawdza, czy instalacja może być wywołana: {@code enabled=true} ORAZ
+     * {@code health_status != DISABLED_BY_ADMIN} ORAZ powiązana {@code plugin_version.status
+     * != REVOKED}.
+     *
+     * @return {@code null} jeśli wywołanie jest dozwolone; w przeciwnym razie gotowa
+     *         {@code ResponseEntity} 403 z ciałem JSON do natychmiastowego zwrotu przez wołającego
+     */
+    private ResponseEntity<ManualActionResponseDto> checkInstallationInvokable(
+            TenantPluginInstallationDto installation) {
+
+        if (!installation.enabled()) {
+            return forbiddenResponse("Instalacja pluginu jest wyłączona (enabled=false)",
+                    installation.id());
+        }
+        if (TenantPluginInstallation.HealthStatus.DISABLED_BY_ADMIN.equals(installation.healthStatus())) {
+            return forbiddenResponse("Instalacja pluginu jest wyłączona przez administratora (DISABLED_BY_ADMIN)",
+                    installation.id());
+        }
+
+        // pluginVersionId nie pochodzi z żądania – TenantPluginInstallationDto.pluginVersionId()
+        // jest ustawiane wyłącznie przez PluginRegistrationService (BE-100), nie przez klienta.
+        PluginVersion pluginVersion = pluginCatalogQueryService.findVersionById(installation.pluginVersionId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Wersja pluginu nie istnieje: " + installation.pluginVersionId()));
+
+        if (pluginVersion.getStatus() == PluginVersion.PluginVersionStatus.REVOKED) {
+            return forbiddenResponse("Wersja pluginu została globalnie wycofana (REVOKED) przez "
+                    + "administratora systemowego", installation.id());
+        }
+
+        return null;
+    }
+
+    private ResponseEntity<ManualActionResponseDto> forbiddenResponse(String reason, UUID installationId) {
+        log.warn("[PluginManualActionController] MANUAL_ACTION odmówione (403): installation={}, powód={}",
+                installationId, reason);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ManualActionResponseDto.forbidden(reason));
     }
 }

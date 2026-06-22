@@ -17,7 +17,8 @@ import java.util.Map;
  * @param success    {@code ManualActionResult#success()} — {@code false} dla 504
  * @param resultData {@code ManualActionResult#resultData()} — pusta mapa dla 504
  * @param message    {@code ManualActionResult#message()} — {@code null} przy 504 (patrz {@code error})
- * @param error      ustawiane tylko dla HTTP 504: opis przekroczenia budżetu czasowego pluginu
+ * @param error      ustawiane dla HTTP 504/403: opis przekroczenia budżetu czasowego pluginu lub
+ *                    powodu odmowy wywołania (BE-107: instalacja disabled/REVOKED)
  */
 public record ManualActionResponseDto(
         boolean success,
@@ -35,5 +36,14 @@ public record ManualActionResponseDto(
                 Map.of(),
                 null,
                 "Plugin nie odpowiedział w przewidzianym czasie (" + timeoutMs + "ms)");
+    }
+
+    /**
+     * Body HTTP 403 (BE-107) — instalacja {@code enabled=false}, {@code health_status=DISABLED_BY_ADMIN},
+     * lub wersja pluginu {@code REVOKED}. Zwracane jako ciało JSON, nigdy domyślna strona błędu
+     * Spring (analogicznie do {@link #timeout}).
+     */
+    public static ManualActionResponseDto forbidden(String reason) {
+        return new ManualActionResponseDto(false, Map.of(), null, reason);
     }
 }

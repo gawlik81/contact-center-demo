@@ -3,6 +3,8 @@ package com.contactcenter.domain.plugin.runtime;
 import com.contactcenter.pluginsdk.PluginEntryPoint;
 
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -29,6 +31,16 @@ import java.util.UUID;
  *                        usuwana przy {@code unload}, PO zamknięciu {@code classLoader} — żeby
  *                        nie pozostawiać plików tymczasowych przy wielokrotnym install/enable/
  *                        disable/rollback (znane ograniczenie z code review BE-101, naprawione)
+ * @param uiAssetsDir     katalog na dysku węzła z rozpakowanymi zasobami {@code plugin-ui/}
+ *                        (BE-107, {@link PluginAssetExtractionService}) — {@code empty} gdy JAR
+ *                        pluginu nie deklaruje żadnych {@code uiPanels} (no-op ekstrakcji, nie
+ *                        błąd); usuwany rekursywnie przy {@code unload}, niezależnie od
+ *                        {@code localJarPath}
+ * @param grantedPermissions  uprawnienia zatwierdzone przy instalacji tej instancji (BE-107) —
+ *                        wykorzystywane przez {@code PluginAssetController} do zbudowania
+ *                        nagłówka {@code Content-Security-Policy: connect-src} z hostów
+ *                        egress ({@code http:egress:<host>}), tak by nie odpytywać ponownie
+ *                        bazy/RLS dla tych samych danych, które {@code load()} już ma
  */
 public record PluginInstanceHandle(
         UUID installationId,
@@ -36,5 +48,7 @@ public record PluginInstanceHandle(
         String pluginKey,
         PluginEntryPoint entryPoint,
         ClassLoader classLoader,
-        Path localJarPath) {
+        Path localJarPath,
+        Optional<Path> uiAssetsDir,
+        List<String> grantedPermissions) {
 }

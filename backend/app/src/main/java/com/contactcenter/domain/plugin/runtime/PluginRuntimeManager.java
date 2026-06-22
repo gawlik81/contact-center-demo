@@ -1,5 +1,6 @@
 package com.contactcenter.domain.plugin.runtime;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -59,6 +60,23 @@ public interface PluginRuntimeManager {
      * @return {@code true} jeśli instalacja ma aktywny uchwyt w tym managerze
      */
     boolean isLoaded(UUID installationId);
+
+    /**
+     * Zwraca uchwyt aktywnej instalacji po samym {@code installationId}, bez wymogu
+     * {@code tenantId} (BE-107, ARCHITECTURE.md §11.10).
+     *
+     * <p><strong>Dlaczego bez tenantId jest tu bezpieczne:</strong> ta metoda przeszukuje
+     * wyłącznie mapę w pamięci tego procesu ({@code activeHandles}) — nie wykonuje żadnego
+     * zapytania do bazy danych, więc nie ma tu możliwości bypassu RLS. Jedyny konsument
+     * ({@code PluginAssetController}) używa wyniku tylko do zbudowania CSP (z manifestu) i
+     * zlokalizowania katalogu statycznych, niesekretnych plików UI pluginu na dysku —
+     * {@code installationId} jest globalnie unikalnym UUID, więc lookup po samym ID jest
+     * wystarczający dla tego celu (analogicznie jak w przypadku publicznych zasobów CDN).
+     *
+     * @param installationId instalacja, dla której szukamy aktywnego uchwytu
+     * @return uchwyt jeśli instalacja jest aktualnie załadowana w tym procesie, inaczej empty
+     */
+    Optional<PluginInstanceHandle> findActiveHandle(UUID installationId);
 
     /**
      * Dezaktywuje i zwalnia jedną instalację pluginu.

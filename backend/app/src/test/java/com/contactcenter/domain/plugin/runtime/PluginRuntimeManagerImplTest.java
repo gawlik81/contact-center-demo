@@ -31,6 +31,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -59,6 +60,7 @@ class PluginRuntimeManagerImplTest {
     @Mock private PluginRegistry pluginRegistry;
     @Mock private CustomerService customerService;
     @Mock private ContactService contactService;
+    @Mock private PluginAssetExtractionService pluginAssetExtractionService;
 
     private PluginRuntimeManagerImpl manager;
     private final List<Path> jarsToCleanup = new java.util.ArrayList<>();
@@ -66,7 +68,12 @@ class PluginRuntimeManagerImplTest {
     @BeforeEach
     void setUp() {
         manager = new PluginRuntimeManagerImpl(
-                pluginCatalogQueryService, pluginStorageService, pluginRegistry, customerService, contactService);
+                pluginCatalogQueryService, pluginStorageService, pluginRegistry, customerService, contactService,
+                pluginAssetExtractionService);
+        // Domyślnie: plugin nie deklaruje plugin-ui/ (no-op) — testy load/unload istniejące przed
+        // BE-107 nie weryfikują ekstrakcji UI, więc stub domyślny musi być "lenient" (nie każdy
+        // test load() faktycznie wywołuje extract(), np. testy ścieżek błędu przed onActivate).
+        lenient().when(pluginAssetExtractionService.extract(any(), any())).thenReturn(false);
     }
 
     @org.junit.jupiter.api.AfterEach
@@ -104,6 +111,31 @@ class PluginRuntimeManagerImplTest {
 
             verify(pluginRegistry).register(handle,
                     List.of(ExtensionPoint.PRE_CONTACT_CONNECT, ExtensionPoint.CUSTOMER_SYNC));
+        }
+
+        @Test
+        @DisplayName("BE-107: wywołuje PluginAssetExtractionService i zapisuje katalog w uiAssetsDir gdy są zasoby UI")
+        void extractsUiAssetsWhenPresent() throws IOException {
+            String className = "com.acme.UiAssetsPlugin";
+            stubInstallationAndVersion(className, List.of());
+            when(pluginAssetExtractionService.extract(any(), any())).thenReturn(true);
+
+            PluginInstanceHandle handle = manager.load(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(handle.uiAssetsDir()).isPresent();
+            verify(pluginAssetExtractionService).extract(any(), eq(handle.uiAssetsDir().get()));
+        }
+
+        @Test
+        @DisplayName("BE-107: uiAssetsDir jest empty (no-op) gdy plugin nie deklaruje zasobów UI")
+        void uiAssetsDirEmptyWhenNoUiResourcesInJar() throws IOException {
+            String className = "com.acme.NoUiAssetsPlugin";
+            stubInstallationAndVersion(className, List.of());
+            when(pluginAssetExtractionService.extract(any(), any())).thenReturn(false);
+
+            PluginInstanceHandle handle = manager.load(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(handle.uiAssetsDir()).isEmpty();
         }
 
         @Test
@@ -236,6 +268,40 @@ class PluginRuntimeManagerImplTest {
     }
 
     @Nested
+    @DisplayName("findActiveHandle (BE-107)")
+    class FindActiveHandleTests {
+
+        @Test
+        @DisplayName("empty dla instalacji, która nigdy nie była ładowana")
+        void emptyForNeverLoadedInstallation() {
+            assertThat(manager.findActiveHandle(INSTALLATION_ID)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("zwraca uchwyt aktywnej instalacji po samym installationId, bez tenantId")
+        void returnsHandleForActiveInstallation() throws IOException {
+            String className = "com.acme.FindActiveHandlePlugin";
+            stubInstallationAndVersion(className, List.of());
+
+            PluginInstanceHandle loaded = manager.load(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(manager.findActiveHandle(INSTALLATION_ID)).contains(loaded);
+        }
+
+        @Test
+        @DisplayName("empty po unload()")
+        void emptyAfterUnload() throws IOException {
+            String className = "com.acme.FindActiveHandleAfterUnloadPlugin";
+            stubInstallationAndVersion(className, List.of());
+
+            manager.load(TENANT_ID, INSTALLATION_ID);
+            manager.unload(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(manager.findActiveHandle(INSTALLATION_ID)).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("load — platform-level kill switch REVOKED (BE-106)")
     class RevokedKillSwitchTests {
 
@@ -291,6 +357,34 @@ class PluginRuntimeManagerImplTest {
             manager.unload(TENANT_ID, INSTALLATION_ID);
 
             assertThat(Files.exists(handle.localJarPath())).isFalse();
+        }
+
+        @Test
+        @DisplayName("BE-107: unload usuwa rekursywnie katalog zasobów UI, gdy był obecny")
+        void unloadDeletesUiAssetsDirectory() throws IOException {
+            String className = "com.acme.UiAssetsCleanupPlugin";
+            stubInstallationAndVersion(className, List.of());
+
+            Path fakeAssetsDir = Files.createTempDirectory("plugin-ui-cleanup-test-");
+            Files.writeString(fakeAssetsDir.resolve("index.html"), "<html></html>");
+            when(pluginAssetExtractionService.extract(any(), any())).thenAnswer(invocation -> {
+                Path destinationDir = invocation.getArgument(1);
+                // Symuluje ekstrakcję realnego serwisu: kopiuje plik testowy do katalogu
+                // utworzonego przez manager (Files.createTempDirectory w extractUiAssets).
+                Files.copy(fakeAssetsDir.resolve("index.html"), destinationDir.resolve("index.html"));
+                return true;
+            });
+
+            PluginInstanceHandle handle = manager.load(TENANT_ID, INSTALLATION_ID);
+            assertThat(handle.uiAssetsDir()).isPresent();
+            Path realAssetsDir = handle.uiAssetsDir().get();
+            assertThat(realAssetsDir).exists();
+
+            manager.unload(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(realAssetsDir).doesNotExist();
+            Files.deleteIfExists(fakeAssetsDir.resolve("index.html"));
+            Files.deleteIfExists(fakeAssetsDir);
         }
 
         @Test

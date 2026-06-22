@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -95,7 +96,7 @@ class PluginInvocationConsumerTest {
     private static PluginInstanceHandle handleWith(PluginEntryPoint entryPoint, UUID tenantId, UUID installationId) {
         return new PluginInstanceHandle(
                 installationId, tenantId, PLUGIN_KEY, entryPoint,
-                Thread.currentThread().getContextClassLoader(), null);
+                Thread.currentThread().getContextClassLoader(), null, Optional.empty(), List.of());
     }
 
     private static TenantPluginInstallationDto installationDto(UUID installationId, boolean enabled) {

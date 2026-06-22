@@ -111,6 +111,11 @@ public class SecurityConfig {
                 .requestMatchers("/api/oauth/*/callback").permitAll()
                 // Hold music TwiML – publiczny, wywoływany przez Twilio jako waitUrl w Conference
                 .requestMatchers("/api/telephony/hold-music").permitAll()
+                // Zasoby UI pluginu (plugin-ui/) – publiczne, wczytywane przez sandboxowany
+                // <iframe> bez JWT agenta (autoryzacja przez stronę hosta, ARCHITECTURE.md §11.10,
+                // EPIC-28 BE-107). Pliki statyczne, niesekretne, identyczne dla każdej instalacji
+                // tej samej wersji pluginu.
+                .requestMatchers("/plugin-assets/**").permitAll()
                 // WebSocket endpoint (SockJS) – publiczny (HTTP → WS upgrade); autentykacja przez JWT w STOMP CONNECT
                 .requestMatchers("/ws/**").permitAll()
                 // WebSocket endpoint (plain WS + STOMP, bez SockJS) – używany przez Angular Agent Desktop

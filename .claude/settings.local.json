@@ -445,7 +445,9 @@
       "Bash(awk '{sum1+=$3; sum2+=$5; sum3+=$7} END {print \"Tests run total:\", sum1, \"Failures:\", sum2, \"Errors:\", sum3}')",
       "Bash(awk '{run+=$3; fail+=$5; err+=$7; skip+=$9} END {print \"Total Tests run:\", run, \" Failures:\", fail, \" Errors:\", err, \" Skipped:\", skip}')",
       "Bash(echo \"EXIT=$?\")",
-      "Bash(xargs -I{} echo {})"
+      "Bash(xargs -I{} echo {})",
+      "Bash(jobs)",
+      "Bash(echo \"exit grep: $?\")"
     ]
   }
 }

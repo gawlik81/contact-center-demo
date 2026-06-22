@@ -16,8 +16,10 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -57,6 +59,7 @@ class PluginRuntimeManagerImpl implements PluginRuntimeManager {
     private final PluginRegistry pluginRegistry;
     private final CustomerService customerService;
     private final ContactService contactService;
+    private final PluginAssetExtractionService pluginAssetExtractionService;
 
     /**
      * Executor dedykowany wyłącznie callbackom cyklu życia pluginu
@@ -157,15 +160,32 @@ class PluginRuntimeManagerImpl implements PluginRuntimeManager {
                             + ", pluginKey=" + pluginKey + ": " + e.getMessage(), e);
         }
 
+        // Ekstrakcja zasobów UI (BE-107, ARCHITECTURE.md §11.10) — best-effort w sensie "nie
+        // blokuje aktywacji backendowej pluginu", ale błąd IO (nie "brak katalogu plugin-ui/",
+        // który jest no-op zwracającym false) jest traktowany jak każdy inny błąd aktywacji:
+        // czyści classloader/JAR i odmawia aktywacji, bo PluginAssetExtractionService rzuca
+        // tylko na realny błąd (JAR uszkodzony, IO na dysku węzła), nie na "brak UI".
+        Optional<Path> uiAssetsDir;
+        try {
+            uiAssetsDir = extractUiAssets(pluginVersion, installationId);
+        } catch (RuntimeException e) {
+            closeQuietly(classLoader);
+            deleteQuietly(localJarPath);
+            throw new PluginActivationException(
+                    "Ekstrakcja plugin-ui/ nie powiodła się dla installationId=" + installationId
+                            + ", pluginKey=" + pluginKey + ": " + e.getMessage(), e);
+        }
+
         PluginInstanceHandle handle = new PluginInstanceHandle(
-                installationId, tenantId, pluginKey, entryPoint, classLoader, localJarPath);
+                installationId, tenantId, pluginKey, entryPoint, classLoader, localJarPath,
+                uiAssetsDir, installation.getGrantedPermissions());
 
         activeHandles.put(installationId, handle);
         pluginRegistry.register(handle, extensionPoints);
 
         log.info("[PluginRuntime] Instalacja aktywowana: tenant={}, pluginKey={}, installationId={}, "
-                        + "extensionPoints={}",
-                tenantId, pluginKey, installationId, extensionPoints);
+                        + "extensionPoints={}, uiAssets={}",
+                tenantId, pluginKey, installationId, extensionPoints, uiAssetsDir.isPresent());
 
         return handle;
     }
@@ -173,6 +193,16 @@ class PluginRuntimeManagerImpl implements PluginRuntimeManager {
     @Override
     public boolean isLoaded(UUID installationId) {
         return activeHandles.containsKey(installationId);
+    }
+
+    @Override
+    public Optional<PluginInstanceHandle> findActiveHandle(UUID installationId) {
+        // Lookup po samym installationId, bez tenantId — sprawdza jedynie mapę w pamięci tego
+        // procesu (activeHandles), bez żadnego zapytania do bazy/RLS. Bezpieczne dla konsumentów
+        // publicznych (PluginAssetController, BE-107): installationId jest globalnie unikalnym
+        // UUID, a dane zwracane stąd (pluginKey, manifest do CSP, katalog assetów) są niesekretnymi
+        // metadanymi statycznych plików UI, identycznymi dla każdej instalacji tej wersji.
+        return Optional.ofNullable(activeHandles.get(installationId));
     }
 
     @Override
@@ -205,6 +235,7 @@ class PluginRuntimeManagerImpl implements PluginRuntimeManager {
         // plików (code review BE-101, finding High).
         closeQuietly(handle.classLoader());
         deleteQuietly(handle.localJarPath());
+        handle.uiAssetsDir().ifPresent(PluginRuntimeManagerImpl::deleteRecursivelyQuietly);
 
         log.info("[PluginRuntime] Instalacja dezaktywowana: tenant={}, pluginKey={}, installationId={}",
                 tenantId, handle.pluginKey(), installationId);
@@ -212,6 +243,55 @@ class PluginRuntimeManagerImpl implements PluginRuntimeManager {
         // Po tym punkcie: activeHandles nie ma wpisu (removed wyżej), pluginRegistry nie ma
         // wpisu (unregister wyżej), handle jest lokalną zmienną tej metody — po jej zwrocie
         // żadna silna referencja do classLoader/entryPoint nie pozostaje w tej klasie.
+    }
+
+    // =========================================================================
+    // Ekstrakcja zasobów UI (plugin-ui/) — BE-107
+    // =========================================================================
+
+    /**
+     * Rozpakowuje {@code plugin-ui/} do nowego katalogu tymczasowego dedykowanego tej instalacji.
+     *
+     * @return {@code Optional.empty()} gdy JAR nie zawiera katalogu {@code plugin-ui/} (no-op,
+     *         katalog tymczasowy jest w takim wypadku usuwany — nie ma sensu trzymać pustego
+     *         katalogu na dysku węzła dla każdej instalacji bez UI)
+     */
+    private Optional<Path> extractUiAssets(PluginVersion pluginVersion, UUID installationId) {
+        Path assetsDir;
+        try {
+            assetsDir = Files.createTempDirectory("plugin-ui-");
+        } catch (IOException e) {
+            throw new PluginActivationException(
+                    "Nie można utworzyć katalogu tymczasowego dla zasobów UI pluginu (installationId="
+                            + installationId + "): " + e.getMessage(), e);
+        }
+
+        boolean hasUiAssets = pluginAssetExtractionService.extract(pluginVersion, assetsDir);
+        if (!hasUiAssets) {
+            deleteRecursivelyQuietly(assetsDir);
+            return Optional.empty();
+        }
+        return Optional.of(assetsDir);
+    }
+
+    /**
+     * Usuwa rekursywnie katalog zasobów UI pluginu. Best-effort, tak jak {@link #deleteQuietly}
+     * dla JAR-a — błąd IO jest tylko logowany, nigdy nie przerywa {@code unload()}.
+     */
+    private static void deleteRecursivelyQuietly(Path directory) {
+        try (java.util.stream.Stream<Path> walk = Files.walk(directory)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException e) {
+                    log.warn("[PluginRuntime] Błąd usuwania pliku zasobów UI pluginu '{}': {}",
+                            path, e.getMessage());
+                }
+            });
+        } catch (IOException e) {
+            log.warn("[PluginRuntime] Błąd przechodzenia katalogu zasobów UI pluginu '{}': {}",
+                    directory, e.getMessage());
+        }
     }
 
     // =========================================================================

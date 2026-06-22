@@ -30,6 +30,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -99,7 +100,7 @@ class ExtensionPointPublisherImplTest {
     private static PluginInstanceHandle handleWith(PluginEntryPoint entryPoint) {
         return new PluginInstanceHandle(
                 INSTALLATION_ID, TENANT_ID, PLUGIN_KEY, entryPoint,
-                Thread.currentThread().getContextClassLoader(), null);
+                Thread.currentThread().getContextClassLoader(), null, Optional.empty(), List.of());
     }
 
     private static ContactEvent contactEvent() {
@@ -262,7 +263,7 @@ class ExtensionPointPublisherImplTest {
             PluginInstanceHandle first = handleWith(emptyEntryPoint);
             PluginInstanceHandle second = new PluginInstanceHandle(
                     secondInstallationId, TENANT_ID, "other-plugin", nonEmptyEntryPoint,
-                    Thread.currentThread().getContextClassLoader(), null);
+                    Thread.currentThread().getContextClassLoader(), null, Optional.empty(), List.of());
 
             when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
                     .thenReturn(List.of(first, second));
@@ -384,7 +385,7 @@ class ExtensionPointPublisherImplTest {
 
             PluginInstanceHandle handleB = new PluginInstanceHandle(
                     INSTALLATION_ID, OTHER_TENANT_ID, PLUGIN_KEY, observingEntryPoint,
-                    Thread.currentThread().getContextClassLoader(), null);
+                    Thread.currentThread().getContextClassLoader(), null, Optional.empty(), List.of());
             when(pluginRegistry.lookup(OTHER_TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
                     .thenReturn(List.of(handleB));
 

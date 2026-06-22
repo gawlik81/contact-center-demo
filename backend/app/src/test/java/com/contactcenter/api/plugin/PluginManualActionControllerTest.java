@@ -3,7 +3,11 @@ package com.contactcenter.api.plugin;
 import com.contactcenter.api.plugin.dto.ManualActionRequestDto;
 import com.contactcenter.api.plugin.dto.ManualActionResponseDto;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.plugin.Plugin;
+import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
+import com.contactcenter.domain.plugin.PluginVersion;
+import com.contactcenter.domain.plugin.TenantPluginInstallation;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.runtime.ExtensionPointPublisher;
 import com.contactcenter.domain.plugin.runtime.PluginInvocationProperties;
@@ -26,12 +30,14 @@ import org.springframework.http.ResponseEntity;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,12 +55,14 @@ class PluginManualActionControllerTest {
 
     private static final UUID TENANT_ID       = UUID.randomUUID();
     private static final UUID INSTALLATION_ID = UUID.randomUUID();
+    private static final UUID PLUGIN_VERSION_ID = UUID.randomUUID();
     private static final UUID CONTACT_ID      = UUID.randomUUID();
     private static final UUID CUSTOMER_ID     = UUID.randomUUID();
     private static final String ACTION_ID     = "open-in-crm";
     private static final long TIMEOUT_MS      = 5000L;
 
     @Mock private PluginRegistrationService pluginRegistrationService;
+    @Mock private PluginCatalogQueryService pluginCatalogQueryService;
     @Mock private ExtensionPointPublisher extensionPointPublisher;
     @Mock private PluginInvocationProperties pluginInvocationProperties;
 
@@ -64,9 +72,15 @@ class PluginManualActionControllerTest {
     @BeforeEach
     void setUp() {
         controller = new PluginManualActionController(
-                pluginRegistrationService, extensionPointPublisher, pluginInvocationProperties);
+                pluginRegistrationService, pluginCatalogQueryService, extensionPointPublisher,
+                pluginInvocationProperties);
         tenantContextMock = mockStatic(TenantContext.class);
         tenantContextMock.when(TenantContext::getTenantId).thenReturn(TENANT_ID);
+        // Domyślnie: wersja pluginu istnieje i NIE jest REVOKED — testy weryfikujące 403 nadpisują
+        // ten stub jawnie. "lenient" bo testy ownership (404 przed dotarciem do tej weryfikacji)
+        // nigdy nie wywołują findVersionById.
+        lenient().when(pluginCatalogQueryService.findVersionById(PLUGIN_VERSION_ID))
+                .thenReturn(Optional.of(nonRevokedVersion()));
     }
 
     @AfterEach
@@ -75,9 +89,28 @@ class PluginManualActionControllerTest {
     }
 
     private TenantPluginInstallationDto existingInstallation() {
+        return existingInstallation(true, "HEALTHY");
+    }
+
+    private TenantPluginInstallationDto existingInstallation(boolean enabled, String healthStatus) {
         return new TenantPluginInstallationDto(
-                INSTALLATION_ID, TENANT_ID, UUID.randomUUID(), true, List.of(),
-                "HEALTHY", 0, UUID.randomUUID(), Instant.now(), Instant.now());
+                INSTALLATION_ID, TENANT_ID, PLUGIN_VERSION_ID, enabled, List.of(),
+                healthStatus, 0, UUID.randomUUID(), Instant.now(), Instant.now());
+    }
+
+    private PluginVersion nonRevokedVersion() {
+        return pluginVersionWithStatus(PluginVersion.PluginVersionStatus.VALIDATED);
+    }
+
+    private PluginVersion pluginVersionWithStatus(PluginVersion.PluginVersionStatus status) {
+        Plugin plugin = new Plugin();
+        plugin.setPluginKey("acme-crm-sync");
+        return PluginVersion.builder()
+                .id(PLUGIN_VERSION_ID)
+                .plugin(plugin)
+                .version("1.0.0")
+                .status(status)
+                .build();
     }
 
     // =========================================================================
@@ -269,6 +302,78 @@ class PluginManualActionControllerTest {
             controller.invokeManualAction(INSTALLATION_ID, ACTION_ID, null);
 
             verify(pluginRegistrationService).getInstallation(TENANT_ID, INSTALLATION_ID);
+            verify(extensionPointPublisher).publishManualAction(eq(TENANT_ID), eq(INSTALLATION_ID), any());
+        }
+    }
+
+    // =========================================================================
+    // BE-107: odmowa 403 dla instalacji disabled/DISABLED_BY_ADMIN/REVOKED
+    // =========================================================================
+
+    @Nested
+    @DisplayName("BE-107 – odmowa wywołania (403)")
+    class ForbiddenTests {
+
+        @Test
+        @DisplayName("enabled=false -> 403, publishManualAction nigdy wywołane")
+        void disabledInstallation_returns403() {
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(existingInstallation(false, "HEALTHY"));
+
+            ResponseEntity<ManualActionResponseDto> response =
+                    controller.invokeManualAction(INSTALLATION_ID, ACTION_ID, null);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().success()).isFalse();
+            assertThat(response.getBody().error()).contains("enabled=false");
+            verify(extensionPointPublisher, never()).publishManualAction(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("health_status=DISABLED_BY_ADMIN -> 403, publishManualAction nigdy wywołane")
+        void disabledByAdmin_returns403() {
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(existingInstallation(true,
+                            TenantPluginInstallation.HealthStatus.DISABLED_BY_ADMIN));
+
+            ResponseEntity<ManualActionResponseDto> response =
+                    controller.invokeManualAction(INSTALLATION_ID, ACTION_ID, null);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(response.getBody().error()).contains("DISABLED_BY_ADMIN");
+            verify(extensionPointPublisher, never()).publishManualAction(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("plugin_version.status=REVOKED -> 403, publishManualAction nigdy wywołane")
+        void revokedVersion_returns403() {
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(existingInstallation());
+            when(pluginCatalogQueryService.findVersionById(PLUGIN_VERSION_ID))
+                    .thenReturn(Optional.of(pluginVersionWithStatus(PluginVersion.PluginVersionStatus.REVOKED)));
+
+            ResponseEntity<ManualActionResponseDto> response =
+                    controller.invokeManualAction(INSTALLATION_ID, ACTION_ID, null);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(response.getBody().error()).contains("REVOKED");
+            verify(extensionPointPublisher, never()).publishManualAction(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("instalacja enabled, HEALTHY, wersja VALIDATED -> wywołanie dozwolone (regresja happy path)")
+        void invokableInstallation_proceedsToPublisher() {
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(existingInstallation());
+            when(pluginInvocationProperties.effectiveManualActionTimeoutMs()).thenReturn(TIMEOUT_MS);
+            when(extensionPointPublisher.publishManualAction(any(), any(), any()))
+                    .thenReturn(ManualActionResult.unsupported());
+
+            ResponseEntity<ManualActionResponseDto> response =
+                    controller.invokeManualAction(INSTALLATION_ID, ACTION_ID, null);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             verify(extensionPointPublisher).publishManualAction(eq(TENANT_ID), eq(INSTALLATION_ID), any());
         }
     }

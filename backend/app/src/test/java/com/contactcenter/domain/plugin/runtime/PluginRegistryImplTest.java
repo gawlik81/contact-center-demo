@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -77,6 +78,6 @@ class PluginRegistryImplTest {
     private static PluginInstanceHandle handle(UUID tenantId, String pluginKey) {
         PluginEntryPoint entryPoint = Mockito.mock(PluginEntryPoint.class);
         ClassLoader classLoader = Mockito.mock(ClassLoader.class);
-        return new PluginInstanceHandle(UUID.randomUUID(), tenantId, pluginKey, entryPoint, classLoader, null);
+        return new PluginInstanceHandle(UUID.randomUUID(), tenantId, pluginKey, entryPoint, classLoader, null, Optional.empty(), List.of());
     }
 }

@@ -5603,7 +5603,7 @@ POST   /api/admin/plugins/versions/{pluginVersionId}/revoke         → 200 (sta
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** BE-103, BE-106
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Blokuje:** —
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
@@ -5624,9 +5624,16 @@ backend/app/src/main/java/com/contactcenter/
 **Manual-action proxy endpoint** (już zadeklarowany w BE-103 jako `POST /api/agent/plugins/{installationId}/manual-action/{actionId}`) — ten ticket dodaje warunek: endpoint dostępny tylko gdy `tenant_plugin_installation.enabled=true` AND `health_status != 'DISABLED_BY_ADMIN'` AND powiązana `plugin_version.status != 'REVOKED'`.
 
 **Kryteria akceptacji:**
-- [ ] Response assetów zawiera `Content-Security-Policy` z `connect-src` ograniczonym do hostów z `manifest.permissions` (`http:egress:<host>`)
-- [ ] Asset serwowany z innej originy niż główne SPA (zweryfikowane nagłówkiem `Access-Control-Allow-Origin` lub strukturą URL — dokumentować decyzję w PR jeśli wymaga współpracy z infra)
-- [ ] Manual-action proxy odrzuca wywołanie dla `enabled=false`/`DISABLED_BY_ADMIN`/`REVOKED` → `403`
-- [ ] Iframe (test E2E poza zakresem backendu, ale endpoint testowany izolowanie) nie wymaga JWT agenta w żądaniu do `/plugin-assets/**` — autoryzacja przez stronę hosta, nie przez iframe
-- [ ] `mvn verify -pl app` przechodzi
-- [ ] `mvn verify -pl app` przechodzi
+- [x] Response assetów zawiera `Content-Security-Policy` z `connect-src` ograniczonym do hostów z `manifest.permissions` (`http:egress:<host>`)
+- [x] Asset serwowany z dedykowanej ścieżki `/plugin-assets/{installationId}/**` — **decyzja architektoniczna:** prawdziwa, osobna origina (subdomena/vhost) wymaga zmiany infrastruktury wdrożeniowej (DNS + nginx vhost) poza zakresem tego ticketu backendowego; zaimplementowano ścieżkę względną pod tym samym originem, udokumentowane w Javadoc `PluginAssetController` jako wymóg dla DevOps przed produkcyjnym udostępnieniem UI pluginów zewnętrznych dostawców. Warstwy obrony w głębi pozostają aktywne niezależnie (CSP, `sandbox="allow-scripts allow-forms"` bez `allow-same-origin`, FE-099)
+- [x] Manual-action proxy odrzuca wywołanie dla `enabled=false`/`DISABLED_BY_ADMIN`/`REVOKED` → `403`
+- [x] Iframe (test E2E poza zakresem backendu, ale endpoint testowany izolowanie) nie wymaga JWT agenta w żądaniu do `/plugin-assets/**` — autoryzacja przez stronę hosta, nie przez iframe (zarejestrowane w `SecurityConfig` + `PublicPathsConfig`)
+- [x] `mvn verify -pl app` przechodzi (1346 testów, 0 failures, 0 errors)
+
+**Implementacja:**
+- `PluginAssetExtractionService`/`PluginAssetExtractionServiceImpl` (domain/plugin/runtime) — rozpakowuje `plugin-ui/` z JAR-a (strumieniowo, `JarInputStream`, bez zapisu pośredniego pliku) do katalogu tymczasowego; no-op (zwraca `false`) gdy JAR nie ma katalogu `plugin-ui/`; broni się przed Zip Slip/path traversal (`resolveSafely`)
+- `PluginRuntimeManagerImpl.load()` woła ekstrakcję po pozytywnym `onActivate`; `unload()` usuwa katalog rekursywnie. `PluginInstanceHandle` rozszerzony o `uiAssetsDir: Optional<Path>` i `grantedPermissions: List<String>`
+- `PluginRuntimeManager.findActiveHandle(installationId)` — nowa metoda lookup po samym `installationId` (bez `tenantId`), przeszukuje wyłącznie mapę w pamięci procesu (`activeHandles`) — zero zapytań do bazy/RLS, bezpieczne dla publicznego `PluginAssetController`
+- `PluginAssetController` (`GET /plugin-assets/{installationId}/**`, publiczny) — serwuje pliki statyczne z katalogu znalezionego przez `findActiveHandle`; 404 dla instalacji nieznanej/bez zasobów UI/pliku nieistniejącego; CSP `default-src 'self'; connect-src 'self' <egress hosts>`; broni się przed path traversal w segmencie wildcard
+- `PluginManualActionController.invokeManualAction` — nowa walidacja `checkInstallationInvokable` przed `publishManualAction`: 403 JSON (`ManualActionResponseDto.forbidden`) dla `enabled=false`/`DISABLED_BY_ADMIN`/wersja `REVOKED` (dociągnięta przez `PluginCatalogQueryService.findVersionById`)
+- `SecurityConfig` + `PublicPathsConfig` — `/plugin-assets/**` dodane jako publiczne (dwa miejsca, zgodnie z CLAUDE.md)

@@ -1,8 +1,6 @@
 package com.contactcenter.domain.plugin;
 
-import com.contactcenter.infrastructure.persistence.JsonStringListConverter;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -82,8 +80,15 @@ public class PluginVersion {
 
     /**
      * Lista błędów walidacji opisowych (puste/{@code null} gdy {@code status != REJECTED}).
+     *
+     * <p>{@code @JdbcTypeCode(SqlTypes.JSON)} (nie {@code JsonStringListConverter}) — wzorzec
+     * jak {@code AppUser.skills}: obsługuje konwersję {@code PGobject} ↔ {@code List<String>}
+     * natywnie, wiążąc parametr JDBC jako {@code jsonb}. {@code JsonStringListConverter}
+     * serializuje do zwykłego {@code String} (bindowany jako {@code varchar}) — Postgres
+     * odmawia niejawnego rzutowania {@code varchar} na {@code jsonb} przy INSERT/UPDATE
+     * (bug znaleziony przy realnym uploadzie przykładowego pluginu, naprawiony tutaj).
      */
-    @Convert(converter = JsonStringListConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "validation_errors", columnDefinition = "jsonb")
     private List<String> validationErrors;
 

@@ -14,6 +14,8 @@ import java.util.UUID;
  * @param id                identyfikator wersji
  * @param pluginId           identyfikator pluginu (katalogu)
  * @param pluginKey          {@code pluginKey} z manifestu, dla wygody UI bez dodatkowego joina
+ * @param displayName        nazwa wyświetlana pluginu, z {@code Plugin.displayName} (FE-097)
+ * @param vendor             nazwa dostawcy pluginu, z {@code Plugin.vendor} (FE-097)
  * @param version            wersja semver
  * @param sdkVersion         wersja SDK, względem której skompilowano plugin
  * @param status             status wersji (UPLOADED/VALIDATED/PENDING_REVIEW/REJECTED/REVOKED)
@@ -25,6 +27,8 @@ public record PluginVersionDto(
         UUID id,
         UUID pluginId,
         String pluginKey,
+        String displayName,
+        String vendor,
         String version,
         String sdkVersion,
         String status,

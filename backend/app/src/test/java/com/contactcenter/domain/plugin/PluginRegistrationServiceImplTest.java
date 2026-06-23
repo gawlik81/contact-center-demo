@@ -233,6 +233,24 @@ class PluginRegistrationServiceImplTest {
         }
 
         @Test
+        @DisplayName("FE-097: wzbogaca DTO o pluginKey/displayName/version/manualActions/uiPanels "
+                + "z manifestu zainstalowanej wersji")
+        void existingInstallation_enrichesDtoFromManifest() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of())));
+            when(pluginVersionRepository.findById(PLUGIN_VERSION_ID))
+                    .thenReturn(Optional.of(buildPluginVersionWithManifestEnrichment()));
+
+            TenantPluginInstallationDto dto = service.getInstallation(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(dto.pluginKey()).isEqualTo("acme-crm-sync");
+            assertThat(dto.displayName()).isEqualTo("Acme CRM Sync");
+            assertThat(dto.version()).isEqualTo("1.3.0");
+            assertThat(dto.manualActions()).hasSize(1);
+            assertThat(dto.uiPanels()).hasSize(1);
+        }
+
+        @Test
         @DisplayName("instalacja nie istnieje dla tenanta → ResourceNotFoundException (404)")
         void missingInstallation_throwsResourceNotFound() {
             when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
@@ -338,6 +356,59 @@ class PluginRegistrationServiceImplTest {
             assertThat(result.get(0).enabled()).isTrue();
             assertThat(result.get(1).enabled()).isFalse();
         }
+
+        @Test
+        @DisplayName("FE-097: wzbogaca DTO o pluginKey/displayName/version/manualActions/uiPanels "
+                + "z manifestu zainstalowanej wersji, batch fetch zamiast N+1")
+        void listInstallations_enrichesDtoFromManifest_withBatchFetch() {
+            TenantPluginInstallation installation =
+                    buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of("customer:read"));
+            PluginVersion versionWithManifest = buildPluginVersionWithManifestEnrichment();
+
+            when(installationRepository.findAllByTenantId(TENANT_ID))
+                    .thenReturn(List.of(installation));
+            when(pluginVersionRepository.findAllById(List.of(PLUGIN_VERSION_ID)))
+                    .thenReturn(List.of(versionWithManifest));
+
+            List<TenantPluginInstallationDto> result = service.listInstallations(TENANT_ID);
+
+            assertThat(result).hasSize(1);
+            TenantPluginInstallationDto dto = result.get(0);
+            assertThat(dto.pluginKey()).isEqualTo("acme-crm-sync");
+            assertThat(dto.displayName()).isEqualTo("Acme CRM Sync");
+            assertThat(dto.version()).isEqualTo("1.3.0");
+            assertThat(dto.manualActions()).extracting("actionId", "label", "mountPoint")
+                    .containsExactly(org.assertj.core.groups.Tuple.tuple(
+                            "open-in-crm", "Otwórz w CRM", "AGENT_DESKTOP_TOOLBAR"));
+            assertThat(dto.uiPanels()).extracting("panelId", "mountPoint", "url")
+                    .containsExactly(org.assertj.core.groups.Tuple.tuple(
+                            "crm-side-panel", "AGENT_DESKTOP_SIDE_PANEL", "classpath:/plugin-ui/index.html"));
+
+            // findById per-instalacja NIE jest wołane — wyłącznie batch findAllById.
+            verify(pluginVersionRepository, never()).findById(any());
+        }
+
+        @Test
+        @DisplayName("instalacja z brakującą/usuniętą wersją pluginu nie powoduje błędu — "
+                + "pola wzbogacenia pozostają null/puste, nie 500")
+        void listInstallations_missingPluginVersion_returnsNullEnrichmentWithoutError() {
+            TenantPluginInstallation installation =
+                    buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+
+            when(installationRepository.findAllByTenantId(TENANT_ID))
+                    .thenReturn(List.of(installation));
+            when(pluginVersionRepository.findAllById(List.of(PLUGIN_VERSION_ID)))
+                    .thenReturn(List.of());
+
+            List<TenantPluginInstallationDto> result = service.listInstallations(TENANT_ID);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).pluginKey()).isNull();
+            assertThat(result.get(0).displayName()).isNull();
+            assertThat(result.get(0).version()).isNull();
+            assertThat(result.get(0).manualActions()).isEmpty();
+            assertThat(result.get(0).uiPanels()).isEmpty();
+        }
     }
 
     @Nested
@@ -394,6 +465,43 @@ class PluginRegistrationServiceImplTest {
                 .jarObjectKey("plugins/acme/1.0.0.jar")
                 .checksumSha256("a".repeat(64))
                 .manifestJson(Map.of("permissions", permissions))
+                .sdkVersion("1.x")
+                .uploadedAt(Instant.now())
+                .build();
+    }
+
+    /**
+     * Wersja pluginu z {@link Plugin} powiązanym (displayName/pluginKey) i manifestem niosącym
+     * {@code uiPanels}/{@code manualActions} — fixture dla testów wzbogacenia
+     * {@link TenantPluginInstallationDto} (FE-097).
+     */
+    private static PluginVersion buildPluginVersionWithManifestEnrichment() {
+        Plugin plugin = Plugin.builder()
+                .id(UUID.fromString("66666666-6666-6666-6666-666666666666"))
+                .pluginKey("acme-crm-sync")
+                .displayName("Acme CRM Sync")
+                .vendor("Acme Sp. z o.o.")
+                .build();
+
+        Map<String, Object> manifestJson = Map.of(
+                "permissions", List.of("customer:read"),
+                "manualActions", List.of(Map.of(
+                        "actionId", "open-in-crm",
+                        "label", "Otwórz w CRM",
+                        "mountPoint", "AGENT_DESKTOP_TOOLBAR")),
+                "uiPanels", List.of(Map.of(
+                        "panelId", "crm-side-panel",
+                        "mountPoint", "AGENT_DESKTOP_SIDE_PANEL",
+                        "url", "classpath:/plugin-ui/index.html",
+                        "sandbox", "allow-scripts")));
+
+        return PluginVersion.builder()
+                .id(PLUGIN_VERSION_ID)
+                .plugin(plugin)
+                .version("1.3.0")
+                .jarObjectKey("plugins/acme/1.3.0.jar")
+                .checksumSha256("a".repeat(64))
+                .manifestJson(manifestJson)
                 .sdkVersion("1.x")
                 .uploadedAt(Instant.now())
                 .build();

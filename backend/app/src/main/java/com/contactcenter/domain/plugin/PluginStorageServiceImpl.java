@@ -3,6 +3,7 @@ package com.contactcenter.domain.plugin;
 import com.contactcenter.domain.plugin.dto.PluginVersionDto;
 import com.contactcenter.domain.plugin.dto.ValidationResult;
 import com.contactcenter.infrastructure.config.S3Properties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,6 +47,8 @@ import java.util.zip.ZipInputStream;
 class PluginStorageServiceImpl implements PluginStorageService {
 
     private static final String META_INF_MANIFEST_ENTRY = "META-INF/plugin-manifest.json";
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final S3Client s3Client;
     private final S3Properties s3Properties;
@@ -238,6 +241,15 @@ class PluginStorageServiceImpl implements PluginStorageService {
         map.put("entryPointClass", manifest.entryPointClass());
         map.put("extensionPoints", manifest.extensionPoints());
         map.put("permissions", manifest.permissions());
+        // uiPanels/manualActions konwertowane na surowe Map/List (nie zachowują typu rekordu) —
+        // zgodnie z resztą manifestJson (Map<String,Object> JSONB), odczytywane z powrotem
+        // przez PluginRegistrationServiceImpl#mapToDto (FE-097) przy budowie TenantPluginInstallationDto.
+        // Pola opcjonalne w manifeście (JSON Schema) — null gdy nieobecne w JSON, normalizowane
+        // na pustą listę, żeby manifestJson nigdy nie niósł literału JSON null dla tych kluczy.
+        map.put("uiPanels", manifest.uiPanels() != null
+                ? OBJECT_MAPPER.convertValue(manifest.uiPanels(), List.class) : List.of());
+        map.put("manualActions", manifest.manualActions() != null
+                ? OBJECT_MAPPER.convertValue(manifest.manualActions(), List.class) : List.of());
         map.put("checksumSha256", manifest.checksumSha256());
         return map;
     }
@@ -261,10 +273,13 @@ class PluginStorageServiceImpl implements PluginStorageService {
     }
 
     private PluginVersionDto toDto(PluginVersion pluginVersion, String pluginKey) {
+        Plugin plugin = pluginVersion.getPlugin();
         return new PluginVersionDto(
                 pluginVersion.getId(),
-                pluginVersion.getPlugin().getId(),
+                plugin.getId(),
                 pluginKey,
+                plugin.getDisplayName(),
+                plugin.getVendor(),
                 pluginVersion.getVersion(),
                 pluginVersion.getSdkVersion(),
                 pluginVersion.getStatus().name(),

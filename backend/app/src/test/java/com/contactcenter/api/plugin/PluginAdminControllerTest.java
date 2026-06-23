@@ -78,8 +78,8 @@ class PluginAdminControllerTest {
 
     private TenantPluginInstallationDto installationDto(UUID id, boolean enabled) {
         return new TenantPluginInstallationDto(
-                id, TENANT_ID, PLUGIN_VERSION_ID, enabled, List.of(),
-                "HEALTHY", 0, USER_ID, Instant.now(), Instant.now());
+                id, TENANT_ID, PLUGIN_VERSION_ID, "acme-crm-sync", "Acme CRM Sync", "1.0.0",
+                enabled, List.of(), "HEALTHY", 0, List.of(), List.of(), USER_ID, Instant.now(), Instant.now());
     }
 
     // =========================================================================

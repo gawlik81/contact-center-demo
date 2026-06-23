@@ -1,7 +1,11 @@
 package com.contactcenter.domain.plugin;
 
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.plugin.dto.ManualActionDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
+import com.contactcenter.domain.plugin.dto.UiPanelDto;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,11 +14,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 class PluginRegistrationServiceImpl implements PluginRegistrationService {
+
+    // FAIL_ON_UNKNOWN_PROPERTIES wyłączone — manifest.uiPanels niesie pole "sandbox" (konsumowane
+    // przez FE-099 cc-plugin-panel-host, nie przez ten DTO, patrz Javadoc UiPanelDto), które
+    // convertValue inaczej odrzuciłby jako nierozpoznaną właściwość rekordu UiPanelDto.
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     private final TenantPluginInstallationRepository installationRepository;
     private final PluginVersionRepository pluginVersionRepository;
@@ -53,7 +64,7 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
         log.info("[PluginRegistrationService] Instalacja utworzona: id={}, tenant={}, pluginVersion={}, permissions={}",
                 saved.getId(), tenantId, pluginVersionId, grantedIntersection);
 
-        return mapToDto(saved);
+        return mapToDto(saved, pluginVersion);
     }
 
     @Override
@@ -75,8 +86,22 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
     public List<TenantPluginInstallationDto> listInstallations(UUID tenantId) {
         log.debug("[PluginRegistrationService] listInstallations: tenant={}", tenantId);
 
-        return installationRepository.findAllByTenantId(tenantId).stream()
-                .map(this::mapToDto)
+        List<TenantPluginInstallation> installations = installationRepository.findAllByTenantId(tenantId);
+        if (installations.isEmpty()) {
+            return List.of();
+        }
+
+        // Batch fetch wersji (+ Plugin, EAGER @ManyToOne) zamiast N+1 — jedno zapytanie
+        // findAllById dla wszystkich pluginVersionId z listy, niezależnie od liczby instalacji.
+        List<UUID> pluginVersionIds = installations.stream()
+                .map(TenantPluginInstallation::getPluginVersionId)
+                .distinct()
+                .toList();
+        Map<UUID, PluginVersion> versionsById = pluginVersionRepository.findAllById(pluginVersionIds).stream()
+                .collect(Collectors.toMap(PluginVersion::getId, v -> v));
+
+        return installations.stream()
+                .map(i -> mapToDto(i, versionsById.get(i.getPluginVersionId())))
                 .toList();
     }
 
@@ -85,9 +110,11 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
     public TenantPluginInstallationDto getInstallation(UUID tenantId, UUID installationId) {
         log.debug("[PluginRegistrationService] getInstallation: tenant={}, installation={}", tenantId, installationId);
 
-        return installationRepository.findByIdAndTenantId(installationId, tenantId)
-                .map(this::mapToDto)
+        TenantPluginInstallation installation = installationRepository.findByIdAndTenantId(installationId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Instalacja nie istnieje: " + installationId));
+
+        PluginVersion pluginVersion = findPluginVersionOrNull(installation.getPluginVersionId());
+        return mapToDto(installation, pluginVersion);
     }
 
     @Override
@@ -114,7 +141,8 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
                 tenantId, currentInstallationId, targetInstallationId);
 
         target.setEnabled(true);
-        return mapToDto(target);
+        PluginVersion targetPluginVersion = findPluginVersionOrNull(target.getPluginVersionId());
+        return mapToDto(target, targetPluginVersion);
     }
 
     @Override
@@ -193,18 +221,93 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
                 .toList();
     }
 
-    private TenantPluginInstallationDto mapToDto(TenantPluginInstallation i) {
+    /**
+     * Dociąga {@link PluginVersion} (+ {@link Plugin}, EAGER {@code @ManyToOne}) dla wzbogacenia
+     * {@link TenantPluginInstallationDto} (FE-097). {@code null} gdy wersja została fizycznie
+     * usunięta (nie powinno się zdarzyć — {@code PluginVersion} nigdy nie jest usuwana, tylko
+     * REVOKED — ale {@code mapToDto} musi pozostać defensywny, nie rzucać 500 dla samego
+     * wzbogacenia odpowiedzi).
+     */
+    private PluginVersion findPluginVersionOrNull(UUID pluginVersionId) {
+        return pluginVersionRepository.findById(pluginVersionId).orElse(null);
+    }
+
+    /**
+     * Mapuje encję instalacji + jej wersję pluginu (może być {@code null}, patrz
+     * {@link #findPluginVersionOrNull}) na DTO wzbogacony o {@code pluginKey}/{@code displayName}/
+     * {@code version}/{@code manualActions}/{@code uiPanels} z manifestu (FE-097, EPIC-28).
+     */
+    private TenantPluginInstallationDto mapToDto(TenantPluginInstallation i, PluginVersion pluginVersion) {
+        String pluginKey = null;
+        String displayName = null;
+        String version = null;
+        List<ManualActionDto> manualActions = List.of();
+        List<UiPanelDto> uiPanels = List.of();
+
+        if (pluginVersion != null) {
+            version = pluginVersion.getVersion();
+            Plugin plugin = pluginVersion.getPlugin();
+            if (plugin != null) {
+                pluginKey = plugin.getPluginKey();
+                displayName = plugin.getDisplayName();
+            }
+            manualActions = extractManualActions(pluginVersion);
+            uiPanels = extractUiPanels(pluginVersion);
+        }
+
         return new TenantPluginInstallationDto(
                 i.getId(),
                 i.getTenantId(),
                 i.getPluginVersionId(),
+                pluginKey,
+                displayName,
+                version,
                 i.isEnabled(),
                 i.getGrantedPermissions(),
                 i.getHealthStatus(),
                 i.getConsecutiveFailureCount(),
+                manualActions,
+                uiPanels,
                 i.getInstalledByUserId(),
                 i.getInstalledAt(),
                 i.getUpdatedAt()
         );
+    }
+
+    /**
+     * Wyciąga listę {@code manualActions} z {@code PluginVersion.manifestJson} (zapisanej przez
+     * {@code PluginStorageServiceImpl#manifestToMap}, FE-097).
+     *
+     * @return lista akcji manualnych z manifestu, lub pusta lista gdy pole nie istnieje/jest złego typu
+     */
+    private List<ManualActionDto> extractManualActions(PluginVersion pluginVersion) {
+        return extractManifestList(pluginVersion, "manualActions", ManualActionDto.class);
+    }
+
+    /**
+     * Wyciąga listę {@code uiPanels} z {@code PluginVersion.manifestJson} (zapisanej przez
+     * {@code PluginStorageServiceImpl#manifestToMap}, FE-097). Manifest niesie też pole
+     * {@code sandbox}, świadomie odrzucone przy konwersji na {@link UiPanelDto} — {@link #OBJECT_MAPPER}
+     * ma jawnie wyłączone {@code FAIL_ON_UNKNOWN_PROPERTIES}, inaczej Jackson domyślnie rzuca
+     * wyjątek dla nierozpoznanej właściwości przy {@code convertValue} na rekord.
+     */
+    private List<UiPanelDto> extractUiPanels(PluginVersion pluginVersion) {
+        return extractManifestList(pluginVersion, "uiPanels", UiPanelDto.class);
+    }
+
+    private <T> List<T> extractManifestList(PluginVersion pluginVersion, String fieldName, Class<T> targetType) {
+        Map<String, Object> manifest = pluginVersion.getManifestJson();
+        if (manifest == null) {
+            return List.of();
+        }
+
+        Object rawValue = manifest.get(fieldName);
+        if (!(rawValue instanceof List<?> rawList)) {
+            return List.of();
+        }
+
+        return rawList.stream()
+                .map(item -> OBJECT_MAPPER.convertValue(item, targetType))
+                .toList();
     }
 }

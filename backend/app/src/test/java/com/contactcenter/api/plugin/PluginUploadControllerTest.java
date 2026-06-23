@@ -80,8 +80,8 @@ class PluginUploadControllerTest {
             MockMultipartFile file = validJarFile();
             ValidationResult validated = ValidationResult.validated();
             PluginVersionDto expectedDto = new PluginVersionDto(
-                    UUID.randomUUID(), UUID.randomUUID(), "acme-crm-sync", "1.3.0", "1.x",
-                    "VALIDATED", List.of(), UPLOADED_BY, Instant.now());
+                    UUID.randomUUID(), UUID.randomUUID(), "acme-crm-sync", "Acme CRM Sync", "Acme Sp. z o.o.",
+                    "1.3.0", "1.x", "VALIDATED", List.of(), UPLOADED_BY, Instant.now());
 
             when(pluginValidationService.validate(file.getBytes(), UPLOADED_BY)).thenReturn(validated);
             when(pluginStorageService.storeValidatedJar(file.getBytes(), file.getOriginalFilename(),
@@ -140,8 +140,8 @@ class PluginUploadControllerTest {
             MockMultipartFile file = validJarFile();
             ValidationResult validated = ValidationResult.validated();
             PluginVersionDto dto = new PluginVersionDto(
-                    UUID.randomUUID(), UUID.randomUUID(), "acme-crm-sync", "1.3.0", "1.x",
-                    "VALIDATED", List.of(), UPLOADED_BY, Instant.now());
+                    UUID.randomUUID(), UUID.randomUUID(), "acme-crm-sync", "Acme CRM Sync", "Acme Sp. z o.o.",
+                    "1.3.0", "1.x", "VALIDATED", List.of(), UPLOADED_BY, Instant.now());
 
             when(pluginValidationService.validate(any(), eq(UPLOADED_BY))).thenReturn(validated);
             when(pluginStorageService.storeValidatedJar(any(), any(), any(), eq(UPLOADED_BY))).thenReturn(dto);

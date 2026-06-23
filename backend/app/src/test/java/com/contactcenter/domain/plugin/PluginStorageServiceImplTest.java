@@ -100,6 +100,8 @@ class PluginStorageServiceImplTest {
                 validationResult, UPLOADED_BY);
 
         assertThat(dto.pluginKey()).isEqualTo("acme-crm-sync");
+        assertThat(dto.displayName()).isEqualTo("Acme CRM Sync");
+        assertThat(dto.vendor()).isEqualTo("Acme Sp. z o.o.");
         assertThat(dto.version()).isEqualTo("1.3.0");
         assertThat(dto.sdkVersion()).isEqualTo("1.x");
         assertThat(dto.status()).isEqualTo("VALIDATED");
@@ -119,6 +121,28 @@ class PluginStorageServiceImplTest {
         assertThat(savedVersion.getJarObjectKey()).isEqualTo("plugins/acme-crm-sync/1.3.0/acme-crm-sync-1.3.0.jar");
         assertThat(savedVersion.getStatus()).isEqualTo(PluginVersion.PluginVersionStatus.VALIDATED);
         assertThat(savedVersion.getManifestJson()).containsEntry("pluginKey", "acme-crm-sync");
+    }
+
+    @Test
+    @DisplayName("FE-097: manifestJson zapisany w PluginVersion zawiera uiPanels/manualActions "
+            + "(normalizowane do pustej listy, gdy manifest nie deklaruje żadnych)")
+    void manifestJsonContainsEmptyUiPanelsAndManualActionsWhenAbsentFromManifest() {
+        byte[] jarBytes = buildValidJar();
+        ValidationResult validationResult = ValidationResult.validated();
+
+        when(pluginRepository.findByPluginKey("acme-crm-sync")).thenReturn(Optional.empty());
+        when(pluginRepository.save(any(Plugin.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(pluginVersionRepository.save(any(PluginVersion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenReturn(PutObjectResponse.builder().build());
+
+        service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, UPLOADED_BY);
+
+        ArgumentCaptor<PluginVersion> versionCaptor = ArgumentCaptor.forClass(PluginVersion.class);
+        verify(pluginVersionRepository).save(versionCaptor.capture());
+        assertThat(versionCaptor.getValue().getManifestJson())
+                .containsEntry("uiPanels", List.of())
+                .containsEntry("manualActions", List.of());
     }
 
     @Test

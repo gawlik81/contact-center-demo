@@ -5595,6 +5595,22 @@ POST   /api/admin/plugins/versions/{pluginVersionId}/revoke         → 200 (sta
 - [x] Rola tenant `SUPERVISOR` → `403` na endpoincie `/api/admin/plugins/**` (deklaratywnie `@PreAuthorize("hasRole('ADMIN')")` + `SecurityConfig` `/api/admin/**`; patrz known limitation wyżej — to jest rola tenantowa ADMIN, nie systemowa)
 - [x] `mvn verify -pl app` przechodzi (1299 testów, 0 failures, 0 errors)
 
+**Aktualizacja kontraktu DTO (2026-06-22, na potrzeby FE-097, bez zmiany ticketu — wykonane
+ad-hoc po wykryciu niezgodności kontraktu frontend/backend):** `PluginVersionDto` wzbogacony o
+`displayName`/`vendor` (z `Plugin`); `TenantPluginInstallationDto` wzbogacony o `pluginKey`,
+`displayName`, `version` (semver `PluginVersion`, NIE pomylić z `pluginVersionId`),
+`manualActions: List<ManualActionDto>`, `uiPanels: List<UiPanelDto>` (nowe publiczne rekordy w
+`dto/`, bez pola `sandbox` — model TS `UiPanelDef` z FE-097 go nie ma). Dane pochodzą z
+`PluginVersion.manifestJson`; `PluginStorageServiceImpl#manifestToMap` zostało poprawione, żeby
+faktycznie zapisywać `uiPanels`/`manualActions` do `manifestJson` — wcześniej te pola manifestu
+były odczytywane do `PluginManifest` (rekord), ale gubione przy serializacji do JSONB. URL-e i
+metody HTTP endpointów BEZ zmian — wyłącznie wzbogacenie ciała odpowiedzi już istniejących
+endpointów (`POST/GET /api/supervisor/plugins`, install/enable/disable/rollback/uninstall).
+`PluginRegistrationServiceImpl#mapToDto` dociąga `PluginVersion`+`Plugin` (batch `findAllById`
+w `listInstallations`, zamiast N+1; pojedynczy `findById` w `install`/`getInstallation`/`rollback`,
+gdzie wersja jest i tak potrzebna do innej logiki). `mvn verify -pl app`: 1350 testów, 0 failures,
+0 errors.
+
 ---
 
 ### BE-107 – Serwowanie `plugin-ui/` assetów + manual-action proxy endpoint dla iframe

@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-class PluginInvocationExecutor {
+class PluginInvocationExecutorConfig {
 
     private final PluginInvocationProperties properties;
 

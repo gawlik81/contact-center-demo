@@ -448,7 +448,15 @@
       "Bash(xargs -I{} echo {})",
       "Bash(jobs)",
       "Bash(echo \"exit grep: $?\")",
-      "Bash(awk -F'[ ,]+' '{tests+=$3; fail+=$5; err+=$7; skip+=$9} END {print \"Tests run:\",tests,\" Failures:\",fail,\" Errors:\",err,\" Skipped:\",skip}')"
+      "Bash(awk -F'[ ,]+' '{tests+=$3; fail+=$5; err+=$7; skip+=$9} END {print \"Tests run:\",tests,\" Failures:\",fail,\" Errors:\",err,\" Skipped:\",skip}')",
+      "Bash(java -cp target/classes com.acme.contactcenter.plugin.googlelookup.tooling.ChecksumTool target/customer-google-lookup-plugin-1.0.0.jar)",
+      "Bash(rm -rf jardiff1 jardiff2)",
+      "Bash(mkdir jardiff1 *)",
+      "Bash(cp target/customer-google-lookup-plugin-1.0.0.jar /tmp/build_a.jar)",
+      "Bash(grep -rln \"encryption\" app/src/main/resources app/src/test/resources)",
+      "Bash(grep -rn \"encryption\" app/src/main/resources/application*.yml app/src/test/resources/application*.yml)",
+      "Bash(xargs -n1 basename)",
+      "Skill(code-review)"
     ]
   }
 }

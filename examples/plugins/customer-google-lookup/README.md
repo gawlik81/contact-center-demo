@@ -82,32 +82,38 @@ więc checksum z kroku 2 wciąż jest poprawny). Wynikowy plik:
 
 ---
 
-## ⚠️ Znane ograniczenie: brak UI/API do ustawienia `installation_config`
+## Konfiguracja: klucze Google Custom Search
 
-Ten plugin wymaga dwóch wartości konfiguracyjnych tenanta (klucz API Google Custom Search i
-identyfikator Custom Search Engine, `cx`) odczytywanych przez `PluginContext.config()`. **W
-chwili pisania tego przykładu backend nie eksponuje żadnego endpointu REST do ustawienia
-`tenant_plugin_installation.installation_config`** —
-`PluginRegistrationServiceImpl.install()` na trwałe ustawia tę kolumnę na `null`
-(`installation.setInstallationConfig(null)`), a żaden inny serwis jej nie modyfikuje. To
-oznacza, że `onActivate()` tego pluginu **zawsze rzuci** `IllegalStateException` przy próbie
-`enable`, dopóki ta funkcjonalność nie zostanie dodana do backendu (np. nowy endpoint
-`PATCH /api/supervisor/plugins/installations/{id}/config` + pole w dialogu instalacji we
-froncie).
+Ten plugin wymaga dwóch wartości konfiguracyjnych tenanta, odczytywanych przez
+`PluginContext.config()`: `googleApiKey` (klucz API) i `googleSearchEngineId` (parametr `cx`).
+Ustaw je **po** instalacji, **przed** `enable`:
 
-**Tymczasowy sposób przetestowania lokalnie** (tylko środowisko dev, nie produkcja): ustaw
-kolumnę ręcznie w bazie po instalacji, przed `enable`:
+```http
+PATCH /api/supervisor/plugins/installations/{installationId}/config
+Content-Type: application/json
+Authorization: Bearer <JWT supervisora/admina>
 
-```sql
-UPDATE tenant_plugin_installation
-SET installation_config = '{"googleApiKey": "TWÓJ_KLUCZ_API", "googleSearchEngineId": "TWOJE_CX"}'
-WHERE id = '<installationId>';
+{
+  "config": {
+    "googleApiKey": "TWÓJ_KLUCZ_API",
+    "googleSearchEngineId": "TWOJE_CX"
+  }
+}
 ```
 
-Jak uzyskać te wartości: [Google Custom Search JSON API](https://developers.google.com/custom-search/v1/overview)
+Wartość jest szyfrowana po stronie backendu (AES-256-GCM, ten sam wzorzec co
+`tenant_ai_config`/`tenant_twilio_config`) — nigdy nie wraca w żadnej odpowiedzi API, więc nie
+ma sposobu odczytać już zapisany klucz przez REST (tylko nadpisać nowym wywołaniem `PATCH`,
+semantyka REPLACE — pełen zestaw kluczy zastępowany przy każdym wywołaniu).
+
+Jak uzyskać wartości: [Google Custom Search JSON API](https://developers.google.com/custom-search/v1/overview)
 (klucz API z Google Cloud Console) i [Programmable Search Engine](https://programmablesearchengine.google.com/)
 (identyfikator `cx` Twojej wyszukiwarki — skonfiguruj ją do przeszukiwania całego internetu,
 nie konkretnej domeny).
+
+> Brak jeszcze pola do tego w dialogu instalacji panelu supervisora (`/supervisor/settings/plugins`,
+> FE-098) — na razie wywołaj `PATCH` bezpośrednio (np. przez Swagger UI lub `curl`/Postman).
+> Dodanie pola konfiguracji do UI to naturalny follow-up frontendowy.
 
 ---
 

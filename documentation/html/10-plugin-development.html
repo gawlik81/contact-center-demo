@@ -465,6 +465,11 @@ success&quot; — brak pełnego half-open state).</p>
 <td>Uninstall — fizyczny <code>DELETE</code> wiersza (log wywołań przetrwa, FK <code>SET NULL</code>)</td>
 </tr>
 <tr>
+<td><code>PATCH /api/supervisor/plugins/installations/{id}/config</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>Ustawia <code>installation_config</code> (sekrety tenanta, np. klucze API) — <strong>REPLACE</strong> całego zestawu, szyfrowane AES-256-GCM w bazie, nigdy nie zwracane w odpowiedzi</td>
+</tr>
+<tr>
 <td><code>GET /api/supervisor/plugins/{installationId}/invocations</code></td>
 <td>SUPERVISOR/ADMIN</td>
 <td>Historia wywołań, paginowana, filtr po <code>status</code></td>
@@ -565,6 +570,15 @@ infrastruktury (DNS/reverse proxy) poza zakresem backendu — patrz <code>TASKS-
 </ul>
 <hr>
 <h2>10. Minimalny przykład end-to-end</h2>
+<blockquote>
+<p><strong>Pełny, działający przykład</strong> (skompilowany, zweryfikowany przez realny
+<code>PluginValidationService</code> z wynikiem <code>VALIDATED</code>) znajduje się w
+<a href="../examples/plugins/customer-google-lookup/"><code>examples/plugins/customer-google-lookup/</code></a> —
+panel boczny agenta aktywowany podczas rozmowy, prezentujący wyniki Google Custom Search dla
+bieżącego klienta. Ten rozdział pokazuje skróconą wersję tego samego mechanizmu; pełny kod,
+instrukcje budowy (włącznie z dwuetapową procedurą liczenia <code>checksumSha256</code>) i znane
+ograniczenie (brak UI do ustawienia <code>installation_config</code>) są w <code>README.md</code> tego przykładu.</p>
+</blockquote>
 <p>Struktura projektu pluginu (Maven, niezależny od tego repozytorium):</p>
 <pre><code>acme-crm-sync/
   pom.xml

@@ -328,6 +328,7 @@ success" — brak pełnego half-open state).
 | `POST /api/supervisor/plugins/installations/{id}/disable` | SUPERVISOR/ADMIN | Dezaktywacja — `PluginRegistry` aktualizowany natychmiast |
 | `POST /api/supervisor/plugins/installations/{id}/rollback/{targetId}` | SUPERVISOR/ADMIN | Atomowe przełączenie `enabled` między dwiema instalacjami |
 | `DELETE /api/supervisor/plugins/installations/{id}` | SUPERVISOR/ADMIN | Uninstall — fizyczny `DELETE` wiersza (log wywołań przetrwa, FK `SET NULL`) |
+| `PATCH /api/supervisor/plugins/installations/{id}/config` | SUPERVISOR/ADMIN | Ustawia `installation_config` (sekrety tenanta, np. klucze API) — **REPLACE** całego zestawu, szyfrowane AES-256-GCM w bazie, nigdy nie zwracane w odpowiedzi |
 | `GET /api/supervisor/plugins/{installationId}/invocations` | SUPERVISOR/ADMIN | Historia wywołań, paginowana, filtr po `status` |
 | `GET /api/agent/plugins` | AGENT/SUPERVISOR/ADMIN | Lista instalacji **tylko `enabled=true`** — używana przez pulpit agenta |
 | `POST /api/agent/plugins/{installationId}/manual-action/{actionId}` | AGENT/SUPERVISOR/ADMIN | Wywołanie `MANUAL_ACTION`; `504` przy przekroczeniu budżetu, `403` gdy instalacja disabled/`DISABLED_BY_ADMIN`/`REVOKED` |
@@ -423,6 +424,14 @@ ograniczeń **aktualnie obecnych w kodzie** (nie tylko teoretycznych):
 ---
 
 ## 10. Minimalny przykład end-to-end
+
+> **Pełny, działający przykład** (skompilowany, zweryfikowany przez realny
+> `PluginValidationService` z wynikiem `VALIDATED`) znajduje się w
+> [`examples/plugins/customer-google-lookup/`](../examples/plugins/customer-google-lookup/) —
+> panel boczny agenta aktywowany podczas rozmowy, prezentujący wyniki Google Custom Search dla
+> bieżącego klienta. Ten rozdział pokazuje skróconą wersję tego samego mechanizmu; pełny kod,
+> instrukcje budowy (włącznie z dwuetapową procedurą liczenia `checksumSha256`) i znane
+> ograniczenie (brak UI do ustawienia `installation_config`) są w `README.md` tego przykładu.
 
 Struktura projektu pluginu (Maven, niezależny od tego repozytorium):
 

@@ -5611,6 +5611,17 @@ w `listInstallations`, zamiast N+1; pojedynczy `findById` w `install`/`getInstal
 gdzie wersja jest i tak potrzebna do innej logiki). `mvn verify -pl app`: 1350 testów, 0 failures,
 0 errors.
 
+**Kolejna poprawka kontraktu (2026-06-23, na potrzeby FE-098, ta sama zasada co wyżej —
+rozszerzenie backendu zamiast workaroundu na frontendzie):** `PluginVersionDto` wzbogacony o
+`permissions: List<String>` — uprawnienia z manifestu (np. `"customer:read"`), potrzebne do
+dialogu instalacji FE-098 (checkboxy `grantedPermissions` do zatwierdzenia przez admina).
+`PluginManifest.permissions()` był już parsowany i zapisywany do `manifestJson` (BE-099), ale
+NIE był przekazywany do `PluginVersionDto` — `PluginStorageServiceImpl#toDto` przyjmował tylko
+`pluginKey: String`, teraz przyjmuje cały `PluginManifest` (niesie też `pluginKey()`, więc
+sygnatura jest prostsza, nie szersza). Bez dodatkowego parsowania `manifestJson` — `manifest`
+jest już w zasięgu w `storeValidatedJar` w momencie budowy DTO. `mvn verify -pl app`: 1350
+testów, 0 failures, 0 errors.
+
 ---
 
 ### BE-107 – Serwowanie `plugin-ui/` assetów + manual-action proxy endpoint dla iframe

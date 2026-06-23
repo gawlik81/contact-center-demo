@@ -107,6 +107,8 @@ class PluginStorageServiceImplTest {
         assertThat(dto.status()).isEqualTo("VALIDATED");
         assertThat(dto.uploadedByUserId()).isEqualTo(UPLOADED_BY);
         assertThat(dto.validationErrors()).isEmpty();
+        assertThat(dto.permissions())
+                .containsExactly("customer:read", "contact:read", "http:egress:api.acme-crm.example");
 
         ArgumentCaptor<Plugin> pluginCaptor = ArgumentCaptor.forClass(Plugin.class);
         verify(pluginRepository).save(pluginCaptor.capture());

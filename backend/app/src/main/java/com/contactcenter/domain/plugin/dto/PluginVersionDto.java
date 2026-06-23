@@ -20,6 +20,8 @@ import java.util.UUID;
  * @param sdkVersion         wersja SDK, względem której skompilowano plugin
  * @param status             status wersji (UPLOADED/VALIDATED/PENDING_REVIEW/REJECTED/REVOKED)
  * @param validationErrors   opisowe błędy walidacji (puste gdy status != REJECTED)
+ * @param permissions        deklarowane uprawnienia z manifestu (np. {@code "customer:read"}),
+ *                            do prezentacji w dialogu instalacji jako checkboxy {@code grantedPermissions} (FE-098)
  * @param uploadedByUserId   identyfikator użytkownika, który wgrał wersję
  * @param uploadedAt         znacznik czasu wgrania
  */
@@ -33,6 +35,7 @@ public record PluginVersionDto(
         String sdkVersion,
         String status,
         List<String> validationErrors,
+        List<String> permissions,
         UUID uploadedByUserId,
         Instant uploadedAt
 ) {

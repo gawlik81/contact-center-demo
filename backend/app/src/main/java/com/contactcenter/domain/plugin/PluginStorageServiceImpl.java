@@ -97,7 +97,7 @@ class PluginStorageServiceImpl implements PluginStorageService {
                         + "s3Key={}, uploadedBy={}",
                 manifest.pluginKey(), manifest.version(), versionStatus, s3Key, uploadedByUserId);
 
-        return toDto(pluginVersion, manifest.pluginKey());
+        return toDto(pluginVersion, manifest);
     }
 
     @Override
@@ -272,18 +272,19 @@ class PluginStorageServiceImpl implements PluginStorageService {
         };
     }
 
-    private PluginVersionDto toDto(PluginVersion pluginVersion, String pluginKey) {
+    private PluginVersionDto toDto(PluginVersion pluginVersion, PluginManifest manifest) {
         Plugin plugin = pluginVersion.getPlugin();
         return new PluginVersionDto(
                 pluginVersion.getId(),
                 plugin.getId(),
-                pluginKey,
+                manifest.pluginKey(),
                 plugin.getDisplayName(),
                 plugin.getVendor(),
                 pluginVersion.getVersion(),
                 pluginVersion.getSdkVersion(),
                 pluginVersion.getStatus().name(),
                 pluginVersion.getValidationErrors() != null ? pluginVersion.getValidationErrors() : List.of(),
+                manifest.permissions() != null ? manifest.permissions() : List.of(),
                 pluginVersion.getUploadedByUserId(),
                 pluginVersion.getUploadedAt()
         );

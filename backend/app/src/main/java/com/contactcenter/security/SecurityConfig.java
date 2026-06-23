@@ -116,6 +116,11 @@ public class SecurityConfig {
                 // EPIC-28 BE-107). Pliki statyczne, niesekretne, identyczne dla każdej instalacji
                 // tej samej wersji pluginu.
                 .requestMatchers("/plugin-assets/**").permitAll()
+                // PluginUiSdk – plik statyczny (resources/static/plugin-ui-sdk.js) wstrzykiwany
+                // przez deweloperów pluginów w plugin-ui/index.html; serwowany pod tym samym
+                // sandboxowanym iframe co /plugin-assets/**, bez JWT agenta (uzupełnienie
+                // kontraktu FE-099, EPIC-28 – plik nieprzewidziany w BE-107).
+                .requestMatchers("/plugin-ui-sdk.js").permitAll()
                 // WebSocket endpoint (SockJS) – publiczny (HTTP → WS upgrade); autentykacja przez JWT w STOMP CONNECT
                 .requestMatchers("/ws/**").permitAll()
                 // WebSocket endpoint (plain WS + STOMP, bez SockJS) – używany przez Angular Agent Desktop

@@ -187,7 +187,8 @@
     "breadcrumbNav": "Navigation path",
     "settingsTwilioConfig": "Twilio Integration",
     "settingsAiConfig": "AI Configuration",
-    "settingsDispositionSets": "Disposition Sets"
+    "settingsDispositionSets": "Disposition Sets",
+    "settingsPlugins": "Plugins"
   },
   "role": {
     "admin": "Admin",
@@ -2204,6 +2205,51 @@
         "successCreateItem": "Item added to set.",
         "successUpdateItem": "Set item updated.",
         "successDeleteItem": "Item removed from set."
+      },
+      "plugins": {
+        "pageTitle": "Plugins",
+        "pageSubtitle": "Upload and manage plugins that extend your tenant's functionality.",
+        "uploadTitle": "Upload new plugin",
+        "dropzoneText": "Drag a .jar file here or click to select",
+        "dropzoneHint": "Maximum size: 50 MB",
+        "dropzoneAriaLabel": "Plugin .jar upload area",
+        "uploading": "Uploading...",
+        "errorInvalidExtension": "The file must have a .jar extension.",
+        "errorTooLarge": "The file is too large (limit: 50 MB).",
+        "errorUpload": "Failed to upload the plugin file.",
+        "errorRejected": "The plugin was rejected by validation.",
+        "successUpload": "Plugin uploaded and validated successfully.",
+        "validationErrorsTitle": "Validation errors:",
+        "readyToInstall": "The plugin is ready to install.",
+        "statusLabel": "Status",
+        "installButton": "Install",
+        "installationsTitle": "Installed plugins",
+        "errorLoadInstallations": "Failed to load the list of installed plugins.",
+        "emptyInstallations": "No plugins installed yet. Upload a .jar file above to get started.",
+        "consecutiveFailures": "{{ count }} consecutive failures",
+        "enabledLabel": "Enabled",
+        "disabledLabel": "Disabled",
+        "enableAria": "Enable plugin {{ name }}",
+        "disableAria": "Disable plugin {{ name }}",
+        "errorToggle": "Failed to change the plugin state.",
+        "successEnabled": "Plugin enabled.",
+        "successDisabled": "Plugin disabled.",
+        "rollbackButton": "Roll back to previous version",
+        "errorRollback": "Failed to roll back the plugin to the previous version.",
+        "successRollback": "Plugin rolled back to the previous version.",
+        "uninstallButton": "Uninstall",
+        "confirmUninstall": "Are you sure you want to uninstall the plugin \"{{ name }}\"? This action cannot be undone.",
+        "errorUninstall": "Failed to uninstall the plugin.",
+        "successUninstall": "Plugin uninstalled.",
+        "installDialogTitle": "Install plugin",
+        "permissionsHint": "Select the permissions you want to grant this plugin:",
+        "noPermissions": "This plugin does not require any special permissions.",
+        "confirmInstallButton": "Confirm installation",
+        "health": {
+          "HEALTHY": "Healthy",
+          "DEGRADED": "Degraded",
+          "DISABLED_BY_ADMIN": "Disabled by admin"
+        }
       }
     },
     "reports": {

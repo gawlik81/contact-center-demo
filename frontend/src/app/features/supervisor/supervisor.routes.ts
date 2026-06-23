@@ -151,6 +151,15 @@ export const SUPERVISOR_ROUTES: Routes = [
             loadComponent: () =>
               import('./pages/ai-config/ai-config.component').then((m) => m.AiConfigComponent),
           },
+          {
+            path: 'plugins',
+            data: { breadcrumb: 'nav.settingsPlugins', roles: ['SUPERVISOR', 'ADMIN'] },
+            canActivate: [roleGuard],
+            loadComponent: () =>
+              import('./pages/settings/plugins/plugins-page.component').then(
+                (m) => m.PluginsPageComponent,
+              ),
+          },
         ],
       },
       {

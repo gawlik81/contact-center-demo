@@ -4956,7 +4956,7 @@ uninstall(installationId: string): Observable<void>                             
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** FE-097
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-099, BE-106
 **Blokuje:** —
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
@@ -4995,12 +4995,21 @@ frontend/src/app/features/supervisor/pages/settings/plugins/
 **Sidenav:** dodaj pozycję „Pluginy” w menu Ustawienia supervisora.
 
 **Kryteria akceptacji:**
-- [ ] Strona dostępna pod `/supervisor/settings/plugins`
-- [ ] Pozycja w menu Ustawienia supervisora
-- [ ] Upload JAR z obsługą `REJECTED` (lista błędów) i sukcesu (przycisk instalacji)
-- [ ] Lista instalacji z badge `healthStatus`
-- [ ] Enable/disable, rollback, uninstall z potwierdzeniem
-- [ ] `npm run lint` przechodzi
+- [x] Strona dostępna pod `/supervisor/settings/plugins`
+- [x] Pozycja w menu Ustawienia supervisora
+- [x] Upload JAR z obsługą `REJECTED` (lista błędów) i sukcesu (przycisk instalacji)
+- [x] Lista instalacji z badge `healthStatus`
+- [x] Enable/disable, rollback, uninstall z potwierdzeniem
+- [x] `npm run lint` przechodzi
+
+**Uwaga implementacyjna:** Backendowy `PluginVersionDto.java` zawierał już pole `permissions: List<String>`
+(z opisem przeznaczonym dla FE-098), ale frontendowy model `plugin.model.ts` z FE-097 go nie miał — model
+TS dopasowano do rzeczywistego kontraktu backendu przed budową dialogu instalacji. Dialog uninstall
+zrealizowany przez istniejący `ConfirmDialogComponent` (`shared/components/confirm-dialog/`), sterowany
+przez `@if` na sygnale `targetUninstall()`, a nie przez ręczne `showModal()`. Weryfikacja w przeglądarce
+NIE została wykonana — `cc-backend` w docker-compose nie publikuje portu na hosta (tylko sieć wewnętrzna
+compose) i środowisko nie ma narzędzia do automatyzacji przeglądarki; zweryfikowano `npm run build` (chunk
+`plugins-page-component` poprawnie wygenerowany, bez nowych błędów/warningów) i `npm run lint` (0 błędów).
 
 ---
 

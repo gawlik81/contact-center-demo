@@ -36,6 +36,12 @@ export interface PluginVersionDto {
   sdkVersion: string;
   status: PluginVersionStatus;
   validationErrors: string[] | null;
+  /**
+   * Uprawnienia deklarowane w manifeście pluginu (np. "customer:read"), do prezentacji
+   * w dialogu instalacji jako checkboxy `grantedPermissions` (FE-098). Dodane do backendowego
+   * `PluginVersionDto` po napisaniu FE-097 — patrz `PluginVersionDto.java`.
+   */
+  permissions: string[];
   uploadedByUserId: string;
   uploadedAt: string;
 }

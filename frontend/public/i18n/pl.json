@@ -187,7 +187,8 @@
     "breadcrumbNav": "Ścieżka nawigacji",
     "settingsTwilioConfig": "Integracja Twilio",
     "settingsAiConfig": "Konfiguracja AI",
-    "settingsDispositionSets": "Zestawy dyspozycji"
+    "settingsDispositionSets": "Zestawy dyspozycji",
+    "settingsPlugins": "Pluginy"
   },
   "role": {
     "admin": "Admin",
@@ -2204,6 +2205,51 @@
         "successCreateItem": "Element został dodany do zestawu.",
         "successUpdateItem": "Element zestawu został zaktualizowany.",
         "successDeleteItem": "Element został usunięty z zestawu."
+      },
+      "plugins": {
+        "pageTitle": "Pluginy",
+        "pageSubtitle": "Wgraj i zarządzaj pluginami rozszerzającymi funkcjonalność Twojego tenanta.",
+        "uploadTitle": "Wgraj nowy plugin",
+        "dropzoneText": "Przeciągnij plik .jar tutaj lub kliknij, aby wybrać",
+        "dropzoneHint": "Maksymalny rozmiar: 50 MB",
+        "dropzoneAriaLabel": "Obszar wgrywania pliku pluginu .jar",
+        "uploading": "Wgrywanie...",
+        "errorInvalidExtension": "Plik musi mieć rozszerzenie .jar.",
+        "errorTooLarge": "Plik jest zbyt duży (limit: 50 MB).",
+        "errorUpload": "Nie udało się wgrać pliku pluginu.",
+        "errorRejected": "Plugin został odrzucony przez walidację.",
+        "successUpload": "Plugin wgrany i zwalidowany pomyślnie.",
+        "validationErrorsTitle": "Błędy walidacji:",
+        "readyToInstall": "Plugin jest gotowy do instalacji.",
+        "statusLabel": "Status",
+        "installButton": "Zainstaluj",
+        "installationsTitle": "Zainstalowane pluginy",
+        "errorLoadInstallations": "Nie udało się załadować listy zainstalowanych pluginów.",
+        "emptyInstallations": "Brak zainstalowanych pluginów. Wgraj plik .jar powyżej, aby zacząć.",
+        "consecutiveFailures": "{{ count }} kolejnych błędów",
+        "enabledLabel": "Włączony",
+        "disabledLabel": "Wyłączony",
+        "enableAria": "Włącz plugin {{ name }}",
+        "disableAria": "Wyłącz plugin {{ name }}",
+        "errorToggle": "Nie udało się zmienić stanu pluginu.",
+        "successEnabled": "Plugin został włączony.",
+        "successDisabled": "Plugin został wyłączony.",
+        "rollbackButton": "Wycofaj do poprzedniej wersji",
+        "errorRollback": "Nie udało się wycofać pluginu do poprzedniej wersji.",
+        "successRollback": "Plugin wycofany do poprzedniej wersji.",
+        "uninstallButton": "Odinstaluj",
+        "confirmUninstall": "Czy na pewno chcesz odinstalować plugin \"{{ name }}\"? Operacja jest nieodwracalna.",
+        "errorUninstall": "Nie udało się odinstalować pluginu.",
+        "successUninstall": "Plugin został odinstalowany.",
+        "installDialogTitle": "Instalacja pluginu",
+        "permissionsHint": "Zaznacz uprawnienia, które chcesz przyznać temu pluginowi:",
+        "noPermissions": "Ten plugin nie wymaga żadnych specjalnych uprawnień.",
+        "confirmInstallButton": "Potwierdź instalację",
+        "health": {
+          "HEALTHY": "Zdrowy",
+          "DEGRADED": "Zdegradowany",
+          "DISABLED_BY_ADMIN": "Wyłączony przez administratora"
+        }
       }
     },
     "reports": {

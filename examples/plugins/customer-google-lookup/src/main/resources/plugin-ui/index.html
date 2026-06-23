@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer Google Lookup</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: .75rem;
+    font-size: .85rem;
+    color: #1a1a1a;
+  }
+  h2 { font-size: .95rem; margin: 0 0 .5rem; }
+  .result { border-bottom: 1px solid #e5e7eb; padding: .5rem 0; }
+  .result:last-child { border-bottom: none; }
+  .result a { color: #2563eb; text-decoration: none; font-weight: 600; word-break: break-word; }
+  .result a:hover { text-decoration: underline; }
+  .result p { margin: .25rem 0 0; color: #555; }
+  .status { color: #888; padding: .4rem 0; }
+  .status.error { color: #b91c1c; }
+  button {
+    margin-top: .6rem;
+    padding: .35rem .75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    font-size: .8rem;
+  }
+  button:hover { background: #f4f4f5; }
+  button:disabled { cursor: not-allowed; opacity: .6; }
+</style>
+</head>
+<body>
+  <h2>Wyniki Google</h2>
+  <div id="status" class="status">Wczytywanie…</div>
+  <div id="results"></div>
+  <button id="refresh" type="button" disabled>Szukaj ponownie</button>
+
+  <!--
+    Skrypt serwowany przez platformę (NIE przez ten JAR) — patrz
+    documentation/10-plugin-development.md, §8.4. Implementuje window.PluginUiSdk
+    (getContext/invokeManualAction/requestResize/notify) przez postMessage z hostem.
+  -->
+  <script src="/plugin-ui-sdk.js"></script>
+  <script>
+    var refreshButton = document.getElementById('refresh');
+    var statusEl = document.getElementById('status');
+    var resultsEl = document.getElementById('results');
+
+    function setStatus(text, isError) {
+      statusEl.textContent = text;
+      statusEl.className = isError ? 'status error' : 'status';
+    }
+
+    function renderResults(resultData) {
+      resultsEl.innerHTML = '';
+      if (!resultData || !resultData.results || resultData.results.length === 0) {
+        setStatus('Brak wyników dla zapytania: "' + (resultData ? resultData.query : '?') + '"', false);
+        return;
+      }
+      setStatus('Zapytanie: "' + resultData.query + '"', false);
+      resultData.results.forEach(function (item) {
+        var div = document.createElement('div');
+        div.className = 'result';
+
+        var link = document.createElement('a');
+        link.href = item.link;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = item.title;
+
+        var snippet = document.createElement('p');
+        snippet.textContent = item.snippet;
+
+        div.appendChild(link);
+        div.appendChild(snippet);
+        resultsEl.appendChild(div);
+      });
+    }
+
+    // PluginUiSdk.invokeManualAction(...) rozwiązuje Promise z całym ManualActionResponseDto
+    // hosta ({success, resultData, message, error}) — Promise jest "reject" tylko przy błędzie
+    // transportu/walidacji wiadomości postMessage, NIE przy logicznej porażce akcji pluginu
+    // (ta jest w polu .success/.error tego obiektu). Patrz §8.4 dokumentacji.
+    function search() {
+      refreshButton.disabled = true;
+      setStatus('Wyszukiwanie…', false);
+
+      window.PluginUiSdk.invokeManualAction('refresh-google-search', {})
+        .then(function (response) {
+          if (!response.success) {
+            setStatus(response.error || response.message || 'Nieznany błąd wyszukiwania.', true);
+            return;
+          }
+          renderResults(response.resultData);
+        })
+        .catch(function (err) {
+          setStatus('Wyszukiwanie nie powiodło się: ' + err.message, true);
+          window.PluginUiSdk.notify('Customer Google Lookup: ' + err.message, 'error');
+        })
+        .finally(function () {
+          refreshButton.disabled = false;
+          window.PluginUiSdk.requestResize(document.body.scrollHeight);
+        });
+    }
+
+    refreshButton.addEventListener('click', search);
+
+    // Aktywacja "podczas rozmowy": host montuje cc-plugin-panel-host tylko gdy panel jest
+    // widoczny w pulpicie agenta dla aktywnego kontaktu — moment załadowania tego dokumentu
+    // odpowiada więc trwającej rozmowie, dlatego wyszukujemy automatycznie, bez czekania na
+    // kliknięcie agenta.
+    search();
+  </script>
+</body>
+</html>

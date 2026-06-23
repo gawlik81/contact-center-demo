@@ -11,15 +11,15 @@ import java.util.Optional;
 
 /**
  * Implementacja {@link PluginConfig}, oparta o {@code TenantPluginInstallation.installationConfig}
- * (surowy JSON string, klucz/wartość ustawiane przez admina tenanta w UI).
+ * (klucz/wartość ustawiane przez admina tenanta w UI, {@code PluginRegistrationService#updateConfig},
+ * BE-108).
  *
- * <p><strong>Uwaga o szyfrowaniu:</strong> {@code installation_config} (V075, komentarz migracji)
- * jest zaplanowane do szyfrowania AES-256-GCM w późniejszym tickecie (wzorzec
- * {@code tenant_twilio_config}/{@code tenant_ai_config}) — w tym tickecie (BE-101) pole jest
- * jeszcze plain JSON (zob. {@code TenantPluginInstallation} Javadoc), więc ta klasa odczytuje
- * je bez deszyfrowania. Gdy szyfrowanie zostanie dodane, deszyfrowanie musi nastąpić PRZED
- * przekazaniem JSON-a do konstruktora tej klasy (host, nie plugin, widzi już odszyfrowane
- * wartości — kontrakt SDK, {@code PluginConfig} Javadoc w plugin-sdk).
+ * <p><strong>Uwaga o szyfrowaniu:</strong> w bazie {@code installation_config} (V075) jest
+ * zaszyfrowane AES-256-GCM, ale deszyfrowanie następuje WCZEŚNIEJ — w
+ * {@code TenantPluginInstallationRepository} przy odczycie wiersza. Ta klasa zawsze otrzymuje
+ * (przez konstruktor) już odszyfrowany plaintext JSON — host, nie plugin, widzi odszyfrowane
+ * wartości (kontrakt SDK, {@code PluginConfig} Javadoc w plugin-sdk); ta klasa sama nie wie
+ * nic o szyfrowaniu.
  */
 @Slf4j
 final class PluginConfigImpl implements PluginConfig {

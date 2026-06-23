@@ -3,6 +3,7 @@ package com.contactcenter.domain.plugin;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -143,4 +144,30 @@ public interface PluginRegistrationService {
      *         istnieje dla tego tenanta
      */
     void uninstall(UUID tenantId, UUID installationId);
+
+    /**
+     * Zastępuje (REPLACE, nie merge) konfigurację tenanta instalacji pluginu (BE-108) —
+     * np. API key zewnętrznego systemu wymagany przez plugin (przykład: {@code customer-google-lookup}).
+     *
+     * <p>Wartości {@code config} są zserializowane do plaintext JSON, zaszyfrowane AES-256-GCM
+     * (wzorzec {@code tenant_ai_config}/{@code tenant_twilio_config}, {@code EncryptedStringConverter})
+     * i zapisane w {@code tenant_plugin_installation.installation_config}. Ponieważ to repozytorium
+     * używa wyłącznie natywnego SQL (nie standardowego JPA repository), szyfrowanie/deszyfrowanie
+     * jest wołane ręcznie w {@link TenantPluginInstallationRepository} — {@code @Convert} na polu
+     * encji NIE zadziałałby tutaj (Hibernate aplikuje konwertery tylko przez JPQL/Criteria/
+     * {@code EntityManager.find}, nigdy przy ręcznym mapowaniu wierszy natywnego SQL).
+     *
+     * <p>Kolejny odczyt instalacji (np. przez {@code PluginCatalogQueryService}, używany przez
+     * {@code PluginRuntimeManagerImpl#load} do skonstruowania {@code PluginContext}) zwraca
+     * {@code installationConfig} już odszyfrowany (plaintext JSON) — deszyfrowanie następuje
+     * przy odczycie wiersza w repozytorium, nie w tym serwisie.
+     *
+     * @param tenantId      tenant-właściciel instalacji
+     * @param installationId instalacja, której konfiguracja jest zastępowana
+     * @param config        nowy, kompletny zestaw kluczy konfiguracji (może być pusta mapa —
+     *                       czyści całą dotychczasową konfigurację; nie może być {@code null})
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy instalacja nie
+     *         istnieje dla tego tenanta
+     */
+    void updateConfig(UUID tenantId, UUID installationId, Map<String, String> config);
 }

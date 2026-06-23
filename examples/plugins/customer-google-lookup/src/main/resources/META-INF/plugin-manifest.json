@@ -1,0 +1,27 @@
+{
+  "pluginKey": "customer-google-lookup",
+  "displayName": "Customer Google Lookup",
+  "version": "1.0.0",
+  "vendor": "Acme Sp. z o.o.",
+  "vendorContact": "support@acme.example",
+  "sdkVersion": "1.x",
+  "entryPointClass": "com.acme.contactcenter.plugin.googlelookup.CustomerGoogleLookupPlugin",
+  "extensionPoints": ["PRE_CONTACT_CONNECT", "MANUAL_ACTION"],
+  "permissions": ["customer:read", "http:egress:www.googleapis.com"],
+  "uiPanels": [
+    {
+      "panelId": "google-lookup-panel",
+      "mountPoint": "AGENT_DESKTOP_SIDE_PANEL",
+      "url": "classpath:/plugin-ui/index.html",
+      "sandbox": "allow-scripts"
+    }
+  ],
+  "manualActions": [
+    {
+      "actionId": "refresh-google-search",
+      "label": "Szukaj ponownie w Google",
+      "mountPoint": "AGENT_DESKTOP_TOOLBAR"
+    }
+  ],
+  "checksumSha256": "9b73013683fc88e9c4a4a309a09505b1188e2af4ccc4ca7bc04815f0a47b650a"
+}

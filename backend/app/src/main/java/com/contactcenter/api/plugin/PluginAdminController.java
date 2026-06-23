@@ -3,6 +3,7 @@ package com.contactcenter.api.plugin;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
 import com.contactcenter.domain.plugin.dto.InstallPluginRequest;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
+import com.contactcenter.domain.plugin.dto.UpdateInstallationConfigRequest;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
 import com.contactcenter.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +40,7 @@ import java.util.UUID;
  *   <li>POST   /api/supervisor/plugins/installations/{id}/disable           – wyłączenie (+ natychmiastowy unload runtime)</li>
  *   <li>POST   /api/supervisor/plugins/installations/{id}/rollback/{targetId} – rollback do starszej wersji</li>
  *   <li>DELETE /api/supervisor/plugins/installations/{id}                   – uninstall (DB + runtime)</li>
+ *   <li>PATCH  /api/supervisor/plugins/installations/{id}/config            – REPLACE konfiguracji (BE-108)</li>
  * </ul>
  *
  * <p>Ten kontroler łączy dwie warstwy, które same o sobie nie wiedzą:
@@ -293,5 +296,42 @@ public class PluginAdminController {
         pluginRegistrationService.uninstall(tenantId, id);
 
         return ResponseEntity.noContent().build();
+    }
+
+    // =========================================================================
+    // PATCH — config (REPLACE konfiguracji instalacji, BE-108)
+    // =========================================================================
+
+    @PatchMapping("/installations/{id}/config")
+    @Operation(
+            summary = "Zastępuje konfigurację instalacji pluginu",
+            description = """
+                    REPLACE całej konfiguracji — nie merge: każde wywołanie zastępuje cały
+                    dotychczasowy zestaw kluczy nową mapą `config` (brak wysłanego klucza =
+                    usunięcie go z konfiguracji). Wartości są szyfrowane (AES-256-GCM) przed
+                    zapisem do bazy i nigdy nie są zwracane przez żadne API — odpowiedź tego
+                    endpointu nie zawiera configu (sekrety nigdy nie wracają do frontendu).
+                    Przykład użycia: API key zewnętrznego systemu wymagany przez plugin
+                    (np. plugin customer-google-lookup).
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Konfiguracja zastąpiona"),
+                    @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)"),
+                    @ApiResponse(responseCode = "404", description = "Instalacja nie istnieje")
+            }
+    )
+    public ResponseEntity<Void> updateConfig(
+            @Parameter(description = "Identyfikator instalacji (tenant_plugin_installation.id)")
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateInstallationConfigRequest request
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        log.info("[PluginAdminController] PATCH /api/supervisor/plugins/installations/{}/config: tenant={}, keys={}",
+                id, tenantId, request.config().keySet());
+
+        pluginRegistrationService.updateConfig(tenantId, id, request.config());
+
+        return ResponseEntity.ok().build();
     }
 }

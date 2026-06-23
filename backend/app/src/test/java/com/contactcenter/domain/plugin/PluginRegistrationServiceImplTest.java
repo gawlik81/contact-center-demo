@@ -455,6 +455,66 @@ class PluginRegistrationServiceImplTest {
     }
 
     // =========================================================================
+    // updateConfig() (BE-108)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("updateConfig()")
+    class UpdateConfig {
+
+        @Test
+        @DisplayName("sukces: weryfikuje ownership, serializuje config do JSON i woła repo.updateInstallationConfig")
+        void updateConfig_existingInstallation_serializesAndDelegatesToRepository() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of())));
+
+            Map<String, String> config = Map.of("googleApiKey", "secret-value", "searchEngineId", "cx-1");
+            service.updateConfig(TENANT_ID, INSTALLATION_ID, config);
+
+            var captor = org.mockito.ArgumentCaptor.forClass(String.class);
+            verify(installationRepository).updateInstallationConfig(eq(INSTALLATION_ID), eq(TENANT_ID), captor.capture());
+
+            String serialized = captor.getValue();
+            assertThat(serialized).contains("googleApiKey", "secret-value", "searchEngineId", "cx-1");
+        }
+
+        @Test
+        @DisplayName("config=null traktowane jak pusta mapa (czyści konfigurację, brak NPE)")
+        void updateConfig_nullConfig_treatedAsEmptyMap() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of())));
+
+            service.updateConfig(TENANT_ID, INSTALLATION_ID, null);
+
+            verify(installationRepository).updateInstallationConfig(INSTALLATION_ID, TENANT_ID, "{}");
+        }
+
+        @Test
+        @DisplayName("instalacja nie istnieje dla tenanta → ResourceNotFoundException, brak zapisu")
+        void updateConfig_missingInstallation_throwsAndSkipsWrite() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.updateConfig(TENANT_ID, INSTALLATION_ID, Map.of("k", "v")))
+                    .isInstanceOf(ResourceNotFoundException.class);
+
+            verify(installationRepository, never()).updateInstallationConfig(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("instalacja innego tenanta jest niewidoczna (RLS) → ResourceNotFoundException")
+        void updateConfig_otherTenantInstallation_throwsResourceNotFoundException() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, OTHER_TENANT))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.updateConfig(OTHER_TENANT, INSTALLATION_ID, Map.of("k", "v")))
+                    .isInstanceOf(ResourceNotFoundException.class);
+
+            verify(installationRepository, never()).updateInstallationConfig(any(), any(), any());
+        }
+    }
+
+    // =========================================================================
     // Fixtures
     // =========================================================================
 

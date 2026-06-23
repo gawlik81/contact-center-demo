@@ -4,6 +4,7 @@ import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.plugin.dto.ManualActionDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.dto.UiPanelDto;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -180,9 +181,36 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
                 installationId, tenantId);
     }
 
+    @Override
+    @Transactional
+    public void updateConfig(UUID tenantId, UUID installationId, Map<String, String> config) {
+        log.debug("[PluginRegistrationService] updateConfig: tenant={}, installation={}, keys={}",
+                tenantId, installationId, config != null ? config.keySet() : Map.of().keySet());
+
+        // Weryfikacja ownership PRZED zapisem — 404 jednoznaczny, wzorzec identyczny jak setEnabled.
+        installationRepository.findByIdAndTenantId(installationId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Instalacja nie istnieje: " + installationId));
+
+        String plaintextConfigJson = writeConfigJson(config != null ? config : Map.of());
+        installationRepository.updateInstallationConfig(installationId, tenantId, plaintextConfigJson);
+
+        log.info("[PluginRegistrationService] Konfiguracja instalacji zastąpiona (REPLACE): "
+                        + "tenant={}, installation={}, keys={}",
+                tenantId, installationId, config != null ? config.keySet() : Map.of().keySet());
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
+
+    private static String writeConfigJson(Map<String, String> config) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(config);
+        } catch (JsonProcessingException e) {
+            log.error("[PluginRegistrationService] Błąd serializacji config do JSON: {}", e.getMessage());
+            throw new IllegalArgumentException("Nie można serializować config do JSON", e);
+        }
+    }
 
     private void setEnabled(UUID tenantId, UUID installationId, boolean enabled) {
         installationRepository.findByIdAndTenantId(installationId, tenantId)

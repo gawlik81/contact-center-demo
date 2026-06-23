@@ -1,6 +1,7 @@
 package com.contactcenter.domain.plugin;
 
 import com.contactcenter.domain.repository.TenantAwareRepository;
+import com.contactcenter.infrastructure.persistence.converter.EncryptedStringConverter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +13,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,6 +29,19 @@ import java.util.UUID;
  * w celu ustawienia kontekstu RLS w PostgreSQL. Każdy zapis poprzedzony jest
  * {@code assertSameTenant(entity.getTenantId())}.
  *
+ * <p><strong>Szyfrowanie {@code installation_config} (BE-108):</strong> ta klasa używa
+ * wyłącznie natywnego SQL (patrz wyżej), więc mechanizm JPA {@code @Convert} NIE działa
+ * tutaj — Hibernate aplikuje konwertery atrybutów tylko przy ładowaniu/zapisie przez
+ * JPQL/Criteria/{@code EntityManager.find}, nigdy przy ręcznym mapowaniu wierszy z natywnego
+ * SQL. Z tego powodu {@link TenantPluginInstallation#installationConfig} nie ma adnotacji
+ * {@code @Convert} (byłaby myląca — wyglądałaby jak działa, a nie działałaby w tym repo).
+ * Szyfrowanie/deszyfrowanie jest wołane RĘCZNIE: {@link #encryptInstallationConfig} przy
+ * zapisie ({@link #updateInstallationConfig}), {@link #decryptInstallationConfig} przy
+ * każdym odczycie wiersza ({@link #mapRow}). Format w kolumnie {@code jsonb}: ciphertext
+ * Base64 zawijany w obiekt JSON {@code {"encrypted": "<base64>"}} (nie goły skalar JSON) —
+ * pozwala to na zwykły {@code CAST(:json AS jsonb)} bez ręcznego escapingu cytowania przy
+ * odczycie przez {@code row[N].toString()}.
+ *
  * <p><strong>Widoczność package-private:</strong> dostępne wyłącznie wewnątrz pakietu
  * {@code domain.plugin}, przez {@link PluginRegistrationService}.
  */
@@ -36,6 +51,15 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {};
+
+    /** Klucz JSON pod którym przechowywany jest ciphertext Base64 w kolumnie {@code jsonb}. */
+    private static final String ENCRYPTED_JSON_KEY = "encrypted";
+
+    private final EncryptedStringConverter encryptedStringConverter;
+
+    TenantPluginInstallationRepository(EncryptedStringConverter encryptedStringConverter) {
+        this.encryptedStringConverter = encryptedStringConverter;
+    }
 
     // =========================================================================
     // Odczyt
@@ -156,7 +180,15 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
      * (translacja Spring na klasie oznaczonej {@code @Repository}) — mapowane globalnie
      * na HTTP 409 przez {@code GlobalExceptionHandler}.
      *
-     * @param installation encja do zapisania (id/installedAt/updatedAt mogą być null — ustawi je DB)
+     * @param installation encja do zapisania (id/installedAt/updatedAt mogą być null — ustawi je DB).
+     *                      {@code installationConfig}, jeśli ustawione, MUSI być plaintext JSON —
+     *                      ta metoda go szyfruje przed zapisem (tak jak {@link #updateInstallationConfig}),
+     *                      nigdy nie zapisuje surowej wartości encji 1:1 do kolumny (BE-108, finding
+     *                      code review: install() ustawia dziś zawsze {@code null}, ale ta metoda
+     *                      musi pozostać bezpieczna nawet jeśli to się zmieni w przyszłości — inaczej
+     *                      kolejny odczyt przez {@link #decryptInstallationConfig} rzuciłby
+     *                      {@code IllegalStateException}, bo wartość nie byłaby zawinięta w
+     *                      {@code {"encrypted": "..."}}).
      * @return zapisana encja z uzupełnionym id i timestamps
      */
     @Transactional
@@ -166,6 +198,8 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
 
         log.info("[TenantPluginInstallationRepo] INSERT instalacja: tenant={}, pluginVersion={}",
                 installation.getTenantId(), installation.getPluginVersionId());
+
+        String encryptedInstallationConfig = encryptInstallationConfig(installation.getInstallationConfig());
 
         @SuppressWarnings("unchecked")
         List<Object[]> rows = em.createNativeQuery("""
@@ -196,7 +230,7 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
                 .setParameter("grantedPermissions", writeJsonList(installation.getGrantedPermissions()))
                 .setParameter("healthStatus", installation.getHealthStatus())
                 .setParameter("consecutiveFailureCount", installation.getConsecutiveFailureCount())
-                .setParameter("installationConfig", installation.getInstallationConfig())
+                .setParameter("installationConfig", encryptedInstallationConfig)
                 .setParameter("installedByUserId",
                         installation.getInstalledByUserId() != null
                                 ? installation.getInstalledByUserId().toString() : null)
@@ -273,6 +307,39 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         return updated;
     }
 
+    /**
+     * Zapisuje (REPLACE) konfigurację instalacji — szyfruje JSON plaintext przekazany przez
+     * wołającego ({@link PluginRegistrationServiceImpl#updateConfig}, BE-108) i zapisuje
+     * ciphertext owinięty w {@code {"encrypted": "..."}} do kolumny {@code installation_config}.
+     *
+     * @param plaintextConfigJson plaintext JSON (mapa klucz→wartość) do zaszyfrowania i zapisania
+     * @return liczba zaktualizowanych wierszy (0 = instalacja nie istnieje dla tego tenanta)
+     */
+    @Transactional
+    int updateInstallationConfig(UUID id, UUID tenantId, String plaintextConfigJson) {
+        assertSameTenant(tenantId);
+        setTenantContextInDb(tenantId);
+
+        String encryptedJsonWrapper = encryptInstallationConfig(plaintextConfigJson);
+
+        int updated = em.createNativeQuery("""
+                UPDATE tenant_plugin_installation
+                SET installation_config = CAST(:installationConfig AS jsonb),
+                    updated_at          = NOW()
+                WHERE id        = CAST(:id AS uuid)
+                  AND tenant_id = CAST(:tenantId AS uuid)
+                """)
+                .setParameter("installationConfig", encryptedJsonWrapper)
+                .setParameter("id", id.toString())
+                .setParameter("tenantId", tenantId.toString())
+                .executeUpdate();
+
+        log.info("[TenantPluginInstallationRepo] UPDATE installation_config (zaszyfrowane): id={}, tenant={}, wierszy={}",
+                id, tenantId, updated);
+
+        return updated;
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
@@ -293,11 +360,68 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
         i.setGrantedPermissions(readJsonList(row[4] != null ? row[4].toString() : null));
         i.setHealthStatus(row[5].toString());
         i.setConsecutiveFailureCount(((Number) row[6]).intValue());
-        i.setInstallationConfig(row[7] != null ? row[7].toString() : null);
+        i.setInstallationConfig(decryptInstallationConfig(row[7]));
         i.setInstalledByUserId(row[8] != null ? UUID.fromString(row[8].toString()) : null);
         i.setInstalledAt(toInstant(row[9]));
         i.setUpdatedAt(toInstant(row[10]));
         return i;
+    }
+
+    /**
+     * Szyfruje plaintext JSON konfiguracji i zawija ciphertext Base64 w obiekt JSON
+     * {@code {"encrypted": "<base64>"}} — format kolumny {@code jsonb}, patrz Javadoc klasy.
+     *
+     * @param plaintextConfigJson plaintext JSON do zaszyfrowania ({@code null} → zapisuje SQL NULL)
+     * @return JSON do zapisania w kolumnie {@code installation_config}, lub {@code null}
+     */
+    private String encryptInstallationConfig(String plaintextConfigJson) {
+        if (plaintextConfigJson == null) {
+            return null;
+        }
+        String ciphertext = encryptedStringConverter.convertToDatabaseColumn(plaintextConfigJson);
+        try {
+            return OBJECT_MAPPER.writeValueAsString(Map.of(ENCRYPTED_JSON_KEY, ciphertext));
+        } catch (JsonProcessingException e) {
+            log.error("[TenantPluginInstallationRepo] Błąd serializacji wrappera szyfrowania installation_config: {}",
+                    e.getMessage());
+            throw new IllegalStateException("Nie można zserializować zaszyfrowanej konfiguracji instalacji", e);
+        }
+    }
+
+    /**
+     * Odszyfrowuje wartość kolumny {@code installation_config} odczytaną z wiersza natywnego SQL.
+     *
+     * <p>Rozpakowuje {@code {"encrypted": "<base64>"}}, deszyfruje ciphertext przez
+     * {@link EncryptedStringConverter#convertToEntityAttribute}, zwraca plaintext JSON. Wywoływane
+     * konsekwentnie we WSZYSTKICH metodach odczytu tego repozytorium ({@link #findByIdAndTenantId},
+     * {@link #findAllByTenantId}, {@link #findAllEnabledByPluginVersionIdForTenant}) przez
+     * wspólne {@link #mapRow} — jedno miejsce logiki deszyfrowania, bez duplikacji.
+     *
+     * @param rawValue surowa wartość kolumny {@code jsonb} z {@code row[7]} ({@code null} dopuszczalny)
+     * @return odszyfrowany plaintext JSON, lub {@code null} gdy kolumna jest {@code NULL}
+     */
+    private String decryptInstallationConfig(Object rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        String rawJson = rawValue.toString();
+        String ciphertext;
+        try {
+            Map<String, String> wrapper = OBJECT_MAPPER.readValue(rawJson,
+                    new TypeReference<Map<String, String>>() {});
+            ciphertext = wrapper.get(ENCRYPTED_JSON_KEY);
+        } catch (JsonProcessingException e) {
+            log.error("[TenantPluginInstallationRepo] installation_config nie jest poprawnym JSON-em "
+                    + "wrappera szyfrowania, nie można odszyfrować: {}", e.getMessage());
+            throw new IllegalStateException("Nieprawidłowy format zaszyfrowanej konfiguracji instalacji", e);
+        }
+        if (ciphertext == null) {
+            log.error("[TenantPluginInstallationRepo] installation_config nie zawiera klucza '{}' — "
+                    + "nieprawidłowy format wrappera szyfrowania", ENCRYPTED_JSON_KEY);
+            throw new IllegalStateException(
+                    "Zaszyfrowana konfiguracja instalacji nie zawiera klucza '" + ENCRYPTED_JSON_KEY + "'");
+        }
+        return encryptedStringConverter.convertToEntityAttribute(ciphertext);
     }
 
     private static String writeJsonList(List<String> values) {

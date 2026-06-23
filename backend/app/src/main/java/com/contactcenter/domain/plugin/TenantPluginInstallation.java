@@ -65,10 +65,18 @@ public class TenantPluginInstallation {
     private int consecutiveFailureCount;
 
     /**
-     * Konfiguracja tenanta (np. API key zewnętrznego CRM) — plain JSONB.
+     * Konfiguracja tenanta (np. API key zewnętrznego CRM/Google API, BE-108).
      *
-     * <p>Szyfrowanie AES-256-GCM jest zakresem późniejszego ticketu (zob. komentarz V075);
-     * na razie pole przechowywane jako surowy JSON string.
+     * <p><strong>Na tej encji (in-memory) zawsze plaintext JSON</strong> (mapa klucz→wartość) —
+     * w bazie kolumna {@code installation_config} przechowuje wartość zaszyfrowaną AES-256-GCM,
+     * zawiniętą w {@code {"encrypted": "<base64>"}}. Szyfrowanie przy zapisie i deszyfrowanie
+     * przy odczycie odbywa się RĘCZNIE w {@link TenantPluginInstallationRepository} (wołanie
+     * {@code EncryptedStringConverter} jako wstrzykiwalny bean) — <strong>brak adnotacji
+     * {@code @Convert}</strong> na tym polu jest zamierzone: repozytorium używa wyłącznie
+     * natywnego SQL, a Hibernate aplikuje konwertery atrybutów tylko przy ładowaniu/zapisie
+     * przez JPQL/Criteria/{@code EntityManager.find}, nigdy przy ręcznym mapowaniu wierszy
+     * natywnego SQL — dodanie {@code @Convert} tutaj nie zaszyfrowałoby/odszyfrowało niczego
+     * i byłoby mylące.
      */
     @Column(name = "installation_config", columnDefinition = "jsonb")
     private String installationConfig;

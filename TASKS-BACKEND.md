@@ -5622,6 +5622,63 @@ sygnatura jest prostsza, nie szersza). Bez dodatkowego parsowania `manifestJson`
 jest już w zasięgu w `storeValidatedJar` w momencie budowy DTO. `mvn verify -pl app`: 1350
 testów, 0 failures, 0 errors.
 
+**BE-108 — szyfrowana konfiguracja instalacji (`installation_config`), 2026-06-23.** Odkryte
+jako brakujący element EPIC-28 podczas pisania przykładowego pluginu
+(`examples/plugins/customer-google-lookup/`, integracja z zewnętrznym API wymagająca sekretu
+tenanta — Google API key). Do tego momentu `PluginRegistrationServiceImpl#install` na trwałe
+ustawiał `installation.setInstallationConfig(null)` — żaden endpoint nie zapisywał wartości do
+tej kolumny; pole na encji nie miało `@Convert`, bo `TenantPluginInstallationRepository` używa
+wyłącznie natywnego SQL (jak `CustomDispositionRepository`, EPIC-27) i Hibernate nie aplikuje
+konwerterów atrybutów przy ręcznym mapowaniu wierszy z natywnego SQL — `@Convert` na tym polu
+byłby martwym kodem.
+
+Nowy endpoint:
+```
+PATCH /api/supervisor/plugins/installations/{id}/config
+Body: { "config": { "klucz1": "wartość1", ... } }
+→ 200 (bez ciała), 404 jeśli instalacja nie istnieje dla tenanta
+```
+Semantyka REPLACE (nie merge) — każde wywołanie zastępuje cały dotychczasowy zestaw kluczy.
+`UpdateInstallationConfigRequest(Map<String,String> config)` w `domain/plugin/dto/`.
+`PluginRegistrationService#updateConfig(tenantId, installationId, config)` weryfikuje ownership
+(wzorzec identyczny jak `setEnabled`), serializuje `config` do plaintext JSON, deleguje
+szyfrowanie do repozytorium.
+
+**Jak działa szyfrowanie w tym konkretnym repozytorium (różni się od `TenantAiConfig`/
+`TenantTwilioConfig`, które używają standardowego Spring Data JPA + `@Convert`):**
+`EncryptedStringConverter` jest wstrzyknięty do `TenantPluginInstallationRepository` jako zwykły
+Spring bean (konstruktor, nie `@Convert`) i wołany RĘCZNIE — `encryptInstallationConfig()` przy
+zapisie (`updateInstallationConfig`, i też `insert()` — patrz finding code review niżej),
+`decryptInstallationConfig()` przy KAŻDYM odczycie wiersza, w jednym miejscu: prywatnej metodzie
+pomocniczej wołanej z `mapRow()` (więc automatycznie konsekwentnie we wszystkich query, które
+przechodzą przez `mapRow` — `findByIdAndTenantId`, `findAllByTenantId`,
+`findAllEnabledByPluginVersionIdForTenant` — bez duplikacji logiki). Format kolumny `jsonb`:
+ciphertext Base64 zawijany w obiekt JSON `{"encrypted": "<base64>"}` (nie goły skalar JSON) —
+pozwala na zwykły `CAST(:json AS jsonb)` przy zapisie i `row[N].toString()` + `ObjectMapper` przy
+odczycie, bez ręcznego escapingu cytowania. Encja `TenantPluginInstallation.installationConfig`
+niesie zawsze PLAINTEXT JSON in-memory (zarówno przed zapisem jak i po odczycie) — deszyfrowanie
+dzieje się najbliżej granicy repozytorium/SQL, nie w serwisie czy w `PluginRuntimeManagerImpl`/
+`PluginConfigImpl` (które nie wiedzą nic o szyfrowaniu — kontrakt SDK niezmieniony).
+
+**Finding code review (naprawiony przed merge):** pierwsza wersja `insert()` zapisywała
+`installation.getInstallationConfig()` 1:1 do kolumny bez przejścia przez
+`encryptInstallationConfig()` — latentny bug: dziś nieszkodliwy (`install()` zawsze ustawia
+`null`), ale gdyby ktoś w przyszłości ustawił initial config przy instalacji, zapisałby
+plaintext niezgodny z formatem `{"encrypted":...}` oczekiwanym przez `decryptInstallationConfig`,
+co przy kolejnym odczycie rzuciłoby `IllegalStateException` dla całej instalacji. Naprawione:
+`insert()` woła teraz `encryptInstallationConfig()` tak samo jak `updateInstallationConfig()`.
+Test regresyjny: `TenantPluginInstallationRepositoryTest$UpdateInstallationConfig
+.insert_withNonNullInstallationConfig_encryptsBeforeSaving`.
+
+Testy: `TenantPluginInstallationRepositoryTest` (round-trip szyfrowania na granicy SQL — realny
+`EncryptedStringConverter` z testowym kluczem, mock tylko `EntityManager`),
+`PluginRegistrationServiceImplTest$UpdateConfig` (ownership, REPLACE, null→`{}`),
+`PluginInstallationConfigEncryptionEndToEndTest` (łańcuch pełny: `updateConfig()` → repo →
+odczyt → `PluginConfigImpl.get()` zwraca odszyfrowane wartości; `PluginConfigTestAccessor` jako
+accessor testowy do package-private `PluginConfigImpl`). `config` nigdy nie trafia do
+`TenantPluginInstallationDto` (bez zmian — sekrety nie wracają przez API). `mvn verify -pl app`:
+1364 testy, 0 failures, 0 errors.
+
 ---
 
 ### BE-107 – Serwowanie `plugin-ui/` assetów + manual-action proxy endpoint dla iframe

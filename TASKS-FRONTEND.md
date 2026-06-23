@@ -4857,13 +4857,15 @@ pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwie
 **Priorytet:** Must Have
 **Złożoność:** S
 **Zależy od:** BE-099, BE-106
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-099, BE-106
 **Blokuje:** FE-098, FE-099
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
 
 **Opis:**
 Serwis i modele bazowe dla panelu administracyjnego pluginów. Brak logiki UI — czysta warstwa danych konsumowana przez FE-098/FE-099.
+
+**Uwaga implementacyjna:** Backendowe DTO zostały rozszerzone po napisaniu tego ticketu (`mvn verify -pl app` zweryfikowane zielone) — modele TS poniżej są dopasowane do RZECZYWISTYCH kontraktów (`PluginVersionDto.java`, `TenantPluginInstallationDto.java`, `ManualActionDto.java`, `UiPanelDto.java`), nie do literalnego zapisu ticketu z linii 4877-4924. Różnice: `PluginVersionDto` ma dodatkowo `vendor` i `sdkVersion`; `TenantPluginInstallationDto` ma dodatkowo `tenantId`, `installedByUserId`, `updatedAt`; `PluginVersionDto.uploadedByUserId` dodane. `UiPanelDef` świadomie BEZ pola `sandbox` (potwierdzone komentarzem w `UiPanelDto.java` — atrybut sandboxu iframe ustala host FE-099, nie API).
 
 **Lokalizacja:**
 ```
@@ -4885,8 +4887,10 @@ export interface PluginVersionDto {
   displayName: string;
   vendor: string;
   version: string;
+  sdkVersion: string;
   status: PluginVersionStatus;
   validationErrors: string[] | null;
+  uploadedByUserId: string;
   uploadedAt: string;
 }
 
@@ -4904,6 +4908,7 @@ export interface UiPanelDef {
 
 export interface TenantPluginInstallationDto {
   id: string;
+  tenantId: string;
   pluginVersionId: string;
   pluginKey: string;
   displayName: string;
@@ -4914,7 +4919,9 @@ export interface TenantPluginInstallationDto {
   consecutiveFailureCount: number;
   manualActions: ManualActionDef[];
   uiPanels: UiPanelDef[];
+  installedByUserId: string;
   installedAt: string;
+  updatedAt: string;
 }
 
 export interface InstallPluginRequest {
@@ -4922,6 +4929,7 @@ export interface InstallPluginRequest {
   grantedPermissions: string[];
 }
 ```
+(Modele rzeczywiście zaimplementowane — zgodne 1:1 z backendowymi DTO po rozszerzeniu kontraktu, patrz uwaga implementacyjna powyżej.)
 
 **`PluginAdminService` (`features/plugins/services/plugin-admin.service.ts`):**
 ```typescript
@@ -4935,10 +4943,10 @@ uninstall(installationId: string): Observable<void>                             
 ```
 
 **Kryteria akceptacji:**
-- [ ] Modele zgodne z kontraktami BE-099 (`PluginVersionDto`)/BE-106 (`TenantPluginInstallationDto`)
-- [ ] `uploadJar` wysyła `multipart/form-data` z polem `file`
-- [ ] Serwis `providedIn: 'root'`
-- [ ] `npm run lint` przechodzi
+- [x] Modele zgodne z kontraktami BE-099 (`PluginVersionDto`)/BE-106 (`TenantPluginInstallationDto`) — w wersji RZECZYWISTEJ, rozszerzonej względem literalnego zapisu ticketu
+- [x] `uploadJar` wysyła `multipart/form-data` z polem `file`
+- [x] Serwis `providedIn: 'root'`
+- [x] `npm run lint` przechodzi (0 błędów, 10 istniejących wcześniej warningów no-console niezwiązanych z FE-097)
 
 ---
 

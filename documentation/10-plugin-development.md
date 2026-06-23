@@ -1,0 +1,496 @@
+# Tworzenie pluginów (EPIC-28)
+
+> Dokument onboardingowy dla systemu rozszerzeń (pluginów) per tenant. Opisuje **stan
+> faktyczny implementacji** (kod, nie pierwotny plan) — pełny projekt architektoniczny i
+> uzasadnienia decyzji znajdują się w `ARCHITECTURE.md`, sekcja 11 (ADR-09…ADR-13,
+> RT-09…RT-14). Plan wykonania i lista ticketów: `EPIC-28-PLAN.md`.
+>
+> Audytorium tego dokumentu: (a) zespół platformy — jak działa mechanizm i jak go
+> rozwijać, (b) deweloperzy pluginów (wewnętrzni lub zewnętrzni dostawcy integracji) —
+> jak napisać, zbudować i wgrać plugin.
+
+---
+
+## 1. Czym jest plugin w tym systemie
+
+Plugin to plik **JAR**, wgrywany przez administratora tenanta z panelu (`/supervisor/settings/plugins`),
+który rozszerza zachowanie platformy w pięciu, z góry zdefiniowanych **punktach rozszerzeń**
+(extension points) — np. "tuż przed połączeniem agenta z kontaktem" albo "agent kliknął
+przycisk w toolbarze". Typowe zastosowanie: integracja z zewnętrznym CRM klienta — lookup
+danych przed połączeniem, synchronizacja klienta, zapis notatki po zakończeniu kontaktu.
+
+Kluczowe właściwości modelu (szczegóły w `ARCHITECTURE.md` §11.3):
+
+- **Katalog pluginów (`plugin`/`plugin_version`) jest globalny** — bez `tenant_id`, bez RLS.
+  Jeden wgrany JAR może być zainstalowany niezależnie przez wielu tenantów.
+- **Instalacja (`tenant_plugin_installation`) jest per tenant** — z RLS, z własnym zestawem
+  zatwierdzonych uprawnień (`granted_permissions`) i konfiguracją (`installation_config`).
+- **Izolacja wykonania: in-process, jeden dedykowany `ClassLoader` per `(tenant_id, plugin_key)`**
+  — w tym samym JVM co backend, nie osobny proces/kontener. To świadomy wybór z mitygacjami
+  warstwowymi, nie pełną sandboksacją (RT-10) — patrz [§9](#9-bezpieczeństwo-i-znane-ograniczenia).
+- **Żadnego dostępu do Springa/JPA** — plugin widzi wyłącznie interfejsy/DTO z modułu
+  `plugin-sdk`, nigdy encje, repozytoria czy `ApplicationContext`.
+
+---
+
+## 2. Moduł `plugin-sdk` — jedyna zależność deweloperska
+
+```
+backend/plugin-sdk/
+  pom.xml
+  src/main/java/com/contactcenter/pluginsdk/
+    PluginEntryPoint.java
+    PluginContext.java
+    HttpEgressClient.java
+    HttpResponse.java
+    PluginLogger.java
+    PluginConfig.java
+    model/
+      ContactEvent.java
+      ContactView.java
+      CustomerView.java
+      CustomerSyncRequest.java
+      CustomerSyncResult.java
+      DispositionEvent.java
+      ManualActionRequest.java
+      ManualActionResult.java
+      PreContactConnectResult.java
+```
+
+Koordynaty Maven:
+
+```xml
+<dependency>
+  <groupId>com.contactcenter</groupId>
+  <artifactId>contact-center-plugin-sdk</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <scope>provided</scope> <!-- nie pakuj SDK do własnego JAR-a -->
+</dependency>
+```
+
+Moduł **nie ma żadnych zależności** poza JDK 21 — zero `spring-*`, zero
+`jakarta.persistence.*`/`hibernate-*` (wymuszone i weryfikowane przez `mvn dependency:tree -pl plugin-sdk`
+w CI tego repo). Deweloper pluginu kompiluje swój kod z tym jednym, lekkim JAR-em jako
+zależnością — w runtime SDK jest dostarczany przez platformę (dedykowany `ClassLoader`
+pluginu ma dostęp tylko do pakietu `com.contactcenter.pluginsdk.*`), więc **nie pakuj
+klas SDK do własnego JAR-a** (`scope=provided`).
+
+---
+
+## 3. Kontrakt `PluginEntryPoint`
+
+```java
+public interface PluginEntryPoint {
+    void onActivate(PluginContext context);
+    void onDeactivate();
+    default PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) { return PreContactConnectResult.empty(); }
+    default void onPostContactEnd(PluginContext ctx, ContactEvent e) { }
+    default CustomerSyncResult onCustomerSync(PluginContext ctx, CustomerSyncRequest req) { return CustomerSyncResult.noop(); }
+    default void onDispositionSet(PluginContext ctx, DispositionEvent e) { }
+    default ManualActionResult onManualAction(PluginContext ctx, ManualActionRequest req) { return ManualActionResult.unsupported(); }
+}
+```
+
+Klasa implementująca ten interfejs to **jedyna klasa pluginu instancjonowana przez hosta** —
+zawsze przez **konstruktor bezargumentowy** (żadnego DI, żadnych parametrów). Wskazujesz ją w
+manifeście jako `entryPointClass`. Minimalny plugin musi nadpisać tylko `onActivate`/`onDeactivate`
+— resztę można zaimplementować selektywnie, w zależności od tego, które punkty rozszerzeń
+deklarujesz w `manifest.extensionPoints`.
+
+### 3.1 Pięć punktów rozszerzeń
+
+| Extension point | Callback | Tryb | Timeout domyślny | Zachowanie przy timeout/błędzie |
+|---|---|---|---|---|
+| `PRE_CONTACT_CONNECT` | `onPreContactConnect` | **blocking** | 2000 ms | Connect i tak następuje; agent dostaje `PreContactConnectResult.empty()` |
+| `MANUAL_ACTION` | `onManualAction` | **blocking** | 5000 ms | Agent dostaje HTTP `504` z ciałem JSON (nie wyjątek) |
+| `POST_CONTACT_END` | `onPostContactEnd` | fire-and-forget (RabbitMQ) | 30 000 ms | Brak efektu dla agenta — wynik tylko w `plugin_invocation_log` |
+| `CUSTOMER_SYNC` | `onCustomerSync` | fire-and-forget (RabbitMQ) | 30 000 ms | Jak wyżej |
+| `DISPOSITION_SET` | `onDispositionSet` | fire-and-forget (RabbitMQ) | 30 000 ms | Jak wyżej |
+
+Timeouty są konfigurowalne przez `application.yml` (prefiks `plugin.invocation.*`), capped na
+**60 000 ms** (`plugin.invocation.max-timeout-ms`, zgodne z CHECK constraintem
+`chk_tenant_plugin_extension_binding_timeout` na tabeli `tenant_plugin_extension_binding`).
+
+**Reguła obowiązująca dla każdego callbacku:** plugin nigdy nie może zablokować ani spowolnić
+core flow platformy. Każde wywołanie jest opakowane timeoutem i `catch (Throwable)` (nie tylko
+`Exception` — rzucenie `Error` przez plugin też jest zawierane). Jeśli Twój kod zawiesi wątek
+na zawsze, host nie próbuje go zabić (`Future.cancel(true)` jest tylko best-effort interrupt) —
+po prostu przestaje czekać na wynik i kontynuuje.
+
+---
+
+## 4. `PluginContext` — jedyny dostęp do platformy
+
+```java
+public interface PluginContext {
+    CustomerView getCustomer(UUID customerId);
+    void updateCustomerFields(UUID customerId, Map<String, Object> customFields);
+    ContactView getContact(UUID contactId);
+    void appendContactNote(UUID contactId, String note);
+    HttpEgressClient httpClient();
+    PluginLogger logger();
+    PluginConfig config();
+}
+```
+
+`PluginContext` jest budowany **na nowo przy każdym wywołaniu**, z `tenantId` ustalonym przez
+hosta na podstawie wątku wywołującego (`TenantContext` żądania agenta) — żadna metoda SDK nie
+przyjmuje `tenantId` jako parametr, więc plugin nie ma sposobu wpłynąć na to, czyje dane
+zobaczy. `getCustomer`/`getContact` zwracają niemutowalne `record`y (`CustomerView`/`ContactView`)
+— nigdy encję JPA, nigdy obiekt zarządzany przez Hibernate.
+
+| Metoda | Przeznaczenie | Ograniczenia |
+|---|---|---|
+| `getCustomer(UUID)` | Odczyt snapshotu klienta | Tylko klient bieżącego tenanta; rzuca przy braku dostępu |
+| `updateCustomerFields(UUID, Map)` | **Jedyny** sposób zapisu danych o kliencie | Host pisze wyłącznie do `customer.custom_fields.plugins.<pluginKey>` — nigdy do typowanej kolumny, nigdy do namespace'u innego pluginu |
+| `getContact(UUID)` | Odczyt snapshotu kontaktu (rozmowa/e-mail/chat) | Tylko kontakt bieżącego tenanta |
+| `appendContactNote(UUID, String)` | Dopisanie notatki do historii kontaktu | Host atrybutuje notatkę do nazwy pluginu |
+| `httpClient()` | Ograniczony klient HTTP (`get`/`post`) | Tylko hosty zadeklarowane jako `http:egress:<host>` w `granted_permissions` — patrz [§6](#6-model-uprawnień) |
+| `logger()` | Logger diagnostyczny pluginu | **Stan aktualny:** pisze do logów aplikacji przez SLF4J z prefiksem `[PluginLog]`, NIE jeszcze do `plugin_invocation_log` — patrz known limitation w [§9](#9-bezpieczeństwo-i-znane-ograniczenia) |
+| `config()` | Odczyt konfiguracji tenanta (`get`/`getOrDefault`) | Wartości z `tenant_plugin_installation.installation_config`, deszyfrowane przed podaniem pluginowi |
+
+### 4.1 `CustomerView` / `ContactView` (pola)
+
+```java
+record CustomerView(UUID customerId, String firstName, String lastName,
+                    List<String> emails, List<String> phoneNumbers,
+                    Map<String, Object> customFields, Instant createdAt) {}
+
+record ContactView(UUID contactId, UUID customerId, String channel, String direction,
+                   String status, UUID agentId, UUID queueId,
+                   Instant startedAt, Instant endedAt) {}
+```
+
+`customFields` w `CustomerView` to odczyt tego samego namespace'u, do którego piszesz przez
+`updateCustomerFields` — możesz odczytać własne, wcześniej zapisane dane spod
+`customFields.get("plugins").get(pluginKey)` (struktura mapy, nie typowany obiekt).
+
+---
+
+## 5. Manifest pluginu — `META-INF/plugin-manifest.json`
+
+Każdy JAR **musi** zawierać ten plik. Schema (JSON Schema, walidowana przy uploadzie):
+`backend/app/src/main/resources/plugin/plugin-manifest.schema.json`.
+
+```json
+{
+  "pluginKey": "acme-crm-sync",
+  "displayName": "Acme CRM Sync",
+  "version": "1.3.0",
+  "vendor": "Acme Sp. z o.o.",
+  "vendorContact": "support@acme.example",
+  "sdkVersion": "1.x",
+  "entryPointClass": "com.acme.contactcenter.plugin.AcmeCrmPlugin",
+  "extensionPoints": ["PRE_CONTACT_CONNECT", "POST_CONTACT_END", "CUSTOMER_SYNC", "DISPOSITION_SET", "MANUAL_ACTION"],
+  "permissions": ["customer:read", "customer:update", "contact:read", "http:egress:api.acme-crm.example"],
+  "uiPanels": [
+    { "panelId": "acme-crm-side-panel", "mountPoint": "AGENT_DESKTOP_SIDE_PANEL", "url": "classpath:/plugin-ui/index.html", "sandbox": "allow-scripts" }
+  ],
+  "manualActions": [
+    { "actionId": "open-in-crm", "label": "Otwórz w CRM", "mountPoint": "AGENT_DESKTOP_TOOLBAR" }
+  ],
+  "checksumSha256": "<SHA-256 zawartości JAR-a, BEZ pliku manifestu samego — patrz uwaga niżej>"
+}
+```
+
+| Pole | Wymagane | Walidacja |
+|---|---|---|
+| `pluginKey` | tak | `^[a-z0-9]([a-z0-9-]{0,98}[a-z0-9])?$`, unikalny w globalnym katalogu |
+| `displayName` | tak | 1–200 znaków |
+| `version` | tak | string semver, 1–50 znaków |
+| `vendor` | tak | 1–200 znaków |
+| `vendorContact` | nie | max 200 znaków |
+| `sdkVersion` | tak | sprawdzane wobec wspieranego zakresu wersji SDK hosta |
+| `entryPointClass` | tak | musi istnieć w JAR-ze i implementować `PluginEntryPoint` (weryfikacja przez ASM, bez ładowania klasy) |
+| `extensionPoints` | tak, ≥1 | podzbiór 5 wartości z [§3.1](#31-pięć-punktów-rozszerzeń) |
+| `permissions` | tak (może być `[]`) | podzbiór z [§6](#6-model-uprawnień) |
+| `uiPanels` | nie | lista `{panelId, mountPoint, url, sandbox?}` |
+| `manualActions` | nie | lista `{actionId, label, mountPoint}` |
+| `checksumSha256` | tak | 64 znaki hex |
+
+**Uwaga o `checksumSha256`:** liczony jest z zawartości JAR-a **z wyłączeniem** samego pliku
+`META-INF/plugin-manifest.json` (analogicznie do `MANIFEST.MF` w standardowych JAR-ach Javy) —
+hash całego pliku zawierającego pole z tym samym hashem byłby matematycznie niespełnialny.
+Wylicz checksum swoim build toolem **po** spakowaniu wszystkich plików oprócz manifestu, potem
+dopisz manifest z tym checksumem jako ostatni krok budowy.
+
+`mountPoint` to dowolny string rozpoznawany przez frontend — obecnie zaimplementowane:
+`AGENT_DESKTOP_SIDE_PANEL` (panel boczny agenta), `AGENT_DESKTOP_TOOLBAR` (przycisk w
+toolbarze agenta). `SUPERVISOR_DASHBOARD` jest wspierany przez komponent hosta
+(`cc-plugin-panel-host`), ale nie jest jeszcze podłączony do żadnej konkretnej strony
+supervisora (brak ticketu mountującego — możliwy follow-up).
+
+---
+
+## 6. Model uprawnień
+
+`manifest.permissions` musi być podzbiorem zamkniętego zbioru rozpoznawanego przez platformę
+(`PluginPermission.EXACT_PERMISSIONS` + kategoria `http:egress:`):
+
+```
+customer:read
+customer:update
+contact:read
+contact:update
+http:egress:<host>       (host: litery/cyfry/./-, opcjonalnie :port — dowolna ilość wpisów)
+```
+
+Żądanie permission spoza tego zbioru jest odrzucane już przy **walidacji JAR-a** (REJECTED,
+nie tylko ignorowane). Przy **instalacji** (nie uploadzie) administrator tenanta zatwierdza
+podzbiór `permissions` z manifestu jako `grantedPermissions` — host **nigdy nie auto-grantuje**
+pełnego zestawu z manifestu; żądanie na wejściu instalacji, które nie jest w manifeście, jest
+po prostu odfiltrowane (przecięcie żądanych ∩ zadeklarowanych), bez błędu.
+
+`http:egress:<host>` jest jednocześnie: (a) allow-listą dla `PluginContext.httpClient()`, i
+(b) źródłem nagłówka `Content-Security-Policy: connect-src` dla zasobów UI pluginu
+(`/plugin-assets/**`) — patrz [§8](#8-integracja-ui-iframe--pluginuisdk).
+
+---
+
+## 7. Ograniczenia bytecode (statyczny skan ASM)
+
+Przy uploadzie, **przed jakimkolwiek ładowaniem klasy**, każda klasa w JAR-ze jest skanowana
+statycznie (ASM, bez wykonania kodu). JAR jest odrzucany, jeśli którakolwiek klasa odwołuje się
+do:
+
+```
+java.lang.reflect.{AccessibleObject,Method,Field,Constructor}#setAccessible
+java.lang.Thread#getContextClassLoader / #setContextClassLoader
+java.util.ServiceLoader (cała klasa)
+java.lang.ProcessBuilder (cała klasa)
+java.nio.file.* (cały pakiet)
+sun.misc.* (cały pakiet)
+```
+
+…lub jeśli jakaś klasa jest **podklasą `java.lang.ClassLoader`**. To są warstwy obrony przed
+ucieczką z izolacji `ClassLoader`a (RT-10) — w szczególności blokada `Thread#getContextClassLoader`
+domyka furtkę, przez którą plugin mógłby próbować dosięgnąć classloadera aplikacji przez
+Thread-Context ClassLoader, niezależnie od tego, czy host poprawnie resetuje TCCL wokół
+wywołania (defense in depth, nie zastępstwo dla resetu TCCL po stronie hosta).
+
+**Praktyczna konsekwencja dla autora pluginu:** pisz zwyczajny, "biznesowy" kod Javy — odczyt
+danych przez `PluginContext`, wywołania HTTP przez `httpClient()`, logika domenowa. Jeśli
+korzystasz z biblioteki firmy trzeciej w swoim JAR-ze (fat JAR), sprawdź, czy nie używa ona
+wewnętrznie żadnej z zablokowanych klas (np. wiele bibliotek serializacji/DI używa
+`setAccessible` lub `ServiceLoader`) — taki JAR zostanie odrzucony przy uploadzie z konkretnym
+komunikatem wskazującym naruszoną klasę.
+
+---
+
+## 8. Cykl życia pluginu — upload → instalacja → wykonanie
+
+```
+Administrator tenanta (panel /supervisor/settings/plugins)
+  │  POST /api/supervisor/plugins  (multipart, pole "file")
+  ▼
+PluginValidationService — gate przed dotknięciem klasy:
+  1. Rozmiar ≤50MB, magic bytes ZIP/JAR
+  2. SHA-256 (bez manifestu) vs manifest.checksumSha256
+  3. JSON Schema manifestu
+  4. Statyczny skan ASM (§7) + entryPointClass implementuje PluginEntryPoint
+  5. (zarezerwowane na podpis kryptograficzny — niezaimplementowane, OQ-28-1)
+  → VALIDATED lub REJECTED (PENDING_REVIEW zarezerwowane, nieużywane bez podpisu)
+  ▼  (tylko gdy VALIDATED)
+PluginStorageService — zapis do MinIO/S3 (plugins/{pluginKey}/{version}/{plik}.jar,
+  klucz BEZ tenantId — katalog globalny) + insert plugin/plugin_version
+  │
+  ▼  administrator klika "Zainstaluj" → POST /api/supervisor/plugins/{pluginVersionId}/install
+PluginRegistrationService.install — insert tenant_plugin_installation (enabled=false,
+  granted_permissions = żądane ∩ manifest.permissions)
+  │
+  ▼  administrator klika "Włącz" → POST .../installations/{id}/enable
+PluginRuntimeManager.load — pobiera JAR, tworzy PluginClassLoader (parent: PlatformApiClassLoader,
+  eksponujący WYŁĄCZNIE com.contactcenter.pluginsdk.*), instancjonuje entryPointClass
+  (konstruktor bezargumentowy), woła onActivate(context), rejestruje w PluginRegistry
+  │
+  ▼  ... normalna praca platformy ...
+ExtensionPointPublisher.publishXxx → PluginRegistry.lookup(tenantId, extensionPoint)
+  → wywołanie callbacku z §3.1, z timeoutem i circuit breakerem
+  → wynik zapisany do plugin_invocation_log (status: SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN/SKIPPED_DISABLED)
+```
+
+### 8.1 Circuit breaker
+
+Każda instalacja ma licznik kolejnych niepowodzeń (`TIMED_OUT`/`FAILED`) **w pamięci procesu**,
+wspólny dla ścieżki blocking i async. Po **5 kolejnych błędach** instalacja przechodzi w stan
+`health_status=DEGRADED` w bazie, a kolejne wywołania są pomijane jako `CIRCUIT_OPEN` (bez
+próby wywołania pluginu) do pierwszego sukcesu, który resetuje licznik ("closed on first
+success" — brak pełnego half-open state).
+
+### 8.2 REST API — referencja
+
+| Metoda + ścieżka | Rola | Opis |
+|---|---|---|
+| `POST /api/supervisor/plugins` | SUPERVISOR/ADMIN | Upload JAR-a (multipart, pole `file`) → `PluginVersionDto` |
+| `GET /api/supervisor/plugins` | SUPERVISOR/ADMIN | Lista wszystkich instalacji tenanta (w tym disabled) |
+| `POST /api/supervisor/plugins/{pluginVersionId}/install` | SUPERVISOR/ADMIN | Instalacja wersji dla tenanta |
+| `POST /api/supervisor/plugins/installations/{id}/enable` | SUPERVISOR/ADMIN | Aktywacja (ładuje `ClassLoader`, jeśli jeszcze nieaktywny) |
+| `POST /api/supervisor/plugins/installations/{id}/disable` | SUPERVISOR/ADMIN | Dezaktywacja — `PluginRegistry` aktualizowany natychmiast |
+| `POST /api/supervisor/plugins/installations/{id}/rollback/{targetId}` | SUPERVISOR/ADMIN | Atomowe przełączenie `enabled` między dwiema instalacjami |
+| `DELETE /api/supervisor/plugins/installations/{id}` | SUPERVISOR/ADMIN | Uninstall — fizyczny `DELETE` wiersza (log wywołań przetrwa, FK `SET NULL`) |
+| `GET /api/supervisor/plugins/{installationId}/invocations` | SUPERVISOR/ADMIN | Historia wywołań, paginowana, filtr po `status` |
+| `GET /api/agent/plugins` | AGENT/SUPERVISOR/ADMIN | Lista instalacji **tylko `enabled=true`** — używana przez pulpit agenta |
+| `POST /api/agent/plugins/{installationId}/manual-action/{actionId}` | AGENT/SUPERVISOR/ADMIN | Wywołanie `MANUAL_ACTION`; `504` przy przekroczeniu budżetu, `403` gdy instalacja disabled/`DISABLED_BY_ADMIN`/`REVOKED` |
+| `POST /api/admin/plugins/versions/{pluginVersionId}/revoke` | ADMIN ⚠️ | Globalny kill switch — `REVOKED`, odładowuje wersję u WSZYSTKICH tenantów (patrz ograniczenie w §9) |
+| `GET /plugin-assets/{installationId}/**` | publiczny (bez JWT) | Statyczne assety `plugin-ui/` z JAR-a, z nagłówkiem CSP |
+| `GET /plugin-ui-sdk.js` | publiczny (bez JWT) | Skrypt `PluginUiSdk` wstrzykiwany w UI pluginu — patrz §8.4 |
+
+---
+
+## 8.3 Integracja UI — `uiPanels`/`manualActions` w pulpicie agenta
+
+Jeśli manifest deklaruje `uiPanels` z `mountPoint: "AGENT_DESKTOP_SIDE_PANEL"`, panel agenta
+montuje zakładkę z komponentem `cc-plugin-panel-host` (`frontend/src/app/shared/components/plugin-panel-host/`)
+renderującym **sandboxowany iframe**:
+
+```html
+<iframe
+  [src]="trustedPluginPanelUrl()"
+  sandbox="allow-scripts allow-forms"
+  referrerpolicy="no-referrer"
+></iframe>
+```
+
+`src` wskazuje na `/plugin-assets/{installationId}/index.html` — Twój `plugin-ui/index.html`
+(rozpakowany z JAR-a przy `enable`) jest tym, co się renderuje. **Brak `allow-same-origin`** —
+Twój kod JS w iframe nie ma dostępu do `localStorage`/cookies hosta i nie może wywołać
+`/api/**` z JWT agenta. Jedynym kanałem komunikacji z hostem jest `postMessage`.
+
+### 8.4 `PluginUiSdk` — komunikacja iframe ↔ host
+
+Wstrzyknij w swoim `plugin-ui/index.html`:
+
+```html
+<script src="/plugin-ui-sdk.js"></script>
+```
+
+API dostępne jako `window.PluginUiSdk`:
+
+```typescript
+PluginUiSdk.getContext(): Promise<{ tenantId: string; contactId: string | null; customerId: string | null }>
+PluginUiSdk.invokeManualAction(actionId: string, payload: unknown): Promise<ManualActionResult>
+PluginUiSdk.requestResize(height: number): void   // fire-and-forget
+PluginUiSdk.notify(message: string, severity: 'info' | 'warning' | 'error'): void  // fire-and-forget
+```
+
+`invokeManualAction` z poziomu iframe woła **ten sam** `POST /api/agent/plugins/{installationId}/manual-action/{actionId}`,
+ale wykonany przez host (Angular `HttpClient`, z JWT agenta dodanym automatycznie przez
+interceptor) — iframe nigdy nie widzi tokenu. `getContext()` zwraca **wyłącznie**
+`tenantId`/`contactId`/`customerId` — nigdy pełny obiekt klienta/kontaktu (jeśli potrzebujesz
+więcej danych, wywołaj `PluginContext.getCustomer`/`getContact` z poziomu backendu pluginu, w
+ramach `onPreContactConnect`/`onManualAction`, i przekaż wynik do iframe przez własny mechanizm
+— np. `displayData` w `PreContactConnectResult`).
+
+Implementacja SDK (`backend/app/src/main/resources/static/plugin-ui-sdk.js`) zawiera w
+komentarzu na początku pliku pełną specyfikację formatu wiadomości `postMessage` — przydatne,
+jeśli chcesz zaimplementować własny SDK w innym języku (np. plugin UI napisany bez `<script>`,
+w Web Components z innym tooling).
+
+---
+
+## 9. Bezpieczeństwo i znane ograniczenia
+
+Przeczytaj `ARCHITECTURE.md` §11.3 (model izolacji) i tabelę ryzyk RT-09…RT-14 przed
+podejmowaniem decyzji architektonicznych zależnych od tego systemu. Skrót najważniejszych
+ograniczeń **aktualnie obecnych w kodzie** (nie tylko teoretycznych):
+
+- **Izolacja in-process, nie pełna sandboksacja.** `PlatformApiClassLoader` + blacklista ASM +
+  reset Thread-Context ClassLoader to warstwy obrony, nie gwarancja niemożności ucieczki na
+  poziomie JVM. Instaluj wyłącznie pluginy od zaufanych dostawców — to nie jest model
+  bezpieczeństwa odpowiedni dla w pełni nieznanego/wrogiego kodu.
+- **`PluginContext.logger()` nie zapisuje jeszcze do `plugin_invocation_log`.** Mimo że Javadoc
+  SDK deklaruje separację od logów aplikacji, implementacja (`PluginLoggerImpl`) wciąż pisze
+  przez SLF4J z prefiksem `[PluginLog]` — nie trafia do historii wywołań widocznej w UI
+  supervisora. Tylko wynik samego wywołania extension pointu (SUCCESS/FAILED/...) jest
+  persystowany, nie ad-hoc logi pluginu.
+- **`POST /api/admin/plugins/versions/{id}/revoke` używa zwykłej roli tenantowej `ADMIN`,
+  nie roli administratora platformy.** System nie ma odrębnej roli "platform admin" — każdy
+  `ADMIN` jakiegokolwiek tenanta może globalnie wycofać wersję pluginu wpływając na wszystkich
+  innych tenantów. To świadome, udokumentowane ograniczenie (decyzja produktowa), nie błąd —
+  do adresacji przy wprowadzeniu modelu ról platformowych.
+- **`uiPanels`/`manualActions` z `mountPoint: "SUPERVISOR_DASHBOARD"`** są wspierane przez
+  `cc-plugin-panel-host`, ale żadna strona supervisora nie montuje ich jeszcze — tylko pulpit
+  agenta (`AGENT_DESKTOP_SIDE_PANEL`/`AGENT_DESKTOP_TOOLBAR`) ma realną integrację.
+  Plugin może zadeklarować ten mount point, ale obecnie nic go nie wyrenderuje.
+  Wartość ta jest jednak zdefiniowana w SDK na potrzeby przyszłej integracji.
+- **`/plugin-assets/**` i `/plugin-ui-sdk.js` są serwowane pod tą samą originą co reszta API**,
+  nie z dedykowanej subdomeny — `sandbox` iframe (bez `allow-same-origin`) jest jedyną warstwą
+  izolacji przeglądarkowej. Dedykowana origin (np. `plugins.<tenant-domain>`) wymaga zmiany
+  infrastruktury (DNS/reverse proxy) poza zakresem backendu — patrz `TASKS-BACKEND.md`, BE-107.
+- **Brak testu integracyjnego z prawdziwym MinIO/S3** w CI (port niepublikowany na hosta w
+  środowisku lokalnym) — testy storage są jednostkowe z mockiem `S3Client`.
+
+---
+
+## 10. Minimalny przykład end-to-end
+
+Struktura projektu pluginu (Maven, niezależny od tego repozytorium):
+
+```
+acme-crm-sync/
+  pom.xml
+  src/main/java/com/acme/contactcenter/plugin/AcmeCrmPlugin.java
+  src/main/resources/META-INF/plugin-manifest.json
+  src/main/resources/plugin-ui/index.html      (opcjonalnie, jeśli deklarujesz uiPanels)
+```
+
+```java
+package com.acme.contactcenter.plugin;
+
+import com.contactcenter.pluginsdk.*;
+import com.contactcenter.pluginsdk.model.*;
+import java.util.Map;
+
+public class AcmeCrmPlugin implements PluginEntryPoint {
+
+    private PluginContext context;
+
+    @Override
+    public void onActivate(PluginContext context) {
+        this.context = context;
+        context.logger().info("Acme CRM Sync aktywowany");
+    }
+
+    @Override
+    public void onDeactivate() {
+        // zwolnij zasoby, jeśli jakieś trzymasz w polach instancji
+    }
+
+    @Override
+    public PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) {
+        if (e.customerId() == null) {
+            return PreContactConnectResult.empty();
+        }
+        CustomerView customer = ctx.getCustomer(e.customerId());
+        return new PreContactConnectResult(
+                Map.of("ostatniZakup", "2026-05-01", "segment", "VIP"),
+                null);
+    }
+
+    @Override
+    public ManualActionResult onManualAction(PluginContext ctx, ManualActionRequest req) {
+        if (!"open-in-crm".equals(req.actionId())) {
+            return ManualActionResult.unsupported();
+        }
+        return new ManualActionResult(true, Map.of("url", "https://crm.acme.example/customer/" + req.customerId()), null);
+    }
+}
+```
+
+Budowa: spakuj zwykłym `mvn package` (lub `jar`/`maven-assembly-plugin`, jeśli masz dodatkowe
+zależności inne niż `plugin-sdk`), policz `SHA-256` zawartości **bez** manifestu, dopisz
+`META-INF/plugin-manifest.json` z tym checksumem jako ostatni krok, i wgraj wynikowy JAR przez
+`/supervisor/settings/plugins` (UI) lub bezpośrednio `POST /api/supervisor/plugins`.
+
+---
+
+## 11. Powiązane materiały
+
+- `ARCHITECTURE.md`, sekcja 11 — pełny projekt architektoniczny, ADR-09…ADR-13, RT-09…RT-14
+- `EPIC-28-PLAN.md` — plan wykonania i pełna lista ticketów (DB-042…045, BE-097…107, FE-097…100)
+- `TASKS-BACKEND.md`/`TASKS-FRONTEND.md` — szczegółowe specyfikacje per ticket, z notatkami o
+  decyzjach podjętych podczas implementacji (odejścia od pierwotnej specyfikacji, znane gapy)
+- [Backend – dokumentacja techniczna](04-backend.md) — konwencje pakietów domenowych, wzorce
+  repozytoriów (`domain.plugin` stosuje te same zasady co inne domeny)
+- [Frontend – dokumentacja techniczna](05-frontend.md) — konwencje komponentów standalone,
+  `cc-plugin-panel-host` w `shared/components/`

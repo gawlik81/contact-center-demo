@@ -16,12 +16,15 @@ dokumentów projektowych (`PRD.md`, `ARCHITECTURE.md`), które opisują plan z p
 7. [Przepływy end-to-end](07-data-flows.md) – inbound/outbound call, IVR, kampanie, ETL, realtime
 8. [Infrastruktura i wdrożenie](08-infrastructure.md) – Docker Compose, env, sieci, porty
 9. [Getting Started](09-getting-started.md) – jak uruchomić projekt i zacząć pracę
+10. [Tworzenie pluginów (EPIC-28)](10-plugin-development.md) – SDK, manifest, cykl życia,
+    integracja UI, bezpieczeństwo
 
 ## Sugerowana kolejność czytania dla nowej osoby
 
 ```
 01 (przegląd)  →  03 (tech stack)  →  02 (architektura)  →  09 (getting started)
    → 04 / 05 / 06 (wg obszaru zadania)  →  07 (przepływy)  →  08 (infrastruktura)
+   → 10 (pluginy, jeśli zadanie dotyczy EPIC-28)
 ```
 
 ## Wersja HTML
@@ -31,6 +34,7 @@ w przeglądarce bez renderera Markdown. Punkt startowy: [`html/00-index.html`](h
 
 ## Status i aktualizacja
 
-Dokumentacja odzwierciedla stan repozytorium na **2026-06-12**. Backend i frontend rozwijane są
+Dokumentacja odzwierciedla stan repozytorium na **2026-06-23** (dodano rozdział 10 –
+EPIC-28/pluginy). Backend i frontend rozwijane są
 równolegle (patrz `PROGRESS.md`, `TASKS-*.md`) – w razie rozbieżności między tym dokumentem a
 kodem, **kod jest źródłem prawdy**. Aktualizuj te pliki przy istotnych zmianach architektonicznych.

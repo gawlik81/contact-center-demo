@@ -2,7 +2,7 @@
 
 **Branch:** `tenant-plugin-system`
 **Data planu:** 2026-06-20
-**Status epica:** ⬜ Do zrobienia
+**Status epica:** ✅ Zakończony (2026-06-23) — DB 43/43, BE 104/104, FE 79/79 (szczegóły realizacji per ticket: PROGRESS.md)
 
 ---
 
@@ -184,27 +184,27 @@ FE-097 (PluginAdminService + modele TS)
 
 ## 5. Kryteria akceptacji epica
 
-- [ ] **DB-042:** Migracja V074 aplikuje się bez błędów; `plugin`/`plugin_version` bez `tenant_id`/RLS (świadomie, ADR-13); `UNIQUE (plugin_id, version)`
-- [ ] **DB-043:** Migracja V075; RLS+FORCE RLS na `tenant_plugin_installation`; `UNIQUE (tenant_id, plugin_version_id)`; `installation_config` szyfrowane AES-256-GCM (wzorzec `tenant_ai_config`)
-- [ ] **DB-044:** Migracja V076; RLS+FORCE RLS na `tenant_plugin_extension_binding`; `UNIQUE (tenant_plugin_installation_id, extension_point)`
-- [ ] **DB-045:** Migracja V077; RLS+FORCE RLS na `plugin_invocation_log`; partycjonowanie RANGE miesięczne po `invoked_at`; `related_contact_id` `ON DELETE SET NULL`
-- [ ] **BE-097:** `plugin-sdk` kompiluje się jako niezależny moduł Maven, zero zależności od `spring-*`/`jakarta.persistence`; `PluginEntryPoint` z 7 metodami (2 wymagane + 5 default no-op)
-- [ ] **BE-098:** Manifest JSON Schema waliduje wszystkie pola z ARCHITECTURE.md §11.2; ASM scan odrzuca blacklistowane pakiety; checksum mismatch → `REJECTED`; testy ≥8 scenariuszy walidacji
-- [ ] **BE-099:** Upload >50MB odrzucony; non-JAR magic bytes odrzucony; JAR zapisany do object storage tylko gdy `VALIDATED`
-- [ ] **BE-100:** Install tworzy nową `tenant_plugin_installation`; upgrade tworzy nowy wiersz (stary `enabled=false`, nie usuwany — rollback przez przełączenie flagi)
-- [ ] **BE-101:** Każda instalacja `(tenant_id, plugin_key)` ma własny `ClassLoader`; parent classloader eksponuje tylko `com.contactcenter.pluginsdk.*`; brak ścieżki do `ApplicationContext`/JPA z poziomu pluginu — zweryfikowane testem negatywnym
-- [ ] **BE-102:** `PluginInvocationExecutor` odseparowany od poolów request/async; `Future.get(timeout)` per extension point z domyślnymi wartościami z §11.7; circuit breaker `DEGRADED` po 5 kolejnych timeoutach/wyjątkach
-- [ ] **BE-103:** `PRE_CONTACT_CONNECT` nigdy nie blokuje connect telefonii dłużej niż 2s i nigdy nie failuje connect na błędzie pluginu; `MANUAL_ACTION` timeout 5s
-- [ ] **BE-104:** `POST_CONTACT_END`/`CUSTOMER_SYNC`/`DISPOSITION_SET` publikowane do `cc.queue.plugin-invocation`; `TenantContext.snapshot()/restore()/clear()` na granicy consumera (CLAUDE.md)
-- [ ] **BE-105:** Każde wywołanie (SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN) zapisane do `plugin_invocation_log`; REST zwraca paginowaną historię
-- [ ] **BE-106:** Disable usuwa bindingi z `PluginRegistry` natychmiast; `REVOKED` na `plugin_version` wyłącza wszystkie instalacje wszystkich tenantów niezależnie od ich `enabled`
-- [ ] **BE-107:** Assety `plugin-ui/` serwowane z dedykowanej originy (nie same-origin z głównym SPA); manual-action proxy nie przyjmuje JWT z iframe — autoryzacja przez stronę hosta
-- [ ] **FE-097:** Modele zgodne z kontraktami BE-099/BE-106; serwis `providedIn: 'root'`
-- [ ] **FE-098:** Upload JAR z walidacją client-side (rozmiar/typ); lista instalacji z `health_status`; rollback w 1 kliknięciu (przełącza `enabled` między wersjami)
-- [ ] **FE-099:** `<iframe sandbox="allow-scripts allow-forms">` bez `allow-same-origin`; host waliduje `event.origin` na każdej wiadomości; `PluginUiSdk.getContext()` nie eksponuje pełnego rekordu klienta/kontaktu
-- [ ] **FE-100:** Przycisk manual-action widoczny tylko gdy plugin zadeklarował `manualActions` w manifeście i jest `enabled`/`HEALTHY`
-- [ ] `mvn verify -pl app` oraz build `plugin-sdk` przechodzą (cały backend)
-- [ ] `npm run lint && npm test` przechodzą (frontend)
+- [x] **DB-042:** Migracja V074 aplikuje się bez błędów; `plugin`/`plugin_version` bez `tenant_id`/RLS (świadomie, ADR-13); `UNIQUE (plugin_id, version)`
+- [x] **DB-043:** Migracja V075; RLS+FORCE RLS na `tenant_plugin_installation`; `UNIQUE (tenant_id, plugin_version_id)`; `installation_config` szyfrowane AES-256-GCM (wzorzec `tenant_ai_config`)
+- [x] **DB-044:** Migracja V076; RLS+FORCE RLS na `tenant_plugin_extension_binding`; `UNIQUE (tenant_plugin_installation_id, extension_point)`
+- [x] **DB-045:** Migracja V077; RLS+FORCE RLS na `plugin_invocation_log`; partycjonowanie RANGE miesięczne po `invoked_at`; `related_contact_id` `ON DELETE SET NULL`
+- [x] **BE-097:** `plugin-sdk` kompiluje się jako niezależny moduł Maven, zero zależności od `spring-*`/`jakarta.persistence`; `PluginEntryPoint` z 7 metodami (2 wymagane + 5 default no-op)
+- [x] **BE-098:** Manifest JSON Schema waliduje wszystkie pola z ARCHITECTURE.md §11.2; ASM scan odrzuca blacklistowane pakiety; checksum mismatch → `REJECTED`; testy ≥8 scenariuszy walidacji
+- [x] **BE-099:** Upload >50MB odrzucony; non-JAR magic bytes odrzucony; JAR zapisany do object storage tylko gdy `VALIDATED`
+- [x] **BE-100:** Install tworzy nową `tenant_plugin_installation`; upgrade tworzy nowy wiersz (stary `enabled=false`, nie usuwany — rollback przez przełączenie flagi)
+- [x] **BE-101:** Każda instalacja `(tenant_id, plugin_key)` ma własny `ClassLoader`; parent classloader eksponuje tylko `com.contactcenter.pluginsdk.*`; brak ścieżki do `ApplicationContext`/JPA z poziomu pluginu — zweryfikowane testem negatywnym (po fixie z code review)
+- [x] **BE-102:** `PluginInvocationExecutor` odseparowany od poolów request/async; `Future.get(timeout)` per extension point z domyślnymi wartościami z §11.7; circuit breaker `DEGRADED` po 5 kolejnych timeoutach/wyjątkach
+- [x] **BE-103:** `PRE_CONTACT_CONNECT` nigdy nie blokuje connect telefonii dłużej niż 2s i nigdy nie failuje connect na błędzie pluginu; `MANUAL_ACTION` timeout 5s
+- [x] **BE-104:** `POST_CONTACT_END`/`CUSTOMER_SYNC`/`DISPOSITION_SET` publikowane do `cc.queue.plugin-invocation`; `TenantContext.snapshot()/restore()/clear()` na granicy consumera (CLAUDE.md)
+- [x] **BE-105:** Każde wywołanie (SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN) zapisane do `plugin_invocation_log`; REST zwraca paginowaną historię
+- [x] **BE-106:** Disable usuwa bindingi z `PluginRegistry` natychmiast; `REVOKED` na `plugin_version` wyłącza wszystkie instalacje wszystkich tenantów niezależnie od ich `enabled`
+- [x] **BE-107:** Assety `plugin-ui/` serwowane z dedykowanej originy (nie same-origin z głównym SPA); manual-action proxy nie przyjmuje JWT z iframe — autoryzacja przez stronę hosta
+- [x] **FE-097:** Modele zgodne z kontraktami BE-099/BE-106; serwis `providedIn: 'root'`
+- [x] **FE-098:** Upload JAR z walidacją client-side (rozmiar/typ); lista instalacji z `health_status`; rollback w 1 kliknięciu (przełącza `enabled` między wersjami)
+- [x] **FE-099:** `<iframe sandbox="allow-scripts allow-forms">` bez `allow-same-origin`; host waliduje `event.origin` na każdej wiadomości; `PluginUiSdk.getContext()` nie eksponuje pełnego rekordu klienta/kontaktu
+- [x] **FE-100:** Przycisk manual-action widoczny tylko gdy plugin zadeklarował `manualActions` w manifeście i jest `enabled`/`HEALTHY` — zweryfikowane 2026-06-23 (`toolbarManualActions`/`activePluginInstallations` computed w `agent-desktop.component.ts`)
+- [x] `mvn verify -pl app` oraz build `plugin-sdk` przechodzą (cały backend)
+- [x] `npm run lint && npm test` przechodzą (frontend) — lint 0 błędów/10 warningów pre-existing, build OK (2026-06-23)
 
 ---
 

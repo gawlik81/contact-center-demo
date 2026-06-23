@@ -266,6 +266,14 @@
       overflow: hidden;
     }
 
+    &-stack {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
     cc-customer-panel {
       flex: 1;
       min-width: 0;
@@ -1061,6 +1069,63 @@
     font-size: 0.8125rem !important;
     font-weight: 400 !important;
     color: var(--text-muted, #94a3b8) !important;
+  }
+}
+
+// ===== Plugin Side Panel (EPIC-28, FE-100) =====
+
+.plugin-side-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-1, #e2e8f0);
+
+  &__tabs {
+    display: flex;
+    align-items: stretch;
+    overflow-x: auto;
+    flex-shrink: 0;
+    background: var(--bg-subtle, #f1f5f9);
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  &__tab {
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-2, #64748b);
+    white-space: nowrap;
+    transition:
+      background var(--duration-fast, 120ms),
+      color var(--duration-fast, 120ms);
+
+    &:hover:not(&--active) {
+      background: var(--bg-elevated, #ffffff);
+      color: var(--text-1, #1e293b);
+    }
+
+    &--active {
+      color: var(--accent, #1a56db);
+      border-bottom-color: var(--accent, #1a56db);
+      font-weight: 600;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent, #1a56db);
+      outline-offset: -2px;
+    }
+  }
+
+  cc-plugin-panel-host {
+    display: block;
   }
 }
 

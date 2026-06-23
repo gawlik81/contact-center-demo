@@ -244,7 +244,11 @@
       "tabEmail": "Email",
       "tabSocial": "Social",
       "replySent": "Reply sent",
-      "consultCancelled": "Consultation cancelled by the initiating agent"
+      "consultCancelled": "Consultation cancelled by the initiating agent",
+      "pluginPanelsLabel": "Plugin panels",
+      "pluginActionTimeout": "Plugin action timed out (504). Please try again.",
+      "pluginActionError": "Plugin action failed.",
+      "pluginActionSuccess": "Plugin action completed."
     },
     "softphone": {
       "incomingCall": "Incoming call",

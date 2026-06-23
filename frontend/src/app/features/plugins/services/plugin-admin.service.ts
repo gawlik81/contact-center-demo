@@ -10,18 +10,21 @@ import {
 /**
  * Warstwa danych panelu administracyjnego pluginów per tenant (EPIC-28).
  *
- * Łączy dwa kontrolery backendowe:
+ * Łączy trzy kontrolery backendowe:
  * - `PluginUploadController` (`POST /api/supervisor/plugins`) — upload JAR-a do globalnego
  *   katalogu pluginów.
  * - `PluginAdminController` (`/api/supervisor/plugins/...`) — instalacja/enable/disable/
- *   rollback/uninstall per tenant.
+ *   rollback/uninstall per tenant (rola SUPERVISOR/ADMIN).
+ * - `PluginAgentController` (`GET /api/agent/plugins`) — lekki, tylko-odczyt endpoint dla
+ *   roli AGENT (FE-100), zwraca tylko instalacje `enabled=true` (filtr po stronie backendu).
  *
- * Czysta warstwa danych (FE-097) — bez logiki UI/komponentów, te przyjdą w FE-098/FE-099.
+ * Czysta warstwa danych (FE-097) — bez logiki UI/komponentów, te przyjdą w FE-098/FE-099/FE-100.
  */
 @Injectable({ providedIn: 'root' })
 export class PluginAdminService {
   private readonly http = inject(HttpClient);
   private readonly base = '/api/supervisor/plugins';
+  private readonly agentBase = '/api/agent/plugins';
 
   /**
    * Wgrywa JAR pluginu do globalnego katalogu (multipart/form-data, pole "file").
@@ -78,5 +81,14 @@ export class PluginAdminService {
    */
   uninstall(installationId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/installations/${installationId}`);
+  }
+
+  /**
+   * Listuje instalacje pluginów widoczne dla roli AGENT (`PluginAgentController`, FE-100).
+   * Backend filtruje tylko po `enabled=true` — NIE po `healthStatus`, więc wołający musi
+   * dodatkowo odfiltrować `healthStatus === 'DISABLED_BY_ADMIN'` po stronie FE.
+   */
+  listAgentInstallations(): Observable<TenantPluginInstallationDto[]> {
+    return this.http.get<TenantPluginInstallationDto[]>(this.agentBase);
   }
 }

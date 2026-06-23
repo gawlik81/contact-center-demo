@@ -68,3 +68,4 @@
 - [AdHocEmailModal WYSIWYG fix](./project_fe_adhoc_email_wysiwyg.md) – bodyHtml textarea→contenteditable, wzorowane na EmailContactComponent, gotcha z label-has-associated-control
 - [Plugins settings page (FE-098)](./project_fe098_plugins_page.md) – PluginsPageComponent, dryf BE/FE w PluginVersionDto.permissions (zweryfikuj zawsze w *.java), ConfirmDialogComponent wzorzec @if+signal, brak narzędzia do weryfikacji w przeglądarce w tym sandboxie
 - [Plugin panel host iframe (FE-099)](./project_fe099_plugin_panel_host.md) – cc-plugin-panel-host, plugin-ui-sdk-message.model.ts, RT-11 origin+source validation, contactId/customerId/tenantId jako @Input od rodzica (nie self-fetch), blokuje FE-100
+- [Agent desktop plugin mount (FE-100, EPIC-28 zamknięty)](./project_fe100_agent_desktop_mount.md) – skąd brane tenantId/contactId/customerId w AgentDesktopComponent, własny mechanizm tabs (brak shared), zero-regresji w HTML potwierdzone, lint/build czyste

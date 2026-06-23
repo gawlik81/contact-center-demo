@@ -11,10 +11,12 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpClient } from '@angular/common/http';
 import { DatePipe, LowerCasePipe } from '@angular/common';
 import { TranslocoModule, TranslocoService } from '@jsverse/transloco';
-import { filter, interval } from 'rxjs';
+import { catchError, filter, interval, of } from 'rxjs';
 import { WebSocketService } from '../../../../core/services/websocket.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { AgentStatusService } from '../../services/agent-status.service';
 import { ContactTabStore } from '../../services/contact-tab.store';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -30,6 +32,9 @@ import { ManualCampaignPanelComponent } from '../../components/manual-campaign-p
 import { AgentCalendarComponent } from './agent-calendar/agent-calendar.component';
 import { AddBreakModalComponent } from '../../components/add-break-modal/add-break-modal.component';
 import { ContactDetailModalComponent } from '../../../../shared/components/contact-detail-modal/contact-detail-modal.component';
+import { PluginPanelHostComponent } from '../../../../shared/components/plugin-panel-host/plugin-panel-host.component';
+import { PluginAdminService } from '../../../plugins/services/plugin-admin.service';
+import { ManualActionDef, TenantPluginInstallationDto } from '../../../plugins/models/plugin.model';
 import {
   AgentStatus,
   ALL_AGENT_STATUSES,
@@ -45,6 +50,12 @@ import {
   CallConsultCancelledPayload,
   CallConsultAnsweredPayload,
 } from '../../models/ws-event.model';
+
+/** Manual action bound to its owning installation – flattened for toolbar rendering. */
+interface ToolbarManualAction {
+  installationId: string;
+  action: ManualActionDef;
+}
 
 @Component({
   selector: 'app-agent-desktop',
@@ -62,6 +73,7 @@ import {
     AgentCalendarComponent,
     AddBreakModalComponent,
     ContactDetailModalComponent,
+    PluginPanelHostComponent,
   ],
   templateUrl: './agent-desktop.component.html',
   styleUrl: './agent-desktop.component.scss',
@@ -78,6 +90,9 @@ export class AgentDesktopComponent implements OnInit {
   private readonly incomingCallAlert = inject(IncomingCallAlertService);
   private readonly transloco = inject(TranslocoService);
   private readonly queueStateService = inject(QueueStateService);
+  protected readonly authService = inject(AuthService);
+  private readonly pluginAdminService = inject(PluginAdminService);
+  private readonly http = inject(HttpClient);
 
   protected readonly statusConfig = AGENT_STATUS_CONFIG;
   protected readonly allStatuses = ALL_AGENT_STATUSES;
@@ -135,6 +150,43 @@ export class AgentDesktopComponent implements OnInit {
 
   /** Right panel (customer profile) collapse state */
   protected readonly customerPanelCollapsed = signal(false);
+
+  /**
+   * Plugin installations visible to this agent (EPIC-28, FE-100).
+   * Loaded once on init via `GET /api/agent/plugins` (PluginAgentController) — backend already
+   * filters to `enabled=true`; `healthStatus !== 'DISABLED_BY_ADMIN'` is re-checked here
+   * defensively (acceptance criteria requires both conditions, and the contract may change).
+   * Empty array (the common case — most tenants have zero plugins) means zero layout impact.
+   */
+  protected readonly pluginInstallations = signal<TenantPluginInstallationDto[]>([]);
+
+  private readonly activePluginInstallations = computed(() =>
+    this.pluginInstallations().filter((i) => i.enabled && i.healthStatus !== 'DISABLED_BY_ADMIN'),
+  );
+
+  /** Installations declaring at least one AGENT_DESKTOP_SIDE_PANEL uiPanel – one tab each. */
+  protected readonly sidePanelInstallations = computed(() =>
+    this.activePluginInstallations().filter((i) =>
+      i.uiPanels.some((p) => p.mountPoint === 'AGENT_DESKTOP_SIDE_PANEL'),
+    ),
+  );
+
+  /** Currently selected plugin tab id in the side panel (null until first installation loads). */
+  protected readonly activePluginPanelId = signal<string | null>(null);
+
+  /** Flattened list of toolbar manual actions across all active installations. */
+  protected readonly toolbarManualActions = computed<ToolbarManualAction[]>(() =>
+    this.activePluginInstallations().flatMap((installation) =>
+      installation.manualActions
+        .filter((action) => action.mountPoint === 'AGENT_DESKTOP_TOOLBAR')
+        .map((action) => ({ installationId: installation.id, action })),
+    ),
+  );
+
+  /** installationId:actionId currently in flight – disables the button and avoids double-submits. */
+  protected readonly pendingManualActionKey = signal<string | null>(null);
+
+  protected readonly currentTenantId = this.authService.currentTenantId;
 
   /**
    * Derived signal that emits only the session state string (or null).
@@ -208,6 +260,28 @@ export class AgentDesktopComponent implements OnInit {
     interval(1000)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.now.set(Date.now()));
+
+    // EPIC-28 / FE-100: load agent-visible plugin installations once. Failure is non-fatal —
+    // the desktop must keep working even if the plugin subsystem is unavailable, so we swallow
+    // the error here (no toast) and simply keep the panel/toolbar empty (zero layout impact).
+    this.pluginAdminService
+      .listAgentInstallations()
+      .pipe(
+        catchError(() => {
+          console.warn('[AgentDesktop] Nie udało się wczytać instalacji pluginów (EPIC-28).');
+          return of([] as TenantPluginInstallationDto[]);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((installations) => {
+        this.pluginInstallations.set(installations);
+        const firstSidePanel = installations.find((i) =>
+          i.uiPanels.some((p) => p.mountPoint === 'AGENT_DESKTOP_SIDE_PANEL'),
+        );
+        if (firstSidePanel) {
+          this.activePluginPanelId.set(firstSidePanel.id);
+        }
+      });
 
     this.ws.events$
       .pipe(
@@ -485,8 +559,83 @@ export class AgentDesktopComponent implements OnInit {
     this.selectedContactDetailId.set(contactId);
   }
 
+  /**
+   * Contact/customer UUID of the active tab, passed down to `cc-plugin-panel-host` as the
+   * plugin context (EPIC-28). `originalContactId` is preferred for attended-transfer
+   * consultation tabs, matching the convention already used for the disposition panel above.
+   */
+  protected readonly activePluginContactId = computed<string | null>(() => {
+    const tab = this.activeTab();
+    if (!tab) return null;
+    return tab.originalContactId ?? tab.contactId;
+  });
+
+  protected readonly activePluginCustomerId = computed<string | null>(
+    () => this.activeTab()?.customerId ?? null,
+  );
+
+  protected setActivePluginPanel(installationId: string): void {
+    this.activePluginPanelId.set(installationId);
+  }
+
+  /**
+   * Invokes a toolbar manual action (EPIC-28, FE-100). Same REST contract as
+   * `cc-plugin-panel-host`'s INVOKE_MANUAL_ACTION (`POST /api/agent/plugins/{id}/manual-action/{actionId}`),
+   * but result goes straight to a toast instead of a postMessage reply to an iframe — duplicating
+   * this one HttpClient.post call is simpler than introducing a shared service for two call sites.
+   */
+  protected invokeToolbarManualAction(item: ToolbarManualAction): void {
+    const key = `${item.installationId}:${item.action.actionId}`;
+    if (this.pendingManualActionKey() === key) return;
+
+    this.pendingManualActionKey.set(key);
+    this.http
+      .post<{ success: boolean; message?: string; error?: string }>(
+        `/api/agent/plugins/${item.installationId}/manual-action/${item.action.actionId}`,
+        {
+          contactId: this.activePluginContactId(),
+          customerId: this.activePluginCustomerId(),
+          payload: {},
+        },
+      )
+      .pipe(
+        catchError((err: unknown) => {
+          const status =
+            err && typeof err === 'object' && 'status' in err
+              ? (err as { status: number }).status
+              : null;
+          const message =
+            status === 504
+              ? this.transloco.translate('agent.desktop.pluginActionTimeout')
+              : this.transloco.translate('agent.desktop.pluginActionError');
+          this.notifications.error(message);
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((result) => {
+        this.pendingManualActionKey.set(null);
+        if (result === null) return;
+        if (result.success) {
+          this.notifications.success(
+            result.message ?? this.transloco.translate('agent.desktop.pluginActionSuccess'),
+          );
+        } else {
+          this.notifications.error(
+            result.error ?? this.transloco.translate('agent.desktop.pluginActionError'),
+          );
+        }
+      });
+  }
+
   protected readonly trackByTabId = (_i: number, tab: ContactTab) => tab.id;
   protected readonly trackByQueueId = (_i: number, item: QueueItem) => item.id;
+  protected readonly trackByInstallationId = (
+    _i: number,
+    installation: TenantPluginInstallationDto,
+  ) => installation.id;
+  protected readonly trackByToolbarAction = (_i: number, item: ToolbarManualAction) =>
+    `${item.installationId}:${item.action.actionId}`;
 
   /**
    * Called when the DispositionPanelComponent emits `saved`.

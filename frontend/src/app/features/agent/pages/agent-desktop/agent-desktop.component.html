@@ -164,6 +164,22 @@
         </svg>
         <span>{{ 'agent.calendar.addBreak' | transloco }}</span>
       </button>
+
+      <!-- Plugin manual-action buttons (EPIC-28, FE-100) — empty array when no plugins installed,
+           so this @for renders nothing and the toolbar looks exactly as before. -->
+      @for (item of toolbarManualActions(); track trackByToolbarAction($index, item)) {
+        <button
+          type="button"
+          class="desktop__header-action-btn"
+          [disabled]="pendingManualActionKey() === item.installationId + ':' + item.action.actionId"
+          (click)="invokeToolbarManualAction(item)"
+        >
+          @if (pendingManualActionKey() === item.installationId + ':' + item.action.actionId) {
+            <span class="status-btn__spinner" aria-hidden="true"></span>
+          }
+          <span>{{ item.action.label }}</span>
+        </button>
+      }
     </div>
   </header>
 
@@ -381,11 +397,56 @@
           </button>
 
           @if (!customerPanelCollapsed()) {
-            <cc-customer-panel
-              [cli]="activeCli()"
-              [email]="activeEmail()"
-              (contactSelected)="openContactDetail($event)"
-            />
+            <div class="desktop__customer-panel-stack">
+              <cc-customer-panel
+                [cli]="activeCli()"
+                [email]="activeEmail()"
+                (contactSelected)="openContactDetail($event)"
+              />
+
+              <!-- Plugin side panels (EPIC-28, FE-100) — rendered only when at least one active
+                   installation declares an AGENT_DESKTOP_SIDE_PANEL uiPanel AND tenantId is known.
+                   Empty list (most tenants) means this block renders nothing — zero layout impact. -->
+              @if (sidePanelInstallations().length > 0 && currentTenantId()) {
+                <div class="plugin-side-panel">
+                  @if (sidePanelInstallations().length > 1) {
+                    <div
+                      class="plugin-side-panel__tabs"
+                      role="tablist"
+                      [attr.aria-label]="'agent.desktop.pluginPanelsLabel' | transloco"
+                    >
+                      @for (
+                        installation of sidePanelInstallations();
+                        track trackByInstallationId($index, installation)
+                      ) {
+                        <button
+                          type="button"
+                          role="tab"
+                          class="plugin-side-panel__tab"
+                          [class.plugin-side-panel__tab--active]="activePluginPanelId() === installation.id"
+                          [attr.aria-selected]="activePluginPanelId() === installation.id"
+                          (click)="setActivePluginPanel(installation.id)"
+                        >
+                          {{ installation.displayName }}
+                        </button>
+                      }
+                    </div>
+                  }
+
+                  @for (installation of sidePanelInstallations(); track trackByInstallationId($index, installation)) {
+                    @if (activePluginPanelId() === installation.id) {
+                      <cc-plugin-panel-host
+                        [installationId]="installation.id"
+                        mountPoint="AGENT_DESKTOP_SIDE_PANEL"
+                        [tenantId]="currentTenantId()!"
+                        [contactId]="activePluginContactId()"
+                        [customerId]="activePluginCustomerId()"
+                      />
+                    }
+                  }
+                </div>
+              }
+            </div>
           }
         </aside>
       }

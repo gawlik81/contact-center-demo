@@ -244,7 +244,11 @@
       "tabEmail": "E-Mail",
       "tabSocial": "Social",
       "replySent": "Antwort gesendet",
-      "consultCancelled": "Konsultation vom initiierenden Agenten abgebrochen"
+      "consultCancelled": "Konsultation vom initiierenden Agenten abgebrochen",
+      "pluginPanelsLabel": "Plugin-Panels",
+      "pluginActionTimeout": "Die Plugin-Aktion hat das Zeitlimit überschritten (504). Bitte erneut versuchen.",
+      "pluginActionError": "Die Plugin-Aktion ist fehlgeschlagen.",
+      "pluginActionSuccess": "Plugin-Aktion abgeschlossen."
     },
     "softphone": {
       "incomingCall": "Eingehender Anruf",

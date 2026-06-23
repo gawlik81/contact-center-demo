@@ -5084,7 +5084,7 @@ PluginUiSdk.notify(message: string, severity: 'info' | 'warning' | 'error'): voi
 **Priorytet:** Must Have
 **Złożoność:** M
 **Zależy od:** FE-099
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-103
 **Blokuje:** —
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
@@ -5103,8 +5103,19 @@ Integracja `cc-plugin-panel-host` (FE-099) w istniejący agent desktop: panel bo
 - Kliknięcie → `PluginUiSdk`-equivalent wywołanie z hosta (bez iframe, bo to przycisk natywny Angulara, nie element pluginu UI) → `POST /api/agent/plugins/{installationId}/manual-action/{actionId}` (BE-103) → wynik w toast/modal
 
 **Kryteria akceptacji:**
-- [ ] Side panel renderuje `cc-plugin-panel-host` tylko dla instalacji `enabled=true` AND `healthStatus !== 'DISABLED_BY_ADMIN'`
-- [ ] Toolbar button widoczny tylko gdy plugin zadeklarował `manualActions` z `mountPoint: 'AGENT_DESKTOP_TOOLBAR'`
-- [ ] Klik przycisku toolbar → wywołanie REST → wynik (sukces/błąd/timeout 504) wyświetlony agentowi w sposób nieblokujący (toast, nie modal blokujący UI)
-- [ ] Brak zainstalowanych pluginów → brak zmian w istniejącym layoucie agent desktop (zero regresji wizualnej)
-- [ ] `npm run lint` przechodzi
+- [x] Side panel renderuje `cc-plugin-panel-host` tylko dla instalacji `enabled=true` AND `healthStatus !== 'DISABLED_BY_ADMIN'` (`activePluginInstallations` computed w `agent-desktop.component.ts`)
+- [x] Toolbar button widoczny tylko gdy plugin zadeklarował `manualActions` z `mountPoint: 'AGENT_DESKTOP_TOOLBAR'` (`toolbarManualActions` computed)
+- [x] Klik przycisku toolbar → wywołanie REST → wynik (sukces/błąd/timeout 504) wyświetlony agentowi w sposób nieblokujący (toast, nie modal blokujący UI) (`invokeToolbarManualAction`, mapowanie statusu 504 → `pluginActionTimeout`)
+- [x] Brak zainstalowanych pluginów → brak zmian w istniejącym layoucie agent desktop (zero regresji wizualnej) — zweryfikowane wzrokowo w HTML: toolbar to czysty `@for` bez wrappera, side panel opakowany w `@if (sidePanelInstallations().length > 0 && currentTenantId())` bez żadnego pustego kontenera renderowanego przy pustej liście
+- [x] `npm run lint` przechodzi (0 błędów, 10 pre-existing warningów `no-console` niezwiązanych z tym ticketem)
+
+**Weryfikacja zamknięcia (2026-06-23):** `npm run build` przechodzi (sukces, tylko pre-existing CSS/bundle-budget warningi identyczne jak w 5 innych komponentach projektu). Mechanizm zakładek side panelu to własna, lokalna implementacja (signal `activePluginPanelId` + `setActivePluginPanel()` + `@if`/`@for`) — w projekcie nie istnieje żaden współdzielony komponent tabs (ani Angular Material, ani `shared/`), więc nie ma czego reużyć. Weryfikacja w przeglądarce niemożliwa w tym środowisku (brak przeglądarki/portu backendu).
+
+**Update (backend, kontynuacja serii FE-097/FE-099):** known-gap opisany wyżej ("zweryfikować z BE-106 czy potrzebny jest osobny endpoint `GET /api/agent/plugins`") został zaadresowany — endpoint istnieje, więc **nie** trzeba mockować danych ani zostawiać `TODO` w kodzie FE.
+
+- **Kontrakt:** `GET /api/agent/plugins`
+- **Rola:** `hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')` (w odróżnieniu od `/api/supervisor/plugins`, które jest tylko SUPERVISOR/ADMIN)
+- **Filtr:** zwraca tylko instalacje z `enabled=true` (agent nie widzi disabled/odinstalowanych) — bez filtra po `healthStatus`, więc warunek `healthStatus !== 'DISABLED_BY_ADMIN'` z kryteriów akceptacji wyżej trzeba nadal zastosować po stronie FE na zwróconej liście
+- **DTO odpowiedzi:** `List<TenantPluginInstallationDto>` — identyczny typ jak `/api/supervisor/plugins` (z `pluginKey`/`displayName`/`version`/`manualActions`/`uiPanels`, wzbogacony w FE-097)
+- **Plik:** `backend/app/src/main/java/com/contactcenter/api/plugin/PluginAgentController.java` (nowy kontroler, osobny od `PluginAdminController`)
+- Side panel powinien więc wołać `GET /api/agent/plugins` (nowy lekki endpoint), nie `PluginAdminService.listInstallations()` (który trafia w `/api/supervisor/plugins` i zwróci 403 dla roli AGENT)

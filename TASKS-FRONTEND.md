@@ -5019,7 +5019,7 @@ compose) i środowisko nie ma narzędzia do automatyzacji przeglądarki; zweryfi
 **Priorytet:** Must Have
 **Złożoność:** L
 **Zależy od:** FE-097
-**Status:** ⬜ Do zrobienia
+**Status:** ✅ Zrobione
 **Czeka na BE:** BE-107
 **Blokuje:** FE-100
 **Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
@@ -5069,12 +5069,12 @@ PluginUiSdk.notify(message: string, severity: 'info' | 'warning' | 'error'): voi
 `invokeManualAction` na hoście robi REST call do `POST /api/agent/plugins/{installationId}/manual-action/{actionId}` (BE-103/BE-107) — iframe **nigdy** nie woła `/api/**` z własnym fetch, host proxy'uje wywołanie i dołącza JWT agenta.
 
 **Kryteria akceptacji:**
-- [ ] `sandbox="allow-scripts allow-forms"` — BEZ `allow-same-origin`, BEZ `allow-top-navigation`, BEZ `allow-popups` (test: atrybut sandbox w renderowanym DOM)
-- [ ] Host waliduje `event.origin` na każdej przychodzącej wiadomości — test: wiadomość z nieoczekiwanej originy jest odrzucona i nie wywołuje żadnej akcji
-- [ ] `PluginUiSdk.getContext()` zwraca tylko `tenantId`/`contactId`/`customerId` — nigdy pełny obiekt klienta/kontaktu
-- [ ] `invokeManualAction` nie przekazuje JWT do iframe — JWT dodawany przez `HttpInterceptor` hosta przy wywołaniu REST z Angulara, iframe nie ma do niego dostępu
-- [ ] `requestResize`/`notify` działają (toast hosta, zmiana wysokości iframe)
-- [ ] `npm run lint` przechodzi
+- [x] `sandbox="allow-scripts allow-forms"` — BEZ `allow-same-origin`, BEZ `allow-top-navigation`, BEZ `allow-popups` (test: atrybut sandbox w renderowanym DOM)
+- [x] Host waliduje `event.origin` na każdej przychodzącej wiadomości — test: wiadomość z nieoczekiwanej originy jest odrzucona i nie wywołuje żadnej akcji
+- [x] `PluginUiSdk.getContext()` zwraca tylko `tenantId`/`contactId`/`customerId` — nigdy pełny obiekt klienta/kontaktu
+- [x] `invokeManualAction` nie przekazuje JWT do iframe — JWT dodawany przez `HttpInterceptor` hosta przy wywołaniu REST z Angulara, iframe nie ma do niego dostępu
+- [x] `requestResize`/`notify` działają (toast hosta, zmiana wysokości iframe)
+- [x] `npm run lint` przechodzi
 
 ---
 

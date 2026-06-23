@@ -1,0 +1,15 @@
+.plugin-panel-host {
+  display: block;
+  width: 100%;
+  min-height: 100px;
+  max-height: 800px;
+  overflow: hidden;
+  transition: height 0.15s ease-out;
+
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+}

@@ -447,7 +447,8 @@
       "Bash(echo \"EXIT=$?\")",
       "Bash(xargs -I{} echo {})",
       "Bash(jobs)",
-      "Bash(echo \"exit grep: $?\")"
+      "Bash(echo \"exit grep: $?\")",
+      "Bash(awk -F'[ ,]+' '{tests+=$3; fail+=$5; err+=$7; skip+=$9} END {print \"Tests run:\",tests,\" Failures:\",fail,\" Errors:\",err,\" Skipped:\",skip}')"
     ]
   }
 }

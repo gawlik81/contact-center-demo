@@ -3,6 +3,8 @@ package com.contactcenter.domain.plugin.runtime;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.plugin.ExtensionPoint;
+import com.contactcenter.domain.plugin.PluginCatalogQueryService;
+import com.contactcenter.domain.plugin.TenantPluginInstallation;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.pluginsdk.PluginContext;
 import com.contactcenter.pluginsdk.model.ContactEvent;
@@ -84,6 +86,7 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
     private final PluginInvocationLogService pluginInvocationLogService;
+    private final PluginCatalogQueryService pluginCatalogQueryService;
 
     @Qualifier("pluginInvocationExecutor")
     private final ExecutorService pluginInvocationExecutor;
@@ -334,11 +337,24 @@ class ExtensionPointPublisherImpl implements ExtensionPointPublisher {
         // PluginContextImpl skonstruowany per wywołanie (nie cache'owany) z tenantId pochodzącym
         // z TenantContext wątku wywołującego — nigdy od pluginu (kontrakt zgodny z
         // PluginRuntimeManagerImpl.load, patrz Javadoc PluginContextImpl).
+        //
+        // grantedPermissions pochodzi z handle (BE-101, niezmienne dla czasu życia instalacji —
+        // zmiana uprawnień wymaga reinstalacji, która tworzy nowy handle). installationConfig
+        // jest odczytywany ŚWIEŻO z bazy przy KAŻDYM wywołaniu (analogicznie do filozofii
+        // TenantContext w tym systemie — nigdy statycznie cache'owany), bo admin może zmienić
+        // konfigurację instalacji (PATCH /api/supervisor/plugins/installations/{id}/config,
+        // BE-108) bez disable/enable, co by inaczej nigdy nie weszło w życie. Poprawka bugu
+        // krytycznego: poprzednio ZAWSZE List.of()/null tutaj, niezależnie od rzeczywistych
+        // danych instalacji — zob. TASKS-BACKEND.md, BE-101/BE-102.
+        String installationConfig = pluginCatalogQueryService.findInstallation(tenantId, handle.installationId())
+                .map(TenantPluginInstallation::getInstallationConfig)
+                .orElse(null);
+
         return new PluginContextImpl(
                 tenantId,
                 handle.pluginKey(),
-                List.of(),
-                null,
+                handle.grantedPermissions(),
+                installationConfig,
                 customerService,
                 contactService);
     }

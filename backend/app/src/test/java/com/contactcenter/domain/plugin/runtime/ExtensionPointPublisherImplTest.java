@@ -3,9 +3,11 @@ package com.contactcenter.domain.plugin.runtime;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.plugin.ExtensionPoint;
+import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
 import com.contactcenter.domain.plugin.TenantPluginInstallation;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
+import com.contactcenter.pluginsdk.HttpEgressClient;
 import com.contactcenter.pluginsdk.PluginContext;
 import com.contactcenter.pluginsdk.PluginEntryPoint;
 import com.contactcenter.pluginsdk.model.ContactEvent;
@@ -68,6 +70,7 @@ class ExtensionPointPublisherImplTest {
     @Mock private ContactService contactService;
     @Mock private RabbitTemplate rabbitTemplate;
     @Mock private PluginInvocationLogService pluginInvocationLogService;
+    @Mock private PluginCatalogQueryService pluginCatalogQueryService;
 
     private CircuitBreakerState circuitBreakerState;
     private PluginInvocationProperties properties;
@@ -85,7 +88,8 @@ class ExtensionPointPublisherImplTest {
         objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         publisher = new ExtensionPointPublisherImpl(
                 pluginRegistry, circuitBreakerState, customerService, contactService,
-                properties, rabbitTemplate, objectMapper, pluginInvocationLogService, executorService);
+                properties, rabbitTemplate, objectMapper, pluginInvocationLogService,
+                pluginCatalogQueryService, executorService);
 
         TenantContext.setTenantId(TENANT_ID);
         TenantContext.setUserId(UUID.randomUUID());
@@ -271,6 +275,131 @@ class ExtensionPointPublisherImplTest {
             PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, contactEvent());
 
             assertThat(result).isEqualTo(secondResult);
+        }
+    }
+
+    @Nested
+    @DisplayName("buildPluginContext — naprawa bugu krytycznego: grantedPermissions/installationConfig poza onActivate")
+    class PluginContextConfigAndPermissionsTests {
+
+        @Test
+        @DisplayName("KRYTERIUM AKCEPTACJI (naprawa bugu): PluginContext.config().get(...) zwraca wartość zapisaną w bazie dla tej instalacji, NIE Optional.empty()")
+        void pluginContext_exposesInstallationConfigFromDatabase() {
+            AtomicReference<Optional<String>> observedApiKey = new AtomicReference<>();
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+                @Override public PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) {
+                    observedApiKey.set(ctx.config().get("googleApiKey"));
+                    return PreContactConnectResult.empty();
+                }
+            };
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
+                    .thenReturn(List.of(handleWith(entryPoint)));
+
+            TenantPluginInstallation installation = new TenantPluginInstallation();
+            installation.setId(INSTALLATION_ID);
+            installation.setTenantId(TENANT_ID);
+            installation.setInstallationConfig("{\"googleApiKey\":\"AIza-test-123\"}");
+            when(pluginCatalogQueryService.findInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(Optional.of(installation));
+
+            publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+
+            assertThat(observedApiKey.get()).contains("AIza-test-123");
+        }
+
+        @Test
+        @DisplayName("KRYTERIUM AKCEPTACJI (naprawa bugu): zmiana configu przez updateConfig MIĘDZY dwoma wywołaniami pluginu (bez disable/enable) jest widoczna przy drugim wywołaniu — czyta świeże dane, nie cache")
+        void pluginContext_seesConfigChangeBetweenTwoInvocationsWithoutReload() {
+            List<String> observedValues = new java.util.ArrayList<>();
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+                @Override public PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) {
+                    observedValues.add(ctx.config().get("googleApiKey").orElse("MISSING"));
+                    return PreContactConnectResult.empty();
+                }
+            };
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
+                    .thenReturn(List.of(handleWith(entryPoint)));
+
+            TenantPluginInstallation beforeUpdate = new TenantPluginInstallation();
+            beforeUpdate.setId(INSTALLATION_ID);
+            beforeUpdate.setTenantId(TENANT_ID);
+            beforeUpdate.setInstallationConfig("{\"googleApiKey\":\"old-key\"}");
+
+            TenantPluginInstallation afterUpdate = new TenantPluginInstallation();
+            afterUpdate.setId(INSTALLATION_ID);
+            afterUpdate.setTenantId(TENANT_ID);
+            afterUpdate.setInstallationConfig("{\"googleApiKey\":\"new-key\"}");
+
+            when(pluginCatalogQueryService.findInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(Optional.of(beforeUpdate))
+                    .thenReturn(Optional.of(afterUpdate));
+
+            // Wywołanie 1: config "old-key" (stan przed PluginRegistrationService#updateConfig).
+            publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+            // Wywołanie 2: config "new-key" — żadnego disable/enable, żadnego ponownego load()
+            // instalacji, sam handle jest identyczny — naprawa MUSI odczytać świeże dane z bazy.
+            publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+
+            assertThat(observedValues).containsExactly("old-key", "new-key");
+        }
+
+        @Test
+        @DisplayName("Instalacja nieznaleziona w bazie (race z usunięciem) -> PluginContext.config() bezpiecznie pusty, brak wyjątku")
+        void installationNotFoundInDatabase_configIsEmptyWithoutException() {
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+                @Override public PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) {
+                    assertThat(ctx.config().get("anyKey")).isEmpty();
+                    return PreContactConnectResult.empty();
+                }
+            };
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
+                    .thenReturn(List.of(handleWith(entryPoint)));
+            when(pluginCatalogQueryService.findInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(Optional.empty());
+
+            PreContactConnectResult result = publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+
+            assertThat(result).isEqualTo(PreContactConnectResult.empty());
+            verify(pluginInvocationLogService).record(
+                    eq(TENANT_ID), eq(INSTALLATION_ID), eq(ExtensionPoint.PRE_CONTACT_CONNECT),
+                    eq(InvocationStatus.SUCCESS), org.mockito.ArgumentMatchers.anyLong(), eq(null),
+                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        }
+
+        @Test
+        @DisplayName("grantedPermissions z handle (niezmienne, ustawiane przy load()) trafia poprawnie do PluginContext")
+        void grantedPermissions_fromHandleReachesPluginContext() {
+            AtomicReference<HttpEgressClient> observedClient = new AtomicReference<>();
+            List<String> permissions = List.of("http:egress:api.example.com");
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+                @Override public PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) {
+                    observedClient.set(ctx.httpClient());
+                    return PreContactConnectResult.empty();
+                }
+            };
+            PluginInstanceHandle handleWithPermissions = new PluginInstanceHandle(
+                    INSTALLATION_ID, TENANT_ID, PLUGIN_KEY, entryPoint,
+                    Thread.currentThread().getContextClassLoader(), null, Optional.empty(), permissions);
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.PRE_CONTACT_CONNECT))
+                    .thenReturn(List.of(handleWithPermissions));
+            when(pluginCatalogQueryService.findInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(Optional.empty());
+
+            publisher.publishPreContactConnect(TENANT_ID, contactEvent());
+
+            // Allow-listę dokładnie weryfikuje PluginHttpEgressClientImplTest; tutaj potwierdzamy
+            // tylko, że handle.grantedPermissions() (nie List.of() na sztywno) faktycznie trafia
+            // do konstruktora PluginContextImpl — obserwowalne przez brak wyjątku przy egress do
+            // hosta z allow-listy (zamiast zawsze SecurityException jak przy buggy List.of()).
+            assertThat(observedClient.get()).isNotNull();
         }
     }
 

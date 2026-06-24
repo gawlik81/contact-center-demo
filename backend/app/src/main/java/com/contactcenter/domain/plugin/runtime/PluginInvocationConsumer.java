@@ -4,7 +4,9 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.messaging.TenantAwareConsumer;
 import com.contactcenter.domain.plugin.ExtensionPoint;
+import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
+import com.contactcenter.domain.plugin.TenantPluginInstallation;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.pluginsdk.PluginContext;
@@ -88,6 +90,7 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
     private final PluginInvocationProperties properties;
     private final ObjectMapper objectMapper;
     private final PluginInvocationLogService pluginInvocationLogService;
+    private final PluginCatalogQueryService pluginCatalogQueryService;
 
     @Qualifier("pluginInvocationExecutor")
     private final ExecutorService pluginInvocationExecutor;
@@ -303,11 +306,19 @@ class PluginInvocationConsumer extends TenantAwareConsumer {
     }
 
     private PluginContext buildPluginContext(UUID tenantId, PluginInstanceHandle handle) {
+        // Patrz komentarz w ExtensionPointPublisherImpl.buildPluginContext — identyczna naprawa
+        // bugu krytycznego (TASKS-BACKEND.md, BE-101/BE-102): grantedPermissions z handle
+        // (niezmienne dla czasu życia instalacji), installationConfig odczytany świeżo z bazy
+        // przy KAŻDYM wywołaniu (admin może zmienić config bez disable/enable, BE-108).
+        String installationConfig = pluginCatalogQueryService.findInstallation(tenantId, handle.installationId())
+                .map(TenantPluginInstallation::getInstallationConfig)
+                .orElse(null);
+
         return new PluginContextImpl(
                 tenantId,
                 handle.pluginKey(),
-                List.of(),
-                null,
+                handle.grantedPermissions(),
+                installationConfig,
                 customerService,
                 contactService);
     }

@@ -3,6 +3,7 @@ package com.contactcenter.domain.plugin.runtime;
 import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.plugin.ExtensionPoint;
+import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
 import com.contactcenter.domain.plugin.TenantPluginInstallation;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
@@ -63,6 +64,7 @@ class PluginInvocationConsumerTest {
     @Mock private CustomerService customerService;
     @Mock private ContactService contactService;
     @Mock private PluginInvocationLogService pluginInvocationLogService;
+    @Mock private PluginCatalogQueryService pluginCatalogQueryService;
 
     private CircuitBreakerState circuitBreakerState;
     private PluginInvocationProperties properties;
@@ -80,7 +82,7 @@ class PluginInvocationConsumerTest {
         consumer = new PluginInvocationConsumer(
                 pluginRegistry, pluginRegistrationService, circuitBreakerState,
                 customerService, contactService, properties, objectMapper,
-                pluginInvocationLogService, executorService);
+                pluginInvocationLogService, pluginCatalogQueryService, executorService);
     }
 
     @AfterEach
@@ -308,6 +310,102 @@ class PluginInvocationConsumerTest {
                     org.mockito.ArgumentMatchers.eq(ExtensionPoint.POST_CONTACT_END),
                     org.mockito.ArgumentMatchers.eq(InvocationStatus.CIRCUIT_OPEN), org.mockito.ArgumentMatchers.eq(0L),
                     org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        }
+    }
+
+    @Nested
+    @DisplayName("buildPluginContext — naprawa bugu krytycznego: grantedPermissions/installationConfig poza onActivate (ścieżka async)")
+    class PluginContextConfigAndPermissionsTests {
+
+        @Test
+        @DisplayName("KRYTERIUM AKCEPTACJI (naprawa bugu): PluginContext.config().get(...) widzi installationConfig zapisany w bazie, NIE Optional.empty() (ścieżka async/RabbitMQ)")
+        void pluginContext_exposesInstallationConfigFromDatabase() {
+            AtomicReference<Optional<String>> observedApiKey = new AtomicReference<>();
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+                @Override public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
+                    observedApiKey.set(ctx.config().get("googleApiKey"));
+                }
+            };
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.POST_CONTACT_END))
+                    .thenReturn(List.of(handleWith(entryPoint)));
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(installationDto(INSTALLATION_ID, true));
+
+            TenantPluginInstallation installation = new TenantPluginInstallation();
+            installation.setId(INSTALLATION_ID);
+            installation.setTenantId(TENANT_ID);
+            installation.setInstallationConfig("{\"googleApiKey\":\"AIza-test-123\"}");
+            when(pluginCatalogQueryService.findInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(Optional.of(installation));
+
+            consumer.handleInvocation(messageFor(TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
+
+            assertThat(observedApiKey.get()).contains("AIza-test-123");
+        }
+
+        @Test
+        @DisplayName("KRYTERIUM AKCEPTACJI (naprawa bugu): zmiana configu MIĘDZY dwoma wiadomościami konsumowanymi sekwencyjnie (bez disable/enable) jest widoczna przy drugiej — czyta świeże dane, nie cache")
+        void pluginContext_seesConfigChangeBetweenTwoMessagesWithoutReload() {
+            List<String> observedValues = new java.util.ArrayList<>();
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+                @Override public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
+                    observedValues.add(ctx.config().get("googleApiKey").orElse("MISSING"));
+                }
+            };
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.POST_CONTACT_END))
+                    .thenReturn(List.of(handleWith(entryPoint)));
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(installationDto(INSTALLATION_ID, true));
+
+            TenantPluginInstallation beforeUpdate = new TenantPluginInstallation();
+            beforeUpdate.setId(INSTALLATION_ID);
+            beforeUpdate.setTenantId(TENANT_ID);
+            beforeUpdate.setInstallationConfig("{\"googleApiKey\":\"old-key\"}");
+
+            TenantPluginInstallation afterUpdate = new TenantPluginInstallation();
+            afterUpdate.setId(INSTALLATION_ID);
+            afterUpdate.setTenantId(TENANT_ID);
+            afterUpdate.setInstallationConfig("{\"googleApiKey\":\"new-key\"}");
+
+            when(pluginCatalogQueryService.findInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(Optional.of(beforeUpdate))
+                    .thenReturn(Optional.of(afterUpdate));
+
+            consumer.handleInvocation(messageFor(TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
+            consumer.handleInvocation(messageFor(TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
+
+            assertThat(observedValues).containsExactly("old-key", "new-key");
+        }
+
+        @Test
+        @DisplayName("grantedPermissions z handle (niezmienne, ustawiane przy load()) trafia poprawnie do PluginContext (ścieżka async)")
+        void grantedPermissions_fromHandleReachesPluginContext() {
+            AtomicReference<com.contactcenter.pluginsdk.HttpEgressClient> observedClient = new AtomicReference<>();
+            List<String> permissions = List.of("http:egress:api.example.com");
+            PluginEntryPoint entryPoint = new PluginEntryPoint() {
+                @Override public void onActivate(PluginContext context) { }
+                @Override public void onDeactivate() { }
+                @Override public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
+                    observedClient.set(ctx.httpClient());
+                }
+            };
+            PluginInstanceHandle handleWithPermissions = new PluginInstanceHandle(
+                    INSTALLATION_ID, TENANT_ID, PLUGIN_KEY, entryPoint,
+                    Thread.currentThread().getContextClassLoader(), null, Optional.empty(), permissions);
+            when(pluginRegistry.lookup(TENANT_ID, ExtensionPoint.POST_CONTACT_END))
+                    .thenReturn(List.of(handleWithPermissions));
+            when(pluginRegistrationService.getInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(installationDto(INSTALLATION_ID, true));
+            when(pluginCatalogQueryService.findInstallation(TENANT_ID, INSTALLATION_ID))
+                    .thenReturn(Optional.empty());
+
+            consumer.handleInvocation(messageFor(TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));
+
+            assertThat(observedClient.get()).isNotNull();
         }
     }
 

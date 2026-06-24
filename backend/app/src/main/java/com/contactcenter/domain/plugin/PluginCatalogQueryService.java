@@ -63,4 +63,28 @@ public interface PluginCatalogQueryService {
      *         iteracji po tenantach (bez zagwarantowanego sortowania ponadto)
      */
     List<TenantPluginInstallation> findAllEnabledAcrossTenantsByVersionId(UUID pluginVersionId);
+
+    /**
+     * Pobiera wszystkie wersje pluginów z globalnego katalogu ({@code plugin_version}),
+     * niezależnie od tenanta i niezależnie od tego, czy jakikolwiek tenant je zainstalował
+     * (BE-110, EPIC-28).
+     *
+     * <p><strong>Skąd ten endpoint:</strong> realny scenariusz odkryty przy testowaniu uploadu —
+     * upload JAR-a przeszedł walidację ({@code status=VALIDATED}), ale zapis do bazy zakończył
+     * się błędem (np. naruszenie unikalności {@code (plugin_id, version)} po wcześniejszej,
+     * częściowo nieudanej próbie). Skoro {@code POST /api/supervisor/plugins} (upload) zwrócił
+     * błąd HTTP zamiast {@code PluginVersionDto}, wywołujący nigdy nie otrzymał
+     * {@code pluginVersionId} potrzebnego do instalacji — a bez przeglądarki katalogu nie miał
+     * żadnego innego sposobu, by zainstalować wersję, która w rzeczywistości już istnieje
+     * w bazie (zgodnie z modelem katalogu globalnego, ADR-13).
+     *
+     * <p>Zwraca wszystkie statusy ({@code UPLOADED}/{@code VALIDATED}/{@code PENDING_REVIEW}/
+     * {@code REJECTED}/{@code REVOKED}), włącznie z {@code REJECTED} — pomocne diagnostycznie
+     * (administrator widzi też nieudane uploady i ich powód odrzucenia), nie utrudnia to
+     * sortowania/UI: filtrowanie "czy instalowalna" robi wywołujący po polu {@code status}
+     * (instalowalne to {@code VALIDATED}/{@code PENDING_REVIEW}).
+     *
+     * @return wszystkie wersje katalogu, sortowane {@code uploadedAt DESC} (najnowsze pierwsze)
+     */
+    List<PluginVersion> findAllVersions();
 }

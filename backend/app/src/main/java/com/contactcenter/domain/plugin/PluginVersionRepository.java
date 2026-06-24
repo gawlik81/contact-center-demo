@@ -23,4 +23,14 @@ interface PluginVersionRepository extends JpaRepository<PluginVersion, UUID> {
     List<PluginVersion> findByPluginIdOrderByUploadedAtDesc(UUID pluginId);
 
     Optional<PluginVersion> findByPluginIdAndVersion(UUID pluginId, String version);
+
+    /**
+     * Wszystkie wersje w globalnym katalogu, najnowsze pierwsze (BE-110, EPIC-28).
+     *
+     * <p>Bez filtrowania po {@code status} — widok katalogu (panel administracyjny) ma pokazywać
+     * również wersje {@code REJECTED}/{@code PENDING_REVIEW} dla celów diagnostycznych (patrz
+     * {@link PluginCatalogQueryService#findAllVersions()}); filtrowanie "czy instalowalna" jest
+     * decyzją prezentacji (frontend/kontroler), nie zapytania.
+     */
+    List<PluginVersion> findAllByOrderByUploadedAtDesc();
 }

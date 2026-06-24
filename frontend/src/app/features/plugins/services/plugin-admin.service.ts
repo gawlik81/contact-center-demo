@@ -43,6 +43,16 @@ export class PluginAdminService {
   }
 
   /**
+   * Listuje wszystkie wersje pluginów w globalnym katalogu, niezależnie od tenanta/instalacji
+   * (BE-110). Przeglądarka katalogu — pozwala zainstalować wersję, której `pluginVersionId`
+   * nie pochodzi ze świeżej odpowiedzi `uploadJar` (np. gdy upload przeszedł walidację, ale
+   * zapis do bazy zawiódł, bo wersja już istniała w katalogu z wcześniejszej próby).
+   */
+  listCatalog(): Observable<PluginVersionDto[]> {
+    return this.http.get<PluginVersionDto[]>(`${this.base}/catalog`);
+  }
+
+  /**
    * Instaluje wersję pluginu dla tenanta (enabled=false po instalacji).
    */
   install(req: InstallPluginRequest): Observable<TenantPluginInstallationDto> {
@@ -81,6 +91,15 @@ export class PluginAdminService {
    */
   uninstall(installationId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/installations/${installationId}`);
+  }
+
+  /**
+   * Zastępuje (REPLACE, nie merge) cały zestaw konfiguracji instalacji pluginu. Wartości są
+   * szyfrowane AES-256-GCM po stronie backendu i nigdy nie wracają w odpowiedzi API — nie ma
+   * odpowiadającej metody GET, formularz wywołujący to zawsze musi startować pusty.
+   */
+  updateConfig(installationId: string, config: Record<string, string>): Observable<void> {
+    return this.http.patch<void>(`${this.base}/installations/${installationId}/config`, { config });
   }
 
   /**

@@ -5541,6 +5541,14 @@ GET /api/supervisor/plugins/{installationId}/invocations?page=0&size=20&status=F
 
 **Testy:** `PiiRedactorTest` (10 — redakcja top-level, rekurencyjna w mapach/listach zagnieżdżonych, case/separator-insensitive matching, null/empty), `PluginInvocationLogServiceImplTest` (9 — mapowanie encji, **redakcja PII zweryfikowana asercją na zawartości JSON wynikowego** nie tylko wywołaniem metody, błąd repozytorium złapany/nie propagowany, 404 ownership propagowany bez wołania repo), `PluginInvocationLogControllerTest` (5 — happy path, paginacja/filtr status, 404 propagowany). Zaktualizowane `ExtensionPointPublisherImplTest`/`PluginInvocationConsumerTest` (BE-102/104) z dodatkowymi asercjami `verify(pluginInvocationLogService).record(...)` dla każdej z 5 ścieżek statusu już istniejącej w tych klasach. `mvn verify -pl app`: **1323 testy, 0 failures, 0 errors, BUILD SUCCESS** (+49 vs BE-104: 1274→1323).
 
+**BUG KRYTYCZNY znaleziony i naprawiony (2026-06-24), dotyczy BE-101/BE-102/BE-104:** `ExtensionPointPublisherImpl.buildPluginContext(...)` i `PluginInvocationConsumer.buildPluginContext(...)` (obie metody wprowadzone w tych tickecie/BE-104) hardkodowały `List.of()`/`null` jako `grantedPermissions`/`installationConfig` przy konstrukcji `PluginContextImpl` dla **każdego** wywołania pluginu poza `onActivate()` (tj. `onPreContactConnect`, `onManualAction`, `onPostContactEnd`, `onCustomerSync`, `onDispositionSet`) — niezależnie od rzeczywistych danych zapisanych dla instalacji w bazie. Skutek: `PluginContext.config().get(...)` zawsze zwracał `Optional.empty()`, a `PluginContext.httpClient()` miał zawsze pustą allow-listę egress (każde wywołanie HTTP → `SecurityException`) przy każdym wywołaniu poza aktywacją. Tylko jednorazowy `onActivate()` (wołany z `PluginRuntimeManagerImpl.load()`, osobna metoda budująca `PluginContextImpl`, która poprawnie przekazuje `installation.getGrantedPermissions()`/`installation.getInstallationConfig()`) dostawał prawdziwe dane.
+
+**Realny scenariusz, który ujawnił bug:** przykładowy plugin Google Lookup (`examples/plugins/customer-google-lookup`) zwracał błąd "Brak konfiguracji 'googleApiKey'" w `onPreContactConnect`, mimo że konfiguracja była poprawnie ustawiona przez admina i widoczna w bazie — `onActivate()` (walidacja "czy klucz API jest ustawiony") przechodził poprawnie, ale każde kolejne wywołanie pluginu i tak dostawało pusty config.
+
+**Naprawa:** w obu metodach `buildPluginContext` — `grantedPermissions` czytane z `handle.grantedPermissions()` (pole już istniejące na `PluginInstanceHandle` od BE-107, bezpieczne do cache'owania na handle, bo niezmienne dla czasu życia instalacji — zmiana uprawnień wymaga reinstalacji = nowy handle). `installationConfig` czytany **świeżo z bazy przy każdym wywołaniu** przez nowo wstrzykniętą zależność `PluginCatalogQueryService.findInstallation(tenantId, handle.installationId())` (port już istniejący, użyty analogicznie do `PluginRuntimeManagerImpl.load`) — celowo NIE cache'owany na handle, bo `PluginRegistrationService.updateConfig` (BE-108) może zmienić konfigurację instalacji bez disable/enable, więc cache na handle uczyniłby taką zmianę nigdy niewidoczną bez ponownego load(). `Optional.empty()` (instalacja usunięta między load() i wywołaniem, race rzadkie) → `installationConfig = null` → `PluginConfigImpl` zwraca pustą mapę, brak NPE.
+
+**Testy regresyjne dodane:** `ExtensionPointPublisherImplTest$PluginContextConfigAndPermissionsTests` (4: config widoczny z bazy, config zmienia się między dwoma wywołaniami bez reload — dowód braku cache, instalacja nieznaleziona → bezpieczny `Optional.empty()`, `grantedPermissions` z handle dociera do `PluginContext`), `PluginInvocationConsumerTest$PluginContextConfigAndPermissionsTests` (3, analogiczne dla ścieżki async/RabbitMQ). `mvn verify -pl app`: bez regresji.
+
 ---
 
 ### BE-106 – `PluginAdminController`: enable/disable, rollback, platform `REVOKED` kill switch
@@ -5721,3 +5729,83 @@ backend/app/src/main/java/com/contactcenter/
 - `PluginAssetController` (`GET /plugin-assets/{installationId}/**`, publiczny) — serwuje pliki statyczne z katalogu znalezionego przez `findActiveHandle`; 404 dla instalacji nieznanej/bez zasobów UI/pliku nieistniejącego; CSP `default-src 'self'; connect-src 'self' <egress hosts>`; broni się przed path traversal w segmencie wildcard
 - `PluginManualActionController.invokeManualAction` — nowa walidacja `checkInstallationInvokable` przed `publishManualAction`: 403 JSON (`ManualActionResponseDto.forbidden`) dla `enabled=false`/`DISABLED_BY_ADMIN`/wersja `REVOKED` (dociągnięta przez `PluginCatalogQueryService.findVersionById`)
 - `SecurityConfig` + `PublicPathsConfig` — `/plugin-assets/**` dodane jako publiczne (dwa miejsca, zgodnie z CLAUDE.md)
+
+---
+
+### BE-110 – `GET /api/supervisor/plugins/catalog` — przeglądarka globalnego katalogu wersji
+
+**Typ:** Backend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** BE-099, BE-106
+**Status:** ✅ Zrobione
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Skąd ten ticket — realny scenariusz odkryty przy testowaniu uploadu na żywym backendzie:**
+Administrator wgrał JAR pluginu (`POST /api/supervisor/plugins`) — walidacja przeszła
+(`status=VALIDATED`), ale zapis do bazy zakończył się `duplicate key violates unique constraint
+"uq_plugin_version_plugin_version"`, bo wcześniejsza (częściowo nieudana z innego powodu) próba
+uploadu już wcześniej zapisała wiersz `plugin_version` dla tej samej `(plugin_id, version)`. Skoro
+upload zwrócił błąd HTTP (nie `PluginVersionDto`), frontend (`PluginAdminService.uploadJar`) nigdy
+nie dostał `pluginVersionId`, więc nigdy nie pokazał przycisku "Zainstaluj" — administrator nie
+miał żadnego sposobu zainstalować wersję, która **już istniała** w katalogu.
+
+**Przyczyna strukturalna:** `GET /api/supervisor/plugins` (`listInstallations`) zwraca wyłącznie
+instalacje tenanta (`tenant_plugin_installation`), NIE globalny katalog wgranych wersji
+(`plugin`/`plugin_version`). Przed tym tickietem nie istniał żaden endpoint do przeglądania
+katalogu — jedyny sposób zdobycia `pluginVersionId` był świeżą, udaną odpowiedzią z uploadu. Zbyt
+wąskie dla modelu katalogu globalnego (ADR-13): ten sam JAR może być wgrany raz i instalowany
+przez wielu tenantów niezależnie, ale bez przeglądarki katalogu nikt poza tenantem z świeżym
+uploadem nie miał jak go zainstalować.
+
+**Kontrakt:**
+```
+GET /api/supervisor/plugins/catalog
+  → 200: List<PluginVersionDto>
+```
+`@PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")` (ten sam jak resztę `PluginAdminController`).
+
+**Decyzja filtrowania po statusie:** endpoint zwraca WSZYSTKIE statusy (`UPLOADED`/`VALIDATED`/
+`PENDING_REVIEW`/`REJECTED`/`REVOKED`), bez filtrowania w zapytaniu. Powód: wartość diagnostyczna
+— administrator widzi też nieudane uploady i powód odrzucenia (`validationErrors`). Filtrowanie
+"czy instalowalna" (`VALIDATED`/`PENDING_REVIEW`) jest decyzją prezentacji — zaimplementowane po
+stronie frontendu (`isCatalogVersionInstallable`), nie po stronie zapytania SQL, żeby nie tracić
+informacji diagnostycznej dla pozostałych statusów.
+
+**Implementacja:**
+- `PluginVersionRepository.findAllByOrderByUploadedAtDesc()` — nowa metoda derived-query (bez
+  filtra `status`, najnowsze pierwsze)
+- `PluginCatalogQueryService.findAllVersions()`/`Impl` — delegacja do repozytorium, zwraca encje
+  `PluginVersion` (nie DTO — wzorzec portu odczytu, jak reszta tego interfejsu)
+- `PluginVersionDto.from(PluginVersion entity)` — nowa statyczna fabryka mapująca (wzorzec
+  identyczny do `PluginInvocationLogDto.from`), czytająca `permissions` z `manifestJson` zapisanej
+  encji (nie ze świeżo sparsowanego `PluginManifest`) — pozwala mapować KAŻDĄ odczytaną z bazy
+  encję, nie tylko tę zaraz po uploadzie. **Refaktoryzacja bez duplikacji:** `PluginStorageServiceImpl.toDto`
+  (BE-099, prywatna metoda z dodatkowym parametrem `PluginManifest`) zastąpiona wywołaniem tej
+  samej `PluginVersionDto.from(pluginVersion)` — `manifestJson` i świeży manifest niosą identyczne
+  `permissions` (zapisywane przez `manifestToMap`), więc usunięcie duplikatu nie zmienia zachowania
+  (zweryfikowane testami `PluginStorageServiceImplTest`, bez regresji)
+- `PluginAdminController.listCatalog()` (`GET /api/supervisor/plugins/catalog`) — nowa zależność
+  `PluginCatalogQueryService` wstrzyknięta do kontrolera (trzecia, po `PluginRegistrationService`/
+  `PluginRuntimeManager`)
+
+**Frontend:**
+- `PluginAdminService.listCatalog()` — `GET /api/supervisor/plugins/catalog`
+- `plugins-page.component.ts/html` — nowa sekcja "Dostępne w katalogu" między uploadem i listą
+  instalacji, ładowana w `ngOnInit`. Dialog instalacji uogólniony na `installDialogTarget` (źródło:
+  `uploadResult()` ZNA sekcji uploadu LUB wersja wybrana z katalogu) — `confirmInstall()` czyta
+  teraz z `installDialogTarget()`, nie bezpośrednio z `uploadResult()`. `catalogToShow` (computed)
+  odfiltrowuje wersje, których `pluginVersionId` jest już w `installations()` tenanta — uproszczenie
+  zaimplementowane (proste: `Set` z `installations().map(i => i.pluginVersionId)`)
+
+**Kryteria akceptacji:**
+- [x] `GET /api/supervisor/plugins/catalog` zwraca listę wersji niezależnie od tenanta/instalacji
+- [x] Rola AGENT → `403` (deklaratywne `@PreAuthorize` na poziomie klasy kontrolera, jak reszta `PluginAdminController`)
+- [x] `mvn verify -pl app` przechodzi bez regresji (1369 testów, 0 failures, 0 errors)
+- [x] `npm run lint` przechodzi bez regresji (0 errors, 10 preexistujących warningów `no-console` w niezwiązanych plikach)
+- [x] Endpoint w Swagger UI (`@Operation`/`@ApiResponse` na `listCatalog`, `@Tag` już na poziomie klasy)
+
+**Testy:** `PluginAdminControllerTest` (`listCatalog_mapsAllVersionsToDto`,
+`listCatalog_empty_returnsEmptyList`), `PluginCatalogQueryServiceImplTest$FindAllVersions`
+(delegacja do repozytorium, wszystkie statusy włącznie z `REJECTED`, katalog pusty).

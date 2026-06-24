@@ -1,7 +1,11 @@
 package com.contactcenter.api.plugin;
 
+import com.contactcenter.domain.plugin.Plugin;
+import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
+import com.contactcenter.domain.plugin.PluginVersion;
 import com.contactcenter.domain.plugin.dto.InstallPluginRequest;
+import com.contactcenter.domain.plugin.dto.PluginVersionDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
 import com.contactcenter.security.TenantContext;
@@ -20,6 +24,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -59,13 +64,15 @@ class PluginAdminControllerTest {
 
     @Mock private PluginRegistrationService pluginRegistrationService;
     @Mock private PluginRuntimeManager pluginRuntimeManager;
+    @Mock private PluginCatalogQueryService pluginCatalogQueryService;
 
     private PluginAdminController controller;
     private MockedStatic<TenantContext> tenantContextMock;
 
     @BeforeEach
     void setUp() {
-        controller = new PluginAdminController(pluginRegistrationService, pluginRuntimeManager);
+        controller = new PluginAdminController(
+                pluginRegistrationService, pluginRuntimeManager, pluginCatalogQueryService);
         tenantContextMock = mockStatic(TenantContext.class);
         tenantContextMock.when(TenantContext::getTenantId).thenReturn(TENANT_ID);
         tenantContextMock.when(TenantContext::getUserId).thenReturn(USER_ID);
@@ -99,6 +106,57 @@ class PluginAdminControllerTest {
     }
 
     // =========================================================================
+    // GET listCatalog (BE-110)
+    // =========================================================================
+
+    @Test
+    @DisplayName("listCatalog: mapuje wszystkie PluginVersion z serwisu na DTO, niezależnie od tenanta")
+    void listCatalog_mapsAllVersionsToDto() {
+        PluginVersion version = pluginVersion(PluginVersion.PluginVersionStatus.VALIDATED);
+        when(pluginCatalogQueryService.findAllVersions()).thenReturn(List.of(version));
+
+        ResponseEntity<List<PluginVersionDto>> response = controller.listCatalog();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).hasSize(1);
+        assertThat(response.getBody().get(0).id()).isEqualTo(PLUGIN_VERSION_ID);
+        assertThat(response.getBody().get(0).status()).isEqualTo("VALIDATED");
+    }
+
+    @Test
+    @DisplayName("listCatalog: katalog pusty → lista pusta, nie rzuca")
+    void listCatalog_empty_returnsEmptyList() {
+        when(pluginCatalogQueryService.findAllVersions()).thenReturn(List.of());
+
+        ResponseEntity<List<PluginVersionDto>> response = controller.listCatalog();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEmpty();
+    }
+
+    private PluginVersion pluginVersion(PluginVersion.PluginVersionStatus status) {
+        Plugin plugin = Plugin.builder()
+                .id(UUID.randomUUID())
+                .pluginKey("acme-crm-sync")
+                .displayName("Acme CRM Sync")
+                .vendor("Acme")
+                .createdAt(Instant.now())
+                .build();
+
+        return PluginVersion.builder()
+                .id(PLUGIN_VERSION_ID)
+                .plugin(plugin)
+                .version("1.0.0")
+                .jarObjectKey("plugins/acme-crm-sync/1.0.0/plugin.jar")
+                .checksumSha256("0".repeat(64))
+                .manifestJson(Map.of())
+                .sdkVersion("1.x")
+                .status(status)
+                .uploadedAt(Instant.now())
+                .build();
+    }
+
+    // =========================================================================
     // POST install
     // =========================================================================
 
@@ -122,7 +180,7 @@ class PluginAdminControllerTest {
         @Test
         @DisplayName("201 przekazuje grantedPermissions z request body")
         void install_withPermissions_passesThemToService() {
-            InstallPluginRequest request = new InstallPluginRequest(PLUGIN_VERSION_ID, List.of("customer:read"));
+            InstallPluginRequest request = new InstallPluginRequest(List.of("customer:read"));
             TenantPluginInstallationDto created = installationDto(INSTALLATION_ID, false);
             when(pluginRegistrationService.install(TENANT_ID, PLUGIN_VERSION_ID, List.of("customer:read"), USER_ID))
                     .thenReturn(created);

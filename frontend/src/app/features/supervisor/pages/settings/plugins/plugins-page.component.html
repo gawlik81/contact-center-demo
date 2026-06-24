@@ -70,13 +70,63 @@
           </div>
         } @else if (uploadIsInstallable()) {
           <p class="pp-muted">{{ 'supervisor.settings.plugins.readyToInstall' | transloco }}</p>
-          <button type="button" class="pp-btn pp-btn--primary" (click)="openInstallDialog()">
+          <button type="button" class="pp-btn pp-btn--primary" (click)="openInstallDialog(uploadResult()!)">
             {{ 'supervisor.settings.plugins.installButton' | transloco }}
           </button>
         } @else {
           <p class="pp-muted">
             {{ 'supervisor.settings.plugins.statusLabel' | transloco }}: {{ uploadResult()!.status }}
           </p>
+        }
+      </div>
+    }
+  </section>
+
+  <!-- ============ Catalog (BE-110) ============ -->
+  <section class="pp-section">
+    <h2 class="pp-section__title">{{ 'supervisor.settings.plugins.catalogTitle' | transloco }}</h2>
+    <p class="pp-muted">{{ 'supervisor.settings.plugins.catalogHint' | transloco }}</p>
+
+    @if (catalogLoading()) {
+      <div class="pp-skeleton-wrapper">
+        @for (item of [1, 2]; track item) {
+          <div class="pp-skeleton-card"></div>
+        }
+      </div>
+    } @else if (catalogError()) {
+      <div class="pp-alert pp-alert--error">
+        {{ 'supervisor.settings.plugins.errorLoadCatalog' | transloco }}
+        <button type="button" class="pp-btn pp-btn--ghost pp-btn--sm" (click)="loadCatalog()">
+          {{ 'common.retry' | transloco }}
+        </button>
+      </div>
+    } @else if (catalogToShow().length === 0) {
+      <div class="pp-empty">
+        <p>{{ 'supervisor.settings.plugins.emptyCatalog' | transloco }}</p>
+      </div>
+    } @else {
+      <div class="pp-installations" role="list">
+        @for (version of catalogToShow(); track version.id) {
+          <div class="pp-card" role="listitem">
+            <div class="pp-card__main">
+              <div class="pp-card__title-row">
+                <strong>{{ version.displayName }}</strong>
+                <span class="pp-muted">v{{ version.version }}</span>
+                <span class="pp-muted">{{ version.vendor }}</span>
+              </div>
+              <p class="pp-muted pp-card__key">
+                {{ 'supervisor.settings.plugins.statusLabel' | transloco }}: {{ version.status }}
+              </p>
+            </div>
+
+            <div class="pp-card__actions">
+              @if (isCatalogVersionInstallable(version)) {
+                <button type="button" class="pp-btn pp-btn--primary pp-btn--sm" (click)="openInstallDialog(version)">
+                  {{ 'supervisor.settings.plugins.installButton' | transloco }}
+                </button>
+              }
+            </div>
+          </div>
         }
       </div>
     }
@@ -164,6 +214,15 @@
 
               <button
                 type="button"
+                class="pp-btn pp-btn--ghost pp-btn--sm"
+                [disabled]="isPending(installation.id)"
+                (click)="openConfigDialog(installation)"
+              >
+                {{ 'supervisor.settings.plugins.configButton' | transloco }}
+              </button>
+
+              <button
+                type="button"
                 class="pp-btn pp-btn--danger pp-btn--sm"
                 [disabled]="isPending(installation.id)"
                 (click)="openUninstallDialog(installation)"
@@ -193,14 +252,14 @@
     </header>
 
     <div class="pp-dialog__body">
-      @if (uploadResult()) {
-        <p class="pp-muted">{{ uploadResult()!.displayName }} v{{ uploadResult()!.version }}</p>
+      @if (installDialogTarget()) {
+        <p class="pp-muted">{{ installDialogTarget()!.displayName }} v{{ installDialogTarget()!.version }}</p>
       }
 
-      @if (uploadResult() && uploadResult()!.permissions.length > 0) {
+      @if (installDialogTarget() && installDialogTarget()!.permissions.length > 0) {
         <p class="pp-dialog__hint">{{ 'supervisor.settings.plugins.permissionsHint' | transloco }}</p>
         <ul class="pp-permissions-list">
-          @for (permission of uploadResult()!.permissions; track permission) {
+          @for (permission of installDialogTarget()!.permissions; track permission) {
             <li>
               <label class="pp-checkbox">
                 <input
@@ -227,6 +286,91 @@
           <span class="pp-spinner" aria-hidden="true"></span>
         }
         {{ 'supervisor.settings.plugins.confirmInstallButton' | transloco }}
+      </button>
+    </footer>
+  </div>
+</dialog>
+
+<!-- ============ Config dialog (EPIC-28) ============ -->
+<dialog #configDialog class="pp-dialog" (close)="closeConfigDialog()">
+  <div class="pp-dialog__inner">
+    <header class="pp-dialog__header">
+      <h2>
+        {{ 'supervisor.settings.plugins.configDialogTitle' | transloco }}
+        @if (configDialogTarget()) {
+          <span class="pp-muted">— {{ configDialogTarget()!.displayName }}</span>
+        }
+      </h2>
+      <button class="pp-dialog__close" (click)="closeConfigDialog()" [attr.aria-label]="'common.close' | transloco">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          />
+        </svg>
+      </button>
+    </header>
+
+    <div class="pp-dialog__body">
+      <p class="pp-dialog__hint">{{ 'supervisor.settings.plugins.configHint' | transloco }}</p>
+
+      @if (hasDuplicateConfigKeys()) {
+        <div class="pp-alert pp-alert--error">
+          {{ 'supervisor.settings.plugins.configDuplicateKeyError' | transloco }}
+        </div>
+      }
+
+      <div class="pp-kv-list">
+        @for (row of configRows(); track $index) {
+          <div class="pp-kv-row">
+            <input
+              type="text"
+              class="pp-kv-row__input"
+              [value]="row.key"
+              [placeholder]="'supervisor.settings.plugins.configKeyPlaceholder' | transloco"
+              (input)="updateConfigRowKey($index, $any($event.target).value)"
+            />
+            <input
+              type="password"
+              class="pp-kv-row__input"
+              [value]="row.value"
+              [placeholder]="'supervisor.settings.plugins.configValuePlaceholder' | transloco"
+              (input)="updateConfigRowValue($index, $any($event.target).value)"
+            />
+            <button
+              type="button"
+              class="pp-kv-row__remove"
+              [attr.aria-label]="'supervisor.settings.plugins.configRemoveRowAria' | transloco"
+              (click)="removeConfigRow($index)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                />
+              </svg>
+            </button>
+          </div>
+        }
+      </div>
+
+      <button type="button" class="pp-btn pp-btn--ghost pp-btn--sm pp-kv-add" (click)="addConfigRow()">
+        {{ 'supervisor.settings.plugins.configAddRow' | transloco }}
+      </button>
+    </div>
+
+    <footer class="pp-dialog__footer">
+      <button type="button" class="pp-btn pp-btn--ghost" (click)="closeConfigDialog()">
+        {{ 'common.cancel' | transloco }}
+      </button>
+      <button
+        type="button"
+        class="pp-btn pp-btn--primary"
+        [disabled]="savingConfig() || !canSaveConfig()"
+        (click)="confirmSaveConfig()"
+      >
+        @if (savingConfig()) {
+          <span class="pp-spinner" aria-hidden="true"></span>
+        }
+        {{ 'supervisor.settings.plugins.configSaveButton' | transloco }}
       </button>
     </footer>
   </div>

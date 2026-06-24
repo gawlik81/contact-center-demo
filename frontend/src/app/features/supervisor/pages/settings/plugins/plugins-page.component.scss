@@ -485,6 +485,68 @@
   }
 }
 
+// ---- Key-value config rows (EPIC-28) ----
+
+.pp-kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-bottom: 0.875rem;
+}
+
+.pp-kv-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  &__input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    color: var(--text-1);
+    background: var(--bg-base, transparent);
+
+    &:focus-visible {
+      outline: none;
+      border-color: var(--accent);
+    }
+  }
+
+  &__remove {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text-2);
+
+    &:hover {
+      background: var(--danger-soft);
+      color: var(--danger-text);
+    }
+
+    svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+  }
+}
+
+.pp-kv-add {
+  width: 100%;
+  justify-content: center;
+}
+
 // ---- Spinner ----
 
 .pp-spinner {

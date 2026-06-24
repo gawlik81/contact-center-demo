@@ -5119,3 +5119,124 @@ Integracja `cc-plugin-panel-host` (FE-099) w istniejący agent desktop: panel bo
 - **DTO odpowiedzi:** `List<TenantPluginInstallationDto>` — identyczny typ jak `/api/supervisor/plugins` (z `pluginKey`/`displayName`/`version`/`manualActions`/`uiPanels`, wzbogacony w FE-097)
 - **Plik:** `backend/app/src/main/java/com/contactcenter/api/plugin/PluginAgentController.java` (nowy kontroler, osobny od `PluginAdminController`)
 - Side panel powinien więc wołać `GET /api/agent/plugins` (nowy lekki endpoint), nie `PluginAdminService.listInstallations()` (który trafia w `/api/supervisor/plugins` i zwróci 403 dla roli AGENT)
+
+---
+
+### FE-101 – Sekcja „Dostępne w katalogu” na stronie Ustawienia > Pluginy
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-097, FE-098
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-110
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Skąd ten ticket:** patrz BE-110 (TASKS-BACKEND.md) — realny scenariusz: upload przeszedł
+walidację, ale zapis do bazy zawiódł (wersja już istniała w katalogu z wcześniejszej, częściowo
+nieudanej próby), więc `uploadResult()` nigdy nie dostał `pluginVersionId` i przycisk "Zainstaluj"
+sekcji uploadu nigdy się nie pojawił. Bez przeglądarki katalogu administrator nie miał żadnego
+sposobu zainstalować wersję, która w rzeczywistości już istniała w bazie.
+
+**Implementacja:**
+- `PluginAdminService.listCatalog()` — `GET /api/supervisor/plugins/catalog` → `Observable<PluginVersionDto[]>`
+- `plugins-page.component.ts`:
+  - `catalog`/`catalogLoading`/`catalogError` (signal) + `loadCatalog()` (wołane w `ngOnInit`, równolegle z `loadInstallations()`)
+  - `installedVersionIds` (computed z `installations()`) + `catalogToShow` (computed: katalog minus już zainstalowane `pluginVersionId` — usprawnienie z treści zadania zaimplementowane, bo trywialne: `Set` + `filter`)
+  - `isCatalogVersionInstallable(version)` — `VALIDATED`/`PENDING_REVIEW` → pokaż przycisk "Zainstaluj"
+  - **Refaktoryzacja dialogu instalacji:** dialog był ściśle związany z `uploadResult()` (jedyne źródło wersji do instalacji). Uogólnione na `installDialogTarget` (signal) — `openInstallDialog(version: PluginVersionDto)` przyjmuje teraz parametr (wywoływane z `uploadResult()!` w sekcji uploadu LUB z wybranej wersji katalogu), `confirmInstall()` czyta z `installDialogTarget()`. Dialog HTML (`@if (installDialogTarget()) ...`) bez zmian strukturalnych — tylko zmiana źródła danych, sam dialog instalacji (permissions, checkboxy) reużyty 1:1 dla obu ścieżek, zgodnie z wymogiem zadania "nie twórz nowego dialogu instalacji"
+  - Po skutecznej instalacji: `loadInstallations()` + `loadCatalog()` (odśwież obie listy, żeby `catalogToShow` odfiltrował właśnie zainstalowaną wersję)
+- `plugins-page.component.html` — nowa sekcja między uploadem i listą instalacji, wzorzec identyczny do sekcji "Zainstalowane pluginy" (skeleton/error/empty/lista, `pp-card`), karta wersji pokazuje `displayName`/`vendor`/`version`/`status`, przycisk "Zainstaluj" tylko dla statusów instalowalnych
+- Tłumaczenia: nowe klucze `catalogTitle`/`catalogHint`/`errorLoadCatalog`/`emptyCatalog`/`catalogAlreadyInstalled` w `pl.json`/`en.json`/`de.json`/`uk.json`
+
+**Kryteria akceptacji:**
+- [x] Sekcja katalogu ładowana przy inicjalizacji komponentu, niezależnie od historii uploadu
+- [x] Wersja katalogu już zainstalowana przez tenanta nie jest pokazywana (odfiltrowana po `pluginVersionId`)
+- [x] Przycisk "Zainstaluj" w katalogu otwiera ten sam dialog instalacji (permissions/checkboxy) jak ścieżka uploadu — zero duplikacji UI
+- [x] `npm run lint` przechodzi bez regresji (0 errors, 10 pre-existing warningów `no-console` niezwiązanych z tym ticketem)
+- [x] `npx tsc --noEmit` bez błędów typów
+
+**Uwaga:** preexistujący brak kluczy tłumaczeń `successInstall`/`errorInstall` (używanych przez
+`confirmInstall()` od FE-098, przed tym tickietem) — zauważony przy weryfikacji, ale poza zakresem
+tego ticketu (nie wprowadzony przez FE-101, nie dotyczy nowej funkcjonalności katalogu). Transloco
+wyświetli klucz literalnie jako fallback, nie psuje builda/lintu — wymaga osobnego, drobnego fix-ticketu.
+
+---
+
+### FE-102 – UI konfiguracji instalacji pluginu (secret config) na stronie Ustawienia > Pluginy
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-097, FE-098
+**Status:** ✅ Zrobione
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Skąd ten ticket:** odkryte przy realnym testowaniu na żywym backendzie — endpoint
+`PATCH /api/supervisor/plugins/installations/{id}/config` istniał od dawna, ale UI do jego
+wywołania nigdy nie powstał. Administrator/supervisor musiał ręcznie wołać curl/Swagger, żeby
+ustawić sekretną konfigurację (np. `api_key`) zainstalowanego pluginu — nieakceptowalne dla
+produkcyjnego flow.
+
+**Implementacja:**
+- `PluginAdminService.updateConfig(installationId, config)` — `PATCH .../installations/{id}/config`
+  z body `{ config }`. Semantyka REPLACE (nie merge) — udokumentowane w JSDoc metody. Brak
+  odpowiadającego GET (wartości szyfrowane AES-256-GCM po stronie backendu, nigdy nie wracają w
+  żadnej odpowiedzi API) — świadome ograniczenie bezpieczeństwa, formularz FE musi zawsze
+  startować pusty.
+- `plugins-page.component.ts`:
+  - Nowy dialog `#configDialog` (analogiczny do `#installDialog`) — `configDialogTarget`
+    (signal, instalacja docelowa), `openConfigDialog(installation)` / `closeConfigDialog()`.
+  - Dynamiczny formularz par klucz-wartość zaimplementowany **czystymi sygnałami**
+    (`configRows = signal<{ key: string; value: string }[]>([])`), **nie** `FormArray`/
+    `ReactiveFormsModule` — komponent nigdzie w pliku nie używa reactive forms (cała reszta
+    stanu to `signal()`/`computed()` + proste input bindingi), więc FormArray wprowadziłby
+    drugi, niekonsystentny wzorzec zarządzania stanem formularza tylko dla jednego dialogu.
+    `addConfigRow()`/`removeConfigRow(i)`/`updateConfigRowKey(i, key)`/`updateConfigRowValue(i, value)`
+    operują na tablicy przez `update()` z `map`/`filter` (immutable, zgodnie ze wzorcem
+    `pendingActionIds`/`grantedPermissions` już w pliku).
+  - Walidacja duplikatów/pustych kluczy przez `computed()`: `nonEmptyConfigKeys` (trim +
+    filter), `hasDuplicateConfigKeys` (`Set.size !== length`), `canSaveConfig` (niepusty
+    zestaw AND brak duplikatów) — przycisk "Zapisz" disabled gdy `!canSaveConfig()`.
+  - `confirmSaveConfig()` buduje `Record<string,string>` z wierszy (pomija puste po trim
+    key), woła `updateConfig()` z `takeUntilDestroyed(this.destroyRef)`. Błędy idą przez
+    globalny `notifications.error(...)` — **ten sam wzorzec co istniejący `confirmInstall()`**
+    (install dialog też nie ma lokalnego inline alertu dla błędów zapisu, tylko globalny toast;
+    zachowana konsystencja, nie wprowadzono nowego wzorca błędów).
+  - `savingConfig` (signal) analogicznie do `installing` — disable przycisku + spinner.
+  - Dialog zawsze otwiera się z jednym pustym wierszem (`configRows.set([{ key: '', value: '' }])`)
+    — nigdy nie próbuje odczytać poprzednich wartości (bo nie ma skąd, brak GET).
+- `plugins-page.component.html`:
+  - Nowy przycisk "Konfiguracja" (`pp-btn pp-btn--ghost pp-btn--sm`) w `pp-card__actions` karty
+    instalacji (sekcja "Zainstalowane pluginy"), między przyciskiem rollback i "Odinstaluj".
+    Disabled gdy `isPending(installation.id)`.
+  - Nowy `<dialog #configDialog class="pp-dialog">` po `#installDialog`, przed sekcją uninstall
+    confirm dialog. Hint (i18n `configHint`) wyjaśnia jawnie write-only charakter formularza.
+    Każdy wiersz: input text (key) + input `type="password"` (value, bo sekret) + przycisk X
+    usunięcia wiersza (reużyty inline SVG path z `pp-dialog__close`, nie zduplikowana nowa
+    ikona — w projekcie nie znaleziono osobnego współdzielonego komponentu ikony X do reużycia).
+    Inline alert błędu duplikatu klucza (`pp-alert pp-alert--error`) pod hintem, widoczny
+    reaktywnie z `hasDuplicateConfigKeys()` (osobny od wzorca błędów zapisu — to walidacja
+    klienta, nie błąd API, więc lokalny inline alert ma sens tu, w odróżnieniu od błędu API).
+  - Przycisk "+ Dodaj pole" (`configAddRow`) pod listą wierszy.
+- SCSS: nowe klasy `.pp-kv-list`/`.pp-kv-row`/`.pp-kv-row__input`/`.pp-kv-row__remove`/
+  `.pp-kv-add`, w stylu BEM już istniejącym w pliku (`var(--text-1)`, `var(--border-1)`,
+  `var(--radius-sm)` itd.).
+- Tłumaczenia: `configButton`/`configDialogTitle`/`configHint`/`configKeyPlaceholder`/
+  `configValuePlaceholder`/`configAddRow`/`configRemoveRowAria`/`configDuplicateKeyError`/
+  `configSaveButton`/`successConfig`/`errorConfig` w `pl.json`/`en.json`/`de.json`/`uk.json`.
+
+**Kryteria akceptacji:**
+- [x] Formularz konfiguracji zawsze startuje pusty (jeden wiersz), nigdy nie ładuje poprzednich
+  wartości (zgodnie z ograniczeniem bezpieczeństwa backendu — brak GET)
+- [x] Pole wartości typu `password` (maskowanie sekretu na ekranie)
+- [x] "Zapisz" disabled gdy brak niepustych kluczy LUB są zduplikowane (po trim)
+- [x] PATCH wysyła `Record<string,string>` zbudowany z wierszy (REPLACE semantyka, zgodnie z
+  kontraktem backendu — FE nie próbuje merge'ować z niczym, bo nic nie ma do merge'a)
+- [x] Sukces → toast `successConfig` + zamknięcie dialogu + wyczyszczenie stanu formularza
+- [x] Błąd API → toast `errorConfig` (ten sam globalny wzorzec co `confirmInstall()`)
+- [x] `npm run lint` przechodzi (0 błędów; 1 błąd `@typescript-eslint/array-type` znaleziony i
+  naprawiony w trakcie implementacji — `Array<T>` → `T[]`, zgodnie z regułą projektu)
+- [x] `npm run build` przechodzi (sukces; warningi bundle-budget identyczne z poprzednimi
+  tickietami EPIC-28, niezwiązane z tym plikiem)

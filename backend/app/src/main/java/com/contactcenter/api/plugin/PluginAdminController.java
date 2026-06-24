@@ -1,7 +1,9 @@
 package com.contactcenter.api.plugin;
 
+import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
 import com.contactcenter.domain.plugin.dto.InstallPluginRequest;
+import com.contactcenter.domain.plugin.dto.PluginVersionDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.dto.UpdateInstallationConfigRequest;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
@@ -35,6 +37,7 @@ import java.util.UUID;
  * <p>Endpointy:
  * <ul>
  *   <li>GET    /api/supervisor/plugins                                       – wszystkie instalacje tenanta (włącznie z disabled)</li>
+ *   <li>GET    /api/supervisor/plugins/catalog                               – wszystkie wersje globalnego katalogu (BE-110)</li>
  *   <li>POST   /api/supervisor/plugins/{pluginVersionId}/install             – instalacja nowej wersji</li>
  *   <li>POST   /api/supervisor/plugins/installations/{id}/enable            – włączenie (+ ładowanie runtime, idempotentne)</li>
  *   <li>POST   /api/supervisor/plugins/installations/{id}/disable           – wyłączenie (+ natychmiastowy unload runtime)</li>
@@ -65,6 +68,7 @@ public class PluginAdminController {
 
     private final PluginRegistrationService pluginRegistrationService;
     private final PluginRuntimeManager pluginRuntimeManager;
+    private final PluginCatalogQueryService pluginCatalogQueryService;
 
     // =========================================================================
     // GET — listowanie instalacji tenanta
@@ -85,6 +89,44 @@ public class PluginAdminController {
         log.debug("[PluginAdminController] GET /api/supervisor/plugins: tenant={}", tenantId);
 
         return ResponseEntity.ok(pluginRegistrationService.listInstallations(tenantId));
+    }
+
+    // =========================================================================
+    // GET — globalny katalog wersji (BE-110)
+    // =========================================================================
+
+    @GetMapping("/catalog")
+    @Operation(
+            summary = "Listuje wszystkie wersje pluginów w globalnym katalogu",
+            description = """
+                    Zwraca WSZYSTKIE wersje z plugin_version, niezależnie od tenanta i niezależnie
+                    od tego, czy jakikolwiek tenant je zainstalował (katalog globalny, ADR-13).
+
+                    Skąd ten endpoint: jedynym dotychczasowym sposobem zdobycia pluginVersionId
+                    była świeża, udana odpowiedź uploadu. Gdy upload przechodzi walidację, ale zapis
+                    do bazy zawiedzie (np. wersja już istnieje w katalogu z wcześniejszej próby),
+                    wywołujący nie dostaje pluginVersionId i nie ma żadnego sposobu zainstalować
+                    wersji, która już istnieje. Ten endpoint daje przeglądarkę katalogu niezależną
+                    od historii uploadów.
+
+                    Zwraca wszystkie statusy, włącznie z REJECTED/REVOKED — pomocne diagnostycznie.
+                    Filtrowanie "czy instalowalna" (VALIDATED/PENDING_REVIEW) jest decyzją UI.
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Lista wersji katalogu, najnowsze pierwsze"),
+                    @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)")
+            }
+    )
+    public ResponseEntity<List<PluginVersionDto>> listCatalog() {
+        UUID tenantId = TenantContext.getTenantId();
+        log.debug("[PluginAdminController] GET /api/supervisor/plugins/catalog: tenant={}", tenantId);
+
+        List<PluginVersionDto> catalog = pluginCatalogQueryService.findAllVersions().stream()
+                .map(PluginVersionDto::from)
+                .toList();
+
+        return ResponseEntity.ok(catalog);
     }
 
     // =========================================================================

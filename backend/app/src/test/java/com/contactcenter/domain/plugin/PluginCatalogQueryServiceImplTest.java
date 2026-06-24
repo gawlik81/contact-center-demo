@@ -138,6 +138,46 @@ class PluginCatalogQueryServiceImplTest {
         }
     }
 
+    @Nested
+    @DisplayName("findAllVersions()")
+    class FindAllVersions {
+
+        @Test
+        @DisplayName("BE-110: deleguje do repozytorium, sortowane uploadedAt DESC")
+        void delegatesToRepositorySortedByUploadedAtDesc() {
+            PluginVersion newer = buildPluginVersion(PluginVersion.PluginVersionStatus.VALIDATED);
+            PluginVersion older = buildPluginVersion(PluginVersion.PluginVersionStatus.REJECTED);
+            when(pluginVersionRepository.findAllByOrderByUploadedAtDesc())
+                    .thenReturn(List.of(newer, older));
+
+            List<PluginVersion> result = service.findAllVersions();
+
+            assertThat(result).containsExactly(newer, older);
+        }
+
+        @Test
+        @DisplayName("zwraca wszystkie statusy, włącznie z REJECTED — bez filtrowania")
+        void returnsAllStatusesIncludingRejected() {
+            PluginVersion rejected = buildPluginVersion(PluginVersion.PluginVersionStatus.REJECTED);
+            when(pluginVersionRepository.findAllByOrderByUploadedAtDesc()).thenReturn(List.of(rejected));
+
+            List<PluginVersion> result = service.findAllVersions();
+
+            assertThat(result).extracting(PluginVersion::getStatus)
+                    .containsExactly(PluginVersion.PluginVersionStatus.REJECTED);
+        }
+
+        @Test
+        @DisplayName("katalog pusty → lista pusta, nie rzuca")
+        void emptyCatalog_returnsEmptyList() {
+            when(pluginVersionRepository.findAllByOrderByUploadedAtDesc()).thenReturn(List.of());
+
+            List<PluginVersion> result = service.findAllVersions();
+
+            assertThat(result).isEmpty();
+        }
+    }
+
     // =========================================================================
     // Helpers
     // =========================================================================

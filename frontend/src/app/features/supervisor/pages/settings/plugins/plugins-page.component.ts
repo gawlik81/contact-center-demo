@@ -32,6 +32,7 @@ const MAX_JAR_SIZE_BYTES = 50 * 1024 * 1024;
 })
 export class PluginsPageComponent implements OnInit {
   @ViewChild('installDialog') private installDialogRef!: ElementRef<HTMLDialogElement>;
+  @ViewChild('configDialog') private configDialogRef!: ElementRef<HTMLDialogElement>;
   @ViewChild('fileInput') private fileInputRef!: ElementRef<HTMLInputElement>;
 
   private readonly pluginAdminService = inject(PluginAdminService);
@@ -58,8 +59,35 @@ export class PluginsPageComponent implements OnInit {
   readonly loadError = signal(false);
   readonly installations = signal<TenantPluginInstallationDto[]>([]);
 
-  // ---- Install dialog state ----
+  /** Zbiór `pluginVersionId` już zainstalowanych przez tenanta — do odfiltrowania w katalogu. */
+  readonly installedVersionIds = computed(
+    () => new Set(this.installations().map((i) => i.pluginVersionId)),
+  );
 
+  // ---- Catalog state (BE-110) ----
+  //
+  // Skąd ta sekcja: upload, który przeszedł walidację, ale zapis do bazy zawiódł (np. wersja
+  // już istniała w katalogu z wcześniejszej, częściowo nieudanej próby) nigdy nie zwraca
+  // pluginVersionId — uploadResult() zostaje null, więc przycisk "Zainstaluj" sekcji uploadu
+  // nigdy się nie pojawia. Katalog daje niezależną od historii uploadu ścieżkę instalacji.
+
+  readonly catalogLoading = signal(true);
+  readonly catalogError = signal(false);
+  readonly catalog = signal<PluginVersionDto[]>([]);
+
+  /** Wersje katalogu jeszcze nie zainstalowane przez tenanta. */
+  readonly catalogToShow = computed(() => {
+    const installedIds = this.installedVersionIds();
+    return this.catalog().filter((v) => !installedIds.has(v.id));
+  });
+
+  // ---- Install dialog state ----
+  //
+  // Uogólnione na dwa źródła: świeży uploadResult() (sekcja uploadu) lub wersja wybrana
+  // z catalogToShow() (sekcja katalogu) — installDialogTarget jest jedynym źródłem prawdy
+  // dla samego dialogu, niezależnie skąd pochodzi.
+
+  readonly installDialogTarget = signal<PluginVersionDto | null>(null);
   readonly grantedPermissions = signal<Set<string>>(new Set());
   readonly installing = signal(false);
 
@@ -79,8 +107,37 @@ export class PluginsPageComponent implements OnInit {
   /** Per-installation pending action flag (enable/disable/rollback), keyed by installation id. */
   readonly pendingActionIds = signal<Set<string>>(new Set());
 
+  // ---- Config dialog state (EPIC-28) ----
+  //
+  // Backend nie udostępnia GET dla konfiguracji (wartości szyfrowane AES-256-GCM, write-only
+  // z założeń bezpieczeństwa) — formularz zawsze startuje z jednym pustym wierszem, nigdy nie
+  // "wczytuje" poprzednio zapisanych wartości. Reprezentacja czystymi sygnałami (nie
+  // ReactiveFormsModule) dla konsystencji z resztą komponentu, który nigdzie nie używa
+  // reactive forms.
+
+  readonly configDialogTarget = signal<TenantPluginInstallationDto | null>(null);
+  readonly configRows = signal<{ key: string; value: string }[]>([]);
+  readonly savingConfig = signal(false);
+
+  /** Klucze (po trim) wierszy z niepustym key — używane do walidacji duplikatów. */
+  private readonly nonEmptyConfigKeys = computed(() =>
+    this.configRows()
+      .map((row) => row.key.trim())
+      .filter((key) => key.length > 0),
+  );
+
+  readonly hasDuplicateConfigKeys = computed(() => {
+    const keys = this.nonEmptyConfigKeys();
+    return new Set(keys).size !== keys.length;
+  });
+
+  readonly canSaveConfig = computed(
+    () => this.nonEmptyConfigKeys().length > 0 && !this.hasDuplicateConfigKeys(),
+  );
+
   ngOnInit(): void {
     this.loadInstallations();
+    this.loadCatalog();
   }
 
   // ---- Upload ----
@@ -182,6 +239,30 @@ export class PluginsPageComponent implements OnInit {
       });
   }
 
+  // ---- Catalog ----
+
+  loadCatalog(): void {
+    this.catalogLoading.set(true);
+    this.catalogError.set(false);
+    this.pluginAdminService
+      .listCatalog()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (list) => {
+          this.catalog.set(list);
+          this.catalogLoading.set(false);
+        },
+        error: () => {
+          this.catalogError.set(true);
+          this.catalogLoading.set(false);
+        },
+      });
+  }
+
+  isCatalogVersionInstallable(version: PluginVersionDto): boolean {
+    return version.status === 'VALIDATED' || version.status === 'PENDING_REVIEW';
+  }
+
   healthBadgeClass(status: PluginHealthStatus): string {
     switch (status) {
       case 'HEALTHY':
@@ -278,13 +359,15 @@ export class PluginsPageComponent implements OnInit {
 
   // ---- Install dialog ----
 
-  openInstallDialog(): void {
+  openInstallDialog(version: PluginVersionDto): void {
+    this.installDialogTarget.set(version);
     this.grantedPermissions.set(new Set());
     this.installDialogRef.nativeElement.showModal();
   }
 
   closeInstallDialog(): void {
     this.installDialogRef.nativeElement.close();
+    this.installDialogTarget.set(null);
   }
 
   isPermissionGranted(permission: string): boolean {
@@ -301,7 +384,7 @@ export class PluginsPageComponent implements OnInit {
   }
 
   confirmInstall(): void {
-    const version = this.uploadResult();
+    const version = this.installDialogTarget();
     if (!version || this.installing()) return;
 
     this.installing.set(true);
@@ -320,6 +403,7 @@ export class PluginsPageComponent implements OnInit {
             this.transloco.translate('supervisor.settings.plugins.successInstall'),
           );
           this.loadInstallations();
+          this.loadCatalog();
         },
         error: () => {
           this.installing.set(false);
@@ -361,6 +445,67 @@ export class PluginsPageComponent implements OnInit {
           this.uninstalling.set(false);
           this.notifications.error(
             this.transloco.translate('supervisor.settings.plugins.errorUninstall'),
+          );
+        },
+      });
+  }
+
+  // ---- Config dialog (EPIC-28) ----
+
+  openConfigDialog(installation: TenantPluginInstallationDto): void {
+    this.configDialogTarget.set(installation);
+    this.configRows.set([{ key: '', value: '' }]);
+    this.configDialogRef.nativeElement.showModal();
+  }
+
+  closeConfigDialog(): void {
+    this.configDialogRef.nativeElement.close();
+    this.configDialogTarget.set(null);
+    this.configRows.set([]);
+  }
+
+  addConfigRow(): void {
+    this.configRows.update((rows) => [...rows, { key: '', value: '' }]);
+  }
+
+  removeConfigRow(index: number): void {
+    this.configRows.update((rows) => rows.filter((_, i) => i !== index));
+  }
+
+  updateConfigRowKey(index: number, key: string): void {
+    this.configRows.update((rows) => rows.map((row, i) => (i === index ? { ...row, key } : row)));
+  }
+
+  updateConfigRowValue(index: number, value: string): void {
+    this.configRows.update((rows) => rows.map((row, i) => (i === index ? { ...row, value } : row)));
+  }
+
+  confirmSaveConfig(): void {
+    const installation = this.configDialogTarget();
+    if (!installation || this.savingConfig() || !this.canSaveConfig()) return;
+
+    const config: Record<string, string> = {};
+    for (const row of this.configRows()) {
+      const key = row.key.trim();
+      if (key.length > 0) config[key] = row.value;
+    }
+
+    this.savingConfig.set(true);
+    this.pluginAdminService
+      .updateConfig(installation.id, config)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.savingConfig.set(false);
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.plugins.successConfig'),
+          );
+          this.closeConfigDialog();
+        },
+        error: () => {
+          this.savingConfig.set(false);
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.plugins.errorConfig'),
           );
         },
       });

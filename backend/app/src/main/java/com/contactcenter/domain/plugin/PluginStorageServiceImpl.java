@@ -97,7 +97,7 @@ class PluginStorageServiceImpl implements PluginStorageService {
                         + "s3Key={}, uploadedBy={}",
                 manifest.pluginKey(), manifest.version(), versionStatus, s3Key, uploadedByUserId);
 
-        return toDto(pluginVersion, manifest);
+        return PluginVersionDto.from(pluginVersion);
     }
 
     @Override
@@ -270,24 +270,6 @@ class PluginStorageServiceImpl implements PluginStorageService {
             case VALIDATED -> PluginVersion.PluginVersionStatus.VALIDATED;
             case REJECTED -> throw new IllegalStateException("REJECTED nie powinien dotrzeć do storage");
         };
-    }
-
-    private PluginVersionDto toDto(PluginVersion pluginVersion, PluginManifest manifest) {
-        Plugin plugin = pluginVersion.getPlugin();
-        return new PluginVersionDto(
-                pluginVersion.getId(),
-                plugin.getId(),
-                manifest.pluginKey(),
-                plugin.getDisplayName(),
-                plugin.getVendor(),
-                pluginVersion.getVersion(),
-                pluginVersion.getSdkVersion(),
-                pluginVersion.getStatus().name(),
-                pluginVersion.getValidationErrors() != null ? pluginVersion.getValidationErrors() : List.of(),
-                manifest.permissions() != null ? manifest.permissions() : List.of(),
-                pluginVersion.getUploadedByUserId(),
-                pluginVersion.getUploadedAt()
-        );
     }
 
     /** Wyjątek operacji storage pluginów (S3 lub niespodziewany stan po walidacji). */

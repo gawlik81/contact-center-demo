@@ -6,8 +6,14 @@
   "vendorContact": "support@acme.example",
   "sdkVersion": "1.x",
   "entryPointClass": "com.acme.contactcenter.plugin.googlelookup.CustomerGoogleLookupPlugin",
-  "extensionPoints": ["PRE_CONTACT_CONNECT", "MANUAL_ACTION"],
-  "permissions": ["customer:read", "http:egress:www.googleapis.com"],
+  "extensionPoints": [
+    "PRE_CONTACT_CONNECT",
+    "MANUAL_ACTION"
+  ],
+  "permissions": [
+    "customer:read",
+    "http:egress:www.googleapis.com"
+  ],
   "uiPanels": [
     {
       "panelId": "google-lookup-panel",

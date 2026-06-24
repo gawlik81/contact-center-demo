@@ -14,6 +14,15 @@ Ten katalog jest **niezależnym projektem Maven** — symuluje repozytorium zewn
 dostawcy pluginu. Nie jest częścią reaktora `backend/pom.xml` i nie jest budowany przez
 `mvn package -pl app`.
 
+> ⚠️ **`checksumSha256` zacommitowany w `plugin-manifest.json` jest tylko z JEDNEGO,
+> konkretnego builda** (zweryfikowanego w trakcie pisania tego przykładu). Bajtowa
+> reprodukowalność JAR-a jest zagwarantowana TYLKO między budowami na tym samym środowisku
+> (ta sama wersja JDK/Maven, ten sam OS) — patrz Krok 2-3 poniżej. **Zawsze przelicz checksum
+> samodzielnie przed uploadem** (Krok 2), nie ufaj wartości już wpisanej w pliku — inny
+> JDK/Maven/OS może wyprodukować JAR o innych bajtach (mimo identycznego kodu źródłowego),
+> a backend i tak odrzuci upload z czytelnym błędem `Checksum mismatch: ...obliczony=<X>` —
+> w takim wypadku wklej `<X>` z komunikatu błędu do manifestu i przebuduj.
+
 ---
 
 ## Krok 0 — zbuduj i zainstaluj `plugin-sdk` lokalnie

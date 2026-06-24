@@ -1,9 +1,6 @@
 package com.contactcenter.domain.plugin.dto;
 
-import jakarta.validation.constraints.NotNull;
-
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Żądanie instalacji pluginu dla tenanta.
@@ -13,11 +10,17 @@ import java.util.UUID;
  * zadeklarowanymi w manifeście wybranej {@code PluginVersion} (żądanie uprawnienia
  * niezadeklarowanego w manifeście jest po cichu ignorowane, nie powoduje błędu).
  *
- * @param pluginVersionId    identyfikator wersji pluginu do zainstalowania
+ * <p><strong>Brak pola {@code pluginVersionId}</strong> (świadomie, naprawa buga z testów
+ * manualnych EPIC-28) — identyfikator wersji jest już częścią ścieżki URL
+ * ({@code POST /api/supervisor/plugins/{pluginVersionId}/install}, czytany przez
+ * {@code PluginAdminController} z {@code @PathVariable}, nigdy z ciała żądania). Wcześniejsza
+ * wersja tego rekordu duplikowała to pole z `@NotNull`, co odrzucało każde żądanie z frontendu
+ * (poprawnie, zgodnie z konwencją REST, nieprzesyłającego go w body) komunikatem
+ * "pluginVersionId nie może mieć wartości null".
+ *
  * @param grantedPermissions uprawnienia zaakceptowane przez admina tenanta (może być pusta/null)
  */
 public record InstallPluginRequest(
-        @NotNull UUID pluginVersionId,
         List<String> grantedPermissions
 ) {
 }

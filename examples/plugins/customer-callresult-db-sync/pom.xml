@@ -14,7 +14,7 @@
 
     <groupId>com.acme.contactcenter</groupId>
     <artifactId>customer-callresult-db-sync-plugin</artifactId>
-    <version>1.0.0</version>
+    <version>1.2.0</version>
     <packaging>jar</packaging>
 
     <name>Customer Call Result DB Sync — przykładowy plugin Contact Center</name>

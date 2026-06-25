@@ -1,0 +1,51 @@
+# docker-compose.yml — zewnętrzna baza CRM na potrzeby demo pluginu Customer Call Result DB Sync
+#
+# Uruchomienie:
+#   docker compose -f examples/plugins/customer-callresult-db-sync/crm-demo-db/docker-compose.yml up -d
+#
+# Zatrzymanie:
+#   docker compose -f examples/plugins/customer-callresult-db-sync/crm-demo-db/docker-compose.yml down
+#
+# Reset danych:
+#   docker compose -f examples/plugins/customer-callresult-db-sync/crm-demo-db/docker-compose.yml down -v
+#
+# Port hosta: localhost:5433 (niezależny od CC-postgres na 5432)
+# Sieć Docker: contact-center-network — backend CC może dotrzeć do tej bazy
+# jako crm-demo-db:5432 (nazwa serwisu w sieci, port wewnętrzny 5432).
+#
+# WAŻNE: przed uruchomieniem musi już istnieć sieć contact-center-network
+# (tworzy ją `docker compose -f docker-compose.yml up`).
+
+services:
+  crm-demo-db:
+    image: postgres:16-alpine
+    container_name: crm-demo-db
+    environment:
+      POSTGRES_DB: crm_demo
+      POSTGRES_USER: crm_demo_user
+      POSTGRES_PASSWORD: crm_demo_pass
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "5433:5432"
+    volumes:
+      - crm_demo_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_demo_user -d crm_demo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - cc-network
+
+volumes:
+  crm_demo_data:
+    driver: local
+
+networks:
+  cc-network:
+    external: true
+    name: contact-center-network

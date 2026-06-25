@@ -1,7 +1,7 @@
 {
   "pluginKey": "customer-callresult-db-sync",
   "displayName": "Customer Call Result DB Sync",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "vendor": "Acme Sp. z o.o.",
   "vendorContact": "support@acme.example",
   "sdkVersion": "1.x",
@@ -12,7 +12,7 @@
   ],
   "permissions": [
     "contact:read",
-    "db:egress:localhost:5432"
+    "db:egress:crm-demo-db:5432"
   ],
   "checksumSha256": "92cf40722c2235ff895f059b00c2ab8fcdc7762d2836a598be07d93857269b49"
 }

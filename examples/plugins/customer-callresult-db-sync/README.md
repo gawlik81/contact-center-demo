@@ -22,8 +22,8 @@ dostawcy pluginu. Nie jest częścią reaktora `backend/pom.xml` i nie jest budo
 
 W przeciwieństwie do `http:egress:<host>` (gdzie port jest opcjonalny), kategoria
 `db:egress:<host>:<port>` wymaga **obu** — host i port — w manifeście. Host:port musi być
-ustalony przez dostawcę pluginu **przed buildem** (w tym przykładzie: `db:egress:localhost:5432`,
-demo na lokalnym PostgreSQL). Tenant instalujący plugin musi w `installation_config` podać
+ustalony przez dostawcę pluginu **przed buildem** (w tym przykładzie: `db:egress:crm-demo-db:5432`,
+dedykowany kontener CRM-postgres w sieci `contact-center-network` — patrz `crm-demo-db/`). Tenant instalujący plugin musi w `installation_config` podać
 `jdbcUrl` wskazujący na **TEN SAM** host:port — inaczej `PluginDbEgressClientImpl` (host) odrzuci
 połączenie z `SecurityException`, zanim nawiąże się jakiekolwiek połączenie. Analogicznie do
 `http:egress:www.googleapis.com` w przykładzie `customer-google-lookup`.
@@ -31,6 +31,44 @@ połączenie z `SecurityException`, zanim nawiąże się jakiekolwiek połączen
 Plugin sam nigdy nie widzi JDBC URL/credentiali — host (`backend/app`) zarządza połączeniem w
 całości, na podstawie `installation_config` tej instalacji. Plugin podaje wyłącznie SQL z `?`
 placeholderami i parametry bindowane pozycyjnie, przez `ctx.dbClient().executeUpdate(sql, params)`.
+
+---
+
+## Zewnętrzna baza CRM — uruchomienie
+
+Plugin wymaga zewnętrznej bazy PostgreSQL dostępnej pod `crm-demo-db:5432` w sieci Docker
+`contact-center-network`. W katalogu `crm-demo-db/` znajduje się gotowy `docker-compose.yml`
+z PostgreSQL 16 i skryptem `init.sql` tworzącym tabelę `call_results` (+ indeksy).
+
+```bash
+# Uruchomienie (z katalogu głównego projektu):
+docker compose -f examples/plugins/customer-callresult-db-sync/crm-demo-db/docker-compose.yml up -d
+
+# Weryfikacja — tabela musi istnieć:
+docker exec crm-demo-db psql -U crm_demo_user -d crm_demo -c "\dt"
+
+# Zatrzymanie:
+docker compose -f examples/plugins/customer-callresult-db-sync/crm-demo-db/docker-compose.yml down
+
+# Reset danych:
+docker compose -f examples/plugins/customer-callresult-db-sync/crm-demo-db/docker-compose.yml down -v
+```
+
+Kontener dołącza automatycznie do sieci `contact-center-network` (musi już istnieć — tworzy ją
+główny `docker compose up`). Baza jest również dostępna z hosta pod `localhost:5433`.
+
+Dane połączenia (do konfiguracji instalacji pluginu):
+
+| Parametr | Wartość |
+|---|---|
+| `jdbcUrl` | `jdbc:postgresql://crm-demo-db:5432/crm_demo` |
+| `dbUsername` | `crm_demo_user` |
+| `dbPassword` | `crm_demo_pass` |
+| `dbTable` | `call_results` *(default)* |
+
+> **Uwaga:** `jdbcUrl` używa nazwy serwisu Docker `crm-demo-db:5432` — backend CC widzi ten host
+> w sieci `contact-center-network`. Manifest pluginu deklaruje `db:egress:crm-demo-db:5432` —
+> `jdbcUrl` musi wskazywać dokładnie ten sam host:port.
 
 ---
 
@@ -68,7 +106,7 @@ projekt zawiera narzędzie replikujące dokładnie ten algorytm:
 
 ```bash
 java -cp target/classes com.acme.contactcenter.plugin.callresultdbsync.tooling.ChecksumTool \
-    target/customer-callresult-db-sync-plugin-1.0.0.jar
+    target/customer-callresult-db-sync-plugin-1.2.0.jar
 ```
 
 Wypisze 64-znakowy hex string.
@@ -85,7 +123,7 @@ mvn -q package
 Ponieważ checksum jest liczony z wyłączeniem wpisu manifestu, zmiana TYLKO tego pola nie
 zmienia hashu innych wpisów (klasy/zasoby pluginu są nieruszone między tymi dwiema budowami,
 więc checksum z kroku 2 wciąż jest poprawny). Wynikowy plik:
-`target/customer-callresult-db-sync-plugin-1.0.0.jar` jest gotowy do uploadu.
+`target/customer-callresult-db-sync-plugin-1.2.0.jar` jest gotowy do uploadu.
 
 > ⚠️ **Niedeterminizm budowy:** bajtowa reprodukowalność JAR-a jest zagwarantowana TYLKO między
 > budowami na tym samym środowisku (ta sama wersja JDK/Maven, ten sam OS) — inny JDK/Maven/OS
@@ -97,9 +135,9 @@ więc checksum z kroku 2 wciąż jest poprawny). Wynikowy plik:
 
 1. Zaloguj się jako `SUPERVISOR`/`ADMIN`, przejdź do **Ustawienia → Pluginy**
    (`/supervisor/settings/plugins`).
-2. Wgraj `customer-callresult-db-sync-plugin-1.0.0.jar` (drag&drop lub wybór pliku).
+2. Wgraj `customer-callresult-db-sync-plugin-1.2.0.jar` (drag&drop lub wybór pliku).
 3. Po statusie `VALIDATED` kliknij **Zainstaluj**, zatwierdź uprawnienia
-   (`contact:read`, `db:egress:localhost:5432`).
+   (`contact:read`, `db:egress:crm-demo-db:5432`).
 4. Skonfiguruj połączenie z bazą docelową — **patrz sekcja "Konfiguracja" poniżej**.
 5. Kliknij **Włącz**.
 
@@ -125,9 +163,9 @@ Authorization: Bearer <JWT supervisora/admina>
 
 {
   "config": {
-    "jdbcUrl": "jdbc:postgresql://localhost:5432/crm_demo",
+    "jdbcUrl": "jdbc:postgresql://crm-demo-db:5432/crm_demo",
     "dbUsername": "crm_demo_user",
-    "dbPassword": "TWOJE_HASLO",
+    "dbPassword": "crm_demo_pass",
     "dbTable": "call_results"
   }
 }

@@ -154,9 +154,19 @@ public final class PlatformApiClassLoader extends ClassLoader {
 
     private static Class<?> findBootstrapClassOrNull(String name) {
         try {
-            // Class.forName z loader=null rozwiązuje przez bootstrap classloader (natywny w JVM),
-            // nigdy przez classloader aplikacji.
-            return Class.forName(name, false, null);
+            // Bootstrap classloader (null) obsługuje java.base — java.lang, java.util, itd.
+            Class<?> c = Class.forName(name, false, null);
+            if (c != null) {
+                return c;
+            }
+        } catch (ClassNotFoundException ignored) {
+            // Klasa nie jest w java.base — może być w innym module JDK (Java 9+).
+        }
+        try {
+            // W Javie 9+ moduły takie jak java.sql, java.xml, javax.* są ładowane przez
+            // platform classloader, NIE bootstrap. getPlatformClassLoader() pokrywa wszystkie
+            // klasy Java SE Platform (nigdy klasy aplikacji/Spring) — bezpieczny fallback.
+            return ClassLoader.getPlatformClassLoader().loadClass(name);
         } catch (ClassNotFoundException e) {
             return null;
         }

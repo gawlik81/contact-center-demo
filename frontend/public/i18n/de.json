@@ -2249,7 +2249,7 @@
         "deleteCatalogButton": "Aus Katalog entfernen",
         "confirmDeleteCatalog": "Möchten Sie Version \"{{ version }}\" des Plugins \"{{ name }}\" wirklich aus dem Katalog entfernen? Diese Aktion kann nicht rückgängig gemacht werden.",
         "successDeleteCatalog": "Plugin-Version aus dem Katalog entfernt.",
-        "errorDeleteCatalog": "Fehler beim Entfernen der Plugin-Version aus dem Katalog."
+        "errorDeleteCatalog": "Fehler beim Entfernen der Plugin-Version aus dem Katalog.",
         "installDialogTitle": "Plugin installieren",
         "permissionsHint": "Wählen Sie die Berechtigungen aus, die Sie diesem Plugin gewähren möchten:",
         "noPermissions": "Dieses Plugin benötigt keine besonderen Berechtigungen.",

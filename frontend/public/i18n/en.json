@@ -2253,7 +2253,7 @@
         "deleteCatalogButton": "Remove from catalog",
         "confirmDeleteCatalog": "Are you sure you want to remove version \"{{ version }}\" of plugin \"{{ name }}\" from the catalog? This action cannot be undone.",
         "successDeleteCatalog": "Plugin version removed from catalog.",
-        "errorDeleteCatalog": "Failed to remove plugin version from catalog."
+        "errorDeleteCatalog": "Failed to remove plugin version from catalog.",
         "installDialogTitle": "Install plugin",
         "permissionsHint": "Select the permissions you want to grant this plugin:",
         "noPermissions": "This plugin does not require any special permissions.",

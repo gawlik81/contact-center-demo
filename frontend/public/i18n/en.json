@@ -2228,7 +2228,7 @@
         "statusLabel": "Status",
         "installButton": "Install",
         "catalogTitle": "Available in catalog",
-        "catalogHint": "Versions uploaded to the global catalog (by you or another admin), independent of the latest upload's history.",
+        "catalogHint": "Versions uploaded by your tenant, independent of the latest upload's history.",
         "errorLoadCatalog": "Failed to load the plugin version catalog.",
         "emptyCatalog": "The catalog is empty — upload a .jar file above to get started.",
         "catalogAlreadyInstalled": "Already installed",

@@ -200,7 +200,7 @@ Każdy JAR **musi** zawierać ten plik. Schema (JSON Schema, walidowana przy upl
 
 | Pole | Wymagane | Walidacja |
 |---|---|---|
-| `pluginKey` | tak | `^[a-z0-9]([a-z0-9-]{0,98}[a-z0-9])?$`, unikalny w globalnym katalogu |
+| `pluginKey` | tak | `^[a-z0-9]([a-z0-9-]{0,98}[a-z0-9])?$`, unikalny w tabeli `plugin` (globalnej tożsamości pluginu); każdy tenant może mieć własne wersje (`plugin_version`) pod tym samym `pluginKey` |
 | `displayName` | tak | 1–200 znaków |
 | `version` | tak | string semver, 1–50 znaków |
 | `vendor` | tak | 1–200 znaków |

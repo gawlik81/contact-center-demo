@@ -2228,7 +2228,7 @@
         "statusLabel": "Status",
         "installButton": "Zainstaluj",
         "catalogTitle": "Dostępne w katalogu",
-        "catalogHint": "Wersje wgrane do globalnego katalogu (przez Ciebie lub innego administratora), niezależnie od historii ostatniego uploadu.",
+        "catalogHint": "Wersje wgrane przez Twojego tenanta, niezależnie od historii ostatniego uploadu.",
         "errorLoadCatalog": "Nie udało się załadować katalogu wersji pluginów.",
         "emptyCatalog": "Katalog jest pusty — wgraj plik .jar powyżej, aby zacząć.",
         "catalogAlreadyInstalled": "Już zainstalowana",

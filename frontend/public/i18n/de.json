@@ -2224,7 +2224,7 @@
         "statusLabel": "Status",
         "installButton": "Installieren",
         "catalogTitle": "Im Katalog verfügbar",
-        "catalogHint": "Versionen, die in den globalen Katalog hochgeladen wurden (von Ihnen oder einem anderen Administrator), unabhängig vom letzten Upload-Verlauf.",
+        "catalogHint": "Versionen, die von Ihrem Mandanten hochgeladen wurden, unabhängig vom letzten Upload-Verlauf.",
         "errorLoadCatalog": "Der Plugin-Versionskatalog konnte nicht geladen werden.",
         "emptyCatalog": "Der Katalog ist leer — laden Sie oben eine .jar-Datei hoch, um zu beginnen.",
         "catalogAlreadyInstalled": "Bereits installiert",

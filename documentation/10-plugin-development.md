@@ -21,8 +21,11 @@ danych przed połączeniem, synchronizacja klienta, zapis notatki po zakończeni
 
 Kluczowe właściwości modelu (szczegóły w `ARCHITECTURE.md` §11.3):
 
-- **Katalog pluginów (`plugin`/`plugin_version`) jest globalny** — bez `tenant_id`, bez RLS.
-  Jeden wgrany JAR może być zainstalowany niezależnie przez wielu tenantów.
+- **Tabela `plugin` (tożsamość pluginu po `pluginKey`) jest globalna** — bez `tenant_id`,
+  bez RLS. Identyfikuje plugin niezależnie od tego, kto go wgrał.
+- **Tabela `plugin_version` jest per-tenant** (V078) — każdy upload JAR-a należy do tenanta,
+  który go wgrał (`tenant_id NOT NULL`). Tenant widzi w katalogu tylko swoje wersje.
+  Klucz S3: `plugins/{tenantId}/{pluginKey}/{version}/{plik}.jar`.
 - **Instalacja (`tenant_plugin_installation`) jest per tenant** — z RLS, z własnym zestawem
   zatwierdzonych uprawnień (`granted_permissions`) i konfiguracją (`installation_config`).
 - **Izolacja wykonania: in-process, jeden dedykowany `ClassLoader` per `(tenant_id, plugin_key)`**
@@ -294,8 +297,8 @@ PluginValidationService — gate przed dotknięciem klasy:
   5. (zarezerwowane na podpis kryptograficzny — niezaimplementowane, OQ-28-1)
   → VALIDATED lub REJECTED (PENDING_REVIEW zarezerwowane, nieużywane bez podpisu)
   ▼  (tylko gdy VALIDATED)
-PluginStorageService — zapis do MinIO/S3 (plugins/{pluginKey}/{version}/{plik}.jar,
-  klucz BEZ tenantId — katalog globalny) + insert plugin/plugin_version
+PluginStorageService — zapis do MinIO/S3 (plugins/{tenantId}/{pluginKey}/{version}/{plik}.jar,
+  klucz zawiera tenantId — katalog per-tenant od V078) + insert plugin_version (tenant_id)
   │
   ▼  administrator klika "Zainstaluj" → POST /api/supervisor/plugins/{pluginVersionId}/install
 PluginRegistrationService.install — insert tenant_plugin_installation (enabled=false,
@@ -324,9 +327,11 @@ success" — brak pełnego half-open state).
 
 | Metoda + ścieżka | Rola | Opis |
 |---|---|---|
-| `POST /api/supervisor/plugins` | SUPERVISOR/ADMIN | Upload JAR-a (multipart, pole `file`) → `PluginVersionDto` |
+| `POST /api/supervisor/plugins` | SUPERVISOR/ADMIN | Upload JAR-a (multipart, pole `file`) → `PluginVersionDto`; wersja przypisana do tenanta uploaderów (V078) |
+| `GET /api/supervisor/plugins/catalog` | SUPERVISOR/ADMIN | Lista wersji pluginów wgranych przez bieżącego tenanta (per-tenant od V078) |
+| `DELETE /api/supervisor/plugins/catalog/{pluginVersionId}` | SUPERVISOR/ADMIN | Usuwa wersję z katalogu; blokowane gdy istnieje instalacja tej wersji (409) |
 | `GET /api/supervisor/plugins` | SUPERVISOR/ADMIN | Lista wszystkich instalacji tenanta (w tym disabled) |
-| `POST /api/supervisor/plugins/{pluginVersionId}/install` | SUPERVISOR/ADMIN | Instalacja wersji dla tenanta |
+| `POST /api/supervisor/plugins/{pluginVersionId}/install` | SUPERVISOR/ADMIN | Instalacja wersji dla tenanta; 404 gdy wersja należy do innego tenanta |
 | `POST /api/supervisor/plugins/installations/{id}/enable` | SUPERVISOR/ADMIN | Aktywacja (ładuje `ClassLoader`, jeśli jeszcze nieaktywny) |
 | `POST /api/supervisor/plugins/installations/{id}/disable` | SUPERVISOR/ADMIN | Dezaktywacja — `PluginRegistry` aktualizowany natychmiast |
 | `POST /api/supervisor/plugins/installations/{id}/rollback/{targetId}` | SUPERVISOR/ADMIN | Atomowe przełączenie `enabled` między dwiema instalacjami |
@@ -402,6 +407,12 @@ ograniczeń **aktualnie obecnych w kodzie** (nie tylko teoretycznych):
   reset Thread-Context ClassLoader to warstwy obrony, nie gwarancja niemożności ucieczki na
   poziomie JVM. Instaluj wyłącznie pluginy od zaufanych dostawców — to nie jest model
   bezpieczeństwa odpowiedni dla w pełni nieznanego/wrogiego kodu.
+- **`PlatformApiClassLoader` w Java 9+ wymaga platformowego classloadera dla modułów spoza
+  `java.base`.** Klasy takie jak `java.sql.Timestamp`, `java.sql.Connection` itp. nie są ładowane
+  przez bootstrap classloader — są w module `java.sql`, który w Java 9+ obsługuje platform
+  classloader (`ClassLoader.getPlatformClassLoader()`). `findBootstrapClassOrNull` ma fallback
+  do platform classloadera, więc `DbEgressClient.executeUpdate()` z parametrami `Timestamp`
+  działa poprawnie.
 - **`PluginContext.logger()` nie zapisuje jeszcze do `plugin_invocation_log`.** Mimo że Javadoc
   SDK deklaruje separację od logów aplikacji, implementacja (`PluginLoggerImpl`) wciąż pisze
   przez SLF4J z prefiksem `[PluginLog]` — nie trafia do historii wywołań widocznej w UI
@@ -428,13 +439,21 @@ ograniczeń **aktualnie obecnych w kodzie** (nie tylko teoretycznych):
 
 ## 10. Minimalny przykład end-to-end
 
-> **Pełny, działający przykład** (skompilowany, zweryfikowany przez realny
-> `PluginValidationService` z wynikiem `VALIDATED`) znajduje się w
-> [`examples/plugins/customer-google-lookup/`](../examples/plugins/customer-google-lookup/) —
-> panel boczny agenta aktywowany podczas rozmowy, prezentujący wyniki Google Custom Search dla
-> bieżącego klienta. Ten rozdział pokazuje skróconą wersję tego samego mechanizmu; pełny kod,
-> instrukcje budowy (włącznie z dwuetapową procedurą liczenia `checksumSha256`) i znane
-> ograniczenie (brak UI do ustawienia `installation_config`) są w `README.md` tego przykładu.
+> **Dwa pełne, działające przykłady** (skompilowane, zweryfikowane przez realny
+> `PluginValidationService` z wynikiem `VALIDATED`) w katalogu `examples/plugins/`:
+>
+> - [`customer-google-lookup/`](../examples/plugins/customer-google-lookup/) — panel boczny
+>   agenta aktywowany podczas rozmowy, prezentujący wyniki Google Custom Search dla bieżącego
+>   klienta. Demonstruje `http:egress`, `PRE_CONTACT_CONNECT` i `MANUAL_ACTION`.
+>
+> - [`customer-callresult-db-sync/`](../examples/plugins/customer-callresult-db-sync/) —
+>   zapis wyniku zakończonego kontaktu i dyspozycji do zewnętrznej bazy danych CRM tenanta.
+>   Demonstruje `DbEgressClient` (`db:egress:<host>:<port>`), `POST_CONTACT_END` i
+>   `DISPOSITION_SET`. Zawiera gotowy `docker-compose.yml` z PostgreSQL 16 dołączającym do
+>   sieci `contact-center-network`.
+>
+> Ten rozdział pokazuje skróconą wersję mechanizmu; instrukcje budowy (dwuetapowa procedura
+> `checksumSha256`) i konfiguracja są w `README.md` każdego przykładu.
 
 Struktura projektu pluginu (Maven, niezależny od tego repozytorium):
 

@@ -110,10 +110,10 @@ class PluginAdminControllerTest {
     // =========================================================================
 
     @Test
-    @DisplayName("listCatalog: mapuje wszystkie PluginVersion z serwisu na DTO, niezależnie od tenanta")
-    void listCatalog_mapsAllVersionsToDto() {
+    @DisplayName("listCatalog: mapuje PluginVersion tenanta z serwisu na DTO (per-tenant, EPIC-28)")
+    void listCatalog_mapsTenantVersionsToDto() {
         PluginVersion version = pluginVersion(PluginVersion.PluginVersionStatus.VALIDATED);
-        when(pluginCatalogQueryService.findAllVersions()).thenReturn(List.of(version));
+        when(pluginCatalogQueryService.findVersionsForTenant(TENANT_ID)).thenReturn(List.of(version));
 
         ResponseEntity<List<PluginVersionDto>> response = controller.listCatalog();
 
@@ -124,9 +124,9 @@ class PluginAdminControllerTest {
     }
 
     @Test
-    @DisplayName("listCatalog: katalog pusty → lista pusta, nie rzuca")
+    @DisplayName("listCatalog: brak wersji dla tenanta → lista pusta, nie rzuca")
     void listCatalog_empty_returnsEmptyList() {
-        when(pluginCatalogQueryService.findAllVersions()).thenReturn(List.of());
+        when(pluginCatalogQueryService.findVersionsForTenant(TENANT_ID)).thenReturn(List.of());
 
         ResponseEntity<List<PluginVersionDto>> response = controller.listCatalog();
 
@@ -146,8 +146,9 @@ class PluginAdminControllerTest {
         return PluginVersion.builder()
                 .id(PLUGIN_VERSION_ID)
                 .plugin(plugin)
+                .tenantId(TENANT_ID)
                 .version("1.0.0")
-                .jarObjectKey("plugins/acme-crm-sync/1.0.0/plugin.jar")
+                .jarObjectKey("plugins/" + TENANT_ID + "/acme-crm-sync/1.0.0/plugin.jar")
                 .checksumSha256("0".repeat(64))
                 .manifestJson(Map.of())
                 .sdkVersion("1.x")

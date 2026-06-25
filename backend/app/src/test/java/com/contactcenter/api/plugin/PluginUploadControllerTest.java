@@ -38,10 +38,11 @@ import static org.mockito.Mockito.when;
  * {@code TenantContext} mockowany statycznie (symuluje filtr JWT).
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("PluginUploadController – upload JAR-a do globalnego katalogu pluginów")
+@DisplayName("PluginUploadController – upload JAR-a do katalogu pluginów per-tenant (EPIC-28)")
 class PluginUploadControllerTest {
 
     private static final UUID UPLOADED_BY = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
+    private static final UUID TENANT_ID   = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000099");
 
     @Mock private PluginValidationService pluginValidationService;
     @Mock private PluginStorageService pluginStorageService;
@@ -54,6 +55,7 @@ class PluginUploadControllerTest {
         controller = new PluginUploadController(pluginValidationService, pluginStorageService);
         tenantContextMock = mockStatic(TenantContext.class);
         tenantContextMock.when(TenantContext::getUserId).thenReturn(UPLOADED_BY);
+        tenantContextMock.when(TenantContext::getTenantId).thenReturn(TENANT_ID);
     }
 
     @AfterEach
@@ -85,7 +87,7 @@ class PluginUploadControllerTest {
 
             when(pluginValidationService.validate(file.getBytes(), UPLOADED_BY)).thenReturn(validated);
             when(pluginStorageService.storeValidatedJar(file.getBytes(), file.getOriginalFilename(),
-                    validated, UPLOADED_BY)).thenReturn(expectedDto);
+                    validated, TENANT_ID, UPLOADED_BY)).thenReturn(expectedDto);
 
             ResponseEntity<?> response = controller.uploadPlugin(file);
 
@@ -105,7 +107,7 @@ class PluginUploadControllerTest {
             ResponseEntity<?> response = controller.uploadPlugin(file);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-            verify(pluginStorageService, never()).storeValidatedJar(any(), any(), any(), any());
+            verify(pluginStorageService, never()).storeValidatedJar(any(), any(), any(), any(), any());
         }
 
         @Test
@@ -119,7 +121,7 @@ class PluginUploadControllerTest {
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
             verify(pluginValidationService, never()).validate(any(), any());
-            verify(pluginStorageService, never()).storeValidatedJar(any(), any(), any(), any());
+            verify(pluginStorageService, never()).storeValidatedJar(any(), any(), any(), any(), any());
         }
 
         @Test
@@ -144,12 +146,12 @@ class PluginUploadControllerTest {
                     "1.3.0", "1.x", "VALIDATED", List.of(), List.of("customer:read"), UPLOADED_BY, Instant.now());
 
             when(pluginValidationService.validate(any(), eq(UPLOADED_BY))).thenReturn(validated);
-            when(pluginStorageService.storeValidatedJar(any(), any(), any(), eq(UPLOADED_BY))).thenReturn(dto);
+            when(pluginStorageService.storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY))).thenReturn(dto);
 
             controller.uploadPlugin(file);
 
             verify(pluginValidationService).validate(any(), eq(UPLOADED_BY));
-            verify(pluginStorageService).storeValidatedJar(any(), any(), any(), eq(UPLOADED_BY));
+            verify(pluginStorageService).storeValidatedJar(any(), any(), any(), eq(TENANT_ID), eq(UPLOADED_BY));
         }
     }
 }

@@ -215,6 +215,19 @@ class PluginContextImplTest {
             assertThat(context.config().get("apiKey")).contains("secret-123");
             assertThat(context.config().getOrDefault("missing", "default")).isEqualTo("default");
         }
+
+        @Test
+        @DisplayName("dbClient() egress poza allow-listą rzuca SecurityException")
+        void dbClientRejectsHostOutsideAllowList() {
+            String installationConfigJson = "{\"jdbcUrl\":\"jdbc:postgresql://evil.example:5432/db\","
+                    + "\"dbUsername\":\"u\",\"dbPassword\":\"p\"}";
+            PluginContextImpl context = new PluginContextImpl(
+                    TENANT_A, PLUGIN_KEY, List.of("db:egress:db.acme-crm.example:5432"),
+                    installationConfigJson, customerService, contactService);
+
+            assertThatThrownBy(() -> context.dbClient().executeUpdate("INSERT INTO x VALUES (?)", List.of(1)))
+                    .isInstanceOf(SecurityException.class);
+        }
     }
 
     // =========================================================================

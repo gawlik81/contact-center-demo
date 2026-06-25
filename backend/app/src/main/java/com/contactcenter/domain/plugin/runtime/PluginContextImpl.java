@@ -5,6 +5,7 @@ import com.contactcenter.domain.contact.ContactService;
 import com.contactcenter.domain.customer.Customer;
 import com.contactcenter.domain.customer.CustomerService;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.pluginsdk.DbEgressClient;
 import com.contactcenter.pluginsdk.HttpEgressClient;
 import com.contactcenter.pluginsdk.PluginConfig;
 import com.contactcenter.pluginsdk.PluginContext;
@@ -46,6 +47,7 @@ final class PluginContextImpl implements PluginContext {
     private final CustomerService customerService;
     private final ContactService contactService;
     private final HttpEgressClient httpEgressClient;
+    private final DbEgressClient dbEgressClient;
     private final PluginLogger logger;
     private final PluginConfig config;
 
@@ -73,6 +75,16 @@ final class PluginContextImpl implements PluginContext {
         this.httpEgressClient = new PluginHttpEgressClientImpl(grantedPermissions, tenantId, pluginKey);
         this.logger = new PluginLoggerImpl(tenantId, pluginKey);
         this.config = new PluginConfigImpl(installationConfigJson);
+        // Dane połączenia DB (jdbcUrl/dbUsername/dbPassword) pochodzą z tej samej
+        // installation_config co reszta konfiguracji tenanta (już odszyfrowanej w `config`) —
+        // czytane stąd, żeby nie duplikować parsowania JSON-a (PluginConfigImpl).
+        this.dbEgressClient = new PluginDbEgressClientImpl(
+                grantedPermissions,
+                tenantId,
+                pluginKey,
+                this.config.get("jdbcUrl").orElse(null),
+                this.config.get("dbUsername").orElse(null),
+                this.config.get("dbPassword").orElse(null));
     }
 
     @Override
@@ -141,6 +153,11 @@ final class PluginContextImpl implements PluginContext {
     @Override
     public HttpEgressClient httpClient() {
         return httpEgressClient;
+    }
+
+    @Override
+    public DbEgressClient dbClient() {
+        return dbEgressClient;
     }
 
     @Override

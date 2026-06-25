@@ -28,6 +28,7 @@ final class PluginPermission {
     );
 
     private static final String HTTP_EGRESS_PREFIX = "http:egress:";
+    private static final String DB_EGRESS_PREFIX = "db:egress:";
 
     /**
      * Host musi być niepusty i nie zawierać białych znaków / ścieżki — to tylko hostname
@@ -35,6 +36,14 @@ final class PluginPermission {
      */
     private static final Pattern HTTP_EGRESS_HOST_PATTERN =
             Pattern.compile("^[a-zA-Z0-9.\\-]+(:\\d{1,5})?$");
+
+    /**
+     * W przeciwieństwie do {@code http:egress:}, port jest tu OBOWIĄZKOWY — baza danych
+     * zawsze wymaga explicit portu (nie ma sensownego defaultu uniwersalnego dla wszystkich
+     * silników JDBC, w przeciwieństwie do 80/443 dla HTTP).
+     */
+    private static final Pattern DB_EGRESS_HOST_PATTERN =
+            Pattern.compile("^[a-zA-Z0-9.\\-]+:\\d{1,5}$");
 
     private PluginPermission() {
     }
@@ -44,7 +53,7 @@ final class PluginPermission {
      *
      * @param permission wartość z {@code manifest.permissions}
      * @return {@code true} jeśli jest to dokładne dozwolone uprawnienie lub
-     *         {@code http:egress:<host>} z poprawnym kształtem hosta
+     *         {@code http:egress:<host>}/{@code db:egress:<host>:<port>} z poprawnym kształtem
      */
     static boolean isAllowed(String permission) {
         if (permission == null || permission.isBlank()) {
@@ -56,6 +65,10 @@ final class PluginPermission {
         if (permission.startsWith(HTTP_EGRESS_PREFIX)) {
             String host = permission.substring(HTTP_EGRESS_PREFIX.length());
             return HTTP_EGRESS_HOST_PATTERN.matcher(host).matches();
+        }
+        if (permission.startsWith(DB_EGRESS_PREFIX)) {
+            String hostPort = permission.substring(DB_EGRESS_PREFIX.length());
+            return DB_EGRESS_HOST_PATTERN.matcher(hostPort).matches();
         }
         return false;
     }

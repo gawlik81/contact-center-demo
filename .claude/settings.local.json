@@ -462,7 +462,9 @@
       "Bash(ls *.md)",
       "Bash(xargs -I{} sh -c 'echo ==={}===; cat {}')",
       "Bash(java *)",
-      "WebFetch(domain:support.google.com)"
+      "WebFetch(domain:support.google.com)",
+      "Bash(awk -F'Tests run: ' '{print $2}')",
+      "Bash(awk -F', ' '{tr+=$1; gsub\\(\"Failures: \",\"\",$2\\); f+=$2; gsub\\(\"Errors: \",\"\",$3\\); e+=$3} END {print \"TOTAL run=\"tr\" failures=\"f\" errors=\"e}')"
     ]
   }
 }

@@ -78,6 +78,14 @@ public interface PluginContext {
     HttpEgressClient httpClient();
 
     /**
+     * Returns the restricted outbound database client available to this plugin instance.
+     *
+     * @return a {@link DbEgressClient} that enforces this installation's declared
+     *         {@code db:egress:<host>:<port>} allow-list
+     */
+    DbEgressClient dbClient();
+
+    /**
      * Returns the logger available to this plugin instance.
      *
      * @return a {@link PluginLogger} whose output is captured into the platform's plugin

@@ -128,6 +128,7 @@ public interface PluginContext {
     ContactView getContact(UUID contactId);
     void appendContactNote(UUID contactId, String note);
     HttpEgressClient httpClient();
+    DbEgressClient dbClient();
     PluginLogger logger();
     PluginConfig config();
 }
@@ -146,6 +147,7 @@ zobaczy. `getCustomer`/`getContact` zwracają niemutowalne `record`y (`CustomerV
 | `getContact(UUID)` | Odczyt snapshotu kontaktu (rozmowa/e-mail/chat) | Tylko kontakt bieżącego tenanta |
 | `appendContactNote(UUID, String)` | Dopisanie notatki do historii kontaktu | Host atrybutuje notatkę do nazwy pluginu |
 | `httpClient()` | Ograniczony klient HTTP (`get`/`post`) | Tylko hosty zadeklarowane jako `http:egress:<host>` w `granted_permissions` — patrz [§6](#6-model-uprawnień) |
+| `dbClient()` | Ograniczony klient bazy danych (`executeUpdate`) | Tylko `host:port` zadeklarowane jako `db:egress:<host>:<port>` w `granted_permissions`; plugin nigdy nie widzi JDBC URL/credentiali — host zarządza połączeniem w całości na podstawie `installation_config` — patrz [§6](#6-model-uprawnień) |
 | `logger()` | Logger diagnostyczny pluginu | **Stan aktualny:** pisze do logów aplikacji przez SLF4J z prefiksem `[PluginLog]`, NIE jeszcze do `plugin_invocation_log` — patrz known limitation w [§9](#9-bezpieczeństwo-i-znane-ograniczenia) |
 | `config()` | Odczyt konfiguracji tenanta (`get`/`getOrDefault`) | Wartości z `tenant_plugin_installation.installation_config`, deszyfrowane przed podaniem pluginowi |
 
@@ -233,6 +235,7 @@ customer:update
 contact:read
 contact:update
 http:egress:<host>       (host: litery/cyfry/./-, opcjonalnie :port — dowolna ilość wpisów)
+db:egress:<host>:<port>  (host i port WYMAGANE, w przeciwieństwie do http:egress)
 ```
 
 Żądanie permission spoza tego zbioru jest odrzucane już przy **walidacji JAR-a** (REJECTED,

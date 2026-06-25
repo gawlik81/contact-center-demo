@@ -2246,6 +2246,10 @@
         "confirmUninstall": "Möchten Sie das Plugin \"{{ name }}\" wirklich deinstallieren? Dieser Vorgang kann nicht rückgängig gemacht werden.",
         "errorUninstall": "Das Plugin konnte nicht deinstalliert werden.",
         "successUninstall": "Plugin wurde deinstalliert.",
+        "deleteCatalogButton": "Aus Katalog entfernen",
+        "confirmDeleteCatalog": "Möchten Sie Version \"{{ version }}\" des Plugins \"{{ name }}\" wirklich aus dem Katalog entfernen? Diese Aktion kann nicht rückgängig gemacht werden.",
+        "successDeleteCatalog": "Plugin-Version aus dem Katalog entfernt.",
+        "errorDeleteCatalog": "Fehler beim Entfernen der Plugin-Version aus dem Katalog."
         "installDialogTitle": "Plugin installieren",
         "permissionsHint": "Wählen Sie die Berechtigungen aus, die Sie diesem Plugin gewähren möchten:",
         "noPermissions": "Dieses Plugin benötigt keine besonderen Berechtigungen.",

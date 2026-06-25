@@ -155,6 +155,25 @@ public interface PluginRegistrationService {
     void uninstall(UUID tenantId, UUID installationId);
 
     /**
+     * Usuwa wersję pluginu z katalogu tenanta.
+     *
+     * <p>Weryfikuje:
+     * <ol>
+     *   <li>Wersja istnieje i należy do {@code tenantId} — 404 w przeciwnym razie.</li>
+     *   <li>Brak aktywnych instalacji tej wersji przez tenanta — 409 w przeciwnym razie.</li>
+     * </ol>
+     *
+     * <p>Jeśli warunki spełnione — fizycznie usuwa wiersz {@code plugin_version}. JAR w S3 pozostaje
+     * (brak SK do natychmiastowego czyszczenia, orphan jest akceptowalny).
+     *
+     * @param tenantId        tenant wykonujący operację
+     * @param pluginVersionId wersja pluginu do usunięcia z katalogu
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy wersja nie istnieje lub należy do innego tenanta
+     * @throws com.contactcenter.domain.exception.ConflictException gdy istnieje instalacja tej wersji
+     */
+    void deleteCatalogVersion(UUID tenantId, UUID pluginVersionId);
+
+    /**
      * Zastępuje (REPLACE, nie merge) konfigurację tenanta instalacji pluginu (BE-108) —
      * np. API key zewnętrznego systemu wymagany przez plugin (przykład: {@code customer-google-lookup}).
      *

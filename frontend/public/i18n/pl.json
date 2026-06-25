@@ -2250,6 +2250,10 @@
         "confirmUninstall": "Czy na pewno chcesz odinstalować plugin \"{{ name }}\"? Operacja jest nieodwracalna.",
         "errorUninstall": "Nie udało się odinstalować pluginu.",
         "successUninstall": "Plugin został odinstalowany.",
+        "deleteCatalogButton": "Usuń z katalogu",
+        "confirmDeleteCatalog": "Czy na pewno chcesz usunąć wersję \"{{ version }}\" pluginu \"{{ name }}\" z katalogu? Tej operacji nie można cofnąć.",
+        "successDeleteCatalog": "Wersja pluginu usunięta z katalogu.",
+        "errorDeleteCatalog": "Nie udało się usunąć wersji pluginu z katalogu."
         "installDialogTitle": "Instalacja pluginu",
         "permissionsHint": "Zaznacz uprawnienia, które chcesz przyznać temu pluginowi:",
         "noPermissions": "Ten plugin nie wymaga żadnych specjalnych uprawnień.",

@@ -1,5 +1,6 @@
 package com.contactcenter.domain.plugin;
 
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.plugin.dto.ManualActionDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
@@ -192,6 +193,34 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
 
         log.info("[PluginRegistrationService] Instalacja odinstalowana (DELETE): id={}, tenant={}",
                 installationId, tenantId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteCatalogVersion(UUID tenantId, UUID pluginVersionId) {
+        log.debug("[PluginRegistrationService] deleteCatalogVersion: tenant={}, pluginVersion={}", tenantId, pluginVersionId);
+
+        PluginVersion pluginVersion = pluginVersionRepository.findById(pluginVersionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wersja pluginu nie istnieje: " + pluginVersionId));
+
+        // Izolacja per-tenant (EPIC-28, V078): 404 zamiast 403 — nie ujawniamy istnienia wersji
+        // wgranej przez innego tenanta (security through obscurity, poprawna tu).
+        if (!pluginVersion.getTenantId().equals(tenantId)) {
+            throw new ResourceNotFoundException("Wersja pluginu nie istnieje: " + pluginVersionId);
+        }
+
+        // Blokada usunięcia gdy tenant ma jakąkolwiek instalację tej wersji — 409.
+        boolean hasInstallation = installationRepository.findAllByTenantId(tenantId).stream()
+                .anyMatch(i -> pluginVersionId.equals(i.getPluginVersionId()));
+
+        if (hasInstallation) {
+            throw new ConflictException("Plugin ma aktywne instalacje i nie może być usunięty z katalogu");
+        }
+
+        pluginVersionRepository.delete(pluginVersion);
+
+        log.info("[PluginRegistrationService] Wersja pluginu usunięta z katalogu: pluginVersion={}, tenant={}",
+                pluginVersionId, tenantId);
     }
 
     @Override

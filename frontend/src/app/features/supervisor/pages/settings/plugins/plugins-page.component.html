@@ -125,6 +125,9 @@
                   {{ 'supervisor.settings.plugins.installButton' | transloco }}
                 </button>
               }
+              <button type="button" class="pp-btn pp-btn--danger pp-btn--sm" (click)="openDeleteCatalogDialog(version)">
+                {{ 'supervisor.settings.plugins.deleteCatalogButton' | transloco }}
+              </button>
             </div>
           </div>
         }
@@ -385,5 +388,17 @@
     [danger]="true"
     (confirmed)="confirmUninstall()"
     (cancelled)="cancelUninstall()"
+  />
+}
+
+<!-- ============ Delete catalog version confirm dialog ============ -->
+@if (targetDeleteCatalogVersion()) {
+  <app-confirm-dialog
+    [message]="deleteCatalogVersionMessage()"
+    [confirmLabel]="'supervisor.settings.plugins.deleteCatalogButton' | transloco"
+    [cancelLabel]="'common.cancel' | transloco"
+    [danger]="true"
+    (confirmed)="confirmDeleteCatalog()"
+    (cancelled)="cancelDeleteCatalog()"
   />
 }

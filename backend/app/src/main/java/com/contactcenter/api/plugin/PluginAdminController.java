@@ -130,6 +130,37 @@ public class PluginAdminController {
     }
 
     // =========================================================================
+    // DELETE — usunięcie wersji z katalogu tenanta
+    // =========================================================================
+
+    @DeleteMapping("/catalog/{pluginVersionId}")
+    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+    @Operation(
+            summary = "Usuwa wersję pluginu z katalogu tenanta",
+            description = """
+                    Usuwa wiersz plugin_version należący do tego tenanta (V078 — per-tenant).
+                    Zabronione gdy istnieje jakakolwiek instalacja tej wersji (409).
+                    JAR w object storage pozostaje jako orphan.
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "Wersja usunięta"),
+                    @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień"),
+                    @ApiResponse(responseCode = "404", description = "Wersja nie istnieje lub należy do innego tenanta"),
+                    @ApiResponse(responseCode = "409", description = "Istnieje instalacja tej wersji")
+            }
+    )
+    public ResponseEntity<Void> deleteCatalogVersion(
+            @Parameter(description = "Identyfikator wersji pluginu")
+            @PathVariable UUID pluginVersionId
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        log.info("[PluginAdminController] DELETE /api/supervisor/plugins/catalog/{}: tenant={}", pluginVersionId, tenantId);
+        pluginRegistrationService.deleteCatalogVersion(tenantId, pluginVersionId);
+        return ResponseEntity.noContent().build();
+    }
+
+    // =========================================================================
     // POST — instalacja nowej wersji
     // =========================================================================
 

@@ -103,6 +103,13 @@ export class PluginAdminService {
   }
 
   /**
+   * Usuwa wersję pluginu z globalnego katalogu (nieodwracalne, nie wpływa na istniejące instalacje).
+   */
+  deleteFromCatalog(pluginVersionId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/catalog/${pluginVersionId}`);
+  }
+
+  /**
    * Listuje instalacje pluginów widoczne dla roli AGENT (`PluginAgentController`, FE-100).
    * Backend filtruje tylko po `enabled=true` — NIE po `healthStatus`, więc wołający musi
    * dodatkowo odfiltrować `healthStatus === 'DISABLED_BY_ADMIN'` po stronie FE.

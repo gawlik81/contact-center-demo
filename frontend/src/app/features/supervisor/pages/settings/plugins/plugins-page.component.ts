@@ -91,6 +91,20 @@ export class PluginsPageComponent implements OnInit {
   readonly grantedPermissions = signal<Set<string>>(new Set());
   readonly installing = signal(false);
 
+  // ---- Delete catalog version confirm dialog state ----
+
+  readonly targetDeleteCatalogVersion = signal<PluginVersionDto | null>(null);
+  readonly deletingCatalogVersion = signal(false);
+
+  readonly deleteCatalogVersionMessage = computed(() => {
+    const version = this.targetDeleteCatalogVersion();
+    if (!version) return '';
+    return this.transloco.translate('supervisor.settings.plugins.confirmDeleteCatalog', {
+      name: version.displayName,
+      version: version.version,
+    });
+  });
+
   // ---- Uninstall confirm dialog state ----
 
   readonly targetUninstall = signal<TenantPluginInstallationDto | null>(null);
@@ -409,6 +423,42 @@ export class PluginsPageComponent implements OnInit {
           this.installing.set(false);
           this.notifications.error(
             this.transloco.translate('supervisor.settings.plugins.errorInstall'),
+          );
+        },
+      });
+  }
+
+  // ---- Delete catalog version dialog ----
+
+  openDeleteCatalogDialog(version: PluginVersionDto): void {
+    this.targetDeleteCatalogVersion.set(version);
+  }
+
+  cancelDeleteCatalog(): void {
+    this.targetDeleteCatalogVersion.set(null);
+  }
+
+  confirmDeleteCatalog(): void {
+    const version = this.targetDeleteCatalogVersion();
+    if (!version) return;
+
+    this.deletingCatalogVersion.set(true);
+    this.pluginAdminService
+      .deleteFromCatalog(version.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.deletingCatalogVersion.set(false);
+          this.targetDeleteCatalogVersion.set(null);
+          this.catalog.update((list) => list.filter((v) => v.id !== version.id));
+          this.notifications.success(
+            this.transloco.translate('supervisor.settings.plugins.successDeleteCatalog'),
+          );
+        },
+        error: () => {
+          this.deletingCatalogVersion.set(false);
+          this.notifications.error(
+            this.transloco.translate('supervisor.settings.plugins.errorDeleteCatalog'),
           );
         },
       });

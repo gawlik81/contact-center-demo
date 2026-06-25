@@ -46,6 +46,7 @@ backend/plugin-sdk/
     PluginContext.java
     HttpEgressClient.java
     HttpResponse.java
+    DbEgressClient.java
     PluginLogger.java
     PluginConfig.java
     model/
@@ -150,7 +151,7 @@ zobaczy. `getCustomer`/`getContact` zwracają niemutowalne `record`y (`CustomerV
 | `getContact(UUID)` | Odczyt snapshotu kontaktu (rozmowa/e-mail/chat) | Tylko kontakt bieżącego tenanta |
 | `appendContactNote(UUID, String)` | Dopisanie notatki do historii kontaktu | Host atrybutuje notatkę do nazwy pluginu |
 | `httpClient()` | Ograniczony klient HTTP (`get`/`post`) | Tylko hosty zadeklarowane jako `http:egress:<host>` w `granted_permissions` — patrz [§6](#6-model-uprawnień) |
-| `dbClient()` | Ograniczony klient bazy danych (`executeUpdate`) | Tylko `host:port` zadeklarowane jako `db:egress:<host>:<port>` w `granted_permissions`; plugin nigdy nie widzi JDBC URL/credentiali — host zarządza połączeniem w całości na podstawie `installation_config` — patrz [§6](#6-model-uprawnień) |
+| `dbClient()` | Ograniczony klient bazy danych zewnętrznej | Tylko `host:port` zadeklarowane jako `db:egress:<host>:<port>` w `granted_permissions`; plugin nigdy nie widzi JDBC URL ani credentiali — host czyta je z `installation_config` (`jdbcUrl`, `dbUsername`, `dbPassword`). Jedyna metoda: `int executeUpdate(String sql, List<Object> params)` (parametryzowane INSERT/UPDATE/DELETE, `?` placeholdery). Patrz [§6.1](#61-dbegressclient--konfiguracja-kluczy-installation_config) |
 | `logger()` | Logger diagnostyczny pluginu | **Stan aktualny:** pisze do logów aplikacji przez SLF4J z prefiksem `[PluginLog]`, NIE jeszcze do `plugin_invocation_log` — patrz known limitation w [§9](#9-bezpieczeństwo-i-znane-ograniczenia) |
 | `config()` | Odczyt konfiguracji tenanta (`get`/`getOrDefault`) | Wartości z `tenant_plugin_installation.installation_config`, deszyfrowane przed podaniem pluginowi |
 
@@ -250,6 +251,45 @@ po prostu odfiltrowane (przecięcie żądanych ∩ zadeklarowanych), bez błędu
 `http:egress:<host>` jest jednocześnie: (a) allow-listą dla `PluginContext.httpClient()`, i
 (b) źródłem nagłówka `Content-Security-Policy: connect-src` dla zasobów UI pluginu
 (`/plugin-assets/**`) — patrz [§8](#8-integracja-ui-iframe--pluginuisdk).
+
+### 6.1 `DbEgressClient` — konfiguracja kluczy `installation_config`
+
+`DbEgressClient` pozwala pluginowi wykonać parametryzowany SQL (`INSERT`/`UPDATE`/`DELETE`) na
+zewnętrznej bazie danych tenanta — bez ujawniania credentiali pluginowi. Działa tak:
+
+1. **Manifest** deklaruje uprawnienie: `"db:egress:<host>:<port>"` (np. `"db:egress:crm-demo-db:5432"`).
+2. **Administrator tenanta** zatwierdza to uprawnienie przy instalacji i ustawia w konfiguracji
+   instalacji (zakładka "Konfiguracja" w UI) trzy klucze:
+
+   | Klucz w `installation_config` | Opis | Przykład |
+   |---|---|---|
+   | `jdbcUrl` | JDBC URL zewnętrznej bazy | `jdbc:postgresql://crm-demo-db:5432/crm` |
+   | `dbUsername` | Nazwa użytkownika bazy | `crm_plugin_user` |
+   | `dbPassword` | Hasło bazy — szyfrowane AES-256-GCM w bazie platformy | `s3cr3t` |
+
+3. **Host** przy każdym wywołaniu `executeUpdate`:
+   - Wyciąga `host:port` z `jdbcUrl` (parsuje jako URI po strippingu prefiksu `jdbc:`).
+   - Sprawdza, czy `host:port` pasuje do `db:egress:<host>:<port>` w `granted_permissions` —
+     jeśli nie, rzuca `SecurityException` **przed** jakimkolwiek połączeniem z bazą.
+   - Otwiera połączenie JDBC (`DriverManager.getConnection`), wykonuje `PreparedStatement` z
+     wartościami z `params` i zamyka połączenie — **brak connection poolingu** (jedno połączenie
+     per wywołanie; wystarczające dla fire-and-forget extension pointów).
+
+Plugin wywołuje wyłącznie:
+
+```java
+int rows = ctx.dbClient().executeUpdate(
+    "INSERT INTO call_results (contact_id, status, occurred_at) VALUES (?, ?, ?)",
+    List.of(event.contactId(), event.status(), Instant.now())
+);
+```
+
+Nigdy nie podaje URL ani credentiali — nie ma do nich dostępu.
+
+> **Ważne:** `jdbcUrl` musi wskazywać dokładnie na ten sam `host:port`, który zadeklarowano
+> w `db:egress:<host>:<port>`. `crm-demo-db:5432` w URL i `db:egress:crm-demo-db:5432`
+> w manifeście — muszą się zgadzać co do znaku. Jeśli JDBC URL używa IP zamiast hostnamu
+> (lub innego portu niż zadeklarowany w manifeście), wywołanie zakończy się `SecurityException`.
 
 ---
 
@@ -512,6 +552,52 @@ Budowa: spakuj zwykłym `mvn package` (lub `jar`/`maven-assembly-plugin`, jeśli
 zależności inne niż `plugin-sdk`), policz `SHA-256` zawartości **bez** manifestu, dopisz
 `META-INF/plugin-manifest.json` z tym checksumem jako ostatni krok, i wgraj wynikowy JAR przez
 `/supervisor/settings/plugins` (UI) lub bezpośrednio `POST /api/supervisor/plugins`.
+
+### 10.1 Przykład z `DbEgressClient` — zapis wyniku kontaktu
+
+Plugin reagujący na zakończenie kontaktu (`POST_CONTACT_END`) i ustawienie dyspozycji
+(`DISPOSITION_SET`) i zapisujący wynik do zewnętrznej bazy CRM:
+
+```java
+public class CrmDbSyncPlugin implements PluginEntryPoint {
+
+    @Override
+    public void onActivate(PluginContext ctx) { }
+
+    @Override
+    public void onDeactivate() { }
+
+    @Override
+    public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
+        ctx.dbClient().executeUpdate(
+            "INSERT INTO call_results (contact_id, customer_id, status, occurred_at) "
+            + "VALUES (?, ?, ?, ?) ON CONFLICT (contact_id) DO UPDATE SET status = EXCLUDED.status",
+            List.of(e.contactId(), e.customerId(), e.status(), Instant.now())
+        );
+    }
+
+    @Override
+    public void onDispositionSet(PluginContext ctx, DispositionEvent e) {
+        ctx.dbClient().executeUpdate(
+            "UPDATE call_results SET disposition_code = ? WHERE contact_id = ?",
+            List.of(e.dispositionCode(), e.contactId())
+        );
+    }
+}
+```
+
+Wymagany manifest (fragment):
+
+```json
+{
+  "extensionPoints": ["POST_CONTACT_END", "DISPOSITION_SET"],
+  "permissions": ["contact:read", "db:egress:crm-demo-db:5432"]
+}
+```
+
+Administrator tenanta musi ustawić w konfiguracji instalacji (`installation_config`):
+`jdbcUrl = jdbc:postgresql://crm-demo-db:5432/crm`, `dbUsername`, `dbPassword`.
+Pełny, działający przykład: [`customer-callresult-db-sync/`](../examples/plugins/customer-callresult-db-sync/).
 
 ---
 

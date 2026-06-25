@@ -86,18 +86,17 @@ public interface PluginCatalogQueryService {
     List<TenantPluginInstallation> findAllEnabledAcrossAllTenants();
 
     /**
-     * Pobiera wszystkie wersje pluginów z globalnego katalogu ({@code plugin_version}),
-     * niezależnie od tenanta i niezależnie od tego, czy jakikolwiek tenant je zainstalował
-     * (BE-110, EPIC-28).
+     * Pobiera wersje pluginów wgrane przez danego tenanta ({@code plugin_version.tenant_id}),
+     * niezależnie od tego, czy jakikolwiek tenant je zainstalował (EPIC-28, V078).
      *
      * <p><strong>Skąd ten endpoint:</strong> realny scenariusz odkryty przy testowaniu uploadu —
      * upload JAR-a przeszedł walidację ({@code status=VALIDATED}), ale zapis do bazy zakończył
-     * się błędem (np. naruszenie unikalności {@code (plugin_id, version)} po wcześniejszej,
+     * się błędem (np. naruszenie unikalności {@code (plugin_id, version, tenant_id)} po wcześniejszej,
      * częściowo nieudanej próbie). Skoro {@code POST /api/supervisor/plugins} (upload) zwrócił
      * błąd HTTP zamiast {@code PluginVersionDto}, wywołujący nigdy nie otrzymał
      * {@code pluginVersionId} potrzebnego do instalacji — a bez przeglądarki katalogu nie miał
      * żadnego innego sposobu, by zainstalować wersję, która w rzeczywistości już istnieje
-     * w bazie (zgodnie z modelem katalogu globalnego, ADR-13).
+     * w bazie.
      *
      * <p>Zwraca wszystkie statusy ({@code UPLOADED}/{@code VALIDATED}/{@code PENDING_REVIEW}/
      * {@code REJECTED}/{@code REVOKED}), włącznie z {@code REJECTED} — pomocne diagnostycznie
@@ -105,7 +104,8 @@ public interface PluginCatalogQueryService {
      * sortowania/UI: filtrowanie "czy instalowalna" robi wywołujący po polu {@code status}
      * (instalowalne to {@code VALIDATED}/{@code PENDING_REVIEW}).
      *
-     * @return wszystkie wersje katalogu, sortowane {@code uploadedAt DESC} (najnowsze pierwsze)
+     * @param tenantId tenant, którego wersje pluginów chcemy pobrać
+     * @return wersje pluginów wgrane przez tenanta, sortowane {@code uploadedAt DESC} (najnowsze pierwsze)
      */
-    List<PluginVersion> findAllVersions();
+    List<PluginVersion> findVersionsForTenant(UUID tenantId);
 }

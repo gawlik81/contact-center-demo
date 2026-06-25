@@ -27,7 +27,9 @@ import java.util.UUID;
  * Encja reprezentująca jedną, niemutowalną wersję JAR-a pluginu.
  *
  * <p>Mapuje tabelę {@code plugin_version} (DB-042/V074__create_plugin_catalog.sql).
- * Tak jak {@link Plugin}, tabela jest globalna (bez {@code tenant_id}, bez RLS).
+ * Od V078 (EPIC-28) tabela jest <strong>per-tenant</strong>: każdy upload należy do tenanta,
+ * który go wgrał ({@code tenant_id}), w odróżnieniu od {@link Plugin} (globalny katalog
+ * nazw pluginów, bez {@code tenant_id}).
  *
  * <p>Wiersz jest tworzony przez BE-099 (poza zakresem tego ticketu) po pozytywnej
  * walidacji przez {@link PluginValidationService} – ten ticket (BE-098) dostarcza
@@ -51,6 +53,10 @@ public class PluginVersion {
     @ManyToOne(optional = false)
     @JoinColumn(name = "plugin_id", nullable = false)
     private Plugin plugin;
+
+    /** Tenant, który wgrał tę wersję JAR-a (EPIC-28, V078 — per-tenant izolacja katalogu). */
+    @Column(name = "tenant_id", nullable = false, updatable = false)
+    private UUID tenantId;
 
     @Column(name = "version", nullable = false, length = 50)
     private String version;

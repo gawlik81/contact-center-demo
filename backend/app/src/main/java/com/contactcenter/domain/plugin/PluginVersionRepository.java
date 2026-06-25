@@ -10,9 +10,10 @@ import java.util.UUID;
 /**
  * Repozytorium JPA dla encji {@link PluginVersion}.
  *
- * <p>Tak jak {@link PluginRepository}, tabela {@code plugin_version} jest globalna
- * (bez {@code tenant_id}, bez RLS) – stąd zwykły {@link JpaRepository} bez
- * {@code TenantAwareRepository}.
+ * <p>Od V078 (EPIC-28) tabela {@code plugin_version} ma kolumnę {@code tenant_id} —
+ * każdy upload należy do tenanta, który go wgrał. Repozytorium pozostaje zwykłym
+ * {@link JpaRepository} (bez {@code TenantAwareRepository}) — brak RLS na tej tabeli,
+ * izolacja jest realizowana przez jawne filtrowanie po {@code tenant_id}.
  *
  * <p><strong>Widoczność package-private:</strong> dostępne wyłącznie wewnątrz pakietu
  * {@code domain.plugin}.
@@ -25,12 +26,12 @@ interface PluginVersionRepository extends JpaRepository<PluginVersion, UUID> {
     Optional<PluginVersion> findByPluginIdAndVersion(UUID pluginId, String version);
 
     /**
-     * Wszystkie wersje w globalnym katalogu, najnowsze pierwsze (BE-110, EPIC-28).
+     * Wersje pluginów wgrane przez danego tenanta, najnowsze pierwsze (EPIC-28, V078).
      *
      * <p>Bez filtrowania po {@code status} — widok katalogu (panel administracyjny) ma pokazywać
      * również wersje {@code REJECTED}/{@code PENDING_REVIEW} dla celów diagnostycznych (patrz
-     * {@link PluginCatalogQueryService#findAllVersions()}); filtrowanie "czy instalowalna" jest
-     * decyzją prezentacji (frontend/kontroler), nie zapytania.
+     * {@link PluginCatalogQueryService#findVersionsForTenant(java.util.UUID)}); filtrowanie
+     * "czy instalowalna" jest decyzją prezentacji (frontend/kontroler), nie zapytania.
      */
-    List<PluginVersion> findAllByOrderByUploadedAtDesc();
+    List<PluginVersion> findByTenantIdOrderByUploadedAtDesc(UUID tenantId);
 }

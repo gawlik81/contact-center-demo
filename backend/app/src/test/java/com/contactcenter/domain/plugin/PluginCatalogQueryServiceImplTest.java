@@ -193,18 +193,18 @@ class PluginCatalogQueryServiceImplTest {
     }
 
     @Nested
-    @DisplayName("findAllVersions()")
-    class FindAllVersions {
+    @DisplayName("findVersionsForTenant()")
+    class FindVersionsForTenant {
 
         @Test
-        @DisplayName("BE-110: deleguje do repozytorium, sortowane uploadedAt DESC")
+        @DisplayName("BE-110 per-tenant: deleguje do repozytorium, sortowane uploadedAt DESC")
         void delegatesToRepositorySortedByUploadedAtDesc() {
             PluginVersion newer = buildPluginVersion(PluginVersion.PluginVersionStatus.VALIDATED);
             PluginVersion older = buildPluginVersion(PluginVersion.PluginVersionStatus.REJECTED);
-            when(pluginVersionRepository.findAllByOrderByUploadedAtDesc())
+            when(pluginVersionRepository.findByTenantIdOrderByUploadedAtDesc(TENANT_A))
                     .thenReturn(List.of(newer, older));
 
-            List<PluginVersion> result = service.findAllVersions();
+            List<PluginVersion> result = service.findVersionsForTenant(TENANT_A);
 
             assertThat(result).containsExactly(newer, older);
         }
@@ -213,22 +213,40 @@ class PluginCatalogQueryServiceImplTest {
         @DisplayName("zwraca wszystkie statusy, włącznie z REJECTED — bez filtrowania")
         void returnsAllStatusesIncludingRejected() {
             PluginVersion rejected = buildPluginVersion(PluginVersion.PluginVersionStatus.REJECTED);
-            when(pluginVersionRepository.findAllByOrderByUploadedAtDesc()).thenReturn(List.of(rejected));
+            when(pluginVersionRepository.findByTenantIdOrderByUploadedAtDesc(TENANT_A))
+                    .thenReturn(List.of(rejected));
 
-            List<PluginVersion> result = service.findAllVersions();
+            List<PluginVersion> result = service.findVersionsForTenant(TENANT_A);
 
             assertThat(result).extracting(PluginVersion::getStatus)
                     .containsExactly(PluginVersion.PluginVersionStatus.REJECTED);
         }
 
         @Test
-        @DisplayName("katalog pusty → lista pusta, nie rzuca")
+        @DisplayName("katalog pusty dla tenanta → lista pusta, nie rzuca")
         void emptyCatalog_returnsEmptyList() {
-            when(pluginVersionRepository.findAllByOrderByUploadedAtDesc()).thenReturn(List.of());
+            when(pluginVersionRepository.findByTenantIdOrderByUploadedAtDesc(TENANT_A))
+                    .thenReturn(List.of());
 
-            List<PluginVersion> result = service.findAllVersions();
+            List<PluginVersion> result = service.findVersionsForTenant(TENANT_A);
 
             assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("IZOLACJA: tenant A nie widzi wersji tenanta B")
+        void tenantIsolation_tenantADoesNotSeeTenantBVersions() {
+            PluginVersion versionA = buildPluginVersion(PluginVersion.PluginVersionStatus.VALIDATED);
+            when(pluginVersionRepository.findByTenantIdOrderByUploadedAtDesc(TENANT_A))
+                    .thenReturn(List.of(versionA));
+            when(pluginVersionRepository.findByTenantIdOrderByUploadedAtDesc(TENANT_B))
+                    .thenReturn(List.of());
+
+            List<PluginVersion> resultA = service.findVersionsForTenant(TENANT_A);
+            List<PluginVersion> resultB = service.findVersionsForTenant(TENANT_B);
+
+            assertThat(resultA).containsExactly(versionA);
+            assertThat(resultB).isEmpty();
         }
     }
 

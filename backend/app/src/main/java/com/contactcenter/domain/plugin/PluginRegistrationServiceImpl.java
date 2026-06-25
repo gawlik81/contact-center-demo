@@ -41,6 +41,12 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
         PluginVersion pluginVersion = pluginVersionRepository.findById(pluginVersionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wersja pluginu nie istnieje: " + pluginVersionId));
 
+        // Izolacja per-tenant (EPIC-28, V078): zwracamy 404 zamiast 403 — nie ujawniamy
+        // istnienia wersji wgranej przez innego tenanta (security through obscurity, poprawna tu).
+        if (!pluginVersion.getTenantId().equals(tenantId)) {
+            throw new ResourceNotFoundException("Wersja pluginu nie istnieje: " + pluginVersionId);
+        }
+
         List<String> manifestPermissions = extractManifestPermissions(pluginVersion);
         List<String> requested = grantedPermissions != null ? grantedPermissions : List.of();
 

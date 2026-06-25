@@ -142,7 +142,9 @@ public class PluginUploadController {
         }
 
         PluginVersionDto pluginVersionDto = pluginStorageService.storeValidatedJar(
-                jarBytes, file.getOriginalFilename(), validationResult, currentUserId);
+                jarBytes, file.getOriginalFilename(), validationResult,
+                TenantContext.getTenantId(),
+                currentUserId);
 
         log.info("[PluginUpload] Plugin zapisany do katalogu: pluginKey={}, version={}, status={}, uploadedBy={}",
                 pluginVersionDto.pluginKey(), pluginVersionDto.version(), pluginVersionDto.status(), currentUserId);

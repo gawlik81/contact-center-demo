@@ -92,19 +92,19 @@ public class PluginAdminController {
     }
 
     // =========================================================================
-    // GET — globalny katalog wersji (BE-110)
+    // GET — katalog wersji per-tenant (BE-110, EPIC-28)
     // =========================================================================
 
     @GetMapping("/catalog")
     @Operation(
-            summary = "Listuje wszystkie wersje pluginów w globalnym katalogu",
+            summary = "Listuje wersje pluginów wgrane przez tenanta",
             description = """
-                    Zwraca WSZYSTKIE wersje z plugin_version, niezależnie od tenanta i niezależnie
-                    od tego, czy jakikolwiek tenant je zainstalował (katalog globalny, ADR-13).
+                    Zwraca wersje z plugin_version wgrane przez bieżącego tenanta (per-tenant,
+                    EPIC-28 V078 — tenant widzi wyłącznie własne uploady).
 
                     Skąd ten endpoint: jedynym dotychczasowym sposobem zdobycia pluginVersionId
                     była świeża, udana odpowiedź uploadu. Gdy upload przechodzi walidację, ale zapis
-                    do bazy zawiedzie (np. wersja już istnieje w katalogu z wcześniejszej próby),
+                    do bazy zawiedzie (np. wersja już istnieje z wcześniejszej próby),
                     wywołujący nie dostaje pluginVersionId i nie ma żadnego sposobu zainstalować
                     wersji, która już istnieje. Ten endpoint daje przeglądarkę katalogu niezależną
                     od historii uploadów.
@@ -113,7 +113,7 @@ public class PluginAdminController {
                     Filtrowanie "czy instalowalna" (VALIDATED/PENDING_REVIEW) jest decyzją UI.
                     """,
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Lista wersji katalogu, najnowsze pierwsze"),
+                    @ApiResponse(responseCode = "200", description = "Lista wersji tenanta, najnowsze pierwsze"),
                     @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
                     @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)")
             }
@@ -122,7 +122,7 @@ public class PluginAdminController {
         UUID tenantId = TenantContext.getTenantId();
         log.debug("[PluginAdminController] GET /api/supervisor/plugins/catalog: tenant={}", tenantId);
 
-        List<PluginVersionDto> catalog = pluginCatalogQueryService.findAllVersions().stream()
+        List<PluginVersionDto> catalog = pluginCatalogQueryService.findVersionsForTenant(tenantId).stream()
                 .map(PluginVersionDto::from)
                 .toList();
 

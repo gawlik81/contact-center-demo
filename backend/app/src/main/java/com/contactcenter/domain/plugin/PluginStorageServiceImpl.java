@@ -61,6 +61,7 @@ class PluginStorageServiceImpl implements PluginStorageService {
             byte[] jarBytes,
             String originalFilename,
             ValidationResult validationResult,
+            UUID tenantId,
             UUID uploadedByUserId) {
 
         if (!isStorable(validationResult)) {
@@ -73,13 +74,14 @@ class PluginStorageServiceImpl implements PluginStorageService {
 
         Plugin plugin = findOrCreatePlugin(manifest);
 
-        String s3Key = buildS3Key(manifest.pluginKey(), manifest.version(), originalFilename);
+        String s3Key = buildS3Key(tenantId, manifest.pluginKey(), manifest.version(), originalFilename);
         uploadToS3(s3Key, jarBytes);
 
         PluginVersion.PluginVersionStatus versionStatus = toPluginVersionStatus(validationResult);
 
         PluginVersion pluginVersion = PluginVersion.builder()
                 .plugin(plugin)
+                .tenantId(tenantId)
                 .version(manifest.version())
                 .jarObjectKey(s3Key)
                 .checksumSha256(manifest.checksumSha256())
@@ -94,8 +96,8 @@ class PluginStorageServiceImpl implements PluginStorageService {
         pluginVersion = pluginVersionRepository.save(pluginVersion);
 
         log.info("[PluginStorage] Wersja pluginu zapisana: pluginKey={}, version={}, status={}, "
-                        + "s3Key={}, uploadedBy={}",
-                manifest.pluginKey(), manifest.version(), versionStatus, s3Key, uploadedByUserId);
+                        + "s3Key={}, tenant={}, uploadedBy={}",
+                manifest.pluginKey(), manifest.version(), versionStatus, s3Key, tenantId, uploadedByUserId);
 
         return PluginVersionDto.from(pluginVersion);
     }
@@ -148,14 +150,14 @@ class PluginStorageServiceImpl implements PluginStorageService {
     // =========================================================================
 
     /**
-     * Klucz S3: {@code plugins/{pluginKey}/{version}/{encodedFilename}}.
+     * Klucz S3: {@code plugins/{tenantId}/{pluginKey}/{version}/{encodedFilename}}.
      *
-     * <p><strong>Bez {@code tenantId}</strong> — katalog pluginów jest globalny (bez
-     * {@code tenant_id}/RLS, ADR-13), ten sam JAR jest współdzielony między tenantami.
+     * <p>{@code tenantId} w ścieżce — per-tenant izolacja w object storage (EPIC-28, V078):
+     * dwa różne tenanty mogą wgrać JAR-a o tej samej nazwie bez kolizji kluczy S3.
      */
-    private String buildS3Key(String pluginKey, String version, String originalFilename) {
+    private String buildS3Key(UUID tenantId, String pluginKey, String version, String originalFilename) {
         String encodedFilename = encodeFilename(originalFilename);
-        return String.format("plugins/%s/%s/%s", pluginKey, version, encodedFilename);
+        return String.format("plugins/%s/%s/%s/%s", tenantId, pluginKey, version, encodedFilename);
     }
 
     private void uploadToS3(String s3Key, byte[] jarBytes) {

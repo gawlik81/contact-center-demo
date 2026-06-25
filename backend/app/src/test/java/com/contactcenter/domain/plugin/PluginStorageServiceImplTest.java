@@ -47,6 +47,7 @@ import static org.mockito.Mockito.when;
 class PluginStorageServiceImplTest {
 
     private static final UUID UPLOADED_BY = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
+    private static final UUID TENANT_ID   = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000099");
     private static final String VALID_ENTRY_POINT = "com.acme.contactcenter.plugin.AcmeCrmPlugin";
     private static final String BUCKET = "contact-center-recordings";
 
@@ -97,7 +98,7 @@ class PluginStorageServiceImplTest {
                 .thenReturn(PutObjectResponse.builder().build());
 
         PluginVersionDto dto = service.storeValidatedJar(jarBytes, "acme-crm-sync-1.3.0.jar",
-                validationResult, UPLOADED_BY);
+                validationResult, TENANT_ID, UPLOADED_BY);
 
         assertThat(dto.pluginKey()).isEqualTo("acme-crm-sync");
         assertThat(dto.displayName()).isEqualTo("Acme CRM Sync");
@@ -120,7 +121,10 @@ class PluginStorageServiceImplTest {
         verify(pluginVersionRepository).save(versionCaptor.capture());
         PluginVersion savedVersion = versionCaptor.getValue();
         assertThat(savedVersion.getVersion()).isEqualTo("1.3.0");
-        assertThat(savedVersion.getJarObjectKey()).isEqualTo("plugins/acme-crm-sync/1.3.0/acme-crm-sync-1.3.0.jar");
+        // Klucz S3 zawiera tenantId (EPIC-28, V078 — izolacja per-tenant w object storage)
+        assertThat(savedVersion.getJarObjectKey())
+                .isEqualTo("plugins/" + TENANT_ID + "/acme-crm-sync/1.3.0/acme-crm-sync-1.3.0.jar");
+        assertThat(savedVersion.getTenantId()).isEqualTo(TENANT_ID);
         assertThat(savedVersion.getStatus()).isEqualTo(PluginVersion.PluginVersionStatus.VALIDATED);
         assertThat(savedVersion.getManifestJson()).containsEntry("pluginKey", "acme-crm-sync");
     }
@@ -138,7 +142,7 @@ class PluginStorageServiceImplTest {
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
 
-        service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, UPLOADED_BY);
+        service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, TENANT_ID, UPLOADED_BY);
 
         ArgumentCaptor<PluginVersion> versionCaptor = ArgumentCaptor.forClass(PluginVersion.class);
         verify(pluginVersionRepository).save(versionCaptor.capture());
@@ -148,8 +152,8 @@ class PluginStorageServiceImplTest {
     }
 
     @Test
-    @DisplayName("Klucz S3 nie zawiera tenantId — katalog pluginów jest globalny")
-    void s3KeyDoesNotContainTenantId() {
+    @DisplayName("Klucz S3 zawiera tenantId — izolacja per-tenant w object storage (EPIC-28, V078)")
+    void s3KeyContainsTenantId() {
         byte[] jarBytes = buildValidJar();
         ValidationResult validationResult = ValidationResult.validated();
 
@@ -159,11 +163,12 @@ class PluginStorageServiceImplTest {
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
 
-        service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, UPLOADED_BY);
+        service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, TENANT_ID, UPLOADED_BY);
 
         ArgumentCaptor<PutObjectRequest> requestCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
         verify(s3Client).putObject(requestCaptor.capture(), any(RequestBody.class));
-        assertThat(requestCaptor.getValue().key()).isEqualTo("plugins/acme-crm-sync/1.3.0/plugin.jar");
+        assertThat(requestCaptor.getValue().key())
+                .isEqualTo("plugins/" + TENANT_ID + "/acme-crm-sync/1.3.0/plugin.jar");
         assertThat(requestCaptor.getValue().bucket()).isEqualTo(BUCKET);
     }
 
@@ -189,7 +194,7 @@ class PluginStorageServiceImplTest {
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
 
-        PluginVersionDto dto = service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, UPLOADED_BY);
+        PluginVersionDto dto = service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, TENANT_ID, UPLOADED_BY);
 
         verify(pluginRepository, never()).save(any(Plugin.class));
         assertThat(dto.pluginId()).isEqualTo(existingPlugin.getId());
@@ -205,7 +210,7 @@ class PluginStorageServiceImplTest {
         byte[] jarBytes = buildValidJar();
         ValidationResult rejected = ValidationResult.rejected("checksum mismatch");
 
-        assertThatThrownBy(() -> service.storeValidatedJar(jarBytes, "plugin.jar", rejected, UPLOADED_BY))
+        assertThatThrownBy(() -> service.storeValidatedJar(jarBytes, "plugin.jar", rejected, TENANT_ID, UPLOADED_BY))
                 .isInstanceOf(IllegalArgumentException.class);
 
         verify(s3Client, never()).putObject(any(PutObjectRequest.class), any(RequestBody.class));
@@ -228,7 +233,7 @@ class PluginStorageServiceImplTest {
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenThrow(S3Exception.builder().message("connection refused").build());
 
-        assertThatThrownBy(() -> service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, UPLOADED_BY))
+        assertThatThrownBy(() -> service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, TENANT_ID, UPLOADED_BY))
                 .isInstanceOf(PluginStorageServiceImpl.PluginStorageException.class);
 
         verify(pluginVersionRepository, never()).save(any(PluginVersion.class));
@@ -250,7 +255,7 @@ class PluginStorageServiceImplTest {
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
 
-        PluginVersionDto dto = service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, UPLOADED_BY);
+        PluginVersionDto dto = service.storeValidatedJar(jarBytes, "plugin.jar", validationResult, TENANT_ID, UPLOADED_BY);
 
         assertThat(dto.validationErrors()).isEqualTo(List.of());
     }

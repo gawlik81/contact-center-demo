@@ -98,10 +98,11 @@ class PluginCatalogQueryServiceImpl implements PluginCatalogQueryService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PluginVersion> findAllVersions() {
-        List<PluginVersion> versions = pluginVersionRepository.findAllByOrderByUploadedAtDesc();
+    public List<PluginVersion> findVersionsForTenant(UUID tenantId) {
+        List<PluginVersion> versions = pluginVersionRepository.findByTenantIdOrderByUploadedAtDesc(tenantId);
 
-        log.debug("[PluginCatalogQueryService] findAllVersions: znaleziono {} wersji w katalogu", versions.size());
+        log.debug("[PluginCatalogQueryService] findVersionsForTenant: tenant={}, znaleziono {} wersji",
+                tenantId, versions.size());
 
         return versions;
     }

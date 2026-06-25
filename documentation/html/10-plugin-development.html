@@ -50,8 +50,11 @@ przycisk w toolbarze&quot;. Typowe zastosowanie: integracja z zewnętrznym CRM k
 danych przed połączeniem, synchronizacja klienta, zapis notatki po zakończeniu kontaktu.</p>
 <p>Kluczowe właściwości modelu (szczegóły w <code>ARCHITECTURE.md</code> §11.3):</p>
 <ul>
-<li><strong>Katalog pluginów (<code>plugin</code>/<code>plugin_version</code>) jest globalny</strong> — bez <code>tenant_id</code>, bez RLS.
-Jeden wgrany JAR może być zainstalowany niezależnie przez wielu tenantów.</li>
+<li><strong>Tabela <code>plugin</code> (tożsamość pluginu po <code>pluginKey</code>) jest globalna</strong> — bez <code>tenant_id</code>,
+bez RLS. Identyfikuje plugin niezależnie od tego, kto go wgrał.</li>
+<li><strong>Tabela <code>plugin_version</code> jest per-tenant</strong> (V078) — każdy upload JAR-a należy do tenanta,
+który go wgrał (<code>tenant_id NOT NULL</code>). Tenant widzi w katalogu tylko swoje wersje.
+Klucz S3: <code>plugins/{tenantId}/{pluginKey}/{version}/{plik}.jar</code>.</li>
 <li><strong>Instalacja (<code>tenant_plugin_installation</code>) jest per tenant</strong> — z RLS, z własnym zestawem
 zatwierdzonych uprawnień (<code>granted_permissions</code>) i konfiguracją (<code>installation_config</code>).</li>
 <li><strong>Izolacja wykonania: in-process, jeden dedykowany <code>ClassLoader</code> per <code>(tenant_id, plugin_key)</code></strong>
@@ -69,6 +72,7 @@ warstwowymi, nie pełną sandboksacją (RT-10) — patrz <a href="#9-bezpiecze%C
     PluginContext.java
     HttpEgressClient.java
     HttpResponse.java
+    DbEgressClient.java
     PluginLogger.java
     PluginConfig.java
     model/
@@ -176,6 +180,7 @@ po prostu przestaje czekać na wynik i kontynuuje.</p>
     ContactView getContact(UUID contactId);
     void appendContactNote(UUID contactId, String note);
     HttpEgressClient httpClient();
+    DbEgressClient dbClient();
     PluginLogger logger();
     PluginConfig config();
 }
@@ -217,6 +222,11 @@ zobaczy. <code>getCustomer</code>/<code>getContact</code> zwracają niemutowalne
 <td><code>httpClient()</code></td>
 <td>Ograniczony klient HTTP (<code>get</code>/<code>post</code>)</td>
 <td>Tylko hosty zadeklarowane jako <code>http:egress:&lt;host&gt;</code> w <code>granted_permissions</code> — patrz <a href="#6-model-uprawnie%C5%84">§6</a></td>
+</tr>
+<tr>
+<td><code>dbClient()</code></td>
+<td>Ograniczony klient bazy danych zewnętrznej</td>
+<td>Tylko <code>host:port</code> zadeklarowane jako <code>db:egress:&lt;host&gt;:&lt;port&gt;</code> w <code>granted_permissions</code>; plugin nigdy nie widzi JDBC URL ani credentiali — host czyta je z <code>installation_config</code> (<code>jdbcUrl</code>, <code>dbUsername</code>, <code>dbPassword</code>). Jedyna metoda: <code>int executeUpdate(String sql, List&lt;Object&gt; params)</code> (parametryzowane INSERT/UPDATE/DELETE, <code>?</code> placeholdery). Patrz <a href="#61-dbegressclient--konfiguracja-kluczy-installation_config">§6.1</a></td>
 </tr>
 <tr>
 <td><code>logger()</code></td>
@@ -275,7 +285,7 @@ record ContactView(UUID contactId, UUID customerId, String channel, String direc
 <tbody><tr>
 <td><code>pluginKey</code></td>
 <td>tak</td>
-<td><code>^[a-z0-9]([a-z0-9-]{0,98}[a-z0-9])?$</code>, unikalny w globalnym katalogu</td>
+<td><code>^[a-z0-9]([a-z0-9-]{0,98}[a-z0-9])?$</code>, unikalny w tabeli <code>plugin</code> (globalnej tożsamości pluginu); każdy tenant może mieć własne wersje (<code>plugin_version</code>) pod tym samym <code>pluginKey</code></td>
 </tr>
 <tr>
 <td><code>displayName</code></td>
@@ -352,6 +362,7 @@ customer:update
 contact:read
 contact:update
 http:egress:&lt;host&gt;       (host: litery/cyfry/./-, opcjonalnie :port — dowolna ilość wpisów)
+db:egress:&lt;host&gt;:&lt;port&gt;  (host i port WYMAGANE, w przeciwieństwie do http:egress)
 </code></pre>
 <p>Żądanie permission spoza tego zbioru jest odrzucane już przy <strong>walidacji JAR-a</strong> (REJECTED,
 nie tylko ignorowane). Przy <strong>instalacji</strong> (nie uploadzie) administrator tenanta zatwierdza
@@ -361,6 +372,63 @@ po prostu odfiltrowane (przecięcie żądanych ∩ zadeklarowanych), bez błędu
 <p><code>http:egress:&lt;host&gt;</code> jest jednocześnie: (a) allow-listą dla <code>PluginContext.httpClient()</code>, i
 (b) źródłem nagłówka <code>Content-Security-Policy: connect-src</code> dla zasobów UI pluginu
 (<code>/plugin-assets/**</code>) — patrz <a href="#8-integracja-ui-iframe--pluginuisdk">§8</a>.</p>
+<h3>6.1 <code>DbEgressClient</code> — konfiguracja kluczy <code>installation_config</code></h3>
+<p><code>DbEgressClient</code> pozwala pluginowi wykonać parametryzowany SQL (<code>INSERT</code>/<code>UPDATE</code>/<code>DELETE</code>) na
+zewnętrznej bazie danych tenanta — bez ujawniania credentiali pluginowi. Działa tak:</p>
+<ol>
+<li><p><strong>Manifest</strong> deklaruje uprawnienie: <code>&quot;db:egress:&lt;host&gt;:&lt;port&gt;&quot;</code> (np. <code>&quot;db:egress:crm-demo-db:5432&quot;</code>).</p>
+</li>
+<li><p><strong>Administrator tenanta</strong> zatwierdza to uprawnienie przy instalacji i ustawia w konfiguracji
+instalacji (zakładka &quot;Konfiguracja&quot; w UI) trzy klucze:</p>
+<table>
+<thead>
+<tr>
+<th>Klucz w <code>installation_config</code></th>
+<th>Opis</th>
+<th>Przykład</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>jdbcUrl</code></td>
+<td>JDBC URL zewnętrznej bazy</td>
+<td><code>jdbc:postgresql://crm-demo-db:5432/crm</code></td>
+</tr>
+<tr>
+<td><code>dbUsername</code></td>
+<td>Nazwa użytkownika bazy</td>
+<td><code>crm_plugin_user</code></td>
+</tr>
+<tr>
+<td><code>dbPassword</code></td>
+<td>Hasło bazy — szyfrowane AES-256-GCM w bazie platformy</td>
+<td><code>s3cr3t</code></td>
+</tr>
+</tbody></table>
+</li>
+<li><p><strong>Host</strong> przy każdym wywołaniu <code>executeUpdate</code>:</p>
+<ul>
+<li>Wyciąga <code>host:port</code> z <code>jdbcUrl</code> (parsuje jako URI po strippingu prefiksu <code>jdbc:</code>).</li>
+<li>Sprawdza, czy <code>host:port</code> pasuje do <code>db:egress:&lt;host&gt;:&lt;port&gt;</code> w <code>granted_permissions</code> —
+jeśli nie, rzuca <code>SecurityException</code> <strong>przed</strong> jakimkolwiek połączeniem z bazą.</li>
+<li>Otwiera połączenie JDBC (<code>DriverManager.getConnection</code>), wykonuje <code>PreparedStatement</code> z
+wartościami z <code>params</code> i zamyka połączenie — <strong>brak connection poolingu</strong> (jedno połączenie
+per wywołanie; wystarczające dla fire-and-forget extension pointów).</li>
+</ul>
+</li>
+</ol>
+<p>Plugin wywołuje wyłącznie:</p>
+<pre><code class="language-java">int rows = ctx.dbClient().executeUpdate(
+    &quot;INSERT INTO call_results (contact_id, status, occurred_at) VALUES (?, ?, ?)&quot;,
+    List.of(event.contactId(), event.status(), Instant.now())
+);
+</code></pre>
+<p>Nigdy nie podaje URL ani credentiali — nie ma do nich dostępu.</p>
+<blockquote>
+<p><strong>Ważne:</strong> <code>jdbcUrl</code> musi wskazywać dokładnie na ten sam <code>host:port</code>, który zadeklarowano
+w <code>db:egress:&lt;host&gt;:&lt;port&gt;</code>. <code>crm-demo-db:5432</code> w URL i <code>db:egress:crm-demo-db:5432</code>
+w manifeście — muszą się zgadzać co do znaku. Jeśli JDBC URL używa IP zamiast hostnamu
+(lub innego portu niż zadeklarowany w manifeście), wywołanie zakończy się <code>SecurityException</code>.</p>
+</blockquote>
 <hr>
 <h2>7. Ograniczenia bytecode (statyczny skan ASM)</h2>
 <p>Przy uploadzie, <strong>przed jakimkolwiek ładowaniem klasy</strong>, każda klasa w JAR-ze jest skanowana
@@ -397,8 +465,8 @@ PluginValidationService — gate przed dotknięciem klasy:
   5. (zarezerwowane na podpis kryptograficzny — niezaimplementowane, OQ-28-1)
   → VALIDATED lub REJECTED (PENDING_REVIEW zarezerwowane, nieużywane bez podpisu)
   ▼  (tylko gdy VALIDATED)
-PluginStorageService — zapis do MinIO/S3 (plugins/{pluginKey}/{version}/{plik}.jar,
-  klucz BEZ tenantId — katalog globalny) + insert plugin/plugin_version
+PluginStorageService — zapis do MinIO/S3 (plugins/{tenantId}/{pluginKey}/{version}/{plik}.jar,
+  klucz zawiera tenantId — katalog per-tenant od V078) + insert plugin_version (tenant_id)
   │
   ▼  administrator klika &quot;Zainstaluj&quot; → POST /api/supervisor/plugins/{pluginVersionId}/install
 PluginRegistrationService.install — insert tenant_plugin_installation (enabled=false,
@@ -432,7 +500,17 @@ success&quot; — brak pełnego half-open state).</p>
 <tbody><tr>
 <td><code>POST /api/supervisor/plugins</code></td>
 <td>SUPERVISOR/ADMIN</td>
-<td>Upload JAR-a (multipart, pole <code>file</code>) → <code>PluginVersionDto</code></td>
+<td>Upload JAR-a (multipart, pole <code>file</code>) → <code>PluginVersionDto</code>; wersja przypisana do tenanta uploaderów (V078)</td>
+</tr>
+<tr>
+<td><code>GET /api/supervisor/plugins/catalog</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>Lista wersji pluginów wgranych przez bieżącego tenanta (per-tenant od V078)</td>
+</tr>
+<tr>
+<td><code>DELETE /api/supervisor/plugins/catalog/{pluginVersionId}</code></td>
+<td>SUPERVISOR/ADMIN</td>
+<td>Usuwa wersję z katalogu; blokowane gdy istnieje instalacja tej wersji (409)</td>
 </tr>
 <tr>
 <td><code>GET /api/supervisor/plugins</code></td>
@@ -442,7 +520,7 @@ success&quot; — brak pełnego half-open state).</p>
 <tr>
 <td><code>POST /api/supervisor/plugins/{pluginVersionId}/install</code></td>
 <td>SUPERVISOR/ADMIN</td>
-<td>Instalacja wersji dla tenanta</td>
+<td>Instalacja wersji dla tenanta; 404 gdy wersja należy do innego tenanta</td>
 </tr>
 <tr>
 <td><code>POST /api/supervisor/plugins/installations/{id}/enable</code></td>
@@ -546,6 +624,12 @@ ograniczeń <strong>aktualnie obecnych w kodzie</strong> (nie tylko teoretycznyc
 reset Thread-Context ClassLoader to warstwy obrony, nie gwarancja niemożności ucieczki na
 poziomie JVM. Instaluj wyłącznie pluginy od zaufanych dostawców — to nie jest model
 bezpieczeństwa odpowiedni dla w pełni nieznanego/wrogiego kodu.</li>
+<li><strong><code>PlatformApiClassLoader</code> w Java 9+ wymaga platformowego classloadera dla modułów spoza
+<code>java.base</code>.</strong> Klasy takie jak <code>java.sql.Timestamp</code>, <code>java.sql.Connection</code> itp. nie są ładowane
+przez bootstrap classloader — są w module <code>java.sql</code>, który w Java 9+ obsługuje platform
+classloader (<code>ClassLoader.getPlatformClassLoader()</code>). <code>findBootstrapClassOrNull</code> ma fallback
+do platform classloadera, więc <code>DbEgressClient.executeUpdate()</code> z parametrami <code>Timestamp</code>
+działa poprawnie.</li>
 <li><strong><code>PluginContext.logger()</code> nie zapisuje jeszcze do <code>plugin_invocation_log</code>.</strong> Mimo że Javadoc
 SDK deklaruje separację od logów aplikacji, implementacja (<code>PluginLoggerImpl</code>) wciąż pisze
 przez SLF4J z prefiksem <code>[PluginLog]</code> — nie trafia do historii wywołań widocznej w UI
@@ -571,13 +655,22 @@ infrastruktury (DNS/reverse proxy) poza zakresem backendu — patrz <code>TASKS-
 <hr>
 <h2>10. Minimalny przykład end-to-end</h2>
 <blockquote>
-<p><strong>Pełny, działający przykład</strong> (skompilowany, zweryfikowany przez realny
-<code>PluginValidationService</code> z wynikiem <code>VALIDATED</code>) znajduje się w
-<a href="../examples/plugins/customer-google-lookup/"><code>examples/plugins/customer-google-lookup/</code></a> —
-panel boczny agenta aktywowany podczas rozmowy, prezentujący wyniki Google Custom Search dla
-bieżącego klienta. Ten rozdział pokazuje skróconą wersję tego samego mechanizmu; pełny kod,
-instrukcje budowy (włącznie z dwuetapową procedurą liczenia <code>checksumSha256</code>) i znane
-ograniczenie (brak UI do ustawienia <code>installation_config</code>) są w <code>README.md</code> tego przykładu.</p>
+<p><strong>Dwa pełne, działające przykłady</strong> (skompilowane, zweryfikowane przez realny
+<code>PluginValidationService</code> z wynikiem <code>VALIDATED</code>) w katalogu <code>examples/plugins/</code>:</p>
+<ul>
+<li><p><a href="../examples/plugins/customer-google-lookup/"><code>customer-google-lookup/</code></a> — panel boczny
+agenta aktywowany podczas rozmowy, prezentujący wyniki Google Custom Search dla bieżącego
+klienta. Demonstruje <code>http:egress</code>, <code>PRE_CONTACT_CONNECT</code> i <code>MANUAL_ACTION</code>.</p>
+</li>
+<li><p><a href="../examples/plugins/customer-callresult-db-sync/"><code>customer-callresult-db-sync/</code></a> —
+zapis wyniku zakończonego kontaktu i dyspozycji do zewnętrznej bazy danych CRM tenanta.
+Demonstruje <code>DbEgressClient</code> (<code>db:egress:&lt;host&gt;:&lt;port&gt;</code>), <code>POST_CONTACT_END</code> i
+<code>DISPOSITION_SET</code>. Zawiera gotowy <code>docker-compose.yml</code> z PostgreSQL 16 dołączającym do
+sieci <code>contact-center-network</code>.</p>
+</li>
+</ul>
+<p>Ten rozdział pokazuje skróconą wersję mechanizmu; instrukcje budowy (dwuetapowa procedura
+<code>checksumSha256</code>) i konfiguracja są w <code>README.md</code> każdego przykładu.</p>
 </blockquote>
 <p>Struktura projektu pluginu (Maven, niezależny od tego repozytorium):</p>
 <pre><code>acme-crm-sync/
@@ -631,6 +724,44 @@ public class AcmeCrmPlugin implements PluginEntryPoint {
 zależności inne niż <code>plugin-sdk</code>), policz <code>SHA-256</code> zawartości <strong>bez</strong> manifestu, dopisz
 <code>META-INF/plugin-manifest.json</code> z tym checksumem jako ostatni krok, i wgraj wynikowy JAR przez
 <code>/supervisor/settings/plugins</code> (UI) lub bezpośrednio <code>POST /api/supervisor/plugins</code>.</p>
+<h3>10.1 Przykład z <code>DbEgressClient</code> — zapis wyniku kontaktu</h3>
+<p>Plugin reagujący na zakończenie kontaktu (<code>POST_CONTACT_END</code>) i ustawienie dyspozycji
+(<code>DISPOSITION_SET</code>) i zapisujący wynik do zewnętrznej bazy CRM:</p>
+<pre><code class="language-java">public class CrmDbSyncPlugin implements PluginEntryPoint {
+
+    @Override
+    public void onActivate(PluginContext ctx) { }
+
+    @Override
+    public void onDeactivate() { }
+
+    @Override
+    public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
+        ctx.dbClient().executeUpdate(
+            &quot;INSERT INTO call_results (contact_id, customer_id, status, occurred_at) &quot;
+            + &quot;VALUES (?, ?, ?, ?) ON CONFLICT (contact_id) DO UPDATE SET status = EXCLUDED.status&quot;,
+            List.of(e.contactId(), e.customerId(), e.status(), Instant.now())
+        );
+    }
+
+    @Override
+    public void onDispositionSet(PluginContext ctx, DispositionEvent e) {
+        ctx.dbClient().executeUpdate(
+            &quot;UPDATE call_results SET disposition_code = ? WHERE contact_id = ?&quot;,
+            List.of(e.dispositionCode(), e.contactId())
+        );
+    }
+}
+</code></pre>
+<p>Wymagany manifest (fragment):</p>
+<pre><code class="language-json">{
+  &quot;extensionPoints&quot;: [&quot;POST_CONTACT_END&quot;, &quot;DISPOSITION_SET&quot;],
+  &quot;permissions&quot;: [&quot;contact:read&quot;, &quot;db:egress:crm-demo-db:5432&quot;]
+}
+</code></pre>
+<p>Administrator tenanta musi ustawić w konfiguracji instalacji (<code>installation_config</code>):
+<code>jdbcUrl = jdbc:postgresql://crm-demo-db:5432/crm</code>, <code>dbUsername</code>, <code>dbPassword</code>.
+Pełny, działający przykład: <a href="../examples/plugins/customer-callresult-db-sync/"><code>customer-callresult-db-sync/</code></a>.</p>
 <hr>
 <h2>11. Powiązane materiały</h2>
 <ul>

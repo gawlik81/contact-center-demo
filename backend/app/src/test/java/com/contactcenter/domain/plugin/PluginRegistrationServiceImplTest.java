@@ -153,6 +153,137 @@ class PluginRegistrationServiceImplTest {
             assertThatThrownBy(() -> service.install(TENANT_ID, PLUGIN_VERSION_ID, List.of("customer:read"), INSTALLED_BY))
                     .isInstanceOf(DataIntegrityViolationException.class);
         }
+
+        // =====================================================================
+        // Dziedziczenie configu przy upgrade tego samego pluginu (BE-111)
+        // =====================================================================
+
+        @Test
+        @DisplayName("BE-111: druga wersja tego samego pluginu dziedziczy config z poprzedniej instalacji tenanta")
+        void install_secondVersionOfSamePlugin_inheritsConfigFromPreviousInstallation() {
+            UUID otherVersionId = UUID.fromString("77777777-7777-7777-7777-777777777777");
+            UUID previousInstallationId = UUID.fromString("88888888-8888-8888-8888-888888888888");
+            String previousConfigJson = "{\"googleApiKey\":\"secret-key\"}";
+
+            PluginVersion newVersion = buildPluginVersionWithPlugin(
+                    PLUGIN_VERSION_ID, "customer-google-lookup", "2.0.0", List.of("customer:read"));
+            PluginVersion oldVersion = buildPluginVersionWithPlugin(
+                    otherVersionId, "customer-google-lookup", "1.0.0", List.of("customer:read"));
+
+            when(pluginVersionRepository.findById(PLUGIN_VERSION_ID)).thenReturn(Optional.of(newVersion));
+
+            TenantPluginInstallation previousInstallation =
+                    buildInstallation(previousInstallationId, TENANT_ID, true, List.of("customer:read"));
+            previousInstallation.setPluginVersionId(otherVersionId);
+            previousInstallation.setInstallationConfig(previousConfigJson);
+            previousInstallation.setInstalledAt(Instant.now().minusSeconds(3600));
+
+            when(installationRepository.findAllByTenantId(TENANT_ID)).thenReturn(List.of(previousInstallation));
+            when(pluginVersionRepository.findAllById(List.of(otherVersionId))).thenReturn(List.of(oldVersion));
+
+            TenantPluginInstallation saved = buildInstallation(INSTALLATION_ID, TENANT_ID, false, List.of("customer:read"));
+            saved.setInstallationConfig(previousConfigJson);
+            when(installationRepository.insert(any())).thenReturn(saved);
+
+            service.install(TENANT_ID, PLUGIN_VERSION_ID, List.of("customer:read"), INSTALLED_BY);
+
+            var captor = org.mockito.ArgumentCaptor.forClass(TenantPluginInstallation.class);
+            verify(installationRepository).insert(captor.capture());
+            assertThat(captor.getValue().getInstallationConfig()).isEqualTo(previousConfigJson);
+        }
+
+        @Test
+        @DisplayName("BE-111: pierwsza instalacja pluginu (brak wcześniejszej instalacji tenanta) — config pusty")
+        void install_firstInstallationOfPlugin_configRemainsNull() {
+            PluginVersion newVersion = buildPluginVersionWithPlugin(
+                    PLUGIN_VERSION_ID, "customer-google-lookup", "1.0.0", List.of("customer:read"));
+            when(pluginVersionRepository.findById(PLUGIN_VERSION_ID)).thenReturn(Optional.of(newVersion));
+            when(installationRepository.findAllByTenantId(TENANT_ID)).thenReturn(List.of());
+            when(installationRepository.insert(any()))
+                    .thenReturn(buildInstallation(INSTALLATION_ID, TENANT_ID, false, List.of("customer:read")));
+
+            service.install(TENANT_ID, PLUGIN_VERSION_ID, List.of("customer:read"), INSTALLED_BY);
+
+            var captor = org.mockito.ArgumentCaptor.forClass(TenantPluginInstallation.class);
+            verify(installationRepository).insert(captor.capture());
+            assertThat(captor.getValue().getInstallationConfig()).isNull();
+        }
+
+        @Test
+        @DisplayName("BE-111: poprzednia instalacja tego samego pluginu miała config pusty/null — nowa też ma null, bez wyjątku")
+        void install_previousInstallationHadNullConfig_newInstallationConfigStaysNull() {
+            UUID otherVersionId = UUID.fromString("77777777-7777-7777-7777-777777777777");
+            UUID previousInstallationId = UUID.fromString("88888888-8888-8888-8888-888888888888");
+
+            PluginVersion newVersion = buildPluginVersionWithPlugin(
+                    PLUGIN_VERSION_ID, "customer-google-lookup", "2.0.0", List.of("customer:read"));
+            PluginVersion oldVersion = buildPluginVersionWithPlugin(
+                    otherVersionId, "customer-google-lookup", "1.0.0", List.of("customer:read"));
+
+            when(pluginVersionRepository.findById(PLUGIN_VERSION_ID)).thenReturn(Optional.of(newVersion));
+
+            TenantPluginInstallation previousInstallation =
+                    buildInstallation(previousInstallationId, TENANT_ID, false, List.of());
+            previousInstallation.setPluginVersionId(otherVersionId);
+            previousInstallation.setInstallationConfig(null);
+
+            when(installationRepository.findAllByTenantId(TENANT_ID)).thenReturn(List.of(previousInstallation));
+            when(installationRepository.insert(any()))
+                    .thenReturn(buildInstallation(INSTALLATION_ID, TENANT_ID, false, List.of("customer:read")));
+
+            service.install(TENANT_ID, PLUGIN_VERSION_ID, List.of("customer:read"), INSTALLED_BY);
+
+            var captor = org.mockito.ArgumentCaptor.forClass(TenantPluginInstallation.class);
+            verify(installationRepository).insert(captor.capture());
+            assertThat(captor.getValue().getInstallationConfig()).isNull();
+        }
+
+        @Test
+        @DisplayName("BE-111: instalacja innego pluginu (inny pluginKey) tenanta nie jest źródłem dziedziczenia configu")
+        void install_existingInstallationOfDifferentPlugin_doesNotInheritConfig() {
+            UUID otherVersionId = UUID.fromString("77777777-7777-7777-7777-777777777777");
+            UUID unrelatedInstallationId = UUID.fromString("88888888-8888-8888-8888-888888888888");
+
+            PluginVersion newVersion = buildPluginVersionWithPlugin(
+                    PLUGIN_VERSION_ID, "customer-google-lookup", "1.0.0", List.of("customer:read"));
+            PluginVersion unrelatedVersion = buildPluginVersionWithPlugin(
+                    otherVersionId, "acme-crm-sync", "3.1.0", List.of("customer:read"));
+
+            when(pluginVersionRepository.findById(PLUGIN_VERSION_ID)).thenReturn(Optional.of(newVersion));
+
+            TenantPluginInstallation unrelatedInstallation =
+                    buildInstallation(unrelatedInstallationId, TENANT_ID, true, List.of("customer:read"));
+            unrelatedInstallation.setPluginVersionId(otherVersionId);
+            unrelatedInstallation.setInstallationConfig("{\"crmToken\":\"unrelated-secret\"}");
+
+            when(installationRepository.findAllByTenantId(TENANT_ID)).thenReturn(List.of(unrelatedInstallation));
+            when(pluginVersionRepository.findAllById(List.of(otherVersionId))).thenReturn(List.of(unrelatedVersion));
+            when(installationRepository.insert(any()))
+                    .thenReturn(buildInstallation(INSTALLATION_ID, TENANT_ID, false, List.of("customer:read")));
+
+            service.install(TENANT_ID, PLUGIN_VERSION_ID, List.of("customer:read"), INSTALLED_BY);
+
+            var captor = org.mockito.ArgumentCaptor.forClass(TenantPluginInstallation.class);
+            verify(installationRepository).insert(captor.capture());
+            assertThat(captor.getValue().getInstallationConfig()).isNull();
+        }
+
+        @Test
+        @DisplayName("BE-111: izolacja multi-tenant — findAllByTenantId jest wołane tylko z tenantId instalującego, "
+                + "nigdy z innym tenantem (brak cross-tenant leak configu)")
+        void install_neverQueriesOtherTenantForInheritedConfig() {
+            PluginVersion newVersion = buildPluginVersionWithPlugin(
+                    PLUGIN_VERSION_ID, "customer-google-lookup", "1.0.0", List.of("customer:read"));
+            when(pluginVersionRepository.findById(PLUGIN_VERSION_ID)).thenReturn(Optional.of(newVersion));
+            when(installationRepository.findAllByTenantId(TENANT_ID)).thenReturn(List.of());
+            when(installationRepository.insert(any()))
+                    .thenReturn(buildInstallation(INSTALLATION_ID, TENANT_ID, false, List.of("customer:read")));
+
+            service.install(TENANT_ID, PLUGIN_VERSION_ID, List.of("customer:read"), INSTALLED_BY);
+
+            verify(installationRepository).findAllByTenantId(TENANT_ID);
+            verify(installationRepository, never()).findAllByTenantId(OTHER_TENANT);
+        }
     }
 
     // =========================================================================
@@ -517,6 +648,33 @@ class PluginRegistrationServiceImplTest {
     // =========================================================================
     // Fixtures
     // =========================================================================
+
+    /**
+     * Fixture dla testów dziedziczenia configu (BE-111) — w odróżnieniu od
+     * {@link #buildPluginVersionWithPermissions}, ustawia {@link Plugin} z konkretnym
+     * {@code pluginKey}, bo {@link PluginRegistrationServiceImpl#findInheritedConfig}
+     * identyfikuje "ten sam plugin" wyłącznie przez {@code Plugin.pluginKey}.
+     */
+    private static PluginVersion buildPluginVersionWithPlugin(UUID pluginVersionId, String pluginKey,
+                                                                String version, List<String> permissions) {
+        Plugin plugin = Plugin.builder()
+                .id(UUID.randomUUID())
+                .pluginKey(pluginKey)
+                .displayName(pluginKey)
+                .vendor("Test Vendor")
+                .build();
+
+        return PluginVersion.builder()
+                .id(pluginVersionId)
+                .plugin(plugin)
+                .version(version)
+                .jarObjectKey("plugins/" + pluginKey + "/" + version + ".jar")
+                .checksumSha256("a".repeat(64))
+                .manifestJson(Map.of("permissions", permissions))
+                .sdkVersion("1.x")
+                .uploadedAt(Instant.now())
+                .build();
+    }
 
     private static PluginVersion buildPluginVersionWithPermissions(List<String> permissions) {
         return PluginVersion.builder()

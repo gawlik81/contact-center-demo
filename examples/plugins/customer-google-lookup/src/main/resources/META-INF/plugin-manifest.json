@@ -1,7 +1,7 @@
 {
   "pluginKey": "customer-google-lookup",
   "displayName": "Customer Google Lookup",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "vendor": "Acme Sp. z o.o.",
   "vendorContact": "support@acme.example",
   "sdkVersion": "1.x",
@@ -29,5 +29,5 @@
       "mountPoint": "AGENT_DESKTOP_TOOLBAR"
     }
   ],
-  "checksumSha256": "9b73013683fc88e9c4a4a309a09505b1188e2af4ccc4ca7bc04815f0a47b650a"
+  "checksumSha256": "c22bb8e29c2016abbc5153b5312e8757625883b5abc26f3dcc33e6d46bc10f25"
 }

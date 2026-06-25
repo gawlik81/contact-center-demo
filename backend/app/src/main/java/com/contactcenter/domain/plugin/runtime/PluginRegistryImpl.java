@@ -14,8 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * Implementacja rejestru aktywnych instancji pluginów, w pamięci JVM (nie w bazie danych —
  * stan jest odbudowywany przy starcie aplikacji przez ponowne {@code load()} wszystkich
- * {@code enabled=true} instalacji, poza zakresem tego ticketu, planowane jako część integracji
- * startowej w przyszłym tickecie).
+ * {@code enabled=true} instalacji, zob. {@link PluginRuntimeStartupLoader}).
  *
  * <p>Klucz mapy: {@code tenantId + "::" + extensionPoint.name()} → lista uchwytów w porządku
  * rejestracji ({@code display_order}, ARCHITECTURE.md §11.9 — sortowanie po display_order jest

@@ -23,6 +23,19 @@ dostawcy pluginu. Nie jest częścią reaktora `backend/pom.xml` i nie jest budo
 > a backend i tak odrzuci upload z czytelnym błędem `Checksum mismatch: ...obliczony=<X>` —
 > w takim wypadku wklej `<X>` z komunikatu błędu do manifestu i przebuduj.
 
+> ⚠️ **Google Custom Search JSON API ma znaną, niezależną od konfiguracji awarię dostępu.**
+> Wywołania mogą zwracać `403 PERMISSION_DENIED: "This project does not have the access to
+> Custom Search JSON API"` mimo że w Google Cloud Console API jest enabled, billing aktywny i
+> klucz API bez żadnych restrykcji — dotyczy to wielu projektów GCP od lutego 2026, zgłaszane
+> masowo w [wątku Google Support](https://support.google.com/programmable-search/thread/411852630)
+> (rozwiązywane tam wyłącznie indywidualnie, przez "Send feedback" w panelu Programmable Search
+> Engine z podaniem Project ID/Number i `cx`). Dodatkowo Google **zamknął to API dla nowych
+> rejestracji** (ogłoszenie ze stycznia 2026:
+> [Updates to our Web Search Products](https://programmablesearchengine.googleblog.com/2026/01/updates-to-our-web-search-products.html)),
+> więc traktuj ten plugin jako demonstrację integracji z SDK (`HttpEgressClient`, konfiguracja
+> per-tenant, manifest uprawnień), nie jako gotowe do produkcji źródło danych — dla realnego
+> wdrożenia rozważ inny dostawca wyszukiwania.
+
 ---
 
 ## Krok 0 — zbuduj i zainstaluj `plugin-sdk` lokalnie

@@ -77,6 +77,27 @@ class PluginCatalogQueryServiceImpl implements PluginCatalogQueryService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<TenantPluginInstallation> findAllEnabledAcrossAllTenants() {
+        List<TenantPluginInstallation> result = new ArrayList<>();
+
+        // Iteracja po wszystkich tenantach (tabela "tenant" jest globalna, bez RLS) — zero
+        // bypassu RLS na "tenant_plugin_installation" (FORCE ROW LEVEL SECURITY, V075), patrz
+        // Javadoc PluginCatalogQueryService#findAllEnabledAcrossAllTenants.
+        for (Tenant tenant : tenantService.getAllTenants()) {
+            List<TenantPluginInstallation> enabledForTenant = tenantPluginInstallationRepository
+                    .findAllEnabledForTenant(tenant.getId());
+            result.addAll(enabledForTenant);
+        }
+
+        log.debug("[PluginCatalogQueryService] findAllEnabledAcrossAllTenants: znaleziono={} instalacji "
+                        + "(enabled=true) wśród wszystkich tenantów",
+                result.size());
+
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<PluginVersion> findAllVersions() {
         List<PluginVersion> versions = pluginVersionRepository.findAllByOrderByUploadedAtDesc();
 

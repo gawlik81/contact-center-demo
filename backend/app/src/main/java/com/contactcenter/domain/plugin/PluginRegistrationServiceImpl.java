@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -50,6 +51,8 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
                 .distinct()
                 .toList();
 
+        String inheritedConfig = findInheritedConfig(tenantId, pluginVersion);
+
         TenantPluginInstallation installation = new TenantPluginInstallation();
         installation.setTenantId(tenantId);
         installation.setPluginVersionId(pluginVersionId);
@@ -57,13 +60,17 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
         installation.setGrantedPermissions(grantedIntersection);
         installation.setHealthStatus(TenantPluginInstallation.HealthStatus.HEALTHY);
         installation.setConsecutiveFailureCount(0);
-        installation.setInstallationConfig(null);
+        installation.setInstallationConfig(inheritedConfig);
         installation.setInstalledByUserId(installedByUserId);
 
+        // installationRepository.insert() szyfruje installationConfig na nowo (nowy IV) dla
+        // tego konkretnego wiersza — patrz Javadoc findInheritedConfig, dlaczego nie kopiujemy
+        // surowego ciphertextu z poprzedniej instalacji.
         TenantPluginInstallation saved = installationRepository.insert(installation);
 
-        log.info("[PluginRegistrationService] Instalacja utworzona: id={}, tenant={}, pluginVersion={}, permissions={}",
-                saved.getId(), tenantId, pluginVersionId, grantedIntersection);
+        log.info("[PluginRegistrationService] Instalacja utworzona: id={}, tenant={}, pluginVersion={}, permissions={}, "
+                        + "configDziedziczony={}",
+                saved.getId(), tenantId, pluginVersionId, grantedIntersection, inheritedConfig != null);
 
         return mapToDto(saved, pluginVersion);
     }
@@ -220,6 +227,66 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
 
         log.info("[PluginRegistrationService] Instalacja {}: id={}, tenant={}",
                 enabled ? "włączona" : "wyłączona", installationId, tenantId);
+    }
+
+    /**
+     * Wyszukuje config do odziedziczenia z najnowszej istniejącej instalacji TEGO SAMEGO
+     * {@code pluginKey} dla tego samego tenanta (upgrade pluginu, BE-111) — żeby admin nie
+     * musiał ręcznie wpisywać ponownie sekretów (np. {@code googleApiKey}) przy każdej nowej
+     * wersji JAR-a tego samego pluginu.
+     *
+     * <p><strong>Dlaczego odszyfrowanie + ponowne zaszyfrowanie, nie kopia surowego ciphertextu:</strong>
+     * {@link com.contactcenter.infrastructure.persistence.converter.EncryptedStringConverter} używa
+     * AES-256-GCM z losowym IV per wywołanie i BEZ żadnego additional authenticated data (AAD)
+     * wiążącego ciphertext z {@code installationId} — kryptograficznie nic nie zabraniałoby
+     * skopiowania surowego blobu 1:1 do nowego wiersza. Mimo to nie kopiujemy go bezpośrednio:
+     * {@code installationRepository.findAllByTenantId} i tak deszyfruje każdy wiersz przy odczycie
+     * (jedyna droga w tym repozytorium, patrz Javadoc klasy), więc plaintext jest już dostępny
+     * w pamięci — przejście przez plaintext jest naturalnym efektem istniejącego kontraktu
+     * repozytorium, nie dodatkowym kosztem, a każdy wiersz dostaje świeży, niepowtórzony IV
+     * (dobra praktyka kryptograficzna, niezależnie od braku wymogu bezpieczeństwa per się).
+     *
+     * <p>Izolacja multi-tenant: {@code findAllByTenantId} filtruje po {@code tenantId} (RLS +
+     * jawny WHERE) — nigdy nie sięga po config innego tenanta.
+     *
+     * @param tenantId      tenant instalujący nową wersję
+     * @param pluginVersion wersja będąca przedmiotem instalacji (jej {@code Plugin.pluginKey}
+     *                      identyfikuje "ten sam plugin" niezależnie od wersji)
+     * @return plaintext JSON configu najnowszej poprzedniej instalacji tego {@code pluginKey}
+     *         z niepustym configiem, lub {@code null} gdy nie ma takiej instalacji (pierwsza
+     *         instalacja tego pluginu dla tenanta) albo poprzednia instalacja miała config
+     *         pusty/{@code null}
+     */
+    private String findInheritedConfig(UUID tenantId, PluginVersion pluginVersion) {
+        Plugin plugin = pluginVersion.getPlugin();
+        if (plugin == null) {
+            // Nie powinno się zdarzyć dla danych produkcyjnych (plugin_id NOT NULL, V074) —
+            // defensywnie pomijamy dziedziczenie, zamiast rzucać, bo to wzbogacenie best-effort.
+            return null;
+        }
+        String pluginKey = plugin.getPluginKey();
+
+        List<TenantPluginInstallation> tenantInstallations = installationRepository.findAllByTenantId(tenantId);
+        if (tenantInstallations.isEmpty()) {
+            return null;
+        }
+
+        List<UUID> pluginVersionIds = tenantInstallations.stream()
+                .map(TenantPluginInstallation::getPluginVersionId)
+                .distinct()
+                .toList();
+        Map<UUID, PluginVersion> versionsById = pluginVersionRepository.findAllById(pluginVersionIds).stream()
+                .collect(Collectors.toMap(PluginVersion::getId, v -> v));
+
+        return tenantInstallations.stream()
+                .filter(i -> i.getInstallationConfig() != null && !i.getInstallationConfig().isBlank())
+                .filter(i -> {
+                    PluginVersion v = versionsById.get(i.getPluginVersionId());
+                    return v != null && v.getPlugin() != null && pluginKey.equals(v.getPlugin().getPluginKey());
+                })
+                .max(Comparator.comparing(TenantPluginInstallation::getInstalledAt))
+                .map(TenantPluginInstallation::getInstallationConfig)
+                .orElse(null);
     }
 
     /**

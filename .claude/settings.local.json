@@ -456,7 +456,13 @@
       "Bash(grep -rln \"encryption\" app/src/main/resources app/src/test/resources)",
       "Bash(grep -rn \"encryption\" app/src/main/resources/application*.yml app/src/test/resources/application*.yml)",
       "Bash(xargs -n1 basename)",
-      "Skill(code-review)"
+      "Skill(code-review)",
+      "Bash(unzip -l target/customer-google-lookup-plugin-1.0.0.jar)",
+      "Bash(find . -maxdepth 2 -iname \"TASKS-BACKEND.md\" -o -maxdepth 2 -iname \"TASKS-FRONTEND.md\")",
+      "Bash(ls *.md)",
+      "Bash(xargs -I{} sh -c 'echo ==={}===; cat {}')",
+      "Bash(java *)",
+      "WebFetch(domain:support.google.com)"
     ]
   }
 }

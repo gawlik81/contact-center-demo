@@ -50,12 +50,13 @@ final class GoogleCustomSearchClient {
                 + "&q=" + urlEncode(query);
 
         HttpResponse response = ctx.httpClient().get(url, Map.of("Accept", "application/json"));
+        String body = new String(response.body(), StandardCharsets.UTF_8);
         if (response.statusCode() != 200) {
             throw new RuntimeException(
-                    "Google Custom Search API zwróciło status " + response.statusCode());
+                    "Google Custom Search API zwróciło status " + response.statusCode()
+                            + ", body: " + body);
         }
 
-        String body = new String(response.body(), StandardCharsets.UTF_8);
         return extractItems(MinimalJson.parse(body), boundedMaxResults);
     }
 

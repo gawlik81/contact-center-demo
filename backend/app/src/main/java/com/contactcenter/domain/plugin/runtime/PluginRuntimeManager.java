@@ -12,10 +12,12 @@ import java.util.UUID;
  * {@code entryPointClass} konstruktorem bezargumentowym, wywołanie {@code onActivate}/
  * {@code onDeactivate} timeout-bounded, i rejestrację/wyrejestrowanie w {@link PluginRegistry}.
  *
- * <p><strong>Nie robi (poza zakresem BE-101, przyszłe tickety):</strong> nie publikuje
- * extension-point invocations w trakcie normalnej pracy (to {@code ExtensionPointPublisher},
- * BE-102), nie implementuje circuit breakera per installation (BE-102), nie odbudowuje stanu
- * przy starcie aplikacji (przyszły ticket integracyjny).
+ * <p><strong>Nie robi (poza zakresem BE-101):</strong> nie publikuje extension-point invocations
+ * w trakcie normalnej pracy (to {@code ExtensionPointPublisher}, BE-102), nie implementuje
+ * circuit breakera per installation (BE-102). Odbudowa stanu przy starcie aplikacji (ponowne
+ * {@code load()} wszystkich {@code enabled=true} instalacji po restarcie procesu) jest
+ * zrealizowana przez {@link PluginRuntimeStartupLoader}, konsumenta tego interfejsu — nie
+ * logiki wewnątrz {@code PluginRuntimeManagerImpl}.
  */
 public interface PluginRuntimeManager {
 

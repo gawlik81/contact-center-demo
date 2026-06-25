@@ -139,6 +139,60 @@ class PluginCatalogQueryServiceImplTest {
     }
 
     @Nested
+    @DisplayName("findAllEnabledAcrossAllTenants()")
+    class FindAllEnabledAcrossAllTenantsTests {
+
+        @Test
+        @DisplayName("zwraca instalacje enabled=true z WIELU tenantów, niezależnie od wersji pluginu")
+        void returnsEnabledInstallationsAcrossMultipleTenants() {
+            Tenant tenantA = Tenant.builder().id(TENANT_A).name("Tenant A").build();
+            Tenant tenantB = Tenant.builder().id(TENANT_B).name("Tenant B").build();
+            when(tenantService.getAllTenants()).thenReturn(List.of(tenantA, tenantB));
+
+            TenantPluginInstallation installationA = installation(TENANT_A);
+            TenantPluginInstallation installationB = installation(TENANT_B);
+
+            when(tenantPluginInstallationRepository.findAllEnabledForTenant(TENANT_A))
+                    .thenReturn(List.of(installationA));
+            when(tenantPluginInstallationRepository.findAllEnabledForTenant(TENANT_B))
+                    .thenReturn(List.of(installationB));
+
+            List<TenantPluginInstallation> result = service.findAllEnabledAcrossAllTenants();
+
+            assertThat(result).containsExactlyInAnyOrder(installationA, installationB);
+        }
+
+        @Test
+        @DisplayName("tenant bez instalacji enabled nie wpływa na wynik innych tenantów")
+        void tenantWithNoEnabledInstallations_isSkippedWithoutError() {
+            Tenant tenantA = Tenant.builder().id(TENANT_A).name("Tenant A").build();
+            Tenant tenantB = Tenant.builder().id(TENANT_B).name("Tenant B").build();
+            when(tenantService.getAllTenants()).thenReturn(List.of(tenantA, tenantB));
+
+            TenantPluginInstallation installationA = installation(TENANT_A);
+
+            when(tenantPluginInstallationRepository.findAllEnabledForTenant(TENANT_A))
+                    .thenReturn(List.of(installationA));
+            when(tenantPluginInstallationRepository.findAllEnabledForTenant(TENANT_B))
+                    .thenReturn(List.of());
+
+            List<TenantPluginInstallation> result = service.findAllEnabledAcrossAllTenants();
+
+            assertThat(result).containsExactly(installationA);
+        }
+
+        @Test
+        @DisplayName("brak tenantów w systemie → lista pusta, nie rzuca")
+        void noTenants_returnsEmptyList() {
+            when(tenantService.getAllTenants()).thenReturn(List.of());
+
+            List<TenantPluginInstallation> result = service.findAllEnabledAcrossAllTenants();
+
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("findAllVersions()")
     class FindAllVersions {
 

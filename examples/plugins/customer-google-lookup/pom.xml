@@ -14,7 +14,7 @@
 
     <groupId>com.acme.contactcenter</groupId>
     <artifactId>customer-google-lookup-plugin</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <packaging>jar</packaging>
 
     <name>Customer Google Lookup — przykładowy plugin Contact Center</name>
@@ -44,6 +44,15 @@
             <artifactId>contact-center-plugin-sdk</artifactId>
             <version>1.0.0-SNAPSHOT</version>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- JUnit 5 — wyłącznie do testów jednostkowych tego pluginu, scope=test
+             (nie trafia do JAR-a wynikowego). -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.5</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -78,6 +87,16 @@
                         <addMavenDescriptor>false</addMavenDescriptor>
                     </archive>
                 </configuration>
+            </plugin>
+            <!--
+              Brak <parent> w tym POM — domyślna (przestarzała) wersja maven-surefire-plugin
+              nie obsługuje silnika JUnit 5 (Jupiter). Jawna, nowsza wersja jest wymagana, by
+              `mvn test` wykonał testy z src/test/java.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
             </plugin>
         </plugins>
     </build>

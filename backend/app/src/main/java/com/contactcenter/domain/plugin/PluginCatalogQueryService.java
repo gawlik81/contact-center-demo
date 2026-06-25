@@ -65,6 +65,27 @@ public interface PluginCatalogQueryService {
     List<TenantPluginInstallation> findAllEnabledAcrossTenantsByVersionId(UUID pluginVersionId);
 
     /**
+     * Wyszukuje wszystkie instalacje z {@code enabled=true}, wszystkich tenantów, niezależnie
+     * od wersji pluginu.
+     *
+     * <p><strong>Cross-tenant z konieczności</strong> — używana wyłącznie przy starcie aplikacji
+     * ({@code domain.plugin.runtime.PluginRuntimeStartupLoader}) do odbudowy stanu
+     * {@code PluginRegistry} w pamięci JVM po restarcie procesu (mapa
+     * {@code PluginRegistryImpl#byTenantAndExtensionPoint} jest pusta po każdym restarcie,
+     * niezależnie od tego co jest zapisane w DB). Ten startupowy konsument musi dotknąć
+     * instalacje wszystkich tenantów na raz, więc — identycznie jak
+     * {@link #findAllEnabledAcrossTenantsByVersionId} — implementacja iteruje po wszystkich
+     * tenantach ({@code TenantService#getAllTenants}) i dla każdego ustawia kontekst RLS jawnie
+     * przed zapytaniem: N zapytań, zero bypassu RLS na {@code tenant_plugin_installation}
+     * (FORCE ROW LEVEL SECURITY, V075). Akceptowalne, bo wywoływana raz na starcie procesu,
+     * nie jest ścieżką "hot path".
+     *
+     * @return lista instalacji z {@code enabled=true}, wszystkich tenantów, w porządku
+     *         iteracji po tenantach (bez zagwarantowanego sortowania ponadto)
+     */
+    List<TenantPluginInstallation> findAllEnabledAcrossAllTenants();
+
+    /**
      * Pobiera wszystkie wersje pluginów z globalnego katalogu ({@code plugin_version}),
      * niezależnie od tenanta i niezależnie od tego, czy jakikolwiek tenant je zainstalował
      * (BE-110, EPIC-28).

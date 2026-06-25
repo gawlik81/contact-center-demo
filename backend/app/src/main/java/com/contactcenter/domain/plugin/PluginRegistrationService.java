@@ -28,6 +28,15 @@ public interface PluginRegistrationService {
      * jest filtrowane (ignorowane), nie powoduje błędu. Instalacja jest tworzona
      * z {@code enabled=false}.
      *
+     * <p><strong>Dziedziczenie configu przy upgrade (BE-111):</strong> jeśli tenant ma już
+     * jakąkolwiek inną instalację (enabled lub disabled) tego samego {@code pluginKey}
+     * (porównanie przez {@code PluginVersion.plugin.pluginKey}, nie {@code pluginVersionId}),
+     * nowa instalacja automatycznie dziedziczy {@code installationConfig} z najnowszej takiej
+     * instalacji z niepustym configiem — admin nie musi ponownie wpisywać sekretów (np. API key)
+     * po każdym uploadzie nowej wersji JAR-a tego samego pluginu. Dziedziczenie jest zawsze
+     * ograniczone do tego samego {@code tenantId} (multi-tenancy, RLS). Pierwsza instalacja
+     * danego pluginu dla tenanta dostaje config pusty, jak dotychczas.
+     *
      * @param tenantId            tenant instalujący plugin
      * @param pluginVersionId     wersja pluginu do zainstalowania
      * @param grantedPermissions  uprawnienia zaakceptowane przez admina tenanta (może być pusta/null)

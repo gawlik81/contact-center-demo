@@ -118,6 +118,35 @@ class TenantPluginInstallationRepository extends TenantAwareRepository {
     }
 
     /**
+     * Wyszukuje WSZYSTKIE instalacje z {@code enabled=true} dla danego tenanta (niezależnie od
+     * {@code plugin_version_id}), w ramach kontekstu RLS aktualnie ustawionego na tenanta
+     * {@code tenantId} — analogicznie do {@link #findAllEnabledByPluginVersionIdForTenant},
+     * ta metoda ustawia kontekst jawnie przed zapytaniem, więc bezpieczna do wywołania w pętli
+     * po wielu tenantach.
+     *
+     * <p>Używana wyłącznie przez {@code PluginCatalogQueryServiceImpl#findAllEnabledAcrossAllTenants}
+     * (startup integration, odbudowa {@code PluginRegistry} po restarcie procesu).
+     */
+    @Transactional(readOnly = true)
+    List<TenantPluginInstallation> findAllEnabledForTenant(UUID tenantId) {
+        setTenantContextInDb(tenantId);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("""
+                SELECT id, tenant_id, plugin_version_id, enabled, granted_permissions,
+                       health_status, consecutive_failure_count, installation_config,
+                       installed_by_user_id, installed_at, updated_at
+                FROM tenant_plugin_installation
+                WHERE tenant_id = CAST(:tenantId AS uuid)
+                  AND enabled   = TRUE
+                """)
+                .setParameter("tenantId", tenantId.toString())
+                .getResultList();
+
+        return rows.stream().map(this::mapRow).toList();
+    }
+
+    /**
      * Usuwa fizycznie (DELETE) jedną instalację — uninstall (BE-106, ARCHITECTURE.md §11.11:
      * "deletes the TENANT_PLUGIN_INSTALLATION + bindings; PLUGIN_INVOCATION_LOG history is
      * retained (tenant_plugin_installation_id FK uses ON DELETE SET NULL)"). Bindingi

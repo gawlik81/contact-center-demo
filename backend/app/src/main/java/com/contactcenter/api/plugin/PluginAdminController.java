@@ -140,6 +140,12 @@ public class PluginAdminController {
                     Tworzy nową instalację z enabled=false. Zapisane grantedPermissions to
                     przecięcie żądanych uprawnień z uprawnieniami zadeklarowanymi w manifeście
                     tej wersji — żądanie poza manifestem jest po cichu ignorowane.
+
+                    Jeśli tenant ma już (enabled lub disabled) inną instalację TEGO SAMEGO pluginu
+                    (ten sam pluginKey, inna wersja — typowy upgrade), nowa instalacja automatycznie
+                    dziedziczy installation_config z najnowszej takiej instalacji, żeby nie trzeba
+                    było ponownie wpisywać sekretów (np. API key) przy każdej nowej wersji JAR-a.
+                    Dla pierwszej instalacji pluginu config jest pusty, jak dotychczas.
                     """,
             responses = {
                     @ApiResponse(responseCode = "201", description = "Instalacja utworzona"),

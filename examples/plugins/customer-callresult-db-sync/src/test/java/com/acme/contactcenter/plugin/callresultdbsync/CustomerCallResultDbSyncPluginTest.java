@@ -21,6 +21,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -83,11 +85,15 @@ class CustomerCallResultDbSyncPluginTest {
         RecordedCall call = dbClient.calls.get(0);
         assertTrue(call.sql.contains("INSERT INTO call_results"), "tabela domyślna 'call_results'");
         assertTrue(call.sql.contains("event_type"));
+        assertTrue(call.sql.contains("WHERE NOT EXISTS"), "SQL musi zawierać guard idempotentności");
+        assertEquals(10, call.params.size(), "9 params INSERT + 1 dla WHERE NOT EXISTS subquery");
         assertEquals(contactId, call.params.get(0));
         assertEquals(CUSTOMER_ID, call.params.get(1));
         assertEquals("CONTACT_ENDED", call.params.get(2));
         assertEquals("VOICE", call.params.get(3)); // channel z ContactView
         assertEquals(AGENT_ID, call.params.get(6));
+        assertInstanceOf(java.sql.Timestamp.class, call.params.get(8), "occurred_at musi być Timestamp");
+        assertEquals(contactId, call.params.get(9), "params[9] to contact_id dla WHERE NOT EXISTS");
     }
 
     @Test
@@ -158,6 +164,62 @@ class CustomerCallResultDbSyncPluginTest {
         assertTrue(dbClient.calls.isEmpty(), "INSERT nie powinien zostać wykonany dla nieprawidłowej nazwy tabeli");
     }
 
+    @Test
+    void onPostContactEnd_occurredAtStoredAsWarsawLocalTime() {
+        // 2024-06-01 12:00:00 UTC = 2024-06-01 14:00:00 Warsaw (UTC+2 CEST)
+        Instant utcNoon = Instant.parse("2024-06-01T12:00:00Z");
+        UUID contactId = UUID.randomUUID();
+        RecordingDbEgressClient dbClient = new RecordingDbEgressClient();
+        PluginContext ctx = new StubPluginContext(
+                Map.of("jdbcUrl", "jdbc:postgresql://localhost:5432/db"), dbClient, utcNoon);
+
+        new CustomerCallResultDbSyncPlugin().onPostContactEnd(ctx,
+                new ContactEvent(contactId, CUSTOMER_ID, "POST_CONTACT_END", utcNoon));
+
+        java.sql.Timestamp ts = (java.sql.Timestamp) dbClient.calls.get(0).params.get(8);
+        // Timestamp.valueOf(LocalDateTime) → toLocalDateTime() zwraca ten sam LocalDateTime co
+        // włożono. Dla 12:00 UTC → Warsaw 14:00 (UTC+2) — niezależnie od JVM timezone.
+        assertEquals(14, ts.toLocalDateTime().getHour(),
+                "occurred_at musi kodować czas warszawski (14:00), nie UTC (12:00)");
+        assertEquals(6, ts.toLocalDateTime().getMonthValue());
+        assertEquals(1, ts.toLocalDateTime().getDayOfMonth());
+    }
+
+    @Test
+    void onPostContactEnd_whenEndedAtNull_fallsBackToOccurredAt() {
+        // endedAt=null w ContactView — plugin powinien użyć occurredAt z eventu
+        Instant occurredAt = Instant.parse("2024-06-01T10:00:00Z"); // Warsaw 12:00
+        UUID contactId = UUID.randomUUID();
+        RecordingDbEgressClient dbClient = new RecordingDbEgressClient();
+        PluginContext ctx = new StubPluginContext(
+                Map.of("jdbcUrl", "jdbc:postgresql://localhost:5432/db"), dbClient, null);
+
+        new CustomerCallResultDbSyncPlugin().onPostContactEnd(ctx,
+                new ContactEvent(contactId, CUSTOMER_ID, "POST_CONTACT_END", occurredAt));
+
+        assertEquals(1, dbClient.calls.size(), "INSERT powinien zostać wykonany (fallback do occurredAt)");
+        java.sql.Timestamp ts = (java.sql.Timestamp) dbClient.calls.get(0).params.get(8);
+        assertNotNull(ts, "occurred_at nie powinien być null gdy occurredAt jest dostępny");
+        assertEquals(12, ts.toLocalDateTime().getHour(),
+                "fallback occurredAt (10:00 UTC → 12:00 Warsaw) musi być skonwertowany do czasu warszawskiego");
+    }
+
+    @Test
+    void onPostContactEnd_whenBothTimestampsNull_skipsInsertAndLogs() {
+        UUID contactId = UUID.randomUUID();
+        RecordingDbEgressClient dbClient = new RecordingDbEgressClient();
+        // endedAt=null w ContactView, occurredAt=null w evencie
+        PluginContext ctx = new StubPluginContext(
+                Map.of("jdbcUrl", "jdbc:postgresql://localhost:5432/db"), dbClient, null);
+
+        ContactEvent eventWithNullOccurredAt =
+                new ContactEvent(contactId, CUSTOMER_ID, "POST_CONTACT_END", null);
+        new CustomerCallResultDbSyncPlugin().onPostContactEnd(ctx, eventWithNullOccurredAt);
+
+        assertTrue(dbClient.calls.isEmpty(),
+                "INSERT nie powinien zostać wykonany gdy oba timestampy są null");
+    }
+
     // =========================================================================
     // Test doubles
     // =========================================================================
@@ -180,10 +242,17 @@ class CustomerCallResultDbSyncPluginTest {
 
         private final Map<String, String> configValues;
         private final DbEgressClient dbEgressClient;
+        private final Instant contactEndedAt;
 
         StubPluginContext(Map<String, String> configValues, DbEgressClient dbEgressClient) {
+            this(configValues, dbEgressClient, Instant.now());
+        }
+
+        StubPluginContext(Map<String, String> configValues, DbEgressClient dbEgressClient,
+                          Instant contactEndedAt) {
             this.configValues = new HashMap<>(configValues);
             this.dbEgressClient = dbEgressClient;
+            this.contactEndedAt = contactEndedAt;
         }
 
         @Override
@@ -200,7 +269,7 @@ class CustomerCallResultDbSyncPluginTest {
         public ContactView getContact(UUID contactId) {
             return new ContactView(
                     contactId, CUSTOMER_ID, "VOICE", "INBOUND", "COMPLETED",
-                    AGENT_ID, UUID.randomUUID(), Instant.now().minusSeconds(120), Instant.now());
+                    AGENT_ID, UUID.randomUUID(), Instant.now().minusSeconds(120), contactEndedAt);
         }
 
         @Override

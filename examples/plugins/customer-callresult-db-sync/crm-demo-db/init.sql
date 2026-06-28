@@ -14,6 +14,14 @@ CREATE TABLE IF NOT EXISTS call_results (
     occurred_at      TIMESTAMP    NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_call_results_contact_id   ON call_results (contact_id);
-CREATE INDEX IF NOT EXISTS idx_call_results_occurred_at  ON call_results (occurred_at);
-CREATE INDEX IF NOT EXISTS idx_call_results_event_type   ON call_results (event_type);
+CREATE INDEX IF NOT EXISTS idx_call_results_contact_id        ON call_results (contact_id);
+CREATE INDEX IF NOT EXISTS idx_call_results_occurred_at       ON call_results (occurred_at);
+CREATE INDEX IF NOT EXISTS idx_call_results_event_type        ON call_results (event_type);
+-- Composite index optymalizujący subquery WHERE NOT EXISTS (contact_id = ? AND event_type = ?)
+CREATE INDEX IF NOT EXISTS idx_call_results_contact_event     ON call_results (contact_id, event_type);
+-- Partial unique index: gwarantuje co najwyżej jeden wiersz CONTACT_ENDED per kontakt.
+-- WHERE NOT EXISTS jest "fast-path" omijającym wyjątek w normalnym przepływie;
+-- ten index jest barierą bezpieczeństwa przy równoległych konsumentach kolejki.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_call_results_contact_ended
+    ON call_results (contact_id)
+    WHERE event_type = 'CONTACT_ENDED';

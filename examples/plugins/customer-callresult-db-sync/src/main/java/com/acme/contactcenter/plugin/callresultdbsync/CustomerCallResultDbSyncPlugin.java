@@ -109,7 +109,13 @@ public class CustomerCallResultDbSyncPlugin implements PluginEntryPoint {
             params.add(contact.status());
             params.add(contact.agentId());
             params.add(null); // disposition_code — nieznany w tym evencie, kolumna nullable
-            params.add(toTimestampParam(contact.endedAt() != null ? contact.endedAt() : e.occurredAt()));
+            Instant timestampInstant = contact.endedAt() != null ? contact.endedAt() : e.occurredAt();
+            if (timestampInstant == null) {
+                ctx.logger().warn("Pominięto zapis CONTACT_ENDED " + contact.contactId()
+                        + " — brak endedAt i occurredAt (kontakt bez znacznika czasu zakończenia).");
+                return;
+            }
+            params.add(toTimestampParam(timestampInstant));
             params.add(contact.contactId()); // parametr WHERE NOT EXISTS
 
             ctx.dbClient().executeUpdate(sql, params);

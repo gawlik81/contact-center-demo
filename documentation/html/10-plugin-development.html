@@ -417,9 +417,12 @@ per wywołanie; wystarczające dla fire-and-forget extension pointów).</li>
 </li>
 </ol>
 <p>Plugin wywołuje wyłącznie:</p>
-<pre><code class="language-java">int rows = ctx.dbClient().executeUpdate(
-    &quot;INSERT INTO call_results (contact_id, status, occurred_at) VALUES (?, ?, ?)&quot;,
-    List.of(event.contactId(), event.status(), Instant.now())
+<pre><code class="language-java">// Przykład z guardem idempotentności (INSERT ... WHERE NOT EXISTS):
+ctx.dbClient().executeUpdate(
+    &quot;INSERT INTO call_results (contact_id, event_type, occurred_at)&quot;
+    + &quot; SELECT ?, ?, ? WHERE NOT EXISTS&quot;
+    + &quot; (SELECT 1 FROM call_results WHERE contact_id = ? AND event_type = &#39;CONTACT_ENDED&#39;)&quot;,
+    List.of(e.contactId(), &quot;CONTACT_ENDED&quot;, Timestamp.valueOf(localNow), e.contactId())
 );
 </code></pre>
 <p>Nigdy nie podaje URL ani credentiali — nie ma do nich dostępu.</p>
@@ -756,8 +759,10 @@ zależności inne niż <code>plugin-sdk</code>), policz <code>SHA-256</code> zaw
 <code>/supervisor/settings/plugins</code> (UI) lub bezpośrednio <code>POST /api/supervisor/plugins</code>.</p>
 <h3>10.1 Przykład z <code>DbEgressClient</code> — zapis wyniku kontaktu</h3>
 <p>Plugin reagujący na zakończenie kontaktu (<code>POST_CONTACT_END</code>) i ustawienie dyspozycji
-(<code>DISPOSITION_SET</code>) i zapisujący wynik do zewnętrznej bazy CRM:</p>
+(<code>DISPOSITION_SET</code>) zapisujący wynik do zewnętrznej bazy CRM:</p>
 <pre><code class="language-java">public class CrmDbSyncPlugin implements PluginEntryPoint {
+
+    private static final ZoneId ZONE_LOCAL = ZoneId.of(&quot;Europe/Warsaw&quot;);
 
     @Override
     public void onActivate(PluginContext ctx) { }
@@ -767,22 +772,54 @@ zależności inne niż <code>plugin-sdk</code>), policz <code>SHA-256</code> zaw
 
     @Override
     public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
+        ContactView contact = ctx.getContact(e.contactId());
+        // INSERT ... WHERE NOT EXISTS zamiast prostego INSERT VALUES:
+        // - RabbitMQ gwarantuje at-least-once delivery — ten sam event może dotrzeć wielokrotnie.
+        // - Platforma może emitować POST_CONTACT_END dwukrotnie w pewnych scenariuszach
+        //   rozłączenia. WHERE NOT EXISTS jest przenośne między PostgreSQL, MySQL i SQL Server
+        //   (Oracle wymaga dodatku &quot;FROM DUAL&quot; po SELECT).
+        // - NIE upsert (ON CONFLICT) — składnia różni się między silnikami JDBC.
+        Instant endedAt = contact.endedAt() != null ? contact.endedAt() : e.occurredAt();
+        Timestamp ts = Timestamp.valueOf(endedAt.atZone(ZONE_LOCAL).toLocalDateTime());
         ctx.dbClient().executeUpdate(
-            &quot;INSERT INTO call_results (contact_id, customer_id, status, occurred_at) &quot;
-            + &quot;VALUES (?, ?, ?, ?) ON CONFLICT (contact_id) DO UPDATE SET status = EXCLUDED.status&quot;,
-            List.of(e.contactId(), e.customerId(), e.status(), Instant.now())
+            &quot;INSERT INTO call_results&quot;
+            + &quot; (contact_id, customer_id, event_type, channel, direction, status,&quot;
+            + &quot;  agent_id, disposition_code, occurred_at)&quot;
+            + &quot; SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?&quot;
+            + &quot; WHERE NOT EXISTS (&quot;
+            + &quot;   SELECT 1 FROM call_results&quot;
+            + &quot;   WHERE contact_id = ? AND event_type = &#39;CONTACT_ENDED&#39;)&quot;,
+            List.of(
+                contact.contactId(), contact.customerId(), &quot;CONTACT_ENDED&quot;,
+                contact.channel(), contact.direction(), contact.status(),
+                contact.agentId(), null, ts,
+                contact.contactId()   // parametr WHERE NOT EXISTS
+            )
         );
     }
 
     @Override
     public void onDispositionSet(PluginContext ctx, DispositionEvent e) {
+        Timestamp ts = Timestamp.valueOf(e.setAt().atZone(ZONE_LOCAL).toLocalDateTime());
         ctx.dbClient().executeUpdate(
-            &quot;UPDATE call_results SET disposition_code = ? WHERE contact_id = ?&quot;,
-            List.of(e.dispositionCode(), e.contactId())
+            &quot;INSERT INTO call_results&quot;
+            + &quot; (contact_id, customer_id, event_type, agent_id, disposition_code, occurred_at)&quot;
+            + &quot; VALUES (?, ?, ?, ?, ?, ?)&quot;,
+            List.of(e.contactId(), e.customerId(), &quot;DISPOSITION_SET&quot;,
+                    e.agentId(), e.dispositionCode(), ts)
         );
     }
 }
 </code></pre>
+<p><strong>Kluczowe decyzje projektowe:</strong></p>
+<ul>
+<li><code>occurred_at</code> jest zapisywany w <strong>czasie lokalnym</strong> (<code>Europe/Warsaw</code>) przez
+<code>Timestamp.valueOf(instant.atZone(zone).toLocalDateTime())</code> zamiast <code>Timestamp.from(instant)</code>.
+<code>Timestamp.from</code> przechowuje epoch-millis; przy kolumnie <code>TIMESTAMP WITHOUT TIME ZONE</code>
+wyświetla wartości UTC (o 1–2h wcześniej niż czas Polski).</li>
+<li><code>contact.endedAt()</code> jest preferowane nad <code>e.occurredAt()</code> — jest to znacznik z DB ustalony
+przez event webhooka Twilio, nie czas publikacji na kolejkę.</li>
+</ul>
 <p>Wymagany manifest (fragment):</p>
 <pre><code class="language-json">{
   &quot;extensionPoints&quot;: [&quot;POST_CONTACT_END&quot;, &quot;DISPOSITION_SET&quot;],

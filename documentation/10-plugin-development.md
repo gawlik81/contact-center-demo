@@ -278,9 +278,12 @@ zewnętrznej bazie danych tenanta — bez ujawniania credentiali pluginowi. Dzia
 Plugin wywołuje wyłącznie:
 
 ```java
-int rows = ctx.dbClient().executeUpdate(
-    "INSERT INTO call_results (contact_id, status, occurred_at) VALUES (?, ?, ?)",
-    List.of(event.contactId(), event.status(), Instant.now())
+// Przykład z guardem idempotentności (INSERT ... WHERE NOT EXISTS):
+ctx.dbClient().executeUpdate(
+    "INSERT INTO call_results (contact_id, event_type, occurred_at)"
+    + " SELECT ?, ?, ? WHERE NOT EXISTS"
+    + " (SELECT 1 FROM call_results WHERE contact_id = ? AND event_type = 'CONTACT_ENDED')",
+    List.of(e.contactId(), "CONTACT_ENDED", Timestamp.valueOf(localNow), e.contactId())
 );
 ```
 
@@ -585,10 +588,12 @@ zależności inne niż `plugin-sdk`), policz `SHA-256` zawartości **bez** manif
 ### 10.1 Przykład z `DbEgressClient` — zapis wyniku kontaktu
 
 Plugin reagujący na zakończenie kontaktu (`POST_CONTACT_END`) i ustawienie dyspozycji
-(`DISPOSITION_SET`) i zapisujący wynik do zewnętrznej bazy CRM:
+(`DISPOSITION_SET`) zapisujący wynik do zewnętrznej bazy CRM:
 
 ```java
 public class CrmDbSyncPlugin implements PluginEntryPoint {
+
+    private static final ZoneId ZONE_LOCAL = ZoneId.of("Europe/Warsaw");
 
     @Override
     public void onActivate(PluginContext ctx) { }
@@ -598,22 +603,54 @@ public class CrmDbSyncPlugin implements PluginEntryPoint {
 
     @Override
     public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
+        ContactView contact = ctx.getContact(e.contactId());
+        // INSERT ... WHERE NOT EXISTS zamiast prostego INSERT VALUES:
+        // - RabbitMQ gwarantuje at-least-once delivery — ten sam event może dotrzeć wielokrotnie.
+        // - Platforma może emitować POST_CONTACT_END dwukrotnie w pewnych scenariuszach
+        //   rozłączenia. WHERE NOT EXISTS jest przenośne między PostgreSQL, MySQL i SQL Server
+        //   (Oracle wymaga dodatku "FROM DUAL" po SELECT).
+        // - NIE upsert (ON CONFLICT) — składnia różni się między silnikami JDBC.
+        Instant endedAt = contact.endedAt() != null ? contact.endedAt() : e.occurredAt();
+        Timestamp ts = Timestamp.valueOf(endedAt.atZone(ZONE_LOCAL).toLocalDateTime());
         ctx.dbClient().executeUpdate(
-            "INSERT INTO call_results (contact_id, customer_id, status, occurred_at) "
-            + "VALUES (?, ?, ?, ?) ON CONFLICT (contact_id) DO UPDATE SET status = EXCLUDED.status",
-            List.of(e.contactId(), e.customerId(), e.status(), Instant.now())
+            "INSERT INTO call_results"
+            + " (contact_id, customer_id, event_type, channel, direction, status,"
+            + "  agent_id, disposition_code, occurred_at)"
+            + " SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?"
+            + " WHERE NOT EXISTS ("
+            + "   SELECT 1 FROM call_results"
+            + "   WHERE contact_id = ? AND event_type = 'CONTACT_ENDED')",
+            List.of(
+                contact.contactId(), contact.customerId(), "CONTACT_ENDED",
+                contact.channel(), contact.direction(), contact.status(),
+                contact.agentId(), null, ts,
+                contact.contactId()   // parametr WHERE NOT EXISTS
+            )
         );
     }
 
     @Override
     public void onDispositionSet(PluginContext ctx, DispositionEvent e) {
+        Timestamp ts = Timestamp.valueOf(e.setAt().atZone(ZONE_LOCAL).toLocalDateTime());
         ctx.dbClient().executeUpdate(
-            "UPDATE call_results SET disposition_code = ? WHERE contact_id = ?",
-            List.of(e.dispositionCode(), e.contactId())
+            "INSERT INTO call_results"
+            + " (contact_id, customer_id, event_type, agent_id, disposition_code, occurred_at)"
+            + " VALUES (?, ?, ?, ?, ?, ?)",
+            List.of(e.contactId(), e.customerId(), "DISPOSITION_SET",
+                    e.agentId(), e.dispositionCode(), ts)
         );
     }
 }
 ```
+
+**Kluczowe decyzje projektowe:**
+
+- `occurred_at` jest zapisywany w **czasie lokalnym** (`Europe/Warsaw`) przez
+  `Timestamp.valueOf(instant.atZone(zone).toLocalDateTime())` zamiast `Timestamp.from(instant)`.
+  `Timestamp.from` przechowuje epoch-millis; przy kolumnie `TIMESTAMP WITHOUT TIME ZONE`
+  wyświetla wartości UTC (o 1–2h wcześniej niż czas Polski).
+- `contact.endedAt()` jest preferowane nad `e.occurredAt()` — jest to znacznik z DB ustalony
+  przez event webhooka Twilio, nie czas publikacji na kolejkę.
 
 Wymagany manifest (fragment):
 

@@ -82,7 +82,7 @@ class PluginAssetControllerTest {
 
         @Test
         @DisplayName("instalacja nieaktywna/nieznana w PluginRuntimeManager -> 404")
-        void unknownInstallation_returns404() {
+        void unknownInstallation_returns404() throws IOException {
             when(pluginRuntimeManager.findActiveHandle(INSTALLATION_ID)).thenReturn(Optional.empty());
 
             ResponseEntity<Resource> response = controller.getAsset(
@@ -93,7 +93,7 @@ class PluginAssetControllerTest {
 
         @Test
         @DisplayName("instalacja aktywna, ale bez zasobów UI (uiAssetsDir empty) -> 404")
-        void installationWithoutUiAssets_returns404() {
+        void installationWithoutUiAssets_returns404() throws IOException {
             when(pluginRuntimeManager.findActiveHandle(INSTALLATION_ID))
                     .thenReturn(Optional.of(handleWithoutAssetsDir()));
 
@@ -105,7 +105,7 @@ class PluginAssetControllerTest {
 
         @Test
         @DisplayName("plik żądany nie istnieje w katalogu assetów -> 404")
-        void requestedFileDoesNotExist_returns404() {
+        void requestedFileDoesNotExist_returns404() throws IOException {
             when(pluginRuntimeManager.findActiveHandle(INSTALLATION_ID))
                     .thenReturn(Optional.of(handleWithAssetsDir(assetsDir, List.of())));
 
@@ -180,8 +180,8 @@ class PluginAssetControllerTest {
 
             String csp = response.getHeaders().getFirst("Content-Security-Policy");
             assertThat(csp).isNotNull();
-            assertThat(csp).contains("default-src 'self'");
-            assertThat(csp).contains("connect-src 'self' api.acme-crm.example");
+            assertThat(csp).contains("default-src 'none'");
+            assertThat(csp).contains("connect-src http://localhost api.acme-crm.example");
             assertThat(csp).doesNotContain("*");
         }
 
@@ -196,7 +196,10 @@ class PluginAssetControllerTest {
                     INSTALLATION_ID, requestFor("/plugin-assets/" + INSTALLATION_ID + "/index.html"));
 
             String csp = response.getHeaders().getFirst("Content-Security-Policy");
-            assertThat(csp).isEqualTo("default-src 'self'; connect-src 'self'");
+            assertThat(csp).isNotNull();
+            assertThat(csp).contains("default-src 'none'");
+            assertThat(csp).contains("connect-src http://localhost");
+            assertThat(csp).doesNotContain("api.acme-crm.example");
         }
     }
 

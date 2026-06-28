@@ -6,9 +6,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
@@ -21,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UrlPathHelper;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -76,6 +81,28 @@ public class PluginAssetController {
     /** Domyślny plik serwowany dla katalogu głównego instalacji (np. "/plugin-assets/{id}/"). */
     private static final String DEFAULT_INDEX_FILE = "index.html";
 
+    /**
+     * SDK wstrzyknięty inline w HTML pluginu zamiast przez zewnętrzny <script src>.
+     * Sandboxowane iframe (bez allow-same-origin) ma opaque origin; Firefox stosuje
+     * Total Cookie Protection i nie wysyła ciasteczek (w tym ngrok-skip-browser-warning)
+     * z opaque-origin iframe, co powoduje że ngrok zwraca HTML interstitial z text/html
+     * zamiast skryptu → OpaqueResponseBlocking blokuje załadowanie SDK.
+     * Inline eliminuje osobny request do ngrok całkowicie.
+     */
+    @Value("classpath:static/plugin-ui-sdk.js")
+    private Resource sdkScriptResource;
+
+    private String sdkScriptContent;
+
+    @PostConstruct
+    private void loadSdkScript() {
+        try {
+            sdkScriptContent = sdkScriptResource.getContentAsString(StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException("Nie można wczytać plugin-ui-sdk.js z classpath", e);
+        }
+    }
+
     private final PluginRuntimeManager pluginRuntimeManager;
     private final UrlPathHelper urlPathHelper = new UrlPathHelper();
 
@@ -97,7 +124,7 @@ public class PluginAssetController {
             @Parameter(description = "Identyfikator instalacji pluginu (tenant_plugin_installation.id)")
             @PathVariable UUID installationId,
             HttpServletRequest request
-    ) {
+    ) throws IOException {
         Optional<PluginInstanceHandle> handleOpt = pluginRuntimeManager.findActiveHandle(installationId);
         if (handleOpt.isEmpty()) {
             log.debug("[PluginAssetController] Instalacja nieaktywna/nieznana: installationId={}", installationId);
@@ -120,14 +147,43 @@ public class PluginAssetController {
             return ResponseEntity.notFound().build();
         }
 
+        if (resolvedFile.getFileName().toString().endsWith(".html")) {
+            return serveHtmlWithInlinedSdk(resolvedFile, handle, request);
+        }
+
         Resource resource = new FileSystemResource(resolvedFile);
         MediaType contentType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
 
         return ResponseEntity.ok()
                 .contentType(contentType)
                 .cacheControl(CacheControl.noCache())
-                .header(CONTENT_SECURITY_POLICY_HEADER, buildContentSecurityPolicy(handle.grantedPermissions()))
+                .header(CONTENT_SECURITY_POLICY_HEADER,
+                        buildContentSecurityPolicy(handle.grantedPermissions(), extractPlatformOrigin(request)))
                 .body(resource);
+    }
+
+    /**
+     * Serwuje plik HTML pluginu z wstrzykniętym inline SDK (zamiast zewnętrznego script src).
+     * Zastępuje {@code <script src="/plugin-ui-sdk.js"></script>} zawartością SDK wczytaną
+     * z classpath przy starcie — eliminuje osobny request przeglądarki do SDK, który w środowisku
+     * ngrok+Firefox jest blokowany przez OpaqueResponseBlocking (ngrok interstitial).
+     */
+    private ResponseEntity<Resource> serveHtmlWithInlinedSdk(
+            Path htmlFile, PluginInstanceHandle handle, HttpServletRequest request) throws IOException {
+        String html = Files.readString(htmlFile, StandardCharsets.UTF_8);
+        // "</script>" inside a JS block comment terminates the HTML script tag prematurely.
+        // Escape it so the HTML parser does not close the tag mid-comment.
+        String sdkSafe = sdkScriptContent.replace("</script>", "<\\/script>");
+        String inlinedHtml = html.replace(
+                "<script src=\"/plugin-ui-sdk.js\"></script>",
+                "<script>\n" + sdkSafe + "\n</script>");
+        byte[] bytes = inlinedHtml.getBytes(StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
+                .cacheControl(CacheControl.noCache())
+                .header(CONTENT_SECURITY_POLICY_HEADER,
+                        buildContentSecurityPolicy(handle.grantedPermissions(), extractPlatformOrigin(request)))
+                .body(new ByteArrayResource(bytes));
     }
 
     // =========================================================================
@@ -179,20 +235,47 @@ public class PluginAssetController {
     // =========================================================================
 
     /**
-     * Buduje nagłówek CSP ograniczający {@code connect-src} do hostów egress zadeklarowanych
-     * w {@code grantedPermissions} tej instalacji ({@code http:egress:<host>}) — NIGDY {@code *},
-     * zgodnie z kryterium akceptacji BE-107. Brak uprawnień egress daje {@code connect-src 'self'}
-     * (plugin bez żadnego zadeklarowanego hosta egress nie może wywoływać żadnego zewnętrznego API
-     * z własnego JS).
+     * Wyciąga origin platformy z nagłówków żądania (schema + host) — używany w CSP zamiast
+     * {@code 'self'}, ponieważ sandboxowany iframe bez {@code allow-same-origin} ma opaque origin
+     * (null), a przeglądarka interpretuje {@code 'self'} jako ten opaque origin, blokując
+     * zewnętrzne skrypty takie jak {@code /plugin-ui-sdk.js}.
      */
-    private static String buildContentSecurityPolicy(List<String> grantedPermissions) {
+    private static String extractPlatformOrigin(HttpServletRequest request) {
+        String proto = Optional.ofNullable(request.getHeader("X-Forwarded-Proto"))
+                .filter(s -> !s.isBlank())
+                .orElse(request.getScheme());
+        String host = Optional.ofNullable(request.getHeader("Host"))
+                .filter(s -> !s.isBlank())
+                .orElse(request.getServerName() + (request.getServerPort() != 80 && request.getServerPort() != 443
+                        ? ":" + request.getServerPort() : ""));
+        return proto + "://" + host;
+    }
+
+    /**
+     * Buduje nagłówek CSP dla pliku HTML pluginu ładowanego w sandboxowanym iframe.
+     *
+     * <p><strong>Dlaczego {@code platformOrigin} zamiast {@code 'self'} w script-src/style-src:</strong>
+     * Plugin iframe ma {@code sandbox="allow-scripts allow-forms"} BEZ {@code allow-same-origin}.
+     * Bez {@code allow-same-origin} przeglądarka nadaje dokumentowi opaque origin (null), więc
+     * {@code 'self'} w CSP również odpowiada null — i blokuje załadowanie {@code /plugin-ui-sdk.js}
+     * serwowanego z prawdziwego originu platformy. Podanie jawnego originu ({@code https://host})
+     * pozwala przeglądarce dopasować URL skryptu do dozwolonej listy.
+     *
+     * <p>{@code connect-src} ograniczony do hostów egress zadeklarowanych w manifeście —
+     * NIGDY {@code *} (kryterium akceptacji BE-107). Platform origin dodany do {@code connect-src}
+     * pozwala pluginom opcjonalnie wołać publiczne API platformy.
+     */
+    private static String buildContentSecurityPolicy(List<String> grantedPermissions, String platformOrigin) {
         List<String> egressHosts = extractEgressHosts(grantedPermissions);
 
         String connectSrc = egressHosts.isEmpty()
-                ? "'self'"
-                : "'self' " + String.join(" ", egressHosts);
+                ? platformOrigin
+                : platformOrigin + " " + String.join(" ", egressHosts);
 
-        return "default-src 'self'; connect-src " + connectSrc;
+        return "default-src 'none'; "
+                + "script-src " + platformOrigin + " 'unsafe-inline'; "
+                + "style-src 'unsafe-inline'; "
+                + "connect-src " + connectSrc;
     }
 
     private static List<String> extractEgressHosts(List<String> grantedPermissions) {

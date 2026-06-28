@@ -13,7 +13,8 @@ export type PluginUiSdkRequestType =
   | 'GET_CONTEXT'
   | 'INVOKE_MANUAL_ACTION'
   | 'REQUEST_RESIZE'
-  | 'NOTIFY';
+  | 'NOTIFY'
+  | 'OPEN_URL';
 
 /** Typy odpowiedzi hosta korelowane przez `requestId` (HOST -> PLUGIN). */
 export type PluginUiSdkResponseType = 'GET_CONTEXT_RESULT' | 'INVOKE_MANUAL_ACTION_RESULT';
@@ -36,6 +37,11 @@ export type PluginNotifySeverity = 'info' | 'warning' | 'error';
 export interface NotifyPayload {
   message: string;
   severity: PluginNotifySeverity;
+}
+
+/** Payload `OPEN_URL` — URL do otwarcia w nowej zakładce przeglądarki przez hosta. */
+export interface OpenUrlPayload {
+  url: string;
 }
 
 /**
@@ -87,6 +93,7 @@ const REQUEST_TYPES: readonly PluginUiSdkRequestType[] = [
   'INVOKE_MANUAL_ACTION',
   'REQUEST_RESIZE',
   'NOTIFY',
+  'OPEN_URL',
 ];
 
 /**
@@ -142,5 +149,17 @@ export function isNotifyPayload(payload: unknown): payload is NotifyPayload {
     (candidate['severity'] === 'info' ||
       candidate['severity'] === 'warning' ||
       candidate['severity'] === 'error')
+  );
+}
+
+/** Type guard dla payloadu `OPEN_URL` (wymaga `url: string` zaczynającego się od http/https). */
+export function isOpenUrlPayload(payload: unknown): payload is OpenUrlPayload {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  const candidate = payload as Record<string, unknown>;
+  return (
+    typeof candidate['url'] === 'string' &&
+    (candidate['url'].startsWith('https://') || candidate['url'].startsWith('http://'))
   );
 }

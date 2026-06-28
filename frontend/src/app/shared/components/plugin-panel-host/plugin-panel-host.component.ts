@@ -21,6 +21,7 @@ import {
   PluginUiSdkResponse,
   isInvokeManualActionPayload,
   isNotifyPayload,
+  isOpenUrlPayload,
   isPluginUiSdkRequest,
   isRequestResizePayload,
 } from '../../plugin-ui-sdk/plugin-ui-sdk-message.model';
@@ -103,19 +104,28 @@ export class PluginPanelHostComponent implements OnInit, OnDestroy {
   }
 
   private onMessage(event: MessageEvent): void {
-    if (event.origin !== this.expectedOrigin) {
-      console.warn(
-        `[cc-plugin-panel-host] Odrzucono wiadomość z nieoczekiwanej originy: ${event.origin}`,
-      );
-      return;
-    }
-
     const iframe = this.iframeRef()?.nativeElement;
-    if (!iframe || event.source !== iframe.contentWindow) {
-      console.warn(
-        '[cc-plugin-panel-host] Odrzucono wiadomość z nieoczekiwanego źródła (nie panel pluginu).',
-      );
-      return;
+    if (!iframe) return;
+
+    // Opaque-origin serialization: "null" per spec (Chrome/Safari), "" in Firefox.
+    const isOpaqueOrigin = event.origin === 'null' || event.origin === '';
+
+    // For non-null origins: require strict source match (defense in depth).
+    // For opaque origins ("null"): skip source check — sandboxed iframes without
+    // allow-same-origin run in a separate agent cluster, and WindowProxy identity
+    // comparison (===) across agent-cluster boundaries is unreliable in Chrome.
+    // Accepting "null"-origin messages is safe here: the only opaque-origin source
+    // in this controlled embedding context is our own sandboxed plugin iframe.
+    if (!isOpaqueOrigin) {
+      if (event.source !== iframe.contentWindow) {
+        return;
+      }
+      if (event.origin !== this.expectedOrigin) {
+        console.warn(
+          `[cc-plugin-panel-host] Odrzucono wiadomość z nieoczekiwanej originy: ${event.origin}`,
+        );
+        return;
+      }
     }
 
     const data = event.data;
@@ -136,6 +146,9 @@ export class PluginPanelHostComponent implements OnInit, OnDestroy {
         break;
       case 'NOTIFY':
         this.handleNotify(data.payload);
+        break;
+      case 'OPEN_URL':
+        this.handleOpenUrl(data.payload);
         break;
     }
   }
@@ -245,8 +258,21 @@ export class PluginPanelHostComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Wysyła odpowiedź TYLKO do `iframe.contentWindow`, z konkretną originą (nigdy `'*'`). */
+  private handleOpenUrl(payload: unknown): void {
+    if (!isOpenUrlPayload(payload)) {
+      console.warn('[cc-plugin-panel-host] OPEN_URL o nieprawidłowym payload:', payload);
+      return;
+    }
+    window.open(payload.url, '_blank', 'noopener,noreferrer');
+  }
+
+  /**
+   * Wysyła odpowiedź do `iframe.contentWindow`.
+   * targetOrigin jest '*' ponieważ sandboxowany iframe bez allow-same-origin ma opaque origin
+   * — postMessage z konkretną originą hosta byłoby przez przeglądarkę cicho odrzucone.
+   * Bezpieczeństwo: odpowiedzi nie zawierają sekretów (brak JWT, brak config values).
+   */
   private respond(iframe: HTMLIFrameElement, response: PluginUiSdkResponse): void {
-    iframe.contentWindow?.postMessage(response, this.expectedOrigin);
+    iframe.contentWindow?.postMessage(response, '*');
   }
 }

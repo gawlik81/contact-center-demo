@@ -164,12 +164,19 @@ export class AgentDesktopComponent implements OnInit {
     this.pluginInstallations().filter((i) => i.enabled && i.healthStatus !== 'DISABLED_BY_ADMIN'),
   );
 
-  /** Installations declaring at least one AGENT_DESKTOP_SIDE_PANEL uiPanel – one tab each. */
-  protected readonly sidePanelInstallations = computed(() =>
-    this.activePluginInstallations().filter((i) =>
+  /**
+   * Installations declaring at least one AGENT_DESKTOP_SIDE_PANEL uiPanel.
+   * Visible only while the agent is handling a contact (active tab with contactId)
+   * or during ACW/disposition (wrapping tab) — hidden when agent is idle.
+   */
+  protected readonly sidePanelInstallations = computed(() => {
+    const hasActiveContact = this.activeTab()?.contactId != null;
+    const hasWrappingTab = this.wrappingTab() != null;
+    if (!hasActiveContact && !hasWrappingTab) return [];
+    return this.activePluginInstallations().filter((i) =>
       i.uiPanels.some((p) => p.mountPoint === 'AGENT_DESKTOP_SIDE_PANEL'),
-    ),
-  );
+    );
+  });
 
   /** Currently selected plugin tab id in the side panel (null until first installation loads). */
   protected readonly activePluginPanelId = signal<string | null>(null);

@@ -23,7 +23,7 @@
  * Kierunek PLUGIN -> HOST (żądanie), wysyłane przez `window.parent.postMessage`:
  *
  *   {
- *     type: 'GET_CONTEXT' | 'INVOKE_MANUAL_ACTION' | 'REQUEST_RESIZE' | 'NOTIFY',
+ *     type: 'GET_CONTEXT' | 'INVOKE_MANUAL_ACTION' | 'REQUEST_RESIZE' | 'NOTIFY' | 'OPEN_URL',
  *     requestId?: string,   // obecny TYLKO dla GET_CONTEXT i INVOKE_MANUAL_ACTION
  *                            // (wywołania z odpowiedzią/Promise); unikalny per wywołanie
  *     payload?: unknown     // kształt zależny od `type`, patrz niżej
@@ -34,8 +34,9 @@
  *     - INVOKE_MANUAL_ACTION:  payload = { actionId: string, payload: unknown }
  *     - REQUEST_RESIZE:        payload = { height: number }
  *     - NOTIFY:                payload = { message: string, severity: 'info' | 'warning' | 'error' }
+ *     - OPEN_URL:              payload = { url: string }  // musi zaczynać się od https:// lub http://
  *
- *   `REQUEST_RESIZE` i `NOTIFY` są fire-and-forget — host NIE odsyła odpowiedzi,
+ *   `REQUEST_RESIZE`, `NOTIFY` i `OPEN_URL` są fire-and-forget — host NIE odsyła odpowiedzi,
  *   wywołania SDK dla nich nie zwracają Promise.
  *
  * Kierunek HOST -> PLUGIN (odpowiedź), tylko jako reakcja na GET_CONTEXT /
@@ -174,6 +175,17 @@
          */
         notify: function (message, severity) {
             sendFireAndForget('NOTIFY', { message: message, severity: severity });
+        },
+
+        /**
+         * Żąda od hosta otwarcia podanego URL-a w nowej zakładce przeglądarki
+         * (fire-and-forget — host nie odsyła odpowiedzi). URL musi zaczynać się od
+         * https:// lub http://; inne schematy są odrzucane przez walidację hosta.
+         *
+         * @param {string} url URL do otwarcia
+         */
+        openUrl: function (url) {
+            sendFireAndForget('OPEN_URL', { url: url });
         }
     };
 

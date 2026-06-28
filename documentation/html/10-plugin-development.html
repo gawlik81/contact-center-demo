@@ -593,15 +593,32 @@ renderującym <strong>sandboxowany iframe</strong>:</p>
 (rozpakowany z JAR-a przy <code>enable</code>) jest tym, co się renderuje. <strong>Brak <code>allow-same-origin</code></strong> —
 Twój kod JS w iframe nie ma dostępu do <code>localStorage</code>/cookies hosta i nie może wywołać
 <code>/api/**</code> z JWT agenta. Jedynym kanałem komunikacji z hostem jest <code>postMessage</code>.</p>
+<blockquote>
+<p><strong>Kiedy panel jest widoczny:</strong> <code>AGENT_DESKTOP_SIDE_PANEL</code> pojawia się <strong>wyłącznie</strong> gdy
+agent ma aktywny kontakt (trwająca rozmowa) lub jest w fazie wrap-up/dyspozycji po jego
+zakończeniu. W stanie bezczynności panel nie jest renderowany — iframe jest odmontowywany,
+a przy każdym nowym kontakcie montowany od nowa (pełna reinicjalizacja). Projektuj swój
+plugin UI pod kątem tego cyklu: każde otwarcie panelu to świeży start skryptu.</p>
+</blockquote>
 <h3>8.4 <code>PluginUiSdk</code> — komunikacja iframe ↔ host</h3>
 <p>Wstrzyknij w swoim <code>plugin-ui/index.html</code>:</p>
 <pre><code class="language-html">&lt;script src=&quot;/plugin-ui-sdk.js&quot;&gt;&lt;/script&gt;
 </code></pre>
+<blockquote>
+<p><strong>Uwaga implementacyjna:</strong> choć w kodzie pluginu używasz standardowego tagu <code>&lt;script src&gt;</code>,
+backend (<code>PluginAssetController</code>) przy serwowaniu <code>index.html</code> <strong>automatycznie zastępuje</strong> ten
+tag inlineowaną zawartością SDK. Eliminuje to osobny request przeglądarki do zasobu
+zewnętrznego — w środowiskach z reverse proxy (np. ngrok w trybie deweloperskim) sandboxowany
+iframe z opaque origin ma ograniczony dostęp do cookies sesji, co mogłoby spowodować
+zablokowanie zewnętrznego skryptu. Nie musisz robić nic specjalnego — wystarczy standardowy
+tag <code>&lt;script src=&quot;/plugin-ui-sdk.js&quot;&gt;</code> i platform zajmuje się resztą.</p>
+</blockquote>
 <p>API dostępne jako <code>window.PluginUiSdk</code>:</p>
 <pre><code class="language-typescript">PluginUiSdk.getContext(): Promise&lt;{ tenantId: string; contactId: string | null; customerId: string | null }&gt;
 PluginUiSdk.invokeManualAction(actionId: string, payload: unknown): Promise&lt;ManualActionResult&gt;
 PluginUiSdk.requestResize(height: number): void   // fire-and-forget
 PluginUiSdk.notify(message: string, severity: &#39;info&#39; | &#39;warning&#39; | &#39;error&#39;): void  // fire-and-forget
+PluginUiSdk.openUrl(url: string): void            // fire-and-forget — otwiera URL w nowej zakładce przez hosta
 </code></pre>
 <p><code>invokeManualAction</code> z poziomu iframe woła <strong>ten sam</strong> <code>POST /api/agent/plugins/{installationId}/manual-action/{actionId}</code>,
 ale wykonany przez host (Angular <code>HttpClient</code>, z JWT agenta dodanym automatycznie przez
@@ -610,6 +627,10 @@ interceptor) — iframe nigdy nie widzi tokenu. <code>getContext()</code> zwraca
 więcej danych, wywołaj <code>PluginContext.getCustomer</code>/<code>getContact</code> z poziomu backendu pluginu, w
 ramach <code>onPreContactConnect</code>/<code>onManualAction</code>, i przekaż wynik do iframe przez własny mechanizm
 — np. <code>displayData</code> w <code>PreContactConnectResult</code>).</p>
+<p><code>openUrl</code> prosi hosta o otwarcie URL w nowej zakładce przeglądarki (fire-and-forget, host
+waliduje schemat <code>https://</code> lub <code>http://</code> i wywołuje <code>window.open(url, &#39;_blank&#39;, &#39;noopener,noreferrer&#39;)</code>).
+Sandbox iframe bez <code>allow-popups</code> nie może samodzielnie wywołać <code>window.open</code> — zawsze używaj
+<code>PluginUiSdk.openUrl</code> zamiast bezpośredniego wywołania.</p>
 <p>Implementacja SDK (<code>backend/app/src/main/resources/static/plugin-ui-sdk.js</code>) zawiera w
 komentarzu na początku pliku pełną specyfikację formatu wiadomości <code>postMessage</code> — przydatne,
 jeśli chcesz zaimplementować własny SDK w innym języku (np. plugin UI napisany bez <code>&lt;script&gt;</code>,
@@ -655,7 +676,7 @@ infrastruktury (DNS/reverse proxy) poza zakresem backendu — patrz <code>TASKS-
 <hr>
 <h2>10. Minimalny przykład end-to-end</h2>
 <blockquote>
-<p><strong>Dwa pełne, działające przykłady</strong> (skompilowane, zweryfikowane przez realny
+<p><strong>Trzy pełne, działające przykłady</strong> (skompilowane, zweryfikowane przez realny
 <code>PluginValidationService</code> z wynikiem <code>VALIDATED</code>) w katalogu <code>examples/plugins/</code>:</p>
 <ul>
 <li><p><a href="../examples/plugins/customer-google-lookup/"><code>customer-google-lookup/</code></a> — panel boczny
@@ -667,6 +688,15 @@ zapis wyniku zakończonego kontaktu i dyspozycji do zewnętrznej bazy danych CRM
 Demonstruje <code>DbEgressClient</code> (<code>db:egress:&lt;host&gt;:&lt;port&gt;</code>), <code>POST_CONTACT_END</code> i
 <code>DISPOSITION_SET</code>. Zawiera gotowy <code>docker-compose.yml</code> z PostgreSQL 16 dołączającym do
 sieci <code>contact-center-network</code>.</p>
+</li>
+<li><p><a href="../examples/plugins/crm-url-launcher/"><code>crm-url-launcher/</code></a> — najprostszy wzorzec
+integracji UI: agent klika przycisk w panelu bocznym, plugin buduje URL (z podstawieniem
+zmiennych <code>{customerId}</code>, <code>{contactId}</code> itd. oraz opcjonalnymi parametrami wpisywanymi
+przez agenta) i otwiera go w nowej zakładce przez <code>PluginUiSdk.openUrl</code>. Demonstruje
+<code>MANUAL_ACTION</code>, panel <code>AGENT_DESKTOP_SIDE_PANEL</code>, <code>PluginUiSdk.invokeManualAction</code>,
+<code>PluginUiSdk.openUrl</code> i konfigurację szablonu URL przez <code>installation_config</code>.
+<strong>Dobry punkt startowy</strong> dla pluginów, których jedynym zadaniem jest uruchomienie
+zewnętrznego URL-a w CRM/helpdesku z kontekstem bieżącej rozmowy.</p>
 </li>
 </ul>
 <p>Ten rozdział pokazuje skróconą wersję mechanizmu; instrukcje budowy (dwuetapowa procedura
@@ -762,6 +792,58 @@ zależności inne niż <code>plugin-sdk</code>), policz <code>SHA-256</code> zaw
 <p>Administrator tenanta musi ustawić w konfiguracji instalacji (<code>installation_config</code>):
 <code>jdbcUrl = jdbc:postgresql://crm-demo-db:5432/crm</code>, <code>dbUsername</code>, <code>dbPassword</code>.
 Pełny, działający przykład: <a href="../examples/plugins/customer-callresult-db-sync/"><code>customer-callresult-db-sync/</code></a>.</p>
+<h3>10.2 Wzorzec: uruchamianie URL-a CRM z kontekstem rozmowy</h3>
+<p>Najprostszy i bardzo częsty przypadek użycia pluginu UI: agent pracujący na połączeniu klika
+jeden przycisk, a otwiera się karta CRM/helpdesku z profilem bieżącego klienta lub
+rozmowy. Cały flow to trzy kroki:</p>
+<ol>
+<li><p><strong>Backend pluginu</strong> implementuje <code>onManualAction</code> z akcją <code>build-crm-url</code> — przyjmuje
+<code>contactId</code>/<code>customerId</code> z <code>ManualActionRequest</code> (wypełniane przez hosta z bieżącej sesji)
+i opcjonalne pola wpisane przez agenta (<code>agentFields</code>), buduje URL z szablonu
+konfigurowalnego przez <code>installation_config</code> (klucz <code>urlTemplate</code>) i zwraca go w
+<code>ManualActionResult.resultData</code>.</p>
+</li>
+<li><p><strong>Frontend pluginu</strong> (<code>plugin-ui/index.html</code>) przy montowaniu wywołuje
+<code>PluginUiSdk.invokeManualAction(&#39;get-crm-context&#39;, {})</code> żeby pobrać dane klienta i wyrenderować
+formularz dla opcjonalnych pól agenta. Po kliknięciu &quot;Otwórz w CRM&quot; wywołuje
+<code>PluginUiSdk.invokeManualAction(&#39;build-crm-url&#39;, agentFields)</code> i na wyniku wywołuje
+<code>PluginUiSdk.openUrl(response.resultData.url)</code>.</p>
+</li>
+<li><p><strong>Host Angular</strong> (<code>cc-plugin-panel-host</code>) proxy&#39;uje oba wywołania do backendu z JWT agenta
+— iframe nigdy nie widzi tokenu ani URL API.</p>
+</li>
+</ol>
+<p>Szablon URL może zawierać zmienne w klamrach:</p>
+<table>
+<thead>
+<tr>
+<th>Zmienna</th>
+<th>Wartość</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>{customerId}</code></td>
+<td>UUID klienta z bieżącej sesji</td>
+</tr>
+<tr>
+<td><code>{contactId}</code></td>
+<td>UUID kontaktu (rozmowy)</td>
+</tr>
+<tr>
+<td><code>{customerPhone}</code></td>
+<td>Numer telefonu (z <code>CustomerView</code>)</td>
+</tr>
+<tr>
+<td><code>{customerName}</code></td>
+<td>Imię i nazwisko klienta</td>
+</tr>
+<tr>
+<td>Dowolna inna</td>
+<td>Pobrana z <code>installation_config</code> lub podana przez agenta w formularzu</td>
+</tr>
+</tbody></table>
+<p>Pełny przykład z obsługą <code>agentParams</code> (pól wpisywanych przez agenta) i konfiguracją
+szablonu URL przez UI admina: <a href="../examples/plugins/crm-url-launcher/"><code>crm-url-launcher/</code></a>.</p>
 <hr>
 <h2>11. Powiązane materiały</h2>
 <ul>

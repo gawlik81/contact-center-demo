@@ -7,6 +7,8 @@ import com.contactcenter.pluginsdk.model.ContactView;
 import com.contactcenter.pluginsdk.model.DispositionEvent;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -16,9 +18,10 @@ import java.util.regex.Pattern;
  *
  * <p>Cel: append-only log zakończonych kontaktów i ustawionych dyspozycji, zapisywany do
  * zewnętrznej bazy danych tenanta (dowolny silnik JDBC dostępny na classpath hosta — patrz
- * README.md, sekcja "Known limitation"). Jeden wiersz na zdarzenie — NIE upsert, bo różne
- * silniki JDBC mają różną składnię {@code ON CONFLICT}/{@code MERGE}, więc dla przykładu
- * wieloplatformowego trzymamy się prostego {@code INSERT} per zdarzenie.
+ * README.md, sekcja "Known limitation"). Jeden wiersz na zdarzenie — NIE upsert. Dla
+ * {@code CONTACT_ENDED} stosujemy {@code INSERT … WHERE NOT EXISTS} jako idempotentny
+ * guard przed duplikatami wynikającymi z gwarancji at-least-once delivery RabbitMQ lub
+ * podwójnej emisji eventu przez platformę przy pewnych scenariuszach rozłączenia.
  *
  * <p>Dwa punkty rozszerzeń, oba fire-and-forget (dispatched asynchronicznie przez
  * {@code cc.queue.plugin-invocation} — plugin latency/failure nigdy nie wpływa na pulpit
@@ -38,6 +41,9 @@ import java.util.regex.Pattern;
 public class CustomerCallResultDbSyncPlugin implements PluginEntryPoint {
 
     private static final String DEFAULT_TABLE = "call_results";
+
+    /** Strefa czasowa używana do zapisu occurred_at — czas lokalny Polski (UTC+1/UTC+2 z DST). */
+    private static final ZoneId ZONE_WARSAW = ZoneId.of("Europe/Warsaw");
 
     /**
      * Walidacja nazwy tabeli — interpolowana w SQL identifier position (nie da się
@@ -80,9 +86,20 @@ public class CustomerCallResultDbSyncPlugin implements PluginEntryPoint {
         try {
             ContactView contact = ctx.getContact(e.contactId());
             String table = resolveTableName(ctx);
+            // INSERT ... WHERE NOT EXISTS zamiast zwykłego INSERT VALUES:
+            // RabbitMQ gwarantuje at-least-once delivery, a platforma może emitować
+            // POST_CONTACT_END dwukrotnie przy niektórych scenariuszach rozłączenia
+            // (np. równoczesny webhook statusu połączenia i hangup po stronie agenta).
+            // WHERE NOT EXISTS jest przenośne między PostgreSQL, MySQL i SQL Server.
+            // Oracle wymaga dodatku "FROM DUAL" po SELECT.
             String sql = "INSERT INTO " + table
-                    + " (contact_id, customer_id, event_type, channel, direction, status, "
-                    + "agent_id, disposition_code, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    + " (contact_id, customer_id, event_type, channel, direction, status,"
+                    + "  agent_id, disposition_code, occurred_at)"
+                    + " SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?"
+                    + " WHERE NOT EXISTS ("
+                    + "   SELECT 1 FROM " + table
+                    + "   WHERE contact_id = ? AND event_type = 'CONTACT_ENDED'"
+                    + ")";
             List<Object> params = new ArrayList<>();
             params.add(contact.contactId());
             params.add(contact.customerId());
@@ -93,12 +110,10 @@ public class CustomerCallResultDbSyncPlugin implements PluginEntryPoint {
             params.add(contact.agentId());
             params.add(null); // disposition_code — nieznany w tym evencie, kolumna nullable
             params.add(toTimestampParam(contact.endedAt() != null ? contact.endedAt() : e.occurredAt()));
+            params.add(contact.contactId()); // parametr WHERE NOT EXISTS
 
             ctx.dbClient().executeUpdate(sql, params);
         } catch (RuntimeException ex) {
-            // Fire-and-forget: błąd jest zawierany TUTAJ i tylko logowany — host i tak otacza
-            // całe wywołanie pluginu własnym timeoutem/catch(Throwable) i zapisuje wynik do
-            // plugin_invocation_log, ale ta metoda jest dodatkową, jawną warstwą.
             ctx.logger().warn("Zapis wyniku zakończonego kontaktu do DB nie powiódł się: " + ex.getMessage());
         }
     }
@@ -145,6 +160,12 @@ public class CustomerCallResultDbSyncPlugin implements PluginEntryPoint {
     }
 
     private static java.sql.Timestamp toTimestampParam(Instant instant) {
-        return instant != null ? java.sql.Timestamp.from(instant) : null;
+        if (instant == null) return null;
+        // Konwertuj UTC → czas lokalny Warszawy przed zapisem do TIMESTAMP (bez strefy).
+        // Timestamp.from(instant) zapisuje czas w UTC (JVM epoch millis), co przy
+        // TIMESTAMP WITHOUT TIME ZONE skutkuje wartościami o 1–2h wcześniejszymi niż
+        // oczekuje użytkownik. valueOf(LocalDateTime) zapisuje czas lokalny dosłownie.
+        ZonedDateTime local = instant.atZone(ZONE_WARSAW);
+        return java.sql.Timestamp.valueOf(local.toLocalDateTime());
     }
 }

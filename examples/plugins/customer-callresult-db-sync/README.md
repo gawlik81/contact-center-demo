@@ -7,10 +7,12 @@ szczególności `DbEgressClient` — jedyny dozwolony kanał dostępu pluginu do
 danych.
 
 **Co robi:** po zakończeniu kontaktu (`POST_CONTACT_END`) i po ustawieniu dyspozycji
-(`DISPOSITION_SET`) zapisuje wynik rozmowy do zewnętrznej bazy danych tenanta, append-only —
-jeden wiersz na zdarzenie (NIE upsert, bo różne silniki JDBC mają różną składnię
-`ON CONFLICT`/`MERGE`; dla przykładu wieloplatformowego trzymamy się prostego `INSERT` per
-zdarzenie, z kolumną `event_type` rozróżniającą `CONTACT_ENDED`/`DISPOSITION_SET`).
+(`DISPOSITION_SET`) zapisuje wynik rozmowy do zewnętrznej bazy danych tenanta, append-only.
+Dla `CONTACT_ENDED` stosuje `INSERT … WHERE NOT EXISTS` — guard idempotentności zabezpieczający
+przed duplikatami przy at-least-once delivery RabbitMQ lub podwójnym evencie platformy. Dla
+`DISPOSITION_SET` (naturalnie wielokrotny per kontakt) pozostaje zwykły `INSERT`. Kolumna
+`event_type` rozróżnia `CONTACT_ENDED`/`DISPOSITION_SET`. Znaczniki czasu są zapisywane w
+**lokalnym czasie polskim** (`Europe/Warsaw`, UTC+1/UTC+2 z DST), nie UTC.
 
 Ten katalog jest **niezależnym projektem Maven** — symuluje repozytorium zewnętrznego
 dostawcy pluginu. Nie jest częścią reaktora `backend/pom.xml` i nie jest budowany przez
@@ -193,7 +195,7 @@ CREATE TABLE call_results (
     status           VARCHAR(32),            -- NULL dla event_type='DISPOSITION_SET'
     agent_id         UUID,
     disposition_code VARCHAR(64),            -- NULL dla event_type='CONTACT_ENDED'
-    occurred_at      TIMESTAMP NOT NULL
+    occurred_at      TIMESTAMP NOT NULL             -- czas lokalny Europe/Warsaw (nie UTC)
 );
 ```
 

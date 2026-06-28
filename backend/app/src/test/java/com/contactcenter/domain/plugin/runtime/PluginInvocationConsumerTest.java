@@ -105,7 +105,7 @@ class PluginInvocationConsumerTest {
         return new TenantPluginInstallationDto(
                 installationId, TENANT_ID, UUID.randomUUID(), PLUGIN_KEY, "Acme CRM Sync", "1.0.0",
                 enabled, List.of(), TenantPluginInstallation.HealthStatus.HEALTHY, 0, List.of(), List.of(),
-                UUID.randomUUID(), Instant.now(), Instant.now());
+                UUID.randomUUID(), Instant.now(), Instant.now(), List.of());
     }
 
     private static ContactEvent contactEvent() {
@@ -510,7 +510,7 @@ class PluginInvocationConsumerTest {
                     .thenReturn(new TenantPluginInstallationDto(
                             otherInstallationId, OTHER_TENANT_ID, UUID.randomUUID(), PLUGIN_KEY, "Acme CRM Sync",
                             "1.0.0", true, List.of(), TenantPluginInstallation.HealthStatus.HEALTHY, 0,
-                            List.of(), List.of(), UUID.randomUUID(), Instant.now(), Instant.now()));
+                            List.of(), List.of(), UUID.randomUUID(), Instant.now(), Instant.now(), List.of()));
 
             consumer.handleInvocation(
                     messageFor(OTHER_TENANT_ID, ExtensionPoint.POST_CONTACT_END, contactEvent()));

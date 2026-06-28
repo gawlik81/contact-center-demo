@@ -5,6 +5,7 @@ import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
 import com.contactcenter.domain.plugin.PluginVersion;
 import com.contactcenter.domain.plugin.dto.InstallPluginRequest;
+import com.contactcenter.domain.plugin.dto.PluginConfigEntryDto;
 import com.contactcenter.domain.plugin.dto.PluginVersionDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.runtime.PluginRuntimeManager;
@@ -86,7 +87,8 @@ class PluginAdminControllerTest {
     private TenantPluginInstallationDto installationDto(UUID id, boolean enabled) {
         return new TenantPluginInstallationDto(
                 id, TENANT_ID, PLUGIN_VERSION_ID, "acme-crm-sync", "Acme CRM Sync", "1.0.0",
-                enabled, List.of(), "HEALTHY", 0, List.of(), List.of(), USER_ID, Instant.now(), Instant.now());
+                enabled, List.of(), "HEALTHY", 0, List.of(), List.of(), USER_ID, Instant.now(), Instant.now(),
+                List.of());
     }
 
     // =========================================================================
@@ -303,6 +305,42 @@ class PluginAdminControllerTest {
 
             verify(pluginRuntimeManager, never()).load(any(), any());
             verify(pluginRuntimeManager).unload(TENANT_ID, INSTALLATION_ID);
+        }
+    }
+
+    // =========================================================================
+    // GET getConfigEntries
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getConfigEntries()")
+    class GetConfigEntries {
+
+        @Test
+        @DisplayName("200: deleguje do serwisu z tenantId z TenantContext i zwraca listę wpisów configu")
+        void getConfigEntries_delegatesToService() {
+            List<PluginConfigEntryDto> entries = List.of(
+                    new PluginConfigEntryDto("apiKey", true, null),
+                    new PluginConfigEntryDto("endpoint", false, "http://example.com")
+            );
+            when(pluginRegistrationService.getConfigEntries(TENANT_ID, INSTALLATION_ID)).thenReturn(entries);
+
+            ResponseEntity<List<PluginConfigEntryDto>> response = controller.getConfigEntries(INSTALLATION_ID);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody()).isEqualTo(entries);
+            verify(pluginRegistrationService).getConfigEntries(TENANT_ID, INSTALLATION_ID);
+        }
+
+        @Test
+        @DisplayName("200: brak configu → pusta lista, nie rzuca")
+        void getConfigEntries_emptyConfig_returnsEmptyList() {
+            when(pluginRegistrationService.getConfigEntries(TENANT_ID, INSTALLATION_ID)).thenReturn(List.of());
+
+            ResponseEntity<List<PluginConfigEntryDto>> response = controller.getConfigEntries(INSTALLATION_ID);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody()).isEmpty();
         }
     }
 

@@ -3,6 +3,7 @@ package com.contactcenter.api.plugin;
 import com.contactcenter.domain.plugin.PluginCatalogQueryService;
 import com.contactcenter.domain.plugin.PluginRegistrationService;
 import com.contactcenter.domain.plugin.dto.InstallPluginRequest;
+import com.contactcenter.domain.plugin.dto.PluginConfigEntryDto;
 import com.contactcenter.domain.plugin.dto.PluginVersionDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.dto.UpdateInstallationConfigRequest;
@@ -375,6 +376,35 @@ public class PluginAdminController {
         pluginRegistrationService.uninstall(tenantId, id);
 
         return ResponseEntity.noContent().build();
+    }
+
+    // =========================================================================
+    // GET — config (odczyt konfiguracji instalacji, klucze jawne z wartościami)
+    // =========================================================================
+
+    @GetMapping("/installations/{id}/config")
+    @Operation(
+            summary = "Zwraca klucze konfiguracji z wartościami dla kluczy jawnych (wartość null dla tajnych)",
+            description = """
+                    Zwraca listę wpisów konfiguracji instalacji. Klucze uznane za tajne
+                    (nazwa zawiera case-insensitive: key, token, secret, password) mają value=null —
+                    wartości tajne nigdy nie są ujawniane przez API. Klucze jawne zwracają
+                    odszyfrowaną wartość. Wynik posortowany alfabetycznie po kluczu.
+                    """,
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Lista wpisów konfiguracji (pusta gdy brak configu)"),
+                    @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+                    @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymagane SUPERVISOR/ADMIN)"),
+                    @ApiResponse(responseCode = "404", description = "Instalacja nie istnieje")
+            }
+    )
+    public ResponseEntity<List<PluginConfigEntryDto>> getConfigEntries(
+            @Parameter(description = "Identyfikator instalacji (tenant_plugin_installation.id)")
+            @PathVariable UUID id
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        log.debug("[PluginAdminController] GET /api/supervisor/plugins/installations/{}/config: tenant={}", id, tenantId);
+        return ResponseEntity.ok(pluginRegistrationService.getConfigEntries(tenantId, id));
     }
 
     // =========================================================================

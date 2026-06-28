@@ -3,6 +3,7 @@ package com.contactcenter.domain.plugin;
 import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.domain.exception.ResourceNotFoundException;
 import com.contactcenter.domain.plugin.dto.ManualActionDto;
+import com.contactcenter.domain.plugin.dto.PluginConfigEntryDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import com.contactcenter.domain.plugin.dto.UiPanelDto;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -224,6 +225,36 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<PluginConfigEntryDto> getConfigEntries(UUID tenantId, UUID installationId) {
+        log.debug("[PluginRegistrationService] getConfigEntries: tenant={}, installation={}", tenantId, installationId);
+
+        TenantPluginInstallation installation = installationRepository.findByIdAndTenantId(installationId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Instalacja nie istnieje: " + installationId));
+
+        String configJson = installation.getInstallationConfig();
+        if (configJson == null || configJson.isBlank()) {
+            return List.of();
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, String> config = OBJECT_MAPPER.readValue(configJson, Map.class);
+            return config.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .map(e -> {
+                        boolean secret = isSecretKey(e.getKey());
+                        return new PluginConfigEntryDto(e.getKey(), secret, secret ? null : e.getValue());
+                    })
+                    .toList();
+        } catch (JsonProcessingException e) {
+            log.warn("[PluginRegistrationServiceImpl] Nie można sparsować installationConfig "
+                    + "w getConfigEntries: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    @Override
     @Transactional
     public void updateConfig(UUID tenantId, UUID installationId, Map<String, String> config) {
         log.debug("[PluginRegistrationService] updateConfig: tenant={}, installation={}, keys={}",
@@ -244,6 +275,18 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================
+
+    /**
+     * Heurystyka wykrywania kluczy tajnych — ta sama co frontend ({@code updateConfigRowKey}
+     * w {@code plugins-page.component.ts}). Klucz jest tajny jeśli jego nazwa (case-insensitive)
+     * zawiera jedno ze słów: {@code key}, {@code token}, {@code secret}, {@code password}.
+     */
+    private static boolean isSecretKey(String key) {
+        if (key == null) return false;
+        String lower = key.toLowerCase();
+        return lower.contains("key") || lower.contains("token")
+                || lower.contains("secret") || lower.contains("password");
+    }
 
     private static String writeConfigJson(Map<String, String> config) {
         try {
@@ -385,6 +428,8 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
             uiPanels = extractUiPanels(pluginVersion);
         }
 
+        List<String> configuredKeys = extractConfiguredKeys(i.getInstallationConfig());
+
         return new TenantPluginInstallationDto(
                 i.getId(),
                 i.getTenantId(),
@@ -400,8 +445,29 @@ class PluginRegistrationServiceImpl implements PluginRegistrationService {
                 uiPanels,
                 i.getInstalledByUserId(),
                 i.getInstalledAt(),
-                i.getUpdatedAt()
+                i.getUpdatedAt(),
+                configuredKeys
         );
+    }
+
+    /**
+     * Parsuje JSON {@code installationConfig} i zwraca posortowaną listę NAZW kluczy
+     * (bez wartości — wartości są szyfrowane i nigdy nie opuszczają backendu, BE-108).
+     * Błędy parsowania loguje na warn i zwracają pustą listę — konfiguracja jest opcjonalna.
+     */
+    private List<String> extractConfiguredKeys(String installationConfig) {
+        if (installationConfig == null || installationConfig.isBlank()) {
+            return List.of();
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> config = OBJECT_MAPPER.readValue(installationConfig, Map.class);
+            return config.keySet().stream().sorted().toList();
+        } catch (JsonProcessingException e) {
+            log.warn("[PluginRegistrationServiceImpl] Nie można sparsować installationConfig "
+                    + "w celu wydobycia kluczy: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -67,6 +68,28 @@ public class SecurityConfig {
     // =========================================================================
 
     /**
+     * Łańcuch filtrów dla zasobów plugin UI — musi mieć wyższy priorytet (@Order(1)) niż główny
+     * łańcuch, żeby Spring Security zastosował inne nagłówki security (brak X-Frame-Options: DENY)
+     * dla plików serwowanych w sandboxowanym iframe agenta.
+     *
+     * <p>Plugin-assets są publiczne i nie wymagają JWT — autoryzacja odbywa się na poziomie
+     * strony hosta (Angular wstrzykuje URL iframe tylko dla zalogowanego agenta z dostępem).
+     */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain pluginAssetFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/plugin-assets/**", "/plugin-ui-sdk.js")
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+            .headers(h -> h
+                .frameOptions(fo -> fo.sameOrigin())
+            );
+        return http.build();
+    }
+
+    /**
      * Główny łańcuch filtrów bezpieczeństwa.
      *
      * <p>Kolejność filtrów jest kluczowa:
@@ -76,6 +99,7 @@ public class SecurityConfig {
      * </ol>
      */
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             // CSRF – wyłączone (REST API z JWT; CSRF chroni tylko session-based auth)

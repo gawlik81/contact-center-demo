@@ -12,6 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, of } from 'rxjs';
 import { NotificationService } from '../../../../../core/services/notification.service';
 import { ConfirmDialogComponent } from '../../../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { PluginAdminService } from '../../../../plugins/services/plugin-admin.service';
@@ -130,8 +131,12 @@ export class PluginsPageComponent implements OnInit {
   // reactive forms.
 
   readonly configDialogTarget = signal<TenantPluginInstallationDto | null>(null);
-  readonly configRows = signal<{ key: string; value: string }[]>([]);
+  readonly configRows = signal<
+    { key: string; value: string; secret: boolean; showValue: boolean }[]
+  >([]);
   readonly savingConfig = signal(false);
+  /** true podczas ładowania istniejącej konfiguracji przed otwarciem dialogu */
+  readonly configDialogLoading = signal(false);
 
   /** Klucze (po trim) wierszy z niepustym key — używane do walidacji duplikatów. */
   private readonly nonEmptyConfigKeys = computed(() =>
@@ -503,9 +508,43 @@ export class PluginsPageComponent implements OnInit {
   // ---- Config dialog (EPIC-28) ----
 
   openConfigDialog(installation: TenantPluginInstallationDto): void {
-    this.configDialogTarget.set(installation);
-    this.configRows.set([{ key: '', value: '' }]);
-    this.configDialogRef.nativeElement.showModal();
+    if (installation.configuredKeys.length > 0) {
+      this.configDialogLoading.set(true);
+      this.pluginAdminService
+        .getConfigEntries(installation.id)
+        .pipe(
+          catchError((err) => {
+            console.error(
+              '[PluginsPage] Failed to load config entries, falling back to empty form',
+              err,
+            );
+            return of(null);
+          }),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe((entries) => {
+          this.configDialogLoading.set(false);
+          this.configDialogTarget.set(installation);
+          if (entries) {
+            this.configRows.set(
+              entries.map((e) => ({
+                key: e.key,
+                value: e.value ?? '',
+                secret: e.secret,
+                showValue: !e.secret,
+              })),
+            );
+          } else {
+            // fallback po błędzie HTTP — pusty formularz jak poprzednio
+            this.configRows.set([{ key: '', value: '', secret: false, showValue: true }]);
+          }
+          this.configDialogRef.nativeElement.showModal();
+        });
+    } else {
+      this.configDialogTarget.set(installation);
+      this.configRows.set([{ key: '', value: '', secret: false, showValue: true }]);
+      this.configDialogRef.nativeElement.showModal();
+    }
   }
 
   closeConfigDialog(): void {
@@ -515,19 +554,58 @@ export class PluginsPageComponent implements OnInit {
   }
 
   addConfigRow(): void {
-    this.configRows.update((rows) => [...rows, { key: '', value: '' }]);
+    this.configRows.update((rows) => [
+      ...rows,
+      { key: '', value: '', secret: false, showValue: true },
+    ]);
   }
 
   removeConfigRow(index: number): void {
     this.configRows.update((rows) => rows.filter((_, i) => i !== index));
   }
 
+  private static readonly SECRET_KEY_PATTERNS = [
+    'key',
+    'token',
+    'secret',
+    'password',
+    'apikey',
+    'api_key',
+  ];
+
   updateConfigRowKey(index: number, key: string): void {
-    this.configRows.update((rows) => rows.map((row, i) => (i === index ? { ...row, key } : row)));
+    const lowerKey = key.toLowerCase();
+    const isSecret = PluginsPageComponent.SECRET_KEY_PATTERNS.some((pattern) =>
+      lowerKey.includes(pattern),
+    );
+    this.configRows.update((rows) =>
+      rows.map((row, i) => {
+        if (i !== index) return row;
+        // Only auto-set secret to true — never auto-clear it (user may have toggled manually)
+        return isSecret ? { ...row, key, secret: true, showValue: false } : { ...row, key };
+      }),
+    );
   }
 
   updateConfigRowValue(index: number, value: string): void {
     this.configRows.update((rows) => rows.map((row, i) => (i === index ? { ...row, value } : row)));
+  }
+
+  toggleConfigRowSecret(index: number): void {
+    this.configRows.update((rows) =>
+      rows.map((row, i) => {
+        if (i !== index) return row;
+        const newSecret = !row.secret;
+        // jawne → widoczne domyślnie, secret → ukryte domyślnie
+        return { ...row, secret: newSecret, showValue: !newSecret };
+      }),
+    );
+  }
+
+  toggleConfigRowShowValue(index: number): void {
+    this.configRows.update((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, showValue: !row.showValue } : row)),
+    );
   }
 
   confirmSaveConfig(): void {
@@ -547,6 +625,11 @@ export class PluginsPageComponent implements OnInit {
       .subscribe({
         next: () => {
           this.savingConfig.set(false);
+          // Odśwież configuredKeys w installations signal bez roundtrip do serwera
+          const savedKeys = Object.keys(config).sort();
+          this.installations.update((list) =>
+            list.map((i) => (i.id === installation.id ? { ...i, configuredKeys: savedKeys } : i)),
+          );
           this.notifications.success(
             this.transloco.translate('supervisor.settings.plugins.successConfig'),
           );

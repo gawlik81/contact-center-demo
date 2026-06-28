@@ -86,6 +86,20 @@ export interface TenantPluginInstallationDto {
   installedByUserId: string;
   installedAt: string;
   updatedAt: string;
+  /** Nazwy kluczy aktualnie ustawionej konfiguracji (wartości nigdy nie są zwracane — write-only). */
+  configuredKeys: string[];
+}
+
+/**
+ * Wpis konfiguracyjny instalacji pluginu (GET /installations/{id}/config).
+ * Wartości kluczy jawnych są zwracane w polu `value`. Wartości kluczy tajnych są zawsze null —
+ * user musi wpisać je ponownie przy re-konfiguracji.
+ */
+export interface PluginConfigEntryDto {
+  key: string;
+  secret: boolean;
+  /** null gdy secret=true */
+  value: string | null;
 }
 
 /**

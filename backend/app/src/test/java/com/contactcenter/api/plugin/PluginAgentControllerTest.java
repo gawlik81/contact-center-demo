@@ -64,7 +64,8 @@ class PluginAgentControllerTest {
     private TenantPluginInstallationDto installationDto(UUID id, boolean enabled) {
         return new TenantPluginInstallationDto(
                 id, TENANT_ID, UUID.randomUUID(), "acme-crm-sync", "Acme CRM Sync", "1.0.0",
-                enabled, List.of(), "HEALTHY", 0, List.of(), List.of(), USER_ID, Instant.now(), Instant.now());
+                enabled, List.of(), "HEALTHY", 0, List.of(), List.of(), USER_ID, Instant.now(), Instant.now(),
+                List.of());
     }
 
     @Test

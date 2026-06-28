@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   InstallPluginRequest,
+  PluginConfigEntryDto,
   PluginVersionDto,
   TenantPluginInstallationDto,
 } from '../models/plugin.model';
@@ -91,6 +92,16 @@ export class PluginAdminService {
    */
   uninstall(installationId: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/installations/${installationId}`);
+  }
+
+  /**
+   * Zwraca aktualną konfigurację instalacji pluginu. Wartości kluczy jawnych są widoczne,
+   * wartości kluczy tajnych (secret=true) są zawsze null — BE nie ujawnia ich w API.
+   */
+  getConfigEntries(installationId: string): Observable<PluginConfigEntryDto[]> {
+    return this.http.get<PluginConfigEntryDto[]>(
+      `${this.base}/installations/${installationId}/config`,
+    );
   }
 
   /**

@@ -96,7 +96,7 @@ class PluginManualActionControllerTest {
         return new TenantPluginInstallationDto(
                 INSTALLATION_ID, TENANT_ID, PLUGIN_VERSION_ID, "acme-crm-sync", "Acme CRM Sync", "1.0.0",
                 enabled, List.of(), healthStatus, 0, List.of(), List.of(), UUID.randomUUID(),
-                Instant.now(), Instant.now());
+                Instant.now(), Instant.now(), List.of());
     }
 
     private PluginVersion nonRevokedVersion() {

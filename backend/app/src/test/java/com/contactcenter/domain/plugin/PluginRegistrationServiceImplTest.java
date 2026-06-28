@@ -1,6 +1,7 @@
 package com.contactcenter.domain.plugin;
 
 import com.contactcenter.domain.exception.ResourceNotFoundException;
+import com.contactcenter.domain.plugin.dto.PluginConfigEntryDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -646,6 +647,119 @@ class PluginRegistrationServiceImplTest {
     }
 
     // =========================================================================
+    // getConfigEntries()
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getConfigEntries()")
+    class GetConfigEntries {
+
+        @Test
+        @DisplayName("klucze tajne mają value=null, klucze jawne mają odszyfrowaną wartość")
+        void getConfigEntries_mixedKeys_secretsHaveNullValue() {
+            TenantPluginInstallation installation = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            // googleApiKey → tajny (zawiera "key"); searchEngineId → jawny
+            installation.setInstallationConfig("{\"googleApiKey\":\"secret-value\",\"searchEngineId\":\"cx-1\"}");
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(installation));
+
+            List<PluginConfigEntryDto> result = service.getConfigEntries(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(result).hasSize(2);
+            // wynik posortowany alfabetycznie: googleApiKey < searchEngineId
+            PluginConfigEntryDto apiKeyEntry = result.stream()
+                    .filter(e -> "googleApiKey".equals(e.key())).findFirst().orElseThrow();
+            assertThat(apiKeyEntry.secret()).isTrue();
+            assertThat(apiKeyEntry.value()).isNull();
+
+            PluginConfigEntryDto engineEntry = result.stream()
+                    .filter(e -> "searchEngineId".equals(e.key())).findFirst().orElseThrow();
+            assertThat(engineEntry.secret()).isFalse();
+            assertThat(engineEntry.value()).isEqualTo("cx-1");
+        }
+
+        @Test
+        @DisplayName("wynik posortowany alfabetycznie po kluczu")
+        void getConfigEntries_sortedAlphabetically() {
+            TenantPluginInstallation installation = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            installation.setInstallationConfig("{\"zUrl\":\"http://z\",\"aEndpoint\":\"http://a\",\"mPath\":\"/m\"}");
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(installation));
+
+            List<PluginConfigEntryDto> result = service.getConfigEntries(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(result).extracting(PluginConfigEntryDto::key)
+                    .containsExactly("aEndpoint", "mPath", "zUrl");
+        }
+
+        @Test
+        @DisplayName("heurystyka tajności: token, secret, password, key (case-insensitive) → secret=true, value=null")
+        void getConfigEntries_secretHeuristicMatchesAllPatterns() {
+            TenantPluginInstallation installation = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            installation.setInstallationConfig(
+                    "{\"authToken\":\"t\",\"clientSecret\":\"s\",\"adminPassword\":\"p\",\"apiKey\":\"k\",\"endpoint\":\"http://x\"}");
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(installation));
+
+            List<PluginConfigEntryDto> result = service.getConfigEntries(TENANT_ID, INSTALLATION_ID);
+
+            // authToken, clientSecret, adminPassword, apiKey → tajne; endpoint → jawny
+            assertThat(result.stream().filter(PluginConfigEntryDto::secret).map(PluginConfigEntryDto::key))
+                    .containsExactlyInAnyOrder("authToken", "clientSecret", "adminPassword", "apiKey");
+            assertThat(result.stream().filter(e -> !e.secret()).map(PluginConfigEntryDto::key))
+                    .containsExactly("endpoint");
+            assertThat(result.stream().filter(e -> !e.secret()).map(PluginConfigEntryDto::value))
+                    .containsExactly("http://x");
+        }
+
+        @Test
+        @DisplayName("installationConfig null → pusta lista, brak wyjątku")
+        void getConfigEntries_nullConfig_returnsEmptyList() {
+            TenantPluginInstallation installation = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            installation.setInstallationConfig(null);
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(installation));
+
+            List<PluginConfigEntryDto> result = service.getConfigEntries(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("installationConfig blank → pusta lista, brak wyjątku")
+        void getConfigEntries_blankConfig_returnsEmptyList() {
+            TenantPluginInstallation installation = buildInstallation(INSTALLATION_ID, TENANT_ID, true, List.of());
+            installation.setInstallationConfig("   ");
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.of(installation));
+
+            List<PluginConfigEntryDto> result = service.getConfigEntries(TENANT_ID, INSTALLATION_ID);
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("instalacja nie istnieje dla tenanta → ResourceNotFoundException (404)")
+        void getConfigEntries_missingInstallation_throwsResourceNotFound() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.getConfigEntries(TENANT_ID, INSTALLATION_ID))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("instalacja innego tenanta jest niewidoczna (RLS) → ResourceNotFoundException")
+        void getConfigEntries_otherTenantInstallation_throwsResourceNotFound() {
+            when(installationRepository.findByIdAndTenantId(INSTALLATION_ID, OTHER_TENANT))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.getConfigEntries(OTHER_TENANT, INSTALLATION_ID))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
+
+    // =========================================================================
     // Fixtures
     // =========================================================================
 
@@ -666,6 +780,7 @@ class PluginRegistrationServiceImplTest {
 
         return PluginVersion.builder()
                 .id(pluginVersionId)
+                .tenantId(TENANT_ID)  // wymagane od V078: install() weryfikuje per-tenant ownership
                 .plugin(plugin)
                 .version(version)
                 .jarObjectKey("plugins/" + pluginKey + "/" + version + ".jar")
@@ -679,6 +794,7 @@ class PluginRegistrationServiceImplTest {
     private static PluginVersion buildPluginVersionWithPermissions(List<String> permissions) {
         return PluginVersion.builder()
                 .id(PLUGIN_VERSION_ID)
+                .tenantId(TENANT_ID)  // wymagane od V078: install() weryfikuje per-tenant ownership
                 .version("1.0.0")
                 .jarObjectKey("plugins/acme/1.0.0.jar")
                 .checksumSha256("a".repeat(64))

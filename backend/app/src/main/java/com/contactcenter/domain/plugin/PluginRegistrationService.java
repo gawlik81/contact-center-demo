@@ -1,5 +1,6 @@
 package com.contactcenter.domain.plugin;
 
+import com.contactcenter.domain.plugin.dto.PluginConfigEntryDto;
 import com.contactcenter.domain.plugin.dto.TenantPluginInstallationDto;
 
 import java.util.List;
@@ -172,6 +173,24 @@ public interface PluginRegistrationService {
      * @throws com.contactcenter.domain.exception.ConflictException gdy istnieje instalacja tej wersji
      */
     void deleteCatalogVersion(UUID tenantId, UUID pluginVersionId);
+
+    /**
+     * Zwraca listę wpisów konfiguracji instalacji z wartościami dla kluczy jawnych.
+     *
+     * <p>Klucze uznane za tajne (nazwa zawiera case-insensitive: {@code key}, {@code token},
+     * {@code secret}, {@code password}) mają {@code value=null} — wartość nigdy nie jest
+     * ujawniana przez API dla kluczy tajnych. Klucze jawne zwracają odszyfrowaną wartość.
+     *
+     * <p>Wynik jest posortowany alfabetycznie po kluczu.
+     *
+     * @param tenantId       tenant-właściciel instalacji
+     * @param installationId instalacja, której konfigurację odczytujemy
+     * @return posortowana alfabetycznie lista wpisów konfiguracji; pusta lista gdy konfiguracja
+     *         jest pusta lub {@code null}
+     * @throws com.contactcenter.domain.exception.ResourceNotFoundException gdy instalacja nie
+     *         istnieje dla tego tenanta
+     */
+    List<PluginConfigEntryDto> getConfigEntries(UUID tenantId, UUID installationId);
 
     /**
      * Zastępuje (REPLACE, nie merge) konfigurację tenanta instalacji pluginu (BE-108) —

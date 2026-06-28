@@ -25,6 +25,9 @@ import java.util.UUID;
  * @param installedByUserId         identyfikator użytkownika, który zainstalował plugin
  * @param installedAt               znacznik czasu instalacji
  * @param updatedAt                 znacznik czasu ostatniej modyfikacji
+ * @param configuredKeys            posortowane alfabetycznie nazwy kluczy aktualnie ustawionej konfiguracji
+ *                                  (wartości nigdy nie są zwracane — szyfrowane write-only, BE-108).
+ *                                  Pusta lista gdy konfiguracja nie była jeszcze ustawiana.
  */
 public record TenantPluginInstallationDto(
         UUID id,
@@ -41,6 +44,7 @@ public record TenantPluginInstallationDto(
         List<UiPanelDto> uiPanels,
         UUID installedByUserId,
         Instant installedAt,
-        Instant updatedAt
+        Instant updatedAt,
+        List<String> configuredKeys
 ) {
 }

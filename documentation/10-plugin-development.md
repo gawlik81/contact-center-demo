@@ -650,7 +650,14 @@ public class CrmDbSyncPlugin implements PluginEntryPoint {
   `Timestamp.from` przechowuje epoch-millis; przy kolumnie `TIMESTAMP WITHOUT TIME ZONE`
   wyświetla wartości UTC (o 1–2h wcześniej niż czas Polski).
 - `contact.endedAt()` jest preferowane nad `e.occurredAt()` — jest to znacznik z DB ustalony
-  przez event webhooka Twilio, nie czas publikacji na kolejkę.
+  przez event webhooka Twilio, nie czas publikacji na kolejkę. Gdy oba są null (kontakt bez
+  znacznika czasu zakończenia), plugin loguje ostrzeżenie z `contactId` i pomija INSERT zamiast
+  propagować naruszenie NOT NULL do RabbitMQ jako NACK.
+- **Partial unique index** `uq_call_results_contact_ended` (`contact_id WHERE event_type =
+  'CONTACT_ENDED'`) jest wymagany w bazie docelowej jako bariera bezpieczeństwa przy równoległych
+  konsumentach. `WHERE NOT EXISTS` jest "fast-path" w normalnym przepływie (sekwencyjny
+  redelivery), ale bez unique index concurrent duplikat nadal przejdzie. Patrz `init.sql` w
+  katalogu `crm-demo-db/`.
 
 Wymagany manifest (fragment):
 

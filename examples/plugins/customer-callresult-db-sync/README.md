@@ -195,13 +195,32 @@ CREATE TABLE call_results (
     status           VARCHAR(32),            -- NULL dla event_type='DISPOSITION_SET'
     agent_id         UUID,
     disposition_code VARCHAR(64),            -- NULL dla event_type='CONTACT_ENDED'
-    occurred_at      TIMESTAMP NOT NULL             -- czas lokalny Europe/Warsaw (nie UTC)
+    occurred_at      TIMESTAMP NOT NULL      -- czas lokalny Europe/Warsaw (nie UTC)
 );
+
+-- Composite index optymalizujący subquery WHERE NOT EXISTS (contact_id = ? AND event_type = ?)
+CREATE INDEX idx_call_results_contact_id     ON call_results (contact_id);
+CREATE INDEX idx_call_results_occurred_at    ON call_results (occurred_at);
+CREATE INDEX idx_call_results_event_type     ON call_results (event_type);
+CREATE INDEX idx_call_results_contact_event  ON call_results (contact_id, event_type);
+
+-- Partial unique index: gwarantuje co najwyżej jeden wiersz CONTACT_ENDED per kontakt.
+-- WHERE NOT EXISTS w pluginie jest "fast-path" omijającym wyjątek w normalnym przepływie;
+-- ten index jest barierą bezpieczeństwa przy równoległych konsumentach kolejki (at-least-once).
+CREATE UNIQUE INDEX uq_call_results_contact_ended
+    ON call_results (contact_id)
+    WHERE event_type = 'CONTACT_ENDED';
 ```
 
-Ta tabela musi istnieć w bazie docelowej **przed** pierwszym wywołaniem pluginu — plugin nigdy
-nie tworzy ani nie migrowuje schematu (poza zakresem `DbEgressClient`, kontrakt SDK to tylko
-`executeUpdate`).
+Ta tabela (z indeksami) musi istnieć w bazie docelowej **przed** pierwszym wywołaniem pluginu —
+plugin nigdy nie tworzy ani nie migrowuje schematu (poza zakresem `DbEgressClient`, kontrakt SDK
+to tylko `executeUpdate`).
+
+> **Dlaczego partial unique index, skoro jest już `WHERE NOT EXISTS`?**
+> `WHERE NOT EXISTS` jest atomowy w sekwencyjnym przepływie (redelivery RabbitMQ), ale przy
+> wielu równoległych konsumentach dwa wywołania mogą oba przejść subquery przed commitem
+> któregokolwiek z nich. Unique index zamyka ten scenariusz: concurrent duplikat generuje
+> `RuntimeException` → catch-blok go loguje, kontakt ACK-owany — brak NACK i brak retry.
 
 ### Known limitation: tylko silniki JDBC dostępne na classpath backendu
 

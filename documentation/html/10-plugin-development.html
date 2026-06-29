@@ -818,7 +818,14 @@ zależności inne niż <code>plugin-sdk</code>), policz <code>SHA-256</code> zaw
 <code>Timestamp.from</code> przechowuje epoch-millis; przy kolumnie <code>TIMESTAMP WITHOUT TIME ZONE</code>
 wyświetla wartości UTC (o 1–2h wcześniej niż czas Polski).</li>
 <li><code>contact.endedAt()</code> jest preferowane nad <code>e.occurredAt()</code> — jest to znacznik z DB ustalony
-przez event webhooka Twilio, nie czas publikacji na kolejkę.</li>
+przez event webhooka Twilio, nie czas publikacji na kolejkę. Gdy oba są null (kontakt bez
+znacznika czasu zakończenia), plugin loguje ostrzeżenie z <code>contactId</code> i pomija INSERT zamiast
+propagować naruszenie NOT NULL do RabbitMQ jako NACK.</li>
+<li><strong>Partial unique index</strong> <code>uq_call_results_contact_ended</code> (<code>contact_id WHERE event_type =
+'CONTACT_ENDED'</code>) jest wymagany w bazie docelowej jako bariera bezpieczeństwa przy równoległych
+konsumentach. <code>WHERE NOT EXISTS</code> jest &quot;fast-path&quot; w normalnym przepływie (sekwencyjny
+redelivery), ale bez unique index concurrent duplikat nadal przejdzie. Patrz <code>init.sql</code> w
+katalogu <code>crm-demo-db/</code>.</li>
 </ul>
 <p>Wymagany manifest (fragment):</p>
 <pre><code class="language-json">{

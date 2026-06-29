@@ -58,6 +58,7 @@ export class ContactTabStore {
       isActive: false,
       startedAt: new Date(),
       direction: 'OUTBOUND' as CallDirection,
+      customerId: payload.customerId,
     });
   }
 

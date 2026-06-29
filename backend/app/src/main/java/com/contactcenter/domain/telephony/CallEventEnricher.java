@@ -194,8 +194,13 @@ class CallEventEnricher {
                     .pluginWarning(pluginResult.warning())
                     .build();
 
-            // Unicast do agenta z danymi klienta (nadpisuje wcześniejszy event bez danych)
-            broadcaster.sendToUser(callEvent.getAgentId(), WebSocketEvent.callIncoming(enrichedEvent));
+            // Unicast do agenta z danymi klienta (nadpisuje wcześniejszy event bez danych).
+            // Zachowaj oryginalny typ eventu: CALL_OUTBOUND musi dotrzeć jako CALL_OUTBOUND,
+            // żeby frontend zaktualizował customerId na istniejącym tabie wychodzącym.
+            WebSocketEvent enrichedWsEvent = isOutbound
+                    ? WebSocketEvent.callOutbound(enrichedEvent)
+                    : WebSocketEvent.callIncoming(enrichedEvent);
+            broadcaster.sendToUser(callEvent.getAgentId(), enrichedWsEvent);
 
             log.info("[CliEnricher] Wzbogacony {} wysłany: callId={}, agentId={}, customerFound={}, pluginData={}",
                     callEvent.getEventType(), callEvent.getCallId(), callEvent.getAgentId(),

@@ -821,8 +821,7 @@ wyświetla wartości UTC (o 1–2h wcześniej niż czas Polski).</li>
 przez event webhooka Twilio, nie czas publikacji na kolejkę. Gdy oba są null (kontakt bez
 znacznika czasu zakończenia), plugin loguje ostrzeżenie z <code>contactId</code> i pomija INSERT zamiast
 propagować naruszenie NOT NULL do RabbitMQ jako NACK.</li>
-<li><strong>Partial unique index</strong> <code>uq_call_results_contact_ended</code> (<code>contact_id WHERE event_type =
-'CONTACT_ENDED'</code>) jest wymagany w bazie docelowej jako bariera bezpieczeństwa przy równoległych
+<li><strong>Partial unique index</strong> <code>uq_call_results_contact_ended</code> (<code>contact_id WHERE event_type = &#39;CONTACT_ENDED&#39;</code>) jest wymagany w bazie docelowej jako bariera bezpieczeństwa przy równoległych
 konsumentach. <code>WHERE NOT EXISTS</code> jest &quot;fast-path&quot; w normalnym przepływie (sekwencyjny
 redelivery), ale bez unique index concurrent duplikat nadal przejdzie. Patrz <code>init.sql</code> w
 katalogu <code>crm-demo-db/</code>.</li>
@@ -891,6 +890,11 @@ szablonu URL przez UI admina: <a href="../examples/plugins/crm-url-launcher/"><c
 <hr>
 <h2>11. Powiązane materiały</h2>
 <ul>
+<li><strong><a href="plugin/plugin-development-guide.md">Plugin Developer Guide</a></strong> (<a href="plugin/plugin-development-guide.html">HTML</a>)
+— kompletna referencja techniczna dla zewnętrznych dostawców pluginów: pełne API SDK,
+wszystkie extension pointy, manifest, model uprawnień, integracja UI, procedura checksumu,
+REST API, trzy przykłady z omówieniem. Czytaj ten dokument jeśli budujesz plugin — niniejszy
+rozdział 10 opisuje mechanizm od strony platformy, guide opisuje go od strony dostawcy.</li>
 <li><code>ARCHITECTURE.md</code>, sekcja 11 — pełny projekt architektoniczny, ADR-09…ADR-13, RT-09…RT-14</li>
 <li><code>EPIC-28-PLAN.md</code> — plan wykonania i pełna lista ticketów (DB-042…045, BE-097…107, FE-097…100)</li>
 <li><code>TASKS-BACKEND.md</code>/<code>TASKS-FRONTEND.md</code> — szczegółowe specyfikacje per ticket, z notatkami o

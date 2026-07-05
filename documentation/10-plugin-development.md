@@ -710,6 +710,11 @@ szablonu URL przez UI admina: [`crm-url-launcher/`](../examples/plugins/crm-url-
 
 ## 11. Powiązane materiały
 
+- **[Plugin Developer Guide](plugin/plugin-development-guide.md)** ([HTML](plugin/plugin-development-guide.html))
+  — kompletna referencja techniczna dla zewnętrznych dostawców pluginów: pełne API SDK,
+  wszystkie extension pointy, manifest, model uprawnień, integracja UI, procedura checksumu,
+  REST API, trzy przykłady z omówieniem. Czytaj ten dokument jeśli budujesz plugin — niniejszy
+  rozdział 10 opisuje mechanizm od strony platformy, guide opisuje go od strony dostawcy.
 - `ARCHITECTURE.md`, sekcja 11 — pełny projekt architektoniczny, ADR-09…ADR-13, RT-09…RT-14
 - `EPIC-28-PLAN.md` — plan wykonania i pełna lista ticketów (DB-042…045, BE-097…107, FE-097…100)
 - `TASKS-BACKEND.md`/`TASKS-FRONTEND.md` — szczegółowe specyfikacje per ticket, z notatkami o

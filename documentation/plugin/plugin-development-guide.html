@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Center SaaS — Plugin Developer Guide – Contact Center SaaS</title>
+<style>
+  :root { --max-width: 980px; --fg: #1a1a1a; --bg: #fff; --accent: #2563eb; --code-bg: #f4f4f5; --border: #e5e7eb; --nav-bg: #f9fafb; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; line-height: 1.6; }
+  .layout { display: flex; max-width: var(--max-width); margin: 0 auto; gap: 0; }
+  nav { width: 260px; flex-shrink: 0; background: var(--nav-bg); border-right: 1px solid var(--border); padding: 1.5rem 1rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  nav h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin: 0 0 .75rem; }
+  nav a { display: block; font-size: .85rem; color: var(--fg); text-decoration: none; padding: .25rem .5rem; border-radius: 4px; margin-bottom: .1rem; }
+  nav a:hover { background: var(--border); color: var(--accent); }
+  nav .nav-section { margin-top: 1rem; }
+  main { padding: 2.5rem 2rem; max-width: 100%; overflow-x: auto; flex: 1; min-width: 0; }
+  h1 { border-bottom: 2px solid var(--border); padding-bottom: .3em; font-size: 2rem; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .2em; margin-top: 2.5em; font-size: 1.5rem; }
+  h3 { margin-top: 1.8em; font-size: 1.15rem; }
+  h4 { margin-top: 1.4em; font-size: 1rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: var(--code-bg); padding: .15em .35em; border-radius: 4px; font-size: .875em; font-family: "Fira Code", "Cascadia Code", Consolas, "Courier New", monospace; }
+  pre { background: var(--code-bg); padding: 1em 1.25em; border-radius: 8px; overflow-x: auto; border: 1px solid var(--border); }
+  pre code { background: none; padding: 0; font-size: .85em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.25em 0; font-size: .9em; }
+  th, td { border: 1px solid var(--border); padding: .55em .75em; text-align: left; }
+  th { background: var(--code-bg); font-weight: 600; }
+  tr:nth-child(even) td { background: #fafafa; }
+  blockquote { border-left: 4px solid var(--accent); margin: 1.25em 0; padding: .5em 1em; background: #eff6ff; border-radius: 0 6px 6px 0; }
+  blockquote p { margin: 0; }
+  .badge-blocking { background: #fee2e2; color: #991b1b; padding: .1em .4em; border-radius: 4px; font-size: .8em; font-weight: 600; }
+  .badge-async { background: #d1fae5; color: #065f46; padding: .1em .4em; border-radius: 4px; font-size: .8em; font-weight: 600; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+  @media (max-width: 768px) { nav { display: none; } main { padding: 1.5rem 1rem; } }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <h3>Plugin Developer Guide</h3>
+  <a href="#1-czym-jest-plugin">1. Czym jest plugin</a>
+  <a href="#2-wymagania-wstępne">2. Wymagania wstępne</a>
+  <a href="#3-konfiguracja-projektu-maven">3. Konfiguracja Maven</a>
+  <a href="#4-pluginentrypoint--kontrakt-pluginu">4. PluginEntryPoint</a>
+  <a href="#5-punkty-rozszerzeń">5. Punkty rozszerzeń</a>
+  <a href="#6-plugincontext--dostęp-do-platformy">6. PluginContext</a>
+  <a href="#7-modele-danych-sdk">7. Modele danych SDK</a>
+  <a href="#8-manifest-pluginu">8. Manifest pluginu</a>
+  <a href="#9-model-uprawnień">9. Model uprawnień</a>
+  <a href="#10-ograniczenia-bytecode-skan-asm">10. Ograniczenia bytecode</a>
+  <a href="#11-integracja-ui--panel-agenta-i-pluginuisdk">11. Integracja UI</a>
+  <a href="#12-konfiguracja-per-tenant">12. Konfiguracja per-tenant</a>
+  <a href="#13-budowa-i-obliczanie-checksumu">13. Budowa i checksum</a>
+  <a href="#14-instalacja-i-zarządzanie-cyklem-życia">14. Instalacja</a>
+  <a href="#15-rest-api--referencja">15. REST API</a>
+  <a href="#16-przykłady-pluginów">16. Przykłady</a>
+  <a href="#17-dobre-praktyki-i-antywzorce">17. Dobre praktyki</a>
+  <a href="#18-znane-ograniczenia">18. Znane ograniczenia</a>
+</nav>
+<main>
+<h1>Contact Center SaaS — Plugin Developer Guide</h1>
+<blockquote>
+<p><strong>Audytorium:</strong> zewnętrzni dostawcy tworzący integracje (pluginy) dla platformy Contact Center SaaS.<br>Dokument opisuje <strong>aktualny stan API</strong> — kod jest źródłem prawdy. Wersja: SDK <code>1.x</code>, platforma <code>EPIC-28</code>.</p>
+</blockquote>
+<hr>
+<h2>Spis treści</h2>
+<ol>
+<li><a href="#1-czym-jest-plugin">Czym jest plugin</a></li>
+<li><a href="#2-wymagania-wst%C4%99pne">Wymagania wstępne</a></li>
+<li><a href="#3-konfiguracja-projektu-maven">Konfiguracja projektu Maven</a></li>
+<li><a href="#4-pluginentrypoint--kontrakt-pluginu">PluginEntryPoint — kontrakt pluginu</a></li>
+<li><a href="#5-punkty-rozszerze%C5%84">Punkty rozszerzeń</a></li>
+<li><a href="#6-plugincontext--dost%C4%99p-do-platformy">PluginContext — dostęp do platformy</a></li>
+<li><a href="#7-modele-danych-sdk">Modele danych SDK</a></li>
+<li><a href="#8-manifest-pluginu">Manifest pluginu</a></li>
+<li><a href="#9-model-uprawnie%C5%84">Model uprawnień</a></li>
+<li><a href="#10-ograniczenia-bytecode-skan-asm">Ograniczenia bytecode (skan ASM)</a></li>
+<li><a href="#11-integracja-ui--panel-agenta-i-pluginuisdk">Integracja UI — panel agenta i PluginUiSdk</a></li>
+<li><a href="#12-konfiguracja-per-tenant">Konfiguracja per-tenant</a></li>
+<li><a href="#13-budowa-i-obliczanie-checksumu">Budowa i obliczanie checksumu</a></li>
+<li><a href="#14-instalacja-i-zarz%C4%85dzanie-cyklem-%C5%BCycia">Instalacja i zarządzanie cyklem życia</a></li>
+<li><a href="#15-rest-api--referencja">REST API — referencja</a></li>
+<li><a href="#16-przyk%C5%82ady-plugin%C3%B3w">Przykłady pluginów</a></li>
+<li><a href="#17-dobre-praktyki-i-antywzorce">Dobre praktyki i antywzorce</a></li>
+<li><a href="#18-znane-ograniczenia">Znane ograniczenia</a></li>
+</ol>
+<hr>
+<h2>1. Czym jest plugin</h2>
+<p>Plugin to plik <strong>JAR</strong> dostarczany przez zewnętrznego dostawcę i wgrywany przez administratora tenanta z panelu (<code>/supervisor/settings/plugins</code>). Rozszerza zachowanie platformy w pięciu, ściśle zdefiniowanych <strong>punktach rozszerzeń</strong> (extension points) — zdarzeniach platformy, przy których plugin może wykonać własną logikę.</p>
+<p><strong>Typowe zastosowania:</strong></p>
+<ul>
+<li>Lookup danych klienta w zewnętrznym CRM tuż przed połączeniem agenta z kontaktem</li>
+<li>Zapis wyniku rozmowy i dyspozycji do zewnętrznej bazy danych</li>
+<li>Synchronizacja klientów między platformą a zewnętrznym systemem</li>
+<li>Budowanie i otwieranie URL-i CRM z kontekstem bieżącej rozmowy</li>
+</ul>
+<p><strong>Kluczowe cechy modelu:</strong></p>
+<ul>
+<li><strong>Izolacja in-process</strong> — plugin wykonuje się w tym samym JVM co backend, w dedykowanym <code>ClassLoader</code>, bez dostępu do klas Springa/JPA</li>
+<li><strong>Zero dostępu do <code>ApplicationContext</code></strong> — jedyny dostęp do platformy to obiekty SDK (<code>PluginContext</code>, <code>HttpEgressClient</code>, <code>DbEgressClient</code>)</li>
+<li><strong>Multi-tenancy</strong> — jedna instancja pluginu per <code>(tenant_id, plugin_key)</code>; <code>tenantId</code> jest zawsze ustalany przez platformę, plugin nie ma wpływu na to, czyje dane zobaczy</li>
+<li><strong>Izolacja bezpieczeństwa przez uprawnienia</strong> — każdy URL HTTP i każdy host:port bazy danych wymagają jawnej deklaracji w manifeście i zatwierdzenia przez administratora tenanta</li>
+</ul>
+<hr>
+<h2>2. Wymagania wstępne</h2>
+<table>
+<thead>
+<tr>
+<th>Wymaganie</th>
+<th>Wersja</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>JDK</td>
+<td>21 lub nowszy</td>
+</tr>
+<tr>
+<td>Maven</td>
+<td>3.8+</td>
+</tr>
+<tr>
+<td><code>plugin-sdk</code> JAR</td>
+<td>1.0.0-SNAPSHOT (dostarczany przez platformę lub instalowany lokalnie z repozytorium)</td>
+</tr>
+</tbody></table>
+<p>Uzyskaj <code>plugin-sdk</code> z wewnętrznego repozytorium Maven platformy (Nexus/Artifactory) lub — w trybie deweloperskim — zainstaluj go lokalnie ze źródeł:</p>
+<pre><code class="language-bash"># Z katalogu głównego repozytorium platformy:
+cd backend
+mvn install -pl plugin-sdk
+</code></pre>
+<p>Instaluje <code>com.contactcenter:contact-center-plugin-sdk:1.0.0-SNAPSHOT</code> do lokalnego <code>~/.m2</code>.</p>
+<hr>
+<h2>3. Konfiguracja projektu Maven</h2>
+<p>Plugin to <strong>niezależny projekt Maven</strong> — nie moduł aplikacji hostującej. Minimalne <code>pom.xml</code>:</p>
+<pre><code class="language-xml">&lt;project xmlns=&quot;http://maven.apache.org/POM/4.0.0&quot; ...&gt;
+  &lt;modelVersion&gt;4.0.0&lt;/modelVersion&gt;
+
+  &lt;groupId&gt;com.example&lt;/groupId&gt;
+  &lt;artifactId&gt;my-crm-plugin&lt;/artifactId&gt;
+  &lt;version&gt;1.0.0&lt;/version&gt;
+  &lt;packaging&gt;jar&lt;/packaging&gt;
+
+  &lt;properties&gt;
+    &lt;maven.compiler.release&gt;21&lt;/maven.compiler.release&gt;
+    &lt;project.build.sourceEncoding&gt;UTF-8&lt;/project.build.sourceEncoding&gt;
+  &lt;/properties&gt;
+
+  &lt;dependencies&gt;
+    &lt;!--
+      Jedyna zależność deweloperska — scope=provided, bo SDK jest dostarczany przez platformę
+      w runtime (ClassLoader pluginu widzi tylko com.contactcenter.pluginsdk.*).
+      NIGDY nie pakuj klas SDK do własnego JAR-a.
+    --&gt;
+    &lt;dependency&gt;
+      &lt;groupId&gt;com.contactcenter&lt;/groupId&gt;
+      &lt;artifactId&gt;contact-center-plugin-sdk&lt;/artifactId&gt;
+      &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+      &lt;scope&gt;provided&lt;/scope&gt;
+    &lt;/dependency&gt;
+  &lt;/dependencies&gt;
+
+  &lt;build&gt;
+    &lt;plugins&gt;
+      &lt;!-- Wymagane gdy brak &lt;parent&gt; — domyślna wersja ignoruje maven.compiler.release --&gt;
+      &lt;plugin&gt;
+        &lt;groupId&gt;org.apache.maven.plugins&lt;/groupId&gt;
+        &lt;artifactId&gt;maven-compiler-plugin&lt;/artifactId&gt;
+        &lt;version&gt;3.13.0&lt;/version&gt;
+      &lt;/plugin&gt;
+      &lt;!--
+        addMavenDescriptor=false zapewnia reprodukowalność JAR-a (checksumSha256
+        musi być stabilny między budowami na tym samym środowisku).
+      --&gt;
+      &lt;plugin&gt;
+        &lt;groupId&gt;org.apache.maven.plugins&lt;/groupId&gt;
+        &lt;artifactId&gt;maven-jar-plugin&lt;/artifactId&gt;
+        &lt;configuration&gt;
+          &lt;archive&gt;&lt;addMavenDescriptor&gt;false&lt;/addMavenDescriptor&gt;&lt;/archive&gt;
+        &lt;/configuration&gt;
+      &lt;/plugin&gt;
+    &lt;/plugins&gt;
+  &lt;/build&gt;
+&lt;/project&gt;
+</code></pre>
+<p><strong>Jeśli plugin ma dodatkowe zależności</strong> (np. biblioteka JSON), dołącz je do JAR-a jako fat JAR (maven-shade-plugin lub maven-assembly-plugin). Pamiętaj, że żadna z dołączonych klas nie może używać API z listy zabronionych (zob. <a href="#10-ograniczenia-bytecode-skan-asm">§10</a>).</p>
+<hr>
+<h2>4. PluginEntryPoint — kontrakt pluginu</h2>
+<p>Każdy plugin <strong>musi</strong> zawierać klasę implementującą <code>com.contactcenter.pluginsdk.PluginEntryPoint</code>:</p>
+<pre><code class="language-java">package com.contactcenter.pluginsdk;
+
+public interface PluginEntryPoint {
+
+    // Wymagane — wołane przy aktywacji instalacji (enable)
+    void onActivate(PluginContext context);
+
+    // Wymagane — wołane przy dezaktywacji lub odinstalowaniu
+    void onDeactivate();
+
+    // Opcjonalne — override tylko dla deklarowanych extension pointów:
+    default PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) {
+        return PreContactConnectResult.empty();
+    }
+    default void onPostContactEnd(PluginContext ctx, ContactEvent e) { }
+    default CustomerSyncResult onCustomerSync(PluginContext ctx, CustomerSyncRequest req) {
+        return CustomerSyncResult.noop();
+    }
+    default void onDispositionSet(PluginContext ctx, DispositionEvent e) { }
+    default ManualActionResult onManualAction(PluginContext ctx, ManualActionRequest req) {
+        return ManualActionResult.unsupported();
+    }
+}
+</code></pre>
+<p><strong>Zasady dotyczące klasy implementującej:</strong></p>
+<ul>
+<li>Musi posiadać <strong>bezargumentowy konstruktor publiczny</strong> — platforma nie obsługuje wstrzykiwania zależności</li>
+<li>Platforma tworzy <strong>jedną instancję</strong> per <code>(tenant_id, plugin_key)</code> — instancja jest współdzielona między wywołaniami tego samego tenanta</li>
+<li>Pola instancji mogą przechowywać stan (np. cache konfiguracji), ale muszą być thread-safe — callbacki mogą być wołane równolegle z różnych wątków</li>
+<li>Wskazujesz tę klasę w manifeście jako <code>entryPointClass</code> (pełna kwalifikowana nazwa, np. <code>com.example.MyCrmPlugin</code>)</li>
+</ul>
+<h3>4.1 Cykl <code>onActivate</code> / <code>onDeactivate</code></h3>
+<p><strong><code>onActivate(PluginContext context)</code></strong> — wołane synchronicznie, gdy administrator tenanta kliknie &quot;Włącz&quot;. To jedyne miejsce do:</p>
+<ul>
+<li>Walidacji wymaganej konfiguracji (<code>context.config()</code>)</li>
+<li>Inicjalizacji zasobów (np. sprawdzenie połączenia z zewnętrznym systemem)</li>
+</ul>
+<p>Rzucenie wyjątku z <code>onActivate</code> <strong>przerywa aktywację</strong> — instalacja pozostaje wyłączona, a komunikat wyjątku jest widoczny dla administratora. Jest to poprawne zachowanie; użyj go do sygnalizowania brakującej konfiguracji.</p>
+<p><strong><code>onDeactivate()</code></strong> — wołane gdy administrator wyłączy lub odinstaluje plugin. Zwolnij zasoby zajęte w <code>onActivate</code>. Brak <code>PluginContext</code> — do czasu tego wywołania facade jest uznawana za nieważną.</p>
+<hr>
+<h2>5. Punkty rozszerzeń</h2>
+<h3>Tabela przeglądowa</h3>
+<table>
+<thead>
+<tr>
+<th>Extension point</th>
+<th>Callback</th>
+<th>Tryb</th>
+<th>Timeout (domyślny)</th>
+<th>Zachowanie przy timeout/błędzie</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>PRE_CONTACT_CONNECT</code></td>
+<td><code>onPreContactConnect</code></td>
+<td><strong>blocking</strong></td>
+<td>2 000 ms</td>
+<td>Connect następuje i tak; agent dostaje <code>PreContactConnectResult.empty()</code></td>
+</tr>
+<tr>
+<td><code>MANUAL_ACTION</code></td>
+<td><code>onManualAction</code></td>
+<td><strong>blocking</strong></td>
+<td>5 000 ms</td>
+<td>Agent dostaje HTTP <code>504</code> z ciałem JSON</td>
+</tr>
+<tr>
+<td><code>POST_CONTACT_END</code></td>
+<td><code>onPostContactEnd</code></td>
+<td>fire-and-forget (RabbitMQ)</td>
+<td>30 000 ms</td>
+<td>Wynik tylko w logu wywołań; brak efektu dla agenta</td>
+</tr>
+<tr>
+<td><code>CUSTOMER_SYNC</code></td>
+<td><code>onCustomerSync</code></td>
+<td>fire-and-forget (RabbitMQ)</td>
+<td>30 000 ms</td>
+<td>Jak wyżej</td>
+</tr>
+<tr>
+<td><code>DISPOSITION_SET</code></td>
+<td><code>onDispositionSet</code></td>
+<td>fire-and-forget (RabbitMQ)</td>
+<td>30 000 ms</td>
+<td>Jak wyżej</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Reguła nadrzędna:</strong> plugin <strong>nigdy nie może zablokować ani spowolnić core flow platformy</strong>. Każde wywołanie jest opakowane <code>catch(Throwable)</code> i timeoutem — rzucenie <code>Error</code> i zawieszenie wątku są obsługiwane przez hosta.</p>
+</blockquote>
+<h3>5.1 PRE_CONTACT_CONNECT</h3>
+<p>Wywoływany tuż <strong>przed</strong> połączeniem agenta z kontaktem (przychodzące połączenie, chat, e-mail). Wynik (<code>PreContactConnectResult</code>) jest prezentowany agentowi w panelu klienta.</p>
+<pre><code class="language-java">@Override
+public PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) {
+    if (e.customerId() == null) {
+        return PreContactConnectResult.empty(); // nieznany dzwoniący
+    }
+    try {
+        CustomerView customer = ctx.getCustomer(e.customerId());
+        return new PreContactConnectResult(
+            Map.of(
+                &quot;segment&quot;, &quot;VIP&quot;,
+                &quot;ostatniZakup&quot;, &quot;2026-05-01&quot;,
+                &quot;notatka&quot;, customer.firstName() + &quot; — priorytetowy klient&quot;
+            ),
+            null // brak ostrzeżenia
+        );
+    } catch (RuntimeException ex) {
+        ctx.logger().warn(&quot;Lookup klienta nie powiódł się: &quot; + ex.getMessage());
+        return PreContactConnectResult.empty();
+    }
+}
+</code></pre>
+<p><code>displayData</code> to dowolna mapa <code>String → Object</code> (musi być serializowalna do JSON). <code>warning</code> to opcjonalny komunikat wyświetlany agentowi jako ostrzeżenie (np. <code>&quot;Klient ma otwartą reklamację&quot;</code>).</p>
+<h3>5.2 POST_CONTACT_END</h3>
+<p>Wywoływany asynchronicznie po zakończeniu kontaktu, przez kolejkę RabbitMQ (<code>cc.queue.plugin-invocation</code>). Nie blokuje pulpitu agenta.</p>
+<pre><code class="language-java">@Override
+public void onPostContactEnd(PluginContext ctx, ContactEvent e) {
+    try {
+        ContactView contact = ctx.getContact(e.contactId());
+        // zapis do zewnętrznego systemu...
+        ctx.logger().info(&quot;Zapisano wynik kontaktu: &quot; + contact.contactId());
+    } catch (RuntimeException ex) {
+        ctx.logger().warn(&quot;Zapis wyniku nie powiódł się: &quot; + ex.getMessage());
+        // NIE rzucaj dalej — nack na RabbitMQ może spowodować redelivery w pętli
+    }
+}
+</code></pre>
+<blockquote>
+<p><strong>At-least-once delivery:</strong> RabbitMQ może dostarczyć ten sam event wielokrotnie (przy restarcie procesu, sieci itp.). Implementuj operacje idempotentnie — np. <code>INSERT ... WHERE NOT EXISTS</code> zamiast prostego <code>INSERT</code>.</p>
+</blockquote>
+<h3>5.3 CUSTOMER_SYNC</h3>
+<p>Wywoływany asynchronicznie, gdy platforma prosi o synchronizację rekordu klienta z zewnętrznym systemem. Powód (<code>reason</code>) to string — np. <code>&quot;CUSTOMER_CREATED&quot;</code>, <code>&quot;CUSTOMER_UPDATED&quot;</code>, <code>&quot;MANUAL_REQUEST&quot;</code>.</p>
+<pre><code class="language-java">@Override
+public CustomerSyncResult onCustomerSync(PluginContext ctx, CustomerSyncRequest req) {
+    try {
+        CustomerView customer = ctx.getCustomer(req.customerId());
+        // synchronizacja z CRM...
+        return new CustomerSyncResult(true, &quot;Zsynchronizowano z CRM (ID: crm-123)&quot;);
+    } catch (RuntimeException ex) {
+        return new CustomerSyncResult(false, &quot;Błąd synchronizacji: &quot; + ex.getMessage());
+    }
+}
+</code></pre>
+<p>Wynik (<code>synced=true</code>) może być odzwierciedlony w UI admina jako &quot;ostatnia synchronizacja o ...&quot;.</p>
+<h3>5.4 DISPOSITION_SET</h3>
+<p>Wywoływany asynchronicznie, gdy agent ustawi dyspozycję (kod wyniku) kontaktu.</p>
+<pre><code class="language-java">@Override
+public void onDispositionSet(PluginContext ctx, DispositionEvent e) {
+    try {
+        // e.dispositionCode() — kod ustawiony przez agenta, np. &quot;RESOLVED&quot;, &quot;CALLBACK&quot;
+        // e.agentId() — który agent ustawił dyspozycję
+        // zapis do zewnętrznego systemu ticketingowego...
+    } catch (RuntimeException ex) {
+        ctx.logger().warn(&quot;Błąd zapisu dyspozycji: &quot; + ex.getMessage());
+    }
+}
+</code></pre>
+<h3>5.5 MANUAL_ACTION</h3>
+<p>Wywoływany <strong>synchronicznie</strong>, gdy agent kliknie przycisk pluginu w panelu UI (toolbar lub panel boczny). Agent czeka na odpowiedź. Identyfikuje akcję przez <code>actionId</code> zgodny z deklaracją <code>manualActions</code> w manifeście.</p>
+<pre><code class="language-java">@Override
+public ManualActionResult onManualAction(PluginContext ctx, ManualActionRequest req) {
+    return switch (req.actionId()) {
+        case &quot;open-ticket&quot; -&gt; handleOpenTicket(ctx, req);
+        case &quot;get-crm-context&quot; -&gt; handleGetCrmContext(ctx, req);
+        default -&gt; ManualActionResult.unsupported();
+    };
+}
+
+private ManualActionResult handleOpenTicket(PluginContext ctx, ManualActionRequest req) {
+    try {
+        String url = &quot;https://helpdesk.example.com/ticket/new?customer=&quot; + req.customerId();
+        return new ManualActionResult(true, Map.of(&quot;url&quot;, url), null);
+    } catch (RuntimeException ex) {
+        ctx.logger().error(&quot;Błąd otwierania ticketu&quot;, ex);
+        return new ManualActionResult(false, Map.of(), &quot;Nie można otworzyć ticketu: &quot; + ex.getMessage());
+    }
+}
+</code></pre>
+<hr>
+<h2>6. PluginContext — dostęp do platformy</h2>
+<p><code>PluginContext</code> to <strong>jedyny</strong> obiekt, przez który plugin sięga do platformy. Budowany jest na nowo przy każdym wywołaniu, z <code>tenantId</code> ustalonym przez hosta.</p>
+<pre><code class="language-java">public interface PluginContext {
+    CustomerView   getCustomer(UUID customerId);
+    void           updateCustomerFields(UUID customerId, Map&lt;String, Object&gt; customFields);
+    ContactView    getContact(UUID contactId);
+    void           appendContactNote(UUID contactId, String note);
+    HttpEgressClient httpClient();
+    DbEgressClient   dbClient();
+    PluginLogger     logger();
+    PluginConfig     config();
+}
+</code></pre>
+<h3>6.1 Odczyt i zapis danych klienta</h3>
+<pre><code class="language-java">// Odczyt snapshotu klienta (niemutowalny record)
+CustomerView customer = ctx.getCustomer(customerId);
+
+// Zapis danych pluginu do namespace&#39;u pluginu w custom_fields klienta
+ctx.updateCustomerFields(customerId, Map.of(
+    &quot;lastCrmId&quot;,   &quot;CRM-12345&quot;,
+    &quot;syncedAt&quot;,    Instant.now().toString()
+));
+</code></pre>
+<p><code>updateCustomerFields</code> zapisuje wyłącznie do <code>customer.custom_fields.plugins.&lt;pluginKey&gt;</code> — nigdy do typowanych kolumn platformy ani do namespace&#39;u innego pluginu. Odczyt własnych danych: <code>customer.customFields().get(&quot;plugins&quot;).get(pluginKey)</code>.</p>
+<h3>6.2 Odczyt kontaktu i dopisywanie notatek</h3>
+<pre><code class="language-java">ContactView contact = ctx.getContact(contactId);
+
+// Dopisz notatkę do historii kontaktu (widoczna agentowi i supervisorowi)
+ctx.appendContactNote(contactId, &quot;Klient zsynchronizowany z CRM — ID: CRM-12345&quot;);
+</code></pre>
+<h3>6.3 Klient HTTP (<code>HttpEgressClient</code>)</h3>
+<p>Jedyny sposób wykonania zewnętrznych żądań HTTP — tylko <code>GET</code> i <code>POST</code>, tylko do hostów zadeklarowanych jako <code>http:egress:&lt;host&gt;</code> w <code>granted_permissions</code>.</p>
+<pre><code class="language-java">HttpEgressClient http = ctx.httpClient();
+
+HttpResponse resp = http.get(
+    &quot;https://api.external-crm.example/customers/&quot; + customerId,
+    Map.of(&quot;Authorization&quot;, &quot;Bearer &quot; + ctx.config().getOrDefault(&quot;apiKey&quot;, &quot;&quot;))
+);
+
+if (resp.statusCode() == 200) {
+    String body = new String(resp.body(), StandardCharsets.UTF_8);
+    // przetworzenie odpowiedzi...
+}
+
+// POST z ciałem JSON
+byte[] requestBody = &quot;{\&quot;customerId\&quot;:\&quot;...\&quot;}&quot; .getBytes(StandardCharsets.UTF_8);
+HttpResponse postResp = http.post(
+    &quot;https://api.external-crm.example/sync&quot;,
+    Map.of(
+        &quot;Content-Type&quot;, &quot;application/json&quot;,
+        &quot;Authorization&quot;, &quot;Bearer &quot; + ctx.config().get(&quot;apiKey&quot;).orElseThrow()
+    ),
+    requestBody
+);
+</code></pre>
+<p>Wywołanie hosta spoza listy uprawnień skutkuje <code>RuntimeException</code> przed wysłaniem żądania.</p>
+<h3>6.4 Klient bazy danych zewnętrznej (<code>DbEgressClient</code>)</h3>
+<p>Pozwala wykonać parametryzowany SQL (<code>INSERT</code>/<code>UPDATE</code>/<code>DELETE</code>) na zewnętrznej bazie danych tenanta — bez ujawniania credentiali pluginowi (host czyta je z <code>installation_config</code>).</p>
+<pre><code class="language-java">// Plugin NIGDY nie widzi JDBC URL ani hasła — tylko wywołuje:
+int rows = ctx.dbClient().executeUpdate(
+    &quot;INSERT INTO crm_log (contact_id, event_type, occurred_at) VALUES (?, ?, ?)&quot;,
+    List.of(contactId, &quot;CONTACT_ENDED&quot;, Timestamp.valueOf(localDateTime))
+);
+</code></pre>
+<p>Szczegóły konfiguracji kluczy <code>jdbcUrl</code>, <code>dbUsername</code>, <code>dbPassword</code> — zob. <a href="#12-konfiguracja-per-tenant">§12</a>.</p>
+<h3>6.5 Logger diagnostyczny</h3>
+<pre><code class="language-java">ctx.logger().info(&quot;Akcja wykonana pomyślnie&quot;);
+ctx.logger().warn(&quot;Brak wyników — kontynuuję z pustym stanem&quot;);
+ctx.logger().error(&quot;Nieoczekiwany błąd&quot;, exception);
+</code></pre>
+<p>Logi są przechwytywane przez platformę i zapisywane odrębnie od logów aplikacji. Widoczne w historii wywołań (<code>/api/supervisor/plugins/{id}/invocations</code>).</p>
+<hr>
+<h2>7. Modele danych SDK</h2>
+<p>Wszystkie modele to niemutowalne <code>record</code>y Java — nigdy encje JPA.</p>
+<h3>CustomerView</h3>
+<pre><code class="language-java">record CustomerView(
+    UUID           customerId,
+    String         firstName,      // null jeśli nieznane
+    String         lastName,       // null jeśli nieznane
+    List&lt;String&gt;   emails,         // never null, może być pusta
+    List&lt;String&gt;   phoneNumbers,   // E.164, never null, może być pusta
+    Map&lt;String, Object&gt; customFields, // custom_fields z bazy (w tym plugins.&lt;pluginKey&gt;)
+    Instant        createdAt
+) {}
+</code></pre>
+<h3>ContactView</h3>
+<pre><code class="language-java">record ContactView(
+    UUID    contactId,
+    UUID    customerId,   // null gdy kontakt nie jest powiązany z klientem
+    String  channel,      // &quot;VOICE&quot;, &quot;EMAIL&quot;, &quot;CHAT&quot;, &quot;SOCIAL&quot;
+    String  direction,    // &quot;INBOUND&quot;, &quot;OUTBOUND&quot;
+    String  status,       // &quot;QUEUED&quot;, &quot;ACTIVE&quot;, &quot;COMPLETED&quot;, ...
+    UUID    agentId,      // null gdy nieprzypisany
+    UUID    queueId,      // null gdy brak
+    Instant startedAt,
+    Instant endedAt       // null gdy kontakt wciąż trwa
+) {}
+</code></pre>
+<h3>ContactEvent (PRE_CONTACT_CONNECT / POST_CONTACT_END)</h3>
+<pre><code class="language-java">record ContactEvent(
+    UUID    contactId,
+    UUID    customerId,     // null gdy nieznany dzwoniący
+    String  extensionPoint, // &quot;PRE_CONTACT_CONNECT&quot; lub &quot;POST_CONTACT_END&quot;
+    Instant occurredAt
+) {}
+</code></pre>
+<h3>DispositionEvent</h3>
+<pre><code class="language-java">record DispositionEvent(
+    UUID    contactId,
+    UUID    customerId,      // null gdy nieznany
+    String  dispositionCode, // kod wybrany przez agenta, np. &quot;RESOLVED&quot;
+    UUID    agentId,
+    Instant setAt
+) {}
+</code></pre>
+<h3>CustomerSyncRequest</h3>
+<pre><code class="language-java">record CustomerSyncRequest(
+    UUID   customerId,
+    String reason  // &quot;CUSTOMER_CREATED&quot;, &quot;CUSTOMER_UPDATED&quot;, &quot;MANUAL_REQUEST&quot;
+) {}
+</code></pre>
+<h3>ManualActionRequest</h3>
+<pre><code class="language-java">record ManualActionRequest(
+    String             actionId,    // odpowiada manualActions[].actionId z manifestu
+    UUID               contactId,   // null gdy brak aktywnego kontaktu
+    UUID               customerId,  // null gdy nieznany
+    Map&lt;String, Object&gt; parameters  // parametry z UI (never null, może być pusta)
+) {}
+</code></pre>
+<h3>Typy wynikowe</h3>
+<pre><code class="language-java">// PRE_CONTACT_CONNECT — dane do wyświetlenia agentowi
+record PreContactConnectResult(Map&lt;String, Object&gt; displayData, String warning) {
+    static PreContactConnectResult empty() { ... }
+}
+
+// MANUAL_ACTION — wynik zwracany do UI agenta
+record ManualActionResult(boolean success, Map&lt;String, Object&gt; resultData, String message) {
+    static ManualActionResult unsupported() { ... }
+}
+
+// CUSTOMER_SYNC — wynik synchronizacji
+record CustomerSyncResult(boolean synced, String message) {
+    static CustomerSyncResult noop() { ... }
+}
+</code></pre>
+<hr>
+<h2>8. Manifest pluginu</h2>
+<p>Każdy JAR <strong>musi</strong> zawierać plik <code>META-INF/plugin-manifest.json</code>. Jest walidowany względem JSON Schema przy każdym uploadzie.</p>
+<h3>Pełny przykład manifestu</h3>
+<pre><code class="language-json">{
+  &quot;pluginKey&quot;:       &quot;acme-crm-sync&quot;,
+  &quot;displayName&quot;:     &quot;Acme CRM Sync&quot;,
+  &quot;version&quot;:         &quot;1.3.0&quot;,
+  &quot;vendor&quot;:          &quot;Acme Sp. z o.o.&quot;,
+  &quot;vendorContact&quot;:   &quot;support@acme.example&quot;,
+  &quot;sdkVersion&quot;:      &quot;1.x&quot;,
+  &quot;entryPointClass&quot;: &quot;com.acme.contactcenter.plugin.AcmeCrmPlugin&quot;,
+  &quot;extensionPoints&quot;: [
+    &quot;PRE_CONTACT_CONNECT&quot;,
+    &quot;POST_CONTACT_END&quot;,
+    &quot;CUSTOMER_SYNC&quot;,
+    &quot;DISPOSITION_SET&quot;,
+    &quot;MANUAL_ACTION&quot;
+  ],
+  &quot;permissions&quot;: [
+    &quot;customer:read&quot;,
+    &quot;customer:update&quot;,
+    &quot;contact:read&quot;,
+    &quot;contact:update&quot;,
+    &quot;http:egress:api.acme-crm.example&quot;,
+    &quot;db:egress:crm-db.internal:5432&quot;
+  ],
+  &quot;uiPanels&quot;: [
+    {
+      &quot;panelId&quot;:    &quot;acme-crm-panel&quot;,
+      &quot;mountPoint&quot;: &quot;AGENT_DESKTOP_SIDE_PANEL&quot;,
+      &quot;url&quot;:        &quot;classpath:/plugin-ui/index.html&quot;,
+      &quot;sandbox&quot;:    &quot;allow-scripts allow-forms&quot;
+    }
+  ],
+  &quot;manualActions&quot;: [
+    {
+      &quot;actionId&quot;:   &quot;open-in-crm&quot;,
+      &quot;label&quot;:      &quot;Otwórz w CRM&quot;,
+      &quot;mountPoint&quot;: &quot;AGENT_DESKTOP_TOOLBAR&quot;
+    },
+    {
+      &quot;actionId&quot;:   &quot;get-crm-context&quot;,
+      &quot;label&quot;:      &quot;Pobierz dane CRM&quot;,
+      &quot;mountPoint&quot;: &quot;AGENT_DESKTOP_SIDE_PANEL&quot;
+    }
+  ],
+  &quot;checksumSha256&quot;: &quot;&lt;64-znakowy hex SHA-256 zawartości JAR bez manifestu&gt;&quot;
+}
+</code></pre>
+<h3>Opis pól</h3>
+<table>
+<thead>
+<tr>
+<th>Pole</th>
+<th>Wymagane</th>
+<th>Format/Walidacja</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>pluginKey</code></td>
+<td>tak</td>
+<td><code>^[a-z0-9]([a-z0-9-]{0,98}[a-z0-9])?$</code> — unikalny identyfikator pluginu</td>
+</tr>
+<tr>
+<td><code>displayName</code></td>
+<td>tak</td>
+<td>1–200 znaków</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>tak</td>
+<td>string semver, 1–50 znaków</td>
+</tr>
+<tr>
+<td><code>vendor</code></td>
+<td>tak</td>
+<td>1–200 znaków (nazwa Twojej firmy)</td>
+</tr>
+<tr>
+<td><code>vendorContact</code></td>
+<td>nie</td>
+<td>max 200 znaków (e-mail/URL support)</td>
+</tr>
+<tr>
+<td><code>sdkVersion</code></td>
+<td>tak</td>
+<td><code>&quot;1.x&quot;</code> dla bieżącej wersji platformy</td>
+</tr>
+<tr>
+<td><code>entryPointClass</code></td>
+<td>tak</td>
+<td>pełna kwalifikowana nazwa klasy implementującej <code>PluginEntryPoint</code></td>
+</tr>
+<tr>
+<td><code>extensionPoints</code></td>
+<td>tak, ≥1</td>
+<td>podzbiór 5 wartości z §5</td>
+</tr>
+<tr>
+<td><code>permissions</code></td>
+<td>tak (może być <code>[]</code>)</td>
+<td>zob. <a href="#9-model-uprawnie%C5%84">§9</a></td>
+</tr>
+<tr>
+<td><code>uiPanels</code></td>
+<td>nie</td>
+<td>lista <code>{panelId, mountPoint, url, sandbox?}</code></td>
+</tr>
+<tr>
+<td><code>manualActions</code></td>
+<td>nie</td>
+<td>lista <code>{actionId, label, mountPoint}</code></td>
+</tr>
+<tr>
+<td><code>checksumSha256</code></td>
+<td>tak</td>
+<td>64-znakowy hex SHA-256 — zob. <a href="#13-budowa-i-obliczanie-checksumu">§13</a></td>
+</tr>
+</tbody></table>
+<h3>mountPoint — dostępne punkty montowania</h3>
+<table>
+<thead>
+<tr>
+<th>Wartość</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AGENT_DESKTOP_SIDE_PANEL</code></td>
+<td>Panel boczny w pulpicie agenta — widoczny podczas aktywnego kontaktu i wrap-up</td>
+</tr>
+<tr>
+<td><code>AGENT_DESKTOP_TOOLBAR</code></td>
+<td>Przycisk w toolbarze pulpitu agenta</td>
+</tr>
+<tr>
+<td><code>SUPERVISOR_DASHBOARD</code></td>
+<td>Panel na dashboardzie supervisora <em>(zadeklarowany, lecz jeszcze niepodłączony do żadnej strony — plugin może deklarować, ale nic nie wyrenderuje)</em></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>9. Model uprawnień</h2>
+<p>Pole <code>permissions</code> w manifeście deklaruje, czego plugin potrzebuje. Administrator tenanta zatwierdza podzbiór tych uprawnień przy instalacji. Platforma <strong>nigdy nie auto-grantuje</strong> pełnego zestawu — wymagana jest jawna zgoda administratora.</p>
+<h3>Dostępne uprawnienia</h3>
+<table>
+<thead>
+<tr>
+<th>Uprawnienie</th>
+<th>Pozwala na</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>customer:read</code></td>
+<td><code>ctx.getCustomer(id)</code></td>
+</tr>
+<tr>
+<td><code>customer:update</code></td>
+<td><code>ctx.updateCustomerFields(id, fields)</code></td>
+</tr>
+<tr>
+<td><code>contact:read</code></td>
+<td><code>ctx.getContact(id)</code></td>
+</tr>
+<tr>
+<td><code>contact:update</code></td>
+<td><code>ctx.appendContactNote(id, note)</code></td>
+</tr>
+<tr>
+<td><code>http:egress:&lt;host&gt;</code></td>
+<td>Wywołania HTTP do podanego hosta (np. <code>http:egress:api.crm.example</code>)</td>
+</tr>
+<tr>
+<td><code>db:egress:&lt;host&gt;:&lt;port&gt;</code></td>
+<td>Połączenie z zewnętrzną bazą danych na podanym <code>host:port</code> (np. <code>db:egress:crm-db:5432</code>)</td>
+</tr>
+</tbody></table>
+<p><strong>Zasada minimalnych uprawnień:</strong> deklaruj tylko to, czego faktycznie używasz. Uprawnienia spoza zamkniętego zbioru są odrzucane przy uploadzie. Host oraz port w <code>db:egress</code> są <strong>obydwa wymagane</strong>.</p>
+<hr>
+<h2>10. Ograniczenia bytecode (skan ASM)</h2>
+<p>Przy każdym uploadzie — <strong>przed ładowaniem jakiejkolwiek klasy</strong> — platforma skanuje statycznie bytecode każdej klasy w JAR-ze (Apache ASM). JAR zostaje odrzucony (status <code>REJECTED</code>) jeśli którakolwiek klasa odwołuje się do:</p>
+<table>
+<thead>
+<tr>
+<th>Zablokowane API</th>
+<th>Powód</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>java.lang.reflect.AccessibleObject#setAccessible</code> i rodzina</td>
+<td>Obejście widoczności refleksji</td>
+</tr>
+<tr>
+<td><code>java.lang.Thread#getContextClassLoader</code> / <code>#setContextClassLoader</code></td>
+<td>Dostęp do ClassLoader aplikacji</td>
+</tr>
+<tr>
+<td><code>java.util.ServiceLoader</code> (cała klasa)</td>
+<td>Ładowanie implementacji przez TCCL</td>
+</tr>
+<tr>
+<td><code>java.lang.ProcessBuilder</code> (cała klasa)</td>
+<td>Uruchamianie procesów systemowych</td>
+</tr>
+<tr>
+<td><code>java.nio.file.*</code> (cały pakiet)</td>
+<td>Dostęp do systemu plików</td>
+</tr>
+<tr>
+<td><code>sun.misc.*</code> (cały pakiet)</td>
+<td>Niskopoziomowe JDK internals</td>
+</tr>
+<tr>
+<td>Podklasy <code>java.lang.ClassLoader</code></td>
+<td>Tworzenie własnych class loaderów</td>
+</tr>
+</tbody></table>
+<p><strong>Praktyczna konsekwencja:</strong> pisz standardowy kod biznesowy Javy. Jeśli używasz biblioteki firmy trzeciej (fat JAR), sprawdź czy nie używa ona wewnętrznie żadnego z zablokowanych API — wiele bibliotek serializacji i DI używa <code>setAccessible</code> lub <code>ServiceLoader</code>. Taki JAR zostanie odrzucony z komunikatem wskazującym naruszającą klasę.</p>
+<p>Popularne bezpieczne biblioteki JSON: <strong>Gson</strong>, <strong>Jackson</strong> (wszystkie warianty), <strong>minimal-json</strong> — nie używają żadnego z zablokowanych API i mogą być bezpiecznie dołączane do JAR-a pluginu.</p>
+<hr>
+<h2>11. Integracja UI — panel agenta i PluginUiSdk</h2>
+<h3>11.1 Sandboxowany iframe</h3>
+<p>Jeśli manifest deklaruje <code>uiPanels</code> z <code>mountPoint: &quot;AGENT_DESKTOP_SIDE_PANEL&quot;</code>, pulpit agenta renderuje Twój <code>plugin-ui/index.html</code> (rozpakowany z JAR-a) w <strong>sandboxowanym iframe</strong>:</p>
+<pre><code class="language-html">&lt;iframe
+  src=&quot;/plugin-assets/{installationId}/index.html&quot;
+  sandbox=&quot;allow-scripts allow-forms&quot;
+  referrerpolicy=&quot;no-referrer&quot;
+&gt;&lt;/iframe&gt;
+</code></pre>
+<p><strong>Ważne ograniczenia:</strong></p>
+<ul>
+<li><strong>Brak <code>allow-same-origin</code></strong> — Twój JS w iframe nie ma dostępu do <code>localStorage</code>, cookies hosta ani do <code>/api/**</code> z JWT agenta</li>
+<li><strong>Panel widoczny tylko podczas aktywnego kontaktu lub wrap-up</strong> — przy braku kontaktu iframe jest odmontowywany; przy każdym nowym kontakcie montowany od nowa (pełna reinicjalizacja)</li>
+<li><strong>Jedyny kanał komunikacji z hostem:</strong> <code>postMessage</code> przez <code>PluginUiSdk</code></li>
+</ul>
+<h3>11.2 PluginUiSdk</h3>
+<p>Wstrzyknij SDK w swoim <code>plugin-ui/index.html</code>:</p>
+<pre><code class="language-html">&lt;script src=&quot;/plugin-ui-sdk.js&quot;&gt;&lt;/script&gt;
+</code></pre>
+<blockquote>
+<p>Backend automatycznie zastępuje ten tag inlineowaną zawartością SDK przy serwowaniu <code>index.html</code> — nie musisz robić nic więcej.</p>
+</blockquote>
+<p>Po załadowaniu strony dostępne jest <code>window.PluginUiSdk</code>:</p>
+<pre><code class="language-typescript">// Pobranie kontekstu bieżącego kontaktu
+const context = await PluginUiSdk.getContext();
+// context: { tenantId: string, contactId: string | null, customerId: string | null }
+
+// Wywołanie akcji backendowej pluginu
+const result = await PluginUiSdk.invokeManualAction(&#39;get-crm-context&#39;, {
+    agentNote: &#39;przykładowy parametr&#39;
+});
+// result: { success: boolean, resultData: object, message: string | null }
+
+// Otwarcie URL w nowej zakładce (przez hosta — iframe nie może sam wywołać window.open)
+PluginUiSdk.openUrl(&#39;https://crm.example.com/customer/123&#39;);
+
+// Zmiana wysokości iframe (fire-and-forget)
+PluginUiSdk.requestResize(400);
+
+// Wyświetlenie powiadomienia w UI hosta (fire-and-forget)
+PluginUiSdk.notify(&#39;Dane zsynchronizowane&#39;, &#39;info&#39;);
+// severity: &#39;info&#39; | &#39;warning&#39; | &#39;error&#39;
+</code></pre>
+<h3>11.3 Przykład minimalnego panelu bocznego</h3>
+<pre><code class="language-html">&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;pl&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;UTF-8&quot;&gt;
+  &lt;style&gt;
+    body { font-family: sans-serif; padding: 12px; margin: 0; }
+    #content { font-size: 14px; }
+    button { margin-top: 8px; padding: 6px 12px; cursor: pointer; }
+  &lt;/style&gt;
+  &lt;script src=&quot;/plugin-ui-sdk.js&quot;&gt;&lt;/script&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div id=&quot;content&quot;&gt;Ładowanie...&lt;/div&gt;
+  &lt;button id=&quot;btn-open&quot;&gt;Otwórz w CRM&lt;/button&gt;
+  &lt;script&gt;
+    async function init() {
+      const ctx = await PluginUiSdk.getContext();
+      if (!ctx.customerId) {
+        document.getElementById(&#39;content&#39;).textContent = &#39;Brak klienta.&#39;;
+        return;
+      }
+
+      const result = await PluginUiSdk.invokeManualAction(&#39;get-crm-context&#39;, {});
+      if (result.success) {
+        document.getElementById(&#39;content&#39;).textContent =
+          &#39;Klient: &#39; + result.resultData.customerName;
+        document.getElementById(&#39;btn-open&#39;).onclick = () =&gt; {
+          PluginUiSdk.openUrl(result.resultData.crmUrl);
+        };
+      } else {
+        document.getElementById(&#39;content&#39;).textContent = &#39;Błąd: &#39; + result.message;
+      }
+    }
+    init();
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>Umieść plik jako <code>src/main/resources/plugin-ui/index.html</code> — zostanie rozpakowany z JAR-a i serwowany przez <code>/plugin-assets/{installationId}/</code>.</p>
+<hr>
+<h2>12. Konfiguracja per-tenant</h2>
+<p>Każda instalacja może mieć własną konfigurację ustawianą przez administratora tenanta. Plugin odczytuje ją przez <code>ctx.config()</code>.</p>
+<h3>12.1 Odczyt konfiguracji w pluginie</h3>
+<pre><code class="language-java">@Override
+public void onActivate(PluginContext context) {
+    // Wymagana — rzuć jeśli brak
+    String apiKey = context.config().get(&quot;apiKey&quot;)
+        .orElseThrow(() -&gt; new IllegalStateException(
+            &quot;Brakuje konfiguracji &#39;apiKey&#39; — ustaw ją przed włączeniem pluginu.&quot;
+        ));
+
+    // Opcjonalna z wartością domyślną
+    String baseUrl = context.config().getOrDefault(&quot;baseUrl&quot;, &quot;https://api.default-crm.example&quot;);
+    String tableName = context.config().getOrDefault(&quot;dbTable&quot;, &quot;call_results&quot;);
+}
+</code></pre>
+<h3>12.2 Ustawianie konfiguracji przez administratora (REST API)</h3>
+<p>Administrator wywołuje <code>PATCH</code> po instalacji, przed włączeniem pluginu:</p>
+<pre><code class="language-http">PATCH /api/supervisor/plugins/installations/{installationId}/config
+Content-Type: application/json
+Authorization: Bearer &lt;JWT supervisora/admina&gt;
+
+{
+  &quot;config&quot;: {
+    &quot;apiKey&quot;:    &quot;sk-abc123xyz&quot;,
+    &quot;baseUrl&quot;:   &quot;https://crm.tenant.example&quot;,
+    &quot;dbTable&quot;:   &quot;call_results&quot;
+  }
+}
+</code></pre>
+<p><strong>Semantyka REPLACE</strong> — całkowita zamiana zestawu kluczy przy każdym <code>PATCH</code>. Wartości wrażliwe (klucze API, hasła) są szyfrowane AES-256-GCM po stronie platformy i <strong>nigdy nie wracają w żadnej odpowiedzi API</strong> — można je tylko nadpisać nowym <code>PATCH</code>.</p>
+<h3>12.3 Konfiguracja dla <code>DbEgressClient</code></h3>
+<p>Gdy plugin deklaruje <code>db:egress:&lt;host&gt;:&lt;port&gt;</code> w uprawnieniach, administrator musi ustawić trzy klucze:</p>
+<table>
+<thead>
+<tr>
+<th>Klucz</th>
+<th>Opis</th>
+<th>Przykład</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>jdbcUrl</code></td>
+<td>JDBC URL zewnętrznej bazy</td>
+<td><code>jdbc:postgresql://crm-db:5432/crm</code></td>
+</tr>
+<tr>
+<td><code>dbUsername</code></td>
+<td>Użytkownik bazy</td>
+<td><code>crm_plugin_user</code></td>
+</tr>
+<tr>
+<td><code>dbPassword</code></td>
+<td>Hasło (szyfrowane)</td>
+<td><code>s3cr3tP@ssword</code></td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Ważne:</strong> <code>host:port</code> z <code>jdbcUrl</code> musi dokładnie pasować do <code>db:egress:&lt;host&gt;:&lt;port&gt;</code> z manifestu. Niezgodność skutkuje <code>SecurityException</code> przy każdym wywołaniu <code>executeUpdate</code>.</p>
+</blockquote>
+<hr>
+<h2>13. Budowa i obliczanie checksumu</h2>
+<p>Platforma weryfikuje integralność JAR-a obliczając SHA-256 z zawartości wszystkich wpisów <strong>z wyłączeniem</strong> <code>META-INF/plugin-manifest.json</code>. Hash musi zgadzać się z polem <code>checksumSha256</code> w manifeście.</p>
+<h3>Procedura budowy (3 kroki)</h3>
+<p><strong>Krok 1: pierwsza budowa z placeholderem</strong></p>
+<p>Wypełnij <code>checksumSha256</code> 64 zerami w manifeście, następnie:</p>
+<pre><code class="language-bash">mvn -q package
+</code></pre>
+<p><strong>Krok 2: oblicz checksum</strong></p>
+<p>Użyj klasy <code>ChecksumTool</code> dołączonej do każdego przykładowego pluginu lub napisz własną:</p>
+<pre><code class="language-bash">java -cp target/classes com.example.tooling.ChecksumTool \
+    target/my-crm-plugin-1.0.0.jar
+</code></pre>
+<p>Wynik: 64-znakowy hex string, np. <code>a3f8c1...</code>.</p>
+<p>Alternatywnie — algorytm w pseudokodzie:</p>
+<pre><code>sha256 = new SHA256MessageDigest
+for each entry in JAR (sorted by name):
+    if entry.name == &quot;META-INF/plugin-manifest.json&quot;: skip
+    sha256.update(entry.name.getBytes(UTF-8))
+    sha256.update(entry.content)
+return hex(sha256.digest())
+</code></pre>
+<p><strong>Krok 3: wklej checksum i przebuduj</strong></p>
+<p>Zastąp <code>&quot;checksumSha256&quot;: &quot;0000...0000&quot;</code> wynikiem z kroku 2 w <code>src/main/resources/META-INF/plugin-manifest.json</code>, następnie:</p>
+<pre><code class="language-bash">mvn -q package
+</code></pre>
+<p>Ponieważ checksum jest liczony z wyłączeniem manifestu, zmiana tylko tego pola <strong>nie zmienia</strong> wyniku. Wynikowy JAR jest gotowy do uploadu.</p>
+<blockquote>
+<p><strong>Uwaga o reprodukowalności:</strong> SHA-256 JAR-a zależy od środowiska build (wersja JDK, Maven, OS). Zawsze przelicz checksum na tym samym środowisku, na którym budujesz finalny artefakt. Platforma zwróci komunikat <code>Checksum mismatch: obliczony=&lt;X&gt;</code> — wklej <code>&lt;X&gt;</code> do manifestu i przebuduj.</p>
+</blockquote>
+<hr>
+<h2>14. Instalacja i zarządzanie cyklem życia</h2>
+<h3>Cykl: upload → instalacja → aktywacja</h3>
+<pre><code>1. POST /api/supervisor/plugins   (upload JAR)
+   → PluginValidationService:
+      a. Rozmiar ≤ 50 MB, magic bytes ZIP/JAR
+      b. SHA-256 (bez manifestu) = manifest.checksumSha256
+      c. JSON Schema manifestu
+      d. Statyczny skan ASM (§10)
+      e. entryPointClass istnieje w JAR i implementuje PluginEntryPoint
+   → status: VALIDATED lub REJECTED
+
+2. POST /api/supervisor/plugins/{pluginVersionId}/install
+   → tworzy instalację (enabled=false)
+   → administrator zatwierdza uprawnienia
+
+3. PATCH /api/supervisor/plugins/installations/{id}/config
+   → ustawia konfigurację tenanta (klucze API, JDBC URL itp.)
+
+4. POST /api/supervisor/plugins/installations/{id}/enable
+   → platforma ładuje JAR do ClassLoader
+   → instancjonuje entryPointClass (konstruktor bezargumentowy)
+   → woła onActivate(context)
+   → jeśli onActivate rzuci: instalacja pozostaje disabled, błąd widoczny dla admina
+   → jeśli sukces: plugin aktywny, gotowy do przyjmowania wywołań
+
+5. [normalna praca — callbacki z §5]
+
+6. POST /api/supervisor/plugins/installations/{id}/disable
+   → woła onDeactivate()
+   → plugin usuwany z rejestru (nie przyjmuje nowych wywołań)
+</code></pre>
+<h3>Panel administracyjny</h3>
+<p>Dostęp: <code>/supervisor/settings/plugins</code> (rola SUPERVISOR lub ADMIN).</p>
+<p>Operacje dostępne przez UI:</p>
+<ul>
+<li>Upload JAR-a (drag&amp;drop lub wybór pliku)</li>
+<li>Przeglądanie katalogu wersji i ich statusu (VALIDATED/REJECTED)</li>
+<li>Instalacja i konfiguracja</li>
+<li>Włączanie/wyłączanie</li>
+<li>Historia wywołań z paginacją i filtrem po statusie</li>
+</ul>
+<hr>
+<h2>15. REST API — referencja</h2>
+<p>Wszystkie endpointy wymagają JWT (Bearer token) z odpowiednią rolą. Odpowiedzi w formacie JSON.</p>
+<h3>Zarządzanie wersjami (rola SUPERVISOR/ADMIN)</h3>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>POST</code></td>
+<td><code>/api/supervisor/plugins</code></td>
+<td>Upload JAR (multipart, pole <code>file</code>) — zwraca <code>PluginVersionDto</code></td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/supervisor/plugins/catalog</code></td>
+<td>Lista wersji wgranych przez bieżącego tenanta</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/supervisor/plugins/catalog/{pluginVersionId}</code></td>
+<td>Usuwa wersję; 409 gdy istnieje instalacja tej wersji</td>
+</tr>
+</tbody></table>
+<h3>Zarządzanie instalacjami (rola SUPERVISOR/ADMIN)</h3>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GET</code></td>
+<td><code>/api/supervisor/plugins</code></td>
+<td>Lista instalacji tenanta (w tym disabled)</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/supervisor/plugins/{pluginVersionId}/install</code></td>
+<td>Instalacja wersji</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/supervisor/plugins/installations/{id}/enable</code></td>
+<td>Aktywacja</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/supervisor/plugins/installations/{id}/disable</code></td>
+<td>Dezaktywacja</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/supervisor/plugins/installations/{id}/rollback/{targetId}</code></td>
+<td>Atomowe przełączenie aktywnej instalacji</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/supervisor/plugins/installations/{id}</code></td>
+<td>Odinstalowanie</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/api/supervisor/plugins/installations/{id}/config</code></td>
+<td>Ustawienie konfiguracji (REPLACE)</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/supervisor/plugins/{installationId}/invocations</code></td>
+<td>Historia wywołań (paginowana)</td>
+</tr>
+</tbody></table>
+<h3>Pulpit agenta (rola AGENT/SUPERVISOR/ADMIN)</h3>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GET</code></td>
+<td><code>/api/agent/plugins</code></td>
+<td>Lista aktywnych instalacji (enabled=true)</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/agent/plugins/{installationId}/manual-action/{actionId}</code></td>
+<td>Wywołanie MANUAL_ACTION; 504 przy timeout</td>
+</tr>
+</tbody></table>
+<h3>Zasoby UI (publiczne — bez JWT)</h3>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>Ścieżka</th>
+<th>Opis</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GET</code></td>
+<td><code>/plugin-assets/{installationId}/**</code></td>
+<td>Statyczne assety <code>plugin-ui/</code> z JAR-a</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/plugin-ui-sdk.js</code></td>
+<td>Skrypt PluginUiSdk</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>16. Przykłady pluginów</h2>
+<p>Trzy działające przykłady dostępne w katalogu <code>examples/plugins/</code> repozytorium platformy.</p>
+<h3>16.1 <code>customer-google-lookup</code> — lookup klienta + panel boczny</h3>
+<p><strong>Extension points:</strong> <code>PRE_CONTACT_CONNECT</code>, <code>MANUAL_ACTION</code><br><strong>Uprawnienia:</strong> <code>customer:read</code>, <code>http:egress:www.googleapis.com</code><br><strong>Demonstrowane:</strong> <code>HttpEgressClient</code>, panel <code>AGENT_DESKTOP_SIDE_PANEL</code>, <code>PluginUiSdk.invokeManualAction</code>, <code>PluginUiSdk.requestResize</code></p>
+<p>Przy połączeniu z klientem automatycznie wyszukuje jego dane w Google Custom Search i prezentuje wyniki w panelu bocznym agenta. Przycisk w toolbarze pozwala odświeżyć wyszukiwanie na żądanie.</p>
+<p><strong>Wymagana konfiguracja:</strong></p>
+<pre><code class="language-json">{
+  &quot;googleApiKey&quot;:          &quot;TWÓJ_KLUCZ_API_GOOGLE&quot;,
+  &quot;googleSearchEngineId&quot;:  &quot;TWOJE_CX&quot;
+}
+</code></pre>
+<h3>16.2 <code>customer-callresult-db-sync</code> — zapis wyniku do zewnętrznej bazy</h3>
+<p><strong>Extension points:</strong> <code>POST_CONTACT_END</code>, <code>DISPOSITION_SET</code><br><strong>Uprawnienia:</strong> <code>contact:read</code>, <code>db:egress:crm-demo-db:5432</code><br><strong>Demonstrowane:</strong> <code>DbEgressClient</code>, at-least-once idempotency (<code>INSERT WHERE NOT EXISTS</code>), konfiguracja JDBC</p>
+<p>Zapisuje zakończone kontakty i dyspozycje do zewnętrznej bazy danych CRM tenanta. Zawiera <code>docker-compose.yml</code> z PostgreSQL 16 do testów lokalnych.</p>
+<p><strong>Wymagany schemat tabeli docelowej:</strong></p>
+<pre><code class="language-sql">CREATE TABLE call_results (
+    id               BIGSERIAL PRIMARY KEY,
+    contact_id       UUID         NOT NULL,
+    customer_id      UUID,
+    event_type       VARCHAR(32)  NOT NULL,  -- &#39;CONTACT_ENDED&#39; | &#39;DISPOSITION_SET&#39;
+    channel          VARCHAR(32),
+    direction        VARCHAR(16),
+    status           VARCHAR(32),
+    agent_id         UUID,
+    disposition_code VARCHAR(64),
+    occurred_at      TIMESTAMP    NOT NULL
+);
+-- Wymagany partial unique index (at-least-once idempotency):
+CREATE UNIQUE INDEX uq_call_results_contact_ended
+    ON call_results (contact_id) WHERE event_type = &#39;CONTACT_ENDED&#39;;
+</code></pre>
+<p><strong>Wymagana konfiguracja:</strong></p>
+<pre><code class="language-json">{
+  &quot;jdbcUrl&quot;:    &quot;jdbc:postgresql://crm-demo-db:5432/crm&quot;,
+  &quot;dbUsername&quot;: &quot;crm_plugin_user&quot;,
+  &quot;dbPassword&quot;: &quot;hasło&quot;
+}
+</code></pre>
+<h3>16.3 <code>crm-url-launcher</code> — otwieranie URL-a CRM z kontekstem rozmowy</h3>
+<p><strong>Extension points:</strong> <code>PRE_CONTACT_CONNECT</code>, <code>MANUAL_ACTION</code><br><strong>Uprawnienia:</strong> <code>customer:read</code>, <code>contact:read</code><br><strong>Demonstrowane:</strong> <code>PluginUiSdk.openUrl</code>, szablon URL z podstawieniem zmiennych, <code>AGENT_DESKTOP_SIDE_PANEL</code>, zero zewnętrznych zależności</p>
+<p>Najprostszy wzorzec integracji UI: agent klika przycisk w panelu, plugin buduje URL z szablonu (z podstawieniem <code>{customerId}</code>, <code>{customerPhone}</code> itp. i opcjonalnymi polami wpisywanymi przez agenta) i otwiera profil klienta w zewnętrznym CRM w nowej zakładce.</p>
+<p><strong>Zmienne automatyczne w szablonie URL:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Placeholder</th>
+<th>Źródło</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>{customerId}</code></td>
+<td>UUID klienta</td>
+</tr>
+<tr>
+<td><code>{contactId}</code></td>
+<td>UUID kontaktu</td>
+</tr>
+<tr>
+<td><code>{customerPhone}</code></td>
+<td>Pierwszy numer telefonu (URL-encoded)</td>
+</tr>
+<tr>
+<td><code>{customerEmail}</code></td>
+<td>Pierwszy adres e-mail (URL-encoded)</td>
+</tr>
+<tr>
+<td><code>{customerFirstName}</code></td>
+<td>Imię klienta</td>
+</tr>
+<tr>
+<td><code>{customerLastName}</code></td>
+<td>Nazwisko klienta</td>
+</tr>
+</tbody></table>
+<p><strong>Wymagana konfiguracja:</strong></p>
+<pre><code class="language-json">{
+  &quot;crmUrlTemplate&quot;: &quot;https://crm.example.com/customer?id={customerId}&amp;phone={customerPhone}&amp;ref={agentRef}&quot;,
+  &quot;agentParams&quot;:    &quot;agentRef&quot;
+}
+</code></pre>
+<hr>
+<h2>17. Dobre praktyki i antywzorce</h2>
+<h3>✅ Dobre praktyki</h3>
+<p><strong>Obsługa błędów w callbackach:</strong> zawsze łap <code>RuntimeException</code> i zwracaj wynik awaryjny zamiast propagować wyjątek. Platforma i tak opakuje wywołanie własnym <code>catch(Throwable)</code>, ale jawna obsługa czyni zachowanie przewidywalnym.</p>
+<pre><code class="language-java">@Override
+public PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) {
+    if (e.customerId() == null) return PreContactConnectResult.empty();
+    try {
+        // logika...
+    } catch (RuntimeException ex) {
+        ctx.logger().warn(&quot;Błąd lookup: &quot; + ex.getMessage());
+        return PreContactConnectResult.empty(); // agent połączy się bez danych
+    }
+}
+</code></pre>
+<p><strong>Idempotentność w fire-and-forget:</strong> przy <code>POST_CONTACT_END</code> i <code>DISPOSITION_SET</code> zawsze implementuj guard przed duplikatami — RabbitMQ gwarantuje at-least-once delivery.</p>
+<p><strong>Walidacja konfiguracji w <code>onActivate</code>:</strong> sprawdzaj wszystkie wymagane klucze przy starcie, nie przy każdym callbacku.</p>
+<p><strong>Nie trzymaj zewnętrznych połączeń w polach instancji:</strong> <code>DbEgressClient</code> jest bezstanowy per wywołanie — brak connection poolingu po stronie pluginu jest celowy.</p>
+<p><strong>Bezpieczna interpolacja nazw tabel w SQL:</strong> gdy pozwalasz administratorowi konfigurować nazwę tabeli, waliduj ją regexem przed interpolacją do SQL-a.</p>
+<pre><code class="language-java">private static final Pattern TABLE_NAME = Pattern.compile(&quot;^[a-zA-Z_][a-zA-Z0-9_]*$&quot;);
+if (!TABLE_NAME.matcher(tableName).matches()) {
+    throw new IllegalStateException(&quot;Nieprawidłowa nazwa tabeli: &quot; + tableName);
+}
+</code></pre>
+<h3>❌ Antywzorce</h3>
+<p><strong>Przechowywanie stanu tenanta w polach statycznych:</strong> statyczne pola są współdzielone między wszystkimi instancjami JVM (w tym innymi tenantami), co narusza izolację multi-tenancy.</p>
+<p><strong>Rzucanie wyjątku z <code>onPostContactEnd</code>/<code>onDispositionSet</code>:</strong> nie blokuje agenta (fire-and-forget), ale może spowodować NACK na RabbitMQ i nieskończone redelivery. Zawsze łap i loguj.</p>
+<p><strong>Używanie <code>Thread.sleep</code> lub synchronicznych blokad w callbackach blocking:</strong> <code>PRE_CONTACT_CONNECT</code> i <code>MANUAL_ACTION</code> mają timeout — zablokowanie wątku skutkuje timeout-em i powrotem do domyślnego wyniku.</p>
+<p><strong>Parsowanie <code>customerId</code> z parametrów <code>ManualActionRequest</code> zamiast <code>req.customerId()</code>:</strong> pole <code>customerId</code> w <code>ManualActionRequest</code> jest już wypełniane przez hosta z bieżącej sesji — nie wymagaj od agenta podania UUID klienta jako parametru.</p>
+<hr>
+<h2>18. Znane ograniczenia</h2>
+<table>
+<thead>
+<tr>
+<th>Ograniczenie</th>
+<th>Szczegóły</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Izolacja in-process</strong></td>
+<td>Plugin wykonuje się w tym samym JVM co backend; <code>ClassLoader</code> + skan ASM to warstwy obrony, nie pełna sandbox VM. Instaluj wyłącznie pluginy z zaufanych źródeł.</td>
+</tr>
+<tr>
+<td><strong><code>logger()</code> nie zapisuje do bazy diagnostycznej</strong></td>
+<td><code>ctx.logger()</code> aktualnie pisze do logów aplikacji z prefiksem <code>[PluginLog]</code>, nie do tabeli <code>plugin_invocation_log</code>. Logi wywołań widoczne w UI (endpoint <code>/invocations</code>) zawierają status (<code>SUCCESS</code>/<code>FAILED</code>/<code>TIMED_OUT</code>), ale nie logi ad-hoc.</td>
+</tr>
+<tr>
+<td><strong>Circuit breaker in-memory</strong></td>
+<td>Po 5 kolejnych błędach (<code>FAILED</code>/<code>TIMED_OUT</code>) instalacja przechodzi w <code>DEGRADED</code> i kolejne wywołania są pomijane jako <code>CIRCUIT_OPEN</code> do pierwszego sukcesu. Stan resetu jest per-process — restart JVM resetuje licznik.</td>
+</tr>
+<tr>
+<td><strong>Brak <code>allow-same-origin</code> w iframe</strong></td>
+<td>Plugin UI nie ma dostępu do <code>localStorage</code>/cookies hosta. Jedyny kanał: <code>PluginUiSdk.invokeManualAction</code> (proxy przez hosta z JWT agenta).</td>
+</tr>
+<tr>
+<td><strong><code>SUPERVISOR_DASHBOARD</code> mountPoint</strong></td>
+<td>Zadeklarowany w SDK, ale aktualnie żadna strona supervisora go nie renderuje.</td>
+</tr>
+<tr>
+<td><strong><code>db:egress</code> — brak connection poolingu</strong></td>
+<td>Jedno połączenie JDBC per wywołanie <code>executeUpdate</code>. Wystarczające dla fire-and-forget extension pointów, ale nieodpowiednie do intensywnych zapytań.</td>
+</tr>
+</tbody></table>
+<hr>
+<p><em>Dokumentacja dla wersji SDK <code>1.x</code>. Kod jest źródłem prawdy — w razie rozbieżności sprawdź Javadoc klas SDK i źródła przykładowych pluginów.</em></p>
+
+</main>
+</div>
+</body>
+</html>

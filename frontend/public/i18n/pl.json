@@ -1594,7 +1594,13 @@
       "separatorComma": "Przecinek (,)",
       "separatorSemicolon": "Średnik (;)",
       "separatorTab": "Tabulacja",
-      "errorUpload": "Nie udało się wgrać pliku."
+      "errorUpload": "Nie udało się wgrać pliku.",
+      "consentGivenOption": "Zgoda na przetwarzanie danych",
+      "marketingConsentOption": "Zgoda marketingowa",
+      "customFieldKeyPlaceholder": "nazwa pola (np. vip, segment)",
+      "multiColumnHint": "Możesz zmapować wiele kolumn CSV na to samo pole Telefon lub Email — wszystkie zostaną zaimportowane.",
+      "customFieldKeyRequiredError": "Każde pole dodatkowe musi mieć nazwę.",
+      "duplicateCustomFieldKeyError": "Nazwa pola dodatkowego \"{{ key }}\" jest użyta więcej niż raz."
     },
     "gdprAnonymize": {
       "title": "Anonimizacja GDPR",

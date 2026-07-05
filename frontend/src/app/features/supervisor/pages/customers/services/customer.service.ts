@@ -88,7 +88,7 @@ export class CustomerService {
     separator: string,
     quoteChar: string,
     deduplication: DeduplicationMode,
-    columnMapping: Record<string, number>,
+    columnMapping: Record<string, unknown>,
   ): Observable<{ jobId: string }> {
     const formData = new FormData();
     formData.append('file', file);

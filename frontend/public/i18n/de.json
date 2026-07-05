@@ -1590,7 +1590,13 @@
       "errorUpload": "Datei konnte nicht hochgeladen werden.",
       "separatorComma": "Komma (,)",
       "separatorSemicolon": "Semikolon (;)",
-      "separatorTab": "Tabulator"
+      "separatorTab": "Tabulator",
+      "consentGivenOption": "Einwilligung zur Datenverarbeitung",
+      "marketingConsentOption": "Marketing-Einwilligung",
+      "customFieldKeyPlaceholder": "Feldname (z. B. vip, segment)",
+      "multiColumnHint": "Sie können mehrere CSV-Spalten demselben Telefon- oder E-Mail-Feld zuordnen – alle werden importiert.",
+      "customFieldKeyRequiredError": "Jedes zusätzliche Feld muss einen Namen haben.",
+      "duplicateCustomFieldKeyError": "Der Name des Zusatzfelds \"{{ key }}\" wird mehrfach verwendet."
     },
     "gdprAnonymize": {
       "title": "DSGVO-Anonymisierung",

@@ -1590,7 +1590,13 @@
       "separatorComma": "Кома (,)",
       "separatorSemicolon": "Крапка з комою (;)",
       "separatorTab": "Табуляція",
-      "errorUpload": "Не вдалося завантажити файл."
+      "errorUpload": "Не вдалося завантажити файл.",
+      "consentGivenOption": "Згода на обробку даних",
+      "marketingConsentOption": "Маркетингова згода",
+      "customFieldKeyPlaceholder": "назва поля (напр., vip, segment)",
+      "multiColumnHint": "Ви можете відобразити кілька стовпців CSV на те саме поле Телефон або Email — усі вони будуть імпортовані.",
+      "customFieldKeyRequiredError": "Кожне додаткове поле повинно мати назву.",
+      "duplicateCustomFieldKeyError": "Назва додаткового поля \"{{ key }}\" використовується більше одного разу."
     },
     "gdprAnonymize": {
       "title": "Анонімізація GDPR",

@@ -1594,7 +1594,13 @@
       "separatorComma": "Comma (,)",
       "separatorSemicolon": "Semicolon (;)",
       "separatorTab": "Tab",
-      "errorUpload": "Failed to upload file."
+      "errorUpload": "Failed to upload file.",
+      "consentGivenOption": "Data processing consent",
+      "marketingConsentOption": "Marketing consent",
+      "customFieldKeyPlaceholder": "field name (e.g. vip, segment)",
+      "multiColumnHint": "You can map multiple CSV columns to the same Phone or Email field — all of them will be imported.",
+      "customFieldKeyRequiredError": "Every custom field must have a name.",
+      "duplicateCustomFieldKeyError": "The custom field name \"{{ key }}\" is used more than once."
     },
     "gdprAnonymize": {
       "title": "GDPR Anonymization",

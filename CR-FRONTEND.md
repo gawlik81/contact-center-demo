@@ -1225,3 +1225,62 @@ _Nie zidentyfikowano._
 ### Summary
 
 **Ocena: 3.5/5 ⭐** — okablowanie nowego pola w UI jest dokładne i spójne (i18n, tabela, widok szczegółów, panel agenta), ale przepływ "duplikat externalId" nie jest domknięty od strony UX (generyczny błąd, brak sposobu wyczyszczenia pola), a "darmowe" usprawnienie (karta wyszukiwania agenta) zostało pominięte na podstawie niezweryfikowanego założenia o kontrakcie backendu.
+
+## Review: CustomerImportComponent — wielokolumnowy phone/email, nazwane custom_fields, opcje zgody RODO — 2026-07-05
+
+**Branch:** `customer-refactor`
+
+**Zakres:** `customer-import.component.ts/.html/.scss`, `customer.service.ts` (`importCsv` sygnatura),
+i18n (pl/en/de/uk). Brak pliku testów (`customer-import.component.spec.ts` nie istnieje — potwierdzone,
+stan sprzed tej zmiany, nie regresja).
+
+### 🐛 Bugs / Critical Issues
+
+- **`customer-import.component.ts:346-349` (`onImport`) — dwie kolumny CSV zmapowane na TĘ SAMĄ nazwę `custom_fields` cicho się nadpisują, bez ostrzeżenia i bez utraty danych sygnalizowanej użytkownikowi.** Budowa `customFieldsObj`:
+  ```ts
+  case 'custom_fields': {
+    const key = m.customFieldKey?.trim();
+    if (key) customFieldsObj[key] = index;
+    break;
+  }
+  ```
+  Jeśli użytkownik zmapuje np. kolumnę CSV #3 na `custom_fields` z nazwą `"vip"` ORAZ kolumnę CSV #7 również na `custom_fields` z nazwą `"vip"` (np. przez pomyłkę, kopiuj-wklej nazwy, albo dwa nagłówki CSV które użytkownik chce ujednolicić), drugi wpis w pętli `forEach` bezwarunkowo nadpisuje pierwszy pod tym samym kluczem JS-obiektu — wartość z kolumny #3 znika całkowicie z requestu, zero komunikatu o błędzie. To DOKŁADNIE ten sam rodzaj cichej utraty danych, przed którym chroni już istniejąca walidacja `hasUnnamedCustomField` (linie 315-321) dla pustych nazw — brakuje analogicznej walidacji dla duplikatów. Nie jest to teoretyczny przypadek: to jest właśnie ten bug, który PIERWOTNIE naprawiono w tym samym komponencie dla `phone`/`email` (dwie kolumny na `phone` nadpisywały się w starym kodzie) — tu identyczny wzorzec błędu odtworzył się dla nowego pola, tylko nie został naprawiony.
+  - Fix: dodać walidację analogiczną do `hasUnnamedCustomField`, przed importem:
+    ```ts
+    const customFieldKeys = this.columnMappings()
+      .filter((m) => m.systemField === 'custom_fields')
+      .map((m) => m.customFieldKey?.trim())
+      .filter((k): k is string => !!k);
+    const hasDuplicateCustomFieldKey = new Set(customFieldKeys).size !== customFieldKeys.length;
+    if (hasDuplicateCustomFieldKey) {
+      this.mappingError.set('Nazwy pol dodatkowych musza byc unikalne.');
+      return;
+    }
+    ```
+  - Uwaga: potwierdzone w pamięci `angular-frontend-expert` (`project_fe020_customer_import_columnmapping_fix.md`), że to świadoma decyzja o pominięciu tej walidacji — ale biorąc pod uwagę, że backend nie ma żadnego sposobu wykrycia tej kolizji (dwa różne indeksy kolumn pod tym samym kluczem JSON to po prostu dwa oddzielne wpisy w obiekcie `custom_fields`, JSON nie pozwala na duplikat klucza, więc jeden ginie już na etapie budowania `mappingObj` we frontendzie, zanim request w ogóle wyjdzie do sieci) — to wyłącznie frontendowa odpowiedzialność i powinna być naprawiona tutaj.
+
+### ⚠️ Security Concerns
+
+_Nie zidentyfikowano._
+
+### 🏗️ Architecture / Pattern Violations
+
+_Brak nowych naruszeń architektury._ `columnMapping: Record<string, unknown>` w `customer.service.ts:91` to minimalna, poprawna zmiana typu (z `Record<string, number>`) — implementacja `importCsv` niezmieniona (dalej tylko `JSON.stringify`), zgodna z zasadą "DTO/kontrakt się zmienia, serwis HTTP pozostaje cienką warstwą".
+
+### 🔧 Improvements & Suggestions
+
+- **Recurring anti-pattern (5+ wystąpienie) — brak polskich znaków diakrytycznych w NOWYM stringu walidacyjnym.** `customer-import.component.ts:319`: `this.mappingError.set('Kazde pole dodatkowe musi miec nazwe.');` — powinno być `"Każde pole dodatkowe musi mieć nazwę."`. Cały plik konsekwentnie używa Polish-ASCII zamiast prawdziwych diakrytyków (`"ID zewnetrzne"`, `"musi byc zmapowane"`, `"sredník"` z błędnie postawionym akcentem) — to udokumentowana, świadoma konwencja tego konkretnego pliku (plik sprzed rolloutu i18n/Transloco, patrz poprzedni review `externalId` 2026-07-05), więc nowy string jest przynajmniej *spójny* z resztą pliku. Niemniej jest to piąte odnotowane wystąpienie tego wzorca w tym repo (po FE-011/017/027, EPIC-24) — jeśli plik kiedykolwiek zostanie zmigrowany na Transloco (i18n klucze `customFieldKeyRequiredError` już przygotowane w plikach tłumaczeń!), warto przy okazji naprawić diakrytyki we wszystkich hardkodowanych stringach na raz, nie tylko w nowych.
+- **Zero pokrycia testami dla znacząco zwiększonej złożoności logiki.** `customer-import.component.spec.ts` nie istnieje (potwierdzone, stan sprzed zmiany). Ten PR dodaje nietrywialną logikę: łączenie wielu indeksów kolumn w tablice (`phoneIndices`/`emailIndices`), budowanie nazwanego obiektu (`customFieldsObj`), i dwie nowe ścieżki walidacji blokującej import. To dokładnie ten rodzaj logiki (transformacja danych, budowanie payloadu, walidacja warunkowa), który najbardziej zyskuje na testach jednostkowych i najbardziej boli przy regresji bez nich — np. bug z Bugs #1 powyżej zostałby wykryty przez prosty test `it('rejects duplicate custom field names')`. Nie blokujące (zgodne z istniejącą konwencją "brak testów dla tego kreatora"), ale warto rozważyć chociaż podstawowy plik spec przy następnej zmianie w tym komponencie, zamiast dalej powiększać nietestowany obszar.
+- `customer-import.component.html:44-53` — `aria-label` nowego pola `<input>` nazwy custom field jest hardkodowany string budowany przez konkatenację (`'Nazwa pola dodatkowego dla ' + mapping.csvHeader`) — spójne z istniejącym wzorcem `[attr.aria-label]` na sąsiednim `<select>` w tym samym pliku, nie regresja, tylko do wiadomości przy ewentualnej migracji na Transloco.
+
+### ✅ Positive Observations
+
+- **Rzeczywisty bug naprawiony poprawnie**: stary kod (`mappingObj[m.systemField] = index`) faktycznie nadpisywał drugą kolumnę zmapowaną na `phone`/`email` — nowa implementacja z osobnymi tablicami `phoneIndices`/`emailIndices`, budowanymi przez `push` w `forEach`, poprawnie zbiera WSZYSTKIE zmapowane kolumny bez utraty żadnej z nich. Zweryfikowane też od strony backendu (`getMultiColumn` łączy poprawnie).
+- `hasUnnamedCustomField` (linie 315-321) poprawnie blokuje import PRZED wysłaniem requestu, z komunikatem błędu w tym samym miejscu i tym samym mechanizmem (`mappingError` signal) co istniejąca walidacja `isPhoneMapped` — spójny wzorzec UX, dobry precedens dla sugerowanej poprawki Bugs #1.
+- `updateCustomFieldKey` poprawnie podąża za istniejącym niemutującym wzorcem `updateMapping` (`{...mappings[i], customFieldKey: key}` zamiast mutacji w miejscu) — zgodne z konwencją `signal()`-owego stanu w projekcie.
+- **i18n kompletne i spójne we wszystkich 4 językach** dla wszystkich nowych etykiet (`consentGivenOption`, `marketingConsentOption`, `customFieldKeyPlaceholder`, `multiColumnHint`, `customFieldKeyRequiredError`) — w tym poprawne diakrytyki w kluczach faktycznie użytych przez Transloco (`multiColumnHint` w hincie nad tabelą mapowania). Klucze przygotowane "na zapas" dla przyszłej migracji reszty pliku na Transloco (`customFieldKeyRequiredError` nieużywany dziś, bo `mappingError` jest hardkodowany) — dobra praktyka wyprzedzająca.
+- `.mapping-hint` (SCSS) poprawnie używa istniejących design-tokenów projektu (`var(--accent-text)`, `var(--accent-soft)`, `color-mix(...)`) zamiast hardkodowanych kolorów — spójne z resztą arkusza stylów.
+
+### Summary
+
+**Ocena: 3.5/5 ⭐** — poprawnie naprawia realny, zgłoszony bug nadpisywania kolumn phone/email i dodaje solidną, kompletnie zi18n-izowaną obsługę nowych opcji mapowania, ale odtwarza dokładnie ten sam rodzaj bugu (cicha kolizja/nadpisanie bez ostrzeżenia) dla nowego pola `custom_fields` — świadomie pominięta walidacja duplikatu nazwy pola dodatkowego powinna zostać dodana przed uznaniem funkcji za w pełni zamkniętą, zwłaszcza że wzorzec naprawy (analogiczna walidacja dla pustej nazwy) już istnieje w tym samym pliku.

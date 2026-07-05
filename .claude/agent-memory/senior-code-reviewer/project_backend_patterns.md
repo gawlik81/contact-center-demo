@@ -350,6 +350,22 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - Does any CSV/bulk-import path touching the same table check the new unique constraint per-row, or does it rely on `ON CONFLICT DO NOTHING`/rely on the DB to fail loudly (and if so, does a single row's collision abort the whole batch/job)?
 - Is the frontend's "clear field" UX (empty string vs. omitted/undefined vs. explicit null) actually reachable end-to-end, or silently dropped by `|| undefined`-style coercion?
 
+## CustomerImportServiceImpl — multi-column phone/email, named custom_fields, GDPR consent import — 2026-07-05
+
+**Critical data-consistency gap (not a security issue, but compliance-relevant):**
+- `buildInsertRow`'s fallback to `{"consent_given": false}` only fires when `buildGdprConsent()` returns a **completely empty** map (both `consentGiven` and `marketingConsent` null). If only `marketing_consent` is mapped/filled for a brand-new customer, the resulting `gdpr_consent` JSON omits the `consent_given` key entirely — breaking the invariant from `CustomerServiceImpl.defaultGdprConsent()` that every customer always has an explicit `consent_given` boolean. Root cause: the fallback check is `map.isEmpty()` instead of always seeding a `consent_given: false` baseline and overlaying parsed values on top.
+- **Pattern to check in future:** whenever a service builds a JSONB "settings/consent/flags" map from several optional independently-mappable boolean/scalar sources, verify the "always-present baseline key" fallback triggers per-key (or via a seeded base map merged with `putAll`), not only when the *entire* map would otherwise be empty. This is the same class of bug as the previous `externalId` blank-string-not-normalized finding — a partial/edge input silently produces a different data shape than the "no input at all" case.
+
+**Positive — `hasConsentMapping` (compute-once, not per-row) pattern done correctly:**
+- `hasConsentMapping` is computed exactly once per import, for all three mapping-resolution paths (explicit JSON mapping — before the `while` loop; header auto-detection and positional `defaultColumnIndex()` fallback — both gated by `rowNumber == 1`). Two full SQL variants (`UPDATE_SQL_WITHOUT_CONSENT` / `UPDATE_SQL_WITH_CONSENT`, structurally different `SET` clauses, not just a no-op merge) are chosen once per job based on this flag — the strongest possible guard against silently zeroing a customer's GDPR consent on a re-import that doesn't map consent columns. `defaultColumnIndex()` deliberately never maps `consent_given`/`marketing_consent` (explicit-mapping-only for consent, by design) — correct, avoids accidentally reading the wrong positional column as a legal consent record.
+- `ParsedMapping(single, multi, customFields, legacyCustomFieldsColumn)` record is a clean abstraction reused consistently across all three mapping sources (explicit JSON, header auto-detect, positional default) — good pattern for future "add another mapped-column-shape" work (reduces risk of the 3 sources drifting apart).
+- Backward compatibility for both `"phone": 2` (single number → wrapped into 1-element list) and `"custom_fields": 5` (single number → `legacyCustomFieldsColumn`, parses cell content as raw JSON exactly like the pre-existing behavior) verified correct with dedicated tests.
+- Multi-column + per-cell `;`-split correctly compose (`getMultiColumn` iterates column indices AND splits each cell) — both mechanisms coexist without either being silently dropped.
+
+**Check in future CSV-import/bulk-mapping related reviews:**
+- Does a new optional JSONB "flags" field built from several independently-mappable sub-values always seed baseline defaults, or only when the whole map is empty?
+- Is any "compute once per job, not per row" flag (like `hasConsentMapping`) actually gated before the row loop for ALL mapping-resolution code paths, not just the explicit-mapping one?
+
 ## Architectural patterns observed in BE-027
 
 **Partitioned table pattern (new in BE-027):**

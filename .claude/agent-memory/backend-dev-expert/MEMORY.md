@@ -70,7 +70,7 @@
 
 - [BE-025 Customer CRUD API](project_be025_customer_api.md) – implementacja Customer CRUD, fuzzy search, RODO, RabbitMQ UNKNOWN_CALLER
 - [BE-026 Customer CSV Import](project_be026_customer_import.md) – async import klientów z CSV, DeduplicationMode SKIP/OVERWRITE, Redis job status, batch
-  JdbcTemplate, wielokrotne phone/email (;)
+  JdbcTemplate, wielokrotne phone/email (;); rozszerzenie 2026-07-05: ParsedMapping (multi-column phone/email, named custom_fields, import zgody RODO)
 - [BE-027 Contact API](project_be027_contact_api.md) – CRUD historii kontaktów, tabela partycjonowana, ContactRepository rozszerza istniejący plik (BE-010
   recording)
 - [BE-019 Routing Engine](project_routing_engine.md) – silnik routingu (skill-based, round-robin, sticky agent), pakiet domain.routing, spy pattern w testach

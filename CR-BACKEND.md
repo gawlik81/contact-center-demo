@@ -2188,3 +2188,53 @@ _Nie zidentyfikowano nowych zagrożeń bezpieczeństwa w tym PR._ Weryfikacja ra
 ### Summary
 
 **Ocena: 3.5/5 ⭐** — solidne rozszerzenie domeny zgodne z konwencjami migracji/multi-tenancy i poprawiające realny, historyczny bug JDBC, ale z dwoma niezaadresowanymi lukami: cichą utratą danych / przerwaniem całego joba importu CSV przy kolizji `external_id` (Bugs #1/#2), oraz brakiem możliwości wyczyszczenia `externalId` po jego ustawieniu z powodu nieznormalizowanego pustego stringa (Bugs #3, wspólnie z frontendem). Rekomenduję naprawić normalizację pustego stringa i dodać obsługę kolizji `external_id` w ścieżce importu przed mergem do produkcji — pozostałe uwagi to usprawnienia, nie blokery.
+
+## Review: CustomerImportServiceImpl — wielokolumnowy phone/email, nazwane custom_fields, import zgody RODO — 2026-07-05
+
+**Branch:** `customer-refactor`
+
+**Zakres:** `CustomerImportServiceImpl.java` (nowy record `ParsedMapping`, `getMultiColumn`, `buildGdprConsent`,
+dwa warianty SQL UPDATE dla `gdpr_consent`), `CustomerImportServiceTest.java` (nowa klasa zagnieżdżona
+`ColumnMappingAndConsent` + rozszerzenie `ParseColumnMapping`). Zweryfikowałem logikę statycznie
+(diff + pełny plik), bez uruchamiania `mvn test` w tej sesji — wcześniejsza notatka w
+`.claude/agent-memory/backend-dev-expert/project_be026_customer_import.md` potwierdza zielony przebieg.
+
+### 🐛 Bugs / Critical Issues
+
+- **`CustomerImportServiceImpl.java:553-571` (`buildInsertRow`) + `:1008-1021` (`buildGdprConsent`) — dla NOWEGO klienta `gdpr_consent` może nie zawierać w ogóle klucza `consent_given`, gdy zmapowana/wypełniona jest TYLKO kolumna `marketing_consent`.** Fallback na `{"consent_given": false}` (linie 556-558) uruchamia się wyłącznie, gdy `buildGdprConsent(...)` zwróci **całkowicie pustą** mapę (obie wartości `null`). Jeśli jednak `marketingConsent` jest niepuste, a `consentGiven` jest `null` (kolumna `consent_given` niezmapowana albo pusta komórka w tym konkretnym wierszu, przy zmapowanej `marketing_consent`), zapisany JSON to `{"marketing_consent": true, "consent_source": "CSV_IMPORT", "consent_date": "..."}` — **bez klucza `consent_given`**. To łamie inwariant ustanowiony przez `CustomerServiceImpl.defaultGdprConsent()` (linia 552-556 w `CustomerServiceImpl.java`), który dla KAŻDEGO klienta tworzonego przez pozostałe ścieżki API zawsze zapisuje `consent_given: false` jako baseline. Konsekwencja: klienci utworzeni przez CSV import mogą mieć niespójny kształt `gdpr_consent` względem klientów tworzonych ręcznie/API — dziś nieszkodliwe (brak zapytań SQL filtrujących po `gdpr_consent->>'consent_given'`), ale to pole jest z definicji compliance-krytyczne (RODO) i przyszły raport/filtr zgód (`WHERE gdpr_consent->>'consent_given' = 'true'`) zwróci `NULL` zamiast `false` dla tych rekordów — inny wynik niż dla reszty bazy. Reprodukowalne też przez UI (frontend pozwala zmapować `marketing_consent` bez mapowania `consent_given`).
+  - Fix: budować bazową mapę z `consent_given=false` i nadpisywać sparsowanymi wartościami, zamiast warunkowego fallbacku tylko dla całkowicie pustej mapy:
+    ```java
+    Map<String, Object> gdprConsent = new LinkedHashMap<>();
+    gdprConsent.put(COL_CONSENT_GIVEN, false); // baseline, spójny z CustomerServiceImpl.defaultGdprConsent()
+    gdprConsent.putAll(buildGdprConsent(csvRow.consentGiven(), csvRow.marketingConsent()));
+    String gdprConsentJson = toJson(gdprConsent);
+    ```
+    (Dla `buildUpdateRow` zachowanie zostaje bez zmian — merge JSONB `||` celowo NIE powinien wymuszać `consent_given`, żeby nie nadpisywać istniejącej wartości klienta gołym `false` przy re-imporcie samego `marketing_consent`.)
+  - Brakujący test na tę lukę: żaden z nowych testów (`newCustomer_consentColumnsMapped_gdprConsentPopulated` i inne w `ColumnMappingAndConsent`) nie sprawdza przypadku "zmapowana/wypełniona TYLKO `marketing_consent`, `consent_given` puste/niezmapowane, tryb INSERT" — dodać test weryfikujący `gdpr.get("consent_given")` po naprawie.
+
+### ⚠️ Security Concerns
+
+_Nie zidentyfikowano nowych zagrożeń bezpieczeństwa w tej zmianie._ Kluczowy wymóg bezpieczeństwa danych z briefu — dwa warianty SQL UPDATE (`UPDATE_SQL_WITHOUT_CONSENT` / `UPDATE_SQL_WITH_CONSENT`, linie 434-463) wybierane raz na cały import przez `hasConsentMapping`, z merge JSONB `||` (nie nadpisaniem) — zweryfikowany jako poprawnie zaimplementowany i pokryty dedykowanymi testami regresyjnymi (`overwrite_noConsentMapping_updateSqlExcludesGdprConsent`, `overwrite_withConsentMapping_updateSqlMergesGdprConsent`). Zobacz szczegóły w sekcji Positive Observations.
+
+### 🏗️ Architecture / Pattern Violations
+
+- **Pre-istniejące, niezmienione w tym PR:** `batchInsertCustomers`/`batchUpdateCustomers` nadal operują przez surowy `JdbcTemplate` zamiast `TenantAwareRepository`/`assertSameTenant()` — `tenant_id` jest poprawnie bindowany jako parametr z `TenantContext` odtworzonego przez `snapshot()/restore()` (linia 141, 162), a UPDATE poprawnie filtruje `WHERE tenant_id = CAST(? AS uuid)`, więc nie jest to naruszenie bezpieczeństwa, ale odnotowuję jako świadomą architektoniczną różnicę od standardowego wzorca repozytorium — bez akcji, tylko do wiadomości przy przyszłych zmianach w tym serwisie.
+- `ParsedMapping` jest package-private rekordem (nie `private`) celowo, żeby testy w tym samym pakiecie mogły go nazwać po typie — udokumentowane w komentarzu Javadoc i w pamięci `backend-dev-expert`; zgodne z konwencją projektu dla tego typu przypadków (por. `CsvRow`).
+
+### 🔧 Improvements & Suggestions
+
+- **`CustomerImportServiceImpl.java:1018`** — `consent_date` liczone przez `Instant.now().toString()` osobno DLA KAŻDEGO wiersza z niepustą zgodą. Poprawne funkcjonalnie, ale dla dużego pliku (tysiące wierszy) oznacza tysiące nieznacznie różniących się znaczników czasu w ramach jednego joba importu, zamiast jednego spójnego znacznika "czas rozpoczęcia importu". Rozważ obliczenie `Instant importStartedAt = Instant.now()` raz na początku `doImport` i przekazanie go do `buildGdprConsent`/`buildInsertRow`/`buildUpdateRow` — kosmetyczne, nieblokujące.
+- Warto dodać test jawnie potwierdzający, że `hasConsentMapping` jest liczone raz na cały import również dla ścieżki `defaultColumnIndex()` (brak nagłówka + brak jawnego mapowania) — obecne testy pokrywają jawne mapowanie i auto-detekcję nagłówka, ale nie pozycyjny fallback. Ryzyko niskie (kod jawnie NIE mapuje kolumn zgody w `defaultColumnIndex()`), ale test zamknąłby lukę na przyszłość, gdyby ktoś kiedyś dodał domyślne pozycje dla `consent_given`/`marketing_consent`.
+
+### ✅ Positive Observations
+
+- **`ParsedMapping(single, multi, customFields, legacyCustomFieldsColumn)` jest czystą, dobrze udokumentowaną abstrakcją** nad trzema różnymi źródłami mapowania kolumn (jawne z frontendu, auto-detekcja nagłówka, pozycyjny fallback) — każde z trzech miejsc budujących mapowanie (`parseColumnMappingJson`, `buildColumnIndex`, `defaultColumnIndex`) konsekwentnie wypełnia te same cztery pola, co eliminuje ryzyko rozjazdu logiki między ścieżkami.
+- **Wsteczna zgodność zweryfikowana i poprawna**: `"phone": 2` (pojedyncza liczba) poprawnie opakowywane w jednoelementową listę w `getMultiColumn`; `"custom_fields": 5` (pojedyncza liczba) poprawnie trafia do `legacyCustomFieldsColumn` i zachowuje dokładnie stare zachowanie (parsowanie zawartości komórki jako JSON, z fallbackiem na literalną wartość). Oba potwierdzone dedykowanymi testami (`backwardCompat_singleNumberPhoneMapping_stillWorks`, `backwardCompat_singleNumberCustomFieldsMapping_parsesJsonInCell`).
+- **Łączenie wielu kolumn phone/email działa poprawnie na dwóch niezależnych poziomach jednocześnie**: `getMultiColumn` łączy wartości z WIELU kolumn CSV (np. `"phone":[2,5]`) ORAZ dla każdej z tych kolumn nadal dzieli komórkę po `;` (`splitMultiValue`) — oba mechanizmy poprawnie współistnieją, potwierdzone testami i ręczną analizą przepływu danych.
+- **Kluczowy wymóg bezpieczeństwa RODO zaimplementowany poprawnie**: `hasConsentMapping` liczone raz na cały import (nie per wiersz) dla WSZYSTKICH trzech ścieżek mapowania (jawne mapowanie — przed pętlą `while`; auto-detekcja nagłówka i pozycyjny fallback — przy `rowNumber==1`, co efektywnie też liczy się raz). UPDATE bez zmapowanych kolumn zgody używa SQL-a, który w ogóle nie wspomina `gdpr_consent` w `SET` — nie samego pustego/no-op mergowania, tylko strukturalnie innego zapytania — najsilniejsza możliwa gwarancja przeciw przypadkowemu wyzerowaniu zgody. Merge (`||`, nie `=`) poprawnie zachowuje klucze niewymienione w nowej mapie.
+- **Testy nowej funkcjonalności są dokładnie tam, gdzie powinny być** — dedykowany test regresyjny sprawdzający treść SQL-a (`doesNotContain("gdpr_consent")` / `contains("gdpr_consent = gdpr_consent || CAST(? AS jsonb)")`) zamiast tylko efektu końcowego, co czyni test odpornym na przyszłe refaktory i jednoznacznie dokumentującym intencję bezpieczeństwa.
+- Refaktor `toJson(Map<String, ?> map)` (wildcard zamiast `Map<String,String>`) jest minimalny i trafny — jedna metoda obsługuje teraz zarówno `customFields` (`Map<String,String>`), jak i `gdpr_consent` (`Map<String,Object>` z boolean), bez duplikacji kodu serializacji.
+
+### Summary
+
+**Ocena: 4/5 ⭐** — solidna, dobrze przetestowana implementacja trzech niezależnych wymagań (multi-column, named custom_fields, RODO consent) z prawidłowo zaimplementowanym kluczowym wymogiem bezpieczeństwa danych (dwa warianty SQL UPDATE + merge JSONB) i pełną wsteczną zgodnością. Jedyna realna luka to brak normalizacji `consent_given` do jawnego `false` gdy tylko `marketing_consent` jest mapowane dla nowego klienta — drobna, łatwa do naprawienia niespójność danych, nie blokująca mergu, ale warta poprawki przed uznaniem funkcji za w pełni zamkniętą.

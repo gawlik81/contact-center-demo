@@ -42,9 +42,17 @@ import java.util.regex.Pattern;
  * <p>Status joba przechowywany w Redis pod kluczem {@value #JOB_KEY_PREFIX}{jobId}
  * z TTL {@value #JOB_TTL_SECONDS}s (1h).
  *
- * <p>Kolumny CSV: first_name, last_name, phone (wielokrotne wartości rozdzielone ';'),
- * email (wielokrotne wartości rozdzielone ';'), external_id (opcjonalny, unikalny w tenancie),
- * custom_fields.
+ * <p>Kolumny CSV: first_name, last_name, phone (wielokrotne wartości/kolumny – rozdzielone ';'
+ * w jednej komórce lub zmapowane z wielu kolumn CSV), email (analogicznie wielokrotne),
+ * external_id (opcjonalny, unikalny w tenancie), custom_fields (nazwane pola dodatkowe –
+ * mapowane jako obiekt {@code {nazwa: indeks_kolumny}} lub jedna kolumna z surowym JSON-em –
+ * wsteczna zgodność), consent_given / marketing_consent (opcjonalna zgoda RODO – zapisywana
+ * do {@code gdpr_consent} z {@code consent_source=CSV_IMPORT} i {@code consent_date}).
+ *
+ * <p>Mapowanie kolumn ({@code columnMappingJson}) obsługuje zarówno pojedynczy indeks kolumny
+ * na pole (jak dotychczas), jak i tablicę indeksów dla {@code phone}/{@code email} (łączenie
+ * wielu kolumn CSV w jedną listę wartości) oraz obiekt {@code {nazwa_pola: indeks}} dla
+ * {@code custom_fields}.
  *
  * <p>Walidacja telefonu: format E.164 {@code +[1-15 cyfr]}.
  */
@@ -84,6 +92,11 @@ class CustomerImportServiceImpl implements CustomerImportService {
     private static final String COL_EMAIL       = "email";
     private static final String COL_CUSTOM      = "custom_fields";
     private static final String COL_EXTERNAL_ID = "external_id";
+    private static final String COL_CONSENT_GIVEN     = "consent_given";
+    private static final String COL_MARKETING_CONSENT = "marketing_consent";
+
+    /** Źródło zgody RODO zapisywane przy imporcie CSV. */
+    private static final String CONSENT_SOURCE_CSV_IMPORT = "CSV_IMPORT";
 
     // =========================================================================
     // Zależności
@@ -199,9 +212,17 @@ class CustomerImportServiceImpl implements CustomerImportService {
         int failed    = 0;
         int rowNumber = 0;
         boolean hasHeader = false;
-        Map<String, Integer> columnIndex = new HashMap<>();
+        ParsedMapping mapping = new ParsedMapping(new HashMap<>(), new HashMap<>(), new LinkedHashMap<>(), null);
+        // Czy job ma zmapowane kolumny zgody (consent_given/marketing_consent) – ustalane raz,
+        // zaraz po rozstrzygnięciu finalnego mapowania, i używane do wyboru wariantu SQL UPDATE
+        // (patrz batchUpdateCustomers) tak, żeby re-import bez kolumn zgód NIE zerował istniejącej zgody.
+        boolean hasConsentMapping = false;
 
-        Map<String, Integer> explicitMapping = parseColumnMappingJson(columnMappingJson);
+        ParsedMapping explicitMapping = parseColumnMappingJson(columnMappingJson);
+        boolean hasExplicitMapping = !explicitMapping.single().isEmpty()
+                || !explicitMapping.multi().isEmpty()
+                || !explicitMapping.customFields().isEmpty()
+                || explicitMapping.legacyCustomFieldsColumn() != null;
 
         char sep   = resolveSeparator(columnSeparator);
         char quote = resolveQuote(quoteChar);
@@ -221,9 +242,10 @@ class CustomerImportServiceImpl implements CustomerImportService {
             CSVParser parser = parserBuilder.build();
             CSVReader csvReader = new CSVReaderBuilder(reader).withCSVParser(parser).build();
 
-            if (!explicitMapping.isEmpty()) {
-                columnIndex = explicitMapping;
-                log.debug("[CustomerImport] Mapowanie z parametru: {}", columnIndex);
+            if (hasExplicitMapping) {
+                mapping = explicitMapping;
+                hasConsentMapping = hasConsentMapping(mapping);
+                log.debug("[CustomerImport] Mapowanie z parametru: {}", mapping);
             }
 
             String[] line;
@@ -231,20 +253,22 @@ class CustomerImportServiceImpl implements CustomerImportService {
                 rowNumber++;
 
                 // Auto-detekcja nagłówka w pierwszym wierszu
-                if (rowNumber == 1 && explicitMapping.isEmpty()) {
+                if (rowNumber == 1 && !hasExplicitMapping) {
                     if (isHeader(line)) {
                         hasHeader = true;
-                        columnIndex = buildColumnIndex(line);
-                        log.debug("[CustomerImport] Wykryto nagłówek: {}", columnIndex);
+                        mapping = buildColumnIndex(line);
+                        hasConsentMapping = hasConsentMapping(mapping);
+                        log.debug("[CustomerImport] Wykryto nagłówek: {}", mapping);
                         continue;
                     }
-                    columnIndex = defaultColumnIndex();
+                    mapping = defaultColumnIndex();
+                    hasConsentMapping = hasConsentMapping(mapping);
                 }
 
                 totalRows++;
                 int dataRow = hasHeader ? rowNumber - 1 : rowNumber;
 
-                CsvRow csvRow = parseRow(line, columnIndex);
+                CsvRow csvRow = parseRow(line, mapping);
 
                 // Walidacja – wymaga przynajmniej jednego poprawnego telefonu
                 List<String> validPhones = filterValidPhones(csvRow.phones());
@@ -302,7 +326,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
 
                 // Flush batcha po BATCH_SIZE wierszach
                 if (batch.size() >= BATCH_SIZE) {
-                    flushBatch(batch, mode);
+                    flushBatch(batch, mode, hasConsentMapping);
                     batch.clear();
 
                     // Aktualizuj postęp w Redis co chunk
@@ -320,7 +344,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
 
             // Flush pozostałości
             if (!batch.isEmpty()) {
-                flushBatch(batch, mode);
+                flushBatch(batch, mode, hasConsentMapping);
             }
         } catch (Exception e) {
             throw new IOException("Błąd parsowania CSV: " + e.getMessage(), e);
@@ -352,7 +376,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
     // Batch insert / update
     // =========================================================================
 
-    private void flushBatch(List<Object[]> batch, DeduplicationMode mode) {
+    private void flushBatch(List<Object[]> batch, DeduplicationMode mode, boolean hasConsentMapping) {
         // Rozdziel batch na wstawki i aktualizacje (rozróżnione typem pierwszego elementu)
         List<Object[]> inserts = new ArrayList<>();
         List<Object[]> updates = new ArrayList<>();
@@ -369,7 +393,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
             batchInsertCustomers(inserts);
         }
         if (!updates.isEmpty()) {
-            batchUpdateCustomers(updates);
+            batchUpdateCustomers(updates, hasConsentMapping);
         }
     }
 
@@ -380,13 +404,14 @@ class CustomerImportServiceImpl implements CustomerImportService {
                      custom_fields, external_id, gdpr_consent, source, is_deleted, created_at)
                 VALUES
                     (gen_random_uuid(), CAST(? AS uuid), ?, ?, CAST(? AS jsonb), CAST(? AS jsonb),
-                     CAST(? AS jsonb), ?, '{}'::jsonb, 'CSV_IMPORT', false, ?)
+                     CAST(? AS jsonb), ?, CAST(? AS jsonb), 'CSV_IMPORT', false, ?)
                 ON CONFLICT DO NOTHING
                 """;
 
         // Usuń znacznik customerId=null (row[0]) – nie jest parametrem SQL (customer_id generowany
         // przez gen_random_uuid()); przetasuj pozostałe pola do kolejności placeholderów INSERT.
-        // row: [null, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, externalId, createdAt]
+        // row: [null, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson,
+        //       externalId, gdprConsentJson, createdAt]
         List<Object[]> insertParams = new ArrayList<>();
         for (Object[] row : rows) {
             insertParams.add(new Object[]{
@@ -397,7 +422,8 @@ class CustomerImportServiceImpl implements CustomerImportService {
                     row[5], // email (jsonb)
                     row[6], // custom_fields (jsonb)
                     row[7], // external_id
-                    row[8]  // created_at
+                    row[8], // gdpr_consent (jsonb)
+                    row[9]  // created_at
             });
         }
 
@@ -405,40 +431,85 @@ class CustomerImportServiceImpl implements CustomerImportService {
         log.debug("[CustomerImport] Batch INSERT: {} klientów", rows.size());
     }
 
-    private void batchUpdateCustomers(List<Object[]> rows) {
-        String sql = """
-                UPDATE customer
-                SET first_name    = ?,
-                    last_name     = ?,
-                    phone         = CAST(? AS jsonb),
-                    email         = CAST(? AS jsonb),
-                    custom_fields = CAST(? AS jsonb),
-                    external_id   = ?,
-                    updated_at    = ?
-                WHERE customer_id = CAST(? AS uuid)
-                  AND tenant_id   = CAST(? AS uuid)
-                  AND is_deleted  = false
-                """;
+    private static final String UPDATE_SQL_WITHOUT_CONSENT = """
+            UPDATE customer
+            SET first_name    = ?,
+                last_name     = ?,
+                phone         = CAST(? AS jsonb),
+                email         = CAST(? AS jsonb),
+                custom_fields = CAST(? AS jsonb),
+                external_id   = ?,
+                updated_at    = ?
+            WHERE customer_id = CAST(? AS uuid)
+              AND tenant_id   = CAST(? AS uuid)
+              AND is_deleted  = false
+            """;
 
-        // Przetasuj kolejność parametrów dla UPDATE
-        // row: [customerId, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, externalId, updatedAt]
+    // Merge (||), NIE pełne nadpisanie – zachowuje istniejące klucze gdpr_consent niewymienione
+    // w nowej mapie (np. gdy import mapuje tylko consent_given, marketing_consent pozostaje bez zmian).
+    private static final String UPDATE_SQL_WITH_CONSENT = """
+            UPDATE customer
+            SET first_name    = ?,
+                last_name     = ?,
+                phone         = CAST(? AS jsonb),
+                email         = CAST(? AS jsonb),
+                custom_fields = CAST(? AS jsonb),
+                external_id   = ?,
+                gdpr_consent  = gdpr_consent || CAST(? AS jsonb),
+                updated_at    = ?
+            WHERE customer_id = CAST(? AS uuid)
+              AND tenant_id   = CAST(? AS uuid)
+              AND is_deleted  = false
+            """;
+
+    /**
+     * Batch UPDATE klientów (tryb OVERWRITE).
+     *
+     * <p><b>Krytyczne dla ochrony danych RODO:</b> {@code gdpr_consent} jest aktualizowane
+     * TYLKO gdy {@code hasConsentMapping=true} (job ma jawnie zmapowane kolumny consent_given
+     * lub marketing_consent). W przeciwnym razie re-import samego telefonu/custom_fields NIE
+     * dotyka istniejącej zgody klienta – zapobiega to cichemu zerowaniu zgód.
+     *
+     * @param rows              wiersze do aktualizacji – patrz {@link #buildUpdateRow} po opis indeksów
+     * @param hasConsentMapping czy job ma zmapowane kolumny zgody (ustalone raz na cały import)
+     */
+    private void batchUpdateCustomers(List<Object[]> rows, boolean hasConsentMapping) {
+        String sql = hasConsentMapping ? UPDATE_SQL_WITH_CONSENT : UPDATE_SQL_WITHOUT_CONSENT;
+
+        // row: [customerId, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson,
+        //       externalId, gdprConsentJson, updatedAt]
         List<Object[]> updateParams = new ArrayList<>();
         for (Object[] row : rows) {
-            updateParams.add(new Object[]{
-                    row[2], // first_name
-                    row[3], // last_name
-                    row[4], // phone (jsonb)
-                    row[5], // email (jsonb)
-                    row[6], // custom_fields (jsonb)
-                    row[7], // external_id
-                    row[8], // updated_at
-                    row[0], // customer_id (WHERE)
-                    row[1]  // tenant_id (WHERE)
-            });
+            if (hasConsentMapping) {
+                updateParams.add(new Object[]{
+                        row[2], // first_name
+                        row[3], // last_name
+                        row[4], // phone (jsonb)
+                        row[5], // email (jsonb)
+                        row[6], // custom_fields (jsonb)
+                        row[7], // external_id
+                        row[8], // gdpr_consent (merge jsonb)
+                        row[9], // updated_at
+                        row[0], // customer_id (WHERE)
+                        row[1]  // tenant_id (WHERE)
+                });
+            } else {
+                updateParams.add(new Object[]{
+                        row[2], // first_name
+                        row[3], // last_name
+                        row[4], // phone (jsonb)
+                        row[5], // email (jsonb)
+                        row[6], // custom_fields (jsonb)
+                        row[7], // external_id
+                        row[9], // updated_at
+                        row[0], // customer_id (WHERE)
+                        row[1]  // tenant_id (WHERE)
+                });
+            }
         }
 
         jdbcTemplate.batchUpdate(sql, updateParams);
-        log.debug("[CustomerImport] Batch UPDATE: {} klientów", rows.size());
+        log.debug("[CustomerImport] Batch UPDATE: {} klientów (hasConsentMapping={})", rows.size(), hasConsentMapping);
     }
 
     // =========================================================================
@@ -469,13 +540,23 @@ class CustomerImportServiceImpl implements CustomerImportService {
 
     /**
      * Buduje wiersz dla INSERT (customerId=null jako znacznik).
-     * Kolejność: [null, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, externalId, createdAt]
+     * Kolejność: [null, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson,
+     *             externalId, gdprConsentJson, createdAt]
+     *
+     * <p>Nowy klient zawsze dostaje jawny klucz {@code consent_given} w {@code gdpr_consent}: baza
+     * startuje od {@code {"consent_given": false}} (spójnie z
+     * {@code CustomerServiceImpl.defaultGdprConsent()} dla klientów tworzonych ręcznie), a następnie
+     * nakładane są na nią realne wartości z {@link #buildGdprConsent(Boolean, Boolean)}. Dzięki temu
+     * klucz {@code consent_given} jest zawsze obecny – domyślnie {@code false}, nadpisany wartością
+     * z CSV gdy ta kolumna była zmapowana – nawet jeśli CSV dostarczył tylko
+     * {@code marketing_consent} bez {@code consent_given}.
      *
      * @param externalId znormalizowany (przycięty, null gdy pusty) identyfikator zewnętrzny –
      *                   ustalony i zweryfikowany pod kątem kolizji przed wywołaniem tej metody
      */
     private Object[] buildInsertRow(UUID tenantId, CsvRow csvRow, List<String> validPhones, String externalId) {
         List<String> allEmails = csvRow.emails() != null ? csvRow.emails() : List.of();
+        String gdprConsentJson = toJson(buildInsertGdprConsent(csvRow.consentGiven(), csvRow.marketingConsent()));
         return new Object[]{
                 null,                          // [0] customerId = null → INSERT
                 tenantId.toString(),           // [1]
@@ -485,19 +566,26 @@ class CustomerImportServiceImpl implements CustomerImportService {
                 toJsonArray(allEmails),        // [5] email (JSONB)
                 toJson(csvRow.customFields()), // [6] custom_fields
                 externalId,                    // [7] external_id (znormalizowany)
-                Timestamp.from(Instant.now()) // [8] created_at
+                gdprConsentJson,               // [8] gdpr_consent (JSONB)
+                Timestamp.from(Instant.now())  // [9] created_at
         };
     }
 
     /**
      * Buduje wiersz dla UPDATE.
-     * Kolejność: [customerId, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, externalId, updatedAt]
+     * Kolejność: [customerId, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson,
+     *             externalId, gdprConsentJson, updatedAt]
+     *
+     * <p>Pole {@code gdprConsentJson} (indeks 8) jest budowane zawsze, ale wykorzystywane przez
+     * {@link #batchUpdateCustomers} TYLKO gdy job ma zmapowane kolumny zgody (parametr
+     * {@code hasConsentMapping}) – pusta mapa {@code {}} oznacza wtedy no-op merge JSONB.
      *
      * @param externalId znormalizowany (przycięty, null gdy pusty) identyfikator zewnętrzny –
      *                   ustalony i zweryfikowany pod kątem kolizji przed wywołaniem tej metody
      */
     private Object[] buildUpdateRow(UUID customerId, UUID tenantId, CsvRow csvRow, List<String> validPhones, String externalId) {
         List<String> allEmails = csvRow.emails() != null ? csvRow.emails() : List.of();
+        Map<String, Object> gdprConsent = buildGdprConsent(csvRow.consentGiven(), csvRow.marketingConsent());
         return new Object[]{
                 customerId.toString(),         // [0] customerId → UPDATE
                 tenantId.toString(),           // [1]
@@ -507,7 +595,8 @@ class CustomerImportServiceImpl implements CustomerImportService {
                 toJsonArray(allEmails),        // [5] email (JSONB)
                 toJson(csvRow.customFields()), // [6] custom_fields
                 externalId,                    // [7] external_id (znormalizowany)
-                Timestamp.from(Instant.now()) // [8] updated_at
+                toJson(gdprConsent),           // [8] gdpr_consent (JSONB merge – używane warunkowo)
+                Timestamp.from(Instant.now())  // [9] updated_at
         };
     }
 
@@ -716,72 +805,120 @@ class CustomerImportServiceImpl implements CustomerImportService {
         return false;
     }
 
-    private Map<String, Integer> buildColumnIndex(String[] header) {
-        Map<String, Integer> index = new HashMap<>();
-        for (int i = 0; i < header.length; i++) {
-            index.put(header[i].trim().toLowerCase(), i);
-        }
-        return index;
-    }
-
-    private Map<String, Integer> defaultColumnIndex() {
-        Map<String, Integer> index = new HashMap<>();
-        index.put(COL_FIRST_NAME,  0);
-        index.put(COL_LAST_NAME,   1);
-        index.put(COL_PHONE,       2);
-        index.put(COL_EMAIL,       3);
-        index.put(COL_EXTERNAL_ID, 4);
-        return index;
-    }
-
-    private CsvRow parseRow(String[] line, Map<String, Integer> columnIndex) {
-        String firstName  = getColumn(line, columnIndex, COL_FIRST_NAME);
-        String lastName   = getColumn(line, columnIndex, COL_LAST_NAME);
-        String phoneRaw    = getColumn(line, columnIndex, COL_PHONE);
-        String emailRaw    = getColumn(line, columnIndex, COL_EMAIL);
-        String customRaw   = getColumn(line, columnIndex, COL_CUSTOM);
-        String externalId  = getColumn(line, columnIndex, COL_EXTERNAL_ID);
-
-        List<String> phones = splitMultiValue(phoneRaw);
-        List<String> emails = splitMultiValue(emailRaw);
-
-        Map<String, String> customFields = parseCustomFields(customRaw, columnIndex, line);
-
-        return new CsvRow(firstName, lastName, phones, emails, customFields, externalId);
-    }
-
     /**
-     * Parsuje custom_fields: jeśli kolumna "custom_fields" istnieje w nagłówku – parsuje jako JSON,
-     * w przeciwnym wypadku zbiera wszystkie kolumny zaczynające się na "custom_".
+     * Auto-detekcja mapowania kolumn z wiersza nagłówka CSV.
+     *
+     * <p>Nagłówek {@code phone}/{@code email} zawsze trafia do {@link ParsedMapping#multi()}
+     * (jednoelementowa lista, chyba że nagłówek powtarza się – wtedy indeksy się kumulują).
+     * Literalny nagłówek {@code custom_fields} → {@link ParsedMapping#legacyCustomFieldsColumn()}
+     * (zachowanie jak dotychczas: parsowanie zawartości komórki jako JSON). Nagłówki zaczynające
+     * się na {@code custom_} (inne niż dokładnie {@code custom_fields}) → {@link ParsedMapping#customFields()}
+     * z kluczem = pełna nazwa nagłówka.
      */
-    private Map<String, String> parseCustomFields(String customRaw,
-                                                   Map<String, Integer> columnIndex,
-                                                   String[] line) {
-        Map<String, String> result = new LinkedHashMap<>();
+    private ParsedMapping buildColumnIndex(String[] header) {
+        Map<String, Integer> single = new HashMap<>();
+        Map<String, List<Integer>> multi = new HashMap<>();
+        Map<String, Integer> customFields = new LinkedHashMap<>();
+        Integer legacyCustomFieldsColumn = null;
 
-        if (customRaw != null && !customRaw.isBlank()) {
-            // Spróbuj parsować jako JSON
-            try {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> parsed = objectMapper.readValue(customRaw, Map.class);
-                parsed.forEach((k, v) -> {
-                    if (v != null) result.put(k, v.toString());
-                });
-                return result;
-            } catch (Exception ignored) {
-                // Nie jest JSON – traktuj jako zwykłą wartość
-                result.put("custom_fields", customRaw);
-                return result;
+        for (int i = 0; i < header.length; i++) {
+            String name = header[i].trim().toLowerCase();
+
+            if (COL_CUSTOM.equals(name)) {
+                legacyCustomFieldsColumn = i;
+            } else if (name.startsWith("custom_")) {
+                customFields.put(name, i);
+            } else if (COL_PHONE.equals(name) || COL_EMAIL.equals(name)) {
+                multi.computeIfAbsent(name, k -> new ArrayList<>()).add(i);
+            } else {
+                single.put(name, i);
             }
         }
 
-        // Zbierz kolumny zaczynające się na "custom_"
-        for (Map.Entry<String, Integer> entry : columnIndex.entrySet()) {
-            if (entry.getKey().startsWith("custom_") && !entry.getKey().equals(COL_CUSTOM)) {
-                String val = getColumn(line, columnIndex, entry.getKey());
-                if (val != null && !val.isBlank()) {
-                    result.put(entry.getKey(), val);
+        return new ParsedMapping(single, multi, customFields, legacyCustomFieldsColumn);
+    }
+
+    /**
+     * Pozycyjne mapowanie domyślne – gdy brak nagłówka i brak jawnego mapowania z frontendu.
+     * Celowo NIE zawiera domyślnych pozycji dla consent_given/marketing_consent (zgoda RODO
+     * importowana jest wyłącznie gdy jawnie zmapowana – jawność ochrania przed przypadkowym
+     * odczytaniem niewłaściwej kolumny jako zgody).
+     */
+    private ParsedMapping defaultColumnIndex() {
+        Map<String, Integer> single = new HashMap<>();
+        single.put(COL_FIRST_NAME,  0);
+        single.put(COL_LAST_NAME,   1);
+        single.put(COL_EXTERNAL_ID, 4);
+
+        Map<String, List<Integer>> multi = new HashMap<>();
+        multi.put(COL_PHONE, new ArrayList<>(List.of(2)));
+        multi.put(COL_EMAIL, new ArrayList<>(List.of(3)));
+
+        return new ParsedMapping(single, multi, new LinkedHashMap<>(), null);
+    }
+
+    /** Czy mapowanie zawiera jawnie zmapowaną kolumnę consent_given lub marketing_consent. */
+    private boolean hasConsentMapping(ParsedMapping mapping) {
+        return mapping.single().containsKey(COL_CONSENT_GIVEN)
+                || mapping.single().containsKey(COL_MARKETING_CONSENT);
+    }
+
+    private CsvRow parseRow(String[] line, ParsedMapping mapping) {
+        String firstName  = getColumn(line, mapping.single(), COL_FIRST_NAME);
+        String lastName   = getColumn(line, mapping.single(), COL_LAST_NAME);
+        String externalId = getColumn(line, mapping.single(), COL_EXTERNAL_ID);
+
+        List<String> phones = getMultiColumn(line, mapping.multi().get(COL_PHONE));
+        List<String> emails = getMultiColumn(line, mapping.multi().get(COL_EMAIL));
+
+        Map<String, String> customFields = parseCustomFields(mapping, line);
+
+        Boolean consentGiven      = parseBoolean(getColumn(line, mapping.single(), COL_CONSENT_GIVEN));
+        Boolean marketingConsent  = parseBoolean(getColumn(line, mapping.single(), COL_MARKETING_CONSENT));
+
+        return new CsvRow(firstName, lastName, phones, emails, customFields, externalId,
+                consentGiven, marketingConsent);
+    }
+
+    /**
+     * Parsuje custom_fields.
+     *
+     * <p>Priorytet (zgodny z dotychczasowym zachowaniem, rozszerzony o nazwane pola):
+     * <ol>
+     *   <li>Jeśli jest zmapowana pojedyncza "legacy" kolumna custom_fields (literalny nagłówek
+     *       lub jawne {@code {"custom_fields": <indeks>}}) i komórka w tym wierszu jest niepusta –
+     *       parsuje jej zawartość jako JSON (fallback: literalna wartość pod kluczem
+     *       {@value #COL_CUSTOM}, gdy zawartość nie jest poprawnym JSON-em).</li>
+     *   <li>W przeciwnym razie – dla każdego wpisu w {@link ParsedMapping#customFields()}
+     *       (nazwane pole → indeks kolumny, czy to z jawnego mapowania {@code {"custom_fields": {...}}}
+     *       czy z auto-detekcji nagłówków {@code custom_*}) odczytuje wartość komórki wprost.</li>
+     * </ol>
+     */
+    private Map<String, String> parseCustomFields(ParsedMapping mapping, String[] line) {
+        Map<String, String> result = new LinkedHashMap<>();
+
+        if (mapping.legacyCustomFieldsColumn() != null) {
+            String customRaw = getColumnByIndex(line, mapping.legacyCustomFieldsColumn());
+            if (customRaw != null && !customRaw.isBlank()) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> parsed = objectMapper.readValue(customRaw, Map.class);
+                    parsed.forEach((k, v) -> {
+                        if (v != null) result.put(k, v.toString());
+                    });
+                    return result;
+                } catch (Exception ignored) {
+                    // Nie jest JSON – traktuj jako zwykłą wartość
+                    result.put(COL_CUSTOM, customRaw);
+                    return result;
                 }
+            }
+        }
+
+        for (Map.Entry<String, Integer> entry : mapping.customFields().entrySet()) {
+            String val = getColumnByIndex(line, entry.getValue());
+            if (val != null && !val.isBlank()) {
+                result.put(entry.getKey(), val);
             }
         }
 
@@ -789,12 +926,37 @@ class CustomerImportServiceImpl implements CustomerImportService {
     }
 
     private String getColumn(String[] line, Map<String, Integer> idx, String colName) {
-        Integer i = idx.get(colName);
-        if (i == null || i >= line.length) {
+        return getColumnByIndex(line, idx.get(colName));
+    }
+
+    private String getColumnByIndex(String[] line, Integer index) {
+        if (index == null || index < 0 || index >= line.length) {
             return null;
         }
-        String val = line[i].trim();
+        String val = line[index].trim();
         return val.isEmpty() ? null : val;
+    }
+
+    /**
+     * Odczytuje i łączy wartości z wielu kolumn CSV (np. kilka kolumn zmapowanych na "phone").
+     * Każda niepusta komórka jest dodatkowo dzielona po {@value #MULTI_VALUE_SEPARATOR} (wartości
+     * wielokrotne w jednej komórce), a wynik jest spłaszczoną listą wszystkich wartości ze
+     * wszystkich wskazanych kolumn (puste fragmenty pomijane).
+     *
+     * @param indices indeksy kolumn do odczytu; {@code null} → pusta lista
+     */
+    private List<String> getMultiColumn(String[] line, List<Integer> indices) {
+        if (indices == null) {
+            return new ArrayList<>();
+        }
+        List<String> result = new ArrayList<>();
+        for (Integer index : indices) {
+            if (index == null || index < 0 || index >= line.length) {
+                continue;
+            }
+            result.addAll(splitMultiValue(line[index]));
+        }
+        return result;
     }
 
     /**
@@ -816,32 +978,134 @@ class CustomerImportServiceImpl implements CustomerImportService {
     }
 
     /**
+     * Parsuje wartość zgody (tak/nie) z komórki CSV. Zgoda jest polem opcjonalnym – nierozpoznana
+     * wartość jest logowana na poziomie debug i traktowana jako brak danych (null), NIE jako
+     * twardy błąd blokujący import wiersza.
+     *
+     * @return {@code true}/{@code false} dla rozpoznanej wartości, {@code null} gdy puste lub nierozpoznane
+     */
+    private Boolean parseBoolean(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String normalized = raw.trim().toLowerCase();
+        return switch (normalized) {
+            case "tak", "true", "1", "yes" -> true;
+            case "nie", "false", "0", "no" -> false;
+            default -> {
+                log.debug("[CustomerImport] Nierozpoznana wartość zgody: '{}' – traktowana jako brak danych", raw);
+                yield null;
+            }
+        };
+    }
+
+    /**
+     * Buduje mapę {@code gdpr_consent} z wartości zgody wiersza CSV.
+     *
+     * <p>Zawiera tylko klucze, dla których wartość jest niepusta. Gdy przynajmniej jedna z dwóch
+     * wartości jest niepusta, dodaje też {@code consent_source=CSV_IMPORT} i {@code consent_date}
+     * (znacznik czasu importu). Gdy obie wartości są {@code null} – zwraca pustą mapę (nie null).
+     */
+    private Map<String, Object> buildGdprConsent(Boolean consentGiven, Boolean marketingConsent) {
+        Map<String, Object> consent = new LinkedHashMap<>();
+        if (consentGiven != null) {
+            consent.put(COL_CONSENT_GIVEN, consentGiven);
+        }
+        if (marketingConsent != null) {
+            consent.put(COL_MARKETING_CONSENT, marketingConsent);
+        }
+        if (!consent.isEmpty()) {
+            consent.put("consent_source", CONSENT_SOURCE_CSV_IMPORT);
+            consent.put("consent_date", Instant.now().toString());
+        }
+        return consent;
+    }
+
+    /**
+     * Buduje {@code gdpr_consent} dla NOWEGO klienta (ścieżka INSERT).
+     *
+     * <p>W przeciwieństwie do {@link #buildGdprConsent(Boolean, Boolean)} (używanego wprost przez
+     * UPDATE, gdzie pusta/częściowa mapa oznacza poprawny no-op merge JSONB i NIE wolno jej
+     * uzupełniać domyślnymi wartościami – patrz {@link #buildUpdateRow}), tutaj wynik zawsze
+     * zawiera jawny klucz {@code consent_given}: baza {@code {"consent_given": false}} jest
+     * nakładana realnymi wartościami z CSV, więc brak zmapowanej kolumny {@code consent_given}
+     * (nawet przy obecności samego {@code marketing_consent}) nie usuwa tego klucza z wyniku –
+     * spójnie z {@code CustomerServiceImpl.defaultGdprConsent()}.
+     */
+    private Map<String, Object> buildInsertGdprConsent(Boolean consentGiven, Boolean marketingConsent) {
+        Map<String, Object> consent = new LinkedHashMap<>();
+        consent.put(COL_CONSENT_GIVEN, false);
+        consent.putAll(buildGdprConsent(consentGiven, marketingConsent));
+        return consent;
+    }
+
+    /**
      * Parsuje JSON mapowania kolumn z frontendu.
      *
-     * <p>Format wejściowy: {@code {"nagłówek_csv": "pole_systemu", ...}}
-     * gdzie wartość to indeks kolumny CSV (0-based).
+     * <p>Format wejściowy:
+     * <pre>{@code
+     * {
+     *   "first_name": 0,
+     *   "phone": [2, 5],           // wiele kolumn CSV → jedna lista wartości (liczba pojedyncza nadal akceptowana)
+     *   "email": [3],
+     *   "consent_given": 6,
+     *   "marketing_consent": 7,
+     *   "custom_fields": {"vip": 8, "segment": 9}   // nazwane pola dodatkowe (liczba pojedyncza nadal akceptowana – legacy)
+     * }
+     * }</pre>
      *
      * @param json JSON string lub null/pusty
-     * @return mapa nagłówek_csv → indeks kolumny; pusta gdy json jest null/pusty/błędny
+     * @return {@link ParsedMapping}; wszystkie pola puste/null gdy json jest null/pusty/błędny
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Integer> parseColumnMappingJson(String json) {
+    public ParsedMapping parseColumnMappingJson(String json) {
+        Map<String, Integer> single = new HashMap<>();
+        Map<String, List<Integer>> multi = new HashMap<>();
+        Map<String, Integer> customFields = new LinkedHashMap<>();
+        Integer legacyCustomFieldsColumn = null;
+
         if (json == null || json.isBlank()) {
-            return new HashMap<>();
+            return new ParsedMapping(single, multi, customFields, null);
         }
+
         try {
             Map<String, Object> raw = objectMapper.readValue(json, Map.class);
-            Map<String, Integer> result = new HashMap<>();
             for (Map.Entry<String, Object> entry : raw.entrySet()) {
-                if (entry.getValue() instanceof Number num) {
-                    result.put(entry.getKey(), num.intValue());
+                String key = entry.getKey();
+                Object value = entry.getValue();
+
+                if (COL_CUSTOM.equals(key)) {
+                    if (value instanceof Map<?, ?> nestedMap) {
+                        for (Map.Entry<?, ?> nested : nestedMap.entrySet()) {
+                            if (nested.getValue() instanceof Number num) {
+                                customFields.put(String.valueOf(nested.getKey()), num.intValue());
+                            }
+                        }
+                    } else if (value instanceof Number num) {
+                        legacyCustomFieldsColumn = num.intValue();
+                    }
+                } else if (COL_PHONE.equals(key) || COL_EMAIL.equals(key)) {
+                    if (value instanceof List<?> list) {
+                        List<Integer> indices = new ArrayList<>();
+                        for (Object item : list) {
+                            if (item instanceof Number num) {
+                                indices.add(num.intValue());
+                            }
+                        }
+                        multi.put(key, indices);
+                    } else if (value instanceof Number num) {
+                        multi.put(key, new ArrayList<>(List.of(num.intValue())));
+                    }
+                } else if (value instanceof Number num) {
+                    single.put(key, num.intValue());
                 }
             }
-            return result;
         } catch (Exception e) {
             log.warn("[CustomerImport] Błąd parsowania columnMapping JSON: {}", e.getMessage());
-            return new HashMap<>();
+            return new ParsedMapping(new HashMap<>(), new HashMap<>(), new LinkedHashMap<>(), null);
         }
+
+        return new ParsedMapping(single, multi, customFields, legacyCustomFieldsColumn);
     }
 
     // =========================================================================
@@ -860,14 +1124,14 @@ class CustomerImportServiceImpl implements CustomerImportService {
         }
     }
 
-    private String toJson(Map<String, String> map) {
+    private String toJson(Map<String, ?> map) {
         if (map == null || map.isEmpty()) {
             return "{}";
         }
         try {
             return objectMapper.writeValueAsString(map);
         } catch (Exception e) {
-            log.warn("[CustomerImport] Błąd serializacji custom_fields: {}", e.getMessage());
+            log.warn("[CustomerImport] Błąd serializacji mapy do JSON: {}", e.getMessage());
             return "{}";
         }
     }
@@ -888,7 +1152,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
     }
 
     // =========================================================================
-    // Wewnętrzny record – model wiersza CSV
+    // Wewnętrzne rekordy – model wiersza CSV i wynik parsowania mapowania kolumn
     // =========================================================================
 
     private record CsvRow(
@@ -897,6 +1161,30 @@ class CustomerImportServiceImpl implements CustomerImportService {
             List<String> phones,
             List<String> emails,
             Map<String, String> customFields,
-            String externalId
+            String externalId,
+            Boolean consentGiven,
+            Boolean marketingConsent
+    ) {}
+
+    /**
+     * Wynik parsowania mapowania kolumn CSV → pola systemu, niezależny od źródła (jawne mapowanie
+     * JSON z frontendu vs. auto-detekcja nagłówka pliku).
+     *
+     * @param single                     pola skalarne z pojedynczym indeksem kolumny (first_name,
+     *                                   last_name, external_id, consent_given, marketing_consent)
+     * @param multi                      pola wielokolumnowe (phone, email) → lista indeksów kolumn
+     *                                   łączonych w jedną listę wartości
+     * @param customFields               nazwane pola dodatkowe → indeks kolumny (z jawnego mapowania
+     *                                   {@code {"custom_fields": {nazwa: indeks}}} lub auto-detekcji
+     *                                   nagłówków {@code custom_*})
+     * @param legacyCustomFieldsColumn   indeks JEDNEJ kolumny zawierającej surowy JSON custom_fields –
+     *                                   wsteczna zgodność z dotychczasowym formatem (literalny nagłówek
+     *                                   "custom_fields" lub jawne {@code {"custom_fields": <indeks>}})
+     */
+    record ParsedMapping(
+            Map<String, Integer> single,
+            Map<String, List<Integer>> multi,
+            Map<String, Integer> customFields,
+            Integer legacyCustomFieldsColumn
     ) {}
 }

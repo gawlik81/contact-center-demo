@@ -45,6 +45,8 @@
   validators, day selector signals), CampaignService, campaign.model.ts
 - [Customer import from CSV (FE-020)](./project_fe020_customer_import.md) – CustomerImportComponent (full-page wizard), CustomerImportStatus model,
   CustomerService import methods, route customers/import
+- [Customer import columnMapping fix](./project_fe020_customer_import_columnmapping_fix.md) – multi-column phone/email (bug nadpisywania), named custom_fields,
+  opcje zgód RODO w mapowaniu, nowy format columnMapping (customer-refactor, 2026-07-05)
 - [IVR editor drag & drop (FE-014)](./project_fe014_ivr_editor.md) – IvrListComponent, IvrEditorComponent (HTML5 DnD + SVG Bezier), IvrService (localStorage
   positions), walidacja, mock audio upload
 - [FE-022 Reports module](./project_fe022_reports.md) – historical reports for SUPERVISOR/ADMIN; files created, conventions, decisions (2026-03-22)

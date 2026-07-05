@@ -25,11 +25,15 @@ export type SystemField =
   | 'external_id'
   | 'email'
   | 'custom_fields'
+  | 'consent_given'
+  | 'marketing_consent'
   | 'skip';
 
 export interface ColumnMapping {
   csvHeader: string;
   systemField: SystemField;
+  /** Target key name in custom_fields; only relevant when systemField === 'custom_fields'. */
+  customFieldKey?: string;
 }
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
@@ -88,6 +92,8 @@ export class CustomerImportComponent {
     { value: 'external_id', label: 'ID zewnetrzne' },
     { value: 'email', label: 'Email' },
     { value: 'custom_fields', label: 'Pole dodatkowe' },
+    { value: 'consent_given', label: 'Zgoda na przetwarzanie danych' },
+    { value: 'marketing_consent', label: 'Zgoda marketingowa' },
     { value: 'skip', label: '(Pomin)' },
   ];
 
@@ -287,6 +293,15 @@ export class CustomerImportComponent {
     this.mappingError.set(null);
   }
 
+  updateCustomFieldKey(index: number, key: string): void {
+    this.columnMappings.update((mappings) => {
+      const next = [...mappings];
+      next[index] = { ...next[index], customFieldKey: key };
+      return next;
+    });
+    this.mappingError.set(null);
+  }
+
   goBackToUpload(): void {
     this.currentStep.set('upload');
   }
@@ -297,6 +312,27 @@ export class CustomerImportComponent {
       return;
     }
 
+    const hasUnnamedCustomField = this.columnMappings().some(
+      (m) => m.systemField === 'custom_fields' && !m.customFieldKey?.trim(),
+    );
+    if (hasUnnamedCustomField) {
+      this.mappingError.set('Kazde pole dodatkowe musi miec nazwe.');
+      return;
+    }
+
+    const customFieldKeys = this.columnMappings()
+      .filter((m) => m.systemField === 'custom_fields')
+      .map((m) => m.customFieldKey!.trim());
+    const duplicateCustomFieldKey = customFieldKeys.find(
+      (key, index) => customFieldKeys.indexOf(key) !== index,
+    );
+    if (duplicateCustomFieldKey) {
+      this.mappingError.set(
+        `Nazwa pola dodatkowego "${duplicateCustomFieldKey}" jest uzyta wiecej niz raz.`,
+      );
+      return;
+    }
+
     const file = this.selectedFile();
     if (!file) return;
 
@@ -304,13 +340,37 @@ export class CustomerImportComponent {
     this.submitting.set(true);
     this.currentStep.set('progress');
 
-    // Build mapping: systemField → column index
-    const mappingObj: Record<string, number> = {};
+    // Build mapping: systemField → column index (or indices for phone/email,
+    // which support mapping multiple CSV columns onto the same system field;
+    // named keys for custom_fields).
+    const mappingObj: Record<string, unknown> = {};
+    const phoneIndices: number[] = [];
+    const emailIndices: number[] = [];
+    const customFieldsObj: Record<string, number> = {};
+
     this.columnMappings().forEach((m, index) => {
-      if (m.systemField && m.systemField !== 'skip') {
-        mappingObj[m.systemField] = index;
+      switch (m.systemField) {
+        case 'phone':
+          phoneIndices.push(index);
+          break;
+        case 'email':
+          emailIndices.push(index);
+          break;
+        case 'custom_fields': {
+          const key = m.customFieldKey?.trim();
+          if (key) customFieldsObj[key] = index;
+          break;
+        }
+        case 'skip':
+          break;
+        default:
+          mappingObj[m.systemField] = index;
       }
     });
+
+    if (phoneIndices.length > 0) mappingObj['phone'] = phoneIndices;
+    if (emailIndices.length > 0) mappingObj['email'] = emailIndices;
+    if (Object.keys(customFieldsObj).length > 0) mappingObj['custom_fields'] = customFieldsObj;
 
     this.customerService
       .importCsv(

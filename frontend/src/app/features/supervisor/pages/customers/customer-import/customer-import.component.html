@@ -251,6 +251,15 @@
           {{ 'supervisor.customerImport.mappingDesc' | transloco }}
         </p>
 
+        <p class="mapping-hint">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+            />
+          </svg>
+          {{ 'supervisor.customerImport.multiColumnHint' | transloco }}
+        </p>
+
         <div class="mapping-table-wrapper" role="region" aria-label="Tabela mapowania kolumn">
           <table class="mapping-table">
             <thead>
@@ -266,16 +275,28 @@
                     <span class="csv-header-chip">{{ mapping.csvHeader }}</span>
                   </td>
                   <td>
-                    <select
-                      class="field-select"
-                      [ngModel]="mapping.systemField"
-                      (ngModelChange)="updateMapping($index, $event)"
-                      [attr.aria-label]="'Mapowanie kolumny ' + mapping.csvHeader"
-                    >
-                      @for (opt of systemFieldOptions; track opt.value) {
-                        <option [value]="opt.value">{{ opt.label }}</option>
+                    <div class="mapping-table__field-cell">
+                      <select
+                        class="field-select"
+                        [ngModel]="mapping.systemField"
+                        (ngModelChange)="updateMapping($index, $event)"
+                        [attr.aria-label]="'Mapowanie kolumny ' + mapping.csvHeader"
+                      >
+                        @for (opt of systemFieldOptions; track opt.value) {
+                          <option [value]="opt.value">{{ opt.label }}</option>
+                        }
+                      </select>
+                      @if (mapping.systemField === 'custom_fields') {
+                        <input
+                          type="text"
+                          class="field-input"
+                          [ngModel]="mapping.customFieldKey"
+                          (ngModelChange)="updateCustomFieldKey($index, $event)"
+                          [placeholder]="'supervisor.customerImport.customFieldKeyPlaceholder' | transloco"
+                          [attr.aria-label]="'Nazwa pola dodatkowego dla ' + mapping.csvHeader"
+                        />
                       }
-                    </select>
+                    </div>
                   </td>
                 </tr>
               }

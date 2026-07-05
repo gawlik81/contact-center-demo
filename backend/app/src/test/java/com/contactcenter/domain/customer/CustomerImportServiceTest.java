@@ -22,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -733,6 +734,325 @@ class CustomerImportServiceTest {
     }
 
     // =========================================================================
+    // Nowy format columnMapping: wiele kolumn phone/email, named custom_fields, zgody RODO
+    // =========================================================================
+
+    @Nested
+    @DisplayName("columnMapping – wiele kolumn phone/email, named custom_fields, zgody RODO")
+    class ColumnMappingAndConsent {
+
+        @Test
+        @DisplayName("Explicit mapping – dwie kolumny zmapowane na phone – oba numery w JSONB phone")
+        void explicitMapping_twoPhoneColumns_bothNumbersImported() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String columnMapping = "{\"first_name\":0,\"phone\":[1,2]}";
+            MultipartFile file = csvFile("Jan,+48111111111,+48222222222");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "\"", columnMapping, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            // insertParams: [tenant_id, first_name, last_name, phone, email, custom_fields, external_id, gdpr_consent, created_at]
+            String phoneJson = (String) paramsCaptor.getValue().get(0)[3];
+            assertThat(phoneJson).contains("+48111111111").contains("+48222222222");
+        }
+
+        @Test
+        @DisplayName("Explicit mapping – dwie kolumny zmapowane na email – oba adresy w JSONB email")
+        void explicitMapping_twoEmailColumns_bothAddressesImported() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String columnMapping = "{\"phone\":[0],\"email\":[1,2]}";
+            MultipartFile file = csvFile("+48123456789,a@example.com,b@example.com");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "\"", columnMapping, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            String emailJson = (String) paramsCaptor.getValue().get(0)[4];
+            assertThat(emailJson).contains("a@example.com").contains("b@example.com");
+        }
+
+        @Test
+        @DisplayName("Explicit mapping – custom_fields jako obiekt {nazwa:indeks} – nazwane pola w customFields")
+        void explicitMapping_customFieldsObject_buildsNamedMap() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String columnMapping = "{\"phone\":[0],\"custom_fields\":{\"vip\":1,\"segment\":2}}";
+            MultipartFile file = csvFile("+48111111111,true,gold");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "\"", columnMapping, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            String customFieldsJson = (String) paramsCaptor.getValue().get(0)[5];
+            assertThat(customFieldsJson).contains("\"vip\":\"true\"").contains("\"segment\":\"gold\"");
+        }
+
+        @Test
+        @DisplayName("Nowy klient z consent_given/marketing_consent – gdpr_consent zawiera boolean + consent_source + consent_date")
+        void newCustomer_consentColumnsMapped_gdprConsentPopulated() throws Exception {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            MultipartFile file = csvFile(
+                    "first_name,phone,consent_given,marketing_consent\n"
+                            + "Jan,+48123456789,tak,nie");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "\"", null, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            String gdprJson = (String) paramsCaptor.getValue().get(0)[7];
+
+            ObjectMapper mapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> gdpr = mapper.readValue(gdprJson, Map.class);
+
+            assertThat(gdpr.get("consent_given")).isEqualTo(true);
+            assertThat(gdpr.get("marketing_consent")).isEqualTo(false);
+            assertThat(gdpr.get("consent_source")).isEqualTo("CSV_IMPORT");
+            assertThat(gdpr.get("consent_date")).isNotNull();
+        }
+
+        @Test
+        @DisplayName("Regresja: nowy klient ze zmapowaną TYLKO kolumną marketing_consent (bez consent_given) – "
+                + "gdpr_consent zawiera domyślne consent_given=false ORAZ prawdziwe marketing_consent")
+        void newCustomer_onlyMarketingConsentMapped_consentGivenDefaultsToFalse() throws Exception {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            MultipartFile file = csvFile(
+                    "first_name,phone,marketing_consent\n"
+                            + "Jan,+48123456789,tak");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "\"", null, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            String gdprJson = (String) paramsCaptor.getValue().get(0)[7];
+
+            ObjectMapper mapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> gdpr = mapper.readValue(gdprJson, Map.class);
+
+            // consent_given musi być obecny mimo że CSV nie zmapował tej kolumny w ogóle
+            assertThat(gdpr.get("consent_given")).isEqualTo(false);
+            assertThat(gdpr.get("marketing_consent")).isEqualTo(true);
+            assertThat(gdpr.get("consent_source")).isEqualTo("CSV_IMPORT");
+            assertThat(gdpr.get("consent_date")).isNotNull();
+        }
+
+        @Test
+        @DisplayName("Nowy klient – brak zmapowanych kolumn zgody – gdpr_consent domyślnie {consent_given: false} (bez zmian)")
+        void newCustomer_noConsentColumnsMapped_defaultsToConsentGivenFalse() throws Exception {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            MultipartFile file = csvFile("first_name,phone\nJan,+48123456789");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "\"", null, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            String gdprJson = (String) paramsCaptor.getValue().get(0)[7];
+
+            ObjectMapper mapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> gdpr = mapper.readValue(gdprJson, Map.class);
+
+            assertThat(gdpr).containsExactly(entry("consent_given", false));
+        }
+
+        @Test
+        @DisplayName("Regresja bezpieczeństwa: OVERWRITE bez zmapowanych kolumn zgód – UPDATE SQL NIE zawiera gdpr_consent")
+        void overwrite_noConsentMapping_updateSqlExcludesGdprConsent() {
+            Customer existing = Customer.builder()
+                    .customerId(UUID.randomUUID())
+                    .tenantId(TENANT_ID)
+                    .build();
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.of(existing));
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+
+            MultipartFile file = csvFile("first_name,last_name,phone\nJan,Kowalski,+48123456789");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.OVERWRITE,
+                    ",", "\"", null, snapshot);
+
+            ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(sqlCaptor.capture(), anyList());
+
+            String updateSql = sqlCaptor.getAllValues().stream()
+                    .filter(sql -> sql.contains("UPDATE customer"))
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(updateSql).doesNotContain("gdpr_consent");
+        }
+
+        @Test
+        @DisplayName("OVERWRITE ze zmapowanymi kolumnami zgód – UPDATE SQL zawiera merge JSONB (nie pełne nadpisanie)")
+        void overwrite_withConsentMapping_updateSqlMergesGdprConsent() {
+            Customer existing = Customer.builder()
+                    .customerId(UUID.randomUUID())
+                    .tenantId(TENANT_ID)
+                    .build();
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.of(existing));
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+
+            MultipartFile file = csvFile(
+                    "first_name,last_name,phone,consent_given\n"
+                            + "Jan,Kowalski,+48123456789,true");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.OVERWRITE,
+                    ",", "\"", null, snapshot);
+
+            ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(sqlCaptor.capture(), anyList());
+
+            String updateSql = sqlCaptor.getAllValues().stream()
+                    .filter(sql -> sql.contains("UPDATE customer"))
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(updateSql.replaceAll("\\s+", " "))
+                    .contains("gdpr_consent = gdpr_consent || CAST(? AS jsonb)");
+        }
+
+        @Test
+        @DisplayName("Wsteczna zgodność – {\"phone\": 2} (pojedyncza liczba, nie tablica) nadal działa")
+        void backwardCompat_singleNumberPhoneMapping_stillWorks() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String columnMapping = "{\"first_name\":0,\"last_name\":1,\"phone\":2}";
+            MultipartFile file = csvFile("Jan,Kowalski,+48123456789");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "\"", columnMapping, snapshot);
+
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    anyList());
+        }
+
+        @Test
+        @DisplayName("Wsteczna zgodność – {\"custom_fields\": 5} (pojedyncza kolumna z surowym JSON-em) nadal działa")
+        void backwardCompat_singleNumberCustomFieldsMapping_parsesJsonInCell() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String columnMapping = "{\"first_name\":0,\"phone\":1,\"custom_fields\":2}";
+            // quoteChar="" (ignoreQuotations) – komórka może zawierać surowy JSON bez CSV-owego cytowania,
+            // ponieważ nie zawiera separatora ','.
+            MultipartFile file = csvFile("Jan,+48123456789,{\"vip\":\"true\"}");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "", columnMapping, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            String customFieldsJson = (String) paramsCaptor.getValue().get(0)[5];
+            assertThat(customFieldsJson).contains("\"vip\":\"true\"");
+        }
+    }
+
+    // =========================================================================
     // getErrorReport
     // =========================================================================
 
@@ -776,33 +1096,73 @@ class CustomerImportServiceTest {
     class ParseColumnMapping {
 
         @Test
-        @DisplayName("Null – zwraca pustą mapę")
+        @DisplayName("Null – zwraca puste mapowanie")
         void nullJson_returnsEmpty() {
-            assertThat(service.parseColumnMappingJson(null)).isEmpty();
+            var result = service.parseColumnMappingJson(null);
+            assertThat(result.single()).isEmpty();
+            assertThat(result.multi()).isEmpty();
+            assertThat(result.customFields()).isEmpty();
+            assertThat(result.legacyCustomFieldsColumn()).isNull();
         }
 
         @Test
-        @DisplayName("Pusty string – zwraca pustą mapę")
+        @DisplayName("Pusty string – zwraca puste mapowanie")
         void emptyJson_returnsEmpty() {
-            assertThat(service.parseColumnMappingJson("")).isEmpty();
+            var result = service.parseColumnMappingJson("");
+            assertThat(result.single()).isEmpty();
+            assertThat(result.multi()).isEmpty();
+            assertThat(result.customFields()).isEmpty();
         }
 
         @Test
-        @DisplayName("Poprawny JSON – parsuje indeksy")
+        @DisplayName("Poprawny JSON – pola skalarne trafiają do single, phone/email do multi (jednoelementowe)")
         void validJson_parsesIndices() {
             String json = "{\"first_name\":0,\"last_name\":1,\"phone\":2,\"email\":3}";
             var result = service.parseColumnMappingJson(json);
 
-            assertThat(result).containsEntry("first_name", 0)
-                              .containsEntry("last_name", 1)
-                              .containsEntry("phone", 2)
-                              .containsEntry("email", 3);
+            assertThat(result.single()).containsEntry("first_name", 0)
+                                        .containsEntry("last_name", 1);
+            assertThat(result.multi()).containsEntry("phone", List.of(2))
+                                       .containsEntry("email", List.of(3));
         }
 
         @Test
-        @DisplayName("Niepoprawny JSON – zwraca pustą mapę (obsługa błędu)")
+        @DisplayName("phone jako tablica indeksów – wiele kolumn w jednej liście")
+        void arrayPhone_parsesMultipleIndices() {
+            String json = "{\"phone\":[2,5]}";
+            var result = service.parseColumnMappingJson(json);
+
+            assertThat(result.multi()).containsEntry("phone", List.of(2, 5));
+        }
+
+        @Test
+        @DisplayName("custom_fields jako obiekt {nazwa: indeks} – parsowane do customFields")
+        void objectCustomFields_parsesNamedIndices() {
+            String json = "{\"custom_fields\":{\"vip\":8,\"segment\":9}}";
+            var result = service.parseColumnMappingJson(json);
+
+            assertThat(result.customFields()).containsEntry("vip", 8).containsEntry("segment", 9);
+            assertThat(result.legacyCustomFieldsColumn()).isNull();
+        }
+
+        @Test
+        @DisplayName("custom_fields jako pojedyncza liczba – wsteczna zgodność (legacyCustomFieldsColumn)")
+        void numberCustomFields_backwardCompatLegacyColumn() {
+            String json = "{\"custom_fields\":5}";
+            var result = service.parseColumnMappingJson(json);
+
+            assertThat(result.legacyCustomFieldsColumn()).isEqualTo(5);
+            assertThat(result.customFields()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Niepoprawny JSON – zwraca puste mapowanie (obsługa błędu)")
         void invalidJson_returnsEmpty() {
-            assertThat(service.parseColumnMappingJson("{INVALID}")).isEmpty();
+            var result = service.parseColumnMappingJson("{INVALID}");
+            assertThat(result.single()).isEmpty();
+            assertThat(result.multi()).isEmpty();
+            assertThat(result.customFields()).isEmpty();
+            assertThat(result.legacyCustomFieldsColumn()).isNull();
         }
     }
 

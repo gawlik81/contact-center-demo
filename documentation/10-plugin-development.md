@@ -8,6 +8,8 @@
 > Audytorium tego dokumentu: (a) zespół platformy — jak działa mechanizm i jak go
 > rozwijać, (b) deweloperzy pluginów (wewnętrzni lub zewnętrzni dostawcy integracji) —
 > jak napisać, zbudować i wgrać plugin.
+>
+> Stan na: **2026-07-05**. Kod jest źródłem prawdy — w razie rozbieżności sprawdź implementację.
 
 ---
 

@@ -149,7 +149,7 @@ describe('PluginPanelHostComponent', () => {
         success: true,
         payload: { tenantId: 'tenant-abc', contactId: 'contact-1', customerId: 'customer-1' },
       },
-      window.location.origin,
+      '*',
     );
   });
 
@@ -191,7 +191,7 @@ describe('PluginPanelHostComponent', () => {
         success: true,
         payload: { success: true, resultData: { opened: true }, message: null, error: null },
       },
-      window.location.origin,
+      '*',
     );
   });
 
@@ -215,7 +215,7 @@ describe('PluginPanelHostComponent', () => {
         requestId: 'req-3',
         success: false,
       }),
-      window.location.origin,
+      '*',
     );
   });
 

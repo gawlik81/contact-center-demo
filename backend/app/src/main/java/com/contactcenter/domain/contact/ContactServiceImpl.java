@@ -24,11 +24,14 @@ import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.email.EmailMessageService;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.telephony.CallSession;
+import com.contactcenter.domain.plugin.runtime.ExtensionPointPublisher;
 import com.contactcenter.domain.telephony.TelephonyAdapter;
 import com.contactcenter.domain.telephony.TelephonyEventPublisher;
 import com.contactcenter.domain.telephony.TransferRequest;
 import com.contactcenter.domain.telephony.TransferTargetType;
 import com.contactcenter.infrastructure.aspect.Audited;
+import com.contactcenter.pluginsdk.model.ContactEvent;
+import com.contactcenter.pluginsdk.model.DispositionEvent;
 import com.contactcenter.security.TenantContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -54,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -103,6 +107,21 @@ class ContactServiceImpl implements ContactService {
     public void setUserService(UserService userService) {
         this.userService = userService;
     }
+
+    /**
+     * Wstrzyknięty przez setter z {@code @Lazy} aby uniknąć circular dependency:
+     * ExtensionPointPublisherImpl → ContactService → ExtensionPointPublisher.
+     */
+    private ExtensionPointPublisher extensionPointPublisher;
+
+    @Autowired
+    @Lazy
+    public void setExtensionPointPublisher(ExtensionPointPublisher extensionPointPublisher) {
+        this.extensionPointPublisher = extensionPointPublisher;
+    }
+
+    private static final Set<String> TERMINAL_CONTACT_STATUSES =
+            Set.of("COMPLETED", "ABANDONED", "NOT_REACHED", "ERROR");
 
     // =========================================================================
     // Tworzenie kontaktu
@@ -546,6 +565,13 @@ class ContactServiceImpl implements ContactService {
 
         log.info("[ContactService] Disposition ustawiony: contactId={}, tenant={}, code={}",
                 contactId, tenantId, request.dispositionCode());
+
+        extensionPointPublisher.publishDispositionSet(tenantId, new DispositionEvent(
+                contactId,
+                contact.getCustomerId(),
+                request.dispositionCode(),
+                contact.getAgentId() != null ? contact.getAgentId() : userId,
+                Instant.now()));
 
         return getContactInternal(contactId, tenantId);
     }
@@ -1318,18 +1344,24 @@ class ContactServiceImpl implements ContactService {
     @Transactional
     public void updateContactStatusOnTelephonyEvent(UUID contactId, UUID tenantId, String newStatus, Instant endedAt) {
         contactRepository.updateContactStatusOnTelephonyEvent(contactId, tenantId, newStatus, endedAt);
+        publishPostContactEndIfTerminal(contactId, tenantId, newStatus, endedAt);
     }
 
     @Override
     @Transactional
     public boolean updateContactStatusIfNotTerminal(UUID contactId, UUID tenantId, String newStatus, Instant endedAt) {
-        return contactRepository.updateContactStatusIfNotTerminal(contactId, tenantId, newStatus, endedAt);
+        boolean updated = contactRepository.updateContactStatusIfNotTerminal(contactId, tenantId, newStatus, endedAt);
+        if (updated) {
+            publishPostContactEndIfTerminal(contactId, tenantId, newStatus, endedAt);
+        }
+        return updated;
     }
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void updateContactStatusRequiresNew(UUID contactId, UUID tenantId, String newStatus, Instant endedAt) {
         contactRepository.updateContactStatusRequiresNew(contactId, tenantId, newStatus, endedAt);
+        publishPostContactEndIfTerminal(contactId, tenantId, newStatus, endedAt);
     }
 
     @Override
@@ -1469,5 +1501,14 @@ class ContactServiceImpl implements ContactService {
         return contactRepository.findById(contactId, tenantId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Kontakt nie istnieje lub nie należy do tego tenanta: " + contactId));
+    }
+
+    private void publishPostContactEndIfTerminal(UUID contactId, UUID tenantId, String newStatus, Instant occurredAt) {
+        if (!TERMINAL_CONTACT_STATUSES.contains(newStatus)) {
+            return;
+        }
+        extensionPointPublisher.publishPostContactEnd(tenantId, new ContactEvent(
+                contactId, null, "POST_CONTACT_END",
+                occurredAt != null ? occurredAt : Instant.now()));
     }
 }

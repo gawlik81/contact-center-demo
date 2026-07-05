@@ -28,6 +28,7 @@ export interface CallIncomingPayload {
   customerName: string;
   customerPhone: string;
   queueName: string;
+  customerId?: string;
 }
 
 /**
@@ -42,6 +43,7 @@ export interface CallOutboundPayload {
   customerName: string;
   customerPhone: string;
   queueName: string;
+  customerId?: string;
 }
 
 /**

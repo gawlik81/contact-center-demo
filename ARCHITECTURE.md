@@ -33,6 +33,7 @@
 8. [Cross-cutting Concerns](#8-cross-cutting-concerns)
 9. [Key Architectural Decisions](#9-key-architectural-decisions)
 10. [Risks and Mitigations](#10-risks-and-mitigations)
+11. [EPIC-28 — Per-Tenant Plugin (Extension) System](#11-epic-28--per-tenant-plugin-extension-system)
 
 ---
 
@@ -1309,3 +1310,673 @@ public_           -> tenant (read-only, unauthenticated)
 | DWH sync lag (`EtlSyncService`) | < 1 hour (target < 15 min) | `etl_sync_state` / `EtlStatusController` |
 | CSV import (campaign contacts, up to 100k) | < 2 minutes | API response (async) |
 | Report export | < 30 seconds | API response (async) |
+
+---
+
+## 11. EPIC-28 — Per-Tenant Plugin (Extension) System
+
+> **Status:** Planned (design stage, not yet implemented). This section is additive to the
+> rest of this document and does not change any as-built behavior described in §1-10. It
+> introduces a **new, runtime, JAR-based extension mechanism** that must not be confused with
+> **ADR-08** (§9): ADR-08 is a *compile-time* plugin pattern for social-media channel adapters,
+> registered via Spring component scanning at build time, with no per-tenant runtime upload.
+> The system below allows a **tenant administrator to upload a JAR at runtime** through the
+> admin panel; the JAR is loaded into the running JVM behind a dedicated `ClassLoader`,
+> scoped to that tenant, and invoked at well-defined extension points in the agent/supervisor
+> workflow.
+
+### 11.1 Goals and Non-Goals
+
+| | |
+|---|---|
+| **Goal** | Let a tenant integrate with their own external systems (customer CRM, ticketing, data sync) without a backend code change or redeploy. |
+| **Goal** | Let a plugin extend the agent/supervisor UI (a button, a side panel) without a frontend build per tenant. |
+| **Goal** | Contain a buggy or hostile plugin so it cannot destabilize the platform or read another tenant's data. |
+| **Non-goal** | Full sandboxing equivalent to a separate process/container — explicitly out of scope per the agreed in-process `ClassLoader` isolation model (see §11.3 and RT-10). |
+| **Non-goal** | A plugin marketplace/catalog shared across tenants in this epic — each installation is tenant-private; a shared catalog is a future epic. |
+| **Non-goal** | Arbitrary plugin-to-plugin communication — not supported; every plugin only talks to the Plugin SDK facade. |
+
+### 11.2 Plugin Manifest
+
+Every plugin JAR must contain `META-INF/plugin-manifest.json` (chosen over `MANIFEST.MF`
+attributes so it can hold structured, nested data and be validated with a JSON Schema before
+any class is touched):
+
+```json
+{
+  "pluginKey": "acme-crm-sync",
+  "displayName": "Acme CRM Sync",
+  "version": "1.3.0",
+  "vendor": "Acme Sp. z o.o.",
+  "vendorContact": "support@acme.example",
+  "sdkVersion": "1.x",
+  "entryPointClass": "com.acme.contactcenter.plugin.AcmeCrmPlugin",
+  "extensionPoints": [
+    "PRE_CONTACT_CONNECT",
+    "POST_CONTACT_END",
+    "CUSTOMER_SYNC",
+    "DISPOSITION_SET",
+    "MANUAL_ACTION"
+  ],
+  "permissions": [
+    "customer:read",
+    "customer:update",
+    "contact:read",
+    "http:egress:api.acme-crm.example"
+  ],
+  "uiPanels": [
+    {
+      "panelId": "acme-crm-side-panel",
+      "mountPoint": "AGENT_DESKTOP_SIDE_PANEL",
+      "url": "classpath:/plugin-ui/index.html",
+      "sandbox": "allow-scripts"
+    }
+  ],
+  "manualActions": [
+    { "actionId": "open-in-crm", "label": "Otwórz w CRM", "mountPoint": "AGENT_DESKTOP_TOOLBAR" }
+  ],
+  "checksumSha256": "<sha-256 of the JAR, computed by the build tool that produced it>"
+}
+```
+
+**Validation rules (enforced at upload time, §11.4):**
+- `pluginKey` is globally unique per tenant installation (`tenant_plugin_installation.plugin_key`,
+  unique per tenant) but the same `pluginKey` can be installed by many tenants independently.
+- `extensionPoints` and `permissions` must be drawn from a fixed, backend-defined enum — a
+  plugin cannot declare a permission the platform doesn't know about.
+- `entryPointClass` must implement the SDK's `PluginEntryPoint` interface (§11.6) and must be
+  the **only** class in the JAR directly instantiated by the host; everything else is reached
+  through it.
+- `sdkVersion` is checked against the host's supported SDK range; a plugin compiled against an
+  incompatible major SDK version is rejected at upload, not at first invocation.
+
+### 11.3 Execution and Isolation Model
+
+**Decision (pre-agreed, not renegotiated here): in-process execution, one dedicated
+`ClassLoader` per installed plugin, inside the same JVM as the Spring Boot application.**
+
+```
+ContactCenterApplication JVM
+ ├── Spring ApplicationContext (beans, repositories, services)   <- never exposed to plugins
+ ├── PluginRuntimeManager
+ │     ├── PluginClassLoader[tenant=A, pluginKey=acme-crm-sync]  -- parent: a narrow
+ │     │     "platform-api" ClassLoader exposing ONLY the plugin-sdk module's
+ │     │     interfaces/DTOs, not the full application classpath
+ │     ├── PluginClassLoader[tenant=A, pluginKey=other-plugin]
+ │     └── PluginClassLoader[tenant=B, pluginKey=acme-crm-sync]  -- separate instance even
+ │           though it is "the same plugin" as tenant A's; no shared static state
+ └── PluginInvocationExecutor (bounded thread pool + per-call timeout, §11.7)
+```
+
+Key isolation mechanisms and their explicit limits:
+
+1. **Dedicated `ClassLoader` per `(tenant_id, plugin_key)` pair.** Each installation gets its
+   own loader instance — even the same JAR installed twice (two tenants) is loaded twice, so
+   static fields, caches, and singletons inside the plugin cannot leak between tenants through
+   class-level state. The loader's parent is **not** the application classloader; it is a thin
+   `platform-api` classloader that exposes only `com.contactcenter.pluginsdk.*` (interfaces and
+   immutable DTOs — see §11.6), so a plugin cannot simply `Class.forName("com.contactcenter...")`
+   its way into a Spring bean or a JPA repository class.
+2. **No direct access to `ApplicationContext`, JPA repositories, or any Spring bean.** The
+   *only* object passed into the plugin is a `PluginContext` facade backed by the SDK. This is
+   the single most important control: even if a plugin obtains a reference to *some* object via
+   reflection, the object graph reachable from the SDK facade contains no repository, no
+   `EntityManager`, no `TenantContext` mutator, and no other tenant's data, by construction
+   (the facade is instantiated per-call with the calling tenant's ID baked in, not looked up by
+   the plugin).
+3. **Per-tenant data scoping is enforced in the SDK implementation, not by the plugin.** Every
+   `PluginContext` method that touches data (e.g., `getCustomer(id)`, `updateCustomer(...)`)
+   is implemented by a backend class that calls the normal tenant-aware repositories with
+   `tenantId` taken from the invocation's `TenantContext` snapshot (§11.8), identical to how a
+   normal request-scoped service call would — the plugin never supplies or controls the
+   `tenantId` used for the underlying query.
+4. **What this model does *not* fully prevent (accepted residual risk, tracked as RT-10):**
+   reflection against JDK classes (`java.lang.reflect`, `sun.misc.Unsafe`-style tricks where
+   still reachable), classloader manipulation to reach sibling classloaders via thread-context
+   classloader swapping, or resource exhaustion (CPU/memory) from within the same JVM. A
+   `SecurityManager`-style hard sandbox is not provided by the JDK going forward (deprecated for
+   removal since JDK 17+), so this is mitigated procedurally (code review gate + signing,
+   §11.4) and operationally (timeouts, thread pool isolation, resource quotas, §11.7), not
+   eliminated. This is the explicit trade-off of choosing in-process isolation over
+   process/container isolation, and is the single largest architectural risk in this epic.
+
+### 11.4 Upload, Validation, and Activation Flow
+
+```
+Tenant Admin (Angular admin panel)
+   |  multipart/form-data: POST /api/supervisor/plugins  (JAR + manifest already inside JAR)
+   v
+PluginUploadController
+   |
+   v
+PluginValidationService
+   ├─ 1. Size/MIME guard (reject >50MB, reject non-JAR/ZIP magic bytes)
+   ├─ 2. Compute SHA-256 of the uploaded bytes; compare against manifest.checksumSha256
+   │      (detects accidental corruption; NOT a substitute for signing, see below)
+   ├─ 3. Open as ZIP, read META-INF/plugin-manifest.json, validate against JSON Schema
+   ├─ 4. Static scan of the JAR's class list (ASM, no class loading yet):
+   │      - reject if it references blacklisted packages (java.lang.reflect.* beyond
+   │        normal use, java.lang.ProcessBuilder, java.nio.file.* outside an allowed
+   │        temp scratch dir, sun.misc.*, custom ClassLoader subclasses)
+   │      - reject if entryPointClass is missing or does not implement PluginEntryPoint
+   │      - confirm declared extensionPoints/permissions are a subset of the platform enum
+   ├─ 5. (Optional, recommended for production — flagged as OQ in §11.10) verify a detached
+   │      signature against a vendor's registered public key, or require platform-side
+   │      signing after a manual admin review step before activation
+   └─ 6. Persist JAR bytes to object storage (MinIO/S3, same bucket family as `recording`,
+          §3.1 of TECH-STACK) + insert `plugin_version` row, status = PENDING_REVIEW or
+          VALIDATED depending on whether signing is required (§11.10)
+   |
+   v
+PluginRegistrationService (on tenant admin clicking "Install"/"Enable")
+   ├─ creates/updates tenant_plugin_installation (tenant_id, plugin_version_id, enabled=true,
+   │    granted_permissions = subset of manifest permissions the admin approved)
+   ├─ PluginRuntimeManager.load(tenantId, pluginVersionId):
+   │    - downloads JAR from object storage (cached on local disk per node)
+   │    - creates a new PluginClassLoader, loads entryPointClass, instantiates it via a
+   │      no-arg constructor (enforced — no DI into the plugin's own constructor)
+   │    - calls entryPoint.onActivate(PluginContext) — first and only privileged callback
+   │      that may run setup logic (e.g., test the external CRM connection)
+   └─ registers the instance's declared extensionPoints in PluginRegistry, keyed by
+        (tenant_id, extension_point) -> ordered list of active plugin instances
+
+   ... later, during normal operation (see §11.5) ...
+
+Agent picks up a call / customer record is fetched
+   v
+ExtensionPointPublisher.PRE_CONTACT_CONNECT(tenant, contact, customer)
+   v
+PluginRegistry.lookup(tenantId, PRE_CONTACT_CONNECT) -> [AcmeCrmPlugin instance]
+   v
+PluginInvocationExecutor.invoke(instance, event, timeout=2s)
+   |     (runs on a dedicated bounded executor, TenantContext snapshot/restore, §11.8)
+   v
+plugin.onPreContactConnect(ctx, event) -> PluginResult (success/data | error)
+   v
+PluginInvocationLogService.record(...)   (always, success or failure, §11.9)
+   v
+Result merged back into the contact-connect flow (non-blocking on plugin failure
+unless the extension point is explicitly configured as "blocking", §11.5)
+```
+
+### 11.5 Hook Mechanism: Event-Driven, Not a Generic Interceptor Chain
+
+**Decision:** extension points are modeled as a fixed, backend-defined set of **typed
+domain events with a synchronous-call contract**, dispatched by an `ExtensionPointPublisher`,
+not as a generic AOP/interceptor chain woven into arbitrary service methods.
+
+**Rationale:**
+- A generic interceptor (e.g., a `@Pointcut` around every service method) would let plugin
+  authors implicitly depend on internal method signatures that are free to change — it
+  couples the SDK contract to the implementation, which violates the same "stable interface"
+  principle behind ADR-05's `TelephonyAdapter`. A fixed, versioned set of named extension
+  points (`PRE_CONTACT_CONNECT`, `POST_CONTACT_END`, `CUSTOMER_SYNC`, `DISPOSITION_SET`,
+  `MANUAL_ACTION` — directly mapping to the four integration points agreed for this epic) is
+  a deliberately small, explicit surface that can be versioned independently of the rest of
+  the codebase.
+- Each extension point has an explicit **blocking vs. fire-and-forget** classification:
+  - `PRE_CONTACT_CONNECT` — **blocking with timeout** (agent desktop waits briefly for a CRM
+    lookup before connect; on timeout/error, connect proceeds anyway — never blocks core
+    telephony on a plugin, see RT-12);
+  - `POST_CONTACT_END`, `DISPOSITION_SET`, `CUSTOMER_SYNC` — **fire-and-forget**, published as
+    a RabbitMQ message (`cc.queue.plugin-invocation`) and consumed asynchronously by
+    `PluginInvocationConsumer`, decoupling plugin latency entirely from the agent-facing
+    request;
+  - `MANUAL_ACTION` — **blocking**, since it is a direct user-initiated request/response (the
+    agent clicked "Open in CRM" and expects a result), but still timeout-bounded.
+- This mirrors the existing RabbitMQ domain-event pattern already used for
+  `agent.status.changed` / `call.incoming` (§3.5) rather than introducing a second, competing
+  extensibility mechanism.
+
+### 11.6 Plugin SDK (`plugin-sdk` module)
+
+A new, minimal Maven module, `backend/plugin-sdk`, published as the **only** compile-time
+dependency a third-party plugin developer needs (no dependency on `backend/app`, Spring, or
+JPA). It contains interfaces and immutable DTOs only — no implementations, no Spring
+annotations, so it cannot be used to reach into the host application even via the classpath.
+
+```java
+// Entry point every plugin must implement
+public interface PluginEntryPoint {
+    void onActivate(PluginContext context);     // called once on install/enable
+    void onDeactivate();                          // called once on disable/uninstall
+    default PreContactConnectResult onPreContactConnect(PluginContext ctx, ContactEvent e) { ... }
+    default void onPostContactEnd(PluginContext ctx, ContactEvent e) { }
+    default CustomerSyncResult onCustomerSync(PluginContext ctx, CustomerSyncRequest req) { ... }
+    default void onDispositionSet(PluginContext ctx, DispositionEvent e) { }
+    default ManualActionResult onManualAction(PluginContext ctx, ManualActionRequest req) { ... }
+}
+
+// The ONLY object through which a plugin reaches the platform.
+// Implemented by backend/app, instantiated per-invocation with the calling tenant baked in.
+public interface PluginContext {
+    CustomerView getCustomer(UUID customerId);            // read-only DTO, scoped to caller's tenant
+    void updateCustomerFields(UUID customerId, Map<String, Object> customFields); // customer.custom_fields only
+    ContactView getContact(UUID contactId);
+    void appendContactNote(UUID contactId, String note);
+    HttpEgressClient httpClient();                         // restricted egress, see below
+    PluginLogger logger();                                 // writes into plugin_invocation_log, not app logs
+    PluginConfig config();                                  // tenant-scoped key/value config the admin set in UI
+}
+
+// Egress is allow-listed per plugin, per the manifest's "http:egress:<host>" permissions —
+// a plugin cannot make an arbitrary outbound call to a host it didn't declare.
+public interface HttpEgressClient {
+    HttpResponse get(String url, Map<String, String> headers);
+    HttpResponse post(String url, Map<String, String> headers, byte[] body);
+}
+```
+
+Notable constraints baked into the SDK contract, not left to plugin discipline:
+- `CustomerView`/`ContactView` are immutable DTOs (records), never JPA entities — a plugin
+  can never obtain a Hibernate-managed entity, a `Session`, or trigger lazy-loading against
+  the real schema.
+- `updateCustomerFields` only ever writes into `customer.custom_fields JSONB` (already a
+  flexible, tenant-owned bag of data per §4.3) — a plugin can never write to a core platform
+  column directly, which also keeps this consistent with the project's "no overloaded
+  columns" rule (CLAUDE.md): plugin data lives in its own namespaced JSONB key
+  (`custom_fields.plugins.<pluginKey>`), never repurposing an existing typed column.
+- `HttpEgressClient` enforces the manifest's declared egress hosts at the SDK implementation
+  layer (host allow-list checked before every call) and applies a platform-wide circuit
+  breaker per `(tenant_id, plugin_key, host)` so a failing external CRM degrades gracefully
+  instead of accumulating hanging connections.
+
+### 11.7 Fault Containment: Timeouts, Thread Pools, Crash Isolation
+
+The backend must never be destabilized by a plugin, by design, not by hope:
+
+| Mechanism | Detail |
+|---|---|
+| Dedicated executor | `PluginInvocationExecutor` is a bounded `ThreadPoolExecutor` (separate from Tomcat's request threads and from the existing `@Async`/`@Scheduled` pools), sized independently so plugin slowness cannot starve normal request handling |
+| Per-call timeout | Every `PluginEntryPoint` callback is invoked via `Future.get(timeout)`; default timeouts per extension point (`PRE_CONTACT_CONNECT` 2s, `MANUAL_ACTION` 5s, async ones 30s) are configurable per installation, capped by a platform-wide maximum |
+| Timeout = no kill | The JVM cannot forcibly stop a runaway thread; on timeout the invocation is marked `TIMED_OUT` in `plugin_invocation_log`, the result is discarded/ignored by the caller, and the orphaned thread is left to finish into a "fire and forget" sink — repeated timeouts trip a per-installation circuit breaker (see below) |
+| Circuit breaker per installation | After N consecutive timeouts/exceptions (default 5) within a rolling window, `tenant_plugin_installation.health_status` flips to `DEGRADED`; the registry stops invoking that installation until an admin re-enables it or a cooldown elapses — surfaced in the admin/supervisor UI |
+| Exception containment | Every invocation path wraps the call in `try/catch (Throwable)` — a plugin throwing `Error`/`OutOfMemoryError`-adjacent conditions cannot propagate past the executor boundary; caught and logged as `FAILED` |
+| Resource quotas (best-effort) | No hard per-plugin CPU/memory quota is achievable with in-process isolation (JDK has no per-classloader resource control); mitigated operationally via JVM-wide memory limits, GC pause monitoring, and the circuit breaker above — tracked as residual risk RT-10/RT-13, not solved |
+
+### 11.8 Multi-tenancy and Thread-Boundary Rules
+
+Plugin invocation almost always crosses a thread boundary (executor pool, or the
+`cc.queue.plugin-invocation` RabbitMQ consumer for async extension points), so it must follow
+the project's mandatory `TenantContext` pattern (CLAUDE.md) exactly as `@Async`/`@Scheduled`
+code does today (§8.6):
+
+```
+Calling thread (request thread or RabbitMQ listener thread):
+    TenantContext.Snapshot snapshot = TenantContext.snapshot();
+    pluginInvocationExecutor.submit(() -> {
+        try {
+            TenantContext.restore(snapshot);
+            // construct PluginContext with tenantId from TenantContext — never from the
+            // plugin or from any value the plugin can influence
+            entryPoint.onXxx(pluginContext, event);
+        } finally {
+            TenantContext.clear();
+        }
+    });
+```
+
+In addition, the `PluginClassLoader` boundary gives a second, independent isolation layer on
+top of `TenantContext`: even if a bug caused `TenantContext` to leak or be misread, the
+plugin instance handling tenant A's invocation is a physically different object (different
+classloader, different heap-resident static state) from the instance handling tenant B's
+invocation, because installations are loaded per-`(tenant_id, plugin_key)` (§11.3). All
+repositories reached through `PluginContext` still extend `TenantAwareRepository` and still
+call `assertSameTenant(...)` before any write — the plugin boundary does not bypass this
+project-wide invariant, it sits in front of it.
+
+### 11.9 Data Model
+
+New tables, all tenant-scoped where noted, following the project's RLS pattern (§4.1) — `app.current_tenant_id` set per transaction, RLS policy added in the same migration that creates the table, no overloaded columns (CLAUDE.md):
+
+```
+PLUGIN (global catalog entry — NOT tenant-scoped; a plugin definition can be installed by many tenants)
+  plugin_id          UUID PK
+  plugin_key         TEXT UNIQUE NOT NULL        -- from manifest, immutable across versions
+  display_name       TEXT NOT NULL
+  vendor             TEXT NOT NULL
+  vendor_contact     TEXT
+  created_at         TIMESTAMPTZ
+
+PLUGIN_VERSION (global — one row per uploaded JAR version; NOT tenant-scoped)
+  plugin_version_id    UUID PK
+  plugin_id            UUID FK -> PLUGIN
+  version              TEXT NOT NULL              -- semver, from manifest
+  jar_object_key        TEXT NOT NULL              -- MinIO/S3 object key
+  checksum_sha256        TEXT NOT NULL
+  manifest_json          JSONB NOT NULL             -- full parsed manifest, for audit/replay
+  sdk_version            TEXT NOT NULL
+  status                 TEXT NOT NULL              -- UPLOADED|VALIDATED|PENDING_REVIEW|REJECTED|REVOKED
+  validation_errors      JSONB                       -- populated if status=REJECTED
+  uploaded_by_user_id    UUID FK -> APP_USER
+  uploaded_at            TIMESTAMPTZ
+  UNIQUE (plugin_id, version)
+
+TENANT_PLUGIN_INSTALLATION (tenant-scoped; RLS enabled)
+  tenant_plugin_installation_id  UUID PK
+  tenant_id                       UUID FK -> TENANT NOT NULL
+  plugin_version_id               UUID FK -> PLUGIN_VERSION NOT NULL
+  enabled                          BOOLEAN NOT NULL DEFAULT FALSE
+  granted_permissions              JSONB NOT NULL      -- admin-approved subset of manifest permissions
+  health_status                    TEXT NOT NULL        -- HEALTHY|DEGRADED|DISABLED_BY_ADMIN
+  consecutive_failure_count        INT NOT NULL DEFAULT 0
+  installation_config              JSONB                -- tenant-supplied config (API keys for the
+                                                          --   external CRM, etc.) — encrypted at rest,
+                                                          --   AES-256-GCM, same converter pattern as
+                                                          --   tenant_twilio_config / tenant_ai_config (§4.3)
+  installed_by_user_id             UUID FK -> APP_USER
+  installed_at, updated_at         TIMESTAMPTZ
+  UNIQUE (tenant_id, plugin_version_id)    -- a tenant installs a given version at most once;
+                                            -- upgrading creates a new row pointing at a new
+                                            -- plugin_version_id (see §11.11 rollback)
+
+TENANT_PLUGIN_EXTENSION_BINDING (tenant-scoped; RLS enabled)
+  tenant_plugin_extension_binding_id  UUID PK
+  tenant_plugin_installation_id       UUID FK -> TENANT_PLUGIN_INSTALLATION NOT NULL
+  extension_point                      TEXT NOT NULL    -- PRE_CONTACT_CONNECT|POST_CONTACT_END|...
+  invocation_mode                      TEXT NOT NULL     -- BLOCKING|ASYNC
+  timeout_ms                           INT NOT NULL
+  display_order                        INT NOT NULL DEFAULT 0  -- when >1 plugin binds the same point
+  UNIQUE (tenant_plugin_installation_id, extension_point)
+
+PLUGIN_INVOCATION_LOG (tenant-scoped; RLS enabled; RANGE-partitioned monthly on invoked_at,
+                         same pattern as audit_log/contact, §4.2-4.3)
+  plugin_invocation_log_id   UUID
+  invoked_at                  TIMESTAMPTZ    -- partition key
+  tenant_id                   UUID NOT NULL
+  tenant_plugin_installation_id UUID FK -> TENANT_PLUGIN_INSTALLATION
+  extension_point              TEXT NOT NULL
+  related_contact_id           UUID NULLABLE   -- ON DELETE SET NULL, same GDPR-safe pattern as contact.agent_id
+  status                       TEXT NOT NULL    -- SUCCESS|FAILED|TIMED_OUT|CIRCUIT_OPEN
+  duration_ms                  INT
+  error_summary                 TEXT
+  request_payload_redacted      JSONB           -- PII-redacted snapshot for debugging
+  PRIMARY KEY (plugin_invocation_log_id, invoked_at)
+```
+
+Relations: `PLUGIN (1) -> (N) PLUGIN_VERSION -> (N) TENANT_PLUGIN_INSTALLATION (per tenant) ->
+(N) TENANT_PLUGIN_EXTENSION_BINDING` and `(N) PLUGIN_INVOCATION_LOG`. `PLUGIN`/`PLUGIN_VERSION`
+are intentionally **not** tenant-scoped (the catalog is global; only the *installation* is
+tenant-private) — RLS is applied starting at `TENANT_PLUGIN_INSTALLATION`, matching the
+existing precedent of global vs. tenant-scoped tables already in the schema (e.g.
+`disposition_set` templates vs. `custom_disposition`, §4.3).
+
+### 11.10 UI Integration: Hybrid Hooks + Sandboxed iframe Panels
+
+**(a) Data hooks (Angular calling existing REST endpoints):** for the four extension points
+that don't need custom UI (e.g., "show CRM sync status"), the plugin only implements backend
+logic; the existing Angular components (agent desktop customer panel, disposition dialog)
+call **existing, generic** endpoints —
+`GET /api/agent/plugins/{installationId}/extension-points/{point}` — that the frontend already
+has, with no plugin-specific frontend code required. This covers `CUSTOMER_SYNC` status
+display and `DISPOSITION_SET` side effects without any custom UI.
+
+**(b) Plugin-provided UI panel (iframe / web component):**
+
+```
+Angular host (agent desktop / supervisor dashboard)
+  <cc-plugin-panel-host [installationId]="..." [mountPoint]="'AGENT_DESKTOP_SIDE_PANEL'">
+    <iframe
+      [src]="trustedPluginPanelUrl"                 -- served from a separate, plugin-only
+                                                       origin (e.g. plugins.<tenant-domain>),
+                                                       NEVER same-origin as the main app
+      sandbox="allow-scripts allow-forms"            -- explicitly NOT allow-same-origin,
+                                                       NOT allow-top-navigation,
+                                                       NOT allow-popups
+      referrerpolicy="no-referrer"
+    ></iframe>
+  </cc-plugin-panel-host>
+```
+
+- **Origin isolation:** plugin UI assets (extracted from the JAR's `plugin-ui/` resources at
+  install time) are served from a dedicated, plugin-specific subdomain/path that is a
+  **different origin** from the main Angular app, so the browser's same-origin policy alone
+  blocks the iframe from reading the host page's DOM, cookies, or `localStorage` even without
+  relying on the `sandbox` attribute.
+- **`sandbox` attribute:** `allow-scripts allow-forms` only — no `allow-same-origin` (keeps
+  the iframe's origin opaque/null if served same-origin by mistake, as a defense-in-depth
+  backstop), no `allow-top-navigation`, no `allow-popups`, no `allow-pointer-lock`.
+- **CSP:** the host page sets `frame-src` to the specific plugin-asset origin pattern only
+  (not `*`); the plugin asset response itself sets a strict CSP (`default-src 'self'`,
+  `connect-src` limited to the same egress allow-list declared in the manifest) so the panel's
+  own JS cannot be used to exfiltrate data to arbitrary third parties even if compromised.
+- **postMessage SDK (`window.postMessage`-based, host <-> iframe):** the *only* communication
+  channel between the iframe and the host Angular app. A small `plugin-ui-sdk.js` (shipped by
+  the platform, not by the plugin vendor) is injected into the iframe and exposes a typed,
+  promise-based API to the plugin's own UI code:
+  ```
+  PluginUiSdk.getContext()              -> { tenantId, contactId, customerId } (read-only,
+                                              minimal — never the full customer/contact record)
+  PluginUiSdk.invokeManualAction(actionId, payload) -> Promise<ManualActionResult>
+                                              (routes through the SAME backend
+                                               PluginInvocationExecutor path as §11.7 —
+                                               the iframe never calls the plugin's backend
+                                               logic directly, only via this REST round trip)
+  PluginUiSdk.requestResize(height)     -> host adjusts iframe height
+  PluginUiSdk.notify(message, severity) -> host shows a toast
+  ```
+  The host validates `event.origin` against the expected plugin-asset origin on every
+  received message and validates the message shape against a fixed schema before acting on
+  it; messages from unexpected origins are dropped and logged.
+- **No direct backend access from the iframe's own JS to anything outside the manual-action
+  REST endpoint** — the iframe cannot call arbitrary `/api/**` endpoints with the agent's
+  session, because it never receives the host's JWT (the SDK proxies the one allowed call
+  through the host page, which attaches auth).
+
+### 11.11 Versioning, Enable/Disable, and Rollback
+
+- **Versioning:** semver in the manifest; `PLUGIN_VERSION` rows are immutable once `VALIDATED`
+  (never edited in place — mirrors the Flyway "never edit an applied migration" rule in
+  CLAUDE.md). A new version is always a new `plugin_version` row.
+- **Upgrade flow:** admin uploads a new version of an already-known `plugin_key`; on
+  "Install"/"Activate", a **new** `TENANT_PLUGIN_INSTALLATION` row is created pointing at the
+  new `plugin_version_id`; the old installation row is flipped to `enabled=false` but kept
+  (not deleted) — this is the rollback mechanism: re-enabling the prior row's `enabled` flag
+  and disabling the new one is an instant, no-redeploy rollback if the new version misbehaves
+  (surfaced by the circuit breaker in §11.7 going `DEGRADED` shortly after an upgrade).
+- **Disable per tenant:** `tenant_plugin_installation.enabled=false` immediately removes all
+  of that installation's bindings from `PluginRegistry`'s lookup table; in-flight async
+  invocations already queued in `cc.queue.plugin-invocation` are still processed but logged
+  with a `status=SKIPPED_DISABLED` if they arrive after the disable, not silently dropped.
+- **Uninstall:** calls `entryPoint.onDeactivate()` (best-effort, also timeout-bounded), then
+  unloads the `PluginClassLoader` (drops the last strong reference so it becomes eligible for
+  GC) and deletes the `TENANT_PLUGIN_INSTALLATION` + bindings; `PLUGIN_INVOCATION_LOG` history
+  is retained (`tenant_plugin_installation_id` FK uses `ON DELETE SET NULL`, consistent with
+  the GDPR-safe FK pattern already used for `contact.agent_id`/`contact.customer_id`, §4.3) so
+  audit history survives uninstall.
+- **Platform-level kill switch:** `plugin_version.status` can be flipped to `REVOKED` by a
+  global system administrator (not a tenant admin) — e.g. a vendor's plugin is found to be
+  malicious — which immediately disables every tenant's installation of that version
+  regardless of their individual `enabled` flag, checked at lookup time in `PluginRegistry`.
+
+### 11.12 Audit and Observability
+
+- Every invocation (success, failure, timeout, circuit-open skip) is written to
+  `plugin_invocation_log` (§11.9) — this is the plugin-specific equivalent of the platform's
+  `@Audited`/`audit_log` mechanism (§6.7), kept as a separate table rather than overloading
+  `audit_log` because the volume/shape (per-call latency, payload snapshots) and retention
+  needs differ materially from administrative audit events.
+- Install/uninstall/enable/disable/permission-grant actions on
+  `tenant_plugin_installation` additionally go through the existing `@Audited` AOP mechanism
+  into `audit_log` (§6.7), since those are exactly the kind of administrative state changes
+  `audit_log` already exists to capture — this is intentionally **not** duplicated into
+  `plugin_invocation_log`.
+- `health_status`/`consecutive_failure_count` on `tenant_plugin_installation` are surfaced in
+  the supervisor/admin plugin management screen, following the same pattern as
+  `EtlStatusController` (§3.6/§8.3) for operational visibility of an async background
+  mechanism.
+
+### 11.13 Sequence Diagram: Upload to First Invocation
+
+```mermaid
+sequenceDiagram
+    participant Admin as Tenant Admin (Angular)
+    participant API as PluginUploadController
+    participant Val as PluginValidationService
+    participant Store as MinIO/S3
+    participant Reg as PluginRegistrationService
+    participant RT as PluginRuntimeManager
+    participant Registry as PluginRegistry
+    participant Agent as Agent Desktop (Angular)
+    participant Pub as ExtensionPointPublisher
+    participant Exec as PluginInvocationExecutor
+    participant Plugin as Plugin instance (own ClassLoader)
+    participant Log as PluginInvocationLogService
+
+    Admin->>API: POST /api/supervisor/plugins (JAR)
+    API->>Val: validate(jarBytes)
+    Val->>Val: checksum, manifest schema, ASM static scan
+    Val->>Store: store JAR (if VALIDATED)
+    Val-->>API: PLUGIN_VERSION (status=VALIDATED|REJECTED)
+    API-->>Admin: 201 Created / 400 with validation_errors
+
+    Admin->>API: POST /api/supervisor/plugins/{id}/install
+    API->>Reg: install(tenantId, pluginVersionId, grantedPermissions)
+    Reg->>RT: load(tenantId, pluginVersionId)
+    RT->>Store: download JAR
+    RT->>RT: new PluginClassLoader; load entryPointClass
+    RT->>Plugin: onActivate(PluginContext)
+    RT->>Registry: register bindings (tenant, extensionPoints)
+    Reg-->>Admin: installation ENABLED
+
+    Note over Agent,Log: Later — agent handles an incoming call
+    Agent->>Pub: contact about to connect (PRE_CONTACT_CONNECT)
+    Pub->>Registry: lookup(tenantId, PRE_CONTACT_CONNECT)
+    Registry-->>Pub: [installation: acme-crm-sync]
+    Pub->>Exec: invoke(plugin, event, timeout=2s)
+    Exec->>Plugin: onPreContactConnect(ctx, event)
+    Plugin-->>Exec: PreContactConnectResult
+    Exec->>Log: record SUCCESS/FAILED/TIMED_OUT
+    Exec-->>Pub: result (or empty on timeout — never blocks connect)
+    Pub-->>Agent: enriched contact data (or none)
+```
+
+### 11.14 New ADRs
+
+### ADR-09: In-Process ClassLoader Isolation for Tenant Plugins (Not a Separate Process/Container)
+
+**Decision:** plugins execute in the same JVM as the Spring Boot application, each installation
+behind its own `ClassLoader`, rather than in a separate process (e.g., a sidecar JVM) or a
+container (e.g., gVisor/Firecracker microVM per plugin).
+
+**Rationale:** at the target scale (50 tenants, a handful of plugins per tenant), per-plugin
+process/container isolation would multiply operational surface area (process supervision,
+IPC/RPC serialization for every SDK call, container image management for arbitrary
+tenant-uploaded code) disproportionately to the actual threat model for a B2B SaaS platform
+where plugin vendors are vetted business partners, not anonymous third parties. In-process
+isolation accepts a smaller but non-zero residual risk (RT-10) in exchange for materially
+lower latency (no IPC marshaling on every `PluginContext` call, important for the
+`PRE_CONTACT_CONNECT` blocking path's 2s budget) and lower operational cost.
+
+**Consequences:** the platform cannot offer a hard security boundary against a fully
+malicious plugin author; mitigations are procedural (manifest permission review, optional
+signing, RT-10/RT-13) and operational (timeouts, circuit breakers, §11.7), not absolute.
+This must be communicated in the plugin vendor agreement/terms of service — a non-engineering
+consequence worth flagging to product/legal stakeholders.
+
+**Migration path:** the `PluginContext` facade (§11.6) is deliberately the *only* surface a
+plugin touches; if a future epic needs harder isolation (e.g., a regulated tenant requires
+container-per-plugin), the SDK contract does not need to change — only `PluginRuntimeManager`'s
+implementation of "how is `entryPoint.onXxx` actually invoked" would be replaced with an
+RPC call into a sidecar/container, with `PluginContext` calls proxied the same way
+`TelephonyAdapter` (ADR-05) abstracts the provider underneath a stable interface.
+
+### ADR-10: Event-Driven Extension Points Over a Generic Interceptor Chain
+
+**Decision:** a fixed, versioned set of named extension points (`PRE_CONTACT_CONNECT`,
+`POST_CONTACT_END`, `CUSTOMER_SYNC`, `DISPOSITION_SET`, `MANUAL_ACTION`) dispatched by
+`ExtensionPointPublisher`, rather than a generic AOP-based interceptor woven into arbitrary
+service methods.
+
+**Rationale:** see §11.5. A fixed extension-point enum is independently versionable and keeps
+the SDK contract decoupled from internal method signatures, the same way `TelephonyAdapter`
+(ADR-05) decouples telephony provider details from the routing engine.
+
+**Consequences:** adding a new extension point in a future epic requires a backend code
+change (a new enum value + publisher call site) — by design, this is a deliberate gate against
+extension-point sprawl, not an oversight.
+
+### ADR-11: JAR Upload with Manifest + Static Scan as the Primary Gate; Signing as a Hardening Option, Not a Day-1 Requirement
+
+**Decision:** the upload pipeline (§11.4) enforces manifest schema validation, checksum
+verification, and an ASM-based static bytecode scan against a package blacklist as the
+mandatory gate. Cryptographic signing of the JAR by the vendor is supported by the data model
+(`plugin_version.status=PENDING_REVIEW`) but is **not** a hard Day-1 requirement — left as an
+open question for the security/compliance review before production rollout (§11.16, OQ-28-1).
+
+**Rationale:** signing requires a key-distribution and vendor-onboarding process that does not
+yet exist for this platform's partner ecosystem; gating the entire epic on building that
+process first would block the integration use cases (CRM sync) that are the actual business
+driver. The static-scan + manual-review-before-activation combination is a pragmatic
+intermediate control appropriate for an initial rollout with a small, known set of vetted
+integration partners.
+
+**Consequences:** until signing is mandatory, the platform is relying on (a) the static scan,
+(b) the in-process containment controls in §11.3/§11.7, and (c) administrative trust in
+whichever tenant admin clicks "Install" — equivalent in spirit to how browser extensions or
+IDE plugins are typically trusted today. This is recorded as RT-13 below and should be
+revisited before onboarding any tenant's plugin vendor that the platform operator has not
+vetted directly.
+
+### ADR-12: Plugin UI via Cross-Origin Sandboxed iframe + postMessage SDK, Not a Web Component Loaded Same-Origin
+
+**Decision:** plugin-provided UI panels are rendered in a `sandbox`-restricted `<iframe>`
+served from a separate origin, communicating with the Angular host exclusively through a
+purpose-built `postMessage`-based SDK (§11.10), rather than loading plugin-supplied JS as a
+same-origin Angular web component / custom element.
+
+**Rationale:** a same-origin web component would execute with the full privileges of the host
+page — access to `localStorage`, cookies, the agent's JWT in memory, and the DOM of the rest
+of the application. Given that plugin code is third-party and uploaded at runtime (the exact
+opposite trust level of the platform's own first-party Angular code, which is the only code
+the project's "standalone components only, no NgModules" frontend rules — CLAUDE.md — were
+designed to govern), cross-origin iframe isolation is the only option consistent with not
+trusting plugin UI code at the same level as first-party code.
+
+**Consequences:** plugin UI panels cannot directly manipulate the host DOM or access host
+application state beyond what `PluginUiSdk.getContext()` deliberately exposes (§11.10);
+plugin vendors must build their panel as a standalone static web app (any framework, since it
+runs in an isolated iframe) rather than as an Angular component — a constraint that must be
+documented in the plugin developer guide.
+
+### ADR-13: Plugin Data Tables Are Tenant-Scoped Starting at the Installation Level, Not at the Catalog Level
+
+**Decision:** `PLUGIN` and `PLUGIN_VERSION` are global (no `tenant_id`, no RLS);
+`TENANT_PLUGIN_INSTALLATION`, `TENANT_PLUGIN_EXTENSION_BINDING`, and `PLUGIN_INVOCATION_LOG`
+are tenant-scoped with RLS enabled (§11.9).
+
+**Rationale:** mirrors the existing precedent for global-vs-tenant-scoped tables in the schema
+(e.g. global `disposition_set` templates vs. tenant-scoped `custom_disposition`, §4.3) — the
+*definition* of a plugin (what code, what version, what it declares it can do) is shared
+infrastructure metadata, while the *decision to run it, with what permissions, for which
+tenant* is exactly the kind of data that must never leak across tenants and therefore gets
+the full RLS treatment from §4.1.
+
+**Consequences:** a single buggy or malicious plugin *version* can be globally revoked
+(ADR-11/§11.11) without per-tenant cleanup, while each tenant's choice to install/configure/
+enable it remains fully isolated and independently auditable.
+
+### 11.15 Risks and Mitigations (RT-09 through RT-14)
+
+| ID | Risk | Probability | Impact | Mitigation |
+|----|------|-------------|--------|------------|
+| RT-09 | A plugin hangs indefinitely (infinite loop, blocked I/O) and exhausts the plugin executor pool, starving other plugins/tenants | Medium | Medium | Dedicated bounded `PluginInvocationExecutor` separate from request/async pools (§11.7); per-call timeout via `Future.get(timeout)`; circuit breaker opens after N consecutive timeouts per installation, isolating the blast radius to that one installation |
+| RT-10 | Malicious plugin uses reflection/classloader manipulation to reach another tenant's data or platform internals despite the `ClassLoader`/SDK-facade boundary — the JDK provides no hard sandbox (`SecurityManager` deprecated for removal) | Low-Medium | Critical | Layered, not absolute, mitigation: narrow parent classloader exposing only `plugin-sdk` interfaces (§11.3); static bytecode scan rejecting reflection/`ProcessBuilder`/classloader-manipulation patterns at upload (§11.4); `PluginContext` never exposes a Spring bean, `EntityManager`, or repository — only immutable DTOs; manual review gate before activation (ADR-11) for any vendor not already vetted; explicitly tracked as the epic's largest residual risk — escalate to a process/container isolation model (ADR-09 migration path) if a tenant's compliance requirements demand a hard boundary |
+| RT-11 | A plugin's iframe UI is compromised (vendor's own supply chain) and attempts to exfiltrate agent/customer data visible to it | Medium | High | Cross-origin iframe (not same-origin web component, ADR-12); `sandbox="allow-scripts allow-forms"` with no `allow-same-origin`; strict CSP on the plugin-asset response limiting `connect-src` to the manifest's declared egress hosts; `PluginUiSdk.getContext()` exposes only minimal IDs, never full customer/contact records; host validates `event.origin` on every postMessage |
+| RT-12 | A slow/unavailable external CRM behind a `PRE_CONTACT_CONNECT` plugin delays call connection, degrading the core telephony experience | Medium | High | `PRE_CONTACT_CONNECT` is timeout-bounded (default 2s) and explicitly non-blocking on failure — call connect proceeds with or without plugin enrichment (§11.5); circuit breaker on the `HttpEgressClient` per `(tenant, plugin, host)` (§11.6) avoids repeated slow calls once a downstream is known-bad |
+| RT-13 | Unsigned/unvetted plugin JAR from a compromised or careless vendor is installed by a tenant admin before a signing requirement exists (ADR-11) | Medium | High | Static scan + manifest permission allow-list as the Day-1 gate; `granted_permissions` requires explicit admin approval per installation (not auto-granted from the manifest); platform-level `REVOKED` kill switch (§11.11) for rapid global response; flagged as OQ-28-1 (§11.16) to formalize a signing requirement before onboarding un-vetted vendors |
+| RT-14 | Plugin data written into `customer.custom_fields` (via `updateCustomerFields`, §11.6) from multiple plugins collides or is overwritten | Low | Medium | SDK enforces a namespaced JSONB path per plugin (`custom_fields.plugins.<pluginKey>`), never a flat merge — collisions between distinct plugins are structurally impossible; a single plugin overwriting its own prior data is treated as expected behavior, not a defect |
+
+### 11.16 Open Questions
+
+- **OQ-28-1:** should JAR signing be a hard requirement before allowing any tenant to install
+  a plugin in production, or is the static-scan + manual-review gate (ADR-11) sufficient for
+  the initial rollout's vetted-partner-only scope? Needs a decision from security/compliance
+  before the first non-pilot tenant onboarding.
+- **OQ-28-2:** is a shared, cross-tenant plugin marketplace/catalog UI in scope for a later
+  epic, or does every tenant independently source and upload its own vendor's JAR
+  indefinitely? Affects whether `PLUGIN`/`PLUGIN_VERSION` need a public-facing discovery API.
+- **OQ-28-3:** what is the expected concurrency ceiling for `PluginInvocationExecutor` at
+  target scale (50 tenants x N plugins x agent concurrency, §1.2/Appendix C performance
+  budget) — needed to size the bounded thread pool and choose default timeout values with
+  actual load-test data rather than estimates.

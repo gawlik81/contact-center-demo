@@ -1,0 +1,20 @@
+{
+  "pluginKey": "crm-url-launcher",
+  "displayName": "CRM URL Launcher",
+  "version": "1.0.0",
+  "vendor": "Acme Sp. z o.o.",
+  "vendorContact": "support@acme.example",
+  "sdkVersion": "1.x",
+  "entryPointClass": "com.acme.contactcenter.plugin.crmurlauncher.CrmUrlLauncherPlugin",
+  "extensionPoints": ["PRE_CONTACT_CONNECT", "MANUAL_ACTION"],
+  "permissions": ["customer:read", "contact:read"],
+  "uiPanels": [
+    {
+      "panelId": "crm-url-panel",
+      "mountPoint": "AGENT_DESKTOP_SIDE_PANEL",
+      "url": "classpath:/plugin-ui/index.html",
+      "sandbox": "allow-scripts allow-forms"
+    }
+  ],
+  "checksumSha256": "ba85d381bb17b5dcbe7d949e38aac33614086288ecdd77f76e2e52f84524b421"
+}

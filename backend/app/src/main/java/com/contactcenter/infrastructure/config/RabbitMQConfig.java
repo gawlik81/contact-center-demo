@@ -35,6 +35,7 @@ import org.springframework.context.annotation.Configuration;
  *   <li>{@code agent.status.changed} – zmiana statusu agenta</li>
  *   <li>{@code campaign.contact.dialed} – wybieranie numeru kampanii</li>
  *   <li>{@code audit.entity.changed} – zmiana audytowanej encji</li>
+ *   <li>{@code plugin.invocation} – fire-and-forget wywołanie pluginu (EPIC-28, BE-104)</li>
  * </ul>
  */
 @Slf4j
@@ -95,6 +96,14 @@ public class RabbitMQConfig {
      * Pomija silnik routingu – agent znany z góry.
      */
     public static final String QUEUE_AGENT_DIRECT            = "cc.queue.agent-direct";
+    /**
+     * Kolejka dla wywołań pluginów fire-and-forget ({@code POST_CONTACT_END}/
+     * {@code CUSTOMER_SYNC}/{@code DISPOSITION_SET}) — EPIC-28, BE-104. Deklarowana w
+     * {@code RabbitMqPluginConfig} (oddzielny plik konfiguracyjny per epik pluginów), ale stała
+     * nazwy żyje tutaj razem z resztą nazw kolejek, zgodnie z konwencją centralizacji nazw w tym
+     * pliku.
+     */
+    public static final String QUEUE_PLUGIN_INVOCATION       = "cc.queue.plugin-invocation";
 
     // =========================================================================
     // Routing keys
@@ -107,6 +116,8 @@ public class RabbitMQConfig {
     public static final String RK_NOTIFICATIONS_ALL   = "#";
     /** Routing key dla bezpośredniego przypisania agenta po transferze BLIND. */
     public static final String RK_AGENT_DIRECT_ASSIGNMENT = "contact.agent.direct";
+    /** Routing key dla wywołań pluginów fire-and-forget (EPIC-28, BE-104). */
+    public static final String RK_PLUGIN_INVOCATION   = "plugin.invocation";
 
     // =========================================================================
     // Exchanges

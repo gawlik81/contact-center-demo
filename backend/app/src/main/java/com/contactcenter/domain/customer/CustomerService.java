@@ -198,4 +198,21 @@ public interface CustomerService {
      * @return liczba zaktualizowanych wierszy (0 = klient nie istnieje lub inny tenant)
      */
     int anonymize(UUID customerId, UUID tenantId);
+
+    /**
+     * Zastępuje całą zawartość {@code customer.custom_fields} (JSONB) podaną mapą.
+     *
+     * <p>Delegacja udostępniona konsumentom spoza pakietu {@code domain.customer} — w
+     * szczególności {@code PluginContextImpl} (EPIC-28, BE-101), który woła tę metodę z
+     * wynikiem złączenia istniejącego {@code custom_fields} z nowymi wartościami pluginu pod
+     * namespace'em {@code plugins.<pluginKey>} (reguła anti-overloaded-column, CLAUDE.md —
+     * plugin nigdy nie pisze do typowanej kolumny). Ta metoda nie scala niczego sama — caller
+     * jest odpowiedzialny za przygotowanie kompletnej, finalnej mapy do zapisania.
+     *
+     * @param customerId   UUID klienta
+     * @param tenantId     UUID tenanta (cross-tenant guard)
+     * @param customFields kompletna, nowa zawartość {@code custom_fields}
+     * @throws EntityNotFoundException HTTP 404 gdy klient nie istnieje lub inny tenant
+     */
+    void updateCustomFields(UUID customerId, UUID tenantId, java.util.Map<String, Object> customFields);
 }

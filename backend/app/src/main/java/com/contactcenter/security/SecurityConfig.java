@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -67,6 +68,28 @@ public class SecurityConfig {
     // =========================================================================
 
     /**
+     * Łańcuch filtrów dla zasobów plugin UI — musi mieć wyższy priorytet (@Order(1)) niż główny
+     * łańcuch, żeby Spring Security zastosował inne nagłówki security (brak X-Frame-Options: DENY)
+     * dla plików serwowanych w sandboxowanym iframe agenta.
+     *
+     * <p>Plugin-assets są publiczne i nie wymagają JWT — autoryzacja odbywa się na poziomie
+     * strony hosta (Angular wstrzykuje URL iframe tylko dla zalogowanego agenta z dostępem).
+     */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain pluginAssetFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/plugin-assets/**", "/plugin-ui-sdk.js")
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+            .headers(h -> h
+                .frameOptions(fo -> fo.sameOrigin())
+            );
+        return http.build();
+    }
+
+    /**
      * Główny łańcuch filtrów bezpieczeństwa.
      *
      * <p>Kolejność filtrów jest kluczowa:
@@ -76,6 +99,7 @@ public class SecurityConfig {
      * </ol>
      */
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             // CSRF – wyłączone (REST API z JWT; CSRF chroni tylko session-based auth)
@@ -111,6 +135,16 @@ public class SecurityConfig {
                 .requestMatchers("/api/oauth/*/callback").permitAll()
                 // Hold music TwiML – publiczny, wywoływany przez Twilio jako waitUrl w Conference
                 .requestMatchers("/api/telephony/hold-music").permitAll()
+                // Zasoby UI pluginu (plugin-ui/) – publiczne, wczytywane przez sandboxowany
+                // <iframe> bez JWT agenta (autoryzacja przez stronę hosta, ARCHITECTURE.md §11.10,
+                // EPIC-28 BE-107). Pliki statyczne, niesekretne, identyczne dla każdej instalacji
+                // tej samej wersji pluginu.
+                .requestMatchers("/plugin-assets/**").permitAll()
+                // PluginUiSdk – plik statyczny (resources/static/plugin-ui-sdk.js) wstrzykiwany
+                // przez deweloperów pluginów w plugin-ui/index.html; serwowany pod tym samym
+                // sandboxowanym iframe co /plugin-assets/**, bez JWT agenta (uzupełnienie
+                // kontraktu FE-099, EPIC-28 – plik nieprzewidziany w BE-107).
+                .requestMatchers("/plugin-ui-sdk.js").permitAll()
                 // WebSocket endpoint (SockJS) – publiczny (HTTP → WS upgrade); autentykacja przez JWT w STOMP CONNECT
                 .requestMatchers("/ws/**").permitAll()
                 // WebSocket endpoint (plain WS + STOMP, bez SockJS) – używany przez Angular Agent Desktop

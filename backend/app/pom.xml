@@ -295,6 +295,46 @@
         </dependency>
 
         <!-- =================================================================
+             Plugin SDK (EPIC-28) – kontrakt dla pluginów firm trzecich.
+             app zależy od plugin-sdk wyłącznie by sprawdzić w czasie walidacji
+             (BE-098), że entryPointClass z manifestu implementuje PluginEntryPoint.
+             ================================================================= -->
+        <dependency>
+            <groupId>com.contactcenter</groupId>
+            <artifactId>contact-center-plugin-sdk</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- =================================================================
+             JSON Schema validator (BE-098) – walidacja META-INF/plugin-manifest.json
+             przed dotknięciem jakiejkolwiek klasy z JAR-a pluginu (ARCHITECTURE.md §11.4).
+             networknt wybrany nad everit-org/json-schema: aktywniej rozwijany,
+             natywna zgodność z Jackson 2.17.x już używanym w projekcie.
+             ================================================================= -->
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>1.5.6</version>
+        </dependency>
+
+        <!-- =================================================================
+             ASM (BE-098) – statyczny skan bytecode JAR-a pluginu (bez ładowania
+             klas) w poszukiwaniu zakazanych referencji (java.lang.reflect.Method
+             #setAccessible, ProcessBuilder, ClassLoader subclassing, itd.).
+             asm-tree ułatwia iterację po instrukcjach metod (InsnList).
+             ================================================================= -->
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm</artifactId>
+            <version>9.10.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-tree</artifactId>
+            <version>9.10.1</version>
+        </dependency>
+
+        <!-- =================================================================
              Hot reload w trybie dev
              ================================================================= -->
         <dependency>

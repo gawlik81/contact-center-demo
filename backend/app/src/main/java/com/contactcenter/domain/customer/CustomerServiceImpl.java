@@ -492,6 +492,15 @@ class CustomerServiceImpl implements CustomerService {
         return customerRepository.anonymize(customerId, tenantId);
     }
 
+    @Transactional
+    @Override
+    public void updateCustomFields(UUID customerId, UUID tenantId, Map<String, Object> customFields) {
+        Customer customer = findCustomerOrThrow(customerId, tenantId);
+        customer.setCustomFields(customFields != null ? new HashMap<>(customFields) : new HashMap<>());
+        customerRepository.save(customer);
+        log.debug("[CustomerService] custom_fields zastąpione: customerId={}, tenantId={}", customerId, tenantId);
+    }
+
     // =========================================================================
     // Metody pomocnicze
     // =========================================================================

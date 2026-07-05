@@ -287,6 +287,10 @@ public record WebSocketEvent(
      *   <li>{@code customerId} ← UUID klienta z CLI lookup (null gdy nieznany numer)</li>
      *   <li>{@code lastContacts} ← ostatnie 3 kontakty klienta (null gdy nieznany numer)</li>
      *   <li>{@code queueName} ← {@code callEvent.getMetadata().get("queueName")} lub pusty string</li>
+     *   <li>{@code pluginDisplayData}/{@code pluginWarning} ← wynik
+     *       {@code ExtensionPointPublisher.publishPreContactConnect} (EPIC-28, BE-103),
+     *       {@code null} gdy brak pluginów/wynik pusty/timeout/błąd – nigdy nie blokuje
+     *       i nigdy nie zmienia pozostałych pól tego payloadu</li>
      * </ul>
      */
     public record CallIncomingPayload(
@@ -295,7 +299,9 @@ public record WebSocketEvent(
             String customerPhone,
             String queueName,
             String customerId,
-            List<CustomerCliResult.ContactSummary> lastContacts
+            List<CustomerCliResult.ContactSummary> lastContacts,
+            java.util.Map<String, Object> pluginDisplayData,
+            String pluginWarning
     ) {
         public static CallIncomingPayload from(CallEvent callEvent) {
             // Numer telefonu klienta: dla OUTBOUND klientem jest strona docelowa (to),
@@ -348,7 +354,9 @@ public record WebSocketEvent(
                     customerPhone,
                     queueName,
                     customerId,
-                    lastContacts
+                    lastContacts,
+                    callEvent.getPluginDisplayData(),
+                    callEvent.getPluginWarning()
             );
         }
     }

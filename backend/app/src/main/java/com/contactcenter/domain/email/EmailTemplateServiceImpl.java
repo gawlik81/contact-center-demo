@@ -135,6 +135,18 @@ class EmailTemplateServiceImpl implements EmailTemplateService {
     // Renderowanie
     // =========================================================================
 
+    /**
+     * Renderuje szablon email po podstawieniu zmiennych.
+     *
+     * <p>Waliduje, czy wszystkie zadeklarowane przez autora szablonu zmienne są dostarczone
+     * w mapie kontekstu (bezpośrednio) lub są predefiniowane ({@link PredefinedTemplateVariable}).
+     *
+     * <p>Obsługuje zagnieżdżone ścieżki kropkowe Mustache (np. {@code customerCustomFields.vip}) —
+     * dla takiej nazwy sprawdzany jest root (segment przed pierwszą kropką, tu:
+     * {@code customerCustomFields}) w mapie kontekstu, ponieważ silnik Mustache/JMustache
+     * natywnie rozwiązuje zagnieżdżony dostęp do obiektów Map, ale walidacja deklaracji
+     * porównuje jedynie literalne nazwy zmiennych.
+     */
     @Override
     @Transactional(readOnly = true)
     public RenderedEmailTemplate render(UUID templateId, Map<String, Object> variables) {
@@ -145,8 +157,7 @@ class EmailTemplateServiceImpl implements EmailTemplateService {
         List<String> declaredVariables = template.getVariables();
         if (declaredVariables != null && !declaredVariables.isEmpty()) {
             List<String> missing = declaredVariables.stream()
-                    .filter(varName -> !variables.containsKey(varName)
-                            && !PredefinedTemplateVariable.BY_KEY.containsKey(varName))
+                    .filter(varName -> !isVariablePresent(varName, variables))
                     .toList();
 
             if (!missing.isEmpty()) {
@@ -164,5 +175,25 @@ class EmailTemplateServiceImpl implements EmailTemplateService {
                 templateId, renderedSubject);
 
         return new RenderedEmailTemplate(renderedSubject, renderedBodyHtml);
+    }
+
+    /**
+     * Sprawdza, czy zadeklarowana nazwa zmiennej jest dostępna do renderowania.
+     *
+     * <p>Dla nazw zawierających kropkę (zagnieżdżony dostęp Mustache, np.
+     * {@code customerCustomFields.vip}) sprawdzany jest root – segment przed pierwszą kropką –
+     * zamiast (lub oprócz) dokładnego dopasowania całej nazwy. Root musi być obecny w mapie
+     * kontekstu jako obiekt (np. Map) albo być samodzielną zmienną predefiniowaną.
+     */
+    private boolean isVariablePresent(String varName, Map<String, Object> variables) {
+        if (variables.containsKey(varName) || PredefinedTemplateVariable.BY_KEY.containsKey(varName)) {
+            return true;
+        }
+        int dotIndex = varName.indexOf('.');
+        if (dotIndex > 0) {
+            String root = varName.substring(0, dotIndex);
+            return variables.containsKey(root) || PredefinedTemplateVariable.BY_KEY.containsKey(root);
+        }
+        return false;
     }
 }

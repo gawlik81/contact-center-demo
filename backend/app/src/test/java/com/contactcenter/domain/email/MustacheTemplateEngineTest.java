@@ -116,6 +116,37 @@ class MustacheTemplateEngineTest {
             // then – Mustache renderuje pusty string dla brakujących zmiennych
             assertThat(result).isEqualTo("Witaj !");
         }
+
+        @Test
+        @DisplayName("Test regresyjny: JMustache natywnie obsługuje zagnieżdżony dostęp przez kropkę "
+                + "do obiektów Map w kontekście ({{obj.klucz}}) – patrz customerCustomFields")
+        void shouldResolveNestedDotNotation_whenValueIsNestedMap() {
+            // given – zagnieżdżona mapa jako wartość zmiennej (wzorzec customerCustomFields)
+            String template = "Status VIP: {{customerCustomFields.vip}}, segment: {{customerCustomFields.segment}}";
+            Map<String, Object> variables = Map.of(
+                    "customerCustomFields", Map.of("vip", "true", "segment", "gold"));
+
+            // when
+            String result = engine.render(template, variables);
+
+            // then
+            assertThat(result).isEqualTo("Status VIP: true, segment: gold");
+        }
+
+        @Test
+        @DisplayName("Powinien renderować pusty string dla zagnieżdżonego klucza, "
+                + "gdy root istnieje ale zagnieżdżony klucz nie")
+        void shouldRenderEmpty_whenNestedKeyMissingButRootPresent() {
+            // given
+            String template = "Wartość: {{customerCustomFields.nieznanyKlucz}}";
+            Map<String, Object> variables = Map.of("customerCustomFields", Map.of("vip", "true"));
+
+            // when
+            String result = engine.render(template, variables);
+
+            // then
+            assertThat(result).isEqualTo("Wartość: ");
+        }
     }
 
     // =========================================================================

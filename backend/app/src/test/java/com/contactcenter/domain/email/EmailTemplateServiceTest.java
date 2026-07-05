@@ -338,6 +338,69 @@ class EmailTemplateServiceTest {
         }
 
         @Test
+        @DisplayName("Powinien wyrenderować szablon deklarujący zagnieżdżoną zmienną customerCustomFields.vip "
+                + "gdy root customerCustomFields jest obecny w mapie kontekstu")
+        void shouldRender_whenDeclaredVariableIsNestedDotPathAndRootPresent() {
+            // given – szablon deklaruje zagnieżdżoną ścieżkę Mustache
+            EmailTemplate template = EmailTemplate.builder()
+                    .id(TEMPLATE_ID)
+                    .tenantId(TENANT_ID)
+                    .name("Szablon VIP")
+                    .subjectTemplate("Witaj {{customerFirstName}}")
+                    .bodyHtml("<p>Status VIP: {{customerCustomFields.vip}}</p>")
+                    .variables(List.of("customerCustomFields.vip"))
+                    .build();
+
+            doReturn(Optional.of(template)).when(emailTemplateRepository)
+                    .findByIdAndTenantIdAndIsActiveTrue(TEMPLATE_ID, TENANT_ID);
+            when(templateEngine.render(eq("Witaj {{customerFirstName}}"), anyMap()))
+                    .thenReturn("Witaj Jan");
+            when(templateEngine.render(eq("<p>Status VIP: {{customerCustomFields.vip}}</p>"), anyMap()))
+                    .thenReturn("<p>Status VIP: true</p>");
+
+            Map<String, Object> variables = Map.of(
+                    "customerFirstName", "Jan",
+                    "customerCustomFields", Map.of("vip", "true"));
+
+            // when
+            RenderedEmailTemplate result = service.render(TEMPLATE_ID, variables);
+
+            // then – NIE rzuca TemplateRenderException, mimo że "customerCustomFields.vip"
+            // nie jest dokładnym kluczem w mapie kontekstu (tylko jego root "customerCustomFields")
+            assertThat(result.subject()).isEqualTo("Witaj Jan");
+            assertThat(result.bodyHtml()).isEqualTo("<p>Status VIP: true</p>");
+        }
+
+        @Test
+        @DisplayName("Powinien rzucić TemplateRenderException gdy root zagnieżdżonej zmiennej nie istnieje wcale")
+        void shouldThrowTemplateRenderException_whenNestedVariableRootMissing() {
+            // given
+            EmailTemplate template = EmailTemplate.builder()
+                    .id(TEMPLATE_ID)
+                    .tenantId(TENANT_ID)
+                    .name("Szablon VIP")
+                    .subjectTemplate("Temat")
+                    .bodyHtml("<p>Status VIP: {{customerCustomFields.vip}}</p>")
+                    .variables(List.of("customerCustomFields.vip"))
+                    .build();
+
+            when(emailTemplateRepository.findByIdAndTenantIdAndIsActiveTrue(TEMPLATE_ID, TENANT_ID))
+                    .thenReturn(Optional.of(template));
+
+            Map<String, Object> variables = Map.of(); // brak roota "customerCustomFields"
+
+            // when / then
+            assertThatThrownBy(() -> service.render(TEMPLATE_ID, variables))
+                    .isInstanceOf(TemplateRenderException.class)
+                    .satisfies(ex -> {
+                        TemplateRenderException tre = (TemplateRenderException) ex;
+                        assertThat(tre.getMissingVariables()).containsExactly("customerCustomFields.vip");
+                    });
+
+            verify(templateEngine, never()).render(anyString(), anyMap());
+        }
+
+        @Test
         @DisplayName("Powinien wyrenderować gdy szablon nie ma zadeklarowanych zmiennych")
         void shouldRender_whenTemplateHasNoVariables() {
             // given

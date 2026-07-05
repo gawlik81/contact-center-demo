@@ -4,6 +4,7 @@ import com.contactcenter.api.PagedResponse;
 import com.contactcenter.api.customer.dto.CreateCustomerRequest;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.infrastructure.config.RabbitMQConfig;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
@@ -67,7 +68,7 @@ class CustomerServiceTest {
     void createCustomer_savesAndPublishesEvent() {
         // given
         CreateCustomerRequest request = new CreateCustomerRequest(
-                "Jan", "Kowalski",
+                "Jan", "Kowalski", null,
                 List.of("+48501234567"),
                 List.of("jan@example.com"),
                 null, null, "MANUAL"
@@ -102,7 +103,7 @@ class CustomerServiceTest {
     void createCustomer_defaultsToManualSource() {
         // given
         CreateCustomerRequest request = new CreateCustomerRequest(
-                "Anna", "Nowak", null, null, null, null, null
+                "Anna", "Nowak", null, null, null, null, null, null
         );
 
         Customer saved = Customer.builder()
@@ -132,7 +133,7 @@ class CustomerServiceTest {
     void createCustomer_rabbitFailureDoesNotBlockOperation() {
         // given
         CreateCustomerRequest request = new CreateCustomerRequest(
-                "Jan", null, null, null, null, null, null
+                "Jan", null, null, null, null, null, null, null
         );
         Customer saved = buildCustomer(CUSTOMER_ID);
         when(customerRepository.save(any(Customer.class))).thenReturn(saved);
@@ -142,6 +143,137 @@ class CustomerServiceTest {
         // when / then – nie rzuca wyjątku
         assertThatNoException().isThrownBy(() ->
                 customerService.createCustomer(request, TENANT_ID));
+    }
+
+    // =========================================================================
+    // externalId – unikalność w tenancie
+    // =========================================================================
+
+    @Test
+    @DisplayName("createCustomer – z externalId gdy wolny – zapisuje klienta")
+    void createCustomer_withExternalId_savesSuccessfully() {
+        // given
+        CreateCustomerRequest request = new CreateCustomerRequest(
+                "Jan", "Kowalski", "CRM-99999",
+                List.of("+48501234567"), List.of("jan@example.com"),
+                null, null, "MANUAL"
+        );
+        when(customerRepository.findByExternalId("CRM-99999", TENANT_ID)).thenReturn(Optional.empty());
+        Customer saved = buildCustomer(CUSTOMER_ID);
+        when(customerRepository.save(any(Customer.class))).thenReturn(saved);
+
+        // when
+        CustomerResponse response = customerService.createCustomer(request, TENANT_ID);
+
+        // then
+        assertThat(response.customerId()).isEqualTo(CUSTOMER_ID);
+        verify(customerRepository).save(argThat(c -> "CRM-99999".equals(c.getExternalId())));
+    }
+
+    @Test
+    @DisplayName("createCustomer – duplikat externalId w tym samym tenancie – rzuca ConflictException")
+    void createCustomer_duplicateExternalId_throwsConflictException() {
+        // given
+        CreateCustomerRequest request = new CreateCustomerRequest(
+                "Jan", "Kowalski", "CRM-12345",
+                List.of("+48501234567"), List.of("jan@example.com"),
+                null, null, "MANUAL"
+        );
+        Customer existing = buildCustomer(UUID.randomUUID());
+        when(customerRepository.findByExternalId("CRM-12345", TENANT_ID)).thenReturn(Optional.of(existing));
+
+        // when / then
+        assertThatThrownBy(() -> customerService.createCustomer(request, TENANT_ID))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("CRM-12345");
+
+        verify(customerRepository, never()).save(any(Customer.class));
+    }
+
+    @Test
+    @DisplayName("updateCustomer – externalId już zajęty przez innego klienta – rzuca ConflictException")
+    void updateCustomer_externalIdTakenByAnotherCustomer_throwsConflictException() {
+        // given
+        Customer existing = buildCustomer(CUSTOMER_ID);
+        when(customerRepository.findById(CUSTOMER_ID, TENANT_ID)).thenReturn(Optional.of(existing));
+
+        Customer otherCustomer = buildCustomer(UUID.randomUUID());
+        when(customerRepository.findByExternalId("CRM-TAKEN", TENANT_ID)).thenReturn(Optional.of(otherCustomer));
+
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                null, null, "CRM-TAKEN", null, null, null, null
+        );
+
+        // when / then
+        assertThatThrownBy(() -> customerService.updateCustomer(CUSTOMER_ID, request, TENANT_ID))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("CRM-TAKEN");
+
+        verify(customerRepository, never()).save(any(Customer.class));
+    }
+
+    @Test
+    @DisplayName("updateCustomer – externalId ustawiony na wartość, którą klient już posiada – sukces bez konfliktu")
+    void updateCustomer_externalIdUnchangedForSameCustomer_succeeds() {
+        // given – existing klient ma już externalId=CRM-12345 (buildCustomer)
+        Customer existing = buildCustomer(CUSTOMER_ID);
+        when(customerRepository.findById(CUSTOMER_ID, TENANT_ID)).thenReturn(Optional.of(existing));
+        // findByExternalId znajduje TEGO SAMEGO klienta (ten sam customerId) – nie powinno rzucić konfliktu
+        when(customerRepository.findByExternalId("CRM-12345", TENANT_ID)).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                null, null, "CRM-12345", null, null, null, null
+        );
+
+        // when
+        CustomerResponse response = customerService.updateCustomer(CUSTOMER_ID, request, TENANT_ID);
+
+        // then
+        assertThat(response.externalId()).isEqualTo("CRM-12345");
+        verify(customerRepository).save(argThat(c -> "CRM-12345".equals(c.getExternalId())));
+    }
+
+    @Test
+    @DisplayName("createCustomer – externalId pusty string – zapisuje NULL, nie \"\"")
+    void createCustomer_blankExternalId_savesNullNotEmptyString() {
+        // given
+        CreateCustomerRequest request = new CreateCustomerRequest(
+                "Jan", "Kowalski", "",
+                List.of("+48501234567"), List.of("jan@example.com"),
+                null, null, "MANUAL"
+        );
+        Customer saved = buildCustomer(CUSTOMER_ID);
+        saved.setExternalId(null);
+        when(customerRepository.save(any(Customer.class))).thenReturn(saved);
+
+        // when
+        customerService.createCustomer(request, TENANT_ID);
+
+        // then – normalizacja do null PRZED sprawdzeniem duplikatu – findByExternalId nigdy wywołany z ""
+        verify(customerRepository, never()).findByExternalId(eq(""), any());
+        verify(customerRepository).save(argThat(c -> c.getExternalId() == null));
+    }
+
+    @Test
+    @DisplayName("updateCustomer – externalId pusty string – jawne wyczyszczenie do NULL, bez ConflictException")
+    void updateCustomer_blankExternalId_clearsToNull() {
+        // given – existing klient ma już externalId=CRM-12345 (buildCustomer)
+        Customer existing = buildCustomer(CUSTOMER_ID);
+        when(customerRepository.findById(CUSTOMER_ID, TENANT_ID)).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                null, null, "", null, null, null, null
+        );
+
+        // when
+        CustomerResponse response = customerService.updateCustomer(CUSTOMER_ID, request, TENANT_ID);
+
+        // then – "" wyczyściło pole do null, brak sprawdzenia duplikatu (findByExternalId nie wywołany z "")
+        assertThat(response.externalId()).isNull();
+        verify(customerRepository, never()).findByExternalId(eq(""), any());
+        verify(customerRepository).save(argThat(c -> c.getExternalId() == null));
     }
 
     // =========================================================================
@@ -263,7 +395,7 @@ class CustomerServiceTest {
         when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Nowe imię", null, null, null, null, null
+                "Nowe imię", null, null, null, null, null, null
         );
 
         // when
@@ -283,7 +415,7 @@ class CustomerServiceTest {
     void updateCustomer_throwsWhenNotFound() {
         // given
         when(customerRepository.findById(CUSTOMER_ID, TENANT_ID)).thenReturn(Optional.empty());
-        UpdateCustomerRequest request = new UpdateCustomerRequest("Jan", null, null, null, null, null);
+        UpdateCustomerRequest request = new UpdateCustomerRequest("Jan", null, null, null, null, null, null);
 
         // when / then
         assertThatThrownBy(() -> customerService.updateCustomer(CUSTOMER_ID, request, TENANT_ID))
@@ -299,7 +431,7 @@ class CustomerServiceTest {
         when(customerRepository.findById(CUSTOMER_ID, TENANT_ID)).thenReturn(Optional.of(existing));
         when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UpdateCustomerRequest request = new UpdateCustomerRequest(null, null, List.of(), null, null, null);
+        UpdateCustomerRequest request = new UpdateCustomerRequest(null, null, null, List.of(), null, null, null);
 
         // when
         CustomerResponse response = customerService.updateCustomer(CUSTOMER_ID, request, TENANT_ID);
@@ -418,6 +550,7 @@ class CustomerServiceTest {
                 .tenantId(TENANT_ID)
                 .firstName("Jan")
                 .lastName("Kowalski")
+                .externalId("CRM-12345")
                 .phone(new ArrayList<>(List.of("+48501234567")))
                 .email(new ArrayList<>(List.of("jan@example.com")))
                 .customFields(new HashMap<>())

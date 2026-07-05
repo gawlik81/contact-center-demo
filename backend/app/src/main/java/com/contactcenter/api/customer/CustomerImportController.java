@@ -92,10 +92,10 @@ public class CustomerImportController {
             @RequestPart("file") MultipartFile file,
 
             @Parameter(description = "Strategia deduplikacji: SKIP (domyślnie) lub OVERWRITE")
-            @RequestParam(defaultValue = "SKIP") DeduplicationMode deduplicationMode,
+            @RequestParam(name = "deduplication", defaultValue = "SKIP") DeduplicationMode deduplicationMode,
 
             @Parameter(description = "Separator kolumn CSV (domyślnie przecinek)")
-            @RequestParam(defaultValue = ",") String columnSeparator,
+            @RequestParam(name = "separator", defaultValue = ",") String columnSeparator,
 
             @Parameter(description = "Znak cytowania stringów (domyślnie cudzysłów, pusty = brak)")
             @RequestParam(defaultValue = "\"") String quoteChar,

@@ -13,6 +13,7 @@ export interface CustomerResponse {
   tenantId: string;
   firstName?: string;
   lastName?: string;
+  externalId?: string;
   phone: string[];
   email: string[];
   customFields: Record<string, unknown>;

@@ -43,7 +43,8 @@ import java.util.regex.Pattern;
  * z TTL {@value #JOB_TTL_SECONDS}s (1h).
  *
  * <p>Kolumny CSV: first_name, last_name, phone (wielokrotne wartości rozdzielone ';'),
- * email (wielokrotne wartości rozdzielone ';'), custom_fields.
+ * email (wielokrotne wartości rozdzielone ';'), external_id (opcjonalny, unikalny w tenancie),
+ * custom_fields.
  *
  * <p>Walidacja telefonu: format E.164 {@code +[1-15 cyfr]}.
  */
@@ -77,11 +78,12 @@ class CustomerImportServiceImpl implements CustomerImportService {
     /** Separator wartości wielokrotnych (phone, email) w jednej komórce CSV. */
     private static final String MULTI_VALUE_SEPARATOR = ";";
 
-    private static final String COL_FIRST_NAME = "first_name";
-    private static final String COL_LAST_NAME  = "last_name";
-    private static final String COL_PHONE      = "phone";
-    private static final String COL_EMAIL      = "email";
-    private static final String COL_CUSTOM     = "custom_fields";
+    private static final String COL_FIRST_NAME  = "first_name";
+    private static final String COL_LAST_NAME   = "last_name";
+    private static final String COL_PHONE       = "phone";
+    private static final String COL_EMAIL       = "email";
+    private static final String COL_CUSTOM      = "custom_fields";
+    private static final String COL_EXTERNAL_ID = "external_id";
 
     // =========================================================================
     // Zależności
@@ -204,6 +206,10 @@ class CustomerImportServiceImpl implements CustomerImportService {
         char sep   = resolveSeparator(columnSeparator);
         char quote = resolveQuote(quoteChar);
 
+        // Śledzi external_id już użyte w tym pliku, żeby wykryć duplikat WEWNĄTRZ pliku
+        // (niezależnie od kolizji z klientami już istniejącymi w bazie, sprawdzanej niżej).
+        Set<String> seenExternalIds = new HashSet<>();
+
         try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)) {
 
             CSVParserBuilder parserBuilder = new CSVParserBuilder().withSeparator(sep);
@@ -251,8 +257,34 @@ class CustomerImportServiceImpl implements CustomerImportService {
                     continue;
                 }
 
+                // Normalizacja external_id: pusty/blank → null (brak identyfikatora zewnętrznego)
+                String externalId = (csvRow.externalId() != null && !csvRow.externalId().isBlank())
+                        ? csvRow.externalId().trim() : null;
+
+                if (externalId != null && seenExternalIds.contains(externalId)) {
+                    String reason = "Duplikat identyfikatora zewnętrznego (external_id) w tym samym pliku";
+                    log.debug("[CustomerImport] Odrzucono wiersz {}: {}, externalId='{}'", dataRow, reason, externalId);
+                    appendError(state, dataRow, reason, String.join(",", line));
+                    failed++;
+                    continue;
+                }
+
                 // Szukaj istniejącego klienta po phone lub email
                 Optional<Customer> existing = findExisting(tenantId, validPhones, csvRow.emails());
+
+                if (externalId != null) {
+                    Optional<Customer> conflicting = customerRepository.findByExternalId(externalId, tenantId);
+                    boolean conflict = conflicting.isPresent()
+                            && (existing.isEmpty() || !conflicting.get().getCustomerId().equals(existing.get().getCustomerId()));
+                    if (conflict) {
+                        String reason = "Klient z identyfikatorem zewnętrznym '" + externalId + "' już istnieje";
+                        log.debug("[CustomerImport] Odrzucono wiersz {}: {}", dataRow, reason);
+                        appendError(state, dataRow, reason, String.join(",", line));
+                        failed++;
+                        continue;
+                    }
+                    seenExternalIds.add(externalId);
+                }
 
                 if (existing.isPresent()) {
                     if (mode == DeduplicationMode.SKIP) {
@@ -261,10 +293,10 @@ class CustomerImportServiceImpl implements CustomerImportService {
                         continue;
                     }
                     // OVERWRITE – wstaw do batcha z flagą aktualizacji
-                    batch.add(buildUpdateRow(existing.get().getCustomerId(), tenantId, csvRow, validPhones));
+                    batch.add(buildUpdateRow(existing.get().getCustomerId(), tenantId, csvRow, validPhones, externalId));
                     updated++;
                 } else {
-                    batch.add(buildInsertRow(tenantId, csvRow, validPhones));
+                    batch.add(buildInsertRow(tenantId, csvRow, validPhones, externalId));
                     imported++;
                 }
 
@@ -345,14 +377,31 @@ class CustomerImportServiceImpl implements CustomerImportService {
         String sql = """
                 INSERT INTO customer
                     (customer_id, tenant_id, first_name, last_name, phone, email,
-                     custom_fields, gdpr_consent, source, is_deleted, created_at)
+                     custom_fields, external_id, gdpr_consent, source, is_deleted, created_at)
                 VALUES
                     (gen_random_uuid(), CAST(? AS uuid), ?, ?, CAST(? AS jsonb), CAST(? AS jsonb),
-                     CAST(? AS jsonb), '{}'::jsonb, 'CSV_IMPORT', false, ?)
+                     CAST(? AS jsonb), ?, '{}'::jsonb, 'CSV_IMPORT', false, ?)
                 ON CONFLICT DO NOTHING
                 """;
 
-        jdbcTemplate.batchUpdate(sql, rows);
+        // Usuń znacznik customerId=null (row[0]) – nie jest parametrem SQL (customer_id generowany
+        // przez gen_random_uuid()); przetasuj pozostałe pola do kolejności placeholderów INSERT.
+        // row: [null, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, externalId, createdAt]
+        List<Object[]> insertParams = new ArrayList<>();
+        for (Object[] row : rows) {
+            insertParams.add(new Object[]{
+                    row[1], // tenant_id
+                    row[2], // first_name
+                    row[3], // last_name
+                    row[4], // phone (jsonb)
+                    row[5], // email (jsonb)
+                    row[6], // custom_fields (jsonb)
+                    row[7], // external_id
+                    row[8]  // created_at
+            });
+        }
+
+        jdbcTemplate.batchUpdate(sql, insertParams);
         log.debug("[CustomerImport] Batch INSERT: {} klientów", rows.size());
     }
 
@@ -364,6 +413,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
                     phone         = CAST(? AS jsonb),
                     email         = CAST(? AS jsonb),
                     custom_fields = CAST(? AS jsonb),
+                    external_id   = ?,
                     updated_at    = ?
                 WHERE customer_id = CAST(? AS uuid)
                   AND tenant_id   = CAST(? AS uuid)
@@ -371,7 +421,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
                 """;
 
         // Przetasuj kolejność parametrów dla UPDATE
-        // row: [customerId, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, updatedAt]
+        // row: [customerId, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, externalId, updatedAt]
         List<Object[]> updateParams = new ArrayList<>();
         for (Object[] row : rows) {
             updateParams.add(new Object[]{
@@ -380,7 +430,8 @@ class CustomerImportServiceImpl implements CustomerImportService {
                     row[4], // phone (jsonb)
                     row[5], // email (jsonb)
                     row[6], // custom_fields (jsonb)
-                    row[7], // updated_at
+                    row[7], // external_id
+                    row[8], // updated_at
                     row[0], // customer_id (WHERE)
                     row[1]  // tenant_id (WHERE)
             });
@@ -418,9 +469,12 @@ class CustomerImportServiceImpl implements CustomerImportService {
 
     /**
      * Buduje wiersz dla INSERT (customerId=null jako znacznik).
-     * Kolejność: [null, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, createdAt]
+     * Kolejność: [null, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, externalId, createdAt]
+     *
+     * @param externalId znormalizowany (przycięty, null gdy pusty) identyfikator zewnętrzny –
+     *                   ustalony i zweryfikowany pod kątem kolizji przed wywołaniem tej metody
      */
-    private Object[] buildInsertRow(UUID tenantId, CsvRow csvRow, List<String> validPhones) {
+    private Object[] buildInsertRow(UUID tenantId, CsvRow csvRow, List<String> validPhones, String externalId) {
         List<String> allEmails = csvRow.emails() != null ? csvRow.emails() : List.of();
         return new Object[]{
                 null,                          // [0] customerId = null → INSERT
@@ -430,15 +484,19 @@ class CustomerImportServiceImpl implements CustomerImportService {
                 toJsonArray(validPhones),      // [4] phone (JSONB)
                 toJsonArray(allEmails),        // [5] email (JSONB)
                 toJson(csvRow.customFields()), // [6] custom_fields
-                Timestamp.from(Instant.now()) // [7] created_at
+                externalId,                    // [7] external_id (znormalizowany)
+                Timestamp.from(Instant.now()) // [8] created_at
         };
     }
 
     /**
      * Buduje wiersz dla UPDATE.
-     * Kolejność: [customerId, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, updatedAt]
+     * Kolejność: [customerId, tenantId, firstName, lastName, phonesJson, emailsJson, customFieldsJson, externalId, updatedAt]
+     *
+     * @param externalId znormalizowany (przycięty, null gdy pusty) identyfikator zewnętrzny –
+     *                   ustalony i zweryfikowany pod kątem kolizji przed wywołaniem tej metody
      */
-    private Object[] buildUpdateRow(UUID customerId, UUID tenantId, CsvRow csvRow, List<String> validPhones) {
+    private Object[] buildUpdateRow(UUID customerId, UUID tenantId, CsvRow csvRow, List<String> validPhones, String externalId) {
         List<String> allEmails = csvRow.emails() != null ? csvRow.emails() : List.of();
         return new Object[]{
                 customerId.toString(),         // [0] customerId → UPDATE
@@ -448,7 +506,8 @@ class CustomerImportServiceImpl implements CustomerImportService {
                 toJsonArray(validPhones),      // [4] phone (JSONB)
                 toJsonArray(allEmails),        // [5] email (JSONB)
                 toJson(csvRow.customFields()), // [6] custom_fields
-                Timestamp.from(Instant.now()) // [7] updated_at
+                externalId,                    // [7] external_id (znormalizowany)
+                Timestamp.from(Instant.now()) // [8] updated_at
         };
     }
 
@@ -667,26 +726,28 @@ class CustomerImportServiceImpl implements CustomerImportService {
 
     private Map<String, Integer> defaultColumnIndex() {
         Map<String, Integer> index = new HashMap<>();
-        index.put(COL_FIRST_NAME, 0);
-        index.put(COL_LAST_NAME,  1);
-        index.put(COL_PHONE,      2);
-        index.put(COL_EMAIL,      3);
+        index.put(COL_FIRST_NAME,  0);
+        index.put(COL_LAST_NAME,   1);
+        index.put(COL_PHONE,       2);
+        index.put(COL_EMAIL,       3);
+        index.put(COL_EXTERNAL_ID, 4);
         return index;
     }
 
     private CsvRow parseRow(String[] line, Map<String, Integer> columnIndex) {
-        String firstName = getColumn(line, columnIndex, COL_FIRST_NAME);
-        String lastName  = getColumn(line, columnIndex, COL_LAST_NAME);
-        String phoneRaw  = getColumn(line, columnIndex, COL_PHONE);
-        String emailRaw  = getColumn(line, columnIndex, COL_EMAIL);
-        String customRaw = getColumn(line, columnIndex, COL_CUSTOM);
+        String firstName  = getColumn(line, columnIndex, COL_FIRST_NAME);
+        String lastName   = getColumn(line, columnIndex, COL_LAST_NAME);
+        String phoneRaw    = getColumn(line, columnIndex, COL_PHONE);
+        String emailRaw    = getColumn(line, columnIndex, COL_EMAIL);
+        String customRaw   = getColumn(line, columnIndex, COL_CUSTOM);
+        String externalId  = getColumn(line, columnIndex, COL_EXTERNAL_ID);
 
         List<String> phones = splitMultiValue(phoneRaw);
         List<String> emails = splitMultiValue(emailRaw);
 
         Map<String, String> customFields = parseCustomFields(customRaw, columnIndex, line);
 
-        return new CsvRow(firstName, lastName, phones, emails, customFields);
+        return new CsvRow(firstName, lastName, phones, emails, customFields, externalId);
     }
 
     /**
@@ -835,6 +896,7 @@ class CustomerImportServiceImpl implements CustomerImportService {
             String lastName,
             List<String> phones,
             List<String> emails,
-            Map<String, String> customFields
+            Map<String, String> customFields,
+            String externalId
     ) {}
 }

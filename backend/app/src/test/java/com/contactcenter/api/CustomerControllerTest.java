@@ -6,6 +6,7 @@ import com.contactcenter.api.customer.dto.CreateCustomerRequest;
 import com.contactcenter.api.customer.dto.CustomerResponse;
 import com.contactcenter.api.customer.dto.UpdateCustomerRequest;
 import com.contactcenter.domain.customer.CustomerService;
+import com.contactcenter.domain.exception.ConflictException;
 import com.contactcenter.security.TenantContext;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.*;
@@ -17,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.context.request.WebRequest;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -72,7 +74,7 @@ class CustomerControllerTest {
     void createCustomer_returns201WithLocation() {
         // given
         CreateCustomerRequest request = new CreateCustomerRequest(
-                "Jan", "Kowalski",
+                "Jan", "Kowalski", null,
                 List.of("+48501234567"),
                 List.of("jan@example.com"),
                 null, null, "MANUAL"
@@ -89,6 +91,52 @@ class CustomerControllerTest {
         assertThat(result.getBody().customerId()).isEqualTo(CUSTOMER_ID);
 
         verify(customerService).createCustomer(request, TENANT_ID);
+    }
+
+    @Test
+    @DisplayName("createCustomer – z externalId – zwraca HTTP 201 z externalId w odpowiedzi")
+    void createCustomer_withExternalId_returns201WithExternalId() {
+        // given
+        CreateCustomerRequest request = new CreateCustomerRequest(
+                "Jan", "Kowalski", "CRM-99999",
+                List.of("+48501234567"),
+                List.of("jan@example.com"),
+                null, null, "MANUAL"
+        );
+        CustomerResponse response = buildCustomerResponse(CUSTOMER_ID, "CRM-99999");
+        when(customerService.createCustomer(request, TENANT_ID)).thenReturn(response);
+
+        // when
+        ResponseEntity<CustomerResponse> result = customerController.createCustomer(request);
+
+        // then
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(result.getBody()).isNotNull();
+        assertThat(result.getBody().externalId()).isEqualTo("CRM-99999");
+    }
+
+    @Test
+    @DisplayName("createCustomer – duplikat externalId – propaguje ConflictException mapowany na HTTP 409")
+    void createCustomer_duplicateExternalId_propagatesConflictMappedTo409() {
+        // given
+        CreateCustomerRequest request = new CreateCustomerRequest(
+                "Jan", "Kowalski", "CRM-12345",
+                List.of("+48501234567"),
+                List.of("jan@example.com"),
+                null, null, "MANUAL"
+        );
+        ConflictException conflict = new ConflictException(
+                "Klient z identyfikatorem zewnętrznym 'CRM-12345' już istnieje");
+        when(customerService.createCustomer(request, TENANT_ID)).thenThrow(conflict);
+
+        // when / then – kontroler propaguje wyjątek (mapowanie na HTTP dzieje się w GlobalExceptionHandler)
+        assertThatThrownBy(() -> customerController.createCustomer(request))
+                .isInstanceOf(ConflictException.class);
+
+        // GlobalExceptionHandler mapuje ConflictException na HTTP 409 Conflict
+        GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler();
+        ResponseEntity<?> handled = exceptionHandler.handleConflictException(conflict, mock(WebRequest.class));
+        assertThat(handled.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     // =========================================================================
@@ -206,7 +254,7 @@ class CustomerControllerTest {
     void updateCustomer_returns200WithUpdatedData() {
         // given
         UpdateCustomerRequest request = new UpdateCustomerRequest(
-                "Nowe imię", null, null, null, null, null
+                "Nowe imię", null, null, null, null, null, null
         );
         CustomerResponse response = buildCustomerResponse(CUSTOMER_ID);
         when(customerService.updateCustomer(CUSTOMER_ID, request, TENANT_ID)).thenReturn(response);
@@ -218,6 +266,45 @@ class CustomerControllerTest {
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(result.getBody()).isNotNull();
         verify(customerService).updateCustomer(CUSTOMER_ID, request, TENANT_ID);
+    }
+
+    @Test
+    @DisplayName("updateCustomer – z externalId – zwraca HTTP 200 z externalId w odpowiedzi")
+    void updateCustomer_withExternalId_returns200WithExternalId() {
+        // given
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                null, null, "CRM-88888", null, null, null, null
+        );
+        CustomerResponse response = buildCustomerResponse(CUSTOMER_ID, "CRM-88888");
+        when(customerService.updateCustomer(CUSTOMER_ID, request, TENANT_ID)).thenReturn(response);
+
+        // when
+        ResponseEntity<CustomerResponse> result = customerController.updateCustomer(CUSTOMER_ID, request);
+
+        // then
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(result.getBody()).isNotNull();
+        assertThat(result.getBody().externalId()).isEqualTo("CRM-88888");
+    }
+
+    @Test
+    @DisplayName("updateCustomer – duplikat externalId – propaguje ConflictException mapowany na HTTP 409")
+    void updateCustomer_duplicateExternalId_propagatesConflictMappedTo409() {
+        // given
+        UpdateCustomerRequest request = new UpdateCustomerRequest(
+                null, null, "CRM-TAKEN", null, null, null, null
+        );
+        ConflictException conflict = new ConflictException(
+                "Klient z identyfikatorem zewnętrznym 'CRM-TAKEN' już istnieje");
+        when(customerService.updateCustomer(CUSTOMER_ID, request, TENANT_ID)).thenThrow(conflict);
+
+        // when / then
+        assertThatThrownBy(() -> customerController.updateCustomer(CUSTOMER_ID, request))
+                .isInstanceOf(ConflictException.class);
+
+        GlobalExceptionHandler exceptionHandler = new GlobalExceptionHandler();
+        ResponseEntity<?> handled = exceptionHandler.handleConflictException(conflict, mock(WebRequest.class));
+        assertThat(handled.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     // =========================================================================
@@ -255,11 +342,16 @@ class CustomerControllerTest {
     // =========================================================================
 
     private CustomerResponse buildCustomerResponse(UUID customerId) {
+        return buildCustomerResponse(customerId, null);
+    }
+
+    private CustomerResponse buildCustomerResponse(UUID customerId, String externalId) {
         return new CustomerResponse(
                 customerId,
                 TENANT_ID,
                 "Jan",
                 "Kowalski",
+                externalId,
                 List.of("+48501234567"),
                 List.of("jan@example.com"),
                 new HashMap<>(),

@@ -1186,3 +1186,42 @@ _None identified._
 Frontend jest dobrze zorganizowany: standalone components, OnPush, signal-based state, prawidłowe zarządzanie lifecycle subskrypcji, kompletna a11y. Krytyczna usterka to niezgodność `maxLength(200)` w formularzu vs limit `100` backendu/bazy — użytkownik może wpisać za dużą nazwę, która zostanie odrzucona przez server. Drobne problemy to pluralizacja w języku polskim i lokalny stan listy niespójny po createSet. Dodanie zestawu dyspozycji do sidenav i routing są poprawne.
 
 **Ocena: 4/5** — wymaga tylko naprawy maxLength(200)→(100) przed mergem; pozostałe to quality of life improvements.
+
+## Review: `externalId` na Customer (CRM external ID) — 2026-07-05
+
+**Branch:** `customer-refactor`
+
+**Zakres:** `customer.model.ts`, `customer-profile.model.ts`, `customer.service.ts`, `customer-create-modal`
+(ts+html), `customer-edit` (ts+html), `customer-detail.component.html`, `customer-list` (ts+html+spec),
+`customer-import.component.ts`, `customer-panel.component.html` (agent), i18n (pl/en/de/uk).
+
+### 🐛 Bugs / Critical Issues
+
+- **`customer-edit.component.ts:161` — nie da się wyczyścić już ustawionego `externalId`.** `externalId: raw.externalId?.trim() || undefined` — gdy użytkownik czyści pole (wpisuje pusty string), `''` jest falsy, więc payload dostaje `undefined`. `HttpClient` (przez `JSON.stringify`) całkowicie pomija pole o wartości `undefined` w body requestu, a backendowa semantyka PATCH (`null = brak zmiany`) traktuje brak pola identycznie jak `null`. Efekt: raz ustawiony `externalId` (np. przez import CSV albo pomyłkowo wpisany) **nie da się usunąć przez formularz edycji** — w przeciwieństwie do `phone`/`email`, które mają jawny sposób wyczyszczenia (`[]`). Powiązane ze znaleziskiem w `CR-BACKEND.md` (`CustomerServiceImpl` też nie normalizuje pustego stringa do `NULL`).
+  - Fix: wymaga wspólnej decyzji FE+BE — np. backend powinien traktować jawny pusty string `""` jako "wyczyść do NULL" (odróżnione od pominiętego pola/`null` = "bez zmiany"), a frontend powinien wtedy wysyłać `raw.externalId?.trim() ?? undefined` (bez `|| undefined`, żeby pusty string przechodził jako `""`, nie ginął).
+
+### ⚠️ Security Concerns
+
+_Nie zidentyfikowano._
+
+### 🏗️ Architecture / Pattern Violations
+
+- **`CustomerSummary` (`customer-search.model.ts`) i `agent-customer-card.component.ts` NIE zostały rozszerzone o `externalId`, mimo że backend już zwraca to pole na tym endponcie.** Notatka w pamięci frontendowego agenta zakłada: "backend only added the field to CustomerResponse, not to the lightweight `/api/customers?search=` DTO" — **to założenie jest błędne**. Zweryfikowałem: `CustomerSearchService.search()` (`customer-search.service.ts:19-23`) woła `GET /api/customers?q=...&size=...`, czyli **dokładnie ten sam** endpoint/kontroler (`CustomerController.listOrSearchCustomers`), który zwraca `PagedResponse<CustomerResponse>` — a `CustomerResponse` w tym PR zostało rozszerzone o `externalId` dla KAŻDEGO wyniku (zarówno fuzzy search po `q`, jak i zwykłej paginacji). Innymi słowy: agentowski search (`agent-customer-card.component.ts`) już dziś dostaje `externalId` w surowym JSON-ie po sieci — tylko interfejs TypeScript `CustomerSummary` go nie deklaruje, więc komponent nie może go wyświetlić.
+  - Fix: dodać `externalId?: string` do `CustomerSummary` i wyświetlić je w `agent-customer-card.component.ts` analogicznie do już istniejących bloków `@if (customer.phone.length > 0)`/`@if (customer.email.length > 0)` — to "darmowe" usprawnienie, bez żadnej zmiany backendu ani dodatkowego payloadu (dane już tam są).
+- **`customer-create-modal.component.ts` i `customer-edit.component.ts` — generyczna obsługa błędów HTTP nie rozróżnia nowego 409 (duplikat `externalId`).** Oba komponenty łapią wszystkie błędy przez `catchError(() => { notifications.error(genericMessage); return of(null); })`. Backend zwraca teraz konkretny, sensowny komunikat `ConflictException` ("Klient z identyfikatorem zewnętrznym 'X' już istnieje"), ale UI nigdy go nie pokazuje — użytkownik widzi tylko ogólne "nie udało się zapisać/utworzyć klienta" i musi się domyślić, że problemem jest `externalId`. To świadoma decyzja zakresu odnotowana w pamięci projektu (reużycie istniejącego generycznego wzorca), ale skoro backend już dostarcza precyzyjny komunikat 409, warto domknąć pętlę: rozróżnić `error.status === 409` i pokazać `error.error?.detail` (ProblemDetail) lub podświetlić pole `externalId` jako nieprawidłowe.
+
+### 🔧 Improvements & Suggestions
+
+- `customer-list.component.ts` `getExternalId()` poprawnie podąża za ustalonym wzorcem dash-fallback (`getFirstPhone`/`getFirstEmail`) i ma dopasowany test jednostkowy — dobra spójność, bez uwag.
+- `customer-import.component.ts` — nowe wpisy `AUTO_MAP` (`external_id`, `externalid`, `crm_id`, `id_zewnetrzne`) to sensowna heurystyka; jeśli import ma docelowo współpracować z konkretnymi systemami CRM, warto rozważyć też popularne warianty (`sfid`, `salesforce_id`, `hubspot_id`) — opcjonalne, bez akcji jeśli zakres ma pozostać ogólny.
+
+### ✅ Positive Observations
+
+- **i18n kompletne i spójne we wszystkich 4 językach** (pl/en/de/uk) dla każdej nowej etykiety (create/edit/detail/list/panel agenta) — brak brakujących kluczy. Polskie znaki diakrytyczne poprawne ("ID zewnętrzne") — nawracający w poprzednich review anti-pattern braku diakrytyków (FE-011/017/027, EPIC-24) **nie powtórzył się** tym razem.
+- `customer-edit.component.ts` `populateForm()` poprawnie patchuje `externalId` z `customer.externalId ?? ''`, zgodnie ze wzorcem `firstName`/`lastName`.
+- Propagacja `CustomerLookupResponse`/`CustomerProfile.externalId` do panelu agenta (`customer-panel.component.html`) jest poprawnie okablowana end-to-end (zweryfikowane po stronie backendu — oba miejsca budujące `CustomerLookupResponse` uwzględniają pole).
+- Świadoma, udokumentowana decyzja, żeby nie wprowadzać Transloco w `customer-import.component.ts` (plik sprzed rolloutu i18n) i zachować istniejącą konwencję (stringi ASCII po polsku) — spójny wybór, nawet jeśli brak rozróżnienia 409 (patrz wyżej) wciąż warto uzupełnić później.
+
+### Summary
+
+**Ocena: 3.5/5 ⭐** — okablowanie nowego pola w UI jest dokładne i spójne (i18n, tabela, widok szczegółów, panel agenta), ale przepływ "duplikat externalId" nie jest domknięty od strony UX (generyczny błąd, brak sposobu wyczyszczenia pola), a "darmowe" usprawnienie (karta wyszukiwania agenta) zostało pominięte na podstawie niezweryfikowanego założenia o kontrakcie backendu.

@@ -17,6 +17,7 @@ public record CustomerLookupResponse(
         UUID id,
         String firstName,
         String lastName,
+        String externalId,
         List<String> phones,
         List<String> emails,
         List<ContactSummaryDto> recentContacts

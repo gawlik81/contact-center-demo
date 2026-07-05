@@ -172,3 +172,18 @@ The frontend is Angular 21 with standalone components, Signals, OnPush everywher
 - Does `DispositionListEditorComponent` use `effect()` to react to `campaignId`/`queueId` changes?
 - Does agent panel fallback use `transloco.translate(d.labelKey)` for labels, not `d.code`?
 - Are both `campaignId` and `queueId` guarded before using `!` assertion in HTTP calls?
+
+## Customer `externalId` (CRM external ID) — new findings 2026-07-05
+
+**Bug — cannot clear a scalar string field once set:**
+- `customer-edit.component.ts`: `externalId: raw.externalId?.trim() || undefined` — emptying the field yields `''` (falsy) → coerced to `undefined` → dropped from JSON body → backend's PATCH semantics (`null = no change`) treats it as "leave unchanged". Unlike `phone`/`email` (which use `[]` as an explicit "clear" sentinel), this scalar string field has no way to express "clear to null" from the UI. Paired backend issue in `[[project_backend_patterns]]` (service layer also doesn't normalize blank-to-null).
+- **Pattern to check in future:** any new optional scalar string field added to an edit form using the `value?.trim() || undefined` idiom — this idiom is correct for "don't send empty strings that were never touched" but WRONG for "let the user explicitly clear a previously-set value". Needs `?? undefined`(preserve empty string) + backend support for treating `""` as clear, or a dedicated clear affordance (button/checkbox).
+
+**Architecture finding — assumption about backend DTO parity was wrong, cost a "free" feature:**
+- `CustomerSummary` (agent search DTO) was deliberately NOT extended with a new field based on the assumption "backend doesn't return it on that endpoint" — this assumption was **not verified against the actual controller code** and turned out to be false: the agent search service hits the exact same controller method (`GET /api/customers?q=...`) that returns the full `CustomerResponse` DTO, which DID get the new field. The data was already on the wire; only the TS interface was stale.
+- **Pattern to check in future:** when a new field is added to one DTO (e.g. `CustomerResponse`) and a decision is made to skip a "lighter" sibling DTO (e.g. `CustomerSummary`) because "the backend doesn't return it there" — verify this by tracing the actual HTTP call in the frontend service to the actual backend controller method and its return type, not by assumption. Multiple frontend DTOs sometimes map to the SAME backend endpoint/response shape (paginated list reused for both admin table and agent search, in this case), so a field added to the shared response object propagates everywhere even if only one frontend "view" of it was intentionally updated.
+
+**Recurring pattern — generic catchError doesn't discriminate HTTP 409 for newly-added uniqueness constraints:**
+- Both `customer-create-modal.component.ts` and `customer-edit.component.ts` swallow ALL HTTP errors identically via `catchError(() => notifications.error(generic))`. When a backend PR adds a new `ConflictException`/409 with a specific, translatable message (as this one did for duplicate `externalId`), the frontend work should include surfacing that specific message — otherwise the backend's UX investment is wasted and users get an unhelpful generic error for an entirely diagnosable conflict.
+
+**Positive:** i18n coverage (pl/en/de/uk) was complete and consistent for every new label across create/edit/detail/list/agent-panel — the recurring "missing Polish diacritics" anti-pattern (flagged repeatedly in FE-011/017/027, EPIC-24) did NOT recur here.

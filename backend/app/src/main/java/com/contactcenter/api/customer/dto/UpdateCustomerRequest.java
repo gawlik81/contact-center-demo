@@ -19,6 +19,10 @@ public record UpdateCustomerRequest(
         @Size(max = 100, message = "Nazwisko nie może przekraczać 100 znaków")
         String lastName,
 
+        /** Zewnętrzny identyfikator klienta z systemu zewnętrznego (null = bez zmiany). */
+        @Size(max = 255, message = "External ID nie może przekraczać 255 znaków")
+        String externalId,
+
         /** Nowa lista numerów telefonu (null = bez zmiany, [] = wyczyść). */
         List<String> phone,
 

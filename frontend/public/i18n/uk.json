@@ -349,7 +349,8 @@
       "noHistory": "Немає історії контактів",
       "lookupError": "Не вдалося отримати дані клієнта.",
       "noteExpand": "Показати більше",
-      "noteCollapse": "Показати менше"
+      "noteCollapse": "Показати менше",
+      "externalId": "Зовнішній ID"
     },
     "incomingCall": {
       "label": "Вхідний дзвінок",
@@ -709,6 +710,7 @@
       "emptySub": "Перевірте правильність введеної фрази та спробуйте ще раз",
       "initialText": "Введіть фразу для пошуку клієнтів",
       "detailsLabel": "Деталі клієнта",
+      "externalId": "Зовнішній ID",
       "phones": "Телефони",
       "emails": "Emails",
       "lastContact": "Останній контакт",
@@ -1373,7 +1375,8 @@
       "errorDelete": "Не вдалося видалити клієнта.",
       "successDelete": "Клієнта видалено.",
       "sortByName": "За ім'ям",
-      "sortByDate": "За датою додавання"
+      "sortByDate": "За датою додавання",
+      "externalIdColumn": "Зовнішній ID"
     },
     "customerDetail": {
       "title": "Деталі клієнта",
@@ -1424,6 +1427,7 @@
       "editLabel": "Редагувати дані клієнта",
       "sectionContact": "Контактні дані",
       "emails": "Адреси електронної пошти",
+      "externalId": "Зовнішній ID",
       "lastUpdated": "Останнє оновлення",
       "sectionGdpr": "Згода GDPR",
       "consentProcessingLabel": "Згода на обробку",
@@ -1477,6 +1481,9 @@
       "firstNameMaxLength": "Ім'я не може перевищувати 100 символів.",
       "lastNamePlaceholder": "Введіть прізвище",
       "lastNameMaxLength": "Прізвище не може перевищувати 100 символів.",
+      "externalIdLabel": "Зовнішній ID",
+      "externalIdPlaceholder": "Ідентифікатор із зовнішньої системи (CRM)",
+      "externalIdMaxLength": "Зовнішній ID не може перевищувати 255 символів.",
       "sectionPhones": "Номери телефонів",
       "phoneRequired": "Номер телефону є обов'язковим.",
       "phoneMaxLength": "Номер не може перевищувати 30 символів.",
@@ -1486,6 +1493,11 @@
       "emailMaxLength": "Адреса не може перевищувати 200 символів.",
       "noEmails": "Немає email-адрес.",
       "addEmail": "Додати email",
+      "customFieldsLabel": "Додаткові поля",
+      "customFieldsKeyPlaceholder": "Назва поля",
+      "customFieldsValuePlaceholder": "Значення поля",
+      "noCustomFields": "Немає додаткових полів.",
+      "addCustomField": "Додати поле",
       "consentProcessing": "Згода на обробку даних",
       "consentMarketing": "Маркетингова згода",
       "saveLabel": "Зберегти зміни клієнта",
@@ -1503,6 +1515,8 @@
       "save": "Зберегти",
       "cancel": "Скасувати",
       "maxLength100": "Максимум 100 символів.",
+      "externalIdLabel": "Зовнішній ID",
+      "maxLength255": "Максимум 255 символів.",
       "phonesLabel": "Номери телефонів",
       "phonesPlaceholder": "напр. +380123456789, +380987654321",
       "phonesHint": "Розділяйте кілька номерів комами.",

@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -468,6 +469,211 @@ class CustomerImportServiceTest {
                     argThat(sql -> sql.contains("INSERT INTO customer")),
                     anyList()
             );
+        }
+    }
+
+    // =========================================================================
+    // Kolumna external_id
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Import CSV z kolumną external_id")
+    class ExternalIdColumn {
+
+        @Test
+        @DisplayName("Wiersz z kolumną external_id – INSERT zawiera external_id w parametrach SQL")
+        void rowWithExternalId_insertIncludesExternalId() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+
+            MultipartFile file = csvFile(
+                    "first_name,last_name,phone,email,external_id\n"
+                            + "Jan,Kowalski,+48123456789,jan@example.com,CRM-42");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "\"", null, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer") && sql.contains("external_id")),
+                    paramsCaptor.capture()
+            );
+
+            List<Object[]> capturedParams = paramsCaptor.getValue();
+            assertThat(capturedParams).hasSize(1);
+            assertThat(capturedParams.get(0)).contains("CRM-42");
+        }
+
+        @Test
+        @DisplayName("Wiersz bez kolumny external_id (stary format CSV) – import nie rzuca błędu")
+        void rowWithoutExternalIdColumn_legacyCsv_noError() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+
+            // Stary format CSV bez kolumny external_id – getColumn() musi bezpiecznie zwrócić null
+            MultipartFile file = csvFile("first_name,last_name,phone\nJan,Kowalski,+48123456789");
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            assertThatCode(() -> service.processImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP,
+                    ",", "\"", null, snapshot)).doesNotThrowAnyException();
+
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    anyList()
+            );
+        }
+
+        @Test
+        @DisplayName("Dwa wiersze w tym samym pliku z tym samym external_id – pierwszy zaimportowany, drugi failed")
+        void duplicateExternalIdWithinFile_secondRowFailed() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+            when(customerRepository.findByExternalId("CRM-100", TENANT_ID))
+                    .thenReturn(Optional.empty());
+
+            MultipartFile file = csvFile(
+                    "first_name,last_name,phone,email,external_id\n"
+                            + "Jan,Kowalski,+48111111111,jan@example.com,CRM-100\n"
+                            + "Anna,Nowak,+48222222222,anna@example.com,CRM-100");
+
+            UUID jobId = UUID.randomUUID();
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(jobId, file, DeduplicationMode.SKIP, ",", "\"", null, snapshot);
+
+            // Tylko pierwszy wiersz trafia do batcha INSERT
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture()
+            );
+            assertThat(paramsCaptor.getValue()).hasSize(1);
+
+            // Liczniki finalne: imported=1, failed=1 (nie 2 zaimportowane)
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId),
+                    jsonCaptor.capture(), any(Duration.class));
+            String finalJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            assertThat(finalJson).contains("\"imported\":1").contains("\"failed\":1");
+
+            // Raport błędów zawiera komunikat o duplikacie w pliku
+            ArgumentCaptor<String> errorReportCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps).set(
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId + CustomerImportServiceImpl.ERRORS_KEY_SUFFIX),
+                    errorReportCaptor.capture(), any(Duration.class));
+            assertThat(errorReportCaptor.getValue()).contains("Duplikat identyfikatora zewnętrznego");
+        }
+
+        @Test
+        @DisplayName("external_id należący już do innego istniejącego klienta – wiersz failed, nie trafia do batcha")
+        void externalIdBelongsToDifferentExistingCustomer_rowFailed_notBatched() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+
+            // findByExternalId zwraca INNEGO klienta niż ten dopasowany przez phone/email (który nie istnieje)
+            Customer otherCustomer = Customer.builder()
+                    .customerId(UUID.randomUUID())
+                    .tenantId(TENANT_ID)
+                    .build();
+            when(customerRepository.findByExternalId("CRM-200", TENANT_ID))
+                    .thenReturn(Optional.of(otherCustomer));
+
+            MultipartFile file = csvFile(
+                    "first_name,last_name,phone,email,external_id\n"
+                            + "Jan,Kowalski,+48333333333,jan2@example.com,CRM-200");
+
+            UUID jobId = UUID.randomUUID();
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(jobId, file, DeduplicationMode.SKIP, ",", "\"", null, snapshot);
+
+            // Wiersz nie trafia do żadnego batcha (ani INSERT, ani UPDATE)
+            verify(jdbcTemplate, never()).batchUpdate(anyString(), anyList());
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId),
+                    jsonCaptor.capture(), any(Duration.class));
+            String finalJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            assertThat(finalJson).contains("\"failed\":1").contains("\"imported\":0");
+        }
+
+        @Test
+        @DisplayName("OVERWRITE – external_id w pliku identyczny z externalId TEGO SAMEGO klienta (dopasowanego przez phone) – sukces bez fałszywego konfliktu")
+        void overwriteMode_externalIdMatchesSameCustomerFoundByPhone_noFalseConflict() {
+            UUID existingCustomerId = UUID.randomUUID();
+            Customer existing = Customer.builder()
+                    .customerId(existingCustomerId)
+                    .tenantId(TENANT_ID)
+                    .externalId("CRM-300")
+                    .build();
+
+            when(customerRepository.findByPhoneNumber("+48444444444", TENANT_ID))
+                    .thenReturn(Optional.of(existing));
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID)))
+                    .thenReturn(Optional.empty());
+            // findByExternalId znajduje TEGO SAMEGO klienta, dopasowanego już przez phone – nie konflikt
+            when(customerRepository.findByExternalId("CRM-300", TENANT_ID))
+                    .thenReturn(Optional.of(existing));
+
+            MultipartFile file = csvFile(
+                    "first_name,last_name,phone,email,external_id\n"
+                            + "Jan,Kowalski,+48444444444,jan@example.com,CRM-300");
+
+            UUID jobId = UUID.randomUUID();
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processImportAsync(jobId, file, DeduplicationMode.OVERWRITE, ",", "\"", null, snapshot);
+
+            // UPDATE wykonany – brak fałszywego konfliktu
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("UPDATE customer")),
+                    anyList()
+            );
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId),
+                    jsonCaptor.capture(), any(Duration.class));
+            String finalJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            assertThat(finalJson).contains("\"updated\":1").contains("\"failed\":0");
         }
     }
 

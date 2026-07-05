@@ -349,7 +349,8 @@
       "noHistory": "Brak historii kontaktów",
       "lookupError": "Nie udało się pobrać danych klienta.",
       "noteExpand": "Pokaż więcej",
-      "noteCollapse": "Pokaż mniej"
+      "noteCollapse": "Pokaż mniej",
+      "externalId": "ID zewnętrzne"
     },
     "incomingCall": {
       "label": "Przychodzące połączenie",
@@ -709,6 +710,7 @@
       "emptySub": "Sprawdź poprawność wpisanej frazy i spróbuj ponownie",
       "initialText": "Wpisz frazę, aby wyszukać klientów",
       "detailsLabel": "Szczegóły klienta",
+      "externalId": "ID zewnętrzne",
       "phones": "Telefony",
       "emails": "Emaile",
       "lastContact": "Ostatni kontakt",
@@ -1373,7 +1375,8 @@
       "errorDelete": "Nie udało się usunąć klienta.",
       "successDelete": "Klient został usunięty.",
       "sortByName": "Po imieniu",
-      "sortByDate": "Po dacie dodania"
+      "sortByDate": "Po dacie dodania",
+      "externalIdColumn": "ID zewnętrzne"
     },
     "customerDetail": {
       "title": "Szczegóły klienta",
@@ -1428,6 +1431,7 @@
       "editLabel": "Edytuj dane klienta",
       "sectionContact": "Dane kontaktowe",
       "emails": "Adresy e-mail",
+      "externalId": "ID zewnętrzne",
       "lastUpdated": "Ostatnia aktualizacja",
       "sectionGdpr": "Zgoda RODO",
       "consentProcessingLabel": "Zgoda na przetwarzanie",
@@ -1481,6 +1485,9 @@
       "firstNameMaxLength": "Imię nie może przekraczać 100 znaków.",
       "lastNamePlaceholder": "Wprowadź nazwisko",
       "lastNameMaxLength": "Nazwisko nie może przekraczać 100 znaków.",
+      "externalIdLabel": "ID zewnętrzne",
+      "externalIdPlaceholder": "Identyfikator z systemu zewnętrznego (CRM)",
+      "externalIdMaxLength": "ID zewnętrzne nie może przekraczać 255 znaków.",
       "sectionPhones": "Numery telefonów",
       "phoneRequired": "Numer telefonu jest wymagany.",
       "phoneMaxLength": "Numer nie może przekraczać 30 znaków.",
@@ -1490,6 +1497,11 @@
       "emailMaxLength": "Adres nie może przekraczać 200 znaków.",
       "noEmails": "Brak adresów e-mail.",
       "addEmail": "Dodaj e-mail",
+      "customFieldsLabel": "Pola dodatkowe",
+      "customFieldsKeyPlaceholder": "Nazwa pola",
+      "customFieldsValuePlaceholder": "Wartość pola",
+      "noCustomFields": "Brak pól dodatkowych.",
+      "addCustomField": "Dodaj pole",
       "consentProcessing": "Zgoda na przetwarzanie danych",
       "consentMarketing": "Zgoda marketingowa",
       "saveLabel": "Zapisz zmiany klienta",
@@ -1507,6 +1519,8 @@
       "save": "Zapisz",
       "cancel": "Anuluj",
       "maxLength100": "Maksymalnie 100 znaków.",
+      "externalIdLabel": "ID zewnętrzne",
+      "maxLength255": "Maksymalnie 255 znaków.",
       "phonesLabel": "Numery telefonów",
       "phonesPlaceholder": "np. +48123456789, +48987654321",
       "phonesHint": "Wiele numerów oddziel przecinkami.",

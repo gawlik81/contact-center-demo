@@ -349,7 +349,8 @@
       "noHistory": "No contact history",
       "lookupError": "Failed to load customer data.",
       "noteExpand": "Show more",
-      "noteCollapse": "Show less"
+      "noteCollapse": "Show less",
+      "externalId": "External ID"
     },
     "incomingCall": {
       "label": "Incoming call",
@@ -709,6 +710,7 @@
       "emptySub": "Check the spelling and try again",
       "initialText": "Enter a phrase to search customers",
       "detailsLabel": "Customer details",
+      "externalId": "External ID",
       "phones": "Phones",
       "emails": "Emails",
       "lastContact": "Last contact",
@@ -1373,7 +1375,8 @@
       "errorDelete": "Failed to delete customer.",
       "successDelete": "Customer deleted.",
       "sortByName": "By name",
-      "sortByDate": "By date added"
+      "sortByDate": "By date added",
+      "externalIdColumn": "External ID"
     },
     "customerDetail": {
       "title": "Customer details",
@@ -1428,6 +1431,7 @@
       "editLabel": "Edit customer",
       "sectionContact": "Contact data",
       "emails": "Email addresses",
+      "externalId": "External ID",
       "lastUpdated": "Last updated",
       "sectionGdpr": "GDPR consent",
       "consentProcessingLabel": "Processing consent",
@@ -1481,6 +1485,9 @@
       "firstNameMaxLength": "First name cannot exceed 100 characters.",
       "lastNamePlaceholder": "Enter last name",
       "lastNameMaxLength": "Last name cannot exceed 100 characters.",
+      "externalIdLabel": "External ID",
+      "externalIdPlaceholder": "Identifier from an external system (CRM)",
+      "externalIdMaxLength": "External ID cannot exceed 255 characters.",
       "sectionPhones": "Phone numbers",
       "phoneRequired": "Phone number is required.",
       "phoneMaxLength": "Number cannot exceed 30 characters.",
@@ -1490,6 +1497,11 @@
       "emailMaxLength": "Address cannot exceed 200 characters.",
       "noEmails": "No email addresses.",
       "addEmail": "Add email",
+      "customFieldsLabel": "Custom fields",
+      "customFieldsKeyPlaceholder": "Field name",
+      "customFieldsValuePlaceholder": "Field value",
+      "noCustomFields": "No custom fields.",
+      "addCustomField": "Add field",
       "consentProcessing": "Data processing consent",
       "consentMarketing": "Marketing consent",
       "saveLabel": "Save customer changes",
@@ -1507,6 +1519,8 @@
       "save": "Save",
       "cancel": "Cancel",
       "maxLength100": "Maximum 100 characters.",
+      "externalIdLabel": "External ID",
+      "maxLength255": "Maximum 255 characters.",
       "phonesLabel": "Phone numbers",
       "phonesPlaceholder": "e.g. +48123456789, +48987654321",
       "phonesHint": "Separate multiple numbers with commas.",

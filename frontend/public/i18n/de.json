@@ -349,7 +349,8 @@
       "noHistory": "Keine Kontakthistorie",
       "lookupError": "Kundendaten konnten nicht abgerufen werden.",
       "noteExpand": "Mehr anzeigen",
-      "noteCollapse": "Weniger anzeigen"
+      "noteCollapse": "Weniger anzeigen",
+      "externalId": "Externe ID"
     },
     "incomingCall": {
       "label": "Eingehender Anruf",
@@ -709,6 +710,7 @@
       "emptySub": "Überprüfen Sie die Schreibweise und versuchen Sie es erneut",
       "initialText": "Geben Sie einen Begriff ein, um Kunden zu suchen",
       "detailsLabel": "Kundendetails",
+      "externalId": "Externe ID",
       "phones": "Telefone",
       "emails": "E-Mails",
       "lastContact": "Letzter Kontakt",
@@ -1373,7 +1375,8 @@
       "errorLoad": "Kundenliste konnte nicht geladen werden.",
       "sortByDate": "Nach Hinzufügungsdatum",
       "sortByName": "Nach Name",
-      "successDelete": "Kunde wurde gelöscht."
+      "successDelete": "Kunde wurde gelöscht.",
+      "externalIdColumn": "Externe ID"
     },
     "customerDetail": {
       "title": "Kundendetails",
@@ -1424,6 +1427,7 @@
       "editLabel": "Kundendaten bearbeiten",
       "sectionContact": "Kontaktdaten",
       "emails": "E-Mail-Adressen",
+      "externalId": "Externe ID",
       "lastUpdated": "Zuletzt aktualisiert",
       "sectionGdpr": "DSGVO-Einwilligung",
       "consentProcessingLabel": "Verarbeitungseinwilligung",
@@ -1477,6 +1481,9 @@
       "firstNameMaxLength": "Vorname darf nicht mehr als 100 Zeichen enthalten.",
       "lastNamePlaceholder": "Nachname eingeben",
       "lastNameMaxLength": "Nachname darf nicht mehr als 100 Zeichen enthalten.",
+      "externalIdLabel": "Externe ID",
+      "externalIdPlaceholder": "Kennung aus einem externen System (CRM)",
+      "externalIdMaxLength": "Externe ID darf nicht mehr als 255 Zeichen enthalten.",
       "sectionPhones": "Telefonnummern",
       "phoneRequired": "Telefonnummer ist erforderlich.",
       "phoneMaxLength": "Nummer darf nicht mehr als 30 Zeichen enthalten.",
@@ -1486,6 +1493,11 @@
       "emailMaxLength": "Adresse darf nicht mehr als 200 Zeichen enthalten.",
       "noEmails": "Keine E-Mail-Adressen.",
       "addEmail": "E-Mail hinzufügen",
+      "customFieldsLabel": "Zusätzliche Felder",
+      "customFieldsKeyPlaceholder": "Feldname",
+      "customFieldsValuePlaceholder": "Feldwert",
+      "noCustomFields": "Keine zusätzlichen Felder.",
+      "addCustomField": "Feld hinzufügen",
       "consentProcessing": "Einwilligung zur Datenverarbeitung",
       "consentMarketing": "Marketing-Einwilligung",
       "saveLabel": "Kundenänderungen speichern",
@@ -1503,6 +1515,8 @@
       "save": "Speichern",
       "cancel": "Abbrechen",
       "maxLength100": "Maximal 100 Zeichen.",
+      "externalIdLabel": "Externe ID",
+      "maxLength255": "Maximal 255 Zeichen.",
       "phonesLabel": "Telefonnummern",
       "phonesPlaceholder": "z.B. +49123456789, +49987654321",
       "phonesHint": "Mehrere Nummern durch Kommas trennen.",

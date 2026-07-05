@@ -129,6 +129,13 @@
             </dd>
           </div>
 
+          @if (c.externalId) {
+            <div class="detail-dl__row">
+              <dt class="detail-dl__term">{{ 'supervisor.customerDetail.externalId' | transloco }}</dt>
+              <dd class="detail-dl__desc">{{ c.externalId }}</dd>
+            </div>
+          }
+
           <div class="detail-dl__row">
             <dt class="detail-dl__term">{{ 'supervisor.customerDetail.source' | transloco }}</dt>
             <dd class="detail-dl__desc">{{ c.source }}</dd>

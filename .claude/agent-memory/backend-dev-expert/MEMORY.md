@@ -33,6 +33,7 @@
 
 - [feedback_stomp_mutable_headers.md](feedback_stomp_mutable_headers.md) – ChannelInterceptor.preSend(): `getAccessor()` zwraca immutable; fix:
   `StompHeaderAccessor.wrap(message)` + `setLeaveMutable(true)` + `MessageBuilder.createMessage()`
+- [feedback_jdbc_batchupdate_param_count_mismatch.md](feedback_jdbc_batchupdate_param_count_mismatch.md) – `jdbcTemplate.batchUpdate(sql, List<Object[]>)`: długość tablicy musi = liczbie `?`; znaleziony i naprawiony bug w `CustomerImportServiceImpl.batchInsertCustomers` (marker row[0] błędnie przekazywany jako parametr)
 - [feedback_hibernate6_null_param_bytea.md](feedback_hibernate6_null_param_bytea.md) – Hibernate 6: JPQL z `:param IS NULL` + LOWER() na tym samym parametrze
   String → PostgreSQL `lower(bytea) does not exist`; fix: natywny SQL z `CAST(:param AS TEXT)`
 - [feedback_partitioned_table_jpa.md](feedback_partitioned_table_jpa.md) – JPA na tabelach partycjonowanych: `@IdClass` + native INSERT przez

@@ -201,6 +201,10 @@ export class CustomerListComponent implements OnInit {
     return customer.email[0] ?? '—';
   }
 
+  getExternalId(customer: CustomerResponse): string {
+    return customer.externalId ?? '—';
+  }
+
   onPrevPage(): void {
     if (this.currentPage() > 0) {
       this.currentPage.update((p) => p - 1);

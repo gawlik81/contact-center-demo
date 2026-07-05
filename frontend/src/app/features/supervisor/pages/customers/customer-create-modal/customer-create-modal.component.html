@@ -43,6 +43,24 @@
         </div>
 
         <div class="form-field">
+          <label class="form-label" for="externalId">{{
+            'supervisor.customerCreate.externalIdLabel' | transloco
+          }}</label>
+          <input
+            id="externalId"
+            type="text"
+            class="form-input"
+            formControlName="externalId"
+            maxlength="255"
+            autocomplete="off"
+            [placeholder]="'common.optional' | transloco"
+          />
+          @if (form.controls.externalId.hasError('maxlength')) {
+            <span class="form-error" role="alert">{{ 'supervisor.customerCreate.maxLength255' | transloco }}</span>
+          }
+        </div>
+
+        <div class="form-field">
           <label class="form-label" for="phones">{{ 'supervisor.customerCreate.phonesLabel' | transloco }}</label>
           <input
             id="phones"

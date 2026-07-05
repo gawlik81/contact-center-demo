@@ -328,6 +328,28 @@ First full backend review completed 2026-03-17. BE-027 (Contact API) reviewed 20
 - Is `@NotNull` present on `tone` in request DTOs?
 - Are campaignId/queueId path params actually validated against the disposition's scope?
 
+## Customer `externalId` (CRM external ID) — issues found 2026-07-05
+
+**Critical — CSV import silent data loss / job abort on `external_id` collision:**
+- `CustomerImportServiceImpl.batchInsertCustomers` INSERT has `ON CONFLICT DO NOTHING` with no conflict target — previously harmless (only guarded against the astronomically-unlikely `customer_id` PK collision), but now the new `uq_customer_tenant_external_id` partial unique index makes this a *reachable* silent-drop path. `imported++` counter is incremented at batch-add time, before the actual flush/INSERT — so a row silently dropped by `ON CONFLICT DO NOTHING` is still counted as imported in the job report, with zero error/warn trace.
+- `batchUpdateCustomers` (OVERWRITE mode) has no `ON CONFLICT` handling at all — a genuine `external_id` collision on UPDATE throws `DataIntegrityViolationException` uncaught inside the row-processing loop, converted to `IOException` by the outer `catch (Exception e)` in `doImport`, aborting the **entire remaining import job** (`FAILED_PARTIAL`) instead of failing just the one offending row. Root cause: `findExisting()` dedup only checks phone/email, never `external_id`.
+- **Check in future CSV-import-related reviews:** whenever a new unique constraint is added to a table with a bulk `jdbcTemplate.batchUpdate(..., ON CONFLICT DO NOTHING)` import path, verify (a) the counter incremented BEFORE flush reflects the actual `int[]` affected-rows result, and (b) any UPDATE path touching the same unique column has either a pre-check or is wrapped so one row's constraint violation doesn't abort unrelated rows in the same job.
+
+**Critical — blank string not normalized to NULL for optional-unique scalar fields:**
+- `CustomerServiceImpl.createCustomer`/`updateCustomer`: `externalId` builder/setter call is unconditional for any non-null value, including `""`. The partial unique index excludes only `IS NOT NULL` — an empty string is NOT NULL, so two customers with `externalId=""` collide for real. Today unreachable via the actual UI (frontend coerces blank to `undefined` via `|| undefined`, and `null` = "no change" server-side) — but reachable via direct API/Swagger, AND means there is currently no way for a user to clear an already-set value via the API contract as designed.
+- **Pattern to check in future:** any new optional `String` field with a partial-unique-index-on-NOT-NULL constraint (following the V003 `uq_user_tenant_email` pattern) must normalize blank string to `null` in the service layer before both the duplicate-check and the persist call. Also verify the paired frontend doesn't quietly swallow the "clear the field" user intent (see `[[project_frontend_patterns]]`).
+
+**Positive patterns confirmed:**
+- Self-exclusion logic in `updateCustomer` for uniqueness re-check (`.filter(existing -> !existing.getCustomerId().equals(customerId))`) is correctly implemented — no false-positive `ConflictException` when updating a customer without changing the unique field. This is the kind of check worth verifying explicitly on every "add unique field with update support" PR — it's an easy off-by-omission bug (checking duplicates without excluding self).
+- The historical JDBC `batchUpdate` marker/param-count bug (see `backend-dev-expert`'s `feedback_jdbc_batchupdate_param_count_mismatch.md`) was correctly fixed for BOTH insert and update paths in this PR, confirmed by dedicated passing test + full suite run.
+- `GlobalExceptionHandler.handleDataIntegrityViolationException` (pre-existing) safely handles the TOCTOU race on the app-level pre-check + DB unique constraint — no raw SQL stack trace leak, generic 409 `ProblemDetail`. Good baseline safety net even though the message isn't field-specific.
+
+**Check in future "add optional unique field to existing entity" reviews:**
+- Does the service layer normalize blank string to `null` before both duplicate-check and persist?
+- Does self-exclusion logic exist in the update path's uniqueness check?
+- Does any CSV/bulk-import path touching the same table check the new unique constraint per-row, or does it rely on `ON CONFLICT DO NOTHING`/rely on the DB to fail loudly (and if so, does a single row's collision abort the whole batch/job)?
+- Is the frontend's "clear field" UX (empty string vs. omitted/undefined vs. explicit null) actually reachable end-to-end, or silently dropped by `|| undefined`-style coercion?
+
 ## Architectural patterns observed in BE-027
 
 **Partitioned table pattern (new in BE-027):**

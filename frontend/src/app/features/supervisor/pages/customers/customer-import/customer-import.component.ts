@@ -18,7 +18,14 @@ import { DeduplicationMode, ImportJobStatus } from '../customer-import.model';
 
 export type ImportStep = 'upload' | 'mapping' | 'progress' | 'report';
 
-export type SystemField = 'phone' | 'first_name' | 'last_name' | 'email' | 'custom_fields' | 'skip';
+export type SystemField =
+  | 'phone'
+  | 'first_name'
+  | 'last_name'
+  | 'external_id'
+  | 'email'
+  | 'custom_fields'
+  | 'skip';
 
 export interface ColumnMapping {
   csvHeader: string;
@@ -78,6 +85,7 @@ export class CustomerImportComponent {
     { value: 'phone', label: 'Telefon (wymagany)' },
     { value: 'first_name', label: 'Imie' },
     { value: 'last_name', label: 'Nazwisko' },
+    { value: 'external_id', label: 'ID zewnetrzne' },
     { value: 'email', label: 'Email' },
     { value: 'custom_fields', label: 'Pole dodatkowe' },
     { value: 'skip', label: '(Pomin)' },
@@ -237,6 +245,10 @@ export class CustomerImportComponent {
       last_name: 'last_name',
       nazwisko: 'last_name',
       lastname: 'last_name',
+      external_id: 'external_id',
+      externalid: 'external_id',
+      crm_id: 'external_id',
+      id_zewnetrzne: 'external_id',
       email: 'email',
       'e-mail': 'email',
       mail: 'email',

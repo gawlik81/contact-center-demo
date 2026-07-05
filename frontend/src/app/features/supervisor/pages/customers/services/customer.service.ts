@@ -57,6 +57,7 @@ export class CustomerService {
   createCustomer(payload: {
     firstName?: string;
     lastName?: string;
+    externalId?: string;
     phone: string[];
     email: string[];
   }): Observable<CustomerResponse> {
@@ -68,8 +69,10 @@ export class CustomerService {
     payload: {
       firstName?: string;
       lastName?: string;
+      externalId?: string;
       phone?: string[];
       email?: string[];
+      customFields?: Record<string, unknown>;
       gdprConsent?: Record<string, unknown>;
     },
   ): Observable<CustomerResponse> {

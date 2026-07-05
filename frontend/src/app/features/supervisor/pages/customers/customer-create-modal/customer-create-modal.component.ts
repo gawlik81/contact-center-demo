@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, finalize, of } from 'rxjs';
 import { CustomerService } from '../services/customer.service';
 import { NotificationService } from '../../../../../core/services/notification.service';
@@ -42,6 +43,7 @@ export class CustomerCreateModalComponent {
   readonly form = this.fb.group({
     firstName: ['', [Validators.maxLength(100)]],
     lastName: ['', [Validators.maxLength(100)]],
+    externalId: ['', [Validators.maxLength(255)]],
     phones: [''],
     emails: [''],
   });
@@ -88,6 +90,7 @@ export class CustomerCreateModalComponent {
     const payload = {
       firstName: raw.firstName?.trim() || undefined,
       lastName: raw.lastName?.trim() || undefined,
+      externalId: raw.externalId?.trim() || undefined,
       phone,
       email,
     };
@@ -98,10 +101,14 @@ export class CustomerCreateModalComponent {
       .createCustomer(payload)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        catchError(() => {
-          this.notifications.error(
-            this.transloco.translate('supervisor.customerCreate.errorCreate'),
-          );
+        catchError((err: HttpErrorResponse) => {
+          if (err.status === 409 && err.error?.detail) {
+            this.notifications.error(err.error.detail);
+          } else {
+            this.notifications.error(
+              this.transloco.translate('supervisor.customerCreate.errorCreate'),
+            );
+          }
           return of(null);
         }),
         finalize(() => this.saving.set(false)),

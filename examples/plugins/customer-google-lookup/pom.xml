@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ===================================================================
+         Przykładowy plugin Contact Center (EPIC-28) — "Customer Google Lookup".
+         Niezależny projekt Maven (NIE moduł backend/pom.xml reaktora) — symuluje
+         repozytorium zewnętrznego dostawcy pluginu. Pełny opis i instrukcje budowy:
+         README.md w tym katalogu i documentation/10-plugin-development.md.
+         =================================================================== -->
+
+    <groupId>com.acme.contactcenter</groupId>
+    <artifactId>customer-google-lookup-plugin</artifactId>
+    <version>1.0.1</version>
+    <packaging>jar</packaging>
+
+    <name>Customer Google Lookup — przykładowy plugin Contact Center</name>
+    <description>
+        Panel boczny agenta aktywowany podczas rozmowy, prezentujący wyniki wyszukiwania
+        Google Custom Search dla danych bieżącego klienta (imię, nazwisko, telefon).
+        Demonstruje PRE_CONTACT_CONNECT (automatyczne wyszukiwanie przy połączeniu),
+        MANUAL_ACTION (odświeżenie na żądanie z toolbaru/panelu) i HttpEgressClient
+        (jedyny dozwolony kanał sieciowy pluginu). Zero zależności poza plugin-sdk i JDK.
+    </description>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!--
+          Jedyna zależność deweloperska — musi być zbudowana i zainstalowana w lokalnym
+          repozytorium Maven PRZED budowaniem tego projektu (README.md, Krok 0).
+          scope=provided: SDK jest dostarczany przez platformę w runtime (PlatformApiClassLoader
+          eksponuje wyłącznie com.contactcenter.pluginsdk.*) — nigdy nie pakuj klas SDK do
+          własnego JAR-a.
+        -->
+        <dependency>
+            <groupId>com.contactcenter</groupId>
+            <artifactId>contact-center-plugin-sdk</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- JUnit 5 — wyłącznie do testów jednostkowych tego pluginu, scope=test
+             (nie trafia do JAR-a wynikowego). -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.5</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+              Brak <parent> w tym POM (projekt zewnętrznego dostawcy) — Maven domyślnie użyłby
+              przestarzałej wersji 3.1 maven-compiler-plugin, która ignoruje
+              maven.compiler.release i kompiluje z poziomem źródła 5. Jawna, nowsza wersja jest
+              wymagana, żeby <maven.compiler.release>21</maven.compiler.release> zadziałało.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+            <!--
+              addMavenDescriptor=false: domyślnie maven-jar-plugin pakuje
+              META-INF/maven/<groupId>/<artifactId>/pom.properties z timestampem budowy ("#Tue
+              Jun 23 ...") — to czyni JAR niereprodukowalnym (checksumSha256 zmieniałby się przy
+              każdej budowie, mimo identycznego kodu źródłowego, bo ChecksumTool hashuje
+              WSZYSTKIE wpisy poza samym manifestem pluginu, a ten plik manifestu Mavena nie jest
+              z tego wyłączony). Wyłączenie go jest wymagane dla dwuetapowej procedury budowy z
+              README.md (Krok 1-3) — bez tego checksum policzony w Kroku 2 nie zgadzałby się po
+              przebudowaniu w Kroku 3.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <addMavenDescriptor>false</addMavenDescriptor>
+                    </archive>
+                </configuration>
+            </plugin>
+            <!--
+              Brak <parent> w tym POM — domyślna (przestarzała) wersja maven-surefire-plugin
+              nie obsługuje silnika JUnit 5 (Jupiter). Jawna, nowsza wersja jest wymagana, by
+              `mvn test` wykonał testy z src/test/java.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

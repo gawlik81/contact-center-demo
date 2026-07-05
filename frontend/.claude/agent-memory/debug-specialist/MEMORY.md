@@ -1,0 +1,1 @@
+- [Plugin runtime config freshness](plugin_runtime_config_freshness.md) — PATCH configu pluginu jest od razu świeży w MANUAL_ACTION/PRE_CONTACT_CONNECT, bez disable/enable

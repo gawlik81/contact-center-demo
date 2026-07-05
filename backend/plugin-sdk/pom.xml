@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ===================================================================
+         Moduł: plugin-sdk – kontrakt dla pluginów firm trzecich (EPIC-28)
+         Jedyna zależność compile-time, jakiej potrzebuje deweloper pluginu.
+         Wyłącznie interfejsy + niemutowalne DTO (record).
+         ZERO zależności od spring-*, jakarta.persistence.*, hibernate-*.
+         =================================================================== -->
+
+    <parent>
+        <groupId>com.contactcenter</groupId>
+        <artifactId>contact-center-backend</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>contact-center-plugin-sdk</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Contact Center Plugin SDK</name>
+    <description>
+        Minimalny, samodzielny moduł SDK dla pluginów per-tenant (EPIC-28) – interfejsy
+        PluginEntryPoint/PluginContext oraz niemutowalne DTO. Brak zależności od Spring,
+        JPA/Hibernate – plugin nie może dosięgnąć aplikacji hosta poprzez classpath.
+    </description>
+
+    <!-- Brak dodatkowych <dependencies> – moduł zależy wyłącznie od JDK 21. -->
+
+</project>

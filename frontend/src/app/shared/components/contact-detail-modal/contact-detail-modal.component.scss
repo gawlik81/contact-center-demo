@@ -1,6 +1,9 @@
 @use '../../styles/contact-badges' as *;
+@use '../../styles/resizable-dialog' as *;
 
 .contact-dialog {
+  @extend %resizable-dialog-host;
+
   border: none;
   border-radius: var(--radius-md);
   padding: 0;
@@ -15,6 +18,19 @@
   &[open] {
     display: flex;
     flex-direction: column;
+  }
+
+  // `ResizableDialogDirective` pins explicit width/height (in px) via inline styles once the
+  // user starts dragging. `max-width`/`max-height` above are only the *default* caps for the
+  // un-resized dialog — they would otherwise also clamp the inline width/height set by the
+  // directive, since `max-width`/`max-height` always win over `width`/`height` regardless of
+  // where they came from. The directive does its own viewport-relative clamping in JS
+  // (`appResizableDialogMaxWidthVw`/`Vh`), so once resizing has happened we lift this cap and
+  // let the inline style govern.
+  &.is-resizable-dialog.is-resized,
+  &.is-resizing {
+    max-width: none;
+    max-height: none;
   }
 
   &::backdrop {
@@ -36,7 +52,8 @@
   &__content {
     display: flex;
     flex-direction: column;
-    max-height: 90vh;
+    height: 100%;
+    min-height: 0;
     overflow: hidden;
   }
 

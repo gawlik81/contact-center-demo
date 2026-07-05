@@ -161,9 +161,14 @@ export class IncomingCallAlertService implements OnDestroy {
       .tabs()
       .find((t) => t.contactId === payload.contactId && t.type === 'PHONE');
     if (existing) {
-      if (existing.direction !== 'OUTBOUND') {
-        this.tabStore.updateTabCustomerInfo(existing.contactId, existing.customerName, 'OUTBOUND');
-      }
+      // Always update: direction may need correction, and the enriched CALL_OUTBOUND from
+      // CallEventEnricher arrives as a second event with customerId from CLI lookup.
+      this.tabStore.updateTabCustomerInfo(
+        existing.contactId,
+        payload.customerName,
+        'OUTBOUND',
+        payload.customerId,
+      );
       return;
     }
 

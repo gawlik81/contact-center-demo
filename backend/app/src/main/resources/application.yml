@@ -111,13 +111,15 @@ spring:
       password: ${SECURITY_DEFAULT_PASSWORD:disabled}
 
   # ---------------------------------------------------------------------------
-  # Multipart – upload załączników email (EmailAttachmentController)
-  # Maksymalny rozmiar pliku: 25 MB; maksymalny rozmiar żądania: 30 MB
+  # Multipart – upload załączników email (EmailAttachmentController, limit 25MB
+  # wymuszany na poziomie kontrolera) i pluginów (PluginUploadController, limit 50MB
+  # wymuszany na poziomie kontrolera + PluginValidationService). Limit globalny musi
+  # pokryć największy przypadek (pluginy), więc jest ustawiony na 50MB/55MB.
   # ---------------------------------------------------------------------------
   servlet:
     multipart:
-      max-file-size: 25MB
-      max-request-size: 30MB
+      max-file-size: 50MB
+      max-request-size: 55MB
 
 # =============================================================================
 # Actuator – health checks i metryki

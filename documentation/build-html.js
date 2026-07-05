@@ -61,7 +61,12 @@ if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 for (const file of files) {
   const md = fs.readFileSync(path.join(docsDir, file), 'utf-8');
   // przepisz linki .md -> .html (linki relatywne w dokumentacji)
-  const mdRewritten = md.replace(/\((\d{2}-[a-z-]+)\.md(#[^)]*)?\)/g, (m, p1, p2) => `(${p1}.html${p2 || ''})`);
+  const mdRewritten = md
+    .replace(/\((\d{2}-[a-z-]+)\.md(#[^)]*)?\)/g, (m, p1, p2) => `(${p1}.html${p2 || ''})`)
+    // plugin/*.md -> ../plugin/*.html (pliki HTML są w html/, guide jest w plugin/)
+    .replace(/\(plugin\/([a-z0-9-]+)\.md(#[^)]*)?\)/g, (m, p1, p2) => `(../plugin/${p1}.html${p2 || ''})`)
+    // plugin/*.html -> ../plugin/*.html (ten sam powód — przesuń w górę z html/)
+    .replace(/\(plugin\/([a-z0-9-]+)\.html(#[^)]*)?\)/g, (m, p1, p2) => `(../plugin/${p1}.html${p2 || ''})`);
   let body = marked.parse(mdRewritten);
   // umożliwia renderowanie diagramów mermaid w przeglądarce (mermaid.js z CDN)
   body = body.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g, (m, code) => {

@@ -1,0 +1,9 @@
+<div class="plugin-panel-host" [style.height.px]="panelHeightPx()">
+  <iframe
+    #iframeEl
+    [src]="trustedPluginPanelUrl()"
+    sandbox="allow-scripts allow-forms"
+    referrerpolicy="no-referrer"
+    (load)="onIframeLoad()"
+  ></iframe>
+</div>

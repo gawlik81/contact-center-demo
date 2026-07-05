@@ -3,6 +3,9 @@
   #dialogEl
   class="contact-dialog"
   aria-labelledby="contact-dialog-title"
+  appResizableDialog
+  [appResizableDialogMinWidth]="640"
+  [appResizableDialogMinHeight]="480"
   (click)="onBackdropClick($event)"
   (keydown)="$event.key === 'Escape' && onEscapeKey($event)"
 >

@@ -1989,3 +1989,354 @@ COMMENT ON COLUMN disposition_set_item.disposition_code IS
 - [ ] `chk_disposition_set_item_tone` — wartość spoza listy odrzucona
 - [ ] RLS + FORCE RLS na obu tabelach — izolacja między tenantami
 - [ ] CASCADE DELETE: usunięcie zestawu usuwa jego elementy
+
+---
+
+## MODUL: Per-Tenant Plugin (Extension) System (EPIC-28)
+
+> Źródło architektury: `ARCHITECTURE.md` §11 (ADR-09…ADR-13, RT-09…RT-14). `plugin`/`plugin_version`
+> to katalog **globalny** (bez `tenant_id`, bez RLS — ADR-13); pozostałe trzy tabele są
+> tenant-scoped z RLS, zaczynając od `tenant_plugin_installation`.
+
+### DB-042 – Tabele `plugin` i `plugin_version`: globalny katalog pluginów (bez RLS) — migracja V074
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-002 (tabela `tenant` — FK z `app_user` poniżej), DB-003 (tabela `app_user` — `uploaded_by_user_id`)
+**Status:** ✅ Zrobione (2026-06-20)
+**Blokuje:** DB-043
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Kontekst:**
+`plugin` i `plugin_version` to katalog **globalny** — definicja pluginu (jaki kod, jaka wersja, co deklaruje) jest współdzieloną metadaną infrastrukturalną, nie danymi tenanta. Ten sam `plugin_key` może być instalowany niezależnie przez wielu tenantów (zob. DB-043). Wersje są niemutowalne po `VALIDATED` — analogicznie do reguły "nigdy nie edytuj zastosowanej migracji Flyway" (CLAUDE.md): nowa wersja JAR-a to zawsze nowy wiersz `plugin_version`, nigdy edycja istniejącego.
+
+**DDL migracji (`V074__create_plugin_catalog.sql`):**
+
+```sql
+-- =============================================================================
+-- V074__create_plugin_catalog.sql
+-- DB-042: Globalny katalog pluginów (EPIC-28). Bez tenant_id/RLS — katalog
+-- współdzielony; instalacja per tenant zaczyna się w V075 (tenant_plugin_installation).
+-- =============================================================================
+
+CREATE TABLE plugin (
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    plugin_key      VARCHAR(100) NOT NULL UNIQUE,
+    display_name    VARCHAR(200) NOT NULL,
+    vendor          VARCHAR(200) NOT NULL,
+    vendor_contact  VARCHAR(200),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE plugin_version (
+    id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    plugin_id           UUID        NOT NULL REFERENCES plugin(id) ON DELETE CASCADE,
+    version             VARCHAR(50) NOT NULL,
+    jar_object_key      VARCHAR(500) NOT NULL,
+    checksum_sha256     VARCHAR(64) NOT NULL,
+    manifest_json       JSONB       NOT NULL,
+    sdk_version         VARCHAR(20) NOT NULL,
+    status              VARCHAR(20) NOT NULL DEFAULT 'UPLOADED',
+    validation_errors   JSONB,
+    uploaded_by_user_id UUID        REFERENCES app_user(id) ON DELETE SET NULL,
+    uploaded_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_plugin_version_plugin_version UNIQUE (plugin_id, version),
+    CONSTRAINT chk_plugin_version_status CHECK (
+        status IN ('UPLOADED', 'VALIDATED', 'PENDING_REVIEW', 'REJECTED', 'REVOKED')
+    )
+);
+
+-- Indeksy
+CREATE INDEX idx_plugin_version_plugin
+    ON plugin_version (plugin_id, uploaded_at DESC);
+
+CREATE INDEX idx_plugin_version_status
+    ON plugin_version (status)
+    WHERE status IN ('VALIDATED', 'PENDING_REVIEW');
+
+COMMENT ON TABLE plugin IS
+    'Globalny katalog pluginów (EPIC-28). Bez tenant_id/RLS — definicja współdzielona, instalacja per tenant w tenant_plugin_installation (ADR-13).';
+COMMENT ON TABLE plugin_version IS
+    'Wersje JAR-a pluginu, niemutowalne po VALIDATED. Nowa wersja = nowy wiersz, nigdy edycja (analogia do Flyway).';
+COMMENT ON COLUMN plugin_version.jar_object_key IS
+    'Klucz obiektu w MinIO/S3 (ten sam bucket family co recording, ARCHITECTURE.md §3.1).';
+COMMENT ON COLUMN plugin_version.manifest_json IS
+    'Pełny sparsowany META-INF/plugin-manifest.json — przechowywany dla audytu/replay.';
+COMMENT ON COLUMN plugin_version.status IS
+    'UPLOADED → VALIDATED|REJECTED (walidacja), VALIDATED → PENDING_REVIEW (jeśli wymagany manual review), * → REVOKED (kill switch globalny, ADR-11).';
+```
+
+**Kryteria akceptacji:**
+- [x] Migracja V074 aplikuje się bez błędów na dev i test
+- [x] `plugin.plugin_key` — UNIQUE, brak `tenant_id`, brak RLS (świadomie, katalog globalny — ADR-13)
+- [x] `uq_plugin_version_plugin_version` — duplikat `(plugin_id, version)` odrzucony
+- [x] `chk_plugin_version_status` — wartość spoza listy odrzucona
+- [x] FK `uploaded_by_user_id` → `app_user(user_id) ON DELETE SET NULL` (audyt przetrwa usunięcie użytkownika)
+- [x] Komentarze na tabelach i kluczowych kolumnach wyjaśniające decyzję "bez RLS"
+
+**Uwaga implementacyjna:** DDL z ticketu zawierał `REFERENCES app_user(id)` — błędne, PK tej tabeli to `app_user.user_id` (konwencja `{tabela}_id` w tym projekcie, nie `id`). Poprawione w migracji na `REFERENCES app_user(user_id)`. Poza tym DDL przepisany 1:1.
+
+---
+
+### DB-043 – Tabela `tenant_plugin_installation`: instalacja pluginu per tenant (RLS) — migracja V075
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-042 (tabela `plugin_version`), DB-002 (tabela `tenant`), DB-003 (tabela `app_user`)
+**Status:** ✅ Zrobione
+**Blokuje:** DB-044, DB-045
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Kontekst:**
+Pierwsza tabela tenant-scoped w epiku — od niej zaczyna się RLS (ADR-13). Jedna instalacja = jeden tenant + jedna konkretna wersja pluginu. Upgrade nie edytuje wiersza — tworzy **nowy** (nowy `plugin_version_id`), stary zostaje z `enabled=false` jako mechanizm rollbacku (ARCHITECTURE.md §11.11): włączenie starego + wyłączenie nowego to natychmiastowy rollback bez redeployu. `installation_config` przechowuje sekrety tenanta (np. API key zewnętrznego CRM) — szyfrowane AES-256-GCM, ten sam wzorzec konwertera co `tenant_ai_config.api_key` (DB-038) i `tenant_twilio_config`.
+
+**DDL migracji (`V075__create_tenant_plugin_installation.sql`):**
+
+```sql
+-- =============================================================================
+-- V075__create_tenant_plugin_installation.sql
+-- DB-043: Instalacja pluginu per tenant (EPIC-28). RLS od tej tabeli (ADR-13).
+-- =============================================================================
+
+CREATE TABLE tenant_plugin_installation (
+    id                          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                  UUID        NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    plugin_version_id          UUID        NOT NULL REFERENCES plugin_version(id) ON DELETE RESTRICT,
+    enabled                     BOOLEAN     NOT NULL DEFAULT FALSE,
+    granted_permissions         JSONB       NOT NULL DEFAULT '[]'::JSONB,
+    health_status               VARCHAR(20) NOT NULL DEFAULT 'HEALTHY',
+    consecutive_failure_count   INT         NOT NULL DEFAULT 0,
+    installation_config         JSONB,
+    installed_by_user_id        UUID        REFERENCES app_user(id) ON DELETE SET NULL,
+    installed_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_tenant_plugin_installation_version UNIQUE (tenant_id, plugin_version_id),
+    CONSTRAINT chk_tenant_plugin_installation_health CHECK (
+        health_status IN ('HEALTHY', 'DEGRADED', 'DISABLED_BY_ADMIN')
+    )
+);
+
+-- Indeksy
+CREATE INDEX idx_tenant_plugin_installation_tenant
+    ON tenant_plugin_installation (tenant_id, enabled);
+
+CREATE INDEX idx_tenant_plugin_installation_version
+    ON tenant_plugin_installation (plugin_version_id);
+
+-- RLS
+ALTER TABLE tenant_plugin_installation ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_plugin_installation FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_plugin_installation_isolation ON tenant_plugin_installation
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+
+COMMENT ON TABLE tenant_plugin_installation IS
+    'Instalacja konkretnej wersji pluginu dla tenanta. Upgrade = nowy wiersz (stary enabled=false = rollback). RLS od tej tabeli (ADR-13).';
+COMMENT ON COLUMN tenant_plugin_installation.granted_permissions IS
+    'Podzbiór uprawnień z manifestu zatwierdzony przez admina tenanta — NIE auto-grant z manifestu.';
+COMMENT ON COLUMN tenant_plugin_installation.installation_config IS
+    'Konfiguracja tenanta (np. API key zewnętrznego CRM) — szyfrowana AES-256-GCM, wzorzec konwertera jak tenant_ai_config/tenant_twilio_config.';
+COMMENT ON COLUMN tenant_plugin_installation.health_status IS
+    'HEALTHY domyślnie; DEGRADED po N kolejnych timeoutów/wyjątków (circuit breaker, ARCHITECTURE.md §11.7); DISABLED_BY_ADMIN po ręcznym wyłączeniu.';
+```
+
+**Kryteria akceptacji:**
+- [x] Migracja V075 aplikuje się bez błędów
+- [x] `uq_tenant_plugin_installation_version` — duplikat `(tenant_id, plugin_version_id)` odrzucony
+- [x] `chk_tenant_plugin_installation_health` — wartość spoza listy odrzucona
+- [x] RLS + FORCE RLS — izolacja danych między tenantami
+- [x] FK `plugin_version_id ON DELETE RESTRICT` — nie można usunąć wersji pluginu, która ma aktywne instalacje
+- [x] Kolumna `installation_config` gotowa na szyfrowany JSONB (konwerter dodany w warstwie BE, nie w migracji)
+
+**Uwaga implementacyjna:** DDL z ticketu zawierał DWA błędne FK (nie tylko jeden zgłoszony w handoffie z DB-042):
+1. `installed_by_user_id UUID REFERENCES app_user(id)` — PK tej tabeli to `app_user.user_id`. Poprawione na `REFERENCES app_user(user_id)`.
+2. `tenant_id UUID REFERENCES tenant(id)` — PK tej tabeli to `tenant.tenant_id` (tabela starsza, konwencja `{tabela}_id`). Poprawione na `REFERENCES tenant(tenant_id)`. **Ten błąd nie był zgłoszony w kontekście handoffu — wykryty dodatkową weryfikacją `\d tenant` przed pisaniem FK.**
+
+FK do `plugin_version(id)` był poprawny bez zmian (tabela nowa, od V069+, PK=`id`).
+
+Weryfikacja manualna w transakcji z ROLLBACK (baza dev pozostała czysta):
+- RLS: `relrowsecurity=t`, `relforcerowsecurity=t` potwierdzone w `pg_class`.
+- **Ważne odkrycie:** rola `ccapp` (używana w psql przez to środowisko dev) ma `rolbypassrls=true` — RLS pod tą rolą NIE jest egzekwowane, niezależnie od FORCE ROW LEVEL SECURITY (to oczekiwane zachowanie Postgresa: BYPASSRLS ignoruje również FORCE). Potwierdzone że to nie jest błąd migracji — ten sam efekt występuje na już zaakceptowanej tabeli `custom_disposition` (V070) pod rolą `ccapp`. Test izolacji trzeba wykonać pod rolą `app_user` (`SET ROLE app_user;` — `rolbypassrls=false`, `Cannot login` więc używana tylko przez `SET ROLE` z `ccapp` lub przez connection pooling backendu): pod tą rolą izolacja działa poprawnie (tenant B widzi 0 wierszy tenanta A, `WITH CHECK` blokuje cross-tenant insert). **Zanotowane w pamięci agenta — przy każdej kolejnej tabeli RLS w tym epiku testować pod `SET ROLE app_user`, nie pod gołym `ccapp`.**
+- Duplikat `(tenant_id, plugin_version_id)` odrzucony przez `uq_tenant_plugin_installation_version`.
+- `health_status='BOGUS_STATUS'` odrzucony przez `chk_tenant_plugin_installation_health`.
+- Próba `DELETE` z `plugin_version` mającej aktywną instalację odrzucona przez FK `ON DELETE RESTRICT`.
+
+Sposób aplikacji na dev: identyczny jak DB-042 (port 5432 niepublikowany na hosta, Flyway odpalony wewnątrz `cc-backend` przez ręcznie skompilowany `RunFlyway.class` + jary z `.m2` w `/tmp/flyway-run2`, bo `/tmp/flyway-run` z poprzedniej sesji było read-only dla zapisu nowych plików; `javac` niedostępny w `cc-backend` (tylko JRE) — kompilacja `RunFlyway.java` wykonana lokalnie na hoście (ma JDK 21) z jarami skopiowanymi z kontenera, potem `.class` skopiowany z powrotem).
+
+**Drugorzędne odkrycie do DB-044/DB-045:** DDL tych ticketów (przeczytane podczas analizy, NIE wykonane) zawiera `REFERENCES tenant(id)` w obu (linia z `tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE` w V076 i V077) — ten SAM błąd co w DB-043. Trzeba poprawić na `tenant(tenant_id)` przy realizacji tych ticketów. Pozostałe FK w DB-044 (`tenant_plugin_installation(id)` — OK, nowa tabela) i DB-045 (`tenant_plugin_installation(id)` — OK) wydają się poprawne, ale wymagają weryfikacji `\d` w danym momencie przed implementacją.
+
+---
+
+### DB-044 – Tabela `tenant_plugin_extension_binding`: bindingi punktów rozszerzeń (RLS) — migracja V076
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** DB-043 (tabela `tenant_plugin_installation`)
+**Status:** ✅ Zrobione (2026-06-20)
+**Blokuje:** DB-045
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Kontekst:**
+Każda instalacja deklaruje w manifeście, do których z pięciu stałych punktów rozszerzeń się podłącza (`PRE_CONTACT_CONNECT`, `POST_CONTACT_END`, `CUSTOMER_SYNC`, `DISPOSITION_SET`, `MANUAL_ACTION` — ARCHITECTURE.md §11.5). Ta tabela materializuje te bindingi z trybem wywołania (`BLOCKING`/`ASYNC`) i timeoutem, żeby `PluginRegistry` (BE-102) mógł je odpytywać bez parsowania manifestu przy każdym wywołaniu.
+
+**DDL migracji (`V076__create_tenant_plugin_extension_binding.sql`):**
+
+```sql
+-- =============================================================================
+-- V076__create_tenant_plugin_extension_binding.sql
+-- DB-044: Bindingi punktów rozszerzeń per instalacja (EPIC-28).
+-- =============================================================================
+
+CREATE TABLE tenant_plugin_extension_binding (
+    id                              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_plugin_installation_id  UUID        NOT NULL REFERENCES tenant_plugin_installation(id) ON DELETE CASCADE,
+    tenant_id                       UUID        NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    extension_point                 VARCHAR(30) NOT NULL,
+    invocation_mode                 VARCHAR(10) NOT NULL,
+    timeout_ms                      INT         NOT NULL,
+    display_order                   INT         NOT NULL DEFAULT 0,
+
+    CONSTRAINT uq_tenant_plugin_extension_binding UNIQUE (tenant_plugin_installation_id, extension_point),
+    CONSTRAINT chk_tenant_plugin_extension_binding_point CHECK (
+        extension_point IN ('PRE_CONTACT_CONNECT', 'POST_CONTACT_END', 'CUSTOMER_SYNC', 'DISPOSITION_SET', 'MANUAL_ACTION')
+    ),
+    CONSTRAINT chk_tenant_plugin_extension_binding_mode CHECK (
+        invocation_mode IN ('BLOCKING', 'ASYNC')
+    ),
+    CONSTRAINT chk_tenant_plugin_extension_binding_timeout CHECK (timeout_ms > 0 AND timeout_ms <= 60000)
+);
+
+-- Indeksy — lookup krytyczny dla ścieżki blocking (PRE_CONTACT_CONNECT, MANUAL_ACTION)
+CREATE INDEX idx_tenant_plugin_extension_binding_lookup
+    ON tenant_plugin_extension_binding (tenant_id, extension_point);
+
+-- RLS
+ALTER TABLE tenant_plugin_extension_binding ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_plugin_extension_binding FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_plugin_extension_binding_isolation ON tenant_plugin_extension_binding
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+
+COMMENT ON TABLE tenant_plugin_extension_binding IS
+    'Punkty rozszerzeń deklarowane przez instalację, z trybem wywołania i timeoutem. Lookup krytyczny dla PRE_CONTACT_CONNECT (budżet 2s, ARCHITECTURE.md §11.5/§11.7).';
+COMMENT ON COLUMN tenant_plugin_extension_binding.timeout_ms IS
+    'Domyślne wartości platformy: PRE_CONTACT_CONNECT=2000, MANUAL_ACTION=5000, async=30000 — konfigurowalne per instalacja, capped przez maksimum platformy.';
+```
+
+**Kryteria akceptacji:**
+- [x] Migracja V076 aplikuje się bez błędów
+- [x] `uq_tenant_plugin_extension_binding` — duplikat `(installation_id, extension_point)` odrzucony
+- [x] `chk_tenant_plugin_extension_binding_point` — wartość spoza 5 punktów rozszerzeń odrzucona
+- [x] `chk_tenant_plugin_extension_binding_mode` — tylko `BLOCKING`/`ASYNC`
+- [x] RLS + FORCE RLS — izolacja między tenantami
+- [x] Indeks `(tenant_id, extension_point)` — sprawdzony plan zapytania (`EXPLAIN`) dla lookupu `PluginRegistry`
+
+**Notatka z realizacji (2026-06-20):** DDL miał ten sam błędny FK co DB-043 — `REFERENCES tenant(id)` poprawiony na `REFERENCES tenant(tenant_id)` (potwierdzone `\d tenant`: PK = `tenant_id`). Pozostałe FK (`tenant_plugin_installation(id)`) były poprawne — ta tabela ma PK `id` (konwencja od V069+). Zweryfikowano manualnie pod `SET ROLE app_user` w transakcji z ROLLBACK: duplikat UNIQUE odrzucony, oba CHECK (`extension_point`, `invocation_mode`) odrzucone, granice `timeout_ms` (0 i 60001 odrzucone, 60000 przechodzi), RLS USING (tenant B nie widzi wierszy tenant A) i WITH CHECK (cross-tenant insert odrzucony) poprawne, `EXPLAIN` potwierdza `Index Scan using idx_tenant_plugin_extension_binding_lookup`. DDL DB-045 (V077, kolejny w kolejce) ma ten sam błędny FK do `tenant(id)` — do poprawy przy jego realizacji.
+
+---
+
+### DB-045 – Tabela `plugin_invocation_log`: audit log wywołań pluginów (RLS, partycjonowana) — migracja V077
+
+**Typ:** Schema migration
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** DB-043 (tabela `tenant_plugin_installation`)
+**Status:** ✅ Zrobione
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Kontekst:**
+Log każdego wywołania pluginu (sukces, błąd, timeout, circuit-open skip) — odrębny od `audit_log`, bo wolumen i kształt danych (latencja per-call, snapshoty payloadu) różnią się materialnie od administracyjnych zdarzeń audytowych (ARCHITECTURE.md §11.12). RANGE-partycjonowana miesięcznie po `invoked_at`, identyczny wzorzec co `audit_log`/`contact` (§4.2-4.3). `related_contact_id` ma `ON DELETE SET NULL` — ten sam GDPR-safe wzorzec co `contact.agent_id`/`contact.customer_id`.
+
+**DDL migracji (`V077__create_plugin_invocation_log.sql`):**
+
+```sql
+-- =============================================================================
+-- V077__create_plugin_invocation_log.sql
+-- DB-045: Audit log wywołań pluginów (EPIC-28). RANGE-partycjonowana miesięcznie.
+-- =============================================================================
+
+CREATE TABLE plugin_invocation_log (
+    id                              UUID        NOT NULL DEFAULT gen_random_uuid(),
+    invoked_at                       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    tenant_id                       UUID        NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    tenant_plugin_installation_id   UUID        REFERENCES tenant_plugin_installation(id) ON DELETE SET NULL,
+    extension_point                 VARCHAR(30) NOT NULL,
+    related_contact_id              UUID,
+    status                          VARCHAR(20) NOT NULL,
+    duration_ms                     INT,
+    error_summary                   TEXT,
+    request_payload_redacted        JSONB,
+
+    PRIMARY KEY (id, invoked_at),
+    CONSTRAINT chk_plugin_invocation_log_status CHECK (
+        status IN ('SUCCESS', 'FAILED', 'TIMED_OUT', 'CIRCUIT_OPEN', 'SKIPPED_DISABLED')
+    )
+) PARTITION BY RANGE (invoked_at);
+
+-- Partycje iniciálne (wzorzec audit_log/contact, §4.2-4.3) — kolejne tworzone przez job
+-- analogiczny do istniejącego mechanizmu partycjonowania (sprawdzić istniejący
+-- PartitionMaintenanceJob/migration helper przed implementacją, nie duplikować mechanizmu)
+CREATE TABLE plugin_invocation_log_default PARTITION OF plugin_invocation_log DEFAULT;
+
+-- Indeksy
+CREATE INDEX idx_plugin_invocation_log_installation
+    ON plugin_invocation_log (tenant_plugin_installation_id, invoked_at DESC);
+
+CREATE INDEX idx_plugin_invocation_log_contact
+    ON plugin_invocation_log (related_contact_id)
+    WHERE related_contact_id IS NOT NULL;
+
+CREATE INDEX idx_plugin_invocation_log_status
+    ON plugin_invocation_log (tenant_id, status, invoked_at DESC)
+    WHERE status IN ('FAILED', 'TIMED_OUT', 'CIRCUIT_OPEN');
+
+-- RLS
+ALTER TABLE plugin_invocation_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE plugin_invocation_log FORCE ROW LEVEL SECURITY;
+CREATE POLICY plugin_invocation_log_isolation ON plugin_invocation_log
+    USING     (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID)
+    WITH CHECK (tenant_id = current_setting('app.current_tenant_id', TRUE)::UUID);
+
+COMMENT ON TABLE plugin_invocation_log IS
+    'Log każdego wywołania pluginu (SUCCESS/FAILED/TIMED_OUT/CIRCUIT_OPEN/SKIPPED_DISABLED). Odrębny od audit_log — inny wolumen/kształt (ARCHITECTURE.md §11.12). RANGE-partycjonowana po invoked_at.';
+COMMENT ON COLUMN plugin_invocation_log.related_contact_id IS
+    'ON DELETE SET NULL — historia wywołań przetrwa usunięcie kontaktu (GDPR-safe FK, wzorzec contact.agent_id/customer_id).';
+COMMENT ON COLUMN plugin_invocation_log.request_payload_redacted IS
+    'Snapshot payloadu z usuniętym PII, do debugowania — nigdy surowe dane klienta.';
+```
+
+**Kryteria akceptacji:**
+- [x] Migracja V077 aplikuje się bez błędów
+- [x] Tabela RANGE-partycjonowana po `invoked_at`; partycja `DEFAULT` istnieje od startu
+- [x] `chk_plugin_invocation_log_status` — wartość spoza 5 statusów odrzucona
+- [x] RLS + FORCE RLS — izolacja między tenantami (RLS musi działać poprawnie na tabeli partycjonowanej — zweryfikować na partycji `DEFAULT` i co najmniej jednej partycji miesięcznej utworzonej ręcznie w teście)
+- [x] FK `tenant_plugin_installation_id ON DELETE SET NULL` — log przetrwa uninstall (ARCHITECTURE.md §11.11)
+- [x] FK `tenant_id ON DELETE CASCADE` — log usuwany przy usunięciu tenanta (zgodnie z resztą schematu)
+- [x] Sprawdzić istniejący mechanizm tworzenia kolejnych partycji miesięcznych (np. job/migration helper używany przez `audit_log`/`contact`) i podłączyć tę tabelę do tego samego mechanizmu, zamiast tworzyć nowy
+
+**Notatka z realizacji (2026-06-20):** DDL miał ten sam błędny FK co DB-043/DB-044 — `REFERENCES tenant(id)` poprawiony na `REFERENCES tenant(tenant_id)` (potwierdzone `\d tenant`: PK = `tenant_id`). FK do `tenant_plugin_installation(id)` było poprawne.
+
+**Mechanizm partycjonowania — odpowiedź jednoznaczna: TAK, istnieje w pełni automatyczny mechanizm (nie tylko partycja DEFAULT + migracje ręczne).** Wzorzec ustalony w V004 (`audit_log`) i V007 (`contact`), oba reużyte 1:1 dla `plugin_invocation_log`:
+- Funkcja `create_plugin_invocation_log_partition(year, month)` — idempotentna, analogiczna do `create_audit_log_partition`/`create_contact_partition`.
+- Funkcja `drop_old_plugin_invocation_log_partitions(retention_months=24)` — retencja 24 miesiące, analogiczna do `drop_old_audit_log_partitions`.
+- Funkcja `rotate_plugin_invocation_log_partitions()` — create na +1/+2 miesiące + drop starych, loguje do `cron_log`, aktualizuje `scheduled_job`.
+- Nowy wpis w `scheduled_job`: `rotate_plugin_invocation_log_partitions`, cron `45 2 1 * *` (po `rotate_audit_log_partitions` o 02:30).
+- `create_next_month_partitions()` (V014) rozszerzona przez `CREATE OR REPLACE` o `PERFORM create_plugin_invocation_log_partition(...)` — ten sam zbiorczy job teraz obsługuje 3 tabele (`audit_log`, `contact`, `plugin_invocation_log`).
+- Partycje inicjalne: `2026_06`, `2026_07`, `2026_08` + `DEFAULT` (wzorzec: bieżący + 2 następne miesiące, jak w V004/V007).
+- pg_cron w tym środowisku nie jest aktywne (sekcja 4 w V014 zakomentowana) — rotacja w praktyce wywoływana przez zewnętrzny scheduler aplikacyjny (Spring `@Scheduled`/Quartz) czytający `scheduled_job`, identycznie jak dla `audit_log`/`contact`. Nic nowego nie dodano w tym zakresie — `plugin_invocation_log` korzysta z tej samej (już istniejącej) infrastruktury.
+
+**Weryfikacja manualna** (transakcja z `SAVEPOINT`/`ROLLBACK TO SAVEPOINT` per test-case, `ROLLBACK` końcowy — baza dev pozostała czysta):
+- CHECK `chk_plugin_invocation_log_status`: `BOGUS_STATUS` odrzucony, `SUCCESS` przechodzi.
+- RLS pod `SET ROLE app_user` (nie `ccapp` — `rolbypassrls=true`, daje fałszywy wynik): tenant B nie widzi wierszy tenant A **przez tabelę nadrzędną** `plugin_invocation_log` — zarówno na partycji `2026_06` (bieżący miesiąc) jak i na partycji `2027_01` utworzonej ręcznie w trakcie testu. `WITH CHECK` odrzuca cross-tenant insert.
+- FK `tenant_plugin_installation_id ON DELETE SET NULL`: log przetrwał z `tenant_plugin_installation_id = NULL` po usunięciu instalacji.
+- FK `tenant_id ON DELETE CASCADE`: log usunięty kaskadowo po usunięciu tenanta.
+
+**Odkrycie poboczne (właściwość PostgreSQL, NIE defekt migracji):** `pg_class.relrowsecurity`/`relforcerowsecurity` na partycjach potomnych są zawsze `f`, niezależnie od `ENABLE`/`FORCE ROW LEVEL SECURITY` na rodzicu i niezależnie od kolejności (partycja utworzona przed czy po `ENABLE RLS`) — zweryfikowane na izolowanym przykładzie (`rls_test_parent`/`rls_test_parent_p1`) oraz potwierdzone identyczne zachowanie na już produkcyjnej `contact`/`contact_2026_03`. Skutek: zapytanie **przez tabelę nadrzędną** (`SELECT ... FROM plugin_invocation_log`) poprawnie egzekwuje RLS na każdej partycji (w tym nowo utworzonej), ale zapytanie bezpośrednio po nazwie partycji potomnej (`SELECT ... FROM plugin_invocation_log_2027_01`) **omija RLS rodzica całkowicie** — udokumentowane zachowanie PostgreSQL (RLS policy jest własnością tabeli na której zdefiniowano `CREATE POLICY`, nie dziedziczy się jako wpis `pg_class` na partycje). Zweryfikowano `grep` po `backend/src/main/java/` — aplikacja nigdy nie odpytuje partycji po nazwie (zawsze przez encję JPA mapowaną na tabelę nadrzędną), więc to nie jest ryzyko w obecnym kodzie, ale ogólna zasada do zachowania na przyszłość: **nigdy nie pisać kodu aplikacyjnego/raportowego, który odpytuje `<table>_YYYY_MM` po nazwie bezpośrednio** — zawsze przez tabelę nadrzędną.
+
+**Sposób aplikacji migracji:** artefakty z poprzednich sesji (V074-V076) przetrwały w kontenerze `cc-backend` (`/tmp/flyway-run2/RunFlyway.class` + jary) — wystarczyło `docker cp` nowego `V077__create_plugin_invocation_log.sql` do `cc-backend:/tmp/migrations/` i odpalić ponownie `java -cp ... RunFlyway` (bez rekompilacji).

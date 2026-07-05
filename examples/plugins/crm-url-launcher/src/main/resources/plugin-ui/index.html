@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM URL Launcher</title>
+<style>
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: .75rem;
+    font-size: .85rem;
+    color: #1a1a1a;
+  }
+  h2 { font-size: .95rem; margin: 0 0 .6rem; }
+  .status { color: #6b7280; padding: .3rem 0; }
+  .customer-row { margin-bottom: .35rem; }
+  .customer-label { font-size: .75rem; color: #6b7280; margin-bottom: .1rem; }
+  .customer-value { font-weight: 500; }
+  hr.divider { border: none; border-top: 1px solid #e5e7eb; margin: .65rem 0; }
+  .form-group { margin-bottom: .5rem; }
+  .form-group label {
+    display: block;
+    font-size: .78rem;
+    color: #374151;
+    margin-bottom: .2rem;
+    font-weight: 500;
+  }
+  .form-group input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: .3rem .45rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: .83rem;
+    font-family: inherit;
+    color: #1a1a1a;
+    background: #fff;
+  }
+  .form-group input[type="text"]:focus {
+    outline: none;
+    border-color: #6b7280;
+  }
+  button#open-btn {
+    display: block;
+    width: 100%;
+    margin-top: .55rem;
+    padding: .42rem .75rem;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    background: #374151;
+    color: #fff;
+    cursor: pointer;
+    font-size: .83rem;
+    font-family: inherit;
+    text-align: center;
+  }
+  button#open-btn:hover { background: #1f2937; border-color: #1f2937; }
+  button#open-btn:disabled { cursor: not-allowed; opacity: .5; }
+  .feedback {
+    margin-top: .5rem;
+    padding: .4rem .55rem;
+    border-radius: 4px;
+    font-size: .82rem;
+    line-height: 1.4;
+  }
+  .feedback.success {
+    color: #166534;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+  }
+  .feedback.error {
+    color: #b91c1c;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+  }
+</style>
+</head>
+<body>
+  <h2>CRM URL Launcher</h2>
+
+  <!-- Stan ładowania -->
+  <div id="spinner" class="status">Wczytywanie danych klienta…</div>
+
+  <!-- Zawartość panelu — ukryta do czasu załadowania -->
+  <div id="main" style="display:none">
+    <!-- Sekcja danych klienta (read-only) -->
+    <div id="customer-section"></div>
+
+    <!-- Separator i formularz parametrów agenta — widoczne tylko gdy agentParams niepuste -->
+    <hr class="divider" id="divider" style="display:none">
+    <div id="agent-form"></div>
+
+    <button id="open-btn" type="button" disabled>Otwórz w CRM</button>
+    <div id="feedback" class="feedback" style="display:none"></div>
+  </div>
+
+  <!--
+    Skrypt serwowany przez platformę (NIE przez ten JAR) — patrz
+    documentation/10-plugin-development.md, §8.4. Implementuje window.PluginUiSdk
+    (getContext/invokeManualAction/requestResize/notify/openUrl) przez postMessage z hostem.
+  -->
+  <script src="/plugin-ui-sdk.js"></script>
+  <script>
+    // Lista nazw parametrów agenta — wypełniana po załadowaniu kontekstu
+    var agentParamsList = [];
+
+    var spinnerEl  = document.getElementById('spinner');
+    var mainEl     = document.getElementById('main');
+    var openBtn    = document.getElementById('open-btn');
+    var feedbackEl = document.getElementById('feedback');
+
+    // -----------------------------------------------------------------------
+    // Pomocnicze funkcje UI
+    // -----------------------------------------------------------------------
+
+    function resize() {
+      window.PluginUiSdk.requestResize(document.body.scrollHeight);
+    }
+
+    function showFatalError(msg) {
+      spinnerEl.textContent = msg;
+      spinnerEl.style.color = '#b91c1c';
+      resize();
+    }
+
+    function setFeedback(msg, isSuccess) {
+      feedbackEl.textContent = msg;
+      feedbackEl.className = 'feedback ' + (isSuccess ? 'success' : 'error');
+      feedbackEl.style.display = 'block';
+      resize();
+    }
+
+    function hideFeedback() {
+      feedbackEl.style.display = 'none';
+    }
+
+    // -----------------------------------------------------------------------
+    // Renderowanie danych klienta (read-only)
+    // -----------------------------------------------------------------------
+
+    function renderCustomer(data) {
+      var section = document.getElementById('customer-section');
+      section.innerHTML = '';
+
+      function addRow(label, value) {
+        if (!value) return;
+        var div = document.createElement('div');
+        div.className = 'customer-row';
+        var lbl = document.createElement('div');
+        lbl.className = 'customer-label';
+        lbl.textContent = label;
+        var val = document.createElement('div');
+        val.className = 'customer-value';
+        val.textContent = value;
+        div.appendChild(lbl);
+        div.appendChild(val);
+        section.appendChild(div);
+      }
+
+      addRow('Klient', data.customerName || '—');
+      if (data.customerPhone) addRow('Telefon', data.customerPhone);
+      if (data.customerEmail) addRow('E-mail', data.customerEmail);
+    }
+
+    // -----------------------------------------------------------------------
+    // Renderowanie formularza parametrów agenta
+    // -----------------------------------------------------------------------
+
+    function renderAgentForm(agentParams) {
+      agentParamsList = agentParams || [];
+      var formDiv = document.getElementById('agent-form');
+      var divider = document.getElementById('divider');
+      formDiv.innerHTML = '';
+
+      if (agentParamsList.length === 0) return;
+
+      divider.style.display = 'block';
+
+      agentParamsList.forEach(function (param) {
+        var group = document.createElement('div');
+        group.className = 'form-group';
+
+        var lbl = document.createElement('label');
+        lbl.setAttribute('for', 'param-' + param);
+        lbl.textContent = param;
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'param-' + param;
+        input.name = param;
+        input.placeholder = 'Wpisz ' + param + '…';
+
+        group.appendChild(lbl);
+        group.appendChild(input);
+        formDiv.appendChild(group);
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // Inicjalizacja: pobranie kontekstu CRM
+    // -----------------------------------------------------------------------
+
+    // Panel jest montowany przez hosta tylko w kontekście aktywnego kontaktu — host
+    // wypełnia req.contactId i req.customerId w ManualActionRequest z bieżącej sesji.
+    window.PluginUiSdk.invokeManualAction('get-crm-context', {})
+      .then(function (response) {
+        spinnerEl.style.display = 'none';
+
+        if (!response.success) {
+          showFatalError(response.error || response.message || 'Błąd wczytywania danych klienta.');
+          return;
+        }
+
+        var data = response.resultData;
+        renderCustomer(data);
+        renderAgentForm(data.agentParams);
+
+        mainEl.style.display = 'block';
+        openBtn.disabled = false;
+      })
+      .catch(function (err) {
+        showFatalError('Błąd inicjalizacji: ' + err.message);
+      })
+      .finally(function () {
+        resize();
+      });
+
+    // -----------------------------------------------------------------------
+    // Obsługa przycisku "Otwórz w CRM"
+    // -----------------------------------------------------------------------
+
+    openBtn.addEventListener('click', function () {
+      hideFeedback();
+
+      // Walidacja i zebranie wartości pól agenta
+      var agentFields = {};
+      for (var i = 0; i < agentParamsList.length; i++) {
+        var param = agentParamsList[i];
+        var inputEl = document.getElementById('param-' + param);
+        var val = inputEl ? inputEl.value.trim() : '';
+        if (!val) {
+          setFeedback('Wypełnij pole: ' + param, false);
+          return;
+        }
+        agentFields[param] = val;
+      }
+
+      openBtn.disabled = true;
+
+      // PluginUiSdk.invokeManualAction zwraca Promise rozwiązujący się z
+      // ManualActionResponseDto hosta ({success, resultData, message, error}) —
+      // Promise jest "reject" tylko przy błędzie transportu, NIE przy logicznej
+      // porażce akcji (ta jest w polu .success/.error). Patrz §8.4 dokumentacji.
+      window.PluginUiSdk.invokeManualAction('build-crm-url', agentFields)
+        .then(function (response) {
+          if (!response.success) {
+            setFeedback(response.error || response.message || 'Nie udało się zbudować URL.', false);
+            return;
+          }
+          // Otwieramy URL w nowej zakładce przez hosta (nie window.open — host jest sandboxem)
+          window.PluginUiSdk.openUrl(response.resultData.url);
+          setFeedback('Otwarto w nowej zakładce.', true);
+        })
+        .catch(function (err) {
+          setFeedback('Błąd: ' + err.message, false);
+          window.PluginUiSdk.notify('CRM URL Launcher: ' + err.message, 'error');
+        })
+        .finally(function () {
+          openBtn.disabled = false;
+          resize();
+        });
+    });
+  </script>
+</body>
+</html>

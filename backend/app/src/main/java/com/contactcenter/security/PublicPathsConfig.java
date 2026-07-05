@@ -37,6 +37,15 @@ public class PublicPathsConfig {
             // OAuth callback social media – wywoływany przez serwer OAuth bez JWT
             "/api/oauth/",
             // Webhooks social media (Facebook/Instagram/WhatsApp) – weryfikacja przez HMAC X-Hub-Signature
-            "/api/webhooks/"
+            "/api/webhooks/",
+            // Zasoby UI pluginu (plugin-ui/) – wczytywane przez sandboxowany <iframe> bez JWT
+            // agenta; autoryzacja dzieje się na poziomie strony hosta Angular, nie tego endpointu
+            // (ARCHITECTURE.md §11.10, EPIC-28 BE-107). Pliki statyczne, niesekretne.
+            "/plugin-assets/",
+            // PluginUiSdk (plugin-ui-sdk.js) – plik statyczny serwowany z resources/static/,
+            // wstrzykiwany przez deweloperów pluginów w ich plugin-ui/index.html (<script src=...>).
+            // Wczytywany przez ten sam sandboxowany <iframe> co plugin-assets, bez JWT agenta
+            // (EPIC-28, ticket uzupełniający kontrakt FE-099 nieprzewidziany w BE-107).
+            "/plugin-ui-sdk.js"
     );
 }

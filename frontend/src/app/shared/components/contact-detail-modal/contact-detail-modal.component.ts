@@ -27,6 +27,7 @@ import {
 import { ContactService } from '../../../features/agent/services/contact.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { AudioPlayerComponent } from '../audio-player/audio-player.component';
+import { ResizableDialogDirective } from '../../directives/resizable-dialog.directive';
 
 type ModalLoadState = 'idle' | 'loading' | 'loaded' | 'error';
 type RecordingState = 'idle' | 'loading' | 'loaded' | 'error';
@@ -34,7 +35,7 @@ type RecordingState = 'idle' | 'loading' | 'loaded' | 'error';
 @Component({
   selector: 'app-contact-detail-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, AudioPlayerComponent, TranslocoModule],
+  imports: [DatePipe, AudioPlayerComponent, TranslocoModule, ResizableDialogDirective],
   templateUrl: './contact-detail-modal.component.html',
   styleUrl: './contact-detail-modal.component.scss',
   host: {

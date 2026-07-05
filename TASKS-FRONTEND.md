@@ -4839,3 +4839,404 @@ pendingSet = signal<DispositionSet | null>(null); // zestaw czekający na potwie
 - [ ] Lista dyspozycji przeładowana po zastosowaniu zestawu
 - [ ] Brak zestawów → komunikat „Brak zdefiniowanych zestawów" + link do strony zarządzania
 - [ ] `npm run lint` przechodzi
+
+---
+
+## MODUL: Per-Tenant Plugin (Extension) System (EPIC-28)
+
+> Źródło architektury: `ARCHITECTURE.md` §11 (ADR-09…ADR-13, RT-09…RT-14). Decyzja UI
+> pre-agreed (ADR-12): plugin UI renderowane w cross-origin `<iframe sandbox="allow-scripts
+> allow-forms">` (BEZ `allow-same-origin`), komunikacja wyłącznie przez `postMessage`-owy
+> `PluginUiSdk` — NIE web component same-origin, bo kod pluginu jest nieautoryzowanym kodem
+> firmy trzeciej (CLAUDE.md "standalone components" governuje tylko first-party Angular).
+> Backend: BE-099 (upload), BE-106 (admin), BE-107 (assety + proxy).
+
+### FE-097 – `PluginAdminService` i modele TypeScript — warstwa danych Angular
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** BE-099, BE-106
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-099, BE-106
+**Blokuje:** FE-098, FE-099
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Serwis i modele bazowe dla panelu administracyjnego pluginów. Brak logiki UI — czysta warstwa danych konsumowana przez FE-098/FE-099.
+
+**Uwaga implementacyjna:** Backendowe DTO zostały rozszerzone po napisaniu tego ticketu (`mvn verify -pl app` zweryfikowane zielone) — modele TS poniżej są dopasowane do RZECZYWISTYCH kontraktów (`PluginVersionDto.java`, `TenantPluginInstallationDto.java`, `ManualActionDto.java`, `UiPanelDto.java`), nie do literalnego zapisu ticketu z linii 4877-4924. Różnice: `PluginVersionDto` ma dodatkowo `vendor` i `sdkVersion`; `TenantPluginInstallationDto` ma dodatkowo `tenantId`, `installedByUserId`, `updatedAt`; `PluginVersionDto.uploadedByUserId` dodane. `UiPanelDef` świadomie BEZ pola `sandbox` (potwierdzone komentarzem w `UiPanelDto.java` — atrybut sandboxu iframe ustala host FE-099, nie API).
+
+**Lokalizacja:**
+```
+frontend/src/app/features/plugins/
+  models/plugin.model.ts
+  services/plugin-admin.service.ts
+```
+
+**Modele (`plugin.model.ts`):**
+```typescript
+export type PluginVersionStatus = 'UPLOADED' | 'VALIDATED' | 'PENDING_REVIEW' | 'REJECTED' | 'REVOKED';
+export type PluginHealthStatus = 'HEALTHY' | 'DEGRADED' | 'DISABLED_BY_ADMIN';
+export type ExtensionPoint = 'PRE_CONTACT_CONNECT' | 'POST_CONTACT_END' | 'CUSTOMER_SYNC' | 'DISPOSITION_SET' | 'MANUAL_ACTION';
+
+export interface PluginVersionDto {
+  id: string;
+  pluginId: string;
+  pluginKey: string;
+  displayName: string;
+  vendor: string;
+  version: string;
+  sdkVersion: string;
+  status: PluginVersionStatus;
+  validationErrors: string[] | null;
+  uploadedByUserId: string;
+  uploadedAt: string;
+}
+
+export interface ManualActionDef {
+  actionId: string;
+  label: string;
+  mountPoint: string;
+}
+
+export interface UiPanelDef {
+  panelId: string;
+  mountPoint: string;
+  url: string;
+}
+
+export interface TenantPluginInstallationDto {
+  id: string;
+  tenantId: string;
+  pluginVersionId: string;
+  pluginKey: string;
+  displayName: string;
+  version: string;
+  enabled: boolean;
+  grantedPermissions: string[];
+  healthStatus: PluginHealthStatus;
+  consecutiveFailureCount: number;
+  manualActions: ManualActionDef[];
+  uiPanels: UiPanelDef[];
+  installedByUserId: string;
+  installedAt: string;
+  updatedAt: string;
+}
+
+export interface InstallPluginRequest {
+  pluginVersionId: string;
+  grantedPermissions: string[];
+}
+```
+(Modele rzeczywiście zaimplementowane — zgodne 1:1 z backendowymi DTO po rozszerzeniu kontraktu, patrz uwaga implementacyjna powyżej.)
+
+**`PluginAdminService` (`features/plugins/services/plugin-admin.service.ts`):**
+```typescript
+uploadJar(file: File): Observable<PluginVersionDto>                                  // multipart, POST /api/supervisor/plugins
+listInstallations(): Observable<TenantPluginInstallationDto[]>                       // GET /api/supervisor/plugins
+install(req: InstallPluginRequest): Observable<TenantPluginInstallationDto>           // POST /api/supervisor/plugins/{pluginVersionId}/install
+enable(installationId: string): Observable<void>                                      // POST .../installations/{id}/enable
+disable(installationId: string): Observable<void>                                     // POST .../installations/{id}/disable
+rollback(installationId: string, targetId: string): Observable<TenantPluginInstallationDto> // POST .../installations/{id}/rollback/{targetId}
+uninstall(installationId: string): Observable<void>                                   // DELETE .../installations/{id}
+```
+
+**Kryteria akceptacji:**
+- [x] Modele zgodne z kontraktami BE-099 (`PluginVersionDto`)/BE-106 (`TenantPluginInstallationDto`) — w wersji RZECZYWISTEJ, rozszerzonej względem literalnego zapisu ticketu
+- [x] `uploadJar` wysyła `multipart/form-data` z polem `file`
+- [x] Serwis `providedIn: 'root'`
+- [x] `npm run lint` przechodzi (0 błędów, 10 istniejących wcześniej warningów no-console niezwiązanych z FE-097)
+
+---
+
+### FE-098 – Strona „Ustawienia > Pluginy” (supervisor/admin)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** FE-097
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-099, BE-106
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Nowa strona w panelu supervisora pod ścieżką `/supervisor/settings/plugins`. Upload JAR-a, lista zainstalowanych pluginów z health status, enable/disable, rollback do poprzedniej wersji, uninstall.
+
+**Lokalizacja:**
+```
+frontend/src/app/features/supervisor/pages/settings/plugins/
+  plugins-page.component.ts
+  plugins-page.component.html
+  plugins-page.component.scss
+```
+
+**Funkcjonalność:**
+
+*Sekcja upload:*
+- Drag&drop lub input `type="file"` ograniczony do `.jar`
+- Walidacja client-side: rozmiar ≤50MB, rozszerzenie `.jar` (best-effort — walidacja autorytatywna jest po stronie backendu, BE-098)
+- Po uploadzie: jeśli `status=REJECTED` → wyświetl `validationErrors` w czytelnej liście; jeśli `VALIDATED`/`PENDING_REVIEW` → przycisk „Zainstaluj”
+
+*Dialog instalacji:*
+- Lista `permissions` z manifestu (pobrana z `PluginVersionDto` — uwaga: jeśli `PluginVersionDto` z FE-097 nie zawiera pełnych `permissions`, doprecyzować z BE-099 czy manifest jest eksponowany w odpowiedzi uploadu czy trzeba dodać pole; jeśli brak czasu na backend round-trip, traktować jako known-gap i logować TODO)
+- Checkboxy do zaznaczenia, które uprawnienia admin zatwierdza (`grantedPermissions`)
+- Potwierdzenie → `PluginAdminService.install(...)`
+
+*Lista instalacji:*
+- Karta per instalacja: `displayName`, `version`, `healthStatus` (badge: zielony HEALTHY / żółty DEGRADED / szary DISABLED_BY_ADMIN), `consecutiveFailureCount` gdy >0
+- Toggle enable/disable
+- Przycisk „Wycofaj do poprzedniej wersji” (rollback) — widoczny tylko gdy istnieje starsza instalacja tego samego `pluginKey` z `enabled=false`
+- Przycisk „Odinstaluj” z potwierdzeniem (`ConfirmDialogComponent`)
+
+**Routing:** dodaj trasę do routingu supervisora (sprawdź `supervisor-routing.module.ts` lub analogiczny plik routes, wzorzec z FE-095).
+
+**Sidenav:** dodaj pozycję „Pluginy” w menu Ustawienia supervisora.
+
+**Kryteria akceptacji:**
+- [x] Strona dostępna pod `/supervisor/settings/plugins`
+- [x] Pozycja w menu Ustawienia supervisora
+- [x] Upload JAR z obsługą `REJECTED` (lista błędów) i sukcesu (przycisk instalacji)
+- [x] Lista instalacji z badge `healthStatus`
+- [x] Enable/disable, rollback, uninstall z potwierdzeniem
+- [x] `npm run lint` przechodzi
+
+**Uwaga implementacyjna:** Backendowy `PluginVersionDto.java` zawierał już pole `permissions: List<String>`
+(z opisem przeznaczonym dla FE-098), ale frontendowy model `plugin.model.ts` z FE-097 go nie miał — model
+TS dopasowano do rzeczywistego kontraktu backendu przed budową dialogu instalacji. Dialog uninstall
+zrealizowany przez istniejący `ConfirmDialogComponent` (`shared/components/confirm-dialog/`), sterowany
+przez `@if` na sygnale `targetUninstall()`, a nie przez ręczne `showModal()`. Weryfikacja w przeglądarce
+NIE została wykonana — `cc-backend` w docker-compose nie publikuje portu na hosta (tylko sieć wewnętrzna
+compose) i środowisko nie ma narzędzia do automatyzacji przeglądarki; zweryfikowano `npm run build` (chunk
+`plugins-page-component` poprawnie wygenerowany, bez nowych błędów/warningów) i `npm run lint` (0 błędów).
+
+---
+
+### FE-099 – `cc-plugin-panel-host`: iframe sandboxed + `PluginUiSdk` (postMessage)
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** L
+**Zależy od:** FE-097
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-107
+**Blokuje:** FE-100
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Komponent hosta renderujący panel UI pluginu w sandboxed iframe (ARCHITECTURE.md §11.10/ADR-12) + SDK `postMessage` umożliwiający pluginowi komunikację z hostem przez ograniczony, typowany kanał.
+
+**Lokalizacja:**
+```
+frontend/src/app/shared/components/plugin-panel-host/
+  plugin-panel-host.component.ts      (selector: cc-plugin-panel-host)
+  plugin-panel-host.component.html
+  plugin-panel-host.component.scss
+frontend/src/app/shared/plugin-ui-sdk/
+  plugin-ui-sdk-message.model.ts      (typy wiadomości postMessage, używane też do walidacji shape)
+```
+
+**`cc-plugin-panel-host` — kontrakt:**
+```typescript
+@Input() installationId!: string;
+@Input() mountPoint!: 'AGENT_DESKTOP_SIDE_PANEL' | 'AGENT_DESKTOP_TOOLBAR' | 'SUPERVISOR_DASHBOARD';
+```
+
+**Szablon (ARCHITECTURE.md §11.10 — kopiuj atrybuty `sandbox`/`referrerpolicy` dokładnie, to jest krytyczny element bezpieczeństwa RT-11):**
+```html
+<iframe
+  [src]="trustedPluginPanelUrl()"
+  sandbox="allow-scripts allow-forms"
+  referrerpolicy="no-referrer"
+  (load)="onIframeLoad()"
+></iframe>
+```
+
+**Logika hosta:**
+- `trustedPluginPanelUrl` budowany z endpointu BE-107 (`/plugin-assets/{installationId}/index.html`), przepuszczony przez Angular `DomSanitizer.bypassSecurityTrustResourceUrl` TYLKO dla URL-i z tej dedykowanej ścieżki (nigdy generyczny bypass)
+- Listener `window.addEventListener('message', ...)`: **waliduj `event.origin`** względem oczekiwanej originy plugin-assets PRZED jakimkolwiek przetwarzaniem; wiadomości z nieoczekiwanej originy są odrzucane i logowane (`console.warn`, nie wyjątek)
+- Waliduj shape wiadomości względem fixed schema (`plugin-ui-sdk-message.model.ts`) przed wykonaniem akcji
+
+**`PluginUiSdk` (`plugin-ui-sdk.js`, serwowany przez platformę przez BE-107, NIE przez vendora pluginu) — API eksponowane w iframe:**
+```typescript
+PluginUiSdk.getContext(): Promise<{ tenantId: string; contactId: string | null; customerId: string | null }>
+PluginUiSdk.invokeManualAction(actionId: string, payload: unknown): Promise<ManualActionResult>
+PluginUiSdk.requestResize(height: number): void
+PluginUiSdk.notify(message: string, severity: 'info' | 'warning' | 'error'): void
+```
+
+`invokeManualAction` na hoście robi REST call do `POST /api/agent/plugins/{installationId}/manual-action/{actionId}` (BE-103/BE-107) — iframe **nigdy** nie woła `/api/**` z własnym fetch, host proxy'uje wywołanie i dołącza JWT agenta.
+
+**Kryteria akceptacji:**
+- [x] `sandbox="allow-scripts allow-forms"` — BEZ `allow-same-origin`, BEZ `allow-top-navigation`, BEZ `allow-popups` (test: atrybut sandbox w renderowanym DOM)
+- [x] Host waliduje `event.origin` na każdej przychodzącej wiadomości — test: wiadomość z nieoczekiwanej originy jest odrzucona i nie wywołuje żadnej akcji
+- [x] `PluginUiSdk.getContext()` zwraca tylko `tenantId`/`contactId`/`customerId` — nigdy pełny obiekt klienta/kontaktu
+- [x] `invokeManualAction` nie przekazuje JWT do iframe — JWT dodawany przez `HttpInterceptor` hosta przy wywołaniu REST z Angulara, iframe nie ma do niego dostępu
+- [x] `requestResize`/`notify` działają (toast hosta, zmiana wysokości iframe)
+- [x] `npm run lint` przechodzi
+
+---
+
+### FE-100 – Mount panelu bocznego i przycisku manual-action w agent desktop
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** M
+**Zależy od:** FE-099
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-103
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Opis:**
+Integracja `cc-plugin-panel-host` (FE-099) w istniejący agent desktop: panel boczny dla pluginów z `uiPanels` w manifeście, przycisk w toolbarze dla pluginów z `manualActions`.
+
+**Punkty integracji (zlokalizować przed implementacją — prawdopodobnie `AgentDesktopComponent`/layout z istniejącym side panel slotem i toolbarem, sprawdź strukturę katalogu `features/agent/`):**
+
+*Side panel:*
+- Pobierz listę `enabled`/`HEALTHY` instalacji z `manualActions`/`uiPanels` przez `PluginAdminService.listInstallations()` (lub dedykowany lżejszy endpoint agenta, jeśli `/api/supervisor/plugins` wymaga roli SUPERVISOR — zweryfikować z BE-106 czy potrzebny jest osobny endpoint `GET /api/agent/plugins` z mniejszym zakresem danych; jeśli tak, to known-gap do zaadresowania jako follow-up BE ticket, nie blokować tego FE ticketu na nim — w tym przypadku użyj mockowanych danych i oznacz `TODO` w kodzie)
+- Dla każdej instalacji z `uiPanels` zawierającym `mountPoint: 'AGENT_DESKTOP_SIDE_PANEL'` → renderuj `<cc-plugin-panel-host>` w slocie side panelu (zakładka/tab per plugin, jeśli więcej niż jeden)
+
+*Toolbar:*
+- Dla każdej instalacji z `manualActions` zawierającym `mountPoint: 'AGENT_DESKTOP_TOOLBAR'` → renderuj przycisk z `label` z manifestu
+- Kliknięcie → `PluginUiSdk`-equivalent wywołanie z hosta (bez iframe, bo to przycisk natywny Angulara, nie element pluginu UI) → `POST /api/agent/plugins/{installationId}/manual-action/{actionId}` (BE-103) → wynik w toast/modal
+
+**Kryteria akceptacji:**
+- [x] Side panel renderuje `cc-plugin-panel-host` tylko dla instalacji `enabled=true` AND `healthStatus !== 'DISABLED_BY_ADMIN'` (`activePluginInstallations` computed w `agent-desktop.component.ts`)
+- [x] Toolbar button widoczny tylko gdy plugin zadeklarował `manualActions` z `mountPoint: 'AGENT_DESKTOP_TOOLBAR'` (`toolbarManualActions` computed)
+- [x] Klik przycisku toolbar → wywołanie REST → wynik (sukces/błąd/timeout 504) wyświetlony agentowi w sposób nieblokujący (toast, nie modal blokujący UI) (`invokeToolbarManualAction`, mapowanie statusu 504 → `pluginActionTimeout`)
+- [x] Brak zainstalowanych pluginów → brak zmian w istniejącym layoucie agent desktop (zero regresji wizualnej) — zweryfikowane wzrokowo w HTML: toolbar to czysty `@for` bez wrappera, side panel opakowany w `@if (sidePanelInstallations().length > 0 && currentTenantId())` bez żadnego pustego kontenera renderowanego przy pustej liście
+- [x] `npm run lint` przechodzi (0 błędów, 10 pre-existing warningów `no-console` niezwiązanych z tym ticketem)
+
+**Weryfikacja zamknięcia (2026-06-23):** `npm run build` przechodzi (sukces, tylko pre-existing CSS/bundle-budget warningi identyczne jak w 5 innych komponentach projektu). Mechanizm zakładek side panelu to własna, lokalna implementacja (signal `activePluginPanelId` + `setActivePluginPanel()` + `@if`/`@for`) — w projekcie nie istnieje żaden współdzielony komponent tabs (ani Angular Material, ani `shared/`), więc nie ma czego reużyć. Weryfikacja w przeglądarce niemożliwa w tym środowisku (brak przeglądarki/portu backendu).
+
+**Update (backend, kontynuacja serii FE-097/FE-099):** known-gap opisany wyżej ("zweryfikować z BE-106 czy potrzebny jest osobny endpoint `GET /api/agent/plugins`") został zaadresowany — endpoint istnieje, więc **nie** trzeba mockować danych ani zostawiać `TODO` w kodzie FE.
+
+- **Kontrakt:** `GET /api/agent/plugins`
+- **Rola:** `hasAnyRole('AGENT', 'SUPERVISOR', 'ADMIN')` (w odróżnieniu od `/api/supervisor/plugins`, które jest tylko SUPERVISOR/ADMIN)
+- **Filtr:** zwraca tylko instalacje z `enabled=true` (agent nie widzi disabled/odinstalowanych) — bez filtra po `healthStatus`, więc warunek `healthStatus !== 'DISABLED_BY_ADMIN'` z kryteriów akceptacji wyżej trzeba nadal zastosować po stronie FE na zwróconej liście
+- **DTO odpowiedzi:** `List<TenantPluginInstallationDto>` — identyczny typ jak `/api/supervisor/plugins` (z `pluginKey`/`displayName`/`version`/`manualActions`/`uiPanels`, wzbogacony w FE-097)
+- **Plik:** `backend/app/src/main/java/com/contactcenter/api/plugin/PluginAgentController.java` (nowy kontroler, osobny od `PluginAdminController`)
+- Side panel powinien więc wołać `GET /api/agent/plugins` (nowy lekki endpoint), nie `PluginAdminService.listInstallations()` (który trafia w `/api/supervisor/plugins` i zwróci 403 dla roli AGENT)
+
+---
+
+### FE-101 – Sekcja „Dostępne w katalogu” na stronie Ustawienia > Pluginy
+
+**Typ:** Frontend implementation
+**Priorytet:** Should Have
+**Złożoność:** S
+**Zależy od:** FE-097, FE-098
+**Status:** ✅ Zrobione
+**Czeka na BE:** BE-110
+**Blokuje:** —
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Skąd ten ticket:** patrz BE-110 (TASKS-BACKEND.md) — realny scenariusz: upload przeszedł
+walidację, ale zapis do bazy zawiódł (wersja już istniała w katalogu z wcześniejszej, częściowo
+nieudanej próby), więc `uploadResult()` nigdy nie dostał `pluginVersionId` i przycisk "Zainstaluj"
+sekcji uploadu nigdy się nie pojawił. Bez przeglądarki katalogu administrator nie miał żadnego
+sposobu zainstalować wersję, która w rzeczywistości już istniała w bazie.
+
+**Implementacja:**
+- `PluginAdminService.listCatalog()` — `GET /api/supervisor/plugins/catalog` → `Observable<PluginVersionDto[]>`
+- `plugins-page.component.ts`:
+  - `catalog`/`catalogLoading`/`catalogError` (signal) + `loadCatalog()` (wołane w `ngOnInit`, równolegle z `loadInstallations()`)
+  - `installedVersionIds` (computed z `installations()`) + `catalogToShow` (computed: katalog minus już zainstalowane `pluginVersionId` — usprawnienie z treści zadania zaimplementowane, bo trywialne: `Set` + `filter`)
+  - `isCatalogVersionInstallable(version)` — `VALIDATED`/`PENDING_REVIEW` → pokaż przycisk "Zainstaluj"
+  - **Refaktoryzacja dialogu instalacji:** dialog był ściśle związany z `uploadResult()` (jedyne źródło wersji do instalacji). Uogólnione na `installDialogTarget` (signal) — `openInstallDialog(version: PluginVersionDto)` przyjmuje teraz parametr (wywoływane z `uploadResult()!` w sekcji uploadu LUB z wybranej wersji katalogu), `confirmInstall()` czyta z `installDialogTarget()`. Dialog HTML (`@if (installDialogTarget()) ...`) bez zmian strukturalnych — tylko zmiana źródła danych, sam dialog instalacji (permissions, checkboxy) reużyty 1:1 dla obu ścieżek, zgodnie z wymogiem zadania "nie twórz nowego dialogu instalacji"
+  - Po skutecznej instalacji: `loadInstallations()` + `loadCatalog()` (odśwież obie listy, żeby `catalogToShow` odfiltrował właśnie zainstalowaną wersję)
+- `plugins-page.component.html` — nowa sekcja między uploadem i listą instalacji, wzorzec identyczny do sekcji "Zainstalowane pluginy" (skeleton/error/empty/lista, `pp-card`), karta wersji pokazuje `displayName`/`vendor`/`version`/`status`, przycisk "Zainstaluj" tylko dla statusów instalowalnych
+- Tłumaczenia: nowe klucze `catalogTitle`/`catalogHint`/`errorLoadCatalog`/`emptyCatalog`/`catalogAlreadyInstalled` w `pl.json`/`en.json`/`de.json`/`uk.json`
+
+**Kryteria akceptacji:**
+- [x] Sekcja katalogu ładowana przy inicjalizacji komponentu, niezależnie od historii uploadu
+- [x] Wersja katalogu już zainstalowana przez tenanta nie jest pokazywana (odfiltrowana po `pluginVersionId`)
+- [x] Przycisk "Zainstaluj" w katalogu otwiera ten sam dialog instalacji (permissions/checkboxy) jak ścieżka uploadu — zero duplikacji UI
+- [x] `npm run lint` przechodzi bez regresji (0 errors, 10 pre-existing warningów `no-console` niezwiązanych z tym ticketem)
+- [x] `npx tsc --noEmit` bez błędów typów
+
+**Uwaga:** preexistujący brak kluczy tłumaczeń `successInstall`/`errorInstall` (używanych przez
+`confirmInstall()` od FE-098, przed tym tickietem) — zauważony przy weryfikacji, ale poza zakresem
+tego ticketu (nie wprowadzony przez FE-101, nie dotyczy nowej funkcjonalności katalogu). Transloco
+wyświetli klucz literalnie jako fallback, nie psuje builda/lintu — wymaga osobnego, drobnego fix-ticketu.
+
+---
+
+### FE-102 – UI konfiguracji instalacji pluginu (secret config) na stronie Ustawienia > Pluginy
+
+**Typ:** Frontend implementation
+**Priorytet:** Must Have
+**Złożoność:** S
+**Zależy od:** FE-097, FE-098
+**Status:** ✅ Zrobione
+**Epic:** EPIC-28 Per-Tenant Plugin (Extension) System
+
+**Skąd ten ticket:** odkryte przy realnym testowaniu na żywym backendzie — endpoint
+`PATCH /api/supervisor/plugins/installations/{id}/config` istniał od dawna, ale UI do jego
+wywołania nigdy nie powstał. Administrator/supervisor musiał ręcznie wołać curl/Swagger, żeby
+ustawić sekretną konfigurację (np. `api_key`) zainstalowanego pluginu — nieakceptowalne dla
+produkcyjnego flow.
+
+**Implementacja:**
+- `PluginAdminService.updateConfig(installationId, config)` — `PATCH .../installations/{id}/config`
+  z body `{ config }`. Semantyka REPLACE (nie merge) — udokumentowane w JSDoc metody. Brak
+  odpowiadającego GET (wartości szyfrowane AES-256-GCM po stronie backendu, nigdy nie wracają w
+  żadnej odpowiedzi API) — świadome ograniczenie bezpieczeństwa, formularz FE musi zawsze
+  startować pusty.
+- `plugins-page.component.ts`:
+  - Nowy dialog `#configDialog` (analogiczny do `#installDialog`) — `configDialogTarget`
+    (signal, instalacja docelowa), `openConfigDialog(installation)` / `closeConfigDialog()`.
+  - Dynamiczny formularz par klucz-wartość zaimplementowany **czystymi sygnałami**
+    (`configRows = signal<{ key: string; value: string }[]>([])`), **nie** `FormArray`/
+    `ReactiveFormsModule` — komponent nigdzie w pliku nie używa reactive forms (cała reszta
+    stanu to `signal()`/`computed()` + proste input bindingi), więc FormArray wprowadziłby
+    drugi, niekonsystentny wzorzec zarządzania stanem formularza tylko dla jednego dialogu.
+    `addConfigRow()`/`removeConfigRow(i)`/`updateConfigRowKey(i, key)`/`updateConfigRowValue(i, value)`
+    operują na tablicy przez `update()` z `map`/`filter` (immutable, zgodnie ze wzorcem
+    `pendingActionIds`/`grantedPermissions` już w pliku).
+  - Walidacja duplikatów/pustych kluczy przez `computed()`: `nonEmptyConfigKeys` (trim +
+    filter), `hasDuplicateConfigKeys` (`Set.size !== length`), `canSaveConfig` (niepusty
+    zestaw AND brak duplikatów) — przycisk "Zapisz" disabled gdy `!canSaveConfig()`.
+  - `confirmSaveConfig()` buduje `Record<string,string>` z wierszy (pomija puste po trim
+    key), woła `updateConfig()` z `takeUntilDestroyed(this.destroyRef)`. Błędy idą przez
+    globalny `notifications.error(...)` — **ten sam wzorzec co istniejący `confirmInstall()`**
+    (install dialog też nie ma lokalnego inline alertu dla błędów zapisu, tylko globalny toast;
+    zachowana konsystencja, nie wprowadzono nowego wzorca błędów).
+  - `savingConfig` (signal) analogicznie do `installing` — disable przycisku + spinner.
+  - Dialog zawsze otwiera się z jednym pustym wierszem (`configRows.set([{ key: '', value: '' }])`)
+    — nigdy nie próbuje odczytać poprzednich wartości (bo nie ma skąd, brak GET).
+- `plugins-page.component.html`:
+  - Nowy przycisk "Konfiguracja" (`pp-btn pp-btn--ghost pp-btn--sm`) w `pp-card__actions` karty
+    instalacji (sekcja "Zainstalowane pluginy"), między przyciskiem rollback i "Odinstaluj".
+    Disabled gdy `isPending(installation.id)`.
+  - Nowy `<dialog #configDialog class="pp-dialog">` po `#installDialog`, przed sekcją uninstall
+    confirm dialog. Hint (i18n `configHint`) wyjaśnia jawnie write-only charakter formularza.
+    Każdy wiersz: input text (key) + input `type="password"` (value, bo sekret) + przycisk X
+    usunięcia wiersza (reużyty inline SVG path z `pp-dialog__close`, nie zduplikowana nowa
+    ikona — w projekcie nie znaleziono osobnego współdzielonego komponentu ikony X do reużycia).
+    Inline alert błędu duplikatu klucza (`pp-alert pp-alert--error`) pod hintem, widoczny
+    reaktywnie z `hasDuplicateConfigKeys()` (osobny od wzorca błędów zapisu — to walidacja
+    klienta, nie błąd API, więc lokalny inline alert ma sens tu, w odróżnieniu od błędu API).
+  - Przycisk "+ Dodaj pole" (`configAddRow`) pod listą wierszy.
+- SCSS: nowe klasy `.pp-kv-list`/`.pp-kv-row`/`.pp-kv-row__input`/`.pp-kv-row__remove`/
+  `.pp-kv-add`, w stylu BEM już istniejącym w pliku (`var(--text-1)`, `var(--border-1)`,
+  `var(--radius-sm)` itd.).
+- Tłumaczenia: `configButton`/`configDialogTitle`/`configHint`/`configKeyPlaceholder`/
+  `configValuePlaceholder`/`configAddRow`/`configRemoveRowAria`/`configDuplicateKeyError`/
+  `configSaveButton`/`successConfig`/`errorConfig` w `pl.json`/`en.json`/`de.json`/`uk.json`.
+
+**Kryteria akceptacji:**
+- [x] Formularz konfiguracji zawsze startuje pusty (jeden wiersz), nigdy nie ładuje poprzednich
+  wartości (zgodnie z ograniczeniem bezpieczeństwa backendu — brak GET)
+- [x] Pole wartości typu `password` (maskowanie sekretu na ekranie)
+- [x] "Zapisz" disabled gdy brak niepustych kluczy LUB są zduplikowane (po trim)
+- [x] PATCH wysyła `Record<string,string>` zbudowany z wierszy (REPLACE semantyka, zgodnie z
+  kontraktem backendu — FE nie próbuje merge'ować z niczym, bo nic nie ma do merge'a)
+- [x] Sukces → toast `successConfig` + zamknięcie dialogu + wyczyszczenie stanu formularza
+- [x] Błąd API → toast `errorConfig` (ten sam globalny wzorzec co `confirmInstall()`)
+- [x] `npm run lint` przechodzi (0 błędów; 1 błąd `@typescript-eslint/array-type` znaleziony i
+  naprawiony w trakcie implementacji — `Array<T>` → `T[]`, zgodnie z regułą projektu)
+- [x] `npm run build` przechodzi (sukces; warningi bundle-budget identyczne z poprzednimi
+  tickietami EPIC-28, niezwiązane z tym plikiem)

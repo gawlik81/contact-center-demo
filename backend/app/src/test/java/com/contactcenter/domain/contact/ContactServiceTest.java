@@ -13,6 +13,7 @@ import com.contactcenter.domain.user.UserService;
 import com.contactcenter.domain.campaign.CampaignService;
 import com.contactcenter.domain.disposition.CustomDispositionService;
 import com.contactcenter.domain.email.EmailMessageService;
+import com.contactcenter.domain.plugin.runtime.ExtensionPointPublisher;
 import com.contactcenter.domain.queue.QueueService;
 import com.contactcenter.domain.recording.RecordingException;
 import com.contactcenter.domain.recording.RecordingService;
@@ -71,16 +72,17 @@ class ContactServiceTest {
     @Mock private ContactEventService contactEventService;
     @Mock private TelephonyAdapter telephonyAdapter;
     @Mock private TelephonyEventPublisher eventPublisher;
+    @Mock private ExtensionPointPublisher extensionPointPublisher;
 
     @InjectMocks
     private ContactServiceImpl contactService;
 
     @BeforeEach
     void setUp() {
-        // UserService jest wstrzykiwany przez setter z @Lazy (cykl zależności
-        // UserService -> ContactService -> UserService), @InjectMocks nie
-        // wywołuje setterów gdy użyto konstruktora - ustawiamy ręcznie.
+        // Setter-injected @Lazy dependencies — @InjectMocks nie wywołuje setterów
+        // gdy użyto konstruktora; ustawiamy ręcznie dla obu cykli zależności.
         contactService.setUserService(userService);
+        contactService.setExtensionPointPublisher(extensionPointPublisher);
 
         TenantContext.setTenantId(TENANT_ID);
         TenantContext.setUserId(AGENT_ID);

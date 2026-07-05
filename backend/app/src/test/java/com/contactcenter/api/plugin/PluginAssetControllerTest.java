@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.util.ReflectionTestUtils.setField;
 
 /**
  * Testy {@link PluginAssetController} (EPIC-28, BE-107, ARCHITECTURE.md §11.10).
@@ -50,6 +51,8 @@ class PluginAssetControllerTest {
     @BeforeEach
     void setUp() throws IOException {
         controller = new PluginAssetController(pluginRuntimeManager);
+        // @PostConstruct nie jest wywoływany przy tworzeniu przez new — wstrzykujemy ręcznie.
+        setField(controller, "sdkScriptContent", "/* plugin-ui-sdk stub */");
         assetsDir = Files.createTempDirectory("plugin-asset-controller-test-");
     }
 

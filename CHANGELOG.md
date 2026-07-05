@@ -1,5 +1,60 @@
 # Changelog
 
+## [1.3.0](https://github.com/gawlik81/contact-center-demo/compare/v1.2.3...v1.3.0) (2026-07-05)
+
+
+### Features
+
+* **plugins:** dodaj async hooki przez RabbitMQ (BE-104) ([db9acc2](https://github.com/gawlik81/contact-center-demo/commit/db9acc2b16b76920c703b19f95a628f2434040ed))
+* **plugins:** dodaj cc-plugin-panel-host — iframe sandboxed (FE-099) ([5b32fdc](https://github.com/gawlik81/contact-center-demo/commit/5b32fdc376d048c7386fb109840db8f153dd8fdb))
+* **plugins:** dodaj DbEgressClient i przykładowy plugin zapisu wyniku połączenia do zewnętrznej DB ([a37f22b](https://github.com/gawlik81/contact-center-demo/commit/a37f22b754ca0fe03a35ff5b448e9058db0bf4bf))
+* **plugins:** dodaj dispatch i fault containment dla hooków (BE-102) ([bda124d](https://github.com/gawlik81/contact-center-demo/commit/bda124dc0f251bb4b653e5b30a12dc25229cc4ea))
+* **plugins:** dodaj GET /api/agent/plugins dla FE-100 ([3500ab4](https://github.com/gawlik81/contact-center-demo/commit/3500ab4e0ee48ed0a08b68f2bac85e811cc23389))
+* **plugins:** dodaj instalację pluginu per tenant (BE-100) ([cf4ead8](https://github.com/gawlik81/contact-center-demo/commit/cf4ead82d4448e069b9c637b45f6908d73959111))
+* **plugins:** dodaj jądro izolacji wykonania pluginów (BE-101) ([f67c5b7](https://github.com/gawlik81/contact-center-demo/commit/f67c5b7a1dc04fb3192ce157fad87c5a50e9d2bf))
+* **plugins:** dodaj moduł plugin-sdk (BE-097) ([2caa64f](https://github.com/gawlik81/contact-center-demo/commit/2caa64f560f33165e9ee909c78cb67b7815f1c8e))
+* **plugins:** dodaj panel admina pluginów i kill switch (BE-106) ([60dd9a5](https://github.com/gawlik81/contact-center-demo/commit/60dd9a534936c50429c5c82ad2fc82ea43918d2b))
+* **plugins:** dodaj permissions do PluginVersionDto dla FE-098 ([399e28b](https://github.com/gawlik81/contact-center-demo/commit/399e28b019fb8ccbdfc862d6272f0e000f58b78e))
+* **plugins:** dodaj przeglądarkę katalogu i UI konfiguracji instalacji ([5beba78](https://github.com/gawlik81/contact-center-demo/commit/5beba785ac95a9f118463dc6f8dd51db72f09b65))
+* **plugins:** dodaj serwowanie UI assetów i proxy manual-action (BE-107) ([4e48131](https://github.com/gawlik81/contact-center-demo/commit/4e481314bce25e52b3da16049243450ad7cb2111))
+* **plugins:** dodaj statyczny plugin-ui-sdk.js dla FE-099 ([36a872d](https://github.com/gawlik81/contact-center-demo/commit/36a872df0108e568b2e26cb78347bf78997d7126))
+* **plugins:** dodaj szyfrowaną konfigurację instalacji pluginu ([f38a192](https://github.com/gawlik81/contact-center-demo/commit/f38a19278783e5d829ea42162a660a9069440456))
+* **plugins:** dodaj trwałe logowanie wywołań pluginów (BE-105) ([4df69d3](https://github.com/gawlik81/contact-center-demo/commit/4df69d3ee7a2f1348d7140966d784f3fefe8b15a))
+* **plugins:** dodaj UI zarządzania pluginami i rozszerzenia rejestracji (EPIC-28) ([b56a974](https://github.com/gawlik81/contact-center-demo/commit/b56a974c77d52150d7e23553d8c9a24a748ca2da))
+* **plugins:** dodaj upload pluginów do globalnego katalogu (BE-099) ([2a0f4c2](https://github.com/gawlik81/contact-center-demo/commit/2a0f4c20b71930133080e46ac7e6e15945eb778f))
+* **plugins:** dodaj usuwanie wersji pluginu z katalogu per-tenant ([4eeeb2d](https://github.com/gawlik81/contact-center-demo/commit/4eeeb2d92351d753a5bf67ddcd7bf15aee773a9d))
+* **plugins:** dodaj walidację manifestu i bytecode pluginów (BE-098) ([15036c1](https://github.com/gawlik81/contact-center-demo/commit/15036c119d12a1fc5b1d46a94ec069ce648c0148))
+* **plugins:** dodaj warstwę danych Angular dla panelu pluginów (FE-097) ([0c9e07e](https://github.com/gawlik81/contact-center-demo/commit/0c9e07ee6a7b5d0335c5f58d7b9325c8f0406be3))
+* **plugins:** dziedzicz config przy upgrade pluginu, odbuduj runtime po restarcie ([51c0d45](https://github.com/gawlik81/contact-center-demo/commit/51c0d45de2c806865e53288f21648802d25484b2))
+* **plugins:** izolacja katalogu pluginów per-tenant (V078) ([99461a4](https://github.com/gawlik81/contact-center-demo/commit/99461a46f6c7fd113b213e9caad7729585ac5d75))
+* **plugins:** podłącz PRE_CONTACT_CONNECT/MANUAL_ACTION do telefonii (BE-103) ([a2765a4](https://github.com/gawlik81/contact-center-demo/commit/a2765a457571fd9b16cc3792acb603c6790b1d30))
+* **plugins:** podłącz stronę pluginów do routingu i nawigacji (FE-098) ([51b1085](https://github.com/gawlik81/contact-center-demo/commit/51b10858f6b4f2afaf1b163e4f3b0a560f8e29cd))
+* **plugins:** wzbogać DTO pluginów o metadane wyświetlania dla FE-097 ([c80b677](https://github.com/gawlik81/contact-center-demo/commit/c80b6776199be63c57e241d7507cfcd4dcc095a7))
+* **plugins:** zaimplementuj warstwę DB dla EPIC-28 (DB-042..045) ([67b1e9c](https://github.com/gawlik81/contact-center-demo/commit/67b1e9c7be7e97f73cbb9d98399f969d0e306b43))
+* **plugins:** zamontuj panele pluginów w agent desktop (FE-100) ([7906564](https://github.com/gawlik81/contact-center-demo/commit/7906564ff2ffbff34a2ce387c0bc9b28ed618e0b))
+* **plugins:** zaprojektuj EPIC-28 — system pluginów per tenant ([c26e86f](https://github.com/gawlik81/contact-center-demo/commit/c26e86f96138986f1ed2305476fb4e2ddf4c65bf))
+
+
+### Bug Fixes
+
+* **contact:** umożliw zmianę rozmiaru modala szczegółów kontaktu ([5c79514](https://github.com/gawlik81/contact-center-demo/commit/5c7951431acca6de0f8f5b466eb3d0bfbde0f24a))
+* **docs:** napraw linki do Plugin Developer Guide w wygenerowanym HTML ([70f87ba](https://github.com/gawlik81/contact-center-demo/commit/70f87bac86d883dec6a93eb250cb708cd913b9b4))
+* **docs:** poszerzenie layoutu Plugin Developer Guide HTML ([ddbf760](https://github.com/gawlik81/contact-center-demo/commit/ddbf760b395503818cfd63b4a5ff3a52900ca196))
+* **frontend:** napraw brak customerId dla ad-hoc połączeń wychodzących ([78ae276](https://github.com/gawlik81/contact-center-demo/commit/78ae276b5f166c33ea5d9902bd12c9b08f4feea2))
+* **frontend:** napraw testy plugin-panel-host — targetOrigin '*' zamiast window.location.origin ([1c5e5c7](https://github.com/gawlik81/contact-center-demo/commit/1c5e5c7199c15f99f80534f1df574d0bca5d0fb0))
+* **frontend:** przekazuj customerId do taba dla połączeń OUTBOUND ([13d633c](https://github.com/gawlik81/contact-center-demo/commit/13d633ccbab5f4d07df16e3d43eeeafde129495c))
+* **i18n:** napraw brakujący przecinek w plikach tłumaczeń po dodaniu kluczy deleteCatalog ([2382c17](https://github.com/gawlik81/contact-center-demo/commit/2382c17682d3a4087870fdab31bfe4a6c3d42960))
+* **plugins:** napraw brak dispatchu eventów i izolację ClassLoadera; dodaj crm-demo-db ([0de9b52](https://github.com/gawlik81/contact-center-demo/commit/0de9b52df0f737e80325fc18fba86675b390e20a))
+* **plugins:** napraw duplikaty CONTACT_ENDED i timezone w customer-callresult-db-sync ([94cd0ba](https://github.com/gawlik81/contact-center-demo/commit/94cd0bae6162ba144db8f85408cb2e3187f11adb))
+* **plugins:** napraw kolizję nazw bean'ów PluginInvocationExecutor ([8dae68d](https://github.com/gawlik81/contact-center-demo/commit/8dae68d6de91252b3067ae2807a090786dbdd76d))
+* **plugins:** napraw ładowanie SDK w sandboxed iframe (Firefox + Chrome) ([cd92ed8](https://github.com/gawlik81/contact-center-demo/commit/cd92ed80a37278a2545f8c1d64ba7acf21ecb626))
+* **plugins:** napraw pusty config/permissions przy każdym wywołaniu pluginu ([a87960b](https://github.com/gawlik81/contact-center-demo/commit/a87960b0ce100cc7d4c081a14d15098e319a91bc))
+* **plugins:** napraw start aplikacji po dodaniu modułu plugin-sdk ([007eaba](https://github.com/gawlik81/contact-center-demo/commit/007eaba3dab05d50b724cce16090e282fe69e090))
+* **plugins:** napraw zapis validation_errors do kolumny jsonb ([a960ca4](https://github.com/gawlik81/contact-center-demo/commit/a960ca4dc1aa639b7a5f2fc068b707a27d9eb52f))
+* **plugins:** usuń zduplikowane pluginVersionId z InstallPluginRequest ([fb521f4](https://github.com/gawlik81/contact-center-demo/commit/fb521f4edffac38ee1c51aef4c8d18d0a6b557af))
+* **plugins:** zastosuj uwagi z code review customer-callresult-db-sync ([c4b6f4f](https://github.com/gawlik81/contact-center-demo/commit/c4b6f4f6d9086b712939b1e971c8c2fd6016416f))
+* **tests:** napraw 5 failujących testów backendowych ([6f24b08](https://github.com/gawlik81/contact-center-demo/commit/6f24b08db4274f9183d3845224cca1558b31d487))
+
 ## [1.2.3](https://github.com/gawlik81/contact-center-demo/compare/v1.2.2...v1.2.3) (2026-06-19)
 
 

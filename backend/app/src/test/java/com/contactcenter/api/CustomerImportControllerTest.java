@@ -92,6 +92,47 @@ class CustomerImportControllerTest {
         return new MockMultipartFile("file", "customers.csv", "text/csv", content.getBytes());
     }
 
+    private MockMultipartFile jsonFile(String content) {
+        return new MockMultipartFile("file", "customers.json", "application/json", content.getBytes());
+    }
+
+    @Test
+    @DisplayName("POST /api/customers/import/json – deduplication=OVERWRITE dociera do serwisu z tą wartością")
+    void importCustomersJson_bindsDeduplicationParam_toServiceCall() throws Exception {
+        // given
+        UUID jobId = UUID.randomUUID();
+        when(customerImportService.initiateJsonImport(any(), any())).thenReturn(jobId);
+
+        MockMultipartFile file = jsonFile("[{\"firstName\":\"Jan\",\"phone\":\"+48501234567\"}]");
+
+        // when
+        mockMvc.perform(multipart("/api/customers/import/json")
+                        .file(file)
+                        .param("deduplication", "OVERWRITE"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.jobId").value(jobId.toString()));
+
+        // then – NIE wartość domyślna (SKIP), tylko to co przyszło w query param
+        verify(customerImportService).initiateJsonImport(any(), eq(DeduplicationMode.OVERWRITE));
+    }
+
+    @Test
+    @DisplayName("POST /api/customers/import/json – bez parametru deduplication – używa wartości domyślnej SKIP")
+    void importCustomersJson_noQueryParam_usesDefault() throws Exception {
+        // given
+        UUID jobId = UUID.randomUUID();
+        when(customerImportService.initiateJsonImport(any(), any())).thenReturn(jobId);
+
+        MockMultipartFile file = jsonFile("[{\"firstName\":\"Jan\",\"phone\":\"+48501234567\"}]");
+
+        // when
+        mockMvc.perform(multipart("/api/customers/import/json").file(file))
+                .andExpect(status().isAccepted());
+
+        // then
+        verify(customerImportService).initiateJsonImport(any(), eq(DeduplicationMode.SKIP));
+    }
+
     @Test
     @DisplayName("KRYTERIUM REGRESJI: separator=; i deduplication=OVERWRITE docierają do serwisu z tymi wartościami")
     void importCustomers_bindsFrontendParamNames_toServiceCall() throws Exception {

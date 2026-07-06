@@ -99,4 +99,18 @@ describe('CustomerService', () => {
     expect(req.request.method).toBe('DELETE');
     req.flush(null, { status: 204, statusText: 'No Content' });
   });
+
+  it('importJson – POST /api/customers/import/json with file and deduplication param', () => {
+    const file = new File(['[]'], 'customers.json', { type: 'application/json' });
+
+    service.importJson(file, 'OVERWRITE').subscribe((res) => {
+      expect(res.jobId).toBe('job-1');
+    });
+
+    const req = httpMock.expectOne((r) => r.url.includes('/api/customers/import/json'));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.params.get('deduplication')).toBe('OVERWRITE');
+    expect(req.request.body instanceof FormData).toBe(true);
+    req.flush({ jobId: 'job-1' });
+  });
 });

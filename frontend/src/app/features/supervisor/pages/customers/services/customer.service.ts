@@ -102,6 +102,14 @@ export class CustomerService {
     return this.http.post<{ jobId: string }>(`${this.baseUrl}/import`, formData, { params });
   }
 
+  importJson(file: File, deduplication: DeduplicationMode): Observable<{ jobId: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const params = new HttpParams().set('deduplication', deduplication);
+
+    return this.http.post<{ jobId: string }>(`${this.baseUrl}/import/json`, formData, { params });
+  }
+
   getImportStatus(jobId: string): Observable<CustomerImportStatus> {
     return this.http.get<CustomerImportStatus>(`${this.baseUrl}/import/${jobId}`);
   }

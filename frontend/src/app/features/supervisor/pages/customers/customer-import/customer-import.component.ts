@@ -56,17 +56,22 @@ export class CustomerImportComponent {
 
   // ── Step state ────────────────────────────────────────────────────────────
   readonly currentStep = signal<ImportStep>('upload');
-  readonly allSteps: ImportStep[] = ['upload', 'mapping', 'progress', 'report'];
+  readonly allSteps = computed<ImportStep[]>(() =>
+    this.importFormat() === 'json'
+      ? ['upload', 'progress', 'report']
+      : ['upload', 'mapping', 'progress', 'report'],
+  );
 
   // ── Step 1: Upload ────────────────────────────────────────────────────────
   readonly selectedFile = signal<File | null>(null);
+  readonly importFormat = signal<'csv' | 'json'>('csv');
   readonly deduplicationMode = signal<DeduplicationMode>('SKIP');
   readonly columnSeparator = signal<string>(',');
   readonly quoteChar = signal<string>('"');
   readonly fileError = signal<string | null>(null);
   readonly isDragging = signal(false);
-  readonly csvPreviewRows = signal<string[][]>([]);
-  readonly csvHeaders = signal<string[]>([]);
+  readonly previewRows = signal<string[][]>([]);
+  readonly previewHeaders = signal<string[]>([]);
 
   readonly columnSeparatorOptions: { value: string; label: string }[] = [
     { value: ',', label: ', (przecinek)' },
@@ -125,10 +130,15 @@ export class CustomerImportComponent {
   // ── Constructor ──────────────────────────────────────────────────────────
   constructor() {
     effect(() => {
-      this.columnSeparator();
-      this.quoteChar();
+      const format = this.importFormat();
       const file = this.selectedFile();
-      if (file) {
+      if (!file) return;
+
+      if (format === 'json') {
+        this.parseJsonPreview(file);
+      } else {
+        this.columnSeparator();
+        this.quoteChar();
         this.parseCsvPreview(file);
       }
     });
@@ -162,8 +172,12 @@ export class CustomerImportComponent {
     this.fileError.set(null);
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      this.fileError.set('Dozwolone sa tylko pliki CSV (.csv).');
+    const lowerName = file.name.toLowerCase();
+    const isCsv = lowerName.endsWith('.csv');
+    const isJson = lowerName.endsWith('.json');
+
+    if (!isCsv && !isJson) {
+      this.fileError.set('Dozwolone sa tylko pliki CSV (.csv) lub JSON (.json).');
       this.selectedFile.set(null);
       return;
     }
@@ -176,8 +190,13 @@ export class CustomerImportComponent {
       return;
     }
 
+    this.importFormat.set(isJson ? 'json' : 'csv');
     this.selectedFile.set(file);
-    this.parseCsvPreview(file);
+    if (isJson) {
+      this.parseJsonPreview(file);
+    } else {
+      this.parseCsvPreview(file);
+    }
   }
 
   private parseCsvPreview(file: File): void {
@@ -192,8 +211,8 @@ export class CustomerImportComponent {
         .filter((l) => l.length > 0);
 
       if (lines.length === 0) {
-        this.csvHeaders.set([]);
-        this.csvPreviewRows.set([]);
+        this.previewHeaders.set([]);
+        this.previewRows.set([]);
         return;
       }
 
@@ -212,11 +231,69 @@ export class CustomerImportComponent {
         dataRows = allRows.slice(0, PREVIEW_ROWS);
       }
 
-      this.csvHeaders.set(headers);
-      this.csvPreviewRows.set(dataRows);
+      this.previewHeaders.set(headers);
+      this.previewRows.set(dataRows);
       this.buildInitialMappings(headers);
     };
     reader.readAsText(file);
+  }
+
+  private parseJsonPreview(file: File): void {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) ?? '';
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        this.setInvalidJsonState();
+        return;
+      }
+
+      const isArrayOfObjects =
+        Array.isArray(parsed) &&
+        parsed.every((item) => typeof item === 'object' && item !== null && !Array.isArray(item));
+
+      if (!isArrayOfObjects) {
+        this.setInvalidJsonState();
+        return;
+      }
+
+      const records = parsed as Record<string, unknown>[];
+      if (records.length === 0) {
+        this.setInvalidJsonState('supervisor.customerImport.emptyJsonArrayError');
+        return;
+      }
+
+      const sample = records.slice(0, PREVIEW_ROWS);
+      const headerSet = new Set<string>();
+      sample.forEach((record) => Object.keys(record).forEach((key) => headerSet.add(key)));
+      const headers = Array.from(headerSet);
+
+      const rows = sample.map((record) =>
+        headers.map((header) => this.stringifyPreviewCell(record[header])),
+      );
+
+      this.previewHeaders.set(headers);
+      this.previewRows.set(rows);
+    };
+    reader.readAsText(file);
+  }
+
+  private setInvalidJsonState(
+    translationKey = 'supervisor.customerImport.invalidJsonArrayError',
+  ): void {
+    this.fileError.set(this.transloco.translate(translationKey));
+    this.selectedFile.set(null);
+    this.previewHeaders.set([]);
+    this.previewRows.set([]);
+  }
+
+  private stringifyPreviewCell(value: unknown): string {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
   }
 
   private parseCSVLine(line: string, separator: string, quoteCharacter: string): string[] {
@@ -282,6 +359,16 @@ export class CustomerImportComponent {
     this.currentStep.set('mapping');
   }
 
+  /** Primary action on the 'upload' step: CSV goes through mapping, JSON imports directly. */
+  goToImportOrMapping(): void {
+    if (!this.selectedFile()) return;
+    if (this.importFormat() === 'json') {
+      this.onImport();
+    } else {
+      this.goToMapping();
+    }
+  }
+
   // ── Step 2 handlers ──────────────────────────────────────────────────────
 
   updateMapping(index: number, value: SystemField): void {
@@ -307,6 +394,11 @@ export class CustomerImportComponent {
   }
 
   onImport(): void {
+    if (this.importFormat() === 'json') {
+      this.submitJsonImport();
+      return;
+    }
+
     if (!this.isPhoneMapped()) {
       this.mappingError.set('Pole "Telefon" musi byc zmapowane na jedna z kolumn CSV.');
       return;
@@ -397,6 +489,32 @@ export class CustomerImportComponent {
       });
   }
 
+  private submitJsonImport(): void {
+    const file = this.selectedFile();
+    if (!file) return;
+
+    this.submitting.set(true);
+    this.currentStep.set('progress');
+
+    this.customerService
+      .importJson(file, this.deduplicationMode())
+      .pipe(
+        catchError(() => {
+          this.notifications.error(this.transloco.translate('supervisor.customerImport.errorMsg'));
+          this.submitting.set(false);
+          this.currentStep.set('upload');
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((response) => {
+        this.submitting.set(false);
+        if (response) {
+          this.startPolling(response.jobId);
+        }
+      });
+  }
+
   // ── Step 3 handlers ──────────────────────────────────────────────────────
 
   private startPolling(jobId: string): void {
@@ -453,11 +571,11 @@ export class CustomerImportComponent {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   getStepNumber(step: ImportStep): number {
-    return this.allSteps.indexOf(step) + 1;
+    return this.allSteps().indexOf(step) + 1;
   }
 
   isStepCompleted(step: ImportStep): boolean {
-    return this.allSteps.indexOf(step) < this.allSteps.indexOf(this.currentStep());
+    return this.allSteps().indexOf(step) < this.allSteps().indexOf(this.currentStep());
   }
 
   isStepActive(step: ImportStep): boolean {

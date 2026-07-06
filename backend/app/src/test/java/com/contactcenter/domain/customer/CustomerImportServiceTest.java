@@ -1053,6 +1053,464 @@ class CustomerImportServiceTest {
     }
 
     // =========================================================================
+    // Import JSON
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Import JSON – tablica obiektów camelCase")
+    class JsonImport {
+
+        @Test
+        @DisplayName("Import podstawowy – tablica 2 obiektów – oba wstawione (INSERT)")
+        void basicImport_twoObjects_bothInserted() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String json = """
+                    [
+                      {"firstName":"Jan","lastName":"Kowalski","phone":"+48111111111"},
+                      {"firstName":"Anna","lastName":"Nowak","phone":"+48222222222"}
+                    ]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            assertThat(paramsCaptor.getValue()).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("phone/email jako tablica JSON – oba numery/adresy trafiają do JSONB")
+        void arrayPhoneAndEmail_bothValuesImported() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String json = """
+                    [{"firstName":"Jan","phone":["+48111111111","+48222222222"],"email":["a@example.com","b@example.com"]}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            // insertParams: [tenant_id, first_name, last_name, phone, email, custom_fields,
+            //                external_id, gdpr_consent, source, created_at]
+            Object[] row = paramsCaptor.getValue().get(0);
+            assertThat((String) row[3]).contains("+48111111111").contains("+48222222222");
+            assertThat((String) row[4]).contains("a@example.com").contains("b@example.com");
+        }
+
+        @Test
+        @DisplayName("customFields jako obiekt – nazwane pola trafiają do custom_fields")
+        void customFieldsObject_buildsNamedMap() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String json = """
+                    [{"firstName":"Jan","phone":"+48111111111","customFields":{"vip":"true","segment":"gold"}}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            String customFieldsJson = (String) paramsCaptor.getValue().get(0)[5];
+            assertThat(customFieldsJson).contains("\"vip\":\"true\"").contains("\"segment\":\"gold\"");
+        }
+
+        @Test
+        @DisplayName("gdprConsent z wartościami boolean – gdpr_consent zawiera consent_given/marketing_consent "
+                + "+ consent_source=JSON_IMPORT")
+        void gdprConsentBooleans_populatesConsent() throws Exception {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String json = """
+                    [{"firstName":"Jan","phone":"+48111111111","gdprConsent":{"consent_given":true,"marketing_consent":false}}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            String gdprJson = (String) paramsCaptor.getValue().get(0)[7];
+
+            ObjectMapper mapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> gdpr = mapper.readValue(gdprJson, Map.class);
+
+            assertThat(gdpr.get("consent_given")).isEqualTo(true);
+            assertThat(gdpr.get("marketing_consent")).isEqualTo(false);
+            assertThat(gdpr.get("consent_source")).isEqualTo("JSON_IMPORT");
+            assertThat(gdpr.get("consent_date")).isNotNull();
+        }
+
+        @Test
+        @DisplayName("gdprConsent z wartościami string (\"tak\"/\"nie\") – parsowane przez parseBoolean")
+        void gdprConsentStrings_parsedViaParseBoolean() throws Exception {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String json = """
+                    [{"firstName":"Jan","phone":"+48111111111","gdprConsent":{"consent_given":"tak","marketing_consent":"nie"}}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+
+            String gdprJson = (String) paramsCaptor.getValue().get(0)[7];
+
+            ObjectMapper mapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> gdpr = mapper.readValue(gdprJson, Map.class);
+
+            assertThat(gdpr.get("consent_given")).isEqualTo(true);
+            assertThat(gdpr.get("marketing_consent")).isEqualTo(false);
+            assertThat(gdpr.get("consent_source")).isEqualTo("JSON_IMPORT");
+        }
+
+        @Test
+        @DisplayName("Wiersz bez telefonu – odrzucony, nie trafia do batcha")
+        void noPhone_rowRejected() {
+            String json = """
+                    [{"firstName":"Jan","lastName":"Kowalski"}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            UUID jobId = UUID.randomUUID();
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(jobId, file, DeduplicationMode.SKIP, snapshot);
+
+            verify(jdbcTemplate, never()).batchUpdate(anyString(), anyList());
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId),
+                    jsonCaptor.capture(), any(Duration.class));
+            String finalJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            assertThat(finalJson).contains("\"failed\":1");
+        }
+
+        @Test
+        @DisplayName("Duplikat externalId WEWNĄTRZ pliku JSON – pierwszy zaimportowany, drugi odrzucony")
+        void duplicateExternalIdWithinFile_secondRowRejected() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByExternalId("CRM-500", TENANT_ID)).thenReturn(Optional.empty());
+
+            String json = """
+                    [
+                      {"firstName":"Jan","phone":"+48111111111","externalId":"CRM-500"},
+                      {"firstName":"Anna","phone":"+48222222222","externalId":"CRM-500"}
+                    ]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            UUID jobId = UUID.randomUUID();
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(jobId, file, DeduplicationMode.SKIP, snapshot);
+
+            ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("INSERT INTO customer")),
+                    paramsCaptor.capture());
+            assertThat(paramsCaptor.getValue()).hasSize(1);
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId),
+                    jsonCaptor.capture(), any(Duration.class));
+            String finalJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            assertThat(finalJson).contains("\"imported\":1").contains("\"failed\":1");
+        }
+
+        @Test
+        @DisplayName("externalId koliduje z innym istniejącym klientem w bazie – wiersz odrzucony")
+        void externalIdCollidesWithExistingCustomer_rowRejected() {
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            Customer otherCustomer = Customer.builder()
+                    .customerId(UUID.randomUUID())
+                    .tenantId(TENANT_ID)
+                    .build();
+            when(customerRepository.findByExternalId("CRM-600", TENANT_ID)).thenReturn(Optional.of(otherCustomer));
+
+            String json = """
+                    [{"firstName":"Jan","phone":"+48333333333","externalId":"CRM-600"}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            UUID jobId = UUID.randomUUID();
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(jobId, file, DeduplicationMode.SKIP, snapshot);
+
+            verify(jdbcTemplate, never()).batchUpdate(anyString(), anyList());
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId),
+                    jsonCaptor.capture(), any(Duration.class));
+            String finalJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            assertThat(finalJson).contains("\"failed\":1").contains("\"imported\":0");
+        }
+
+        @Test
+        @DisplayName("SKIP – klient z takim telefonem już istnieje – brak operacji batch")
+        void skip_existingPhone_noBatchOperation() {
+            Customer existing = Customer.builder().customerId(UUID.randomUUID()).tenantId(TENANT_ID).build();
+            when(customerRepository.findByPhoneNumber("+48123456789", TENANT_ID)).thenReturn(Optional.of(existing));
+
+            String json = """
+                    [{"firstName":"Jan","phone":"+48123456789"}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(UUID.randomUUID(), file, DeduplicationMode.SKIP, snapshot);
+
+            verify(jdbcTemplate, never()).batchUpdate(anyString(), anyList());
+        }
+
+        @Test
+        @DisplayName("OVERWRITE – klient z takim telefonem już istnieje – batchUpdate wywoływany")
+        void overwrite_existingPhone_batchUpdateCalled() {
+            Customer existing = Customer.builder().customerId(UUID.randomUUID()).tenantId(TENANT_ID).build();
+            when(customerRepository.findByPhoneNumber("+48123456789", TENANT_ID)).thenReturn(Optional.of(existing));
+
+            String json = """
+                    [{"firstName":"Jan","phone":"+48123456789"}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(UUID.randomUUID(), file, DeduplicationMode.OVERWRITE, snapshot);
+
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(
+                    argThat(sql -> sql.contains("UPDATE customer")),
+                    anyList());
+        }
+
+        @Test
+        @DisplayName("Regresja RODO: import BEZ gdprConsent w żadnym wierszu, OVERWRITE – UPDATE SQL NIE zawiera gdpr_consent")
+        void overwrite_noConsentInAnyRow_updateSqlExcludesGdprConsent() {
+            Customer existing = Customer.builder().customerId(UUID.randomUUID()).tenantId(TENANT_ID).build();
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.of(existing));
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String json = """
+                    [{"firstName":"Jan","lastName":"Kowalski","phone":"+48123456789"}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(UUID.randomUUID(), file, DeduplicationMode.OVERWRITE, snapshot);
+
+            ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(sqlCaptor.capture(), anyList());
+
+            String updateSql = sqlCaptor.getAllValues().stream()
+                    .filter(sql -> sql.contains("UPDATE customer"))
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(updateSql).doesNotContain("gdpr_consent");
+        }
+
+        @Test
+        @DisplayName("Import Z gdprConsent w co najmniej jednym wierszu – OVERWRITE – UPDATE SQL zawiera merge JSONB")
+        void overwrite_withConsentInAtLeastOneRow_updateSqlMergesGdprConsent() {
+            Customer existing = Customer.builder().customerId(UUID.randomUUID()).tenantId(TENANT_ID).build();
+            when(customerRepository.findByPhoneNumber(anyString(), eq(TENANT_ID))).thenReturn(Optional.of(existing));
+            when(customerRepository.findByEmail(anyString(), eq(TENANT_ID))).thenReturn(Optional.empty());
+
+            String json = """
+                    [{"firstName":"Jan","lastName":"Kowalski","phone":"+48123456789","gdprConsent":{"consent_given":true}}]
+                    """;
+            MultipartFile file = jsonFile(json);
+
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(UUID.randomUUID(), file, DeduplicationMode.OVERWRITE, snapshot);
+
+            ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+            verify(jdbcTemplate, atLeastOnce()).batchUpdate(sqlCaptor.capture(), anyList());
+
+            String updateSql = sqlCaptor.getAllValues().stream()
+                    .filter(sql -> sql.contains("UPDATE customer"))
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(updateSql.replaceAll("\\s+", " "))
+                    .contains("gdpr_consent = gdpr_consent || CAST(? AS jsonb)");
+        }
+
+        @Test
+        @DisplayName("JSON root nie jest tablicą (pojedynczy obiekt) – job kończy się FAILED_PARTIAL z błędem FATAL")
+        void rootIsObject_notArray_failsWithFatalError() {
+            MultipartFile file = jsonFile("{\"firstName\":\"Jan\"}");
+
+            UUID jobId = UUID.randomUUID();
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(jobId, file, DeduplicationMode.SKIP, snapshot);
+
+            verify(jdbcTemplate, never()).batchUpdate(anyString(), anyList());
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId),
+                    jsonCaptor.capture(), any(Duration.class));
+            String finalJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            assertThat(finalJson).contains("\"status\":\"FAILED_PARTIAL\"");
+        }
+
+        @Test
+        @DisplayName("JSON root nie jest tablicą (liczba) – job kończy się FAILED_PARTIAL z błędem FATAL")
+        void rootIsNumber_notArray_failsWithFatalError() {
+            MultipartFile file = jsonFile("42");
+
+            UUID jobId = UUID.randomUUID();
+            TenantContext.Snapshot snapshot = TenantContext.snapshot();
+            doNothing().when(valueOps).set(anyString(), anyString(), any(Duration.class));
+            when(valueOps.get(anyString())).thenReturn(
+                    "{\"status\":\"QUEUED\",\"processed\":0,\"total\":0,\"imported\":0,\"updated\":0,\"skipped\":0,\"failed\":0,\"errorFileAvailable\":false}"
+            );
+
+            service.processJsonImportAsync(jobId, file, DeduplicationMode.SKIP, snapshot);
+
+            ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(valueOps, atLeastOnce()).set(
+                    eq(CustomerImportServiceImpl.JOB_KEY_PREFIX + jobId),
+                    jsonCaptor.capture(), any(Duration.class));
+            String finalJson = jsonCaptor.getAllValues().get(jsonCaptor.getAllValues().size() - 1);
+            assertThat(finalJson).contains("\"status\":\"FAILED_PARTIAL\"");
+        }
+
+        @Test
+        @DisplayName("validateJsonFile – zła ekstensja – IllegalArgumentException")
+        void validateJsonFile_wrongExtension_throws() {
+            MultipartFile file = new MockMultipartFile("file", "customers.csv", "text/csv", "data".getBytes());
+            assertThatThrownBy(() -> service.validateJsonFile(file))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Dozwolone są tylko pliki JSON");
+        }
+
+        @Test
+        @DisplayName("validateJsonFile – pusty plik – IllegalArgumentException")
+        void validateJsonFile_emptyFile_throws() {
+            MultipartFile file = new MockMultipartFile("file", "customers.json",
+                    "application/json", new byte[0]);
+            assertThatThrownBy(() -> service.validateJsonFile(file))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Plik JSON jest wymagany");
+        }
+
+        @Test
+        @DisplayName("validateJsonFile – plik za duży (> 50 MB) – IllegalArgumentException")
+        void validateJsonFile_tooLarge_throws() {
+            MultipartFile bigFile = mock(MultipartFile.class);
+            when(bigFile.isEmpty()).thenReturn(false);
+            when(bigFile.getOriginalFilename()).thenReturn("customers.json");
+            when(bigFile.getSize()).thenReturn(51L * 1024 * 1024);
+
+            assertThatThrownBy(() -> service.validateJsonFile(bigFile))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("za duży");
+        }
+    }
+
+    // =========================================================================
     // getErrorReport
     // =========================================================================
 
@@ -1228,6 +1686,11 @@ class CustomerImportServiceTest {
 
     private MultipartFile csvFile(String content) {
         return new MockMultipartFile("file", "customers.csv", "text/csv",
+                content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private MultipartFile jsonFile(String content) {
+        return new MockMultipartFile("file", "customers.json", "application/json",
                 content.getBytes(StandardCharsets.UTF_8));
     }
 }

@@ -26,8 +26,9 @@ import java.util.UUID;
  * <p>Endpointy:
  * <ul>
  *   <li>POST /api/customers/import              – inicjuje import CSV, zwraca 202 + jobId</li>
- *   <li>GET  /api/customers/import/{jobId}      – polling statusu joba</li>
- *   <li>GET  /api/customers/import/{jobId}/errors – pobiera raport błędów jako CSV</li>
+ *   <li>POST /api/customers/import/json         – inicjuje import JSON, zwraca 202 + jobId</li>
+ *   <li>GET  /api/customers/import/{jobId}      – polling statusu joba (format-agnostyczny)</li>
+ *   <li>GET  /api/customers/import/{jobId}/errors – pobiera raport błędów jako CSV (format-agnostyczny)</li>
  * </ul>
  *
  * <p>Dostęp: SUPERVISOR i ADMIN.
@@ -109,6 +110,83 @@ public class CustomerImportController {
         UUID jobId = customerImportService.initiateImport(file, deduplicationMode, columnSeparator, quoteChar, columnMapping);
 
         log.debug("[CustomerImport] Import zainicjowany: jobId={}", jobId);
+
+        return ResponseEntity.accepted().body(Map.of("jobId", jobId.toString()));
+    }
+
+    // =========================================================================
+    // POST – inicjacja importu JSON
+    // =========================================================================
+
+    /**
+     * Inicjuje asynchroniczny import klientów z pliku JSON.
+     *
+     * <p>Plik jest walidowany synchronicznie (rozmiar, rozszerzenie),
+     * następnie przetwarzany w tle. Odpowiedź zawiera {@code jobId} do pollingu statusu –
+     * dokładnie ten sam mechanizm co import CSV (GET /{jobId}, GET /{jobId}/errors).
+     *
+     * <p>Format JSON – tablica obiektów camelCase, zgodna z polami
+     * {@code CreateCustomerRequest}/{@code CustomerResponse}:
+     * <pre>{@code
+     * [
+     *   {
+     *     "firstName": "Jan",
+     *     "lastName": "Kowalski",
+     *     "externalId": "CRM-123",
+     *     "phone": ["+48123456789", "+48987654321"],
+     *     "email": "jan.kowalski@example.com",
+     *     "customFields": { "vip": "true", "segment": "gold" },
+     *     "gdprConsent": { "consent_given": true, "marketing_consent": false }
+     *   }
+     * ]
+     * }</pre>
+     */
+    @PostMapping(value = "/json", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @Operation(
+        summary = "Importuj klientów z JSON",
+        description = """
+                Przyjmuje plik JSON (tablica obiektów klientów w formacie camelCase) i inicjuje
+                asynchroniczny import.
+
+                Zwraca jobId do pollingu statusu przez GET /api/customers/import/{jobId}.
+
+                Pola obiektu: firstName, lastName, externalId (opcjonalny, unikalny w tenancie),
+                phone (string lub tablica stringów – wielokrotne numery), email (string lub tablica
+                stringów), customFields (obiekt {nazwa: wartość}), gdprConsent (obiekt zagnieżdżony –
+                uwzględniane są tylko klucze consent_given i marketing_consent, boolean lub string
+                tak/nie/true/false/1/0/yes/no).
+
+                Deduplikacja:
+                - SKIP      – pomija wiersz gdy klient z tym samym phone/email już istnieje
+                - OVERWRITE – aktualizuje istniejącego klienta danymi z JSON
+
+                Limity: max 50 MB, tylko .json.
+                """,
+        responses = {
+            @ApiResponse(
+                responseCode = "202",
+                description = "Import zainicjowany – zwraca jobId do pollingu statusu",
+                content = @Content(schema = @Schema(example = "{\"jobId\": \"uuid\"}"))
+            ),
+            @ApiResponse(responseCode = "400", description = "Błąd walidacji pliku"),
+            @ApiResponse(responseCode = "401", description = "Brak uwierzytelnienia"),
+            @ApiResponse(responseCode = "403", description = "Brak uprawnień (wymaga ADMIN lub SUPERVISOR)")
+        }
+    )
+    public ResponseEntity<Map<String, String>> importCustomersJson(
+            @Parameter(description = "Plik JSON z klientami (max 50 MB)", required = true)
+            @RequestPart("file") MultipartFile file,
+
+            @Parameter(description = "Strategia deduplikacji: SKIP (domyślnie) lub OVERWRITE")
+            @RequestParam(name = "deduplication", defaultValue = "SKIP") DeduplicationMode deduplicationMode
+    ) {
+        log.info("[CustomerImport] POST /api/customers/import/json: fileName={}, fileSize={}B, mode={}",
+                file.getOriginalFilename(), file.getSize(), deduplicationMode);
+
+        UUID jobId = customerImportService.initiateJsonImport(file, deduplicationMode);
+
+        log.debug("[CustomerImport] Import JSON zainicjowany: jobId={}", jobId);
 
         return ResponseEntity.accepted().body(Map.of("jobId", jobId.toString()));
     }

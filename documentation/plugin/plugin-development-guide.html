@@ -451,6 +451,7 @@ ctx.logger().error(&quot;Nieoczekiwany błąd&quot;, exception);
     List&lt;String&gt;   emails,         // never null, może być pusta
     List&lt;String&gt;   phoneNumbers,   // E.164, never null, może być pusta
     Map&lt;String, Object&gt; customFields, // custom_fields z bazy (w tym plugins.&lt;pluginKey&gt;)
+    String         externalId,     // zewnętrzny identyfikator z CRM, null jeśli nieustawiony
     Instant        createdAt
 ) {}
 </code></pre>
@@ -1141,6 +1142,10 @@ CREATE UNIQUE INDEX uq_call_results_contact_ended
 <tr>
 <td><code>{customerLastName}</code></td>
 <td>Nazwisko klienta</td>
+</tr>
+<tr>
+<td><code>{customerExternalId}</code></td>
+<td>Zewnętrzny identyfikator klienta z systemu CRM (przykład: <code>CRM-123</code>)</td>
 </tr>
 </tbody></table>
 <p><strong>Wymagana konfiguracja:</strong></p>

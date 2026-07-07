@@ -1,7 +1,7 @@
 {
   "pluginKey": "crm-url-launcher",
   "displayName": "CRM URL Launcher",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "vendor": "Acme Sp. z o.o.",
   "vendorContact": "support@acme.example",
   "sdkVersion": "1.x",
@@ -16,5 +16,5 @@
       "sandbox": "allow-scripts allow-forms"
     }
   ],
-  "checksumSha256": "ba85d381bb17b5dcbe7d949e38aac33614086288ecdd77f76e2e52f84524b421"
+  "checksumSha256": "f5cbf1cc2744e999d3c44a78fc511c301f796541df2ef5ce02fdb502d34d17ec"
 }

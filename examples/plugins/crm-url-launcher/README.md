@@ -53,7 +53,7 @@ narzędzie replikujące dokładnie ten algorytm:
 
 ```bash
 java -cp target/classes com.acme.contactcenter.plugin.crmurlauncher.tooling.ChecksumTool \
-    target/crm-url-launcher-plugin-1.0.0.jar
+    target/crm-url-launcher-plugin-1.1.0.jar
 ```
 
 Wypisze 64-znakowy hex string.
@@ -68,14 +68,14 @@ mvn -q package
 ```
 
 Ponieważ checksum jest liczony z wyłączeniem wpisu manifestu, zmiana TYLKO tego pola nie
-zmienia hashu innych wpisów. Wynikowy plik: `target/crm-url-launcher-plugin-1.0.0.jar` jest
+zmienia hashu innych wpisów. Wynikowy plik: `target/crm-url-launcher-plugin-1.1.0.jar` jest
 gotowy do uploadu.
 
 ## Krok 4 — wgraj i zainstaluj w panelu supervisora
 
 1. Zaloguj się jako `SUPERVISOR`/`ADMIN`, przejdź do **Ustawienia → Pluginy**
    (`/supervisor/settings/plugins`).
-2. Wgraj `crm-url-launcher-plugin-1.0.0.jar` (drag&drop lub wybór pliku).
+2. Wgraj `crm-url-launcher-plugin-1.1.0.jar` (drag&drop lub wybór pliku).
 3. Po statusie `VALIDATED` kliknij **Zainstaluj**, zatwierdź uprawnienia
    (`customer:read`, `contact:read`).
 4. Skonfiguruj klucze `crmUrlTemplate` i opcjonalnie `agentParams` — patrz sekcja poniżej.
@@ -139,6 +139,7 @@ Następujące placeholdery są automatycznie podstawiane z danych kontaktu/klien
 | `{customerEmail}`    | Pierwszy adres e-mail klienta                  | `jan%40example.com`                      |
 | `{customerFirstName}`| Imię klienta                                   | `Jan`                                    |
 | `{customerLastName}` | Nazwisko klienta                               | `Kowalski`                               |
+| `{customerExternalId}` | Zewnętrzny identyfikator klienta z systemu CRM | `CRM-123`                                 |
 
 > **Uwaga:** wartości są URL-enkodowane (RFC 3986, spacja → `%20`) — telefon `+48501234567`
 > trafi do URL jako `%2B48501234567`. Jeśli Twój CRM nie obsługuje URL-enkodowania, użyj
